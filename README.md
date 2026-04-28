@@ -138,6 +138,9 @@ Open:
 http://127.0.0.1:4300
 ```
 
+Port `4300` is the web app. Port `4301` is API only, so open `/health`,
+`/v1/runs`, or `/api/v1/runs` there rather than the UI.
+
 The web app proxies `/api/*` to the local API at `http://127.0.0.1:4301`.
 
 ## Runner
