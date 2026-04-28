@@ -46,8 +46,8 @@ export class OutboxDb {
     `);
   }
 
-  enqueue(event: { event_id: string; [key: string]: unknown }): void {
-    const now = new Date().toISOString();
+  enqueue(event: { event_id: string; [key: string]: unknown }, now = new Date()): void {
+    const timestamp = now.toISOString();
 
     this.db
       .prepare(
@@ -59,8 +59,8 @@ export class OutboxDb {
       .run({
         eventId: event.event_id,
         payload: JSON.stringify(event),
-        nextAttemptAt: now,
-        createdAt: now,
+        nextAttemptAt: timestamp,
+        createdAt: timestamp,
       });
   }
 

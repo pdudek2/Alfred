@@ -19,19 +19,22 @@ function createOutbox() {
 }
 
 function enqueueValidEvent(outbox: OutboxDb, eventId = "123456789012") {
-  outbox.enqueue({
-    event_id: eventId,
-    workspace_id: workspaceId,
-    device_id: deviceId,
-    project_key: "Alfred",
-    source_id: "codex-cli",
-    source_run_id: "run-1",
-    source_event_id: eventId,
-    type: "run.started",
-    privacy_mode: "standard",
-    occurred_at: "2026-04-28T10:00:00.000Z",
-    payload: {},
-  });
+  outbox.enqueue(
+    {
+      event_id: eventId,
+      workspace_id: workspaceId,
+      device_id: deviceId,
+      project_key: "Alfred",
+      source_id: "codex-cli",
+      source_run_id: "run-1",
+      source_event_id: eventId,
+      type: "run.started",
+      privacy_mode: "standard",
+      occurred_at: "2026-04-28T10:00:00.000Z",
+      payload: {},
+    },
+    new Date("2026-04-28T10:00:00.000Z"),
+  );
 }
 
 describe("flushOutboxOnce", () => {
