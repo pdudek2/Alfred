@@ -1,0 +1,24 @@
+{
+  "name": "alfred-refoundation",
+  "private": true,
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "drizzle-kit": "latest",
+    "turbo": "latest",
+    "typescript": "latest",
+    "vitest": "latest",
+    "tsx": "latest"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
+  }
+}

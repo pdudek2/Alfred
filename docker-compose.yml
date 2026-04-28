@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: alfred-refoundation-postgres
+    environment:
+      POSTGRES_USER: alfred
+      POSTGRES_PASSWORD: alfred
+      POSTGRES_DB: alfred
+    ports:
+      - "54329:5432"
+    volumes:
+      - alfred-refoundation-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alfred -d alfred"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  alfred-refoundation-postgres:
