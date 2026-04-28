@@ -118,6 +118,12 @@ Query runs:
 curl -sS "http://127.0.0.1:4301/v1/runs?limit=5"
 ```
 
+The API also accepts the web-style prefix:
+
+```bash
+curl -sS "http://127.0.0.1:4301/api/v1/runs?limit=5"
+```
+
 ## Web
 
 Start the observatory:

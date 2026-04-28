@@ -8,5 +8,7 @@ export function createApp() {
   app.route("/health", healthRoutes);
   app.route("/v1/ingest", createIngestRoutes());
   app.route("/v1/runs", createRunsRoutes());
+  app.route("/api/v1/ingest", createIngestRoutes());
+  app.route("/api/v1/runs", createRunsRoutes());
   return app;
 }
