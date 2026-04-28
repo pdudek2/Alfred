@@ -15,5 +15,10 @@
     "typescript": "latest",
     "vitest": "latest",
     "tsx": "latest"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
   }
 }
