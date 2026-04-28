@@ -1,8 +1,10 @@
 import { createDb, type Database } from "@alfred/db";
+import { AgentSource, RunStatus } from "@alfred/schema";
 import { Hono } from "hono";
 
 import {
   createRunsQueryStore,
+  type RunsListFilters,
   type RunsQueryStore,
 } from "../services/runs-query-service";
 
@@ -15,7 +17,39 @@ export function createRunsRoutes(db: Database | RunsQueryStore = createDb()) {
 
   runsRoutes.get("/", async (c) => {
     const limit = parseLimit(c.req.query("limit"));
-    const items = await store.listRuns(limit);
+    const filters: RunsListFilters = {};
+
+    const sinceRaw = c.req.query("since");
+    if (sinceRaw !== undefined) {
+      const parsed = new Date(sinceRaw);
+      if (Number.isNaN(parsed.getTime())) {
+        return c.json({ error: "invalid_since" }, 400);
+      }
+      filters.since = parsed;
+    }
+
+    const source = c.req.query("source");
+    if (source) {
+      const parsed = AgentSource.safeParse(source);
+      if (!parsed.success) {
+        return c.json({ error: "invalid_source" }, 400);
+      }
+      filters.source = parsed.data;
+    }
+
+    const status = c.req.query("status");
+    if (status) {
+      const parsed = RunStatus.safeParse(status);
+      if (!parsed.success) {
+        return c.json({ error: "invalid_status" }, 400);
+      }
+      filters.status = parsed.data;
+    }
+
+    const project = c.req.query("project");
+    if (project) filters.projectKey = project;
+
+    const items = await store.listRuns(limit, filters);
     return c.json({ items });
   });
 

@@ -13,6 +13,7 @@ export type CodexAdapterConfig = {
   workspaceId: string;
   deviceId: string;
   privacyMode: PrivacyMode;
+  codexSince?: string;
 };
 
 export function createCodexAdapter(config: CodexAdapterConfig): SourceAdapter {
@@ -29,12 +30,13 @@ export async function collectCodexEvents(config: CodexAdapterConfig): Promise<In
     onlyFiles: true,
   });
   const events: IngestEvent[] = [];
+  const codexSinceMs = config.codexSince === undefined ? undefined : Date.parse(config.codexSince);
 
   for (const file of files.sort()) {
     const records = await readJsonlFile(file);
     const context = codexSessionContext(records, file);
     records.forEach((record, index) => {
-      const event = codexRecordToEvent(record, index, config, context);
+      const event = codexRecordToEvent(record, index, config, context, codexSinceMs);
       if (event) {
         events.push(event);
       }
@@ -49,12 +51,15 @@ function codexRecordToEvent(
   index: number,
   config: CodexAdapterConfig,
   context: CodexSessionContext,
+  codexSinceMs?: number,
 ): IngestEvent | null {
   if (!isRecord(record)) return null;
 
   const type = stringValue(record.type);
   const occurredAt = stringValue(record.timestamp);
-  if (!type || !occurredAt || Number.isNaN(Date.parse(occurredAt))) return null;
+  const occurredAtMs = occurredAt === undefined ? Number.NaN : Date.parse(occurredAt);
+  if (!type || !occurredAt || Number.isNaN(occurredAtMs)) return null;
+  if (codexSinceMs !== undefined && occurredAtMs < codexSinceMs) return null;
 
   if (isRecord(record.payload)) {
     return codexEnvelopeToEvent(record.payload, type, occurredAt, index, config, context);

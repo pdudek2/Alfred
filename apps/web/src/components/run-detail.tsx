@@ -2,6 +2,7 @@ import { Clock3 } from "lucide-react";
 
 import type { RunDetail, RunListItem } from "../lib/api-client";
 import { formatDateTime, formatDuration } from "../lib/time";
+import { EventPayload } from "./event-payload";
 import { StatusPill } from "./status-pill";
 
 type RunDetailProps = {
@@ -55,7 +56,7 @@ export function RunDetailPanel({ run, loading }: RunDetailProps) {
               <div>
                 <span className="event-type">{event.type}</span>
                 <span className="event-time">{formatDateTime(event.occurred_at)}</span>
-                <pre>{JSON.stringify(event.payload, null, 2)}</pre>
+                <EventPayload payload={event.payload} />
               </div>
             </li>
           ))}

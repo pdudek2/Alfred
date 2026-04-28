@@ -39,4 +39,26 @@ describe("runner env", () => {
 
     expect(config.apiUrl).toBe("http://127.0.0.1:4301");
   });
+
+  it("loads optional Codex since timestamp", () => {
+    const env = parseRunnerEnv({
+      ALFRED_ALLOW_DEV_CONFIG: "1",
+      ALFRED_CODEX_SINCE: "2026-04-28T10:00:02.000Z",
+      HOME: "/tmp/home",
+    });
+    const config = loadRunnerConfig(env);
+
+    expect(env.ALFRED_CODEX_SINCE).toBe("2026-04-28T10:00:02.000Z");
+    expect(config.codexSince).toBe("2026-04-28T10:00:02.000Z");
+  });
+
+  it("rejects invalid Codex since timestamp", () => {
+    expect(() =>
+      parseRunnerEnv({
+        ALFRED_ALLOW_DEV_CONFIG: "1",
+        ALFRED_CODEX_SINCE: "not-a-date",
+        HOME: "/tmp/home",
+      }),
+    ).toThrow(/Invalid ALFRED_CODEX_SINCE/);
+  });
 });

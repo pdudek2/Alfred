@@ -146,4 +146,55 @@ describe("flushOutboxOnce", () => {
     const parsed = IngestBatchSchema.parse(body);
     expect(parsed.events[0]?.payload).toMatchObject({ api_key: "[redacted]", summary: "started" });
   });
+
+  it("stores the newest collected event timestamp as the source cursor", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "alfred-runner-cursor-"));
+    const outboxPath = join(dir, "outbox.sqlite");
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
+    const firstEvent: IngestEvent = {
+      event_id: "123456789012",
+      workspace_id: workspaceId,
+      device_id: deviceId,
+      project_key: "Alfred",
+      source_id: "codex-cli",
+      source_run_id: "run-1",
+      source_event_id: "event-1",
+      type: "run.started",
+      status: "running",
+      privacy_mode: "standard",
+      occurred_at: "2026-04-28T10:00:00.000Z",
+      payload: {},
+    };
+    const secondEvent: IngestEvent = {
+      ...firstEvent,
+      event_id: "123456789013",
+      source_event_id: "event-2",
+      type: "tool.completed",
+      status: "completed",
+      occurred_at: "2026-04-28T10:05:00.000Z",
+    };
+
+    await runRunnerOnce(
+      {
+        apiUrl: "http://127.0.0.1:4301",
+        deviceToken: "token-1",
+        workspaceId,
+        deviceId,
+        privacyMode: "standard",
+        outboxPath,
+        codexHome: join(dir, ".codex"),
+      },
+      {
+        fetchImpl,
+        adapter: {
+          sourceId: "codex-cli",
+          collect: async () => [secondEvent, firstEvent],
+        },
+      },
+    );
+
+    const outbox = new OutboxDb(outboxPath);
+    expect(outbox.getSourceCursor("codex-cli")).toBe("2026-04-28T10:05:00.000Z");
+    outbox.close();
+  });
 });

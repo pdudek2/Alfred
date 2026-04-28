@@ -32,8 +32,20 @@ type RunsResponse = {
   items: RunListItem[];
 };
 
+export type RunFilters = {
+  source?: string;
+  status?: string;
+  project?: string;
+  since?: string;
+};
+
+export type ListRunsOptions = {
+  limit?: number;
+  filters?: RunFilters;
+};
+
 export type ApiClient = {
-  listRuns(limit?: number): Promise<RunListItem[]>;
+  listRuns(options?: number | ListRunsOptions): Promise<RunListItem[]>;
   getRun(runId: string): Promise<RunDetail>;
 };
 
@@ -44,8 +56,8 @@ export function createApiClient(fetchImpl?: typeof fetch): ApiClient {
   };
 
   return {
-    listRuns: async (limit = 25) => {
-      const response = await request(`/api/v1/runs?limit=${limit}`);
+    listRuns: async (options = 25) => {
+      const response = await request(runListPath(options));
       if (!response.ok) {
         throw new Error(`Failed to load runs: ${response.status}`);
       }
@@ -63,4 +75,34 @@ export function createApiClient(fetchImpl?: typeof fetch): ApiClient {
       return (await response.json()) as RunDetail;
     },
   };
+}
+
+function runListPath(options: number | ListRunsOptions): string {
+  const normalized = normalizeListRunsOptions(options);
+  const params = new URLSearchParams({ limit: String(normalized.limit) });
+
+  appendFilter(params, "source", normalized.filters.source);
+  appendFilter(params, "status", normalized.filters.status);
+  appendFilter(params, "project", normalized.filters.project);
+  appendFilter(params, "since", normalized.filters.since);
+
+  return `/api/v1/runs?${params.toString()}`;
+}
+
+function normalizeListRunsOptions(options: number | ListRunsOptions): Required<ListRunsOptions> {
+  if (typeof options === "number") {
+    return { limit: options, filters: {} };
+  }
+
+  return {
+    limit: options.limit ?? 25,
+    filters: options.filters ?? {},
+  };
+}
+
+function appendFilter(params: URLSearchParams, key: keyof RunFilters, value: string | undefined) {
+  const trimmed = value?.trim();
+  if (trimmed) {
+    params.set(key, trimmed);
+  }
 }

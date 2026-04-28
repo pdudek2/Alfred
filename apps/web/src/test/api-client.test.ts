@@ -15,6 +15,25 @@ describe("api client", () => {
     expect(runs).toEqual([{ id: "run-1" }]);
   });
 
+  it("serializes selected run filters into the list query string", async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ items: [] }), { status: 200 })) as unknown as
+      typeof fetch;
+
+    await createApiClient(fetchImpl).listRuns({
+      limit: 10,
+      filters: {
+        source: "codex-cli",
+        status: "running",
+        project: "Alfred Labs",
+        since: "2026-04-28",
+      },
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "/api/v1/runs?limit=10&source=codex-cli&status=running&project=Alfred+Labs&since=2026-04-28",
+    );
+  });
+
   it("throws on failed run list request", async () => {
     const fetchImpl = vi.fn(async () => new Response("nope", { status: 500 })) as unknown as typeof fetch;
 

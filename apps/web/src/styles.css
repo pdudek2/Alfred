@@ -43,6 +43,7 @@ button {
   align-items: center;
   border-bottom: 1px solid var(--line);
   display: flex;
+  gap: 16px;
   justify-content: space-between;
   padding: 4px 0 16px;
 }
@@ -78,8 +79,59 @@ button {
   width: 36px;
 }
 
-.icon-button:hover {
+.icon-button:hover:not(:disabled),
+.text-button:hover {
   border-color: var(--steel);
+}
+
+.icon-button:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.top-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.sync-state {
+  align-items: center;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.live-dot {
+  background: var(--faint);
+  border-radius: 999px;
+  display: inline-flex;
+  height: 7px;
+  width: 7px;
+}
+
+.live-dot-on {
+  background: var(--green);
+  box-shadow: 0 0 0 3px rgba(121, 196, 122, 0.12);
+}
+
+.text-button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  gap: 6px;
+  height: 36px;
+  padding: 0 10px;
+  white-space: nowrap;
 }
 
 .error-banner {
@@ -128,6 +180,100 @@ button {
 .run-list {
   display: flex;
   flex-direction: column;
+}
+
+.filter-bar {
+  align-items: end;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px 12px;
+}
+
+.filter-title {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 12px;
+  gap: 6px;
+  height: 31px;
+  line-height: 1;
+  padding-right: 2px;
+  text-transform: uppercase;
+}
+
+.filter-field {
+  display: grid;
+  flex: 1 1 104px;
+  gap: 4px;
+  min-width: 96px;
+}
+
+.filter-field span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.filter-field input,
+.filter-field select {
+  background: #131411;
+  border: 1px solid var(--line);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  height: 31px;
+  min-width: 0;
+  padding: 0 8px;
+}
+
+.filter-field input:focus,
+.filter-field select:focus,
+.filter-action:focus,
+.empty-action:focus,
+.text-button:focus,
+.icon-button:focus,
+.event-payload-summary:focus {
+  border-color: var(--steel);
+  outline: 1px solid rgba(127, 167, 184, 0.45);
+  outline-offset: 1px;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 6px;
+  height: 31px;
+}
+
+.filter-action,
+.empty-action {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  gap: 5px;
+  height: 31px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.filter-action-primary,
+.empty-action {
+  background: var(--panel-strong);
+}
+
+.filter-action:hover:not(:disabled),
+.empty-action:hover {
+  border-color: var(--steel);
+}
+
+.filter-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .run-row {
@@ -260,7 +406,36 @@ button {
   font-weight: 700;
 }
 
-pre {
+.event-payload {
+  margin-top: 10px;
+}
+
+.event-payload-summary {
+  align-items: center;
+  background: #0c0d0b;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 12px;
+  gap: 8px;
+  min-height: 34px;
+  padding: 8px 10px;
+}
+
+.event-payload-summary:hover {
+  border-color: var(--steel);
+}
+
+.event-payload-summary-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+pre,
+.event-payload-body {
   background: #0c0d0b;
   border: 1px solid var(--line);
   color: var(--muted);
@@ -275,7 +450,29 @@ pre {
   padding: 18px;
 }
 
+.empty-state p {
+  margin: 0 0 12px;
+}
+
 @media (max-width: 840px) {
+  .top-bar,
+  .top-actions {
+    align-items: stretch;
+  }
+
+  .top-bar {
+    flex-direction: column;
+  }
+
+  .top-actions {
+    justify-content: space-between;
+  }
+
+  .sync-state {
+    flex: 1;
+    min-width: 0;
+  }
+
   .workspace-grid {
     grid-template-columns: 1fr;
   }
@@ -287,5 +484,14 @@ pre {
 
   .run-facts {
     grid-template-columns: 1fr;
+  }
+
+  .filter-bar {
+    align-items: stretch;
+  }
+
+  .filter-title,
+  .filter-actions {
+    width: 100%;
   }
 }

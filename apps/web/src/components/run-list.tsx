@@ -5,12 +5,23 @@ import { StatusPill } from "./status-pill";
 type RunListProps = {
   runs: RunListItem[];
   selectedRunId: string | null;
+  filtered: boolean;
+  onClearFilters(): void;
   onSelectRun(runId: string): void;
 };
 
-export function RunList({ runs, selectedRunId, onSelectRun }: RunListProps) {
+export function RunList({ runs, selectedRunId, filtered, onClearFilters, onSelectRun }: RunListProps) {
   if (runs.length === 0) {
-    return <div className="empty-state">No runs yet.</div>;
+    return (
+      <div className="empty-state">
+        <p>{filtered ? "No runs match current filters." : "No runs yet."}</p>
+        {filtered ? (
+          <button className="empty-action" onClick={onClearFilters} type="button">
+            Show all runs
+          </button>
+        ) : null}
+      </div>
+    );
   }
 
   return (
