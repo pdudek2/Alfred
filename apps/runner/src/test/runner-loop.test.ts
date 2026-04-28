@@ -3,12 +3,15 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { describe, expect, it, vi } from "vitest";
+import { IngestBatchSchema, type IngestEvent } from "@alfred/schema";
 
+import { runRunnerOnce } from "../index.js";
 import { OutboxDb } from "../outbox/outbox-db.js";
 import { flushOutboxOnce } from "../outbox/outbox-worker.js";
 
 const workspaceId = "00000000-0000-4000-8000-000000000001";
 const deviceId = "00000000-0000-4000-8000-000000000101";
+type FetchMock = { mock: { calls: Array<[string, RequestInit]> } };
 
 function createOutbox() {
   const dir = mkdtempSync(join(tmpdir(), "alfred-outbox-worker-"));
@@ -50,6 +53,9 @@ describe("flushOutboxOnce", () => {
 
     expect(outbox.listReady(10)).toHaveLength(0);
     expect(fetchImpl).toHaveBeenCalledOnce();
+    const request = (fetchImpl as unknown as FetchMock).mock.calls[0]?.[1];
+    const body = typeof request?.body === "string" ? JSON.parse(request.body) : null;
+    expect(IngestBatchSchema.safeParse(body).success).toBe(true);
     outbox.close();
   });
 
@@ -91,5 +97,50 @@ describe("flushOutboxOnce", () => {
 
     expect(fetchImpl).not.toHaveBeenCalled();
     outbox.close();
+  });
+
+  it("collects adapter events, redacts payload, and flushes a valid batch", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "alfred-runner-main-"));
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
+    const event: IngestEvent = {
+      event_id: "123456789012",
+      workspace_id: workspaceId,
+      device_id: deviceId,
+      project_key: "Alfred",
+      source_id: "codex-cli",
+      source_run_id: "run-1",
+      source_event_id: "event-1",
+      type: "run.started",
+      status: "running",
+      privacy_mode: "standard",
+      occurred_at: "2026-04-28T10:00:00.000Z",
+      payload: { api_key: "secret", summary: "started" },
+    };
+
+    await expect(
+      runRunnerOnce(
+        {
+          apiUrl: "http://127.0.0.1:4301",
+          deviceToken: "token-1",
+          workspaceId,
+          deviceId,
+          privacyMode: "standard",
+          outboxPath: join(dir, "outbox.sqlite"),
+          codexHome: join(dir, ".codex"),
+        },
+        {
+          fetchImpl,
+          adapter: {
+            sourceId: "codex-cli",
+            collect: async () => [event],
+          },
+        },
+      ),
+    ).resolves.toEqual({ collectedEvents: 1, flushedEvents: 1 });
+
+    const request = (fetchImpl as unknown as FetchMock).mock.calls[0]?.[1];
+    const body = typeof request?.body === "string" ? JSON.parse(request.body) : null;
+    const parsed = IngestBatchSchema.parse(body);
+    expect(parsed.events[0]?.payload).toMatchObject({ api_key: "[redacted]", summary: "started" });
   });
 });

@@ -1,8 +1,8 @@
 # Alfred Refoundation Status
 
 Data: 2026-04-28
-Branch: `refoundation-mvp0`
-Stan: MVP0 cloud/API foundation gotowe, runner pipeline zaplanowany
+Branch: `runner-pipeline`
+Stan: MVP0 cloud/API foundation gotowe, runner pipeline dla Codexa zaimplementowany
 
 ## Gdzie jestesmy
 
@@ -15,7 +15,7 @@ Przeszlismy z pomyslu "macOS native Tauri/Rust app" na kierunek:
 - Postgres jako canonical cloud DB,
 - lokalny SQLite tylko jako outbox runnera.
 
-Obecny Alfred Lab w `app/` i `hooks/` zostaje prototypem/laboratorium domenowym. Nowy produkt powstaje w `refoundation/`.
+Repo `/Users/patryk/Desktop/Alfred` jest juz czystym rootem refoundation. Stary prototyp jest zachowany poza repo jako `/Users/patryk/Desktop/Alfred_OLD`.
 
 ## Zrobione
 
@@ -66,15 +66,31 @@ Zaimplementowany pierwszy pakiet Tasks 1-5 z planu MVP0:
    - run timestamp handling dla `run.started` / `run.completed` / `run.failed`,
    - ograniczony dev token fallback tylko dla testow albo jawnego opt-in.
 
-## Aktualne commity refoundation
+### Runner pipeline
 
-Ostatni commit kodowy:
+Zaimplementowane na branchu `runner-pipeline`:
+
+- `@alfred/runner` package + config,
+- `@alfred/adapters` z deterministyczna normalizacja eventow,
+- privacy redactor,
+- SQLite outbox,
+- ingest client,
+- flush worker,
+- defensywny Codex JSONL adapter,
+- jednorazowy runner loop: collect -> redact -> enqueue -> flush.
+- realny smoke na `~/.codex` bez drukowania payloadow: 117 plikow JSONL, 32618 eventow rozpoznanych.
+
+## Aktualne commity
+
+Najnowsze commity:
 
 ```text
-8177e4e chore(api): harden ingest edge cases
+0916609 feat(runner): add privacy-safe outbox sync
+3d108de feat(runner): add runner foundation
+3d6e598 first commit
 ```
 
-Najwazniejsze commity tej fazy:
+Wazne commity z poprzedniego prototypowego etapu w `Alfred_OLD`:
 
 ```text
 8177e4e chore(api): harden ingest edge cases
@@ -87,7 +103,7 @@ a2c5d6c chore: scaffold Alfred refoundation workspace
 
 ## Walidacja
 
-Ostatnia pelna walidacja w `refoundation/`:
+Ostatnia pelna walidacja w root repo:
 
 ```bash
 pnpm test
@@ -97,13 +113,9 @@ pnpm build
 
 Wynik:
 
-- `pnpm test` - PASS
-  - schema: 7 tests,
-  - api: 9 tests.
-- `pnpm typecheck` - PASS
-  - 3 packages.
-- `pnpm build` - PASS
-  - 3 packages.
+- `pnpm test` - PASS.
+- `pnpm typecheck` - PASS.
+- `pnpm build` - PASS.
 
 ## Znane ryzyko
 
@@ -123,42 +135,21 @@ pnpm exec drizzle-kit migrate --config apps/api/drizzle.config.ts
 
 Potem warto uruchomic live ingest smoke na prawdziwym Postgresie.
 
-## Aktualny brudny worktree
-
-Na branchu sa nadal niescommitowane zmiany poza refoundation:
-
-```text
-app/src-tauri/src/anomaly.rs
-app/src-tauri/src/commands.rs
-app/src-tauri/src/db.rs
-app/src-tauri/src/notif_callback.rs
-app/src-tauri/src/store.rs
-app/src/lib/stores/sessions.ts
-app/src/main/MemoryTab.svelte
-hooks/_common.py
-hooks/__pycache__/
-```
-
-Nie dotykalismy ich w refoundation. Traktowac jako osobny kontekst/starszy stan.
-
 ## Nastepny krok
 
-Nastepna faza to `Runner Pipeline`:
+Dokonczyc `Runner Pipeline`:
 
-1. `@alfred/runner` package + env/config.
-2. SQLite outbox.
-3. Ingest client + flush worker.
-4. Privacy redactor przed zapisem do outboxa.
-5. `@alfred/adapters` z deterministycznym event ID.
-6. Codex CLI adapter.
-7. Claude hook adapter.
-8. Runner main loop.
-9. Runner smoke validation.
+1. Uruchomic API + Postgres.
+2. Wyslac live batch runnera do `/v1/ingest/batches`.
+3. Dodac Claude hook adapter jako drugie zrodlo.
+4. Zaczac query API dla obserwatorium:
+   - lista runs,
+   - run detail,
+   - timeline events,
+   - latest agent activity.
 
 Rekomendowana egzekucja:
 
 ```text
-subagent-driven, Task 1-4 najpierw
+inline, bo kodbase jest nadal maly
 ```
-
-Powod: zanim wpuscimy Codex/Claude, musimy miec outbox, sync i redakcje danych.

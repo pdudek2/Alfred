@@ -1,0 +1,4 @@
+{"timestamp":"2026-04-28T10:00:00.000Z","type":"session.start","id":"codex-run-1","cwd":"/Users/patryk/Desktop/Alfred"}
+{"timestamp":"2026-04-28T10:00:01.000Z","type":"tool.call","id":"tool-1","session_id":"codex-run-1","tool":"exec_command"}
+{"timestamp":"2026-04-28T10:00:02.000Z","type":"tool.result","id":"tool-1-result","session_id":"codex-run-1","tool":"exec_command","status":"completed"}
+{"timestamp":"2026-04-28T10:00:03.000Z","type":"session.end","id":"codex-run-1","status":"completed"}
