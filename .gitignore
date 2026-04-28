@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build/cache outputs
+dist/
+.turbo/
+coverage/
+
+# Local environment
+.env
+.env.local
+
+# Local runner state
+.alfred-runner/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Logs
+*.log
+
+# macOS / IDE
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
