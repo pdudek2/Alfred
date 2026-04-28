@@ -9,7 +9,9 @@ describe("runner env", () => {
 
     expect(env.RUNNER_API_URL).toBe("http://127.0.0.1:4301");
     expect(env.RUNNER_DEVICE_TOKEN).toBe("dev-device-token");
+    expect(env.ALFRED_SOURCES).toEqual(["codex"]);
     expect(env.ALFRED_CODEX_HOME).toBe("/tmp/home/.codex");
+    expect(env.ALFRED_CLAUDE_HOME).toBe("/tmp/home/.claude");
   });
 
   it("requires credentials outside dev opt-in", () => {
@@ -60,5 +62,59 @@ describe("runner env", () => {
         HOME: "/tmp/home",
       }),
     ).toThrow(/Invalid ALFRED_CODEX_SINCE/);
+  });
+
+  it("parses runner sources", () => {
+    const env = parseRunnerEnv({
+      ALFRED_ALLOW_DEV_CONFIG: "1",
+      ALFRED_SOURCES: " codex, claude ",
+      HOME: "/tmp/home",
+    });
+    const config = loadRunnerConfig(env);
+
+    expect(env.ALFRED_SOURCES).toEqual(["codex", "claude"]);
+    expect(config.runnerSources).toEqual(["codex", "claude"]);
+  });
+
+  it("rejects empty runner sources", () => {
+    expect(() =>
+      parseRunnerEnv({
+        ALFRED_ALLOW_DEV_CONFIG: "1",
+        ALFRED_SOURCES: "codex, , claude",
+        HOME: "/tmp/home",
+      }),
+    ).toThrow(/Invalid ALFRED_SOURCES/);
+  });
+
+  it("rejects unknown runner sources", () => {
+    expect(() =>
+      parseRunnerEnv({
+        ALFRED_ALLOW_DEV_CONFIG: "1",
+        ALFRED_SOURCES: "codex, cursor",
+        HOME: "/tmp/home",
+      }),
+    ).toThrow(/Invalid ALFRED_SOURCES/);
+  });
+
+  it("loads optional Claude since timestamp", () => {
+    const env = parseRunnerEnv({
+      ALFRED_ALLOW_DEV_CONFIG: "1",
+      ALFRED_CLAUDE_SINCE: "2026-04-28T10:00:02.000Z",
+      HOME: "/tmp/home",
+    });
+    const config = loadRunnerConfig(env);
+
+    expect(env.ALFRED_CLAUDE_SINCE).toBe("2026-04-28T10:00:02.000Z");
+    expect(config.claudeSince).toBe("2026-04-28T10:00:02.000Z");
+  });
+
+  it("rejects invalid Claude since timestamp", () => {
+    expect(() =>
+      parseRunnerEnv({
+        ALFRED_ALLOW_DEV_CONFIG: "1",
+        ALFRED_CLAUDE_SINCE: "not-a-date",
+        HOME: "/tmp/home",
+      }),
+    ).toThrow(/Invalid ALFRED_CLAUDE_SINCE/);
   });
 });
