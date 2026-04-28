@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { createRunsRoutes } from "../routes/runs";
-import type { RunDetail, RunListItem, RunsQueryStore } from "../services/runs-query-service";
+import type {
+  RunDetail,
+  RunListItem,
+  RunsListFilters,
+  RunsQueryStore,
+} from "../services/runs-query-service";
 
 const baseRun: RunListItem = {
   id: "run-1",
@@ -19,8 +24,12 @@ const baseRun: RunListItem = {
   created_at: "2026-04-28T10:00:00.000Z",
 };
 
-function createStore(): RunsQueryStore & { observedLimits: number[] } {
+function createStore(): RunsQueryStore & {
+  observedLimits: number[];
+  observedFilters: RunsListFilters[];
+} {
   const observedLimits: number[] = [];
+  const observedFilters: RunsListFilters[] = [];
   const runDetail: RunDetail = {
     ...baseRun,
     events: [
@@ -47,8 +56,10 @@ function createStore(): RunsQueryStore & { observedLimits: number[] } {
 
   return {
     observedLimits,
-    listRuns: async (limit) => {
+    observedFilters,
+    listRuns: async (limit, filters = {}) => {
       observedLimits.push(limit);
+      observedFilters.push(filters);
       return [baseRun].slice(0, limit);
     },
     getRun: async (runId) => (runId === baseRun.id ? runDetail : null),
@@ -75,6 +86,67 @@ describe("runs routes", () => {
 
     expect(response.status).toBe(200);
     expect(store.observedLimits).toEqual([100]);
+  });
+
+  it("passes optional filters to the store", async () => {
+    const store = createStore();
+    const app = createRunsRoutes(store);
+
+    const response = await app.request(
+      "/?since=2026-04-28T00:00:00.000Z&source=codex-cli&status=running&project=Alfred",
+    );
+
+    expect(response.status).toBe(200);
+    expect(store.observedFilters).toEqual([
+      {
+        since: new Date("2026-04-28T00:00:00.000Z"),
+        source: "codex-cli",
+        status: "running",
+        projectKey: "Alfred",
+      },
+    ]);
+  });
+
+  it("rejects an invalid since value", async () => {
+    const store = createStore();
+    const app = createRunsRoutes(store);
+
+    const response = await app.request("/?since=not-a-date");
+
+    expect(response.status).toBe(400);
+    expect(store.observedFilters).toEqual([]);
+  });
+
+  it("rejects an invalid source value", async () => {
+    const store = createStore();
+    const app = createRunsRoutes(store);
+
+    const response = await app.request("/?source=nope");
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "invalid_source" });
+    expect(store.observedFilters).toEqual([]);
+  });
+
+  it("rejects an invalid status value", async () => {
+    const store = createStore();
+    const app = createRunsRoutes(store);
+
+    const response = await app.request("/?status=nope");
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "invalid_status" });
+    expect(store.observedFilters).toEqual([]);
+  });
+
+  it("omits filters when no query params are provided", async () => {
+    const store = createStore();
+    const app = createRunsRoutes(store);
+
+    const response = await app.request("/");
+
+    expect(response.status).toBe(200);
+    expect(store.observedFilters).toEqual([{}]);
   });
 
   it("returns run detail with timeline events", async () => {

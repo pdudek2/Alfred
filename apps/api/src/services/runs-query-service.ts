@@ -1,10 +1,18 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, type SQL } from "drizzle-orm";
+import type { AgentSource, RunStatus } from "@alfred/schema";
 import {
   events,
   projects,
   runs,
   type Database,
 } from "@alfred/db";
+
+export type RunsListFilters = {
+  since?: Date;
+  source?: AgentSource;
+  status?: RunStatus;
+  projectKey?: string;
+};
 
 export type RunListItem = {
   id: string;
@@ -37,7 +45,7 @@ export type RunDetail = RunListItem & {
 };
 
 export type RunsQueryStore = {
-  listRuns(limit: number): Promise<RunListItem[]>;
+  listRuns(limit: number, filters?: RunsListFilters): Promise<RunListItem[]>;
   getRun(runId: string): Promise<RunDetail | null>;
 };
 
@@ -69,7 +77,21 @@ type EventRow = {
 
 export function createRunsQueryStore(db: Database): RunsQueryStore {
   return {
-    listRuns: async (limit) => {
+    listRuns: async (limit, filters = {}) => {
+      const conditions: SQL[] = [];
+      if (filters.since) {
+        conditions.push(gte(runs.updatedAt, filters.since));
+      }
+      if (filters.source) {
+        conditions.push(eq(runs.sourceId, filters.source));
+      }
+      if (filters.status) {
+        conditions.push(eq(runs.status, filters.status));
+      }
+      if (filters.projectKey) {
+        conditions.push(eq(projects.projectKey, filters.projectKey));
+      }
+
       const rows = await db
         .select({
           id: runs.id,
@@ -88,6 +110,7 @@ export function createRunsQueryStore(db: Database): RunsQueryStore {
         })
         .from(runs)
         .leftJoin(projects, eq(runs.projectId, projects.id))
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(desc(runs.updatedAt))
         .limit(limit);
 

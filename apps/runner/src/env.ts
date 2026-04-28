@@ -8,6 +8,7 @@ const DEFAULT_OUTBOX_PATH = ".alfred-runner/outbox.sqlite";
 
 const PrivacyModeSchema = z.enum(["minimal", "standard", "full"]);
 const UuidSchema = z.string().uuid();
+const IsoTimestampSchema = z.string().datetime({ offset: true });
 
 export type RunnerEnv = {
   RUNNER_API_URL: string;
@@ -17,6 +18,7 @@ export type RunnerEnv = {
   ALFRED_PRIVACY_MODE: "minimal" | "standard" | "full";
   ALFRED_RUNNER_DB_PATH: string;
   ALFRED_CODEX_HOME: string;
+  ALFRED_CODEX_SINCE?: string;
 };
 
 export function parseRunnerEnv(input: NodeJS.ProcessEnv): RunnerEnv {
@@ -51,6 +53,13 @@ export function parseRunnerEnv(input: NodeJS.ProcessEnv): RunnerEnv {
     throw new Error("Invalid ALFRED_PRIVACY_MODE");
   }
 
+  if (
+    input.ALFRED_CODEX_SINCE !== undefined &&
+    !IsoTimestampSchema.safeParse(input.ALFRED_CODEX_SINCE).success
+  ) {
+    throw new Error("Invalid ALFRED_CODEX_SINCE");
+  }
+
   return {
     RUNNER_API_URL: input.RUNNER_API_URL ?? DEFAULT_API_URL,
     RUNNER_DEVICE_TOKEN: deviceToken,
@@ -59,6 +68,9 @@ export function parseRunnerEnv(input: NodeJS.ProcessEnv): RunnerEnv {
     ALFRED_PRIVACY_MODE: privacyMode.data,
     ALFRED_RUNNER_DB_PATH: input.ALFRED_RUNNER_DB_PATH ?? DEFAULT_OUTBOX_PATH,
     ALFRED_CODEX_HOME: input.ALFRED_CODEX_HOME ?? `${home}/.codex`,
+    ...(input.ALFRED_CODEX_SINCE !== undefined
+      ? { ALFRED_CODEX_SINCE: input.ALFRED_CODEX_SINCE }
+      : {}),
   };
 }
 
