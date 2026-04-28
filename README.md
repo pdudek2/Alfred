@@ -57,6 +57,7 @@ Postgres
 ```text
 apps/
   api/       Hono ingest API
+  web/       React/Vite observatory UI
   runner/    local agent runner
 
 packages/
@@ -111,6 +112,37 @@ Health check:
 curl -sS http://127.0.0.1:4301/health
 ```
 
+Query runs:
+
+```bash
+curl -sS "http://127.0.0.1:4301/v1/runs?limit=5"
+```
+
+The API also accepts the web-style prefix:
+
+```bash
+curl -sS "http://127.0.0.1:4301/api/v1/runs?limit=5"
+```
+
+## Web
+
+Start the observatory:
+
+```bash
+pnpm --filter @alfred/web dev
+```
+
+Open:
+
+```text
+http://127.0.0.1:4300
+```
+
+Port `4300` is the web app. Port `4301` is API only, so open `/health`,
+`/v1/runs`, or `/api/v1/runs` there rather than the UI.
+
+The web app proxies `/api/*` to the local API at `http://127.0.0.1:4301`.
+
 ## Runner
 
 Development one-shot run:
@@ -137,16 +169,9 @@ pnpm typecheck
 pnpm build
 ```
 
-Last known local validation: all pass after PR `#1`, squash commit `8fb04bc`.
+Last known local validation: all pass on `web-observatory`.
 
 ## Current Next Step
 
-Confirm live ingest end to end:
-
-1. start Postgres,
-2. migrate the database,
-3. start `@alfred/api`,
-4. run `@alfred/runner`,
-5. verify persisted runs/events in Postgres.
-
-After that, the next product slice is query API + first web observatory view.
+Use the first web observatory view against live runner data, then add drill-down filters
+and richer event inspection.

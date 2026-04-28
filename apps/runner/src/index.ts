@@ -19,13 +19,14 @@ export async function runRunnerOnce(
   options: RunRunnerOptions = {},
 ): Promise<{ collectedEvents: number; flushedEvents: number }> {
   const outbox = new OutboxDb(config.outboxPath);
-  const adapter = options.adapter ?? createCodexAdapter(config);
+  const adapter = options.adapter ?? createDefaultCodexAdapter(config, outbox);
 
   try {
     const events = await adapter.collect();
     for (const event of events) {
       outbox.enqueue(redactEvent(event, config.privacyMode));
     }
+    updateSourceCursor(outbox, adapter.sourceId, events);
 
     const flushedEvents = await flushOutboxOnce(outbox, {
       apiUrl: config.apiUrl,
@@ -42,6 +43,36 @@ export async function runRunnerOnce(
   } finally {
     outbox.close();
   }
+}
+
+function createDefaultCodexAdapter(config: RunnerConfig, outbox: OutboxDb): SourceAdapter {
+  const storedCursor = outbox.getSourceCursor("codex-cli");
+  const codexSince = config.codexSince ?? storedCursor ?? undefined;
+  return createCodexAdapter({
+    ...config,
+    ...(codexSince ? { codexSince } : {}),
+  });
+}
+
+function updateSourceCursor(outbox: OutboxDb, sourceId: string, events: IngestEvent[]): void {
+  const newestOccurredAt = maxOccurredAt(events);
+  if (newestOccurredAt) {
+    outbox.setSourceCursor(sourceId, newestOccurredAt);
+  }
+}
+
+function maxOccurredAt(events: IngestEvent[]): string | null {
+  let newestMs = Number.NEGATIVE_INFINITY;
+  let newest: string | null = null;
+
+  for (const event of events) {
+    const occurredAtMs = Date.parse(event.occurred_at);
+    if (Number.isNaN(occurredAtMs) || occurredAtMs < newestMs) continue;
+    newestMs = occurredAtMs;
+    newest = event.occurred_at;
+  }
+
+  return newest;
 }
 
 function redactEvent(event: IngestEvent, privacyMode: RunnerConfig["privacyMode"]): IngestEvent {

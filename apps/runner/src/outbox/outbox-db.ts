@@ -43,11 +43,17 @@ export class OutboxDb {
       );
       CREATE INDEX IF NOT EXISTS outbox_events_ready_idx
         ON outbox_events(next_attempt_at, created_at);
+
+      CREATE TABLE IF NOT EXISTS source_cursors (
+        source_id TEXT PRIMARY KEY,
+        cursor_value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
     `);
   }
 
-  enqueue(event: { event_id: string; [key: string]: unknown }): void {
-    const now = new Date().toISOString();
+  enqueue(event: { event_id: string; [key: string]: unknown }, now = new Date()): void {
+    const timestamp = now.toISOString();
 
     this.db
       .prepare(
@@ -59,8 +65,8 @@ export class OutboxDb {
       .run({
         eventId: event.event_id,
         payload: JSON.stringify(event),
-        nextAttemptAt: now,
-        createdAt: now,
+        nextAttemptAt: timestamp,
+        createdAt: timestamp,
       });
   }
 
@@ -85,6 +91,53 @@ export class OutboxDb {
       nextAttemptAt: row.next_attempt_at,
       createdAt: row.created_at,
     }));
+  }
+
+  countQueued(): number {
+    const row = this.db.prepare("SELECT COUNT(*) as count FROM outbox_events").get() as {
+      count: number;
+    };
+    return row.count;
+  }
+
+  pruneFailedBefore(cutoff: Date): number {
+    const result = this.db
+      .prepare(
+        `
+          DELETE FROM outbox_events
+          WHERE attempts > 0
+            AND next_attempt_at < @cutoff
+        `,
+      )
+      .run({ cutoff: cutoff.toISOString() });
+
+    return result.changes;
+  }
+
+  getSourceCursor(sourceId: string): string | null {
+    const row = this.db
+      .prepare("SELECT cursor_value FROM source_cursors WHERE source_id = ?")
+      .get(sourceId) as { cursor_value: string } | undefined;
+
+    return row?.cursor_value ?? null;
+  }
+
+  setSourceCursor(sourceId: string, cursorValue: string, now = new Date()): void {
+    this.db
+      .prepare(
+        `
+          INSERT INTO source_cursors (source_id, cursor_value, updated_at)
+          VALUES (@sourceId, @cursorValue, @updatedAt)
+          ON CONFLICT(source_id) DO UPDATE SET
+            cursor_value = excluded.cursor_value,
+            updated_at = excluded.updated_at
+        `,
+      )
+      .run({
+        sourceId,
+        cursorValue,
+        updatedAt: now.toISOString(),
+      });
   }
 
   markSent(ids: number[]): void {

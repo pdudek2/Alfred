@@ -7,7 +7,9 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "agent:launch": "node scripts/launch-parallel-agents.mjs",
+    "agent:monitor": "node scripts/monitor-parallel-agents.mjs"
   },
   "devDependencies": {
     "drizzle-kit": "latest",

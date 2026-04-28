@@ -8,6 +8,7 @@ export type RunnerConfig = {
   privacyMode: "minimal" | "standard" | "full";
   outboxPath: string;
   codexHome: string;
+  codexSince?: string;
 };
 
 export function loadRunnerConfig(env: RunnerEnv = runnerEnv): RunnerConfig {
@@ -19,5 +20,8 @@ export function loadRunnerConfig(env: RunnerEnv = runnerEnv): RunnerConfig {
     privacyMode: env.ALFRED_PRIVACY_MODE,
     outboxPath: env.ALFRED_RUNNER_DB_PATH,
     codexHome: env.ALFRED_CODEX_HOME,
+    ...(env.ALFRED_CODEX_SINCE !== undefined
+      ? { codexSince: env.ALFRED_CODEX_SINCE }
+      : {}),
   };
 }
