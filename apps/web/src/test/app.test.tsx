@@ -67,7 +67,7 @@ describe("App", () => {
     expect(screen.queryByRole("region", { name: "Run feed" })).not.toBeInTheDocument();
   });
 
-  it("does not fetch run details when selecting or arrowing through Reader in next mode", async () => {
+  it("opens the Reader drawer, syncs the URL, and fetches selected detail in next mode", async () => {
     const user = userEvent.setup();
     const secondRun = {
       ...runFixture,
@@ -83,6 +83,9 @@ describe("App", () => {
       if (url.startsWith("/api/v1/runs?")) {
         return new Response(JSON.stringify({ items: [runFixture, secondRun] }), { status: 200 });
       }
+      if (url === "/api/v1/runs/run-2") {
+        return new Response(JSON.stringify({ ...runDetailFixture, ...secondRun }), { status: 200 });
+      }
       return new Response("detail should not be fetched in next mode", { status: 500 });
     });
 
@@ -91,14 +94,30 @@ describe("App", () => {
     render(<App />);
 
     const feed = await screen.findByRole("region", { name: "Run feed" });
-    feed.focus();
-    await user.keyboard("[ArrowDown]");
     await user.click(await screen.findByRole("button", { name: /Second.*Second run/i }));
-    await user.keyboard("[ArrowUp]");
 
-    expect(screen.getByRole("region", { name: "Run feed" })).toBeInTheDocument();
-    expect(fetchImpl.mock.calls.map(([request]) => String(request))).toEqual(["/api/v1/runs?limit=25"]);
+    expect(await screen.findByRole("dialog", { name: /Second.*Second run/i })).toBeInTheDocument();
+    expect(feed).toHaveClass("reader-feed-dimmed");
+    expect(window.location.search).toContain("run=run-2");
+    expect(fetchImpl.mock.calls.map(([request]) => String(request))).toEqual([
+      "/api/v1/runs?limit=25",
+      "/api/v1/runs/run-2",
+    ]);
     expect(screen.queryByText(/Failed to load run/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /close run reader/i }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(window.location.search).not.toContain("run=");
+  });
+
+  it("opens the Reader drawer from the run URL in next mode", async () => {
+    window.history.pushState({}, "", "/?next=1&run=run-1");
+
+    render(<App />);
+
+    expect(await screen.findByRole("dialog", { name: /Alfred/i })).toBeInTheDocument();
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/v1/runs/run-1"));
   });
 
   it("renders runs and selected timeline", async () => {

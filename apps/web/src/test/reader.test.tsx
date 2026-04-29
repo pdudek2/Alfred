@@ -195,6 +195,12 @@ describe("Reader", () => {
     expect(onSelectRun).toHaveBeenCalledWith("run-done");
   });
 
+  it("dims the feed when a run is selected", () => {
+    render(<ControlledReader initialSelectedRunId="run-needs" />);
+
+    expect(screen.getByRole("region", { name: "Run feed" })).toHaveClass("reader-feed-dimmed");
+  });
+
   it("shows an empty message when no agent has reported", () => {
     render(<ControlledReader testRuns={[]} />);
 

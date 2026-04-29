@@ -93,7 +93,7 @@ export function Reader({ runs, now, selectedRunId, onSelectRun, error, loading =
 
       <section
         aria-label="Run feed"
-        className="reader-feed"
+        className={`reader-feed${selectedRunId ? " reader-feed-dimmed" : ""}`}
         onKeyDown={handleFeedKeyDown}
         ref={feedRef}
         tabIndex={0}

@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { FilterBar } from "./components/filter-bar";
 import { ObservatoryMockup } from "./components/observatory-mockup";
 import { Reader } from "./components/reader";
+import { RunReader } from "./components/run-reader";
 import { RunDetailPanel } from "./components/run-detail";
 import { RunList } from "./components/run-list";
 import { StatusStrip } from "./components/status-strip";
 import { createApiClient, type RunDetail, type RunFilters, type RunListItem } from "./lib/api-client";
 import { buildOverviewVM } from "./lib/run-view-model";
 import { formatDateTime } from "./lib/time";
+import { useKeyboardShortcut } from "./lib/use-keyboard-shortcut";
 
 const api = createApiClient();
 const LIVE_REFRESH_MS = 15_000;
@@ -40,6 +42,19 @@ export function App() {
   const mockupEnabled = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mockup");
   const nextEnabled = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("next");
   const readerEnabled = nextEnabled && !mockupEnabled;
+
+  function setSelectedFromDrawer(runId: string | null) {
+    const next = new URLSearchParams(window.location.search);
+    if (runId) {
+      next.set("run", runId);
+    } else {
+      next.delete("run");
+    }
+
+    const query = next.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+    setSelectedRunId(runId);
+  }
 
   async function loadSelectedRun(runId: string, clearBeforeLoad = true) {
     setLoadingDetail(true);
@@ -73,10 +88,12 @@ export function App() {
       const nextSelectedRunId =
         selectedRunId && items.some((run) => run.id === selectedRunId)
           ? selectedRunId
-          : (items[0]?.id ?? null);
+          : readerEnabled
+            ? null
+            : (items[0]?.id ?? null);
 
       setSelectedRunId(nextSelectedRunId);
-      if (refreshDetail && nextSelectedRunId && !readerEnabled) {
+      if (refreshDetail && nextSelectedRunId) {
         await loadSelectedRun(nextSelectedRunId, false);
       } else if (!nextSelectedRunId) {
         setSelectedRun(null);
@@ -106,12 +123,6 @@ export function App() {
   }, [autoRefresh, runFilters, selectedRunId]);
 
   useEffect(() => {
-    if (readerEnabled) {
-      setLoadingDetail(false);
-      setSelectedRun(null);
-      return;
-    }
-
     if (!selectedRunId) {
       setSelectedRun(null);
       return;
@@ -139,7 +150,21 @@ export function App() {
     return () => {
       active = false;
     };
+  }, [selectedRunId]);
+
+  useEffect(() => {
+    if (!readerEnabled) return;
+    const runIdFromUrl = new URLSearchParams(window.location.search).get("run");
+    if (runIdFromUrl && runIdFromUrl !== selectedRunId) {
+      setSelectedRunId(runIdFromUrl);
+    }
   }, [readerEnabled, selectedRunId]);
+
+  useKeyboardShortcut("escape", () => {
+    if (readerEnabled && selectedRunId) {
+      setSelectedFromDrawer(null);
+    }
+  });
 
   function selectRun(runId: string) {
     setSelectedRunId(runId);
@@ -163,15 +188,24 @@ export function App() {
   }
 
   if (readerEnabled) {
+    const drawerRun = selectedRun && selectedRun.id === selectedRunId ? selectedRun : null;
+
     return (
-      <Reader
-        error={error}
-        loading={loadingRuns}
-        now={readerNow}
-        onSelectRun={setSelectedRunId}
-        runs={runs}
-        selectedRunId={selectedRunId}
-      />
+      <>
+        <Reader
+          error={error}
+          loading={loadingRuns}
+          now={readerNow}
+          onSelectRun={setSelectedFromDrawer}
+          runs={runs}
+          selectedRunId={selectedRunId}
+        />
+        {drawerRun ? (
+          <div className="run-reader-overlay run-reader-overlay-visible">
+            <RunReader detail={drawerRun} now={readerNow} onClose={() => setSelectedFromDrawer(null)} />
+          </div>
+        ) : null}
+      </>
     );
   }
 
