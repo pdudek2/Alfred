@@ -7,6 +7,7 @@ import {
   buildRunCardVM,
   buildRunFactsVM,
   buildRunListVM,
+  buildTimeGroupedFeedVM,
 } from "../lib/run-view-model";
 import { completedRunFixture, runFixture } from "./fixtures";
 
@@ -177,6 +178,125 @@ describe("run view model", () => {
     ]);
   });
 });
+
+describe("buildTimeGroupedFeedVM", () => {
+  const now = new Date(2026, 3, 29, 11, 0, 0, 0);
+
+  it("places running and waiting runs in Now", () => {
+    const runs = [
+      { ...runFixture, id: "r1", status: "running", updated_at: localIso(2026, 3, 29, 10, 55) },
+      { ...runFixture, id: "r2", status: "waiting", updated_at: localIso(2026, 3, 29, 10, 50) },
+      { ...runFixture, id: "r3", status: "completed", updated_at: localIso(2026, 3, 29, 8, 0) },
+    ];
+    const vm = buildTimeGroupedFeedVM(runs, now);
+    const labels = vm.sections.map((section) => section.label);
+
+    expect(labels).toContain("Now");
+    const nowSection = vm.sections.find((section) => section.label === "Now")!;
+    expect(nowSection.runs.map((run) => run.id)).toEqual(["r1", "r2"]);
+  });
+
+  it("places terminal runs updated today into Today even when they started earlier", () => {
+    const runs = [
+      {
+        ...runFixture,
+        id: "r1",
+        status: "completed",
+        started_at: localIso(2026, 3, 15, 7, 0),
+        completed_at: localIso(2026, 3, 29, 7, 30),
+        updated_at: localIso(2026, 3, 29, 7, 30),
+      },
+    ];
+    const vm = buildTimeGroupedFeedVM(runs, now);
+    const today = vm.sections.find((section) => section.label === "Today")!;
+    expect(today.runs.map((run) => run.id)).toEqual(["r1"]);
+  });
+
+  it("places runs updated earlier in the current local week into Earlier this week", () => {
+    const runs = [
+      {
+        ...runFixture,
+        id: "r1",
+        status: "completed",
+        started_at: localIso(2026, 3, 28, 10, 0),
+        completed_at: localIso(2026, 3, 28, 10, 10),
+        updated_at: localIso(2026, 3, 28, 10, 10),
+      },
+    ];
+    const vm = buildTimeGroupedFeedVM(runs, now);
+    const earlier = vm.sections.find((section) => section.label === "Earlier this week")!;
+    expect(earlier.runs.map((run) => run.id)).toEqual(["r1"]);
+  });
+
+  it("places prior local calendar week runs into Older even when they are within seven days", () => {
+    const runs = [
+      {
+        ...runFixture,
+        id: "r1",
+        status: "completed",
+        started_at: localIso(2026, 3, 26, 10, 0),
+        completed_at: localIso(2026, 3, 26, 10, 10),
+        updated_at: localIso(2026, 3, 26, 10, 10),
+      },
+    ];
+    const vm = buildTimeGroupedFeedVM(runs, now);
+    const older = vm.sections.find((section) => section.label === "Older")!;
+    expect(older.runs.map((run) => run.id)).toEqual(["r1"]);
+  });
+
+  it("uses local day boundaries before local week boundaries", () => {
+    const runs = [
+      {
+        ...runFixture,
+        id: "after-local-midnight",
+        status: "completed",
+        started_at: localIso(2026, 3, 29, 0, 15),
+        completed_at: localIso(2026, 3, 29, 0, 20),
+        updated_at: localIso(2026, 3, 29, 0, 20),
+      },
+      {
+        ...runFixture,
+        id: "before-local-midnight",
+        status: "completed",
+        started_at: localIso(2026, 3, 28, 23, 40),
+        completed_at: localIso(2026, 3, 28, 23, 45),
+        updated_at: localIso(2026, 3, 28, 23, 45),
+      },
+    ];
+    const vm = buildTimeGroupedFeedVM(runs, now);
+
+    expect(vm.sections.find((section) => section.label === "Today")?.runs.map((run) => run.id)).toEqual([
+      "after-local-midnight",
+    ]);
+    expect(vm.sections.find((section) => section.label === "Earlier this week")?.runs.map((run) => run.id)).toEqual([
+      "before-local-midnight",
+    ]);
+  });
+
+  it("does not place stale running or waiting runs in Now", () => {
+    const runs = [
+      { ...runFixture, id: "stale-running", status: "running", updated_at: localIso(2026, 3, 29, 8, 30) },
+      { ...runFixture, id: "stale-waiting", status: "waiting", updated_at: localIso(2026, 3, 29, 8, 20) },
+    ];
+    const vm = buildTimeGroupedFeedVM(runs, now);
+
+    expect(vm.sections.find((section) => section.label === "Now")).toBeUndefined();
+    expect(vm.sections.find((section) => section.label === "Today")?.runs.map((run) => run.id)).toEqual([
+      "stale-running",
+      "stale-waiting",
+    ]);
+  });
+
+  it("omits empty sections", () => {
+    const runs = [{ ...runFixture, id: "r1", status: "running", updated_at: now.toISOString() }];
+    const vm = buildTimeGroupedFeedVM(runs, now);
+    expect(vm.sections.map((section) => section.label)).toEqual(["Now"]);
+  });
+});
+
+function localIso(year: number, monthIndex: number, day: number, hour: number, minute: number): string {
+  return new Date(year, monthIndex, day, hour, minute, 0, 0).toISOString();
+}
 
 const activityEvents: RunEventItem[] = [
   {
