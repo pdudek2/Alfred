@@ -44,3 +44,118 @@
   outline: 2px solid var(--reader-amber);
   outline-offset: 2px;
 }
+
+.reader-run-row {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-left-width: 2px;
+  border-radius: var(--reader-radius);
+  color: var(--reader-text);
+  cursor: pointer;
+  display: grid;
+  gap: var(--reader-gap-sm);
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  min-height: 58px;
+  padding: 10px 12px;
+  text-align: left;
+  transition:
+    background-color var(--reader-t-fast) var(--reader-ease-out),
+    color var(--reader-t-fast) var(--reader-ease-out);
+  width: 100%;
+}
+
+.reader-run-row:hover {
+  background: var(--reader-tint-amber-soft);
+}
+
+.reader-run-row--selected {
+  background: var(--reader-tint-amber-selected);
+  border-left-color: var(--reader-amber);
+}
+
+.reader-run-row__dot {
+  background: var(--reader-graphite);
+  border-radius: 999px;
+  box-shadow: none;
+  height: 8px;
+  justify-self: center;
+  width: 8px;
+}
+
+.reader-run-row__body {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.reader-run-row__title {
+  color: var(--reader-text);
+  display: block;
+  font-family: var(--reader-serif);
+  font-size: 15px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-run-row__subtitle {
+  color: var(--reader-text-dim);
+  display: block;
+  font-family: var(--reader-sans);
+  font-size: 12.5px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-run-row__meta {
+  align-items: flex-end;
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+}
+
+.reader-run-row__duration {
+  color: var(--reader-text-dim);
+  font-family: var(--reader-mono);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.reader-run-row__state {
+  color: var(--reader-text-faint);
+  font-family: var(--reader-sans);
+  font-size: 11px;
+  line-height: 1.2;
+  text-transform: lowercase;
+}
+
+.reader-state-running .reader-run-row__dot {
+  background: var(--reader-sage);
+  box-shadow: 0 0 0 3px var(--reader-halo-sage);
+}
+
+.reader-state-waiting .reader-run-row__dot {
+  background: var(--reader-amber);
+  box-shadow: 0 0 0 3px var(--reader-halo-amber);
+}
+
+.reader-state-failed .reader-run-row__dot {
+  background: var(--reader-coral);
+}
+
+.reader-state-completed .reader-run-row__dot {
+  background: var(--reader-sage);
+}
+
+.reader-state-cancelled .reader-run-row__dot {
+  background: var(--reader-coral);
+}
+
+.reader-state-stale .reader-run-row__dot,
+.reader-state-other .reader-run-row__dot {
+  background: var(--reader-graphite);
+}
