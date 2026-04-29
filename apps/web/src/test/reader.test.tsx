@@ -216,6 +216,20 @@ describe("Reader", () => {
     expect(screen.queryByText("No runs match this view.")).not.toBeInTheDocument();
   });
 
+  it("shows the API error voice when error is provided", () => {
+    render(
+      <Reader
+        error={new Error("boom")}
+        now={NOW}
+        onSelectRun={() => {}}
+        runs={[]}
+        selectedRunId={null}
+      />,
+    );
+
+    expect(screen.getByText(/I can't reach the runner/i)).toBeInTheDocument();
+  });
+
   it("shows a filtered empty message when no runs match the current view", async () => {
     const user = userEvent.setup();
     render(<ControlledReader />);
