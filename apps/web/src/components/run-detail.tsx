@@ -1,67 +1,125 @@
-import { Clock3 } from "lucide-react";
+import { type KeyboardEvent, useMemo, useState } from "react";
 
 import type { RunDetail, RunListItem } from "../lib/api-client";
-import { formatDateTime, formatDuration } from "../lib/time";
-import { EventPayload } from "./event-payload";
+import { toRunDetailViewModel } from "../lib/run-view-model";
+import { RunActivity } from "./run-activity";
 import { StatusPill } from "./status-pill";
+import { StatusOverview } from "./status-overview";
 
 type RunDetailProps = {
   run: RunDetail | RunListItem | null;
   loading: boolean;
+  onBackToRuns?: () => void;
 };
 
-export function RunDetailPanel({ run, loading }: RunDetailProps) {
-  if (loading) {
-    return <section className="detail-panel">Loading run</section>;
+export function RunDetailPanel({ run, loading, onBackToRuns }: RunDetailProps) {
+  const [activeTab, setActiveTab] = useState<"activity" | "raw">("activity");
+  const viewModel = useMemo(() => (run ? toRunDetailViewModel(run) : null), [run]);
+  const tabs = ["activity", "raw"] as const;
+
+  function handleTabKey(event: KeyboardEvent<HTMLButtonElement>) {
+    const currentIndex = tabs.indexOf(activeTab);
+    let nextIndex = currentIndex;
+
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabs.length;
+    else if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = tabs.length - 1;
+    else return;
+
+    event.preventDefault();
+    setActiveTab(tabs[nextIndex] ?? activeTab);
   }
 
-  if (!run) {
+  if (loading) {
+    return (
+      <section className="detail-panel" aria-busy="true">
+        Loading run
+      </section>
+    );
+  }
+
+  if (!viewModel) {
     return <section className="detail-panel">Select a run.</section>;
   }
 
-  const events = "events" in run ? run.events : [];
-
   return (
     <section className="detail-panel" aria-label="Run detail">
+      <button className="back-to-runs" onClick={onBackToRuns} type="button">
+        Back to runs
+      </button>
+
       <header className="detail-header">
         <div>
-          <p className="eyebrow">{run.source_id}</p>
-          <h2>{run.project_name ?? run.project_key ?? "unknown project"}</h2>
+          <p className="eyebrow">{viewModel.source}</p>
+          <h2>{viewModel.title}</h2>
+          <p className="detail-subtitle">{viewModel.subtitle}</p>
         </div>
-        <StatusPill status={run.status} />
+        <StatusPill status={viewModel.status} />
       </header>
+
+      <StatusOverview state={viewModel.triageState} status={viewModel.status} />
 
       <dl className="run-facts">
         <div>
           <dt>Started</dt>
-          <dd>{formatDateTime(run.started_at)}</dd>
+          <dd>{viewModel.startedAt}</dd>
         </div>
         <div>
           <dt>Completed</dt>
-          <dd>{formatDateTime(run.completed_at)}</dd>
+          <dd>{viewModel.completedAt}</dd>
         </div>
         <div>
           <dt>Duration</dt>
-          <dd>{formatDuration(run.started_at, run.completed_at)}</dd>
+          <dd>{viewModel.duration}</dd>
+        </div>
+        <div>
+          <dt>Source run</dt>
+          <dd>{viewModel.sourceRunId}</dd>
         </div>
       </dl>
 
-      {events.length === 0 ? (
-        <div className="empty-state">No timeline events loaded yet.</div>
-      ) : (
-        <ol className="timeline">
-          {events.map((event) => (
-            <li className="timeline-event" key={event.id}>
-              <Clock3 aria-hidden="true" size={16} />
-              <div>
-                <span className="event-type">{event.type}</span>
-                <span className="event-time">{formatDateTime(event.occurred_at)}</span>
-                <EventPayload payload={event.payload} />
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
+      <div className="detail-tabs" role="tablist" aria-label="Run detail views">
+        <button
+          aria-controls="run-detail-activity-panel"
+          aria-selected={activeTab === "activity"}
+          className="detail-tab"
+          id="run-detail-activity-tab"
+          onKeyDown={handleTabKey}
+          onClick={() => setActiveTab("activity")}
+          role="tab"
+          tabIndex={activeTab === "activity" ? 0 : -1}
+          type="button"
+        >
+          Activity
+        </button>
+        <button
+          aria-controls="run-detail-raw-panel"
+          aria-selected={activeTab === "raw"}
+          className="detail-tab"
+          id="run-detail-raw-tab"
+          onKeyDown={handleTabKey}
+          onClick={() => setActiveTab("raw")}
+          role="tab"
+          tabIndex={activeTab === "raw" ? 0 : -1}
+          type="button"
+        >
+          Raw
+        </button>
+      </div>
+
+      <div
+        aria-labelledby={activeTab === "activity" ? "run-detail-activity-tab" : "run-detail-raw-tab"}
+        className="detail-tab-panel"
+        id={activeTab === "activity" ? "run-detail-activity-panel" : "run-detail-raw-panel"}
+        role="tabpanel"
+      >
+        {activeTab === "activity" ? (
+          <RunActivity events={viewModel.events} />
+        ) : (
+          <pre className="raw-run-body">{JSON.stringify(viewModel.raw, null, 2)}</pre>
+        )}
+      </div>
     </section>
   );
 }

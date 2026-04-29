@@ -22,6 +22,9 @@ docs/
 # Logs
 *.log
 
+# Brainstorm visual companion (local mockups)
+.superpowers/
+
 # macOS / IDE
 .DS_Store
 .vscode/

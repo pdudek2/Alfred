@@ -36,7 +36,7 @@ describe("App", () => {
 
     expect(await screen.findByRole("heading", { name: "Alfred" })).toBeInTheDocument();
     expect(await screen.findAllByText("codex-cli")).toHaveLength(2);
-    expect(await screen.findByText(/1 loaded · 1 active/i)).toBeInTheDocument();
+    expect(await screen.findByText(/1 loaded · 0 active/i)).toBeInTheDocument();
     expect(await screen.findByText("run.started")).toBeInTheDocument();
     expect(await screen.findByText("tool.started")).toBeInTheDocument();
   });
@@ -70,6 +70,7 @@ describe("App", () => {
 
     await screen.findAllByText("codex-cli");
 
+    await user.click(screen.getByText("Filters"));
     await user.type(screen.getByLabelText(/source/i), "codex-cli");
     await user.selectOptions(screen.getByLabelText(/status/i), "running");
     await user.type(screen.getByLabelText(/project/i), "Alfred Labs");
@@ -89,6 +90,7 @@ describe("App", () => {
 
     await screen.findAllByText("codex-cli");
 
+    await user.click(screen.getByText("Filters"));
     await user.type(screen.getByLabelText(/project/i), "No Matches");
     await user.click(screen.getByRole("button", { name: /apply filters/i }));
 
@@ -179,7 +181,7 @@ describe("App", () => {
     render(<App />);
 
     await screen.findByText("tool.started");
-    const [, secondRunButton] = screen.getAllByRole("button", { name: /Alfredcodex-clirunning/i });
+    const [, secondRunButton] = screen.getAllByRole("button", { name: /Alfredcodex-clistale/i });
     await user.click(secondRunButton!);
 
     expect(await screen.findByText(/Failed to load run: 404/i)).toBeInTheDocument();

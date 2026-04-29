@@ -23,7 +23,7 @@ const EMPTY_DRAFT: FilterDraft = {
   since: "",
 };
 
-const DEFAULT_STATUSES = ["running", "completed", "failed", "waiting", "unknown"];
+const DEFAULT_STATUSES = ["running", "waiting", "stale", "completed", "failed", "unknown"];
 
 export function FilterBar({ filters, runs, onApply }: FilterBarProps) {
   const [draft, setDraft] = useState<FilterDraft>(() => draftFromFilters(filters));
@@ -47,6 +47,7 @@ export function FilterBar({ filters, runs, onApply }: FilterBarProps) {
   const appliedDraft = draftFromFilters(filters);
   const applyDisabled = draftsEqual(draft, appliedDraft);
   const clearDisabled = draftsEqual(appliedDraft, EMPTY_DRAFT) && draftsEqual(draft, EMPTY_DRAFT);
+  const hasActiveFilters = !draftsEqual(appliedDraft, EMPTY_DRAFT);
 
   function updateDraft(key: keyof FilterDraft, value: string) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -62,100 +63,103 @@ export function FilterBar({ filters, runs, onApply }: FilterBarProps) {
   }
 
   return (
-    <form
-      aria-label="Run filters"
-      className="filter-bar"
-      onSubmit={(event) => {
-        event.preventDefault();
-        applyDraft();
-      }}
-    >
-      <div className="filter-title">
+    <details className="filter-disclosure" open={hasActiveFilters || undefined}>
+      <summary className="filter-summary">
         <SlidersHorizontal aria-hidden="true" size={15} />
         <span>Filters</span>
-      </div>
+        {hasActiveFilters ? <strong>active</strong> : null}
+      </summary>
 
-      <label className="filter-field" htmlFor="run-filter-source">
-        <span>Source</span>
-        <input
-          id="run-filter-source"
-          list="run-filter-source-options"
-          onChange={(event) => updateDraft("source", event.target.value)}
-          placeholder="any"
-          type="text"
-          value={draft.source}
-        />
-      </label>
-      <datalist id="run-filter-source-options">
-        {sourceOptions.map((source) => (
-          <option key={source} value={source} />
-        ))}
-      </datalist>
-
-      <label className="filter-field" htmlFor="run-filter-status">
-        <span>Status</span>
-        <select
-          id="run-filter-status"
-          onChange={(event) => updateDraft("status", event.target.value)}
-          value={draft.status}
-        >
-          <option value="">any</option>
-          {statusOptions.map((status) => (
-            <option key={status} value={status}>
-              {status}
-            </option>
+      <form
+        aria-label="Run filters"
+        className="filter-bar"
+        onSubmit={(event) => {
+          event.preventDefault();
+          applyDraft();
+        }}
+      >
+        <label className="filter-field" htmlFor="run-filter-source">
+          <span>Source</span>
+          <input
+            id="run-filter-source"
+            list="run-filter-source-options"
+            onChange={(event) => updateDraft("source", event.target.value)}
+            placeholder="any"
+            type="text"
+            value={draft.source}
+          />
+        </label>
+        <datalist id="run-filter-source-options">
+          {sourceOptions.map((source) => (
+            <option key={source} value={source} />
           ))}
-        </select>
-      </label>
+        </datalist>
 
-      <label className="filter-field" htmlFor="run-filter-project">
-        <span>Project</span>
-        <input
-          id="run-filter-project"
-          list="run-filter-project-options"
-          onChange={(event) => updateDraft("project", event.target.value)}
-          placeholder="any"
-          type="text"
-          value={draft.project}
-        />
-      </label>
-      <datalist id="run-filter-project-options">
-        {projectOptions.map((project) => (
-          <option key={project} value={project} />
-        ))}
-      </datalist>
+        <label className="filter-field" htmlFor="run-filter-status">
+          <span>Status</span>
+          <select
+            id="run-filter-status"
+            onChange={(event) => updateDraft("status", event.target.value)}
+            value={draft.status}
+          >
+            <option value="">any</option>
+            {statusOptions.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+        </label>
 
-      <label className="filter-field" htmlFor="run-filter-since">
-        <span>Since</span>
-        <input
-          id="run-filter-since"
-          onChange={(event) => updateDraft("since", event.target.value)}
-          type="date"
-          value={draft.since}
-        />
-      </label>
+        <label className="filter-field" htmlFor="run-filter-project">
+          <span>Project</span>
+          <input
+            id="run-filter-project"
+            list="run-filter-project-options"
+            onChange={(event) => updateDraft("project", event.target.value)}
+            placeholder="any"
+            type="text"
+            value={draft.project}
+          />
+        </label>
+        <datalist id="run-filter-project-options">
+          {projectOptions.map((project) => (
+            <option key={project} value={project} />
+          ))}
+        </datalist>
 
-      <div className="filter-actions">
-        <button
-          aria-label="Apply filters"
-          className="filter-action filter-action-primary"
-          disabled={applyDisabled}
-          type="submit"
-        >
-          Apply
-        </button>
-        <button
-          aria-label="Clear filters"
-          className="filter-action"
-          disabled={clearDisabled}
-          onClick={clearFilters}
-          type="button"
-        >
-          <X aria-hidden="true" size={14} />
-          Clear
-        </button>
-      </div>
-    </form>
+        <label className="filter-field" htmlFor="run-filter-since">
+          <span>Since</span>
+          <input
+            id="run-filter-since"
+            onChange={(event) => updateDraft("since", event.target.value)}
+            type="date"
+            value={draft.since}
+          />
+        </label>
+
+        <div className="filter-actions">
+          <button
+            aria-label="Apply filters"
+            className="filter-action filter-action-primary"
+            disabled={applyDisabled}
+            type="submit"
+          >
+            Apply
+          </button>
+          <button
+            aria-label="Clear filters"
+            className="filter-action"
+            disabled={clearDisabled}
+            onClick={clearFilters}
+            type="button"
+          >
+            <X aria-hidden="true" size={14} />
+            Clear
+          </button>
+        </div>
+      </form>
+    </details>
   );
 }
 
