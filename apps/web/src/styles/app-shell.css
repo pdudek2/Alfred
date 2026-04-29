@@ -18,3 +18,78 @@
   display: block;
   transform: translateY(-1px);
 }
+
+.next-app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  color: var(--reader-text);
+  background:
+    linear-gradient(180deg, rgba(237, 229, 210, 0.025), transparent 180px),
+    var(--reader-bg);
+}
+
+.next-app-shell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--reader-gap) var(--reader-gap-lg);
+  border-bottom: 1px solid var(--reader-border-soft);
+}
+
+.next-app-shell-sigil-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+}
+
+.next-app-shell-wordmark {
+  color: var(--reader-text);
+  font-family: var(--reader-serif);
+  font-size: 18px;
+}
+
+.next-app-shell-day {
+  color: var(--reader-text-dim);
+  font-family: var(--reader-serif);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.next-app-shell-body {
+  position: relative;
+  flex: 1;
+}
+
+.next-app-shell-body > * {
+  animation: next-shell-enter var(--reader-t-mode) var(--reader-ease-window) both;
+}
+
+@keyframes next-shell-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .next-app-shell-body > * {
+    animation: next-shell-enter-fade 200ms ease both;
+  }
+
+  @keyframes next-shell-enter-fade {
+    0% {
+      opacity: 0;
+    }
+
+    100% {
+      opacity: 1;
+    }
+  }
+}

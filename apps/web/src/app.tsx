@@ -1,9 +1,9 @@
 import { Pause, Play, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { AppShell, type AppShellMode } from "./components/app-shell";
 import { FilterBar } from "./components/filter-bar";
 import { ObservatoryMockup } from "./components/observatory-mockup";
-import { Reader } from "./components/reader";
 import { RunReader } from "./components/run-reader";
 import { RunDetailPanel } from "./components/run-detail";
 import { RunList } from "./components/run-list";
@@ -32,6 +32,11 @@ export function App() {
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [readerNow, setReaderNow] = useState(() => new Date());
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const [nextMode, setNextMode] = useState<AppShellMode>(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "observatory"
+      ? "observatory"
+      : "reader",
+  );
 
   const selectedRunSummary = useMemo(
     () => runs.find((run) => run.id === selectedRunId) ?? null,
@@ -54,6 +59,19 @@ export function App() {
     const query = next.toString();
     window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
     setSelectedRunId(runId);
+  }
+
+  function setModeFromShell(mode: AppShellMode) {
+    const next = new URLSearchParams(window.location.search);
+    if (mode === "observatory") {
+      next.set("view", "observatory");
+    } else {
+      next.delete("view");
+    }
+
+    const query = next.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+    setNextMode(mode);
   }
 
   async function loadSelectedRun(runId: string, clearBeforeLoad = true) {
@@ -192,10 +210,12 @@ export function App() {
 
     return (
       <>
-        <Reader
+        <AppShell
           error={error}
           loading={loadingRuns}
+          mode={nextMode}
           now={readerNow}
+          onModeChange={setModeFromShell}
           onSelectRun={setSelectedFromDrawer}
           runs={runs}
           selectedRunId={selectedRunId}
