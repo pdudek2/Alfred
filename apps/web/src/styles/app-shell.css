@@ -1,0 +1,20 @@
+.alfred-sigil {
+  align-items: center;
+  border: 1px solid var(--reader-amber);
+  border-radius: 4px;
+  color: var(--reader-amber);
+  display: inline-flex;
+  font-family: var(--reader-serif);
+  font-size: 18px;
+  font-style: italic;
+  height: 32px;
+  justify-content: center;
+  line-height: 1;
+  user-select: none;
+  width: 32px;
+}
+
+.alfred-sigil-letter {
+  display: block;
+  transform: translateY(-1px);
+}
