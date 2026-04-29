@@ -159,3 +159,38 @@
 .reader-state-other .reader-run-row__dot {
   background: var(--reader-graphite);
 }
+
+.reader-feed-section {
+  display: grid;
+  gap: var(--reader-gap-sm);
+}
+
+.reader-feed-section__header {
+  align-items: baseline;
+  display: flex;
+  gap: var(--reader-gap-sm);
+  justify-content: space-between;
+}
+
+.reader-feed-section__label {
+  color: var(--reader-text-dim);
+  font-family: var(--reader-serif);
+  font-size: 16px;
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.reader-feed-section__total {
+  color: var(--reader-text-faint);
+  font-family: var(--reader-mono);
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.reader-feed-section__body {
+  display: grid;
+  gap: 6px;
+}
