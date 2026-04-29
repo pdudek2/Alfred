@@ -44,9 +44,10 @@ export function App() {
   );
   const activeRunCount = useMemo(() => buildOverviewVM(runs).liveCount, [runs]);
   const filtered = hasActiveFilters(runFilters);
-  const mockupEnabled = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mockup");
-  const nextEnabled = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("next");
-  const readerEnabled = nextEnabled && !mockupEnabled;
+  const search = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const mockupEnabled = search.has("mockup");
+  const legacyEnabled = search.has("legacy");
+  const readerEnabled = !legacyEnabled && !mockupEnabled;
 
   function setSelectedFromDrawer(runId: string | null) {
     const next = new URLSearchParams(window.location.search);
