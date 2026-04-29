@@ -147,6 +147,54 @@ describe("flushOutboxOnce", () => {
     expect(parsed.events[0]?.payload).toMatchObject({ api_key: "[redacted]", summary: "started" });
   });
 
+  it("drains all ready outbox batches after collecting a large import", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "alfred-runner-drain-"));
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
+    const events: IngestEvent[] = Array.from({ length: 250 }, (_, index) => {
+      const eventId = `event-${String(index).padStart(12, "0")}`;
+      return {
+        event_id: eventId,
+        workspace_id: workspaceId,
+        device_id: deviceId,
+        project_key: "Alfred",
+        source_id: "codex-cli",
+        source_run_id: `run-${Math.floor(index / 10)}`,
+        source_event_id: eventId,
+        type: "tool.started",
+        privacy_mode: "standard",
+        occurred_at: new Date(Date.UTC(2026, 3, 28, 10, 0, index)).toISOString(),
+        payload: { tool_name: "exec_command" },
+      };
+    });
+    const outboxPath = join(dir, "outbox.sqlite");
+
+    await expect(
+      runRunnerOnce(
+        {
+          apiUrl: "http://127.0.0.1:4301",
+          deviceToken: "token-1",
+          workspaceId,
+          deviceId,
+          privacyMode: "standard",
+          outboxPath,
+          codexHome: join(dir, ".codex"),
+        },
+        {
+          fetchImpl,
+          adapter: {
+            sourceId: "codex-cli",
+            collect: async () => events,
+          },
+        },
+      ),
+    ).resolves.toEqual({ collectedEvents: 250, flushedEvents: 250 });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    const outbox = new OutboxDb(outboxPath);
+    expect(outbox.countQueued()).toBe(0);
+    outbox.close();
+  });
+
   it("stores the newest collected event timestamp as the source cursor", async () => {
     const dir = mkdtempSync(join(tmpdir(), "alfred-runner-cursor-"));
     const outboxPath = join(dir, "outbox.sqlite");
@@ -195,6 +243,77 @@ describe("flushOutboxOnce", () => {
 
     const outbox = new OutboxDb(outboxPath);
     expect(outbox.getSourceCursor("codex-cli")).toBe("2026-04-28T10:05:00.000Z");
+    outbox.close();
+  });
+
+  it("collects multiple source adapters and stores independent cursors", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "alfred-runner-multi-source-"));
+    const outboxPath = join(dir, "outbox.sqlite");
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
+    const codexEvent: IngestEvent = {
+      event_id: "codex-event-000001",
+      workspace_id: workspaceId,
+      device_id: deviceId,
+      project_key: "Alfred",
+      source_id: "codex-cli",
+      source_run_id: "codex-run-1",
+      source_event_id: "codex-event-1",
+      type: "run.started",
+      status: "running",
+      privacy_mode: "standard",
+      occurred_at: "2026-04-28T10:00:00.000Z",
+      payload: {},
+    };
+    const claudeEvent: IngestEvent = {
+      event_id: "claude-event-00001",
+      workspace_id: workspaceId,
+      device_id: deviceId,
+      project_key: "Alfred",
+      source_id: "claude-code",
+      source_run_id: "claude-run-1",
+      source_event_id: "claude-event-1",
+      type: "agent.waiting",
+      status: "waiting",
+      privacy_mode: "standard",
+      occurred_at: "2026-04-28T10:03:00.000Z",
+      payload: {},
+    };
+
+    await expect(
+      runRunnerOnce(
+        {
+          apiUrl: "http://127.0.0.1:4301",
+          deviceToken: "token-1",
+          workspaceId,
+          deviceId,
+          privacyMode: "standard",
+          outboxPath,
+          codexHome: join(dir, ".codex"),
+        },
+        {
+          fetchImpl,
+          adapters: [
+            {
+              sourceId: "codex-cli",
+              collect: async () => [codexEvent],
+            },
+            {
+              sourceId: "claude-code",
+              collect: async () => [claudeEvent],
+            },
+          ],
+        },
+      ),
+    ).resolves.toEqual({ collectedEvents: 2, flushedEvents: 2 });
+
+    const request = (fetchImpl as unknown as FetchMock).mock.calls[0]?.[1];
+    const body = typeof request?.body === "string" ? JSON.parse(request.body) : null;
+    const parsed = IngestBatchSchema.parse(body);
+    expect(parsed.events.map((event) => event.source_id)).toEqual(["codex-cli", "claude-code"]);
+
+    const outbox = new OutboxDb(outboxPath);
+    expect(outbox.getSourceCursor("codex-cli")).toBe("2026-04-28T10:00:00.000Z");
+    expect(outbox.getSourceCursor("claude-code")).toBe("2026-04-28T10:03:00.000Z");
     outbox.close();
   });
 });

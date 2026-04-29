@@ -1,0 +1,75 @@
+@font-face {
+  font-family: "Source Serif 4";
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+  src: url("/fonts/source-serif-4-regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Source Serif 4";
+  font-display: swap;
+  font-style: italic;
+  font-weight: 400;
+  src: url("/fonts/source-serif-4-italic.woff2") format("woff2");
+}
+
+:root {
+  /* Surfaces */
+  --reader-bg: #14110d;
+  --reader-surface: #1d1814;
+  --reader-surface-2: #251f19;
+  --reader-border: #2e2820;
+  --reader-border-soft: #221d17;
+
+  /* Text */
+  --reader-text: #ede5d2;
+  --reader-text-dim: #a89c83;
+  --reader-text-faint: #6e6452;
+  --reader-text-quiet: #4a4337;
+
+  /* States */
+  --reader-sage: #88a87a;
+  --reader-amber: #d4a64a;
+  --reader-coral: #c97a6b;
+  --reader-graphite: #5a5247;
+
+  /* Halos (rgba versions for box-shadow without alpha math) */
+  --reader-halo-sage: rgba(136, 168, 122, 0.18);
+  --reader-halo-amber: rgba(212, 166, 74, 0.20);
+  --reader-tint-amber-soft: rgba(212, 166, 74, 0.025);
+  --reader-tint-amber-selected: rgba(212, 166, 74, 0.04);
+
+  /* Typography */
+  --reader-serif: 'Iowan Old Style', 'Source Serif 4', 'Source Serif Pro', 'Newsreader', Charter, Georgia, serif;
+  --reader-sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --reader-mono: 'Berkeley Mono', 'IBM Plex Mono', 'iA Writer Mono', ui-monospace, Menlo, monospace;
+
+  /* Motion */
+  --reader-ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --reader-ease-window: cubic-bezier(0.32, 0.72, 0, 1);
+  --reader-t-drawer: 220ms;
+  --reader-t-mode: 280ms;
+  --reader-t-fast: 120ms;
+  --reader-halo-live-dur: 2.6s;
+  --reader-halo-needs-dur: 1.8s;
+
+  /* Spacing rhythm */
+  --reader-gap-sm: 10px;
+  --reader-gap: 18px;
+  --reader-gap-lg: 28px;
+
+  /* Sizes */
+  --reader-col: 720px;
+  --reader-radius: 8px;
+  --reader-radius-lg: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --reader-t-drawer: 1ms;
+    --reader-t-mode: 1ms;
+    --reader-halo-live-dur: 0s;
+    --reader-halo-needs-dur: 0s;
+  }
+}
