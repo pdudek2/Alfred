@@ -61,12 +61,17 @@ describe("App (new shell)", () => {
     expect(window.location.search).toContain("view=observatory");
   });
 
-  it("keeps the old console behind the legacy flag for one cycle", async () => {
+  it("ignores retired legacy and mockup flags", async () => {
     window.history.pushState({}, "", "/?legacy=1");
     render(<App />);
 
-    expect(await screen.findByText(/1 loaded · 0 active/i)).toBeInTheDocument();
-    expect(await screen.findByText("run.started")).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: /run feed/i })).not.toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: /run feed/i })).toBeInTheDocument();
+    cleanup();
+
+    window.history.pushState({}, "", "/?mockup=1");
+    render(<App />);
+
+    expect(await screen.findByRole("region", { name: /run feed/i })).toBeInTheDocument();
+    expect(screen.queryByRole("main", { name: /mockup/i })).not.toBeInTheDocument();
   });
 });
