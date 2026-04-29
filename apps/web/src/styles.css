@@ -1,5 +1,6 @@
 @import "./styles/tokens.css";
 @import "./styles/base.css";
+@import "./styles/reader.css";
 @import "./styles/app-shell.css";
 
 :root {
