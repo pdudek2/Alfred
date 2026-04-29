@@ -32,7 +32,7 @@ export function AppShell({
   useKeyboardShortcut("mod+o", toggleMode, { ignoreEditable: true });
 
   return (
-    <div className={`next-app-shell next-app-shell-${mode}`}>
+    <div className={`reader-theme next-app-shell next-app-shell-${mode}`}>
       <header className="next-app-shell-header">
         <button
           aria-label={mode === "reader" ? "Open observatory" : "Return to reader"}

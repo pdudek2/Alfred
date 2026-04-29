@@ -324,8 +324,8 @@
   display: grid;
   gap: var(--reader-gap-lg);
   margin: 0 auto;
-  max-width: 720px;
-  padding: clamp(20px, 4vw, 40px) clamp(16px, 4vw, 24px);
+  max-width: min(1180px, calc(100vw - 96px));
+  padding: clamp(36px, 5vw, 76px) clamp(22px, 4vw, 40px);
   width: 100%;
 }
 
@@ -333,7 +333,10 @@
   align-content: start;
   display: grid;
   gap: var(--reader-gap);
+  justify-self: center;
+  max-width: 860px;
   min-width: 0;
+  width: 100%;
 }
 
 .reader-filter-shell {
@@ -348,8 +351,12 @@
   border-radius: var(--reader-radius-lg);
   display: grid;
   gap: var(--reader-gap);
+  justify-self: center;
+  max-width: 980px;
+  min-height: 520px;
   outline: none;
   padding: var(--reader-gap);
+  width: 100%;
 }
 
 .reader-feed:focus-visible {
