@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { FilterBar } from "./components/filter-bar";
 import { ObservatoryMockup } from "./components/observatory-mockup";
+import { Reader } from "./components/reader";
 import { RunDetailPanel } from "./components/run-detail";
 import { RunList } from "./components/run-list";
 import { StatusStrip } from "./components/status-strip";
@@ -27,6 +28,7 @@ export function App() {
   const [runFilters, setRunFilters] = useState<RunFilters>({});
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [readerNow, setReaderNow] = useState(() => new Date());
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
 
   const selectedRunSummary = useMemo(
@@ -36,6 +38,8 @@ export function App() {
   const activeRunCount = useMemo(() => buildOverviewVM(runs).liveCount, [runs]);
   const filtered = hasActiveFilters(runFilters);
   const mockupEnabled = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("mockup");
+  const nextEnabled = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("next");
+  const readerEnabled = nextEnabled && !mockupEnabled;
 
   async function loadSelectedRun(runId: string, clearBeforeLoad = true) {
     setLoadingDetail(true);
@@ -62,15 +66,17 @@ export function App() {
 
     try {
       const items = await api.listRuns({ limit: 25, filters });
+      const syncedAt = new Date();
       setRuns(items);
-      setLastSyncedAt(new Date().toISOString());
+      setLastSyncedAt(syncedAt.toISOString());
+      setReaderNow(syncedAt);
       const nextSelectedRunId =
         selectedRunId && items.some((run) => run.id === selectedRunId)
           ? selectedRunId
           : (items[0]?.id ?? null);
 
       setSelectedRunId(nextSelectedRunId);
-      if (refreshDetail && nextSelectedRunId) {
+      if (refreshDetail && nextSelectedRunId && !readerEnabled) {
         await loadSelectedRun(nextSelectedRunId, false);
       } else if (!nextSelectedRunId) {
         setSelectedRun(null);
@@ -100,6 +106,12 @@ export function App() {
   }, [autoRefresh, runFilters, selectedRunId]);
 
   useEffect(() => {
+    if (readerEnabled) {
+      setLoadingDetail(false);
+      setSelectedRun(null);
+      return;
+    }
+
     if (!selectedRunId) {
       setSelectedRun(null);
       return;
@@ -127,7 +139,7 @@ export function App() {
     return () => {
       active = false;
     };
-  }, [selectedRunId]);
+  }, [readerEnabled, selectedRunId]);
 
   function selectRun(runId: string) {
     setSelectedRunId(runId);
@@ -145,6 +157,19 @@ export function App() {
         onToggleLive={() => setAutoRefresh((current) => !current)}
         runs={runs}
         selectedRun={selectedRun ?? selectedRunSummary}
+        selectedRunId={selectedRunId}
+      />
+    );
+  }
+
+  if (readerEnabled) {
+    return (
+      <Reader
+        error={error}
+        loading={loadingRuns}
+        now={readerNow}
+        onSelectRun={setSelectedRunId}
+        runs={runs}
         selectedRunId={selectedRunId}
       />
     );

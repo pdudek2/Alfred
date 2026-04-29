@@ -5,8 +5,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useKeyboardShortcut } from "../lib/use-keyboard-shortcut";
 
-function Probe({ binding, onTrigger }: { binding: string; onTrigger: () => void }) {
-  useKeyboardShortcut(binding, onTrigger);
+function Probe({
+  binding,
+  ignoreEditable = false,
+  onTrigger,
+}: {
+  binding: string;
+  ignoreEditable?: boolean;
+  onTrigger: () => void;
+}) {
+  useKeyboardShortcut(binding, onTrigger, { ignoreEditable });
   return <div>probe</div>;
 }
 
@@ -144,6 +152,24 @@ describe("useKeyboardShortcut", () => {
     await user.keyboard("{Escape}");
 
     expect(onTrigger).toHaveBeenCalledTimes(1);
+  });
+
+  it("can ignore shortcuts from inside editable fields without preventing typing", () => {
+    const onTrigger = vi.fn();
+    render(
+      <>
+        <Probe binding="slash" ignoreEditable onTrigger={onTrigger} />
+        <input data-testid="probe-input" />
+      </>,
+    );
+
+    const input = document.querySelector("[data-testid='probe-input']") as HTMLInputElement;
+    input.focus();
+    const event = new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true });
+    input.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(onTrigger).not.toHaveBeenCalled();
   });
 
   it("prevents default only when the shortcut matches", () => {

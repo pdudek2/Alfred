@@ -7,6 +7,10 @@ type ParsedBinding = {
   shift: boolean;
 };
 
+type KeyboardShortcutOptions = {
+  ignoreEditable?: boolean;
+};
+
 const SPECIAL_KEYS: Record<string, string> = {
   arrowdown: "ArrowDown",
   arrowleft: "ArrowLeft",
@@ -69,17 +73,30 @@ function matchesShortcut(event: KeyboardEvent, binding: ParsedBinding): boolean 
   return true;
 }
 
-export function useKeyboardShortcut(binding: string, handler: () => void): void {
+export function useKeyboardShortcut(
+  binding: string,
+  handler: () => void,
+  options: KeyboardShortcutOptions = {},
+): void {
   const latestHandler = useRef(handler);
   const parsedBinding = useMemo(() => parseBinding(binding), [binding]);
   const latestBinding = useRef(parsedBinding);
+  const latestOptions = useRef(options);
 
   latestHandler.current = handler;
   latestBinding.current = parsedBinding;
+  latestOptions.current = options;
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (!matchesShortcut(event, latestBinding.current)) {
+        return;
+      }
+
+      if (
+        latestOptions.current.ignoreEditable &&
+        (isEditableElement(event.target) || isEditableElement(document.activeElement))
+      ) {
         return;
       }
 
@@ -90,4 +107,14 @@ export function useKeyboardShortcut(binding: string, handler: () => void): void 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+}
+
+function isEditableElement(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const tagName = target.tagName.toLowerCase();
+
+  return tagName === "input" || tagName === "textarea" || target.isContentEditable;
 }

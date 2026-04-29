@@ -8,6 +8,7 @@ import { runDetailFixture, runFixture } from "./fixtures";
 
 describe("App", () => {
   beforeEach(() => {
+    window.history.pushState({}, "", "/");
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -28,7 +29,76 @@ describe("App", () => {
 
   afterEach(() => {
     cleanup();
+    window.history.pushState({}, "", "/");
     vi.unstubAllGlobals();
+  });
+
+  it("renders Reader immediately for next mode before runs finish loading without the true empty copy", async () => {
+    window.history.pushState({}, "", "/?next=1");
+    let resolveListRequest: (response: Response) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            // Keep the list request pending so this verifies the loading branch.
+            resolveListRequest = resolve;
+          }),
+      ),
+    );
+
+    render(<App />);
+
+    expect(screen.getByRole("region", { name: "Run feed" })).toBeInTheDocument();
+    expect(screen.queryByText("Quiet here. No agent has reported in yet.")).not.toBeInTheDocument();
+    expect(screen.queryByText("No agent has reported in yet.")).not.toBeInTheDocument();
+
+    resolveListRequest(new Response(JSON.stringify({ items: [] }), { status: 200 }));
+
+    expect(await screen.findByText("No agent has reported in yet.")).toBeInTheDocument();
+  });
+
+  it("keeps mockup precedence when mockup and next flags are both present", () => {
+    window.history.pushState({}, "", "/?mockup=1&next=1");
+
+    render(<App />);
+
+    expect(screen.getByRole("main")).toHaveClass("mockup-shell");
+    expect(screen.queryByRole("region", { name: "Run feed" })).not.toBeInTheDocument();
+  });
+
+  it("does not fetch run details when selecting or arrowing through Reader in next mode", async () => {
+    const user = userEvent.setup();
+    const secondRun = {
+      ...runFixture,
+      id: "run-2",
+      project_name: "Second",
+      project_key: "SECOND",
+      source_run_id: "codex-run-2",
+      title: "Second run",
+      updated_at: "2026-04-28T10:02:00.000Z",
+    };
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith("/api/v1/runs?")) {
+        return new Response(JSON.stringify({ items: [runFixture, secondRun] }), { status: 200 });
+      }
+      return new Response("detail should not be fetched in next mode", { status: 500 });
+    });
+
+    window.history.pushState({}, "", "/?next=1");
+    vi.stubGlobal("fetch", fetchImpl);
+    render(<App />);
+
+    const feed = await screen.findByRole("region", { name: "Run feed" });
+    feed.focus();
+    await user.keyboard("[ArrowDown]");
+    await user.click(await screen.findByRole("button", { name: /Second.*Second run/i }));
+    await user.keyboard("[ArrowUp]");
+
+    expect(screen.getByRole("region", { name: "Run feed" })).toBeInTheDocument();
+    expect(fetchImpl.mock.calls.map(([request]) => String(request))).toEqual(["/api/v1/runs?limit=25"]);
+    expect(screen.queryByText(/Failed to load run/i)).not.toBeInTheDocument();
   });
 
   it("renders runs and selected timeline", async () => {
