@@ -19,6 +19,7 @@ export type RunListOptions = {
 export type RunCardVM = {
   id: string;
   title: string;
+  intent: string;
   projectLabel: string;
   sourceLabel: string;
   sourceRunId: string;
@@ -152,6 +153,10 @@ const ACTIVITY_LABELS: Record<ActivityKind, string> = {
   other: "Other events",
 };
 
+function stringLabel(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 export function buildOverviewVM(runs: RunListItem[], now = new Date()): RunOverviewVM {
   const orderedRuns = sortRuns(runs);
   const latestUpdatedAt = orderedRuns[0]?.updated_at ?? null;
@@ -172,7 +177,11 @@ export function buildOverviewVM(runs: RunListItem[], now = new Date()): RunOverv
 }
 
 export function buildRunCardVM(run: RunListItem, now = new Date()): RunCardVM {
-  const title = run.title?.trim() || run.source_run_id || run.id;
+  const titleLabel = stringLabel(run.title);
+  const sourceRunLabel = stringLabel(run.source_run_id);
+  const sourceRunId = sourceRunLabel;
+  const title = titleLabel || sourceRunLabel || run.id;
+  const intent = titleLabel || sourceRunLabel || "untitled run";
   const projectLabel = getProjectLabel(run);
   const sourceLabel = run.source_id || "unknown source";
   const sourceStatus = normalizeStatus(run.status);
@@ -181,9 +190,10 @@ export function buildRunCardVM(run: RunListItem, now = new Date()): RunCardVM {
   return {
     id: run.id,
     title,
+    intent,
     projectLabel,
     sourceLabel,
-    sourceRunId: run.source_run_id,
+    sourceRunId,
     status,
     sourceStatus,
     statusLabel: status,
@@ -197,7 +207,7 @@ export function buildRunCardVM(run: RunListItem, now = new Date()): RunCardVM {
     isLive: isLiveRun(run, now),
     needsAttention: needsAttention(run, now),
     isDone: isDoneRun(run),
-    searchText: [title, projectLabel, sourceLabel, run.source_run_id, run.id, status].join(" ").toLowerCase(),
+    searchText: [title, projectLabel, sourceLabel, sourceRunId, run.id, status].join(" ").toLowerCase(),
   };
 }
 

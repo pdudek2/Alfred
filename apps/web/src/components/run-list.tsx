@@ -128,7 +128,11 @@ type RunRowProps = {
 };
 
 function RunRow({ run, selected, onSelectRun }: RunRowProps) {
-  const primaryTitle = run.title === run.sourceRunId && run.projectLabel !== "unknown project" ? run.projectLabel : run.title;
+  const sourceRunLabel = run.sourceRunId.trim();
+  const primaryTitle =
+    run.title === sourceRunLabel && sourceRunLabel !== run.id && run.projectLabel !== "unknown project"
+      ? run.projectLabel
+      : run.title;
 
   return (
     <button

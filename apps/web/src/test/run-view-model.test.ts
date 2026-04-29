@@ -8,6 +8,7 @@ import {
   buildRunFactsVM,
   buildRunListVM,
   buildTimeGroupedFeedVM,
+  toRunDetailViewModel,
 } from "../lib/run-view-model";
 import { completedRunFixture, runFixture } from "./fixtures";
 
@@ -89,6 +90,40 @@ describe("run view model", () => {
     });
     expect(card.searchText).toContain("needs approval");
     expect(card.searchText).toContain("billing");
+  });
+
+  it("falls back sanely when runtime title and source run id are not strings", () => {
+    const dirtyRun = {
+      ...waitingRun,
+      id: "run-dirty-labels",
+      title: 42,
+      source_run_id: { nested: "codex-run" },
+    } as unknown as RunListItem;
+
+    expect(() => buildRunCardVM(dirtyRun, NOW)).not.toThrow();
+
+    const card = buildRunCardVM(dirtyRun, NOW);
+    expect(card.title).toBe("run-dirty-labels");
+    expect(card.intent).toBe("untitled run");
+    expect(card.sourceRunId).toBe("");
+    expect(typeof card.sourceRunId).toBe("string");
+  });
+
+  it("builds detail VM with render-safe sourceRunId for dirty source run ids", () => {
+    const dirtyRun = {
+      ...waitingRun,
+      id: "run-dirty-detail",
+      title: null,
+      source_run_id: { nested: "codex-run" },
+    } as unknown as RunListItem;
+
+    expect(() => toRunDetailViewModel(dirtyRun, NOW)).not.toThrow();
+
+    const detail = toRunDetailViewModel(dirtyRun, NOW);
+    expect(detail.title).toBe("Billing");
+    expect(detail.subtitle).toBe("run-dirty-detail");
+    expect(detail.sourceRunId).toBe("");
+    expect(typeof detail.sourceRunId).toBe("string");
   });
 
   it("filters by tab and query, then groups by project deterministically", () => {
@@ -291,6 +326,58 @@ describe("buildTimeGroupedFeedVM", () => {
     const runs = [{ ...runFixture, id: "r1", status: "running", updated_at: now.toISOString() }];
     const vm = buildTimeGroupedFeedVM(runs, now);
     expect(vm.sections.map((section) => section.label)).toEqual(["Now"]);
+  });
+});
+
+describe("RunCardVM.intent", () => {
+  const now = new Date("2026-04-29T11:00:00.000Z");
+
+  it("uses the run title when present", () => {
+    const card = buildRunCardVM({ ...runFixture, title: "ingest retry pipeline" }, now);
+    expect(card.intent).toBe("ingest retry pipeline");
+  });
+
+  it("falls back to source_run_id when no title", () => {
+    const card = buildRunCardVM({ ...runFixture, title: null }, now);
+    expect(card.intent).toBe(runFixture.source_run_id);
+  });
+
+  it("falls back to source_run_id when title is empty", () => {
+    const card = buildRunCardVM({ ...runFixture, title: "", source_run_id: "source-id" }, now);
+
+    expect(card.title).toBe("source-id");
+    expect(card.intent).toBe("source-id");
+  });
+
+  it("falls back to normalized source_run_id when title is whitespace-only", () => {
+    const card = buildRunCardVM({ ...runFixture, title: "   ", source_run_id: " source-id " }, now);
+
+    expect(card.title).toBe("source-id");
+    expect(card.intent).toBe("source-id");
+    expect(card.sourceRunId).toBe("source-id");
+  });
+
+  it("trims source_run_id for title and intent fallback labels", () => {
+    const card = buildRunCardVM({ ...runFixture, id: "run-with-padded-source", title: null, source_run_id: " padded-id " }, now);
+
+    expect(card.title).toBe("padded-id");
+    expect(card.intent).toBe("padded-id");
+    expect(card.sourceRunId).toBe("padded-id");
+    expect(card.searchText).toContain("padded-id");
+    expect(card.searchText).toContain("run-with-padded-source");
+  });
+
+  it("falls back past whitespace-only source_run_id for title and intent labels", () => {
+    const card = buildRunCardVM({ ...runFixture, id: "run-with-blank-source", title: null, source_run_id: "   " }, now);
+
+    expect(card.title).toBe("run-with-blank-source");
+    expect(card.intent).toBe("untitled run");
+    expect(card.sourceRunId).toBe("");
+  });
+
+  it("returns 'untitled run' when neither title nor source_run_id exists", () => {
+    const card = buildRunCardVM({ ...runFixture, title: null, source_run_id: "" }, now);
+    expect(card.intent).toBe("untitled run");
   });
 });
 
