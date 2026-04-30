@@ -5,6 +5,7 @@ const DEFAULT_DEVICE_TOKEN = "dev-device-token";
 const DEFAULT_WORKSPACE_ID = "00000000-0000-4000-8000-000000000001";
 const DEFAULT_DEVICE_ID = "00000000-0000-4000-8000-000000000101";
 const DEFAULT_OUTBOX_PATH = ".alfred-runner/outbox.sqlite";
+const DEFAULT_RUNNER_POLL_MS = 5_000;
 
 const PrivacyModeSchema = z.enum(["minimal", "standard", "full"]);
 const RunnerSourceSchema = z.enum(["codex", "claude"]);
@@ -21,6 +22,7 @@ export type RunnerEnv = {
   ALFRED_SOURCES: RunnerSource[];
   ALFRED_PRIVACY_MODE: "minimal" | "standard" | "full";
   ALFRED_RUNNER_DB_PATH: string;
+  ALFRED_RUNNER_POLL_MS: number;
   ALFRED_CODEX_HOME: string;
   ALFRED_CODEX_SINCE?: string;
   ALFRED_CLAUDE_HOME: string;
@@ -89,6 +91,8 @@ export function parseRunnerEnv(input: NodeJS.ProcessEnv): RunnerEnv {
     throw new Error("Invalid ALFRED_CLAUDE_SINCE");
   }
 
+  const runnerPollMs = parseRunnerPollMs(input.ALFRED_RUNNER_POLL_MS);
+
   return {
     RUNNER_API_URL: input.RUNNER_API_URL ?? DEFAULT_API_URL,
     RUNNER_DEVICE_TOKEN: deviceToken,
@@ -97,6 +101,7 @@ export function parseRunnerEnv(input: NodeJS.ProcessEnv): RunnerEnv {
     ALFRED_SOURCES: parseRunnerSources(input.ALFRED_SOURCES),
     ALFRED_PRIVACY_MODE: privacyMode.data,
     ALFRED_RUNNER_DB_PATH: input.ALFRED_RUNNER_DB_PATH ?? DEFAULT_OUTBOX_PATH,
+    ALFRED_RUNNER_POLL_MS: runnerPollMs,
     ALFRED_CODEX_HOME: input.ALFRED_CODEX_HOME ?? `${home}/.codex`,
     ...(input.ALFRED_CODEX_SINCE !== undefined
       ? { ALFRED_CODEX_SINCE: input.ALFRED_CODEX_SINCE }
@@ -106,6 +111,17 @@ export function parseRunnerEnv(input: NodeJS.ProcessEnv): RunnerEnv {
       ? { ALFRED_CLAUDE_SINCE: input.ALFRED_CLAUDE_SINCE }
       : {}),
   };
+}
+
+function parseRunnerPollMs(raw: string | undefined): number {
+  if (raw === undefined) return DEFAULT_RUNNER_POLL_MS;
+
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1_000) {
+    throw new Error("Invalid ALFRED_RUNNER_POLL_MS");
+  }
+
+  return value;
 }
 
 export const runnerEnv = parseRunnerEnv(process.env);

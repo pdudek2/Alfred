@@ -16,11 +16,15 @@ function fixturePath() {
   return fileURLToPath(new URL("./fixtures/codex-session.jsonl", import.meta.url));
 }
 
-function createCodexHome() {
+function turnCompleteFixturePath() {
+  return fileURLToPath(new URL("./fixtures/codex-turn-complete.jsonl", import.meta.url));
+}
+
+function createCodexHome(sourceFixturePath = fixturePath()) {
   const codexHome = mkdtempSync(join(tmpdir(), "alfred-codex-home-"));
   const target = join(codexHome, "sessions/2026/04/28/session.jsonl");
   mkdirSync(dirname(target), { recursive: true });
-  copyFileSync(fixturePath(), target);
+  copyFileSync(sourceFixturePath, target);
   return codexHome;
 }
 
@@ -71,5 +75,25 @@ describe("collectCodexEvents", () => {
       "2026-04-28T10:00:02.000Z",
       "2026-04-28T10:00:03.000Z",
     ]);
+  });
+
+  it("treats Codex task completion as waiting for the next user turn", async () => {
+    const events = await collectCodexEvents({
+      codexHome: createCodexHome(turnCompleteFixturePath()),
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+    });
+
+    expect(events.map((event) => event.type)).toEqual([
+      "run.started",
+      "tool.started",
+      "tool.completed",
+      "agent.waiting",
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      type: "agent.waiting",
+      status: "waiting",
+    });
   });
 });

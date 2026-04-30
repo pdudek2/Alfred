@@ -194,8 +194,8 @@ function codexEnvelopeToEvent(
       projectKey: context.projectKey,
       sourceRunId: context.sourceRunId,
       sourceEventId,
-      type: "run.completed",
-      status: "completed",
+      type: "agent.waiting",
+      status: "waiting",
       occurredAt,
       payload: {
         duration_ms: numberValue(payload.duration_ms),
@@ -283,11 +283,12 @@ type ParseEventInput = {
     | "run.started"
     | "run.completed"
     | "run.failed"
+    | "agent.waiting"
     | "tool.started"
     | "tool.completed"
     | "tool.failed"
     | "command.executed";
-  status?: "running" | "completed" | "failed";
+  status?: "running" | "waiting" | "completed" | "failed";
   occurredAt: string;
   payload: Record<string, unknown>;
 };

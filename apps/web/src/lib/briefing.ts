@@ -27,15 +27,15 @@ export function buildBriefingVM(runs: RunListItem[], now: Date, error?: unknown)
   const waiting = cards.find((card) => card.status === "waiting");
   if (waiting) {
     const elapsed = elapsedLabel(waiting.updatedAt || waiting.startedAt, now, "a moment");
+    const waitingIntent = attentionIntentLabel(waiting);
     return compose(voice, [
       sourceLabel(waiting),
-      txt(" is waiting on you for "),
-      hi(waiting.intent, waiting.id),
-      txt(" on "),
+      txt(waitingIntent ? " needs you for " : " needs you on "),
+      ...(waitingIntent ? [hi(waitingIntent, waiting.id), txt(" on ")] : []),
       hi(waiting.projectLabel, waiting.id),
-      txt(". It's been "),
+      txt(". Last activity "),
       hi(elapsed, waiting.id),
-      txt("."),
+      txt(" ago."),
     ]);
   }
 
@@ -87,6 +87,11 @@ function sourceLabel(card: RunCardVM): BriefingPiece {
   if (source.includes("codex")) return txt("Codex");
   if (source.includes("claude")) return txt("Claude");
   return txt(card.sourceLabel);
+}
+
+function attentionIntentLabel(card: RunCardVM): string {
+  const genericIntents = new Set(["waiting on you", "active session", "closed session", "interrupted session", "quiet session", "agent session"]);
+  return genericIntents.has(card.intent.toLowerCase()) ? "" : card.intent;
 }
 
 function compose(voice: BriefingVoice, pieces: BriefingPiece[]): BriefingVM {

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { describe, expect, it, vi } from "vitest";
 import { IngestBatchSchema, type IngestEvent } from "@alfred/schema";
 
-import { runRunnerOnce } from "../index.js";
+import { runRunnerLoop, runRunnerOnce } from "../index.js";
 import { OutboxDb } from "../outbox/outbox-db.js";
 import { flushOutboxOnce } from "../outbox/outbox-worker.js";
 
@@ -315,5 +315,61 @@ describe("flushOutboxOnce", () => {
     expect(outbox.getSourceCursor("codex-cli")).toBe("2026-04-28T10:00:00.000Z");
     expect(outbox.getSourceCursor("claude-code")).toBe("2026-04-28T10:03:00.000Z");
     outbox.close();
+  });
+
+  it("keeps polling while the runner loop is active", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "alfred-runner-loop-"));
+    const outboxPath = join(dir, "outbox.sqlite");
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
+    const collect = vi
+      .fn<() => Promise<IngestEvent[]>>()
+      .mockResolvedValueOnce([
+        {
+          event_id: "loop-event-000001",
+          workspace_id: workspaceId,
+          device_id: deviceId,
+          project_key: "Alfred",
+          source_id: "codex-cli",
+          source_run_id: "codex-run-1",
+          source_event_id: "codex-event-1",
+          type: "run.started",
+          status: "running",
+          privacy_mode: "standard",
+          occurred_at: "2026-04-28T10:00:00.000Z",
+          payload: {},
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    const sleep = vi.fn(async () => undefined);
+    const onIteration = vi.fn();
+
+    await runRunnerLoop(
+      {
+        apiUrl: "http://127.0.0.1:4301",
+        deviceToken: "token-1",
+        workspaceId,
+        deviceId,
+        privacyMode: "standard",
+        outboxPath,
+        codexHome: join(dir, ".codex"),
+        pollMs: 1_500,
+      },
+      {
+        fetchImpl,
+        maxIterations: 2,
+        onIteration,
+        sleep,
+        adapter: {
+          sourceId: "codex-cli",
+          collect,
+        },
+      },
+    );
+
+    expect(collect).toHaveBeenCalledTimes(2);
+    expect(onIteration).toHaveBeenNthCalledWith(1, { collectedEvents: 1, flushedEvents: 1 });
+    expect(onIteration).toHaveBeenNthCalledWith(2, { collectedEvents: 0, flushedEvents: 0 });
+    expect(sleep).toHaveBeenCalledOnce();
+    expect(sleep).toHaveBeenCalledWith(1_500);
   });
 });

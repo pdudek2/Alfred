@@ -10,6 +10,7 @@ describe("runner env", () => {
     expect(env.RUNNER_API_URL).toBe("http://127.0.0.1:4301");
     expect(env.RUNNER_DEVICE_TOKEN).toBe("dev-device-token");
     expect(env.ALFRED_SOURCES).toEqual(["codex"]);
+    expect(env.ALFRED_RUNNER_POLL_MS).toBe(5_000);
     expect(env.ALFRED_CODEX_HOME).toBe("/tmp/home/.codex");
     expect(env.ALFRED_CLAUDE_HOME).toBe("/tmp/home/.claude");
   });
@@ -52,6 +53,28 @@ describe("runner env", () => {
 
     expect(env.ALFRED_CODEX_SINCE).toBe("2026-04-28T10:00:02.000Z");
     expect(config.codexSince).toBe("2026-04-28T10:00:02.000Z");
+  });
+
+  it("loads optional runner poll interval", () => {
+    const env = parseRunnerEnv({
+      ALFRED_ALLOW_DEV_CONFIG: "1",
+      ALFRED_RUNNER_POLL_MS: "2000",
+      HOME: "/tmp/home",
+    });
+    const config = loadRunnerConfig(env);
+
+    expect(env.ALFRED_RUNNER_POLL_MS).toBe(2_000);
+    expect(config.pollMs).toBe(2_000);
+  });
+
+  it("rejects invalid runner poll interval", () => {
+    expect(() =>
+      parseRunnerEnv({
+        ALFRED_ALLOW_DEV_CONFIG: "1",
+        ALFRED_RUNNER_POLL_MS: "250",
+        HOME: "/tmp/home",
+      }),
+    ).toThrow(/Invalid ALFRED_RUNNER_POLL_MS/);
   });
 
   it("rejects invalid Codex since timestamp", () => {

@@ -63,7 +63,7 @@ describe("buildBriefingVM", () => {
     const vm = buildBriefingVM([waiting], now);
 
     expect(vm.voice).toBe("morning");
-    expect(plainText(vm)).toMatch(/waiting on you/i);
+    expect(plainText(vm)).toBe("Codex needs you for App Router migration on alfred-web. Last activity 30m ago.");
     expect(plainText(vm)).toContain("alfred-web");
     expect(plainText(vm)).toContain("App Router migration");
     expect(plainText(vm)).not.toContain("open");
@@ -113,8 +113,26 @@ describe("buildBriefingVM", () => {
 
     const vm = buildBriefingVM([failed, live, completed, waiting], now);
 
-    expect(plainText(vm)).toContain("waiting on you");
+    expect(plainText(vm)).toContain("Codex needs you for approve cleanup");
     expect(plainText(vm)).toContain("approve cleanup");
+  });
+
+  it("does not repeat generic waiting copy in the briefing", () => {
+    const waiting = {
+      ...baseRun,
+      id: "r-generic-waiting",
+      status: "waiting",
+      title: null,
+      source_run_id: "019dd5a8-9bb7-7691-a66b-1fa59eccdde3",
+      project_name: "Alfred",
+      completed_at: null,
+      updated_at: localIso(2026, 3, 29, 10, 58),
+    };
+
+    const vm = buildBriefingVM([waiting], now);
+
+    expect(plainText(vm)).toBe("Codex needs you on Alfred. Last activity 2m ago.");
+    expect(plainText(vm)).not.toContain("waiting on you for waiting on you");
   });
 
   it("floors waiting elapsed minutes below the hour threshold", () => {
