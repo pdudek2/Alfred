@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import type { RunDetail, RunEventItem } from "../lib/api-client";
 import { buildRunStoryVM, type StoryHighlight } from "../lib/run-story";
@@ -25,6 +25,9 @@ const STATE_LABEL: Record<string, string> = {
 
 export function RunReader({ detail, now, onClose }: RunReaderProps) {
   const [expandedHighlight, setExpandedHighlight] = useState<StoryHighlight | null>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
   const card = useMemo(() => buildRunCardVM(detail, now), [detail, now]);
   const story = useMemo(() => buildRunStoryVM(detail, now), [detail, now]);
   const highlightedEvent = expandedHighlight?.payload.eventId
@@ -33,17 +36,40 @@ export function RunReader({ detail, now, onClose }: RunReaderProps) {
 
   useKeyboardShortcut("escape", onClose);
 
+  useEffect(() => {
+    restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeButtonRef.current?.focus();
+
+    return () => {
+      restoreFocusRef.current?.focus();
+    };
+  }, []);
+
   return (
-    <aside className="run-reader" role="dialog" aria-modal="true" aria-labelledby="run-reader-title">
+    <aside
+      className="run-reader"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="run-reader-title"
+      aria-describedby="run-reader-subtitle"
+      onKeyDown={trapFocus}
+      ref={dialogRef}
+    >
       <header className="run-reader-header">
         <div className="run-reader-titles">
           <p className="run-reader-kicker">{card.sourceLabel}</p>
           <h2 id="run-reader-title">{card.headline}</h2>
-          <p className="run-reader-subtitle">
+          <p className="run-reader-subtitle" id="run-reader-subtitle">
             {card.sourceLabel} · {STATE_LABEL[card.status] ?? card.status} · {card.durationLabel}
           </p>
         </div>
-        <button type="button" className="run-reader-close" aria-label="Close run reader" onClick={onClose}>
+        <button
+          type="button"
+          className="run-reader-close"
+          aria-label="Close run reader"
+          onClick={onClose}
+          ref={closeButtonRef}
+        >
           esc
         </button>
       </header>
@@ -90,6 +116,28 @@ export function RunReader({ detail, now, onClose }: RunReaderProps) {
       </details>
     </aside>
   );
+
+  function trapFocus(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== "Tab") return;
+
+    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    const items = focusable ? Array.from(focusable).filter((item) => !item.hasAttribute("disabled")) : [];
+    if (items.length === 0) return;
+
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (!first || !last) return;
+
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 }
 
 function RunReaderEvent({ event }: { event: RunEventItem }) {

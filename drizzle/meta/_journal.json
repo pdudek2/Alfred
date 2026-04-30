@@ -15,6 +15,13 @@
       "when": 1777330205562,
       "tag": "0001_abandoned_sue_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777532900121,
+      "tag": "0002_trust_first_auth",
+      "breakpoints": true
     }
   ]
 }

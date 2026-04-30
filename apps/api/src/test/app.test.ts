@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { requireDeviceToken } from "../auth/device-auth";
+import { createDbDeviceAuthStore, requireDeviceToken } from "../auth/device-auth";
+import { hashToken } from "../auth/token-hash";
 import type { RunListItem } from "../services/runs-query-service";
 
 const dbMock = vi.hoisted(() => ({
@@ -79,17 +80,30 @@ describe("api", () => {
   });
 
   it("keeps the web-prefixed runs endpoint compatible", async () => {
-    const res = await createApp().request("/api/v1/runs?limit=7");
+    const res = await createApp().request("/api/v1/runs?limit=7", {
+      headers: { cookie: "alfred_session=dev-session-token" },
+    });
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ items: [run] });
     expect(dbMock.listRuns).toHaveBeenCalledOnce();
-    expect(dbMock.listRuns).toHaveBeenCalledWith(7, {});
+    expect(dbMock.listRuns).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000001", 7, {});
   });
 
   it("rejects missing device token", async () => {
     const app = new Hono();
-    app.use("/private/*", requireDeviceToken("secret"));
+    app.use(
+      "/private/*",
+      requireDeviceToken({
+        authenticateDeviceToken: async (token) =>
+          token === "secret"
+            ? {
+                workspaceId: "workspace-1",
+                deviceId: "device-1",
+              }
+            : null,
+      }),
+    );
     app.get("/private/ping", (c) => c.json({ ok: true }));
 
     const res = await app.request("/private/ping");
@@ -99,7 +113,18 @@ describe("api", () => {
 
   it("allows valid device token", async () => {
     const app = new Hono();
-    app.use("/private/*", requireDeviceToken("secret"));
+    app.use(
+      "/private/*",
+      requireDeviceToken({
+        authenticateDeviceToken: async (token) =>
+          token === "secret"
+            ? {
+                workspaceId: "workspace-1",
+                deviceId: "device-1",
+              }
+            : null,
+      }),
+    );
     app.get("/private/ping", (c) => c.json({ ok: true }));
 
     const res = await app.request("/private/ping", {
@@ -109,4 +134,38 @@ describe("api", () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ ok: true });
   });
+
+  it("authenticates devices by stored token hash", async () => {
+    const store = createDbDeviceAuthStore(createDeviceAuthDb("secret"));
+
+    await expect(store.authenticateDeviceToken("secret")).resolves.toEqual({
+      workspaceId: "00000000-0000-4000-8000-000000000001",
+      deviceId: "00000000-0000-4000-8000-000000000101",
+    });
+    expect(hashToken("secret")).not.toBe("secret");
+  });
 });
+
+function createDeviceAuthDb(expectedToken: string) {
+  return {
+    select: () => ({
+      from: () => ({
+        where: (condition: unknown) => ({
+          limit: () => {
+            void condition;
+            return Promise.resolve(
+              hashToken(expectedToken) === hashToken("secret")
+                ? [
+                    {
+                      workspaceId: "00000000-0000-4000-8000-000000000001",
+                      deviceId: "00000000-0000-4000-8000-000000000101",
+                    },
+                  ]
+                : [],
+            );
+          },
+        }),
+      }),
+    }),
+  } as never;
+}

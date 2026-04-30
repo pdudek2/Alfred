@@ -2,17 +2,26 @@ import { createDb, type Database } from "@alfred/db";
 import { IngestBatchSchema } from "@alfred/schema";
 import { Hono } from "hono";
 
-import { requireDeviceToken } from "../auth/device-auth";
+import {
+  createStaticDeviceAuthStore,
+  requireDeviceToken,
+  type DeviceAuthStore,
+  type DeviceAuthVariables,
+} from "../auth/device-auth";
 import { env } from "../env";
 import { ingestBatch, type IngestStore } from "../services/ingest-service";
 
 export function createIngestRoutes(
   db: Database | IngestStore = createDb(),
-  runnerDeviceToken = env.RUNNER_DEVICE_TOKEN,
+  deviceAuthStore: DeviceAuthStore = createStaticDeviceAuthStore(
+    env.RUNNER_DEVICE_TOKEN,
+    env.RUNNER_WORKSPACE_ID,
+    env.RUNNER_DEVICE_ID,
+  ),
 ) {
-  const ingestRoutes = new Hono();
+  const ingestRoutes = new Hono<{ Variables: DeviceAuthVariables }>();
 
-  ingestRoutes.post("/batches", requireDeviceToken(runnerDeviceToken), async (c) => {
+  ingestRoutes.post("/batches", requireDeviceToken(deviceAuthStore), async (c) => {
     let body: unknown;
 
     try {
@@ -27,6 +36,11 @@ export function createIngestRoutes(
     }
 
     const batch = parsed.data;
+    const deviceAuth = c.get("deviceAuth");
+    if (batch.workspace_id !== deviceAuth.workspaceId || batch.device_id !== deviceAuth.deviceId) {
+      return c.json({ error: "device_scope_mismatch" }, 403);
+    }
+
     const result = await ingestBatch(db, batch);
     return c.json(result, 202);
   });

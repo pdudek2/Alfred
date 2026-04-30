@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createRunsRoutes } from "../routes/runs";
+import type { AuthSessionStore } from "../auth/session-auth";
 import type {
   RunDetail,
   RunListItem,
@@ -9,7 +10,7 @@ import type {
 } from "../services/runs-query-service";
 
 const baseRun: RunListItem = {
-  id: "run-1",
+  id: "00000000-0000-4000-8000-000000000301",
   workspace_id: "00000000-0000-4000-8000-000000000001",
   project_id: "project-1",
   project_key: "Alfred",
@@ -27,9 +28,11 @@ const baseRun: RunListItem = {
 function createStore(): RunsQueryStore & {
   observedLimits: number[];
   observedFilters: RunsListFilters[];
+  observedWorkspaceIds: string[];
 } {
   const observedLimits: number[] = [];
   const observedFilters: RunsListFilters[] = [];
+  const observedWorkspaceIds: string[] = [];
   const runDetail: RunDetail = {
     ...baseRun,
     events: [
@@ -57,43 +60,99 @@ function createStore(): RunsQueryStore & {
   return {
     observedLimits,
     observedFilters,
-    listRuns: async (limit, filters = {}) => {
+    observedWorkspaceIds,
+    listRuns: async (workspaceId, limit, filters = {}) => {
+      observedWorkspaceIds.push(workspaceId);
       observedLimits.push(limit);
       observedFilters.push(filters);
       return [baseRun].slice(0, limit);
     },
-    getRun: async (runId) => (runId === baseRun.id ? runDetail : null),
+    getRun: async (workspaceId, runId) => {
+      observedWorkspaceIds.push(workspaceId);
+      return runId === baseRun.id ? runDetail : null;
+    },
   };
 }
+
+function createSessionStore(workspaceId = baseRun.workspace_id): AuthSessionStore {
+  return {
+    getSession: async (token) =>
+      token === "valid-session"
+        ? {
+            sessionId: "session-1",
+            userId: "user-1",
+            email: "patryk@example.com",
+            workspaceId,
+          }
+        : null,
+  };
+}
+
+const sessionHeaders = { cookie: "alfred_session=valid-session" };
 
 describe("runs routes", () => {
   it("lists runs", async () => {
     const store = createStore();
-    const app = createRunsRoutes(store);
+    const app = createRunsRoutes(store, { sessionStore: createSessionStore() });
 
-    const response = await app.request("/");
+    const response = await app.request("/", { headers: sessionHeaders });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ items: [baseRun] });
     expect(store.observedLimits).toEqual([25]);
+    expect(store.observedWorkspaceIds).toEqual([baseRun.workspace_id]);
+  });
+
+  it("requires a session before listing runs", async () => {
+    const store = createStore();
+    const app = createRunsRoutes(store, { sessionStore: createSessionStore() });
+
+    const response = await app.request("/");
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: "unauthorized" });
+    expect(store.observedLimits).toEqual([]);
+  });
+
+  it("treats malformed session cookies as unauthorized", async () => {
+    const store = createStore();
+    const app = createRunsRoutes(store, { sessionStore: createSessionStore() });
+
+    const response = await app.request("/", { headers: { cookie: "alfred_session=%E0%A4%A" } });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: "unauthorized" });
+    expect(store.observedLimits).toEqual([]);
   });
 
   it("caps list limit", async () => {
     const store = createStore();
-    const app = createRunsRoutes(store);
+    const app = createRunsRoutes(store, { sessionStore: createSessionStore() });
 
-    const response = await app.request("/?limit=250");
+    const response = await app.request("/?limit=250", { headers: sessionHeaders });
 
     expect(response.status).toBe(200);
     expect(store.observedLimits).toEqual([100]);
   });
 
+  it("rejects invalid list limits", async () => {
+    const store = createStore();
+    const app = createRunsRoutes(store, { sessionStore: createSessionStore() });
+
+    const response = await app.request("/?limit=abc", { headers: sessionHeaders });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "invalid_limit" });
+    expect(store.observedLimits).toEqual([]);
+  });
+
   it("passes optional filters to the store", async () => {
     const store = createStore();
-    const app = createRunsRoutes(store);
+    const app = createRunsRoutes(store, { sessionStore: createSessionStore() });
 
     const response = await app.request(
       "/?since=2026-04-28T00:00:00.000Z&source=codex-cli&status=running&project=Alfred",
+      { headers: sessionHeaders },
     );
 
     expect(response.status).toBe(200);
@@ -109,9 +168,9 @@ describe("runs routes", () => {
 
   it("rejects an invalid since value", async () => {
     const store = createStore();
-    const app = createRunsRoutes(store);
+    const app = createRunsRoutes(store, { sessionStore: createSessionStore() });
 
-    const response = await app.request("/?since=not-a-date");
+    const response = await app.request("/?since=not-a-date", { headers: sessionHeaders });
 
     expect(response.status).toBe(400);
     expect(store.observedFilters).toEqual([]);
@@ -119,9 +178,9 @@ describe("runs routes", () => {
 
   it("rejects an invalid source value", async () => {
     const store = createStore();
-    const app = createRunsRoutes(store);
+    const app = createRunsRoutes(store, { sessionStore: createSessionStore() });
 
-    const response = await app.request("/?source=nope");
+    const response = await app.request("/?source=nope", { headers: sessionHeaders });
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: "invalid_source" });
@@ -130,9 +189,9 @@ describe("runs routes", () => {
 
   it("rejects an invalid status value", async () => {
     const store = createStore();
-    const app = createRunsRoutes(store);
+    const app = createRunsRoutes(store, { sessionStore: createSessionStore() });
 
-    const response = await app.request("/?status=nope");
+    const response = await app.request("/?status=nope", { headers: sessionHeaders });
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: "invalid_status" });
@@ -141,22 +200,22 @@ describe("runs routes", () => {
 
   it("omits filters when no query params are provided", async () => {
     const store = createStore();
-    const app = createRunsRoutes(store);
+    const app = createRunsRoutes(store, { sessionStore: createSessionStore() });
 
-    const response = await app.request("/");
+    const response = await app.request("/", { headers: sessionHeaders });
 
     expect(response.status).toBe(200);
     expect(store.observedFilters).toEqual([{}]);
   });
 
   it("returns run detail with timeline events", async () => {
-    const app = createRunsRoutes(createStore());
+    const app = createRunsRoutes(createStore(), { sessionStore: createSessionStore() });
 
-    const response = await app.request("/run-1");
+    const response = await app.request(`/${baseRun.id}`, { headers: sessionHeaders });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
-      id: "run-1",
+      id: baseRun.id,
       source_id: "codex-cli",
       events: [
         { type: "run.started", payload: { tool_name: "session" } },
@@ -166,11 +225,22 @@ describe("runs routes", () => {
   });
 
   it("returns 404 for missing runs", async () => {
-    const app = createRunsRoutes(createStore());
+    const app = createRunsRoutes(createStore(), { sessionStore: createSessionStore() });
 
-    const response = await app.request("/missing-run");
+    const response = await app.request("/00000000-0000-4000-8000-000000000302", { headers: sessionHeaders });
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ error: "not_found" });
+  });
+
+  it("rejects malformed run ids before querying the store", async () => {
+    const store = createStore();
+    const app = createRunsRoutes(store, { sessionStore: createSessionStore() });
+
+    const response = await app.request("/not-a-uuid", { headers: sessionHeaders });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "invalid_run_id" });
+    expect(store.observedWorkspaceIds).toEqual([]);
   });
 });

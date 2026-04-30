@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createApiClient } from "../lib/api-client";
+import { ApiError, createApiClient } from "../lib/api-client";
 import { formatDateTime, formatDuration } from "../lib/time";
 
 describe("api client", () => {
@@ -38,6 +38,17 @@ describe("api client", () => {
     const fetchImpl = vi.fn(async () => new Response("nope", { status: 500 })) as unknown as typeof fetch;
 
     await expect(createApiClient(fetchImpl).listRuns()).rejects.toThrow("Failed to load runs: 500");
+  });
+
+  it("throws a typed auth error on unauthorized requests", async () => {
+    const fetchImpl = vi.fn(async () => new Response("login", { status: 401 })) as unknown as typeof fetch;
+
+    await expect(createApiClient(fetchImpl).listRuns()).rejects.toMatchObject({
+      name: "ApiError",
+      status: 401,
+      code: "unauthorized",
+    });
+    expect(new ApiError("Nope", 401).code).toBe("unauthorized");
   });
 
   it("loads run details", async () => {

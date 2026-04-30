@@ -109,6 +109,51 @@ export const workspaces = pgTable("workspaces", {
   updatedAt: updatedAt(),
 });
 
+export const oidcIdentities = pgTable(
+  "oidc_identities",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    issuer: text("issuer").notNull(),
+    subject: text("subject").notNull(),
+    email: text("email"),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    claims: jsonb("claims").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("oidc_identities_issuer_subject_unique").on(table.issuer, table.subject),
+    index("oidc_identities_user_id_idx").on(table.userId),
+  ],
+);
+
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    sessionTokenHash: text("session_token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("sessions_token_hash_unique").on(table.sessionTokenHash),
+    index("sessions_user_id_idx").on(table.userId),
+    index("sessions_workspace_id_idx").on(table.workspaceId),
+  ],
+);
+
 // devices.id is the canonical external runner UUID from RUNNER_DEVICE_ID/IngestBatch.device_id.
 // device_key is only a stable display or registration key scoped to the workspace.
 export const devices = pgTable(
@@ -121,6 +166,7 @@ export const devices = pgTable(
     deviceKey: text("device_key").notNull(),
     name: text("name").notNull(),
     platform: text("platform"),
+    tokenHash: text("token_hash"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
     createdAt: createdAt(),
@@ -128,6 +174,7 @@ export const devices = pgTable(
   },
   (table) => [
     uniqueIndex("devices_workspace_device_key_unique").on(table.workspaceId, table.deviceKey),
+    uniqueIndex("devices_token_hash_unique").on(table.tokenHash),
     index("devices_workspace_id_idx").on(table.workspaceId),
   ],
 );

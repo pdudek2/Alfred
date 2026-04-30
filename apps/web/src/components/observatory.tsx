@@ -90,19 +90,10 @@ export function Observatory({ runs, now, onSelectRun }: ObservatoryProps) {
             const halo = haloFor(node.status);
             return (
               <g
-                aria-label={`Open ${node.projectLabel} run`}
                 className="observatory-node"
                 data-node-run-id={node.runId}
                 key={node.runId}
                 onClick={() => onSelectRun(node.runId)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    onSelectRun(node.runId);
-                  }
-                }}
-                role="button"
-                tabIndex={0}
               >
                 {halo ? (
                   <circle
@@ -123,6 +114,25 @@ export function Observatory({ runs, now, onSelectRun }: ObservatoryProps) {
           }),
         )}
       </svg>
+
+      <div className="observatory-node-buttons" aria-label="Observatory runs">
+        {layout.clusters.flatMap((cluster) =>
+          cluster.nodes.map((node) => (
+            <button
+              aria-label={`Open ${node.projectLabel} ${node.status} run`}
+              className="observatory-node-button"
+              data-node-button-run-id={node.runId}
+              key={node.runId}
+              onClick={() => onSelectRun(node.runId)}
+              style={{
+                left: `${(node.position.x / VIEWPORT.width) * 100}%`,
+                top: `${(node.position.y / VIEWPORT.height) * 100}%`,
+              }}
+              type="button"
+            />
+          )),
+        )}
+      </div>
 
       <div aria-label="Time scope" className="observatory-scope" role="group">
         {SCOPE_LABELS.map((entry) => (
@@ -163,13 +173,19 @@ export function Observatory({ runs, now, onSelectRun }: ObservatoryProps) {
 function filterByScope(runs: RunListItem[], scope: Scope, now: Date): RunListItem[] {
   if (scope === "all") return runs;
 
-  const cutoffMs = scope === "today" ? ONE_DAY_MS : scope === "7d" ? 7 * ONE_DAY_MS : 30 * ONE_DAY_MS;
-  const cutoff = now.getTime() - cutoffMs;
+  const cutoff =
+    scope === "today"
+      ? startOfLocalDay(now).getTime()
+      : now.getTime() - (scope === "7d" ? 7 * ONE_DAY_MS : 30 * ONE_DAY_MS);
 
   return runs.filter((run) => {
-    const reference = new Date(run.started_at ?? run.updated_at).getTime();
+    const reference = new Date(run.updated_at).getTime();
     return reference >= cutoff;
   });
+}
+
+function startOfLocalDay(value: Date): Date {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
 }
 
 function haloFor(status: string): { className: string; radius: number } | null {
