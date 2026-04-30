@@ -48,11 +48,12 @@ type InMemoryRun = {
 };
 
 function runStatusForTest(event: IngestBatch["events"][number]) {
-  if (event.status) return event.status;
   if (event.type === "run.started") return "running";
   if (event.type === "run.completed") return "completed";
   if (event.type === "run.failed") return "failed";
   if (event.type === "agent.waiting") return "waiting";
+  if (event.type === "tool.started") return "running";
+  if (event.status && event.type.startsWith("run.")) return event.status;
   return null;
 }
 
@@ -95,9 +96,13 @@ function makeInMemoryStore(): IngestStore & { getRun: (key: string) => InMemoryR
       const timestamps = runTimestampsForTest(event);
       const existing = runs.get(key);
       if (existing) {
-        existing.status = runStatusForTest(event) ?? existing.status;
+        const nextStatus = runStatusForTest(event);
+        existing.status = nextStatus ?? existing.status;
         existing.startedAt = timestamps.startedAt ?? existing.startedAt;
-        existing.completedAt = timestamps.completedAt ?? existing.completedAt;
+        existing.completedAt =
+          nextStatus === "running" || nextStatus === "waiting"
+            ? null
+            : timestamps.completedAt ?? existing.completedAt;
         return existing;
       }
       const run = {
@@ -178,6 +183,57 @@ describe("ingest", () => {
       status: "completed",
       startedAt: new Date("2026-01-01T10:00:00.000Z"),
       completedAt: new Date("2026-01-01T10:05:00.000Z"),
+    });
+  });
+
+  it("reopens an existing run when more activity arrives after a completed turn", async () => {
+    const db = makeInMemoryStore();
+
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000201", {
+        source_event_id: "source-event-started",
+        event_id: "event-000000000001",
+        type: "run.started",
+        status: "running",
+        occurred_at: "2026-01-01T10:00:00.000Z",
+      }),
+    );
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000202", {
+        source_event_id: "source-event-completed",
+        event_id: "event-000000000002",
+        type: "run.completed",
+        status: "completed",
+        occurred_at: "2026-01-01T10:05:00.000Z",
+      }),
+    );
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000203", {
+        source_event_id: "source-event-waiting",
+        event_id: "event-000000000003",
+        type: "agent.waiting",
+        status: "waiting",
+        occurred_at: "2026-01-01T10:06:00.000Z",
+      }),
+    );
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000204", {
+        source_event_id: "source-event-tool",
+        event_id: "event-000000000004",
+        type: "tool.started",
+        occurred_at: "2026-01-01T10:07:00.000Z",
+      }),
+    );
+
+    const run = db.getRun(`${workspaceId}:codex-cli:run-1`);
+    expect(run).toMatchObject({
+      status: "running",
+      startedAt: new Date("2026-01-01T10:00:00.000Z"),
+      completedAt: null,
     });
   });
 

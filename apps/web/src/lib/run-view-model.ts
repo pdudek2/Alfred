@@ -207,7 +207,7 @@ function buildCardSummaryLabel(run: RunListItem, sourceLabel: string, status: st
   const timestamp = run.completed_at ?? run.started_at ?? run.updated_at;
   const timeLabel = formatDateTime(timestamp);
 
-  if (status === "waiting") return `${source} · waiting since ${timeLabel}`;
+  if (status === "waiting") return `${source} · waiting since ${formatDateTime(run.updated_at)}`;
   if (status === "running") return `${source} · active since ${timeLabel}`;
   if (status === "completed") return `${source} · closed ${timeLabel}`;
   if (status === "failed") return `${source} · failed ${timeLabel}`;

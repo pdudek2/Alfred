@@ -112,11 +112,12 @@ function isIngestStore(value: Database | IngestStore): value is IngestStore {
 }
 
 function runStatusFor(event: IngestEvent) {
-  if (event.status) return event.status;
   if (event.type === "run.started") return "running";
   if (event.type === "run.completed") return "completed";
   if (event.type === "run.failed") return "failed";
   if (event.type === "agent.waiting") return "waiting";
+  if (event.type === "tool.started") return "running";
+  if (event.status && event.type.startsWith("run.")) return event.status;
   return null;
 }
 
@@ -273,10 +274,10 @@ function createDrizzleIngestStore(db: DrizzleIngestDb): IngestStore {
           set: {
             deviceId: event.device_id,
             projectId,
-            status: sql`coalesce(excluded.status, ${runs.status})`,
+            status: sql`case when excluded.status <> 'unknown' then excluded.status else ${runs.status} end`,
             privacyMode: event.privacy_mode,
             startedAt: sql`coalesce(excluded.started_at, ${runs.startedAt})`,
-            completedAt: sql`coalesce(excluded.completed_at, ${runs.completedAt})`,
+            completedAt: sql`case when excluded.status in ('running', 'waiting') then null else coalesce(excluded.completed_at, ${runs.completedAt}) end`,
             updatedAt: updatedAtNow,
           },
         })

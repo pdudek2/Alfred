@@ -16,6 +16,14 @@ export type RunRunnerOptions = {
   fetchImpl?: typeof fetch;
 };
 
+export type RunRunnerLoopOptions = RunRunnerOptions & {
+  maxIterations?: number;
+  onError?: (error: unknown) => void;
+  onIteration?: (result: { collectedEvents: number; flushedEvents: number }) => void;
+  signal?: AbortSignal;
+  sleep?: (ms: number) => Promise<void>;
+};
+
 export async function runRunnerOnce(
   config: RunnerConfig = loadRunnerConfig(),
   options: RunRunnerOptions = {},
@@ -49,6 +57,34 @@ export async function runRunnerOnce(
     };
   } finally {
     outbox.close();
+  }
+}
+
+export async function runRunnerLoop(
+  config: RunnerConfig = loadRunnerConfig(),
+  options: RunRunnerLoopOptions = {},
+): Promise<void> {
+  const sleep = options.sleep ?? sleepFor;
+  let iterations = 0;
+
+  while (!options.signal?.aborted) {
+    try {
+      const result = await runRunnerOnce(config, options);
+      options.onIteration?.(result);
+    } catch (error) {
+      if (options.onError) {
+        options.onError(error);
+      } else {
+        throw error;
+      }
+    }
+
+    iterations += 1;
+    if (options.maxIterations !== undefined && iterations >= options.maxIterations) {
+      return;
+    }
+
+    await sleep(config.pollMs ?? 5_000);
   }
 }
 
@@ -122,15 +158,35 @@ function redactEvent(event: IngestEvent, privacyMode: RunnerConfig["privacyMode"
   };
 }
 
+function sleepFor(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  runRunnerOnce()
-    .then((result) => {
-      console.log(
-        `Alfred runner collected ${result.collectedEvents} event(s), flushed ${result.flushedEvents} event(s)`,
-      );
-    })
-    .catch((error: unknown) => {
+  const config = loadRunnerConfig();
+  const logResult = (result: { collectedEvents: number; flushedEvents: number }) => {
+    console.log(
+      `Alfred runner collected ${result.collectedEvents} event(s), flushed ${result.flushedEvents} event(s)`,
+    );
+  };
+
+  if (process.env.ALFRED_RUNNER_LOOP === "1") {
+    console.log(`Alfred runner watching every ${config.pollMs ?? 5_000}ms`);
+    runRunnerLoop(config, {
+      onIteration: logResult,
+      onError: (error) => {
+        console.error(error instanceof Error ? error.message : error);
+      },
+    }).catch((error: unknown) => {
       console.error(error instanceof Error ? error.message : error);
       process.exitCode = 1;
     });
+  } else {
+    runRunnerOnce(config)
+      .then(logResult)
+      .catch((error: unknown) => {
+        console.error(error instanceof Error ? error.message : error);
+        process.exitCode = 1;
+      });
+  }
 }

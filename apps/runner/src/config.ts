@@ -8,6 +8,7 @@ export type RunnerConfig = {
   runnerSources?: RunnerSource[];
   privacyMode: "minimal" | "standard" | "full";
   outboxPath: string;
+  pollMs?: number;
   codexHome: string;
   codexSince?: string;
   claudeHome?: string;
@@ -23,6 +24,7 @@ export function loadRunnerConfig(env: RunnerEnv = runnerEnv): RunnerConfig {
     runnerSources: env.ALFRED_SOURCES,
     privacyMode: env.ALFRED_PRIVACY_MODE,
     outboxPath: env.ALFRED_RUNNER_DB_PATH,
+    pollMs: env.ALFRED_RUNNER_POLL_MS,
     codexHome: env.ALFRED_CODEX_HOME,
     ...(env.ALFRED_CODEX_SINCE !== undefined
       ? { codexSince: env.ALFRED_CODEX_SINCE }

@@ -145,13 +145,22 @@ The web app proxies `/api/*` to the local API at `http://127.0.0.1:4301`.
 
 ## Runner
 
-Development one-shot run:
+Development watcher:
 
 ```bash
 ALFRED_ALLOW_DEV_CONFIG=1 pnpm --filter @alfred/runner dev
 ```
 
-The runner currently performs one pass:
+The development runner polls every 5 seconds by default. Set
+`ALFRED_RUNNER_POLL_MS=2000` or another interval when you want a different cadence.
+
+One-shot import:
+
+```bash
+ALFRED_ALLOW_DEV_CONFIG=1 pnpm --filter @alfred/runner dev:once
+```
+
+Each pass:
 
 1. reads Codex session JSONL files,
 2. normalizes recognized records into Alfred ingest events,

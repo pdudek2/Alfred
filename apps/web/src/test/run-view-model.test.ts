@@ -90,6 +90,8 @@ describe("run view model", () => {
     });
     expect(card.searchText).toContain("needs approval");
     expect(card.searchText).toContain("billing");
+    expect(card.summaryLabel).toMatch(/^Codex · waiting since Apr 28, /);
+    expect(card.summaryLabel).not.toContain("11:00");
   });
 
   it("falls back sanely when runtime title and source run id are not strings", () => {
