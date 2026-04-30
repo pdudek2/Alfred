@@ -75,6 +75,10 @@ export function createApp() {
         ...(env.AUTH_OIDC_CLIENT_SECRET ? { clientSecret: env.AUTH_OIDC_CLIENT_SECRET } : {}),
         ...(env.AUTH_OIDC_ISSUER ? { issuer: env.AUTH_OIDC_ISSUER } : {}),
       },
+      devAuth: {
+        enabled: env.DEV_AUTH_ENABLED,
+        sessionToken: env.AUTH_DEV_SESSION_TOKEN,
+      },
     }),
   );
   app.route("/v1/ingest", createIngestRoutes(db, deviceAuthStore));
