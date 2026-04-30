@@ -90,6 +90,28 @@ describe("api", () => {
     expect(dbMock.listRuns).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000001", 7, {});
   });
 
+  it("sets a dev session cookie from login when OIDC is not configured in dev auth mode", async () => {
+    const res = await createApp().request("/auth/login", { redirect: "manual" });
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/");
+    expect(res.headers.get("set-cookie")).toContain("alfred_session=dev-session-token");
+    expect(res.headers.get("set-cookie")).toContain("HttpOnly");
+  });
+
+  it("allows runs after the dev login cookie is issued", async () => {
+    const login = await createApp().request("/auth/login", { redirect: "manual" });
+    const cookie = login.headers.get("set-cookie")?.split(";")[0];
+
+    const res = await createApp().request("/api/v1/runs?limit=7", {
+      headers: cookie ? { cookie } : {},
+    });
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ items: [run] });
+    expect(dbMock.listRuns).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000001", 7, {});
+  });
+
   it("rejects missing device token", async () => {
     const app = new Hono();
     app.use(

@@ -7,6 +7,10 @@ const SESSION_COOKIE = "alfred_session";
 
 type AuthRouteOptions = {
   config: OidcConfig;
+  devAuth?: {
+    enabled: boolean;
+    sessionToken: string;
+  };
 };
 
 export function createAuthRoutes(db: Database, options: AuthRouteOptions) {
@@ -14,6 +18,15 @@ export function createAuthRoutes(db: Database, options: AuthRouteOptions) {
 
   authRoutes.get("/login", async (c) => {
     if (!oidcConfigured(options.config)) {
+      if (options.devAuth?.enabled) {
+        setCookie(c.header.bind(c), SESSION_COOKIE, options.devAuth.sessionToken, {
+          httpOnly: true,
+          maxAge: 30 * 24 * 60 * 60,
+          secure: options.config.appBaseUrl.startsWith("https://"),
+        });
+        return c.redirect("/", 302);
+      }
+
       return c.json({ error: "oidc_not_configured" }, 503);
     }
 
