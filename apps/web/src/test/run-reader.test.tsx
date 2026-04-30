@@ -18,7 +18,9 @@ describe("RunReader", () => {
 
     expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(/Alfred/);
     expect(screen.getByText(/Codex/)).toBeInTheDocument();
-    expect(screen.getByText("Session opened")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Phases", level: 3 })).toBeInTheDocument();
+    expect(screen.getByText("Opened the session")).toBeInTheDocument();
+    expect(screen.getByText("Ran commands")).toBeInTheDocument();
     expect(screen.getByText("Command started")).toBeInTheDocument();
   });
 
