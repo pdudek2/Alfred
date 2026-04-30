@@ -104,7 +104,7 @@ describe("run view model", () => {
 
     const card = buildRunCardVM(dirtyRun, NOW);
     expect(card.title).toBe("run-dirty-labels");
-    expect(card.intent).toBe("untitled run");
+    expect(card.intent).toBe("waiting on you");
     expect(card.sourceRunId).toBe("");
     expect(typeof card.sourceRunId).toBe("string");
   });
@@ -197,6 +197,29 @@ describe("run view model", () => {
     expect(card.needsAttention).toBe(false);
     expect(overview.liveCount).toBe(0);
     expect(live.filteredCount).toBe(0);
+  });
+
+  it("treats unknown runs with completed_at as completed in the reader", () => {
+    const unknownCompletedRun: RunListItem = {
+      ...runFixture,
+      id: "run-unknown-completed",
+      status: "unknown",
+      title: null,
+      completed_at: "2026-04-28T10:03:00.000Z",
+      updated_at: "2026-04-28T10:03:00.000Z",
+    };
+
+    const card = buildRunCardVM(unknownCompletedRun, NOW);
+    const overview = buildOverviewVM([unknownCompletedRun], NOW);
+    const done = buildRunListVM([unknownCompletedRun], { tab: "done", query: "", grouping: "flat", now: NOW });
+
+    expect(card.status).toBe("completed");
+    expect(card.sourceStatus).toBe("unknown");
+    expect(card.intent).toBe("closed session");
+    expect(card.summaryLabel).toMatch(/^Codex · closed /);
+    expect(card.isDone).toBe(true);
+    expect(overview.doneCount).toBe(1);
+    expect(done.filteredCount).toBe(1);
   });
 
   it("groups activity honestly by event kind and preserves chronological order inside groups", () => {
@@ -337,9 +360,13 @@ describe("RunCardVM.intent", () => {
     expect(card.intent).toBe("ingest retry pipeline");
   });
 
-  it("falls back to source_run_id when no title", () => {
+  it("hides machine source_run_id from intent when no human title exists", () => {
     const card = buildRunCardVM({ ...runFixture, title: null }, now);
-    expect(card.intent).toBe(runFixture.source_run_id);
+
+    expect(card.intent).toBe("quiet session");
+    expect(card.headline).toBe("Alfred · quiet session");
+    expect(card.summaryLabel).toMatch(/^Codex · last heard /);
+    expect(card.searchText).toContain(runFixture.source_run_id);
   });
 
   it("falls back to source_run_id when title is empty", () => {
@@ -367,17 +394,17 @@ describe("RunCardVM.intent", () => {
     expect(card.searchText).toContain("run-with-padded-source");
   });
 
-  it("falls back past whitespace-only source_run_id for title and intent labels", () => {
+  it("falls back past whitespace-only source_run_id for title and derives intent from effective status", () => {
     const card = buildRunCardVM({ ...runFixture, id: "run-with-blank-source", title: null, source_run_id: "   " }, now);
 
     expect(card.title).toBe("run-with-blank-source");
-    expect(card.intent).toBe("untitled run");
+    expect(card.intent).toBe("quiet session");
     expect(card.sourceRunId).toBe("");
   });
 
-  it("returns 'untitled run' when neither title nor source_run_id exists", () => {
+  it("derives intent from effective status when neither title nor source_run_id exists", () => {
     const card = buildRunCardVM({ ...runFixture, title: null, source_run_id: "" }, now);
-    expect(card.intent).toBe("untitled run");
+    expect(card.intent).toBe("quiet session");
   });
 });
 

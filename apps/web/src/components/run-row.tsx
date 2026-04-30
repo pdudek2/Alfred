@@ -29,7 +29,7 @@ export function RunRow({ card, subtitle, selected, onSelect }: RunRowProps) {
     >
       <span className="reader-run-row__dot" aria-hidden="true" />
       <span className="reader-run-row__body">
-        <span className="reader-run-row__title">{card.projectLabel} · {card.intent}</span>
+        <span className="reader-run-row__title">{card.headline}</span>
         <span className="reader-run-row__subtitle">{subtitle}</span>
       </span>
       <span className="reader-run-row__meta">

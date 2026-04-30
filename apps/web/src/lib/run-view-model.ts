@@ -18,9 +18,11 @@ export type RunListOptions = {
 
 export type RunCardVM = {
   id: string;
+  headline: string;
   title: string;
   intent: string;
   projectLabel: string;
+  summaryLabel: string;
   sourceLabel: string;
   sourceRunId: string;
   status: string;
@@ -157,6 +159,69 @@ function stringLabel(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function deriveIntent({
+  projectLabel,
+  sourceRunLabel,
+  status,
+  titleLabel,
+}: {
+  projectLabel: string;
+  sourceRunLabel: string;
+  status: string;
+  titleLabel: string;
+}): string {
+  if (isHumanIntent(titleLabel, projectLabel)) {
+    return titleLabel;
+  }
+
+  if (isHumanIntent(sourceRunLabel, projectLabel)) {
+    return sourceRunLabel;
+  }
+
+  if (status === "waiting") return "waiting on you";
+  if (status === "running") return "active session";
+  if (status === "completed") return "closed session";
+  if (status === "failed") return "interrupted session";
+  if (status === "stale") return "quiet session";
+  return "agent session";
+}
+
+function isHumanIntent(value: string, projectLabel: string): boolean {
+  if (!value) return false;
+  if (value.toLowerCase() === projectLabel.toLowerCase()) return false;
+  return !looksLikeMachineId(value);
+}
+
+function looksLikeMachineId(value: string): boolean {
+  const normalized = value.trim();
+  if (!normalized) return false;
+  if (/^[0-9a-f]{8,}-[0-9a-f-]{12,}$/i.test(normalized)) return true;
+  if (/^[0-9a-f]{20,}$/i.test(normalized)) return true;
+  if (/^codex-run-[\w-]+$/i.test(normalized)) return true;
+  if (/^[\w-]*[0-9a-f]{8,}[\w-]*$/i.test(normalized) && normalized.length >= 16) return true;
+  return false;
+}
+
+function buildCardSummaryLabel(run: RunListItem, sourceLabel: string, status: string): string {
+  const source = humanizeSourceId(sourceLabel);
+  const timestamp = run.completed_at ?? run.started_at ?? run.updated_at;
+  const timeLabel = formatDateTime(timestamp);
+
+  if (status === "waiting") return `${source} · waiting since ${timeLabel}`;
+  if (status === "running") return `${source} · active since ${timeLabel}`;
+  if (status === "completed") return `${source} · closed ${timeLabel}`;
+  if (status === "failed") return `${source} · failed ${timeLabel}`;
+  if (status === "stale") return `${source} · last heard ${formatDateTime(run.updated_at)}`;
+  return `${source} · ${timeLabel}`;
+}
+
+function humanizeSourceId(sourceId: string): string {
+  const normalized = sourceId.toLowerCase();
+  if (normalized.startsWith("codex")) return "Codex";
+  if (normalized.startsWith("claude")) return "Claude";
+  return sourceId || "Agent";
+}
+
 export function buildOverviewVM(runs: RunListItem[], now = new Date()): RunOverviewVM {
   const orderedRuns = sortRuns(runs);
   const latestUpdatedAt = orderedRuns[0]?.updated_at ?? null;
@@ -165,7 +230,7 @@ export function buildOverviewVM(runs: RunListItem[], now = new Date()): RunOverv
     totalCount: runs.length,
     liveCount: runs.filter((run) => isLiveRun(run, now)).length,
     needsAttentionCount: runs.filter((run) => needsAttention(run, now)).length,
-    doneCount: runs.filter(isDoneRun).length,
+    doneCount: runs.filter((run) => isDoneRun(run, now)).length,
     statusCounts: countBy(runs, (run) => effectiveStatus(run, now)),
     projectCounts: countBy(runs, projectKey).map((item) => ({
       ...item,
@@ -181,17 +246,20 @@ export function buildRunCardVM(run: RunListItem, now = new Date()): RunCardVM {
   const sourceRunLabel = stringLabel(run.source_run_id);
   const sourceRunId = sourceRunLabel;
   const title = titleLabel || sourceRunLabel || run.id;
-  const intent = titleLabel || sourceRunLabel || "untitled run";
   const projectLabel = getProjectLabel(run);
   const sourceLabel = run.source_id || "unknown source";
   const sourceStatus = normalizeStatus(run.status);
   const status = effectiveStatus(run, now);
+  const intent = deriveIntent({ projectLabel, sourceRunLabel, status, titleLabel });
+  const headline = `${projectLabel} · ${intent}`;
 
   return {
     id: run.id,
+    headline,
     title,
     intent,
     projectLabel,
+    summaryLabel: buildCardSummaryLabel(run, sourceLabel, status),
     sourceLabel,
     sourceRunId,
     status,
@@ -412,8 +480,8 @@ function needsAttention(run: RunListItem, now = new Date()): boolean {
   return status === "waiting" || status === "failed";
 }
 
-function isDoneRun(run: RunListItem): boolean {
-  return normalizeStatus(run.status) === "completed";
+function isDoneRun(run: RunListItem, now = new Date()): boolean {
+  return effectiveStatus(run, now) === "completed";
 }
 
 function sortRuns(runs: RunListItem[]): RunListItem[] {
@@ -508,6 +576,10 @@ function statusGroupOrder(status: string): number {
 
 function effectiveStatus(run: RunListItem, now = new Date()): string {
   const status = normalizeStatus(run.status);
+  if ((status === "unknown" || status === "other") && run.completed_at) {
+    return "completed";
+  }
+
   if ((status === "running" || status === "waiting") && isStaleRun(run, now)) {
     return "stale";
   }

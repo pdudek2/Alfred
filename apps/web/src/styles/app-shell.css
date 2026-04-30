@@ -20,28 +20,43 @@
 }
 
 .next-app-shell {
+  background:
+    radial-gradient(ellipse at 18% 0%, rgba(212, 166, 74, 0.055), transparent 360px),
+    linear-gradient(180deg, rgba(237, 229, 210, 0.025), transparent 180px),
+    var(--reader-bg);
+  color: var(--reader-text);
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  color: var(--reader-text);
-  background:
-    linear-gradient(180deg, rgba(237, 229, 210, 0.025), transparent 180px),
-    var(--reader-bg);
 }
 
 .next-app-shell-header {
-  display: flex;
   align-items: center;
+  border-bottom: 1px solid var(--reader-border-soft);
+  display: flex;
   justify-content: space-between;
   padding: var(--reader-gap) var(--reader-gap-lg);
-  border-bottom: 1px solid var(--reader-border-soft);
 }
 
 .next-app-shell-sigil-button {
-  display: inline-flex;
   align-items: center;
+  border-radius: var(--reader-radius);
   gap: 12px;
   color: inherit;
+  display: inline-flex;
+  padding: 4px;
+  transition:
+    background-color var(--reader-t-fast) var(--reader-ease-out),
+    color var(--reader-t-fast) var(--reader-ease-out);
+}
+
+.next-app-shell-sigil-button:hover {
+  background: var(--reader-tint-amber-soft);
+}
+
+.next-app-shell-sigil-button:focus-visible {
+  outline: 2px solid var(--reader-amber);
+  outline-offset: 4px;
 }
 
 .next-app-shell-wordmark {

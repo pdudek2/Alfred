@@ -17,8 +17,8 @@ describe("RunReader", () => {
 
     expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(/Alfred/);
     expect(screen.getByText(/Codex/)).toBeInTheDocument();
-    expect(screen.getByText("run.started")).toBeInTheDocument();
-    expect(screen.getByText("tool.started")).toBeInTheDocument();
+    expect(screen.getByText("Session opened")).toBeInTheDocument();
+    expect(screen.getByText("Command started")).toBeInTheDocument();
   });
 
   it("calls onClose when escape is pressed", async () => {
