@@ -45,8 +45,8 @@ export type RunDetail = RunListItem & {
 };
 
 export type RunsQueryStore = {
-  listRuns(limit: number, filters?: RunsListFilters): Promise<RunListItem[]>;
-  getRun(runId: string): Promise<RunDetail | null>;
+  listRuns(workspaceId: string, limit: number, filters?: RunsListFilters): Promise<RunListItem[]>;
+  getRun(workspaceId: string, runId: string): Promise<RunDetail | null>;
 };
 
 type RunRow = {
@@ -77,8 +77,8 @@ type EventRow = {
 
 export function createRunsQueryStore(db: Database): RunsQueryStore {
   return {
-    listRuns: async (limit, filters = {}) => {
-      const conditions: SQL[] = [];
+    listRuns: async (workspaceId, limit, filters = {}) => {
+      const conditions: SQL[] = [eq(runs.workspaceId, workspaceId)];
       if (filters.since) {
         conditions.push(gte(runs.updatedAt, filters.since));
       }
@@ -117,7 +117,7 @@ export function createRunsQueryStore(db: Database): RunsQueryStore {
       return rows.map(mapRunRow);
     },
 
-    getRun: async (runId) => {
+    getRun: async (workspaceId, runId) => {
       const [run] = await db
         .select({
           id: runs.id,
@@ -136,7 +136,7 @@ export function createRunsQueryStore(db: Database): RunsQueryStore {
         })
         .from(runs)
         .leftJoin(projects, eq(runs.projectId, projects.id))
-        .where(eq(runs.id, runId))
+        .where(and(eq(runs.workspaceId, workspaceId), eq(runs.id, runId)))
         .limit(1);
 
       if (!run) return null;
@@ -152,7 +152,7 @@ export function createRunsQueryStore(db: Database): RunsQueryStore {
           payload: events.payload,
         })
         .from(events)
-        .where(eq(events.runId, runId))
+        .where(and(eq(events.workspaceId, workspaceId), eq(events.runId, runId)))
         .orderBy(events.occurredAt);
 
       return {

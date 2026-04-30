@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 
 import { RunReader } from "../components/run-reader";
 import type { RunDetail } from "../lib/api-client";
@@ -29,6 +30,26 @@ describe("RunReader", () => {
     await user.keyboard("{Escape}");
 
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("traps focus and restores the previously focused element on close", async () => {
+    const user = userEvent.setup();
+    render(<RunReaderHarness />);
+
+    const before = screen.getByRole("button", { name: "Before" });
+    const open = screen.getByRole("button", { name: "Open" });
+    await user.click(before);
+    await user.click(open);
+
+    expect(screen.getByRole("button", { name: /Close run reader/i })).toHaveFocus();
+    await user.tab({ shift: true });
+    const activeElement =
+      document.activeElement instanceof HTMLElement || document.activeElement instanceof SVGElement
+        ? document.activeElement
+        : null;
+    expect(screen.getByRole("dialog")).toContainElement(activeElement);
+    await user.keyboard("{Escape}");
+    expect(open).toHaveFocus();
   });
 
   it("expands an event payload when a story highlight with an event id is clicked", async () => {
@@ -59,3 +80,16 @@ describe("RunReader", () => {
     expect(screen.getAllByText(/"command": "pnpm test"/i).length).toBeGreaterThan(0);
   });
 });
+
+function RunReaderHarness() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button">Before</button>
+      <button type="button" onClick={() => setOpen(true)}>
+        Open
+      </button>
+      {open ? <RunReader detail={runDetailFixture} now={now} onClose={() => setOpen(false)} /> : null}
+    </>
+  );
+}

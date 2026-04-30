@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { AppShell, type AppShellMode } from "./components/app-shell";
 import { RunReader } from "./components/run-reader";
-import { createApiClient, type RunDetail, type RunListItem } from "./lib/api-client";
+import { ApiError, createApiClient, type RunDetail, type RunListItem } from "./lib/api-client";
 import { useKeyboardShortcut } from "./lib/use-keyboard-shortcut";
 
 const api = createApiClient();
@@ -14,6 +14,7 @@ export function App() {
   const [selectedRun, setSelectedRun] = useState<RunDetail | null>(null);
   const [loadingRuns, setLoadingRuns] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [authRequired, setAuthRequired] = useState(false);
   const [readerNow, setReaderNow] = useState(() => new Date());
   const [mode, setMode] = useState<AppShellMode>(() =>
     typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "observatory"
@@ -54,12 +55,13 @@ export function App() {
 
     try {
       const run = await api.getRun(runId);
+      setAuthRequired(false);
       setSelectedRun(run);
     } catch (loadError) {
       if (clearBeforeLoad) {
         setSelectedRun(null);
       }
-      setError(loadError instanceof Error ? loadError.message : "Failed to load run");
+      handleLoadError(loadError, "Failed to load run");
     }
   }
 
@@ -70,6 +72,7 @@ export function App() {
     try {
       const items = await api.listRuns({ limit: 25 });
       const syncedAt = new Date();
+      setAuthRequired(false);
       setRuns(items);
       setReaderNow(syncedAt);
 
@@ -83,7 +86,7 @@ export function App() {
         setSelectedRun(null);
       }
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Failed to load runs");
+      handleLoadError(loadError, "Failed to load runs");
     } finally {
       setLoadingRuns(false);
     }
@@ -118,7 +121,7 @@ export function App() {
       .catch((loadError) => {
         if (active) {
           setSelectedRun(null);
-          setError(loadError instanceof Error ? loadError.message : "Failed to load run");
+          handleLoadError(loadError, "Failed to load run");
         }
       });
 
@@ -145,7 +148,7 @@ export function App() {
   return (
     <>
       <AppShell
-        error={error}
+        error={authRequired ? null : error}
         loading={loadingRuns}
         mode={mode}
         now={readerNow}
@@ -154,6 +157,12 @@ export function App() {
         runs={runs}
         selectedRunId={selectedRunId}
       />
+      {authRequired ? (
+        <div className="auth-required" role="status">
+          <span>Sign in to view your runs.</span>
+          <a href="/auth/login">Sign in</a>
+        </div>
+      ) : null}
       {drawerRun ? (
         <div className="run-reader-overlay run-reader-overlay-visible">
           <RunReader detail={drawerRun} now={readerNow} onClose={() => setSelectedFromDrawer(null)} />
@@ -161,4 +170,23 @@ export function App() {
       ) : null}
     </>
   );
+
+  function handleLoadError(loadError: unknown, fallback: string) {
+    if (loadError instanceof ApiError && loadError.code === "unauthorized") {
+      setAuthRequired(true);
+      setError(null);
+      setRuns([]);
+      setSelectedRun(null);
+      setSelectedRunId(null);
+      const next = new URLSearchParams(window.location.search);
+      if (next.has("run")) {
+        next.delete("run");
+        const query = next.toString();
+        window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+      }
+      return;
+    }
+
+    setError(loadError instanceof Error ? loadError.message : fallback);
+  }
 }

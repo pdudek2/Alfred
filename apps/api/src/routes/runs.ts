@@ -2,6 +2,7 @@ import { createDb, type Database } from "@alfred/db";
 import { AgentSource, RunStatus } from "@alfred/schema";
 import { Hono } from "hono";
 
+import { requireSession, type AuthSessionStore, type AuthVariables } from "../auth/session-auth";
 import {
   createRunsQueryStore,
   type RunsListFilters,
@@ -10,14 +11,26 @@ import {
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function createRunsRoutes(db: Database | RunsQueryStore = createDb()) {
-  const runsRoutes = new Hono();
+export type RunsRouteOptions = {
+  sessionStore: AuthSessionStore;
+};
+
+export function createRunsRoutes(db: Database | RunsQueryStore = createDb(), options: RunsRouteOptions) {
+  const runsRoutes = new Hono<{ Variables: AuthVariables }>();
   const store = isRunsQueryStore(db) ? db : createRunsQueryStore(db);
+
+  runsRoutes.use("*", requireSession(options.sessionStore));
 
   runsRoutes.get("/", async (c) => {
     const limit = parseLimit(c.req.query("limit"));
+    if (limit === null) {
+      return c.json({ error: "invalid_limit" }, 400);
+    }
+
     const filters: RunsListFilters = {};
+    const auth = c.get("auth");
 
     const sinceRaw = c.req.query("since");
     if (sinceRaw !== undefined) {
@@ -49,12 +62,18 @@ export function createRunsRoutes(db: Database | RunsQueryStore = createDb()) {
     const project = c.req.query("project");
     if (project) filters.projectKey = project;
 
-    const items = await store.listRuns(limit, filters);
+    const items = await store.listRuns(auth.workspaceId, limit, filters);
     return c.json({ items });
   });
 
   runsRoutes.get("/:runId", async (c) => {
-    const run = await store.getRun(c.req.param("runId"));
+    const runId = c.req.param("runId");
+    if (!UUID_PATTERN.test(runId)) {
+      return c.json({ error: "invalid_run_id" }, 400);
+    }
+
+    const auth = c.get("auth");
+    const run = await store.getRun(auth.workspaceId, runId);
     if (!run) {
       return c.json({ error: "not_found" }, 404);
     }
@@ -69,9 +88,10 @@ function isRunsQueryStore(value: Database | RunsQueryStore): value is RunsQueryS
   return "listRuns" in value;
 }
 
-function parseLimit(value: string | undefined): number {
+function parseLimit(value: string | undefined): number | null {
   if (!value) return DEFAULT_LIMIT;
+  if (!/^\d+$/.test(value)) return null;
   const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_LIMIT;
+  if (!Number.isFinite(parsed) || parsed < 1) return null;
   return Math.min(parsed, MAX_LIMIT);
 }

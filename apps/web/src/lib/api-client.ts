@@ -49,6 +49,18 @@ export type ApiClient = {
   getRun(runId: string): Promise<RunDetail>;
 };
 
+export class ApiError extends Error {
+  readonly code: "unauthorized" | "request_failed";
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = status === 401 ? "unauthorized" : "request_failed";
+  }
+}
+
 export function createApiClient(fetchImpl?: typeof fetch): ApiClient {
   const request: typeof fetch = (input, init) => {
     const activeFetch = fetchImpl ?? fetch;
@@ -59,7 +71,7 @@ export function createApiClient(fetchImpl?: typeof fetch): ApiClient {
     listRuns: async (options = 25) => {
       const response = await request(runListPath(options));
       if (!response.ok) {
-        throw new Error(`Failed to load runs: ${response.status}`);
+        throw new ApiError(`Failed to load runs: ${response.status}`, response.status);
       }
 
       const body = (await response.json()) as RunsResponse;
@@ -69,7 +81,7 @@ export function createApiClient(fetchImpl?: typeof fetch): ApiClient {
     getRun: async (runId) => {
       const response = await request(`/api/v1/runs/${runId}`);
       if (!response.ok) {
-        throw new Error(`Failed to load run: ${response.status}`);
+        throw new ApiError(`Failed to load run: ${response.status}`, response.status);
       }
 
       return (await response.json()) as RunDetail;

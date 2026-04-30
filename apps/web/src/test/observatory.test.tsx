@@ -33,6 +33,18 @@ describe("Observatory", () => {
     expect(onSelect).toHaveBeenCalledWith("r1");
   });
 
+  it("exposes keyboard buttons for observatory nodes", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(<Observatory runs={runs} now={new Date("2026-04-29T12:00:00.000Z")} onSelectRun={onSelect} />);
+
+    const button = screen.getByRole("button", { name: /open alfred-runner running run/i });
+    button.focus();
+    await user.keyboard("{Enter}");
+
+    expect(onSelect).toHaveBeenCalledWith("r1");
+  });
+
   it("toggles time scope on pill click", async () => {
     const user = userEvent.setup();
     render(<Observatory runs={runs} now={new Date("2026-04-29T12:00:00.000Z")} onSelectRun={() => {}} />);
@@ -51,5 +63,31 @@ describe("Observatory", () => {
     expect(legend).toHaveTextContent("needs you");
     expect(legend).toHaveTextContent("failed");
     expect(legend).toHaveTextContent("quiet");
+  });
+
+  it("filters today by local calendar day instead of the last 24 hours", async () => {
+    const user = userEvent.setup();
+    const scopedRuns = [
+      {
+        ...runFixture,
+        id: "today-run",
+        project_name: "today-project",
+        updated_at: "2026-04-29T07:00:00.000Z",
+        started_at: null,
+      },
+      {
+        ...runFixture,
+        id: "yesterday-run",
+        project_name: "yesterday-project",
+        updated_at: "2026-04-28T20:30:00.000Z",
+        started_at: null,
+      },
+    ];
+    render(<Observatory runs={scopedRuns} now={new Date("2026-04-29T12:00:00.000Z")} onSelectRun={() => {}} />);
+
+    await user.click(screen.getByRole("button", { name: /^today$/ }));
+
+    expect(document.querySelector("[data-node-run-id='today-run']")).not.toBeNull();
+    expect(document.querySelector("[data-node-run-id='yesterday-run']")).toBeNull();
   });
 });

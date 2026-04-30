@@ -81,6 +81,34 @@
   animation: next-shell-enter var(--reader-t-mode) var(--reader-ease-window) both;
 }
 
+.auth-required {
+  position: fixed;
+  right: var(--reader-gap-lg);
+  bottom: var(--reader-gap-lg);
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  color: var(--reader-text);
+  background: var(--reader-surface);
+  border: 1px solid var(--reader-border);
+  border-radius: var(--reader-radius);
+  box-shadow: var(--reader-shadow);
+  font-family: var(--reader-sans);
+  font-size: 13px;
+}
+
+.auth-required a {
+  color: var(--reader-amber);
+  text-decoration: none;
+}
+
+.auth-required a:focus-visible {
+  outline: 2px solid var(--reader-amber);
+  outline-offset: 3px;
+}
+
 @keyframes next-shell-enter {
   0% {
     opacity: 0;

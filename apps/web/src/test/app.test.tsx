@@ -74,4 +74,29 @@ describe("App (new shell)", () => {
     expect(await screen.findByRole("region", { name: /run feed/i })).toBeInTheDocument();
     expect(screen.queryByRole("main", { name: /mockup/i })).not.toBeInTheDocument();
   });
+
+  it("shows a login action when the API requires authentication", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("login required", { status: 401 })),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole("link", { name: /sign in/i })).toHaveAttribute("href", "/auth/login");
+    expect(screen.queryByText(/Failed to load runs/i)).not.toBeInTheDocument();
+  });
+
+  it("clears deep-linked run selection when authentication is required", async () => {
+    window.history.pushState({}, "", "/?run=run-1");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("login required", { status: 401 })),
+    );
+
+    render(<App />);
+
+    await screen.findByRole("link", { name: /sign in/i });
+    expect(window.location.search).not.toContain("run=");
+  });
 });

@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 
 import { createIngestRoutes } from "../routes/ingest";
+import type { DeviceAuthStore } from "../auth/device-auth";
 import { ingestBatch, type IngestStore } from "../services/ingest-service";
 
 const workspaceId = "00000000-0000-4000-8000-000000000001";
@@ -52,7 +53,7 @@ function runStatusForTest(event: IngestBatch["events"][number]) {
   if (event.type === "run.completed") return "completed";
   if (event.type === "run.failed") return "failed";
   if (event.type === "agent.waiting") return "waiting";
-  return "unknown";
+  return null;
 }
 
 function runTimestampsForTest(event: IngestBatch["events"][number]) {
@@ -94,14 +95,14 @@ function makeInMemoryStore(): IngestStore & { getRun: (key: string) => InMemoryR
       const timestamps = runTimestampsForTest(event);
       const existing = runs.get(key);
       if (existing) {
-        existing.status = runStatusForTest(event);
+        existing.status = runStatusForTest(event) ?? existing.status;
         existing.startedAt = timestamps.startedAt ?? existing.startedAt;
         existing.completedAt = timestamps.completedAt ?? existing.completedAt;
         return existing;
       }
       const run = {
         id: `run-${runs.size + 1}`,
-        status: runStatusForTest(event),
+        status: runStatusForTest(event) ?? "unknown",
         startedAt: timestamps.startedAt,
         completedAt: timestamps.completedAt,
       };
@@ -122,6 +123,18 @@ function makeInMemoryStore(): IngestStore & { getRun: (key: string) => InMemoryR
     getRun: (key) => runs.get(key),
   };
   return store;
+}
+
+function createDeviceAuthStore(): DeviceAuthStore {
+  return {
+    authenticateDeviceToken: async (token) =>
+      token === "secret"
+        ? {
+            workspaceId,
+            deviceId,
+          }
+        : null,
+  };
 }
 
 describe("ingest", () => {
@@ -187,7 +200,7 @@ describe("ingest", () => {
 
   it("mounts POST /v1/ingest/batches and requires a device token", async () => {
     const app = new Hono();
-    app.route("/v1/ingest", createIngestRoutes(makeInMemoryStore(), "secret"));
+    app.route("/v1/ingest", createIngestRoutes(makeInMemoryStore(), createDeviceAuthStore()));
 
     const unauthorized = await app.request("/v1/ingest/batches", {
       method: "POST",
@@ -216,7 +229,7 @@ describe("ingest", () => {
 
   it("returns 400 for malformed JSON", async () => {
     const app = new Hono();
-    app.route("/v1/ingest", createIngestRoutes(makeInMemoryStore(), "secret"));
+    app.route("/v1/ingest", createIngestRoutes(makeInMemoryStore(), createDeviceAuthStore()));
 
     const response = await app.request("/v1/ingest/batches", {
       method: "POST",
@@ -233,7 +246,7 @@ describe("ingest", () => {
 
   it("returns 400 for schema-invalid JSON", async () => {
     const app = new Hono();
-    app.route("/v1/ingest", createIngestRoutes(makeInMemoryStore(), "secret"));
+    app.route("/v1/ingest", createIngestRoutes(makeInMemoryStore(), createDeviceAuthStore()));
 
     const response = await app.request("/v1/ingest/batches", {
       method: "POST",
@@ -246,5 +259,81 @@ describe("ingest", () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: "invalid_body" });
+  });
+
+  it("rejects a token-bound device posting another workspace", async () => {
+    const app = new Hono();
+    app.route("/v1/ingest", createIngestRoutes(makeInMemoryStore(), createDeviceAuthStore()));
+    const spoofedWorkspaceId = "00000000-0000-4000-8000-000000000999";
+
+    const response = await app.request("/v1/ingest/batches", {
+      method: "POST",
+      body: JSON.stringify({
+        ...makeBatch(),
+        workspace_id: spoofedWorkspaceId,
+        events: makeBatch().events.map((event) => ({
+          ...event,
+          workspace_id: spoofedWorkspaceId,
+        })),
+      }),
+      headers: {
+        authorization: "Bearer secret",
+        "content-type": "application/json",
+      },
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "device_scope_mismatch" });
+  });
+
+  it("rejects a token-bound workspace posting another device", async () => {
+    const app = new Hono();
+    app.route("/v1/ingest", createIngestRoutes(makeInMemoryStore(), createDeviceAuthStore()));
+    const spoofedDeviceId = "00000000-0000-4000-8000-000000000999";
+
+    const response = await app.request("/v1/ingest/batches", {
+      method: "POST",
+      body: JSON.stringify({
+        ...makeBatch(),
+        device_id: spoofedDeviceId,
+        events: makeBatch().events.map((event) => ({
+          ...event,
+          device_id: spoofedDeviceId,
+        })),
+      }),
+      headers: {
+        authorization: "Bearer secret",
+        "content-type": "application/json",
+      },
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "device_scope_mismatch" });
+  });
+
+  it("keeps an existing run status when a technical event has no status", async () => {
+    const db = makeInMemoryStore();
+
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000201", {
+        source_event_id: "source-event-started",
+        event_id: "event-000000000001",
+        type: "run.started",
+        status: "running",
+      }),
+    );
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000202", {
+        source_event_id: "source-event-tool",
+        event_id: "event-000000000002",
+        type: "tool.completed",
+        status: undefined,
+      }),
+    );
+
+    const run = db.getRun(`${workspaceId}:codex-cli:run-1`);
+    expect(run?.status).toBe("running");
   });
 });

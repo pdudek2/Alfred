@@ -1,10 +1,58 @@
 import { Hono } from "hono";
+import { createDb } from "@alfred/db";
+import { seedBootstrapAuth } from "./auth/bootstrap-auth";
+import {
+  createDbDeviceAuthStore,
+  createFallbackDeviceAuthStore,
+  createStaticDeviceAuthStore,
+} from "./auth/device-auth";
+import {
+  createDbSessionStore,
+  createFallbackSessionStore,
+  createStaticSessionStore,
+} from "./auth/session-auth";
+import { env } from "./env";
+import { createAuthRoutes } from "./routes/auth";
 import { healthRoutes } from "./routes/health";
 import { createIngestRoutes } from "./routes/ingest";
 import { createRunsRoutes } from "./routes/runs";
 
 export function createApp() {
   const app = new Hono();
+  const db = createDb();
+  const bootstrapAuth =
+    process.env.NODE_ENV === "test"
+      ? Promise.resolve()
+      : seedBootstrapAuth(db, {
+          adminEmail: env.ALFRED_BOOTSTRAP_ADMIN_EMAIL,
+          deviceId: env.RUNNER_DEVICE_ID,
+          deviceToken: env.RUNNER_DEVICE_TOKEN,
+          userId: env.ALFRED_BOOTSTRAP_USER_ID,
+          workspaceId: env.ALFRED_BOOTSTRAP_WORKSPACE_ID,
+        });
+  const staticSessionStore = createStaticSessionStore(env.AUTH_DEV_SESSION_TOKEN, {
+    userId: env.ALFRED_BOOTSTRAP_USER_ID,
+    email: env.ALFRED_BOOTSTRAP_ADMIN_EMAIL,
+    workspaceId: env.ALFRED_BOOTSTRAP_WORKSPACE_ID,
+  });
+  const dbSessionStore = createDbSessionStore(db);
+  const dbDeviceAuthStore = createDbDeviceAuthStore(db);
+  const sessionStore = env.DEV_AUTH_ENABLED
+    ? createFallbackSessionStore(dbSessionStore, staticSessionStore, process.env.NODE_ENV === "test")
+    : dbSessionStore;
+  const deviceAuthStore = env.DEV_AUTH_ENABLED
+    ? createFallbackDeviceAuthStore(
+        dbDeviceAuthStore,
+        createStaticDeviceAuthStore(env.RUNNER_DEVICE_TOKEN, env.RUNNER_WORKSPACE_ID, env.RUNNER_DEVICE_ID),
+        process.env.NODE_ENV === "test",
+      )
+    : dbDeviceAuthStore;
+
+  app.use("*", async (_c, next) => {
+    await bootstrapAuth;
+    await next();
+  });
+
   app.get("/", (c) =>
     c.json({
       ok: true,
@@ -17,9 +65,21 @@ export function createApp() {
     }),
   );
   app.route("/health", healthRoutes);
-  app.route("/v1/ingest", createIngestRoutes());
-  app.route("/v1/runs", createRunsRoutes());
-  app.route("/api/v1/ingest", createIngestRoutes());
-  app.route("/api/v1/runs", createRunsRoutes());
+  app.route(
+    "/auth",
+    createAuthRoutes(db, {
+      config: {
+        appBaseUrl: env.APP_BASE_URL,
+        bootstrapWorkspaceId: env.ALFRED_BOOTSTRAP_WORKSPACE_ID,
+        ...(env.AUTH_OIDC_CLIENT_ID ? { clientId: env.AUTH_OIDC_CLIENT_ID } : {}),
+        ...(env.AUTH_OIDC_CLIENT_SECRET ? { clientSecret: env.AUTH_OIDC_CLIENT_SECRET } : {}),
+        ...(env.AUTH_OIDC_ISSUER ? { issuer: env.AUTH_OIDC_ISSUER } : {}),
+      },
+    }),
+  );
+  app.route("/v1/ingest", createIngestRoutes(db, deviceAuthStore));
+  app.route("/v1/runs", createRunsRoutes(db, { sessionStore }));
+  app.route("/api/v1/ingest", createIngestRoutes(db, deviceAuthStore));
+  app.route("/api/v1/runs", createRunsRoutes(db, { sessionStore }));
   return app;
 }

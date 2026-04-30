@@ -35,6 +35,7 @@ type RunRecord = {
 
 type DrizzleIngestDb = Pick<Database, "insert" | "update"> & {
   transaction?: Database["transaction"];
+  select?: Database["select"];
 };
 
 export type IngestStore = {
@@ -116,7 +117,7 @@ function runStatusFor(event: IngestEvent) {
   if (event.type === "run.completed") return "completed";
   if (event.type === "run.failed") return "failed";
   if (event.type === "agent.waiting") return "waiting";
-  return "unknown";
+  return null;
 }
 
 function runTimestampsFor(event: IngestEvent) {
@@ -202,6 +203,20 @@ function createDrizzleIngestStore(db: DrizzleIngestDb): IngestStore {
     },
 
     ensureDevice: async (batch) => {
+      if (db.select) {
+        const [existingDevice] = await db
+          .select({
+            workspaceId: devices.workspaceId,
+          })
+          .from(devices)
+          .where(eq(devices.id, batch.device_id))
+          .limit(1);
+
+        if (existingDevice && existingDevice.workspaceId !== batch.workspace_id) {
+          throw new Error("Device belongs to another workspace");
+        }
+      }
+
       await db
         .insert(devices)
         .values({
@@ -248,7 +263,7 @@ function createDrizzleIngestStore(db: DrizzleIngestDb): IngestStore {
           projectId,
           sourceId: event.source_id,
           sourceRunId: event.source_run_id,
-          status: runStatusFor(event),
+          status: runStatusFor(event) ?? "unknown",
           privacyMode: event.privacy_mode,
           startedAt: timestamps.startedAt,
           completedAt: timestamps.completedAt,
@@ -258,7 +273,7 @@ function createDrizzleIngestStore(db: DrizzleIngestDb): IngestStore {
           set: {
             deviceId: event.device_id,
             projectId,
-            status: runStatusFor(event),
+            status: sql`coalesce(excluded.status, ${runs.status})`,
             privacyMode: event.privacy_mode,
             startedAt: sql`coalesce(excluded.started_at, ${runs.startedAt})`,
             completedAt: sql`coalesce(excluded.completed_at, ${runs.completedAt})`,

@@ -89,6 +89,32 @@ describe("schema contracts", () => {
     });
   });
 
+  it("rejects ingest events outside the batch workspace or device", () => {
+    expect(() =>
+      IngestBatchSchema.parse({
+        ...validBatch,
+        events: [
+          {
+            ...validEvent,
+            workspace_id: "00000000-0000-4000-8000-000000000999",
+          },
+        ],
+      }),
+    ).toThrow();
+
+    expect(() =>
+      IngestBatchSchema.parse({
+        ...validBatch,
+        events: [
+          {
+            ...validEvent,
+            device_id: "00000000-0000-4000-8000-000000000999",
+          },
+        ],
+      }),
+    ).toThrow();
+  });
+
   it("defaults field report arrays", () => {
     const parsed = FieldReportSchema.parse({
       source_id: "claude-code",
