@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-save_sequence: 5
+save_sequence: 7
 last_loaded_at: null
-last_saved_at: 2026-04-29T20:10:03Z
-last_saved_by: codex
-git_head: 2954df4
+last_saved_at: 2026-04-30T06:11:39.748Z
+last_saved_by: claude-code
+git_head: 4903ba5
 session_label: null
 ---
 
@@ -12,44 +12,42 @@ session_label: null
 
 ## Sprint
 
-- Status: shipped
-- Focus: Reader redesign + first Observatory mode landed; new AppShell is default
+- Status: review
+- Focus: Iron audit of Alfred security, reliability, product shape, and visual soul pass follow-ups
 
 ## Decisions Locked
 
-- Reader + Observatory share single AppShell, swapped via cmd+O window-open transition; not nav tabs
-- Drawer focus master/detail (Layout 3): clicking a run blurs and dims the feed and opens RunReader; Esc closes
-- Visual mood = warm dark hybrid (A+D) with light constellation touch in Observatory; no glow except live/needs-you halos
-- Product UI strings in English; agent-facing summaries in Polish per AGENTS.md
-- Voice register = 95% quiet briefing (C) with 5% first-person Alfred (B) reserved for briefing, failure, empty, and API-error lines
-- New Reader/AppShell is default; `?legacy=1` and `?mockup=1` routes are retired
+- Treat Alfred's current product shape as a personal agent observability inbox before calling it a command center.
+- Prioritize trust foundations: API auth/workspace scoping, ingest identity binding, runner freshness, and data privacy before adding missions/knowledge/alerts.
 
 
 ## Shipped This Save
 
-- Reader redesign + first Observatory mode landed: warm dark shell, butler voice, drawer focus, cmd+O mode switch
-- View-model extended with time-grouped feed, run intent, briefing synthesis, run-story synthesis, and deterministic Observatory layout
-- First Observatory canvas renders project clusters, node status halos, edges, and time-scope controls
-- Source Serif 4 is self-hosted from official Adobe WOFF2 release with `font-display: swap`
-- Legacy console components removed; `?mockup=1` and `?legacy=1` routes retired
+- Completed iron audit across web, API, runner, security, QA, and product with subagents.
+- Verified local app/API state with browser screenshots for Reader, Observatory, and RunReader drawer.
+- Confirmed full local validation passes: pnpm test, pnpm typecheck, and pnpm build.
+- Confirmed runtime API contract issues: invalid runId returns 500 and invalid limit values return 200.
+- Translated audit findings into simpler user-facing language.
 
 
 ## What's Next
 
-- [ ] Wire real `parent_run_id` in the runner so Observatory edges populate from actual agent relationships.  → cite: apps/runner
-- [ ] Add cloud-worker run-story enrichment (LLM-assisted) for richer summaries.  → cite: apps/api
-- [ ] Mobile-first pass on Reader/Observatory.  → cite: apps/web/src/components
-- [ ] Track `AGENTS.md` clarification: product copy is English; agent summaries stay Polish.  → cite: AGENTS.md
-- [ ] Visual pass with real live data: check if Observatory/Reader now feels like Alfred rather than a diagnostic console.  → cite: apps/web/src/components
+- [ ] Add auth and workspace scoping to GET /v1/runs and GET /v1/runs/:runId.  → cite: apps/api/src/routes/runs.ts
+- [ ] Bind ingest tokens to a concrete device/workspace and validate batch event workspace/device consistency.  → cite: apps/api/src/routes/ingest.ts
+- [ ] Fix run status upserts so technical events without status do not degrade completed/running runs to unknown.  → cite: apps/api/src/services/ingest-service.ts
+- [ ] Add Postgres-backed API integration tests for ingest upserts, duplicates, parent relations, filters, and invalid IDs.  → cite: apps/api/src/test
+- [ ] Make RunReader a real modal with focus trap, inert background, scroll lock, and restore focus.  → cite: apps/web/src/components/run-reader.tsx
+- [ ] Make Observatory accessible and easier to hit by removing aria-hidden from interactive nodes and adding larger hit targets plus an inspector.  → cite: apps/web/src/components/observatory.tsx
+- [ ] Show runner freshness/last sync/offline state so live UI is trustworthy.  → cite: apps/runner
 
 
 ## Recent Commits (auto, last 5)
 
-- 2954df4 chore(web): remove legacy reader components and mockup route
-- 3ad7e43 feat(web): promote new reader shell to default
-- 7fe8ff6 chore(web): self-host Source Serif 4 with font-display swap
-- 694cec1 test(web): cover API error voice in Reader
-- 7914f07 feat(web): add AppShell with mode switch
+- 4903ba5 Web triage reader (#3)
+- e440c9d feat(web): add observatory view (#2)
+- 77bad13 feat(api): add runs query endpoints
+- a3b71ce fix(api): align dev runner token config
+- 9b2ff4e first commit
 
 
 ## Open Questions
@@ -60,21 +58,22 @@ session_label: null
 ## Running State
 
 Passing:
-- pnpm --filter @alfred/web test
-- pnpm --filter @alfred/web typecheck
-- pnpm --filter @alfred/web build
 - pnpm test
 - pnpm typecheck
 - pnpm build
+- Local API health endpoint returned ok
+- Playwright CLI captured Reader, Observatory, and RunReader screenshots
 
 Broken:
-- None
+- GET /v1/runs/not-a-uuid returns 500 instead of 400
+- GET /v1/runs?limit=abc and limit=0 return 200 instead of invalid_limit
 
 Untested:
-- Manual browser visual pass after final cleanup
+- No code fixes from the audit have been implemented yet
+- No real Postgres integration suite or CI workflow exists yet
+- Browser Use plugin workflow was not available because node_repl/js was not exposed
 
 
 ## Verification Notes
 
-- Root validation passed after legacy cleanup: `pnpm test`, `pnpm typecheck`, `pnpm build`
-- `?legacy=1` and `?mockup=1` intentionally fall through to the new shell
+- None

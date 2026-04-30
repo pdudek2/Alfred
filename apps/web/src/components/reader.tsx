@@ -107,7 +107,7 @@ export function Reader({ runs, now, selectedRunId, onSelectRun, error, loading =
                   key={card.id}
                   onSelect={(runId) => onSelectRun(runId)}
                   selected={card.id === selectedRunId}
-                  subtitle={card.sourceLabel}
+                  subtitle={card.summaryLabel}
                 />
               ))}
             </FeedSection>

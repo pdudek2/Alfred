@@ -38,7 +38,7 @@ export function RunReader({ detail, now, onClose }: RunReaderProps) {
       <header className="run-reader-header">
         <div className="run-reader-titles">
           <p className="run-reader-kicker">{card.sourceLabel}</p>
-          <h2 id="run-reader-title">{card.projectLabel} - {card.intent}</h2>
+          <h2 id="run-reader-title">{card.headline}</h2>
           <p className="run-reader-subtitle">
             {card.sourceLabel} · {STATE_LABEL[card.status] ?? card.status} · {card.durationLabel}
           </p>
@@ -98,7 +98,37 @@ function RunReaderEvent({ event }: { event: RunEventItem }) {
       <time className="run-reader-event-time" dateTime={event.occurred_at}>
         {formatDateTime(event.occurred_at)}
       </time>
-      <span className="run-reader-event-line">{event.type}</span>
+      <span className="run-reader-event-line">{eventLine(event)}</span>
     </li>
   );
+}
+
+function eventLine(event: RunEventItem): string {
+  const type = event.type.toLowerCase();
+  const toolName = readString(event.payload.tool_name) ?? readString(event.payload.toolName) ?? readString(event.payload.name);
+  const toolLabel = toolName ? humanizeToolName(toolName) : "Tool";
+
+  if (type === "run.started") return "Session opened";
+  if (type === "run.completed" || type === "run.finished") return "Session closed";
+  if (type === "run.failed") return "Session interrupted";
+  if (type === "tool.started") return `${toolLabel} started`;
+  if (type === "tool.completed" || type === "tool.finished") return `${toolLabel} finished`;
+  if (type === "tool.failed") return `${toolLabel} failed`;
+  if (type.includes("approval") || type.includes("waiting")) return "Waiting on you";
+
+  return event.type;
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function humanizeToolName(value: string): string {
+  if (value === "exec_command" || value === "Bash") return "Command";
+  if (value === "Read") return "Read";
+  if (value === "Edit" || value === "MultiEdit") return "Edit";
+  if (value === "Write") return "Write";
+  return value
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
 }

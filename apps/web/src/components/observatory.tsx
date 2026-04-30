@@ -137,6 +137,25 @@ export function Observatory({ runs, now, onSelectRun }: ObservatoryProps) {
           </button>
         ))}
       </div>
+
+      <div aria-label="Signal legend" className="observatory-legend">
+        <span className="observatory-legend-key">
+          <span className="observatory-legend-dot observatory-legend-dot-live" aria-hidden="true" />
+          live
+        </span>
+        <span className="observatory-legend-key">
+          <span className="observatory-legend-dot observatory-legend-dot-waiting" aria-hidden="true" />
+          needs you
+        </span>
+        <span className="observatory-legend-key">
+          <span className="observatory-legend-dot observatory-legend-dot-failed" aria-hidden="true" />
+          failed
+        </span>
+        <span className="observatory-legend-key">
+          <span className="observatory-legend-dot observatory-legend-dot-quiet" aria-hidden="true" />
+          quiet
+        </span>
+      </div>
     </section>
   );
 }

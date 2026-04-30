@@ -42,4 +42,14 @@ describe("Observatory", () => {
 
     expect(screen.getByRole("button", { name: /^today$/ })).toHaveAttribute("aria-pressed", "true");
   });
+
+  it("renders a signal legend for status colors", () => {
+    render(<Observatory runs={runs} now={new Date("2026-04-29T12:00:00.000Z")} onSelectRun={() => {}} />);
+
+    const legend = screen.getByLabelText("Signal legend");
+    expect(legend).toHaveTextContent("live");
+    expect(legend).toHaveTextContent("needs you");
+    expect(legend).toHaveTextContent("failed");
+    expect(legend).toHaveTextContent("quiet");
+  });
 });
