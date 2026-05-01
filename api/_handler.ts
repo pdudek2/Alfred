@@ -1,4 +1,4 @@
-import { createApp } from "../apps/api/src/app";
+import { createApp } from "../apps/api/src/app.js";
 
 type FetchableApp = {
   fetch(request: Request): Response | Promise<Response>;
