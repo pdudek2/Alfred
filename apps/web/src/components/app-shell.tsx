@@ -1,4 +1,5 @@
 import type { RunListItem } from "../lib/api-client";
+import type { SystemStatusVM } from "../lib/system-status-view-model";
 import { useKeyboardShortcut } from "../lib/use-keyboard-shortcut";
 import { Observatory } from "./observatory";
 import { Reader } from "./reader";
@@ -15,6 +16,7 @@ type AppShellProps = {
   onSelectRun?: (runId: string | null) => void;
   runs: RunListItem[];
   selectedRunId?: string | null;
+  systemStatus?: SystemStatusVM | null;
 };
 
 export function AppShell({
@@ -26,6 +28,7 @@ export function AppShell({
   onSelectRun,
   runs,
   selectedRunId = null,
+  systemStatus = null,
 }: AppShellProps) {
   const toggleMode = () => onModeChange(mode === "reader" ? "observatory" : "reader");
 
@@ -55,6 +58,7 @@ export function AppShell({
             onSelectRun={onSelectRun ?? (() => {})}
             runs={runs}
             selectedRunId={selectedRunId}
+            systemStatus={systemStatus}
           />
         ) : (
           <Observatory now={now} onSelectRun={(runId) => onSelectRun?.(runId)} runs={runs} />

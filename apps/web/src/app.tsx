@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { AppShell, type AppShellMode } from "./components/app-shell";
-import { SystemStatusVMProvider } from "./components/reader";
 import { RunReader } from "./components/run-reader";
 import { ApiError, createApiClient, type RunDetail, type RunListItem } from "./lib/api-client";
 import { getSystemStatus, type SystemStatus } from "./lib/system-api-client";
@@ -161,7 +160,7 @@ export function App() {
   const systemStatusVM = useMemo(() => buildSystemStatusVM(systemStatus), [systemStatus]);
 
   return (
-    <SystemStatusVMProvider vm={systemStatusVM}>
+    <>
       <AppShell
         error={authRequired ? null : error}
         loading={loadingRuns}
@@ -171,6 +170,7 @@ export function App() {
         onSelectRun={setSelectedFromDrawer}
         runs={runs}
         selectedRunId={selectedRunId}
+        systemStatus={systemStatusVM}
       />
       {authRequired ? (
         <div className="auth-required" role="status">
@@ -183,7 +183,7 @@ export function App() {
           <RunReader detail={drawerRun} now={readerNow} onClose={() => setSelectedFromDrawer(null)} />
         </div>
       ) : null}
-    </SystemStatusVMProvider>
+    </>
   );
 
   function handleLoadError(loadError: unknown, fallback: string) {

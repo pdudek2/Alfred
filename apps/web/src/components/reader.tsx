@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { buildBriefingVM } from "../lib/briefing";
 import type { RunListItem } from "../lib/api-client";
@@ -27,12 +27,6 @@ type ReaderProps = {
   systemStatus?: SystemStatusVM | null;
 };
 
-const SystemStatusVMContext = createContext<SystemStatusVM | null>(null);
-
-export function SystemStatusVMProvider({ children, vm }: { children: ReactNode; vm: SystemStatusVM }) {
-  return <SystemStatusVMContext.Provider value={vm}>{children}</SystemStatusVMContext.Provider>;
-}
-
 export function Reader({
   runs,
   now,
@@ -46,8 +40,6 @@ export function Reader({
   const [query, setQuery] = useState("");
   const readerRef = useRef<HTMLElement>(null);
   const feedRef = useRef<HTMLElement>(null);
-  const contextSystemStatus = useContext(SystemStatusVMContext);
-  const visibleSystemStatus = systemStatus ?? contextSystemStatus;
 
   const briefing = useMemo(() => buildBriefingVM(runs, now, error), [error, now, runs]);
   const counts = useMemo(
@@ -106,7 +98,7 @@ export function Reader({
         {loadingEmptyRuns ? null : <Briefing vm={briefing} onHighlight={(runId) => onSelectRun(runId)} />}
 
         <div className="reader-filter-shell">
-          {visibleSystemStatus ? <SystemStatus vm={visibleSystemStatus} /> : null}
+          {systemStatus ? <SystemStatus vm={systemStatus} /> : null}
           <SoftFilterBar counts={counts} onQueryChange={setQuery} onTabChange={setTab} query={query} tab={tab} />
         </div>
       </section>
