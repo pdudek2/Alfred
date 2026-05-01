@@ -86,6 +86,16 @@ Copy the local env example when running services:
 cp .env.example .env
 ```
 
+Start the main local development loop:
+
+```bash
+pnpm dev:alfred
+```
+
+This starts the API, web app, and runner together. Output is prefixed with
+`[api]`, `[web]`, or `[runner]`, and if one process fails the launcher stops
+the rest.
+
 ## API
 
 Start Postgres:
