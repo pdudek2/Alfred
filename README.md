@@ -150,12 +150,27 @@ Preview-only optional:
 
 - `ALFRED_ALLOW_DEV_AUTH=1`
 - `AUTH_DEV_SESSION_TOKEN`: preview-only token.
+- `VERCEL_AUTOMATION_BYPASS_SECRET`: required by local smoke checks and the
+  local runner when Vercel Deployment Protection is enabled.
 
 Run cloud smoke checks against preview or production after deployment:
 
 ```bash
 ALFRED_CLOUD_URL=<preview-url> AUTH_DEV_SESSION_TOKEN=<preview-token> pnpm smoke:cloud
 ALFRED_CLOUD_URL=<prod-url> pnpm smoke:cloud
+```
+
+Run the local runner against a protected preview:
+
+```bash
+RUNNER_API_URL=<preview-url> \
+RUNNER_DEVICE_TOKEN=<device-token> \
+RUNNER_WORKSPACE_ID=00000000-0000-4000-8000-000000000001 \
+RUNNER_DEVICE_ID=00000000-0000-4000-8000-000000000101 \
+VERCEL_AUTOMATION_BYPASS_SECRET=<bypass-secret> \
+ALFRED_ALLOW_DEV_CONFIG=1 \
+ALFRED_SOURCES=codex \
+pnpm --filter @alfred/runner dev
 ```
 
 Start the API:

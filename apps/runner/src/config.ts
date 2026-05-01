@@ -13,6 +13,7 @@ export type RunnerConfig = {
   codexSince?: string;
   claudeHome?: string;
   claudeSince?: string;
+  vercelAutomationBypassSecret?: string;
 };
 
 export function loadRunnerConfig(env: RunnerEnv = runnerEnv): RunnerConfig {
@@ -32,6 +33,9 @@ export function loadRunnerConfig(env: RunnerEnv = runnerEnv): RunnerConfig {
     claudeHome: env.ALFRED_CLAUDE_HOME,
     ...(env.ALFRED_CLAUDE_SINCE !== undefined
       ? { claudeSince: env.ALFRED_CLAUDE_SINCE }
+      : {}),
+    ...(env.VERCEL_AUTOMATION_BYPASS_SECRET !== undefined
+      ? { vercelAutomationBypassSecret: env.VERCEL_AUTOMATION_BYPASS_SECRET }
       : {}),
   };
 }

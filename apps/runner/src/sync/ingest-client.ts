@@ -3,6 +3,7 @@ import type { IngestBatch } from "@alfred/schema";
 export type IngestClientConfig = {
   apiUrl: string;
   deviceToken: string;
+  vercelAutomationBypassSecret?: string;
   fetchImpl?: typeof fetch;
 };
 
@@ -13,6 +14,9 @@ export async function postIngestBatch(config: IngestClientConfig, batch: IngestB
     headers: {
       Authorization: `Bearer ${config.deviceToken}`,
       "Content-Type": "application/json",
+      ...(config.vercelAutomationBypassSecret
+        ? { "x-vercel-protection-bypass": config.vercelAutomationBypassSecret }
+        : {}),
     },
     body: JSON.stringify(batch),
   });

@@ -43,6 +43,18 @@ describe("runner env", () => {
     expect(config.apiUrl).toBe("http://127.0.0.1:4301");
   });
 
+  it("loads optional Vercel automation bypass secret", () => {
+    const env = parseRunnerEnv({
+      ALFRED_ALLOW_DEV_CONFIG: "1",
+      VERCEL_AUTOMATION_BYPASS_SECRET: "bypass-1",
+      HOME: "/tmp/home",
+    });
+    const config = loadRunnerConfig(env);
+
+    expect(env.VERCEL_AUTOMATION_BYPASS_SECRET).toBe("bypass-1");
+    expect(config.vercelAutomationBypassSecret).toBe("bypass-1");
+  });
+
   it("loads optional Codex since timestamp", () => {
     const env = parseRunnerEnv({
       ALFRED_ALLOW_DEV_CONFIG: "1",

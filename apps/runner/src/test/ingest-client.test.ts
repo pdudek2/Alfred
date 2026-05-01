@@ -45,6 +45,27 @@ describe("postIngestBatch", () => {
     });
   });
 
+  it("can include a Vercel automation bypass header", async () => {
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
+
+    await postIngestBatch({
+      apiUrl: "https://alfred-preview.vercel.app",
+      deviceToken: "token-1",
+      vercelAutomationBypassSecret: "bypass-1",
+      fetchImpl,
+    }, batch);
+
+    expect(fetchImpl).toHaveBeenCalledWith("https://alfred-preview.vercel.app/v1/ingest/batches", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-1",
+        "Content-Type": "application/json",
+        "x-vercel-protection-bypass": "bypass-1",
+      },
+      body: JSON.stringify(batch),
+    });
+  });
+
   it("throws on non-accepted response", async () => {
     const fetchImpl = vi.fn(async () => new Response("{}", { status: 500 }));
 

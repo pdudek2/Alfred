@@ -46,6 +46,9 @@ export async function runRunnerOnce(
     const flushedEvents = await flushOutbox(outbox, {
       apiUrl: config.apiUrl,
       deviceToken: config.deviceToken,
+      ...(config.vercelAutomationBypassSecret
+        ? { vercelAutomationBypassSecret: config.vercelAutomationBypassSecret }
+        : {}),
       workspaceId: config.workspaceId,
       deviceId: config.deviceId,
       ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),

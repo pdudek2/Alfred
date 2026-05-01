@@ -27,6 +27,7 @@ export type RunnerEnv = {
   ALFRED_CODEX_SINCE?: string;
   ALFRED_CLAUDE_HOME: string;
   ALFRED_CLAUDE_SINCE?: string;
+  VERCEL_AUTOMATION_BYPASS_SECRET?: string;
 };
 
 function parseRunnerSources(raw: string | undefined): RunnerSource[] {
@@ -109,6 +110,9 @@ export function parseRunnerEnv(input: NodeJS.ProcessEnv): RunnerEnv {
     ALFRED_CLAUDE_HOME: input.ALFRED_CLAUDE_HOME ?? `${home}/.claude`,
     ...(input.ALFRED_CLAUDE_SINCE !== undefined
       ? { ALFRED_CLAUDE_SINCE: input.ALFRED_CLAUDE_SINCE }
+      : {}),
+    ...(input.VERCEL_AUTOMATION_BYPASS_SECRET !== undefined
+      ? { VERCEL_AUTOMATION_BYPASS_SECRET: input.VERCEL_AUTOMATION_BYPASS_SECRET }
       : {}),
   };
 }
