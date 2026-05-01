@@ -84,7 +84,7 @@ export function createApp() {
   app.route("/health", healthRoutes);
   app.route("/api/health", healthRoutes);
   app.route("/auth", createAuthRoutes(db, authRouteOptions));
-  app.route("/api/auth", createAuthRoutes(db, authRouteOptions));
+  app.route("/api/auth", createAuthRoutes(db, { ...authRouteOptions, callbackPath: "/api/auth/callback" }));
   app.route("/v1/ingest", createIngestRoutes(db, deviceAuthStore));
   app.route("/v1/runs", createRunsRoutes(db, { sessionStore }));
   app.route("/v1/system", createSystemRoutes(systemStatusStore, sessionStore));

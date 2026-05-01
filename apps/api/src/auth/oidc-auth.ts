@@ -6,10 +6,13 @@ import { hashToken } from "./token-hash";
 export type OidcConfig = {
   appBaseUrl: string;
   bootstrapWorkspaceId: string;
+  callbackPath?: string;
   clientId?: string;
   clientSecret?: string;
   issuer?: string;
 };
+
+export type ConfiguredOidcConfig = OidcConfig & Required<Pick<OidcConfig, "clientId" | "clientSecret" | "issuer">>;
 
 type OidcDiscovery = {
   authorization_endpoint: string;
@@ -29,7 +32,7 @@ type UserInfo = {
   name?: string;
 };
 
-export function oidcConfigured(config: OidcConfig): boolean {
+export function oidcConfigured(config: OidcConfig): config is ConfiguredOidcConfig {
   return Boolean(config.issuer && config.clientId && config.clientSecret);
 }
 
@@ -37,11 +40,11 @@ export function createSessionToken(): string {
   return randomBytes(32).toString("base64url");
 }
 
-export async function buildOidcLoginUrl(config: Required<OidcConfig>, state: string): Promise<string> {
+export async function buildOidcLoginUrl(config: ConfiguredOidcConfig, state: string): Promise<string> {
   const discovery = await discoverOidc(config.issuer);
   const url = new URL(discovery.authorization_endpoint);
   url.searchParams.set("client_id", config.clientId);
-  url.searchParams.set("redirect_uri", callbackUrl(config.appBaseUrl));
+  url.searchParams.set("redirect_uri", callbackUrl(config.appBaseUrl, config.callbackPath));
   url.searchParams.set("response_type", "code");
   url.searchParams.set("scope", "openid email profile");
   url.searchParams.set("state", state);
@@ -50,7 +53,7 @@ export async function buildOidcLoginUrl(config: Required<OidcConfig>, state: str
 
 export async function completeOidcLogin(
   db: Database,
-  config: Required<OidcConfig>,
+  config: ConfiguredOidcConfig,
   code: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<string> {
@@ -129,7 +132,7 @@ async function discoverOidc(issuer: string, fetchImpl: typeof fetch = fetch): Pr
 
 async function exchangeCode(
   discovery: OidcDiscovery,
-  config: Required<OidcConfig>,
+  config: ConfiguredOidcConfig,
   code: string,
   fetchImpl: typeof fetch,
 ): Promise<TokenResponse> {
@@ -139,7 +142,7 @@ async function exchangeCode(
     body: new URLSearchParams({
       grant_type: "authorization_code",
       code,
-      redirect_uri: callbackUrl(config.appBaseUrl),
+      redirect_uri: callbackUrl(config.appBaseUrl, config.callbackPath),
       client_id: config.clientId,
       client_secret: config.clientSecret,
     }),
@@ -164,8 +167,8 @@ async function readUserInfo(
   return decodeJwtPayload(token.id_token) as UserInfo;
 }
 
-function callbackUrl(appBaseUrl: string): string {
-  return new URL("/auth/callback", appBaseUrl).toString();
+function callbackUrl(appBaseUrl: string, callbackPath = "/auth/callback"): string {
+  return new URL(callbackPath, appBaseUrl).toString();
 }
 
 function decodeJwtPayload(jwt: string): Record<string, unknown> {

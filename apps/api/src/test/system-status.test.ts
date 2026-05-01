@@ -1,3 +1,5 @@
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import { createStaticSessionStore } from "../auth/session-auth";
@@ -119,12 +121,12 @@ describe("system status store", () => {
       latestRunUpdatedAt: new Date("2026-04-30T11:59:56.000Z"),
     });
 
-    expect(db.whereSql[0]).toContain("workspace_id = ?");
-    expect(db.whereSql[0]).toContain("last_seen_at is not null");
-    expect(db.whereSql[1]).toContain("workspace_id = ?");
-    expect(db.whereSql[1]).toContain("processed_at is not null");
-    expect(db.whereSql[2]).toContain("workspace_id = ?");
-    expect(db.whereSql[2]).toContain("updated_at is not null");
+    expect(db.whereSql[0]).toContain('"devices"."workspace_id" = $1');
+    expect(db.whereSql[0]).toContain('"devices"."last_seen_at" is not null');
+    expect(db.whereSql[1]).toContain('"ingest_batches"."workspace_id" = $1');
+    expect(db.whereSql[1]).toContain('"ingest_batches"."processed_at" is not null');
+    expect(db.whereSql[2]).toContain('"runs"."workspace_id" = $1');
+    expect(db.whereSql[2]).toContain('"runs"."updated_at" is not null');
   });
 });
 
@@ -142,7 +144,7 @@ function createRecordingDb() {
     select: () => ({
       from: () => ({
         where: (condition: unknown) => {
-          whereSql.push(normalizeSql(condition));
+          whereSql.push(normalizeSql(condition as SQL));
           const result = rows[queryIndex++] ?? [];
           return {
             orderBy: () => ({
@@ -155,19 +157,6 @@ function createRecordingDb() {
   };
 }
 
-function normalizeSql(value: unknown): string {
-  return serializeSql(value).replace(/\s+/g, " ").trim();
-}
-
-function serializeSql(value: unknown): string {
-  if (!isRecord(value)) return "";
-  if (Array.isArray(value.value)) return value.value.join("");
-  if (typeof value.name === "string") return value.name;
-  if (Array.isArray(value.queryChunks)) return value.queryChunks.map(serializeSql).join("");
-  if ("value" in value) return "?";
-  return "";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+function normalizeSql(value: SQL): string {
+  return new PgDialect().sqlToQuery(value).sql.replace(/\s+/g, " ").trim();
 }
