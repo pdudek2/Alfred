@@ -132,6 +132,25 @@ Run hosted migrations with the direct URL:
 DATABASE_URL="$DATABASE_URL_UNPOOLED" pnpm exec drizzle-kit migrate --config apps/api/drizzle.config.ts
 ```
 
+## Vercel Deployment
+
+Required Vercel env vars:
+
+- `DATABASE_URL`: Neon pooled runtime URL.
+- `DATABASE_URL_UNPOOLED`: Neon direct migration URL, used only by manual or CI migration jobs.
+- `RUNNER_WORKSPACE_ID`
+- `RUNNER_DEVICE_ID`
+- `RUNNER_DEVICE_TOKEN`
+- `APP_BASE_URL`: production Vercel URL.
+- `ALFRED_BOOTSTRAP_ADMIN_EMAIL`
+- `ALFRED_BOOTSTRAP_USER_ID`
+- `ALFRED_BOOTSTRAP_WORKSPACE_ID`
+
+Preview-only optional:
+
+- `ALFRED_ALLOW_DEV_AUTH=1`
+- `AUTH_DEV_SESSION_TOKEN`: preview-only token.
+
 Start the API:
 
 ```bash
