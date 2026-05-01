@@ -6,6 +6,22 @@ import { build } from "esbuild";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outdir = resolve(repoRoot, "api/.generated");
 const outfile = resolve(outdir, "app.mjs");
+const workspaceAliases = new Map([
+  ["@alfred/db", resolve(repoRoot, "packages/db/src/index.ts")],
+  ["@alfred/schema", resolve(repoRoot, "packages/schema/src/index.ts")],
+]);
+
+const alfredWorkspaceAliasPlugin = {
+  name: "alfred-workspace-alias",
+  setup(build) {
+    build.onResolve({ filter: /^@alfred\/(db|schema)$/ }, (args) => {
+      const path = workspaceAliases.get(args.path);
+      if (!path) return undefined;
+
+      return { path };
+    });
+  },
+};
 
 await mkdir(outdir, { recursive: true });
 
@@ -16,6 +32,7 @@ await build({
   format: "esm",
   outfile,
   platform: "node",
+  plugins: [alfredWorkspaceAliasPlugin],
   sourcemap: false,
   target: "node22",
 });
