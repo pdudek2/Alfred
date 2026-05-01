@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { createContext, useContext, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { buildBriefingVM } from "../lib/briefing";
 import type { RunListItem } from "../lib/api-client";
@@ -9,11 +9,13 @@ import {
   type RunCardVM,
   type TriageTab,
 } from "../lib/run-view-model";
+import type { SystemStatusVM } from "../lib/system-status-view-model";
 import { useKeyboardShortcut } from "../lib/use-keyboard-shortcut";
 import { Briefing } from "./briefing";
 import { FeedSection } from "./feed-section";
 import { RunRow } from "./run-row";
 import { SoftFilterBar } from "./soft-filter-bar";
+import { SystemStatus } from "./system-status";
 
 type ReaderProps = {
   runs: RunListItem[];
@@ -22,13 +24,30 @@ type ReaderProps = {
   onSelectRun: (runId: string | null) => void;
   error?: unknown;
   loading?: boolean;
+  systemStatus?: SystemStatusVM | null;
 };
 
-export function Reader({ runs, now, selectedRunId, onSelectRun, error, loading = false }: ReaderProps) {
+const SystemStatusVMContext = createContext<SystemStatusVM | null>(null);
+
+export function SystemStatusVMProvider({ children, vm }: { children: ReactNode; vm: SystemStatusVM }) {
+  return <SystemStatusVMContext.Provider value={vm}>{children}</SystemStatusVMContext.Provider>;
+}
+
+export function Reader({
+  runs,
+  now,
+  selectedRunId,
+  onSelectRun,
+  error,
+  loading = false,
+  systemStatus,
+}: ReaderProps) {
   const [tab, setTab] = useState<TriageTab>("all");
   const [query, setQuery] = useState("");
   const readerRef = useRef<HTMLElement>(null);
   const feedRef = useRef<HTMLElement>(null);
+  const contextSystemStatus = useContext(SystemStatusVMContext);
+  const visibleSystemStatus = systemStatus ?? contextSystemStatus;
 
   const briefing = useMemo(() => buildBriefingVM(runs, now, error), [error, now, runs]);
   const counts = useMemo(
@@ -87,6 +106,7 @@ export function Reader({ runs, now, selectedRunId, onSelectRun, error, loading =
         {loadingEmptyRuns ? null : <Briefing vm={briefing} onHighlight={(runId) => onSelectRun(runId)} />}
 
         <div className="reader-filter-shell">
+          {visibleSystemStatus ? <SystemStatus vm={visibleSystemStatus} /> : null}
           <SoftFilterBar counts={counts} onQueryChange={setQuery} onTabChange={setTab} query={query} tab={tab} />
         </div>
       </section>

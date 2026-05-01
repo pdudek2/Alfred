@@ -16,6 +16,20 @@ describe("App (new shell)", () => {
         if (url.startsWith("/api/v1/runs?")) {
           return new Response(JSON.stringify({ items: [runFixture] }), { status: 200 });
         }
+        if (url === "/api/v1/system/status") {
+          return new Response(
+            JSON.stringify({
+              runner: {
+                state: "live",
+                seconds_since_last_ingest: 8,
+                last_device_seen_at: "2026-04-30T12:00:00.000Z",
+                last_ingest_at: "2026-04-30T12:00:00.000Z",
+                latest_run_updated_at: "2026-04-30T12:00:00.000Z",
+              },
+            }),
+            { status: 200 },
+          );
+        }
         if (url === "/api/v1/runs/run-1") {
           return new Response(JSON.stringify(runDetailFixture), { status: 200 });
         }
@@ -36,6 +50,16 @@ describe("App (new shell)", () => {
     expect(await screen.findByText(/Alfred/i)).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /All/i })).toBeInTheDocument();
     expect(await screen.findByRole("region", { name: /run feed/i })).toBeInTheDocument();
+  });
+
+  it("fetches runner status and shows reader freshness", async () => {
+    render(<App />);
+
+    expect(await screen.findByText("Runner live")).toBeInTheDocument();
+    expect(await screen.findByText("Last ingest 8s ago")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith("/api/v1/system/status", { credentials: "include" });
+    });
   });
 
   it("opens the drawer when a run is clicked", async () => {
@@ -85,6 +109,28 @@ describe("App (new shell)", () => {
 
     expect(await screen.findByRole("link", { name: /sign in/i })).toHaveAttribute("href", "/auth/login");
     expect(screen.queryByText(/Failed to load runs/i)).not.toBeInTheDocument();
+  });
+
+  it("does not require auth when only system status is unauthorized", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.startsWith("/api/v1/runs?")) {
+          return new Response(JSON.stringify({ items: [runFixture] }), { status: 200 });
+        }
+        if (url === "/api/v1/system/status") {
+          return new Response("login required", { status: 401 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: /All/i })).toBeInTheDocument();
+    expect(await screen.findByText("Runner unknown")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /sign in/i })).not.toBeInTheDocument();
   });
 
   it("clears deep-linked run selection when authentication is required", async () => {

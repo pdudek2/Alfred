@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AppShell, type AppShellMode } from "./components/app-shell";
+import { SystemStatusVMProvider } from "./components/reader";
 import { RunReader } from "./components/run-reader";
 import { ApiError, createApiClient, type RunDetail, type RunListItem } from "./lib/api-client";
+import { getSystemStatus, type SystemStatus } from "./lib/system-api-client";
+import { buildSystemStatusVM } from "./lib/system-status-view-model";
 import { useKeyboardShortcut } from "./lib/use-keyboard-shortcut";
 
 const api = createApiClient();
@@ -16,6 +19,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
   const [readerNow, setReaderNow] = useState(() => new Date());
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [mode, setMode] = useState<AppShellMode>(() =>
     typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "observatory"
       ? "observatory"
@@ -92,13 +96,23 @@ export function App() {
     }
   }
 
+  async function loadSystemStatus() {
+    try {
+      setSystemStatus(await getSystemStatus());
+    } catch {
+      setSystemStatus(null);
+    }
+  }
+
   useEffect(() => {
     void loadRuns(false);
+    void loadSystemStatus();
   }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       void loadRuns(true);
+      void loadSystemStatus();
     }, LIVE_REFRESH_MS);
 
     return () => window.clearInterval(timer);
@@ -144,9 +158,10 @@ export function App() {
   });
 
   const drawerRun = selectedRun && selectedRun.id === selectedRunId ? selectedRun : null;
+  const systemStatusVM = useMemo(() => buildSystemStatusVM(systemStatus), [systemStatus]);
 
   return (
-    <>
+    <SystemStatusVMProvider vm={systemStatusVM}>
       <AppShell
         error={authRequired ? null : error}
         loading={loadingRuns}
@@ -168,7 +183,7 @@ export function App() {
           <RunReader detail={drawerRun} now={readerNow} onClose={() => setSelectedFromDrawer(null)} />
         </div>
       ) : null}
-    </>
+    </SystemStatusVMProvider>
   );
 
   function handleLoadError(loadError: unknown, fallback: string) {
