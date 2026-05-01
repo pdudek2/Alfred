@@ -1,12 +1,13 @@
+import { createApp } from "../apps/api/src/app";
+
 type FetchableApp = {
   fetch(request: Request): Response | Promise<Response>;
 };
 
-let appPromise: Promise<FetchableApp> | undefined;
+let app: FetchableApp | undefined;
 
-export async function handleRequest(request: Request) {
-  appPromise ??= import("../apps/api/src/app.js").then(({ createApp }) => createApp());
-  const app = await appPromise;
+export function handleRequest(request: Request) {
+  app ??= createApp();
 
   return app.fetch(request);
 }
