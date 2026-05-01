@@ -1,4 +1,6 @@
-import { createApp } from "./.generated/app.mjs";
+import apiBundle from "./.generated/app.cjs";
+
+const { createApp } = apiBundle;
 
 type FetchableApp = {
   fetch(request: Request): Response | Promise<Response>;
