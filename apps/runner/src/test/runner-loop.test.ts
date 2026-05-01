@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -244,6 +244,54 @@ describe("flushOutboxOnce", () => {
     const outbox = new OutboxDb(outboxPath);
     expect(outbox.getSourceCursor("codex-cli")).toBe("2026-04-28T10:05:00.000Z");
     outbox.close();
+  });
+
+  it("advances explicit Codex since with the stored source cursor", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "alfred-runner-codex-cursor-"));
+    const codexHome = join(dir, ".codex");
+    const sessionPath = join(codexHome, "sessions/2026/04/28/session.jsonl");
+    const outboxPath = join(dir, "outbox.sqlite");
+    mkdirSync(join(codexHome, "sessions/2026/04/28"), { recursive: true });
+    writeFileSync(
+      sessionPath,
+      [
+        JSON.stringify({
+          timestamp: "2026-04-28T10:00:00.000Z",
+          type: "session.start",
+          id: "codex-run-1",
+          cwd: "/Users/patryk/Desktop/Alfred",
+        }),
+        JSON.stringify({
+          timestamp: "2026-04-28T10:00:01.000Z",
+          type: "tool.call",
+          id: "tool-1",
+          session_id: "codex-run-1",
+          tool: "exec_command",
+        }),
+      ].join("\n"),
+    );
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
+    const config = {
+      apiUrl: "http://127.0.0.1:4301",
+      deviceToken: "token-1",
+      workspaceId,
+      deviceId,
+      privacyMode: "standard" as const,
+      outboxPath,
+      codexHome,
+      codexSince: "2026-04-28T09:00:00.000Z",
+    };
+
+    await expect(runRunnerOnce(config, { fetchImpl })).resolves.toEqual({
+      collectedEvents: 2,
+      flushedEvents: 2,
+    });
+    await expect(runRunnerOnce(config, { fetchImpl })).resolves.toEqual({
+      collectedEvents: 0,
+      flushedEvents: 0,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
   it("collects multiple source adapters and stores independent cursors", async () => {

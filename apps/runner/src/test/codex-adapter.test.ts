@@ -58,7 +58,7 @@ describe("collectCodexEvents", () => {
     expect(IngestEventSchema.array().safeParse(events).success).toBe(true);
   });
 
-  it("skips Codex events before the configured since timestamp", async () => {
+  it("skips Codex events at or before the configured since timestamp", async () => {
     const events = await collectCodexEvents({
       codexHome: createCodexHome(),
       workspaceId,
@@ -68,11 +68,9 @@ describe("collectCodexEvents", () => {
     });
 
     expect(events.map((event) => event.type)).toEqual([
-      "tool.completed",
       "run.completed",
     ]);
     expect(events.map((event) => event.occurred_at)).toEqual([
-      "2026-04-28T10:00:02.000Z",
       "2026-04-28T10:00:03.000Z",
     ]);
   });
