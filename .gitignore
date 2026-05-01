@@ -36,3 +36,5 @@ WORKING_CONTEXT.md
 .idea/
 *.swp
 *.swo
+.vercel
+.secrets/

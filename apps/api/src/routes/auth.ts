@@ -7,7 +7,7 @@ import {
   oidcConfigured,
   type ConfiguredOidcConfig,
   type OidcConfig,
-} from "../auth/oidc-auth";
+} from "../auth/oidc-auth.js";
 
 const STATE_COOKIE = "alfred_oidc_state";
 const SESSION_COOKIE = "alfred_session";

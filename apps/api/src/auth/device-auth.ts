@@ -1,7 +1,7 @@
 import type { MiddlewareHandler } from "hono";
 import { eq } from "drizzle-orm";
 import { devices, type Database } from "@alfred/db";
-import { hashToken } from "./token-hash";
+import { hashToken } from "./token-hash.js";
 
 export type DeviceAuth = {
   workspaceId: string;

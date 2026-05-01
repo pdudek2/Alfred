@@ -1,23 +1,23 @@
 import { Hono } from "hono";
 import { createDb } from "@alfred/db";
-import { seedBootstrapAuth } from "./auth/bootstrap-auth";
+import { seedBootstrapAuth } from "./auth/bootstrap-auth.js";
 import {
   createDbDeviceAuthStore,
   createFallbackDeviceAuthStore,
   createStaticDeviceAuthStore,
-} from "./auth/device-auth";
+} from "./auth/device-auth.js";
 import {
   createDbSessionStore,
   createFallbackSessionStore,
   createStaticSessionStore,
-} from "./auth/session-auth";
-import { env } from "./env";
-import { createAuthRoutes } from "./routes/auth";
-import { healthRoutes } from "./routes/health";
-import { createIngestRoutes } from "./routes/ingest";
-import { createRunsRoutes } from "./routes/runs";
-import { createSystemRoutes } from "./routes/system";
-import { createSystemStatusStore } from "./services/system-status-store";
+} from "./auth/session-auth.js";
+import { env } from "./env.js";
+import { createAuthRoutes } from "./routes/auth.js";
+import { healthRoutes } from "./routes/health.js";
+import { createIngestRoutes } from "./routes/ingest.js";
+import { createRunsRoutes } from "./routes/runs.js";
+import { createSystemRoutes } from "./routes/system.js";
+import { createSystemStatusStore } from "./services/system-status-store.js";
 
 export function createApp() {
   const app = new Hono();

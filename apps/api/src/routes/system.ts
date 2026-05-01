@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 
-import { requireSession, type AuthSessionStore, type AuthVariables } from "../auth/session-auth";
-import { buildRunnerStatus } from "../services/runner-status-service";
-import type { SystemStatusStore } from "../services/system-status-store";
+import { requireSession, type AuthSessionStore, type AuthVariables } from "../auth/session-auth.js";
+import { buildRunnerStatus } from "../services/runner-status-service.js";
+import type { SystemStatusStore } from "../services/system-status-store.js";
 
 export function createSystemRoutes(store: SystemStatusStore, sessionStore: AuthSessionStore) {
   const systemRoutes = new Hono<{ Variables: AuthVariables }>();

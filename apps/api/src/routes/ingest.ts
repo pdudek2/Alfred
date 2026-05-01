@@ -7,9 +7,9 @@ import {
   requireDeviceToken,
   type DeviceAuthStore,
   type DeviceAuthVariables,
-} from "../auth/device-auth";
-import { env } from "../env";
-import { ingestBatch, type IngestStore } from "../services/ingest-service";
+} from "../auth/device-auth.js";
+import { env } from "../env.js";
+import { ingestBatch, type IngestStore } from "../services/ingest-service.js";
 
 export function createIngestRoutes(
   db: Database | IngestStore = createDb(),

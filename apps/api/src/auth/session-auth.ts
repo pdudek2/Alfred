@@ -1,7 +1,7 @@
 import type { MiddlewareHandler } from "hono";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { sessions, users, type Database } from "@alfred/db";
-import { hashToken } from "./token-hash";
+import { hashToken } from "./token-hash.js";
 
 export type AuthSession = {
   sessionId: string;

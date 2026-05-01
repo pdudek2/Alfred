@@ -2,12 +2,12 @@ import { createDb, type Database } from "@alfred/db";
 import { AgentSource, RunStatus } from "@alfred/schema";
 import { Hono } from "hono";
 
-import { requireSession, type AuthSessionStore, type AuthVariables } from "../auth/session-auth";
+import { requireSession, type AuthSessionStore, type AuthVariables } from "../auth/session-auth.js";
 import {
   createRunsQueryStore,
   type RunsListFilters,
   type RunsQueryStore,
-} from "../services/runs-query-service";
+} from "../services/runs-query-service.js";
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;

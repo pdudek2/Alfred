@@ -1,7 +1,7 @@
 import { oidcIdentities, sessions, updatedAtNow, users, workspaces, type Database } from "@alfred/db";
 import { and, eq } from "drizzle-orm";
 import { randomBytes, randomUUID } from "node:crypto";
-import { hashToken } from "./token-hash";
+import { hashToken } from "./token-hash.js";
 
 export type OidcConfig = {
   appBaseUrl: string;

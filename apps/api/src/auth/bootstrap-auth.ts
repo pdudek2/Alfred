@@ -1,5 +1,5 @@
 import { devices, updatedAtNow, users, workspaces, type Database } from "@alfred/db";
-import { hashToken } from "./token-hash";
+import { hashToken } from "./token-hash.js";
 
 export type BootstrapAuthConfig = {
   adminEmail: string;
