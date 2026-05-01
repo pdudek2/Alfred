@@ -2,6 +2,7 @@
 
 const baseUrl = process.env.ALFRED_CLOUD_URL;
 const sessionToken = process.env.AUTH_DEV_SESSION_TOKEN;
+const vercelProtectionBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 
 if (!baseUrl) {
   console.error("ALFRED_CLOUD_URL is required");
@@ -18,9 +19,10 @@ const checks = [
 let failed = false;
 
 for (const [name, path] of checks) {
-  const headers = sessionToken
-    ? { cookie: `alfred_session=${sessionToken}` }
-    : {};
+  const headers = {
+    ...(sessionToken ? { cookie: `alfred_session=${sessionToken}` } : {}),
+    ...(vercelProtectionBypass ? { "x-vercel-protection-bypass": vercelProtectionBypass } : {}),
+  };
 
   try {
     const response = await fetch(new URL(path, baseUrl), { headers });
