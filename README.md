@@ -151,6 +151,13 @@ Preview-only optional:
 - `ALFRED_ALLOW_DEV_AUTH=1`
 - `AUTH_DEV_SESSION_TOKEN`: preview-only token.
 
+Run cloud smoke checks against preview or production after deployment:
+
+```bash
+ALFRED_CLOUD_URL=<preview-url> AUTH_DEV_SESSION_TOKEN=<preview-token> pnpm smoke:cloud
+ALFRED_CLOUD_URL=<prod-url> pnpm smoke:cloud
+```
+
 Start the API:
 
 ```bash
