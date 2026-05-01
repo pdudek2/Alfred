@@ -110,6 +110,28 @@ Run migrations:
 pnpm exec drizzle-kit migrate --config apps/api/drizzle.config.ts
 ```
 
+## Neon / Hosted Postgres Setup
+
+Local development still uses Docker Postgres from `docker compose up -d postgres`.
+Keep the local `.env` values from `.env.example` for that path.
+
+For hosted deployments, create a Neon Postgres project outside the repository and
+store the real connection strings only in your deployment environment or local
+secret manager. Do not commit Neon secrets to this repo.
+
+Use two database URLs:
+
+- `DATABASE_URL`: runtime connection string. In serverless environments, this
+  should be the pooled Neon URL, usually the host containing `-pooler`.
+- `DATABASE_URL_UNPOOLED`: migration connection string. This should be the
+  direct Neon URL without the pooler, used by Drizzle migration commands.
+
+Run hosted migrations with the direct URL:
+
+```bash
+DATABASE_URL="$DATABASE_URL_UNPOOLED" pnpm exec drizzle-kit migrate --config apps/api/drizzle.config.ts
+```
+
 Start the API:
 
 ```bash
