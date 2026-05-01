@@ -112,6 +112,21 @@ describe("api", () => {
     expect(dbMock.listRuns).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000001", 7, {});
   });
 
+  it("mounts system status behind session auth", async () => {
+    const res = await createApp().request("/api/v1/system/status");
+    expect(res.status).toBe(401);
+  });
+
+  it("supports Vercel cloud aliases for health and auth", async () => {
+    const health = await createApp().request("/api/health");
+    expect(health.status).toBe(200);
+
+    const login = await createApp().request("/api/auth/login", { redirect: "manual" });
+    expect(login.status).toBe(302);
+    expect(login.headers.get("location")).toBe("/");
+    expect(login.headers.get("set-cookie")).toContain("alfred_session=dev-session-token");
+  });
+
   it("rejects missing device token", async () => {
     const app = new Hono();
     app.use(

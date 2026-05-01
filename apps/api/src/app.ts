@@ -16,6 +16,8 @@ import { createAuthRoutes } from "./routes/auth";
 import { healthRoutes } from "./routes/health";
 import { createIngestRoutes } from "./routes/ingest";
 import { createRunsRoutes } from "./routes/runs";
+import { createSystemRoutes } from "./routes/system";
+import { createSystemStatusStore } from "./services/system-status-store";
 
 export function createApp() {
   const app = new Hono();
@@ -37,6 +39,7 @@ export function createApp() {
   });
   const dbSessionStore = createDbSessionStore(db);
   const dbDeviceAuthStore = createDbDeviceAuthStore(db);
+  const systemStatusStore = createSystemStatusStore(db);
   const sessionStore = env.DEV_AUTH_ENABLED
     ? createFallbackSessionStore(dbSessionStore, staticSessionStore, process.env.NODE_ENV === "test")
     : dbSessionStore;
@@ -64,26 +67,29 @@ export function createApp() {
       },
     }),
   );
+  const authRouteOptions = {
+    config: {
+      appBaseUrl: env.APP_BASE_URL,
+      bootstrapWorkspaceId: env.ALFRED_BOOTSTRAP_WORKSPACE_ID,
+      ...(env.AUTH_OIDC_CLIENT_ID ? { clientId: env.AUTH_OIDC_CLIENT_ID } : {}),
+      ...(env.AUTH_OIDC_CLIENT_SECRET ? { clientSecret: env.AUTH_OIDC_CLIENT_SECRET } : {}),
+      ...(env.AUTH_OIDC_ISSUER ? { issuer: env.AUTH_OIDC_ISSUER } : {}),
+    },
+    devAuth: {
+      enabled: env.DEV_AUTH_ENABLED,
+      sessionToken: env.AUTH_DEV_SESSION_TOKEN,
+    },
+  };
+
   app.route("/health", healthRoutes);
-  app.route(
-    "/auth",
-    createAuthRoutes(db, {
-      config: {
-        appBaseUrl: env.APP_BASE_URL,
-        bootstrapWorkspaceId: env.ALFRED_BOOTSTRAP_WORKSPACE_ID,
-        ...(env.AUTH_OIDC_CLIENT_ID ? { clientId: env.AUTH_OIDC_CLIENT_ID } : {}),
-        ...(env.AUTH_OIDC_CLIENT_SECRET ? { clientSecret: env.AUTH_OIDC_CLIENT_SECRET } : {}),
-        ...(env.AUTH_OIDC_ISSUER ? { issuer: env.AUTH_OIDC_ISSUER } : {}),
-      },
-      devAuth: {
-        enabled: env.DEV_AUTH_ENABLED,
-        sessionToken: env.AUTH_DEV_SESSION_TOKEN,
-      },
-    }),
-  );
+  app.route("/api/health", healthRoutes);
+  app.route("/auth", createAuthRoutes(db, authRouteOptions));
+  app.route("/api/auth", createAuthRoutes(db, authRouteOptions));
   app.route("/v1/ingest", createIngestRoutes(db, deviceAuthStore));
   app.route("/v1/runs", createRunsRoutes(db, { sessionStore }));
+  app.route("/v1/system", createSystemRoutes(systemStatusStore, sessionStore));
   app.route("/api/v1/ingest", createIngestRoutes(db, deviceAuthStore));
   app.route("/api/v1/runs", createRunsRoutes(db, { sessionStore }));
+  app.route("/api/v1/system", createSystemRoutes(systemStatusStore, sessionStore));
   return app;
 }
