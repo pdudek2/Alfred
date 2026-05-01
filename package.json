@@ -15,10 +15,11 @@
   },
   "devDependencies": {
     "drizzle-kit": "latest",
+    "esbuild": "^0.28.0",
+    "tsx": "latest",
     "turbo": "latest",
     "typescript": "latest",
-    "vitest": "latest",
-    "tsx": "latest"
+    "vitest": "latest"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
