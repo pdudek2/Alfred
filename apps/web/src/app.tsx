@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AppShell, type AppShellMode } from "./components/app-shell";
 import { RunReader } from "./components/run-reader";
-import { ApiError, createApiClient, type RunDetail, type RunListItem } from "./lib/api-client";
+import { createApiClient, isAuthError, type RunDetail, type RunListItem } from "./lib/api-client";
 import { getSystemStatus, type SystemStatus } from "./lib/system-api-client";
 import { buildSystemStatusVM } from "./lib/system-status-view-model";
 import { useKeyboardShortcut } from "./lib/use-keyboard-shortcut";
@@ -17,6 +17,7 @@ export function App() {
   const [loadingRuns, setLoadingRuns] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
+  const [runLoadNotice, setRunLoadNotice] = useState<string | null>(null);
   const [readerNow, setReaderNow] = useState(() => new Date());
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [mode, setMode] = useState<AppShellMode>(() =>
@@ -55,6 +56,7 @@ export function App() {
     if (clearBeforeLoad) {
       setSelectedRun(null);
     }
+    setRunLoadNotice(null);
 
     try {
       const run = await api.getRun(runId);
@@ -64,13 +66,14 @@ export function App() {
       if (clearBeforeLoad) {
         setSelectedRun(null);
       }
-      handleLoadError(loadError, "Failed to load run");
+      handleRunDetailError(loadError);
     }
   }
 
   async function loadRuns(refreshDetail = false) {
     setLoadingRuns(true);
     setError(null);
+    setRunLoadNotice(null);
 
     try {
       const items = await api.listRuns({ limit: 25 });
@@ -134,7 +137,7 @@ export function App() {
       .catch((loadError) => {
         if (active) {
           setSelectedRun(null);
-          handleLoadError(loadError, "Failed to load run");
+          handleRunDetailError(loadError);
         }
       });
 
@@ -166,10 +169,11 @@ export function App() {
         loading={loadingRuns}
         mode={mode}
         now={readerNow}
+        notice={runLoadNotice}
         onModeChange={setModeFromShell}
         onSelectRun={setSelectedFromDrawer}
         runs={runs}
-        selectedRunId={selectedRunId}
+        selectedRunId={drawerRun ? selectedRunId : null}
         systemStatus={systemStatusVM}
       />
       {authRequired ? (
@@ -187,9 +191,10 @@ export function App() {
   );
 
   function handleLoadError(loadError: unknown, fallback: string) {
-    if (loadError instanceof ApiError && loadError.code === "unauthorized") {
+    if (isAuthError(loadError)) {
       setAuthRequired(true);
       setError(null);
+      setRunLoadNotice(null);
       setRuns([]);
       setSelectedRun(null);
       setSelectedRunId(null);
@@ -203,5 +208,16 @@ export function App() {
     }
 
     setError(loadError instanceof Error ? loadError.message : fallback);
+  }
+
+  function handleRunDetailError(loadError: unknown) {
+    if (isAuthError(loadError)) {
+      handleLoadError(loadError, "Failed to load run");
+      return;
+    }
+
+    setSelectedFromDrawer(null);
+    setSelectedRun(null);
+    setRunLoadNotice("I couldn't open that run. The feed is still usable.");
   }
 }

@@ -74,6 +74,48 @@ describe("App (new shell)", () => {
     expect(window.location.search).toContain("run=run-1");
   });
 
+  it("keeps the feed usable when run detail fails to load", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.startsWith("/api/v1/runs?")) {
+          return new Response(JSON.stringify({ items: [runFixture] }), { status: 200 });
+        }
+        if (url === "/api/v1/system/status") {
+          return new Response(
+            JSON.stringify({
+              runner: {
+                state: "live",
+                seconds_since_last_ingest: 8,
+                last_device_seen_at: "2026-04-30T12:00:00.000Z",
+                last_ingest_at: "2026-04-30T12:00:00.000Z",
+                latest_run_updated_at: "2026-04-30T12:00:00.000Z",
+              },
+            }),
+            { status: 200 },
+          );
+        }
+        if (url === "/api/v1/runs/run-1") {
+          return new Response("detail failed", { status: 500 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    const feed = await screen.findByRole("region", { name: /run feed/i });
+    await user.click(within(feed).getByRole("button", { name: /Alfred/i }));
+
+    expect(await screen.findByText(/couldn't open that run/i)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(feed).not.toHaveClass("reader-feed-dimmed");
+    expect(screen.queryByText(/can't reach the runner/i)).not.toBeInTheDocument();
+    expect(window.location.search).not.toContain("run=");
+  });
+
   it("switches to Observatory with Cmd+O", async () => {
     const user = userEvent.setup();
     render(<App />);

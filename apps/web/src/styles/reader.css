@@ -352,6 +352,16 @@
   padding-top: var(--reader-gap);
 }
 
+.reader-notice {
+  border-left: 2px solid var(--reader-amber);
+  color: var(--reader-text-dim);
+  font-family: var(--reader-sans);
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+  padding-left: 10px;
+}
+
 .system-status {
   align-items: center;
   color: var(--reader-text-dim);

@@ -177,7 +177,7 @@ async function loadConfig() {
 }
 
 function startApiCommand(port) {
-  return `ALFRED_ALLOW_DEV_CONFIG=1 API_PORT=${port} pnpm --filter @alfred/api dev`;
+  return `ALFRED_ALLOW_DEV_AUTH=1 API_PORT=${port} pnpm --filter @alfred/api dev`;
 }
 
 function startWebCommand(port) {

@@ -51,6 +51,10 @@ describe("api client", () => {
     expect(new ApiError("Nope", 401).code).toBe("unauthorized");
   });
 
+  it("treats forbidden responses as auth failures", () => {
+    expect(new ApiError("Forbidden", 403).code).toBe("unauthorized");
+  });
+
   it("loads run details", async () => {
     const fetchImpl = vi.fn(async () =>
       new Response(JSON.stringify({ id: "run-1", events: [] }), { status: 200 }),

@@ -12,6 +12,7 @@ type AppShellProps = {
   loading?: boolean;
   mode: AppShellMode;
   now: Date;
+  notice?: string | null;
   onModeChange: (mode: AppShellMode) => void;
   onSelectRun?: (runId: string | null) => void;
   runs: RunListItem[];
@@ -24,6 +25,7 @@ export function AppShell({
   loading = false,
   mode,
   now,
+  notice = null,
   onModeChange,
   onSelectRun,
   runs,
@@ -55,6 +57,7 @@ export function AppShell({
             error={error}
             loading={loading}
             now={now}
+            notice={notice}
             onSelectRun={onSelectRun ?? (() => {})}
             runs={runs}
             selectedRunId={selectedRunId}

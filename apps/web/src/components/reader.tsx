@@ -24,6 +24,7 @@ type ReaderProps = {
   onSelectRun: (runId: string | null) => void;
   error?: unknown;
   loading?: boolean;
+  notice?: string | null;
   systemStatus?: SystemStatusVM | null;
 };
 
@@ -34,6 +35,7 @@ export function Reader({
   onSelectRun,
   error,
   loading = false,
+  notice = null,
   systemStatus,
 }: ReaderProps) {
   const [tab, setTab] = useState<TriageTab>("all");
@@ -101,6 +103,11 @@ export function Reader({
           {systemStatus ? <SystemStatus vm={systemStatus} /> : null}
           <SoftFilterBar counts={counts} onQueryChange={setQuery} onTabChange={setTab} query={query} tab={tab} />
         </div>
+        {notice ? (
+          <p className="reader-notice" role="status">
+            {notice}
+          </p>
+        ) : null}
       </section>
 
       <section

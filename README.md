@@ -146,6 +146,17 @@ Required Vercel env vars:
 - `ALFRED_BOOTSTRAP_USER_ID`
 - `ALFRED_BOOTSTRAP_WORKSPACE_ID`
 
+Production login requires a real OIDC provider:
+
+- `AUTH_OIDC_ISSUER`
+- `AUTH_OIDC_CLIENT_ID`
+- `AUTH_OIDC_CLIENT_SECRET`
+
+Do not enable preview dev auth on a public production deployment. If OIDC is not
+configured yet, keep production protected/private and treat `/auth/login`
+returning `oidc_not_configured` as an explicit release blocker, not as a runner
+problem.
+
 Preview-only optional:
 
 - `ALFRED_ALLOW_DEV_AUTH=1`
@@ -153,11 +164,22 @@ Preview-only optional:
 - `VERCEL_AUTOMATION_BYPASS_SECRET`: required by local smoke checks and the
   local runner when Vercel Deployment Protection is enabled.
 
-Run cloud smoke checks against preview or production after deployment:
+Local dev auth may use the built-in development defaults. When dev auth is
+enabled in hosted runtime (`NODE_ENV=production` or Vercel), `AUTH_DEV_SESSION_TOKEN`
+and `RUNNER_DEVICE_TOKEN` must both be explicit non-default secrets. The API
+refuses to start with the built-in development defaults there.
+
+Run public cloud smoke checks after deployment. This verifies the static app,
+API health, and whether the login route is production-ready:
 
 ```bash
-ALFRED_CLOUD_URL=<preview-url> AUTH_DEV_SESSION_TOKEN=<preview-token> pnpm smoke:cloud
-ALFRED_CLOUD_URL=<prod-url> pnpm smoke:cloud
+ALFRED_CLOUD_SMOKE_MODE=public ALFRED_EXPECT_AUTH=ready ALFRED_CLOUD_URL=<prod-url> pnpm smoke:cloud
+```
+
+Run authenticated smoke checks against a preview that has dev auth enabled:
+
+```bash
+ALFRED_CLOUD_SMOKE_MODE=authenticated ALFRED_CLOUD_URL=<preview-url> AUTH_DEV_SESSION_TOKEN=<preview-token> pnpm smoke:cloud
 ```
 
 Run the local runner against a protected preview:
@@ -171,6 +193,13 @@ VERCEL_AUTOMATION_BYPASS_SECRET=<bypass-secret> \
 ALFRED_ALLOW_DEV_CONFIG=1 \
 ALFRED_SOURCES=codex \
 pnpm --filter @alfred/runner dev
+```
+
+Run the built runner continuously:
+
+```bash
+pnpm --filter @alfred/runner build
+RUNNER_API_URL=<cloud-url> RUNNER_DEVICE_TOKEN=<device-token> pnpm --filter @alfred/runner start
 ```
 
 Start the API:
