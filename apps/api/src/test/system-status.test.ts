@@ -23,19 +23,35 @@ describe("runner status service", () => {
       last_device_seen_at: "2026-04-30T11:59:50.000Z",
       last_ingest_at: "2026-04-30T11:59:55.000Z",
       latest_run_updated_at: "2026-04-30T11:59:56.000Z",
+      seconds_since_last_device_seen: 10,
       seconds_since_last_ingest: 5,
     });
   });
 
-  it("reports quiet when the runner exists but has not ingested recently", () => {
+  it("reports quiet when the runner heartbeat is stale", () => {
     expect(
       buildRunnerStatus({
         now,
-        lastDeviceSeenAt: new Date("2026-04-30T11:40:00.000Z"),
+        lastDeviceSeenAt: new Date("2026-04-30T11:58:00.000Z"),
         lastIngestAt: new Date("2026-04-30T11:30:00.000Z"),
         latestRunUpdatedAt: new Date("2026-04-30T11:30:00.000Z"),
       }).state,
     ).toBe("quiet");
+  });
+
+  it("reports live when the runner heartbeat is fresh even before the first ingest", () => {
+    expect(
+      buildRunnerStatus({
+        now,
+        lastDeviceSeenAt: new Date("2026-04-30T11:59:55.000Z"),
+        lastIngestAt: null,
+        latestRunUpdatedAt: null,
+      }),
+    ).toMatchObject({
+      state: "live",
+      seconds_since_last_device_seen: 5,
+      seconds_since_last_ingest: null,
+    });
   });
 
   it("reports offline when there is no device heartbeat", () => {
@@ -104,6 +120,7 @@ describe("system status routes", () => {
     await expect(response.json()).resolves.toMatchObject({
       runner: {
         state: "live",
+        seconds_since_last_device_seen: expect.any(Number),
         seconds_since_last_ingest: expect.any(Number),
       },
     });

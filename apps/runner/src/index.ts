@@ -9,6 +9,7 @@ import { redactPayload } from "./privacy/redactor.js";
 import { createClaudeAdapter } from "./sources/claude/claude-adapter.js";
 import { createCodexAdapter } from "./sources/codex/codex-adapter.js";
 import type { SourceAdapter } from "./sources/source-adapter.js";
+import { postRunnerHeartbeat } from "./sync/ingest-client.js";
 
 export type RunRunnerOptions = {
   adapter?: SourceAdapter;
@@ -53,6 +54,17 @@ export async function runRunnerOnce(
       deviceId: config.deviceId,
       ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
     });
+
+    if (flushedEvents === 0) {
+      await postRunnerHeartbeat({
+        apiUrl: config.apiUrl,
+        deviceToken: config.deviceToken,
+        ...(config.vercelAutomationBypassSecret
+          ? { vercelAutomationBypassSecret: config.vercelAutomationBypassSecret }
+          : {}),
+        ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+      });
+    }
 
     return {
       collectedEvents,

@@ -44,6 +44,7 @@ export type IngestStore = {
   markBatchAccepted(batch: IngestBatch, acceptedEvents: number, duplicateEvents: number): Promise<void>;
   ensureWorkspace(workspaceId: string): Promise<void>;
   ensureDevice(batch: IngestBatch): Promise<void>;
+  markDeviceSeen(workspaceId: string, deviceId: string, seenAt: Date): Promise<void>;
   upsertProject(event: IngestEvent): Promise<ProjectRecord>;
   upsertRun(event: IngestEvent, projectId: string): Promise<RunRecord>;
   upsertRelation(event: IngestEvent, parentRunId: string, childRunId: string): Promise<void>;
@@ -105,6 +106,20 @@ export async function ingestBatch(db: Database | IngestStore, batch: IngestBatch
       duplicate_batch: false,
     };
   });
+}
+
+export async function markRunnerHeartbeat(
+  db: Database | IngestStore,
+  input: { workspaceId: string; deviceId: string; seenAt?: Date },
+): Promise<{ ok: true; last_seen_at: string }> {
+  const store = isIngestStore(db) ? db : createDrizzleIngestStore(db);
+  const seenAt = input.seenAt ?? new Date();
+  await store.markDeviceSeen(input.workspaceId, input.deviceId, seenAt);
+
+  return {
+    ok: true,
+    last_seen_at: seenAt.toISOString(),
+  };
 }
 
 function isIngestStore(value: Database | IngestStore): value is IngestStore {
@@ -234,6 +249,16 @@ function createDrizzleIngestStore(db: DrizzleIngestDb): IngestStore {
             updatedAt: updatedAtNow,
           },
         });
+    },
+
+    markDeviceSeen: async (workspaceId, deviceId, seenAt) => {
+      await db
+        .update(devices)
+        .set({
+          lastSeenAt: seenAt,
+          updatedAt: updatedAtNow,
+        })
+        .where(and(eq(devices.workspaceId, workspaceId), eq(devices.id, deviceId)));
     },
 
     upsertProject: async (event) => {

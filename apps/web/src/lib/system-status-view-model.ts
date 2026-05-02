@@ -16,7 +16,9 @@ export function buildSystemStatusVM(status: SystemStatus | null): SystemStatusVM
     return {
       tone: "live",
       label: "Runner live",
-      detail: `Last ingest ${elapsed(status.runner.seconds_since_last_ingest)} ago`,
+      detail: status.runner.seconds_since_last_ingest === null
+        ? `Heartbeat ${elapsed(status.runner.seconds_since_last_device_seen)} ago; no ingest yet`
+        : `Last ingest ${elapsed(status.runner.seconds_since_last_ingest)} ago`,
     };
   }
 
@@ -24,7 +26,9 @@ export function buildSystemStatusVM(status: SystemStatus | null): SystemStatusVM
     return {
       tone: "quiet",
       label: "Runner quiet",
-      detail: `Last ingest ${elapsed(status.runner.seconds_since_last_ingest)} ago`,
+      detail: status.runner.seconds_since_last_ingest === null
+        ? `Last heartbeat ${elapsed(status.runner.seconds_since_last_device_seen)} ago; no ingest yet`
+        : `Last ingest ${elapsed(status.runner.seconds_since_last_ingest)} ago`,
     };
   }
 

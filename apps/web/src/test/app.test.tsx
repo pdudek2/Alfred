@@ -21,6 +21,7 @@ describe("App (new shell)", () => {
             JSON.stringify({
               runner: {
                 state: "live",
+                seconds_since_last_device_seen: 8,
                 seconds_since_last_ingest: 8,
                 last_device_seen_at: "2026-04-30T12:00:00.000Z",
                 last_ingest_at: "2026-04-30T12:00:00.000Z",
@@ -87,6 +88,7 @@ describe("App (new shell)", () => {
             JSON.stringify({
               runner: {
                 state: "live",
+                seconds_since_last_device_seen: 8,
                 seconds_since_last_ingest: 8,
                 last_device_seen_at: "2026-04-30T12:00:00.000Z",
                 last_ingest_at: "2026-04-30T12:00:00.000Z",

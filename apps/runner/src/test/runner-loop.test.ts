@@ -291,7 +291,13 @@ describe("flushOutboxOnce", () => {
       flushedEvents: 0,
     });
 
-    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenLastCalledWith("http://127.0.0.1:4301/v1/ingest/heartbeat", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-1",
+      },
+    });
   });
 
   it("collects multiple source adapters and stores independent cursors", async () => {
@@ -417,6 +423,12 @@ describe("flushOutboxOnce", () => {
     expect(collect).toHaveBeenCalledTimes(2);
     expect(onIteration).toHaveBeenNthCalledWith(1, { collectedEvents: 1, flushedEvents: 1 });
     expect(onIteration).toHaveBeenNthCalledWith(2, { collectedEvents: 0, flushedEvents: 0 });
+    expect(fetchImpl).toHaveBeenLastCalledWith("http://127.0.0.1:4301/v1/ingest/heartbeat", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-1",
+      },
+    });
     expect(sleep).toHaveBeenCalledOnce();
     expect(sleep).toHaveBeenCalledWith(1_500);
   });

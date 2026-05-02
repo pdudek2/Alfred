@@ -47,6 +47,12 @@ type InMemoryRun = {
   completedAt: Date | null;
 };
 
+type InMemoryDeviceSeen = {
+  workspaceId: string;
+  deviceId: string;
+  seenAt: Date;
+};
+
 function runStatusForTest(event: IngestBatch["events"][number]) {
   if (event.type === "run.started") return "running";
   if (event.type === "run.completed") return "completed";
@@ -65,14 +71,21 @@ function runTimestampsForTest(event: IngestBatch["events"][number]) {
   };
 }
 
-function makeInMemoryStore(): IngestStore & { getRun: (key: string) => InMemoryRun | undefined } {
+function makeInMemoryStore(): IngestStore & {
+  getDeviceSeen: () => InMemoryDeviceSeen | undefined;
+  getRun: (key: string) => InMemoryRun | undefined;
+} {
   const batches = new Set<string>();
   const events = new Set<string>();
   const projects = new Map<string, { id: string }>();
   const runs = new Map<string, InMemoryRun>();
   const relations = new Set<string>();
+  let deviceSeen: InMemoryDeviceSeen | undefined;
 
-  const store: IngestStore & { getRun: (key: string) => InMemoryRun | undefined } = {
+  const store: IngestStore & {
+    getDeviceSeen: () => InMemoryDeviceSeen | undefined;
+    getRun: (key: string) => InMemoryRun | undefined;
+  } = {
     transaction: async (fn) => fn(store),
     insertBatchIfNew: async (batch) => {
       const key = `${batch.workspace_id}:${batch.batch_id}`;
@@ -83,6 +96,9 @@ function makeInMemoryStore(): IngestStore & { getRun: (key: string) => InMemoryR
     markBatchAccepted: async () => undefined,
     ensureWorkspace: async () => undefined,
     ensureDevice: async () => undefined,
+    markDeviceSeen: async (seenWorkspaceId, seenDeviceId, seenAt) => {
+      deviceSeen = { workspaceId: seenWorkspaceId, deviceId: seenDeviceId, seenAt };
+    },
     upsertProject: async (event) => {
       const key = `${event.workspace_id}:${event.project_key}`;
       const existing = projects.get(key);
@@ -125,6 +141,7 @@ function makeInMemoryStore(): IngestStore & { getRun: (key: string) => InMemoryR
       events.add(eventKey);
       return true;
     },
+    getDeviceSeen: () => deviceSeen,
     getRun: (key) => runs.get(key),
   };
   return store;
@@ -280,6 +297,33 @@ describe("ingest", () => {
       batch_id: "00000000-0000-4000-8000-000000000201",
       accepted_events: 1,
       duplicate_batch: false,
+    });
+  });
+
+  it("accepts authenticated runner heartbeats", async () => {
+    const store = makeInMemoryStore();
+    const app = new Hono();
+    app.route("/v1/ingest", createIngestRoutes(store, createDeviceAuthStore()));
+
+    const unauthorized = await app.request("/v1/ingest/heartbeat", {
+      method: "POST",
+    });
+
+    expect(unauthorized.status).toBe(401);
+
+    const accepted = await app.request("/v1/ingest/heartbeat", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer secret",
+      },
+    });
+
+    expect(accepted.status).toBe(202);
+    await expect(accepted.json()).resolves.toMatchObject({ ok: true });
+    expect(store.getDeviceSeen()).toMatchObject({
+      workspaceId,
+      deviceId,
+      seenAt: expect.any(Date),
     });
   });
 

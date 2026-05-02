@@ -4,6 +4,7 @@ export type SystemStatus = {
     last_device_seen_at: string | null;
     last_ingest_at: string | null;
     latest_run_updated_at: string | null;
+    seconds_since_last_device_seen: number | null;
     seconds_since_last_ingest: number | null;
   };
 };

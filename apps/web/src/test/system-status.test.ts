@@ -14,6 +14,7 @@ describe("system status API client", () => {
         JSON.stringify({
           runner: {
             state: "live",
+            seconds_since_last_device_seen: 8,
             seconds_since_last_ingest: 8,
             last_device_seen_at: "2026-04-30T12:00:00.000Z",
             last_ingest_at: "2026-04-30T12:00:00.000Z",
@@ -25,7 +26,7 @@ describe("system status API client", () => {
     });
 
     await expect(getSystemStatus(fetchImpl)).resolves.toMatchObject({
-      runner: { state: "live", seconds_since_last_ingest: 8 },
+      runner: { state: "live", seconds_since_last_device_seen: 8, seconds_since_last_ingest: 8 },
     });
     expect(fetchImpl).toHaveBeenCalledWith("/api/v1/system/status", { credentials: "include" });
   });
@@ -43,6 +44,7 @@ describe("system status view model", () => {
       buildSystemStatusVM({
         runner: {
           state: "live",
+          seconds_since_last_device_seen: 8,
           seconds_since_last_ingest: 8,
           last_device_seen_at: "2026-04-30T12:00:00.000Z",
           last_ingest_at: "2026-04-30T12:00:00.000Z",
@@ -61,6 +63,7 @@ describe("system status view model", () => {
       buildSystemStatusVM({
         runner: {
           state: "quiet",
+          seconds_since_last_device_seen: 720,
           seconds_since_last_ingest: 720,
           last_device_seen_at: "2026-04-30T11:48:00.000Z",
           last_ingest_at: "2026-04-30T11:48:00.000Z",
@@ -74,11 +77,31 @@ describe("system status view model", () => {
     });
   });
 
+  it("shows heartbeat freshness when no ingest has happened yet", () => {
+    expect(
+      buildSystemStatusVM({
+        runner: {
+          state: "live",
+          seconds_since_last_device_seen: 8,
+          seconds_since_last_ingest: null,
+          last_device_seen_at: "2026-04-30T12:00:00.000Z",
+          last_ingest_at: null,
+          latest_run_updated_at: null,
+        },
+      }),
+    ).toMatchObject({
+      tone: "live",
+      label: "Runner live",
+      detail: "Heartbeat 8s ago; no ingest yet",
+    });
+  });
+
   it("shows an archived-only note when the runner is offline", () => {
     expect(
       buildSystemStatusVM({
         runner: {
           state: "offline",
+          seconds_since_last_device_seen: null,
           seconds_since_last_ingest: null,
           last_device_seen_at: null,
           last_ingest_at: null,

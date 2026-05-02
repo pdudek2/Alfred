@@ -12,19 +12,23 @@ export type RunnerStatus = {
   last_device_seen_at: string | null;
   last_ingest_at: string | null;
   latest_run_updated_at: string | null;
+  seconds_since_last_device_seen: number | null;
   seconds_since_last_ingest: number | null;
 };
 
 const LIVE_AFTER_MS = 60_000;
 
 export function buildRunnerStatus(input: RunnerStatusInput): RunnerStatus {
+  const lastDeviceSeenMs = input.lastDeviceSeenAt?.getTime() ?? null;
+  const secondsSinceLastDeviceSeen =
+    lastDeviceSeenMs === null ? null : Math.max(Math.floor((input.now.getTime() - lastDeviceSeenMs) / 1000), 0);
   const lastIngestMs = input.lastIngestAt?.getTime() ?? null;
   const secondsSinceLastIngest =
     lastIngestMs === null ? null : Math.max(Math.floor((input.now.getTime() - lastIngestMs) / 1000), 0);
 
   let state: RunnerFreshnessState = "offline";
-  if (input.lastDeviceSeenAt && input.lastIngestAt) {
-    state = input.now.getTime() - input.lastIngestAt.getTime() <= LIVE_AFTER_MS ? "live" : "quiet";
+  if (input.lastDeviceSeenAt) {
+    state = input.now.getTime() - input.lastDeviceSeenAt.getTime() <= LIVE_AFTER_MS ? "live" : "quiet";
   }
 
   return {
@@ -32,6 +36,7 @@ export function buildRunnerStatus(input: RunnerStatusInput): RunnerStatus {
     last_device_seen_at: toIso(input.lastDeviceSeenAt),
     last_ingest_at: toIso(input.lastIngestAt),
     latest_run_updated_at: toIso(input.latestRunUpdatedAt),
+    seconds_since_last_device_seen: secondsSinceLastDeviceSeen,
     seconds_since_last_ingest: secondsSinceLastIngest,
   };
 }

@@ -25,3 +25,20 @@ export async function postIngestBatch(config: IngestClientConfig, batch: IngestB
     throw new Error(`Ingest failed with status ${response.status}`);
   }
 }
+
+export async function postRunnerHeartbeat(config: IngestClientConfig): Promise<void> {
+  const fetchImpl = config.fetchImpl ?? fetch;
+  const response = await fetchImpl(`${config.apiUrl}/v1/ingest/heartbeat`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.deviceToken}`,
+      ...(config.vercelAutomationBypassSecret
+        ? { "x-vercel-protection-bypass": config.vercelAutomationBypassSecret }
+        : {}),
+    },
+  });
+
+  if (response.status !== 202) {
+    throw new Error(`Heartbeat failed with status ${response.status}`);
+  }
+}

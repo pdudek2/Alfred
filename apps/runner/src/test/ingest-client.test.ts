@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { IngestBatch } from "@alfred/schema";
 
-import { postIngestBatch } from "../sync/ingest-client.js";
+import { postIngestBatch, postRunnerHeartbeat } from "../sync/ingest-client.js";
 
 const batch: IngestBatch = {
   batch_id: "00000000-0000-4000-8000-000000000201",
@@ -66,6 +66,25 @@ describe("postIngestBatch", () => {
     });
   });
 
+  it("posts runner heartbeat with device auth", async () => {
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
+
+    await postRunnerHeartbeat({
+      apiUrl: "https://alfred-preview.vercel.app",
+      deviceToken: "token-1",
+      vercelAutomationBypassSecret: "bypass-1",
+      fetchImpl,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith("https://alfred-preview.vercel.app/v1/ingest/heartbeat", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-1",
+        "x-vercel-protection-bypass": "bypass-1",
+      },
+    });
+  });
+
   it("throws on non-accepted response", async () => {
     const fetchImpl = vi.fn(async () => new Response("{}", { status: 500 }));
 
@@ -76,5 +95,17 @@ describe("postIngestBatch", () => {
         fetchImpl,
       }, batch),
     ).rejects.toThrow(/Ingest failed with status 500/);
+  });
+
+  it("throws when heartbeat is not accepted", async () => {
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 401 }));
+
+    await expect(
+      postRunnerHeartbeat({
+        apiUrl: "http://127.0.0.1:4301",
+        deviceToken: "token-1",
+        fetchImpl,
+      }),
+    ).rejects.toThrow(/Heartbeat failed with status 401/);
   });
 });
