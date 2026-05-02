@@ -39,3 +39,4 @@ WORKING_CONTEXT.md
 *.swo
 .vercel
 .secrets/
+.env*.local
