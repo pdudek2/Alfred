@@ -82,6 +82,19 @@ export async function fileExists(filePath) {
   }
 }
 
+export function launchctlArgs(action, labelOrPath) {
+  const uid = process.getuid?.();
+  const guiTarget = uid === undefined ? undefined : `gui/${uid}`;
+  const serviceTarget = guiTarget === undefined ? labelOrPath : `${guiTarget}/${labelOrPath}`;
+
+  if (action === "bootstrap") return ["bootstrap", guiTarget, labelOrPath].filter(Boolean);
+  if (action === "bootout") return ["bootout", guiTarget, labelOrPath].filter(Boolean);
+  if (action === "kickstart") return ["kickstart", "-k", serviceTarget].filter(Boolean);
+  if (action === "print") return ["print", serviceTarget].filter(Boolean);
+
+  throw new Error(`Unknown launchctl action: ${action}`);
+}
+
 export function escapeXml(value) {
   return String(value)
     .replaceAll("&", "&amp;")

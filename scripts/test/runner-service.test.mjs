@@ -5,6 +5,7 @@ import { parseEnvFileContent } from "../lib/env-file.mjs";
 import {
   buildRunnerEnv,
   buildRunnerProgramArgs,
+  launchctlArgs,
   renderLaunchAgentPlist,
 } from "../lib/runner-service.mjs";
 
@@ -84,5 +85,20 @@ describe("runner service helpers", () => {
     assert.match(plist, /runner-service\.mjs/);
     assert.match(plist, /launchd\.out\.log/);
     assert.doesNotMatch(plist, /source/);
+  });
+
+  it("builds launchctl gui target arguments", () => {
+    const guiTarget = `gui/${process.getuid()}`;
+
+    assert.deepEqual(launchctlArgs("bootstrap", "/tmp/com.alfred.runner.plist"), [
+      "bootstrap",
+      guiTarget,
+      "/tmp/com.alfred.runner.plist",
+    ]);
+    assert.deepEqual(launchctlArgs("kickstart", "com.alfred.runner"), [
+      "kickstart",
+      "-k",
+      `${guiTarget}/com.alfred.runner`,
+    ]);
   });
 });
