@@ -1,16 +1,16 @@
 import type { ReactNode } from "react";
 
-import type { TimeGroupedFeedSectionLabel } from "../lib/run-view-model";
+import type { FeedSectionLabel } from "../lib/run-view-model";
 
 type FeedSectionProps = {
-  label: TimeGroupedFeedSectionLabel;
+  label: FeedSectionLabel;
   count: number;
   children: ReactNode;
 };
 
 export function FeedSection({ label, count, children }: FeedSectionProps) {
   const headingId = `reader-feed-section-${label.toLowerCase().replaceAll(" ", "-")}`;
-  const countNoun = label === "Now" ? "active" : "closed";
+  const countNoun = countNounFor(label);
 
   return (
     <section className="reader-feed-section" aria-labelledby={headingId}>
@@ -25,4 +25,12 @@ export function FeedSection({ label, count, children }: FeedSectionProps) {
       <div className="reader-feed-section__body">{children}</div>
     </section>
   );
+}
+
+function countNounFor(label: FeedSectionLabel): string {
+  if (label === "Needs you") return "items";
+  if (label === "Running") return "active";
+  if (label === "Quiet archive") return "quiet";
+  if (label === "Done") return "done";
+  return "runs";
 }
