@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -41,6 +41,30 @@ describe("Observatory", () => {
     await user.click(node);
 
     expect(onSelect).toHaveBeenCalledWith("r1");
+  });
+
+  it("maps clicks on the SVG hit target to that exact run", () => {
+    const onSelect = vi.fn();
+    render(<Observatory runs={runs} now={now} onSelectRun={onSelect} />);
+
+    const hitTarget = document.querySelector("[data-node-run-id='r3'] .observatory-hit-target");
+    expect(hitTarget).not.toBeNull();
+
+    fireEvent.click(hitTarget as Element);
+
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith("r3");
+  });
+
+  it("keeps the hit target inside its accessible SVG node instead of using overlay buttons", () => {
+    render(<Observatory runs={runs} now={now} onSelectRun={() => {}} />);
+
+    const node = screen.getByRole("button", { name: "Open alfred-runner running run" });
+    const hitTarget = node.querySelector(".observatory-hit-target");
+
+    expect(hitTarget).not.toBeNull();
+    expect(hitTarget?.parentElement).toBe(node);
+    expect(document.querySelector(".observatory-node-buttons")).toBeNull();
   });
 
   it("exposes keyboard buttons for observatory nodes", async () => {

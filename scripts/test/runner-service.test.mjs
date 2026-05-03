@@ -3,9 +3,12 @@ import assert from "node:assert/strict";
 
 import { parseEnvFileContent } from "../lib/env-file.mjs";
 import {
+  buildRunnerServiceDoctorReport,
   buildRunnerEnv,
   buildRunnerProgramArgs,
+  defaultPaths,
   launchctlArgs,
+  parseLaunchdPrint,
   renderLaunchAgentPlist,
 } from "../lib/runner-service.mjs";
 
@@ -39,6 +42,15 @@ describe("parseEnvFileContent", () => {
 });
 
 describe("runner service helpers", () => {
+  it("keeps service state paths focused on launchd logs and secrets", () => {
+    const paths = defaultPaths("/repo");
+
+    assert.equal(paths.envPath, "/repo/.secrets/runner.env");
+    assert.equal(paths.stdoutPath, "/repo/.alfred-runner/launchd.out.log");
+    assert.equal(paths.stderrPath, "/repo/.alfred-runner/launchd.err.log");
+    assert.equal(Object.hasOwn(paths, "pidPath"), false);
+  });
+
   it("builds a direct tsx runner command without shell sourcing", () => {
     assert.deepEqual(
       buildRunnerProgramArgs({
@@ -83,6 +95,8 @@ describe("runner service helpers", () => {
     assert.match(plist, /<key>Label<\/key>/);
     assert.match(plist, /com.alfred.runner/);
     assert.match(plist, /runner-service\.mjs/);
+    assert.match(plist, /<string>run<\/string>/);
+    assert.match(plist, /<string>--env<\/string>/);
     assert.match(plist, /launchd\.out\.log/);
     assert.doesNotMatch(plist, /source/);
   });
@@ -100,5 +114,71 @@ describe("runner service helpers", () => {
       "-k",
       `${guiTarget}/com.alfred.runner`,
     ]);
+  });
+
+  it("parses launchctl print output for a running service", () => {
+    const parsed = parseLaunchdPrint(`
+gui/501/com.alfred.runner = {
+  active count = 1
+  path = /Users/patryk/Library/LaunchAgents/com.alfred.runner.plist
+  state = running
+  pid = 4242
+  last exit status = 0
+}
+    `);
+
+    assert.deepEqual(parsed, {
+      loaded: true,
+      lastExitStatus: 0,
+      pid: 4242,
+      running: true,
+      state: "running",
+    });
+  });
+
+  it("marks service doctor healthy only when launchd has a running pid and runner booted", () => {
+    const report = buildRunnerServiceDoctorReport({
+      envExists: true,
+      launchdPrint: "state = running\npid = 4242\n",
+      plistExists: true,
+      stdoutTail: "Alfred runner watching every 5000ms",
+    });
+
+    assert.equal(report.ok, true);
+    assert.deepEqual(report.lines.slice(0, 4), [
+      "env: present",
+      "plist: present",
+      "launchd: loaded, pid 4242, state running",
+      "runner boot log: seen",
+    ]);
+  });
+
+  it("marks service doctor unhealthy when launchd is missing or logs never show the runner", () => {
+    const report = buildRunnerServiceDoctorReport({
+      envExists: true,
+      launchdError: "Could not find service \"com.alfred.runner\" in domain",
+      launchdPrint: "",
+      plistExists: true,
+      stdoutTail: "",
+    });
+
+    assert.equal(report.ok, false);
+    assert.match(report.lines.join("\n"), /launchd: missing/);
+    assert.match(report.lines.join("\n"), /runner boot log: missing/);
+  });
+
+  it("does not treat stale launchd logs as a healthy running service", () => {
+    const report = buildRunnerServiceDoctorReport({
+      envExists: true,
+      launchdError: "Could not find service \"com.alfred.runner\" in domain",
+      launchdPrint: "",
+      plistExists: false,
+      stdoutTail: "Alfred runner watching every 5000ms",
+    });
+
+    assert.equal(report.ok, false);
+    assert.equal(report.bootLogSeen, true);
+    assert.equal(report.runnerBooted, false);
+    assert.match(report.lines.join("\n"), /runner boot log: seen, but service is not running/);
   });
 });

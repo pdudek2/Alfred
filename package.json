@@ -11,6 +11,7 @@
     "runner:service:install": "node scripts/runner-service.mjs install",
     "runner:service:run": "node scripts/runner-service.mjs run",
     "runner:service:status": "node scripts/runner-service.mjs status",
+    "runner:service:doctor": "node scripts/runner-service.mjs doctor",
     "runner:service:logs": "node scripts/runner-service.mjs logs",
     "runner:service:restart": "node scripts/runner-service.mjs restart",
     "runner:service:start": "node scripts/runner-service.mjs start",

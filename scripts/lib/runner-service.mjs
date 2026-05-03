@@ -10,7 +10,6 @@ export function defaultPaths(repoRoot) {
   return {
     stateDir,
     envPath: path.join(repoRoot, ".secrets", "runner.env"),
-    pidPath: path.join(stateDir, "runner-service.pid"),
     stdoutPath: path.join(stateDir, "launchd.out.log"),
     stderrPath: path.join(stateDir, "launchd.err.log"),
     plistPath: path.join(os.homedir(), "Library", "LaunchAgents", `${DEFAULT_LABEL}.plist`),
@@ -95,6 +94,53 @@ export function launchctlArgs(action, labelOrPath) {
   throw new Error(`Unknown launchctl action: ${action}`);
 }
 
+export function parseLaunchdPrint(output) {
+  const pidMatch = output.match(/^\s*pid = (\d+)/m);
+  const stateMatch = output.match(/^\s*state = (.+)$/m);
+  const lastExitStatusMatch = output.match(/^\s*last exit (?:code|status) = (-?\d+)/m);
+
+  return {
+    loaded: output.trim().length > 0,
+    lastExitStatus: lastExitStatusMatch ? Number(lastExitStatusMatch[1]) : null,
+    pid: pidMatch ? Number(pidMatch[1]) : null,
+    running: Boolean(pidMatch),
+    state: stateMatch?.[1]?.trim() ?? null,
+  };
+}
+
+export function buildRunnerServiceDoctorReport({
+  envExists,
+  launchdError = "",
+  launchdPrint = "",
+  plistExists,
+  stderrTail = "",
+  stdoutTail = "",
+}) {
+  const launchd = parseLaunchdPrint(launchdPrint);
+  const bootLogSeen = /Alfred runner watching|Alfred runner collected/i.test(stdoutTail);
+  const runnerBooted = launchd.running && bootLogSeen;
+  const lines = [
+    `env: ${envExists ? "present" : "missing"}`,
+    `plist: ${plistExists ? "present" : "missing"}`,
+    launchd.loaded
+      ? `launchd: loaded${launchd.running ? `, pid ${launchd.pid}` : ""}${launchd.state ? `, state ${launchd.state}` : ""}`
+      : `launchd: missing${launchdError ? ` (${firstLine(launchdError)})` : ""}`,
+    `runner boot log: ${bootLogSeen ? (launchd.running ? "seen" : "seen, but service is not running") : "missing"}`,
+  ];
+
+  if (launchd.lastExitStatus !== null) {
+    lines.push(`last exit status: ${launchd.lastExitStatus}`);
+  }
+
+  if (stderrTail.trim()) {
+    lines.push("stderr: has recent output; inspect `pnpm runner:service:logs`");
+  }
+
+  const ok = envExists && plistExists && launchd.running && runnerBooted;
+
+  return { bootLogSeen, launchd, lines, ok, runnerBooted };
+}
+
 export function escapeXml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -102,4 +148,8 @@ export function escapeXml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll("\"", "&quot;")
     .replaceAll("'", "&apos;");
+}
+
+function firstLine(value) {
+  return value.split(/\r?\n/).find((line) => line.trim())?.trim() ?? "unknown";
 }

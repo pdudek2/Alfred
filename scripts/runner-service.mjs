@@ -7,6 +7,7 @@ import process from "node:process";
 
 import { readEnvFile } from "./lib/env-file.mjs";
 import {
+  buildRunnerServiceDoctorReport,
   buildRunnerEnv,
   buildRunnerProgramArgs,
   DEFAULT_LABEL,
@@ -30,6 +31,8 @@ if (command === "install") {
   await start();
 } else if (command === "status") {
   await status();
+} else if (command === "doctor") {
+  await doctor();
 } else if (command === "stop") {
   await stop();
 } else if (command === "restart") {
@@ -107,11 +110,43 @@ async function start() {
 
 async function status() {
   const envExists = await fileExists(envPath);
+  const plistExists = await fileExists(paths.plistPath);
+  const launchdResult = await readLaunchdStatus();
   console.log(`env: ${envExists ? "present" : "missing"} ${envPath}`);
-  console.log(`plist: ${(await fileExists(paths.plistPath)) ? "present" : "missing"} ${paths.plistPath}`);
+  console.log(`plist: ${plistExists ? "present" : "missing"} ${paths.plistPath}`);
+  if (launchdResult.code === 0) {
+    const pid = launchdResult.stdout.match(/^\s*pid = (\d+)/m)?.[1];
+    console.log(`launchd: loaded${pid ? `, pid ${pid}` : ""}`);
+  } else {
+    console.log("launchd: missing");
+  }
   console.log(`logs: ${paths.stdoutPath}`);
-  console.log("api: use `node scripts/dev-doctor.mjs` for heartbeat truth");
-  if (!envExists) process.exitCode = 1;
+  console.log("doctor: run `pnpm runner:service:doctor` for launchd runner checks");
+  if (!envExists || !plistExists) process.exitCode = 1;
+}
+
+async function doctor() {
+  const envExists = await fileExists(envPath);
+  const plistExists = await fileExists(paths.plistPath);
+  const launchdResult = await readLaunchdStatus();
+  const stdoutTail = await readTail(paths.stdoutPath);
+  const stderrTail = await readTail(paths.stderrPath);
+  const report = buildRunnerServiceDoctorReport({
+    envExists,
+    launchdError: launchdResult.stderr || launchdResult.stdout,
+    launchdPrint: launchdResult.code === 0 ? launchdResult.stdout : "",
+    plistExists,
+    stderrTail,
+    stdoutTail,
+  });
+
+  for (const line of report.lines) {
+    console.log(line);
+  }
+
+  if (!report.ok) {
+    process.exitCode = 1;
+  }
 }
 
 async function stop() {
@@ -146,6 +181,19 @@ async function readTail(filePath) {
     return raw.split(/\r?\n/).slice(-80).join("\n");
   } catch (error) {
     if (error?.code === "ENOENT") return "";
+    throw error;
+  }
+}
+
+async function readLaunchdStatus() {
+  try {
+    return await runCommand("launchctl", launchctlArgs("print", DEFAULT_LABEL), {
+      allowFailure: () => true,
+    });
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return { code: 127, stdout: "", stderr: "launchctl unavailable" };
+    }
     throw error;
   }
 }
@@ -195,6 +243,7 @@ function help() {
   node scripts/runner-service.mjs run [--env path]
   node scripts/runner-service.mjs start
   node scripts/runner-service.mjs status [--env path]
+  node scripts/runner-service.mjs doctor [--env path]
   node scripts/runner-service.mjs stop
   node scripts/runner-service.mjs restart [--env path]
   node scripts/runner-service.mjs uninstall

@@ -290,6 +290,7 @@ Background macOS service:
 pnpm runner:service:install
 pnpm runner:service:start
 pnpm runner:service:status
+pnpm runner:service:doctor
 pnpm runner:service:logs
 ```
 
@@ -303,6 +304,7 @@ pnpm runner:service:uninstall
 Health check:
 
 ```bash
+pnpm runner:service:doctor
 node scripts/dev-doctor.mjs
 ```
 

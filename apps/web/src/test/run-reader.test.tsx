@@ -135,6 +135,34 @@ describe("RunReader", () => {
     expect(screen.getByText("tool_name: session")).toBeInTheDocument();
     expect(screen.getByText("tool_name: exec_command")).toBeInTheDocument();
   });
+
+  it("keeps older phases collapsed so long runs open on recent activity", async () => {
+    const user = userEvent.setup();
+    const detail: RunDetail = {
+      ...runDetailFixture,
+      events: Array.from({ length: 10 }, (_, index) => ({
+        id: `event-${index}`,
+        event_id: `event-${index}`,
+        source_event_id: `source-${index}`,
+        status: null,
+        occurred_at: `2026-04-28T10:${String(index).padStart(2, "0")}:00.000Z`,
+        type: "tool.started",
+        payload:
+          index % 2 === 0
+            ? { command: `echo command-${index}`, tool_name: "exec_command" }
+            : { tool_name: "Read" },
+      })),
+    };
+
+    render(<RunReader detail={detail} now={now} onClose={() => {}} />);
+
+    expect(screen.getByText("Started echo command-8")).toBeInTheDocument();
+    expect(screen.getByText("Started echo command-0")).not.toBeVisible();
+
+    await user.click(screen.getByText("Show 2 older phases"));
+
+    expect(screen.getByText("Started echo command-0")).toBeInTheDocument();
+  });
 });
 
 function RunReaderHarness() {
