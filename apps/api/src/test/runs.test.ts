@@ -8,6 +8,7 @@ import type {
   RunsListFilters,
   RunsQueryStore,
 } from "../services/runs-query-service";
+import { deriveRunLifecycleStatus } from "../services/runs-query-service";
 
 const baseRun: RunListItem = {
   id: "00000000-0000-4000-8000-000000000301",
@@ -18,6 +19,7 @@ const baseRun: RunListItem = {
   source_id: "codex-cli",
   source_run_id: "codex-run-1",
   status: "running",
+  lifecycle_status: "running",
   title: null,
   started_at: "2026-04-28T10:00:00.000Z",
   completed_at: null,
@@ -243,5 +245,52 @@ describe("runs routes", () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: "invalid_run_id" });
     expect(store.observedWorkspaceIds).toEqual([]);
+  });
+});
+
+describe("deriveRunLifecycleStatus", () => {
+  const now = new Date("2026-04-28T12:00:00.000Z");
+
+  it("marks active running and waiting runs as stale after two hours without activity", () => {
+    expect(
+      deriveRunLifecycleStatus(
+        { status: "waiting", lastActivityAt: "2026-04-28T09:59:59.000Z" },
+        now,
+      ),
+    ).toBe("stale");
+    expect(
+      deriveRunLifecycleStatus(
+        { status: "running", lastActivityAt: "2026-04-28T09:59:59.000Z" },
+        now,
+      ),
+    ).toBe("stale");
+  });
+
+  it("keeps active runs live inside the stale threshold", () => {
+    expect(
+      deriveRunLifecycleStatus(
+        { status: "waiting", lastActivityAt: "2026-04-28T10:00:00.000Z" },
+        now,
+      ),
+    ).toBe("waiting");
+    expect(
+      deriveRunLifecycleStatus(
+        { status: "running", lastActivityAt: "2026-04-28T10:30:00.000Z" },
+        now,
+      ),
+    ).toBe("running");
+  });
+
+  it("treats unknown completed rows as completed for compatibility with old imports", () => {
+    expect(
+      deriveRunLifecycleStatus(
+        {
+          status: "unknown",
+          completedAt: "2026-04-28T10:30:00.000Z",
+          lastActivityAt: "2026-04-28T10:30:00.000Z",
+        },
+        now,
+      ),
+    ).toBe("completed");
   });
 });

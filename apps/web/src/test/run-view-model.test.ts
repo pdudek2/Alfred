@@ -223,6 +223,25 @@ describe("run view model", () => {
     expect(needs.filteredCount).toBe(0);
   });
 
+  it("prefers API lifecycle_status over local stale inference when present", () => {
+    const apiClassifiedRun: RunListItem = {
+      ...waitingRun,
+      id: "run-api-lifecycle",
+      status: "waiting",
+      lifecycle_status: "stale",
+      last_activity_at: "2026-04-28T11:29:00.000Z",
+      updated_at: "2026-04-28T11:29:00.000Z",
+    };
+
+    const card = buildRunCardVM(apiClassifiedRun, NOW);
+    const needs = buildRunListVM([apiClassifiedRun], { tab: "needs", query: "", grouping: "status", now: NOW });
+
+    expect(card.status).toBe("stale");
+    expect(card.sourceStatus).toBe("waiting");
+    expect(card.needsAttention).toBe(false);
+    expect(needs.filteredCount).toBe(0);
+  });
+
   it("treats unknown runs with completed_at as completed in the reader", () => {
     const unknownCompletedRun: RunListItem = {
       ...runFixture,
