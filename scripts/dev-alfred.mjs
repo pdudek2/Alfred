@@ -27,11 +27,9 @@ const processes = [
   {
     name: "runner",
     command: pnpmCommand,
-    args: ["--filter", "@alfred/runner", "dev"],
+    args: ["runner:local"],
     env: {
-      ALFRED_ALLOW_DEV_CONFIG: "1",
       ALFRED_RUNNER_POLL_MS: "5000",
-      ALFRED_SOURCES: "codex",
     },
   },
 ];
