@@ -6,7 +6,7 @@ import path from "node:path";
 export const DEFAULT_LABEL = "com.alfred.runner";
 
 export function defaultPaths(repoRoot) {
-  const stateDir = path.join(repoRoot, ".alfred-runner");
+  const stateDir = path.join(os.homedir(), "Library", "Application Support", "Alfred", "runner");
   return {
     stateDir,
     envPath: path.join(repoRoot, ".secrets", "runner.env"),
@@ -39,9 +39,20 @@ export function buildRunnerEnv({ repoRoot, fileEnv, baseEnv = process.env }) {
   };
 }
 
-export function renderLaunchAgentPlist({ label, repoRoot, nodeBin, envPath, stdoutPath, stderrPath }) {
+export function renderLaunchAgentPlist({ label, repoRoot, nodeBin, envPath, stdoutPath, stderrPath, workingDir }) {
   const scriptPath = path.join(repoRoot, "scripts", "runner-service.mjs");
-  const args = [nodeBin, scriptPath, "run", "--env", envPath];
+  const command = [
+    "cd",
+    shellQuote(repoRoot),
+    "&&",
+    "exec",
+    shellQuote(nodeBin),
+    shellQuote(scriptPath),
+    "run",
+    "--env",
+    shellQuote(envPath),
+  ].join(" ");
+  const args = ["/bin/zsh", "-c", command];
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -53,7 +64,7 @@ export function renderLaunchAgentPlist({ label, repoRoot, nodeBin, envPath, stdo
 ${args.map((arg) => `    <string>${escapeXml(arg)}</string>`).join("\n")}
   </array>
   <key>WorkingDirectory</key>
-  <string>${escapeXml(repoRoot)}</string>
+  <string>${escapeXml(workingDir ?? repoRoot)}</string>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
@@ -136,9 +147,10 @@ export function buildRunnerServiceDoctorReport({
     lines.push("stderr: has recent output; inspect `pnpm runner:service:logs`");
   }
 
-  const ok = envExists && plistExists && launchd.running && runnerBooted;
+  const stderrQuiet = !stderrTail.trim();
+  const ok = envExists && plistExists && launchd.running && runnerBooted && stderrQuiet;
 
-  return { bootLogSeen, launchd, lines, ok, runnerBooted };
+  return { bootLogSeen, launchd, lines, ok, runnerBooted, stderrQuiet };
 }
 
 export function escapeXml(value) {
@@ -152,4 +164,8 @@ export function escapeXml(value) {
 
 function firstLine(value) {
   return value.split(/\r?\n/).find((line) => line.trim())?.trim() ?? "unknown";
+}
+
+function shellQuote(value) {
+  return `'${String(value).replaceAll("'", "'\\''")}'`;
 }

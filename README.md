@@ -305,8 +305,10 @@ Health check:
 
 ```bash
 pnpm runner:service:doctor
-node scripts/dev-doctor.mjs
 ```
+
+`node scripts/dev-doctor.mjs` is for the local dev stack with
+`ALFRED_ALLOW_DEV_AUTH=1`. It does not authenticate against a hosted Vercel API.
 
 ## Validation
 

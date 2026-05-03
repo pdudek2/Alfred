@@ -14,6 +14,7 @@ import {
   defaultPaths,
   fileExists,
   launchctlArgs,
+  parseLaunchdPrint,
   renderLaunchAgentPlist,
 } from "./lib/runner-service.mjs";
 
@@ -48,6 +49,8 @@ if (command === "install") {
 async function install() {
   await mkdir(paths.stateDir, { recursive: true });
   await mkdir(path.dirname(paths.plistPath), { recursive: true });
+  await writeFile(paths.stdoutPath, "", "utf8");
+  await writeFile(paths.stderrPath, "", "utf8");
   const plist = renderLaunchAgentPlist({
     label: DEFAULT_LABEL,
     repoRoot,
@@ -55,6 +58,7 @@ async function install() {
     envPath,
     stdoutPath: paths.stdoutPath,
     stderrPath: paths.stderrPath,
+    workingDir: paths.stateDir,
   });
   await writeFile(paths.plistPath, plist, "utf8");
   console.log(`Installed ${paths.plistPath}`);
@@ -112,17 +116,17 @@ async function status() {
   const envExists = await fileExists(envPath);
   const plistExists = await fileExists(paths.plistPath);
   const launchdResult = await readLaunchdStatus();
+  const launchd = launchdResult.code === 0 ? parseLaunchdPrint(launchdResult.stdout) : null;
   console.log(`env: ${envExists ? "present" : "missing"} ${envPath}`);
   console.log(`plist: ${plistExists ? "present" : "missing"} ${paths.plistPath}`);
-  if (launchdResult.code === 0) {
-    const pid = launchdResult.stdout.match(/^\s*pid = (\d+)/m)?.[1];
-    console.log(`launchd: loaded${pid ? `, pid ${pid}` : ""}`);
+  if (launchd?.loaded) {
+    console.log(`launchd: loaded${launchd.pid ? `, pid ${launchd.pid}` : ""}${launchd.state ? `, state ${launchd.state}` : ""}`);
   } else {
     console.log("launchd: missing");
   }
   console.log(`logs: ${paths.stdoutPath}`);
   console.log("doctor: run `pnpm runner:service:doctor` for launchd runner checks");
-  if (!envExists || !plistExists) process.exitCode = 1;
+  if (!envExists || !plistExists || !launchd?.running) process.exitCode = 1;
 }
 
 async function doctor() {

@@ -630,7 +630,7 @@ async function checkRunnerStatus(config, runnerProcessRunning) {
     fail(
       "runner status",
       "API rejected the dev session cookie",
-      "log in locally at /auth/login or set AUTH_DEV_SESSION_TOKEN to match the API",
+      "start the local API with `ALFRED_ALLOW_DEV_AUTH=1` or set AUTH_DEV_SESSION_TOKEN to match it; hosted APIs are not checked by dev-doctor",
     );
     return;
   }
