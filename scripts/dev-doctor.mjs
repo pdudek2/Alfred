@@ -195,8 +195,12 @@ function startWebCommand(port) {
   return `pnpm --filter @alfred/web dev -- --host 127.0.0.1 --port ${port}`;
 }
 
-function startRunnerCommand() {
-  return "pnpm runner:local";
+function startRunnerAction() {
+  return "start foreground with `pnpm runner:local`, or install background service with `pnpm runner:service:install && pnpm runner:service:start`";
+}
+
+function restartRunnerServiceAction() {
+  return "inspect `pnpm runner:service:logs`, then restart with `pnpm runner:service:restart`";
 }
 
 async function checkRepoCommands() {
@@ -561,7 +565,7 @@ async function checkRunnerProcess() {
       `could not inspect local processes (${describeCommandFailure(result)})`,
       "inspect runner status manually with `ps -axo pid,ppid,etime,command | rg runner`",
     );
-    return;
+    return false;
   }
 
   const lines = result.stdout.split(/\r?\n/);
@@ -586,24 +590,25 @@ async function checkRunnerProcess() {
     fail(
       "runner process",
       "only the old tsx watcher is running; no active runner loop was found",
-      "stop the stale watcher and start `pnpm runner:local`",
+      `stop the stale watcher, then ${startRunnerAction()}`,
     );
-    return;
+    return false;
   }
 
   if (loopLines.length === 0) {
     fail(
       "runner process",
       "no local runner loop process was found",
-      startRunnerCommand(),
+      startRunnerAction(),
     );
-    return;
+    return false;
   }
 
   pass("runner process", "local runner loop process is running");
+  return true;
 }
 
-async function checkRunnerStatus(config) {
+async function checkRunnerStatus(config, runnerProcessRunning) {
   const result = await fetchText(config.apiSystemStatusUrl, {
     accept: "application/json",
     headers: {
@@ -616,7 +621,7 @@ async function checkRunnerStatus(config) {
     fail(
       "runner status",
       `${config.apiSystemStatusUrl} failed (${result.error})`,
-      "start the API, then start the runner with `pnpm runner:local`",
+      `start the API, then ${startRunnerAction()}`,
     );
     return;
   }
@@ -663,7 +668,7 @@ async function checkRunnerStatus(config) {
     fail(
       "runner status",
       `runner is ${runner.state} (${age})`,
-      startRunnerCommand(),
+      runnerProcessRunning ? restartRunnerServiceAction() : startRunnerAction(),
     );
     return;
   }
@@ -723,8 +728,8 @@ async function main() {
   const dockerDaemonAvailable = await checkDocker();
   await checkPostgres(dockerDaemonAvailable, config.databaseEndpoint);
   await checkApiHealth(config);
-  await checkRunnerProcess();
-  await checkRunnerStatus(config);
+  const runnerProcessRunning = await checkRunnerProcess();
+  await checkRunnerStatus(config, runnerProcessRunning);
   await checkWebHealth(config);
 
   const failed = results.filter((result) => result.status === "FAIL").length;
