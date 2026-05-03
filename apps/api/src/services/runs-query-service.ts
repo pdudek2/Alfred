@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, sql, type SQL } from "drizzle-orm";
 import type { AgentSource, RunStatus } from "@alfred/schema";
 import {
   events,
@@ -26,6 +26,7 @@ export type RunListItem = {
   title: string | null;
   started_at: string | null;
   completed_at: string | null;
+  last_activity_at: string | null;
   updated_at: string;
   created_at: string;
 };
@@ -61,6 +62,7 @@ type RunRow = {
   title: string | null;
   startedAt: Date | null;
   completedAt: Date | null;
+  lastActivityAt: Date | string | null;
   updatedAt: Date;
   createdAt: Date;
 };
@@ -78,9 +80,11 @@ type EventRow = {
 export function createRunsQueryStore(db: Database): RunsQueryStore {
   return {
     listRuns: async (workspaceId, limit, filters = {}) => {
+      const latestEvents = latestEventsForWorkspace(db, workspaceId);
+      const lastActivityExpr = sql<Date>`coalesce(${latestEvents.lastActivityAt}, ${runs.updatedAt})`;
       const conditions: SQL[] = [eq(runs.workspaceId, workspaceId)];
       if (filters.since) {
-        conditions.push(gte(runs.updatedAt, filters.since));
+        conditions.push(gte(lastActivityExpr, filters.since));
       }
       if (filters.source) {
         conditions.push(eq(runs.sourceId, filters.source));
@@ -105,19 +109,22 @@ export function createRunsQueryStore(db: Database): RunsQueryStore {
           title: runs.title,
           startedAt: runs.startedAt,
           completedAt: runs.completedAt,
+          lastActivityAt: latestEvents.lastActivityAt,
           updatedAt: runs.updatedAt,
           createdAt: runs.createdAt,
         })
         .from(runs)
         .leftJoin(projects, eq(runs.projectId, projects.id))
+        .leftJoin(latestEvents, eq(runs.id, latestEvents.runId))
         .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(desc(runs.updatedAt))
+        .orderBy(desc(lastActivityExpr))
         .limit(limit);
 
       return rows.map(mapRunRow);
     },
 
     getRun: async (workspaceId, runId) => {
+      const latestEvents = latestEventsForWorkspace(db, workspaceId);
       const [run] = await db
         .select({
           id: runs.id,
@@ -131,11 +138,13 @@ export function createRunsQueryStore(db: Database): RunsQueryStore {
           title: runs.title,
           startedAt: runs.startedAt,
           completedAt: runs.completedAt,
+          lastActivityAt: latestEvents.lastActivityAt,
           updatedAt: runs.updatedAt,
           createdAt: runs.createdAt,
         })
         .from(runs)
         .leftJoin(projects, eq(runs.projectId, projects.id))
+        .leftJoin(latestEvents, eq(runs.id, latestEvents.runId))
         .where(and(eq(runs.workspaceId, workspaceId), eq(runs.id, runId)))
         .limit(1);
 
@@ -163,6 +172,18 @@ export function createRunsQueryStore(db: Database): RunsQueryStore {
   };
 }
 
+function latestEventsForWorkspace(db: Database, workspaceId: string) {
+  return db
+    .select({
+      runId: events.runId,
+      lastActivityAt: sql<Date | null>`max(${events.occurredAt})`.as("last_activity_at"),
+    })
+    .from(events)
+    .where(eq(events.workspaceId, workspaceId))
+    .groupBy(events.runId)
+    .as("latest_events");
+}
+
 function mapRunRow(row: RunRow): RunListItem {
   return {
     id: row.id,
@@ -176,6 +197,7 @@ function mapRunRow(row: RunRow): RunListItem {
     title: row.title,
     started_at: toIso(row.startedAt),
     completed_at: toIso(row.completedAt),
+    last_activity_at: toIso(row.lastActivityAt),
     updated_at: row.updatedAt.toISOString(),
     created_at: row.createdAt.toISOString(),
   };
@@ -193,6 +215,10 @@ function mapEventRow(row: EventRow): RunEventItem {
   };
 }
 
-function toIso(value: Date | null): string | null {
-  return value ? value.toISOString() : null;
+function toIso(value: Date | string | null): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString();
+
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null;
 }

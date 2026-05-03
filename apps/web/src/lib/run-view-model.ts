@@ -204,14 +204,15 @@ function looksLikeMachineId(value: string): boolean {
 
 function buildCardSummaryLabel(run: RunListItem, sourceLabel: string, status: string): string {
   const source = humanizeSourceId(sourceLabel);
-  const timestamp = run.completed_at ?? run.started_at ?? run.updated_at;
+  const activityAt = runActivityAt(run);
+  const timestamp = run.completed_at ?? run.started_at ?? activityAt;
   const timeLabel = formatDateTime(timestamp);
 
-  if (status === "waiting") return `${source} · waiting since ${formatDateTime(run.updated_at)}`;
+  if (status === "waiting") return `${source} · waiting since ${formatDateTime(activityAt)}`;
   if (status === "running") return `${source} · active since ${timeLabel}`;
   if (status === "completed") return `${source} · closed ${timeLabel}`;
   if (status === "failed") return `${source} · failed ${timeLabel}`;
-  if (status === "stale") return `${source} · last heard ${formatDateTime(run.updated_at)}`;
+  if (status === "stale") return `${source} · last heard ${formatDateTime(activityAt)}`;
   return `${source} · ${timeLabel}`;
 }
 
@@ -224,7 +225,7 @@ function humanizeSourceId(sourceId: string): string {
 
 export function buildOverviewVM(runs: RunListItem[], now = new Date()): RunOverviewVM {
   const orderedRuns = sortRuns(runs);
-  const latestUpdatedAt = orderedRuns[0]?.updated_at ?? null;
+  const latestUpdatedAt = orderedRuns[0] ? runActivityAt(orderedRuns[0]) : null;
 
   return {
     totalCount: runs.length,
@@ -242,6 +243,7 @@ export function buildOverviewVM(runs: RunListItem[], now = new Date()): RunOverv
 }
 
 export function buildRunCardVM(run: RunListItem, now = new Date()): RunCardVM {
+  const activityAt = runActivityAt(run);
   const titleLabel = stringLabel(run.title);
   const sourceRunLabel = stringLabel(run.source_run_id);
   const sourceRunId = sourceRunLabel;
@@ -252,6 +254,7 @@ export function buildRunCardVM(run: RunListItem, now = new Date()): RunCardVM {
   const status = effectiveStatus(run, now);
   const intent = deriveIntent({ projectLabel, sourceRunLabel, status, titleLabel });
   const headline = `${projectLabel} · ${intent}`;
+  const durationLabel = status === "stale" ? "quiet" : formatDuration(run.started_at, run.completed_at);
 
   return {
     id: run.id,
@@ -269,9 +272,9 @@ export function buildRunCardVM(run: RunListItem, now = new Date()): RunCardVM {
     startedAtLabel: formatDateTime(run.started_at),
     completedAt: run.completed_at,
     completedAtLabel: formatDateTime(run.completed_at),
-    updatedAt: run.updated_at,
-    updatedAtLabel: formatDateTime(run.updated_at),
-    durationLabel: formatDuration(run.started_at, run.completed_at),
+    updatedAt: activityAt,
+    updatedAtLabel: formatDateTime(activityAt),
+    durationLabel,
     isLive: isLiveRun(run, now),
     needsAttention: needsAttention(run, now),
     isDone: isDoneRun(run),
@@ -485,7 +488,7 @@ function isDoneRun(run: RunListItem, now = new Date()): boolean {
 }
 
 function sortRuns(runs: RunListItem[]): RunListItem[] {
-  return [...runs].sort((left, right) => compareTimestampDesc(left.updated_at, right.updated_at) || left.id.localeCompare(right.id));
+  return [...runs].sort((left, right) => compareTimestampDesc(runActivityAt(left), runActivityAt(right)) || left.id.localeCompare(right.id));
 }
 
 function compareEvents(left: RunEventItem, right: RunEventItem): number {
@@ -588,9 +591,13 @@ function effectiveStatus(run: RunListItem, now = new Date()): string {
 }
 
 function isStaleRun(run: RunListItem, now: Date): boolean {
-  const lastSeenAt = timestampMs(run.updated_at);
+  const lastSeenAt = timestampMs(runActivityAt(run));
   const nowMs = now.getTime();
   return Number.isFinite(nowMs) && lastSeenAt > 0 && nowMs - lastSeenAt > STALE_RUN_AFTER_MS;
+}
+
+function runActivityAt(run: RunListItem): string {
+  return run.last_activity_at || run.updated_at;
 }
 
 function activityKind(event: RunEventItem): ActivityKind {

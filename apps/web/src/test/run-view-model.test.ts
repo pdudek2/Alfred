@@ -201,6 +201,28 @@ describe("run view model", () => {
     expect(live.filteredCount).toBe(0);
   });
 
+  it("uses source activity rather than database updated_at to detect stale waiting runs", () => {
+    const reingestedRun: RunListItem = {
+      ...waitingRun,
+      id: "run-reingested-stale",
+      status: "waiting",
+      last_activity_at: "2026-04-28T08:00:00.000Z",
+      updated_at: "2026-04-28T11:29:00.000Z",
+    };
+
+    const card = buildRunCardVM(reingestedRun, NOW);
+    const overview = buildOverviewVM([reingestedRun], NOW);
+    const needs = buildRunListVM([reingestedRun], { tab: "needs", query: "", grouping: "status", now: NOW });
+
+    expect(card.status).toBe("stale");
+    expect(card.sourceStatus).toBe("waiting");
+    expect(card.summaryLabel).toMatch(/^Codex · last heard Apr 28, /);
+    expect(card.updatedAt).toBe("2026-04-28T08:00:00.000Z");
+    expect(overview.liveCount).toBe(0);
+    expect(overview.needsAttentionCount).toBe(0);
+    expect(needs.filteredCount).toBe(0);
+  });
+
   it("treats unknown runs with completed_at as completed in the reader", () => {
     const unknownCompletedRun: RunListItem = {
       ...runFixture,
