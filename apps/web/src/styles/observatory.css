@@ -57,29 +57,6 @@
   min-height: 480px;
 }
 
-.observatory-node-buttons {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.observatory-node-button {
-  position: absolute;
-  width: 32px;
-  height: 32px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  transform: translate(-50%, -50%);
-  pointer-events: auto;
-}
-
-.observatory-node-button:focus-visible {
-  border-color: var(--reader-amber);
-  outline: 2px solid var(--reader-amber);
-  outline-offset: 2px;
-}
-
 .observatory-cluster {
   fill: none;
   stroke: var(--reader-border);
@@ -105,11 +82,17 @@
 
 .observatory-node {
   cursor: pointer;
+  outline: none;
 }
 
 .observatory-node:focus-visible .observatory-dot {
   stroke: var(--reader-amber);
   stroke-width: 2;
+}
+
+.observatory-hit-target {
+  fill: transparent;
+  pointer-events: all;
 }
 
 .observatory-dot-running,

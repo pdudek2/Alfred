@@ -25,12 +25,14 @@ const STATE_LABEL: Record<string, string> = {
 
 export function RunReader({ detail, now, onClose }: RunReaderProps) {
   const [expandedHighlight, setExpandedHighlight] = useState<StoryHighlight | null>(null);
+  const [rawEventsOpen, setRawEventsOpen] = useState(false);
   const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const card = useMemo(() => buildRunCardVM(detail, now), [detail, now]);
   const story = useMemo(() => buildRunStoryVM(detail, now), [detail, now]);
   const phases = useMemo(() => buildRunPhases(detail.events), [detail.events]);
+  const recentPhases = useMemo(() => [...phases].reverse(), [phases]);
   const highlightedEvent = expandedHighlight?.payload.eventId
     ? detail.events.find((event) => event.id === expandedHighlight.payload.eventId)
     : null;
@@ -87,19 +89,19 @@ export function RunReader({ detail, now, onClose }: RunReaderProps) {
 
       <section className="run-reader-activity" aria-label="Activity">
         <header className="run-reader-section-header">
-          <h3>Phases</h3>
+          <h3>Recent phases</h3>
           <span>{phases.length} phases · {detail.events.length} events</span>
         </header>
         <ol className="run-reader-phase-list">
-          {phases.slice(0, 8).map((phase) => (
+          {recentPhases.slice(0, 8).map((phase) => (
             <RunReaderPhase phase={phase} key={phase.id} />
           ))}
         </ol>
-        {phases.length > 8 ? (
+        {recentPhases.length > 8 ? (
           <details className="run-reader-overflow">
-            <summary>Show {phases.length - 8} older phases</summary>
+            <summary>Show {recentPhases.length - 8} older phases</summary>
             <ol className="run-reader-phase-list">
-              {phases.slice(8).map((phase) => (
+              {recentPhases.slice(8).map((phase) => (
                 <RunReaderPhase phase={phase} key={phase.id} />
               ))}
             </ol>
@@ -107,13 +109,15 @@ export function RunReader({ detail, now, onClose }: RunReaderProps) {
         ) : null}
       </section>
 
-      <details className="run-reader-raw">
+      <details className="run-reader-raw" onToggle={(event) => setRawEventsOpen(event.currentTarget.open)}>
         <summary>‹ raw events</summary>
-        <div className="run-reader-raw-list">
-          {detail.events.map((event) => (
-            <EventPayload key={event.id} payload={event.payload} />
-          ))}
-        </div>
+        {rawEventsOpen ? (
+          <div className="run-reader-raw-list">
+            {detail.events.map((event) => (
+              <EventPayload key={event.id} payload={event.payload} />
+            ))}
+          </div>
+        ) : null}
       </details>
     </aside>
   );
@@ -122,7 +126,7 @@ export function RunReader({ detail, now, onClose }: RunReaderProps) {
     if (event.key !== "Tab") return;
 
     const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      'button, summary, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
     );
     const items = focusable ? Array.from(focusable).filter((item) => !item.hasAttribute("disabled")) : [];
     if (items.length === 0) return;

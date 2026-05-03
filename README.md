@@ -270,6 +270,46 @@ Each pass:
 4. stores events in the local SQLite outbox,
 5. flushes ready events to `POST /v1/ingest/batches`.
 
+## Local Runner Service
+
+Alfred's web/API can run on Vercel, but the runner must run on the Mac because
+it reads local agent state from `~/.codex` and `~/.claude`.
+
+Put real runner secrets in `.secrets/runner.env`, not in `.env.example` or
+committed files.
+
+Foreground local runner:
+
+```bash
+pnpm runner:local
+```
+
+Background macOS service:
+
+```bash
+pnpm runner:service:install
+pnpm runner:service:start
+pnpm runner:service:status
+pnpm runner:service:doctor
+pnpm runner:service:logs
+```
+
+Stop background service:
+
+```bash
+pnpm runner:service:stop
+pnpm runner:service:uninstall
+```
+
+Health check:
+
+```bash
+pnpm runner:service:doctor
+```
+
+`node scripts/dev-doctor.mjs` is for the local dev stack with
+`ALFRED_ALLOW_DEV_AUTH=1`. It does not authenticate against a hosted Vercel API.
+
 ## Validation
 
 Current expected checks:
