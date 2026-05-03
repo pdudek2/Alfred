@@ -19,6 +19,7 @@
     "runner:service:uninstall": "node scripts/runner-service.mjs uninstall",
     "lint": "turbo run lint",
     "smoke:cloud": "node scripts/cloud-smoke.mjs",
+    "smoke:cloud:runner": "ALFRED_CLOUD_SMOKE_MODE=runner-auth node scripts/cloud-smoke.mjs",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "agent:launch": "node scripts/launch-parallel-agents.mjs",

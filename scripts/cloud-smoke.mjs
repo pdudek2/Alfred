@@ -11,8 +11,8 @@ if (!baseUrl) {
   process.exit(1);
 }
 
-if (mode !== "public" && mode !== "authenticated") {
-  console.error("ALFRED_CLOUD_SMOKE_MODE must be public or authenticated");
+if (!["public", "authenticated", "runner-auth"].includes(mode)) {
+  console.error("ALFRED_CLOUD_SMOKE_MODE must be public, authenticated, or runner-auth");
   process.exit(1);
 }
 
@@ -26,8 +26,15 @@ if (mode === "authenticated" && !sessionToken) {
   process.exit(1);
 }
 
+if (mode === "runner-auth" && !process.env.RUNNER_DEVICE_TOKEN) {
+  console.error("RUNNER_DEVICE_TOKEN is required for runner-auth cloud smoke");
+  process.exit(1);
+}
+
 const checks =
-  mode === "authenticated"
+  mode === "runner-auth"
+    ? [["runner heartbeat", "/v1/ingest/heartbeat", validateRunnerHeartbeat, "POST"]]
+    : mode === "authenticated"
     ? [
         ["root", "/", validateRoot],
         ["health", "/health", validateHealth],
@@ -42,14 +49,15 @@ const checks =
 
 let failed = false;
 
-for (const [name, path, validate] of checks) {
+for (const [name, path, validate, method = "GET"] of checks) {
   const headers = {
     ...(sessionToken ? { cookie: `alfred_session=${sessionToken}` } : {}),
+    ...(mode === "runner-auth" ? { authorization: `Bearer ${process.env.RUNNER_DEVICE_TOKEN}` } : {}),
     ...(vercelProtectionBypass ? { "x-vercel-protection-bypass": vercelProtectionBypass } : {}),
   };
 
   try {
-    const response = await fetch(new URL(path, baseUrl), { headers, redirect: "manual" });
+    const response = await fetch(new URL(path, baseUrl), { method, headers, redirect: "manual" });
     const body = await response.text();
     const result = validate(response, body);
     const ok = result === true || result === "warn";
@@ -108,6 +116,13 @@ function validateRuns(response, body) {
   const headers = response.headers;
   const json = parseJson(body, headers);
   return Array.isArray(json?.items);
+}
+
+function validateRunnerHeartbeat(response, body) {
+  if (response.status !== 202) return false;
+  const headers = response.headers;
+  const json = parseJson(body, headers);
+  return json?.ok === true && typeof json?.last_seen_at === "string";
 }
 
 function parseJson(body, headers) {
