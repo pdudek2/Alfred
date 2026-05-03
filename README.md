@@ -146,6 +146,15 @@ Required Vercel env vars:
 - `ALFRED_BOOTSTRAP_USER_ID`
 - `ALFRED_BOOTSTRAP_WORKSPACE_ID`
 
+After changing any Vercel env var, redeploy the affected environment. Existing
+Vercel deployments keep the env snapshot they were built with.
+
+For the local runner service, `.secrets/runner.env` is the default source of
+truth. Keep its `RUNNER_DEVICE_TOKEN`, `RUNNER_DEVICE_ID`, and
+`RUNNER_WORKSPACE_ID` aligned with the Vercel environment it reports to. For
+batch ingest, the runner workspace must match the API bootstrap workspace
+(`ALFRED_BOOTSTRAP_WORKSPACE_ID`).
+
 Production login requires a real OIDC provider:
 
 - `AUTH_OIDC_ISSUER`
@@ -175,6 +184,17 @@ API health, and whether the login route is production-ready:
 ```bash
 ALFRED_CLOUD_SMOKE_MODE=public ALFRED_EXPECT_AUTH=ready ALFRED_CLOUD_URL=<prod-url> pnpm smoke:cloud
 ```
+
+Run runner-auth smoke after changing runner credentials or after a production
+redeploy. This sends one authenticated heartbeat and expects `202`:
+
+```bash
+ALFRED_CLOUD_URL=<prod-url> RUNNER_DEVICE_TOKEN=<device-token> pnpm smoke:cloud:runner
+```
+
+This verifies that the cloud API accepts the runner device token. It does not
+prove the local service is running or that batch ingest is healthy; follow it
+with `pnpm runner:service:doctor` and `pnpm runner:service:logs`.
 
 Run authenticated smoke checks against a preview that has dev auth enabled:
 
