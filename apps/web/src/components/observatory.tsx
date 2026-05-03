@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 
 import type { RunListItem } from "../lib/api-client";
 import { computeObservatoryLayout } from "../lib/observatory-layout";
+import { buildRunCardVM } from "../lib/run-view-model";
 
 type ObservatoryProps = {
   now: Date;
@@ -24,7 +25,11 @@ const VIEWPORT = { width: 1200, height: 720 };
 export function Observatory({ runs, now, onSelectRun }: ObservatoryProps) {
   const [scope, setScope] = useState<Scope>("7d");
   const visibleRuns = useMemo(() => filterByScope(runs, scope, now), [runs, scope, now]);
-  const layout = useMemo(() => computeObservatoryLayout(visibleRuns, VIEWPORT), [visibleRuns]);
+  const observatoryRuns = useMemo(
+    () => visibleRuns.map((run) => ({ ...run, status: buildRunCardVM(run, now).status })),
+    [visibleRuns, now],
+  );
+  const layout = useMemo(() => computeObservatoryLayout(observatoryRuns, VIEWPORT), [observatoryRuns]);
 
   return (
     <section className="observatory" aria-label="Agent observatory">
@@ -38,9 +43,10 @@ export function Observatory({ runs, now, onSelectRun }: ObservatoryProps) {
       </header>
 
       <svg
-        aria-hidden="true"
+        aria-label="Observatory star map"
         className="observatory-canvas"
         preserveAspectRatio="xMidYMid meet"
+        role="group"
         viewBox={`0 0 ${VIEWPORT.width} ${VIEWPORT.height}`}
       >
         <defs>
@@ -86,15 +92,25 @@ export function Observatory({ runs, now, onSelectRun }: ObservatoryProps) {
         ))}
 
         {layout.clusters.flatMap((cluster) =>
-          cluster.nodes.map((node) => {
+          [...cluster.nodes].sort(compareNodeLayer).map((node) => {
             const halo = haloFor(node.status);
             return (
               <g
+                aria-label={`Open ${node.projectLabel} ${statusLabel(node.status)} run`}
                 className="observatory-node"
                 data-node-run-id={node.runId}
                 key={node.runId}
                 onClick={() => onSelectRun(node.runId)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelectRun(node.runId);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
               >
+                <title>{node.projectLabel} · {node.status}</title>
                 {halo ? (
                   <circle
                     className={halo.className}
@@ -109,30 +125,17 @@ export function Observatory({ runs, now, onSelectRun }: ObservatoryProps) {
                   cy={node.position.y}
                   r={radiusFor(node.status)}
                 />
+                <circle
+                  className="observatory-hit-target"
+                  cx={node.position.x}
+                  cy={node.position.y}
+                  r={10}
+                />
               </g>
             );
           }),
         )}
       </svg>
-
-      <div className="observatory-node-buttons" aria-label="Observatory runs">
-        {layout.clusters.flatMap((cluster) =>
-          cluster.nodes.map((node) => (
-            <button
-              aria-label={`Open ${node.projectLabel} ${node.status} run`}
-              className="observatory-node-button"
-              data-node-button-run-id={node.runId}
-              key={node.runId}
-              onClick={() => onSelectRun(node.runId)}
-              style={{
-                left: `${(node.position.x / VIEWPORT.width) * 100}%`,
-                top: `${(node.position.y / VIEWPORT.height) * 100}%`,
-              }}
-              type="button"
-            />
-          )),
-        )}
-      </div>
 
       <div aria-label="Time scope" className="observatory-scope" role="group">
         {SCOPE_LABELS.map((entry) => (
@@ -207,4 +210,25 @@ function stateClass(status: string): string {
   if (status === "waiting") return "waiting";
   if (status === "failed") return "failed";
   return "stale";
+}
+
+function statusLabel(status: string): string {
+  if (status === "stale") return "quiet";
+  if (status === "waiting") return "needs you";
+  return status;
+}
+
+function compareNodeLayer(
+  left: { runId: string; status: string },
+  right: { runId: string; status: string },
+): number {
+  return statusLayer(left.status) - statusLayer(right.status) || left.runId.localeCompare(right.runId);
+}
+
+function statusLayer(status: string): number {
+  if (status === "running") return 5;
+  if (status === "waiting") return 4;
+  if (status === "failed") return 3;
+  if (status === "completed") return 2;
+  return 1;
 }

@@ -18,7 +18,7 @@ describe("RunReader", () => {
 
     expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(/Alfred/);
     expect(screen.getByText(/Codex/)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Phases", level: 3 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Recent phases", level: 3 })).toBeInTheDocument();
     expect(screen.getByText("Opened the session")).toBeInTheDocument();
     expect(screen.getByText("Ran commands")).toBeInTheDocument();
     expect(screen.getByText("Command started")).toBeInTheDocument();
@@ -50,6 +50,7 @@ describe("RunReader", () => {
         ? document.activeElement
         : null;
     expect(screen.getByRole("dialog")).toContainElement(activeElement);
+    expect(screen.getByText("‹ raw events")).toHaveFocus();
     await user.keyboard("{Escape}");
     expect(open).toHaveFocus();
   });
@@ -80,6 +81,59 @@ describe("RunReader", () => {
 
     expect(screen.getByText(/Story highlight payload/i)).toBeInTheDocument();
     expect(screen.getAllByText(/"command": "pnpm test"/i).length).toBeGreaterThan(0);
+  });
+
+  it("renders recent phases first so long active runs start at the latest activity", () => {
+    const detail: RunDetail = {
+      ...runDetailFixture,
+      events: [
+        {
+          id: "event-session",
+          event_id: "event-session",
+          source_event_id: "source-session",
+          status: "running",
+          occurred_at: "2026-04-28T10:00:00.000Z",
+          type: "run.started",
+          payload: { tool_name: "session" },
+        },
+        {
+          id: "event-command",
+          event_id: "event-command",
+          source_event_id: "source-command",
+          status: null,
+          occurred_at: "2026-04-28T10:00:30.000Z",
+          type: "tool.started",
+          payload: { tool_name: "exec_command" },
+        },
+        {
+          id: "event-failure",
+          event_id: "event-failure",
+          source_event_id: "source-failure",
+          type: "tool.failed",
+          status: "failed",
+          occurred_at: "2026-04-28T10:01:00.000Z",
+          payload: { tool_name: "exec_command", status: "failed" },
+        },
+      ],
+    };
+
+    render(<RunReader detail={detail} now={now} onClose={() => {}} />);
+
+    const failure = screen.getByText("Hit a problem");
+    const session = screen.getByText("Opened the session");
+    expect(failure.compareDocumentPosition(session) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("keeps raw payloads collapsed until raw events are requested", async () => {
+    const user = userEvent.setup();
+    render(<RunReader detail={runDetailFixture} now={now} onClose={() => {}} />);
+
+    expect(screen.queryByText("tool_name: session")).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("‹ raw events"));
+
+    expect(screen.getByText("tool_name: session")).toBeInTheDocument();
+    expect(screen.getByText("tool_name: exec_command")).toBeInTheDocument();
   });
 });
 
