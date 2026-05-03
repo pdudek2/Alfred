@@ -9,6 +9,7 @@ import { redactPayload } from "./privacy/redactor.js";
 import { createClaudeAdapter } from "./sources/claude/claude-adapter.js";
 import { createCodexAdapter } from "./sources/codex/codex-adapter.js";
 import type { SourceAdapter } from "./sources/source-adapter.js";
+import { postRunnerHeartbeat } from "./sync/ingest-client.js";
 
 export type RunRunnerOptions = {
   adapter?: SourceAdapter;
@@ -46,10 +47,24 @@ export async function runRunnerOnce(
     const flushedEvents = await flushOutbox(outbox, {
       apiUrl: config.apiUrl,
       deviceToken: config.deviceToken,
+      ...(config.vercelAutomationBypassSecret
+        ? { vercelAutomationBypassSecret: config.vercelAutomationBypassSecret }
+        : {}),
       workspaceId: config.workspaceId,
       deviceId: config.deviceId,
       ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
     });
+
+    if (flushedEvents === 0) {
+      await postRunnerHeartbeat({
+        apiUrl: config.apiUrl,
+        deviceToken: config.deviceToken,
+        ...(config.vercelAutomationBypassSecret
+          ? { vercelAutomationBypassSecret: config.vercelAutomationBypassSecret }
+          : {}),
+        ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+      });
+    }
 
     return {
       collectedEvents,
@@ -113,7 +128,7 @@ function createDefaultAdapters(config: RunnerConfig, outbox: OutboxDb): SourceAd
 
 function createDefaultCodexAdapter(config: RunnerConfig, outbox: OutboxDb): SourceAdapter {
   const storedCursor = outbox.getSourceCursor("codex-cli");
-  const codexSince = config.codexSince ?? storedCursor ?? undefined;
+  const codexSince = newestCursor(config.codexSince, storedCursor);
   return createCodexAdapter({
     ...config,
     ...(codexSince ? { codexSince } : {}),
@@ -122,12 +137,24 @@ function createDefaultCodexAdapter(config: RunnerConfig, outbox: OutboxDb): Sour
 
 function createDefaultClaudeAdapter(config: RunnerConfig, outbox: OutboxDb): SourceAdapter {
   const storedCursor = outbox.getSourceCursor("claude-code");
-  const claudeSince = config.claudeSince ?? storedCursor ?? undefined;
+  const claudeSince = newestCursor(config.claudeSince, storedCursor);
   return createClaudeAdapter({
     ...config,
     claudeHome: config.claudeHome ?? `${process.env.HOME ?? "."}/.claude`,
     ...(claudeSince ? { claudeSince } : {}),
   });
+}
+
+function newestCursor(configuredSince: string | undefined, storedCursor: string | null): string | undefined {
+  if (!configuredSince) return storedCursor ?? undefined;
+  if (!storedCursor) return configuredSince;
+
+  const configuredMs = Date.parse(configuredSince);
+  const storedMs = Date.parse(storedCursor);
+  if (Number.isNaN(configuredMs)) return storedCursor;
+  if (Number.isNaN(storedMs)) return configuredSince;
+
+  return storedMs > configuredMs ? storedCursor : configuredSince;
 }
 
 function updateSourceCursor(outbox: OutboxDb, sourceId: string, events: IngestEvent[]): void {

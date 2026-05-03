@@ -1,21 +1,23 @@
 import { Hono } from "hono";
 import { createDb } from "@alfred/db";
-import { seedBootstrapAuth } from "./auth/bootstrap-auth";
+import { seedBootstrapAuth } from "./auth/bootstrap-auth.js";
 import {
   createDbDeviceAuthStore,
   createFallbackDeviceAuthStore,
   createStaticDeviceAuthStore,
-} from "./auth/device-auth";
+} from "./auth/device-auth.js";
 import {
   createDbSessionStore,
   createFallbackSessionStore,
   createStaticSessionStore,
-} from "./auth/session-auth";
-import { env } from "./env";
-import { createAuthRoutes } from "./routes/auth";
-import { healthRoutes } from "./routes/health";
-import { createIngestRoutes } from "./routes/ingest";
-import { createRunsRoutes } from "./routes/runs";
+} from "./auth/session-auth.js";
+import { env } from "./env.js";
+import { createAuthRoutes } from "./routes/auth.js";
+import { healthRoutes } from "./routes/health.js";
+import { createIngestRoutes } from "./routes/ingest.js";
+import { createRunsRoutes } from "./routes/runs.js";
+import { createSystemRoutes } from "./routes/system.js";
+import { createSystemStatusStore } from "./services/system-status-store.js";
 
 export function createApp() {
   const app = new Hono();
@@ -37,6 +39,7 @@ export function createApp() {
   });
   const dbSessionStore = createDbSessionStore(db);
   const dbDeviceAuthStore = createDbDeviceAuthStore(db);
+  const systemStatusStore = createSystemStatusStore(db);
   const sessionStore = env.DEV_AUTH_ENABLED
     ? createFallbackSessionStore(dbSessionStore, staticSessionStore, process.env.NODE_ENV === "test")
     : dbSessionStore;
@@ -64,26 +67,29 @@ export function createApp() {
       },
     }),
   );
+  const authRouteOptions = {
+    config: {
+      appBaseUrl: env.APP_BASE_URL,
+      bootstrapWorkspaceId: env.ALFRED_BOOTSTRAP_WORKSPACE_ID,
+      ...(env.AUTH_OIDC_CLIENT_ID ? { clientId: env.AUTH_OIDC_CLIENT_ID } : {}),
+      ...(env.AUTH_OIDC_CLIENT_SECRET ? { clientSecret: env.AUTH_OIDC_CLIENT_SECRET } : {}),
+      ...(env.AUTH_OIDC_ISSUER ? { issuer: env.AUTH_OIDC_ISSUER } : {}),
+    },
+    devAuth: {
+      enabled: env.DEV_AUTH_ENABLED,
+      sessionToken: env.AUTH_DEV_SESSION_TOKEN,
+    },
+  };
+
   app.route("/health", healthRoutes);
-  app.route(
-    "/auth",
-    createAuthRoutes(db, {
-      config: {
-        appBaseUrl: env.APP_BASE_URL,
-        bootstrapWorkspaceId: env.ALFRED_BOOTSTRAP_WORKSPACE_ID,
-        ...(env.AUTH_OIDC_CLIENT_ID ? { clientId: env.AUTH_OIDC_CLIENT_ID } : {}),
-        ...(env.AUTH_OIDC_CLIENT_SECRET ? { clientSecret: env.AUTH_OIDC_CLIENT_SECRET } : {}),
-        ...(env.AUTH_OIDC_ISSUER ? { issuer: env.AUTH_OIDC_ISSUER } : {}),
-      },
-      devAuth: {
-        enabled: env.DEV_AUTH_ENABLED,
-        sessionToken: env.AUTH_DEV_SESSION_TOKEN,
-      },
-    }),
-  );
+  app.route("/api/health", healthRoutes);
+  app.route("/auth", createAuthRoutes(db, authRouteOptions));
+  app.route("/api/auth", createAuthRoutes(db, { ...authRouteOptions, callbackPath: "/api/auth/callback" }));
   app.route("/v1/ingest", createIngestRoutes(db, deviceAuthStore));
   app.route("/v1/runs", createRunsRoutes(db, { sessionStore }));
+  app.route("/v1/system", createSystemRoutes(systemStatusStore, sessionStore));
   app.route("/api/v1/ingest", createIngestRoutes(db, deviceAuthStore));
   app.route("/api/v1/runs", createRunsRoutes(db, { sessionStore }));
+  app.route("/api/v1/system", createSystemRoutes(systemStatusStore, sessionStore));
   return app;
 }

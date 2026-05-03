@@ -57,7 +57,7 @@ describe("collectClaudeEvents", () => {
     expect(IngestEventSchema.array().safeParse(events).success).toBe(true);
   });
 
-  it("skips Claude events before the configured since timestamp", async () => {
+  it("skips Claude events at or before the configured since timestamp", async () => {
     const events = await collectClaudeEvents({
       claudeHome: createClaudeHome(),
       workspaceId,
@@ -67,12 +67,10 @@ describe("collectClaudeEvents", () => {
     });
 
     expect(events.map((event) => event.type)).toEqual([
-      "agent.waiting",
       "run.updated",
       "agent.waiting",
     ]);
     expect(events.map((event) => event.occurred_at)).toEqual([
-      "2026-04-28T12:00:04.000Z",
       "2026-04-28T12:00:05.000Z",
       "2026-04-28T12:00:06.000Z",
     ]);

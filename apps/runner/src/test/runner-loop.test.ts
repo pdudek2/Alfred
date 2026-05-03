@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -246,6 +246,60 @@ describe("flushOutboxOnce", () => {
     outbox.close();
   });
 
+  it("advances explicit Codex since with the stored source cursor", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "alfred-runner-codex-cursor-"));
+    const codexHome = join(dir, ".codex");
+    const sessionPath = join(codexHome, "sessions/2026/04/28/session.jsonl");
+    const outboxPath = join(dir, "outbox.sqlite");
+    mkdirSync(join(codexHome, "sessions/2026/04/28"), { recursive: true });
+    writeFileSync(
+      sessionPath,
+      [
+        JSON.stringify({
+          timestamp: "2026-04-28T10:00:00.000Z",
+          type: "session.start",
+          id: "codex-run-1",
+          cwd: "/Users/patryk/Desktop/Alfred",
+        }),
+        JSON.stringify({
+          timestamp: "2026-04-28T10:00:01.000Z",
+          type: "tool.call",
+          id: "tool-1",
+          session_id: "codex-run-1",
+          tool: "exec_command",
+        }),
+      ].join("\n"),
+    );
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
+    const config = {
+      apiUrl: "http://127.0.0.1:4301",
+      deviceToken: "token-1",
+      workspaceId,
+      deviceId,
+      privacyMode: "standard" as const,
+      outboxPath,
+      codexHome,
+      codexSince: "2026-04-28T09:00:00.000Z",
+    };
+
+    await expect(runRunnerOnce(config, { fetchImpl })).resolves.toEqual({
+      collectedEvents: 2,
+      flushedEvents: 2,
+    });
+    await expect(runRunnerOnce(config, { fetchImpl })).resolves.toEqual({
+      collectedEvents: 0,
+      flushedEvents: 0,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenLastCalledWith("http://127.0.0.1:4301/v1/ingest/heartbeat", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-1",
+      },
+    });
+  });
+
   it("collects multiple source adapters and stores independent cursors", async () => {
     const dir = mkdtempSync(join(tmpdir(), "alfred-runner-multi-source-"));
     const outboxPath = join(dir, "outbox.sqlite");
@@ -369,6 +423,12 @@ describe("flushOutboxOnce", () => {
     expect(collect).toHaveBeenCalledTimes(2);
     expect(onIteration).toHaveBeenNthCalledWith(1, { collectedEvents: 1, flushedEvents: 1 });
     expect(onIteration).toHaveBeenNthCalledWith(2, { collectedEvents: 0, flushedEvents: 0 });
+    expect(fetchImpl).toHaveBeenLastCalledWith("http://127.0.0.1:4301/v1/ingest/heartbeat", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer token-1",
+      },
+    });
     expect(sleep).toHaveBeenCalledOnce();
     expect(sleep).toHaveBeenCalledWith(1_500);
   });

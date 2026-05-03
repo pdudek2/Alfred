@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDbDeviceAuthStore, requireDeviceToken } from "../auth/device-auth";
 import { hashToken } from "../auth/token-hash";
+import { createAuthRoutes } from "../routes/auth";
 import type { RunListItem } from "../services/runs-query-service";
 
 const dbMock = vi.hoisted(() => ({
@@ -110,6 +111,62 @@ describe("api", () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ items: [run] });
     expect(dbMock.listRuns).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000001", 7, {});
+  });
+
+  it("mounts system status behind session auth", async () => {
+    const res = await createApp().request("/api/v1/system/status");
+    expect(res.status).toBe(401);
+  });
+
+  it("supports Vercel cloud aliases for health and auth", async () => {
+    const health = await createApp().request("/api/health");
+    expect(health.status).toBe(200);
+
+    const login = await createApp().request("/api/auth/login", { redirect: "manual" });
+    expect(login.status).toBe(302);
+    expect(login.headers.get("location")).toBe("/");
+    expect(login.headers.get("set-cookie")).toContain("alfred_session=dev-session-token");
+  });
+
+  it("uses the cloud auth callback path when starting OIDC through the api alias", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          authorization_endpoint: "https://idp.example.test/authorize",
+          token_endpoint: "https://idp.example.test/token",
+        }),
+        { headers: { "content-type": "application/json" } },
+      ),
+    );
+    const app = new Hono();
+    app.route(
+      "/api/auth",
+      createAuthRoutes(dbMock as never, {
+        callbackPath: "/api/auth/callback",
+        config: {
+          appBaseUrl: "https://alfred.example.test",
+          bootstrapWorkspaceId: "00000000-0000-4000-8000-000000000001",
+          clientId: "alfred-client",
+          clientSecret: "alfred-secret",
+          issuer: "https://idp.example.test",
+        },
+      }),
+    );
+
+    try {
+      const login = await app.request("/api/auth/login", { redirect: "manual" });
+      const location = login.headers.get("location");
+
+      expect(login.status).toBe(302);
+      expect(location).toContain(
+        "redirect_uri=https%3A%2F%2Falfred.example.test%2Fapi%2Fauth%2Fcallback",
+      );
+      expect(new URL(location ?? "").searchParams.get("redirect_uri")).toBe(
+        "https://alfred.example.test/api/auth/callback",
+      );
+    } finally {
+      fetchMock.mockRestore();
+    }
   });
 
   it("rejects missing device token", async () => {

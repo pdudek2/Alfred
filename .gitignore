@@ -9,6 +9,7 @@ coverage/
 docs/
 .worktrees/
 output/
+api/.generated/
 
 # Local environment
 .env
@@ -36,3 +37,6 @@ WORKING_CONTEXT.md
 .idea/
 *.swp
 *.swo
+.vercel
+.secrets/
+.env*.local

@@ -86,6 +86,16 @@ Copy the local env example when running services:
 cp .env.example .env
 ```
 
+Start the main local development loop:
+
+```bash
+pnpm dev:alfred
+```
+
+This starts the API, web app, and runner together. Output is prefixed with
+`[api]`, `[web]`, or `[runner]`, and if one process fails the launcher stops
+the rest.
+
 ## API
 
 Start Postgres:
@@ -98,6 +108,98 @@ Run migrations:
 
 ```bash
 pnpm exec drizzle-kit migrate --config apps/api/drizzle.config.ts
+```
+
+## Neon / Hosted Postgres Setup
+
+Local development still uses Docker Postgres from `docker compose up -d postgres`.
+Keep the local `.env` values from `.env.example` for that path.
+
+For hosted deployments, create a Neon Postgres project outside the repository and
+store the real connection strings only in your deployment environment or local
+secret manager. Do not commit Neon secrets to this repo.
+
+Use two database URLs:
+
+- `DATABASE_URL`: runtime connection string. In serverless environments, this
+  should be the pooled Neon URL, usually the host containing `-pooler`.
+- `DATABASE_URL_UNPOOLED`: migration connection string. This should be the
+  direct Neon URL without the pooler, used by Drizzle migration commands.
+
+Run hosted migrations with the direct URL:
+
+```bash
+DATABASE_URL="$DATABASE_URL_UNPOOLED" pnpm exec drizzle-kit migrate --config apps/api/drizzle.config.ts
+```
+
+## Vercel Deployment
+
+Required Vercel env vars:
+
+- `DATABASE_URL`: Neon pooled runtime URL.
+- `DATABASE_URL_UNPOOLED`: Neon direct migration URL, used only by manual or CI migration jobs.
+- `RUNNER_WORKSPACE_ID`
+- `RUNNER_DEVICE_ID`
+- `RUNNER_DEVICE_TOKEN`
+- `APP_BASE_URL`: production Vercel URL.
+- `ALFRED_BOOTSTRAP_ADMIN_EMAIL`
+- `ALFRED_BOOTSTRAP_USER_ID`
+- `ALFRED_BOOTSTRAP_WORKSPACE_ID`
+
+Production login requires a real OIDC provider:
+
+- `AUTH_OIDC_ISSUER`
+- `AUTH_OIDC_CLIENT_ID`
+- `AUTH_OIDC_CLIENT_SECRET`
+
+Do not enable preview dev auth on a public production deployment. If OIDC is not
+configured yet, keep production protected/private and treat `/auth/login`
+returning `oidc_not_configured` as an explicit release blocker, not as a runner
+problem.
+
+Preview-only optional:
+
+- `ALFRED_ALLOW_DEV_AUTH=1`
+- `AUTH_DEV_SESSION_TOKEN`: preview-only token.
+- `VERCEL_AUTOMATION_BYPASS_SECRET`: required by local smoke checks and the
+  local runner when Vercel Deployment Protection is enabled.
+
+Local dev auth may use the built-in development defaults. When dev auth is
+enabled in hosted runtime (`NODE_ENV=production` or Vercel), `AUTH_DEV_SESSION_TOKEN`
+and `RUNNER_DEVICE_TOKEN` must both be explicit non-default secrets. The API
+refuses to start with the built-in development defaults there.
+
+Run public cloud smoke checks after deployment. This verifies the static app,
+API health, and whether the login route is production-ready:
+
+```bash
+ALFRED_CLOUD_SMOKE_MODE=public ALFRED_EXPECT_AUTH=ready ALFRED_CLOUD_URL=<prod-url> pnpm smoke:cloud
+```
+
+Run authenticated smoke checks against a preview that has dev auth enabled:
+
+```bash
+ALFRED_CLOUD_SMOKE_MODE=authenticated ALFRED_CLOUD_URL=<preview-url> AUTH_DEV_SESSION_TOKEN=<preview-token> pnpm smoke:cloud
+```
+
+Run the local runner against a protected preview:
+
+```bash
+RUNNER_API_URL=<preview-url> \
+RUNNER_DEVICE_TOKEN=<device-token> \
+RUNNER_WORKSPACE_ID=00000000-0000-4000-8000-000000000001 \
+RUNNER_DEVICE_ID=00000000-0000-4000-8000-000000000101 \
+VERCEL_AUTOMATION_BYPASS_SECRET=<bypass-secret> \
+ALFRED_ALLOW_DEV_CONFIG=1 \
+ALFRED_SOURCES=codex \
+pnpm --filter @alfred/runner dev
+```
+
+Run the built runner continuously:
+
+```bash
+pnpm --filter @alfred/runner build
+RUNNER_API_URL=<cloud-url> RUNNER_DEVICE_TOKEN=<device-token> pnpm --filter @alfred/runner start
 ```
 
 Start the API:

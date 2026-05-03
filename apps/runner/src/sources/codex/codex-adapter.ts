@@ -59,7 +59,7 @@ function codexRecordToEvent(
   const occurredAt = stringValue(record.timestamp);
   const occurredAtMs = occurredAt === undefined ? Number.NaN : Date.parse(occurredAt);
   if (!type || !occurredAt || Number.isNaN(occurredAtMs)) return null;
-  if (codexSinceMs !== undefined && occurredAtMs < codexSinceMs) return null;
+  if (codexSinceMs !== undefined && occurredAtMs <= codexSinceMs) return null;
 
   if (isRecord(record.payload)) {
     return codexEnvelopeToEvent(record.payload, type, occurredAt, index, config, context);

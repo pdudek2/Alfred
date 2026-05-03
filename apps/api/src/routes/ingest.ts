@@ -7,9 +7,9 @@ import {
   requireDeviceToken,
   type DeviceAuthStore,
   type DeviceAuthVariables,
-} from "../auth/device-auth";
-import { env } from "../env";
-import { ingestBatch, type IngestStore } from "../services/ingest-service";
+} from "../auth/device-auth.js";
+import { env } from "../env.js";
+import { ingestBatch, markRunnerHeartbeat, type IngestStore } from "../services/ingest-service.js";
 
 export function createIngestRoutes(
   db: Database | IngestStore = createDb(),
@@ -42,6 +42,16 @@ export function createIngestRoutes(
     }
 
     const result = await ingestBatch(db, batch);
+    return c.json(result, 202);
+  });
+
+  ingestRoutes.post("/heartbeat", requireDeviceToken(deviceAuthStore), async (c) => {
+    const deviceAuth = c.get("deviceAuth");
+    const result = await markRunnerHeartbeat(db, {
+      workspaceId: deviceAuth.workspaceId,
+      deviceId: deviceAuth.deviceId,
+    });
+
     return c.json(result, 202);
   });
 

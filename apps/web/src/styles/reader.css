@@ -347,7 +347,63 @@
 
 .reader-filter-shell {
   border-top: 1px solid var(--reader-border-soft);
+  display: grid;
+  gap: 10px;
   padding-top: var(--reader-gap);
+}
+
+.reader-notice {
+  border-left: 2px solid var(--reader-amber);
+  color: var(--reader-text-dim);
+  font-family: var(--reader-sans);
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+  padding-left: 10px;
+}
+
+.system-status {
+  align-items: center;
+  color: var(--reader-text-dim);
+  display: inline-flex;
+  font-family: var(--reader-mono);
+  font-size: 12px;
+  gap: 8px;
+  justify-self: start;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.system-status__dot {
+  background: var(--reader-graphite);
+  border-radius: 999px;
+  flex: 0 0 auto;
+  height: 8px;
+  width: 8px;
+}
+
+.system-status__label {
+  color: var(--reader-text);
+  white-space: nowrap;
+}
+
+.system-status__detail {
+  color: var(--reader-text-faint);
+  min-width: 0;
+}
+
+.system-status--live .system-status__dot {
+  background: var(--reader-sage);
+  box-shadow: 0 0 0 4px var(--reader-halo-sage);
+}
+
+.system-status--quiet .system-status__dot {
+  background: var(--reader-amber);
+  box-shadow: 0 0 0 4px var(--reader-halo-amber);
+}
+
+.system-status--offline .system-status__dot {
+  background: var(--reader-coral);
 }
 
 .reader-feed {
@@ -389,5 +445,13 @@
 @media (max-width: 900px) {
   .reader-feed {
     min-height: 260px;
+  }
+}
+
+@media (max-width: 520px) {
+  .system-status {
+    align-items: baseline;
+    flex-wrap: wrap;
+    row-gap: 5px;
   }
 }

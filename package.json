@@ -5,7 +5,9 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "dev:alfred": "node scripts/dev-alfred.mjs",
     "lint": "turbo run lint",
+    "smoke:cloud": "node scripts/cloud-smoke.mjs",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "agent:launch": "node scripts/launch-parallel-agents.mjs",
@@ -13,14 +15,16 @@
   },
   "devDependencies": {
     "drizzle-kit": "latest",
+    "esbuild": "^0.28.0",
+    "tsx": "latest",
     "turbo": "latest",
     "typescript": "latest",
-    "vitest": "latest",
-    "tsx": "latest"
+    "vitest": "latest"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "better-sqlite3"
+      "better-sqlite3",
+      "esbuild"
     ]
   }
 }

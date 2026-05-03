@@ -57,8 +57,12 @@ export class ApiError extends Error {
     super(message);
     this.name = "ApiError";
     this.status = status;
-    this.code = status === 401 ? "unauthorized" : "request_failed";
+    this.code = status === 401 || status === 403 ? "unauthorized" : "request_failed";
   }
+}
+
+export function isAuthError(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "unauthorized";
 }
 
 export function createApiClient(fetchImpl?: typeof fetch): ApiClient {

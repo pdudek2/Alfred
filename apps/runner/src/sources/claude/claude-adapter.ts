@@ -63,7 +63,7 @@ export async function collectClaudeEvents(config: ClaudeAdapterConfig): Promise<
 
     if (context.startedAt) {
       const startedAtMs = Date.parse(context.startedAt);
-      if (claudeSinceMs === undefined || startedAtMs >= claudeSinceMs) {
+      if (claudeSinceMs === undefined || startedAtMs > claudeSinceMs) {
         events.push(
           parseEvent({
             config,
@@ -139,7 +139,7 @@ function claudeRecordToEvents(
   const occurredAt = stringValue(record.timestamp);
   const occurredAtMs = occurredAt === undefined ? Number.NaN : Date.parse(occurredAt);
   if (!type || !occurredAt || Number.isNaN(occurredAtMs)) return [];
-  if (claudeSinceMs !== undefined && occurredAtMs < claudeSinceMs) return [];
+  if (claudeSinceMs !== undefined && occurredAtMs <= claudeSinceMs) return [];
 
   const recordEventId = sourceEventIdForRecord(record, type, occurredAt, index);
   if (type === "assistant") {

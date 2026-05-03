@@ -9,11 +9,13 @@ import {
   type RunCardVM,
   type TriageTab,
 } from "../lib/run-view-model";
+import type { SystemStatusVM } from "../lib/system-status-view-model";
 import { useKeyboardShortcut } from "../lib/use-keyboard-shortcut";
 import { Briefing } from "./briefing";
 import { FeedSection } from "./feed-section";
 import { RunRow } from "./run-row";
 import { SoftFilterBar } from "./soft-filter-bar";
+import { SystemStatus } from "./system-status";
 
 type ReaderProps = {
   runs: RunListItem[];
@@ -22,9 +24,20 @@ type ReaderProps = {
   onSelectRun: (runId: string | null) => void;
   error?: unknown;
   loading?: boolean;
+  notice?: string | null;
+  systemStatus?: SystemStatusVM | null;
 };
 
-export function Reader({ runs, now, selectedRunId, onSelectRun, error, loading = false }: ReaderProps) {
+export function Reader({
+  runs,
+  now,
+  selectedRunId,
+  onSelectRun,
+  error,
+  loading = false,
+  notice = null,
+  systemStatus,
+}: ReaderProps) {
   const [tab, setTab] = useState<TriageTab>("all");
   const [query, setQuery] = useState("");
   const readerRef = useRef<HTMLElement>(null);
@@ -87,8 +100,14 @@ export function Reader({ runs, now, selectedRunId, onSelectRun, error, loading =
         {loadingEmptyRuns ? null : <Briefing vm={briefing} onHighlight={(runId) => onSelectRun(runId)} />}
 
         <div className="reader-filter-shell">
+          {systemStatus ? <SystemStatus vm={systemStatus} /> : null}
           <SoftFilterBar counts={counts} onQueryChange={setQuery} onTabChange={setTab} query={query} tab={tab} />
         </div>
+        {notice ? (
+          <p className="reader-notice" role="status">
+            {notice}
+          </p>
+        ) : null}
       </section>
 
       <section
