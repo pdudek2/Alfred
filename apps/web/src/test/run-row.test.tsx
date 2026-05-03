@@ -99,6 +99,21 @@ describe("RunRow", () => {
     expect(within(row).getByText(label)).toHaveClass("reader-run-row__state");
   });
 
+  it("does not describe stale active runs as open", () => {
+    const card = buildCard({
+      last_activity_at: "2026-04-28T07:00:00.000Z",
+      status: "waiting",
+      updated_at: "2026-04-28T10:01:00.000Z",
+    });
+
+    render(<RunRow card={card} subtitle="codex-cli" selected={false} onSelect={vi.fn()} />);
+
+    const row = screen.getByRole("button", { name: /Alfred.*review importer/i });
+
+    expect(within(row).getByText("quiet")).toHaveClass("reader-run-row__duration");
+    expect(within(row).queryByText("open")).not.toBeInTheDocument();
+  });
+
   it("labels cancelled runs explicitly", () => {
     const card = buildCard({ status: "cancelled" });
 

@@ -10,6 +10,7 @@ export type RunListItem = {
   title: string | null;
   started_at: string | null;
   completed_at: string | null;
+  last_activity_at?: string | null;
   updated_at: string;
   created_at: string;
 };

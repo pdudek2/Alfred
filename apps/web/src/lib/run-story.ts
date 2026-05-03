@@ -107,7 +107,7 @@ export function buildRunStoryVM(run: RunDetail, now: Date): RunStoryVM {
 function computeStats(run: RunDetail, now: Date): Stats {
   const startedAt = timestampMs(run.started_at);
   const completedAt = run.completed_at ? timestampMs(run.completed_at) : now.getTime();
-  const updatedAt = timestampMs(run.updated_at);
+  const updatedAt = timestampMs(run.last_activity_at || latestEventOccurredAt(run.events) || run.updated_at);
   const durationMs = startedAt > 0 ? Math.max(completedAt - startedAt, 0) : 0;
   const lastSeenAgoMs = updatedAt > 0 ? Math.max(now.getTime() - updatedAt, 0) : 0;
   const filePaths = new Set<string>();
@@ -159,6 +159,16 @@ function computeStats(run: RunDetail, now: Date): Stats {
     sourceLabel: humanizeSource(run.source_id),
     waitingFor,
   };
+}
+
+function latestEventOccurredAt(events: RunEventItem[]): string | null {
+  let latest: string | null = null;
+  for (const event of events) {
+    if (!latest || timestampMs(event.occurred_at) > timestampMs(latest)) {
+      latest = event.occurred_at;
+    }
+  }
+  return latest;
 }
 
 function compose(tokens: StoryToken[]): RunStoryVM {

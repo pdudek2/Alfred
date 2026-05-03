@@ -179,7 +179,7 @@ function filterByScope(runs: RunListItem[], scope: Scope, now: Date): RunListIte
       : now.getTime() - (scope === "7d" ? 7 * ONE_DAY_MS : 30 * ONE_DAY_MS);
 
   return runs.filter((run) => {
-    const reference = new Date(run.updated_at).getTime();
+    const reference = new Date(run.last_activity_at || run.updated_at).getTime();
     return reference >= cutoff;
   });
 }

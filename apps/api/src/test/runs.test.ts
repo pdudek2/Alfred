@@ -21,6 +21,7 @@ const baseRun: RunListItem = {
   title: null,
   started_at: "2026-04-28T10:00:00.000Z",
   completed_at: null,
+  last_activity_at: "2026-04-28T10:00:01.000Z",
   updated_at: "2026-04-28T10:01:00.000Z",
   created_at: "2026-04-28T10:00:00.000Z",
 };
