@@ -43,7 +43,7 @@ export function Reader({
   const readerRef = useRef<HTMLElement>(null);
   const feedRef = useRef<HTMLElement>(null);
 
-  const briefing = useMemo(() => buildBriefingVM(runs, now, error), [error, now, runs]);
+  const briefing = useMemo(() => buildBriefingVM(runs, now, error, systemStatus), [error, now, runs, systemStatus]);
   const counts = useMemo(
     () => ({
       all: tabCount(runs, "all", now),

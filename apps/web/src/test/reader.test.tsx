@@ -96,8 +96,9 @@ describe("Reader", () => {
 
     const feed = screen.getByRole("region", { name: "Run feed" });
 
-    expect(within(feed).getByRole("heading", { name: "Now" })).toBeInTheDocument();
-    expect(within(feed).getByRole("heading", { name: "Today" })).toBeInTheDocument();
+    expect(within(feed).getByRole("heading", { name: "Needs you" })).toBeInTheDocument();
+    expect(within(feed).getByRole("heading", { name: "Running" })).toBeInTheDocument();
+    expect(within(feed).getByRole("heading", { name: "Done" })).toBeInTheDocument();
     expect(within(feed).getByRole("button", { name: /Billing.*Approve billing/i })).toHaveAttribute(
       "aria-current",
       "true",

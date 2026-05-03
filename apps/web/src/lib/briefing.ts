@@ -1,5 +1,6 @@
 import type { RunListItem } from "./api-client";
 import { buildRunCardVM, type RunCardVM } from "./run-view-model";
+import type { SystemStatusVM } from "./system-status-view-model";
 
 export type BriefingVoice = "morning" | "afternoon" | "evening" | "error" | "empty";
 
@@ -12,7 +13,7 @@ export type BriefingVM = {
   pieces: BriefingPiece[];
 };
 
-export function buildBriefingVM(runs: RunListItem[], now: Date, error?: unknown): BriefingVM {
+export function buildBriefingVM(runs: RunListItem[], now: Date, error?: unknown, systemStatus?: SystemStatusVM | null): BriefingVM {
   if (error) {
     return text("error", "I can't reach the runner right now. Mind checking it?");
   }
@@ -23,6 +24,19 @@ export function buildBriefingVM(runs: RunListItem[], now: Date, error?: unknown)
 
   const cards = runs.map((run) => buildRunCardVM(run, now)).sort(compareCardUpdatedDesc);
   const voice = greetingVoice(now);
+  const attentionCards = cards.filter((card) => card.status === "waiting" || card.status === "failed");
+
+  if (attentionCards.length > 0 && systemStatus && systemStatus.tone !== "live") {
+    return compose(voice, [
+      txt("Codex has "),
+      txt(`${attentionCards.length} ${attentionCards.length === 1 ? "item" : "items"}`),
+      txt(" needing attention. "),
+      txt(systemStatus.label),
+      txt("; "),
+      txt(lowerFirst(systemStatus.detail)),
+      txt("."),
+    ]);
+  }
 
   const waiting = cards.find((card) => card.status === "waiting");
   if (waiting) {
@@ -100,6 +114,11 @@ function compose(voice: BriefingVoice, pieces: BriefingPiece[]): BriefingVM {
 
 function text(voice: BriefingVoice, value: string): BriefingVM {
   return { voice, pieces: [txt(value)] };
+}
+
+function lowerFirst(value: string): string {
+  if (!value) return value;
+  return value.charAt(0).toLowerCase() + value.slice(1);
 }
 
 type TodayReferenceMode = "activity" | "closed";

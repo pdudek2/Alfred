@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { RunListItem } from "../lib/api-client";
 import { buildBriefingVM } from "../lib/briefing";
+import type { SystemStatusVM } from "../lib/system-status-view-model";
 
 const baseRun: RunListItem = {
   id: "r1",
@@ -20,6 +21,11 @@ const baseRun: RunListItem = {
 };
 
 const now = new Date(2026, 3, 29, 11);
+const quietSystemStatus: SystemStatusVM = {
+  tone: "quiet",
+  label: "Runner quiet",
+  detail: "Last ingest 33m ago",
+};
 
 function localIso(
   year: number,
@@ -115,6 +121,32 @@ describe("buildBriefingVM", () => {
 
     expect(plainText(vm)).toContain("Codex needs you for approve cleanup");
     expect(plainText(vm)).toContain("approve cleanup");
+  });
+
+  it("does not imply fresh activity when attention exists but the runner is quiet", () => {
+    const waiting = {
+      ...baseRun,
+      id: "r-waiting-quiet-runner",
+      status: "waiting",
+      title: null,
+      project_name: "Alfred",
+      completed_at: null,
+      updated_at: localIso(2026, 3, 29, 10, 30),
+    };
+    const failed = {
+      ...baseRun,
+      id: "r-failed-quiet-runner",
+      status: "failed",
+      title: "interrupted session",
+      project_name: "patryk",
+      updated_at: localIso(2026, 3, 29, 10, 50),
+    };
+
+    const vm = buildBriefingVM([waiting, failed], now, undefined, quietSystemStatus);
+
+    expect(plainText(vm)).toBe("Codex has 2 items needing attention. Runner quiet; last ingest 33m ago.");
+    expect(plainText(vm)).not.toContain("Last activity");
+    expect(plainText(vm)).not.toContain("needs you on Alfred");
   });
 
   it("does not repeat generic waiting copy in the briefing", () => {

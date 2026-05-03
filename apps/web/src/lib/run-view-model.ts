@@ -57,10 +57,10 @@ export type RunListVM = {
   groups: RunListGroupVM[];
 };
 
-export type TimeGroupedFeedSectionLabel = "Now" | "Today" | "Earlier this week" | "Older";
+export type FeedSectionLabel = "Needs you" | "Running" | "Quiet archive" | "Done" | "Other";
 
 export type TimeGroupedFeedVM = {
-  sections: Array<{ label: TimeGroupedFeedSectionLabel; runs: RunCardVM[] }>;
+  sections: Array<{ label: FeedSectionLabel; runs: RunCardVM[] }>;
 };
 
 export type RunOverviewVM = {
@@ -145,7 +145,7 @@ export const TRIAGE_TABS: Array<{ id: TriageTab; label: string }> = [
 ];
 
 const ACTIVITY_ORDER: ActivityKind[] = ["failure", "waiting", "tool", "run", "other"];
-const TIME_GROUP_ORDER: TimeGroupedFeedSectionLabel[] = ["Now", "Today", "Earlier this week", "Older"];
+const FEED_SECTION_ORDER: FeedSectionLabel[] = ["Needs you", "Running", "Quiet archive", "Done", "Other"];
 
 const ACTIVITY_LABELS: Record<ActivityKind, string> = {
   failure: "Failures",
@@ -346,52 +346,32 @@ export function buildRunListVM(runs: RunListItem[], options: RunListOptions): Ru
 
 export function buildTimeGroupedFeedVM(runs: RunListItem[], now = new Date()): TimeGroupedFeedVM {
   const cards = sortRuns(runs).map((run) => buildRunCardVM(run, now));
-  const buckets: Record<TimeGroupedFeedSectionLabel, RunCardVM[]> = {
-    Now: [],
-    Today: [],
-    "Earlier this week": [],
-    Older: [],
+  const buckets: Record<FeedSectionLabel, RunCardVM[]> = {
+    "Needs you": [],
+    Running: [],
+    "Quiet archive": [],
+    Done: [],
+    Other: [],
   };
-  // Feed recency follows local calendar boundaries: today first, then Monday-start current week.
-  const startOfToday = startOfLocalDay(now);
-  const startOfWeek = startOfLocalWeek(now);
 
   for (const card of cards) {
-    if (card.isLive) {
-      buckets.Now.push(card);
-      continue;
-    }
-
-    const reference = timestampMs(card.updatedAt);
-
-    if (reference >= startOfToday.getTime()) {
-      buckets.Today.push(card);
-    } else if (reference >= startOfWeek.getTime()) {
-      buckets["Earlier this week"].push(card);
-    } else {
-      buckets.Older.push(card);
-    }
+    buckets[feedSectionForCard(card)].push(card);
   }
 
   return {
-    sections: TIME_GROUP_ORDER.filter((label) => buckets[label].length > 0).map((label) => ({
+    sections: FEED_SECTION_ORDER.filter((label) => buckets[label].length > 0).map((label) => ({
       label,
       runs: buckets[label],
     })),
   };
 }
 
-function startOfLocalDay(value: Date): Date {
-  const start = new Date(value);
-  start.setHours(0, 0, 0, 0);
-  return start;
-}
-
-function startOfLocalWeek(value: Date): Date {
-  const start = startOfLocalDay(value);
-  const daysSinceMonday = (start.getDay() + 6) % 7;
-  start.setDate(start.getDate() - daysSinceMonday);
-  return start;
+function feedSectionForCard(card: RunCardVM): FeedSectionLabel {
+  if (card.status === "waiting" || card.status === "failed") return "Needs you";
+  if (card.status === "running") return "Running";
+  if (card.status === "stale") return "Quiet archive";
+  if (card.status === "completed") return "Done";
+  return "Other";
 }
 
 export function buildRunFactsVM(run: RunListItem, events: RunEventItem[]): RunFactsVM {

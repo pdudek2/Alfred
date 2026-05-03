@@ -7,43 +7,43 @@ import { FeedSection } from "../components/feed-section";
 describe("FeedSection", () => {
   afterEach(() => cleanup());
 
-  it("renders the label, active count, and children for Now", () => {
+  it("renders the label, active count, and children for Running", () => {
     render(
-      <FeedSection label="Now" count={2}>
+      <FeedSection label="Running" count={2}>
         <article>Live run</article>
       </FeedSection>,
     );
 
-    const section = screen.getByRole("region", { name: "Now" });
+    const section = screen.getByRole("region", { name: "Running" });
 
-    expect(within(section).getByRole("heading", { name: "Now" })).toHaveClass("reader-feed-section__label");
+    expect(within(section).getByRole("heading", { name: "Running" })).toHaveClass("reader-feed-section__label");
     expect(within(section).getByText("2 active")).toHaveClass("reader-feed-section__total");
     expect(within(section).getByText("Live run")).toBeInTheDocument();
   });
 
-  it("uses closed count text for Today", () => {
+  it("uses item count text for Needs you because the section can include waiting and failed runs", () => {
     render(
-      <FeedSection label="Today" count={5}>
-        <article>Closed run</article>
+      <FeedSection label="Needs you" count={5}>
+        <article>Waiting run</article>
       </FeedSection>,
     );
 
-    const section = screen.getByRole("region", { name: "Today" });
+    const section = screen.getByRole("region", { name: "Needs you" });
 
-    expect(within(section).getByText("5 closed")).toBeInTheDocument();
+    expect(within(section).getByText("5 items")).toBeInTheDocument();
   });
 
   it("uses a stable heading id and accessible section name for multi-word labels", () => {
     render(
-      <FeedSection label="Earlier this week" count={3}>
-        <article>Recent run</article>
+      <FeedSection label="Quiet archive" count={3}>
+        <article>Quiet run</article>
       </FeedSection>,
     );
 
-    const section = screen.getByRole("region", { name: "Earlier this week" });
-    const heading = within(section).getByRole("heading", { name: "Earlier this week" });
+    const section = screen.getByRole("region", { name: "Quiet archive" });
+    const heading = within(section).getByRole("heading", { name: "Quiet archive" });
 
-    expect(heading).toHaveAttribute("id", "reader-feed-section-earlier-this-week");
-    expect(section).toHaveAttribute("aria-labelledby", "reader-feed-section-earlier-this-week");
+    expect(heading).toHaveAttribute("id", "reader-feed-section-quiet-archive");
+    expect(section).toHaveAttribute("aria-labelledby", "reader-feed-section-quiet-archive");
   });
 });
