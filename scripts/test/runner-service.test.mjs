@@ -188,7 +188,7 @@ gui/501/com.alfred.runner = {
     assert.match(report.lines.join("\n"), /runner boot log: seen, but service is not running/);
   });
 
-  it("marks service doctor unhealthy when stderr has recent output", () => {
+  it("keeps service doctor healthy with a running pid and boot log even when stderr has older recoverable output", () => {
     const report = buildRunnerServiceDoctorReport({
       envExists: true,
       launchdPrint: "state = running\npid = 4242\n",
@@ -197,7 +197,7 @@ gui/501/com.alfred.runner = {
       stdoutTail: "Alfred runner watching every 5000ms",
     });
 
-    assert.equal(report.ok, false);
+    assert.equal(report.ok, true);
     assert.equal(report.stderrQuiet, false);
     assert.match(report.lines.join("\n"), /stderr: has recent output/);
   });

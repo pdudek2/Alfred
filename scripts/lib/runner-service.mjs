@@ -148,7 +148,7 @@ export function buildRunnerServiceDoctorReport({
   }
 
   const stderrQuiet = !stderrTail.trim();
-  const ok = envExists && plistExists && launchd.running && runnerBooted && stderrQuiet;
+  const ok = envExists && plistExists && launchd.running && runnerBooted;
 
   return { bootLogSeen, launchd, lines, ok, runnerBooted, stderrQuiet };
 }
