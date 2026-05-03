@@ -17,10 +17,10 @@ export function defaultPaths(repoRoot) {
   };
 }
 
-export function buildRunnerProgramArgs({ nodeBin, tsxBin, repoRoot }) {
+export function buildRunnerProgramArgs({ nodeBin, tsxCliPath, repoRoot }) {
   return [
     nodeBin,
-    tsxBin,
+    tsxCliPath,
     path.join(repoRoot, "apps", "runner", "src", "index.ts"),
   ];
 }

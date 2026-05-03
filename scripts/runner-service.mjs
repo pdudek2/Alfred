@@ -63,25 +63,39 @@ async function run() {
   const env = buildRunnerEnv({ repoRoot, fileEnv });
   const args = buildRunnerProgramArgs({
     nodeBin: process.execPath,
-    tsxBin: path.join(repoRoot, "node_modules", ".bin", "tsx"),
+    tsxCliPath: path.join(repoRoot, "node_modules", "tsx", "dist", "cli.mjs"),
     repoRoot,
   });
 
-  const child = spawn(args[0], args.slice(1), {
-    cwd: repoRoot,
-    env,
-    stdio: "inherit",
-  });
-
-  for (const signal of ["SIGINT", "SIGTERM"]) {
-    process.on(signal, () => {
-      child.kill(signal);
+  await new Promise((resolve, reject) => {
+    const child = spawn(args[0], args.slice(1), {
+      cwd: repoRoot,
+      env,
+      stdio: "inherit",
     });
-  }
 
-  child.on("exit", (code, signal) => {
-    if (signal) process.kill(process.pid, signal);
-    process.exitCode = code ?? 1;
+    const signalHandlers = new Map();
+
+    for (const signal of ["SIGINT", "SIGTERM"]) {
+      const handler = () => child.kill(signal);
+      signalHandlers.set(signal, handler);
+      process.on(signal, handler);
+    }
+
+    child.on("error", reject);
+    child.on("exit", (code, signal) => {
+      for (const [signalName, handler] of signalHandlers) {
+        process.off(signalName, handler);
+      }
+
+      if (signal) {
+        process.kill(process.pid, signal);
+        return;
+      }
+
+      process.exitCode = code ?? 1;
+      resolve();
+    });
   });
 }
 

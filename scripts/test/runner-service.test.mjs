@@ -43,12 +43,12 @@ describe("runner service helpers", () => {
     assert.deepEqual(
       buildRunnerProgramArgs({
         nodeBin: "/opt/homebrew/bin/node",
-        tsxBin: "/repo/node_modules/.bin/tsx",
+        tsxCliPath: "/repo/node_modules/tsx/dist/cli.mjs",
         repoRoot: "/repo",
       }),
       [
         "/opt/homebrew/bin/node",
-        "/repo/node_modules/.bin/tsx",
+        "/repo/node_modules/tsx/dist/cli.mjs",
         "/repo/apps/runner/src/index.ts",
       ],
     );
