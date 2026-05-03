@@ -41,6 +41,7 @@ const run: RunListItem = {
   source_id: "codex-cli",
   source_run_id: "codex-run-1",
   status: "running",
+  lifecycle_status: "running",
   title: null,
   started_at: "2026-04-28T10:00:00.000Z",
   completed_at: null,

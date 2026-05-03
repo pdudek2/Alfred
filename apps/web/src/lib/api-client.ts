@@ -7,6 +7,7 @@ export type RunListItem = {
   source_id: string;
   source_run_id: string;
   status: string;
+  lifecycle_status?: string;
   title: string | null;
   started_at: string | null;
   completed_at: string | null;

@@ -558,6 +558,11 @@ function statusGroupOrder(status: string): number {
 }
 
 function effectiveStatus(run: RunListItem, now = new Date()): string {
+  const lifecycleStatus = normalizeStatus(run.lifecycle_status ?? "");
+  if (lifecycleStatus !== "unknown") {
+    return lifecycleStatus;
+  }
+
   const status = normalizeStatus(run.status);
   if ((status === "unknown" || status === "other") && run.completed_at) {
     return "completed";
