@@ -20,7 +20,8 @@
     "lint": "turbo run lint",
     "smoke:cloud": "node scripts/cloud-smoke.mjs",
     "smoke:cloud:runner": "ALFRED_CLOUD_SMOKE_MODE=runner-auth node scripts/cloud-smoke.mjs",
-    "test": "turbo run test",
+    "test": "node --test scripts/test/*.test.mjs && turbo run test",
+    "test:scripts": "node --test scripts/test/*.test.mjs",
     "typecheck": "turbo run typecheck",
     "agent:launch": "node scripts/launch-parallel-agents.mjs",
     "agent:monitor": "node scripts/monitor-parallel-agents.mjs"

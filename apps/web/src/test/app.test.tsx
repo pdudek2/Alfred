@@ -173,7 +173,9 @@ describe("App (new shell)", () => {
     render(<App />);
 
     expect(await screen.findByRole("button", { name: /All/i })).toBeInTheDocument();
-    expect(await screen.findByText("Runner unknown")).toBeInTheDocument();
+    expect(await screen.findByText("Runner status unavailable")).toBeInTheDocument();
+    expect(screen.getByText("I can't check freshness right now")).toBeInTheDocument();
+    expect(screen.queryByText("No heartbeat yet")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /sign in/i })).not.toBeInTheDocument();
   });
 

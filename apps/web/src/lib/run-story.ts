@@ -19,6 +19,7 @@ type StoryToken =
 type Stats = {
   commandCount: number;
   durationMs: number;
+  failureCount: number;
   failureReason: string | null;
   fileCount: number;
   lastSeenAgoMs: number;
@@ -50,12 +51,14 @@ export function buildRunStoryVM(run: RunDetail, now: Date): RunStoryVM {
   }
 
   if (status === "completed") {
+    const outcomeText =
+      stats.failureCount > 0 ? `with ${stats.failureCount} ${interruptionNoun(stats.failureCount)}.` : "clean.";
     const tokens: StoryToken[] = [
       txt(`${stats.sourceLabel} finished ${stats.projectLabel} - `),
       durationToken(stats.durationMs),
       txt(`, `),
       countToken(stats.fileCount, fileNoun(stats.fileCount)),
-      txt(", clean."),
+      txt(`, ${outcomeText}`),
     ];
 
     if (stats.longestCommand) {
@@ -112,6 +115,7 @@ function computeStats(run: RunDetail, now: Date): Stats {
   const lastSeenAgoMs = updatedAt > 0 ? Math.max(now.getTime() - updatedAt, 0) : 0;
   const filePaths = new Set<string>();
   let commandCount = 0;
+  let failureCount = 0;
   let failureReason: { occurredAt: number; value: string } | null = null;
   let longestCommand: Stats["longestCommand"] = null;
   let waitingFor: string | null = null;
@@ -134,6 +138,7 @@ function computeStats(run: RunDetail, now: Date): Stats {
     }
 
     if (isFailureEvent(event)) {
+      failureCount += 1;
       const reason = readFirstString(event.payload, ["error", "message", "reason"]);
       if (reason) {
         const occurredAt = timestampMs(event.occurred_at);
@@ -151,6 +156,7 @@ function computeStats(run: RunDetail, now: Date): Stats {
   return {
     commandCount,
     durationMs,
+    failureCount,
     failureReason: failureReason?.value ?? null,
     fileCount: filePaths.size,
     lastSeenAgoMs,
@@ -221,6 +227,10 @@ function commandNoun(count: number): string {
 
 function fileNoun(count: number): string {
   return count === 1 ? "file" : "files";
+}
+
+function interruptionNoun(count: number): string {
+  return count === 1 ? "interruption" : "interruptions";
 }
 
 function formatMmSs(ms: number): string {

@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { AppShell, type AppShellMode } from "./components/app-shell";
 import { RunReader } from "./components/run-reader";
 import { createApiClient, isAuthError, type RunDetail, type RunListItem } from "./lib/api-client";
-import { getSystemStatus, type SystemStatus } from "./lib/system-api-client";
-import { buildSystemStatusVM } from "./lib/system-status-view-model";
+import { getSystemStatus } from "./lib/system-api-client";
+import { buildSystemStatusVM, type SystemStatusSnapshot } from "./lib/system-status-view-model";
 import { useKeyboardShortcut } from "./lib/use-keyboard-shortcut";
 
 const api = createApiClient();
@@ -19,7 +19,7 @@ export function App() {
   const [authRequired, setAuthRequired] = useState(false);
   const [runLoadNotice, setRunLoadNotice] = useState<string | null>(null);
   const [readerNow, setReaderNow] = useState(() => new Date());
-  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
+  const [systemStatus, setSystemStatus] = useState<SystemStatusSnapshot>(null);
   const [mode, setMode] = useState<AppShellMode>(() =>
     typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "observatory"
       ? "observatory"
@@ -102,7 +102,7 @@ export function App() {
     try {
       setSystemStatus(await getSystemStatus());
     } catch {
-      setSystemStatus(null);
+      setSystemStatus({ kind: "unavailable" });
     }
   }
 

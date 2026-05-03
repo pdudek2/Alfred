@@ -1,14 +1,24 @@
 import type { SystemStatus } from "./system-api-client";
 
+export type SystemStatusSnapshot = SystemStatus | null | { kind: "unavailable" };
+
 export type SystemStatusVM = {
   tone: "live" | "quiet" | "offline";
   label: string;
   detail: string;
 };
 
-export function buildSystemStatusVM(status: SystemStatus | null): SystemStatusVM {
+export function buildSystemStatusVM(status: SystemStatusSnapshot): SystemStatusVM {
   if (!status) {
     return { tone: "offline", label: "Runner unknown", detail: "No heartbeat yet" };
+  }
+
+  if ("kind" in status) {
+    return {
+      tone: "offline",
+      label: "Runner status unavailable",
+      detail: "I can't check freshness right now",
+    };
   }
 
   const state = status.runner.state;
