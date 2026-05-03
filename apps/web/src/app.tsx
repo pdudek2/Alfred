@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell, type AppShellMode } from "./components/app-shell";
 import { RunReader } from "./components/run-reader";
@@ -13,6 +13,7 @@ const LIVE_REFRESH_MS = 15_000;
 export function App() {
   const [runs, setRuns] = useState<RunListItem[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const selectedRunIdRef = useRef<string | null>(null);
   const [selectedRun, setSelectedRun] = useState<RunDetail | null>(null);
   const [loadingRuns, setLoadingRuns] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +37,11 @@ export function App() {
 
     const query = next.toString();
     window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+    commitSelectedRunId(runId);
+  }
+
+  function commitSelectedRunId(runId: string | null) {
+    selectedRunIdRef.current = runId;
     setSelectedRunId(runId);
   }
 
@@ -82,10 +88,11 @@ export function App() {
       setRuns(items);
       setReaderNow(syncedAt);
 
+      const currentSelectedRunId = selectedRunIdRef.current;
       const nextSelectedRunId =
-        selectedRunId && items.some((run) => run.id === selectedRunId) ? selectedRunId : null;
+        currentSelectedRunId && items.some((run) => run.id === currentSelectedRunId) ? currentSelectedRunId : null;
 
-      setSelectedRunId(nextSelectedRunId);
+      commitSelectedRunId(nextSelectedRunId);
       if (refreshDetail && nextSelectedRunId) {
         await loadSelectedRun(nextSelectedRunId, false);
       } else if (!nextSelectedRunId) {
@@ -149,7 +156,7 @@ export function App() {
   useEffect(() => {
     const runIdFromUrl = new URLSearchParams(window.location.search).get("run");
     if (runIdFromUrl && runIdFromUrl !== selectedRunId) {
-      setSelectedRunId(runIdFromUrl);
+      commitSelectedRunId(runIdFromUrl);
     }
   }, [selectedRunId]);
 
@@ -197,7 +204,7 @@ export function App() {
       setRunLoadNotice(null);
       setRuns([]);
       setSelectedRun(null);
-      setSelectedRunId(null);
+      commitSelectedRunId(null);
       const next = new URLSearchParams(window.location.search);
       if (next.has("run")) {
         next.delete("run");
