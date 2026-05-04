@@ -12,6 +12,7 @@ const TABS: Array<{ id: TriageTab; label: string }> = [
   { id: "all", label: "All" },
   { id: "live", label: "Live" },
   { id: "needs", label: "Needs you" },
+  { id: "problems", label: "Problems" },
   { id: "done", label: "Done" },
 ];
 

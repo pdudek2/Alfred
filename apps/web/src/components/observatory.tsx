@@ -208,6 +208,7 @@ function radiusFor(status: string): number {
   if (status === "running") return 3.2;
   if (status === "waiting") return 3.6;
   if (status === "stale") return 2;
+  if (status === "cancelled") return 2.5;
   return 2.5;
 }
 
@@ -216,6 +217,7 @@ function stateClass(status: string): string {
   if (status === "completed") return "completed";
   if (status === "waiting") return "waiting";
   if (status === "failed") return "failed";
+  if (status === "cancelled") return "cancelled";
   return "stale";
 }
 
@@ -235,7 +237,7 @@ function compareNodeLayer(
 function statusLayer(status: string): number {
   if (status === "running") return 5;
   if (status === "waiting") return 4;
-  if (status === "failed") return 3;
+  if (status === "failed" || status === "cancelled") return 3;
   if (status === "completed") return 2;
   return 1;
 }

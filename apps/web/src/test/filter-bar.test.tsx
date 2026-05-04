@@ -11,6 +11,7 @@ const counts: Record<TriageTab, number> = {
   all: 12,
   live: 3,
   needs: 2,
+  problems: 1,
   done: 7,
 };
 
@@ -19,12 +20,13 @@ describe("SoftFilterBar", () => {
     cleanup();
   });
 
-  it("renders all four pills with counts", () => {
+  it("renders all five pills with counts", () => {
     render(<SoftFilterBar counts={counts} onQueryChange={vi.fn()} onTabChange={vi.fn()} query="" tab="all" />);
 
     expect(screen.getByRole("button", { name: "All 12" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Live 3" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Needs you 2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Problems 1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Done 7" })).toBeInTheDocument();
   });
 

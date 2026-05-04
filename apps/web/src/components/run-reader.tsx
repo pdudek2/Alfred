@@ -23,9 +23,14 @@ const STATE_LABEL: Record<string, string> = {
   waiting: "needs you",
 };
 
+const RECENT_PHASE_LIMIT = 8;
+const OLDER_PHASE_PREVIEW_LIMIT = 8;
+
 export function RunReader({ detail, now, onClose }: RunReaderProps) {
   const [expandedHighlight, setExpandedHighlight] = useState<StoryHighlight | null>(null);
   const [rawEventsOpen, setRawEventsOpen] = useState(false);
+  const [olderPhasesOpen, setOlderPhasesOpen] = useState(false);
+  const [allOlderPhasesOpen, setAllOlderPhasesOpen] = useState(false);
   const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
@@ -33,6 +38,11 @@ export function RunReader({ detail, now, onClose }: RunReaderProps) {
   const story = useMemo(() => buildRunStoryVM(detail, now), [detail, now]);
   const phases = useMemo(() => buildRunPhases(detail.events), [detail.events]);
   const recentPhases = useMemo(() => [...phases].reverse(), [phases]);
+  const visibleRecentPhases = recentPhases.slice(0, RECENT_PHASE_LIMIT);
+  const olderPhases = recentPhases.slice(RECENT_PHASE_LIMIT);
+  const visibleOlderPhases = olderPhasesOpen
+    ? olderPhases.slice(0, allOlderPhasesOpen ? olderPhases.length : OLDER_PHASE_PREVIEW_LIMIT)
+    : [];
   const highlightedEvent = expandedHighlight?.payload.eventId
     ? detail.events.find((event) => event.id === expandedHighlight.payload.eventId)
     : null;
@@ -93,18 +103,35 @@ export function RunReader({ detail, now, onClose }: RunReaderProps) {
           <span>{phases.length} phases · {detail.events.length} events</span>
         </header>
         <ol className="run-reader-phase-list">
-          {recentPhases.slice(0, 8).map((phase) => (
+          {visibleRecentPhases.map((phase) => (
             <RunReaderPhase phase={phase} key={phase.id} />
           ))}
         </ol>
-        {recentPhases.length > 8 ? (
-          <details className="run-reader-overflow">
-            <summary>Show {recentPhases.length - 8} older phases</summary>
+        {olderPhases.length > 0 ? (
+          <details
+            className="run-reader-overflow"
+            onToggle={(event) => {
+              setOlderPhasesOpen(event.currentTarget.open);
+              if (!event.currentTarget.open) setAllOlderPhasesOpen(false);
+            }}
+          >
+            <summary onClick={() => setOlderPhasesOpen(true)}>
+              Show {olderPhases.length} older phases
+            </summary>
             <ol className="run-reader-phase-list">
-              {recentPhases.slice(8).map((phase) => (
+              {visibleOlderPhases.map((phase) => (
                 <RunReaderPhase phase={phase} key={phase.id} />
               ))}
             </ol>
+            {!allOlderPhasesOpen && olderPhases.length > OLDER_PHASE_PREVIEW_LIMIT ? (
+              <button
+                type="button"
+                className="run-reader-show-all"
+                onClick={() => setAllOlderPhasesOpen(true)}
+              >
+                Show all {olderPhases.length} older phases
+              </button>
+            ) : null}
           </details>
         ) : null}
       </section>

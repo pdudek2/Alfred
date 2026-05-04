@@ -260,6 +260,22 @@
   font-size: 11px;
 }
 
+.run-reader-show-all {
+  background: transparent;
+  border: 0;
+  color: var(--reader-text-faint);
+  cursor: pointer;
+  font-family: var(--reader-mono);
+  font-size: 11px;
+  margin-top: 10px;
+  padding: 0;
+  text-align: left;
+}
+
+.run-reader-show-all:hover {
+  color: var(--reader-amber);
+}
+
 .run-reader-raw-list {
   display: flex;
   flex-direction: column;

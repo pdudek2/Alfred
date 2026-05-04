@@ -49,6 +49,7 @@ export function Reader({
       all: tabCount(runs, "all", now),
       live: tabCount(runs, "live", now),
       needs: tabCount(runs, "needs", now),
+      problems: tabCount(runs, "problems", now),
       done: tabCount(runs, "done", now),
     }),
     [now, runs],

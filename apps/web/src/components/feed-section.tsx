@@ -29,6 +29,7 @@ export function FeedSection({ label, count, children }: FeedSectionProps) {
 
 function countNounFor(label: FeedSectionLabel): string {
   if (label === "Needs you") return "items";
+  if (label === "Problems") return "items";
   if (label === "Running") return "active";
   if (label === "Quiet archive") return "quiet";
   if (label === "Done") return "done";

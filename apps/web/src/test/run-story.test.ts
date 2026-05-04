@@ -100,6 +100,49 @@ describe("buildRunStoryVM", () => {
     expect(vm.paragraph).not.toMatch(/old error/i);
   });
 
+  it("describes an interrupted failed run without saying stopped on interrupted", () => {
+    const detail = detailWith({
+      status: "failed",
+      started_at: "2026-04-28T10:00:00.000Z",
+      completed_at: "2026-04-28T10:08:00.000Z",
+      events: [
+        eventWith({
+          id: "event-interrupted",
+          occurred_at: "2026-04-28T10:08:00.000Z",
+          status: "failed",
+          type: "run.failed",
+          payload: { reason: "interrupted" },
+        }),
+      ],
+    });
+
+    const vm = buildRunStoryVM(detail, now);
+
+    expect(vm.paragraph).toMatch(/Codex was interrupted after 8 minutes/i);
+    expect(vm.paragraph).not.toMatch(/stopped on interrupted/i);
+  });
+
+  it("describes a cancelled run as cancelled", () => {
+    const detail = detailWith({
+      status: "cancelled",
+      started_at: "2026-04-28T10:00:00.000Z",
+      completed_at: "2026-04-28T10:04:00.000Z",
+      events: [
+        eventWith({
+          id: "event-cancelled",
+          occurred_at: "2026-04-28T10:04:00.000Z",
+          status: "cancelled",
+          type: "run.updated",
+          payload: { reason: "cancelled" },
+        }),
+      ],
+    });
+
+    const vm = buildRunStoryVM(detail, now);
+
+    expect(vm.paragraph).toMatch(/Codex was cancelled after 4 minutes/i);
+  });
+
   it("describes a waiting run", () => {
     const detail = detailWith({
       status: "waiting",
@@ -115,7 +158,32 @@ describe("buildRunStoryVM", () => {
 
     const vm = buildRunStoryVM(detail, now);
 
-    expect(vm.paragraph).toMatch(/waiting for your/i);
+    expect(vm.paragraph).toBe("Codex is waiting on you. Last activity 29 minutes ago.");
+    expect(vm.paragraph).not.toMatch(/files touched|so far/i);
+  });
+
+  it("does not describe a waiting run as working for the whole stale session age", () => {
+    const detail = detailWith({
+      status: "waiting",
+      started_at: "2026-04-23T00:00:00.000Z",
+      completed_at: null,
+      updated_at: "2026-04-28T10:29:30.000Z",
+      last_activity_at: "2026-04-28T10:29:30.000Z",
+      events: [
+        eventWith({
+          id: "event-waiting",
+          occurred_at: "2026-04-28T10:29:30.000Z",
+          status: "waiting",
+          type: "agent.waiting",
+          payload: { message: "waiting on you" },
+        }),
+      ],
+    });
+
+    const vm = buildRunStoryVM(detail, now);
+
+    expect(vm.paragraph).toBe("Codex is waiting on you. Last activity 30 seconds ago.");
+    expect(vm.paragraph).not.toMatch(/131 hours|5 days|files touched|so far/i);
   });
 
   it("describes a running run", () => {
@@ -130,8 +198,28 @@ describe("buildRunStoryVM", () => {
 
     const vm = buildRunStoryVM(detail, now);
 
-    expect(vm.paragraph).toMatch(/has been working/i);
+    expect(vm.paragraph).toMatch(/is active on/i);
     expect(vm.paragraph).toMatch(/Alfred/i);
+    expect(vm.paragraph).toMatch(/1 file path observed/i);
+    expect(vm.paragraph).toMatch(/Last activity/i);
+  });
+
+  it("does not report zero touched files when no file paths were observed", () => {
+    const detail = detailWith({
+      status: "running",
+      completed_at: null,
+      events: [
+        eventWith({
+          id: "event-command",
+          payload: { command: "pnpm test", duration_ms: 125_000, tool_name: "exec_command" },
+        }),
+      ],
+    });
+
+    const vm = buildRunStoryVM(detail, now);
+
+    expect(vm.paragraph).not.toMatch(/\b0 files touched\b/i);
+    expect(vm.paragraph).toMatch(/1 command observed/i);
   });
 
   it("describes a stale run", () => {
@@ -147,13 +235,25 @@ describe("buildRunStoryVM", () => {
     expect(vm.paragraph).toMatch(/stopped reporting/i);
   });
 
-  it("returns a fallback for empty events", () => {
+  it("returns a listening fallback for active empty-event runs", () => {
     const detail = detailWith({ events: [] });
 
     const vm = buildRunStoryVM(detail, now);
 
     expect(vm.paragraph).toMatch(/Alfred is still listening/i);
     expect(vm.highlights).toEqual([]);
+  });
+
+  it("does not describe terminal empty-event runs as still listening", () => {
+    expect(buildRunStoryVM(detailWith({ status: "completed", events: [] }), now).paragraph).toBe(
+      "This run closed, but no event stream was captured.",
+    );
+    expect(buildRunStoryVM(detailWith({ status: "failed", events: [] }), now).paragraph).toBe(
+      "This run stopped, but no event stream was captured.",
+    );
+    expect(buildRunStoryVM(detailWith({ status: "cancelled", events: [] }), now).paragraph).toBe(
+      "This run was cancelled, but no event stream was captured.",
+    );
   });
 
   it("provides highlight ranges that align with substrings", () => {

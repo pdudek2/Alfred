@@ -52,7 +52,21 @@ const doneRun: RunListItem = {
   created_at: "2026-04-28T09:00:00.000Z",
 };
 
-const runs = [doneRun, liveRun, needsRun];
+const failedRun: RunListItem = {
+  ...runFixture,
+  id: "run-failed",
+  project_name: "Deploy",
+  project_key: "DEPLOY",
+  source_run_id: "codex-failed",
+  status: "failed",
+  title: "Broken release",
+  started_at: "2026-04-28T10:00:00.000Z",
+  completed_at: "2026-04-28T10:10:00.000Z",
+  updated_at: "2026-04-28T10:10:00.000Z",
+  created_at: "2026-04-28T10:00:00.000Z",
+};
+
+const runs = [doneRun, liveRun, needsRun, failedRun];
 
 function ControlledReader({
   initialSelectedRunId = null,
@@ -89,21 +103,24 @@ describe("Reader", () => {
     render(<ControlledReader initialSelectedRunId="run-needs" />);
 
     expect(document.querySelector(".reader-briefing")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "All 3" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Live 2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All 4" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Live 1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Needs you 1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Problems 1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Done 1" })).toBeInTheDocument();
 
     const feed = screen.getByRole("region", { name: "Run feed" });
 
     expect(within(feed).getByRole("heading", { name: "Needs you" })).toBeInTheDocument();
     expect(within(feed).getByRole("heading", { name: "Running" })).toBeInTheDocument();
+    expect(within(feed).getByRole("heading", { name: "Problems" })).toBeInTheDocument();
     expect(within(feed).getByRole("heading", { name: "Done" })).toBeInTheDocument();
     expect(within(feed).getByRole("button", { name: /Billing.*Approve billing/i })).toHaveAttribute(
       "aria-current",
       "true",
     );
     expect(within(feed).getByRole("button", { name: /Alfred.*Live importer/i })).toBeInTheDocument();
+    expect(within(feed).getByRole("button", { name: /Deploy.*Broken release/i })).toBeInTheDocument();
     expect(within(feed).getByRole("button", { name: /Docs.*Publish notes/i })).toBeInTheDocument();
   });
 

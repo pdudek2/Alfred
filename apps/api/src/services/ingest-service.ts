@@ -151,8 +151,13 @@ function runTimestampsFor(event: IngestEvent) {
   const occurredAt = new Date(event.occurred_at);
   return {
     startedAt: event.type === "run.started" ? occurredAt : null,
-    completedAt: event.type === "run.completed" || event.type === "run.failed" ? occurredAt : null,
+    completedAt: isTerminalRunEvent(event) ? occurredAt : null,
   };
+}
+
+function isTerminalRunEvent(event: IngestEvent): boolean {
+  if (event.type === "run.completed" || event.type === "run.failed") return true;
+  return event.type.startsWith("run.") && event.status === "cancelled";
 }
 
 function createDrizzleIngestStore(db: DrizzleIngestDb): IngestStore {

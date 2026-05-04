@@ -26,28 +26,27 @@ type Stats = {
   longestCommand: { command: string; durationMs: number; eventId: string } | null;
   projectLabel: string;
   sourceLabel: string;
-  waitingFor: string | null;
 };
 
 const STALE_AFTER_MS = 2 * 60 * 60 * 1000;
 
 export function buildRunStoryVM(run: RunDetail, now: Date): RunStoryVM {
+  const status = normalizeStatus(run.status);
   if (run.events.length === 0) {
-    return text("Nothing to read yet - Alfred is still listening.");
+    return emptyStoryForStatus(status);
   }
 
-  const status = normalizeStatus(run.status);
   const stats = computeStats(run, now);
   const stale = (status === "running" || status === "waiting") && stats.lastSeenAgoMs > STALE_AFTER_MS;
 
   if (stale) {
-    return compose([
+    const tokens: StoryToken[] = [
       txt(`${stats.sourceLabel} stopped reporting `),
       durationToken(stats.lastSeenAgoMs),
-      txt(` ago. Touched `),
-      countToken(stats.fileCount, fileNoun(stats.fileCount)),
-      txt(" before that."),
-    ]);
+      txt(" ago."),
+    ];
+    appendObservedSentence(tokens, observedMetrics(stats), " before that");
+    return compose(tokens);
   }
 
   if (status === "completed") {
@@ -56,10 +55,12 @@ export function buildRunStoryVM(run: RunDetail, now: Date): RunStoryVM {
     const tokens: StoryToken[] = [
       txt(`${stats.sourceLabel} finished ${stats.projectLabel} - `),
       durationToken(stats.durationMs),
-      txt(`, `),
-      countToken(stats.fileCount, fileNoun(stats.fileCount)),
-      txt(`, ${outcomeText}`),
     ];
+    const fileMetric = filePathMetric(stats);
+    if (fileMetric.length > 0) {
+      tokens.push(txt(", "), ...fileMetric);
+    }
+    tokens.push(txt(`, ${outcomeText}`));
 
     if (stats.longestCommand) {
       tokens.push(
@@ -73,37 +74,51 @@ export function buildRunStoryVM(run: RunDetail, now: Date): RunStoryVM {
   }
 
   if (status === "failed") {
-    return compose([
-      txt(`${stats.sourceLabel} stopped on ${stats.failureReason || "an error"}. Touched `),
-      countToken(stats.fileCount, fileNoun(stats.fileCount)),
-      txt(" in "),
+    const tokens: StoryToken[] = [
+      txt(failureLead(stats)),
       durationToken(stats.durationMs),
-      txt(" before that."),
-    ]);
+      txt("."),
+    ];
+    appendObservedSentence(tokens, observedMetrics(stats), " before that");
+    return compose(tokens);
+  }
+
+  if (status === "cancelled") {
+    const tokens: StoryToken[] = [
+      txt(`${stats.sourceLabel} was cancelled after `),
+      durationToken(stats.durationMs),
+      txt("."),
+    ];
+    appendObservedSentence(tokens, observedMetrics(stats), " before that");
+    return compose(tokens);
   }
 
   if (status === "waiting") {
     return compose([
-      txt(`${stats.sourceLabel} is waiting for your ${stats.waitingFor || "approval"}. `),
-      countToken(stats.fileCount, fileNoun(stats.fileCount)),
-      txt(" touched in "),
-      durationToken(stats.durationMs),
-      txt(" so far."),
+      txt(`${stats.sourceLabel} is waiting on you. Last activity `),
+      durationToken(stats.lastSeenAgoMs),
+      txt(" ago."),
     ]);
   }
 
   if (status === "running") {
-    return compose([
-      txt(`${stats.sourceLabel} has been working on ${stats.projectLabel} for `),
-      durationToken(stats.durationMs),
-      txt(". "),
-      countToken(stats.fileCount, fileNoun(stats.fileCount)),
-      txt(" touched, "),
-      countToken(stats.commandCount, commandNoun(stats.commandCount)),
-      txt(" so far."),
-    ]);
+    const tokens: StoryToken[] = [
+      txt(`${stats.sourceLabel} is active on ${stats.projectLabel}. Last activity `),
+      durationToken(stats.lastSeenAgoMs),
+      txt(" ago."),
+    ];
+
+    appendObservedSentence(tokens, observedMetrics(stats));
+    return compose(tokens);
   }
 
+  return text("Nothing to read yet - Alfred is still listening.");
+}
+
+function emptyStoryForStatus(status: string): RunStoryVM {
+  if (status === "completed") return text("This run closed, but no event stream was captured.");
+  if (status === "failed") return text("This run stopped, but no event stream was captured.");
+  if (status === "cancelled") return text("This run was cancelled, but no event stream was captured.");
   return text("Nothing to read yet - Alfred is still listening.");
 }
 
@@ -118,7 +133,6 @@ function computeStats(run: RunDetail, now: Date): Stats {
   let failureCount = 0;
   let failureReason: { occurredAt: number; value: string } | null = null;
   let longestCommand: Stats["longestCommand"] = null;
-  let waitingFor: string | null = null;
 
   for (const event of run.events) {
     const filePath = readFirstString(event.payload, ["file_path", "filePath", "path"]);
@@ -147,10 +161,6 @@ function computeStats(run: RunDetail, now: Date): Stats {
         }
       }
     }
-
-    if (isWaitingEvent(event)) {
-      waitingFor = waitingFor ?? readFirstString(event.payload, ["action", "message", "command", "tool_name"]);
-    }
   }
 
   return {
@@ -163,8 +173,14 @@ function computeStats(run: RunDetail, now: Date): Stats {
     longestCommand,
     projectLabel: run.project_name?.trim() || run.project_key?.trim() || "this project",
     sourceLabel: humanizeSource(run.source_id),
-    waitingFor,
   };
+}
+
+function failureLead(stats: Stats): string {
+  const reason = stats.failureReason?.trim();
+  if (!reason) return `${stats.sourceLabel} stopped after `;
+  if (reason.toLowerCase() === "interrupted") return `${stats.sourceLabel} was interrupted after `;
+  return `${stats.sourceLabel} stopped on ${reason} after `;
 }
 
 function latestEventOccurredAt(events: RunEventItem[]): string | null {
@@ -214,6 +230,30 @@ function countToken(count: number, noun: string): StoryToken {
   };
 }
 
+function appendObservedSentence(tokens: StoryToken[], metrics: StoryToken[], suffix = "") {
+  if (metrics.length === 0) return;
+  tokens.push(txt(" "), ...metrics, txt(`${suffix}.`));
+}
+
+function observedMetrics(stats: Stats): StoryToken[] {
+  const metrics: StoryToken[][] = [];
+  const fileMetric = filePathMetric(stats);
+  if (fileMetric.length > 0) metrics.push(fileMetric);
+  if (stats.commandCount > 0) {
+    metrics.push([countToken(stats.commandCount, commandNoun(stats.commandCount)), txt(" observed")]);
+  }
+  return joinMetricTokens(metrics);
+}
+
+function filePathMetric(stats: Stats): StoryToken[] {
+  if (stats.fileCount <= 0) return [];
+  return [countToken(stats.fileCount, filePathNoun(stats.fileCount)), txt(" observed in events")];
+}
+
+function joinMetricTokens(metrics: StoryToken[][]): StoryToken[] {
+  return metrics.flatMap((metric, index) => (index === 0 ? metric : [txt(", "), ...metric]));
+}
+
 function durationToken(durationMs: number): StoryToken {
   return {
     highlight: { kind: "duration", payload: {} },
@@ -225,8 +265,8 @@ function commandNoun(count: number): string {
   return count === 1 ? "command" : "commands";
 }
 
-function fileNoun(count: number): string {
-  return count === 1 ? "file" : "files";
+function filePathNoun(count: number): string {
+  return count === 1 ? "file path" : "file paths";
 }
 
 function interruptionNoun(count: number): string {
@@ -271,12 +311,6 @@ function isFailureEvent(event: RunEventItem): boolean {
   const type = event.type.toLowerCase();
   const status = event.status?.toLowerCase() ?? "";
   return status === "failed" || status === "error" || type.includes("fail") || type.includes("error");
-}
-
-function isWaitingEvent(event: RunEventItem): boolean {
-  const type = event.type.toLowerCase();
-  const status = event.status?.toLowerCase() ?? "";
-  return status === "waiting" || type.includes("wait") || type.includes("approval");
 }
 
 function normalizeStatus(status: string): string {

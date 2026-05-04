@@ -73,8 +73,13 @@ function runTimestampsForTest(event: IngestBatch["events"][number]) {
   const occurredAt = new Date(event.occurred_at);
   return {
     startedAt: event.type === "run.started" ? occurredAt : null,
-    completedAt: event.type === "run.completed" || event.type === "run.failed" ? occurredAt : null,
+    completedAt: isTerminalRunEventForTest(event) ? occurredAt : null,
   };
+}
+
+function isTerminalRunEventForTest(event: IngestBatch["events"][number]): boolean {
+  if (event.type === "run.completed" || event.type === "run.failed") return true;
+  return event.type.startsWith("run.") && event.status === "cancelled";
 }
 
 function makeInMemoryStore(): IngestStore & {
@@ -273,6 +278,38 @@ describe("ingest", () => {
       status: "running",
       startedAt: new Date("2026-01-01T10:00:00.000Z"),
       completedAt: null,
+    });
+  });
+
+  it("closes an existing run when a run update marks it cancelled", async () => {
+    const db = makeInMemoryStore();
+
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000201", {
+        source_event_id: "source-event-started",
+        event_id: "event-000000000001",
+        type: "run.started",
+        status: "running",
+        occurred_at: "2026-01-01T10:00:00.000Z",
+      }),
+    );
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000202", {
+        source_event_id: "source-event-cancelled",
+        event_id: "event-000000000002",
+        type: "run.updated",
+        status: "cancelled",
+        occurred_at: "2026-01-01T10:03:00.000Z",
+      }),
+    );
+
+    const run = db.getRun(`${workspaceId}:codex-cli:run-1`);
+    expect(run).toMatchObject({
+      status: "cancelled",
+      startedAt: new Date("2026-01-01T10:00:00.000Z"),
+      completedAt: new Date("2026-01-01T10:03:00.000Z"),
     });
   });
 

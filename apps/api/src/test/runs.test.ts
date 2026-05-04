@@ -295,6 +295,19 @@ describe("deriveRunLifecycleStatus", () => {
       ),
     ).toBe("completed");
   });
+
+  it("preserves cancelled rows as cancelled lifecycle state", () => {
+    expect(
+      deriveRunLifecycleStatus(
+        {
+          status: "cancelled",
+          completedAt: "2026-04-28T10:30:00.000Z",
+          lastActivityAt: "2026-04-28T10:30:00.000Z",
+        },
+        now,
+      ),
+    ).toBe("cancelled");
+  });
 });
 
 describe("userVisibleRunCondition", () => {
