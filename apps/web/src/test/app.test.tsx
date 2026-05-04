@@ -76,6 +76,53 @@ describe("App (new shell)", () => {
     expect(window.location.search).toContain("run=run-1");
   });
 
+  it("marks a run as selected while its detail is still loading", async () => {
+    const user = userEvent.setup();
+    const detail = createDeferred<Response>();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.startsWith("/api/v1/runs?")) {
+          return new Response(JSON.stringify({ items: [runFixture] }), { status: 200 });
+        }
+        if (url === "/api/v1/system/status") {
+          return new Response(
+            JSON.stringify({
+              runner: {
+                state: "live",
+                seconds_since_last_device_seen: 8,
+                seconds_since_last_ingest: 8,
+                last_device_seen_at: "2026-04-30T12:00:00.000Z",
+                last_ingest_at: "2026-04-30T12:00:00.000Z",
+                latest_run_updated_at: "2026-04-30T12:00:00.000Z",
+              },
+            }),
+            { status: 200 },
+          );
+        }
+        if (url === "/api/v1/runs/run-1") {
+          return detail.promise;
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+
+    render(<App />);
+
+    const feed = await screen.findByRole("region", { name: /run feed/i });
+    const row = within(feed).getByRole("button", { name: /Alfred/i });
+    await user.click(row);
+
+    expect(row).toHaveAttribute("aria-current", "true");
+
+    await act(async () => {
+      detail.resolve(new Response(JSON.stringify(runDetailFixture), { status: 200 }));
+      await detail.promise;
+    });
+  });
+
   it("keeps a newly opened run selected when an older refresh finishes afterward", async () => {
     const user = userEvent.setup();
     const staleRefresh = createDeferred<Response>();

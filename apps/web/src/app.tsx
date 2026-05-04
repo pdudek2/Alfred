@@ -180,7 +180,7 @@ export function App() {
         onModeChange={setModeFromShell}
         onSelectRun={setSelectedFromDrawer}
         runs={runs}
-        selectedRunId={drawerRun ? selectedRunId : null}
+        selectedRunId={selectedRunId}
         systemStatus={systemStatusVM}
       />
       {authRequired ? (
