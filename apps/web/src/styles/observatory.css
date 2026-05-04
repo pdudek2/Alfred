@@ -85,14 +85,16 @@
   outline: none;
 }
 
-.observatory-node:focus-visible .observatory-dot {
-  stroke: var(--reader-amber);
-  stroke-width: 2;
-}
-
 .observatory-hit-target {
   fill: transparent;
   pointer-events: all;
+}
+
+.observatory-hit-target:focus-visible {
+  fill: rgba(207, 158, 55, 0.08);
+  outline: none;
+  stroke: var(--reader-amber);
+  stroke-width: 2;
 }
 
 .observatory-dot-running,

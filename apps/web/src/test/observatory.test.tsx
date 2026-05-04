@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Observatory } from "../components/observatory";
@@ -76,6 +77,13 @@ describe("Observatory", () => {
     await user.keyboard("{Enter}");
 
     expect(onSelect).toHaveBeenCalledWith("r1");
+  });
+
+  it("styles keyboard focus on the actual SVG hit target", () => {
+    const css = readFileSync("src/styles/observatory.css", "utf8");
+
+    expect(css).toContain(".observatory-hit-target:focus-visible");
+    expect(css).not.toContain(".observatory-node:focus-visible");
   });
 
   it("uses the same quiet status as the reader for stale running sessions", () => {
