@@ -24,7 +24,7 @@ export function buildBriefingVM(runs: RunListItem[], now: Date, error?: unknown,
 
   const cards = runs.map((run) => buildRunCardVM(run, now)).sort(compareCardUpdatedDesc);
   const voice = greetingVoice(now);
-  const attentionCards = cards.filter((card) => card.status === "waiting" || card.status === "failed");
+  const attentionCards = cards.filter((card) => card.status === "waiting");
 
   if (attentionCards.length > 0 && systemStatus && systemStatus.tone !== "live") {
     return compose(voice, [
@@ -66,14 +66,14 @@ export function buildBriefingVM(runs: RunListItem[], now: Date, error?: unknown,
 
   const live = cards.find((card) => card.isLive);
   if (live) {
-    const elapsed = elapsedLabel(live.startedAt || live.updatedAt, now, "just started");
+    const elapsed = elapsedLabel(live.updatedAt || live.startedAt, now, "a moment");
     return compose(voice, [
       sourceLabel(live),
-      txt(" is on "),
+      txt(" is active on "),
       hi(live.projectLabel, live.id),
-      txt(" right now - "),
+      txt(". Last activity "),
       hi(elapsed, live.id),
-      txt(" in."),
+      txt(" ago."),
     ]);
   }
 
@@ -104,7 +104,15 @@ function sourceLabel(card: RunCardVM): BriefingPiece {
 }
 
 function attentionIntentLabel(card: RunCardVM): string {
-  const genericIntents = new Set(["waiting on you", "active session", "closed session", "interrupted session", "quiet session", "agent session"]);
+  const genericIntents = new Set([
+    "waiting on you",
+    "active session",
+    "closed session",
+    "interrupted session",
+    "cancelled session",
+    "quiet session",
+    "agent session",
+  ]);
   return genericIntents.has(card.intent.toLowerCase()) ? "" : card.intent;
 }
 

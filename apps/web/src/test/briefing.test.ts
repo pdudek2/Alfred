@@ -123,7 +123,7 @@ describe("buildBriefingVM", () => {
     expect(plainText(vm)).toContain("approve cleanup");
   });
 
-  it("does not imply fresh activity when attention exists but the runner is quiet", () => {
+  it("counts only waiting runs as needing attention when the runner is quiet", () => {
     const waiting = {
       ...baseRun,
       id: "r-waiting-quiet-runner",
@@ -144,7 +144,7 @@ describe("buildBriefingVM", () => {
 
     const vm = buildBriefingVM([waiting, failed], now, undefined, quietSystemStatus);
 
-    expect(plainText(vm)).toBe("Codex has 2 items needing attention. Runner quiet; last ingest 33m ago.");
+    expect(plainText(vm)).toBe("Codex has 1 item needing attention. Runner quiet; last ingest 33m ago.");
     expect(plainText(vm)).not.toContain("Last activity");
     expect(plainText(vm)).not.toContain("needs you on Alfred");
   });
@@ -276,12 +276,29 @@ describe("buildBriefingVM", () => {
     };
     const vm = buildBriefingVM([live], now);
 
-    expect(plainText(vm)).toMatch(/right now|on it/i);
+    expect(plainText(vm)).toMatch(/active on/i);
     expect(plainText(vm)).toContain("alfred-runner");
     expect(plainText(vm)).not.toContain("open");
-    expect(plainText(vm)).toContain("2h 5m");
+    expect(plainText(vm)).toContain("Last activity 10m ago");
     expect(vm.pieces).toContainEqual({ kind: "highlight", value: "alfred-runner", runId: "r4" });
-    expect(vm.pieces).toContainEqual({ kind: "highlight", value: "2h 5m", runId: "r4" });
+    expect(vm.pieces).toContainEqual({ kind: "highlight", value: "10m", runId: "r4" });
+  });
+
+  it("describes live runs from their latest activity instead of the whole session age", () => {
+    const live = {
+      ...baseRun,
+      id: "r-long-live",
+      status: "running",
+      title: "overnight import",
+      started_at: localIso(2026, 3, 23, 0),
+      completed_at: null,
+      updated_at: localIso(2026, 3, 29, 10, 59, 30),
+    };
+    const vm = buildBriefingVM([live], now);
+
+    expect(plainText(vm)).toBe("Codex is active on alfred-runner. Last activity a moment ago.");
+    expect(plainText(vm)).not.toMatch(/right now|in\.|131h|5d|overnight/i);
+    expect(vm.pieces).toContainEqual({ kind: "highlight", value: "alfred-runner", runId: "r-long-live" });
   });
 
   it("lets a live run beat completed runs", () => {
@@ -306,7 +323,8 @@ describe("buildBriefingVM", () => {
     const vm = buildBriefingVM([completed, live], now);
 
     expect(plainText(vm)).toContain("alfred-live");
-    expect(plainText(vm)).toContain("right now");
+    expect(plainText(vm)).toContain("active on");
+    expect(plainText(vm)).toContain("Last activity 30m ago");
     expect(plainText(vm)).not.toContain("closed today");
     expect(plainText(vm)).not.toContain("alfred-done");
   });
