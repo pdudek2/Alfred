@@ -267,6 +267,22 @@ describe("run view model", () => {
     ]);
   });
 
+  it("keeps cancelled runs with Problems instead of hiding them in Other", () => {
+    const cancelledRun: RunListItem = {
+      ...runFixture,
+      id: "run-cancelled",
+      status: "cancelled",
+      completed_at: "2026-04-28T10:30:00.000Z",
+      updated_at: "2026-04-28T10:30:00.000Z",
+    };
+    const feed = buildTimeGroupedFeedVM([cancelledRun], NOW);
+    const problems = buildRunListVM([cancelledRun], { tab: "problems", query: "", grouping: "flat", now: NOW });
+
+    expect(feed.sections.map((section) => section.label)).toEqual(["Problems"]);
+    expect(feed.sections[0]?.runs[0]).toEqual(expect.objectContaining({ id: "run-cancelled", status: "cancelled" }));
+    expect(problems.filteredCount).toBe(1);
+  });
+
   it("treats unknown runs with completed_at as completed in the reader", () => {
     const unknownCompletedRun: RunListItem = {
       ...runFixture,

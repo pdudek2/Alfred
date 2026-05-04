@@ -99,6 +99,28 @@ describe("Observatory", () => {
     expect(screen.queryByRole("button", { name: "Open old-agent running run" })).not.toBeInTheDocument();
   });
 
+  it("shows cancelled runs as cancelled instead of quiet", () => {
+    const cancelledRuns = [
+      {
+        ...runFixture,
+        id: "cancelled-run",
+        lifecycle_status: "cancelled",
+        project_name: "cancelled-agent",
+        status: "cancelled",
+        updated_at: now.toISOString(),
+      },
+    ];
+
+    render(<Observatory runs={cancelledRuns} now={now} onSelectRun={() => {}} />);
+
+    expect(screen.getByRole("button", { name: "Open cancelled-agent cancelled run" })).toHaveAttribute(
+      "data-node-run-id",
+      "cancelled-run",
+    );
+    expect(document.querySelector(".observatory-dot-cancelled")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Open cancelled-agent quiet run" })).not.toBeInTheDocument();
+  });
+
   it("layers active nodes above quiet nodes so important signals receive the click", () => {
     const layeredRuns = [
       {

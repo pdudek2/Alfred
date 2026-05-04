@@ -31,11 +31,11 @@ type Stats = {
 const STALE_AFTER_MS = 2 * 60 * 60 * 1000;
 
 export function buildRunStoryVM(run: RunDetail, now: Date): RunStoryVM {
+  const status = normalizeStatus(run.status);
   if (run.events.length === 0) {
-    return text("Nothing to read yet - Alfred is still listening.");
+    return emptyStoryForStatus(status);
   }
 
-  const status = normalizeStatus(run.status);
   const stats = computeStats(run, now);
   const stale = (status === "running" || status === "waiting") && stats.lastSeenAgoMs > STALE_AFTER_MS;
 
@@ -83,6 +83,16 @@ export function buildRunStoryVM(run: RunDetail, now: Date): RunStoryVM {
     return compose(tokens);
   }
 
+  if (status === "cancelled") {
+    const tokens: StoryToken[] = [
+      txt(`${stats.sourceLabel} was cancelled after `),
+      durationToken(stats.durationMs),
+      txt("."),
+    ];
+    appendObservedSentence(tokens, observedMetrics(stats), " before that");
+    return compose(tokens);
+  }
+
   if (status === "waiting") {
     return compose([
       txt(`${stats.sourceLabel} is waiting on you. Last activity `),
@@ -102,6 +112,13 @@ export function buildRunStoryVM(run: RunDetail, now: Date): RunStoryVM {
     return compose(tokens);
   }
 
+  return text("Nothing to read yet - Alfred is still listening.");
+}
+
+function emptyStoryForStatus(status: string): RunStoryVM {
+  if (status === "completed") return text("This run closed, but no event stream was captured.");
+  if (status === "failed") return text("This run stopped, but no event stream was captured.");
+  if (status === "cancelled") return text("This run was cancelled, but no event stream was captured.");
   return text("Nothing to read yet - Alfred is still listening.");
 }
 

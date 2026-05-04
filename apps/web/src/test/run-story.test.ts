@@ -122,6 +122,27 @@ describe("buildRunStoryVM", () => {
     expect(vm.paragraph).not.toMatch(/stopped on interrupted/i);
   });
 
+  it("describes a cancelled run as cancelled", () => {
+    const detail = detailWith({
+      status: "cancelled",
+      started_at: "2026-04-28T10:00:00.000Z",
+      completed_at: "2026-04-28T10:04:00.000Z",
+      events: [
+        eventWith({
+          id: "event-cancelled",
+          occurred_at: "2026-04-28T10:04:00.000Z",
+          status: "cancelled",
+          type: "run.updated",
+          payload: { reason: "cancelled" },
+        }),
+      ],
+    });
+
+    const vm = buildRunStoryVM(detail, now);
+
+    expect(vm.paragraph).toMatch(/Codex was cancelled after 4 minutes/i);
+  });
+
   it("describes a waiting run", () => {
     const detail = detailWith({
       status: "waiting",
@@ -214,13 +235,25 @@ describe("buildRunStoryVM", () => {
     expect(vm.paragraph).toMatch(/stopped reporting/i);
   });
 
-  it("returns a fallback for empty events", () => {
+  it("returns a listening fallback for active empty-event runs", () => {
     const detail = detailWith({ events: [] });
 
     const vm = buildRunStoryVM(detail, now);
 
     expect(vm.paragraph).toMatch(/Alfred is still listening/i);
     expect(vm.highlights).toEqual([]);
+  });
+
+  it("does not describe terminal empty-event runs as still listening", () => {
+    expect(buildRunStoryVM(detailWith({ status: "completed", events: [] }), now).paragraph).toBe(
+      "This run closed, but no event stream was captured.",
+    );
+    expect(buildRunStoryVM(detailWith({ status: "failed", events: [] }), now).paragraph).toBe(
+      "This run stopped, but no event stream was captured.",
+    );
+    expect(buildRunStoryVM(detailWith({ status: "cancelled", events: [] }), now).paragraph).toBe(
+      "This run was cancelled, but no event stream was captured.",
+    );
   });
 
   it("provides highlight ranges that align with substrings", () => {

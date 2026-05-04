@@ -5,7 +5,7 @@ export type RunTab = "all" | "live" | "needs" | "problems" | "done";
 export type TriageTab = RunTab;
 export type RunGrouping = "status" | "project" | "flat";
 export type ActivityKind = "failure" | "waiting" | "tool" | "run" | "other";
-export type RunTriageState = "running" | "waiting" | "failed" | "completed" | "stale" | "other";
+export type RunTriageState = "running" | "waiting" | "failed" | "cancelled" | "completed" | "stale" | "other";
 
 export const STALE_RUN_AFTER_MS = 2 * 60 * 60 * 1000;
 
@@ -183,6 +183,7 @@ function deriveIntent({
   if (status === "running") return "active session";
   if (status === "completed") return "closed session";
   if (status === "failed") return "interrupted session";
+  if (status === "cancelled") return "cancelled session";
   if (status === "stale") return "quiet session";
   return "agent session";
 }
@@ -213,6 +214,7 @@ function buildCardSummaryLabel(run: RunListItem, sourceLabel: string, status: st
   if (status === "running") return `${source} · active since ${timeLabel}`;
   if (status === "completed") return `${source} · closed ${timeLabel}`;
   if (status === "failed") return `${source} · failed ${timeLabel}`;
+  if (status === "cancelled") return `${source} · cancelled ${timeLabel}`;
   if (status === "stale") return `${source} · last heard ${formatDateTime(activityAt)}`;
   return `${source} · ${timeLabel}`;
 }
@@ -371,7 +373,7 @@ export function buildTimeGroupedFeedVM(runs: RunListItem[], now = new Date()): T
 function feedSectionForCard(card: RunCardVM): FeedSectionLabel {
   if (card.status === "waiting") return "Needs you";
   if (card.status === "running") return "Running";
-  if (card.status === "failed") return "Problems";
+  if (card.status === "failed" || card.status === "cancelled") return "Problems";
   if (card.status === "stale") return "Quiet archive";
   if (card.status === "completed") return "Done";
   return "Other";
@@ -453,7 +455,7 @@ function matchesTab(card: RunCardVM, tab: RunTab): boolean {
   if (tab === "all") return true;
   if (tab === "live") return card.isLive;
   if (tab === "needs") return card.needsAttention;
-  if (tab === "problems") return card.status === "failed";
+  if (tab === "problems") return card.status === "failed" || card.status === "cancelled";
   return card.isDone;
 }
 
@@ -544,6 +546,7 @@ function triageState(status: string): RunTriageState {
   if (normalized === "running") return "running";
   if (normalized === "waiting") return "waiting";
   if (normalized === "failed") return "failed";
+  if (normalized === "cancelled") return "cancelled";
   if (normalized === "completed") return "completed";
   if (normalized === "stale") return "stale";
   return "other";
@@ -556,7 +559,7 @@ function compareStatusGroups(left: string, right: string): number {
 }
 
 function statusGroupOrder(status: string): number {
-  const order = ["waiting", "running", "failed", "completed", "stale"];
+  const order = ["waiting", "running", "failed", "cancelled", "completed", "stale"];
   const index = order.indexOf(status);
   return index === -1 ? order.length : index;
 }

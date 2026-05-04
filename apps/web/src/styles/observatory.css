@@ -104,7 +104,8 @@
   fill: var(--reader-amber);
 }
 
-.observatory-dot-failed {
+.observatory-dot-failed,
+.observatory-dot-cancelled {
   fill: var(--reader-coral);
 }
 

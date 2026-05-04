@@ -14,7 +14,7 @@ export type RunsListFilters = {
   projectKey?: string;
 };
 
-export type RunLifecycleStatus = "running" | "waiting" | "failed" | "completed" | "stale" | "other";
+export type RunLifecycleStatus = "running" | "waiting" | "failed" | "cancelled" | "completed" | "stale" | "other";
 
 export const STALE_RUN_AFTER_MS = 2 * 60 * 60 * 1000;
 export const OPS_SMOKE_PROJECT_KEY = "ops-smoke";
@@ -238,7 +238,7 @@ export function deriveRunLifecycleStatus(
     return "stale";
   }
 
-  if (status === "running" || status === "waiting" || status === "failed" || status === "completed") {
+  if (status === "running" || status === "waiting" || status === "failed" || status === "cancelled" || status === "completed") {
     return status;
   }
 
