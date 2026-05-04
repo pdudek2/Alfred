@@ -37,7 +37,8 @@ export function Observatory({ runs, now, onSelectRun }: ObservatoryProps) {
         <div>
           <h2>{scopeTitle(scope)}</h2>
           <p className="observatory-subtitle">
-            {layout.clusters.length} projects, {visibleRuns.length} signals
+            {visibleRuns.length} of {runs.length} loaded runs shown across {layout.clusters.length} projects.
+            {" "}Grouped by project; position is not a timeline or dependency map.
           </p>
         </div>
       </header>
@@ -187,10 +188,10 @@ function filterByScope(runs: RunListItem[], scope: Scope, now: Date): RunListIte
 }
 
 function scopeTitle(scope: Scope): string {
-  if (scope === "today") return "Today's sky";
-  if (scope === "7d") return "Seven-day sky";
-  if (scope === "30d") return "Thirty-day sky";
-  return "All signals";
+  if (scope === "today") return "Loaded runs from today";
+  if (scope === "7d") return "Loaded runs from last 7 days";
+  if (scope === "30d") return "Loaded runs from last 30 days";
+  return "Loaded sample";
 }
 
 function startOfLocalDay(value: Date): Date {

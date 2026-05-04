@@ -12,6 +12,8 @@ export type RunStoryVM = {
   highlights: StoryHighlight[];
 };
 
+type StoryStatus = "running" | "waiting" | "failed" | "cancelled" | "completed" | "stale" | "other";
+
 type StoryToken =
   | { highlight?: never; value: string }
   | { highlight: Omit<StoryHighlight, "end" | "start">; value: string };
@@ -31,13 +33,13 @@ type Stats = {
 const STALE_AFTER_MS = 2 * 60 * 60 * 1000;
 
 export function buildRunStoryVM(run: RunDetail, now: Date): RunStoryVM {
-  const status = normalizeStatus(run.status);
+  const status = deriveStoryStatus(run, now);
   if (run.events.length === 0) {
     return emptyStoryForStatus(status);
   }
 
   const stats = computeStats(run, now);
-  const stale = (status === "running" || status === "waiting") && stats.lastSeenAgoMs > STALE_AFTER_MS;
+  const stale = status === "stale";
 
   if (stale) {
     const tokens: StoryToken[] = [
@@ -115,11 +117,37 @@ export function buildRunStoryVM(run: RunDetail, now: Date): RunStoryVM {
   return text("Nothing to read yet - Alfred is still listening.");
 }
 
-function emptyStoryForStatus(status: string): RunStoryVM {
+function emptyStoryForStatus(status: StoryStatus): RunStoryVM {
   if (status === "completed") return text("This run closed, but no event stream was captured.");
   if (status === "failed") return text("This run stopped, but no event stream was captured.");
   if (status === "cancelled") return text("This run was cancelled, but no event stream was captured.");
+  if (status === "stale") return text("This run went quiet, but no event stream was captured.");
   return text("Nothing to read yet - Alfred is still listening.");
+}
+
+function deriveStoryStatus(run: RunDetail, now: Date): StoryStatus {
+  const lifecycleStatus = normalizeKnownStatus(run.lifecycle_status ?? "");
+  if (
+    (lifecycleStatus === "running" || lifecycleStatus === "waiting") &&
+    isStaleRun(run, now)
+  ) {
+    return "stale";
+  }
+
+  if (lifecycleStatus !== "other") {
+    return lifecycleStatus;
+  }
+
+  const status = normalizeKnownStatus(run.status);
+  if ((status === "other") && run.completed_at) {
+    return "completed";
+  }
+
+  if ((status === "running" || status === "waiting") && isStaleRun(run, now)) {
+    return "stale";
+  }
+
+  return status;
 }
 
 function computeStats(run: RunDetail, now: Date): Stats {
@@ -315,6 +343,23 @@ function isFailureEvent(event: RunEventItem): boolean {
 
 function normalizeStatus(status: string): string {
   return status.trim().toLowerCase();
+}
+
+function normalizeKnownStatus(status: string): StoryStatus {
+  const normalized = normalizeStatus(status);
+  if (normalized === "running") return "running";
+  if (normalized === "waiting") return "waiting";
+  if (normalized === "failed") return "failed";
+  if (normalized === "cancelled") return "cancelled";
+  if (normalized === "completed") return "completed";
+  if (normalized === "stale") return "stale";
+  return "other";
+}
+
+function isStaleRun(run: RunDetail, now: Date): boolean {
+  const lastSeenAt = timestampMs(run.last_activity_at || latestEventOccurredAt(run.events) || run.updated_at);
+  const nowMs = now.getTime();
+  return Number.isFinite(nowMs) && lastSeenAt > 0 && nowMs - lastSeenAt > STALE_AFTER_MS;
 }
 
 function readFirstString(payload: Record<string, unknown>, keys: string[]): string | null {
