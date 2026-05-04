@@ -43,6 +43,7 @@ if (mode === "runner-auth" && !process.env.RUNNER_DEVICE_ID) {
   process.exit(1);
 }
 
+const runnerSmokeBatch = mode === "runner-auth" ? buildRunnerSmokeBatch() : null;
 const checks =
   mode === "runner-auth"
     ? [
@@ -50,9 +51,9 @@ const checks =
         {
           name: "runner batch",
           path: "/v1/ingest/batches",
-          validate: validateRunnerBatch,
+          validate: (response, body) => validateRunnerBatch(response, body, runnerSmokeBatch),
           method: "POST",
-          body: buildRunnerSmokeBatch(),
+          body: runnerSmokeBatch,
         },
       ]
     : mode === "authenticated"
@@ -152,15 +153,15 @@ function validateRunnerHeartbeat(response, body) {
   return json?.ok === true && typeof json?.last_seen_at === "string";
 }
 
-function validateRunnerBatch(response, body) {
+function validateRunnerBatch(response, body, expectedBatch) {
   if (response.status !== 202) return false;
   const headers = response.headers;
   const json = parseJson(body, headers);
   return (
-    typeof json?.batch_id === "string" &&
-    typeof json?.accepted_events === "number" &&
-    typeof json?.duplicate_events === "number" &&
-    typeof json?.duplicate_batch === "boolean"
+    json?.batch_id === expectedBatch.batch_id &&
+    json?.accepted_events === expectedBatch.events.length &&
+    json?.duplicate_events === 0 &&
+    json?.duplicate_batch === false
   );
 }
 

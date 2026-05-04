@@ -89,6 +89,35 @@ describe("cloud smoke", () => {
     assert.equal(batch.events.every((event) => event.workspace_id === workspaceId), true);
     assert.equal(batch.events.every((event) => event.device_id === deviceId), true);
   });
+
+  it("fails runner-auth mode when the batch response is a no-op duplicate", async () => {
+    const result = await runSmoke({
+      env: {
+        ALFRED_CLOUD_SMOKE_MODE: "runner-auth",
+        RUNNER_DEVICE_TOKEN: "runner-token",
+        RUNNER_WORKSPACE_ID: randomUUID(),
+        RUNNER_DEVICE_ID: randomUUID(),
+      },
+      handler: async (req, res) => {
+        await readBody(req);
+        if (req.url === "/v1/ingest/heartbeat") {
+          return sendJson(res, 202, { ok: true, last_seen_at: "2026-05-04T00:00:00.000Z" });
+        }
+        if (req.url === "/v1/ingest/batches") {
+          return sendJson(res, 202, {
+            batch_id: randomUUID(),
+            accepted_events: 0,
+            duplicate_events: 2,
+            duplicate_batch: true,
+          });
+        }
+        return send(res, 404, "text/plain", "not found");
+      },
+    });
+
+    assert.equal(result.code, 1);
+    assert.match(result.stdout, /FAIL runner batch: 202/);
+  });
 });
 
 async function runSmoke({ env, handler }) {
