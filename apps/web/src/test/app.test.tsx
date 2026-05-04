@@ -66,6 +66,7 @@ describe("App (new shell)", () => {
 
   it("opens the drawer when a run is clicked", async () => {
     const user = userEvent.setup();
+    const historyLength = window.history.length;
     render(<App />);
 
     const feed = await screen.findByRole("region", { name: /run feed/i });
@@ -74,6 +75,24 @@ describe("App (new shell)", () => {
 
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
     expect(window.location.search).toContain("run=run-1");
+    expect(window.history.length).toBeGreaterThan(historyLength);
+  });
+
+  it("closes a clicked run with browser Back", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const feed = await screen.findByRole("region", { name: /run feed/i });
+    await user.click(within(feed).getByRole("button", { name: /Alfred/i }));
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    act(() => {
+      window.history.back();
+    });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(window.location.search).not.toContain("run=");
   });
 
   it("marks a run as selected while its detail is still loading", async () => {
@@ -238,6 +257,47 @@ describe("App (new shell)", () => {
     expect(window.location.search).toContain("run=run-1");
   });
 
+  it("syncs the run drawer with browser history changes", async () => {
+    render(<App />);
+
+    await screen.findByRole("region", { name: /run feed/i });
+
+    act(() => {
+      window.history.pushState({}, "", "/?run=run-1");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+
+    act(() => {
+      window.history.pushState({}, "", "/");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(window.location.search).not.toContain("run=");
+  });
+
+  it("syncs Reader and Observatory mode with browser history changes", async () => {
+    render(<App />);
+
+    expect(await screen.findByRole("region", { name: /run feed/i })).toBeInTheDocument();
+
+    act(() => {
+      window.history.pushState({}, "", "/?view=observatory");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    await waitFor(() => expect(screen.getByRole("region", { name: /agent observatory/i })).toBeInTheDocument());
+
+    act(() => {
+      window.history.pushState({}, "", "/");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    await waitFor(() => expect(screen.getByRole("region", { name: /run feed/i })).toBeInTheDocument());
+  });
+
   it("keeps the feed usable when run detail fails to load", async () => {
     vi.stubGlobal(
       "fetch",
@@ -283,6 +343,7 @@ describe("App (new shell)", () => {
 
   it("switches to Observatory with Cmd+O", async () => {
     const user = userEvent.setup();
+    const historyLength = window.history.length;
     render(<App />);
 
     await screen.findByRole("region", { name: /run feed/i });
@@ -290,6 +351,24 @@ describe("App (new shell)", () => {
 
     expect(document.querySelector(".observatory")).not.toBeNull();
     expect(window.location.search).toContain("view=observatory");
+    expect(window.history.length).toBeGreaterThan(historyLength);
+  });
+
+  it("returns from Observatory with browser Back after a shell toggle", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByRole("region", { name: /run feed/i });
+    await user.click(screen.getByRole("button", { name: /open observatory/i }));
+
+    await waitFor(() => expect(screen.getByRole("region", { name: /agent observatory/i })).toBeInTheDocument());
+
+    act(() => {
+      window.history.back();
+    });
+
+    await waitFor(() => expect(screen.getByRole("region", { name: /run feed/i })).toBeInTheDocument());
+    expect(window.location.search).not.toContain("view=observatory");
   });
 
   it("ignores retired legacy and mockup flags", async () => {

@@ -10,10 +10,42 @@ import { useKeyboardShortcut } from "./lib/use-keyboard-shortcut";
 const api = createApiClient();
 const LIVE_REFRESH_MS = 15_000;
 
+type UrlState = {
+  mode: AppShellMode;
+  selectedRunId: string | null;
+};
+
+type HistoryWriteMode = "push" | "replace";
+
+function readUrlState(): UrlState {
+  if (typeof window === "undefined") {
+    return { mode: "reader", selectedRunId: null };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  return {
+    mode: params.get("view") === "observatory" ? "observatory" : "reader",
+    selectedRunId: params.get("run"),
+  };
+}
+
+function writeUrlSearch(params: URLSearchParams, mode: HistoryWriteMode) {
+  const query = params.toString();
+  const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}`;
+  if (nextUrl === currentUrl) {
+    return;
+  }
+
+  const write = mode === "push" ? window.history.pushState : window.history.replaceState;
+  write.call(window.history, {}, "", nextUrl);
+}
+
 export function App() {
+  const [initialUrlState] = useState(readUrlState);
   const [runs, setRuns] = useState<RunListItem[]>([]);
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  const selectedRunIdRef = useRef<string | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(() => initialUrlState.selectedRunId);
+  const selectedRunIdRef = useRef<string | null>(initialUrlState.selectedRunId);
   const [selectedRun, setSelectedRun] = useState<RunDetail | null>(null);
   const [loadingRuns, setLoadingRuns] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,11 +53,7 @@ export function App() {
   const [runLoadNotice, setRunLoadNotice] = useState<string | null>(null);
   const [readerNow, setReaderNow] = useState(() => new Date());
   const [systemStatus, setSystemStatus] = useState<SystemStatusSnapshot>(null);
-  const [mode, setMode] = useState<AppShellMode>(() =>
-    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "observatory"
-      ? "observatory"
-      : "reader",
-  );
+  const [mode, setMode] = useState<AppShellMode>(() => initialUrlState.mode);
 
   function setSelectedFromDrawer(runId: string | null) {
     const next = new URLSearchParams(window.location.search);
@@ -35,8 +63,7 @@ export function App() {
       next.delete("run");
     }
 
-    const query = next.toString();
-    window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+    writeUrlSearch(next, runId ? "push" : "replace");
     commitSelectedRunId(runId);
   }
 
@@ -53,8 +80,7 @@ export function App() {
       next.delete("view");
     }
 
-    const query = next.toString();
-    window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+    writeUrlSearch(next, "push");
     setMode(nextMode);
   }
 
@@ -119,6 +145,21 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    function syncFromUrl() {
+      const next = readUrlState();
+      setMode(next.mode);
+      commitSelectedRunId(next.selectedRunId);
+      if (!next.selectedRunId) {
+        setSelectedRun(null);
+        setRunLoadNotice(null);
+      }
+    }
+
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
+  }, []);
+
+  useEffect(() => {
     const timer = window.setInterval(() => {
       void loadRuns(true);
       void loadSystemStatus();
@@ -151,13 +192,6 @@ export function App() {
     return () => {
       active = false;
     };
-  }, [selectedRunId]);
-
-  useEffect(() => {
-    const runIdFromUrl = new URLSearchParams(window.location.search).get("run");
-    if (runIdFromUrl && runIdFromUrl !== selectedRunId) {
-      commitSelectedRunId(runIdFromUrl);
-    }
   }, [selectedRunId]);
 
   useKeyboardShortcut("escape", () => {
