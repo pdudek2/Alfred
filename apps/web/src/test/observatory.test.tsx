@@ -47,7 +47,7 @@ describe("Observatory", () => {
     const onSelect = vi.fn();
     render(<Observatory runs={runs} now={now} onSelectRun={onSelect} />);
 
-    const hitTarget = document.querySelector("[data-node-run-id='r3'] .observatory-hit-target");
+    const hitTarget = document.querySelector("[data-node-run-id='r3'].observatory-hit-target");
     expect(hitTarget).not.toBeNull();
 
     fireEvent.click(hitTarget as Element);
@@ -56,14 +56,13 @@ describe("Observatory", () => {
     expect(onSelect).toHaveBeenCalledWith("r3");
   });
 
-  it("keeps the hit target inside its accessible SVG node instead of using overlay buttons", () => {
+  it("uses the stable SVG hit target as the accessible node instead of the animated halo", () => {
     render(<Observatory runs={runs} now={now} onSelectRun={() => {}} />);
 
     const node = screen.getByRole("button", { name: "Open alfred-runner running run" });
-    const hitTarget = node.querySelector(".observatory-hit-target");
 
-    expect(hitTarget).not.toBeNull();
-    expect(hitTarget?.parentElement).toBe(node);
+    expect(node).toHaveClass("observatory-hit-target");
+    expect(node).not.toHaveClass("observatory-halo");
     expect(document.querySelector(".observatory-node-buttons")).toBeNull();
   });
 
