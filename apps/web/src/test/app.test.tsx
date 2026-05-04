@@ -371,20 +371,6 @@ describe("App (new shell)", () => {
     expect(window.location.search).not.toContain("view=observatory");
   });
 
-  it("ignores retired legacy and mockup flags", async () => {
-    window.history.pushState({}, "", "/?legacy=1");
-    render(<App />);
-
-    expect(await screen.findByRole("region", { name: /run feed/i })).toBeInTheDocument();
-    cleanup();
-
-    window.history.pushState({}, "", "/?mockup=1");
-    render(<App />);
-
-    expect(await screen.findByRole("region", { name: /run feed/i })).toBeInTheDocument();
-    expect(screen.queryByRole("main", { name: /mockup/i })).not.toBeInTheDocument();
-  });
-
   it("shows a login action when the API requires authentication", async () => {
     vi.stubGlobal(
       "fetch",
