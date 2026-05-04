@@ -95,24 +95,11 @@ export function Observatory({ runs, now, onSelectRun }: ObservatoryProps) {
           [...cluster.nodes].sort(compareNodeLayer).map((node) => {
             const halo = haloFor(node.status);
             return (
-              <g
-                aria-label={`Open ${node.projectLabel} ${statusLabel(node.status)} run`}
-                className="observatory-node"
-                data-node-run-id={node.runId}
-                key={node.runId}
-                onClick={() => onSelectRun(node.runId)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    onSelectRun(node.runId);
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-              >
+              <g className="observatory-node" key={node.runId}>
                 <title>{node.projectLabel} · {node.status}</title>
                 {halo ? (
                   <circle
+                    aria-hidden="true"
                     className={halo.className}
                     cx={node.position.x}
                     cy={node.position.y}
@@ -120,16 +107,28 @@ export function Observatory({ runs, now, onSelectRun }: ObservatoryProps) {
                   />
                 ) : null}
                 <circle
+                  aria-hidden="true"
                   className={`observatory-dot observatory-dot-${stateClass(node.status)}`}
                   cx={node.position.x}
                   cy={node.position.y}
                   r={radiusFor(node.status)}
                 />
                 <circle
+                  aria-label={`Open ${node.projectLabel} ${statusLabel(node.status)} run`}
                   className="observatory-hit-target"
                   cx={node.position.x}
                   cy={node.position.y}
+                  data-node-run-id={node.runId}
+                  onClick={() => onSelectRun(node.runId)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onSelectRun(node.runId);
+                    }
+                  }}
                   r={10}
+                  role="button"
+                  tabIndex={0}
                 />
               </g>
             );
