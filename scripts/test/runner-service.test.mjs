@@ -10,6 +10,7 @@ import {
   launchctlArgs,
   parseLaunchdPrint,
   renderLaunchAgentPlist,
+  resolveStableNodeBin,
 } from "../lib/runner-service.mjs";
 
 describe("parseEnvFileContent", () => {
@@ -83,7 +84,7 @@ describe("runner service helpers", () => {
     assert.equal(env.ALFRED_RUNNER_DB_PATH, "/repo/apps/runner/.alfred-runner/cloud-outbox.sqlite");
   });
 
-  it("renders a launchd plist with a shell launcher, no env sourcing, and log paths", () => {
+  it("renders a direct launchd plist without a shell launcher or env sourcing", () => {
     const plist = renderLaunchAgentPlist({
       label: "com.alfred.runner",
       repoRoot: "/repo",
@@ -91,19 +92,47 @@ describe("runner service helpers", () => {
       envPath: "/repo/.secrets/runner.env",
       stdoutPath: "/repo/.alfred-runner/launchd.out.log",
       stderrPath: "/repo/.alfred-runner/launchd.err.log",
-      workingDir: "/Users/patryk/Library/Application Support/Alfred/runner",
     });
 
     assert.match(plist, /<key>Label<\/key>/);
     assert.match(plist, /com.alfred.runner/);
-    assert.match(plist, /<string>\/bin\/zsh<\/string>/);
-    assert.match(plist, /<string>-c<\/string>/);
-    assert.match(plist, /cd &apos;\/repo&apos; &amp;&amp; exec &apos;\/opt\/homebrew\/bin\/node&apos;/);
-    assert.match(plist, /<string>\/Users\/patryk\/Library\/Application Support\/Alfred\/runner<\/string>/);
+    assert.match(plist, /<string>\/opt\/homebrew\/bin\/node<\/string>/);
+    assert.match(plist, /<string>\/repo\/scripts\/runner-service\.mjs<\/string>/);
+    assert.match(plist, /<string>run<\/string>/);
+    assert.match(plist, /<string>--env<\/string>/);
+    assert.match(plist, /<string>\/repo\/\.secrets\/runner\.env<\/string>/);
+    assert.match(plist, /<string>\/repo<\/string>/);
     assert.match(plist, /runner-service\.mjs/);
-    assert.match(plist, /--env &apos;\/repo\/\.secrets\/runner\.env&apos;/);
     assert.match(plist, /launchd\.out\.log/);
+    assert.doesNotMatch(plist, /<string>\/bin\/zsh<\/string>/);
+    assert.doesNotMatch(plist, /<string>-c<\/string>/);
+    assert.doesNotMatch(plist, /&amp;&amp;/);
     assert.doesNotMatch(plist, /source/);
+  });
+
+  it("prefers a stable node executable from PATH over a versioned current process", async () => {
+    const seen = [];
+    const nodeBin = await resolveStableNodeBin({
+      fallbackNodeBin: "/opt/homebrew/Cellar/node/25.6.1/bin/node",
+      pathEnv: "/opt/homebrew/bin:/usr/local/bin",
+      exists: async (candidate) => {
+        seen.push(candidate);
+        return candidate === "/opt/homebrew/bin/node";
+      },
+    });
+
+    assert.equal(nodeBin, "/opt/homebrew/bin/node");
+    assert.deepEqual(seen, ["/opt/homebrew/bin/node"]);
+  });
+
+  it("falls back to the current process when PATH does not expose node", async () => {
+    const nodeBin = await resolveStableNodeBin({
+      fallbackNodeBin: "/opt/homebrew/Cellar/node/25.6.1/bin/node",
+      pathEnv: "/missing/bin",
+      exists: async () => false,
+    });
+
+    assert.equal(nodeBin, "/opt/homebrew/Cellar/node/25.6.1/bin/node");
   });
 
   it("builds launchctl gui target arguments", () => {

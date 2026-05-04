@@ -41,18 +41,7 @@ export function buildRunnerEnv({ repoRoot, fileEnv, baseEnv = process.env }) {
 
 export function renderLaunchAgentPlist({ label, repoRoot, nodeBin, envPath, stdoutPath, stderrPath, workingDir }) {
   const scriptPath = path.join(repoRoot, "scripts", "runner-service.mjs");
-  const command = [
-    "cd",
-    shellQuote(repoRoot),
-    "&&",
-    "exec",
-    shellQuote(nodeBin),
-    shellQuote(scriptPath),
-    "run",
-    "--env",
-    shellQuote(envPath),
-  ].join(" ");
-  const args = ["/bin/zsh", "-c", command];
+  const args = [nodeBin, scriptPath, "run", "--env", envPath];
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -90,6 +79,19 @@ export async function fileExists(filePath) {
   } catch {
     return false;
   }
+}
+
+export async function resolveStableNodeBin({
+  fallbackNodeBin = process.execPath,
+  pathEnv = process.env.PATH ?? "",
+  exists = fileExists,
+} = {}) {
+  for (const dir of pathEnv.split(path.delimiter).filter(Boolean)) {
+    const candidate = path.join(dir, "node");
+    if (await exists(candidate)) return candidate;
+  }
+
+  return fallbackNodeBin;
 }
 
 export function launchctlArgs(action, labelOrPath) {
@@ -164,8 +166,4 @@ export function escapeXml(value) {
 
 function firstLine(value) {
   return value.split(/\r?\n/).find((line) => line.trim())?.trim() ?? "unknown";
-}
-
-function shellQuote(value) {
-  return `'${String(value).replaceAll("'", "'\\''")}'`;
 }

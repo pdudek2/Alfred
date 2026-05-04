@@ -16,6 +16,7 @@ import {
   launchctlArgs,
   parseLaunchdPrint,
   renderLaunchAgentPlist,
+  resolveStableNodeBin,
 } from "./lib/runner-service.mjs";
 
 const repoRoot = process.cwd();
@@ -51,14 +52,14 @@ async function install() {
   await mkdir(path.dirname(paths.plistPath), { recursive: true });
   await writeFile(paths.stdoutPath, "", "utf8");
   await writeFile(paths.stderrPath, "", "utf8");
+  const nodeBin = await resolveStableNodeBin({ fallbackNodeBin: process.execPath });
   const plist = renderLaunchAgentPlist({
     label: DEFAULT_LABEL,
     repoRoot,
-    nodeBin: process.execPath,
+    nodeBin,
     envPath,
     stdoutPath: paths.stdoutPath,
     stderrPath: paths.stderrPath,
-    workingDir: paths.stateDir,
   });
   await writeFile(paths.plistPath, plist, "utf8");
   console.log(`Installed ${paths.plistPath}`);
