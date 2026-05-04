@@ -461,7 +461,7 @@ function matchesTab(card: RunCardVM, tab: RunTab): boolean {
 
 function isLiveRun(run: RunListItem, now = new Date()): boolean {
   const status = effectiveStatus(run, now);
-  return status === "running" || status === "waiting";
+  return status === "running";
 }
 
 function needsAttention(run: RunListItem, now = new Date()): boolean {

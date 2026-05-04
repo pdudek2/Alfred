@@ -104,7 +104,7 @@ describe("Reader", () => {
 
     expect(document.querySelector(".reader-briefing")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "All 4" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Live 2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Live 1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Needs you 1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Problems 1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Done 1" })).toBeInTheDocument();

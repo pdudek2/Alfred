@@ -8,6 +8,7 @@ import {
   buildRunFactsVM,
   buildRunListVM,
   buildTimeGroupedFeedVM,
+  tabCount,
   toRunDetailViewModel,
 } from "../lib/run-view-model";
 import { completedRunFixture, runFixture } from "./fixtures";
@@ -62,7 +63,7 @@ describe("run view model", () => {
 
     expect(runs.map((run) => run.id)).toEqual(originalOrder);
     expect(overview.totalCount).toBe(4);
-    expect(overview.liveCount).toBe(2);
+    expect(overview.liveCount).toBe(1);
     expect(overview.needsAttentionCount).toBe(1);
     expect(overview.doneCount).toBe(1);
     expect(overview.latestUpdatedAt).toBe("2026-04-28T11:10:00.000Z");
@@ -83,7 +84,7 @@ describe("run view model", () => {
       projectLabel: "Billing",
       sourceLabel: "codex-cli",
       status: "waiting",
-      isLive: true,
+      isLive: false,
       needsAttention: true,
       isDone: false,
       durationLabel: "open",
@@ -92,6 +93,14 @@ describe("run view model", () => {
     expect(card.searchText).toContain("billing");
     expect(card.summaryLabel).toMatch(/^Codex · waiting since Apr 28, /);
     expect(card.summaryLabel).not.toContain("11:00");
+  });
+
+  it("does not count waiting runs as live work", () => {
+    const live = buildRunListVM([waitingRun], { tab: "live", query: "", grouping: "flat", now: NOW });
+
+    expect(buildRunCardVM(waitingRun, NOW)).toMatchObject({ isLive: false, needsAttention: true });
+    expect(tabCount([waitingRun], "live", NOW)).toBe(0);
+    expect(live.filteredCount).toBe(0);
   });
 
   it("falls back sanely when runtime title and source run id are not strings", () => {
