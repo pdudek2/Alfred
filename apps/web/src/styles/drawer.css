@@ -45,12 +45,26 @@
   margin: 0;
 }
 
+.run-reader > h2 {
+  color: var(--reader-text);
+  font-family: var(--reader-serif);
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.2;
+  margin: 0;
+}
+
 .run-reader-subtitle {
   color: var(--reader-text-dim);
   font-family: var(--reader-sans);
   font-size: 13px;
   line-height: 1.4;
   margin: 6px 0 0;
+}
+
+.run-reader-opening {
+  gap: 8px;
+  max-width: 440px;
 }
 
 .run-reader-close {
