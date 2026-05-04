@@ -53,6 +53,12 @@ type InMemoryDeviceSeen = {
   seenAt: Date;
 };
 
+type InMemoryEnsuredDevice = {
+  workspaceId: string;
+  deviceId: string;
+  sentAt: string;
+};
+
 function runStatusForTest(event: IngestBatch["events"][number]) {
   if (event.type === "run.started") return "running";
   if (event.type === "run.completed") return "completed";
@@ -72,6 +78,8 @@ function runTimestampsForTest(event: IngestBatch["events"][number]) {
 }
 
 function makeInMemoryStore(): IngestStore & {
+  getEnsuredDevice: () => InMemoryEnsuredDevice | undefined;
+  getEnsuredWorkspace: () => string | undefined;
   getDeviceSeen: () => InMemoryDeviceSeen | undefined;
   getRun: (key: string) => InMemoryRun | undefined;
 } {
@@ -80,9 +88,13 @@ function makeInMemoryStore(): IngestStore & {
   const projects = new Map<string, { id: string }>();
   const runs = new Map<string, InMemoryRun>();
   const relations = new Set<string>();
+  let ensuredWorkspace: string | undefined;
+  let ensuredDevice: InMemoryEnsuredDevice | undefined;
   let deviceSeen: InMemoryDeviceSeen | undefined;
 
   const store: IngestStore & {
+    getEnsuredDevice: () => InMemoryEnsuredDevice | undefined;
+    getEnsuredWorkspace: () => string | undefined;
     getDeviceSeen: () => InMemoryDeviceSeen | undefined;
     getRun: (key: string) => InMemoryRun | undefined;
   } = {
@@ -94,8 +106,16 @@ function makeInMemoryStore(): IngestStore & {
       return true;
     },
     markBatchAccepted: async () => undefined,
-    ensureWorkspace: async () => undefined,
-    ensureDevice: async () => undefined,
+    ensureWorkspace: async (seenWorkspaceId) => {
+      ensuredWorkspace = seenWorkspaceId;
+    },
+    ensureDevice: async (device) => {
+      ensuredDevice = {
+        workspaceId: device.workspace_id,
+        deviceId: device.device_id,
+        sentAt: device.sent_at,
+      };
+    },
     markDeviceSeen: async (seenWorkspaceId, seenDeviceId, seenAt) => {
       deviceSeen = { workspaceId: seenWorkspaceId, deviceId: seenDeviceId, seenAt };
     },
@@ -141,6 +161,8 @@ function makeInMemoryStore(): IngestStore & {
       events.add(eventKey);
       return true;
     },
+    getEnsuredDevice: () => ensuredDevice,
+    getEnsuredWorkspace: () => ensuredWorkspace,
     getDeviceSeen: () => deviceSeen,
     getRun: (key) => runs.get(key),
   };
@@ -320,6 +342,12 @@ describe("ingest", () => {
 
     expect(accepted.status).toBe(202);
     await expect(accepted.json()).resolves.toMatchObject({ ok: true });
+    expect(store.getEnsuredWorkspace()).toBe(workspaceId);
+    expect(store.getEnsuredDevice()).toMatchObject({
+      workspaceId,
+      deviceId,
+      sentAt: expect.any(String),
+    });
     expect(store.getDeviceSeen()).toMatchObject({
       workspaceId,
       deviceId,

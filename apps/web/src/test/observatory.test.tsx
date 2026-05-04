@@ -128,10 +128,13 @@ describe("Observatory", () => {
     const user = userEvent.setup();
     render(<Observatory runs={runs} now={now} onSelectRun={() => {}} />);
 
+    expect(screen.getByRole("heading", { name: "Seven-day sky" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Tonight's sky" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^7d$/ })).toHaveAttribute("aria-pressed", "true");
     await user.click(screen.getByRole("button", { name: /^today$/ }));
 
     expect(screen.getByRole("button", { name: /^today$/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("heading", { name: "Today's sky" })).toBeInTheDocument();
   });
 
   it("renders a signal legend for status colors", () => {

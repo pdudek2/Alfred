@@ -46,6 +46,31 @@ describe("buildRunStoryVM", () => {
     expect(vm.paragraph).toMatch(/Longest command: pnpm test at 2:05/i);
   });
 
+  it("does not call a completed run clean when failures happened during the session", () => {
+    const detail = detailWith({
+      ...runFixture,
+      status: "completed",
+      started_at: "2026-04-28T09:00:00.000Z",
+      completed_at: "2026-04-28T09:47:00.000Z",
+      events: [
+        ...runDetailFixture.events,
+        eventWith({
+          id: "event-failed-tool",
+          occurred_at: "2026-04-28T09:30:00.000Z",
+          status: "failed",
+          type: "tool.failed",
+          payload: { error: "test command failed once" },
+        }),
+      ],
+    });
+
+    const vm = buildRunStoryVM(detail, now);
+
+    expect(vm.paragraph).toMatch(/Codex finished Alfred/i);
+    expect(vm.paragraph).not.toMatch(/clean/i);
+    expect(vm.paragraph).toMatch(/1 interruption/i);
+  });
+
   it("describes a failed run using the most recent failure reason", () => {
     const detail = detailWith({
       status: "failed",

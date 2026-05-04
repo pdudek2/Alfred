@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { SQL } from "drizzle-orm";
 
 import { createRunsRoutes } from "../routes/runs";
 import type { AuthSessionStore } from "../auth/session-auth";
@@ -8,7 +10,7 @@ import type {
   RunsListFilters,
   RunsQueryStore,
 } from "../services/runs-query-service";
-import { deriveRunLifecycleStatus } from "../services/runs-query-service";
+import { deriveRunLifecycleStatus, userVisibleRunCondition } from "../services/runs-query-service";
 
 const baseRun: RunListItem = {
   id: "00000000-0000-4000-8000-000000000301",
@@ -294,3 +296,13 @@ describe("deriveRunLifecycleStatus", () => {
     ).toBe("completed");
   });
 });
+
+describe("userVisibleRunCondition", () => {
+  it("excludes synthetic ops smoke runs from user-facing run queries", () => {
+    expect(normalizeSql(userVisibleRunCondition())).toContain('"projects"."project_key" is distinct from $1');
+  });
+});
+
+function normalizeSql(value: SQL): string {
+  return new PgDialect().sqlToQuery(value).sql.replace(/\s+/g, " ").trim();
+}

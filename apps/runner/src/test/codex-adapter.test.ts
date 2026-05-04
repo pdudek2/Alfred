@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, mkdtempSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -7,7 +7,7 @@ import { IngestEventSchema } from "@alfred/schema";
 import { describe, expect, it } from "vitest";
 
 import { collectCodexEvents } from "../sources/codex/codex-adapter.js";
-import { readJsonlFile } from "../sources/codex/codex-jsonl.js";
+import { readJsonlFile, readJsonlRecords } from "../sources/codex/codex-jsonl.js";
 
 const workspaceId = "00000000-0000-4000-8000-000000000001";
 const deviceId = "00000000-0000-4000-8000-000000000101";
@@ -33,6 +33,32 @@ describe("readJsonlFile", () => {
     const records = await readJsonlFile(fixturePath());
 
     expect(records).toHaveLength(4);
+  });
+
+  it("streams jsonl records without whole-file readFile", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "alfred-codex-jsonl-"));
+    const file = join(dir, "large-session.jsonl");
+    writeFileSync(
+      file,
+      [
+        JSON.stringify({ timestamp: "2026-04-28T10:00:00.000Z", type: "session_meta" }),
+        "not json",
+        JSON.stringify({ timestamp: "2026-04-28T10:00:01.000Z", type: "event_msg" }),
+      ].join("\n"),
+    );
+
+    const records: unknown[] = [];
+    for await (const record of readJsonlRecords(file)) {
+      records.push(record);
+    }
+
+    expect(records).toEqual([
+      { timestamp: "2026-04-28T10:00:00.000Z", type: "session_meta" },
+      { timestamp: "2026-04-28T10:00:01.000Z", type: "event_msg" },
+    ]);
+    expect(
+      readFileSync(fileURLToPath(new URL("../sources/codex/codex-jsonl.ts", import.meta.url)), "utf8"),
+    ).not.toMatch(/readFile\(/);
   });
 });
 

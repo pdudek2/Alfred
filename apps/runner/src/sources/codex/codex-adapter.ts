@@ -6,7 +6,7 @@ import { IngestEventSchema, type IngestEvent, type PrivacyMode } from "@alfred/s
 import fg from "fast-glob";
 
 import type { SourceAdapter } from "../source-adapter.js";
-import { readJsonlFile } from "./codex-jsonl.js";
+import { readJsonlRecords } from "./codex-jsonl.js";
 
 export type CodexAdapterConfig = {
   codexHome: string;
@@ -33,14 +33,16 @@ export async function collectCodexEvents(config: CodexAdapterConfig): Promise<In
   const codexSinceMs = config.codexSince === undefined ? undefined : Date.parse(config.codexSince);
 
   for (const file of files.sort()) {
-    const records = await readJsonlFile(file);
-    const context = codexSessionContext(records, file);
-    records.forEach((record, index) => {
+    const context = await codexSessionContextFromFile(file);
+    let index = 0;
+
+    for await (const record of readJsonlRecords(file)) {
       const event = codexRecordToEvent(record, index, config, context, codexSinceMs);
       if (event) {
         events.push(event);
       }
-    });
+      index += 1;
+    }
   }
 
   return events;
@@ -142,12 +144,16 @@ type CodexSessionContext = {
   projectKey: string;
 };
 
-function codexSessionContext(records: unknown[], file: string): CodexSessionContext {
-  const sessionMeta = records.find(
-    (record): record is Record<string, unknown> =>
-      isRecord(record) && record.type === "session_meta" && isRecord(record.payload),
-  );
-  const payload = sessionMeta && isRecord(sessionMeta.payload) ? sessionMeta.payload : {};
+async function codexSessionContextFromFile(file: string): Promise<CodexSessionContext> {
+  let payload: Record<string, unknown> = {};
+
+  for await (const record of readJsonlRecords(file)) {
+    if (isRecord(record) && record.type === "session_meta" && isRecord(record.payload)) {
+      payload = record.payload;
+      break;
+    }
+  }
+
   const sourceRunId = stringValue(payload.id) ?? fileBasename(file, ".jsonl");
   const cwd = stringValue(payload.cwd);
 

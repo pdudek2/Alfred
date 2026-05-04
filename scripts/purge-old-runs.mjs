@@ -12,6 +12,8 @@
 //   node scripts/purge-old-runs.mjs --before 2026-04-28T00:00:00.000Z
 //   DATABASE_URL=... node scripts/purge-old-runs.mjs --before 2026-01-01T00:00:00Z --execute
 
+import { createRequire } from "node:module";
+
 const DEFAULT_DATABASE_URL = "postgresql://alfred:alfred@localhost:54329/alfred";
 
 function parseArgs(argv) {
@@ -133,17 +135,24 @@ function selfTest() {
 }
 
 async function loadPg() {
-  // pg is a workspace dependency of packages/db; reach in directly so the
-  // script does not require root-level installs.
-  try {
-    return (await import("pg")).default;
-  } catch {
-    const url = new URL(
-      "../node_modules/.pnpm/pg@8.20.0/node_modules/pg/lib/index.js",
-      import.meta.url,
-    );
-    return (await import(url.href)).default ?? (await import(url.href));
+  // pg is a workspace dependency, so resolve it through packages that own it
+  // instead of pinning a pnpm store version path.
+  const requireCandidates = [
+    createRequire(import.meta.url),
+    createRequire(new URL("../packages/db/package.json", import.meta.url)),
+    createRequire(new URL("../apps/api/package.json", import.meta.url)),
+  ];
+
+  const errors = [];
+  for (const requireFrom of requireCandidates) {
+    try {
+      return requireFrom("pg");
+    } catch (error) {
+      errors.push(error?.message ?? String(error));
+    }
   }
+
+  throw new Error(`Cannot load pg. Run pnpm install and retry. Last error: ${errors.at(-1) ?? "unknown"}`);
 }
 
 async function main() {

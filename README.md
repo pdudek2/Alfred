@@ -186,15 +186,22 @@ ALFRED_CLOUD_SMOKE_MODE=public ALFRED_EXPECT_AUTH=ready ALFRED_CLOUD_URL=<prod-u
 ```
 
 Run runner-auth smoke after changing runner credentials or after a production
-redeploy. This sends one authenticated heartbeat and expects `202`:
+redeploy. This sends one authenticated heartbeat and one completed synthetic
+batch, then expects the batch to be freshly accepted without duplicates:
 
 ```bash
-ALFRED_CLOUD_URL=<prod-url> RUNNER_DEVICE_TOKEN=<device-token> pnpm smoke:cloud:runner
+ALFRED_CLOUD_URL=<prod-url> \
+RUNNER_DEVICE_TOKEN=<device-token> \
+RUNNER_WORKSPACE_ID=<workspace-id> \
+RUNNER_DEVICE_ID=<device-id> \
+pnpm smoke:cloud:runner
 ```
 
-This verifies that the cloud API accepts the runner device token. It does not
-prove the local service is running or that batch ingest is healthy; follow it
-with `pnpm runner:service:doctor` and `pnpm runner:service:logs`.
+This verifies that the cloud API accepts the runner device token and that the
+workspace/device scope can write a batch. It writes a tiny `ops-smoke` completed
+run that is hidden from user-facing run queries. It does not prove the local
+service loop is running; follow it with `pnpm runner:service:doctor` and
+`pnpm runner:service:logs`.
 
 Run authenticated smoke checks against a preview that has dev auth enabled:
 

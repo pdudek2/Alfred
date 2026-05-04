@@ -17,6 +17,7 @@ export type RunsListFilters = {
 export type RunLifecycleStatus = "running" | "waiting" | "failed" | "completed" | "stale" | "other";
 
 export const STALE_RUN_AFTER_MS = 2 * 60 * 60 * 1000;
+export const OPS_SMOKE_PROJECT_KEY = "ops-smoke";
 
 export type RunListItem = {
   id: string;
@@ -87,7 +88,7 @@ export function createRunsQueryStore(db: Database): RunsQueryStore {
     listRuns: async (workspaceId, limit, filters = {}) => {
       const latestEvents = latestEventsForWorkspace(db, workspaceId);
       const lastActivityExpr = sql<Date>`coalesce(${latestEvents.lastActivityAt}, ${runs.updatedAt})`;
-      const conditions: SQL[] = [eq(runs.workspaceId, workspaceId)];
+      const conditions: SQL[] = [eq(runs.workspaceId, workspaceId), userVisibleRunCondition()];
       if (filters.since) {
         conditions.push(gte(lastActivityExpr, filters.since));
       }
@@ -150,7 +151,7 @@ export function createRunsQueryStore(db: Database): RunsQueryStore {
         .from(runs)
         .leftJoin(projects, eq(runs.projectId, projects.id))
         .leftJoin(latestEvents, eq(runs.id, latestEvents.runId))
-        .where(and(eq(runs.workspaceId, workspaceId), eq(runs.id, runId)))
+        .where(and(eq(runs.workspaceId, workspaceId), eq(runs.id, runId), userVisibleRunCondition()))
         .limit(1);
 
       if (!run) return null;
@@ -175,6 +176,10 @@ export function createRunsQueryStore(db: Database): RunsQueryStore {
       };
     },
   };
+}
+
+export function userVisibleRunCondition(): SQL {
+  return sql`${projects.projectKey} is distinct from ${OPS_SMOKE_PROJECT_KEY}`;
 }
 
 function latestEventsForWorkspace(db: Database, workspaceId: string) {

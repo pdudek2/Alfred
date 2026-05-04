@@ -35,7 +35,7 @@ export function Observatory({ runs, now, onSelectRun }: ObservatoryProps) {
     <section className="observatory" aria-label="Agent observatory">
       <header className="observatory-head">
         <div>
-          <h2>Tonight's sky</h2>
+          <h2>{scopeTitle(scope)}</h2>
           <p className="observatory-subtitle">
             {layout.clusters.length} projects, {visibleRuns.length} signals
           </p>
@@ -185,6 +185,13 @@ function filterByScope(runs: RunListItem[], scope: Scope, now: Date): RunListIte
     const reference = new Date(run.last_activity_at || run.updated_at).getTime();
     return reference >= cutoff;
   });
+}
+
+function scopeTitle(scope: Scope): string {
+  if (scope === "today") return "Today's sky";
+  if (scope === "7d") return "Seven-day sky";
+  if (scope === "30d") return "Thirty-day sky";
+  return "All signals";
 }
 
 function startOfLocalDay(value: Date): Date {

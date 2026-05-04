@@ -33,6 +33,8 @@ type RunRecord = {
   id: string;
 };
 
+type DevicePresence = Pick<IngestBatch, "workspace_id" | "device_id" | "sent_at">;
+
 type DrizzleIngestDb = Pick<Database, "insert" | "update"> & {
   transaction?: Database["transaction"];
   select?: Database["select"];
@@ -43,7 +45,7 @@ export type IngestStore = {
   insertBatchIfNew(batch: IngestBatch): Promise<boolean>;
   markBatchAccepted(batch: IngestBatch, acceptedEvents: number, duplicateEvents: number): Promise<void>;
   ensureWorkspace(workspaceId: string): Promise<void>;
-  ensureDevice(batch: IngestBatch): Promise<void>;
+  ensureDevice(device: DevicePresence): Promise<void>;
   markDeviceSeen(workspaceId: string, deviceId: string, seenAt: Date): Promise<void>;
   upsertProject(event: IngestEvent): Promise<ProjectRecord>;
   upsertRun(event: IngestEvent, projectId: string): Promise<RunRecord>;
@@ -114,7 +116,16 @@ export async function markRunnerHeartbeat(
 ): Promise<{ ok: true; last_seen_at: string }> {
   const store = isIngestStore(db) ? db : createDrizzleIngestStore(db);
   const seenAt = input.seenAt ?? new Date();
-  await store.markDeviceSeen(input.workspaceId, input.deviceId, seenAt);
+
+  await store.transaction(async (tx) => {
+    await tx.ensureWorkspace(input.workspaceId);
+    await tx.ensureDevice({
+      workspace_id: input.workspaceId,
+      device_id: input.deviceId,
+      sent_at: seenAt.toISOString(),
+    });
+    await tx.markDeviceSeen(input.workspaceId, input.deviceId, seenAt);
+  });
 
   return {
     ok: true,

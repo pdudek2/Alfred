@@ -122,6 +122,14 @@ describe("system status view model", () => {
       detail: "No heartbeat yet",
     });
   });
+
+  it("does not describe a failed status request as missing heartbeat data", () => {
+    expect(buildSystemStatusVM({ kind: "unavailable" })).toEqual({
+      tone: "offline",
+      label: "Runner status unavailable",
+      detail: "I can't check freshness right now",
+    });
+  });
 });
 
 describe("SystemStatus", () => {
