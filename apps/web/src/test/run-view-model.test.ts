@@ -63,7 +63,7 @@ describe("run view model", () => {
     expect(runs.map((run) => run.id)).toEqual(originalOrder);
     expect(overview.totalCount).toBe(4);
     expect(overview.liveCount).toBe(2);
-    expect(overview.needsAttentionCount).toBe(2);
+    expect(overview.needsAttentionCount).toBe(1);
     expect(overview.doneCount).toBe(1);
     expect(overview.latestUpdatedAt).toBe("2026-04-28T11:10:00.000Z");
     expect(overview.statusCounts).toEqual([
@@ -128,7 +128,7 @@ describe("run view model", () => {
     expect(typeof detail.sourceRunId).toBe("string");
   });
 
-  it("filters by tab and query, then groups by project deterministically", () => {
+  it("filters waiting runs into Needs without mixing failed runs into that tab", () => {
     const vm = buildRunListVM(runs, {
       tab: "needs",
       query: "codex",
@@ -136,7 +136,7 @@ describe("run view model", () => {
       now: NOW,
     });
 
-    expect(vm.filteredCount).toBe(2);
+    expect(vm.filteredCount).toBe(1);
     expect(vm.groups).toEqual([
       {
         key: "Billing",
@@ -144,6 +144,19 @@ describe("run view model", () => {
         count: 1,
         runs: [expect.objectContaining({ id: "run-waiting" })],
       },
+    ]);
+  });
+
+  it("filters failed runs into Problems instead of Needs", () => {
+    const vm = buildRunListVM(runs, {
+      tab: "problems",
+      query: "codex",
+      grouping: "project",
+      now: NOW,
+    });
+
+    expect(vm.filteredCount).toBe(1);
+    expect(vm.groups).toEqual([
       {
         key: "Ops",
         label: "Ops",
@@ -163,7 +176,7 @@ describe("run view model", () => {
       count: 1,
       runs: [expect.objectContaining({ id: "run-completed" })],
     });
-    expect(byStatus.groups.map((group) => group.key)).toEqual(["running", "waiting", "failed", "completed"]);
+    expect(byStatus.groups.map((group) => group.key)).toEqual(["waiting", "running", "failed", "completed"]);
   });
 
   it("builds run facts and includes deterministic activity groups", () => {
@@ -242,6 +255,18 @@ describe("run view model", () => {
     expect(needs.filteredCount).toBe(0);
   });
 
+  it("keeps failed runs in a separate Problems feed section", () => {
+    const feed = buildTimeGroupedFeedVM(runs, NOW);
+
+    expect(feed.sections.map((section) => section.label)).toEqual(["Needs you", "Running", "Problems", "Done"]);
+    expect(feed.sections.find((section) => section.label === "Needs you")?.runs.map((run) => run.id)).toEqual([
+      "run-waiting",
+    ]);
+    expect(feed.sections.find((section) => section.label === "Problems")?.runs.map((run) => run.id)).toEqual([
+      "run-failed",
+    ]);
+  });
+
   it("treats unknown runs with completed_at as completed in the reader", () => {
     const unknownCompletedRun: RunListItem = {
       ...runFixture,
@@ -312,7 +337,7 @@ describe("buildTimeGroupedFeedVM", () => {
     expect(done.runs.map((run) => run.id)).toEqual(["r1"]);
   });
 
-  it("places failures in Needs you", () => {
+  it("places failures in Problems", () => {
     const runs = [
       {
         ...failedRun,
@@ -323,8 +348,8 @@ describe("buildTimeGroupedFeedVM", () => {
       },
     ];
     const vm = buildTimeGroupedFeedVM(runs, now);
-    const needsYou = vm.sections.find((section) => section.label === "Needs you")!;
-    expect(needsYou.runs.map((run) => run.id)).toEqual(["failed-needs-review"]);
+    const problems = vm.sections.find((section) => section.label === "Problems")!;
+    expect(problems.runs.map((run) => run.id)).toEqual(["failed-needs-review"]);
   });
 
   it("places stale active runs into Quiet archive", () => {

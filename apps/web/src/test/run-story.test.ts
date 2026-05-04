@@ -100,6 +100,28 @@ describe("buildRunStoryVM", () => {
     expect(vm.paragraph).not.toMatch(/old error/i);
   });
 
+  it("describes an interrupted failed run without saying stopped on interrupted", () => {
+    const detail = detailWith({
+      status: "failed",
+      started_at: "2026-04-28T10:00:00.000Z",
+      completed_at: "2026-04-28T10:08:00.000Z",
+      events: [
+        eventWith({
+          id: "event-interrupted",
+          occurred_at: "2026-04-28T10:08:00.000Z",
+          status: "failed",
+          type: "run.failed",
+          payload: { reason: "interrupted" },
+        }),
+      ],
+    });
+
+    const vm = buildRunStoryVM(detail, now);
+
+    expect(vm.paragraph).toMatch(/Codex was interrupted after 8 minutes/i);
+    expect(vm.paragraph).not.toMatch(/stopped on interrupted/i);
+  });
+
   it("describes a waiting run", () => {
     const detail = detailWith({
       status: "waiting",
@@ -115,7 +137,32 @@ describe("buildRunStoryVM", () => {
 
     const vm = buildRunStoryVM(detail, now);
 
-    expect(vm.paragraph).toMatch(/waiting for your/i);
+    expect(vm.paragraph).toBe("Codex is waiting on you. Last activity 29 minutes ago.");
+    expect(vm.paragraph).not.toMatch(/files touched|so far/i);
+  });
+
+  it("does not describe a waiting run as working for the whole stale session age", () => {
+    const detail = detailWith({
+      status: "waiting",
+      started_at: "2026-04-23T00:00:00.000Z",
+      completed_at: null,
+      updated_at: "2026-04-28T10:29:30.000Z",
+      last_activity_at: "2026-04-28T10:29:30.000Z",
+      events: [
+        eventWith({
+          id: "event-waiting",
+          occurred_at: "2026-04-28T10:29:30.000Z",
+          status: "waiting",
+          type: "agent.waiting",
+          payload: { message: "waiting on you" },
+        }),
+      ],
+    });
+
+    const vm = buildRunStoryVM(detail, now);
+
+    expect(vm.paragraph).toBe("Codex is waiting on you. Last activity 30 seconds ago.");
+    expect(vm.paragraph).not.toMatch(/131 hours|5 days|files touched|so far/i);
   });
 
   it("describes a running run", () => {
@@ -130,8 +177,28 @@ describe("buildRunStoryVM", () => {
 
     const vm = buildRunStoryVM(detail, now);
 
-    expect(vm.paragraph).toMatch(/has been working/i);
+    expect(vm.paragraph).toMatch(/is active on/i);
     expect(vm.paragraph).toMatch(/Alfred/i);
+    expect(vm.paragraph).toMatch(/1 file path observed/i);
+    expect(vm.paragraph).toMatch(/Last activity/i);
+  });
+
+  it("does not report zero touched files when no file paths were observed", () => {
+    const detail = detailWith({
+      status: "running",
+      completed_at: null,
+      events: [
+        eventWith({
+          id: "event-command",
+          payload: { command: "pnpm test", duration_ms: 125_000, tool_name: "exec_command" },
+        }),
+      ],
+    });
+
+    const vm = buildRunStoryVM(detail, now);
+
+    expect(vm.paragraph).not.toMatch(/\b0 files touched\b/i);
+    expect(vm.paragraph).toMatch(/1 command observed/i);
   });
 
   it("describes a stale run", () => {
