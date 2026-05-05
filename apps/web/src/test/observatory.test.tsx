@@ -31,6 +31,15 @@ describe("Observatory", () => {
     expect(document.querySelector(".observatory-node-buttons")).toBeNull();
   });
 
+  it("describes the map as a loaded sample instead of a complete time horizon", () => {
+    render(<Observatory runs={runs} now={now} onSelectRun={() => {}} />);
+
+    expect(screen.getByRole("heading", { name: "Loaded runs from last 7 days" })).toBeInTheDocument();
+    expect(screen.getByText(/3 of 3 loaded runs shown/i)).toBeInTheDocument();
+    expect(screen.getByText(/Grouped by project; position is not a timeline or dependency map/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Seven-day sky|All signals/i)).not.toBeInTheDocument();
+  });
+
   it("calls onSelectRun when a node is clicked", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
@@ -149,13 +158,23 @@ describe("Observatory", () => {
     const user = userEvent.setup();
     render(<Observatory runs={runs} now={now} onSelectRun={() => {}} />);
 
-    expect(screen.getByRole("heading", { name: "Seven-day sky" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Loaded runs from last 7 days" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Tonight's sky" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^7d$/ })).toHaveAttribute("aria-pressed", "true");
     await user.click(screen.getByRole("button", { name: /^today$/ }));
 
     expect(screen.getByRole("button", { name: /^today$/ })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("heading", { name: "Today's sky" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Loaded runs from today" })).toBeInTheDocument();
+  });
+
+  it("labels all scope as the loaded sample rather than all signals", async () => {
+    const user = userEvent.setup();
+    render(<Observatory runs={runs} now={now} onSelectRun={() => {}} />);
+
+    await user.click(screen.getByRole("button", { name: /^all$/ }));
+
+    expect(screen.getByRole("heading", { name: "Loaded sample" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "All signals" })).not.toBeInTheDocument();
   });
 
   it("renders a signal legend for status colors", () => {

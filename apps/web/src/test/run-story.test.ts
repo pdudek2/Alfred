@@ -235,6 +235,21 @@ describe("buildRunStoryVM", () => {
     expect(vm.paragraph).toMatch(/stopped reporting/i);
   });
 
+  it("still describes lifecycle-running quiet runs as stale when last activity is old", () => {
+    const detail = detailWith({
+      completed_at: null,
+      lifecycle_status: "running",
+      last_activity_at: "2026-04-28T05:00:00.000Z",
+      status: "running",
+      updated_at: "2026-04-28T05:00:00.000Z",
+    });
+
+    const vm = buildRunStoryVM(detail, now);
+
+    expect(vm.paragraph).toMatch(/stopped reporting/i);
+    expect(vm.paragraph).not.toMatch(/is active on/i);
+  });
+
   it("returns a listening fallback for active empty-event runs", () => {
     const detail = detailWith({ events: [] });
 
@@ -254,6 +269,66 @@ describe("buildRunStoryVM", () => {
     expect(buildRunStoryVM(detailWith({ status: "cancelled", events: [] }), now).paragraph).toBe(
       "This run was cancelled, but no event stream was captured.",
     );
+  });
+
+  it("uses lifecycle status for terminal empty-event runs when raw status is unknown", () => {
+    const vm = buildRunStoryVM(
+      detailWith({
+        completed_at: "2026-04-28T10:05:00.000Z",
+        events: [],
+        lifecycle_status: "completed",
+        status: "unknown",
+      }),
+      now,
+    );
+
+    expect(vm.paragraph).toBe("This run closed, but no event stream was captured.");
+  });
+
+  it("uses lifecycle status for the story branch when raw status is unknown", () => {
+    const detail = detailWith({
+      completed_at: "2026-04-28T10:05:00.000Z",
+      events: [
+        eventWith({
+          id: "event-command",
+          payload: { command: "pnpm test", duration_ms: 20_000, tool_name: "exec_command" },
+        }),
+      ],
+      lifecycle_status: "completed",
+      status: "unknown",
+    });
+
+    const vm = buildRunStoryVM(detail, now);
+
+    expect(vm.paragraph).toMatch(/Codex finished Alfred/i);
+    expect(vm.paragraph).not.toMatch(/still listening/i);
+  });
+
+  it("falls back to completed_at when raw status is unknown and lifecycle is absent", () => {
+    const vm = buildRunStoryVM(
+      detailWith({
+        completed_at: "2026-04-28T10:05:00.000Z",
+        events: [],
+        status: "unknown",
+      }),
+      now,
+    );
+
+    expect(vm.paragraph).toBe("This run closed, but no event stream was captured.");
+  });
+
+  it("does not describe lifecycle-stale empty runs as still listening", () => {
+    const vm = buildRunStoryVM(
+      detailWith({
+        completed_at: null,
+        events: [],
+        lifecycle_status: "stale",
+        status: "running",
+      }),
+      now,
+    );
+
+    expect(vm.paragraph).toBe("This run went quiet, but no event stream was captured.");
   });
 
   it("provides highlight ranges that align with substrings", () => {
