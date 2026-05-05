@@ -135,11 +135,15 @@ describe("App (new shell)", () => {
     await user.click(row);
 
     expect(row).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("dialog", { name: /opening run/i })).toBeInTheDocument();
+    expect(screen.getByText("Opening run...")).toBeInTheDocument();
 
     await act(async () => {
       detail.resolve(new Response(JSON.stringify(runDetailFixture), { status: 200 }));
       await detail.promise;
     });
+
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /opening run/i })).not.toBeInTheDocument());
   });
 
   it("keeps a newly opened run selected when an older refresh finishes afterward", async () => {

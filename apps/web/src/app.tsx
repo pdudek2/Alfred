@@ -201,6 +201,7 @@ export function App() {
   });
 
   const drawerRun = selectedRun && selectedRun.id === selectedRunId ? selectedRun : null;
+  const openingRun = selectedRunId !== null && drawerRun === null;
   const systemStatusVM = useMemo(() => buildSystemStatusVM(systemStatus), [systemStatus]);
 
   return (
@@ -226,6 +227,19 @@ export function App() {
       {drawerRun ? (
         <div className="run-reader-overlay run-reader-overlay-visible">
           <RunReader detail={drawerRun} now={readerNow} onClose={() => setSelectedFromDrawer(null)} />
+        </div>
+      ) : openingRun ? (
+        <div className="run-reader-overlay run-reader-overlay-visible">
+          <aside
+            aria-labelledby="run-reader-opening-title"
+            aria-modal="true"
+            className="run-reader run-reader-opening"
+            role="dialog"
+          >
+            <p className="run-reader-kicker">Loading</p>
+            <h2 id="run-reader-opening-title">Opening run...</h2>
+            <p className="run-reader-subtitle">Fetching the event stream.</p>
+          </aside>
         </div>
       ) : null}
     </>
