@@ -48,14 +48,15 @@ export function computeObservatoryLayout(runs: RunWithParent[], viewport: Observ
   const center = { x: viewport.width / 2, y: viewport.height / 2 };
   const orbit = Math.max(Math.min(viewport.width, viewport.height) / 3, 120);
   const clusterRadius = Math.max(Math.min(viewport.width, viewport.height) / 6, 60);
+  const clusterPadding = clusterRadius + 32;
   const positionByRunId = new Map<string, Point>();
   const clusterByRunId = new Map<string, string>();
 
   const clusters = labels.map((label, index) => {
-    const clusterCenter = clampPoint(clusterCenterFor(label, index, labels.length, center, orbit), viewport);
+    const clusterCenter = clampPoint(clusterCenterFor(label, index, labels.length, center, orbit), viewport, clusterPadding);
     const runsForCluster = [...(groups.get(label) ?? [])].sort((left, right) => left.id.localeCompare(right.id));
     const nodes = runsForCluster.map((run) => {
-      const position = clampPoint(nodePositionFor(run.id, clusterCenter, clusterRadius), viewport);
+      const position = clampPoint(nodePositionFor(run.id, clusterCenter, clusterRadius), viewport, 18);
       positionByRunId.set(run.id, position);
       clusterByRunId.set(run.id, label);
       return {
@@ -125,10 +126,10 @@ function nodePositionFor(runId: string, center: Point, clusterRadius: number): P
   };
 }
 
-function clampPoint(point: Point, viewport: ObservatoryViewport): Point {
+function clampPoint(point: Point, viewport: ObservatoryViewport, padding = 0): Point {
   return {
-    x: clamp(point.x, 0, viewport.width),
-    y: clamp(point.y, 0, viewport.height),
+    x: clamp(point.x, padding, viewport.width - padding),
+    y: clamp(point.y, padding, viewport.height - padding),
   };
 }
 

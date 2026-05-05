@@ -64,7 +64,7 @@
 
 .run-reader-opening {
   gap: 8px;
-  max-width: 440px;
+  min-height: 150px;
 }
 
 .run-reader-close {
@@ -298,17 +298,23 @@
 }
 
 .reader-feed {
-  transition: filter var(--reader-t-drawer) var(--reader-ease-out);
+  transition:
+    filter var(--reader-t-drawer) var(--reader-ease-out),
+    opacity var(--reader-t-drawer) var(--reader-ease-out),
+    transform var(--reader-t-drawer) var(--reader-ease-out);
 }
 
 .reader-feed-dimmed {
-  filter: blur(3px) brightness(0.45);
+  filter: blur(1.5px) brightness(0.72);
+  opacity: 0.76;
   pointer-events: none;
+  transform: scale(0.992);
   user-select: none;
 }
 
 .run-reader-overlay {
   align-items: flex-start;
+  background: rgba(14, 12, 8, 0.28);
   display: flex;
   inset: 0;
   justify-content: center;
@@ -322,7 +328,8 @@
 .run-reader-overlay > * {
   opacity: 0;
   pointer-events: auto;
-  transform: translateX(20px);
+  transform: translateY(12px) scale(0.985);
+  transform-origin: top center;
   transition:
     opacity var(--reader-t-drawer) var(--reader-ease-out),
     transform var(--reader-t-drawer) var(--reader-ease-out);
@@ -331,7 +338,7 @@
 
 .run-reader-overlay-visible > * {
   opacity: 1;
-  transform: translateX(0);
+  transform: translateY(0) scale(1);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -341,6 +348,8 @@
 
   .reader-feed-dimmed {
     filter: brightness(0.55);
+    opacity: 0.85;
+    transform: none;
   }
 
   .run-reader-overlay > * {

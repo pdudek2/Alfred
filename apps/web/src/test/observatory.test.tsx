@@ -32,6 +32,41 @@ describe("Observatory", () => {
     expect(document.querySelector(".observatory-node-buttons")).toBeNull();
   });
 
+  it("zooms the star map with controls and can reset the view", async () => {
+    const user = userEvent.setup();
+    render(<Observatory runs={runs} now={now} onSelectRun={() => {}} />);
+
+    const viewport = document.querySelector("[data-observatory-viewport]");
+    expect(viewport).toHaveAttribute("transform", "translate(0 0) scale(1)");
+
+    await user.click(screen.getByRole("button", { name: "Zoom in" }));
+
+    expect(screen.getByText("122%")).toBeInTheDocument();
+    expect(viewport).toHaveAttribute("transform", "translate(-132 -79.2) scale(1.22)");
+
+    await user.click(screen.getByRole("button", { name: "Reset map view" }));
+
+    expect(screen.getByText("100%")).toBeInTheDocument();
+    expect(viewport).toHaveAttribute("transform", "translate(0 0) scale(1)");
+  });
+
+  it("supports wheel zoom and drag panning", () => {
+    render(<Observatory runs={runs} now={now} onSelectRun={() => {}} />);
+
+    const canvas = screen.getByRole("group", { name: "Observatory star map, draggable and zoomable" });
+    const viewport = document.querySelector("[data-observatory-viewport]");
+
+    fireEvent.wheel(canvas, { clientX: 600, clientY: 360, deltaY: -180 });
+    expect(viewport?.getAttribute("transform")).toContain("scale(1.241)");
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset map view" }));
+    fireEvent.pointerDown(canvas, { button: 0, clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(canvas, { clientX: 130, clientY: 120, pointerId: 1 });
+    fireEvent.pointerUp(canvas, { clientX: 130, clientY: 120, pointerId: 1 });
+
+    expect(viewport).toHaveAttribute("transform", "translate(30 20) scale(1)");
+  });
+
   it("describes the map as a loaded sample instead of a complete time horizon", () => {
     render(<Observatory runs={runs} now={now} onSelectRun={() => {}} />);
 
