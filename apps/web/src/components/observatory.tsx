@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { Scan, ZoomIn, ZoomOut } from "lucide-react";
+import { useMemo, useRef, useState, type PointerEvent, type WheelEvent } from "react";
 
 import type { RunListItem } from "../lib/api-client";
 import { computeObservatoryLayout } from "../lib/observatory-layout";
@@ -21,9 +22,34 @@ const SCOPE_LABELS: Array<{ id: Scope; label: string }> = [
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const VIEWPORT = { width: 1200, height: 720 };
+const DEFAULT_VIEW = { scale: 1, x: 0, y: 0 };
+const MIN_ZOOM = 0.65;
+const MAX_ZOOM = 4;
+const ZOOM_STEP = 1.22;
+
+type ObservatoryView = {
+  scale: number;
+  x: number;
+  y: number;
+};
+
+type PanGesture = {
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  startView: ObservatoryView;
+};
+
+type ViewportEventPoint = {
+  clientX: number;
+  clientY: number;
+};
 
 export function Observatory({ runs, now, onSelectRun }: ObservatoryProps) {
   const [scope, setScope] = useState<Scope>("7d");
+  const [view, setView] = useState<ObservatoryView>(DEFAULT_VIEW);
+  const [panGesture, setPanGesture] = useState<PanGesture | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const visibleRuns = useMemo(() => filterByScope(runs, scope, now), [runs, scope, now]);
   const observatoryRuns = useMemo(
     () => visibleRuns.map((run) => ({ ...run, status: buildRunCardVM(run, now).status })),
@@ -43,10 +69,42 @@ export function Observatory({ runs, now, onSelectRun }: ObservatoryProps) {
         </div>
       </header>
 
+      <div aria-label="Map controls" className="observatory-controls" role="group">
+        <button
+          aria-label="Zoom out"
+          className="observatory-control"
+          onClick={() => zoomFromCenter(1 / ZOOM_STEP)}
+          type="button"
+        >
+          <ZoomOut aria-hidden="true" size={15} strokeWidth={1.8} />
+        </button>
+        <span aria-live="polite" className="observatory-zoom-readout">
+          {Math.round(view.scale * 100)}%
+        </span>
+        <button
+          aria-label="Zoom in"
+          className="observatory-control"
+          onClick={() => zoomFromCenter(ZOOM_STEP)}
+          type="button"
+        >
+          <ZoomIn aria-hidden="true" size={15} strokeWidth={1.8} />
+        </button>
+        <button aria-label="Reset map view" className="observatory-control" onClick={resetView} type="button">
+          <Scan aria-hidden="true" size={15} strokeWidth={1.8} />
+        </button>
+      </div>
+
       <svg
-        aria-label="Observatory star map"
-        className="observatory-canvas"
+        aria-label="Observatory star map, draggable and zoomable"
+        className={panGesture ? "observatory-canvas observatory-canvas--dragging" : "observatory-canvas"}
+        onDoubleClick={(event) => zoomAt(viewportPointForEvent(event), ZOOM_STEP)}
+        onPointerCancel={endPan}
+        onPointerDown={startPan}
+        onPointerMove={movePan}
+        onPointerUp={endPan}
+        onWheel={handleWheel}
         preserveAspectRatio="xMidYMid meet"
+        ref={svgRef}
         role="group"
         viewBox={`0 0 ${VIEWPORT.width} ${VIEWPORT.height}`}
       >
@@ -61,89 +119,96 @@ export function Observatory({ runs, now, onSelectRun }: ObservatoryProps) {
           </radialGradient>
         </defs>
 
-        {layout.clusters.map((cluster) => (
-          <g key={cluster.label} data-cluster-label={cluster.label}>
-            <ellipse
-              className="observatory-cluster"
-              cx={cluster.center.x}
-              cy={cluster.center.y}
-              rx={cluster.radius}
-              ry={cluster.radius * 0.78}
+        <g data-observatory-viewport transform={viewTransform(view)}>
+          {layout.clusters.map((cluster) => (
+            <g key={cluster.label} data-cluster-label={cluster.label}>
+              <ellipse
+                className="observatory-cluster"
+                cx={cluster.center.x}
+                cy={cluster.center.y}
+                rx={cluster.radius}
+                ry={cluster.radius * 0.78}
+              />
+              <text
+                className="observatory-cluster-label"
+                textAnchor="middle"
+                x={cluster.center.x}
+                y={cluster.center.y - cluster.radius - 12}
+              >
+                {cluster.label}
+              </text>
+            </g>
+          ))}
+
+          {layout.edges.map((edge, index) => (
+            <line
+              className={edge.crossCluster ? "observatory-edge observatory-edge-cross" : "observatory-edge"}
+              key={`edge-${index}`}
+              x1={edge.from.x}
+              x2={edge.to.x}
+              y1={edge.from.y}
+              y2={edge.to.y}
             />
-            <text
-              className="observatory-cluster-label"
-              textAnchor="middle"
-              x={cluster.center.x}
-              y={cluster.center.y - cluster.radius - 12}
-            >
-              {cluster.label}
-            </text>
-          </g>
-        ))}
+          ))}
 
-        {layout.edges.map((edge, index) => (
-          <line
-            className={edge.crossCluster ? "observatory-edge observatory-edge-cross" : "observatory-edge"}
-            key={`edge-${index}`}
-            x1={edge.from.x}
-            x2={edge.to.x}
-            y1={edge.from.y}
-            y2={edge.to.y}
-          />
-        ))}
-
-        {layout.clusters.flatMap((cluster) =>
-          [...cluster.nodes].sort(compareNodeLayer).map((node) => {
-            const halo = haloFor(node.status);
-            return (
-              <g className="observatory-node" key={node.runId}>
-                <title>{node.projectLabel} · {node.status}</title>
-                {halo ? (
+          {layout.clusters.flatMap((cluster) =>
+            [...cluster.nodes].sort(compareNodeLayer).map((node) => {
+              const halo = haloFor(node.status);
+              return (
+                <g className="observatory-node" key={node.runId}>
+                  <title>{node.projectLabel} · {node.status}</title>
+                  {halo ? (
+                    <circle
+                      aria-hidden="true"
+                      className={halo.className}
+                      cx={node.position.x}
+                      cy={node.position.y}
+                      r={halo.radius}
+                    />
+                  ) : null}
                   <circle
                     aria-hidden="true"
-                    className={halo.className}
+                    className={`observatory-dot observatory-dot-${stateClass(node.status)}`}
                     cx={node.position.x}
                     cy={node.position.y}
-                    r={halo.radius}
+                    r={radiusFor(node.status)}
                   />
-                ) : null}
-                <circle
-                  aria-hidden="true"
-                  className={`observatory-dot observatory-dot-${stateClass(node.status)}`}
-                  cx={node.position.x}
-                  cy={node.position.y}
-                  r={radiusFor(node.status)}
-                />
-                <circle
-                  aria-label={`Open ${node.projectLabel} ${statusLabel(node.status)} run`}
-                  className="observatory-hit-target"
-                  cx={node.position.x}
-                  cy={node.position.y}
-                  data-node-run-id={node.runId}
-                  onClick={() => onSelectRun(node.runId)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onSelectRun(node.runId);
-                    }
-                  }}
-                  r={10}
-                  role="button"
-                  tabIndex={0}
-                />
-              </g>
-            );
-          }),
-        )}
+                  <circle
+                    aria-label={`Open ${node.projectLabel} ${statusLabel(node.status)} run`}
+                    className="observatory-hit-target"
+                    cx={node.position.x}
+                    cy={node.position.y}
+                    data-node-run-id={node.runId}
+                    onClick={() => onSelectRun(node.runId)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onSelectRun(node.runId);
+                      }
+                    }}
+                    r={10}
+                    role="button"
+                    tabIndex={0}
+                  />
+                </g>
+              );
+            }),
+          )}
+        </g>
       </svg>
 
       <div aria-label="Time scope" className="observatory-scope" role="group">
         {SCOPE_LABELS.map((entry) => (
           <button
             aria-pressed={scope === entry.id}
-            className={scope === entry.id ? "observatory-scope-pill observatory-scope-pill-active" : "observatory-scope-pill"}
+            className={
+              scope === entry.id ? "observatory-scope-pill observatory-scope-pill-active" : "observatory-scope-pill"
+            }
             key={entry.id}
-            onClick={() => setScope(entry.id)}
+            onClick={() => {
+              setScope(entry.id);
+              resetView();
+            }}
             type="button"
           >
             {entry.label}
@@ -171,6 +236,106 @@ export function Observatory({ runs, now, onSelectRun }: ObservatoryProps) {
       </div>
     </section>
   );
+
+  function resetView() {
+    setPanGesture(null);
+    setView(DEFAULT_VIEW);
+  }
+
+  function zoomFromCenter(factor: number) {
+    zoomAt({ x: VIEWPORT.width / 2, y: VIEWPORT.height / 2 }, factor);
+  }
+
+  function zoomAt(point: { x: number; y: number }, factor: number) {
+    setView((current) => zoomView(current, factor, point));
+  }
+
+  function handleWheel(event: WheelEvent<SVGSVGElement>) {
+    event.preventDefault();
+    zoomAt(viewportPointForEvent(event), Math.exp(-event.deltaY * 0.0012));
+  }
+
+  function startPan(event: PointerEvent<SVGSVGElement>) {
+    if (event.button !== 0 || isNodeTarget(event.target)) return;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setPanGesture({
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startView: view,
+    });
+  }
+
+  function movePan(event: PointerEvent<SVGSVGElement>) {
+    if (!panGesture || panGesture.pointerId !== event.pointerId) return;
+    const delta = viewportDeltaForEvent(
+      event.clientX - panGesture.startClientX,
+      event.clientY - panGesture.startClientY,
+    );
+    setView({
+      ...panGesture.startView,
+      x: panGesture.startView.x + delta.x,
+      y: panGesture.startView.y + delta.y,
+    });
+  }
+
+  function endPan(event: PointerEvent<SVGSVGElement>) {
+    if (!panGesture || panGesture.pointerId !== event.pointerId) return;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    setPanGesture(null);
+  }
+
+  function viewportPointForEvent(event: ViewportEventPoint): { x: number; y: number } {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+      return { x: VIEWPORT.width / 2, y: VIEWPORT.height / 2 };
+    }
+
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * VIEWPORT.width,
+      y: ((event.clientY - rect.top) / rect.height) * VIEWPORT.height,
+    };
+  }
+
+  function viewportDeltaForEvent(deltaX: number, deltaY: number): { x: number; y: number } {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+      return { x: deltaX, y: deltaY };
+    }
+
+    return {
+      x: (deltaX / rect.width) * VIEWPORT.width,
+      y: (deltaY / rect.height) * VIEWPORT.height,
+    };
+  }
+}
+
+function zoomView(view: ObservatoryView, factor: number, point: { x: number; y: number }): ObservatoryView {
+  const scale = clamp(view.scale * factor, MIN_ZOOM, MAX_ZOOM);
+  const worldX = (point.x - view.x) / view.scale;
+  const worldY = (point.y - view.y) / view.scale;
+
+  return {
+    scale,
+    x: point.x - worldX * scale,
+    y: point.y - worldY * scale,
+  };
+}
+
+function viewTransform(view: ObservatoryView): string {
+  return `translate(${roundViewNumber(view.x)} ${roundViewNumber(view.y)}) scale(${roundViewNumber(view.scale)})`;
+}
+
+function roundViewNumber(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function isNodeTarget(target: EventTarget): boolean {
+  return target instanceof Element && target.closest(".observatory-hit-target") !== null;
 }
 
 function filterByScope(runs: RunListItem[], scope: Scope, now: Date): RunListItem[] {

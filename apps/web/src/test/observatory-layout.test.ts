@@ -69,6 +69,23 @@ describe("computeObservatoryLayout", () => {
     }
   });
 
+  it("keeps cluster rings away from viewport edges", () => {
+    const runs = Array.from({ length: 6 }, (_, index) => ({
+      ...runFixture,
+      id: `r${index}`,
+      project_name: `project-${index}`,
+    }));
+
+    const layout = computeObservatoryLayout(runs, viewport);
+
+    for (const cluster of layout.clusters) {
+      expect(cluster.center.x - cluster.radius).toBeGreaterThanOrEqual(0);
+      expect(cluster.center.x + cluster.radius).toBeLessThanOrEqual(viewport.width);
+      expect(cluster.center.y - cluster.radius * 0.78).toBeGreaterThanOrEqual(0);
+      expect(cluster.center.y + cluster.radius * 0.78).toBeLessThanOrEqual(viewport.height);
+    }
+  });
+
   it("places every node within viewport bounds", () => {
     const runs = Array.from({ length: 16 }, (_, index) => ({
       ...runFixture,

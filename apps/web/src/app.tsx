@@ -9,6 +9,7 @@ import { useKeyboardShortcut } from "./lib/use-keyboard-shortcut";
 
 const api = createApiClient();
 const LIVE_REFRESH_MS = 15_000;
+const OPENING_RUN_SHELL_DELAY_MS = 180;
 
 type UrlState = {
   mode: AppShellMode;
@@ -54,6 +55,7 @@ export function App() {
   const [readerNow, setReaderNow] = useState(() => new Date());
   const [systemStatus, setSystemStatus] = useState<SystemStatusSnapshot>(null);
   const [mode, setMode] = useState<AppShellMode>(() => initialUrlState.mode);
+  const [showOpeningRunShell, setShowOpeningRunShell] = useState(false);
 
   function setSelectedFromDrawer(runId: string | null) {
     const next = new URLSearchParams(window.location.search);
@@ -202,7 +204,21 @@ export function App() {
 
   const drawerRun = selectedRun && selectedRun.id === selectedRunId ? selectedRun : null;
   const openingRun = selectedRunId !== null && drawerRun === null;
+  const showOpeningRun = openingRun && showOpeningRunShell;
   const systemStatusVM = useMemo(() => buildSystemStatusVM(systemStatus), [systemStatus]);
+
+  useEffect(() => {
+    if (!openingRun) {
+      setShowOpeningRunShell(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setShowOpeningRunShell(true);
+    }, OPENING_RUN_SHELL_DELAY_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [openingRun]);
 
   return (
     <>
@@ -228,7 +244,7 @@ export function App() {
         <div className="run-reader-overlay run-reader-overlay-visible">
           <RunReader detail={drawerRun} now={readerNow} onClose={() => setSelectedFromDrawer(null)} />
         </div>
-      ) : openingRun ? (
+      ) : showOpeningRun ? (
         <div className="run-reader-overlay run-reader-overlay-visible">
           <aside
             aria-labelledby="run-reader-opening-title"
