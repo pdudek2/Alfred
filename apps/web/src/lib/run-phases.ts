@@ -44,7 +44,7 @@ export function buildRunPhases(events: RunEventItem[]): RunPhaseVM[] {
     const phaseEvent = toPhaseEvent(event);
 
     if (last && last.kind === kind) {
-      phases[phases.length - 1] = appendPhaseEvent(last, phaseEvent);
+      appendPhaseEvent(last, phaseEvent);
       continue;
     }
 
@@ -86,16 +86,12 @@ function createPhase(kind: RunPhaseKind, event: RunPhaseEventVM): RunPhaseVM {
   };
 }
 
-function appendPhaseEvent(phase: RunPhaseVM, event: RunPhaseEventVM): RunPhaseVM {
-  const eventCount = phase.eventCount + 1;
-  return {
-    ...phase,
-    endedAt: event.occurredAt,
-    endedAtLabel: event.occurredAtLabel,
-    eventCount,
-    events: [...phase.events, event],
-    summary: summaryFor(phase.kind, eventCount),
-  };
+function appendPhaseEvent(phase: RunPhaseVM, event: RunPhaseEventVM): void {
+  phase.endedAt = event.occurredAt;
+  phase.endedAtLabel = event.occurredAtLabel;
+  phase.eventCount += 1;
+  phase.events.push(event);
+  phase.summary = summaryFor(phase.kind, phase.eventCount);
 }
 
 function summaryFor(kind: RunPhaseKind, count: number): string {

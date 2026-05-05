@@ -164,7 +164,7 @@ describe("RunReader", () => {
     expect(screen.getByText("Started echo command-0")).toBeInTheDocument();
   });
 
-  it("does not render every older phase for very long runs", async () => {
+  it("pages older phases for very long runs instead of rendering them all", async () => {
     const user = userEvent.setup();
     const detail: RunDetail = {
       ...runDetailFixture,
@@ -182,18 +182,30 @@ describe("RunReader", () => {
       })),
     };
 
-    render(<RunReader detail={detail} now={now} onClose={() => {}} />);
+    const { container } = render(<RunReader detail={detail} now={now} onClose={() => {}} />);
+    const renderedPhaseCount = () => container.querySelectorAll(".run-reader-phase").length;
 
     expect(screen.getByText("60 phases · 60 events")).toBeInTheDocument();
     expect(screen.getByText("Show 52 older phases")).toBeInTheDocument();
     expect(screen.getByText("Started echo command-58")).toBeInTheDocument();
     expect(screen.queryByText("Started echo command-0")).not.toBeInTheDocument();
+    expect(renderedPhaseCount()).toBe(8);
 
     await user.click(screen.getByText("Show 52 older phases"));
 
     expect(screen.getByText("Started echo command-50")).toBeInTheDocument();
-    expect(screen.getByText("Show all 52 older phases")).toBeInTheDocument();
+    expect(screen.getByText("Showing 8 of 52 older phases")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show 24 more older phases" })).toBeInTheDocument();
     expect(screen.queryByText("Started echo command-0")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Show all/i)).not.toBeInTheDocument();
+    expect(renderedPhaseCount()).toBe(16);
+
+    await user.click(screen.getByRole("button", { name: "Show 24 more older phases" }));
+
+    expect(screen.getByText("Started echo command-20")).toBeInTheDocument();
+    expect(screen.getByText("Showing 32 of 52 older phases")).toBeInTheDocument();
+    expect(screen.queryByText("Started echo command-0")).not.toBeInTheDocument();
+    expect(renderedPhaseCount()).toBe(40);
   });
 });
 

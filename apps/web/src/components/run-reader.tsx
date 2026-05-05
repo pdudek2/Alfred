@@ -24,25 +24,49 @@ const STATE_LABEL: Record<string, string> = {
 };
 
 const RECENT_PHASE_LIMIT = 8;
-const OLDER_PHASE_PREVIEW_LIMIT = 8;
+const OLDER_PHASE_INITIAL_LIMIT = 8;
+const OLDER_PHASE_PAGE_SIZE = 24;
+
+type DetailsState = {
+  isOpen: boolean;
+  runId: string;
+};
+
+type OlderPhasesState = DetailsState & {
+  visibleLimit: number;
+};
 
 export function RunReader({ detail, now, onClose }: RunReaderProps) {
   const [expandedHighlight, setExpandedHighlight] = useState<StoryHighlight | null>(null);
-  const [rawEventsOpen, setRawEventsOpen] = useState(false);
-  const [olderPhasesOpen, setOlderPhasesOpen] = useState(false);
-  const [allOlderPhasesOpen, setAllOlderPhasesOpen] = useState(false);
+  const [rawEventsState, setRawEventsState] = useState<DetailsState>(() => ({
+    isOpen: false,
+    runId: detail.id,
+  }));
+  const [olderPhasesState, setOlderPhasesState] = useState<OlderPhasesState>(() => ({
+    isOpen: false,
+    runId: detail.id,
+    visibleLimit: OLDER_PHASE_INITIAL_LIMIT,
+  }));
   const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const card = useMemo(() => buildRunCardVM(detail, now), [detail, now]);
   const story = useMemo(() => buildRunStoryVM(detail, now), [detail, now]);
   const phases = useMemo(() => buildRunPhases(detail.events), [detail.events]);
-  const recentPhases = useMemo(() => [...phases].reverse(), [phases]);
-  const visibleRecentPhases = recentPhases.slice(0, RECENT_PHASE_LIMIT);
-  const olderPhases = recentPhases.slice(RECENT_PHASE_LIMIT);
-  const visibleOlderPhases = olderPhasesOpen
-    ? olderPhases.slice(0, allOlderPhasesOpen ? olderPhases.length : OLDER_PHASE_PREVIEW_LIMIT)
-    : [];
+  const visibleRecentPhases = useMemo(() => takeRecentFirst(phases, phases.length - 1, RECENT_PHASE_LIMIT), [phases]);
+  const olderPhaseCount = Math.max(phases.length - RECENT_PHASE_LIMIT, 0);
+  const rawEventsOpen = rawEventsState.runId === detail.id && rawEventsState.isOpen;
+  const olderPhasesOpen = olderPhasesState.runId === detail.id && olderPhasesState.isOpen;
+  const olderPhaseVisibleLimit = olderPhasesOpen ? olderPhasesState.visibleLimit : OLDER_PHASE_INITIAL_LIMIT;
+  const visibleOlderPhases = useMemo(
+    () =>
+      olderPhasesOpen
+        ? takeRecentFirst(phases, phases.length - RECENT_PHASE_LIMIT - 1, olderPhaseVisibleLimit)
+        : [],
+    [olderPhaseVisibleLimit, olderPhasesOpen, phases],
+  );
+  const olderPhasesRemaining = Math.max(olderPhaseCount - visibleOlderPhases.length, 0);
+  const nextOlderPhasePageSize = Math.min(OLDER_PHASE_PAGE_SIZE, olderPhasesRemaining);
   const highlightedEvent = expandedHighlight?.payload.eventId
     ? detail.events.find((event) => event.id === expandedHighlight.payload.eventId)
     : null;
@@ -107,36 +131,63 @@ export function RunReader({ detail, now, onClose }: RunReaderProps) {
             <RunReaderPhase phase={phase} key={phase.id} />
           ))}
         </ol>
-        {olderPhases.length > 0 ? (
+        {olderPhaseCount > 0 ? (
           <details
             className="run-reader-overflow"
+            open={olderPhasesOpen}
             onToggle={(event) => {
-              setOlderPhasesOpen(event.currentTarget.open);
-              if (!event.currentTarget.open) setAllOlderPhasesOpen(false);
+              const isOpen = event.currentTarget.open;
+              setOlderPhasesState({
+                isOpen,
+                runId: detail.id,
+                visibleLimit: OLDER_PHASE_INITIAL_LIMIT,
+              });
             }}
           >
-            <summary onClick={() => setOlderPhasesOpen(true)}>
-              Show {olderPhases.length} older phases
+            <summary>
+              {olderPhasesOpen
+                ? `Showing ${visibleOlderPhases.length} of ${olderPhaseCount} older ${phaseNoun(olderPhaseCount)}`
+                : `Show ${olderPhaseCount} older ${phaseNoun(olderPhaseCount)}`}
             </summary>
             <ol className="run-reader-phase-list">
               {visibleOlderPhases.map((phase) => (
                 <RunReaderPhase phase={phase} key={phase.id} />
               ))}
             </ol>
-            {!allOlderPhasesOpen && olderPhases.length > OLDER_PHASE_PREVIEW_LIMIT ? (
+            {olderPhasesRemaining > 0 ? (
               <button
                 type="button"
-                className="run-reader-show-all"
-                onClick={() => setAllOlderPhasesOpen(true)}
+                className="run-reader-show-more"
+                onClick={() =>
+                  setOlderPhasesState((state) => {
+                    const currentVisibleLimit =
+                      state.runId === detail.id && state.isOpen ? state.visibleLimit : OLDER_PHASE_INITIAL_LIMIT;
+
+                    return {
+                      isOpen: true,
+                      runId: detail.id,
+                      visibleLimit: Math.min(currentVisibleLimit + OLDER_PHASE_PAGE_SIZE, olderPhaseCount),
+                    };
+                  })
+                }
               >
-                Show all {olderPhases.length} older phases
+                Show {nextOlderPhasePageSize} more older {phaseNoun(nextOlderPhasePageSize)}
               </button>
             ) : null}
           </details>
         ) : null}
       </section>
 
-      <details className="run-reader-raw" onToggle={(event) => setRawEventsOpen(event.currentTarget.open)}>
+      <details
+        className="run-reader-raw"
+        open={rawEventsOpen}
+        onToggle={(event) =>
+          setRawEventsState({
+            isOpen: event.currentTarget.open,
+            runId: detail.id,
+          })
+        }
+      >
         <summary>‹ raw events</summary>
         {rawEventsOpen ? (
           <div className="run-reader-raw-list">
@@ -170,6 +221,21 @@ export function RunReader({ detail, now, onClose }: RunReaderProps) {
       first.focus();
     }
   }
+}
+
+function takeRecentFirst(phases: RunPhaseVM[], startIndex: number, limit: number): RunPhaseVM[] {
+  const visiblePhases: RunPhaseVM[] = [];
+
+  for (let index = startIndex; index >= 0 && visiblePhases.length < limit; index -= 1) {
+    const phase = phases[index];
+    if (phase) visiblePhases.push(phase);
+  }
+
+  return visiblePhases;
+}
+
+function phaseNoun(count: number): string {
+  return count === 1 ? "phase" : "phases";
 }
 
 function RunReaderPhase({ phase }: { phase: RunPhaseVM }) {

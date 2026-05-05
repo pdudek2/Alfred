@@ -34,6 +34,21 @@ describe("buildRunPhases", () => {
     expect(phases[1]?.events.map((event) => event.label)).toEqual(["Read started", "Read started"]);
     expect(phases[3]?.events[0]?.label).toBe("Finished pnpm --filter @alfred/api test");
   });
+
+  it("keeps long adjacent phases linear while preserving counts and labels", () => {
+    const events = Array.from({ length: 200 }, (_, index) =>
+      event(`read-${index}`, "tool.started", timestampAtSecond(index), { tool_name: "Read" }),
+    );
+
+    const phases = buildRunPhases(events);
+
+    expect(phases).toHaveLength(1);
+    expect(phases[0]?.eventCount).toBe(200);
+    expect(phases[0]?.summary).toBe("200 reads");
+    expect(phases[0]?.events).toHaveLength(200);
+    expect(phases[0]?.events[0]?.label).toBe("Read started");
+    expect(phases[0]?.endedAt).toBe(timestampAtSecond(199));
+  });
 });
 
 describe("eventLine", () => {
@@ -53,4 +68,8 @@ function event(id: string, type: string, occurredAt: string, payload: Record<str
     source_event_id: `source-${id}`,
     type,
   };
+}
+
+function timestampAtSecond(offset: number): string {
+  return new Date(Date.UTC(2026, 3, 28, 10, 0, offset)).toISOString();
 }
