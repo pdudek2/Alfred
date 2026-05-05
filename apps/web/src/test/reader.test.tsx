@@ -69,12 +69,16 @@ const failedRun: RunListItem = {
 const runs = [doneRun, liveRun, needsRun, failedRun];
 
 function ControlledReader({
+  error = null,
   initialSelectedRunId = null,
+  lastLoadedAt = null,
   loading = false,
   onSelectRun = vi.fn(),
   testRuns = runs,
 }: {
+  error?: unknown;
   initialSelectedRunId?: string | null;
+  lastLoadedAt?: Date | null;
   loading?: boolean;
   onSelectRun?: (runId: string | null) => void;
   testRuns?: RunListItem[];
@@ -83,7 +87,8 @@ function ControlledReader({
 
   return (
     <Reader
-      error={null}
+      error={error}
+      lastLoadedAt={lastLoadedAt}
       loading={loading}
       now={NOW}
       onSelectRun={(runId) => {
@@ -219,19 +224,41 @@ describe("Reader", () => {
     expect(screen.getByRole("region", { name: "Run feed" })).toHaveClass("reader-feed-dimmed");
   });
 
-  it("shows an empty message when no agent has reported", () => {
+  it("shows a feed banner when no runs have loaded yet", () => {
     render(<ControlledReader testRuns={[]} />);
 
-    expect(screen.getByText("No agent has reported in yet.")).toHaveClass("reader-empty-note");
+    expect(screen.getByText("No runs loaded yet").closest(".reader-feed-banner")).toHaveClass(
+      "reader-feed-banner--empty",
+    );
+    expect(screen.queryByText("No agent has reported in yet.")).not.toBeInTheDocument();
   });
 
-  it("keeps the empty feed quiet while the first run list is loading", () => {
+  it("shows an initial loading feed banner while the first run list is loading", () => {
     render(<ControlledReader loading testRuns={[]} />);
 
     expect(screen.getByRole("region", { name: "Run feed" })).toBeInTheDocument();
     expect(screen.queryByText("Quiet here. No agent has reported in yet.")).not.toBeInTheDocument();
+    expect(screen.getByText("Loading run feed").closest(".reader-feed-banner")).toHaveClass(
+      "reader-feed-banner--loading",
+    );
     expect(screen.queryByText("No agent has reported in yet.")).not.toBeInTheDocument();
     expect(screen.queryByText("No runs match this view.")).not.toBeInTheDocument();
+  });
+
+  it("shows last loaded runs when refresh fails with cached content", () => {
+    render(
+      <ControlledReader
+        error={new Error("refresh failed")}
+        lastLoadedAt={new Date("2026-04-28T11:20:00.000Z")}
+      />,
+    );
+
+    expect(screen.getByText("Showing last loaded runs").closest(".reader-feed-banner")).toHaveClass(
+      "reader-feed-banner--cached",
+    );
+    expect(screen.getByText(/refresh failed/i)).toBeInTheDocument();
+    expect(screen.queryByText(/I can't reach the runner/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Billing.*Approve billing/i })).toBeInTheDocument();
   });
 
   it("shows the API error voice when error is provided", () => {
@@ -246,6 +273,9 @@ describe("Reader", () => {
     );
 
     expect(screen.getByText(/I can't reach the runner/i)).toBeInTheDocument();
+    expect(screen.getByText("Cannot refresh right now").closest(".reader-feed-banner")).toHaveClass(
+      "reader-feed-banner--offline",
+    );
   });
 
   it("shows a filtered empty message when no runs match the current view", async () => {

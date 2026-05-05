@@ -52,6 +52,7 @@ export function App() {
   const [authRequired, setAuthRequired] = useState(false);
   const [runLoadNotice, setRunLoadNotice] = useState<string | null>(null);
   const [readerNow, setReaderNow] = useState(() => new Date());
+  const [lastRunsLoadedAt, setLastRunsLoadedAt] = useState<Date | null>(null);
   const [systemStatus, setSystemStatus] = useState<SystemStatusSnapshot>(null);
   const [mode, setMode] = useState<AppShellMode>(() => initialUrlState.mode);
 
@@ -113,6 +114,7 @@ export function App() {
       setAuthRequired(false);
       setRuns(items);
       setReaderNow(syncedAt);
+      setLastRunsLoadedAt(syncedAt);
 
       const currentSelectedRunId = selectedRunIdRef.current;
       const nextSelectedRunId =
@@ -209,6 +211,7 @@ export function App() {
       <AppShell
         error={authRequired ? null : error}
         loading={loadingRuns}
+        lastLoadedAt={lastRunsLoadedAt}
         mode={mode}
         now={readerNow}
         notice={runLoadNotice}
@@ -251,6 +254,7 @@ export function App() {
       setError(null);
       setRunLoadNotice(null);
       setRuns([]);
+      setLastRunsLoadedAt(null);
       setSelectedRun(null);
       commitSelectedRunId(null);
       const next = new URLSearchParams(window.location.search);
