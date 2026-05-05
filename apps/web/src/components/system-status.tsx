@@ -10,6 +10,7 @@ export function SystemStatus({ vm }: SystemStatusProps) {
       <span className="system-status__dot" aria-hidden="true" />
       <span className="system-status__label">{vm.label}</span>
       <span className="system-status__detail">{vm.detail}</span>
+      {vm.activityDetail ? <span className="system-status__activity">{vm.activityDetail}</span> : null}
     </div>
   );
 }

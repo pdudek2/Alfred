@@ -41,20 +41,46 @@ describe("system status API client", () => {
 describe("system status view model", () => {
   it("speaks clearly when runner is live", () => {
     expect(
-      buildSystemStatusVM({
-        runner: {
-          state: "live",
-          seconds_since_last_device_seen: 8,
-          seconds_since_last_ingest: 8,
-          last_device_seen_at: "2026-04-30T12:00:00.000Z",
-          last_ingest_at: "2026-04-30T12:00:00.000Z",
-          latest_run_updated_at: "2026-04-30T12:00:00.000Z",
+      buildSystemStatusVM(
+        {
+          runner: {
+            state: "live",
+            seconds_since_last_device_seen: 8,
+            seconds_since_last_ingest: 8,
+            last_device_seen_at: "2026-04-30T12:00:00.000Z",
+            last_ingest_at: "2026-04-30T12:00:00.000Z",
+            latest_run_updated_at: "2026-04-30T12:00:00.000Z",
+          },
         },
-      }),
+        new Date("2026-04-30T12:00:08.000Z"),
+      ),
     ).toMatchObject({
       tone: "live",
       label: "Runner live",
       detail: "Last ingest 8s ago",
+      activityDetail: "Run activity 8s ago",
+    });
+  });
+
+  it("keeps runner freshness separate from latest run activity", () => {
+    expect(
+      buildSystemStatusVM(
+        {
+          runner: {
+            state: "live",
+            seconds_since_last_device_seen: 8,
+            seconds_since_last_ingest: 8,
+            last_device_seen_at: "2026-04-30T12:00:00.000Z",
+            last_ingest_at: "2026-04-30T12:00:00.000Z",
+            latest_run_updated_at: "2026-04-30T11:42:00.000Z",
+          },
+        },
+        new Date("2026-04-30T12:00:00.000Z"),
+      ),
+    ).toMatchObject({
+      label: "Runner live",
+      detail: "Last ingest 8s ago",
+      activityDetail: "Run activity 18m ago",
     });
   });
 
@@ -136,11 +162,17 @@ describe("SystemStatus", () => {
   it("announces status changes politely", () => {
     render(
       createElement(SystemStatus, {
-        vm: { tone: "live", label: "Runner live", detail: "Last ingest 8s ago" },
+        vm: {
+          tone: "live",
+          label: "Runner live",
+          detail: "Last ingest 8s ago",
+          activityDetail: "Run activity 18m ago",
+        },
       }),
     );
 
     expect(screen.getByText("Runner live").closest(".system-status")).toHaveAttribute("aria-live", "polite");
     expect(screen.getByText("Runner live").closest(".system-status")).toHaveClass("system-status--live");
+    expect(screen.getByText("Run activity 18m ago")).toBeInTheDocument();
   });
 });

@@ -392,6 +392,17 @@
   min-width: 0;
 }
 
+.system-status__activity {
+  color: var(--reader-text-faint);
+  min-width: 0;
+}
+
+.system-status__activity::before {
+  color: var(--reader-text-faint);
+  content: "/";
+  margin-right: 8px;
+}
+
 .system-status--live .system-status__dot {
   background: var(--reader-sage);
   box-shadow: 0 0 0 4px var(--reader-halo-sage);
