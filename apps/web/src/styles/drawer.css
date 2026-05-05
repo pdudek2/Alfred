@@ -274,7 +274,7 @@
   font-size: 11px;
 }
 
-.run-reader-show-all {
+.run-reader-show-more {
   background: transparent;
   border: 0;
   color: var(--reader-text-faint);
@@ -286,7 +286,7 @@
   text-align: left;
 }
 
-.run-reader-show-all:hover {
+.run-reader-show-more:hover {
   color: var(--reader-amber);
 }
 
