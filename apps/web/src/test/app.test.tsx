@@ -212,6 +212,61 @@ describe("App (new shell)", () => {
     expect(window.location.search).toContain("run=run-1");
   });
 
+  it("keeps cached feed content visible when refresh fails", async () => {
+    const intervalCallbacks: Array<() => void> = [];
+    let listCalls = 0;
+    vi.spyOn(window, "setInterval").mockImplementation((handler: TimerHandler) => {
+      intervalCallbacks.push(handler as () => void);
+      return intervalCallbacks.length as unknown as ReturnType<typeof window.setInterval>;
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.startsWith("/api/v1/runs?")) {
+          listCalls += 1;
+          if (listCalls === 2) {
+            return new Response("refresh failed", { status: 503 });
+          }
+          return new Response(JSON.stringify({ items: [runFixture] }), { status: 200 });
+        }
+        if (url === "/api/v1/system/status") {
+          return new Response(
+            JSON.stringify({
+              runner: {
+                state: "live",
+                seconds_since_last_device_seen: 8,
+                seconds_since_last_ingest: 8,
+                last_device_seen_at: "2026-04-30T12:00:00.000Z",
+                last_ingest_at: "2026-04-30T12:00:00.000Z",
+                latest_run_updated_at: "2026-04-30T12:00:00.000Z",
+              },
+            }),
+            { status: 200 },
+          );
+        }
+        if (url === "/api/v1/runs/run-1") {
+          return new Response(JSON.stringify(runDetailFixture), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+
+    render(<App />);
+
+    const feed = await screen.findByRole("region", { name: /run feed/i });
+    expect(await within(feed).findByRole("button", { name: /Alfred/i })).toBeInTheDocument();
+
+    act(() => {
+      intervalCallbacks[0]?.();
+    });
+
+    expect(await screen.findByText("Showing last loaded runs")).toBeInTheDocument();
+    expect(within(feed).getByRole("button", { name: /Alfred/i })).toBeInTheDocument();
+    expect(screen.queryByText(/I can't reach the runner/i)).not.toBeInTheDocument();
+  });
+
   it("keeps a deep-linked run selected when the initial list finishes afterward", async () => {
     window.history.pushState({}, "", "/?run=run-1");
     const initialList = createDeferred<Response>();

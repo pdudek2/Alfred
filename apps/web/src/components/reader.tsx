@@ -10,6 +10,7 @@ import {
   type TriageTab,
 } from "../lib/run-view-model";
 import type { SystemStatusVM } from "../lib/system-status-view-model";
+import { formatDateTime } from "../lib/time";
 import { useKeyboardShortcut } from "../lib/use-keyboard-shortcut";
 import { Briefing } from "./briefing";
 import { FeedSection } from "./feed-section";
@@ -23,6 +24,7 @@ type ReaderProps = {
   selectedRunId: string | null;
   onSelectRun: (runId: string | null) => void;
   error?: unknown;
+  lastLoadedAt?: Date | null;
   loading?: boolean;
   notice?: string | null;
   systemStatus?: SystemStatusVM | null;
@@ -34,6 +36,7 @@ export function Reader({
   selectedRunId,
   onSelectRun,
   error,
+  lastLoadedAt = null,
   loading = false,
   notice = null,
   systemStatus,
@@ -43,7 +46,15 @@ export function Reader({
   const readerRef = useRef<HTMLElement>(null);
   const feedRef = useRef<HTMLElement>(null);
 
-  const briefing = useMemo(() => buildBriefingVM(runs, now, error, systemStatus), [error, now, runs, systemStatus]);
+  const feedBanner = useMemo(
+    () => buildFeedBannerVM({ error, lastLoadedAt, loading, runsLength: runs.length }),
+    [error, lastLoadedAt, loading, runs.length],
+  );
+  const briefingError = feedBanner?.tone === "cached" ? null : error;
+  const briefing = useMemo(
+    () => buildBriefingVM(runs, now, briefingError, systemStatus),
+    [briefingError, now, runs, systemStatus],
+  );
   const counts = useMemo(
     () => ({
       all: tabCount(runs, "all", now),
@@ -64,8 +75,8 @@ export function Reader({
     return buildTimeGroupedFeedVM(feedRuns, now);
   }, [now, query, runById, runs, tab]);
   const visibleCards = useMemo(() => feed.sections.flatMap((section) => section.runs), [feed]);
-  const emptyMessage = runs.length === 0 ? "No agent has reported in yet." : "No runs match this view.";
-  const loadingEmptyRuns = loading && runs.length === 0;
+  const emptyMessage = "No runs match this view.";
+  const initialLoading = feedBanner?.tone === "loading";
 
   useKeyboardShortcut("/", () => {
     focusSearch(readerRef.current);
@@ -98,7 +109,7 @@ export function Reader({
   return (
     <main className="reader" ref={readerRef}>
       <section className="reader-command" aria-label="Agent reader command">
-        {loadingEmptyRuns ? null : <Briefing vm={briefing} onHighlight={(runId) => onSelectRun(runId)} />}
+        {initialLoading ? null : <Briefing vm={briefing} onHighlight={(runId) => onSelectRun(runId)} />}
 
         <div className="reader-filter-shell">
           {systemStatus ? <SystemStatus vm={systemStatus} /> : null}
@@ -118,6 +129,7 @@ export function Reader({
         ref={feedRef}
         tabIndex={0}
       >
+        {feedBanner ? <ReaderFeedBanner vm={feedBanner} /> : null}
         {feed.sections.length > 0 ? (
           feed.sections.map((section) => (
             <FeedSection count={section.runs.length} key={section.label} label={section.label}>
@@ -132,12 +144,77 @@ export function Reader({
               ))}
             </FeedSection>
           ))
-        ) : loadingEmptyRuns ? null : (
+        ) : feedBanner ? null : (
           <p className="reader-empty-note">{emptyMessage}</p>
         )}
       </section>
     </main>
   );
+}
+
+type FeedBannerTone = "loading" | "cached" | "empty" | "offline";
+
+type FeedBannerVM = {
+  detail: string;
+  title: string;
+  tone: FeedBannerTone;
+};
+
+function ReaderFeedBanner({ vm }: { vm: FeedBannerVM }) {
+  return (
+    <div className={`reader-feed-banner reader-feed-banner--${vm.tone}`} role="status">
+      <p className="reader-feed-banner__title">{vm.title}</p>
+      <p className="reader-feed-banner__detail">{vm.detail}</p>
+    </div>
+  );
+}
+
+function buildFeedBannerVM({
+  error,
+  lastLoadedAt,
+  loading,
+  runsLength,
+}: {
+  error?: unknown;
+  lastLoadedAt: Date | null;
+  loading: boolean;
+  runsLength: number;
+}): FeedBannerVM | null {
+  if (loading && runsLength === 0) {
+    return {
+      detail: "Checking the latest agent activity.",
+      title: "Loading run feed",
+      tone: "loading",
+    };
+  }
+
+  if (error && runsLength > 0) {
+    return {
+      detail: lastLoadedAt
+        ? `Last loaded ${formatDateTime(lastLoadedAt.toISOString())}; refresh failed.`
+        : "Refresh failed, so this feed may be behind.",
+      title: "Showing last loaded runs",
+      tone: "cached",
+    };
+  }
+
+  if (error && runsLength === 0) {
+    return {
+      detail: "The feed will update when Alfred can reach the run API again.",
+      title: "Cannot refresh right now",
+      tone: "offline",
+    };
+  }
+
+  if (!loading && runsLength === 0) {
+    return {
+      detail: "When an agent reports in, it will appear here.",
+      title: "No runs loaded yet",
+      tone: "empty",
+    };
+  }
+
+  return null;
 }
 
 function nextCardIndex(currentIndex: number, key: "ArrowDown" | "ArrowUp", cards: RunCardVM[]): number {

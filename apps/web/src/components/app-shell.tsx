@@ -9,6 +9,7 @@ export type AppShellMode = "reader" | "observatory";
 
 type AppShellProps = {
   error?: unknown;
+  lastLoadedAt?: Date | null;
   loading?: boolean;
   mode: AppShellMode;
   now: Date;
@@ -22,6 +23,7 @@ type AppShellProps = {
 
 export function AppShell({
   error,
+  lastLoadedAt = null,
   loading = false,
   mode,
   now,
@@ -55,6 +57,7 @@ export function AppShell({
         {mode === "reader" ? (
           <Reader
             error={error}
+            lastLoadedAt={lastLoadedAt}
             loading={loading}
             now={now}
             notice={notice}
