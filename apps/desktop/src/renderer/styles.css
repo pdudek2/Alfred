@@ -263,7 +263,8 @@ h1 {
 
 .mission-actions button,
 .browser-tools button,
-.composer-actions button {
+.composer-actions button,
+.chrome-button {
   min-height: 44px;
   border: 1px solid var(--line);
   border-radius: 9px;
@@ -278,8 +279,15 @@ h1 {
 }
 
 .mission-actions button,
-.browser-tools button {
+.browser-tools button,
+.chrome-button {
   width: 44px;
+}
+
+.mission-actions button[aria-pressed="true"] {
+  border-color: rgba(86, 200, 213, 0.48);
+  background: rgba(86, 200, 213, 0.12);
+  color: #cff3f6;
 }
 
 .mission-actions .primary-action,
@@ -302,6 +310,28 @@ h1 {
     linear-gradient(90deg, rgba(245, 240, 228, 0.018) 1px, transparent 1px),
     rgba(3, 4, 4, 0.52);
   background-size: 24px 24px, 24px 24px, auto;
+}
+
+.workspace-layout.terminal-wall {
+  grid-template-columns: 58px 178px minmax(0, 1fr);
+}
+
+.workspace-layout.terminal-wall .browser-pane {
+  display: none;
+}
+
+.workspace-layout.terminal-wall .terminal-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.workspace-layout.preview-focus {
+  grid-template-columns: 58px 186px minmax(340px, 34%) minmax(460px, 1fr);
+}
+
+.workspace-layout.preview-focus .terminal-grid {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(6, minmax(104px, 1fr));
 }
 
 .workspace-rail,
@@ -341,6 +371,11 @@ h1 {
   border-color: rgba(86, 200, 213, 0.46);
   background: rgba(86, 200, 213, 0.1);
   color: #cff3f6;
+}
+
+.workspace-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .workspace-button.needs-attention::after {
@@ -399,6 +434,21 @@ h1 {
   font-family: var(--mono);
   font-size: 12px;
   line-height: 1.42;
+}
+
+.composer-status {
+  min-height: 44px;
+  border: 1px solid rgba(245, 240, 228, 0.12);
+  border-radius: 9px;
+  padding: 0 12px;
+  color: var(--muted);
+  background: rgba(245, 240, 228, 0.035);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .prompt-card {
@@ -554,6 +604,32 @@ h1 {
   background: var(--violet);
 }
 
+.terminal-tile.real-terminal {
+  border-color: rgba(183, 161, 255, 0.3);
+}
+
+.terminal-tile.real-terminal.ready {
+  border-color: rgba(120, 217, 145, 0.42);
+}
+
+.terminal-tile.real-terminal.error,
+.terminal-tile.real-terminal.exited {
+  border-color: rgba(239, 129, 115, 0.42);
+}
+
+.terminal-tile.real-terminal .tile-header span:last-child {
+  color: var(--violet);
+}
+
+.terminal-tile.real-terminal.ready .tile-header span:last-child {
+  color: var(--green);
+}
+
+.terminal-tile.real-terminal.error .tile-header span:last-child,
+.terminal-tile.real-terminal.exited .tile-header span:last-child {
+  color: var(--coral);
+}
+
 .terminal-tile.idle .tool-dot {
   background: var(--faint);
 }
@@ -593,6 +669,28 @@ h1 {
   background: var(--ink);
   vertical-align: -2px;
   animation: blink 1.15s steps(2, start) infinite;
+}
+
+.xterm-host {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px;
+  background: var(--terminal);
+}
+
+.xterm-host .xterm {
+  height: 100%;
+}
+
+.xterm-host .xterm-viewport,
+.xterm-host .xterm-screen {
+  border-radius: 6px;
+}
+
+.xterm-host .xterm-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 240, 228, 0.18) transparent;
 }
 
 .browser-pane {
