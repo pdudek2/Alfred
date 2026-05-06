@@ -155,7 +155,7 @@ export function buildRunnerServiceDoctorReport({
   return { bootLogSeen, launchd, lines, ok, runnerBooted, stderrQuiet };
 }
 
-export function escapeXml(value) {
+function escapeXml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")

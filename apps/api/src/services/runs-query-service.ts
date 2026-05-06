@@ -16,8 +16,8 @@ export type RunsListFilters = {
 
 export type RunLifecycleStatus = "running" | "waiting" | "failed" | "cancelled" | "completed" | "stale" | "other";
 
-export const STALE_RUN_AFTER_MS = 2 * 60 * 60 * 1000;
-export const OPS_SMOKE_PROJECT_KEY = "ops-smoke";
+const STALE_RUN_AFTER_MS = 2 * 60 * 60 * 1000;
+const OPS_SMOKE_PROJECT_KEY = "ops-smoke";
 
 export type RunListItem = {
   id: string;

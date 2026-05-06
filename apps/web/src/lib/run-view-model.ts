@@ -7,7 +7,7 @@ export type RunGrouping = "status" | "project" | "flat";
 export type ActivityKind = "failure" | "waiting" | "tool" | "run" | "other";
 export type RunTriageState = "running" | "waiting" | "failed" | "cancelled" | "completed" | "stale" | "other";
 
-export const STALE_RUN_AFTER_MS = 2 * 60 * 60 * 1000;
+const STALE_RUN_AFTER_MS = 2 * 60 * 60 * 1000;
 
 export type RunListOptions = {
   tab: RunTab;
@@ -117,11 +117,6 @@ export type TriageRunVM = {
   searchText: string;
 };
 
-export type TriageRunGroupVM = {
-  label: string;
-  runs: TriageRunVM[];
-};
-
 export type RunDetailVM = {
   id: string;
   title: string;
@@ -136,14 +131,6 @@ export type RunDetailVM = {
   events: RunEventItem[];
   raw: RunDetail | RunListItem;
 };
-
-export const TRIAGE_TABS: Array<{ id: TriageTab; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "live", label: "Live" },
-  { id: "needs", label: "Needs" },
-  { id: "problems", label: "Problems" },
-  { id: "done", label: "Done" },
-];
 
 const ACTIVITY_ORDER: ActivityKind[] = ["failure", "waiting", "tool", "run", "other"];
 const FEED_SECTION_ORDER: FeedSectionLabel[] = ["Needs you", "Running", "Problems", "Quiet archive", "Done", "Other"];
@@ -289,20 +276,6 @@ export function filterRunsForTriage(runs: RunListItem[], tab: TriageTab, query =
   return buildRunListVM(runs, { tab, query, grouping: "flat", now }).groups.flatMap((group) =>
     group.runs.map(toTriageRunVM),
   );
-}
-
-export function groupRunViewModels(runs: TriageRunVM[]): TriageRunGroupVM[] {
-  const groups = new Map<string, TriageRunVM[]>();
-
-  for (const run of runs) {
-    const groupRuns = groups.get(run.projectLabel) ?? [];
-    groupRuns.push(run);
-    groups.set(run.projectLabel, groupRuns);
-  }
-
-  return [...groups.entries()]
-    .sort(([leftLabel, leftRuns], [rightLabel, rightRuns]) => rightRuns.length - leftRuns.length || leftLabel.localeCompare(rightLabel))
-    .map(([label, groupRuns]) => ({ label, runs: groupRuns }));
 }
 
 export function tabCount(runs: RunListItem[], tab: TriageTab, now = new Date()): number {
