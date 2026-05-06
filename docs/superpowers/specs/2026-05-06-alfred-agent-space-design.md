@@ -74,6 +74,7 @@ Codex Desktop, Codex CLI, Claude, an IDE, or plain shell at any time.
 | Cross-platform | macOS and Windows from the start |
 | Mobile | Future companion, not full local-terminal app |
 | Handoff principle | Alfred tracks work, but does not own work |
+| UI design | Separate UI design pass required before implementation plan |
 
 ## 5. Approaches Considered
 
@@ -436,29 +437,63 @@ Required test layers:
 Runner rule remains unchanged: do not run the real Alfred runner against
 `~/.codex` unless the task is explicitly runner ingestion work.
 
-## 16. Rollout Plan
+## 16. UI Design Gate
 
-Implementation should happen in small PRs after this design is reviewed and an
-implementation plan is written.
+This document defines product direction and technical architecture. It does not
+finalize the detailed UI.
+
+Before implementation planning, Alfred Agent Space needs a separate UI design
+pass and written UI spec. That pass should use visual mockups and cover:
+
+- first-screen layout and density;
+- workspace sidebar behavior;
+- terminal tile anatomy;
+- terminal grid resizing and focus;
+- Alfred command layer placement and states;
+- SquadPlan review and edit screen;
+- browser/app preview placement;
+- manual terminal creation flow;
+- session status visuals;
+- keyboard shortcuts;
+- empty, loading, failed, waiting, and stale states;
+- relationship between the new desktop cockpit and the existing Alfred visual
+  language.
+
+The UI pass should compare at least two directions:
+
+- BridgeMind-like dense cockpit;
+- calmer Alfred chief-of-staff cockpit;
+- a hybrid that keeps the dense terminal grid but gives Alfred's command layer
+  more calm and hierarchy.
+
+No desktop scaffold should start until the UI spec is approved.
+
+## 17. Rollout Plan
+
+Implementation should happen in small PRs after this product/architecture design
+is reviewed, the repo readiness audit is complete, the UI design is approved,
+and an implementation plan is written.
 
 Recommended sequence:
 
 1. Repo readiness audit.
-2. Shared core type extraction or creation.
-3. Desktop app scaffold.
-4. Manual terminal grid.
-5. Workspace registry.
-6. SquadPlan schema and mock planner.
-7. Plan approval UI.
-8. OpenAI planner.
-9. Runtime launch from approved plan.
-10. Worktree/branch creation.
-11. Browser/app preview.
-12. Observatory/history panel integration.
+2. UI design pass with visual mockups and a written UI spec.
+3. Implementation plan.
+4. Shared core type extraction or creation.
+5. Desktop app scaffold.
+6. Manual terminal grid.
+7. Workspace registry.
+8. SquadPlan schema and mock planner.
+9. Plan approval UI.
+10. OpenAI planner.
+11. Runtime launch from approved plan.
+12. Worktree/branch creation.
+13. Browser/app preview.
+14. Observatory/history panel integration.
 
 The first engineering step is not scaffolding. It is the repo readiness audit.
 
-## 17. Repo Readiness Audit Scope
+## 18. Repo Readiness Audit Scope
 
 Before adding `apps/desktop`, inspect the repository for:
 
@@ -475,7 +510,7 @@ Before adding `apps/desktop`, inspect the repository for:
 The audit should produce a short written recommendation before implementation
 starts.
 
-## 18. References
+## 19. References
 
 - xterm.js documentation: https://xtermjs.org/docs/
 - xterm.js repository: https://github.com/xtermjs/xterm.js/
