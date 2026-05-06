@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -15,8 +16,10 @@
     "pg": "latest"
   },
   "devDependencies": {
+    "@alfred/schema": "workspace:*",
     "@types/pg": "latest",
     "drizzle-kit": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "latest"
   }
 }
