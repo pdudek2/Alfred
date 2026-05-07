@@ -1,8 +1,8 @@
 import { Plus, X } from "lucide-react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import { getDesktopAlfredApi, getDesktopTerminalApi } from "./desktop-api";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { getDesktopAlfredApi, getDesktopLayoutApi, getDesktopTerminalApi } from "./desktop-api";
 import { ComposerBar } from "./composer";
 import {
   applyLayoutPreset,
@@ -49,6 +49,7 @@ type Workspace = {
 const DEFAULT_WORKSPACE_ID = "A";
 const DEFAULT_WORKSPACE: Workspace = { id: DEFAULT_WORKSPACE_ID, label: "Alfred", shortLabel: "A" };
 const DEFAULT_WORKSPACES: Workspace[] = [DEFAULT_WORKSPACE];
+const ARRANGE_GRID_ROW_HEIGHT = 72;
 
 export function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(DEFAULT_WORKSPACES);
@@ -106,34 +107,49 @@ export function App() {
   }, []);
 
   const handleApplyLayoutPreset = useCallback((preset: LayoutPreset) => {
-    setTileLayoutsByWorkspace((current) => ({
-      ...current,
-      [activeWorkspace.id]: applyLayoutPreset(activeSessions, preset),
-    }));
+    const layoutApi = getDesktopLayoutApi();
+    setTileLayoutsByWorkspace((current) => {
+      const workspaceLayouts = applyLayoutPreset(activeSessions, preset);
+      void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
+      return {
+        ...current,
+        [activeWorkspace.id]: workspaceLayouts,
+      };
+    });
   }, [activeSessions, activeWorkspace.id]);
 
   const handleMoveTile = useCallback((tileId: string, deltaCol: number, deltaRow: number) => {
-    setTileLayoutsByWorkspace((current) => ({
-      ...current,
-      [activeWorkspace.id]: moveTileLayout(
+    const layoutApi = getDesktopLayoutApi();
+    setTileLayoutsByWorkspace((current) => {
+      const workspaceLayouts = moveTileLayout(
         ensureTileLayouts(activeSessions, current[activeWorkspace.id] ?? {}),
         tileId,
         deltaCol,
         deltaRow,
-      ),
-    }));
+      );
+      void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
+      return {
+        ...current,
+        [activeWorkspace.id]: workspaceLayouts,
+      };
+    });
   }, [activeSessions, activeWorkspace.id]);
 
   const handleResizeTile = useCallback((tileId: string, deltaColSpan: number, deltaRowSpan: number) => {
-    setTileLayoutsByWorkspace((current) => ({
-      ...current,
-      [activeWorkspace.id]: resizeTileLayout(
+    const layoutApi = getDesktopLayoutApi();
+    setTileLayoutsByWorkspace((current) => {
+      const workspaceLayouts = resizeTileLayout(
         ensureTileLayouts(activeSessions, current[activeWorkspace.id] ?? {}),
         tileId,
         deltaColSpan,
         deltaRowSpan,
-      ),
-    }));
+      );
+      void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
+      return {
+        ...current,
+        [activeWorkspace.id]: workspaceLayouts,
+      };
+    });
   }, [activeSessions, activeWorkspace.id]);
 
   const refreshLiveSessions = useCallback(async () => {
@@ -315,6 +331,7 @@ export function App() {
   useEffect(() => {
     const terminalApi = getDesktopTerminalApi();
     const alfredApi = getDesktopAlfredApi();
+    const layoutApi = getDesktopLayoutApi();
     let cancelled = false;
 
     if (!terminalApi) {
@@ -326,10 +343,12 @@ export function App() {
       terminalApi.list(),
       alfredApi?.getStagedPlan().catch(() => ({ plan: null })) ?? Promise.resolve({ plan: null }),
       alfredApi?.getRuntimeStatus().catch(() => null) ?? Promise.resolve(null),
+      layoutApi?.getLayouts().catch(() => ({ layoutsByWorkspace: {} })) ?? Promise.resolve({ layoutsByWorkspace: {} }),
     ])
-      .then(([terminalResult, stagedPlanResult, runtimeStatusResult]) => {
+      .then(([terminalResult, stagedPlanResult, runtimeStatusResult, layoutResult]) => {
         if (cancelled) return;
         setRuntimeStatus(runtimeStatusResult);
+        setTileLayoutsByWorkspace(layoutResult.layoutsByWorkspace);
         const liveSessions =
           terminalResult.sessions.length > 0
             ? hydrateLiveTerminalSessions(terminalResult.sessions)
@@ -679,6 +698,53 @@ function TerminalGrid({
   onRejectTile: (tileId: string) => void;
   onResizeTile: (tileId: string, deltaColSpan: number, deltaRowSpan: number) => void;
 }) {
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const startPointerArrange = useCallback((
+    tileId: string,
+    mode: "move" | "resize",
+    event: ReactPointerEvent<HTMLElement>,
+  ) => {
+    if (!arrangeMode) return;
+    if (mode === "move" && (event.target as HTMLElement).closest("button")) return;
+    const grid = gridRef.current;
+    const layout = layouts[tileId];
+    if (!grid || !layout) return;
+
+    event.preventDefault();
+    const rect = grid.getBoundingClientRect();
+    const colWidth = rect.width > 0 ? rect.width / 12 : 80;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let appliedCol = 0;
+    let appliedRow = 0;
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const deltaCol = Math.round((moveEvent.clientX - startX) / colWidth);
+      const deltaRow = Math.round((moveEvent.clientY - startY) / ARRANGE_GRID_ROW_HEIGHT);
+      const nextCol = deltaCol - appliedCol;
+      const nextRow = deltaRow - appliedRow;
+
+      if (nextCol === 0 && nextRow === 0) return;
+      appliedCol = deltaCol;
+      appliedRow = deltaRow;
+      if (mode === "move") {
+        onMoveTile(tileId, nextCol, nextRow);
+      } else {
+        onResizeTile(tileId, nextCol, nextRow);
+      }
+    };
+
+    const stopPointerArrange = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopPointerArrange);
+      window.removeEventListener("pointercancel", stopPointerArrange);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopPointerArrange);
+    window.addEventListener("pointercancel", stopPointerArrange);
+  }, [arrangeMode, layouts, onMoveTile, onResizeTile]);
+
   return (
     <section className={`terminal-stage ${arrangeMode ? "arranging" : ""}`} aria-label="terminals">
       <header className="terminal-stage-header">
@@ -697,7 +763,7 @@ function TerminalGrid({
           <kbd>{shortcutModifier} T</kbd>
         </div>
       </header>
-      <div className={`terminal-grid ${arrangeMode ? "arranging" : ""}`}>
+      <div className={`terminal-grid ${arrangeMode ? "arranging" : ""}`} ref={gridRef}>
         {sessions.map((session) =>
           session.stage === "live" ? (
             <ManualTerminalTile
@@ -716,7 +782,9 @@ function TerminalGrid({
               initialBuffer={session.initialBuffer}
               onClose={() => onCloseSession(session.id)}
               onMove={(deltaCol, deltaRow) => onMoveTile(session.id, deltaCol, deltaRow)}
+              onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
               onResize={(deltaColSpan, deltaRowSpan) => onResizeTile(session.id, deltaColSpan, deltaRowSpan)}
+              onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
               onRuntimeSessionReady={onRuntimeSessionReady}
             />
           ) : (
@@ -727,8 +795,10 @@ function TerminalGrid({
               tile={session}
               onApprove={onApproveTile}
               onMove={(deltaCol, deltaRow) => onMoveTile(session.id, deltaCol, deltaRow)}
+              onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
               onReject={onRejectTile}
               onResize={(deltaColSpan, deltaRowSpan) => onResizeTile(session.id, deltaColSpan, deltaRowSpan)}
+              onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
               arrangeMode={arrangeMode}
             />
           ),
@@ -746,6 +816,8 @@ function ManualTerminalTile({
   layout,
   onClose,
   onMove,
+  onPointerMoveStart,
+  onPointerResizeStart,
   onResize,
   onRuntimeSessionReady,
   runtimeId,
@@ -763,6 +835,8 @@ function ManualTerminalTile({
   layout?: TileLayout | undefined;
   onClose: () => void;
   onMove: (deltaCol: number, deltaRow: number) => void;
+  onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onResize: (deltaColSpan: number, deltaRowSpan: number) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   runtimeId?: TerminalSessionId | undefined;
@@ -943,7 +1017,10 @@ function ManualTerminalTile({
 
   return (
     <article className={`terminal-tile manual real-terminal ${status} ${arrangeMode ? "arranging" : ""}`} aria-label={title} style={gridStyle(layout)}>
-      <header className="tile-header">
+      <header
+        className={`tile-header ${arrangeMode ? "drag-handle" : ""}`}
+        onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
+      >
         <div className="tile-title">
           <span className="tool-dot" />
           <div>
@@ -960,6 +1037,14 @@ function ManualTerminalTile({
       </header>
       {arrangeMode && <ArrangeControls onMove={onMove} onResize={onResize} />}
       <div className="xterm-host" ref={containerRef} />
+      {arrangeMode && (
+        <button
+          className="tile-resize-handle"
+          type="button"
+          aria-label={`Resize ${title}`}
+          onPointerDown={onPointerResizeStart}
+        />
+      )}
     </article>
   );
 }

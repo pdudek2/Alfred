@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
@@ -9,6 +9,7 @@ import type {
   AlfredRuntimeStatus,
   AlfredStagedPlanSnapshot,
 } from "../shared/alfred-ipc";
+import type { LayoutApi, WorkspaceLayoutsSnapshot } from "../shared/layout-ipc";
 import type { TerminalApi, TerminalSessionSnapshot } from "../shared/terminal-ipc";
 
 vi.mock("@xterm/xterm", () => ({
@@ -39,6 +40,7 @@ class TestResizeObserver implements ResizeObserver {
 
 type DesktopBridge = {
   alfred: AlfredApi;
+  layout: LayoutApi;
   terminal: TerminalApi;
   version: string;
 };
@@ -60,12 +62,15 @@ function installDesktopBridge(
     model: "anthropic/claude-sonnet-4-6",
     openRouterConfigured: true,
   },
+  layouts: WorkspaceLayoutsSnapshot = { layoutsByWorkspace: {} },
 ): {
   clearStagedPlan: ReturnType<typeof vi.fn>;
+  getLayouts: ReturnType<typeof vi.fn>;
   getStagedPlan: ReturnType<typeof vi.fn>;
   getRuntimeStatus: ReturnType<typeof vi.fn>;
   requestPlan: ReturnType<typeof vi.fn>;
   resolveStagedPlan: ReturnType<typeof vi.fn>;
+  setWorkspaceLayout: ReturnType<typeof vi.fn>;
   setStagedPlan: ReturnType<typeof vi.fn>;
 } {
   const clearStagedPlan = vi.fn().mockResolvedValue({ plan: null });
@@ -74,6 +79,8 @@ function installDesktopBridge(
   const requestPlan = vi.fn().mockResolvedValue(planResponse);
   const resolveStagedPlan = vi.fn().mockResolvedValue({ plan: null });
   const setStagedPlan = vi.fn().mockImplementation((request) => Promise.resolve({ plan: request }));
+  const getLayouts = vi.fn().mockResolvedValue(layouts);
+  const setWorkspaceLayout = vi.fn().mockResolvedValue(layouts);
   const createTerminal = vi.fn().mockImplementation((request: Parameters<TerminalApi["create"]>[0]) =>
     Promise.resolve({
       id: "runtime-1",
@@ -99,12 +106,13 @@ function installDesktopBridge(
   };
   const bridge: DesktopBridge = {
     alfred: { clearStagedPlan, getRuntimeStatus, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan },
+    layout: { getLayouts, setWorkspaceLayout },
     terminal,
     version: "test",
   };
 
   window.alfredDesktop = bridge;
-  return { clearStagedPlan, getRuntimeStatus, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan };
+  return { clearStagedPlan, getLayouts, getRuntimeStatus, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan, setWorkspaceLayout };
 }
 
 beforeEach(() => {
@@ -152,7 +160,7 @@ describe("App integration", () => {
 
   it("enables arrange mode with layout presets and tile movement controls", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    const { setWorkspaceLayout } = installDesktopBridge();
 
     render(<App />);
 
@@ -168,6 +176,51 @@ describe("App integration", () => {
 
     const tile = screen.getByRole("article", { name: /Manual · zsh 1/i });
     expect(tile).toHaveStyle({ gridColumn: "2 / span 7" });
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+      workspaceId: "A",
+      layouts: expect.objectContaining({
+        "manual-1": expect.objectContaining({ col: 2, colSpan: 7 }),
+      }),
+    });
+  });
+
+  it("moves and resizes a tile with pointer gestures in arrange mode", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+
+    render(<App />);
+
+    const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await user.click(screen.getByRole("button", { name: "Arrange" }));
+
+    fireEvent.pointerDown(tile.querySelector(".tile-header")!, { clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(window, { clientX: 160, clientY: 72 });
+    fireEvent.pointerUp(window);
+
+    expect(tile).toHaveStyle({ gridColumn: "3 / span 6", gridRow: "2 / span 4" });
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Resize Manual · zsh 1" }), { clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(window, { clientX: 80, clientY: 72 });
+    fireEvent.pointerUp(window);
+
+    expect(tile).toHaveStyle({ gridColumn: "3 / span 7", gridRow: "2 / span 5" });
+  });
+
+  it("hydrates saved workspace layouts from the desktop runtime", async () => {
+    installDesktopBridge(undefined, null, [], undefined, {
+      layoutsByWorkspace: {
+        A: {
+          "manual-1": { tileId: "manual-1", col: 3, row: 2, colSpan: 6, rowSpan: 4 },
+        },
+      },
+    });
+
+    render(<App />);
+
+    const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await userEvent.click(screen.getByRole("button", { name: "Arrange" }));
+
+    expect(tile).toHaveStyle({ gridColumn: "3 / span 6", gridRow: "2 / span 4" });
   });
 
   it("blocks Alfred prompts when OpenRouter is not configured", async () => {

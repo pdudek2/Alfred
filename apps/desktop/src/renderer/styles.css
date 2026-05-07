@@ -343,6 +343,7 @@ button:focus-visible {
 }
 
 .terminal-tile {
+  position: relative;
   min-width: 0;
   min-height: 0;
   border: 1px solid rgba(245, 240, 228, 0.12);
@@ -379,6 +380,28 @@ button:focus-visible {
   font-family: var(--mono);
   font-size: 10px;
   cursor: pointer;
+}
+
+.tile-header.drag-handle {
+  cursor: grab;
+  user-select: none;
+}
+
+.tile-header.drag-handle:active {
+  cursor: grabbing;
+}
+
+.tile-resize-handle {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(86, 200, 213, 0.32);
+  border-radius: 5px;
+  background:
+    linear-gradient(135deg, transparent 0 42%, rgba(86, 200, 213, 0.5) 42% 48%, transparent 48% 62%, rgba(86, 200, 213, 0.5) 62% 68%, transparent 68%);
+  cursor: nwse-resize;
 }
 
 .terminal-tile.real-terminal {
