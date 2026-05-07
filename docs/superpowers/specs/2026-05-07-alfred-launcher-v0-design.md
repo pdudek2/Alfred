@@ -72,17 +72,17 @@ Three layers:
    - rejects if inFlight === true → returns { ok: false, code: "in_flight" }
    - reads OPENROUTER_API_KEY (errors if missing)
    - POST https://openrouter.ai/api/v1/chat/completions
-       body: { model, messages, response_format: { type: "json_schema", schema } }
+       body: { model, messages, response_format: { type: "json_object" }, temperature: 0.2 }
    - parses response, validates against AlfredPlanSchema
    - returns { ok: true, plan } or { ok: false, error }
 4. Renderer plan handler:
    - on ok: dispatch addStagedSessions(plan); set pendingPlan
    - on error: set alfredStatus = "error" with error.message
-5. Grid renders new tiles with status="staged" (dashed brass border, body shows
+5. Grid renders new tiles with stage="staged" (dashed brass border, body shows
    command preview, [Approve] [X] buttons).
 6. Dock renders SquadPlanSummary with plan.name + count + [Approve All] [Reject All].
 7. USER clicks [Approve] on a tile → dispatch approveStaged(tileId):
-   - tile.status: "staged" → "live"
+   - tile.stage: "staged" → "live"
    - existing tile useEffect picks up status change, calls
      terminalApi.create({ command, args, cwd, cols, rows })
    - PTY spawns; xterm renders output exactly like a manual tile.
@@ -94,23 +94,33 @@ Three layers:
 ### Renderer types (`apps/desktop/src/renderer/session-state.ts`, extended)
 
 ```ts
-export type AgentKind = "codex" | "claude" | "dev-server" | "shell";
+import type { AgentKind } from "../shared/alfred-ipc";
 
 export type SessionTile = {
   id: string;
   title: string;
   cwd: string;
   source: "manual" | "alfred";   // who created this
-  status: "staged" | "live";     // lifecycle stage
+  stage: "staged" | "live";      // launch lifecycle. Renamed from "status" to avoid
+                                  // collision with the runtime status field already used
+                                  // inside ManualTerminalTile ("connecting" | "ready" |
+                                  // "exited" | "error"). `stage` = pre/post-PTY; `status`
+                                  // = PTY runtime state.
   command?: string;              // undefined → defaults to user shell (manual flow)
   args?: string[];
   agentKind?: AgentKind;         // visual differentiation; required when source === "alfred"
+  safetyNote?: string;           // set by main-process safety validator when the command
+                                  // matches a known-dangerous pattern; renderer shows a
+                                  // warning chip on the staged tile but does NOT block
+                                  // approval (user decides).
 };
 ```
 
+Note: `AgentKind` lives in `apps/desktop/src/shared/alfred-ipc.ts` (see §6). Renderer imports from shared; shared has no dependency on renderer.
+
 Quadrants:
 
-| source × status | live | staged |
+| source × stage | live | staged |
 |---|---|---|
 | manual | existing tile, shell PTY | (impossible — manual is always live) |
 | alfred | approved tile, command PTY | proposed by Alfred, no PTY yet |
@@ -158,8 +168,10 @@ When `pendingPlan.sessionIds` becomes empty (all approved or rejected), `pending
 
 ### New file: `apps/desktop/src/shared/alfred-ipc.ts`
 
+`AgentKind` lives here (not in renderer) so the IPC contract has zero renderer dependencies. Renderer's `session-state.ts` imports `AgentKind` from this file.
+
 ```ts
-import type { AgentKind } from "../renderer/session-state";
+export type AgentKind = "codex" | "claude" | "dev-server" | "shell";
 
 export type AlfredPlanRequest = {
   prompt: string;
@@ -171,6 +183,9 @@ export type AlfredPlanSession = {
   cwd?: string;
   command: string;
   args: string[];
+  safetyNote?: string;   // populated by main-process safety validator (see §8.5)
+                         // when the command matches a dangerous pattern; non-fatal,
+                         // user is shown a warning chip but can still approve.
 };
 
 export type AlfredPlan = {
@@ -241,8 +256,9 @@ export type TerminalCreateRequest = {
 - Border: `1px dashed rgba(217, 174, 70, 0.42)` (brass, dashed = "not yet alive").
 - Tool-dot color per `agentKind`: codex=cyan, claude=violet (re-introduced for this purpose only), dev-server=green, shell=ink-soft.
 - Body (replaces xterm-host): mono preview of `command args.join(" ")` and `cwd`, faint label "staged".
-- Footer with two large buttons: `[Approve]` (brass-filled) and `[X]` (small icon-only).
-- On Approve: tile re-renders as live (xterm-host appears, PTY spawn begins). Same component, different status branch.
+- **Warning chip when `safetyNote` is set:** small coral-tinted pill above the body reading `⚠ {safetyNote}` (e.g. `⚠ rm -rf detected`). The Approve button gets a coral border and `aria-label="Approve unsafe command: {title}"` for screen-reader explicitness. v0 ships visual warning + standard approve flow; explicit double-click confirmation for unsafe is deferred (see §11).
+- Footer with two large buttons: `[Approve]` (brass-filled when safe, coral-bordered when `safetyNote` is set) and `[X]` (small icon-only).
+- On Approve: tile re-renders as live (xterm-host appears, PTY spawn begins). Same component, different `stage` branch.
 
 ### SquadPlanSummary (in `AlfredDock` when `pendingPlan` non-null)
 
@@ -287,7 +303,9 @@ Default to safe, idempotent commands. Never include destructive operations
 (rm -rf, force-push, drop database). The user will run those manually.
 ```
 
-### JSON schema (passed via OpenRouter `response_format: { type: "json_schema", schema: ... }`)
+### JSON contract
+
+The same JSON schema is used in two places: passed to OpenRouter (where supported) and used as Ajv validation contract on the main-process side after parsing the response.
 
 ```json
 {
@@ -317,18 +335,84 @@ Default to safe, idempotent commands. Never include destructive operations
 }
 ```
 
+### Response-format strategy (uniform `json_object` + Ajv + 1 retry)
+
+v0 does **not** use `response_format: { type: "json_schema", ... }`. Reasons:
+
+1. The exact OpenAI-compatible shape is `{ type: "json_schema", json_schema: { name, strict, schema } }` and not all OpenRouter-routed models support `strict: true` reliably — model coverage varies.
+2. The simpler `response_format: { type: "json_object" }` is universally supported across OpenAI-compatible providers on OpenRouter and is enough when paired with client-side validation.
+
+Concrete request shape:
+
+```ts
+const body = {
+  model: process.env.ALFRED_LLM_MODEL ?? DEFAULT_MODEL,
+  messages: [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: prompt },
+  ],
+  response_format: { type: "json_object" },
+  temperature: 0.2,
+};
+```
+
+After the response arrives:
+
+1. Parse `JSON.parse(message.content)`. On parse error → return `malformed`.
+2. Validate against the schema with Ajv. On validation error → **retry once** with a follow-up message: `{ role: "assistant", content: <bad response> }, { role: "user", content: "Your previous response did not match the required schema. Field errors: <ajv messages>. Please respond again with valid JSON." }`. If still invalid → return `malformed`.
+3. If valid, run §8.5 safety validator on each session, attach `safetyNote` where applicable.
+4. Return `{ ok: true, plan }`.
+
 ### Default model
 
-`anthropic/claude-haiku-4-5` (fast, cheap, structured-output capable).
+`anthropic/claude-sonnet-4-6` — structured-output capable per Anthropic docs, fast enough for v0, available on OpenRouter. Override via `ALFRED_LLM_MODEL` env var (no UI in v0).
 
-Override via `ALFRED_LLM_MODEL` env var (no UI in v0).
+Why not Haiku as default: Anthropic's official structured-outputs guidance lists Sonnet 4.5+/Opus 4.1+ as confirmed for reliable JSON; Haiku tier requires an explicit verification we don't want to bake into v0. Users wanting Haiku for cost reasons set `ALFRED_LLM_MODEL=anthropic/claude-haiku-4-5` and accept higher malformed-retry rates.
+
+### §8.5 Safety validator (main process)
+
+After Ajv validation succeeds, the orchestrator passes each `AlfredPlanSession` through a regex-based safety check before returning the plan. The validator does **not** block — it annotates. Annotations show in the staged tile UI as a warning chip; the user can still approve.
+
+`apps/desktop/src/main/alfred-safety.ts` (new file):
+
+```ts
+const UNSAFE_PATTERNS: Array<{ re: RegExp; reason: string }> = [
+  { re: /\brm\s+-r?f\b|\brm\s+-fr\b/, reason: "rm -rf detected" },
+  { re: /^sudo\b|\bsudo\s/, reason: "sudo invocation" },
+  { re: /git\s+push\s+(-f\b|--force\b)/, reason: "git push --force" },
+  { re: /\bdropdb\b|drop\s+database\b/i, reason: "database drop" },
+  { re: /chmod\s+-R/, reason: "recursive chmod" },
+  { re: /\bmkfs|^dd\s+if=/, reason: "low-level disk operation" },
+];
+
+const SHELL_METACHARS = /[&;|<>`$()]/;
+
+export function checkSafety(command: string, args: string[]): { unsafe: boolean; reason?: string } {
+  const fullLine = [command, ...args].join(" ");
+  for (const { re, reason } of UNSAFE_PATTERNS) {
+    if (re.test(fullLine)) return { unsafe: true, reason };
+  }
+  if (SHELL_METACHARS.test(command)) {
+    return { unsafe: true, reason: "shell metacharacters in command (use single executable)" };
+  }
+  return { unsafe: false };
+}
+```
+
+Caveats explicit in the spec (not bugs):
+
+- Regex blocklist is **not** a security boundary. A model can express equivalents (`find . -delete` instead of `rm -rf`, base64-encoded shell strings, etc.). The validator is **defense-in-depth** + UX warning, not sandboxing.
+- The user's approval gate remains the authoritative consent step. The safety chip just makes "this looks dangerous" visible at-a-glance.
+- Hard DENY mode (block plan from rendering at all) is deferred — see §11.
 
 ## 9. File changes
 
-### New files (5)
+### New files (7)
 
-- `apps/desktop/src/main/alfred-orchestrator.ts` — OpenRouter client, IPC handler `alfredChannels.planRequest`, in-flight guard, JSON schema validation, error mapping.
-- `apps/desktop/src/shared/alfred-ipc.ts` — typed channels, request/response/error types.
+- `apps/desktop/src/main/alfred-orchestrator.ts` — OpenRouter client, IPC handler `alfredChannels.planRequest`, in-flight guard, JSON parsing, Ajv validation, retry-once flow, error mapping, calls `alfred-safety.checkSafety()` per session before returning.
+- `apps/desktop/src/main/alfred-safety.ts` — pure regex blocklist; exports `checkSafety(command, args)` returning `{ unsafe, reason? }`. See §8.5.
+- `apps/desktop/src/main/alfred-safety.test.ts` — Vitest coverage of safety patterns (positive: rm -rf, sudo, force push, dropdb, chmod -R, mkfs/dd, shell metachars; negative: pnpm dev, codex, claude, etc.).
+- `apps/desktop/src/shared/alfred-ipc.ts` — `AgentKind` type + typed channels + request/response/error types.
 - `apps/desktop/src/renderer/composer.tsx` — ComposerBar component.
 - `apps/desktop/src/renderer/alfred-state.ts` — `pendingPlan`, `alfredStatus`, pure reducers.
 - `apps/desktop/src/renderer/alfred-state.test.ts` — Vitest coverage of reducers.
@@ -345,9 +429,10 @@ Override via `ALFRED_LLM_MODEL` env var (no UI in v0).
 - `apps/desktop/src/renderer/app.tsx` — render `Composer` at bottom, hook plan flow, render `SquadPlanSummary` in dock, render staged tile branch in `ManualTerminalTile` (or split into `TerminalTile` with internal branch on `status`).
 - `apps/desktop/src/renderer/styles.css` — `.composer-bar`, `.terminal-tile.staged`, `.terminal-tile.staged .approve-button`, `.alfred-dock-plan`, `.alfred-dock-error`.
 
-### Dependency
+### Dependencies
 
 - `dotenv` (light, ~7KB, well-maintained). Or use Node 22+ `--env-file=.env` flag in `dev:electron` script — preferred if it works in packaged Electron context. Decided during impl.
+- `ajv` + `ajv-formats` for client-side JSON schema validation in `alfred-orchestrator.ts`. Standard, widely used, ESM-friendly.
 
 ## 10. Error handling matrix
 
@@ -382,6 +467,9 @@ These are intentionally **NOT** in v0. Each is a candidate for its own next slic
 - **Multi-LLM model picker UI** — model is env var only.
 - **Plan history / favorites / templates.**
 - **Workspace-scoped session filtering** — `WorkspaceRail` switching is still cosmetic (deferred from terminal-first slice).
+- **Hard DENY mode for unsafe commands** — v0 only annotates with `safetyNote`. A future slice can add a setting to fully reject plans that contain unsafe commands instead of merely warning.
+- **Configurable safety patterns** — patterns are hardcoded in `alfred-safety.ts` for v0. User-supplied allow/deny lists, per-workspace policies, etc. are deferred.
+- **Double-click confirmation for unsafe Approve** — v0 uses visual coral border + aria-label as the only differentiation; explicit confirmation step (e.g. typed-name confirm or two-step click) is deferred.
 
 ## 12. Open questions
 
@@ -392,8 +480,9 @@ If implementation surfaces ambiguity, fix inline and note in the implementation 
 ## 13. Self-review
 
 - [x] **Placeholders:** no "TBD", "TODO", or "fill later". `dotenv` vs `--env-file` decision is explicitly named as impl-time.
-- [x] **Internal consistency:** `SessionTile.source × status` quadrants enumerate all valid states; `SquadPlan.sessionIds` references existing tiles by id.
-- [x] **Scope:** focused on launcher v0; out-of-scope list explicit; no creep into tile elasticity, persistence, packaging.
-- [x] **Ambiguity:** approval semantics specified (default-pending, per-tile + plan-level); error UX specified per code; LLM schema specified; concurrency rule specified.
-- [x] **Architecture matches feature description:** main owns API key + LLM call; renderer owns UI + state; IPC contract explicit.
+- [x] **Internal consistency:** `SessionTile.source × stage` quadrants enumerate all valid states; `SquadPlan.sessionIds` references existing tiles by id; `stage` (launch lifecycle) is distinct from runtime `status` inside `ManualTerminalTile` (PTY state).
+- [x] **Scope:** focused on launcher v0; out-of-scope list explicit; no creep into tile elasticity, persistence, packaging, hard-deny safety, configurable safety policies.
+- [x] **Ambiguity:** approval semantics specified (default-pending, per-tile + plan-level); error UX specified per code; LLM schema + Ajv validation flow specified; concurrency rule specified; `cwd` fallback specified.
+- [x] **Architecture matches feature description:** main owns API key + LLM call + safety validator; renderer owns UI + state; IPC contract explicit; `AgentKind` lives in shared (no renderer→shared dependency).
 - [x] **Existing code respected:** manual flow untouched, terminal-manager extended (not rewritten), session-state extended (not replaced), AlfredDock slot reused.
+- [x] **Review findings addressed (2026-05-07 amend):** OpenRouter `response_format` corrected (json_object + Ajv + retry); default model changed from Haiku to Sonnet 4.6 (confirmed structured-output); `AgentKind` moved from renderer to shared; `status` → `stage` to avoid runtime-status collision; safety validator added (§8.5) as annotation, not block.
