@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from "electron";
+import { BrowserWindow, app, ipcMain } from "electron";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
@@ -18,6 +18,7 @@ type NodePtyModule = typeof import("node-pty");
 
 type TerminalSession = {
   id: TerminalSessionId;
+  onWindowClosed: () => void;
   pty: PtyProcess;
   window: BrowserWindow;
 };
@@ -38,6 +39,9 @@ export function registerTerminalIpc(): void {
       const cwd = resolveTerminalCwd(request.cwd);
       const shell = resolveShell();
       const id = randomUUID();
+      const onWindowClosed = () => {
+        killSession(id);
+      };
       const pty = nodePty.spawn(shell.command, shell.args, {
         name: "xterm-256color",
         cols: normalizeDimension(request.cols, 80),
@@ -50,7 +54,7 @@ export function registerTerminalIpc(): void {
         },
       });
 
-      sessions.set(id, { id, pty, window });
+      sessions.set(id, { id, onWindowClosed, pty, window });
 
       pty.onData((data) => {
         if (!window.isDestroyed()) {
@@ -59,7 +63,7 @@ export function registerTerminalIpc(): void {
       });
 
       pty.onExit(({ exitCode, signal }) => {
-        sessions.delete(id);
+        disposeSession(id);
 
         if (!window.isDestroyed()) {
           const payload: TerminalExitEvent = signal === undefined ? { id, exitCode } : { id, exitCode, signal };
@@ -67,9 +71,7 @@ export function registerTerminalIpc(): void {
         }
       });
 
-      window.once("closed", () => {
-        killSession(id);
-      });
+      window.once("closed", onWindowClosed);
 
       return { id, cwd, shell: shell.command };
     },
@@ -104,7 +106,23 @@ function killSession(id: TerminalSessionId): void {
   }
 
   sessions.delete(id);
+  if (!session.window.isDestroyed()) {
+    session.window.off("closed", session.onWindowClosed);
+  }
   session.pty.kill();
+}
+
+function disposeSession(id: TerminalSessionId): void {
+  const session = sessions.get(id);
+
+  if (!session) {
+    return;
+  }
+
+  sessions.delete(id);
+  if (!session.window.isDestroyed()) {
+    session.window.off("closed", session.onWindowClosed);
+  }
 }
 
 async function loadNodePty(): Promise<NodePtyModule> {
@@ -122,10 +140,14 @@ function resolveShell(): { command: string; args: string[] } {
 
 function resolveTerminalCwd(cwd: string | undefined): string {
   if (!cwd) {
-    return process.cwd();
+    return defaultTerminalCwd();
   }
 
   return path.resolve(cwd);
+}
+
+function defaultTerminalCwd(): string {
+  return process.env.ALFRED_DESKTOP_WORKSPACE_CWD ?? process.env.INIT_CWD ?? path.resolve(app.getAppPath(), "../..");
 }
 
 function normalizeDimension(value: number, fallback: number): number {
