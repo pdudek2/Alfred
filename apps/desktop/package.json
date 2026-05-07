@@ -19,6 +19,7 @@
     "@xterm/xterm": "^6.0.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
+    "dotenv": "^17.4.2",
     "lucide-react": "latest",
     "node-pty": "^1.1.0",
     "react": "latest",
