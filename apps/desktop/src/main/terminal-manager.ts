@@ -122,6 +122,10 @@ export function killAllTerminalSessions(): void {
   }
 }
 
+export function getTerminalSessionCount(): number {
+  return sessions.size;
+}
+
 function sessionMetadata(
   id: TerminalSessionId,
   request: TerminalCreateRequest,

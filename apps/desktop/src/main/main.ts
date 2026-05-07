@@ -1,12 +1,19 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, dialog, type MessageBoxSyncOptions } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { config as loadDotenv } from "dotenv";
-import { killAllTerminalSessions, registerTerminalIpc } from "./terminal-manager.js";
+import { getTerminalSessionCount, killAllTerminalSessions, registerTerminalIpc } from "./terminal-manager.js";
 import { registerAlfredIpc } from "./alfred-orchestrator.js";
+import {
+  QUIT_GUARD_CANCEL_BUTTON,
+  QUIT_GUARD_CONFIRM_BUTTON,
+  didCancelTerminalQuit,
+  shouldConfirmTerminalQuit,
+} from "./quit-guard.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
+let terminalQuitConfirmed = false;
 
 // Load repo-root .env before any IPC registration so OPENROUTER_API_KEY is visible.
 // Repo root is two levels up from app.getAppPath() (apps/desktop) — same logic as
@@ -37,6 +44,21 @@ async function createWindow(): Promise<void> {
     window.show();
   });
 
+  window.on("close", (event) => {
+    if (
+      process.platform !== "darwin" &&
+      !terminalQuitConfirmed &&
+      BrowserWindow.getAllWindows().length === 1 &&
+      shouldConfirmTerminalQuit(getTerminalSessionCount())
+    ) {
+      if (!confirmTerminalQuit(window)) {
+        event.preventDefault();
+        return;
+      }
+      terminalQuitConfirmed = true;
+    }
+  });
+
   if (isDev) {
     await window.loadURL(process.env.VITE_DEV_SERVER_URL!);
     window.webContents.openDevTools({ mode: "detach" });
@@ -62,6 +84,38 @@ app.on("window-all-closed", () => {
   }
 });
 
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
+  if (!terminalQuitConfirmed && shouldConfirmTerminalQuit(getTerminalSessionCount())) {
+    if (!confirmTerminalQuit()) {
+      event.preventDefault();
+      if (BrowserWindow.getAllWindows().length === 0) {
+        void createWindow();
+      }
+      return;
+    }
+    terminalQuitConfirmed = true;
+  }
+
   killAllTerminalSessions();
 });
+
+function confirmTerminalQuit(parentWindow?: BrowserWindow): boolean {
+  const activeSessionCount = getTerminalSessionCount();
+  const options: MessageBoxSyncOptions = {
+    type: "warning",
+    buttons: ["Keep Alfred open", "Quit and stop sessions"],
+    cancelId: QUIT_GUARD_CANCEL_BUTTON,
+    defaultId: QUIT_GUARD_CANCEL_BUTTON,
+    message: "Quit Alfred and stop active terminal sessions?",
+    detail:
+      activeSessionCount === 1
+        ? "One terminal session is still running. Quitting Alfred will stop it."
+        : `${activeSessionCount} terminal sessions are still running. Quitting Alfred will stop them.`,
+    noLink: true,
+  };
+  const choice = parentWindow
+    ? dialog.showMessageBoxSync(parentWindow, options)
+    : dialog.showMessageBoxSync(options);
+
+  return !didCancelTerminalQuit(choice);
+}
