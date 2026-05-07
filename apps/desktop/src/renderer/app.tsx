@@ -1,7 +1,7 @@
 import { Plus, X } from "lucide-react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getDesktopTerminalApi } from "./desktop-api";
 import { addManualSession, closeSession, createInitialSessions, type SessionTile } from "./session-state";
 import type { TerminalSessionId } from "../shared/terminal-ipc";
@@ -20,13 +20,27 @@ export function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>("A");
   const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>(() => createInitialSessions(""));
 
-  const handleAddManualSession = () => {
+  const handleAddManualSession = useCallback(() => {
     setTerminalSessions((sessions) => addManualSession(sessions, ""));
-  };
+  }, []);
 
   const handleCloseSession = (sessionId: string) => {
     setTerminalSessions((sessions) => closeSession(sessions, sessionId));
   };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "t") {
+        event.preventDefault();
+        handleAddManualSession();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleAddManualSession]);
 
   return (
     <main className="agent-space-shell">
@@ -250,6 +264,7 @@ function ManualTerminalTile({
         setResolvedCwd(session.cwd);
         setStatus("ready");
         fitAndResize();
+        terminal.focus();
       })
       .catch((error: unknown) => {
         if (disposed) {
@@ -283,7 +298,10 @@ function ManualTerminalTile({
       <header className="tile-header">
         <div className="tile-title">
           <span className="tool-dot" />
-          <b>{title}</b>
+          <div>
+            <b>{title}</b>
+            <small>{resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd"}</small>
+          </div>
         </div>
         <div className="tile-actions">
           <span className="tile-status">{statusLabel(status)}</span>
@@ -293,10 +311,6 @@ function ManualTerminalTile({
         </div>
       </header>
       <div className="xterm-host" ref={containerRef} />
-      <footer className="tile-footer">
-        <span>{status === "ready" ? "live pty" : statusLabel(status)}</span>
-        <span>{resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd"}</span>
-      </footer>
     </article>
   );
 }

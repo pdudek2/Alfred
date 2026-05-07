@@ -233,7 +233,7 @@ button:focus-visible {
   overflow: hidden;
   background: var(--terminal);
   display: grid;
-  grid-template-rows: 34px 1fr 28px;
+  grid-template-rows: 42px 1fr;
 }
 
 .terminal-tile.real-terminal {
@@ -249,8 +249,7 @@ button:focus-visible {
   border-color: rgba(239, 129, 115, 0.42);
 }
 
-.tile-header,
-.tile-footer {
+.tile-header {
   min-width: 0;
   border-bottom: 1px solid rgba(245, 240, 228, 0.08);
   display: grid;
@@ -263,17 +262,15 @@ button:focus-visible {
   font-size: 12px;
 }
 
-.tile-footer {
-  border-top: 1px solid rgba(245, 240, 228, 0.08);
-  border-bottom: 0;
-  color: var(--faint);
-}
-
 .tile-title {
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.tile-title > div {
+  min-width: 0;
 }
 
 .tool-dot {
@@ -289,9 +286,20 @@ button:focus-visible {
 }
 
 .tile-title b {
+  display: block;
   overflow: hidden;
   color: var(--ink-soft);
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-title small {
+  display: block;
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 1.1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
