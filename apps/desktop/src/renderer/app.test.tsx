@@ -68,6 +68,7 @@ function installDesktopBridge(
   getLayouts: ReturnType<typeof vi.fn>;
   getStagedPlan: ReturnType<typeof vi.fn>;
   getRuntimeStatus: ReturnType<typeof vi.fn>;
+  killTerminal: ReturnType<typeof vi.fn>;
   requestPlan: ReturnType<typeof vi.fn>;
   resolveStagedPlan: ReturnType<typeof vi.fn>;
   setWorkspaceLayout: ReturnType<typeof vi.fn>;
@@ -81,6 +82,7 @@ function installDesktopBridge(
   const setStagedPlan = vi.fn().mockImplementation((request) => Promise.resolve({ plan: request }));
   const getLayouts = vi.fn().mockResolvedValue(layouts);
   const setWorkspaceLayout = vi.fn().mockResolvedValue(layouts);
+  const killTerminal = vi.fn();
   const createTerminal = vi.fn().mockImplementation((request: Parameters<TerminalApi["create"]>[0]) =>
     Promise.resolve({
       id: "runtime-1",
@@ -97,7 +99,7 @@ function installDesktopBridge(
   );
   const terminal: TerminalApi = {
     create: createTerminal,
-    kill: vi.fn(),
+    kill: killTerminal,
     list: vi.fn().mockResolvedValue({ sessions: terminalSessions }),
     onData: vi.fn(() => vi.fn()),
     onExit: vi.fn(() => vi.fn()),
@@ -112,7 +114,7 @@ function installDesktopBridge(
   };
 
   window.alfredDesktop = bridge;
-  return { clearStagedPlan, getLayouts, getRuntimeStatus, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan, setWorkspaceLayout };
+  return { clearStagedPlan, getLayouts, getRuntimeStatus, getStagedPlan, killTerminal, requestPlan, resolveStagedPlan, setStagedPlan, setWorkspaceLayout };
 }
 
 beforeEach(() => {
@@ -212,6 +214,49 @@ describe("App integration", () => {
     fireEvent.pointerUp(window);
 
     expect(tile).toHaveStyle({ gridColumn: "3 / span 7", gridRow: "2 / span 5" });
+  });
+
+  it("keeps the snapped layout grid after leaving arrange mode", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await user.click(screen.getByRole("button", { name: "Arrange" }));
+    await user.click(screen.getByRole("button", { name: "Grid" }));
+
+    const grid = screen.getByLabelText("terminals").querySelector(".terminal-grid");
+    expect(grid).toHaveClass("arranging");
+
+    await user.click(screen.getByRole("button", { name: "Arrange" }));
+
+    expect(grid).toHaveClass("laid-out");
+    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toHaveStyle({ gridColumn: "1 / span 6" });
+  });
+
+  it("closes a live terminal tile and kills its runtime session", async () => {
+    const user = userEvent.setup();
+    const { killTerminal } = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "manual-a",
+        title: "Manual · zsh 9",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 9/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 9" }));
+
+    expect(screen.queryByRole("article", { name: /Manual · zsh 9/i })).not.toBeInTheDocument();
+    expect(killTerminal).toHaveBeenCalledWith({ id: "runtime-a" });
   });
 
   it("hydrates saved workspace layouts from the desktop runtime", async () => {

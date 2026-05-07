@@ -167,7 +167,9 @@ export function App() {
     if (!terminalApi) return;
 
     const terminalResult = await terminalApi.list();
-    const liveSessions = hydrateLiveTerminalSessions(terminalResult.sessions);
+    const liveSessions = hydrateLiveTerminalSessions(terminalResult.sessions).filter(
+      (session) => !closingSessionIdsRef.current.has(session.id),
+    );
     setWorkspaces((current) => ensureWorkspacesForSessions(current, liveSessions));
     setTerminalSessions((sessions) => mergeLiveSessions(sessions, liveSessions));
   }, []);
@@ -185,6 +187,8 @@ export function App() {
       const session = sessions.find((item) => item.id === sessionId);
       if (session?.runtimeId) {
         terminalApi?.kill({ id: session.runtimeId });
+        window.setTimeout(() => closingSessionIdsRef.current.delete(sessionId), 5_000);
+      } else {
         closingSessionIdsRef.current.delete(sessionId);
       }
       return closeSession(sessions, sessionId);
@@ -797,7 +801,7 @@ function TerminalGrid({
           <kbd>{shortcutModifier} T</kbd>
         </div>
       </header>
-      <div className={`terminal-grid ${arrangeMode ? "arranging" : ""}`} ref={gridRef}>
+      <div className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"}`} ref={gridRef}>
         {sessions.map((session) =>
           session.stage === "live" ? (
             <ManualTerminalTile
@@ -1072,7 +1076,13 @@ function ManualTerminalTile({
         </div>
         <div className="tile-actions">
           <span className="tile-status">{statusLabel(status)}</span>
-          <button type="button" aria-label={`Close ${title}`} onClick={onClose} title="Close terminal">
+          <button
+            type="button"
+            aria-label={`Close ${title}`}
+            onClick={onClose}
+            onPointerDown={(event) => event.stopPropagation()}
+            title="Close terminal"
+          >
             <X size={14} />
           </button>
         </div>
