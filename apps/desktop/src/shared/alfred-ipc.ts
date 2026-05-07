@@ -39,6 +39,7 @@ export type AlfredPlanResponse =
 
 export type AlfredStagedSession = AlfredPlanSession & {
   id: string;
+  workspaceId?: string;
 };
 
 export type AlfredStagedPlanSnapshot = {

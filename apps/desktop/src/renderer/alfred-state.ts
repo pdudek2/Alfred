@@ -10,6 +10,7 @@ export type SquadPlan = {
   name?: string;
   prompt: string;
   sessionIds: string[];
+  workspaceId: string;
 };
 
 export function idle(): AlfredStatus {

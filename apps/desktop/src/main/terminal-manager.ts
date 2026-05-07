@@ -30,6 +30,7 @@ type TerminalSession = {
   title: string;
   source: TerminalSessionSource;
   agentKind?: TerminalCreateResult["agentKind"];
+  workspaceId?: string;
   cwd: string;
   shell: string;
   command?: string;
@@ -148,6 +149,7 @@ function sessionMetadata(
     title: request.title ?? defaultSessionTitle(request.source ?? "manual", shell),
     source: request.source ?? "manual",
     ...(request.agentKind === undefined ? {} : { agentKind: request.agentKind }),
+    ...(request.workspaceId === undefined ? {} : { workspaceId: request.workspaceId }),
     cwd,
     shell,
     ...(request.command === undefined ? {} : { command: request.command }),
@@ -162,6 +164,7 @@ function toCreateResult(session: TerminalSession): TerminalCreateResult {
     title: session.title,
     source: session.source,
     ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
+    ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
     cwd: session.cwd,
     shell: session.shell,
     ...(session.command === undefined ? {} : { command: session.command }),

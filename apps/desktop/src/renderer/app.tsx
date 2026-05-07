@@ -32,16 +32,19 @@ import type { AlfredRuntimeStatus, AlfredStagedPlanSnapshot, AlfredStagedSession
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../shared/terminal-ipc";
 import "@xterm/xterm/css/xterm.css";
 
-type WorkspaceId = "A" | "UI" | "API" | "DOC";
-
-const workspaceLabels: Record<WorkspaceId, string> = {
-  A: "Alfred",
-  API: "API",
-  DOC: "Docs",
-  UI: "UI",
+type Workspace = {
+  id: string;
+  label: string;
+  shortLabel: string;
 };
 
+const DEFAULT_WORKSPACE_ID = "A";
+const DEFAULT_WORKSPACE: Workspace = { id: DEFAULT_WORKSPACE_ID, label: "Alfred", shortLabel: "A" };
+const DEFAULT_WORKSPACES: Workspace[] = [DEFAULT_WORKSPACE];
+
 export function App() {
+  const [workspaces, setWorkspaces] = useState<Workspace[]>(DEFAULT_WORKSPACES);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(DEFAULT_WORKSPACE_ID);
   const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>([]);
   const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
   const [pendingPlan, setPendingPlan] = useState<SquadPlan | null>(null);
@@ -50,19 +53,58 @@ export function App() {
   const [runtimeStatus, setRuntimeStatus] = useState<AlfredRuntimeStatus | null>(null);
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
-  const stagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
-  const unsafeStagedCount = terminalSessions.filter((s) => s.stage === "staged" && s.safetyNote).length;
-  const liveAlfredCount = terminalSessions.filter((s) => s.stage === "live" && s.source === "alfred").length;
+  const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? DEFAULT_WORKSPACE;
+  const activeSessions = terminalSessions.filter((session) => session.workspaceId === activeWorkspace.id);
+  const activePendingPlan = pendingPlan?.workspaceId === activeWorkspace.id ? pendingPlan : null;
+  const stagedCount = activeSessions.filter((s) => s.stage === "staged").length;
+  const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
+  const unsafeStagedCount = activeSessions.filter((s) => s.stage === "staged" && s.safetyNote).length;
+  const liveAlfredCount = activeSessions.filter((s) => s.stage === "live" && s.source === "alfred").length;
+  const stagedWorkspaceLabel =
+    pendingPlan && pendingPlan.workspaceId !== activeWorkspace.id
+      ? workspaces.find((workspace) => workspace.id === pendingPlan.workspaceId)?.label ?? "another workspace"
+      : undefined;
   const composerBlockedReason =
-    stagedCount > 0
-      ? "Resolve the current Alfred plan before asking for another."
+    globalStagedCount > 0
+      ? stagedWorkspaceLabel
+        ? `Review staged items in ${stagedWorkspaceLabel} workspace first.`
+        : "Resolve the current Alfred plan before asking for another."
       : runtimeStatus && !runtimeStatus.openRouterConfigured
         ? "Set OPENROUTER_API_KEY in repo .env to use Alfred."
         : undefined;
 
   const handleAddManualSession = useCallback(() => {
-    setTerminalSessions((sessions) => addManualSession(sessions, ""));
+    setTerminalSessions((sessions) => addManualSession(sessions, "", activeWorkspace.id));
+  }, [activeWorkspace.id]);
+
+  const handleAddWorkspace = useCallback(() => {
+    setWorkspaces((current) => {
+      const index = current.length + 1;
+      const workspace: Workspace = {
+        id: `W${index}`,
+        label: `Workspace ${index}`,
+        shortLabel: `W${index}`,
+      };
+      setActiveWorkspaceId(workspace.id);
+      setTerminalSessions((sessions) => addManualSession(sessions, "", workspace.id));
+      return [...current, workspace];
+    });
   }, []);
+
+  const refreshLiveSessions = useCallback(async () => {
+    const terminalApi = getDesktopTerminalApi();
+    if (!terminalApi) return;
+
+    const terminalResult = await terminalApi.list();
+    const liveSessions = hydrateLiveTerminalSessions(terminalResult.sessions);
+    setWorkspaces((current) => ensureWorkspacesForSessions(current, liveSessions));
+    setTerminalSessions((sessions) => mergeLiveSessions(sessions, liveSessions));
+  }, []);
+
+  const handleSelectWorkspace = useCallback((workspaceId: string) => {
+    setActiveWorkspaceId(workspaceId);
+    void refreshLiveSessions();
+  }, [refreshLiveSessions]);
 
   const handleCloseSession = useCallback((sessionId: string) => {
     const terminalApi = getDesktopTerminalApi();
@@ -97,7 +139,7 @@ export function App() {
   const handleSubmitPrompt = useCallback(async () => {
     const prompt = composerValue.trim();
     if (!prompt) return;
-    if (!canRequestPlan(alfredStatus, stagedCount)) return;
+    if (!canRequestPlan(alfredStatus, globalStagedCount)) return;
     const alfredApi = getDesktopAlfredApi();
     if (!alfredApi) {
       setAlfredStatus(errored({ code: "network", message: "Alfred runtime is unavailable. Open the desktop app." }));
@@ -113,7 +155,7 @@ export function App() {
     setComposerValue("");
     setTerminalSessions((sessions) => {
       const before = sessions;
-      const after = addStagedSessions(before, response.plan.sessions, "");
+      const after = addStagedSessions(before, response.plan.sessions, "", activeWorkspace.id);
       const stagedPlan = createStagedPlanSnapshot({
         ...(response.plan.name === undefined ? {} : { name: response.plan.name }),
         prompt,
@@ -126,6 +168,7 @@ export function App() {
               ...(stagedPlan.name === undefined ? {} : { name: stagedPlan.name }),
               prompt: stagedPlan.prompt,
               sessionIds: stagedPlan.sessions.map((session) => session.id),
+              workspaceId: activeWorkspace.id,
             }
           : null,
       );
@@ -136,7 +179,7 @@ export function App() {
       }
       return after;
     });
-  }, [alfredStatus, composerValue, stagedCount]);
+  }, [activeWorkspace.id, alfredStatus, composerValue, globalStagedCount]);
 
   const handleApproveTile = useCallback((tileId: string) => {
     const tile = terminalSessions.find((session) => session.id === tileId);
@@ -178,23 +221,23 @@ export function App() {
 
   const handleApproveAll = useCallback(() => {
     setArmedUnsafeSessionIds(new Set());
-    setTerminalSessions((sessions) => approveAllStaged(sessions));
+    setTerminalSessions((sessions) => approveAllStaged(sessions, activeWorkspace.id));
     setPendingPlan((plan) => {
       if (!plan) return plan;
       const unsafeIds = terminalSessions
-        .filter((session) => session.stage === "staged" && session.safetyNote && plan.sessionIds.includes(session.id))
+        .filter((session) => session.workspaceId === activeWorkspace.id && session.stage === "staged" && session.safetyNote && plan.sessionIds.includes(session.id))
         .map((session) => session.id);
       return unsafeIds.length === 0 ? null : { ...plan, sessionIds: unsafeIds };
     });
-  }, [terminalSessions]);
+  }, [activeWorkspace.id, terminalSessions]);
 
   const handleRejectAll = useCallback(() => {
     const alfredApi = getDesktopAlfredApi();
     setArmedUnsafeSessionIds(new Set());
-    setTerminalSessions((sessions) => rejectAllStaged(sessions));
+    setTerminalSessions((sessions) => rejectAllStaged(sessions, activeWorkspace.id));
     setPendingPlan(null);
     void alfredApi?.clearStagedPlan();
-  }, []);
+  }, [activeWorkspace.id]);
 
   const handleDismissError = useCallback(() => {
     setAlfredStatus(idle());
@@ -202,6 +245,16 @@ export function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && /^[1-9]$/.test(event.key)) {
+        const index = Number.parseInt(event.key, 10) - 1;
+        const workspace = workspaces[index];
+        if (workspace) {
+          event.preventDefault();
+          handleSelectWorkspace(workspace.id);
+        }
+        return;
+      }
+
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "t") {
         event.preventDefault();
         handleAddManualSession();
@@ -212,7 +265,7 @@ export function App() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [handleAddManualSession]);
+  }, [handleAddManualSession, handleSelectWorkspace, workspaces]);
 
   useEffect(() => {
     const terminalApi = getDesktopTerminalApi();
@@ -249,7 +302,9 @@ export function App() {
         if (alreadyLiveStagedIds.length > 0) {
           void alfredApi?.resolveStagedPlan({ sessionIds: alreadyLiveStagedIds });
         }
-        setTerminalSessions([...liveSessions, ...stagedSessions]);
+        const hydratedSessions = [...liveSessions, ...stagedSessions];
+        setWorkspaces((current) => ensureWorkspacesForSessions(current, hydratedSessions));
+        setTerminalSessions(hydratedSessions);
         setPendingPlan(toSquadPlan({ plan: stagedPlanResult.plan, omittedSessionIds: alreadyLiveStagedIds }));
       })
       .catch(() => {
@@ -269,10 +324,10 @@ export function App() {
       >
         <div className="mission-bar">
           <div className="mission-name">
-            <div className="alfred-mark">A</div>
+            <div className="alfred-mark">{activeWorkspace.shortLabel}</div>
             <div>
-              <strong>{workspaceLabels.A} workspace</strong>
-              <span>manual mode · local runtime</span>
+              <strong>{activeWorkspace.label} workspace</strong>
+              <span>{activeSessions.length} tile{activeSessions.length === 1 ? "" : "s"} · manual mode · local runtime</span>
             </div>
           </div>
           <div className="mission-actions" aria-label="terminal actions">
@@ -290,10 +345,16 @@ export function App() {
         </div>
 
         <div className="workspace-layout">
-          <WorkspaceRail />
+          <WorkspaceRail
+            activeWorkspaceId={activeWorkspace.id}
+            sessions={terminalSessions}
+            workspaces={workspaces}
+            onAddWorkspace={handleAddWorkspace}
+            onSelectWorkspace={handleSelectWorkspace}
+          />
           <TerminalGrid
             armedUnsafeSessionIds={armedUnsafeSessionIds}
-            sessions={terminalSessions}
+            sessions={activeSessions}
             shortcutModifier={shortcutModifier}
             onCloseSession={handleCloseSession}
             onRuntimeSessionReady={handleRuntimeSessionReady}
@@ -302,7 +363,7 @@ export function App() {
           />
           <AlfredDock
             status={alfredStatus}
-            pendingPlan={pendingPlan}
+            pendingPlan={activePendingPlan}
             stagedCount={stagedCount}
             unsafeStagedCount={unsafeStagedCount}
             liveAlfredCount={liveAlfredCount}
@@ -337,6 +398,7 @@ function createStagedPlanSnapshot({
     id: session.id,
     kind: session.agentKind ?? "shell",
     title: session.title,
+    workspaceId: session.workspaceId,
     ...(session.cwd === "" ? {} : { cwd: session.cwd }),
     command: session.command ?? "",
     args: session.args ?? [],
@@ -352,9 +414,11 @@ function createStagedPlanSnapshot({
 }
 
 function toSquadPlan({
+  defaultWorkspaceId = DEFAULT_WORKSPACE_ID,
   omittedSessionIds = [],
   plan,
 }: {
+  defaultWorkspaceId?: string;
   omittedSessionIds?: string[];
   plan: AlfredStagedPlanSnapshot | null;
 }): SquadPlan | null {
@@ -367,32 +431,82 @@ function toSquadPlan({
     ...(plan.name === undefined ? {} : { name: plan.name }),
     prompt: plan.prompt,
     sessionIds,
+    workspaceId: plan.sessions.find((session) => session.workspaceId)?.workspaceId ?? defaultWorkspaceId,
   };
 }
 
-function WorkspaceRail() {
-  const workspaces: WorkspaceId[] = ["A", "UI", "API", "DOC"];
+function ensureWorkspacesForSessions(workspaces: Workspace[], sessions: SessionTile[]): Workspace[] {
+  const existingIds = new Set(workspaces.map((workspace) => workspace.id));
+  const additions: Workspace[] = [];
+
+  for (const session of sessions) {
+    if (existingIds.has(session.workspaceId)) continue;
+    existingIds.add(session.workspaceId);
+    additions.push({
+      id: session.workspaceId,
+      label: `Workspace ${session.workspaceId}`,
+      shortLabel: session.workspaceId,
+    });
+  }
+
+  return additions.length === 0 ? workspaces : [...workspaces, ...additions];
+}
+
+function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[]): SessionTile[] {
+  const liveById = new Map(liveSessions.map((session) => [session.id, session]));
+  const existingIds = new Set(sessions.map((session) => session.id));
+  const merged = sessions.map((session) => liveById.get(session.id) ?? session);
+  const additions = liveSessions.filter((session) => !existingIds.has(session.id));
+
+  return [...merged, ...additions];
+}
+
+function WorkspaceRail({
+  activeWorkspaceId,
+  sessions,
+  workspaces,
+  onAddWorkspace,
+  onSelectWorkspace,
+}: {
+  activeWorkspaceId: string;
+  sessions: SessionTile[];
+  workspaces: Workspace[];
+  onAddWorkspace: () => void;
+  onSelectWorkspace: (workspaceId: string) => void;
+}) {
+  const countsByWorkspace = new Map<string, { live: number; staged: number }>();
+  for (const session of sessions) {
+    const counts = countsByWorkspace.get(session.workspaceId) ?? { live: 0, staged: 0 };
+    if (session.stage === "staged") counts.staged += 1;
+    else counts.live += 1;
+    countsByWorkspace.set(session.workspaceId, counts);
+  }
 
   return (
-    <nav className="workspace-rail" aria-label="workspaces">
+    <nav className="workspace-rail" aria-label="workspaces" role="tablist">
       {workspaces.map((workspace) => {
-        const active = workspace === "A";
+        const active = workspace.id === activeWorkspaceId;
+        const counts = countsByWorkspace.get(workspace.id) ?? { live: 0, staged: 0 };
         return (
           <button
             className={`workspace-button ${active ? "active" : ""}`}
             type="button"
-            aria-label={active ? `${workspaceLabels[workspace]} workspace` : `${workspaceLabels[workspace]} workspace planned`}
-            aria-pressed={active}
-            disabled={!active}
-            key={workspace}
-            title={active ? workspaceLabels[workspace] : `${workspaceLabels[workspace]} workspace is planned`}
+            aria-label={`${workspace.label} workspace, ${counts.live} live, ${counts.staged} staged`}
+            aria-selected={active}
+            key={workspace.id}
+            onClick={() => onSelectWorkspace(workspace.id)}
+            role="tab"
+            title={`${workspace.label}: ${counts.live} live, ${counts.staged} staged`}
           >
-            {workspace}
+            <span>{workspace.shortLabel}</span>
+            {(counts.live > 0 || counts.staged > 0) && (
+              <small aria-hidden="true">{counts.staged > 0 ? counts.staged : counts.live}</small>
+            )}
           </button>
         );
       })}
       <div className="workspace-spacer" />
-      <button className="workspace-button" type="button" aria-label="Add workspace" disabled>
+      <button className="workspace-button add-workspace" type="button" aria-label="Add workspace" onClick={onAddWorkspace}>
         +
       </button>
     </nav>
@@ -513,6 +627,7 @@ function TerminalGrid({
               key={session.id}
               sessionKey={session.id}
               runtimeId={session.runtimeId}
+              workspaceId={session.workspaceId}
               title={session.title}
               source={session.source}
               agentKind={session.agentKind}
@@ -546,6 +661,7 @@ function ManualTerminalTile({
   runtimeId,
   sessionKey,
   source,
+  workspaceId,
   title,
   command,
   args,
@@ -558,6 +674,7 @@ function ManualTerminalTile({
   runtimeId?: TerminalSessionId | undefined;
   sessionKey: string;
   source: SessionTile["source"];
+  workspaceId: string;
   title: string;
   command?: string | undefined;
   args?: string[] | undefined;
@@ -686,6 +803,7 @@ function ManualTerminalTile({
       clientId: sessionKey,
       title,
       source,
+      workspaceId,
     };
     if (agentKind) baseRequest.agentKind = agentKind;
     if (cwd) baseRequest.cwd = cwd;
@@ -727,10 +845,10 @@ function ManualTerminalTile({
 
       terminal.dispose();
     };
-  }, [cwd, sessionKey, title, source, agentKind, command, args, initialBuffer, onRuntimeSessionReady]);
+  }, [cwd, sessionKey, title, source, workspaceId, agentKind, command, args, initialBuffer, onRuntimeSessionReady]);
 
   return (
-    <article className={`terminal-tile manual real-terminal ${status}`}>
+    <article className={`terminal-tile manual real-terminal ${status}`} aria-label={title}>
       <header className="tile-header">
         <div className="tile-title">
           <span className="tool-dot" />

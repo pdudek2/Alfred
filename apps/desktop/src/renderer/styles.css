@@ -201,6 +201,23 @@ button:focus-visible {
   font-size: 12px;
 }
 
+.workspace-button span {
+  display: block;
+}
+
+.workspace-button small {
+  position: absolute;
+  right: 4px;
+  bottom: 3px;
+  min-width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  background: rgba(86, 200, 213, 0.16);
+  color: #cff3f6;
+  font-size: 9px;
+  line-height: 13px;
+}
+
 .workspace-button.active {
   border-color: rgba(86, 200, 213, 0.46);
   background:
