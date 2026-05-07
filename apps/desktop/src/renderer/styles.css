@@ -290,6 +290,12 @@ h1 {
   color: #cff3f6;
 }
 
+.mission-actions .new-terminal-button {
+  border-color: rgba(183, 161, 255, 0.34);
+  background: rgba(183, 161, 255, 0.09);
+  color: var(--violet);
+}
+
 .mission-actions .primary-action,
 .composer-actions .primary-action {
   width: auto;
@@ -322,7 +328,7 @@ h1 {
 
 .workspace-layout.terminal-wall .terminal-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(188px, 1fr);
 }
 
 .workspace-layout.preview-focus {
@@ -331,7 +337,7 @@ h1 {
 
 .workspace-layout.preview-focus .terminal-grid {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: repeat(6, minmax(104px, 1fr));
+  grid-auto-rows: minmax(116px, 1fr);
 }
 
 .workspace-rail,
@@ -536,13 +542,15 @@ h1 {
   min-height: 0;
   border: 1px solid var(--line);
   border-radius: 11px;
-  overflow: hidden;
+  overflow: auto;
   background: rgba(3, 4, 4, 0.82);
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(176px, 1fr);
   gap: 8px;
   padding: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 240, 228, 0.18) transparent;
 }
 
 .terminal-tile {
@@ -617,17 +625,30 @@ h1 {
   border-color: rgba(239, 129, 115, 0.42);
 }
 
-.terminal-tile.real-terminal .tile-header span:last-child {
+.terminal-tile.real-terminal .tile-status {
   color: var(--violet);
 }
 
-.terminal-tile.real-terminal.ready .tile-header span:last-child {
+.terminal-tile.real-terminal.ready .tile-status {
   color: var(--green);
 }
 
-.terminal-tile.real-terminal.error .tile-header span:last-child,
-.terminal-tile.real-terminal.exited .tile-header span:last-child {
+.terminal-tile.real-terminal.error .tile-status,
+.terminal-tile.real-terminal.exited .tile-status {
   color: var(--coral);
+}
+
+.terminal-tile.staged {
+  border-style: dashed;
+  background:
+    linear-gradient(rgba(245, 240, 228, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 240, 228, 0.018) 1px, transparent 1px),
+    rgba(4, 5, 5, 0.76);
+  background-size: 18px 18px, 18px 18px, auto;
+}
+
+.terminal-tile.staged .tool-dot {
+  background: var(--faint);
 }
 
 .terminal-tile.idle .tool-dot {
@@ -640,6 +661,32 @@ h1 {
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tile-actions {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tile-actions button {
+  width: 28px;
+  min-height: 28px;
+  border: 1px solid rgba(245, 240, 228, 0.11);
+  border-radius: 7px;
+  background: rgba(245, 240, 228, 0.035);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.tile-actions button:hover,
+.tile-actions button:focus-visible {
+  border-color: rgba(239, 129, 115, 0.42);
+  color: var(--coral);
 }
 
 .terminal-body {
