@@ -31,10 +31,12 @@ body {
   min-height: 100vh;
   overflow: hidden;
   background:
+    radial-gradient(circle at 22% 0%, rgba(86, 200, 213, 0.11), transparent 32%),
+    radial-gradient(circle at 90% 12%, rgba(217, 174, 70, 0.08), transparent 28%),
     linear-gradient(rgba(245, 240, 228, 0.018) 1px, transparent 1px),
     linear-gradient(90deg, rgba(245, 240, 228, 0.018) 1px, transparent 1px),
     var(--night);
-  background-size: 28px 28px, 28px 28px, auto;
+  background-size: auto, auto, 28px 28px, 28px 28px, auto;
 }
 
 button {
@@ -50,17 +52,22 @@ button:focus-visible {
 .agent-space-shell {
   position: relative;
   min-height: 100vh;
-  padding: 8px;
+  padding: 10px;
   display: block;
 }
 
 .desktop-frame {
-  height: calc(100vh - 16px);
-  border: 1px solid rgba(245, 240, 228, 0.14);
-  border-radius: 10px;
+  height: calc(100vh - 20px);
+  border: 1px solid rgba(245, 240, 228, 0.16);
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
-  background: rgba(5, 6, 6, 0.86);
+  box-shadow:
+    0 34px 110px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(245, 240, 228, 0.07);
+  background:
+    linear-gradient(180deg, rgba(245, 240, 228, 0.035), transparent 120px),
+    rgba(5, 6, 6, 0.88);
+  backdrop-filter: blur(18px) saturate(1.08);
   display: grid;
   grid-template-rows: 46px minmax(0, 1fr);
 }
@@ -72,7 +79,9 @@ button:focus-visible {
   align-items: center;
   gap: 16px;
   padding: 0 12px;
-  background: rgba(12, 14, 14, 0.66);
+  background:
+    linear-gradient(90deg, rgba(86, 200, 213, 0.045), transparent 40%),
+    rgba(12, 14, 14, 0.72);
 }
 
 .mission-name {
@@ -90,7 +99,8 @@ button:focus-visible {
   flex: 0 0 auto;
   border: 1px solid rgba(245, 240, 228, 0.15);
   border-radius: 7px;
-  background: rgba(245, 240, 228, 0.045);
+  background:
+    linear-gradient(145deg, rgba(245, 240, 228, 0.07), rgba(245, 240, 228, 0.025));
   color: var(--ink-soft);
   font-family: var(--mono);
   font-size: 12px;
@@ -141,7 +151,9 @@ button:focus-visible {
   min-width: 132px;
   padding: 0 13px;
   border-color: rgba(86, 200, 213, 0.42);
-  background: rgba(86, 200, 213, 0.1);
+  background:
+    linear-gradient(180deg, rgba(86, 200, 213, 0.16), rgba(86, 200, 213, 0.08));
+  box-shadow: inset 0 1px 0 rgba(245, 240, 228, 0.08);
   color: #cff3f6;
 }
 
@@ -151,7 +163,9 @@ button:focus-visible {
   grid-template-columns: 54px minmax(0, 1fr) 220px;
   gap: 8px;
   padding: 8px;
-  background: rgba(3, 4, 4, 0.58);
+  background:
+    linear-gradient(180deg, rgba(245, 240, 228, 0.018), transparent 180px),
+    rgba(3, 4, 4, 0.58);
 }
 
 .workspace-rail {
@@ -160,7 +174,9 @@ button:focus-visible {
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
-  background: var(--glass);
+  background:
+    linear-gradient(180deg, rgba(245, 240, 228, 0.045), transparent 54px),
+    var(--glass);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -174,7 +190,8 @@ button:focus-visible {
   min-height: 42px;
   border: 1px solid rgba(245, 240, 228, 0.13);
   border-radius: 8px;
-  background: rgba(245, 240, 228, 0.045);
+  background:
+    linear-gradient(180deg, rgba(245, 240, 228, 0.06), rgba(245, 240, 228, 0.025));
   color: var(--muted);
   cursor: pointer;
   font-family: var(--mono);
@@ -183,8 +200,11 @@ button:focus-visible {
 
 .workspace-button.active {
   border-color: rgba(86, 200, 213, 0.46);
-  background: rgba(86, 200, 213, 0.1);
-  box-shadow: inset 2px 0 0 rgba(86, 200, 213, 0.72);
+  background:
+    linear-gradient(180deg, rgba(86, 200, 213, 0.15), rgba(86, 200, 213, 0.07));
+  box-shadow:
+    inset 2px 0 0 rgba(86, 200, 213, 0.72),
+    0 0 22px rgba(86, 200, 213, 0.08);
   color: #cff3f6;
 }
 
@@ -197,13 +217,69 @@ button:focus-visible {
   flex: 1;
 }
 
-.terminal-grid {
+.terminal-stage {
   min-width: 0;
   min-height: 0;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(245, 240, 228, 0.04), transparent 72px),
+    rgba(3, 4, 4, 0.86);
+  display: grid;
+  grid-template-rows: 44px minmax(0, 1fr);
+}
+
+.terminal-stage-header {
+  min-width: 0;
+  border-bottom: 1px solid rgba(245, 240, 228, 0.09);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+}
+
+.terminal-stage-header strong,
+.terminal-stage-header span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-stage-header strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.terminal-stage-header span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.terminal-stage-header kbd {
+  min-height: 26px;
+  border: 1px solid rgba(245, 240, 228, 0.14);
+  border-radius: 6px;
+  padding: 0 8px;
+  background: rgba(245, 240, 228, 0.045);
+  color: var(--faint);
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.terminal-grid {
+  min-width: 0;
+  min-height: 0;
   overflow: auto;
-  background: rgba(3, 4, 4, 0.86);
+  background: rgba(3, 4, 4, 0.48);
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(620px, 100%), 1fr));
   grid-auto-rows: minmax(320px, 1fr);
@@ -219,7 +295,12 @@ button:focus-visible {
   border: 1px solid rgba(245, 240, 228, 0.12);
   border-radius: 8px;
   overflow: hidden;
-  background: var(--terminal);
+  background:
+    linear-gradient(180deg, rgba(245, 240, 228, 0.028), transparent 72px),
+    var(--terminal);
+  box-shadow:
+    inset 0 1px 0 rgba(245, 240, 228, 0.045),
+    0 18px 34px rgba(0, 0, 0, 0.18);
   display: grid;
   grid-template-rows: 42px 1fr;
 }
@@ -230,6 +311,10 @@ button:focus-visible {
 
 .terminal-tile.real-terminal.ready {
   border-color: rgba(120, 217, 145, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(245, 240, 228, 0.045),
+    0 18px 36px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(120, 217, 145, 0.06);
 }
 
 .terminal-tile.real-terminal.error,
@@ -336,7 +421,9 @@ button:focus-visible {
   min-height: 0;
   overflow: hidden;
   padding: 8px;
-  background: var(--terminal);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(86, 200, 213, 0.035), transparent 36%),
+    var(--terminal);
 }
 
 .xterm-host .xterm {
@@ -358,10 +445,19 @@ button:focus-visible {
   min-height: 0;
   align-self: start;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px;
-  background: var(--glass);
+  border-radius: 10px;
+  padding: 12px;
+  background:
+    linear-gradient(180deg, rgba(217, 174, 70, 0.06), transparent 62px),
+    var(--glass);
+  box-shadow: inset 0 1px 0 rgba(245, 240, 228, 0.045);
   color: var(--muted);
+  display: grid;
+  gap: 12px;
+}
+
+.alfred-dock-header {
+  min-width: 0;
   display: grid;
   grid-template-columns: 30px 1fr;
   align-items: center;
@@ -381,7 +477,8 @@ button:focus-visible {
 }
 
 .alfred-dock strong,
-.alfred-dock span {
+.alfred-dock span,
+.alfred-dock p {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -398,6 +495,28 @@ button:focus-visible {
   margin-top: 2px;
   font-family: var(--mono);
   font-size: 12px;
+}
+
+.alfred-dock p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.alfred-dock-footer {
+  border-top: 1px solid rgba(245, 240, 228, 0.09);
+  padding-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.alfred-dock-footer span {
+  margin: 0;
+  color: var(--faint);
+  font-size: 11px;
 }
 
 @media (prefers-reduced-motion: reduce) {

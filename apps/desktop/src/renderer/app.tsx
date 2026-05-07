@@ -50,7 +50,7 @@ export function App() {
             <div className="alfred-mark">A</div>
             <div>
               <strong>{workspaceLabels[activeWorkspace]} workspace</strong>
-              <span>manual terminals ready</span>
+              <span>{terminalSessions.length} manual terminal{terminalSessions.length === 1 ? "" : "s"} ready</span>
             </div>
           </div>
           <div className="mission-actions" aria-label="terminal actions">
@@ -111,10 +111,17 @@ function WorkspaceRail({
 function AlfredDock() {
   return (
     <aside className="alfred-dock" aria-label="Alfred status">
-      <div className="alfred-dock-mark">A</div>
-      <div>
-        <strong>Alfred idle</strong>
-        <span>Manual control is active.</span>
+      <div className="alfred-dock-header">
+        <div className="alfred-dock-mark">A</div>
+        <div>
+          <strong>Alfred</strong>
+          <span>standby</span>
+        </div>
+      </div>
+      <p>Manual control is active. Launcher orchestration is not connected yet.</p>
+      <div className="alfred-dock-footer">
+        <span>no pending asks</span>
+        <span>local</span>
       </div>
     </aside>
   );
@@ -128,16 +135,25 @@ function TerminalGrid({
   onCloseSession: (sessionId: string) => void;
 }) {
   return (
-    <section className="terminal-grid" aria-label="manual terminals">
-      {sessions.map((session) => (
-        <ManualTerminalTile
-          cwd={session.cwd}
-          key={session.id}
-          sessionKey={session.id}
-          title={session.title}
-          onClose={() => onCloseSession(session.id)}
-        />
-      ))}
+    <section className="terminal-stage" aria-label="manual terminals">
+      <header className="terminal-stage-header">
+        <div>
+          <strong>Manual terminals</strong>
+          <span>{sessions.length} live workspace tile{sessions.length === 1 ? "" : "s"}</span>
+        </div>
+        <kbd>{navigator.platform.includes("Mac") ? "Cmd" : "Ctrl"} T</kbd>
+      </header>
+      <div className="terminal-grid">
+        {sessions.map((session) => (
+          <ManualTerminalTile
+            cwd={session.cwd}
+            key={session.id}
+            sessionKey={session.id}
+            title={session.title}
+            onClose={() => onCloseSession(session.id)}
+          />
+        ))}
+      </div>
     </section>
   );
 }
