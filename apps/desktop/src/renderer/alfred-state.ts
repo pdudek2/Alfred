@@ -27,3 +27,7 @@ export function errored(error: AlfredError): AlfredStatus {
 export function isThinking(status: AlfredStatus): boolean {
   return status.kind === "thinking";
 }
+
+export function canRequestPlan(status: AlfredStatus, stagedCount: number): boolean {
+  return status.kind !== "thinking" && stagedCount === 0;
+}

@@ -1,14 +1,16 @@
 import { useCallback } from "react";
 
 type ComposerBarProps = {
+  blockedReason: string | undefined;
   value: string;
   thinking: boolean;
   onChange: (value: string) => void;
   onSubmit: () => void;
 };
 
-export function ComposerBar({ value, thinking, onChange, onSubmit }: ComposerBarProps) {
-  const canSubmit = !thinking && value.trim().length > 0;
+export function ComposerBar({ blockedReason, value, thinking, onChange, onSubmit }: ComposerBarProps) {
+  const blocked = blockedReason !== undefined;
+  const canSubmit = !thinking && !blocked && value.trim().length > 0;
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -32,9 +34,10 @@ export function ComposerBar({ value, thinking, onChange, onSubmit }: ComposerBar
         className="composer-input"
         rows={1}
         value={value}
-        placeholder="Ask Alfred to prepare a workspace…"
+        placeholder={blockedReason ?? "Ask Alfred to prepare a workspace…"}
         disabled={thinking}
         aria-label="Alfred prompt"
+        aria-describedby={blocked ? "composer-status" : undefined}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
       />
@@ -47,7 +50,11 @@ export function ComposerBar({ value, thinking, onChange, onSubmit }: ComposerBar
       >
         {thinking ? "Thinking…" : "Send"}
       </button>
-      {thinking && <span className="composer-thinking" role="status">Alfred is thinking…</span>}
+      {(thinking || blocked) && (
+        <span className="composer-status" id="composer-status" role="status">
+          {thinking ? "Alfred is thinking…" : blockedReason}
+        </span>
+      )}
     </div>
   );
 }
