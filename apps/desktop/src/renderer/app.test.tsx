@@ -150,6 +150,26 @@ describe("App integration", () => {
     expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
   });
 
+  it("enables arrange mode with layout presets and tile movement controls", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Arrange" }));
+
+    expect(screen.getByRole("button", { name: "Focus" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Grid" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Move right" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Move right" }));
+    await user.click(screen.getByRole("button", { name: "Widen" }));
+
+    const tile = screen.getByRole("article", { name: /Manual · zsh 1/i });
+    expect(tile).toHaveStyle({ gridColumn: "2 / span 7" });
+  });
+
   it("blocks Alfred prompts when OpenRouter is not configured", async () => {
     const user = userEvent.setup();
     const { requestPlan } = installDesktopBridge(undefined, null, [], {
