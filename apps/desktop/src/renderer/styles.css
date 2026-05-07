@@ -193,18 +193,6 @@ button:focus-visible {
   opacity: 0.45;
 }
 
-.workspace-button.needs-attention::after {
-  content: "";
-  position: absolute;
-  right: 6px;
-  top: 6px;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--brass);
-  box-shadow: 0 0 0 4px rgba(217, 174, 70, 0.12);
-}
-
 .workspace-spacer {
   flex: 1;
 }

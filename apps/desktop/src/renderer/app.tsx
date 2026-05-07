@@ -90,7 +90,7 @@ function WorkspaceRail({
     <nav className="workspace-rail" aria-label="workspaces">
       {workspaces.map((workspace) => (
         <button
-          className={`workspace-button ${activeWorkspace === workspace ? "active" : ""} ${workspace === "A" ? "needs-attention" : ""}`}
+          className={`workspace-button ${activeWorkspace === workspace ? "active" : ""}`}
           type="button"
           aria-label={`${workspaceLabels[workspace]} workspace`}
           aria-pressed={activeWorkspace === workspace}
