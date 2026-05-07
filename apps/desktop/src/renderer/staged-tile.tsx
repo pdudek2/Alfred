@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { TileLayout } from "./layout-state";
 import type { SessionTile } from "./session-state";
+import { sessionTileKind, tileKindMeta } from "./tile-kind";
 
 type ArrangePreview = {
   mode: "move" | "resize";
@@ -18,11 +19,9 @@ type StagedTilePreviewProps = {
   preview?: ArrangePreview | undefined;
   tile: SessionTile;
   onApprove: (tileId: string) => void;
-  onMove: (deltaCol: number, deltaRow: number) => void;
   onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onReject: (tileId: string) => void;
-  onResize: (deltaColSpan: number, deltaRowSpan: number) => void;
 };
 
 export function StagedTilePreview({
@@ -32,23 +31,21 @@ export function StagedTilePreview({
   preview,
   tile,
   onApprove,
-  onMove,
   onPointerMoveStart,
   onPointerResizeStart,
   onReject,
-  onResize,
 }: StagedTilePreviewProps) {
   const command = tile.command ?? "";
   const args = tile.args ?? [];
   const fullCommand = [command, ...args].join(" ").trim();
-  const agentClass = tile.agentKind ?? "shell";
+  const kindMeta = tileKindMeta(sessionTileKind(tile));
   const unsafe = Boolean(tile.safetyNote);
-  const approveLabel = unsafe ? (armed ? "Confirm" : "Review") : "Approve";
+  const approveLabel = unsafe ? (armed ? "Confirm" : "Review") : "Launch";
   const approveAriaLabel = unsafe
     ? armed
       ? `Confirm unsafe command: ${tile.title}`
       : `Review unsafe command: ${tile.title}`
-    : `Approve ${tile.title}`;
+    : `Launch ${tile.title}`;
 
   return (
     <article
@@ -61,17 +58,17 @@ export function StagedTilePreview({
         onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
       >
         <div className="tile-title">
-          <span className={`tool-dot ${agentClass}`} />
+          <span className={`tool-dot ${kindMeta.className}`} />
+          <span className={`tile-kind-mark ${kindMeta.className}`}>{kindMeta.shortLabel}</span>
           <div>
             <b>{tile.title}</b>
-            <small>{tile.cwd ? shortenPath(tile.cwd) : "default cwd"}</small>
+            <small>{kindMeta.label} · {tile.cwd ? shortenPath(tile.cwd) : "default cwd"}</small>
           </div>
         </div>
         <div className="tile-actions">
-          <span className="tile-status">staged</span>
+          <span className="tile-status">ready</span>
         </div>
       </header>
-      {arrangeMode && <ArrangeControls onMove={onMove} onResize={onResize} />}
       <div className="staged-body">
         {unsafe && (
           <div className={`staged-safety-chip ${armed ? "armed" : ""}`} role="note">
@@ -79,7 +76,7 @@ export function StagedTilePreview({
             {tile.safetyNote}
           </div>
         )}
-        <div className="staged-label">command</div>
+        <div className="staged-label">Will launch</div>
         <div className="staged-command">{fullCommand || "(no command)"}</div>
         {tile.cwd && <div className="staged-cwd">cwd: {tile.cwd}</div>}
       </div>
@@ -111,27 +108,6 @@ export function StagedTilePreview({
         />
       )}
     </article>
-  );
-}
-
-function ArrangeControls({
-  onMove,
-  onResize,
-}: {
-  onMove: (deltaCol: number, deltaRow: number) => void;
-  onResize: (deltaColSpan: number, deltaRowSpan: number) => void;
-}) {
-  return (
-    <div className="arrange-controls" aria-label="tile arrange controls">
-      <button type="button" onClick={() => onMove(-1, 0)} aria-label="Move left">←</button>
-      <button type="button" onClick={() => onMove(1, 0)} aria-label="Move right">→</button>
-      <button type="button" onClick={() => onMove(0, -1)} aria-label="Move up">↑</button>
-      <button type="button" onClick={() => onMove(0, 1)} aria-label="Move down">↓</button>
-      <button type="button" onClick={() => onResize(1, 0)} aria-label="Widen">W+</button>
-      <button type="button" onClick={() => onResize(-1, 0)} aria-label="Narrow">W-</button>
-      <button type="button" onClick={() => onResize(0, 1)} aria-label="Taller">H+</button>
-      <button type="button" onClick={() => onResize(0, -1)} aria-label="Shorter">H-</button>
-    </div>
   );
 }
 

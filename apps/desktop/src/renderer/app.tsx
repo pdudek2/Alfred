@@ -36,6 +36,7 @@ import {
   rejectStaged,
   type SessionTile,
 } from "./session-state";
+import { sessionTileKind, tileKindMeta } from "./tile-kind";
 import type { AlfredRuntimeStatus, AlfredStagedPlanSnapshot, AlfredStagedSession } from "../shared/alfred-ipc";
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../shared/terminal-ipc";
 import "@xterm/xterm/css/xterm.css";
@@ -405,7 +406,7 @@ export function App() {
             <div className="alfred-mark">{activeWorkspace.shortLabel}</div>
             <div>
               <strong>{activeWorkspace.label} workspace</strong>
-              <span>{activeSessions.length} tile{activeSessions.length === 1 ? "" : "s"} · manual mode · local runtime</span>
+              <span>{activeSessions.length} tile{activeSessions.length === 1 ? "" : "s"} · local desk</span>
             </div>
           </div>
           <div className="mission-actions" aria-label="terminal actions">
@@ -468,6 +469,7 @@ export function App() {
           blockedReason={composerBlockedReason}
           value={composerValue}
           thinking={isThinking(alfredStatus)}
+          workspaceName={activeWorkspace.label}
           onChange={setComposerValue}
           onSubmit={handleSubmitPrompt}
         />
@@ -632,7 +634,7 @@ function AlfredDock({
         <div className="alfred-dock-mark">A</div>
         <div>
           <strong>Alfred</strong>
-          <span>{status.kind === "thinking" ? "thinking" : status.kind === "error" ? "error" : "quiet"}</span>
+          <span>{status.kind === "thinking" ? "preparing" : status.kind === "error" ? "needs attention" : pendingPlan ? "ready to launch" : "standing by"}</span>
         </div>
       </div>
 
@@ -661,7 +663,7 @@ function AlfredDock({
               onClick={onApproveAll}
               disabled={safeStagedCount === 0}
             >
-              {unsafeStagedCount > 0 ? "Approve Safe" : "Approve All"}
+              {unsafeStagedCount > 0 ? "Launch safe" : "Launch all"}
             </button>
             <button type="button" onClick={onRejectAll}>
               Reject All
@@ -670,12 +672,12 @@ function AlfredDock({
           <p className="plan-prompt">"{truncate(pendingPlan.prompt, 140)}"</p>
         </div>
       ) : (
-        <p>Manual work stays in front. Alfred will surface only when you ask for a launch plan.</p>
+        <p>Manual work stays in front. Ask Alfred when you want a workspace prepared.</p>
       )}
 
       <div className="alfred-dock-footer">
-        <span>{status.kind}</span>
-        <span>local</span>
+        <span>{pendingPlan ? "review queue" : "clear desk"}</span>
+        <span>{safeStagedCount > 0 ? `${safeStagedCount} launchable` : "no asks"}</span>
       </div>
     </aside>
   );
@@ -787,15 +789,15 @@ function TerminalGrid({
       <header className="terminal-stage-header">
         <div>
           <strong>Terminals</strong>
-          <span>{sessions.length} tile{sessions.length === 1 ? "" : "s"} ({sessions.filter(s => s.stage === "staged").length} staged)</span>
+          <span>{sessions.length} tile{sessions.length === 1 ? "" : "s"} · {sessions.filter(s => s.stage === "staged").length} staged</span>
         </div>
         <div className="layout-controls" aria-label="layout controls">
           {arrangeMode && (
             <>
-              <button type="button" onClick={() => onApplyLayoutPreset("focus")}>Focus</button>
-              <button type="button" onClick={() => onApplyLayoutPreset("two-up")}>2-up</button>
-              <button type="button" onClick={() => onApplyLayoutPreset("grid")}>Grid</button>
-              <span className="arrange-hint">drag title · resize corner</span>
+              <button type="button" onClick={() => onApplyLayoutPreset("focus")}>Full</button>
+              <button type="button" onClick={() => onApplyLayoutPreset("two-up")}>Split</button>
+              <button type="button" onClick={() => onApplyLayoutPreset("grid")}>Tiled</button>
+              <span className="arrange-hint">drag header · resize corner</span>
             </>
           )}
           <kbd>{shortcutModifier} T</kbd>
@@ -820,9 +822,7 @@ function TerminalGrid({
               args={session.args}
               initialBuffer={session.initialBuffer}
               onClose={() => onCloseSession(session.id)}
-              onMove={(deltaCol, deltaRow) => onMoveTile(session.id, deltaCol, deltaRow)}
               onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
-              onResize={(deltaColSpan, deltaRowSpan) => onResizeTile(session.id, deltaColSpan, deltaRowSpan)}
               onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
               onRuntimeSessionReady={onRuntimeSessionReady}
             />
@@ -834,10 +834,8 @@ function TerminalGrid({
               preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
               tile={session}
               onApprove={onApproveTile}
-              onMove={(deltaCol, deltaRow) => onMoveTile(session.id, deltaCol, deltaRow)}
               onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
               onReject={onRejectTile}
-              onResize={(deltaColSpan, deltaRowSpan) => onResizeTile(session.id, deltaColSpan, deltaRowSpan)}
               onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
               arrangeMode={arrangeMode}
             />
@@ -856,10 +854,8 @@ function ManualTerminalTile({
   layout,
   preview,
   onClose,
-  onMove,
   onPointerMoveStart,
   onPointerResizeStart,
-  onResize,
   onRuntimeSessionReady,
   runtimeId,
   sessionKey,
@@ -876,10 +872,8 @@ function ManualTerminalTile({
   layout?: TileLayout | undefined;
   preview?: ArrangePreview | undefined;
   onClose: () => void;
-  onMove: (deltaCol: number, deltaRow: number) => void;
   onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
-  onResize: (deltaColSpan: number, deltaRowSpan: number) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   runtimeId?: TerminalSessionId | undefined;
   sessionKey: string;
@@ -895,6 +889,8 @@ function ManualTerminalTile({
   const sessionIdRef = useRef<TerminalSessionId | null>(null);
   const [status, setStatus] = useState<"connecting" | "ready" | "browser" | "exited" | "error">("connecting");
   const [resolvedCwd, setResolvedCwd] = useState<string>(cwd);
+  const kind = sessionTileKind({ agentKind, source });
+  const kindMeta = tileKindMeta(kind);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -1068,10 +1064,11 @@ function ManualTerminalTile({
         onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
       >
         <div className="tile-title">
-          <span className="tool-dot" />
+          <span className={`tool-dot ${kindMeta.className}`} />
+          <span className={`tile-kind-mark ${kindMeta.className}`}>{kindMeta.shortLabel}</span>
           <div>
             <b>{title}</b>
-            <small>{resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd"}</small>
+            <small>{kindMeta.label} · {resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd"}</small>
           </div>
         </div>
         <div className="tile-actions">
@@ -1087,7 +1084,6 @@ function ManualTerminalTile({
           </button>
         </div>
       </header>
-      {arrangeMode && <ArrangeControls onMove={onMove} onResize={onResize} />}
       <div className="xterm-host" ref={containerRef} />
       {arrangeMode && (
         <button
@@ -1098,27 +1094,6 @@ function ManualTerminalTile({
         />
       )}
     </article>
-  );
-}
-
-function ArrangeControls({
-  onMove,
-  onResize,
-}: {
-  onMove: (deltaCol: number, deltaRow: number) => void;
-  onResize: (deltaColSpan: number, deltaRowSpan: number) => void;
-}) {
-  return (
-    <div className="arrange-controls" aria-label="tile arrange controls">
-      <button type="button" onClick={() => onMove(-1, 0)} aria-label="Move left">←</button>
-      <button type="button" onClick={() => onMove(1, 0)} aria-label="Move right">→</button>
-      <button type="button" onClick={() => onMove(0, -1)} aria-label="Move up">↑</button>
-      <button type="button" onClick={() => onMove(0, 1)} aria-label="Move down">↓</button>
-      <button type="button" onClick={() => onResize(1, 0)} aria-label="Widen">W+</button>
-      <button type="button" onClick={() => onResize(-1, 0)} aria-label="Narrow">W-</button>
-      <button type="button" onClick={() => onResize(0, 1)} aria-label="Taller">H+</button>
-      <button type="button" onClick={() => onResize(0, -1)} aria-label="Shorter">H-</button>
-    </div>
   );
 }
 
