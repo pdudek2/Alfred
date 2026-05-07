@@ -30,7 +30,8 @@ Title is a short human label (max 60 chars).
 cwd is optional; if absent, current workspace cwd is used.
 Keep plans focused: max 5 sessions.
 Default to safe, idempotent commands. Never include destructive operations
-(rm -rf, force-push, drop database). The user will run those manually.`;
+(rm -rf, force-push, drop database). The user will run those manually.
+Return a raw JSON object only. Do not wrap it in markdown or code fences.`;
 
 const planSchema = {
   type: "object",
@@ -93,7 +94,7 @@ export async function runLlmPlan(input: RunLlmPlanInput): Promise<AlfredPlanResp
     { role: "assistant" as const, content: first.content },
     {
       role: "user" as const,
-      content: `Your previous response did not match the required schema. Field errors: ${firstParsed.errorDetail}. Please respond again with valid JSON.`,
+      content: `Your previous response did not match the required schema. Field errors: ${firstParsed.errorDetail}. Please respond again with a raw JSON object only, no markdown fences.`,
     },
   ];
   const second = await callOpenRouter({ apiKey, model, messages: retryMessages, timeoutMs, fetchImpl });
@@ -164,7 +165,7 @@ type ParseResult = { ok: true; plan: AlfredPlan } | { ok: false; errorDetail: st
 function parseAndValidate(content: string): ParseResult {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(content);
+    parsed = JSON.parse(jsonCandidate(content));
   } catch {
     return { ok: false, errorDetail: "JSON parse error" };
   }
@@ -175,6 +176,20 @@ function parseAndValidate(content: string): ParseResult {
     return { ok: false, errorDetail: detail || "schema validation failed" };
   }
   return { ok: true, plan: parsed as AlfredPlan };
+}
+
+function jsonCandidate(content: string): string {
+  const trimmed = content.trim();
+  const fenced = /```(?:json)?\s*([\s\S]*?)\s*```/i.exec(trimmed);
+  if (fenced?.[1]) return fenced[1].trim();
+
+  const objectStart = trimmed.indexOf("{");
+  const objectEnd = trimmed.lastIndexOf("}");
+  if (objectStart >= 0 && objectEnd > objectStart) {
+    return trimmed.slice(objectStart, objectEnd + 1);
+  }
+
+  return trimmed;
 }
 
 function success(plan: AlfredPlan): AlfredPlanResponse {

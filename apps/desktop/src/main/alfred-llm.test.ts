@@ -64,6 +64,42 @@ describe("runLlmPlan", () => {
     if (!result.ok) expect(result.error.code).toBe("malformed");
   });
 
+  it("accepts a JSON plan wrapped in a markdown code fence", async () => {
+    const plan = `\`\`\`json
+{
+  "sessions": [
+    { "kind": "shell", "title": "pwd", "command": "pwd", "args": [] }
+  ]
+}
+\`\`\``;
+    const fetchImpl = mockFetchOk(plan);
+    const result = await runLlmPlan({ ...baseInput, fetchImpl });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.plan.sessions[0]?.command).toBe("pwd");
+    }
+  });
+
+  it("accepts a fenced JSON plan with surrounding prose", async () => {
+    const plan = `Here is the plan:
+
+\`\`\`json
+{
+  "sessions": [
+    { "kind": "shell", "title": "pwd", "command": "pwd", "args": [] }
+  ]
+}
+\`\`\`
+
+Ready.`;
+    const fetchImpl = mockFetchOk(plan);
+    const result = await runLlmPlan({ ...baseInput, fetchImpl });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.plan.sessions[0]?.command).toBe("pwd");
+    }
+  });
+
   it("retries once on schema failure then returns ok if retry is valid", async () => {
     const bad = JSON.stringify({ sessions: [{ kind: "wrong", title: "x" }] });
     const good = JSON.stringify({
