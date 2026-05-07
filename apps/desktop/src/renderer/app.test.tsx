@@ -1,10 +1,10 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
-import type { AlfredApi, AlfredPlanResponse } from "../shared/alfred-ipc";
-import type { TerminalApi } from "../shared/terminal-ipc";
+import type { AlfredApi, AlfredPlanResponse, AlfredStagedPlanSnapshot } from "../shared/alfred-ipc";
+import type { TerminalApi, TerminalSessionSnapshot } from "../shared/terminal-ipc";
 
 vi.mock("@xterm/xterm", () => ({
   Terminal: class {
@@ -49,8 +49,20 @@ function installDesktopBridge(
       ],
     },
   },
-): { requestPlan: ReturnType<typeof vi.fn> } {
+  stagedPlan: AlfredStagedPlanSnapshot | null = null,
+  terminalSessions: TerminalSessionSnapshot[] = [],
+): {
+  clearStagedPlan: ReturnType<typeof vi.fn>;
+  getStagedPlan: ReturnType<typeof vi.fn>;
+  requestPlan: ReturnType<typeof vi.fn>;
+  resolveStagedPlan: ReturnType<typeof vi.fn>;
+  setStagedPlan: ReturnType<typeof vi.fn>;
+} {
+  const clearStagedPlan = vi.fn().mockResolvedValue({ plan: null });
+  const getStagedPlan = vi.fn().mockResolvedValue({ plan: stagedPlan });
   const requestPlan = vi.fn().mockResolvedValue(planResponse);
+  const resolveStagedPlan = vi.fn().mockResolvedValue({ plan: null });
+  const setStagedPlan = vi.fn().mockImplementation((request) => Promise.resolve({ plan: request }));
   const terminal: TerminalApi = {
     create: vi.fn().mockResolvedValue({
       id: "runtime-1",
@@ -61,20 +73,20 @@ function installDesktopBridge(
       shell: "bash",
     }),
     kill: vi.fn(),
-    list: vi.fn().mockResolvedValue({ sessions: [] }),
+    list: vi.fn().mockResolvedValue({ sessions: terminalSessions }),
     onData: vi.fn(() => vi.fn()),
     onExit: vi.fn(() => vi.fn()),
     resize: vi.fn(),
     write: vi.fn(),
   };
   const bridge: DesktopBridge = {
-    alfred: { requestPlan },
+    alfred: { clearStagedPlan, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan },
     terminal,
     version: "test",
   };
 
   window.alfredDesktop = bridge;
-  return { requestPlan };
+  return { clearStagedPlan, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan };
 }
 
 beforeEach(() => {
@@ -96,7 +108,7 @@ afterEach(() => {
 describe("App integration", () => {
   it("turns the first Alfred prompt into staged tiles", async () => {
     const user = userEvent.setup();
-    const { requestPlan } = installDesktopBridge();
+    const { requestPlan, setStagedPlan } = installDesktopBridge();
 
     render(<App />);
 
@@ -106,6 +118,66 @@ describe("App integration", () => {
     expect(requestPlan).toHaveBeenCalledWith({ prompt: "launch first plan" });
     expect(await screen.findByRole("article", { name: /Staged Task A/i })).toBeInTheDocument();
     expect(await screen.findByRole("article", { name: /Staged Task B/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(setStagedPlan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Demo plan",
+          prompt: "launch first plan",
+          sessions: expect.arrayContaining([
+            expect.objectContaining({ id: "alfred-1", title: "Task A" }),
+            expect.objectContaining({ id: "alfred-2", title: "Task B" }),
+          ]),
+        }),
+      );
+    });
+  });
+
+  it("hydrates staged Alfred tiles from the desktop runtime", async () => {
+    installDesktopBridge(undefined, {
+      id: "plan-restore",
+      name: "Restored squad",
+      prompt: "restore this plan",
+      sessions: [
+        { id: "alfred-7", kind: "shell", title: "Restored shell", command: "echo", args: ["ok"] },
+      ],
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Staged Restored shell/i })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Resolve the current Alfred plan");
+    expect(screen.getByText('"restore this plan"')).toBeInTheDocument();
+  });
+
+  it("does not duplicate a restored staged tile that is already live", async () => {
+    const stagedPlan: AlfredStagedPlanSnapshot = {
+      id: "plan-restore",
+      prompt: "restore this plan",
+      sessions: [
+        { id: "alfred-7", kind: "shell", title: "Restored shell", command: "echo", args: ["ok"] },
+      ],
+    };
+    const liveSnapshot: TerminalSessionSnapshot = {
+      id: "runtime-7",
+      clientId: "alfred-7",
+      title: "Restored shell",
+      source: "alfred",
+      agentKind: "shell",
+      cwd: "/tmp",
+      shell: "zsh",
+      command: "echo",
+      args: ["ok"],
+      buffer: "already running",
+    };
+    const { resolveStagedPlan } = installDesktopBridge(undefined, stagedPlan, [liveSnapshot]);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-7"] });
+    });
+    expect(screen.queryByRole("article", { name: /Staged Restored shell/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Resolve the current Alfred plan")).not.toBeInTheDocument();
   });
 
   it("blocks a second Alfred prompt while staged tiles exist", async () => {
@@ -131,7 +203,7 @@ describe("App integration", () => {
 
   it("unlocks Alfred after rejecting the staged plan", async () => {
     const user = userEvent.setup();
-    const { requestPlan } = installDesktopBridge();
+    const { clearStagedPlan, requestPlan } = installDesktopBridge();
 
     render(<App />);
 
@@ -147,6 +219,24 @@ describe("App integration", () => {
     await user.click(send);
 
     expect(requestPlan).toHaveBeenCalledTimes(2);
+    expect(clearStagedPlan).toHaveBeenCalledOnce();
+  });
+
+  it("resolves a staged tile after approval starts its terminal", async () => {
+    const user = userEvent.setup();
+    const { resolveStagedPlan } = installDesktopBridge();
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText("Alfred prompt"), "start one");
+    await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
+    await screen.findByRole("article", { name: /Staged Task A/i });
+
+    await user.click(screen.getByRole("button", { name: "Approve Task A" }));
+
+    await waitFor(() => {
+      expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
+    });
   });
 
   it("keeps the draft when Alfred plan creation fails", async () => {

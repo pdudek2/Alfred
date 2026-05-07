@@ -37,10 +37,39 @@ export type AlfredPlanResponse =
   | { ok: true; plan: AlfredPlan }
   | { ok: false; error: AlfredError };
 
+export type AlfredStagedSession = AlfredPlanSession & {
+  id: string;
+};
+
+export type AlfredStagedPlanSnapshot = {
+  id: string;
+  prompt: string;
+  name?: string;
+  sessions: AlfredStagedSession[];
+};
+
+export type AlfredStagedPlanSetRequest = AlfredStagedPlanSnapshot;
+
+export type AlfredStagedPlanResolveRequest = {
+  sessionIds: string[];
+};
+
+export type AlfredStagedPlanSnapshotResponse = {
+  plan: AlfredStagedPlanSnapshot | null;
+};
+
 export type AlfredApi = {
   requestPlan(request: AlfredPlanRequest): Promise<AlfredPlanResponse>;
+  getStagedPlan(): Promise<AlfredStagedPlanSnapshotResponse>;
+  setStagedPlan(request: AlfredStagedPlanSetRequest): Promise<AlfredStagedPlanSnapshotResponse>;
+  resolveStagedPlan(request: AlfredStagedPlanResolveRequest): Promise<AlfredStagedPlanSnapshotResponse>;
+  clearStagedPlan(): Promise<AlfredStagedPlanSnapshotResponse>;
 };
 
 export const alfredChannels = {
+  planClear: "alfred:plan:clear",
+  planGet: "alfred:plan:get",
   planRequest: "alfred:plan:request",
+  planResolve: "alfred:plan:resolve",
+  planSet: "alfred:plan:set",
 } as const;

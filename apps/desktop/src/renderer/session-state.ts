@@ -1,4 +1,4 @@
-import type { AgentKind, AlfredPlanSession } from "../shared/alfred-ipc";
+import type { AgentKind, AlfredPlanSession, AlfredStagedPlanSnapshot } from "../shared/alfred-ipc";
 import type { TerminalSessionSnapshot, TerminalSessionId } from "../shared/terminal-ipc";
 
 export type SessionTile = {
@@ -53,6 +53,21 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     ...(snapshot.args === undefined ? {} : { args: snapshot.args }),
     ...(snapshot.agentKind === undefined ? {} : { agentKind: snapshot.agentKind }),
     initialBuffer: snapshot.buffer,
+  }));
+}
+
+export function hydrateStagedPlanSessions(plan: AlfredStagedPlanSnapshot | null, defaultCwd: string): SessionTile[] {
+  if (!plan) return [];
+  return plan.sessions.map((session) => ({
+    id: session.id,
+    title: session.title,
+    cwd: session.cwd ?? defaultCwd,
+    source: "alfred",
+    stage: "staged",
+    command: session.command,
+    args: session.args,
+    agentKind: session.kind,
+    ...(session.safetyNote === undefined ? {} : { safetyNote: session.safetyNote }),
   }));
 }
 

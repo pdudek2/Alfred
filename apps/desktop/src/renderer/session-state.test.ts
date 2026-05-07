@@ -6,11 +6,13 @@ import {
   approveStaged,
   closeSession,
   createInitialSessions,
+  hydrateStagedPlanSessions,
   hydrateLiveTerminalSessions,
   rejectAllStaged,
   rejectStaged,
 } from "./session-state";
 import type { AlfredPlanSession } from "../shared/alfred-ipc";
+import type { AlfredStagedPlanSnapshot } from "../shared/alfred-ipc";
 import type { TerminalSessionSnapshot } from "../shared/terminal-ipc";
 
 describe("desktop session state", () => {
@@ -145,6 +147,49 @@ describe("staged sessions", () => {
     });
     expect(staged[1]).toMatchObject({ id: "alfred-2", cwd: "/var/log", agentKind: "shell" });
     expect(staged[2]).toMatchObject({ id: "alfred-3", agentKind: "codex", safetyNote: "rm -rf detected" });
+  });
+
+  it("hydrates staged tiles from a persisted Alfred plan snapshot", () => {
+    const snapshot: AlfredStagedPlanSnapshot = {
+      id: "plan-1",
+      prompt: "prepare",
+      sessions: [
+        { id: "alfred-9", kind: "shell", title: "Logs", command: "tail", args: ["-f", "app.log"] },
+        {
+          id: "alfred-10",
+          kind: "codex",
+          title: "Review",
+          command: "codex",
+          args: [],
+          cwd: "/repo",
+          safetyNote: "review command",
+        },
+      ],
+    };
+
+    expect(hydrateStagedPlanSessions(snapshot, "/fallback")).toEqual([
+      {
+        id: "alfred-9",
+        title: "Logs",
+        cwd: "/fallback",
+        source: "alfred",
+        stage: "staged",
+        command: "tail",
+        args: ["-f", "app.log"],
+        agentKind: "shell",
+      },
+      {
+        id: "alfred-10",
+        title: "Review",
+        cwd: "/repo",
+        source: "alfred",
+        stage: "staged",
+        command: "codex",
+        args: [],
+        agentKind: "codex",
+        safetyNote: "review command",
+      },
+    ]);
   });
 
   it("addStagedSessions assigns ids that do not collide across multiple plans", () => {
