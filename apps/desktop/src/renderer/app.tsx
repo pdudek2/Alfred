@@ -93,13 +93,13 @@ export function App() {
       return;
     }
     setAlfredStatus(thinking());
-    setComposerValue("");
     const response = await alfredApi.requestPlan({ prompt });
     if (!response.ok) {
       setAlfredStatus(errored(response.error));
       return;
     }
     setAlfredStatus(idle());
+    setComposerValue("");
     setTerminalSessions((sessions) => {
       const before = sessions;
       const after = addStagedSessions(before, response.plan.sessions, "");
