@@ -8,5 +8,6 @@
     "rootDir": "src",
     "noEmit": false
   },
-  "include": ["src/main/**/*.ts", "src/main/**/*.cts", "src/shared/**/*.ts"]
+  "include": ["src/main/**/*.ts", "src/main/**/*.cts", "src/shared/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
 }
