@@ -198,12 +198,15 @@ describe("staged sessions", () => {
     expect(after).toEqual(before); // manual is live, not staged → unchanged
   });
 
-  it("approveAllStaged flips every staged tile to live and leaves manual tiles untouched", () => {
+  it("approveAllStaged flips safe staged tiles to live and leaves unsafe tiles staged", () => {
     const initial = createInitialSessions("/repo");
     const before = addStagedSessions(initial, planSessions, "/repo");
     const after = approveAllStaged(before);
 
-    expect(after.every((s) => s.stage === "live")).toBe(true);
+    expect(after.find((s) => s.id === "manual-1")?.stage).toBe("live");
+    expect(after.find((s) => s.id === "alfred-1")?.stage).toBe("live");
+    expect(after.find((s) => s.id === "alfred-2")?.stage).toBe("live");
+    expect(after.find((s) => s.id === "alfred-3")?.stage).toBe("staged");
     expect(after.map((s) => s.id)).toEqual(before.map((s) => s.id)); // same ids, same order
   });
 

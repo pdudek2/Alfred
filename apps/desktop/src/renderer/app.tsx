@@ -48,6 +48,7 @@ export function App() {
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
   const stagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
+  const unsafeStagedCount = terminalSessions.filter((s) => s.stage === "staged" && s.safetyNote).length;
   const liveAlfredCount = terminalSessions.filter((s) => s.stage === "live" && s.source === "alfred").length;
   const composerBlockedReason =
     stagedCount > 0 ? "Resolve the current Alfred plan before asking for another." : undefined;
@@ -137,8 +138,14 @@ export function App() {
 
   const handleApproveAll = useCallback(() => {
     setTerminalSessions((sessions) => approveAllStaged(sessions));
-    setPendingPlan(null);
-  }, []);
+    setPendingPlan((plan) => {
+      if (!plan) return plan;
+      const unsafeIds = terminalSessions
+        .filter((session) => session.stage === "staged" && session.safetyNote && plan.sessionIds.includes(session.id))
+        .map((session) => session.id);
+      return unsafeIds.length === 0 ? null : { ...plan, sessionIds: unsafeIds };
+    });
+  }, [terminalSessions]);
 
   const handleRejectAll = useCallback(() => {
     setTerminalSessions((sessions) => rejectAllStaged(sessions));
@@ -233,6 +240,7 @@ export function App() {
             status={alfredStatus}
             pendingPlan={pendingPlan}
             stagedCount={stagedCount}
+            unsafeStagedCount={unsafeStagedCount}
             liveAlfredCount={liveAlfredCount}
             onApproveAll={handleApproveAll}
             onRejectAll={handleRejectAll}
@@ -286,6 +294,7 @@ function AlfredDock({
   status,
   pendingPlan,
   stagedCount,
+  unsafeStagedCount,
   liveAlfredCount,
   onApproveAll,
   onRejectAll,
@@ -294,11 +303,14 @@ function AlfredDock({
   status: AlfredStatus;
   pendingPlan: SquadPlan | null;
   stagedCount: number;
+  unsafeStagedCount: number;
   liveAlfredCount: number;
   onApproveAll: () => void;
   onRejectAll: () => void;
   onDismissError: () => void;
 }) {
+  const safeStagedCount = Math.max(0, stagedCount - unsafeStagedCount);
+
   return (
     <aside className="alfred-dock" aria-label="Alfred status">
       <div className="alfred-dock-header">
@@ -322,9 +334,19 @@ function AlfredDock({
           <div className="plan-counts">
             {stagedCount} staged · {liveAlfredCount} live
           </div>
+          {unsafeStagedCount > 0 && (
+            <div className="plan-safety-note" role="note">
+              {unsafeStagedCount} flagged item{unsafeStagedCount === 1 ? "" : "s"} need manual approval.
+            </div>
+          )}
           <div className="plan-actions">
-            <button type="button" className="approve-all" onClick={onApproveAll}>
-              Approve All
+            <button
+              type="button"
+              className="approve-all"
+              onClick={onApproveAll}
+              disabled={safeStagedCount === 0}
+            >
+              {unsafeStagedCount > 0 ? "Approve Safe" : "Approve All"}
             </button>
             <button type="button" onClick={onRejectAll}>
               Reject All
