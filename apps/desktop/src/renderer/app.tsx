@@ -1,9 +1,17 @@
 import { Plus, X } from "lucide-react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { getDesktopAlfredApi, getDesktopTerminalApi } from "./desktop-api";
 import { ComposerBar } from "./composer";
+import {
+  applyLayoutPreset,
+  ensureTileLayouts,
+  moveTileLayout,
+  resizeTileLayout,
+  type LayoutPreset,
+  type TileLayout,
+} from "./layout-state";
 import { StagedTilePreview } from "./staged-tile";
 import {
   canRequestPlan,
@@ -45,6 +53,8 @@ const DEFAULT_WORKSPACES: Workspace[] = [DEFAULT_WORKSPACE];
 export function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(DEFAULT_WORKSPACES);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(DEFAULT_WORKSPACE_ID);
+  const [arrangeMode, setArrangeMode] = useState<boolean>(false);
+  const [tileLayoutsByWorkspace, setTileLayoutsByWorkspace] = useState<Record<string, Record<string, TileLayout>>>({});
   const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>([]);
   const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
   const [pendingPlan, setPendingPlan] = useState<SquadPlan | null>(null);
@@ -90,6 +100,41 @@ export function App() {
       return [...current, workspace];
     });
   }, []);
+
+  const handleToggleArrangeMode = useCallback(() => {
+    setArrangeMode((enabled) => !enabled);
+  }, []);
+
+  const handleApplyLayoutPreset = useCallback((preset: LayoutPreset) => {
+    setTileLayoutsByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: applyLayoutPreset(activeSessions, preset),
+    }));
+  }, [activeSessions, activeWorkspace.id]);
+
+  const handleMoveTile = useCallback((tileId: string, deltaCol: number, deltaRow: number) => {
+    setTileLayoutsByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: moveTileLayout(
+        ensureTileLayouts(activeSessions, current[activeWorkspace.id] ?? {}),
+        tileId,
+        deltaCol,
+        deltaRow,
+      ),
+    }));
+  }, [activeSessions, activeWorkspace.id]);
+
+  const handleResizeTile = useCallback((tileId: string, deltaColSpan: number, deltaRowSpan: number) => {
+    setTileLayoutsByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: resizeTileLayout(
+        ensureTileLayouts(activeSessions, current[activeWorkspace.id] ?? {}),
+        tileId,
+        deltaColSpan,
+        deltaRowSpan,
+      ),
+    }));
+  }, [activeSessions, activeWorkspace.id]);
 
   const refreshLiveSessions = useCallback(async () => {
     const terminalApi = getDesktopTerminalApi();
@@ -332,6 +377,15 @@ export function App() {
           </div>
           <div className="mission-actions" aria-label="terminal actions">
             <button
+              className={`arrange-button ${arrangeMode ? "active" : ""}`}
+              type="button"
+              aria-pressed={arrangeMode}
+              onClick={handleToggleArrangeMode}
+              title="Arrange layout"
+            >
+              Arrange
+            </button>
+            <button
               className="new-terminal-button"
               type="button"
               aria-label="New terminal"
@@ -353,13 +407,18 @@ export function App() {
             onSelectWorkspace={handleSelectWorkspace}
           />
           <TerminalGrid
+            arrangeMode={arrangeMode}
             armedUnsafeSessionIds={armedUnsafeSessionIds}
+            layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
             sessions={activeSessions}
             shortcutModifier={shortcutModifier}
             onCloseSession={handleCloseSession}
+            onApplyLayoutPreset={handleApplyLayoutPreset}
+            onMoveTile={handleMoveTile}
             onRuntimeSessionReady={handleRuntimeSessionReady}
             onApproveTile={handleApproveTile}
             onRejectTile={handleRejectTile}
+            onResizeTile={handleResizeTile}
           />
           <AlfredDock
             status={alfredStatus}
@@ -594,37 +653,58 @@ function truncate(value: string, max: number): string {
 }
 
 function TerminalGrid({
+  arrangeMode,
   armedUnsafeSessionIds,
+  layouts,
   sessions,
   shortcutModifier,
   onCloseSession,
+  onApplyLayoutPreset,
+  onMoveTile,
   onRuntimeSessionReady,
   onApproveTile,
   onRejectTile,
+  onResizeTile,
 }: {
+  arrangeMode: boolean;
   armedUnsafeSessionIds: Set<string>;
+  layouts: Record<string, TileLayout>;
   sessions: SessionTile[];
   shortcutModifier: string;
   onCloseSession: (sessionId: string) => void;
+  onApplyLayoutPreset: (preset: LayoutPreset) => void;
+  onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onApproveTile: (tileId: string) => void;
   onRejectTile: (tileId: string) => void;
+  onResizeTile: (tileId: string, deltaColSpan: number, deltaRowSpan: number) => void;
 }) {
   return (
-    <section className="terminal-stage" aria-label="terminals">
+    <section className={`terminal-stage ${arrangeMode ? "arranging" : ""}`} aria-label="terminals">
       <header className="terminal-stage-header">
         <div>
           <strong>Terminals</strong>
           <span>{sessions.length} tile{sessions.length === 1 ? "" : "s"} ({sessions.filter(s => s.stage === "staged").length} staged)</span>
         </div>
-        <kbd>{shortcutModifier} T</kbd>
+        <div className="layout-controls" aria-label="layout controls">
+          {arrangeMode && (
+            <>
+              <button type="button" onClick={() => onApplyLayoutPreset("focus")}>Focus</button>
+              <button type="button" onClick={() => onApplyLayoutPreset("two-up")}>2-up</button>
+              <button type="button" onClick={() => onApplyLayoutPreset("grid")}>Grid</button>
+            </>
+          )}
+          <kbd>{shortcutModifier} T</kbd>
+        </div>
       </header>
-      <div className="terminal-grid">
+      <div className={`terminal-grid ${arrangeMode ? "arranging" : ""}`}>
         {sessions.map((session) =>
           session.stage === "live" ? (
             <ManualTerminalTile
+              arrangeMode={arrangeMode}
               cwd={session.cwd}
               key={session.id}
+              layout={layouts[session.id]}
               sessionKey={session.id}
               runtimeId={session.runtimeId}
               workspaceId={session.workspaceId}
@@ -635,15 +715,21 @@ function TerminalGrid({
               args={session.args}
               initialBuffer={session.initialBuffer}
               onClose={() => onCloseSession(session.id)}
+              onMove={(deltaCol, deltaRow) => onMoveTile(session.id, deltaCol, deltaRow)}
+              onResize={(deltaColSpan, deltaRowSpan) => onResizeTile(session.id, deltaColSpan, deltaRowSpan)}
               onRuntimeSessionReady={onRuntimeSessionReady}
             />
           ) : (
             <StagedTilePreview
               armed={armedUnsafeSessionIds.has(session.id)}
               key={session.id}
+              layout={layouts[session.id]}
               tile={session}
               onApprove={onApproveTile}
+              onMove={(deltaCol, deltaRow) => onMoveTile(session.id, deltaCol, deltaRow)}
               onReject={onRejectTile}
+              onResize={(deltaColSpan, deltaRowSpan) => onResizeTile(session.id, deltaColSpan, deltaRowSpan)}
+              arrangeMode={arrangeMode}
             />
           ),
         )}
@@ -653,10 +739,14 @@ function TerminalGrid({
 }
 
 function ManualTerminalTile({
+  arrangeMode,
   cwd,
   agentKind,
   initialBuffer,
+  layout,
   onClose,
+  onMove,
+  onResize,
   onRuntimeSessionReady,
   runtimeId,
   sessionKey,
@@ -666,10 +756,14 @@ function ManualTerminalTile({
   command,
   args,
 }: {
+  arrangeMode: boolean;
   cwd: string;
   agentKind?: SessionTile["agentKind"];
   initialBuffer?: string | undefined;
+  layout?: TileLayout | undefined;
   onClose: () => void;
+  onMove: (deltaCol: number, deltaRow: number) => void;
+  onResize: (deltaColSpan: number, deltaRowSpan: number) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   runtimeId?: TerminalSessionId | undefined;
   sessionKey: string;
@@ -848,7 +942,7 @@ function ManualTerminalTile({
   }, [cwd, sessionKey, title, source, workspaceId, agentKind, command, args, initialBuffer, onRuntimeSessionReady]);
 
   return (
-    <article className={`terminal-tile manual real-terminal ${status}`} aria-label={title}>
+    <article className={`terminal-tile manual real-terminal ${status} ${arrangeMode ? "arranging" : ""}`} aria-label={title} style={gridStyle(layout)}>
       <header className="tile-header">
         <div className="tile-title">
           <span className="tool-dot" />
@@ -864,9 +958,39 @@ function ManualTerminalTile({
           </button>
         </div>
       </header>
+      {arrangeMode && <ArrangeControls onMove={onMove} onResize={onResize} />}
       <div className="xterm-host" ref={containerRef} />
     </article>
   );
+}
+
+function ArrangeControls({
+  onMove,
+  onResize,
+}: {
+  onMove: (deltaCol: number, deltaRow: number) => void;
+  onResize: (deltaColSpan: number, deltaRowSpan: number) => void;
+}) {
+  return (
+    <div className="arrange-controls" aria-label="tile arrange controls">
+      <button type="button" onClick={() => onMove(-1, 0)} aria-label="Move left">←</button>
+      <button type="button" onClick={() => onMove(1, 0)} aria-label="Move right">→</button>
+      <button type="button" onClick={() => onMove(0, -1)} aria-label="Move up">↑</button>
+      <button type="button" onClick={() => onMove(0, 1)} aria-label="Move down">↓</button>
+      <button type="button" onClick={() => onResize(1, 0)} aria-label="Widen">W+</button>
+      <button type="button" onClick={() => onResize(-1, 0)} aria-label="Narrow">W-</button>
+      <button type="button" onClick={() => onResize(0, 1)} aria-label="Taller">H+</button>
+      <button type="button" onClick={() => onResize(0, -1)} aria-label="Shorter">H-</button>
+    </div>
+  );
+}
+
+function gridStyle(layout: TileLayout | undefined): CSSProperties | undefined {
+  if (!layout) return undefined;
+  return {
+    gridColumn: `${layout.col} / span ${layout.colSpan}`,
+    gridRow: `${layout.row} / span ${layout.rowSpan}`,
+  };
 }
 
 function statusLabel(status: "connecting" | "ready" | "browser" | "exited" | "error"): string {
