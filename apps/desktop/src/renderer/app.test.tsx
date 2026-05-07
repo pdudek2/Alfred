@@ -200,11 +200,11 @@ describe("App integration", () => {
 
     expect(tile).toHaveClass("is-dragging");
     expect(tile).toHaveStyle({ transform: "translate3d(160px, 72px, 0)" });
-    expect(tile).toHaveStyle({ gridColumn: "1 / span 6", gridRow: "1 / span 4" });
+    expect(tile).toHaveStyle({ gridColumn: "1 / span 12", gridRow: "1 / span 8" });
 
     fireEvent.pointerUp(window);
 
-    expect(tile).toHaveStyle({ gridColumn: "3 / span 6", gridRow: "2 / span 4" });
+    expect(tile).toHaveStyle({ gridColumn: "1 / span 12", gridRow: "2 / span 8" });
 
     fireEvent.pointerDown(screen.getByRole("button", { name: "Resize Manual · zsh 1" }), { clientX: 0, clientY: 0 });
     fireEvent.pointerMove(window, { clientX: 80, clientY: 72 });
@@ -213,7 +213,7 @@ describe("App integration", () => {
 
     fireEvent.pointerUp(window);
 
-    expect(tile).toHaveStyle({ gridColumn: "3 / span 7", gridRow: "2 / span 5" });
+    expect(tile).toHaveStyle({ gridColumn: "1 / span 12", gridRow: "2 / span 9" });
   });
 
   it("keeps the snapped layout grid after leaving arrange mode", async () => {
@@ -232,7 +232,25 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Arrange" }));
 
     expect(grid).toHaveClass("laid-out");
-    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toHaveStyle({ gridColumn: "1 / span 6" });
+    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toHaveStyle({ gridColumn: "1 / span 12" });
+  });
+
+  it("keeps Alfred compact while idle and expands when a plan is staged", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    expect(document.querySelector(".workspace-layout")).toHaveClass("alfred-compact");
+    expect(screen.getByLabelText("Alfred status")).toHaveClass("compact");
+
+    await user.type(screen.getByLabelText("Alfred prompt"), "prepare agents");
+    await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
+
+    expect(await screen.findByRole("article", { name: /Staged Task A/i })).toBeInTheDocument();
+    expect(document.querySelector(".workspace-layout")).toHaveClass("alfred-expanded");
+    expect(screen.getByLabelText("Alfred status")).not.toHaveClass("compact");
   });
 
   it("closes a live terminal tile and kills its runtime session", async () => {

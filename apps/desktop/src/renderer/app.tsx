@@ -82,6 +82,7 @@ export function App() {
   const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
   const unsafeStagedCount = activeSessions.filter((s) => s.stage === "staged" && s.safetyNote).length;
   const liveAlfredCount = activeSessions.filter((s) => s.stage === "live" && s.source === "alfred").length;
+  const alfredExpanded = alfredStatus.kind !== "idle" || activePendingPlan !== null;
   const stagedWorkspaceLabel =
     pendingPlan && pendingPlan.workspaceId !== activeWorkspace.id
       ? workspaces.find((workspace) => workspace.id === pendingPlan.workspaceId)?.label ?? "another workspace"
@@ -432,7 +433,7 @@ export function App() {
           </div>
         </div>
 
-        <div className="workspace-layout">
+        <div className={`workspace-layout ${alfredExpanded ? "alfred-expanded" : "alfred-compact"}`}>
           <WorkspaceRail
             activeWorkspaceId={activeWorkspace.id}
             sessions={terminalSessions}
@@ -469,7 +470,7 @@ export function App() {
           blockedReason={composerBlockedReason}
           value={composerValue}
           thinking={isThinking(alfredStatus)}
-          workspaceName={activeWorkspace.label}
+          workspaceName={activeWorkspace.label === "Alfred" ? "this workspace" : activeWorkspace.label}
           onChange={setComposerValue}
           onSubmit={handleSubmitPrompt}
         />
@@ -627,9 +628,10 @@ function AlfredDock({
   onDismissError: () => void;
 }) {
   const safeStagedCount = Math.max(0, stagedCount - unsafeStagedCount);
+  const compact = status.kind === "idle" && pendingPlan === null;
 
   return (
-    <aside className="alfred-dock" aria-label="Alfred status">
+    <aside className={`alfred-dock ${compact ? "compact" : ""}`} aria-label="Alfred status">
       <div className="alfred-dock-header">
         <div className="alfred-dock-mark">A</div>
         <div>
@@ -671,6 +673,10 @@ function AlfredDock({
           </div>
           <p className="plan-prompt">"{truncate(pendingPlan.prompt, 140)}"</p>
         </div>
+      ) : compact ? (
+        <p className="compact-note" aria-label="Alfred idle">
+          Quiet until asked.
+        </p>
       ) : (
         <p>Manual work stays in front. Ask Alfred when you want a workspace prepared.</p>
       )}

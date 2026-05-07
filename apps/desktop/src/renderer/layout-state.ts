@@ -8,7 +8,9 @@ export const MIN_COL_SPAN = 3;
 export const MAX_COL_SPAN = GRID_COLUMNS;
 export const MIN_ROW_SPAN = 2;
 const DEFAULT_COL_SPAN = 6;
-const DEFAULT_ROW_SPAN = 4;
+const FULL_WIDTH_ROW_SPAN = 8;
+const SPLIT_VIEW_ROW_SPAN = 8;
+const TILED_ROW_SPAN = 6;
 
 type LayoutSession = {
   id: string;
@@ -23,7 +25,9 @@ export function ensureTileLayouts(
 
   sessions.forEach((session, index) => {
     const layout = existing[session.id];
-    next[session.id] = layout ? normalizeLayout(layout) : defaultLayout(session.id, index);
+    next[session.id] = layout
+      ? normalizeLayout(layout)
+      : defaultLayout(session.id, index, sessions.length);
   });
 
   for (const tileId of Object.keys(next)) {
@@ -80,9 +84,9 @@ export function applyLayoutPreset(sessions: LayoutSession[], preset: LayoutPrese
           normalizeLayout({
             tileId: session.id,
             col: 1,
-            row: index * 5 + 1,
+            row: index * FULL_WIDTH_ROW_SPAN + 1,
             colSpan: GRID_COLUMNS,
-            rowSpan: 5,
+            rowSpan: FULL_WIDTH_ROW_SPAN,
           }),
         ]),
       );
@@ -93,24 +97,38 @@ export function applyLayoutPreset(sessions: LayoutSession[], preset: LayoutPrese
           normalizeLayout({
             tileId: session.id,
             col: index % 2 === 0 ? 1 : 7,
-            row: Math.floor(index / 2) * 4 + 1,
+            row: Math.floor(index / 2) * SPLIT_VIEW_ROW_SPAN + 1,
             colSpan: 6,
-            rowSpan: 4,
+            rowSpan: SPLIT_VIEW_ROW_SPAN,
           }),
         ]),
       );
     case "grid":
-      return Object.fromEntries(sessions.map((session, index) => [session.id, defaultLayout(session.id, index)]));
+      return Object.fromEntries(
+        sessions.map((session, index) => [session.id, defaultLayout(session.id, index, sessions.length)]),
+      );
   }
 }
 
-function defaultLayout(tileId: string, index: number): TileLayout {
+function defaultLayout(tileId: string, index: number, tileCount: number): TileLayout {
+  if (tileCount === 1) {
+    return normalizeLayout({
+      tileId,
+      col: 1,
+      row: 1,
+      colSpan: GRID_COLUMNS,
+      rowSpan: FULL_WIDTH_ROW_SPAN,
+    });
+  }
+
+  const rowSpan = tileCount === 2 ? SPLIT_VIEW_ROW_SPAN : TILED_ROW_SPAN;
+
   return normalizeLayout({
     tileId,
     col: index % 2 === 0 ? 1 : 7,
-    row: Math.floor(index / 2) * DEFAULT_ROW_SPAN + 1,
+    row: Math.floor(index / 2) * rowSpan + 1,
     colSpan: DEFAULT_COL_SPAN,
-    rowSpan: DEFAULT_ROW_SPAN,
+    rowSpan,
   });
 }
 
