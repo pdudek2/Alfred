@@ -8,6 +8,7 @@ export type TerminalCreateRequest = {
   title?: string;
   source?: TerminalSessionSource;
   agentKind?: AgentKind;
+  workspaceId?: string;
   cwd?: string;
   cols: number;
   rows: number;
@@ -21,6 +22,7 @@ export type TerminalCreateResult = {
   title: string;
   source: TerminalSessionSource;
   agentKind?: AgentKind;
+  workspaceId?: string;
   cwd: string;
   shell: string;
   command?: string;

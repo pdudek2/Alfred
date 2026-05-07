@@ -25,6 +25,7 @@ describe("desktop session state", () => {
         source: "manual",
         stage: "live",
         title: "Manual · zsh 1",
+        workspaceId: "A",
         cwd: "/Users/patryk/Desktop/Alfred",
       },
     ]);
@@ -40,6 +41,7 @@ describe("desktop session state", () => {
       source: "manual",
       stage: "live",
       title: "Manual · zsh 2",
+      workspaceId: "A",
       cwd: "/Users/patryk/Desktop/Alfred",
     });
   });
@@ -84,6 +86,7 @@ describe("desktop session state", () => {
         id: "manual-1",
         runtimeId: "pty-a",
         title: "Manual · zsh 1",
+        workspaceId: "A",
         cwd: "/repo",
         source: "manual",
         stage: "live",
@@ -93,6 +96,7 @@ describe("desktop session state", () => {
         id: "alfred-1",
         runtimeId: "pty-b",
         title: "API dev",
+        workspaceId: "A",
         cwd: "/repo/apps/api",
         source: "alfred",
         stage: "live",
@@ -120,6 +124,12 @@ describe("desktop session state", () => {
 
     expect(next.map((session) => session.id)).toEqual(["manual-4", "manual-5"]);
   });
+
+  it("assigns new manual sessions to the selected workspace", () => {
+    const next = addManualSession(createInitialSessions("/repo", "A"), "/repo", "UI");
+
+    expect(next[1]).toMatchObject({ id: "manual-2", workspaceId: "UI" });
+  });
 });
 
 describe("staged sessions", () => {
@@ -138,6 +148,7 @@ describe("staged sessions", () => {
     expect(staged[0]).toEqual({
       id: "alfred-1",
       title: "API dev",
+      workspaceId: "A",
       cwd: "/repo",
       source: "alfred",
       stage: "staged",
@@ -171,6 +182,7 @@ describe("staged sessions", () => {
       {
         id: "alfred-9",
         title: "Logs",
+        workspaceId: "A",
         cwd: "/fallback",
         source: "alfred",
         stage: "staged",
@@ -181,6 +193,7 @@ describe("staged sessions", () => {
       {
         id: "alfred-10",
         title: "Review",
+        workspaceId: "A",
         cwd: "/repo",
         source: "alfred",
         stage: "staged",
@@ -209,6 +222,12 @@ describe("staged sessions", () => {
     ];
     const next = addStagedSessions(initial, planWithoutCwd, "/some/default");
     expect(next[1]?.cwd).toBe("/some/default");
+  });
+
+  it("addStagedSessions assigns staged tiles to the active workspace", () => {
+    const next = addStagedSessions(createInitialSessions("/repo", "A"), planSessions.slice(0, 1), "/repo", "UI");
+
+    expect(next[1]).toMatchObject({ id: "alfred-1", workspaceId: "UI" });
   });
 
   it("approveStaged flips stage from 'staged' to 'live' on the matching id only", () => {

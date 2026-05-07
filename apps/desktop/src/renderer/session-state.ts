@@ -5,6 +5,7 @@ export type SessionTile = {
   id: string;
   runtimeId?: TerminalSessionId;
   title: string;
+  workspaceId: string;
   cwd: string;
   source: "manual" | "alfred";
   stage: "staged" | "live";
@@ -18,13 +19,13 @@ export type SessionTile = {
 const MANUAL_SESSION_PREFIX = "manual-";
 const ALFRED_SESSION_PREFIX = "alfred-";
 
-export function createInitialSessions(cwd: string): SessionTile[] {
-  return [createManualSession(1, cwd)];
+export function createInitialSessions(cwd: string, workspaceId = "A"): SessionTile[] {
+  return [createManualSession(1, cwd, workspaceId)];
 }
 
-export function addManualSession(sessions: SessionTile[], cwd: string): SessionTile[] {
+export function addManualSession(sessions: SessionTile[], cwd: string, workspaceId = "A"): SessionTile[] {
   const nextIndex = nextManualSessionIndex(sessions);
-  return [...sessions, createManualSession(nextIndex, cwd)];
+  return [...sessions, createManualSession(nextIndex, cwd, workspaceId)];
 }
 
 export function closeSession(sessions: SessionTile[], sessionId: string): SessionTile[] {
@@ -46,6 +47,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     id: snapshot.clientId ?? `runtime-${snapshot.id}`,
     runtimeId: snapshot.id,
     title: snapshot.title,
+    workspaceId: snapshot.workspaceId ?? "A",
     cwd: snapshot.cwd,
     source: snapshot.source,
     stage: "live",
@@ -56,11 +58,16 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
   }));
 }
 
-export function hydrateStagedPlanSessions(plan: AlfredStagedPlanSnapshot | null, defaultCwd: string): SessionTile[] {
+export function hydrateStagedPlanSessions(
+  plan: AlfredStagedPlanSnapshot | null,
+  defaultCwd: string,
+  defaultWorkspaceId = "A",
+): SessionTile[] {
   if (!plan) return [];
   return plan.sessions.map((session) => ({
     id: session.id,
     title: session.title,
+    workspaceId: session.workspaceId ?? defaultWorkspaceId,
     cwd: session.cwd ?? defaultCwd,
     source: "alfred",
     stage: "staged",
@@ -71,10 +78,11 @@ export function hydrateStagedPlanSessions(plan: AlfredStagedPlanSnapshot | null,
   }));
 }
 
-function createManualSession(index: number, cwd: string): SessionTile {
+function createManualSession(index: number, cwd: string, workspaceId: string): SessionTile {
   return {
     id: `${MANUAL_SESSION_PREFIX}${index}`,
     title: `Manual · zsh ${index}`,
+    workspaceId,
     cwd,
     source: "manual",
     stage: "live",
@@ -98,12 +106,14 @@ export function addStagedSessions(
   sessions: SessionTile[],
   planSessions: AlfredPlanSession[],
   defaultCwd: string,
+  workspaceId = "A",
 ): SessionTile[] {
   let nextIndex = nextAlfredSessionIndex(sessions);
   const staged: SessionTile[] = planSessions.map((session) => {
     const tile: SessionTile = {
       id: `${ALFRED_SESSION_PREFIX}${nextIndex}`,
       title: session.title,
+      workspaceId,
       cwd: session.cwd ?? defaultCwd,
       source: "alfred",
       stage: "staged",
@@ -128,14 +138,16 @@ export function rejectStaged(sessions: SessionTile[], tileId: string): SessionTi
   return sessions.filter((session) => !(session.id === tileId && session.stage === "staged"));
 }
 
-export function approveAllStaged(sessions: SessionTile[]): SessionTile[] {
+export function approveAllStaged(sessions: SessionTile[], workspaceId?: string): SessionTile[] {
   return sessions.map((session) =>
-    session.stage === "staged" && !session.safetyNote ? { ...session, stage: "live" } : session,
+    session.stage === "staged" && !session.safetyNote && (!workspaceId || session.workspaceId === workspaceId)
+      ? { ...session, stage: "live" }
+      : session,
   );
 }
 
-export function rejectAllStaged(sessions: SessionTile[]): SessionTile[] {
-  return sessions.filter((session) => session.stage !== "staged");
+export function rejectAllStaged(sessions: SessionTile[], workspaceId?: string): SessionTile[] {
+  return sessions.filter((session) => !(session.stage === "staged" && (!workspaceId || session.workspaceId === workspaceId)));
 }
 
 function nextAlfredSessionIndex(sessions: SessionTile[]): number {

@@ -80,6 +80,7 @@ function installDesktopBridge(
       clientId: request.clientId ?? "manual-1",
       title: request.title ?? "Manual · zsh 1",
       source: request.source ?? "manual",
+      workspaceId: request.workspaceId ?? "A",
       cwd: request.cwd ?? "/tmp",
       shell: "bash",
       ...(request.agentKind === undefined ? {} : { agentKind: request.agentKind }),
@@ -123,16 +124,30 @@ afterEach(() => {
 });
 
 describe("App integration", () => {
-  it("keeps planned workspace rail items non-interactive until they are real", async () => {
+  it("creates real workspaces and scopes terminals to the active workspace", async () => {
+    const user = userEvent.setup();
     installDesktopBridge();
 
     render(<App />);
 
-    expect(screen.getByRole("button", { name: "Alfred workspace" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "UI workspace planned" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "API workspace planned" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Docs workspace planned" })).toBeDisabled();
+    expect(await screen.findByRole("tab", { name: "Alfred workspace, 1 live, 0 staged" })).toBeInTheDocument();
     expect(screen.getByText("Alfred workspace")).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Add workspace" }));
+
+    expect(screen.getByRole("tab", { name: "Workspace 2 workspace, 1 live, 0 staged" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByText("Workspace 2 workspace")).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Alfred workspace, 1 live, 0 staged" }));
+
+    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
   });
 
   it("blocks Alfred prompts when OpenRouter is not configured", async () => {
