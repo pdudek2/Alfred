@@ -708,6 +708,16 @@ button:focus-visible {
   font-size: 12px;
 }
 
+.alfred-dock-plan .plan-safety-note {
+  border: 1px solid rgba(239, 129, 115, 0.35);
+  border-radius: 7px;
+  padding: 8px;
+  background: rgba(239, 129, 115, 0.055);
+  color: var(--coral);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .alfred-dock-plan .plan-prompt {
   margin: 0;
   padding-top: 10px;
@@ -740,6 +750,11 @@ button:focus-visible {
   background:
     linear-gradient(180deg, rgba(217, 174, 70, 0.16), rgba(217, 174, 70, 0.06));
   color: #f5e6b8;
+}
+
+.alfred-dock-plan .plan-actions .approve-all:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .alfred-dock-error {

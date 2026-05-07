@@ -115,7 +115,7 @@ export function rejectStaged(sessions: SessionTile[], tileId: string): SessionTi
 
 export function approveAllStaged(sessions: SessionTile[]): SessionTile[] {
   return sessions.map((session) =>
-    session.stage === "staged" ? { ...session, stage: "live" } : session,
+    session.stage === "staged" && !session.safetyNote ? { ...session, stage: "live" } : session,
   );
 }
 
