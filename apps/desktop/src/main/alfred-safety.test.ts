@@ -10,6 +10,9 @@ describe("checkSafety", () => {
       ["sudo", ["pnpm", "install"], "sudo invocation"],
       ["git", ["push", "-f"], "git push --force"],
       ["git", ["push", "--force"], "git push --force"],
+      ["git", ["push", "origin", "main", "--force"], "git push --force"],
+      ["git", ["push", "origin", "main", "--force-with-lease"], "git push --force"],
+      ["git", ["push", "--force-with-lease=main"], "git push --force"],
       ["dropdb", ["alfred"], "database drop"],
       ["psql", ["-c", "drop database alfred"], "database drop"],
       ["chmod", ["-R", "777", "."], "recursive chmod"],
@@ -47,6 +50,7 @@ describe("checkSafety", () => {
       ["tail", ["-f", "logs/app.log"]],
       ["cat", ["package.json"]],
       ["rm", ["package-lock.json"]],
+      ["git", ["push", "origin", "main"]],
     ])("allows %s %j", (command, args) => {
       const result = checkSafety(command, args);
       expect(result).toEqual({ unsafe: false });
