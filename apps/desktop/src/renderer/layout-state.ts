@@ -1,12 +1,7 @@
-export type LayoutPreset = "focus" | "grid" | "two-up";
+import type { TileLayout } from "../shared/layout-ipc";
 
-export type TileLayout = {
-  tileId: string;
-  col: number;
-  row: number;
-  colSpan: number;
-  rowSpan: number;
-};
+export type LayoutPreset = "focus" | "grid" | "two-up";
+export type { TileLayout };
 
 export const GRID_COLUMNS = 12;
 export const MIN_COL_SPAN = 3;

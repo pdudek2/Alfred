@@ -4,6 +4,7 @@ import path from "node:path";
 import { config as loadDotenv } from "dotenv";
 import { getTerminalSessionCount, killAllTerminalSessions, registerTerminalIpc } from "./terminal-manager.js";
 import { registerAlfredIpc } from "./alfred-orchestrator.js";
+import { registerLayoutIpc } from "./layout-ipc.js";
 import {
   QUIT_GUARD_CANCEL_BUTTON,
   QUIT_GUARD_CONFIRM_BUTTON,
@@ -22,6 +23,7 @@ loadDotenv({ path: path.resolve(app.getAppPath(), "../..", ".env") });
 
 registerTerminalIpc();
 registerAlfredIpc();
+registerLayoutIpc();
 
 async function createWindow(): Promise<void> {
   const window = new BrowserWindow({

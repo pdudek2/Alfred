@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { TileLayout } from "./layout-state";
 import type { SessionTile } from "./session-state";
 
@@ -10,6 +10,8 @@ type StagedTilePreviewProps = {
   tile: SessionTile;
   onApprove: (tileId: string) => void;
   onMove: (deltaCol: number, deltaRow: number) => void;
+  onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onReject: (tileId: string) => void;
   onResize: (deltaColSpan: number, deltaRowSpan: number) => void;
 };
@@ -21,6 +23,8 @@ export function StagedTilePreview({
   tile,
   onApprove,
   onMove,
+  onPointerMoveStart,
+  onPointerResizeStart,
   onReject,
   onResize,
 }: StagedTilePreviewProps) {
@@ -38,7 +42,10 @@ export function StagedTilePreview({
 
   return (
     <article className={`terminal-tile staged ${arrangeMode ? "arranging" : ""}`} aria-label={`Staged ${tile.title}`} style={gridStyle(layout)}>
-      <header className="tile-header">
+      <header
+        className={`tile-header ${arrangeMode ? "drag-handle" : ""}`}
+        onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
+      >
         <div className="tile-title">
           <span className={`tool-dot ${agentClass}`} />
           <div>
@@ -81,6 +88,14 @@ export function StagedTilePreview({
           <X size={14} />
         </button>
       </div>
+      {arrangeMode && (
+        <button
+          className="tile-resize-handle"
+          type="button"
+          aria-label={`Resize ${tile.title}`}
+          onPointerDown={onPointerResizeStart}
+        />
+      )}
     </article>
   );
 }
