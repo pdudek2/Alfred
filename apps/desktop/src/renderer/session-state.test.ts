@@ -6,10 +6,12 @@ import {
   approveStaged,
   closeSession,
   createInitialSessions,
+  hydrateLiveTerminalSessions,
   rejectAllStaged,
   rejectStaged,
 } from "./session-state";
 import type { AlfredPlanSession } from "../shared/alfred-ipc";
+import type { TerminalSessionSnapshot } from "../shared/terminal-ipc";
 
 describe("desktop session state", () => {
   it("starts with one first-class manual terminal session", () => {
@@ -48,6 +50,73 @@ describe("desktop session state", () => {
 
     expect(next.map((session) => session.id)).toEqual(["manual-2", "manual-3"]);
     expect(next.map((session) => session.title)).toEqual(["Manual · zsh 2", "Manual · zsh 3"]);
+  });
+
+  it("hydrates live terminal tiles from persisted runtime snapshots", () => {
+    const snapshots: TerminalSessionSnapshot[] = [
+      {
+        id: "pty-a",
+        clientId: "manual-1",
+        title: "Manual · zsh 1",
+        cwd: "/repo",
+        source: "manual",
+        shell: "/bin/zsh",
+        buffer: "hello\n",
+      },
+      {
+        id: "pty-b",
+        clientId: "alfred-1",
+        title: "API dev",
+        cwd: "/repo/apps/api",
+        source: "alfred",
+        agentKind: "dev-server",
+        shell: "pnpm",
+        command: "pnpm",
+        args: ["dev"],
+        buffer: "ready\n",
+      },
+    ];
+
+    expect(hydrateLiveTerminalSessions(snapshots)).toEqual([
+      {
+        id: "manual-1",
+        runtimeId: "pty-a",
+        title: "Manual · zsh 1",
+        cwd: "/repo",
+        source: "manual",
+        stage: "live",
+        initialBuffer: "hello\n",
+      },
+      {
+        id: "alfred-1",
+        runtimeId: "pty-b",
+        title: "API dev",
+        cwd: "/repo/apps/api",
+        source: "alfred",
+        stage: "live",
+        agentKind: "dev-server",
+        command: "pnpm",
+        args: ["dev"],
+        initialBuffer: "ready\n",
+      },
+    ]);
+  });
+
+  it("continues manual numbering after hydrated manual sessions", () => {
+    const hydrated = hydrateLiveTerminalSessions([
+      {
+        id: "pty-a",
+        clientId: "manual-4",
+        title: "Manual · zsh 4",
+        cwd: "/repo",
+        source: "manual",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+    const next = addManualSession(hydrated, "/repo");
+
+    expect(next.map((session) => session.id)).toEqual(["manual-4", "manual-5"]);
   });
 });
 
