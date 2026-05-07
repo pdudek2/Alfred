@@ -68,7 +68,7 @@ button:focus-visible {
     linear-gradient(180deg, rgba(245, 240, 228, 0.035), transparent 120px),
     rgba(5, 6, 6, 0.88);
   display: grid;
-  grid-template-rows: 46px minmax(0, 1fr);
+  grid-template-rows: 46px minmax(0, 1fr) 60px;
 }
 
 .mission-bar {
@@ -513,6 +513,254 @@ button:focus-visible {
   margin: 0;
   color: var(--faint);
   font-size: 11px;
+}
+
+/* Composer bar (Alfred prompt input) */
+.composer-bar {
+  border-top: 1px solid rgba(245, 240, 228, 0.1);
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  background:
+    linear-gradient(180deg, rgba(217, 174, 70, 0.045), transparent 28px),
+    rgba(12, 14, 14, 0.72);
+}
+
+.composer-bar .alfred-mark {
+  width: 30px;
+  height: 30px;
+}
+
+.composer-input {
+  min-width: 0;
+  min-height: 38px;
+  max-height: 96px;
+  border: 1px solid rgba(245, 240, 228, 0.13);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: rgba(245, 240, 228, 0.04);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.45;
+  resize: none;
+  outline: none;
+}
+
+.composer-input::placeholder {
+  color: var(--faint);
+}
+
+.composer-input:focus-visible {
+  border-color: rgba(217, 174, 70, 0.46);
+  background: rgba(217, 174, 70, 0.04);
+}
+
+.composer-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.composer-send {
+  min-height: 38px;
+  border: 1px solid rgba(217, 174, 70, 0.46);
+  border-radius: 8px;
+  padding: 0 14px;
+  background:
+    linear-gradient(180deg, rgba(217, 174, 70, 0.18), rgba(217, 174, 70, 0.08));
+  color: #f5e6b8;
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.composer-send:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.composer-thinking {
+  margin-left: 8px;
+  color: var(--brass);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+/* Staged tile (Alfred-proposed, awaiting approval) */
+.terminal-tile.staged {
+  border: 1px dashed rgba(217, 174, 70, 0.42);
+  background:
+    linear-gradient(180deg, rgba(217, 174, 70, 0.04), transparent 72px),
+    rgba(8, 8, 8, 0.72);
+}
+
+.terminal-tile.staged .tool-dot.codex { background: var(--cyan); }
+.terminal-tile.staged .tool-dot.claude { background: #b7a1ff; }
+.terminal-tile.staged .tool-dot.dev-server { background: var(--green); }
+.terminal-tile.staged .tool-dot.shell { background: var(--ink-soft); }
+
+.staged-body {
+  min-width: 0;
+  min-height: 0;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.staged-label {
+  color: var(--faint);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.staged-command {
+  word-break: break-all;
+  white-space: pre-wrap;
+  color: var(--ink);
+}
+
+.staged-cwd {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.staged-safety-chip {
+  align-self: start;
+  border: 1px solid rgba(239, 129, 115, 0.46);
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: rgba(239, 129, 115, 0.1);
+  color: var(--coral);
+  font-size: 11px;
+}
+
+.staged-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid rgba(245, 240, 228, 0.08);
+}
+
+.staged-actions .approve-button {
+  flex: 1;
+  min-height: 34px;
+  border: 1px solid rgba(217, 174, 70, 0.5);
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgba(217, 174, 70, 0.2), rgba(217, 174, 70, 0.08));
+  color: #f5e6b8;
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.staged-actions .approve-button.unsafe {
+  border-color: rgba(239, 129, 115, 0.5);
+  background:
+    linear-gradient(180deg, rgba(239, 129, 115, 0.16), rgba(239, 129, 115, 0.06));
+  color: #ffd5cc;
+}
+
+.staged-actions .reject-button {
+  width: 34px;
+  min-height: 34px;
+  border: 1px solid rgba(245, 240, 228, 0.13);
+  border-radius: 7px;
+  background: rgba(245, 240, 228, 0.035);
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.staged-actions .reject-button:hover,
+.staged-actions .reject-button:focus-visible {
+  border-color: rgba(239, 129, 115, 0.42);
+  color: var(--coral);
+}
+
+/* Alfred dock variants */
+.alfred-dock-plan,
+.alfred-dock-error {
+  display: grid;
+  gap: 10px;
+}
+
+.alfred-dock-plan .plan-name {
+  color: var(--brass);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.alfred-dock-plan .plan-counts {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.alfred-dock-plan .plan-prompt {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(245, 240, 228, 0.09);
+  color: var(--faint);
+  font-size: 11px;
+  font-style: italic;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.alfred-dock-plan .plan-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.alfred-dock-plan .plan-actions button {
+  min-height: 32px;
+  border: 1px solid rgba(245, 240, 228, 0.13);
+  border-radius: 7px;
+  background: rgba(245, 240, 228, 0.045);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.alfred-dock-plan .plan-actions .approve-all {
+  border-color: rgba(217, 174, 70, 0.46);
+  background:
+    linear-gradient(180deg, rgba(217, 174, 70, 0.16), rgba(217, 174, 70, 0.06));
+  color: #f5e6b8;
+}
+
+.alfred-dock-error {
+  border: 1px solid rgba(239, 129, 115, 0.42);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(239, 129, 115, 0.06);
+  color: var(--coral);
+  font-size: 12px;
+}
+
+.alfred-dock-error .dismiss {
+  justify-self: end;
+  border: 1px solid rgba(239, 129, 115, 0.42);
+  border-radius: 6px;
+  padding: 2px 8px;
+  background: transparent;
+  color: var(--coral);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
 }
 
 @media (prefers-reduced-motion: reduce) {
