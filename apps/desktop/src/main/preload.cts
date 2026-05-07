@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import type { TerminalApi, TerminalDataEvent, TerminalExitEvent } from "../shared/terminal-ipc.js";
+import type { AlfredApi } from "../shared/alfred-ipc.js";
 
 const terminalChannels = {
   create: "alfred:terminal:create",
@@ -9,6 +10,10 @@ const terminalChannels = {
   kill: "alfred:terminal:kill",
   data: "alfred:terminal:data",
   exit: "alfred:terminal:exit",
+} as const;
+
+const alfredChannels = {
+  planRequest: "alfred:plan:request",
 } as const;
 
 const terminal: TerminalApi = {
@@ -44,7 +49,13 @@ const terminal: TerminalApi = {
   },
 };
 
+const alfred: AlfredApi = {
+  requestPlan: (request) =>
+    ipcRenderer.invoke(alfredChannels.planRequest, request) as ReturnType<AlfredApi["requestPlan"]>,
+};
+
 contextBridge.exposeInMainWorld("alfredDesktop", {
   terminal,
-  version: "desktop-manual-terminal",
+  alfred,
+  version: "desktop-launcher-v0",
 });

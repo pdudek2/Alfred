@@ -10,13 +10,16 @@
     "dev:electron": "tsc -p tsconfig.main.json && node scripts/dev-electron.mjs",
     "lint": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit",
     "start": "electron .",
-    "test": "vitest run src/renderer/session-state.test.ts",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "dotenv": "^17.4.2",
     "lucide-react": "latest",
     "node-pty": "^1.1.0",
     "react": "latest",

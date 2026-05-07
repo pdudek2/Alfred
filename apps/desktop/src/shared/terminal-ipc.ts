@@ -4,6 +4,8 @@ export type TerminalCreateRequest = {
   cwd?: string;
   cols: number;
   rows: number;
+  command?: string;
+  args?: string[];
 };
 
 export type TerminalCreateResult = {

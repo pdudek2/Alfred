@@ -2,8 +2,21 @@ import { Plus, X } from "lucide-react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getDesktopTerminalApi } from "./desktop-api";
-import { addManualSession, closeSession, createInitialSessions, type SessionTile } from "./session-state";
+import { getDesktopAlfredApi, getDesktopTerminalApi } from "./desktop-api";
+import { ComposerBar } from "./composer";
+import { StagedTilePreview } from "./staged-tile";
+import { errored, idle, isThinking, thinking, type AlfredStatus, type SquadPlan } from "./alfred-state";
+import {
+  addManualSession,
+  addStagedSessions,
+  approveAllStaged,
+  approveStaged,
+  closeSession,
+  createInitialSessions,
+  rejectAllStaged,
+  rejectStaged,
+  type SessionTile,
+} from "./session-state";
 import type { TerminalSessionId } from "../shared/terminal-ipc";
 import "@xterm/xterm/css/xterm.css";
 
@@ -19,6 +32,9 @@ const workspaceLabels: Record<WorkspaceId, string> = {
 export function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>("A");
   const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>(() => createInitialSessions(""));
+  const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
+  const [pendingPlan, setPendingPlan] = useState<SquadPlan | null>(null);
+  const [composerValue, setComposerValue] = useState<string>("");
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
 
   const handleAddManualSession = useCallback(() => {
@@ -28,6 +44,68 @@ export function App() {
   const handleCloseSession = (sessionId: string) => {
     setTerminalSessions((sessions) => closeSession(sessions, sessionId));
   };
+
+  const handleSubmitPrompt = useCallback(async () => {
+    const prompt = composerValue.trim();
+    if (!prompt) return;
+    const alfredApi = getDesktopAlfredApi();
+    if (!alfredApi) {
+      setAlfredStatus(errored({ code: "network", message: "Alfred runtime is unavailable. Open the desktop app." }));
+      return;
+    }
+    setAlfredStatus(thinking());
+    setComposerValue("");
+    const response = await alfredApi.requestPlan({ prompt });
+    if (!response.ok) {
+      setAlfredStatus(errored(response.error));
+      return;
+    }
+    setAlfredStatus(idle());
+    setTerminalSessions((sessions) => {
+      const before = sessions;
+      const after = addStagedSessions(before, response.plan.sessions, "");
+      const newIds = after.slice(before.length).map((s) => s.id);
+      setPendingPlan({
+        id: crypto.randomUUID(),
+        ...(response.plan.name === undefined ? {} : { name: response.plan.name }),
+        prompt,
+        sessionIds: newIds,
+      });
+      return after;
+    });
+  }, [composerValue]);
+
+  const handleApproveTile = useCallback((tileId: string) => {
+    setTerminalSessions((sessions) => approveStaged(sessions, tileId));
+    setPendingPlan((plan) => {
+      if (!plan) return plan;
+      const remaining = plan.sessionIds.filter((id) => id !== tileId);
+      return remaining.length === 0 ? null : { ...plan, sessionIds: remaining };
+    });
+  }, []);
+
+  const handleRejectTile = useCallback((tileId: string) => {
+    setTerminalSessions((sessions) => rejectStaged(sessions, tileId));
+    setPendingPlan((plan) => {
+      if (!plan) return plan;
+      const remaining = plan.sessionIds.filter((id) => id !== tileId);
+      return remaining.length === 0 ? null : { ...plan, sessionIds: remaining };
+    });
+  }, []);
+
+  const handleApproveAll = useCallback(() => {
+    setTerminalSessions((sessions) => approveAllStaged(sessions));
+    setPendingPlan(null);
+  }, []);
+
+  const handleRejectAll = useCallback(() => {
+    setTerminalSessions((sessions) => rejectAllStaged(sessions));
+    setPendingPlan(null);
+  }, []);
+
+  const handleDismissError = useCallback(() => {
+    setAlfredStatus(idle());
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -77,9 +155,25 @@ export function App() {
             sessions={terminalSessions}
             shortcutModifier={shortcutModifier}
             onCloseSession={handleCloseSession}
+            onApproveTile={handleApproveTile}
+            onRejectTile={handleRejectTile}
           />
-          <AlfredDock />
+          <AlfredDock
+            status={alfredStatus}
+            pendingPlan={pendingPlan}
+            stagedCount={terminalSessions.filter((s) => s.stage === "staged").length}
+            liveAlfredCount={terminalSessions.filter((s) => s.stage === "live" && s.source === "alfred").length}
+            onApproveAll={handleApproveAll}
+            onRejectAll={handleRejectAll}
+            onDismissError={handleDismissError}
+          />
         </div>
+        <ComposerBar
+          value={composerValue}
+          thinking={isThinking(alfredStatus)}
+          onChange={setComposerValue}
+          onSubmit={handleSubmitPrompt}
+        />
       </section>
     </main>
   );
@@ -116,53 +210,115 @@ function WorkspaceRail({
   );
 }
 
-function AlfredDock() {
+function AlfredDock({
+  status,
+  pendingPlan,
+  stagedCount,
+  liveAlfredCount,
+  onApproveAll,
+  onRejectAll,
+  onDismissError,
+}: {
+  status: AlfredStatus;
+  pendingPlan: SquadPlan | null;
+  stagedCount: number;
+  liveAlfredCount: number;
+  onApproveAll: () => void;
+  onRejectAll: () => void;
+  onDismissError: () => void;
+}) {
   return (
     <aside className="alfred-dock" aria-label="Alfred status">
       <div className="alfred-dock-header">
         <div className="alfred-dock-mark">A</div>
         <div>
           <strong>Alfred</strong>
-          <span>quiet</span>
+          <span>{status.kind === "thinking" ? "thinking" : status.kind === "error" ? "error" : "quiet"}</span>
         </div>
       </div>
-      <p>Manual work stays in front. Alfred will surface only when you ask for a launch plan.</p>
+
+      {status.kind === "error" ? (
+        <div className="alfred-dock-error" role="alert">
+          <div>{status.error.message}</div>
+          <button type="button" className="dismiss" onClick={onDismissError} aria-label="Dismiss error">
+            Dismiss
+          </button>
+        </div>
+      ) : pendingPlan ? (
+        <div className="alfred-dock-plan">
+          <div className="plan-name">{pendingPlan.name ?? "Squad"}</div>
+          <div className="plan-counts">
+            {stagedCount} staged · {liveAlfredCount} live
+          </div>
+          <div className="plan-actions">
+            <button type="button" className="approve-all" onClick={onApproveAll}>
+              Approve All
+            </button>
+            <button type="button" onClick={onRejectAll}>
+              Reject All
+            </button>
+          </div>
+          <p className="plan-prompt">"{truncate(pendingPlan.prompt, 140)}"</p>
+        </div>
+      ) : (
+        <p>Manual work stays in front. Alfred will surface only when you ask for a launch plan.</p>
+      )}
+
       <div className="alfred-dock-footer">
-        <span>idle</span>
+        <span>{status.kind}</span>
         <span>local</span>
       </div>
     </aside>
   );
 }
 
+function truncate(value: string, max: number): string {
+  return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
+}
+
 function TerminalGrid({
   sessions,
   shortcutModifier,
   onCloseSession,
+  onApproveTile,
+  onRejectTile,
 }: {
   sessions: SessionTile[];
   shortcutModifier: string;
   onCloseSession: (sessionId: string) => void;
+  onApproveTile: (tileId: string) => void;
+  onRejectTile: (tileId: string) => void;
 }) {
   return (
-    <section className="terminal-stage" aria-label="manual terminals">
+    <section className="terminal-stage" aria-label="terminals">
       <header className="terminal-stage-header">
         <div>
-          <strong>Manual terminals</strong>
-          <span>{sessions.length} live workspace tile{sessions.length === 1 ? "" : "s"}</span>
+          <strong>Terminals</strong>
+          <span>{sessions.length} tile{sessions.length === 1 ? "" : "s"} ({sessions.filter(s => s.stage === "staged").length} staged)</span>
         </div>
         <kbd>{shortcutModifier} T</kbd>
       </header>
       <div className="terminal-grid">
-        {sessions.map((session) => (
-          <ManualTerminalTile
-            cwd={session.cwd}
-            key={session.id}
-            sessionKey={session.id}
-            title={session.title}
-            onClose={() => onCloseSession(session.id)}
-          />
-        ))}
+        {sessions.map((session) =>
+          session.stage === "live" ? (
+            <ManualTerminalTile
+              cwd={session.cwd}
+              key={session.id}
+              sessionKey={session.id}
+              title={session.title}
+              command={session.command}
+              args={session.args}
+              onClose={() => onCloseSession(session.id)}
+            />
+          ) : (
+            <StagedTilePreview
+              key={session.id}
+              tile={session}
+              onApprove={onApproveTile}
+              onReject={onRejectTile}
+            />
+          ),
+        )}
       </div>
     </section>
   );
@@ -173,11 +329,15 @@ function ManualTerminalTile({
   onClose,
   sessionKey,
   title,
+  command,
+  args,
 }: {
   cwd: string;
   onClose: () => void;
   sessionKey: string;
   title: string;
+  command?: string | undefined;
+  args?: string[] | undefined;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -278,8 +438,17 @@ function ManualTerminalTile({
 
     resizeObserver.observe(container);
 
+    const baseRequest: { cols: number; rows: number; cwd?: string; command?: string; args?: string[] } = {
+      cols: terminal.cols,
+      rows: terminal.rows,
+    };
+    if (cwd) baseRequest.cwd = cwd;
+    if (command) {
+      baseRequest.command = command;
+      baseRequest.args = args ?? [];
+    }
     terminalApi
-      .create(cwd ? { cols: terminal.cols, cwd, rows: terminal.rows } : { cols: terminal.cols, rows: terminal.rows })
+      .create(baseRequest)
       .then((session) => {
         if (disposed) {
           terminalApi.kill({ id: session.id });
@@ -317,7 +486,7 @@ function ManualTerminalTile({
 
       terminal.dispose();
     };
-  }, [cwd, sessionKey]);
+  }, [cwd, sessionKey, command, args]);
 
   return (
     <article className={`terminal-tile manual real-terminal ${status}`}>

@@ -1,12 +1,20 @@
 import { app, BrowserWindow } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { config as loadDotenv } from "dotenv";
 import { killAllTerminalSessions, registerTerminalIpc } from "./terminal-manager.js";
+import { registerAlfredIpc } from "./alfred-orchestrator.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
 
+// Load repo-root .env before any IPC registration so OPENROUTER_API_KEY is visible.
+// Repo root is two levels up from app.getAppPath() (apps/desktop) — same logic as
+// terminal-manager.ts:defaultTerminalCwd().
+loadDotenv({ path: path.resolve(app.getAppPath(), "../..", ".env") });
+
 registerTerminalIpc();
+registerAlfredIpc();
 
 async function createWindow(): Promise<void> {
   const window = new BrowserWindow({

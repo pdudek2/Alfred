@@ -41,12 +41,12 @@ export function registerTerminalIpc(): void {
 
       const nodePty = await loadNodePty();
       const cwd = resolveTerminalCwd(request.cwd);
-      const shell = resolveShell();
+      const resolved = resolveCommand(request);
       const id = randomUUID();
       const onWindowClosed = () => {
         killSession(id);
       };
-      const pty = nodePty.spawn(shell.command, shell.args, {
+      const pty = nodePty.spawn(resolved.command, resolved.args, {
         name: "xterm-256color",
         cols: normalizeDimension(request.cols, 80),
         rows: normalizeDimension(request.rows, 24),
@@ -77,7 +77,7 @@ export function registerTerminalIpc(): void {
 
       window.once("closed", onWindowClosed);
 
-      return { id, cwd, shell: shell.command };
+      return { id, cwd, shell: resolved.command };
     },
   );
 
@@ -157,6 +157,13 @@ async function ensureNodePtySpawnHelperExecutable(nodePtyIndexPath: string): Pro
       }`,
     );
   }
+}
+
+function resolveCommand(request: TerminalCreateRequest): { command: string; args: string[] } {
+  if (request.command) {
+    return { command: request.command, args: request.args ?? [] };
+  }
+  return resolveShell();
 }
 
 function resolveShell(): { command: string; args: string[] } {
