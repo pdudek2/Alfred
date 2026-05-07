@@ -345,9 +345,13 @@ button:focus-visible {
   scrollbar-color: rgba(245, 240, 228, 0.18) transparent;
 }
 
-.terminal-grid.arranging {
+.terminal-grid.arranging,
+.terminal-grid.laid-out {
   grid-template-columns: repeat(12, minmax(0, 1fr));
   grid-auto-rows: 84px;
+}
+
+.terminal-grid.arranging {
   background:
     linear-gradient(rgba(86, 200, 213, 0.055) 1px, transparent 1px),
     linear-gradient(90deg, rgba(86, 200, 213, 0.055) 1px, transparent 1px),
