@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkSafety } from "./alfred-safety";
+import { checkSafety } from "./alfred-safety.js";
 
 describe("checkSafety", () => {
   describe("flags dangerous patterns", () => {
@@ -17,8 +17,7 @@ describe("checkSafety", () => {
       ["dd", ["if=/dev/zero", "of=/dev/sda"], "low-level disk operation"],
     ])("flags %s %j as %s", (command, args, reason) => {
       const result = checkSafety(command, args);
-      expect(result.unsafe).toBe(true);
-      expect(result.reason).toBe(reason);
+      expect(result).toEqual({ unsafe: true, reason });
     });
 
     it.each([
@@ -31,7 +30,9 @@ describe("checkSafety", () => {
     ])("flags shell metacharacters in command: %s", (command) => {
       const result = checkSafety(command, []);
       expect(result.unsafe).toBe(true);
-      expect(result.reason).toMatch(/shell metacharacters/);
+      if (result.unsafe) {
+        expect(result.reason).toMatch(/shell metacharacters/);
+      }
     });
   });
 
@@ -45,11 +46,10 @@ describe("checkSafety", () => {
       ["docker", ["compose", "up"]],
       ["tail", ["-f", "logs/app.log"]],
       ["cat", ["package.json"]],
-      ["rm", ["package-lock.json"]], // single-file rm without -r/-f is allowed
+      ["rm", ["package-lock.json"]],
     ])("allows %s %j", (command, args) => {
       const result = checkSafety(command, args);
-      expect(result.unsafe).toBe(false);
-      expect(result.reason).toBeUndefined();
+      expect(result).toEqual({ unsafe: false });
     });
   });
 });
