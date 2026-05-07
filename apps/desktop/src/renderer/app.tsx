@@ -5,7 +5,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getDesktopAlfredApi, getDesktopTerminalApi } from "./desktop-api";
 import { ComposerBar } from "./composer";
 import { StagedTilePreview } from "./staged-tile";
-import { errored, idle, isThinking, thinking, type AlfredStatus, type SquadPlan } from "./alfred-state";
+import {
+  canRequestPlan,
+  errored,
+  idle,
+  isThinking,
+  thinking,
+  type AlfredStatus,
+  type SquadPlan,
+} from "./alfred-state";
 import {
   addManualSession,
   addStagedSessions,
@@ -39,6 +47,10 @@ export function App() {
   const [composerValue, setComposerValue] = useState<string>("");
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
+  const stagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
+  const liveAlfredCount = terminalSessions.filter((s) => s.stage === "live" && s.source === "alfred").length;
+  const composerBlockedReason =
+    stagedCount > 0 ? "Resolve the current Alfred plan before asking for another." : undefined;
 
   const handleAddManualSession = useCallback(() => {
     setTerminalSessions((sessions) => addManualSession(sessions, ""));
@@ -73,6 +85,7 @@ export function App() {
   const handleSubmitPrompt = useCallback(async () => {
     const prompt = composerValue.trim();
     if (!prompt) return;
+    if (!canRequestPlan(alfredStatus, stagedCount)) return;
     const alfredApi = getDesktopAlfredApi();
     if (!alfredApi) {
       setAlfredStatus(errored({ code: "network", message: "Alfred runtime is unavailable. Open the desktop app." }));
@@ -90,15 +103,19 @@ export function App() {
       const before = sessions;
       const after = addStagedSessions(before, response.plan.sessions, "");
       const newIds = after.slice(before.length).map((s) => s.id);
-      setPendingPlan({
-        id: crypto.randomUUID(),
-        ...(response.plan.name === undefined ? {} : { name: response.plan.name }),
-        prompt,
-        sessionIds: newIds,
-      });
+      setPendingPlan(
+        newIds.length > 0
+          ? {
+              id: crypto.randomUUID(),
+              ...(response.plan.name === undefined ? {} : { name: response.plan.name }),
+              prompt,
+              sessionIds: newIds,
+            }
+          : null,
+      );
       return after;
     });
-  }, [composerValue]);
+  }, [alfredStatus, composerValue, stagedCount]);
 
   const handleApproveTile = useCallback((tileId: string) => {
     setTerminalSessions((sessions) => approveStaged(sessions, tileId));
@@ -215,14 +232,15 @@ export function App() {
           <AlfredDock
             status={alfredStatus}
             pendingPlan={pendingPlan}
-            stagedCount={terminalSessions.filter((s) => s.stage === "staged").length}
-            liveAlfredCount={terminalSessions.filter((s) => s.stage === "live" && s.source === "alfred").length}
+            stagedCount={stagedCount}
+            liveAlfredCount={liveAlfredCount}
             onApproveAll={handleApproveAll}
             onRejectAll={handleRejectAll}
             onDismissError={handleDismissError}
           />
         </div>
         <ComposerBar
+          blockedReason={composerBlockedReason}
           value={composerValue}
           thinking={isThinking(alfredStatus)}
           onChange={setComposerValue}

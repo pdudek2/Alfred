@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { idle, thinking, errored, isThinking, type AlfredStatus } from "./alfred-state";
+import { idle, thinking, errored, isThinking, canRequestPlan, type AlfredStatus } from "./alfred-state";
 import type { AlfredError } from "../shared/alfred-ipc";
 
 describe("alfred-state", () => {
@@ -20,5 +20,11 @@ describe("alfred-state", () => {
     const s: AlfredStatus = errored(error);
     expect(s).toEqual({ kind: "error", error });
     expect(isThinking(s)).toBe(false);
+  });
+
+  it("allows a new plan request only when Alfred is idle and no staged tiles remain", () => {
+    expect(canRequestPlan(idle(), 0)).toBe(true);
+    expect(canRequestPlan(thinking(), 0)).toBe(false);
+    expect(canRequestPlan(idle(), 2)).toBe(false);
   });
 });

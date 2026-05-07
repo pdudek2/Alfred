@@ -1,11 +1,14 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 
 const desktopPort = readPort(process.env.DESKTOP_PORT, 4310);
 
 export default defineConfig({
   base: "./",
   plugins: [react()],
+  test: {
+    environment: "jsdom",
+  },
   build: {
     outDir: "dist/renderer",
   },
