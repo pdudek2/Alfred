@@ -644,6 +644,12 @@ button:focus-visible {
   font-size: 11px;
 }
 
+.staged-safety-chip.armed {
+  border-color: rgba(245, 214, 127, 0.5);
+  background: rgba(245, 214, 127, 0.1);
+  color: #f5d67f;
+}
+
 .staged-actions {
   display: flex;
   gap: 8px;
@@ -669,6 +675,13 @@ button:focus-visible {
   background:
     linear-gradient(180deg, rgba(239, 129, 115, 0.16), rgba(239, 129, 115, 0.06));
   color: #ffd5cc;
+}
+
+.staged-actions .approve-button.unsafe.armed {
+  border-color: rgba(245, 214, 127, 0.62);
+  background:
+    linear-gradient(180deg, rgba(245, 214, 127, 0.2), rgba(245, 214, 127, 0.08));
+  color: #fff1bf;
 }
 
 .staged-actions .reject-button {

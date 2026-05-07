@@ -2,17 +2,24 @@ import { X } from "lucide-react";
 import type { SessionTile } from "./session-state";
 
 type StagedTilePreviewProps = {
+  armed: boolean;
   tile: SessionTile;
   onApprove: (tileId: string) => void;
   onReject: (tileId: string) => void;
 };
 
-export function StagedTilePreview({ tile, onApprove, onReject }: StagedTilePreviewProps) {
+export function StagedTilePreview({ armed, tile, onApprove, onReject }: StagedTilePreviewProps) {
   const command = tile.command ?? "";
   const args = tile.args ?? [];
   const fullCommand = [command, ...args].join(" ").trim();
   const agentClass = tile.agentKind ?? "shell";
   const unsafe = Boolean(tile.safetyNote);
+  const approveLabel = unsafe ? (armed ? "Confirm" : "Review") : "Approve";
+  const approveAriaLabel = unsafe
+    ? armed
+      ? `Confirm unsafe command: ${tile.title}`
+      : `Review unsafe command: ${tile.title}`
+    : `Approve ${tile.title}`;
 
   return (
     <article className="terminal-tile staged" aria-label={`Staged ${tile.title}`}>
@@ -30,7 +37,10 @@ export function StagedTilePreview({ tile, onApprove, onReject }: StagedTilePrevi
       </header>
       <div className="staged-body">
         {unsafe && (
-          <div className="staged-safety-chip" role="note">⚠ {tile.safetyNote}</div>
+          <div className={`staged-safety-chip ${armed ? "armed" : ""}`} role="note">
+            {armed ? "Confirm to launch: " : "Review before launch: "}
+            {tile.safetyNote}
+          </div>
         )}
         <div className="staged-label">command</div>
         <div className="staged-command">{fullCommand || "(no command)"}</div>
@@ -39,11 +49,11 @@ export function StagedTilePreview({ tile, onApprove, onReject }: StagedTilePrevi
       <div className="staged-actions">
         <button
           type="button"
-          className={`approve-button ${unsafe ? "unsafe" : ""}`}
+          className={`approve-button ${unsafe ? "unsafe" : ""} ${armed ? "armed" : ""}`}
           onClick={() => onApprove(tile.id)}
-          aria-label={unsafe ? `Approve unsafe command: ${tile.title}` : `Approve ${tile.title}`}
+          aria-label={approveAriaLabel}
         >
-          Approve
+          {approveLabel}
         </button>
         <button
           type="button"

@@ -63,15 +63,21 @@ function installDesktopBridge(
   const requestPlan = vi.fn().mockResolvedValue(planResponse);
   const resolveStagedPlan = vi.fn().mockResolvedValue({ plan: null });
   const setStagedPlan = vi.fn().mockImplementation((request) => Promise.resolve({ plan: request }));
-  const terminal: TerminalApi = {
-    create: vi.fn().mockResolvedValue({
+  const createTerminal = vi.fn().mockImplementation((request: Parameters<TerminalApi["create"]>[0]) =>
+    Promise.resolve({
       id: "runtime-1",
-      clientId: "manual-1",
-      title: "Manual · zsh 1",
-      source: "manual",
-      cwd: "/tmp",
+      clientId: request.clientId ?? "manual-1",
+      title: request.title ?? "Manual · zsh 1",
+      source: request.source ?? "manual",
+      cwd: request.cwd ?? "/tmp",
       shell: "bash",
+      ...(request.agentKind === undefined ? {} : { agentKind: request.agentKind }),
+      ...(request.command === undefined ? {} : { command: request.command }),
+      ...(request.args === undefined ? {} : { args: request.args }),
     }),
+  );
+  const terminal: TerminalApi = {
+    create: createTerminal,
     kill: vi.fn(),
     list: vi.fn().mockResolvedValue({ sessions: terminalSessions }),
     onData: vi.fn(() => vi.fn()),
@@ -245,6 +251,43 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /Staged Task A/i });
 
     await user.click(screen.getByRole("button", { name: "Approve Task A" }));
+
+    await waitFor(() => {
+      expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
+    });
+  });
+
+  it("requires two clicks before approving an unsafe staged tile", async () => {
+    const user = userEvent.setup();
+    const { resolveStagedPlan } = installDesktopBridge({
+      ok: true,
+      plan: {
+        name: "Unsafe plan",
+        sessions: [
+          {
+            kind: "shell",
+            title: "Risky task",
+            command: "rm",
+            args: ["-rf", "dist"],
+            safetyNote: "rm -rf detected",
+          },
+        ],
+      },
+    });
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText("Alfred prompt"), "stage risky cleanup");
+    await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
+    await screen.findByRole("article", { name: /Staged Risky task/i });
+
+    await user.click(screen.getByRole("button", { name: "Review unsafe command: Risky task" }));
+
+    expect(resolveStagedPlan).not.toHaveBeenCalled();
+    expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm unsafe command: Risky task" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Confirm unsafe command: Risky task" }));
 
     await waitFor(() => {
       expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });

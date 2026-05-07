@@ -46,6 +46,7 @@ export function App() {
   const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
   const [pendingPlan, setPendingPlan] = useState<SquadPlan | null>(null);
   const [composerValue, setComposerValue] = useState<string>("");
+  const [armedUnsafeSessionIds, setArmedUnsafeSessionIds] = useState<Set<string>>(() => new Set());
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
   const stagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
@@ -83,7 +84,9 @@ export function App() {
     }
 
     setTerminalSessions((sessions) => attachRuntimeSession(sessions, tileId, runtime.id));
-    void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
+    if (runtime.source === "alfred") {
+      void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
+    }
   }, []);
 
   const handleSubmitPrompt = useCallback(async () => {
@@ -131,16 +134,34 @@ export function App() {
   }, [alfredStatus, composerValue, stagedCount]);
 
   const handleApproveTile = useCallback((tileId: string) => {
+    const tile = terminalSessions.find((session) => session.id === tileId);
+    if (tile?.safetyNote && !armedUnsafeSessionIds.has(tileId)) {
+      setArmedUnsafeSessionIds((ids) => new Set(ids).add(tileId));
+      return;
+    }
+
+    setArmedUnsafeSessionIds((ids) => {
+      if (!ids.has(tileId)) return ids;
+      const next = new Set(ids);
+      next.delete(tileId);
+      return next;
+    });
     setTerminalSessions((sessions) => approveStaged(sessions, tileId));
     setPendingPlan((plan) => {
       if (!plan) return plan;
       const remaining = plan.sessionIds.filter((id) => id !== tileId);
       return remaining.length === 0 ? null : { ...plan, sessionIds: remaining };
     });
-  }, []);
+  }, [armedUnsafeSessionIds, terminalSessions]);
 
   const handleRejectTile = useCallback((tileId: string) => {
     const alfredApi = getDesktopAlfredApi();
+    setArmedUnsafeSessionIds((ids) => {
+      if (!ids.has(tileId)) return ids;
+      const next = new Set(ids);
+      next.delete(tileId);
+      return next;
+    });
     setTerminalSessions((sessions) => rejectStaged(sessions, tileId));
     setPendingPlan((plan) => {
       if (!plan) return plan;
@@ -151,6 +172,7 @@ export function App() {
   }, []);
 
   const handleApproveAll = useCallback(() => {
+    setArmedUnsafeSessionIds(new Set());
     setTerminalSessions((sessions) => approveAllStaged(sessions));
     setPendingPlan((plan) => {
       if (!plan) return plan;
@@ -163,6 +185,7 @@ export function App() {
 
   const handleRejectAll = useCallback(() => {
     const alfredApi = getDesktopAlfredApi();
+    setArmedUnsafeSessionIds(new Set());
     setTerminalSessions((sessions) => rejectAllStaged(sessions));
     setPendingPlan(null);
     void alfredApi?.clearStagedPlan();
@@ -262,6 +285,7 @@ export function App() {
         <div className="workspace-layout">
           <WorkspaceRail />
           <TerminalGrid
+            armedUnsafeSessionIds={armedUnsafeSessionIds}
             sessions={terminalSessions}
             shortcutModifier={shortcutModifier}
             onCloseSession={handleCloseSession}
@@ -449,6 +473,7 @@ function truncate(value: string, max: number): string {
 }
 
 function TerminalGrid({
+  armedUnsafeSessionIds,
   sessions,
   shortcutModifier,
   onCloseSession,
@@ -456,6 +481,7 @@ function TerminalGrid({
   onApproveTile,
   onRejectTile,
 }: {
+  armedUnsafeSessionIds: Set<string>;
   sessions: SessionTile[];
   shortcutModifier: string;
   onCloseSession: (sessionId: string) => void;
@@ -491,6 +517,7 @@ function TerminalGrid({
             />
           ) : (
             <StagedTilePreview
+              armed={armedUnsafeSessionIds.has(session.id)}
               key={session.id}
               tile={session}
               onApprove={onApproveTile}
