@@ -3,6 +3,7 @@ import {
   alfredChannels,
   type AlfredPlanRequest,
   type AlfredPlanResponse,
+  type AlfredRuntimeStatus,
   type AlfredStagedPlanResolveRequest,
   type AlfredStagedPlanSetRequest,
   type AlfredStagedPlanSnapshotResponse,
@@ -18,6 +19,10 @@ import {
 let inFlight = false;
 
 export function registerAlfredIpc(): void {
+  ipcMain.handle(alfredChannels.runtimeStatus, (): AlfredRuntimeStatus => ({
+    model: DEFAULT_MODEL,
+    openRouterConfigured: Boolean(process.env.OPENROUTER_API_KEY),
+  }));
   ipcMain.handle(alfredChannels.planGet, (): AlfredStagedPlanSnapshotResponse => getStagedPlanSnapshot());
   ipcMain.handle(
     alfredChannels.planSet,

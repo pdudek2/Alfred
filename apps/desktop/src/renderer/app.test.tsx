@@ -3,7 +3,12 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
-import type { AlfredApi, AlfredPlanResponse, AlfredStagedPlanSnapshot } from "../shared/alfred-ipc";
+import type {
+  AlfredApi,
+  AlfredPlanResponse,
+  AlfredRuntimeStatus,
+  AlfredStagedPlanSnapshot,
+} from "../shared/alfred-ipc";
 import type { TerminalApi, TerminalSessionSnapshot } from "../shared/terminal-ipc";
 
 vi.mock("@xterm/xterm", () => ({
@@ -51,15 +56,21 @@ function installDesktopBridge(
   },
   stagedPlan: AlfredStagedPlanSnapshot | null = null,
   terminalSessions: TerminalSessionSnapshot[] = [],
+  runtimeStatus: AlfredRuntimeStatus = {
+    model: "anthropic/claude-sonnet-4-6",
+    openRouterConfigured: true,
+  },
 ): {
   clearStagedPlan: ReturnType<typeof vi.fn>;
   getStagedPlan: ReturnType<typeof vi.fn>;
+  getRuntimeStatus: ReturnType<typeof vi.fn>;
   requestPlan: ReturnType<typeof vi.fn>;
   resolveStagedPlan: ReturnType<typeof vi.fn>;
   setStagedPlan: ReturnType<typeof vi.fn>;
 } {
   const clearStagedPlan = vi.fn().mockResolvedValue({ plan: null });
   const getStagedPlan = vi.fn().mockResolvedValue({ plan: stagedPlan });
+  const getRuntimeStatus = vi.fn().mockResolvedValue(runtimeStatus);
   const requestPlan = vi.fn().mockResolvedValue(planResponse);
   const resolveStagedPlan = vi.fn().mockResolvedValue({ plan: null });
   const setStagedPlan = vi.fn().mockImplementation((request) => Promise.resolve({ plan: request }));
@@ -86,13 +97,13 @@ function installDesktopBridge(
     write: vi.fn(),
   };
   const bridge: DesktopBridge = {
-    alfred: { clearStagedPlan, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan },
+    alfred: { clearStagedPlan, getRuntimeStatus, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan },
     terminal,
     version: "test",
   };
 
   window.alfredDesktop = bridge;
-  return { clearStagedPlan, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan };
+  return { clearStagedPlan, getRuntimeStatus, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan };
 }
 
 beforeEach(() => {
@@ -122,6 +133,22 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "API workspace planned" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Docs workspace planned" })).toBeDisabled();
     expect(screen.getByText("Alfred workspace")).toBeInTheDocument();
+  });
+
+  it("blocks Alfred prompts when OpenRouter is not configured", async () => {
+    const user = userEvent.setup();
+    const { requestPlan } = installDesktopBridge(undefined, null, [], {
+      model: "anthropic/claude-sonnet-4-6",
+      openRouterConfigured: false,
+    });
+
+    render(<App />);
+
+    await screen.findByText("Set OPENROUTER_API_KEY in repo .env to use Alfred.");
+    await user.type(screen.getByLabelText("Alfred prompt"), "prepare agents");
+
+    expect(screen.getByRole("button", { name: "Send prompt to Alfred" })).toBeDisabled();
+    expect(requestPlan).not.toHaveBeenCalled();
   });
 
   it("turns the first Alfred prompt into staged tiles", async () => {
