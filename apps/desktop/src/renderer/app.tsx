@@ -3,24 +3,18 @@ import {
   ArrowRight,
   Columns3,
   Maximize2,
+  Plus,
   RefreshCw,
   SquareTerminal,
+  X,
 } from "lucide-react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef, useState } from "react";
 import { getDesktopTerminalApi } from "./desktop-api";
+import { addManualSession, closeSession, createInitialSessions, type SessionTile } from "./session-state";
 import type { TerminalSessionId } from "../shared/terminal-ipc";
 import "@xterm/xterm/css/xterm.css";
-
-type TerminalTile = {
-  title: string;
-  accelerator: string;
-  state: "active" | "needs" | "manual" | "ready" | "idle";
-  body: string[];
-  footerLeft: string;
-  footerRight: string;
-};
 
 type LayoutMode = "default" | "terminal-wall" | "preview-focus";
 type WorkspaceId = "A" | "UI" | "API" | "DOC";
@@ -31,57 +25,6 @@ const workspaceLabels: Record<WorkspaceId, string> = {
   DOC: "Docs",
   UI: "UI",
 };
-
-const terminalTiles: TerminalTile[] = [
-  {
-    title: "Codex · UI shell",
-    accelerator: "⌘1",
-    state: "active",
-    body: ["Mapped repo", "apps/desktop pending", "waiting for plan gate"],
-    footerLeft: "planned",
-    footerRight: "worktree",
-  },
-  {
-    title: "Claude · a11y pass",
-    accelerator: "!",
-    state: "needs",
-    body: ["Needs you", "glass density?", "confirm before spec"],
-    footerLeft: "needs you",
-    footerRight: "open",
-  },
-  {
-    title: "Manual · zsh",
-    accelerator: "$",
-    state: "manual",
-    body: ["/Users/patryk/Desktop/Alfred", "$ codex resume", "$ ghostty ."],
-    footerLeft: "manual",
-    footerRight: "free control",
-  },
-  {
-    title: "pnpm dev",
-    accelerator: "✓",
-    state: "ready",
-    body: ["ready", "web 4300", "api 4301"],
-    footerLeft: "shared",
-    footerRight: "main",
-  },
-  {
-    title: "Tests",
-    accelerator: "·",
-    state: "idle",
-    body: ["queued checks", "pnpm test", "typecheck"],
-    footerLeft: "idle",
-    footerRight: "queue",
-  },
-  {
-    title: "Review",
-    accelerator: "·",
-    state: "idle",
-    body: ["PR notes", "browser smoke", "no trailers"],
-    footerLeft: "planned",
-    footerRight: "guards",
-  },
-];
 
 const planSteps = [
   { state: "watch", label: "Map repo boundaries", tag: "done" },
@@ -94,26 +37,18 @@ const planSteps = [
 export function App() {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("default");
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>("A");
+  const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>(() => createInitialSessions(""));
+
+  const handleAddManualSession = () => {
+    setTerminalSessions((sessions) => addManualSession(sessions, ""));
+  };
+
+  const handleCloseSession = (sessionId: string) => {
+    setTerminalSessions((sessions) => closeSession(sessions, sessionId));
+  };
 
   return (
     <main className="agent-space-shell">
-      <header className="intro-bar">
-        <div>
-          <p className="eyebrow">Desktop shell foundation</p>
-          <h1>Instrument Glass cockpit</h1>
-          <p className="intro-copy">
-            Static first slice for Alfred Agent Space: glass control layers, matte terminals, a visible
-            manual path, and no fake runtime behavior.
-          </p>
-        </div>
-        <div className="rules" aria-label="design constraints">
-          <span>glass controls</span>
-          <span>matte terminals</span>
-          <span>44px targets</span>
-          <span>manual first</span>
-        </div>
-      </header>
-
       <section className="desktop-frame" aria-label="Alfred Agent Space desktop shell">
         <div className="window-chrome">
           <div className="traffic" aria-hidden="true">
@@ -161,13 +96,22 @@ export function App() {
             >
               <Maximize2 size={17} />
             </button>
+            <button
+              className="new-terminal-button"
+              type="button"
+              aria-label="New manual terminal"
+              onClick={handleAddManualSession}
+              title="New manual terminal"
+            >
+              <Plus size={17} />
+            </button>
           </div>
         </div>
 
         <div className={`workspace-layout ${layoutMode}`}>
           <WorkspaceRail activeWorkspace={activeWorkspace} onSelectWorkspace={setActiveWorkspace} />
           <AlfredRail />
-          <TerminalGrid />
+          <TerminalGrid sessions={terminalSessions} onCloseSession={handleCloseSession} />
           <BrowserPane />
         </div>
 
@@ -258,61 +202,83 @@ function AlfredRail() {
   );
 }
 
-function TerminalGrid() {
+function TerminalGrid({
+  sessions,
+  onCloseSession,
+}: {
+  sessions: SessionTile[];
+  onCloseSession: (sessionId: string) => void;
+}) {
   return (
     <section className="terminal-grid" aria-label="terminal grid">
-      {terminalTiles.map((tile) => (
-        <TerminalTileView key={tile.title} tile={tile} />
+      {sessions.map((session) => (
+        <ManualTerminalTile
+          cwd={session.cwd}
+          key={session.id}
+          sessionKey={session.id}
+          title={session.title}
+          onClose={() => onCloseSession(session.id)}
+        />
       ))}
+      <StagedTerminalTile title="Codex agents" detail="Planner runtime not connected" />
+      <StagedTerminalTile title="Claude reviewer" detail="Planner runtime not connected" />
+      <StagedTerminalTile title="Dev server" detail="Launch manually for now" />
     </section>
   );
 }
 
-function TerminalTileView({ tile }: { tile: TerminalTile }) {
-  if (tile.state === "manual") {
-    return <ManualTerminalTile tile={tile} />;
-  }
-
+function StagedTerminalTile({ title, detail }: { title: string; detail: string }) {
   return (
-    <article className={`terminal-tile ${tile.state}`}>
+    <article className="terminal-tile staged">
       <header className="tile-header">
         <div className="tile-title">
           <span className="tool-dot" />
-          <b>{tile.title}</b>
+          <b>{title}</b>
         </div>
-        <span>{tile.accelerator}</span>
+        <span>offline</span>
       </header>
       <div className="terminal-body">
-        {tile.body.map((line, index) => (
-          <p key={line} className={index === 0 ? "strong-line" : undefined}>
-            {line}
-            {tile.state === "active" && index === tile.body.length - 1 ? <span className="cursor" /> : null}
-          </p>
-        ))}
+        <p className="strong-line">Not launched</p>
+        <p>{detail}</p>
       </div>
       <footer className="tile-footer">
-        <span>{tile.footerLeft}</span>
-        <span>{tile.footerRight}</span>
+        <span>staged</span>
+        <span>manual only</span>
       </footer>
     </article>
   );
 }
 
-function ManualTerminalTile({ tile }: { tile: TerminalTile }) {
+function ManualTerminalTile({
+  cwd,
+  onClose,
+  sessionKey,
+  title,
+}: {
+  cwd: string;
+  onClose: () => void;
+  sessionKey: string;
+  title: string;
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const sessionIdRef = useRef<TerminalSessionId | null>(null);
   const [status, setStatus] = useState<"connecting" | "ready" | "browser" | "exited" | "error">("connecting");
-  const [cwd, setCwd] = useState<string>(tile.body[0] ?? "");
+  const [resolvedCwd, setResolvedCwd] = useState<string>(cwd);
 
   useEffect(() => {
     const container = containerRef.current;
     const terminalApi = getDesktopTerminalApi();
+    let disposed = false;
 
     if (!container) {
       return;
     }
+
+    sessionIdRef.current = null;
+    setResolvedCwd(cwd);
+    setStatus("connecting");
 
     const terminal = new Terminal({
       allowProposedApi: false,
@@ -394,14 +360,23 @@ function ManualTerminalTile({ tile }: { tile: TerminalTile }) {
     resizeObserver.observe(container);
 
     terminalApi
-      .create({ cols: terminal.cols, rows: terminal.rows })
+      .create(cwd ? { cols: terminal.cols, cwd, rows: terminal.rows } : { cols: terminal.cols, rows: terminal.rows })
       .then((session) => {
+        if (disposed) {
+          terminalApi.kill({ id: session.id });
+          return;
+        }
+
         sessionIdRef.current = session.id;
-        setCwd(session.cwd);
+        setResolvedCwd(session.cwd);
         setStatus("ready");
         fitAndResize();
       })
       .catch((error: unknown) => {
+        if (disposed) {
+          return;
+        }
+
         setStatus("error");
         terminal.writeln("Failed to start manual terminal.");
         terminal.writeln(error instanceof Error ? error.message : String(error));
@@ -410,6 +385,7 @@ function ManualTerminalTile({ tile }: { tile: TerminalTile }) {
     return () => {
       const sessionId = sessionIdRef.current;
 
+      disposed = true;
       resizeObserver.disconnect();
       inputDisposable.dispose();
       removeDataListener();
@@ -421,21 +397,26 @@ function ManualTerminalTile({ tile }: { tile: TerminalTile }) {
 
       terminal.dispose();
     };
-  }, [tile.body]);
+  }, [cwd, sessionKey]);
 
   return (
     <article className={`terminal-tile manual real-terminal ${status}`}>
       <header className="tile-header">
         <div className="tile-title">
           <span className="tool-dot" />
-          <b>{tile.title}</b>
+          <b>{title}</b>
         </div>
-        <span>{statusLabel(status)}</span>
+        <div className="tile-actions">
+          <span className="tile-status">{statusLabel(status)}</span>
+          <button type="button" aria-label={`Close ${title}`} onClick={onClose} title="Close terminal">
+            <X size={14} />
+          </button>
+        </div>
       </header>
       <div className="xterm-host" ref={containerRef} />
       <footer className="tile-footer">
         <span>{status === "ready" ? "live pty" : statusLabel(status)}</span>
-        <span>{shortenPath(cwd)}</span>
+        <span>{resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd"}</span>
       </footer>
     </article>
   );

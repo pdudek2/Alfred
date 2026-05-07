@@ -10,6 +10,7 @@
     "dev:electron": "tsc -p tsconfig.main.json && node scripts/dev-electron.mjs",
     "lint": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit",
     "start": "electron .",
+    "test": "vitest run src/renderer/session-state.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit"
   },
   "dependencies": {
@@ -27,6 +28,7 @@
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "electron": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "latest"
   }
 }

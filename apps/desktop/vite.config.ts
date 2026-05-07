@@ -4,6 +4,7 @@ import { defineConfig } from "vite";
 const desktopPort = readPort(process.env.DESKTOP_PORT, 4310);
 
 export default defineConfig({
+  base: "./",
   plugins: [react()],
   build: {
     outDir: "dist/renderer",
