@@ -1,4 +1,4 @@
-import type { AgentKind } from "../shared/alfred-ipc";
+import type { AgentKind, AlfredPlanSession } from "../shared/alfred-ipc";
 
 export type SessionTile = {
   id: string;
@@ -13,6 +13,7 @@ export type SessionTile = {
 };
 
 const MANUAL_SESSION_PREFIX = "manual-";
+const ALFRED_SESSION_PREFIX = "alfred-";
 
 export function createInitialSessions(cwd: string): SessionTile[] {
   return [createManualSession(1, cwd)];
@@ -46,6 +47,61 @@ function nextManualSessionIndex(sessions: SessionTile[]): number {
     const index = Number.parseInt(session.id.slice(MANUAL_SESSION_PREFIX.length), 10);
     return Number.isInteger(index) ? index : 0;
   });
+
+  return Math.max(0, ...usedIndexes) + 1;
+}
+
+export function addStagedSessions(
+  sessions: SessionTile[],
+  planSessions: AlfredPlanSession[],
+  defaultCwd: string,
+): SessionTile[] {
+  let nextIndex = nextAlfredSessionIndex(sessions);
+  const staged: SessionTile[] = planSessions.map((session) => {
+    const tile: SessionTile = {
+      id: `${ALFRED_SESSION_PREFIX}${nextIndex}`,
+      title: session.title,
+      cwd: session.cwd ?? defaultCwd,
+      source: "alfred",
+      stage: "staged",
+      command: session.command,
+      args: session.args,
+      agentKind: session.kind,
+      ...(session.safetyNote === undefined ? {} : { safetyNote: session.safetyNote }),
+    };
+    nextIndex += 1;
+    return tile;
+  });
+  return [...sessions, ...staged];
+}
+
+export function approveStaged(sessions: SessionTile[], tileId: string): SessionTile[] {
+  return sessions.map((session) =>
+    session.id === tileId && session.stage === "staged" ? { ...session, stage: "live" } : session,
+  );
+}
+
+export function rejectStaged(sessions: SessionTile[], tileId: string): SessionTile[] {
+  return sessions.filter((session) => !(session.id === tileId && session.stage === "staged"));
+}
+
+export function approveAllStaged(sessions: SessionTile[]): SessionTile[] {
+  return sessions.map((session) =>
+    session.stage === "staged" ? { ...session, stage: "live" } : session,
+  );
+}
+
+export function rejectAllStaged(sessions: SessionTile[]): SessionTile[] {
+  return sessions.filter((session) => session.stage !== "staged");
+}
+
+function nextAlfredSessionIndex(sessions: SessionTile[]): number {
+  const usedIndexes = sessions
+    .filter((session) => session.id.startsWith(ALFRED_SESSION_PREFIX))
+    .map((session) => {
+      const index = Number.parseInt(session.id.slice(ALFRED_SESSION_PREFIX.length), 10);
+      return Number.isInteger(index) ? index : 0;
+    });
 
   return Math.max(0, ...usedIndexes) + 1;
 }
