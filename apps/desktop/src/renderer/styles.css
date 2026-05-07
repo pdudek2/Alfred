@@ -67,7 +67,6 @@ button:focus-visible {
   background:
     linear-gradient(180deg, rgba(245, 240, 228, 0.035), transparent 120px),
     rgba(5, 6, 6, 0.88);
-  backdrop-filter: blur(18px) saturate(1.08);
   display: grid;
   grid-template-rows: 46px minmax(0, 1fr);
 }
@@ -206,9 +205,7 @@ button:focus-visible {
   border-color: rgba(86, 200, 213, 0.46);
   background:
     linear-gradient(180deg, rgba(86, 200, 213, 0.15), rgba(86, 200, 213, 0.07));
-  box-shadow:
-    inset 2px 0 0 rgba(86, 200, 213, 0.72),
-    0 0 22px rgba(86, 200, 213, 0.08);
+  box-shadow: inset 2px 0 0 rgba(86, 200, 213, 0.72);
   color: #cff3f6;
 }
 
@@ -302,9 +299,7 @@ button:focus-visible {
   background:
     linear-gradient(180deg, rgba(245, 240, 228, 0.028), transparent 72px),
     var(--terminal);
-  box-shadow:
-    inset 0 1px 0 rgba(245, 240, 228, 0.045),
-    0 18px 34px rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 1px 0 rgba(245, 240, 228, 0.045);
   display: grid;
   grid-template-rows: 42px 1fr;
 }
@@ -315,9 +310,6 @@ button:focus-visible {
 
 .terminal-tile.real-terminal.ready {
   border-color: rgba(245, 240, 228, 0.16);
-  box-shadow:
-    inset 0 1px 0 rgba(245, 240, 228, 0.045),
-    0 18px 36px rgba(0, 0, 0, 0.2);
 }
 
 .terminal-tile.real-terminal.error,
