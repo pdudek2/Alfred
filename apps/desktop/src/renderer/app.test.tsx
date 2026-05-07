@@ -106,6 +106,18 @@ afterEach(() => {
 });
 
 describe("App integration", () => {
+  it("keeps planned workspace rail items non-interactive until they are real", async () => {
+    installDesktopBridge();
+
+    render(<App />);
+
+    expect(screen.getByRole("button", { name: "Alfred workspace" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "UI workspace planned" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "API workspace planned" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Docs workspace planned" })).toBeDisabled();
+    expect(screen.getByText("Alfred workspace")).toBeInTheDocument();
+  });
+
   it("turns the first Alfred prompt into staged tiles", async () => {
     const user = userEvent.setup();
     const { requestPlan, setStagedPlan } = installDesktopBridge();

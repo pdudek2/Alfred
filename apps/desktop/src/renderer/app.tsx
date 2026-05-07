@@ -42,7 +42,6 @@ const workspaceLabels: Record<WorkspaceId, string> = {
 };
 
 export function App() {
-  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>("A");
   const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>([]);
   const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
   const [pendingPlan, setPendingPlan] = useState<SquadPlan | null>(null);
@@ -242,7 +241,7 @@ export function App() {
           <div className="mission-name">
             <div className="alfred-mark">A</div>
             <div>
-              <strong>{workspaceLabels[activeWorkspace]} workspace</strong>
+              <strong>{workspaceLabels.A} workspace</strong>
               <span>manual mode · local runtime</span>
             </div>
           </div>
@@ -261,7 +260,7 @@ export function App() {
         </div>
 
         <div className="workspace-layout">
-          <WorkspaceRail activeWorkspace={activeWorkspace} onSelectWorkspace={setActiveWorkspace} />
+          <WorkspaceRail />
           <TerminalGrid
             sessions={terminalSessions}
             shortcutModifier={shortcutModifier}
@@ -340,29 +339,27 @@ function toSquadPlan({
   };
 }
 
-function WorkspaceRail({
-  activeWorkspace,
-  onSelectWorkspace,
-}: {
-  activeWorkspace: WorkspaceId;
-  onSelectWorkspace: (workspace: WorkspaceId) => void;
-}) {
+function WorkspaceRail() {
   const workspaces: WorkspaceId[] = ["A", "UI", "API", "DOC"];
 
   return (
     <nav className="workspace-rail" aria-label="workspaces">
-      {workspaces.map((workspace) => (
-        <button
-          className={`workspace-button ${activeWorkspace === workspace ? "active" : ""}`}
-          type="button"
-          aria-label={`${workspaceLabels[workspace]} workspace`}
-          aria-pressed={activeWorkspace === workspace}
-          key={workspace}
-          onClick={() => onSelectWorkspace(workspace)}
-        >
-          {workspace}
-        </button>
-      ))}
+      {workspaces.map((workspace) => {
+        const active = workspace === "A";
+        return (
+          <button
+            className={`workspace-button ${active ? "active" : ""}`}
+            type="button"
+            aria-label={active ? `${workspaceLabels[workspace]} workspace` : `${workspaceLabels[workspace]} workspace planned`}
+            aria-pressed={active}
+            disabled={!active}
+            key={workspace}
+            title={active ? workspaceLabels[workspace] : `${workspaceLabels[workspace]} workspace is planned`}
+          >
+            {workspace}
+          </button>
+        );
+      })}
       <div className="workspace-spacer" />
       <button className="workspace-button" type="button" aria-label="Add workspace" disabled>
         +
