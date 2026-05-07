@@ -19,6 +19,7 @@ describe("ComposerBar", () => {
         blockedReason="Resolve the current Alfred plan before asking for another."
         thinking={false}
         value="prepare tests"
+        workspaceName="Alfred"
         onChange={onChange}
         onSubmit={onSubmit}
       />,
@@ -50,6 +51,7 @@ describe("ComposerBar", () => {
         blockedReason={undefined}
         thinking={false}
         value="prepare dev servers"
+        workspaceName="Alfred"
         onChange={vi.fn()}
         onSubmit={onSubmit}
       />,

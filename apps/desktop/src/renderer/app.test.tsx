@@ -160,7 +160,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
   });
 
-  it("enables arrange mode with layout presets and tile movement controls", async () => {
+  it("enables arrange mode with layout presets without per-tile debug controls", async () => {
     const user = userEvent.setup();
     const { setWorkspaceLayout } = installDesktopBridge();
 
@@ -169,19 +169,19 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Arrange" }));
 
-    expect(screen.getByRole("button", { name: "Focus" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Grid" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Move right" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Full" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tiled" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Move right" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Widen" })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Move right" }));
-    await user.click(screen.getByRole("button", { name: "Widen" }));
+    await user.click(screen.getByRole("button", { name: "Full" }));
 
     const tile = screen.getByRole("article", { name: /Manual · zsh 1/i });
-    expect(tile).toHaveStyle({ gridColumn: "2 / span 7" });
+    expect(tile).toHaveStyle({ gridColumn: "1 / span 12" });
     expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
       workspaceId: "A",
       layouts: expect.objectContaining({
-        "manual-1": expect.objectContaining({ col: 2, colSpan: 7 }),
+        "manual-1": expect.objectContaining({ col: 1, colSpan: 12 }),
       }),
     });
   });
@@ -224,7 +224,7 @@ describe("App integration", () => {
 
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
     await user.click(screen.getByRole("button", { name: "Arrange" }));
-    await user.click(screen.getByRole("button", { name: "Grid" }));
+    await user.click(screen.getByRole("button", { name: "Tiled" }));
 
     const grid = screen.getByLabelText("terminals").querySelector(".terminal-grid");
     expect(grid).toHaveClass("arranging");
@@ -418,7 +418,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
     await screen.findByRole("article", { name: /Staged Task A/i });
 
-    await user.click(screen.getByRole("button", { name: "Approve Task A" }));
+    await user.click(screen.getByRole("button", { name: "Launch Task A" }));
 
     await waitFor(() => {
       expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
