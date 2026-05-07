@@ -13,6 +13,7 @@ import {
   type TileLayout,
 } from "./layout-state";
 import { StagedTilePreview } from "./staged-tile";
+import { TileKindIcon } from "./tile-kind-icon";
 import {
   canRequestPlan,
   errored,
@@ -1117,7 +1118,7 @@ function ManualTerminalTile({
 
   return (
     <article
-      className={`terminal-tile manual real-terminal ${status} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${status} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
       aria-label={title}
       style={gridStyle(layout, preview)}
     >
@@ -1127,7 +1128,10 @@ function ManualTerminalTile({
       >
         <div className="tile-title">
           <span className={`tool-dot ${kindMeta.className}`} />
-          <span className={`tile-kind-mark ${kindMeta.className}`}>{kindMeta.shortLabel}</span>
+          <span className={`tile-kind-mark ${kindMeta.className}`} title={kindMeta.label}>
+            <TileKindIcon kind={kind} />
+            <span>{kindMeta.shortLabel}</span>
+          </span>
           <div>
             <b>{title}</b>
             <small>{kindMeta.label} · {resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd"}</small>

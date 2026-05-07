@@ -3,6 +3,7 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { TileLayout } from "./layout-state";
 import type { SessionTile } from "./session-state";
 import { sessionTileKind, tileKindMeta } from "./tile-kind";
+import { TileKindIcon } from "./tile-kind-icon";
 
 type ArrangePreview = {
   mode: "move" | "resize";
@@ -38,7 +39,8 @@ export function StagedTilePreview({
   const command = tile.command ?? "";
   const args = tile.args ?? [];
   const fullCommand = [command, ...args].join(" ").trim();
-  const kindMeta = tileKindMeta(sessionTileKind(tile));
+  const kind = sessionTileKind(tile);
+  const kindMeta = tileKindMeta(kind);
   const unsafe = Boolean(tile.safetyNote);
   const approveLabel = unsafe ? (armed ? "Confirm" : "Review") : "Launch";
   const approveAriaLabel = unsafe
@@ -49,7 +51,7 @@ export function StagedTilePreview({
 
   return (
     <article
-      className={`terminal-tile staged ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      className={`terminal-tile staged kind-${kindMeta.className} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
       aria-label={`Staged ${tile.title}`}
       style={gridStyle(layout, preview)}
     >
@@ -59,7 +61,10 @@ export function StagedTilePreview({
       >
         <div className="tile-title">
           <span className={`tool-dot ${kindMeta.className}`} />
-          <span className={`tile-kind-mark ${kindMeta.className}`}>{kindMeta.shortLabel}</span>
+          <span className={`tile-kind-mark ${kindMeta.className}`} title={kindMeta.label}>
+            <TileKindIcon kind={kind} />
+            <span>{kindMeta.shortLabel}</span>
+          </span>
           <div>
             <b>{tile.title}</b>
             <small>{kindMeta.label} · {tile.cwd ? shortenPath(tile.cwd) : "default cwd"}</small>
