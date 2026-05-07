@@ -292,6 +292,19 @@ button:focus-visible {
   gap: 6px;
 }
 
+.arrange-hint {
+  min-height: 26px;
+  border: 1px solid rgba(86, 200, 213, 0.14);
+  border-radius: 6px;
+  padding: 0 9px;
+  background: rgba(86, 200, 213, 0.035);
+  color: #9fdde3;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
 .layout-controls button {
   min-height: 26px;
   border: 1px solid rgba(245, 240, 228, 0.14);
@@ -334,12 +347,12 @@ button:focus-visible {
 
 .terminal-grid.arranging {
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-auto-rows: 72px;
+  grid-auto-rows: 84px;
   background:
     linear-gradient(rgba(86, 200, 213, 0.055) 1px, transparent 1px),
     linear-gradient(90deg, rgba(86, 200, 213, 0.055) 1px, transparent 1px),
     rgba(3, 4, 4, 0.5);
-  background-size: calc((100% - 88px) / 12) 72px, calc((100% - 88px) / 12) 72px, auto;
+  background-size: calc((100% - 88px) / 12) 84px, calc((100% - 88px) / 12) 84px, auto;
 }
 
 .terminal-tile {
@@ -359,6 +372,40 @@ button:focus-visible {
 
 .terminal-tile.arranging {
   grid-template-rows: 42px auto 1fr;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    opacity 140ms ease;
+  will-change: transform;
+}
+
+.terminal-tile.arranging.is-dragging {
+  opacity: 0.88;
+  border-color: rgba(86, 200, 213, 0.62);
+  box-shadow:
+    0 18px 46px rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(86, 200, 213, 0.2),
+    inset 0 1px 0 rgba(245, 240, 228, 0.06);
+  pointer-events: none;
+}
+
+.terminal-tile.arranging.is-resizing {
+  border-color: rgba(217, 174, 70, 0.56);
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(217, 174, 70, 0.18),
+    inset 0 1px 0 rgba(245, 240, 228, 0.06);
+}
+
+.terminal-tile.arranging.is-resizing::after {
+  content: "";
+  position: absolute;
+  inset: 0 calc(-1 * max(var(--arrange-x, 0px), 0px)) calc(-1 * max(var(--arrange-y, 0px), 0px)) 0;
+  border: 1px dashed rgba(217, 174, 70, 0.5);
+  border-radius: 8px;
+  background: rgba(217, 174, 70, 0.045);
+  pointer-events: none;
+  z-index: 4;
 }
 
 .arrange-controls {
@@ -385,6 +432,7 @@ button:focus-visible {
 .tile-header.drag-handle {
   cursor: grab;
   user-select: none;
+  touch-action: none;
 }
 
 .tile-header.drag-handle:active {
@@ -393,15 +441,31 @@ button:focus-visible {
 
 .tile-resize-handle {
   position: absolute;
-  right: 7px;
-  bottom: 7px;
-  width: 18px;
-  height: 18px;
-  border: 1px solid rgba(86, 200, 213, 0.32);
-  border-radius: 5px;
+  right: 8px;
+  bottom: 8px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(86, 200, 213, 0.42);
+  border-radius: 8px;
   background:
-    linear-gradient(135deg, transparent 0 42%, rgba(86, 200, 213, 0.5) 42% 48%, transparent 48% 62%, rgba(86, 200, 213, 0.5) 62% 68%, transparent 68%);
+    linear-gradient(135deg, transparent 0 42%, rgba(86, 200, 213, 0.58) 42% 48%, transparent 48% 62%, rgba(86, 200, 213, 0.58) 62% 68%, transparent 68%),
+    rgba(3, 4, 4, 0.82);
+  box-shadow: 0 0 0 1px rgba(3, 4, 4, 0.7), 0 8px 20px rgba(0, 0, 0, 0.28);
   cursor: nwse-resize;
+  touch-action: none;
+  z-index: 5;
+}
+
+.tile-resize-handle:hover {
+  border-color: rgba(86, 200, 213, 0.72);
+  background:
+    linear-gradient(135deg, transparent 0 42%, rgba(86, 200, 213, 0.78) 42% 48%, transparent 48% 62%, rgba(86, 200, 213, 0.78) 62% 68%, transparent 68%),
+    rgba(12, 22, 23, 0.96);
+}
+
+body.arranging-pointer {
+  cursor: grabbing;
+  user-select: none;
 }
 
 .terminal-tile.real-terminal {

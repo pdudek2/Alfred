@@ -3,10 +3,19 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { TileLayout } from "./layout-state";
 import type { SessionTile } from "./session-state";
 
+type ArrangePreview = {
+  mode: "move" | "resize";
+  offsetX: number;
+  offsetY: number;
+  deltaCol: number;
+  deltaRow: number;
+};
+
 type StagedTilePreviewProps = {
   arrangeMode: boolean;
   armed: boolean;
   layout?: TileLayout | undefined;
+  preview?: ArrangePreview | undefined;
   tile: SessionTile;
   onApprove: (tileId: string) => void;
   onMove: (deltaCol: number, deltaRow: number) => void;
@@ -20,6 +29,7 @@ export function StagedTilePreview({
   arrangeMode,
   armed,
   layout,
+  preview,
   tile,
   onApprove,
   onMove,
@@ -41,7 +51,11 @@ export function StagedTilePreview({
     : `Approve ${tile.title}`;
 
   return (
-    <article className={`terminal-tile staged ${arrangeMode ? "arranging" : ""}`} aria-label={`Staged ${tile.title}`} style={gridStyle(layout)}>
+    <article
+      className={`terminal-tile staged ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      aria-label={`Staged ${tile.title}`}
+      style={gridStyle(layout, preview)}
+    >
       <header
         className={`tile-header ${arrangeMode ? "drag-handle" : ""}`}
         onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
@@ -121,12 +135,26 @@ function ArrangeControls({
   );
 }
 
-function gridStyle(layout: TileLayout | undefined): CSSProperties | undefined {
+function gridStyle(layout: TileLayout | undefined, preview?: ArrangePreview | undefined): CSSProperties | undefined {
   if (!layout) return undefined;
-  return {
+  const style: CSSProperties & Record<string, string | number> = {
     gridColumn: `${layout.col} / span ${layout.colSpan}`,
     gridRow: `${layout.row} / span ${layout.rowSpan}`,
   };
+
+  if (preview) {
+    style["--arrange-x"] = `${preview.offsetX}px`;
+    style["--arrange-y"] = `${preview.offsetY}px`;
+    style["--arrange-cols"] = String(preview.deltaCol);
+    style["--arrange-rows"] = String(preview.deltaRow);
+  }
+
+  if (preview?.mode === "move") {
+    style.transform = `translate3d(${preview.offsetX}px, ${preview.offsetY}px, 0)`;
+    style.zIndex = 6;
+  }
+
+  return style;
 }
 
 function shortenPath(value: string): string {
