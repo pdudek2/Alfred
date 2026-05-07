@@ -154,15 +154,19 @@ function TerminalGrid({
         <kbd>{shortcutModifier} T</kbd>
       </header>
       <div className="terminal-grid">
-        {sessions.map((session) => (
-          <ManualTerminalTile
-            cwd={session.cwd}
-            key={session.id}
-            sessionKey={session.id}
-            title={session.title}
-            onClose={() => onCloseSession(session.id)}
-          />
-        ))}
+        {sessions.map((session) =>
+          session.stage === "live" ? (
+            <ManualTerminalTile
+              cwd={session.cwd}
+              key={session.id}
+              sessionKey={session.id}
+              title={session.title}
+              command={session.command}
+              args={session.args}
+              onClose={() => onCloseSession(session.id)}
+            />
+          ) : null,
+        )}
       </div>
     </section>
   );
@@ -173,11 +177,15 @@ function ManualTerminalTile({
   onClose,
   sessionKey,
   title,
+  command,
+  args,
 }: {
   cwd: string;
   onClose: () => void;
   sessionKey: string;
   title: string;
+  command?: string | undefined;
+  args?: string[] | undefined;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -278,8 +286,17 @@ function ManualTerminalTile({
 
     resizeObserver.observe(container);
 
+    const baseRequest: { cols: number; rows: number; cwd?: string; command?: string; args?: string[] } = {
+      cols: terminal.cols,
+      rows: terminal.rows,
+    };
+    if (cwd) baseRequest.cwd = cwd;
+    if (command) {
+      baseRequest.command = command;
+      baseRequest.args = args ?? [];
+    }
     terminalApi
-      .create(cwd ? { cols: terminal.cols, cwd, rows: terminal.rows } : { cols: terminal.cols, rows: terminal.rows })
+      .create(baseRequest)
       .then((session) => {
         if (disposed) {
           terminalApi.kill({ id: session.id });
@@ -317,7 +334,7 @@ function ManualTerminalTile({
 
       terminal.dispose();
     };
-  }, [cwd, sessionKey]);
+  }, [cwd, sessionKey, command, args]);
 
   return (
     <article className={`terminal-tile manual real-terminal ${status}`}>
