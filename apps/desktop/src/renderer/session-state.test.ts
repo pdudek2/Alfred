@@ -8,7 +8,8 @@ describe("desktop session state", () => {
     expect(sessions).toEqual([
       {
         id: "manual-1",
-        kind: "manual",
+        source: "manual",
+        stage: "live",
         title: "Manual · zsh 1",
         cwd: "/Users/patryk/Desktop/Alfred",
       },
@@ -22,7 +23,8 @@ describe("desktop session state", () => {
     expect(next).toHaveLength(2);
     expect(next[1]).toEqual({
       id: "manual-2",
-      kind: "manual",
+      source: "manual",
+      stage: "live",
       title: "Manual · zsh 2",
       cwd: "/Users/patryk/Desktop/Alfred",
     });

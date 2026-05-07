@@ -1,11 +1,16 @@
-export type ManualSessionTile = {
+import type { AgentKind } from "../shared/alfred-ipc";
+
+export type SessionTile = {
   id: string;
-  kind: "manual";
   title: string;
   cwd: string;
+  source: "manual" | "alfred";
+  stage: "staged" | "live";
+  command?: string;
+  args?: string[];
+  agentKind?: AgentKind;
+  safetyNote?: string;
 };
-
-export type SessionTile = ManualSessionTile;
 
 const MANUAL_SESSION_PREFIX = "manual-";
 
@@ -22,12 +27,13 @@ export function closeSession(sessions: SessionTile[], sessionId: string): Sessio
   return sessions.filter((session) => session.id !== sessionId);
 }
 
-function createManualSession(index: number, cwd: string): ManualSessionTile {
+function createManualSession(index: number, cwd: string): SessionTile {
   return {
     id: `${MANUAL_SESSION_PREFIX}${index}`,
-    kind: "manual",
     title: `Manual · zsh ${index}`,
     cwd,
+    source: "manual",
+    stage: "live",
   };
 }
 
