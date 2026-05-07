@@ -28,7 +28,7 @@ import {
   rejectStaged,
   type SessionTile,
 } from "./session-state";
-import type { AlfredStagedPlanSnapshot, AlfredStagedSession } from "../shared/alfred-ipc";
+import type { AlfredRuntimeStatus, AlfredStagedPlanSnapshot, AlfredStagedSession } from "../shared/alfred-ipc";
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../shared/terminal-ipc";
 import "@xterm/xterm/css/xterm.css";
 
@@ -47,13 +47,18 @@ export function App() {
   const [pendingPlan, setPendingPlan] = useState<SquadPlan | null>(null);
   const [composerValue, setComposerValue] = useState<string>("");
   const [armedUnsafeSessionIds, setArmedUnsafeSessionIds] = useState<Set<string>>(() => new Set());
+  const [runtimeStatus, setRuntimeStatus] = useState<AlfredRuntimeStatus | null>(null);
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
   const stagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
   const unsafeStagedCount = terminalSessions.filter((s) => s.stage === "staged" && s.safetyNote).length;
   const liveAlfredCount = terminalSessions.filter((s) => s.stage === "live" && s.source === "alfred").length;
   const composerBlockedReason =
-    stagedCount > 0 ? "Resolve the current Alfred plan before asking for another." : undefined;
+    stagedCount > 0
+      ? "Resolve the current Alfred plan before asking for another."
+      : runtimeStatus && !runtimeStatus.openRouterConfigured
+        ? "Set OPENROUTER_API_KEY in repo .env to use Alfred."
+        : undefined;
 
   const handleAddManualSession = useCallback(() => {
     setTerminalSessions((sessions) => addManualSession(sessions, ""));
@@ -222,9 +227,11 @@ export function App() {
     Promise.all([
       terminalApi.list(),
       alfredApi?.getStagedPlan().catch(() => ({ plan: null })) ?? Promise.resolve({ plan: null }),
+      alfredApi?.getRuntimeStatus().catch(() => null) ?? Promise.resolve(null),
     ])
-      .then(([terminalResult, stagedPlanResult]) => {
+      .then(([terminalResult, stagedPlanResult, runtimeStatusResult]) => {
         if (cancelled) return;
+        setRuntimeStatus(runtimeStatusResult);
         const liveSessions =
           terminalResult.sessions.length > 0
             ? hydrateLiveTerminalSessions(terminalResult.sessions)

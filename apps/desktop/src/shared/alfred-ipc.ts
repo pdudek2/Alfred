@@ -58,8 +58,14 @@ export type AlfredStagedPlanSnapshotResponse = {
   plan: AlfredStagedPlanSnapshot | null;
 };
 
+export type AlfredRuntimeStatus = {
+  model: string;
+  openRouterConfigured: boolean;
+};
+
 export type AlfredApi = {
   requestPlan(request: AlfredPlanRequest): Promise<AlfredPlanResponse>;
+  getRuntimeStatus(): Promise<AlfredRuntimeStatus>;
   getStagedPlan(): Promise<AlfredStagedPlanSnapshotResponse>;
   setStagedPlan(request: AlfredStagedPlanSetRequest): Promise<AlfredStagedPlanSnapshotResponse>;
   resolveStagedPlan(request: AlfredStagedPlanResolveRequest): Promise<AlfredStagedPlanSnapshotResponse>;
@@ -72,4 +78,5 @@ export const alfredChannels = {
   planRequest: "alfred:plan:request",
   planResolve: "alfred:plan:resolve",
   planSet: "alfred:plan:set",
+  runtimeStatus: "alfred:runtime:status",
 } as const;

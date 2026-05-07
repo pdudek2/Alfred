@@ -19,6 +19,7 @@ const alfredChannels = {
   planRequest: "alfred:plan:request",
   planResolve: "alfred:plan:resolve",
   planSet: "alfred:plan:set",
+  runtimeStatus: "alfred:runtime:status",
 } as const;
 
 const terminal: TerminalApi = {
@@ -58,6 +59,8 @@ const terminal: TerminalApi = {
 const alfred: AlfredApi = {
   requestPlan: (request) =>
     ipcRenderer.invoke(alfredChannels.planRequest, request) as ReturnType<AlfredApi["requestPlan"]>,
+  getRuntimeStatus: () =>
+    ipcRenderer.invoke(alfredChannels.runtimeStatus) as ReturnType<AlfredApi["getRuntimeStatus"]>,
   getStagedPlan: () => ipcRenderer.invoke(alfredChannels.planGet) as ReturnType<AlfredApi["getStagedPlan"]>,
   setStagedPlan: (request) =>
     ipcRenderer.invoke(alfredChannels.planSet, request) as ReturnType<AlfredApi["setStagedPlan"]>,
