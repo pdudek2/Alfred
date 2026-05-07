@@ -38,6 +38,7 @@ type TerminalSession = {
   pty: PtyProcess;
   // PTY lifetime is app-scoped; BrowserWindows may close and reattach later.
   window?: BrowserWindow;
+  ownerWindowId: number;
 };
 
 const sessions = new Map<TerminalSessionId, TerminalSession>();
@@ -49,14 +50,18 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
   ipcMain.handle(terminalChannels.list, (event): TerminalListResult => {
     const window = BrowserWindow.fromWebContents(event.sender);
 
-    if (window) {
-      for (const session of sessions.values()) {
-        attachSessionWindow(session, window);
-      }
+    if (!window) {
+      return { sessions: [] };
+    }
+
+    const visibleSessions = [...sessions.values()].filter((session) => canAttachToWindow(session, window));
+
+    for (const session of visibleSessions) {
+      attachSessionWindow(session, window);
     }
 
     return {
-      sessions: [...sessions.values()].map(toSnapshot),
+      sessions: visibleSessions.map(toSnapshot),
     };
   });
 
@@ -85,7 +90,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           COLORTERM: "truecolor",
         },
       });
-      const session: TerminalSession = { ...metadata, buffer: "", pty, window };
+      const session: TerminalSession = { ...metadata, buffer: "", ownerWindowId: window.id, pty, window };
 
       sessions.set(id, session);
 
@@ -104,18 +109,20 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     },
   );
 
-  ipcMain.on(terminalChannels.write, (_event, request: TerminalWriteRequest) => {
-    sessions.get(request.id)?.pty.write(request.data);
+  ipcMain.on(terminalChannels.write, (event, request: TerminalWriteRequest) => {
+    const session = getOwnedSession(event.sender, request.id);
+    session?.pty.write(request.data);
   });
 
-  ipcMain.on(terminalChannels.resize, (_event, request: TerminalResizeRequest) => {
-    sessions
-      .get(request.id)
-      ?.pty.resize(normalizeDimension(request.cols, 80), normalizeDimension(request.rows, 24));
+  ipcMain.on(terminalChannels.resize, (event, request: TerminalResizeRequest) => {
+    const session = getOwnedSession(event.sender, request.id);
+    session?.pty.resize(normalizeDimension(request.cols, 80), normalizeDimension(request.rows, 24));
   });
 
-  ipcMain.on(terminalChannels.kill, (_event, request: TerminalKillRequest) => {
-    killSession(request.id);
+  ipcMain.on(terminalChannels.kill, (event, request: TerminalKillRequest) => {
+    if (getOwnedSession(event.sender, request.id)) {
+      killSession(request.id);
+    }
   });
 }
 
@@ -180,7 +187,28 @@ function appendToBuffer(session: TerminalSession, data: string): void {
 function attachSessionWindow(session: TerminalSession, window: BrowserWindow): void {
   if (!window.isDestroyed()) {
     session.window = window;
+    session.ownerWindowId = window.id;
   }
+}
+
+function getOwnedSession(sender: Electron.WebContents, sessionId: TerminalSessionId): TerminalSession | undefined {
+  const window = BrowserWindow.fromWebContents(sender);
+  const session = sessions.get(sessionId);
+
+  if (!window || !session || !canAttachToWindow(session, window)) {
+    return undefined;
+  }
+
+  attachSessionWindow(session, window);
+  return session;
+}
+
+function canAttachToWindow(session: TerminalSession, window: BrowserWindow): boolean {
+  return session.ownerWindowId === window.id || !hasLiveWindow(session.ownerWindowId);
+}
+
+function hasLiveWindow(windowId: number): boolean {
+  return BrowserWindow.getAllWindows().some((window) => window.id === windowId && !window.isDestroyed());
 }
 
 function sendToSessionWindow(session: TerminalSession, channel: string, payload: unknown): void {
