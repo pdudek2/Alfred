@@ -20,6 +20,9 @@ import {
 
 type PtyProcess = import("node-pty").IPty;
 type NodePtyModule = typeof import("node-pty");
+type TerminalIpcOptions = {
+  loadNodePty?: () => Promise<NodePtyModule>;
+};
 
 type TerminalSession = {
   id: TerminalSessionId;
@@ -42,7 +45,7 @@ const require = createRequire(import.meta.url);
 const NODE_PTY_HELPER_MODE = 0o755;
 const MAX_BUFFER_LENGTH = 200_000;
 
-export function registerTerminalIpc(): void {
+export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
   ipcMain.handle(terminalChannels.list, (event): TerminalListResult => {
     const window = BrowserWindow.fromWebContents(event.sender);
 
@@ -66,7 +69,7 @@ export function registerTerminalIpc(): void {
         throw new Error("Terminal session requires an owning window.");
       }
 
-      const nodePty = await loadNodePty();
+      const nodePty = await (options.loadNodePty ?? loadNodePty)();
       const cwd = resolveTerminalCwd(request.cwd);
       const resolved = resolveCommand(request);
       const id = randomUUID();
