@@ -22,11 +22,13 @@ import {
   approveStaged,
   closeSession,
   createInitialSessions,
+  hydrateStagedPlanSessions,
   hydrateLiveTerminalSessions,
   rejectAllStaged,
   rejectStaged,
   type SessionTile,
 } from "./session-state";
+import type { AlfredStagedPlanSnapshot, AlfredStagedSession } from "../shared/alfred-ipc";
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../shared/terminal-ipc";
 import "@xterm/xterm/css/xterm.css";
 
@@ -73,6 +75,7 @@ export function App() {
 
   const handleRuntimeSessionReady = useCallback((tileId: string, runtime: TerminalCreateResult) => {
     const terminalApi = getDesktopTerminalApi();
+    const alfredApi = getDesktopAlfredApi();
 
     if (closingSessionIdsRef.current.has(tileId)) {
       terminalApi?.kill({ id: runtime.id });
@@ -81,6 +84,7 @@ export function App() {
     }
 
     setTerminalSessions((sessions) => attachRuntimeSession(sessions, tileId, runtime.id));
+    void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
   }, []);
 
   const handleSubmitPrompt = useCallback(async () => {
@@ -103,17 +107,26 @@ export function App() {
     setTerminalSessions((sessions) => {
       const before = sessions;
       const after = addStagedSessions(before, response.plan.sessions, "");
-      const newIds = after.slice(before.length).map((s) => s.id);
+      const stagedPlan = createStagedPlanSnapshot({
+        ...(response.plan.name === undefined ? {} : { name: response.plan.name }),
+        prompt,
+        sessions: after.slice(before.length),
+      });
       setPendingPlan(
-        newIds.length > 0
+        stagedPlan
           ? {
-              id: crypto.randomUUID(),
-              ...(response.plan.name === undefined ? {} : { name: response.plan.name }),
-              prompt,
-              sessionIds: newIds,
+              id: stagedPlan.id,
+              ...(stagedPlan.name === undefined ? {} : { name: stagedPlan.name }),
+              prompt: stagedPlan.prompt,
+              sessionIds: stagedPlan.sessions.map((session) => session.id),
             }
           : null,
       );
+      if (stagedPlan) {
+        void alfredApi.setStagedPlan(stagedPlan);
+      } else {
+        void alfredApi.clearStagedPlan();
+      }
       return after;
     });
   }, [alfredStatus, composerValue, stagedCount]);
@@ -128,10 +141,12 @@ export function App() {
   }, []);
 
   const handleRejectTile = useCallback((tileId: string) => {
+    const alfredApi = getDesktopAlfredApi();
     setTerminalSessions((sessions) => rejectStaged(sessions, tileId));
     setPendingPlan((plan) => {
       if (!plan) return plan;
       const remaining = plan.sessionIds.filter((id) => id !== tileId);
+      void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
       return remaining.length === 0 ? null : { ...plan, sessionIds: remaining };
     });
   }, []);
@@ -148,8 +163,10 @@ export function App() {
   }, [terminalSessions]);
 
   const handleRejectAll = useCallback(() => {
+    const alfredApi = getDesktopAlfredApi();
     setTerminalSessions((sessions) => rejectAllStaged(sessions));
     setPendingPlan(null);
+    void alfredApi?.clearStagedPlan();
   }, []);
 
   const handleDismissError = useCallback(() => {
@@ -172,6 +189,7 @@ export function App() {
 
   useEffect(() => {
     const terminalApi = getDesktopTerminalApi();
+    const alfredApi = getDesktopAlfredApi();
     let cancelled = false;
 
     if (!terminalApi) {
@@ -179,15 +197,31 @@ export function App() {
       return;
     }
 
-    terminalApi
-      .list()
-      .then((result) => {
+    Promise.all([
+      terminalApi.list(),
+      alfredApi?.getStagedPlan().catch(() => ({ plan: null })) ?? Promise.resolve({ plan: null }),
+    ])
+      .then(([terminalResult, stagedPlanResult]) => {
         if (cancelled) return;
-        setTerminalSessions(
-          result.sessions.length > 0
-            ? hydrateLiveTerminalSessions(result.sessions)
-            : createInitialSessions(""),
+        const liveSessions =
+          terminalResult.sessions.length > 0
+            ? hydrateLiveTerminalSessions(terminalResult.sessions)
+            : createInitialSessions("");
+        const liveClientIds = new Set(
+          terminalResult.sessions.map((session) => session.clientId).filter((id): id is string => Boolean(id)),
         );
+        const stagedSessions = hydrateStagedPlanSessions(stagedPlanResult.plan, "").filter(
+          (session) => !liveClientIds.has(session.id),
+        );
+        const alreadyLiveStagedIds =
+          stagedPlanResult.plan?.sessions
+            .map((session) => session.id)
+            .filter((id) => liveClientIds.has(id)) ?? [];
+        if (alreadyLiveStagedIds.length > 0) {
+          void alfredApi?.resolveStagedPlan({ sessionIds: alreadyLiveStagedIds });
+        }
+        setTerminalSessions([...liveSessions, ...stagedSessions]);
+        setPendingPlan(toSquadPlan({ plan: stagedPlanResult.plan, omittedSessionIds: alreadyLiveStagedIds }));
       })
       .catch(() => {
         if (!cancelled) setTerminalSessions(createInitialSessions(""));
@@ -257,6 +291,53 @@ export function App() {
       </section>
     </main>
   );
+}
+
+function createStagedPlanSnapshot({
+  name,
+  prompt,
+  sessions,
+}: {
+  name?: string;
+  prompt: string;
+  sessions: SessionTile[];
+}): AlfredStagedPlanSnapshot | null {
+  if (sessions.length === 0) return null;
+  const planSessions: AlfredStagedSession[] = sessions.map((session) => ({
+    id: session.id,
+    kind: session.agentKind ?? "shell",
+    title: session.title,
+    ...(session.cwd === "" ? {} : { cwd: session.cwd }),
+    command: session.command ?? "",
+    args: session.args ?? [],
+    ...(session.safetyNote === undefined ? {} : { safetyNote: session.safetyNote }),
+  }));
+
+  return {
+    id: crypto.randomUUID(),
+    ...(name === undefined ? {} : { name }),
+    prompt,
+    sessions: planSessions,
+  };
+}
+
+function toSquadPlan({
+  omittedSessionIds = [],
+  plan,
+}: {
+  omittedSessionIds?: string[];
+  plan: AlfredStagedPlanSnapshot | null;
+}): SquadPlan | null {
+  if (!plan || plan.sessions.length === 0) return null;
+  const omitted = new Set(omittedSessionIds);
+  const sessionIds = plan.sessions.map((session) => session.id).filter((id) => !omitted.has(id));
+  if (sessionIds.length === 0) return null;
+  return {
+    id: plan.id,
+    ...(plan.name === undefined ? {} : { name: plan.name }),
+    prompt: plan.prompt,
+    sessionIds,
+  };
 }
 
 function WorkspaceRail({

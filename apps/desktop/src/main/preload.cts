@@ -14,7 +14,11 @@ const terminalChannels = {
 } as const;
 
 const alfredChannels = {
+  planClear: "alfred:plan:clear",
+  planGet: "alfred:plan:get",
   planRequest: "alfred:plan:request",
+  planResolve: "alfred:plan:resolve",
+  planSet: "alfred:plan:set",
 } as const;
 
 const terminal: TerminalApi = {
@@ -54,6 +58,12 @@ const terminal: TerminalApi = {
 const alfred: AlfredApi = {
   requestPlan: (request) =>
     ipcRenderer.invoke(alfredChannels.planRequest, request) as ReturnType<AlfredApi["requestPlan"]>,
+  getStagedPlan: () => ipcRenderer.invoke(alfredChannels.planGet) as ReturnType<AlfredApi["getStagedPlan"]>,
+  setStagedPlan: (request) =>
+    ipcRenderer.invoke(alfredChannels.planSet, request) as ReturnType<AlfredApi["setStagedPlan"]>,
+  resolveStagedPlan: (request) =>
+    ipcRenderer.invoke(alfredChannels.planResolve, request) as ReturnType<AlfredApi["resolveStagedPlan"]>,
+  clearStagedPlan: () => ipcRenderer.invoke(alfredChannels.planClear) as ReturnType<AlfredApi["clearStagedPlan"]>,
 };
 
 contextBridge.exposeInMainWorld("alfredDesktop", {
