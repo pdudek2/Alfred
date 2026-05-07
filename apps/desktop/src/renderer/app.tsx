@@ -722,6 +722,7 @@ function TerminalGrid({
 }) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
+  const gridDensity = sessions.length <= 1 ? "single" : sessions.length === 2 ? "split" : "dense";
   const startPointerArrange = useCallback((
     tileId: string,
     mode: ArrangePointerMode,
@@ -794,7 +795,7 @@ function TerminalGrid({
     <section className={`terminal-stage ${arrangeMode ? "arranging" : ""}`} aria-label="terminals">
       <header className="terminal-stage-header">
         <div>
-          <strong>Terminals</strong>
+          <strong>Desk</strong>
           <span>{sessions.length} tile{sessions.length === 1 ? "" : "s"} · {sessions.filter(s => s.stage === "staged").length} staged</span>
         </div>
         <div className="layout-controls" aria-label="layout controls">
@@ -806,10 +807,13 @@ function TerminalGrid({
               <span className="arrange-hint">drag header · resize corner</span>
             </>
           )}
+          {!arrangeMode && sessions.length > 0 && (
+            <button type="button" onClick={() => onApplyLayoutPreset("grid")}>Fit desk</button>
+          )}
           <kbd>{shortcutModifier} T</kbd>
         </div>
       </header>
-      <div className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"}`} ref={gridRef}>
+      <div className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}`} ref={gridRef}>
         {sessions.map((session) =>
           session.stage === "live" ? (
             <ManualTerminalTile
