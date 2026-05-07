@@ -19,6 +19,7 @@ const workspaceLabels: Record<WorkspaceId, string> = {
 export function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>("A");
   const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>(() => createInitialSessions(""));
+  const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
 
   const handleAddManualSession = useCallback(() => {
     setTerminalSessions((sessions) => addManualSession(sessions, ""));
@@ -44,13 +45,16 @@ export function App() {
 
   return (
     <main className="agent-space-shell">
-      <section className="desktop-frame" aria-label="Alfred Agent Space desktop shell">
+      <section
+        className={`desktop-frame ${shortcutModifier === "Cmd" ? "mac-frame" : ""}`}
+        aria-label="Alfred Agent Space desktop shell"
+      >
         <div className="mission-bar">
           <div className="mission-name">
             <div className="alfred-mark">A</div>
             <div>
               <strong>{workspaceLabels[activeWorkspace]} workspace</strong>
-              <span>{terminalSessions.length} manual terminal{terminalSessions.length === 1 ? "" : "s"} ready</span>
+              <span>manual mode · local runtime</span>
             </div>
           </div>
           <div className="mission-actions" aria-label="terminal actions">
@@ -69,7 +73,11 @@ export function App() {
 
         <div className="workspace-layout">
           <WorkspaceRail activeWorkspace={activeWorkspace} onSelectWorkspace={setActiveWorkspace} />
-          <TerminalGrid sessions={terminalSessions} onCloseSession={handleCloseSession} />
+          <TerminalGrid
+            sessions={terminalSessions}
+            shortcutModifier={shortcutModifier}
+            onCloseSession={handleCloseSession}
+          />
           <AlfredDock />
         </div>
       </section>
@@ -115,12 +123,12 @@ function AlfredDock() {
         <div className="alfred-dock-mark">A</div>
         <div>
           <strong>Alfred</strong>
-          <span>standby</span>
+          <span>quiet</span>
         </div>
       </div>
-      <p>Manual control is active. Launcher orchestration is not connected yet.</p>
+      <p>Manual work stays in front. Alfred will surface only when you ask for a launch plan.</p>
       <div className="alfred-dock-footer">
-        <span>no pending asks</span>
+        <span>idle</span>
         <span>local</span>
       </div>
     </aside>
@@ -129,9 +137,11 @@ function AlfredDock() {
 
 function TerminalGrid({
   sessions,
+  shortcutModifier,
   onCloseSession,
 }: {
   sessions: SessionTile[];
+  shortcutModifier: string;
   onCloseSession: (sessionId: string) => void;
 }) {
   return (
@@ -141,7 +151,7 @@ function TerminalGrid({
           <strong>Manual terminals</strong>
           <span>{sessions.length} live workspace tile{sessions.length === 1 ? "" : "s"}</span>
         </div>
-        <kbd>{navigator.platform.includes("Mac") ? "Cmd" : "Ctrl"} T</kbd>
+        <kbd>{shortcutModifier} T</kbd>
       </header>
       <div className="terminal-grid">
         {sessions.map((session) => (

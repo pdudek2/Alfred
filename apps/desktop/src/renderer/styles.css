@@ -84,6 +84,10 @@ button:focus-visible {
     rgba(12, 14, 14, 0.72);
 }
 
+.desktop-frame.mac-frame .mission-bar {
+  padding-left: 88px;
+}
+
 .mission-name {
   min-width: 0;
   display: flex;
@@ -306,15 +310,14 @@ button:focus-visible {
 }
 
 .terminal-tile.real-terminal {
-  border-color: rgba(86, 200, 213, 0.26);
+  border-color: rgba(245, 240, 228, 0.14);
 }
 
 .terminal-tile.real-terminal.ready {
-  border-color: rgba(120, 217, 145, 0.42);
+  border-color: rgba(245, 240, 228, 0.16);
   box-shadow:
     inset 0 1px 0 rgba(245, 240, 228, 0.045),
-    0 18px 36px rgba(0, 0, 0, 0.2),
-    0 0 0 1px rgba(120, 217, 145, 0.06);
+    0 18px 36px rgba(0, 0, 0, 0.2);
 }
 
 .terminal-tile.real-terminal.error,
@@ -389,7 +392,7 @@ button:focus-visible {
 }
 
 .terminal-tile.real-terminal.ready .tile-status {
-  color: var(--green);
+  color: #a6e7b1;
 }
 
 .terminal-tile.real-terminal.error .tile-status,
@@ -448,7 +451,7 @@ button:focus-visible {
   border-radius: 10px;
   padding: 12px;
   background:
-    linear-gradient(180deg, rgba(217, 174, 70, 0.06), transparent 62px),
+    linear-gradient(180deg, rgba(217, 174, 70, 0.045), transparent 62px),
     var(--glass);
   box-shadow: inset 0 1px 0 rgba(245, 240, 228, 0.045);
   color: var(--muted);
@@ -467,8 +470,9 @@ button:focus-visible {
 .alfred-dock-mark {
   width: 30px;
   height: 30px;
-  border: 1px solid rgba(217, 174, 70, 0.36);
+  border: 1px solid rgba(217, 174, 70, 0.26);
   border-radius: 7px;
+  background: rgba(217, 174, 70, 0.045);
   display: grid;
   place-items: center;
   color: var(--brass);
