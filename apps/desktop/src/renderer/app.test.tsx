@@ -3,7 +3,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
-import type { AlfredApi } from "../shared/alfred-ipc";
+import type { AlfredApi, AlfredPlanResponse } from "../shared/alfred-ipc";
 import type { TerminalApi } from "../shared/terminal-ipc";
 
 vi.mock("@xterm/xterm", () => ({
@@ -38,8 +38,8 @@ type DesktopBridge = {
   version: string;
 };
 
-function installDesktopBridge(): { requestPlan: ReturnType<typeof vi.fn> } {
-  const requestPlan = vi.fn().mockResolvedValue({
+function installDesktopBridge(
+  planResponse: AlfredPlanResponse = {
     ok: true,
     plan: {
       name: "Demo plan",
@@ -48,7 +48,9 @@ function installDesktopBridge(): { requestPlan: ReturnType<typeof vi.fn> } {
         { kind: "dev-server", title: "Task B", command: "pnpm", args: ["dev"] },
       ],
     },
-  });
+  },
+): { requestPlan: ReturnType<typeof vi.fn> } {
+  const requestPlan = vi.fn().mockResolvedValue(planResponse);
   const terminal: TerminalApi = {
     create: vi.fn().mockResolvedValue({
       id: "runtime-1",
@@ -145,5 +147,22 @@ describe("App integration", () => {
     await user.click(send);
 
     expect(requestPlan).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the draft when Alfred plan creation fails", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge({
+      ok: false,
+      error: { code: "network", message: "OpenRouter is unreachable." },
+    });
+
+    render(<App />);
+
+    const composer = screen.getByLabelText("Alfred prompt");
+    await user.type(composer, "retry this plan");
+    await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("OpenRouter is unreachable.");
+    expect(composer).toHaveValue("retry this plan");
   });
 });
