@@ -65,17 +65,8 @@ button:focus-visible {
 .agent-space-shell {
   position: relative;
   min-height: 100vh;
-  padding: 28px;
-  display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 18px;
-}
-
-.intro-bar {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 28px;
-  align-items: end;
+  padding: 8px;
+  display: block;
 }
 
 .eyebrow,
@@ -96,45 +87,8 @@ h3 {
   letter-spacing: 0;
 }
 
-h1 {
-  margin-top: 8px;
-  font-size: 39px;
-  line-height: 1.04;
-  font-weight: 650;
-}
-
-.intro-copy {
-  max-width: 760px;
-  margin: 10px 0 0;
-  color: var(--muted);
-  font-size: 15px;
-  line-height: 1.48;
-}
-
-.rules {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: end;
-  gap: 8px;
-  max-width: 560px;
-}
-
-.rules span {
-  min-height: 36px;
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0 11px;
-  background: rgba(245, 240, 228, 0.045);
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 12px;
-  backdrop-filter: blur(18px) saturate(1.18);
-}
-
 .desktop-frame {
-  min-height: 0;
+  height: calc(100vh - 16px);
   border: 1px solid rgba(245, 240, 228, 0.16);
   border-radius: 14px;
   overflow: hidden;

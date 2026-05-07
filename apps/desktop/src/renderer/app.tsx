@@ -49,23 +49,6 @@ export function App() {
 
   return (
     <main className="agent-space-shell">
-      <header className="intro-bar">
-        <div>
-          <p className="eyebrow">Desktop shell foundation</p>
-          <h1>Instrument Glass cockpit</h1>
-          <p className="intro-copy">
-            Static first slice for Alfred Agent Space: glass control layers, matte terminals, a visible
-            manual path, and no fake runtime behavior.
-          </p>
-        </div>
-        <div className="rules" aria-label="design constraints">
-          <span>glass controls</span>
-          <span>matte terminals</span>
-          <span>44px targets</span>
-          <span>manual first</span>
-        </div>
-      </header>
-
       <section className="desktop-frame" aria-label="Alfred Agent Space desktop shell">
         <div className="window-chrome">
           <div className="traffic" aria-hidden="true">
