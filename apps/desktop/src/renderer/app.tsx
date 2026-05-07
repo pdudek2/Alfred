@@ -49,7 +49,17 @@ type Workspace = {
 const DEFAULT_WORKSPACE_ID = "A";
 const DEFAULT_WORKSPACE: Workspace = { id: DEFAULT_WORKSPACE_ID, label: "Alfred", shortLabel: "A" };
 const DEFAULT_WORKSPACES: Workspace[] = [DEFAULT_WORKSPACE];
-const ARRANGE_GRID_ROW_HEIGHT = 72;
+const ARRANGE_GRID_ROW_HEIGHT = 84;
+
+type ArrangePointerMode = "move" | "resize";
+type ArrangePreview = {
+  tileId: string;
+  mode: ArrangePointerMode;
+  offsetX: number;
+  offsetY: number;
+  deltaCol: number;
+  deltaRow: number;
+};
 
 export function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(DEFAULT_WORKSPACES);
@@ -699,9 +709,10 @@ function TerminalGrid({
   onResizeTile: (tileId: string, deltaColSpan: number, deltaRowSpan: number) => void;
 }) {
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
   const startPointerArrange = useCallback((
     tileId: string,
-    mode: "move" | "resize",
+    mode: ArrangePointerMode,
     event: ReactPointerEvent<HTMLElement>,
   ) => {
     if (!arrangeMode) return;
@@ -715,34 +726,56 @@ function TerminalGrid({
     const colWidth = rect.width > 0 ? rect.width / 12 : 80;
     const startX = event.clientX;
     const startY = event.clientY;
-    let appliedCol = 0;
-    let appliedRow = 0;
+    let finalDeltaCol = 0;
+    let finalDeltaRow = 0;
+
+    setArrangePreview({
+      tileId,
+      mode,
+      offsetX: 0,
+      offsetY: 0,
+      deltaCol: 0,
+      deltaRow: 0,
+    });
+    document.body.classList.add("arranging-pointer");
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
-      const deltaCol = Math.round((moveEvent.clientX - startX) / colWidth);
-      const deltaRow = Math.round((moveEvent.clientY - startY) / ARRANGE_GRID_ROW_HEIGHT);
-      const nextCol = deltaCol - appliedCol;
-      const nextRow = deltaRow - appliedRow;
+      const offsetX = moveEvent.clientX - startX;
+      const offsetY = moveEvent.clientY - startY;
+      finalDeltaCol = Math.round(offsetX / colWidth);
+      finalDeltaRow = Math.round(offsetY / ARRANGE_GRID_ROW_HEIGHT);
+      setArrangePreview({
+        tileId,
+        mode,
+        offsetX,
+        offsetY,
+        deltaCol: finalDeltaCol,
+        deltaRow: finalDeltaRow,
+      });
+    };
 
-      if (nextCol === 0 && nextRow === 0) return;
-      appliedCol = deltaCol;
-      appliedRow = deltaRow;
+    const stopPointerArrange = (commit: boolean) => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", commitPointerArrange);
+      window.removeEventListener("pointercancel", cancelPointerArrange);
+      document.body.classList.remove("arranging-pointer");
+      setArrangePreview(null);
+
+      if (!commit) return;
+      if (finalDeltaCol === 0 && finalDeltaRow === 0) return;
+
       if (mode === "move") {
-        onMoveTile(tileId, nextCol, nextRow);
+        onMoveTile(tileId, finalDeltaCol, finalDeltaRow);
       } else {
-        onResizeTile(tileId, nextCol, nextRow);
+        onResizeTile(tileId, finalDeltaCol, finalDeltaRow);
       }
     };
-
-    const stopPointerArrange = () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", stopPointerArrange);
-      window.removeEventListener("pointercancel", stopPointerArrange);
-    };
+    const commitPointerArrange = () => stopPointerArrange(true);
+    const cancelPointerArrange = () => stopPointerArrange(false);
 
     window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", stopPointerArrange);
-    window.addEventListener("pointercancel", stopPointerArrange);
+    window.addEventListener("pointerup", commitPointerArrange);
+    window.addEventListener("pointercancel", cancelPointerArrange);
   }, [arrangeMode, layouts, onMoveTile, onResizeTile]);
 
   return (
@@ -758,6 +791,7 @@ function TerminalGrid({
               <button type="button" onClick={() => onApplyLayoutPreset("focus")}>Focus</button>
               <button type="button" onClick={() => onApplyLayoutPreset("two-up")}>2-up</button>
               <button type="button" onClick={() => onApplyLayoutPreset("grid")}>Grid</button>
+              <span className="arrange-hint">drag title · resize corner</span>
             </>
           )}
           <kbd>{shortcutModifier} T</kbd>
@@ -771,6 +805,7 @@ function TerminalGrid({
               cwd={session.cwd}
               key={session.id}
               layout={layouts[session.id]}
+              preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
               sessionKey={session.id}
               runtimeId={session.runtimeId}
               workspaceId={session.workspaceId}
@@ -792,6 +827,7 @@ function TerminalGrid({
               armed={armedUnsafeSessionIds.has(session.id)}
               key={session.id}
               layout={layouts[session.id]}
+              preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
               tile={session}
               onApprove={onApproveTile}
               onMove={(deltaCol, deltaRow) => onMoveTile(session.id, deltaCol, deltaRow)}
@@ -814,6 +850,7 @@ function ManualTerminalTile({
   agentKind,
   initialBuffer,
   layout,
+  preview,
   onClose,
   onMove,
   onPointerMoveStart,
@@ -833,6 +870,7 @@ function ManualTerminalTile({
   agentKind?: SessionTile["agentKind"];
   initialBuffer?: string | undefined;
   layout?: TileLayout | undefined;
+  preview?: ArrangePreview | undefined;
   onClose: () => void;
   onMove: (deltaCol: number, deltaRow: number) => void;
   onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
@@ -1016,7 +1054,11 @@ function ManualTerminalTile({
   }, [cwd, sessionKey, title, source, workspaceId, agentKind, command, args, initialBuffer, onRuntimeSessionReady]);
 
   return (
-    <article className={`terminal-tile manual real-terminal ${status} ${arrangeMode ? "arranging" : ""}`} aria-label={title} style={gridStyle(layout)}>
+    <article
+      className={`terminal-tile manual real-terminal ${status} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      aria-label={title}
+      style={gridStyle(layout, preview)}
+    >
       <header
         className={`tile-header ${arrangeMode ? "drag-handle" : ""}`}
         onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
@@ -1070,12 +1112,26 @@ function ArrangeControls({
   );
 }
 
-function gridStyle(layout: TileLayout | undefined): CSSProperties | undefined {
+function gridStyle(layout: TileLayout | undefined, preview?: ArrangePreview | undefined): CSSProperties | undefined {
   if (!layout) return undefined;
-  return {
+  const style: CSSProperties & Record<string, string | number> = {
     gridColumn: `${layout.col} / span ${layout.colSpan}`,
     gridRow: `${layout.row} / span ${layout.rowSpan}`,
   };
+
+  if (preview) {
+    style["--arrange-x"] = `${preview.offsetX}px`;
+    style["--arrange-y"] = `${preview.offsetY}px`;
+    style["--arrange-cols"] = String(preview.deltaCol);
+    style["--arrange-rows"] = String(preview.deltaRow);
+  }
+
+  if (preview?.mode === "move") {
+    style.transform = `translate3d(${preview.offsetX}px, ${preview.offsetY}px, 0)`;
+    style.zIndex = 6;
+  }
+
+  return style;
 }
 
 function statusLabel(status: "connecting" | "ready" | "browser" | "exited" | "error"): string {

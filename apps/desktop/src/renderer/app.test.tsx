@@ -195,12 +195,20 @@ describe("App integration", () => {
 
     fireEvent.pointerDown(tile.querySelector(".tile-header")!, { clientX: 0, clientY: 0 });
     fireEvent.pointerMove(window, { clientX: 160, clientY: 72 });
+
+    expect(tile).toHaveClass("is-dragging");
+    expect(tile).toHaveStyle({ transform: "translate3d(160px, 72px, 0)" });
+    expect(tile).toHaveStyle({ gridColumn: "1 / span 6", gridRow: "1 / span 4" });
+
     fireEvent.pointerUp(window);
 
     expect(tile).toHaveStyle({ gridColumn: "3 / span 6", gridRow: "2 / span 4" });
 
     fireEvent.pointerDown(screen.getByRole("button", { name: "Resize Manual · zsh 1" }), { clientX: 0, clientY: 0 });
     fireEvent.pointerMove(window, { clientX: 80, clientY: 72 });
+
+    expect(tile).toHaveClass("is-resizing");
+
     fireEvent.pointerUp(window);
 
     expect(tile).toHaveStyle({ gridColumn: "3 / span 7", gridRow: "2 / span 5" });
