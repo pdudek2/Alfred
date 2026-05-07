@@ -1,4 +1,4 @@
-import { Plus, X } from "lucide-react";
+import { Play, Plus, ShieldAlert, X } from "lucide-react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
@@ -445,11 +445,16 @@ export function App() {
             arrangeMode={arrangeMode}
             armedUnsafeSessionIds={armedUnsafeSessionIds}
             layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
+            pendingPlan={activePendingPlan}
             sessions={activeSessions}
             shortcutModifier={shortcutModifier}
+            safeStagedCount={Math.max(0, stagedCount - unsafeStagedCount)}
+            unsafeStagedCount={unsafeStagedCount}
             onCloseSession={handleCloseSession}
             onApplyLayoutPreset={handleApplyLayoutPreset}
+            onApproveAll={handleApproveAll}
             onMoveTile={handleMoveTile}
+            onRejectAll={handleRejectAll}
             onRuntimeSessionReady={handleRuntimeSessionReady}
             onApproveTile={handleApproveTile}
             onRejectTile={handleRejectTile}
@@ -461,8 +466,6 @@ export function App() {
             stagedCount={stagedCount}
             unsafeStagedCount={unsafeStagedCount}
             liveAlfredCount={liveAlfredCount}
-            onApproveAll={handleApproveAll}
-            onRejectAll={handleRejectAll}
             onDismissError={handleDismissError}
           />
         </div>
@@ -614,8 +617,6 @@ function AlfredDock({
   stagedCount,
   unsafeStagedCount,
   liveAlfredCount,
-  onApproveAll,
-  onRejectAll,
   onDismissError,
 }: {
   status: AlfredStatus;
@@ -623,8 +624,6 @@ function AlfredDock({
   stagedCount: number;
   unsafeStagedCount: number;
   liveAlfredCount: number;
-  onApproveAll: () => void;
-  onRejectAll: () => void;
   onDismissError: () => void;
 }) {
   const safeStagedCount = Math.max(0, stagedCount - unsafeStagedCount);
@@ -658,19 +657,6 @@ function AlfredDock({
               {unsafeStagedCount} flagged item{unsafeStagedCount === 1 ? "" : "s"} need manual approval.
             </div>
           )}
-          <div className="plan-actions">
-            <button
-              type="button"
-              className="approve-all"
-              onClick={onApproveAll}
-              disabled={safeStagedCount === 0}
-            >
-              {unsafeStagedCount > 0 ? "Launch safe" : "Launch all"}
-            </button>
-            <button type="button" onClick={onRejectAll}>
-              Reject All
-            </button>
-          </div>
           <p className="plan-prompt">"{truncate(pendingPlan.prompt, 140)}"</p>
         </div>
       ) : compact ? (
@@ -697,11 +683,16 @@ function TerminalGrid({
   arrangeMode,
   armedUnsafeSessionIds,
   layouts,
+  pendingPlan,
   sessions,
   shortcutModifier,
+  safeStagedCount,
+  unsafeStagedCount,
   onCloseSession,
   onApplyLayoutPreset,
+  onApproveAll,
   onMoveTile,
+  onRejectAll,
   onRuntimeSessionReady,
   onApproveTile,
   onRejectTile,
@@ -710,11 +701,16 @@ function TerminalGrid({
   arrangeMode: boolean;
   armedUnsafeSessionIds: Set<string>;
   layouts: Record<string, TileLayout>;
+  pendingPlan: SquadPlan | null;
   sessions: SessionTile[];
   shortcutModifier: string;
+  safeStagedCount: number;
+  unsafeStagedCount: number;
   onCloseSession: (sessionId: string) => void;
   onApplyLayoutPreset: (preset: LayoutPreset) => void;
+  onApproveAll: () => void;
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
+  onRejectAll: () => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onApproveTile: (tileId: string) => void;
   onRejectTile: (tileId: string) => void;
@@ -792,7 +788,7 @@ function TerminalGrid({
   }, [arrangeMode, layouts, onMoveTile, onResizeTile]);
 
   return (
-    <section className={`terminal-stage ${arrangeMode ? "arranging" : ""}`} aria-label="terminals">
+    <section className={`terminal-stage ${arrangeMode ? "arranging" : ""} ${pendingPlan ? "has-plan" : ""}`} aria-label="terminals">
       <header className="terminal-stage-header">
         <div>
           <strong>Desk</strong>
@@ -813,6 +809,15 @@ function TerminalGrid({
           <kbd>{shortcutModifier} T</kbd>
         </div>
       </header>
+      {pendingPlan && (
+        <LaunchPlanStrip
+          pendingPlan={pendingPlan}
+          safeStagedCount={safeStagedCount}
+          unsafeStagedCount={unsafeStagedCount}
+          onApproveAll={onApproveAll}
+          onRejectAll={onRejectAll}
+        />
+      )}
       <div className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}`} ref={gridRef}>
         {sessions.map((session) =>
           session.stage === "live" ? (
@@ -851,6 +856,53 @@ function TerminalGrid({
             />
           ),
         )}
+      </div>
+    </section>
+  );
+}
+
+function LaunchPlanStrip({
+  pendingPlan,
+  safeStagedCount,
+  unsafeStagedCount,
+  onApproveAll,
+  onRejectAll,
+}: {
+  pendingPlan: SquadPlan;
+  safeStagedCount: number;
+  unsafeStagedCount: number;
+  onApproveAll: () => void;
+  onRejectAll: () => void;
+}) {
+  const totalStagedCount = pendingPlan.sessionIds.length;
+
+  return (
+    <section className="launch-plan-strip" aria-label="Alfred launch plan">
+      <div className="launch-plan-mark" aria-hidden="true">
+        A
+      </div>
+      <div className="launch-plan-copy">
+        <span>Workspace prepared</span>
+        <strong>{pendingPlan.name ?? "Alfred plan"}</strong>
+        <p>
+          {totalStagedCount} proposed tile{totalStagedCount === 1 ? "" : "s"}
+          {unsafeStagedCount > 0 ? ` · ${unsafeStagedCount} need review` : " · ready to launch"}
+        </p>
+      </div>
+      {unsafeStagedCount > 0 && (
+        <div className="launch-plan-warning" role="note">
+          <ShieldAlert size={14} />
+          <span>Unsafe commands stay staged.</span>
+        </div>
+      )}
+      <div className="launch-plan-actions">
+        <button type="button" className="launch-primary" onClick={onApproveAll} disabled={safeStagedCount === 0}>
+          <Play size={14} />
+          {unsafeStagedCount > 0 ? "Launch safe" : "Launch all"}
+        </button>
+        <button type="button" className="launch-secondary" onClick={onRejectAll}>
+          Clear plan
+        </button>
       </div>
     </section>
   );

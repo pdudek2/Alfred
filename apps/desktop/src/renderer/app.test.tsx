@@ -320,6 +320,9 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
 
     expect(requestPlan).toHaveBeenCalledWith({ prompt: "launch first plan" });
+    expect(await screen.findByRole("region", { name: "Alfred launch plan" })).toHaveTextContent("Workspace prepared");
+    expect(screen.getByRole("button", { name: "Launch all" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear plan" })).toBeInTheDocument();
     expect(await screen.findByRole("article", { name: /Staged Task A/i })).toBeInTheDocument();
     expect(await screen.findByRole("article", { name: /Staged Task B/i })).toBeInTheDocument();
     await waitFor(() => {
@@ -418,7 +421,7 @@ describe("App integration", () => {
     await user.click(send);
     await screen.findByRole("article", { name: /Staged Task A/i });
 
-    await user.click(screen.getByRole("button", { name: "Reject All" }));
+    await user.click(screen.getByRole("button", { name: "Clear plan" }));
     await user.type(composer, "second after reject");
     await user.click(send);
 
