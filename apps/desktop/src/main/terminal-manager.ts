@@ -32,9 +32,9 @@ type TerminalSession = {
   command?: string;
   args?: string[];
   buffer: string;
-  onWindowClosed: () => void;
   pty: PtyProcess;
-  window: BrowserWindow;
+  // PTY lifetime is app-scoped; BrowserWindows may close and reattach later.
+  window?: BrowserWindow;
 };
 
 const sessions = new Map<TerminalSessionId, TerminalSession>();
@@ -43,9 +43,19 @@ const NODE_PTY_HELPER_MODE = 0o755;
 const MAX_BUFFER_LENGTH = 200_000;
 
 export function registerTerminalIpc(): void {
-  ipcMain.handle(terminalChannels.list, (): TerminalListResult => ({
-    sessions: [...sessions.values()].map(toSnapshot),
-  }));
+  ipcMain.handle(terminalChannels.list, (event): TerminalListResult => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+
+    if (window) {
+      for (const session of sessions.values()) {
+        attachSessionWindow(session, window);
+      }
+    }
+
+    return {
+      sessions: [...sessions.values()].map(toSnapshot),
+    };
+  });
 
   ipcMain.handle(
     terminalChannels.create,
@@ -61,9 +71,6 @@ export function registerTerminalIpc(): void {
       const resolved = resolveCommand(request);
       const id = randomUUID();
       const metadata = sessionMetadata(id, request, cwd, resolved.command);
-      const onWindowClosed = () => {
-        killSession(id);
-      };
       const pty = nodePty.spawn(resolved.command, resolved.args, {
         name: "xterm-256color",
         cols: normalizeDimension(request.cols, 80),
@@ -75,28 +82,20 @@ export function registerTerminalIpc(): void {
           COLORTERM: "truecolor",
         },
       });
-      const session: TerminalSession = { ...metadata, buffer: "", onWindowClosed, pty, window };
+      const session: TerminalSession = { ...metadata, buffer: "", pty, window };
 
       sessions.set(id, session);
 
       pty.onData((data) => {
         appendToBuffer(session, data);
-
-        if (!window.isDestroyed()) {
-          window.webContents.send(terminalChannels.data, { id, data });
-        }
+        sendToSessionWindow(session, terminalChannels.data, { id, data });
       });
 
       pty.onExit(({ exitCode, signal }) => {
         disposeSession(id);
-
-        if (!window.isDestroyed()) {
-          const payload: TerminalExitEvent = signal === undefined ? { id, exitCode } : { id, exitCode, signal };
-          window.webContents.send(terminalChannels.exit, payload);
-        }
+        const payload: TerminalExitEvent = signal === undefined ? { id, exitCode } : { id, exitCode, signal };
+        sendToSessionWindow(session, terminalChannels.exit, payload);
       });
-
-      window.once("closed", onWindowClosed);
 
       return toCreateResult(session);
     },
@@ -171,6 +170,20 @@ function appendToBuffer(session: TerminalSession, data: string): void {
   }
 }
 
+function attachSessionWindow(session: TerminalSession, window: BrowserWindow): void {
+  if (!window.isDestroyed()) {
+    session.window = window;
+  }
+}
+
+function sendToSessionWindow(session: TerminalSession, channel: string, payload: unknown): void {
+  if (!session.window || session.window.isDestroyed()) {
+    return;
+  }
+
+  session.window.webContents.send(channel, payload);
+}
+
 function defaultSessionTitle(source: TerminalSessionSource, shell: string): string {
   return source === "alfred" ? shell : "Manual terminal";
 }
@@ -183,9 +196,6 @@ function killSession(id: TerminalSessionId): void {
   }
 
   sessions.delete(id);
-  if (!session.window.isDestroyed()) {
-    session.window.off("closed", session.onWindowClosed);
-  }
   session.pty.kill();
 }
 
@@ -197,9 +207,6 @@ function disposeSession(id: TerminalSessionId): void {
   }
 
   sessions.delete(id);
-  if (!session.window.isDestroyed()) {
-    session.window.off("closed", session.onWindowClosed);
-  }
 }
 
 async function loadNodePty(): Promise<NodePtyModule> {
