@@ -4,6 +4,7 @@ import type { TerminalApi, TerminalDataEvent, TerminalExitEvent } from "../share
 import type { AlfredApi } from "../shared/alfred-ipc.js";
 
 const terminalChannels = {
+  list: "alfred:terminal:list",
   create: "alfred:terminal:create",
   write: "alfred:terminal:write",
   resize: "alfred:terminal:resize",
@@ -17,6 +18,7 @@ const alfredChannels = {
 } as const;
 
 const terminal: TerminalApi = {
+  list: () => ipcRenderer.invoke(terminalChannels.list) as ReturnType<TerminalApi["list"]>,
   create: (request) => ipcRenderer.invoke(terminalChannels.create, request) as ReturnType<TerminalApi["create"]>,
   write: (request) => {
     ipcRenderer.send(terminalChannels.write, request);

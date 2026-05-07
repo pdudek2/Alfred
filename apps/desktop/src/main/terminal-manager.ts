@@ -10,8 +10,11 @@ import {
   type TerminalCreateResult,
   type TerminalExitEvent,
   type TerminalKillRequest,
+  type TerminalListResult,
   type TerminalResizeRequest,
+  type TerminalSessionSnapshot,
   type TerminalSessionId,
+  type TerminalSessionSource,
   type TerminalWriteRequest,
 } from "../shared/terminal-ipc.js";
 
@@ -20,6 +23,15 @@ type NodePtyModule = typeof import("node-pty");
 
 type TerminalSession = {
   id: TerminalSessionId;
+  clientId?: string;
+  title: string;
+  source: TerminalSessionSource;
+  agentKind?: TerminalCreateResult["agentKind"];
+  cwd: string;
+  shell: string;
+  command?: string;
+  args?: string[];
+  buffer: string;
   onWindowClosed: () => void;
   pty: PtyProcess;
   window: BrowserWindow;
@@ -28,8 +40,13 @@ type TerminalSession = {
 const sessions = new Map<TerminalSessionId, TerminalSession>();
 const require = createRequire(import.meta.url);
 const NODE_PTY_HELPER_MODE = 0o755;
+const MAX_BUFFER_LENGTH = 200_000;
 
 export function registerTerminalIpc(): void {
+  ipcMain.handle(terminalChannels.list, (): TerminalListResult => ({
+    sessions: [...sessions.values()].map(toSnapshot),
+  }));
+
   ipcMain.handle(
     terminalChannels.create,
     async (event, request: TerminalCreateRequest): Promise<TerminalCreateResult> => {
@@ -43,6 +60,7 @@ export function registerTerminalIpc(): void {
       const cwd = resolveTerminalCwd(request.cwd);
       const resolved = resolveCommand(request);
       const id = randomUUID();
+      const metadata = sessionMetadata(id, request, cwd, resolved.command);
       const onWindowClosed = () => {
         killSession(id);
       };
@@ -57,10 +75,13 @@ export function registerTerminalIpc(): void {
           COLORTERM: "truecolor",
         },
       });
+      const session: TerminalSession = { ...metadata, buffer: "", onWindowClosed, pty, window };
 
-      sessions.set(id, { id, onWindowClosed, pty, window });
+      sessions.set(id, session);
 
       pty.onData((data) => {
+        appendToBuffer(session, data);
+
         if (!window.isDestroyed()) {
           window.webContents.send(terminalChannels.data, { id, data });
         }
@@ -77,7 +98,7 @@ export function registerTerminalIpc(): void {
 
       window.once("closed", onWindowClosed);
 
-      return { id, cwd, shell: resolved.command };
+      return toCreateResult(session);
     },
   );
 
@@ -100,6 +121,58 @@ export function killAllTerminalSessions(): void {
   for (const id of sessions.keys()) {
     killSession(id);
   }
+}
+
+function sessionMetadata(
+  id: TerminalSessionId,
+  request: TerminalCreateRequest,
+  cwd: string,
+  shell: string,
+): TerminalCreateResult {
+  return {
+    id,
+    ...(request.clientId === undefined ? {} : { clientId: request.clientId }),
+    title: request.title ?? defaultSessionTitle(request.source ?? "manual", shell),
+    source: request.source ?? "manual",
+    ...(request.agentKind === undefined ? {} : { agentKind: request.agentKind }),
+    cwd,
+    shell,
+    ...(request.command === undefined ? {} : { command: request.command }),
+    ...(request.args === undefined ? {} : { args: request.args }),
+  };
+}
+
+function toCreateResult(session: TerminalSession): TerminalCreateResult {
+  return {
+    id: session.id,
+    ...(session.clientId === undefined ? {} : { clientId: session.clientId }),
+    title: session.title,
+    source: session.source,
+    ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
+    cwd: session.cwd,
+    shell: session.shell,
+    ...(session.command === undefined ? {} : { command: session.command }),
+    ...(session.args === undefined ? {} : { args: session.args }),
+  };
+}
+
+function toSnapshot(session: TerminalSession): TerminalSessionSnapshot {
+  return {
+    ...toCreateResult(session),
+    buffer: session.buffer,
+  };
+}
+
+function appendToBuffer(session: TerminalSession, data: string): void {
+  session.buffer += data;
+
+  if (session.buffer.length > MAX_BUFFER_LENGTH) {
+    session.buffer = session.buffer.slice(-MAX_BUFFER_LENGTH);
+  }
+}
+
+function defaultSessionTitle(source: TerminalSessionSource, shell: string): string {
+  return source === "alfred" ? shell : "Manual terminal";
 }
 
 function killSession(id: TerminalSessionId): void {

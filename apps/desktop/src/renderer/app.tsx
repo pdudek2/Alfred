@@ -9,15 +9,17 @@ import { errored, idle, isThinking, thinking, type AlfredStatus, type SquadPlan 
 import {
   addManualSession,
   addStagedSessions,
+  attachRuntimeSession,
   approveAllStaged,
   approveStaged,
   closeSession,
   createInitialSessions,
+  hydrateLiveTerminalSessions,
   rejectAllStaged,
   rejectStaged,
   type SessionTile,
 } from "./session-state";
-import type { TerminalSessionId } from "../shared/terminal-ipc";
+import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../shared/terminal-ipc";
 import "@xterm/xterm/css/xterm.css";
 
 type WorkspaceId = "A" | "UI" | "API" | "DOC";
@@ -31,19 +33,42 @@ const workspaceLabels: Record<WorkspaceId, string> = {
 
 export function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>("A");
-  const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>(() => createInitialSessions(""));
+  const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>([]);
   const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
   const [pendingPlan, setPendingPlan] = useState<SquadPlan | null>(null);
   const [composerValue, setComposerValue] = useState<string>("");
+  const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
 
   const handleAddManualSession = useCallback(() => {
     setTerminalSessions((sessions) => addManualSession(sessions, ""));
   }, []);
 
-  const handleCloseSession = (sessionId: string) => {
-    setTerminalSessions((sessions) => closeSession(sessions, sessionId));
-  };
+  const handleCloseSession = useCallback((sessionId: string) => {
+    const terminalApi = getDesktopTerminalApi();
+    closingSessionIdsRef.current.add(sessionId);
+
+    setTerminalSessions((sessions) => {
+      const session = sessions.find((item) => item.id === sessionId);
+      if (session?.runtimeId) {
+        terminalApi?.kill({ id: session.runtimeId });
+        closingSessionIdsRef.current.delete(sessionId);
+      }
+      return closeSession(sessions, sessionId);
+    });
+  }, []);
+
+  const handleRuntimeSessionReady = useCallback((tileId: string, runtime: TerminalCreateResult) => {
+    const terminalApi = getDesktopTerminalApi();
+
+    if (closingSessionIdsRef.current.has(tileId)) {
+      terminalApi?.kill({ id: runtime.id });
+      closingSessionIdsRef.current.delete(tileId);
+      return;
+    }
+
+    setTerminalSessions((sessions) => attachRuntimeSession(sessions, tileId, runtime.id));
+  }, []);
 
   const handleSubmitPrompt = useCallback(async () => {
     const prompt = composerValue.trim();
@@ -121,6 +146,34 @@ export function App() {
     };
   }, [handleAddManualSession]);
 
+  useEffect(() => {
+    const terminalApi = getDesktopTerminalApi();
+    let cancelled = false;
+
+    if (!terminalApi) {
+      setTerminalSessions(createInitialSessions(""));
+      return;
+    }
+
+    terminalApi
+      .list()
+      .then((result) => {
+        if (cancelled) return;
+        setTerminalSessions(
+          result.sessions.length > 0
+            ? hydrateLiveTerminalSessions(result.sessions)
+            : createInitialSessions(""),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setTerminalSessions(createInitialSessions(""));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <main className="agent-space-shell">
       <section
@@ -155,6 +208,7 @@ export function App() {
             sessions={terminalSessions}
             shortcutModifier={shortcutModifier}
             onCloseSession={handleCloseSession}
+            onRuntimeSessionReady={handleRuntimeSessionReady}
             onApproveTile={handleApproveTile}
             onRejectTile={handleRejectTile}
           />
@@ -280,12 +334,14 @@ function TerminalGrid({
   sessions,
   shortcutModifier,
   onCloseSession,
+  onRuntimeSessionReady,
   onApproveTile,
   onRejectTile,
 }: {
   sessions: SessionTile[];
   shortcutModifier: string;
   onCloseSession: (sessionId: string) => void;
+  onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onApproveTile: (tileId: string) => void;
   onRejectTile: (tileId: string) => void;
 }) {
@@ -305,10 +361,15 @@ function TerminalGrid({
               cwd={session.cwd}
               key={session.id}
               sessionKey={session.id}
+              runtimeId={session.runtimeId}
               title={session.title}
+              source={session.source}
+              agentKind={session.agentKind}
               command={session.command}
               args={session.args}
+              initialBuffer={session.initialBuffer}
               onClose={() => onCloseSession(session.id)}
+              onRuntimeSessionReady={onRuntimeSessionReady}
             />
           ) : (
             <StagedTilePreview
@@ -326,15 +387,25 @@ function TerminalGrid({
 
 function ManualTerminalTile({
   cwd,
+  agentKind,
+  initialBuffer,
   onClose,
+  onRuntimeSessionReady,
+  runtimeId,
   sessionKey,
+  source,
   title,
   command,
   args,
 }: {
   cwd: string;
+  agentKind?: SessionTile["agentKind"];
+  initialBuffer?: string | undefined;
   onClose: () => void;
+  onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
+  runtimeId?: TerminalSessionId | undefined;
   sessionKey: string;
+  source: SessionTile["source"];
   title: string;
   command?: string | undefined;
   args?: string[] | undefined;
@@ -355,7 +426,7 @@ function ManualTerminalTile({
       return;
     }
 
-    sessionIdRef.current = null;
+    sessionIdRef.current = runtimeId ?? null;
     setResolvedCwd(cwd);
     setStatus("connecting");
 
@@ -438,10 +509,33 @@ function ManualTerminalTile({
 
     resizeObserver.observe(container);
 
-    const baseRequest: { cols: number; rows: number; cwd?: string; command?: string; args?: string[] } = {
+    if (runtimeId) {
+      sessionIdRef.current = runtimeId;
+      setStatus("ready");
+      if (initialBuffer) {
+        terminal.write(initialBuffer);
+      }
+      requestAnimationFrame(fitAndResize);
+      terminal.focus();
+
+      return () => {
+        disposed = true;
+        resizeObserver.disconnect();
+        inputDisposable.dispose();
+        removeDataListener();
+        removeExitListener();
+        terminal.dispose();
+      };
+    }
+
+    const baseRequest: TerminalCreateRequest = {
       cols: terminal.cols,
       rows: terminal.rows,
+      clientId: sessionKey,
+      title,
+      source,
     };
+    if (agentKind) baseRequest.agentKind = agentKind;
     if (cwd) baseRequest.cwd = cwd;
     if (command) {
       baseRequest.command = command;
@@ -450,8 +544,9 @@ function ManualTerminalTile({
     terminalApi
       .create(baseRequest)
       .then((session) => {
+        onRuntimeSessionReady(sessionKey, session);
+
         if (disposed) {
-          terminalApi.kill({ id: session.id });
           return;
         }
 
@@ -472,21 +567,15 @@ function ManualTerminalTile({
       });
 
     return () => {
-      const sessionId = sessionIdRef.current;
-
       disposed = true;
       resizeObserver.disconnect();
       inputDisposable.dispose();
       removeDataListener();
       removeExitListener();
 
-      if (sessionId) {
-        terminalApi.kill({ id: sessionId });
-      }
-
       terminal.dispose();
     };
-  }, [cwd, sessionKey, command, args]);
+  }, [cwd, sessionKey, title, source, agentKind, command, args, initialBuffer, onRuntimeSessionReady]);
 
   return (
     <article className={`terminal-tile manual real-terminal ${status}`}>
