@@ -10,7 +10,7 @@
     "dev:electron": "tsc -p tsconfig.main.json && node scripts/dev-electron.mjs",
     "lint": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit",
     "start": "electron .",
-    "test": "vitest run src/renderer/session-state.test.ts",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit"
   },
   "dependencies": {
