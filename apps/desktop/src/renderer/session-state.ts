@@ -1,7 +1,9 @@
 import type { AgentKind, AlfredPlanSession } from "../shared/alfred-ipc";
+import type { TerminalSessionSnapshot, TerminalSessionId } from "../shared/terminal-ipc";
 
 export type SessionTile = {
   id: string;
+  runtimeId?: TerminalSessionId;
   title: string;
   cwd: string;
   source: "manual" | "alfred";
@@ -10,6 +12,7 @@ export type SessionTile = {
   args?: string[];
   agentKind?: AgentKind;
   safetyNote?: string;
+  initialBuffer?: string;
 };
 
 const MANUAL_SESSION_PREFIX = "manual-";
@@ -26,6 +29,31 @@ export function addManualSession(sessions: SessionTile[], cwd: string): SessionT
 
 export function closeSession(sessions: SessionTile[], sessionId: string): SessionTile[] {
   return sessions.filter((session) => session.id !== sessionId);
+}
+
+export function attachRuntimeSession(
+  sessions: SessionTile[],
+  tileId: string,
+  runtimeId: TerminalSessionId,
+): SessionTile[] {
+  return sessions.map((session) =>
+    session.id === tileId ? { ...session, runtimeId } : session,
+  );
+}
+
+export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]): SessionTile[] {
+  return snapshots.map((snapshot) => ({
+    id: snapshot.clientId ?? `runtime-${snapshot.id}`,
+    runtimeId: snapshot.id,
+    title: snapshot.title,
+    cwd: snapshot.cwd,
+    source: snapshot.source,
+    stage: "live",
+    ...(snapshot.command === undefined ? {} : { command: snapshot.command }),
+    ...(snapshot.args === undefined ? {} : { args: snapshot.args }),
+    ...(snapshot.agentKind === undefined ? {} : { agentKind: snapshot.agentKind }),
+    initialBuffer: snapshot.buffer,
+  }));
 }
 
 function createManualSession(index: number, cwd: string): SessionTile {

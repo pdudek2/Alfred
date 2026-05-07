@@ -1,6 +1,13 @@
+import type { AgentKind } from "./alfred-ipc.js";
+
 export type TerminalSessionId = string;
+export type TerminalSessionSource = "manual" | "alfred";
 
 export type TerminalCreateRequest = {
+  clientId?: string;
+  title?: string;
+  source?: TerminalSessionSource;
+  agentKind?: AgentKind;
   cwd?: string;
   cols: number;
   rows: number;
@@ -10,8 +17,22 @@ export type TerminalCreateRequest = {
 
 export type TerminalCreateResult = {
   id: TerminalSessionId;
+  clientId?: string;
+  title: string;
+  source: TerminalSessionSource;
+  agentKind?: AgentKind;
   cwd: string;
   shell: string;
+  command?: string;
+  args?: string[];
+};
+
+export type TerminalSessionSnapshot = TerminalCreateResult & {
+  buffer: string;
+};
+
+export type TerminalListResult = {
+  sessions: TerminalSessionSnapshot[];
 };
 
 export type TerminalResizeRequest = {
@@ -41,6 +62,7 @@ export type TerminalDataEvent = {
 };
 
 export type TerminalApi = {
+  list(): Promise<TerminalListResult>;
   create(request: TerminalCreateRequest): Promise<TerminalCreateResult>;
   write(request: TerminalWriteRequest): void;
   resize(request: TerminalResizeRequest): void;
@@ -50,6 +72,7 @@ export type TerminalApi = {
 };
 
 export const terminalChannels = {
+  list: "alfred:terminal:list",
   create: "alfred:terminal:create",
   write: "alfred:terminal:write",
   resize: "alfred:terminal:resize",
