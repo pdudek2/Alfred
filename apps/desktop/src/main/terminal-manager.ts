@@ -2,6 +2,8 @@ import { BrowserWindow, app, ipcMain } from "electron";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
+import { chmod } from "node:fs/promises";
+import { createRequire } from "node:module";
 import {
   terminalChannels,
   type TerminalCreateRequest,
@@ -24,6 +26,8 @@ type TerminalSession = {
 };
 
 const sessions = new Map<TerminalSessionId, TerminalSession>();
+const require = createRequire(import.meta.url);
+const NODE_PTY_HELPER_MODE = 0o755;
 
 export function registerTerminalIpc(): void {
   ipcMain.handle(
@@ -126,8 +130,33 @@ function disposeSession(id: TerminalSessionId): void {
 }
 
 async function loadNodePty(): Promise<NodePtyModule> {
-  const moduleUrl = pathToFileURL(path.join(process.cwd(), "node_modules/node-pty/lib/index.js")).href;
+  const nodePtyIndexPath = require.resolve("node-pty/lib/index.js");
+
+  await ensureNodePtySpawnHelperExecutable(nodePtyIndexPath);
+
+  const moduleUrl = pathToFileURL(nodePtyIndexPath).href;
   return import(moduleUrl) as Promise<NodePtyModule>;
+}
+
+async function ensureNodePtySpawnHelperExecutable(nodePtyIndexPath: string): Promise<void> {
+  if (process.platform !== "darwin") {
+    return;
+  }
+
+  const helperPath = path.resolve(
+    path.dirname(nodePtyIndexPath),
+    `../prebuilds/darwin-${process.arch}/spawn-helper`,
+  );
+
+  try {
+    await chmod(helperPath, NODE_PTY_HELPER_MODE);
+  } catch (error: unknown) {
+    throw new Error(
+      `Unable to prepare node-pty spawn helper at ${helperPath}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
 }
 
 function resolveShell(): { command: string; args: string[] } {
