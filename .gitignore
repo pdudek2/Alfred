@@ -21,6 +21,7 @@ docs/superpowers/*
 !docs/superpowers/specs/
 docs/superpowers/specs/*
 !docs/superpowers/specs/*.md
+docs/superpowers/specs/2026-05-08-alfred-product-brief.md
 
 # Local environment
 .env
