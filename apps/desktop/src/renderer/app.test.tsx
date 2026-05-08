@@ -327,6 +327,24 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Desk" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("opens a selected session inspector from the tile header and collapses it with Escape", async () => {
+    installDesktopBridge();
+
+    render(<App />);
+
+    const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    fireEvent.click(tile.querySelector(".tile-header")!);
+
+    expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Session attached");
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(screen.getByRole("button", { name: "Desk" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByLabelText("Agent activity")).not.toBeInTheDocument();
+  });
+
   it("opens the command palette and runs desk commands", async () => {
     const user = userEvent.setup();
     const { setWorkspaceLayout } = installDesktopBridge();

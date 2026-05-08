@@ -11,8 +11,11 @@ type StagedTilePreviewProps = {
   armed: boolean;
   layout?: TileLayout | undefined;
   preview?: ArrangePreview | undefined;
+  selected: boolean;
   tile: SessionTile;
   onApprove: (tileId: string) => void;
+  onFocusSession: () => void;
+  onSelectSession: () => void;
   onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onReject: (tileId: string) => void;
@@ -23,8 +26,11 @@ export function StagedTilePreview({
   armed,
   layout,
   preview,
+  selected,
   tile,
   onApprove,
+  onFocusSession,
+  onSelectSession,
   onPointerMoveStart,
   onPointerResizeStart,
   onReject,
@@ -44,12 +50,21 @@ export function StagedTilePreview({
 
   return (
     <article
-      className={`terminal-tile staged kind-${kindMeta.className} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      className={`terminal-tile staged kind-${kindMeta.className} ${selected ? "selected" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
       aria-label={`Staged ${tile.title}`}
       style={gridStyle(layout, preview)}
+      tabIndex={0}
+      onFocus={onSelectSession}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          onFocusSession();
+        }
+      }}
     >
       <header
         className={`tile-header ${arrangeMode ? "drag-handle" : ""}`}
+        onClick={!arrangeMode ? onFocusSession : undefined}
         onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
       >
         <div className="tile-title">

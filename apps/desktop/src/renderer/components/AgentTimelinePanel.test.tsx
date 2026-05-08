@@ -8,11 +8,11 @@ describe("AgentTimelinePanel", () => {
   it("renders an empty state when no session is focused", () => {
     render(<AgentTimelinePanel session={null} />);
     expect(screen.getByLabelText("Agent activity")).toBeInTheDocument();
-    expect(screen.getByText("no focused session")).toBeInTheDocument();
-    expect(screen.getByText(/structured agent events will appear here/i)).toBeInTheDocument();
+    expect(screen.getByText("no selected session")).toBeInTheDocument();
+    expect(screen.getByText(/select a terminal to inspect/i)).toBeInTheDocument();
   });
 
-  it("shows the focused session title when a session is provided", () => {
+  it("shows actionable session facts when a session is provided", () => {
     const session: SessionTile = {
       id: "s1",
       title: "claude — alfred",
@@ -20,8 +20,34 @@ describe("AgentTimelinePanel", () => {
       stage: "live",
       cwd: "/tmp",
       source: "manual",
+      command: "claude",
+      args: ["--continue"],
+      runtimeId: "runtime-1",
     };
     render(<AgentTimelinePanel session={session} />);
     expect(screen.getByText("claude — alfred")).toBeInTheDocument();
+    expect(screen.getByText("live runtime")).toBeInTheDocument();
+    expect(screen.getByText("claude --continue")).toBeInTheDocument();
+    expect(screen.getByText("Session attached")).toBeInTheDocument();
+  });
+
+  it("surfaces safety notes for staged sessions", () => {
+    const session: SessionTile = {
+      id: "s2",
+      title: "dangerous cleanup",
+      workspaceId: "w1",
+      stage: "staged",
+      cwd: "/tmp",
+      source: "alfred",
+      command: "rm",
+      args: ["-rf", "dist"],
+      safetyNote: "rm -rf detected",
+    };
+
+    render(<AgentTimelinePanel session={session} />);
+
+    expect(screen.getByText("waiting for approval")).toBeInTheDocument();
+    expect(screen.getByText("Safety review required")).toBeInTheDocument();
+    expect(screen.getByText("rm -rf detected")).toBeInTheDocument();
   });
 });

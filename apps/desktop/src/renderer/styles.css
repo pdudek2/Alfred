@@ -767,6 +767,21 @@ button:focus-visible {
     0 32px 56px -16px rgba(0, 0, 0, 0.88);
 }
 
+.terminal-tile.selected {
+  border-color: color-mix(in oklab, var(--accent) 54%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 15%, transparent),
+    inset 0 0 0 1px color-mix(in oklab, var(--accent) 28%, transparent),
+    0 0 0 1px rgba(3, 4, 4, 0.86),
+    0 18px 42px -20px color-mix(in oklab, var(--accent) 42%, black 58%),
+    0 32px 56px -18px rgba(0, 0, 0, 0.88);
+}
+
+.terminal-tile:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--accent) 78%, white 8%);
+  outline-offset: 3px;
+}
+
 .terminal-tile.arranging {
   grid-template-rows: 42px 1fr;
   transition:
@@ -850,6 +865,11 @@ body.arranging-pointer {
 
 .terminal-tile.real-terminal.ready {
   border-color: color-mix(in oklab, var(--green) 26%, transparent);
+}
+
+.terminal-tile.real-terminal.selected,
+.terminal-tile.staged.selected {
+  border-color: color-mix(in oklab, var(--accent) 54%, transparent);
 }
 
 .terminal-tile.kind-manual {
@@ -1711,4 +1731,76 @@ body.arranging-pointer {
   font-size: 12px;
   line-height: 1.55;
   margin: 0;
+}
+
+.agent-session-facts {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 18px;
+}
+
+.agent-session-facts > div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.agent-session-facts dt {
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: lowercase;
+}
+
+.agent-session-facts dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.agent-activity-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-activity-list li {
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  gap: 10px;
+}
+
+.agent-activity-list li > span {
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: var(--green);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--green) 12%, transparent);
+}
+
+.agent-activity-list li.warning > span {
+  background: var(--brass);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--brass) 14%, transparent);
+}
+
+.agent-activity-list b {
+  display: block;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.agent-activity-list p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
