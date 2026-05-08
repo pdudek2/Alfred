@@ -11,6 +11,7 @@ import type {
 } from "../shared/alfred-ipc";
 import type { LayoutApi, WorkspaceLayoutsSnapshot } from "../shared/layout-ipc";
 import type { TerminalApi, TerminalSessionSnapshot } from "../shared/terminal-ipc";
+import type { WorkspaceApi, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 
 vi.mock("@xterm/xterm", () => ({
   Terminal: class {
@@ -42,6 +43,7 @@ type DesktopBridge = {
   alfred: AlfredApi;
   layout: LayoutApi;
   terminal: TerminalApi;
+  workspace: WorkspaceApi;
   version: string;
 };
 
@@ -63,6 +65,10 @@ function installDesktopBridge(
     openRouterConfigured: true,
   },
   layouts: WorkspaceLayoutsSnapshot = { layoutsByWorkspace: {} },
+  workspaceState: WorkspaceStateSnapshot = {
+    workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
+    activeWorkspaceId: "A",
+  },
 ): {
   clearStagedPlan: ReturnType<typeof vi.fn>;
   createTerminal: ReturnType<typeof vi.fn>;
@@ -73,6 +79,8 @@ function installDesktopBridge(
   requestPlan: ReturnType<typeof vi.fn>;
   resolveStagedPlan: ReturnType<typeof vi.fn>;
   setWorkspaceLayout: ReturnType<typeof vi.fn>;
+  getWorkspaceState: ReturnType<typeof vi.fn>;
+  setWorkspaceState: ReturnType<typeof vi.fn>;
   setStagedPlan: ReturnType<typeof vi.fn>;
 } {
   const clearStagedPlan = vi.fn().mockResolvedValue({ plan: null });
@@ -83,6 +91,8 @@ function installDesktopBridge(
   const setStagedPlan = vi.fn().mockImplementation((request) => Promise.resolve({ plan: request }));
   const getLayouts = vi.fn().mockResolvedValue(layouts);
   const setWorkspaceLayout = vi.fn().mockResolvedValue(layouts);
+  const getWorkspaceState = vi.fn().mockResolvedValue(workspaceState);
+  const setWorkspaceState = vi.fn().mockImplementation((request) => Promise.resolve(request));
   const killTerminal = vi.fn();
   const createTerminal = vi.fn().mockImplementation((request: Parameters<TerminalApi["create"]>[0]) =>
     Promise.resolve({
@@ -111,6 +121,7 @@ function installDesktopBridge(
     alfred: { clearStagedPlan, getRuntimeStatus, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan },
     layout: { getLayouts, setWorkspaceLayout },
     terminal,
+    workspace: { getWorkspaceState, setWorkspaceState },
     version: "test",
   };
 
@@ -125,6 +136,8 @@ function installDesktopBridge(
     requestPlan,
     resolveStagedPlan,
     setStagedPlan,
+    getWorkspaceState,
+    setWorkspaceState,
     setWorkspaceLayout,
   };
 }
@@ -167,7 +180,7 @@ describe("App integration", () => {
 
   it("creates real workspaces and scopes terminals to the active workspace", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    const { setWorkspaceState } = installDesktopBridge();
 
     render(<App />);
 
@@ -189,6 +202,34 @@ describe("App integration", () => {
 
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(setWorkspaceState).toHaveBeenLastCalledWith({
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A" },
+          { id: "W2", label: "Workspace 2", shortLabel: "W2" },
+        ],
+        activeWorkspaceId: "A",
+      });
+    });
+  });
+
+  it("hydrates persisted workspaces and opens the last active workspace", async () => {
+    installDesktopBridge(undefined, null, [], undefined, { layoutsByWorkspace: {} }, {
+      workspaces: [
+        { id: "A", label: "Alfred", shortLabel: "A" },
+        { id: "W2", label: "Workspace 2", shortLabel: "W2" },
+      ],
+      activeWorkspaceId: "W2",
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole("tab", { name: "Workspace 2 workspace, 1 live, 0 staged" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByText("Workspace 2 workspace")).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
   });
 
   it("does not create a duplicate PTY when the shell rerenders", async () => {

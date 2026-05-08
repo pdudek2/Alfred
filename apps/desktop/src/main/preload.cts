@@ -3,6 +3,7 @@ import type { IpcRendererEvent } from "electron";
 import type { TerminalApi, TerminalDataEvent, TerminalExitEvent } from "../shared/terminal-ipc.js";
 import type { AlfredApi } from "../shared/alfred-ipc.js";
 import type { LayoutApi } from "../shared/layout-ipc.js";
+import type { WorkspaceApi } from "../shared/workspace-ipc.js";
 
 const terminalChannels = {
   list: "alfred:terminal:list",
@@ -26,6 +27,11 @@ const alfredChannels = {
 const layoutChannels = {
   get: "alfred:layout:get",
   setWorkspace: "alfred:layout:set-workspace",
+} as const;
+
+const workspaceChannels = {
+  get: "alfred:workspace:get",
+  set: "alfred:workspace:set",
 } as const;
 
 const terminal: TerminalApi = {
@@ -81,9 +87,17 @@ const layout: LayoutApi = {
     ipcRenderer.invoke(layoutChannels.setWorkspace, request) as ReturnType<LayoutApi["setWorkspaceLayout"]>,
 };
 
+const workspace: WorkspaceApi = {
+  getWorkspaceState: () =>
+    ipcRenderer.invoke(workspaceChannels.get) as ReturnType<WorkspaceApi["getWorkspaceState"]>,
+  setWorkspaceState: (request) =>
+    ipcRenderer.invoke(workspaceChannels.set, request) as ReturnType<WorkspaceApi["setWorkspaceState"]>,
+};
+
 contextBridge.exposeInMainWorld("alfredDesktop", {
   terminal,
   alfred,
   layout,
+  workspace,
   version: "desktop-launcher-v0",
 });

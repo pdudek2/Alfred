@@ -1,0 +1,66 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { DEFAULT_DESKTOP_STATE } from "./persisted-desktop-state.js";
+import { createWorkspaceStore } from "./workspace-store.js";
+import type { WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
+
+let temporaryDirectory: string | null = null;
+
+async function temporaryStateFile(): Promise<string> {
+  temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "alfred-workspace-store-"));
+  return path.join(temporaryDirectory, "desktop-state.json");
+}
+
+describe("workspace-store", () => {
+  afterEach(async () => {
+    if (temporaryDirectory) {
+      await rm(temporaryDirectory, { recursive: true, force: true });
+      temporaryDirectory = null;
+    }
+  });
+
+  it("loads the default workspace state from an empty persisted store", async () => {
+    const store = createWorkspaceStore({ filePath: await temporaryStateFile() });
+
+    await expect(store.getWorkspaceState()).resolves.toEqual(DEFAULT_DESKTOP_STATE);
+  });
+
+  it("persists workspace list and active workspace id", async () => {
+    const filePath = await temporaryStateFile();
+    const state: WorkspaceStateSnapshot = {
+      workspaces: [
+        { id: "A", label: "Alfred", shortLabel: "A" },
+        { id: "API", label: "API", shortLabel: "API" },
+      ],
+      activeWorkspaceId: "API",
+    };
+    const store = createWorkspaceStore({ filePath });
+
+    await expect(store.setWorkspaceState(state)).resolves.toEqual(state);
+    await expect(createWorkspaceStore({ filePath }).getWorkspaceState()).resolves.toEqual(state);
+  });
+
+  it("normalizes invalid updates before persisting them", async () => {
+    const filePath = await temporaryStateFile();
+    const store = createWorkspaceStore({ filePath });
+
+    await expect(
+      store.setWorkspaceState({
+        workspaces: [
+          { id: " A ", label: " Alfred ", shortLabel: " A " },
+          { id: "A", label: "Duplicate", shortLabel: "D" },
+          { id: "UI", label: "Interface", shortLabel: "UI" },
+        ],
+        activeWorkspaceId: "missing",
+      }),
+    ).resolves.toEqual({
+      workspaces: [
+        { id: "A", label: "Alfred", shortLabel: "A" },
+        { id: "UI", label: "Interface", shortLabel: "UI" },
+      ],
+      activeWorkspaceId: "A",
+    });
+  });
+});

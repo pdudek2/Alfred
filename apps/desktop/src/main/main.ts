@@ -5,6 +5,8 @@ import { config as loadDotenv } from "dotenv";
 import { getTerminalSessionCount, killAllTerminalSessions, registerTerminalIpc } from "./terminal-manager.js";
 import { registerAlfredIpc } from "./alfred-orchestrator.js";
 import { registerLayoutIpc } from "./layout-ipc.js";
+import { registerWorkspaceIpc } from "./workspace-ipc.js";
+import { createWorkspaceStore } from "./workspace-store.js";
 import {
   QUIT_GUARD_CANCEL_BUTTON,
   QUIT_GUARD_CONFIRM_BUTTON,
@@ -71,6 +73,7 @@ async function createWindow(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
+  registerWorkspaceIpc(createWorkspaceStore({ userDataPath: app.getPath("userData") }));
   await createWindow();
 
   app.on("activate", () => {

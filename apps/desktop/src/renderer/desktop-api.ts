@@ -1,6 +1,7 @@
 import type { TerminalApi } from "../shared/terminal-ipc";
 import type { AlfredApi } from "../shared/alfred-ipc";
 import type { LayoutApi } from "../shared/layout-ipc";
+import type { WorkspaceApi } from "../shared/workspace-ipc";
 
 declare global {
   interface Window {
@@ -8,6 +9,7 @@ declare global {
       terminal: TerminalApi;
       alfred: AlfredApi;
       layout: LayoutApi;
+      workspace?: WorkspaceApi;
       version: string;
     };
   }
@@ -23,4 +25,8 @@ export function getDesktopAlfredApi(): AlfredApi | null {
 
 export function getDesktopLayoutApi(): LayoutApi | null {
   return window.alfredDesktop?.layout ?? null;
+}
+
+export function getDesktopWorkspaceApi(): WorkspaceApi | null {
+  return window.alfredDesktop?.workspace ?? null;
 }
