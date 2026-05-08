@@ -30,6 +30,7 @@ const layoutChannels = {
 } as const;
 
 const workspaceChannels = {
+  createFromFolder: "alfred:workspace:create-from-folder",
   get: "alfred:workspace:get",
   set: "alfred:workspace:set",
 } as const;
@@ -88,6 +89,8 @@ const layout: LayoutApi = {
 };
 
 const workspace: WorkspaceApi = {
+  createWorkspaceFromFolder: () =>
+    ipcRenderer.invoke(workspaceChannels.createFromFolder) as ReturnType<WorkspaceApi["createWorkspaceFromFolder"]>,
   getWorkspaceState: () =>
     ipcRenderer.invoke(workspaceChannels.get) as ReturnType<WorkspaceApi["getWorkspaceState"]>,
   setWorkspaceState: (request) =>

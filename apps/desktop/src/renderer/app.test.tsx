@@ -80,6 +80,7 @@ function installDesktopBridge(
   resolveStagedPlan: ReturnType<typeof vi.fn>;
   setWorkspaceLayout: ReturnType<typeof vi.fn>;
   getWorkspaceState: ReturnType<typeof vi.fn>;
+  createWorkspaceFromFolder: ReturnType<typeof vi.fn>;
   setWorkspaceState: ReturnType<typeof vi.fn>;
   setStagedPlan: ReturnType<typeof vi.fn>;
 } {
@@ -93,6 +94,15 @@ function installDesktopBridge(
   const setWorkspaceLayout = vi.fn().mockResolvedValue(layouts);
   const getWorkspaceState = vi.fn().mockResolvedValue(workspaceState);
   const setWorkspaceState = vi.fn().mockImplementation((request) => Promise.resolve(request));
+  const createWorkspaceFromFolder = vi.fn().mockImplementation(() =>
+    Promise.resolve({
+      workspaces: [
+        ...workspaceState.workspaces,
+        { id: "CLIENTAPP", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+      ],
+      activeWorkspaceId: "CLIENTAPP",
+    }),
+  );
   const killTerminal = vi.fn();
   const createTerminal = vi.fn().mockImplementation((request: Parameters<TerminalApi["create"]>[0]) =>
     Promise.resolve({
@@ -121,7 +131,7 @@ function installDesktopBridge(
     alfred: { clearStagedPlan, getRuntimeStatus, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan },
     layout: { getLayouts, setWorkspaceLayout },
     terminal,
-    workspace: { getWorkspaceState, setWorkspaceState },
+    workspace: { createWorkspaceFromFolder, getWorkspaceState, setWorkspaceState },
     version: "test",
   };
 
@@ -136,6 +146,7 @@ function installDesktopBridge(
     requestPlan,
     resolveStagedPlan,
     setStagedPlan,
+    createWorkspaceFromFolder,
     getWorkspaceState,
     setWorkspaceState,
     setWorkspaceLayout,
@@ -180,7 +191,7 @@ describe("App integration", () => {
 
   it("creates real workspaces and scopes terminals to the active workspace", async () => {
     const user = userEvent.setup();
-    const { setWorkspaceState } = installDesktopBridge();
+    const { createTerminal, createWorkspaceFromFolder, setWorkspaceState } = installDesktopBridge();
 
     render(<App />);
 
@@ -190,13 +201,19 @@ describe("App integration", () => {
 
     await user.click(screen.getByRole("button", { name: "Add workspace" }));
 
-    expect(screen.getByRole("tab", { name: "Workspace 2 workspace, 1 live, 0 staged" })).toHaveAttribute(
+    expect(createWorkspaceFromFolder).toHaveBeenCalledOnce();
+    expect(screen.getByRole("tab", { name: "ClientApp workspace, 1 live, 0 staged" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
-    expect(screen.getByText("Workspace 2 workspace")).toBeInTheDocument();
+    expect(screen.getByText("ClientApp workspace")).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenLastCalledWith(
+        expect.objectContaining({ cwd: "/Users/patryk/Desktop/ClientApp", workspaceId: "CLIENTAPP" }),
+      );
+    });
 
     await user.click(screen.getByRole("tab", { name: "Alfred workspace, 1 live, 0 staged" }));
 
@@ -206,7 +223,7 @@ describe("App integration", () => {
       expect(setWorkspaceState).toHaveBeenLastCalledWith({
         workspaces: [
           { id: "A", label: "Alfred", shortLabel: "A" },
-          { id: "W2", label: "Workspace 2", shortLabel: "W2" },
+          { id: "CLIENTAPP", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
         ],
         activeWorkspaceId: "A",
       });
@@ -214,10 +231,10 @@ describe("App integration", () => {
   });
 
   it("hydrates persisted workspaces and opens the last active workspace", async () => {
-    installDesktopBridge(undefined, null, [], undefined, { layoutsByWorkspace: {} }, {
+    const { createTerminal } = installDesktopBridge(undefined, null, [], undefined, { layoutsByWorkspace: {} }, {
       workspaces: [
         { id: "A", label: "Alfred", shortLabel: "A" },
-        { id: "W2", label: "Workspace 2", shortLabel: "W2" },
+        { id: "W2", label: "Workspace 2", shortLabel: "W2", rootPath: "/tmp/workspace-2" },
       ],
       activeWorkspaceId: "W2",
     });
@@ -230,6 +247,9 @@ describe("App integration", () => {
     );
     expect(screen.getByText("Workspace 2 workspace")).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({ cwd: "/tmp/workspace-2" }));
+    });
   });
 
   it("does not create a duplicate PTY when the shell rerenders", async () => {

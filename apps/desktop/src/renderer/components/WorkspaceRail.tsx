@@ -4,6 +4,7 @@ export type WorkspaceRailWorkspace = {
   id: string;
   label: string;
   shortLabel: string;
+  rootPath?: string;
 };
 
 type WorkspaceRailProps = {

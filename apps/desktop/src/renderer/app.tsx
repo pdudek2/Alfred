@@ -108,10 +108,24 @@ export function App() {
         : undefined;
 
   const handleAddManualSession = useCallback(() => {
-    setTerminalSessions((sessions) => addManualSession(sessions, "", activeWorkspace.id));
-  }, [activeWorkspace.id]);
+    setTerminalSessions((sessions) => addManualSession(sessions, activeWorkspace.rootPath ?? "", activeWorkspace.id));
+  }, [activeWorkspace.id, activeWorkspace.rootPath]);
 
-  const handleAddWorkspace = useCallback(() => {
+  const handleAddWorkspace = useCallback(async () => {
+    const workspaceApi = getDesktopWorkspaceApi();
+    if (workspaceApi) {
+      const previousWorkspaceIds = new Set(workspaces.map((workspace) => workspace.id));
+      const snapshot = await workspaceApi.createWorkspaceFromFolder();
+      const workspace = snapshot.workspaces.find((item) => item.id === snapshot.activeWorkspaceId);
+
+      setWorkspaces(snapshot.workspaces);
+      setActiveWorkspaceId(snapshot.activeWorkspaceId);
+      if (workspace && !previousWorkspaceIds.has(workspace.id)) {
+        setTerminalSessions((sessions) => addManualSession(sessions, workspace.rootPath ?? "", workspace.id));
+      }
+      return;
+    }
+
     setWorkspaces((current) => {
       const index = current.length + 1;
       const workspace: Workspace = {
@@ -123,7 +137,7 @@ export function App() {
       setTerminalSessions((sessions) => addManualSession(sessions, "", workspace.id));
       return [...current, workspace];
     });
-  }, []);
+  }, [workspaces]);
 
   const handleToggleArrangeMode = useCallback(() => {
     setArrangeMode((enabled) => !enabled);
@@ -273,7 +287,7 @@ export function App() {
     setComposerValue("");
     setTerminalSessions((sessions) => {
       const before = sessions;
-      const after = addStagedSessions(before, response.plan.sessions, "", activeWorkspace.id);
+      const after = addStagedSessions(before, response.plan.sessions, activeWorkspace.rootPath ?? "", activeWorkspace.id);
       const stagedPlan = createStagedPlanSnapshot({
         ...(response.plan.name === undefined ? {} : { name: response.plan.name }),
         prompt,
@@ -297,7 +311,7 @@ export function App() {
       }
       return after;
     });
-  }, [activeWorkspace.id, alfredStatus, composerValue, globalStagedCount]);
+  }, [activeWorkspace.id, activeWorkspace.rootPath, alfredStatus, composerValue, globalStagedCount]);
 
   const handleApproveTile = useCallback((tileId: string) => {
     const tile = terminalSessions.find((session) => session.id === tileId);
@@ -420,11 +434,17 @@ export function App() {
         const liveSessions =
           terminalResult.sessions.length > 0
             ? hydrateLiveTerminalSessions(terminalResult.sessions)
-            : createInitialSessions("", workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID);
+            : createInitialSessions(
+                workspaceRootPath(workspaceStateResult, workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID),
+                workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID,
+              );
         const liveClientIds = new Set(
           terminalResult.sessions.map((session) => session.clientId).filter((id): id is string => Boolean(id)),
         );
-        const stagedSessions = hydrateStagedPlanSessions(stagedPlanResult.plan, "").filter(
+        const stagedSessions = hydrateStagedPlanSessions(
+          stagedPlanResult.plan,
+          workspaceRootPath(workspaceStateResult, workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID),
+        ).filter(
           (session) => !liveClientIds.has(session.id),
         );
         const alreadyLiveStagedIds =
@@ -477,7 +497,10 @@ export function App() {
             <AlfredMark label={activeWorkspace.shortLabel} />
             <div>
               <strong>{activeWorkspace.label} workspace</strong>
-              <span>{activeSessions.length} tile{activeSessions.length === 1 ? "" : "s"} · local desk</span>
+              <span>
+                {activeSessions.length} tile{activeSessions.length === 1 ? "" : "s"} ·{" "}
+                {activeWorkspace.rootPath ? shortenPath(activeWorkspace.rootPath) : "local desk"}
+              </span>
             </div>
           </div>
           <div className="mission-actions" aria-label="terminal actions">
@@ -652,6 +675,16 @@ function ensureWorkspacesForSessions(workspaces: Workspace[], sessions: SessionT
   }
 
   return additions.length === 0 ? workspaces : [...workspaces, ...additions];
+}
+
+function workspaceRootPath(state: WorkspaceStateSnapshot | null, workspaceId: string): string {
+  return state?.workspaces.find((workspace) => workspace.id === workspaceId)?.rootPath ?? "";
+}
+
+function shortenPath(value: string): string {
+  const parts = value.split("/");
+  if (parts.length <= 3) return value;
+  return `…/${parts.slice(-2).join("/")}`;
 }
 
 function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[]): SessionTile[] {

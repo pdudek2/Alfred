@@ -45,6 +45,55 @@ describe("workspace-store", () => {
     await expect(createWorkspaceStore({ filePath }).getWorkspaceState()).resolves.toEqual(state);
   });
 
+  it("creates a workspace from a folder and makes it active", async () => {
+    const filePath = await temporaryStateFile();
+    const store = createWorkspaceStore({ filePath });
+
+    await expect(store.createWorkspaceFromPath("/Users/patryk/Desktop/Client App")).resolves.toEqual({
+      workspaces: [
+        { id: "A", label: "Alfred", shortLabel: "A" },
+        {
+          id: "CLIENT-APP",
+          label: "Client App",
+          shortLabel: "CA",
+          rootPath: "/Users/patryk/Desktop/Client App",
+        },
+      ],
+      activeWorkspaceId: "CLIENT-APP",
+    });
+  });
+
+  it("reuses an existing folder workspace instead of duplicating it", async () => {
+    const filePath = await temporaryStateFile();
+    const store = createWorkspaceStore({ filePath });
+
+    await store.createWorkspaceFromPath("/Users/patryk/Desktop/Client App");
+    await store.createWorkspaceFromPath("/Users/patryk/Desktop/Client App");
+
+    await expect(store.getWorkspaceState()).resolves.toEqual({
+      workspaces: [
+        { id: "A", label: "Alfred", shortLabel: "A" },
+        {
+          id: "CLIENT-APP",
+          label: "Client App",
+          shortLabel: "CA",
+          rootPath: "/Users/patryk/Desktop/Client App",
+        },
+      ],
+      activeWorkspaceId: "CLIENT-APP",
+    });
+  });
+
+  it("keeps ids unique when two folders share a basename", async () => {
+    const filePath = await temporaryStateFile();
+    const store = createWorkspaceStore({ filePath });
+
+    await store.createWorkspaceFromPath("/Users/patryk/Desktop/Client App");
+    const snapshot = await store.createWorkspaceFromPath("/tmp/Client App");
+
+    expect(snapshot.workspaces.map((workspace) => workspace.id)).toEqual(["A", "CLIENT-APP", "CLIENT-APP-2"]);
+  });
+
   it("normalizes invalid updates before persisting them", async () => {
     const filePath = await temporaryStateFile();
     const store = createWorkspaceStore({ filePath });
