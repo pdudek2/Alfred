@@ -65,6 +65,7 @@ function installDesktopBridge(
   layouts: WorkspaceLayoutsSnapshot = { layoutsByWorkspace: {} },
 ): {
   clearStagedPlan: ReturnType<typeof vi.fn>;
+  createTerminal: ReturnType<typeof vi.fn>;
   getLayouts: ReturnType<typeof vi.fn>;
   getStagedPlan: ReturnType<typeof vi.fn>;
   getRuntimeStatus: ReturnType<typeof vi.fn>;
@@ -114,7 +115,18 @@ function installDesktopBridge(
   };
 
   window.alfredDesktop = bridge;
-  return { clearStagedPlan, getLayouts, getRuntimeStatus, getStagedPlan, killTerminal, requestPlan, resolveStagedPlan, setStagedPlan, setWorkspaceLayout };
+  return {
+    clearStagedPlan,
+    createTerminal,
+    getLayouts,
+    getRuntimeStatus,
+    getStagedPlan,
+    killTerminal,
+    requestPlan,
+    resolveStagedPlan,
+    setStagedPlan,
+    setWorkspaceLayout,
+  };
 }
 
 beforeEach(() => {
@@ -134,6 +146,22 @@ afterEach(() => {
 });
 
 describe("App integration", () => {
+  it("keeps the current shell landmarks and command palette reachable", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+
+    render(<App />);
+
+    expect(await screen.findByRole("region", { name: /terminals/i })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: /alfred status/i })).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: /alfred composer/i })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+
+    expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
+  });
+
   it("creates real workspaces and scopes terminals to the active workspace", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
@@ -158,6 +186,23 @@ describe("App integration", () => {
 
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
+  });
+
+  it("does not create a duplicate PTY when the shell rerenders", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge();
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledTimes(1);
+    });
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+
+    expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
+    expect(createTerminal).toHaveBeenCalledTimes(1);
   });
 
   it("enables arrange mode with layout presets without per-tile debug controls", async () => {
@@ -500,6 +545,50 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
     });
+  });
+
+  it("launches safe staged tiles while unsafe tiles remain staged", async () => {
+    const user = userEvent.setup();
+    const { clearStagedPlan, resolveStagedPlan } = installDesktopBridge({
+      ok: true,
+      plan: {
+        name: "Mixed launch plan",
+        sessions: [
+          {
+            kind: "shell",
+            title: "Safe task",
+            command: "pnpm",
+            args: ["test"],
+          },
+          {
+            kind: "shell",
+            title: "Risky task",
+            command: "rm",
+            args: ["-rf", "dist"],
+            safetyNote: "rm -rf detected",
+          },
+        ],
+      },
+    });
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText("Alfred prompt"), "stage mixed launch");
+    await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
+
+    expect(await screen.findByRole("article", { name: /Staged Safe task/i })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Launch safe" }));
+
+    await waitFor(() => {
+      expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
+    });
+    expect(screen.queryByRole("article", { name: /Staged Safe task/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Safe task/i })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Alfred launch plan" })).toHaveTextContent("1 need review");
+    expect(clearStagedPlan).not.toHaveBeenCalled();
   });
 
   it("requires two clicks before approving an unsafe staged tile", async () => {
