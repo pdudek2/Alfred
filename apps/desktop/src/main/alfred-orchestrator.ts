@@ -23,18 +23,18 @@ export function registerAlfredIpc(): void {
     model: DEFAULT_MODEL,
     openRouterConfigured: Boolean(process.env.OPENROUTER_API_KEY),
   }));
-  ipcMain.handle(alfredChannels.planGet, (): AlfredStagedPlanSnapshotResponse => getStagedPlanSnapshot());
+  ipcMain.handle(alfredChannels.planGet, (): Promise<AlfredStagedPlanSnapshotResponse> => getStagedPlanSnapshot());
   ipcMain.handle(
     alfredChannels.planSet,
-    (_event, request: AlfredStagedPlanSetRequest): AlfredStagedPlanSnapshotResponse =>
+    (_event, request: AlfredStagedPlanSetRequest): Promise<AlfredStagedPlanSnapshotResponse> =>
       setStagedPlanSnapshot(request),
   );
   ipcMain.handle(
     alfredChannels.planResolve,
-    (_event, request: AlfredStagedPlanResolveRequest): AlfredStagedPlanSnapshotResponse =>
+    (_event, request: AlfredStagedPlanResolveRequest): Promise<AlfredStagedPlanSnapshotResponse> =>
       resolveStagedPlanSessions(request),
   );
-  ipcMain.handle(alfredChannels.planClear, (): AlfredStagedPlanSnapshotResponse => clearStagedPlanSnapshot());
+  ipcMain.handle(alfredChannels.planClear, (): Promise<AlfredStagedPlanSnapshotResponse> => clearStagedPlanSnapshot());
   ipcMain.handle(
     alfredChannels.planRequest,
     async (_event, request: AlfredPlanRequest): Promise<AlfredPlanResponse> => {

@@ -7,7 +7,7 @@ import {
   DESKTOP_STATE_VERSION,
   createPersistedDesktopStateStore,
 } from "./persisted-desktop-state.js";
-import type { WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
+import type { DesktopStateSnapshot } from "./persisted-desktop-state.js";
 
 let temporaryDirectory: string | null = null;
 
@@ -33,12 +33,22 @@ describe("persisted-desktop-state", () => {
 
   it("writes and reads a versioned desktop state file", async () => {
     const filePath = await temporaryStateFile();
-    const state: WorkspaceStateSnapshot = {
+    const state: DesktopStateSnapshot = {
       workspaces: [
         { id: "A", label: "Alfred", shortLabel: "A" },
         { id: "UI", label: "Interface", shortLabel: "UI" },
       ],
       activeWorkspaceId: "UI",
+      layoutsByWorkspace: {
+        UI: {
+          "manual-1": { tileId: "manual-1", col: 1, row: 1, colSpan: 12, rowSpan: 8 },
+        },
+      },
+      stagedPlan: {
+        id: "plan-1",
+        prompt: "prepare ui",
+        sessions: [{ id: "alfred-1", kind: "shell", title: "Test", command: "pnpm", args: ["test"] }],
+      },
     };
 
     const writer = createPersistedDesktopStateStore({ filePath });
