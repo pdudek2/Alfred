@@ -8,6 +8,8 @@ import {
   createInitialSessions,
   hydrateStagedPlanSessions,
   hydrateLiveTerminalSessions,
+  markSessionExited,
+  markSessionStartFailed,
   rejectAllStaged,
   rejectStaged,
 } from "./session-state";
@@ -24,6 +26,7 @@ describe("desktop session state", () => {
         id: "manual-1",
         source: "manual",
         stage: "live",
+        runtimeStatus: "starting",
         title: "Manual · zsh 1",
         workspaceId: "A",
         cwd: "/Users/patryk/Desktop/Alfred",
@@ -40,6 +43,7 @@ describe("desktop session state", () => {
       id: "manual-2",
       source: "manual",
       stage: "live",
+      runtimeStatus: "starting",
       title: "Manual · zsh 2",
       workspaceId: "A",
       cwd: "/Users/patryk/Desktop/Alfred",
@@ -85,6 +89,7 @@ describe("desktop session state", () => {
       {
         id: "manual-1",
         runtimeId: "pty-a",
+        runtimeStatus: "live",
         title: "Manual · zsh 1",
         workspaceId: "A",
         cwd: "/repo",
@@ -95,6 +100,7 @@ describe("desktop session state", () => {
       {
         id: "alfred-1",
         runtimeId: "pty-b",
+        runtimeStatus: "live",
         title: "API dev",
         workspaceId: "A",
         cwd: "/repo/apps/api",
@@ -123,6 +129,23 @@ describe("desktop session state", () => {
     const next = addManualSession(hydrated, "/repo");
 
     expect(next.map((session) => session.id)).toEqual(["manual-4", "manual-5"]);
+  });
+
+  it("tracks runtime lifecycle transitions for live sessions", () => {
+    const hydrated = hydrateLiveTerminalSessions([
+      {
+        id: "pty-a",
+        clientId: "manual-4",
+        title: "Manual · zsh 4",
+        cwd: "/repo",
+        source: "manual",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+
+    expect(markSessionExited(hydrated, "pty-a")[0]?.runtimeStatus).toBe("exited");
+    expect(markSessionStartFailed(hydrated, "manual-4")[0]?.runtimeStatus).toBe("error");
   });
 
   it("assigns new manual sessions to the selected workspace", () => {
