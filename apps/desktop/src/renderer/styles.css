@@ -164,6 +164,19 @@ button:focus-visible {
   color: #f5e6b8;
 }
 
+.mission-actions .command-palette-button {
+  width: auto;
+  min-width: 74px;
+  padding: 0 10px;
+  gap: 7px;
+  color: var(--muted);
+}
+
+.mission-actions .command-palette-button span {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
 .workspace-layout {
   min-height: 0;
   display: grid;
@@ -1091,6 +1104,123 @@ body.arranging-pointer {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Command palette */
+.command-palette-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(86, 200, 213, 0.08), transparent 34%),
+    rgba(0, 0, 0, 0.46);
+  display: grid;
+  place-items: start center;
+  padding-top: 14vh;
+}
+
+.command-palette {
+  width: min(640px, calc(100vw - 48px));
+  border: 1px solid rgba(245, 240, 228, 0.16);
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(245, 240, 228, 0.055), transparent 80px),
+    rgba(8, 9, 9, 0.96);
+  box-shadow:
+    0 28px 96px rgba(0, 0, 0, 0.52),
+    inset 0 1px 0 rgba(245, 240, 228, 0.065);
+}
+
+.command-palette-search {
+  min-height: 50px;
+  border-bottom: 1px solid rgba(245, 240, 228, 0.09);
+  padding: 0 12px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+}
+
+.command-palette-search input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+}
+
+.command-palette-search input::placeholder {
+  color: var(--faint);
+}
+
+.command-palette-search kbd {
+  border: 1px solid rgba(245, 240, 228, 0.12);
+  border-radius: 6px;
+  padding: 3px 7px;
+  background: rgba(245, 240, 228, 0.035);
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.command-palette-list {
+  max-height: min(460px, 58vh);
+  overflow: auto;
+  padding: 6px;
+  display: grid;
+  gap: 4px;
+}
+
+.command-palette-list button,
+.command-palette-empty {
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 10px 11px;
+  background: transparent;
+  display: grid;
+  gap: 3px;
+  text-align: left;
+}
+
+.command-palette-list button {
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.command-palette-list button:hover,
+.command-palette-list button:focus-visible {
+  border-color: rgba(86, 200, 213, 0.28);
+  background:
+    linear-gradient(90deg, rgba(86, 200, 213, 0.09), transparent 56%),
+    rgba(245, 240, 228, 0.035);
+}
+
+.command-palette-list button:disabled {
+  cursor: not-allowed;
+  opacity: 0.44;
+}
+
+.command-palette-list button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 620;
+}
+
+.command-palette-list button small,
+.command-palette-empty {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 11px;
 }
 
 /* Staged tile (Alfred-proposed, awaiting approval) */
