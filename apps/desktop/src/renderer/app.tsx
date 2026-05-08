@@ -35,6 +35,7 @@ import {
   createInitialSessions,
   hydrateStagedPlanSessions,
   hydrateLiveTerminalSessions,
+  markSessionExited,
   markSessionStartFailed,
   rejectAllStaged,
   rejectStaged,
@@ -266,6 +267,10 @@ export function App() {
   const handleRuntimeSessionFailed = useCallback((tileId: string) => {
     startingSessionIdsRef.current.delete(tileId);
     setTerminalSessions((sessions) => markSessionStartFailed(sessions, tileId));
+  }, []);
+
+  const handleRuntimeSessionExited = useCallback((runtimeId: TerminalCreateResult["id"]) => {
+    setTerminalSessions((sessions) => markSessionExited(sessions, runtimeId));
   }, []);
 
   const handleSubmitPrompt = useCallback(async () => {
@@ -562,6 +567,7 @@ export function App() {
               onMoveTile={handleMoveTile}
               onRejectAll={handleRejectAll}
               onRuntimeSessionFailed={handleRuntimeSessionFailed}
+              onRuntimeSessionExited={handleRuntimeSessionExited}
               onRuntimeSessionReady={handleRuntimeSessionReady}
               onRuntimeSessionStarting={handleRuntimeSessionStarting}
               onApproveTile={handleApproveTile}

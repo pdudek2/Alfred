@@ -9,6 +9,7 @@ export type SessionTile = {
   cwd: string;
   source: "manual" | "alfred";
   stage: "staged" | "live";
+  runtimeStatus?: "starting" | "live" | "exited" | "error";
   command?: string;
   args?: string[];
   agentKind?: AgentKind;
@@ -38,7 +39,7 @@ export function attachRuntimeSession(
   runtimeId: TerminalSessionId,
 ): SessionTile[] {
   return sessions.map((session) =>
-    session.id === tileId ? { ...session, runtimeId } : session,
+    session.id === tileId ? { ...session, runtimeId, runtimeStatus: "live" } : session,
   );
 }
 
@@ -46,8 +47,14 @@ export function markSessionStartFailed(sessions: SessionTile[], tileId: string):
   return sessions.map((session) => {
     if (session.id !== tileId) return session;
     const nextStage = session.source === "alfred" && !session.runtimeId ? "staged" : session.stage;
-    return { ...session, stage: nextStage };
+    return { ...session, stage: nextStage, runtimeStatus: "error" };
   });
+}
+
+export function markSessionExited(sessions: SessionTile[], runtimeId: TerminalSessionId): SessionTile[] {
+  return sessions.map((session) =>
+    session.runtimeId === runtimeId ? { ...session, runtimeStatus: "exited" } : session,
+  );
 }
 
 export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]): SessionTile[] {
@@ -59,6 +66,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     cwd: snapshot.cwd,
     source: snapshot.source,
     stage: "live",
+    runtimeStatus: "live",
     ...(snapshot.command === undefined ? {} : { command: snapshot.command }),
     ...(snapshot.args === undefined ? {} : { args: snapshot.args }),
     ...(snapshot.agentKind === undefined ? {} : { agentKind: snapshot.agentKind }),
@@ -94,6 +102,7 @@ function createManualSession(index: number, cwd: string, workspaceId: string): S
     cwd,
     source: "manual",
     stage: "live",
+    runtimeStatus: "starting",
   };
 }
 
@@ -138,7 +147,7 @@ export function addStagedSessions(
 
 export function approveStaged(sessions: SessionTile[], tileId: string): SessionTile[] {
   return sessions.map((session) =>
-    session.id === tileId && session.stage === "staged" ? { ...session, stage: "live" } : session,
+    session.id === tileId && session.stage === "staged" ? { ...session, stage: "live", runtimeStatus: "starting" } : session,
   );
 }
 
@@ -149,7 +158,7 @@ export function rejectStaged(sessions: SessionTile[], tileId: string): SessionTi
 export function approveAllStaged(sessions: SessionTile[], workspaceId?: string): SessionTile[] {
   return sessions.map((session) =>
     session.stage === "staged" && !session.safetyNote && (!workspaceId || session.workspaceId === workspaceId)
-      ? { ...session, stage: "live" }
+      ? { ...session, stage: "live", runtimeStatus: "starting" }
       : session,
   );
 }

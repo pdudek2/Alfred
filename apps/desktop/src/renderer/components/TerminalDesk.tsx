@@ -39,6 +39,7 @@ type TerminalDeskProps = {
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
   onRejectAll: () => void;
   onRuntimeSessionFailed: (tileId: string) => void;
+  onRuntimeSessionExited: (runtimeId: TerminalSessionId) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
   onApproveTile: (tileId: string) => void;
@@ -63,6 +64,7 @@ export function TerminalDesk({
   onMoveTile,
   onRejectAll,
   onRuntimeSessionFailed,
+  onRuntimeSessionExited,
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
   onApproveTile,
@@ -271,6 +273,7 @@ export function TerminalDesk({
               onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
               onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
               onRuntimeSessionFailed={onRuntimeSessionFailed}
+              onRuntimeSessionExited={onRuntimeSessionExited}
               onRuntimeSessionReady={onRuntimeSessionReady}
               onRuntimeSessionStarting={onRuntimeSessionStarting}
             />
@@ -361,6 +364,7 @@ function ManualTerminalTile({
   onPointerMoveStart,
   onPointerResizeStart,
   onRuntimeSessionFailed,
+  onRuntimeSessionExited,
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
   selected,
@@ -384,6 +388,7 @@ function ManualTerminalTile({
   onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onRuntimeSessionFailed: (tileId: string) => void;
+  onRuntimeSessionExited: (runtimeId: TerminalSessionId) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
   selected: boolean;
@@ -480,6 +485,7 @@ function ManualTerminalTile({
     });
     const removeExitListener = terminalApi.onExit((event) => {
       if (event.id === sessionIdRef.current) {
+        onRuntimeSessionExited(event.id);
         setStatus("exited");
         terminal.writeln("");
         terminal.writeln(`[process exited with code ${event.exitCode}]`);
@@ -588,6 +594,7 @@ function ManualTerminalTile({
     initialBuffer,
     runtimeId,
     onRuntimeSessionFailed,
+    onRuntimeSessionExited,
     onRuntimeSessionReady,
     onRuntimeSessionStarting,
   ]);

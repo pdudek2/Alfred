@@ -22,7 +22,8 @@ export function AgentTimelinePanel({ session }: AgentTimelinePanelProps) {
 
   const kindMeta = tileKindMeta(sessionTileKind(session));
   const command = [session.command, ...(session.args ?? [])].filter(Boolean).join(" ");
-  const status = session.stage === "staged" ? "waiting for approval" : session.runtimeId ? "live runtime" : "starting";
+  const runtimeStatus = session.runtimeStatus ?? (session.runtimeId ? "live" : "starting");
+  const status = session.stage === "staged" ? "waiting for approval" : runtimeStatusLabel(runtimeStatus);
 
   return (
     <aside className="agent-timeline-panel" aria-label="Agent activity">
@@ -51,11 +52,11 @@ export function AgentTimelinePanel({ session }: AgentTimelinePanelProps) {
           <li>
             <span />
             <div>
-              <b>{session.stage === "staged" ? "Queued by Alfred" : "Session attached"}</b>
+              <b>{session.stage === "staged" ? "Queued by Alfred" : runtimeEventTitle(runtimeStatus)}</b>
               <p>
                 {session.stage === "staged"
                   ? "Review the proposed command before it starts."
-                  : "Terminal output is streaming in the workspace."}
+                  : runtimeEventCopy(runtimeStatus)}
               </p>
             </div>
           </li>
@@ -72,4 +73,46 @@ export function AgentTimelinePanel({ session }: AgentTimelinePanelProps) {
       </div>
     </aside>
   );
+}
+
+function runtimeStatusLabel(status: SessionTile["runtimeStatus"]): string {
+  switch (status) {
+    case "error":
+      return "start failed";
+    case "exited":
+      return "process exited";
+    case "live":
+      return "live runtime";
+    case "starting":
+    default:
+      return "starting";
+  }
+}
+
+function runtimeEventTitle(status: SessionTile["runtimeStatus"]): string {
+  switch (status) {
+    case "error":
+      return "Start failed";
+    case "exited":
+      return "Process exited";
+    case "live":
+      return "Session attached";
+    case "starting":
+    default:
+      return "Starting terminal";
+  }
+}
+
+function runtimeEventCopy(status: SessionTile["runtimeStatus"]): string {
+  switch (status) {
+    case "error":
+      return "The runtime could not create this terminal.";
+    case "exited":
+      return "The process has ended; scrollback remains available in the tile.";
+    case "live":
+      return "Terminal output is streaming in the workspace.";
+    case "starting":
+    default:
+      return "Alfred is attaching the runtime process.";
+  }
 }
