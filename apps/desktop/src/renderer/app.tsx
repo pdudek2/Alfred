@@ -1,17 +1,13 @@
-import { Command, Play, Plus, Search, ShieldAlert, X } from "lucide-react";
-import { FitAddon } from "@xterm/addon-fit";
-import { Terminal } from "@xterm/xterm";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
-} from "react";
+import { Command, Plus } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getDesktopAlfredApi, getDesktopLayoutApi, getDesktopTerminalApi } from "./desktop-api";
 import { ComposerBar } from "./composer";
+import { AlfredControlRail } from "./components/AlfredControlRail";
+import { AlfredMark } from "./components/AlfredMark";
+import { CommandPalette } from "./components/CommandPalette";
+import { OrchestratorSurface } from "./components/OrchestratorSurface";
+import { TerminalDesk } from "./components/TerminalDesk";
+import { WorkspaceRail, type WorkspaceRailWorkspace } from "./components/WorkspaceRail";
 import {
   applyLayoutPreset,
   ensureTileLayouts,
@@ -20,8 +16,6 @@ import {
   type LayoutPreset,
   type TileLayout,
 } from "./layout-state";
-import { StagedTilePreview } from "./staged-tile";
-import { TileKindIcon } from "./tile-kind-icon";
 import {
   canRequestPlan,
   errored,
@@ -41,36 +35,22 @@ import {
   createInitialSessions,
   hydrateStagedPlanSessions,
   hydrateLiveTerminalSessions,
+  markSessionStartFailed,
   rejectAllStaged,
   rejectStaged,
   type SessionTile,
 } from "./session-state";
-import { sessionTileKind, tileKindMeta } from "./tile-kind";
+import type { WorkMode } from "./terminal-desk-types";
+import { buildOrchestratorViewModel } from "./view-models/orchestrator-view-model";
 import type { AlfredRuntimeStatus, AlfredStagedPlanSnapshot, AlfredStagedSession } from "../shared/alfred-ipc";
-import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../shared/terminal-ipc";
+import type { TerminalCreateResult } from "../shared/terminal-ipc";
 import "@xterm/xterm/css/xterm.css";
 
-type Workspace = {
-  id: string;
-  label: string;
-  shortLabel: string;
-};
+type Workspace = WorkspaceRailWorkspace;
 
 const DEFAULT_WORKSPACE_ID = "A";
 const DEFAULT_WORKSPACE: Workspace = { id: DEFAULT_WORKSPACE_ID, label: "Alfred", shortLabel: "A" };
 const DEFAULT_WORKSPACES: Workspace[] = [DEFAULT_WORKSPACE];
-const ARRANGE_GRID_ROW_HEIGHT = 84;
-
-type ArrangePointerMode = "move" | "resize";
-type ArrangePreview = {
-  tileId: string;
-  mode: ArrangePointerMode;
-  offsetX: number;
-  offsetY: number;
-  deltaCol: number;
-  deltaRow: number;
-};
-type WorkMode = "desk" | "focus" | "split";
 
 export function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(DEFAULT_WORKSPACES);
@@ -89,6 +69,7 @@ export function App() {
   const [armedUnsafeSessionIds, setArmedUnsafeSessionIds] = useState<Set<string>>(() => new Set());
   const [runtimeStatus, setRuntimeStatus] = useState<AlfredRuntimeStatus | null>(null);
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
+  const startingSessionIdsRef = useRef<Set<string>>(new Set());
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? DEFAULT_WORKSPACE;
   const activeWorkMode = workModesByWorkspace[activeWorkspace.id] ?? "desk";
@@ -99,6 +80,18 @@ export function App() {
   const unsafeStagedCount = activeSessions.filter((s) => s.stage === "staged" && s.safetyNote).length;
   const liveAlfredCount = activeSessions.filter((s) => s.stage === "live" && s.source === "alfred").length;
   const alfredExpanded = alfredStatus.kind !== "idle" || activePendingPlan !== null;
+  const orchestratorViewModel = useMemo(
+    () =>
+      buildOrchestratorViewModel({
+        activeWorkspaceId: activeWorkspace.id,
+        activeWorkspaceLabel: activeWorkspace.label,
+        model: runtimeStatus?.model,
+        openRouterConfigured: runtimeStatus?.openRouterConfigured !== false,
+        pendingPlan: activePendingPlan,
+        sessions: terminalSessions,
+      }),
+    [activePendingPlan, activeWorkspace.id, activeWorkspace.label, runtimeStatus, terminalSessions],
+  );
   const stagedWorkspaceLabel =
     pendingPlan && pendingPlan.workspaceId !== activeWorkspace.id
       ? workspaces.find((workspace) => workspace.id === pendingPlan.workspaceId)?.label ?? "another workspace"
@@ -223,6 +216,15 @@ export function App() {
     });
   }, []);
 
+  const handleRuntimeSessionStarting = useCallback((tileId: string): boolean => {
+    if (startingSessionIdsRef.current.has(tileId)) {
+      return false;
+    }
+
+    startingSessionIdsRef.current.add(tileId);
+    return true;
+  }, []);
+
   const handleRuntimeSessionReady = useCallback((tileId: string, runtime: TerminalCreateResult) => {
     const terminalApi = getDesktopTerminalApi();
     const alfredApi = getDesktopAlfredApi();
@@ -233,10 +235,21 @@ export function App() {
       return;
     }
 
+    startingSessionIdsRef.current.delete(tileId);
     setTerminalSessions((sessions) => attachRuntimeSession(sessions, tileId, runtime.id));
     if (runtime.source === "alfred") {
       void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
+      setPendingPlan((plan) => {
+        if (!plan) return plan;
+        const remaining = plan.sessionIds.filter((id) => id !== tileId);
+        return remaining.length === 0 ? null : { ...plan, sessionIds: remaining };
+      });
     }
+  }, []);
+
+  const handleRuntimeSessionFailed = useCallback((tileId: string) => {
+    startingSessionIdsRef.current.delete(tileId);
+    setTerminalSessions((sessions) => markSessionStartFailed(sessions, tileId));
   }, []);
 
   const handleSubmitPrompt = useCallback(async () => {
@@ -298,11 +311,6 @@ export function App() {
       return next;
     });
     setTerminalSessions((sessions) => approveStaged(sessions, tileId));
-    setPendingPlan((plan) => {
-      if (!plan) return plan;
-      const remaining = plan.sessionIds.filter((id) => id !== tileId);
-      return remaining.length === 0 ? null : { ...plan, sessionIds: remaining };
-    });
   }, [armedUnsafeSessionIds, terminalSessions]);
 
   const handleRejectTile = useCallback((tileId: string) => {
@@ -325,14 +333,7 @@ export function App() {
   const handleApproveAll = useCallback(() => {
     setArmedUnsafeSessionIds(new Set());
     setTerminalSessions((sessions) => approveAllStaged(sessions, activeWorkspace.id));
-    setPendingPlan((plan) => {
-      if (!plan) return plan;
-      const unsafeIds = terminalSessions
-        .filter((session) => session.workspaceId === activeWorkspace.id && session.stage === "staged" && session.safetyNote && plan.sessionIds.includes(session.id))
-        .map((session) => session.id);
-      return unsafeIds.length === 0 ? null : { ...plan, sessionIds: unsafeIds };
-    });
-  }, [activeWorkspace.id, terminalSessions]);
+  }, [activeWorkspace.id]);
 
   const handleRejectAll = useCallback(() => {
     const alfredApi = getDesktopAlfredApi();
@@ -447,7 +448,7 @@ export function App() {
       >
         <div className="mission-bar">
           <div className="mission-name">
-            <div className="alfred-mark">{activeWorkspace.shortLabel}</div>
+            <AlfredMark label={activeWorkspace.shortLabel} />
             <div>
               <strong>{activeWorkspace.label} workspace</strong>
               <span>{activeSessions.length} tile{activeSessions.length === 1 ? "" : "s"} · local desk</span>
@@ -494,28 +495,32 @@ export function App() {
             onAddWorkspace={handleAddWorkspace}
             onSelectWorkspace={handleSelectWorkspace}
           />
-          <TerminalGrid
-            arrangeMode={arrangeMode}
-            armedUnsafeSessionIds={armedUnsafeSessionIds}
-            layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
-            pendingPlan={activePendingPlan}
-            sessions={activeSessions}
-            shortcutModifier={shortcutModifier}
-            safeStagedCount={Math.max(0, stagedCount - unsafeStagedCount)}
-            unsafeStagedCount={unsafeStagedCount}
-            workMode={activeWorkMode}
-            onCloseSession={handleCloseSession}
-            onApplyLayoutPreset={handleApplyLayoutPreset}
-            onApplyWorkMode={handleApplyWorkMode}
-            onApproveAll={handleApproveAll}
-            onMoveTile={handleMoveTile}
-            onRejectAll={handleRejectAll}
-            onRuntimeSessionReady={handleRuntimeSessionReady}
-            onApproveTile={handleApproveTile}
-            onRejectTile={handleRejectTile}
-            onResizeTile={handleResizeTile}
-          />
-          <AlfredDock
+          <OrchestratorSurface viewModel={orchestratorViewModel}>
+            <TerminalDesk
+              arrangeMode={arrangeMode}
+              armedUnsafeSessionIds={armedUnsafeSessionIds}
+              layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
+              pendingPlan={activePendingPlan}
+              sessions={activeSessions}
+              shortcutModifier={shortcutModifier}
+              safeStagedCount={Math.max(0, stagedCount - unsafeStagedCount)}
+              unsafeStagedCount={unsafeStagedCount}
+              workMode={activeWorkMode}
+              onCloseSession={handleCloseSession}
+              onApplyLayoutPreset={handleApplyLayoutPreset}
+              onApplyWorkMode={handleApplyWorkMode}
+              onApproveAll={handleApproveAll}
+              onMoveTile={handleMoveTile}
+              onRejectAll={handleRejectAll}
+              onRuntimeSessionFailed={handleRuntimeSessionFailed}
+              onRuntimeSessionReady={handleRuntimeSessionReady}
+              onRuntimeSessionStarting={handleRuntimeSessionStarting}
+              onApproveTile={handleApproveTile}
+              onRejectTile={handleRejectTile}
+              onResizeTile={handleResizeTile}
+            />
+          </OrchestratorSurface>
+          <AlfredControlRail
             status={alfredStatus}
             pendingPlan={activePendingPlan}
             stagedCount={stagedCount}
@@ -552,161 +557,6 @@ export function App() {
         )}
       </section>
     </main>
-  );
-}
-
-type CommandPaletteItem = {
-  id: string;
-  label: string;
-  detail: string;
-  disabled?: boolean;
-  run: () => void;
-};
-
-function CommandPalette({
-  activeWorkMode,
-  arrangeMode,
-  pendingPlan,
-  query,
-  safeStagedCount,
-  shortcutModifier,
-  unsafeStagedCount,
-  onAddManualSession,
-  onApplyWorkMode,
-  onApproveAll,
-  onChangeQuery,
-  onClose,
-  onRejectAll,
-  onToggleArrange,
-}: {
-  activeWorkMode: WorkMode;
-  arrangeMode: boolean;
-  pendingPlan: SquadPlan | null;
-  query: string;
-  safeStagedCount: number;
-  shortcutModifier: string;
-  unsafeStagedCount: number;
-  onAddManualSession: () => void;
-  onApplyWorkMode: (mode: WorkMode) => void;
-  onApproveAll: () => void;
-  onChangeQuery: (query: string) => void;
-  onClose: () => void;
-  onRejectAll: () => void;
-  onToggleArrange: () => void;
-}) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const runAndClose = useCallback((run: () => void) => {
-    run();
-    onClose();
-  }, [onClose]);
-
-  const commands: CommandPaletteItem[] = [
-    {
-      id: "new-terminal",
-      label: "New manual terminal",
-      detail: `${shortcutModifier} T · start a shell in this workspace`,
-      run: onAddManualSession,
-    },
-    {
-      id: "mode-focus",
-      label: "Focus mode",
-      detail: activeWorkMode === "focus" ? "Current mode" : "Full-width working stack",
-      run: () => onApplyWorkMode("focus"),
-    },
-    {
-      id: "mode-split",
-      label: "Split mode",
-      detail: activeWorkMode === "split" ? "Current mode" : "Two-up desk for paired work",
-      run: () => onApplyWorkMode("split"),
-    },
-    {
-      id: "mode-desk",
-      label: "Desk mode",
-      detail: activeWorkMode === "desk" ? "Current mode" : "Balanced multi-tile workspace",
-      run: () => onApplyWorkMode("desk"),
-    },
-    {
-      id: "arrange",
-      label: arrangeMode ? "Exit arrange mode" : "Arrange tiles",
-      detail: "Drag headers and resize corners",
-      run: onToggleArrange,
-    },
-    {
-      id: "launch-plan",
-      label: unsafeStagedCount > 0 ? "Launch safe staged tiles" : "Launch staged plan",
-      detail: pendingPlan
-        ? `${safeStagedCount} launchable · ${unsafeStagedCount} need review`
-        : "No Alfred plan staged",
-      disabled: !pendingPlan || safeStagedCount === 0,
-      run: onApproveAll,
-    },
-    {
-      id: "clear-plan",
-      label: "Clear staged plan",
-      detail: pendingPlan ? "Reject Alfred's current proposal" : "No staged plan",
-      disabled: !pendingPlan,
-      run: onRejectAll,
-    },
-  ];
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredCommands = normalizedQuery
-    ? commands.filter((command) =>
-        `${command.label} ${command.detail}`.toLowerCase().includes(normalizedQuery),
-      )
-    : commands;
-
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      onClose();
-    }
-  };
-
-  return (
-    <div className="command-palette-backdrop" role="presentation" onMouseDown={onClose}>
-      <div
-        className="command-palette"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Command palette"
-        onKeyDown={handleKeyDown}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="command-palette-search">
-          <Search size={15} />
-          <input
-            ref={inputRef}
-            value={query}
-            placeholder="Type a command..."
-            aria-label="Search commands"
-            onChange={(event) => onChangeQuery(event.target.value)}
-          />
-          <kbd>esc</kbd>
-        </div>
-        <div className="command-palette-list" role="listbox" aria-label="Commands">
-          {filteredCommands.map((command) => (
-            <button
-              key={command.id}
-              type="button"
-              role="option"
-              disabled={command.disabled}
-              onClick={() => runAndClose(command.run)}
-            >
-              <span>{command.label}</span>
-              <small>{command.detail}</small>
-            </button>
-          ))}
-          {filteredCommands.length === 0 && (
-            <div className="command-palette-empty">No matching command.</div>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -785,683 +635,4 @@ function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[])
   const additions = liveSessions.filter((session) => !existingIds.has(session.id));
 
   return [...merged, ...additions];
-}
-
-function WorkspaceRail({
-  activeWorkspaceId,
-  sessions,
-  workspaces,
-  onAddWorkspace,
-  onSelectWorkspace,
-}: {
-  activeWorkspaceId: string;
-  sessions: SessionTile[];
-  workspaces: Workspace[];
-  onAddWorkspace: () => void;
-  onSelectWorkspace: (workspaceId: string) => void;
-}) {
-  const countsByWorkspace = new Map<string, { live: number; staged: number }>();
-  for (const session of sessions) {
-    const counts = countsByWorkspace.get(session.workspaceId) ?? { live: 0, staged: 0 };
-    if (session.stage === "staged") counts.staged += 1;
-    else counts.live += 1;
-    countsByWorkspace.set(session.workspaceId, counts);
-  }
-
-  return (
-    <nav className="workspace-rail" aria-label="workspaces" role="tablist">
-      {workspaces.map((workspace) => {
-        const active = workspace.id === activeWorkspaceId;
-        const counts = countsByWorkspace.get(workspace.id) ?? { live: 0, staged: 0 };
-        return (
-          <button
-            className={`workspace-button ${active ? "active" : ""}`}
-            type="button"
-            aria-label={`${workspace.label} workspace, ${counts.live} live, ${counts.staged} staged`}
-            aria-selected={active}
-            key={workspace.id}
-            onClick={() => onSelectWorkspace(workspace.id)}
-            role="tab"
-            title={`${workspace.label}: ${counts.live} live, ${counts.staged} staged`}
-          >
-            <span>{workspace.shortLabel}</span>
-            {(counts.live > 0 || counts.staged > 0) && (
-              <small aria-hidden="true">{counts.staged > 0 ? counts.staged : counts.live}</small>
-            )}
-          </button>
-        );
-      })}
-      <div className="workspace-spacer" />
-      <button className="workspace-button add-workspace" type="button" aria-label="Add workspace" onClick={onAddWorkspace}>
-        +
-      </button>
-    </nav>
-  );
-}
-
-function AlfredDock({
-  status,
-  pendingPlan,
-  stagedCount,
-  unsafeStagedCount,
-  liveAlfredCount,
-  onDismissError,
-}: {
-  status: AlfredStatus;
-  pendingPlan: SquadPlan | null;
-  stagedCount: number;
-  unsafeStagedCount: number;
-  liveAlfredCount: number;
-  onDismissError: () => void;
-}) {
-  const safeStagedCount = Math.max(0, stagedCount - unsafeStagedCount);
-  const compact = status.kind === "idle" && pendingPlan === null;
-
-  return (
-    <aside className={`alfred-dock ${compact ? "compact" : ""}`} aria-label="Alfred status">
-      <div className="alfred-dock-header">
-        <div className="alfred-dock-mark">A</div>
-        <div>
-          <strong>Alfred</strong>
-          <span>{status.kind === "thinking" ? "preparing" : status.kind === "error" ? "needs attention" : pendingPlan ? "ready to launch" : "standing by"}</span>
-        </div>
-      </div>
-
-      {status.kind === "error" ? (
-        <div className="alfred-dock-error" role="alert">
-          <div>{status.error.message}</div>
-          <button type="button" className="dismiss" onClick={onDismissError} aria-label="Dismiss error">
-            Dismiss
-          </button>
-        </div>
-      ) : pendingPlan ? (
-        <div className="alfred-dock-plan">
-          <div className="plan-name">{pendingPlan.name ?? "Squad"}</div>
-          <div className="plan-counts">
-            {stagedCount} staged · {liveAlfredCount} live
-          </div>
-          {unsafeStagedCount > 0 && (
-            <div className="plan-safety-note" role="note">
-              {unsafeStagedCount} flagged item{unsafeStagedCount === 1 ? "" : "s"} need manual approval.
-            </div>
-          )}
-          <p className="plan-prompt">"{truncate(pendingPlan.prompt, 140)}"</p>
-        </div>
-      ) : compact ? (
-        <p className="compact-note" aria-label="Alfred idle">
-          Quiet until asked.
-        </p>
-      ) : (
-        <p>Manual work stays in front. Ask Alfred when you want a workspace prepared.</p>
-      )}
-
-      <div className="alfred-dock-footer">
-        <span>{pendingPlan ? "review queue" : "clear desk"}</span>
-        <span>{safeStagedCount > 0 ? `${safeStagedCount} launchable` : "no asks"}</span>
-      </div>
-    </aside>
-  );
-}
-
-function truncate(value: string, max: number): string {
-  return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
-}
-
-function TerminalGrid({
-  arrangeMode,
-  armedUnsafeSessionIds,
-  layouts,
-  pendingPlan,
-  sessions,
-  shortcutModifier,
-  safeStagedCount,
-  unsafeStagedCount,
-  workMode,
-  onCloseSession,
-  onApplyLayoutPreset,
-  onApplyWorkMode,
-  onApproveAll,
-  onMoveTile,
-  onRejectAll,
-  onRuntimeSessionReady,
-  onApproveTile,
-  onRejectTile,
-  onResizeTile,
-}: {
-  arrangeMode: boolean;
-  armedUnsafeSessionIds: Set<string>;
-  layouts: Record<string, TileLayout>;
-  pendingPlan: SquadPlan | null;
-  sessions: SessionTile[];
-  shortcutModifier: string;
-  safeStagedCount: number;
-  unsafeStagedCount: number;
-  workMode: WorkMode;
-  onCloseSession: (sessionId: string) => void;
-  onApplyLayoutPreset: (preset: LayoutPreset) => void;
-  onApplyWorkMode: (mode: WorkMode) => void;
-  onApproveAll: () => void;
-  onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
-  onRejectAll: () => void;
-  onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
-  onApproveTile: (tileId: string) => void;
-  onRejectTile: (tileId: string) => void;
-  onResizeTile: (tileId: string, deltaColSpan: number, deltaRowSpan: number) => void;
-}) {
-  const gridRef = useRef<HTMLDivElement | null>(null);
-  const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
-  const gridDensity = sessions.length <= 1 ? "single" : sessions.length === 2 ? "split" : "dense";
-  const startPointerArrange = useCallback((
-    tileId: string,
-    mode: ArrangePointerMode,
-    event: ReactPointerEvent<HTMLElement>,
-  ) => {
-    if (!arrangeMode) return;
-    if (mode === "move" && (event.target as HTMLElement).closest("button")) return;
-    const grid = gridRef.current;
-    const layout = layouts[tileId];
-    if (!grid || !layout) return;
-
-    event.preventDefault();
-    const rect = grid.getBoundingClientRect();
-    const colWidth = rect.width > 0 ? rect.width / 12 : 80;
-    const startX = event.clientX;
-    const startY = event.clientY;
-    let finalDeltaCol = 0;
-    let finalDeltaRow = 0;
-
-    setArrangePreview({
-      tileId,
-      mode,
-      offsetX: 0,
-      offsetY: 0,
-      deltaCol: 0,
-      deltaRow: 0,
-    });
-    document.body.classList.add("arranging-pointer");
-
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      const offsetX = moveEvent.clientX - startX;
-      const offsetY = moveEvent.clientY - startY;
-      finalDeltaCol = Math.round(offsetX / colWidth);
-      finalDeltaRow = Math.round(offsetY / ARRANGE_GRID_ROW_HEIGHT);
-      setArrangePreview({
-        tileId,
-        mode,
-        offsetX,
-        offsetY,
-        deltaCol: finalDeltaCol,
-        deltaRow: finalDeltaRow,
-      });
-    };
-
-    const stopPointerArrange = (commit: boolean) => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", commitPointerArrange);
-      window.removeEventListener("pointercancel", cancelPointerArrange);
-      document.body.classList.remove("arranging-pointer");
-      setArrangePreview(null);
-
-      if (!commit) return;
-      if (finalDeltaCol === 0 && finalDeltaRow === 0) return;
-
-      if (mode === "move") {
-        onMoveTile(tileId, finalDeltaCol, finalDeltaRow);
-      } else {
-        onResizeTile(tileId, finalDeltaCol, finalDeltaRow);
-      }
-    };
-    const commitPointerArrange = () => stopPointerArrange(true);
-    const cancelPointerArrange = () => stopPointerArrange(false);
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", commitPointerArrange);
-    window.addEventListener("pointercancel", cancelPointerArrange);
-  }, [arrangeMode, layouts, onMoveTile, onResizeTile]);
-
-  return (
-    <section className={`terminal-stage ${arrangeMode ? "arranging" : ""} ${pendingPlan ? "has-plan" : ""}`} aria-label="terminals">
-      <header className="terminal-stage-header">
-        <div>
-          <strong>Desk</strong>
-          <span>{sessions.length} tile{sessions.length === 1 ? "" : "s"} · {sessions.filter(s => s.stage === "staged").length} staged</span>
-        </div>
-        <div className="layout-controls" aria-label="layout controls">
-          {arrangeMode && (
-            <>
-              <button type="button" onClick={() => onApplyLayoutPreset("focus")}>Full</button>
-              <button type="button" onClick={() => onApplyLayoutPreset("two-up")}>Split</button>
-              <button type="button" onClick={() => onApplyLayoutPreset("grid")}>Tiled</button>
-              <span className="arrange-hint">drag header · resize corner</span>
-            </>
-          )}
-          {!arrangeMode && sessions.length > 0 && (
-            <div className="work-mode-control" aria-label="work mode">
-              <button
-                type="button"
-                className={workMode === "focus" ? "active" : ""}
-                aria-pressed={workMode === "focus"}
-                onClick={() => onApplyWorkMode("focus")}
-              >
-                Focus
-              </button>
-              <button
-                type="button"
-                className={workMode === "split" ? "active" : ""}
-                aria-pressed={workMode === "split"}
-                onClick={() => onApplyWorkMode("split")}
-              >
-                Split
-              </button>
-              <button
-                type="button"
-                className={workMode === "desk" ? "active" : ""}
-                aria-pressed={workMode === "desk"}
-                onClick={() => onApplyWorkMode("desk")}
-              >
-                Desk
-              </button>
-            </div>
-          )}
-          <kbd>{shortcutModifier} T</kbd>
-        </div>
-      </header>
-      {pendingPlan && (
-        <LaunchPlanStrip
-          pendingPlan={pendingPlan}
-          safeStagedCount={safeStagedCount}
-          unsafeStagedCount={unsafeStagedCount}
-          onApproveAll={onApproveAll}
-          onRejectAll={onRejectAll}
-        />
-      )}
-      <div className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}`} ref={gridRef}>
-        {sessions.map((session) =>
-          session.stage === "live" ? (
-            <ManualTerminalTile
-              arrangeMode={arrangeMode}
-              cwd={session.cwd}
-              key={session.id}
-              layout={layouts[session.id]}
-              preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
-              sessionKey={session.id}
-              runtimeId={session.runtimeId}
-              workspaceId={session.workspaceId}
-              title={session.title}
-              source={session.source}
-              agentKind={session.agentKind}
-              command={session.command}
-              args={session.args}
-              initialBuffer={session.initialBuffer}
-              onClose={() => onCloseSession(session.id)}
-              onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
-              onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
-              onRuntimeSessionReady={onRuntimeSessionReady}
-            />
-          ) : (
-            <StagedTilePreview
-              armed={armedUnsafeSessionIds.has(session.id)}
-              key={session.id}
-              layout={layouts[session.id]}
-              preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
-              tile={session}
-              onApprove={onApproveTile}
-              onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
-              onReject={onRejectTile}
-              onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
-              arrangeMode={arrangeMode}
-            />
-          ),
-        )}
-      </div>
-    </section>
-  );
-}
-
-function LaunchPlanStrip({
-  pendingPlan,
-  safeStagedCount,
-  unsafeStagedCount,
-  onApproveAll,
-  onRejectAll,
-}: {
-  pendingPlan: SquadPlan;
-  safeStagedCount: number;
-  unsafeStagedCount: number;
-  onApproveAll: () => void;
-  onRejectAll: () => void;
-}) {
-  const totalStagedCount = pendingPlan.sessionIds.length;
-
-  return (
-    <section className="launch-plan-strip" aria-label="Alfred launch plan">
-      <div className="launch-plan-mark" aria-hidden="true">
-        A
-      </div>
-      <div className="launch-plan-copy">
-        <span>Workspace prepared</span>
-        <strong>{pendingPlan.name ?? "Alfred plan"}</strong>
-        <p>
-          {totalStagedCount} proposed tile{totalStagedCount === 1 ? "" : "s"}
-          {unsafeStagedCount > 0 ? ` · ${unsafeStagedCount} need review` : " · ready to launch"}
-        </p>
-      </div>
-      {unsafeStagedCount > 0 && (
-        <div className="launch-plan-warning" role="note">
-          <ShieldAlert size={14} />
-          <span>Unsafe commands stay staged.</span>
-        </div>
-      )}
-      <div className="launch-plan-actions">
-        <button type="button" className="launch-primary" onClick={onApproveAll} disabled={safeStagedCount === 0}>
-          <Play size={14} />
-          {unsafeStagedCount > 0 ? "Launch safe" : "Launch all"}
-        </button>
-        <button type="button" className="launch-secondary" onClick={onRejectAll}>
-          Clear plan
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function ManualTerminalTile({
-  arrangeMode,
-  cwd,
-  agentKind,
-  initialBuffer,
-  layout,
-  preview,
-  onClose,
-  onPointerMoveStart,
-  onPointerResizeStart,
-  onRuntimeSessionReady,
-  runtimeId,
-  sessionKey,
-  source,
-  workspaceId,
-  title,
-  command,
-  args,
-}: {
-  arrangeMode: boolean;
-  cwd: string;
-  agentKind?: SessionTile["agentKind"];
-  initialBuffer?: string | undefined;
-  layout?: TileLayout | undefined;
-  preview?: ArrangePreview | undefined;
-  onClose: () => void;
-  onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
-  onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
-  onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
-  runtimeId?: TerminalSessionId | undefined;
-  sessionKey: string;
-  source: SessionTile["source"];
-  workspaceId: string;
-  title: string;
-  command?: string | undefined;
-  args?: string[] | undefined;
-}) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const terminalRef = useRef<Terminal | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
-  const sessionIdRef = useRef<TerminalSessionId | null>(null);
-  const [status, setStatus] = useState<"connecting" | "ready" | "browser" | "exited" | "error">("connecting");
-  const [resolvedCwd, setResolvedCwd] = useState<string>(cwd);
-  const kind = sessionTileKind({ agentKind, source });
-  const kindMeta = tileKindMeta(kind);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    const terminalApi = getDesktopTerminalApi();
-    let disposed = false;
-
-    if (!container) {
-      return;
-    }
-
-    sessionIdRef.current = runtimeId ?? null;
-    setResolvedCwd(cwd);
-    setStatus("connecting");
-
-    const terminal = new Terminal({
-      allowProposedApi: false,
-      convertEol: true,
-      cursorBlink: true,
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
-      fontSize: 12,
-      lineHeight: 1.25,
-      theme: {
-        background: "#040505",
-        foreground: "#d7cebb",
-        cursor: "#f5f0e4",
-        black: "#050607",
-        blue: "#56c8d5",
-        brightBlack: "#696357",
-        brightBlue: "#9be7ef",
-        brightCyan: "#a8edf3",
-        brightGreen: "#baf0c6",
-        brightMagenta: "#d4c5ff",
-        brightRed: "#ffaaa0",
-        brightWhite: "#fff8e9",
-        brightYellow: "#f5d67f",
-        cyan: "#56c8d5",
-        green: "#78d991",
-        magenta: "#b7a1ff",
-        red: "#ef8173",
-        white: "#f5f0e4",
-        yellow: "#d9ae46",
-      },
-    });
-    const fitAddon = new FitAddon();
-
-    terminal.loadAddon(fitAddon);
-    terminal.open(container);
-    terminalRef.current = terminal;
-    fitAddonRef.current = fitAddon;
-
-    const fitAndResize = () => {
-      fitAddon.fit();
-      const sessionId = sessionIdRef.current;
-
-      if (sessionId && terminalApi) {
-        terminalApi.resize({ id: sessionId, cols: terminal.cols, rows: terminal.rows });
-      }
-    };
-
-    requestAnimationFrame(fitAndResize);
-
-    if (!terminalApi) {
-      setStatus("browser");
-      terminal.writeln("Manual terminal requires the Electron desktop runtime.");
-      terminal.writeln("Open it with: pnpm --filter @alfred/desktop dev:electron");
-      return () => {
-        terminal.dispose();
-      };
-    }
-
-    const removeDataListener = terminalApi.onData((event) => {
-      if (event.id === sessionIdRef.current) {
-        terminal.write(event.data);
-      }
-    });
-    const removeExitListener = terminalApi.onExit((event) => {
-      if (event.id === sessionIdRef.current) {
-        setStatus("exited");
-        terminal.writeln("");
-        terminal.writeln(`[process exited with code ${event.exitCode}]`);
-      }
-    });
-    const inputDisposable = terminal.onData((data) => {
-      const sessionId = sessionIdRef.current;
-
-      if (sessionId) {
-        terminalApi.write({ id: sessionId, data });
-      }
-    });
-    const resizeObserver = new ResizeObserver(fitAndResize);
-
-    resizeObserver.observe(container);
-
-    if (runtimeId) {
-      sessionIdRef.current = runtimeId;
-      setStatus("ready");
-      if (initialBuffer) {
-        terminal.write(initialBuffer);
-      }
-      requestAnimationFrame(fitAndResize);
-      terminal.focus();
-
-      return () => {
-        disposed = true;
-        resizeObserver.disconnect();
-        inputDisposable.dispose();
-        removeDataListener();
-        removeExitListener();
-        terminal.dispose();
-      };
-    }
-
-    const baseRequest: TerminalCreateRequest = {
-      cols: terminal.cols,
-      rows: terminal.rows,
-      clientId: sessionKey,
-      title,
-      source,
-      workspaceId,
-    };
-    if (agentKind) baseRequest.agentKind = agentKind;
-    if (cwd) baseRequest.cwd = cwd;
-    if (command) {
-      baseRequest.command = command;
-      baseRequest.args = args ?? [];
-    }
-    terminalApi
-      .create(baseRequest)
-      .then((session) => {
-        onRuntimeSessionReady(sessionKey, session);
-
-        if (disposed) {
-          return;
-        }
-
-        sessionIdRef.current = session.id;
-        setResolvedCwd(session.cwd);
-        setStatus("ready");
-        fitAndResize();
-        terminal.focus();
-      })
-      .catch((error: unknown) => {
-        if (disposed) {
-          return;
-        }
-
-        setStatus("error");
-        terminal.writeln("Failed to start manual terminal.");
-        terminal.writeln(error instanceof Error ? error.message : String(error));
-      });
-
-    return () => {
-      disposed = true;
-      resizeObserver.disconnect();
-      inputDisposable.dispose();
-      removeDataListener();
-      removeExitListener();
-
-      terminal.dispose();
-    };
-  }, [cwd, sessionKey, title, source, workspaceId, agentKind, command, args, initialBuffer, onRuntimeSessionReady]);
-
-  return (
-    <article
-      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${status} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
-      aria-label={title}
-      style={gridStyle(layout, preview)}
-    >
-      <header
-        className={`tile-header ${arrangeMode ? "drag-handle" : ""}`}
-        onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
-      >
-        <div className="tile-title">
-          <span className={`tool-dot ${kindMeta.className}`} />
-          <span className={`tile-kind-mark ${kindMeta.className}`} title={kindMeta.label}>
-            <TileKindIcon kind={kind} />
-            <span>{kindMeta.shortLabel}</span>
-          </span>
-          <div>
-            <b>{title}</b>
-            <small>{kindMeta.label} · {resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd"}</small>
-          </div>
-        </div>
-        <div className="tile-actions">
-          <span className="tile-status">{statusLabel(status)}</span>
-          <button
-            type="button"
-            aria-label={`Close ${title}`}
-            onClick={onClose}
-            onPointerDown={(event) => event.stopPropagation()}
-            title="Close terminal"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      </header>
-      <div className="xterm-host" ref={containerRef} />
-      {arrangeMode && (
-        <button
-          className="tile-resize-handle"
-          type="button"
-          aria-label={`Resize ${title}`}
-          onPointerDown={onPointerResizeStart}
-        />
-      )}
-    </article>
-  );
-}
-
-function gridStyle(layout: TileLayout | undefined, preview?: ArrangePreview | undefined): CSSProperties | undefined {
-  if (!layout) return undefined;
-  const style: CSSProperties & Record<string, string | number> = {
-    gridColumn: `${layout.col} / span ${layout.colSpan}`,
-    gridRow: `${layout.row} / span ${layout.rowSpan}`,
-  };
-
-  if (preview) {
-    style["--arrange-x"] = `${preview.offsetX}px`;
-    style["--arrange-y"] = `${preview.offsetY}px`;
-    style["--arrange-cols"] = String(preview.deltaCol);
-    style["--arrange-rows"] = String(preview.deltaRow);
-  }
-
-  if (preview?.mode === "move") {
-    style.transform = `translate3d(${preview.offsetX}px, ${preview.offsetY}px, 0)`;
-    style.zIndex = 6;
-  }
-
-  return style;
-}
-
-function statusLabel(status: "connecting" | "ready" | "browser" | "exited" | "error"): string {
-  switch (status) {
-    case "browser":
-      return "electron only";
-    case "connecting":
-      return "starting";
-    case "error":
-      return "error";
-    case "exited":
-      return "exited";
-    case "ready":
-      return "live";
-  }
-}
-
-function shortenPath(value: string): string {
-  const parts = value.split("/");
-
-  if (parts.length <= 3) {
-    return value;
-  }
-
-  return `…/${parts.slice(-2).join("/")}`;
 }
