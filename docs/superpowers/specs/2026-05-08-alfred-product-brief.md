@@ -50,7 +50,7 @@ These exist to filter future proposals — from designers, AI tools, or future-s
 
 - **No sci-fi LARP language.** Banned: "Mission Control", "Workspace Orchestrator", "ALFRED_OS", "NEURAL LINK", "SYS_*", "kernel", "v4.2 protocol", "initialize_node". Sessions are sessions, not "neural execution streams".
 - **No pricing tiers.** Banned: "Premium", "Ultimate", "Artisan", "Pro", upgrade prompts, locked features, edition labels. Every feature is available or doesn't exist.
-- **No generic AI dashboard layout.** Banned: "sidebar + 3 status cards + big CTA + footer metrics" template. Layout is built around the session grid, not around cards-with-icons-and-status.
+- **No generic AI dashboard template.** The Stitch template was: abstract-menu sidebar (`Dashboard / Agents / Deployments / Security / Settings / Docs`) + 3 status cards + big primary CTA + footer metrics. Banned as a *combo*, not as individual pieces. Alfred has a sidebar — the workspace rail (Section 5) — but it lists real, clickable workspaces, not abstract menu sections. **Sidebar element: allowed and prescribed. Sidebar-as-fake-SaaS-nav: banned.** Layout is built around the session grid, not around cards-with-icons-and-status.
 - **No flat / Linear-style restraint as primary direction.** Linear is referenced for object-list ergonomics, not for chrome austerity. Glass and depth are required.
 - **No generic-purple-AI-tool palette.** Color is chosen deliberately, not borrowed from the current AI-dev-tool common pool.
 - **No fake telemetry.** Numbers appear only when they answer a real user question. CPU%, MEM, "active agents 7", "neural latency 24ms" — banned. Cost-per-session, % context used, session age, tokens spent — welcome.
