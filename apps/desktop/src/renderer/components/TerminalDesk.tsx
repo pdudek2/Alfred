@@ -18,6 +18,7 @@ import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import type { ArrangePointerMode, ArrangePreview, WorkMode } from "../terminal-desk-types";
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../../shared/terminal-ipc";
+import { AgentTimelinePanel } from "./AgentTimelinePanel";
 
 const ARRANGE_GRID_ROW_HEIGHT = 84;
 
@@ -139,7 +140,7 @@ export function TerminalDesk({
   );
 
   return (
-    <section className={`terminal-stage ${arrangeMode ? "arranging" : ""} ${pendingPlan ? "has-plan" : ""}`} aria-label="terminals">
+    <section className={`terminal-stage ${arrangeMode ? "arranging" : ""} ${pendingPlan ? "has-plan" : ""} mode-${workMode}`} aria-label="terminals">
       <header className="terminal-stage-header">
         <div>
           <strong>Desk</strong>
@@ -202,6 +203,7 @@ export function TerminalDesk({
           onRejectAll={onRejectAll}
         />
       )}
+      <div className="terminal-stage-body">
       <div className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}`} ref={gridRef}>
         {sessions.map((session) =>
           session.stage === "live" ? (
@@ -242,6 +244,10 @@ export function TerminalDesk({
             />
           ),
         )}
+      </div>
+      {workMode === "focus" && (
+        <AgentTimelinePanel session={focusedSession(sessions, layouts)} />
+      )}
       </div>
     </section>
   );
@@ -579,6 +585,18 @@ function ManualTerminalTile({
       )}
     </article>
   );
+}
+
+function focusedSession(sessions: SessionTile[], layouts: Record<string, TileLayout>): SessionTile | null {
+  let best: { session: SessionTile; area: number } | null = null;
+  for (const session of sessions) {
+    if (session.stage !== "live") continue;
+    const layout = layouts[session.id];
+    if (!layout) continue;
+    const area = layout.colSpan * layout.rowSpan;
+    if (!best || area > best.area) best = { session, area };
+  }
+  return best?.session ?? null;
 }
 
 function gridStyle(layout: TileLayout | undefined, preview?: ArrangePreview | undefined): CSSProperties | undefined {
