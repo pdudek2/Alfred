@@ -2,16 +2,9 @@ import { X } from "lucide-react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { TileLayout } from "./layout-state";
 import type { SessionTile } from "./session-state";
+import type { ArrangePreview } from "./terminal-desk-types";
 import { sessionTileKind, tileKindMeta } from "./tile-kind";
 import { TileKindIcon } from "./tile-kind-icon";
-
-type ArrangePreview = {
-  mode: "move" | "resize";
-  offsetX: number;
-  offsetY: number;
-  deltaCol: number;
-  deltaRow: number;
-};
 
 type StagedTilePreviewProps = {
   arrangeMode: boolean;

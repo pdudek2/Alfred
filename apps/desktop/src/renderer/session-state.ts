@@ -42,6 +42,14 @@ export function attachRuntimeSession(
   );
 }
 
+export function markSessionStartFailed(sessions: SessionTile[], tileId: string): SessionTile[] {
+  return sessions.map((session) => {
+    if (session.id !== tileId) return session;
+    const nextStage = session.source === "alfred" && !session.runtimeId ? "staged" : session.stage;
+    return { ...session, stage: nextStage };
+  });
+}
+
 export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]): SessionTile[] {
   return snapshots.map((snapshot) => ({
     id: snapshot.clientId ?? `runtime-${snapshot.id}`,
