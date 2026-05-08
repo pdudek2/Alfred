@@ -1,6 +1,6 @@
 import { Command, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getDesktopAlfredApi, getDesktopLayoutApi, getDesktopTerminalApi } from "./desktop-api";
+import { getDesktopAlfredApi, getDesktopLayoutApi, getDesktopTerminalApi, getDesktopWorkspaceApi } from "./desktop-api";
 import { ComposerBar } from "./composer";
 import { AlfredControlRail } from "./components/AlfredControlRail";
 import { AlfredMark } from "./components/AlfredMark";
@@ -44,6 +44,7 @@ import type { WorkMode } from "./terminal-desk-types";
 import { buildOrchestratorViewModel } from "./view-models/orchestrator-view-model";
 import type { AlfredRuntimeStatus, AlfredStagedPlanSnapshot, AlfredStagedSession } from "../shared/alfred-ipc";
 import type { TerminalCreateResult } from "../shared/terminal-ipc";
+import type { WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 import "@xterm/xterm/css/xterm.css";
 
 type Workspace = WorkspaceRailWorkspace;
@@ -70,6 +71,7 @@ export function App() {
   const [runtimeStatus, setRuntimeStatus] = useState<AlfredRuntimeStatus | null>(null);
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
+  const workspaceStateHydratedRef = useRef<boolean>(false);
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? DEFAULT_WORKSPACE;
   const activeWorkMode = workModesByWorkspace[activeWorkspace.id] ?? "desk";
@@ -392,6 +394,7 @@ export function App() {
     const terminalApi = getDesktopTerminalApi();
     const alfredApi = getDesktopAlfredApi();
     const layoutApi = getDesktopLayoutApi();
+    const workspaceApi = getDesktopWorkspaceApi();
     let cancelled = false;
 
     if (!terminalApi) {
@@ -404,15 +407,20 @@ export function App() {
       alfredApi?.getStagedPlan().catch(() => ({ plan: null })) ?? Promise.resolve({ plan: null }),
       alfredApi?.getRuntimeStatus().catch(() => null) ?? Promise.resolve(null),
       layoutApi?.getLayouts().catch(() => ({ layoutsByWorkspace: {} })) ?? Promise.resolve({ layoutsByWorkspace: {} }),
+      workspaceApi?.getWorkspaceState().catch(() => null) ?? Promise.resolve(null),
     ])
-      .then(([terminalResult, stagedPlanResult, runtimeStatusResult, layoutResult]) => {
+      .then(([terminalResult, stagedPlanResult, runtimeStatusResult, layoutResult, workspaceStateResult]) => {
         if (cancelled) return;
         setRuntimeStatus(runtimeStatusResult);
         setTileLayoutsByWorkspace(layoutResult.layoutsByWorkspace);
+        if (workspaceStateResult) {
+          setWorkspaces(workspaceStateResult.workspaces);
+          setActiveWorkspaceId(workspaceStateResult.activeWorkspaceId);
+        }
         const liveSessions =
           terminalResult.sessions.length > 0
             ? hydrateLiveTerminalSessions(terminalResult.sessions)
-            : createInitialSessions("");
+            : createInitialSessions("", workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID);
         const liveClientIds = new Set(
           terminalResult.sessions.map((session) => session.clientId).filter((id): id is string => Boolean(id)),
         );
@@ -427,18 +435,36 @@ export function App() {
           void alfredApi?.resolveStagedPlan({ sessionIds: alreadyLiveStagedIds });
         }
         const hydratedSessions = [...liveSessions, ...stagedSessions];
-        setWorkspaces((current) => ensureWorkspacesForSessions(current, hydratedSessions));
+        setWorkspaces((current) =>
+          ensureWorkspacesForSessions(workspaceStateResult?.workspaces ?? current, hydratedSessions),
+        );
         setTerminalSessions(hydratedSessions);
         setPendingPlan(toSquadPlan({ plan: stagedPlanResult.plan, omittedSessionIds: alreadyLiveStagedIds }));
+        workspaceStateHydratedRef.current = true;
       })
       .catch(() => {
-        if (!cancelled) setTerminalSessions(createInitialSessions(""));
+        if (!cancelled) {
+          setTerminalSessions(createInitialSessions(""));
+          workspaceStateHydratedRef.current = true;
+        }
       });
 
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!workspaceStateHydratedRef.current) return;
+    const workspaceApi = getDesktopWorkspaceApi();
+    if (!workspaceApi) return;
+
+    const snapshot: WorkspaceStateSnapshot = {
+      workspaces,
+      activeWorkspaceId,
+    };
+    void workspaceApi.setWorkspaceState(snapshot);
+  }, [activeWorkspaceId, workspaces]);
 
   return (
     <main className="agent-space-shell">
