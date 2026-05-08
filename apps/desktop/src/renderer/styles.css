@@ -39,11 +39,13 @@ body {
   min-height: 100vh;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(83, 199, 216, 0.055), transparent 180px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    radial-gradient(ellipse 900px 650px at 14% 6%, color-mix(in oklab, var(--accent) 9%, transparent), transparent 68%),
+    radial-gradient(ellipse 700px 500px at 88% 92%, color-mix(in oklab, var(--accent) 5%, transparent), transparent 70%),
+    linear-gradient(180deg, color-mix(in oklab, var(--accent) 6%, transparent), transparent 240px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
     var(--night);
-  background-size: auto, 48px 48px, 48px 48px, auto;
+  background-size: auto, auto, auto, 48px 48px, 48px 48px, auto;
 }
 
 button {
@@ -730,18 +732,39 @@ button:focus-visible {
   position: relative;
   min-width: 0;
   min-height: 0;
-  border: 1px solid rgba(188, 202, 218, 0.115);
-  border-radius: 8px;
+  border: 1px solid color-mix(in oklab, white 9%, transparent);
+  border-radius: 16px;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.038), transparent 58px),
-    linear-gradient(90deg, rgba(83, 199, 216, 0.016), transparent 42%),
-    var(--terminal);
+    linear-gradient(180deg,
+      color-mix(in oklab, white 7%, transparent),
+      color-mix(in oklab, white 2%, transparent) 80px,
+      transparent 160px),
+    linear-gradient(90deg, color-mix(in oklab, var(--accent) 3.5%, transparent), transparent 32%),
+    rgba(14, 19, 26, 0.74);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
   box-shadow:
-    0 18px 44px rgba(0, 0, 0, 0.16),
-    inset 0 1px 0 rgba(238, 243, 247, 0.045);
+    inset 0 1px 0 color-mix(in oklab, white 11%, transparent),
+    inset 0 0 0 1px color-mix(in oklab, var(--accent) 5%, transparent),
+    0 2px 4px -2px rgba(0, 0, 0, 0.32),
+    0 24px 48px -18px rgba(0, 0, 0, 0.82);
   display: grid;
   grid-template-rows: 42px 1fr;
+  transition:
+    transform 220ms cubic-bezier(0.2, 0.7, 0.1, 1),
+    border-color 220ms cubic-bezier(0.2, 0.7, 0.1, 1),
+    box-shadow 220ms cubic-bezier(0.2, 0.7, 0.1, 1);
+}
+
+.terminal-tile:not(.arranging):hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, white 16%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 14%, transparent),
+    inset 0 0 0 1px color-mix(in oklab, var(--accent) 10%, transparent),
+    0 4px 10px -2px rgba(0, 0, 0, 0.4),
+    0 32px 56px -16px rgba(0, 0, 0, 0.88);
 }
 
 .terminal-tile.arranging {
@@ -822,11 +845,11 @@ body.arranging-pointer {
 }
 
 .terminal-tile.real-terminal {
-  border-color: rgba(188, 202, 218, 0.15);
+  border-color: color-mix(in oklab, white 9%, transparent);
 }
 
 .terminal-tile.real-terminal.ready {
-  border-color: rgba(120, 217, 145, 0.2);
+  border-color: color-mix(in oklab, var(--green) 26%, transparent);
 }
 
 .terminal-tile.kind-manual {
@@ -871,18 +894,19 @@ body.arranging-pointer {
 
 .tile-header {
   min-width: 0;
-  border-bottom: 1px solid rgba(188, 202, 218, 0.08);
+  border-bottom: 1px solid color-mix(in oklab, white 5%, transparent);
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 8px;
-  padding: 0 10px;
+  padding: 0 14px;
   color: var(--muted);
   font-family: var(--mono);
   font-size: 12px;
   background:
-    linear-gradient(90deg, rgba(238, 243, 247, 0.032), transparent 38%),
-    rgba(7, 10, 14, 0.86);
+    linear-gradient(180deg,
+      color-mix(in oklab, white 3.5%, transparent),
+      transparent);
 }
 
 .tile-title {
@@ -993,25 +1017,37 @@ body.arranging-pointer {
 }
 
 .tile-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   min-height: 22px;
-  border: 1px solid rgba(120, 217, 145, 0.18);
-  border-radius: 6px;
-  padding: 3px 8px;
-  background: rgba(120, 217, 145, 0.045);
-  color: var(--cyan);
+  padding: 3px 10px 3px 8px;
+  border: 1px solid color-mix(in oklab, white 7%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, white 4%, transparent);
+  color: var(--ink-soft);
   font-family: var(--mono);
   font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
   line-height: 1.2;
 }
 
-.terminal-tile.real-terminal.ready .tile-status {
-  color: #a6e7b1;
+.tile-status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
 }
 
-.terminal-tile.real-terminal.error .tile-status,
-.terminal-tile.real-terminal.exited .tile-status {
-  color: var(--coral);
-}
+.terminal-tile.real-terminal.connecting .tile-status { color: var(--brass); }
+.terminal-tile.real-terminal.ready .tile-status      { color: var(--green); }
+.terminal-tile.real-terminal.exited .tile-status     { color: var(--muted); }
+.terminal-tile.real-terminal.error .tile-status      { color: var(--coral); }
+.terminal-tile.real-terminal.browser .tile-status    { color: var(--cyan); }
 
 .tile-actions button {
   width: 34px;
@@ -1047,10 +1083,8 @@ body.arranging-pointer {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  padding: 10px;
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.014), transparent 96px),
-    var(--terminal);
+  padding: 10px 12px;
+  background: var(--terminal);
 }
 
 .xterm-host .xterm {
