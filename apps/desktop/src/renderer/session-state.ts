@@ -9,6 +9,7 @@ export type SessionTile = {
   cwd: string;
   source: "manual" | "alfred";
   stage: "staged" | "live";
+  starting?: boolean;
   command?: string;
   args?: string[];
   agentKind?: AgentKind;
@@ -38,8 +39,24 @@ export function attachRuntimeSession(
   runtimeId: TerminalSessionId,
 ): SessionTile[] {
   return sessions.map((session) =>
-    session.id === tileId ? { ...session, runtimeId } : session,
+    session.id === tileId ? { ...session, runtimeId, starting: false } : session,
   );
+}
+
+export function markSessionStarting(sessions: SessionTile[], tileId: string): SessionTile[] {
+  return sessions.map((session) =>
+    session.id === tileId && session.stage === "live" && !session.runtimeId
+      ? { ...session, starting: true }
+      : session,
+  );
+}
+
+export function markSessionStartFailed(sessions: SessionTile[], tileId: string): SessionTile[] {
+  return sessions.map((session) => {
+    if (session.id !== tileId) return session;
+    const nextStage = session.source === "alfred" && !session.runtimeId ? "staged" : session.stage;
+    return { ...session, stage: nextStage, starting: false };
+  });
 }
 
 export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]): SessionTile[] {

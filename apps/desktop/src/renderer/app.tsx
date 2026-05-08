@@ -12,6 +12,8 @@ import {
 } from "react";
 import { getDesktopAlfredApi, getDesktopLayoutApi, getDesktopTerminalApi } from "./desktop-api";
 import { ComposerBar } from "./composer";
+import { AlfredMark } from "./components/AlfredMark";
+import { WorkspaceRail, type WorkspaceRailWorkspace } from "./components/WorkspaceRail";
 import {
   applyLayoutPreset,
   ensureTileLayouts,
@@ -41,6 +43,8 @@ import {
   createInitialSessions,
   hydrateStagedPlanSessions,
   hydrateLiveTerminalSessions,
+  markSessionStartFailed,
+  markSessionStarting,
   rejectAllStaged,
   rejectStaged,
   type SessionTile,
@@ -50,11 +54,7 @@ import type { AlfredRuntimeStatus, AlfredStagedPlanSnapshot, AlfredStagedSession
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../shared/terminal-ipc";
 import "@xterm/xterm/css/xterm.css";
 
-type Workspace = {
-  id: string;
-  label: string;
-  shortLabel: string;
-};
+type Workspace = WorkspaceRailWorkspace;
 
 const DEFAULT_WORKSPACE_ID = "A";
 const DEFAULT_WORKSPACE: Workspace = { id: DEFAULT_WORKSPACE_ID, label: "Alfred", shortLabel: "A" };
@@ -223,6 +223,10 @@ export function App() {
     });
   }, []);
 
+  const handleRuntimeSessionStarting = useCallback((tileId: string) => {
+    setTerminalSessions((sessions) => markSessionStarting(sessions, tileId));
+  }, []);
+
   const handleRuntimeSessionReady = useCallback((tileId: string, runtime: TerminalCreateResult) => {
     const terminalApi = getDesktopTerminalApi();
     const alfredApi = getDesktopAlfredApi();
@@ -236,7 +240,16 @@ export function App() {
     setTerminalSessions((sessions) => attachRuntimeSession(sessions, tileId, runtime.id));
     if (runtime.source === "alfred") {
       void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
+      setPendingPlan((plan) => {
+        if (!plan) return plan;
+        const remaining = plan.sessionIds.filter((id) => id !== tileId);
+        return remaining.length === 0 ? null : { ...plan, sessionIds: remaining };
+      });
     }
+  }, []);
+
+  const handleRuntimeSessionFailed = useCallback((tileId: string) => {
+    setTerminalSessions((sessions) => markSessionStartFailed(sessions, tileId));
   }, []);
 
   const handleSubmitPrompt = useCallback(async () => {
@@ -298,11 +311,6 @@ export function App() {
       return next;
     });
     setTerminalSessions((sessions) => approveStaged(sessions, tileId));
-    setPendingPlan((plan) => {
-      if (!plan) return plan;
-      const remaining = plan.sessionIds.filter((id) => id !== tileId);
-      return remaining.length === 0 ? null : { ...plan, sessionIds: remaining };
-    });
   }, [armedUnsafeSessionIds, terminalSessions]);
 
   const handleRejectTile = useCallback((tileId: string) => {
@@ -325,14 +333,7 @@ export function App() {
   const handleApproveAll = useCallback(() => {
     setArmedUnsafeSessionIds(new Set());
     setTerminalSessions((sessions) => approveAllStaged(sessions, activeWorkspace.id));
-    setPendingPlan((plan) => {
-      if (!plan) return plan;
-      const unsafeIds = terminalSessions
-        .filter((session) => session.workspaceId === activeWorkspace.id && session.stage === "staged" && session.safetyNote && plan.sessionIds.includes(session.id))
-        .map((session) => session.id);
-      return unsafeIds.length === 0 ? null : { ...plan, sessionIds: unsafeIds };
-    });
-  }, [activeWorkspace.id, terminalSessions]);
+  }, [activeWorkspace.id]);
 
   const handleRejectAll = useCallback(() => {
     const alfredApi = getDesktopAlfredApi();
@@ -447,7 +448,7 @@ export function App() {
       >
         <div className="mission-bar">
           <div className="mission-name">
-            <div className="alfred-mark">{activeWorkspace.shortLabel}</div>
+            <AlfredMark label={activeWorkspace.shortLabel} />
             <div>
               <strong>{activeWorkspace.label} workspace</strong>
               <span>{activeSessions.length} tile{activeSessions.length === 1 ? "" : "s"} · local desk</span>
@@ -510,7 +511,9 @@ export function App() {
             onApproveAll={handleApproveAll}
             onMoveTile={handleMoveTile}
             onRejectAll={handleRejectAll}
+            onRuntimeSessionFailed={handleRuntimeSessionFailed}
             onRuntimeSessionReady={handleRuntimeSessionReady}
+            onRuntimeSessionStarting={handleRuntimeSessionStarting}
             onApproveTile={handleApproveTile}
             onRejectTile={handleRejectTile}
             onResizeTile={handleResizeTile}
@@ -787,58 +790,6 @@ function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[])
   return [...merged, ...additions];
 }
 
-function WorkspaceRail({
-  activeWorkspaceId,
-  sessions,
-  workspaces,
-  onAddWorkspace,
-  onSelectWorkspace,
-}: {
-  activeWorkspaceId: string;
-  sessions: SessionTile[];
-  workspaces: Workspace[];
-  onAddWorkspace: () => void;
-  onSelectWorkspace: (workspaceId: string) => void;
-}) {
-  const countsByWorkspace = new Map<string, { live: number; staged: number }>();
-  for (const session of sessions) {
-    const counts = countsByWorkspace.get(session.workspaceId) ?? { live: 0, staged: 0 };
-    if (session.stage === "staged") counts.staged += 1;
-    else counts.live += 1;
-    countsByWorkspace.set(session.workspaceId, counts);
-  }
-
-  return (
-    <nav className="workspace-rail" aria-label="workspaces" role="tablist">
-      {workspaces.map((workspace) => {
-        const active = workspace.id === activeWorkspaceId;
-        const counts = countsByWorkspace.get(workspace.id) ?? { live: 0, staged: 0 };
-        return (
-          <button
-            className={`workspace-button ${active ? "active" : ""}`}
-            type="button"
-            aria-label={`${workspace.label} workspace, ${counts.live} live, ${counts.staged} staged`}
-            aria-selected={active}
-            key={workspace.id}
-            onClick={() => onSelectWorkspace(workspace.id)}
-            role="tab"
-            title={`${workspace.label}: ${counts.live} live, ${counts.staged} staged`}
-          >
-            <span>{workspace.shortLabel}</span>
-            {(counts.live > 0 || counts.staged > 0) && (
-              <small aria-hidden="true">{counts.staged > 0 ? counts.staged : counts.live}</small>
-            )}
-          </button>
-        );
-      })}
-      <div className="workspace-spacer" />
-      <button className="workspace-button add-workspace" type="button" aria-label="Add workspace" onClick={onAddWorkspace}>
-        +
-      </button>
-    </nav>
-  );
-}
-
 function AlfredDock({
   status,
   pendingPlan,
@@ -923,7 +874,9 @@ function TerminalGrid({
   onApproveAll,
   onMoveTile,
   onRejectAll,
+  onRuntimeSessionFailed,
   onRuntimeSessionReady,
+  onRuntimeSessionStarting,
   onApproveTile,
   onRejectTile,
   onResizeTile,
@@ -943,7 +896,9 @@ function TerminalGrid({
   onApproveAll: () => void;
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
   onRejectAll: () => void;
+  onRuntimeSessionFailed: (tileId: string) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
+  onRuntimeSessionStarting: (tileId: string) => void;
   onApproveTile: (tileId: string) => void;
   onRejectTile: (tileId: string) => void;
   onResizeTile: (tileId: string, deltaColSpan: number, deltaRowSpan: number) => void;
@@ -1085,6 +1040,7 @@ function TerminalGrid({
               layout={layouts[session.id]}
               preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
               sessionKey={session.id}
+              starting={session.starting === true}
               runtimeId={session.runtimeId}
               workspaceId={session.workspaceId}
               title={session.title}
@@ -1096,7 +1052,9 @@ function TerminalGrid({
               onClose={() => onCloseSession(session.id)}
               onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
               onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
+              onRuntimeSessionFailed={onRuntimeSessionFailed}
               onRuntimeSessionReady={onRuntimeSessionReady}
+              onRuntimeSessionStarting={onRuntimeSessionStarting}
             />
           ) : (
             <StagedTilePreview
@@ -1175,9 +1133,12 @@ function ManualTerminalTile({
   onClose,
   onPointerMoveStart,
   onPointerResizeStart,
+  onRuntimeSessionFailed,
   onRuntimeSessionReady,
+  onRuntimeSessionStarting,
   runtimeId,
   sessionKey,
+  starting,
   source,
   workspaceId,
   title,
@@ -1193,9 +1154,12 @@ function ManualTerminalTile({
   onClose: () => void;
   onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
+  onRuntimeSessionFailed: (tileId: string) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
+  onRuntimeSessionStarting: (tileId: string) => void;
   runtimeId?: TerminalSessionId | undefined;
   sessionKey: string;
+  starting: boolean;
   source: SessionTile["source"];
   workspaceId: string;
   title: string;
@@ -1322,6 +1286,18 @@ function ManualTerminalTile({
       };
     }
 
+    if (starting) {
+      terminal.writeln("Terminal start is already in progress...");
+      return () => {
+        disposed = true;
+        resizeObserver.disconnect();
+        inputDisposable.dispose();
+        removeDataListener();
+        removeExitListener();
+        terminal.dispose();
+      };
+    }
+
     const baseRequest: TerminalCreateRequest = {
       cols: terminal.cols,
       rows: terminal.rows,
@@ -1336,6 +1312,7 @@ function ManualTerminalTile({
       baseRequest.command = command;
       baseRequest.args = args ?? [];
     }
+    onRuntimeSessionStarting(sessionKey);
     terminalApi
       .create(baseRequest)
       .then((session) => {
@@ -1352,6 +1329,7 @@ function ManualTerminalTile({
         terminal.focus();
       })
       .catch((error: unknown) => {
+        onRuntimeSessionFailed(sessionKey);
         if (disposed) {
           return;
         }
@@ -1370,7 +1348,22 @@ function ManualTerminalTile({
 
       terminal.dispose();
     };
-  }, [cwd, sessionKey, title, source, workspaceId, agentKind, command, args, initialBuffer, onRuntimeSessionReady]);
+  }, [
+    cwd,
+    sessionKey,
+    title,
+    source,
+    workspaceId,
+    agentKind,
+    command,
+    args,
+    initialBuffer,
+    runtimeId,
+    starting,
+    onRuntimeSessionFailed,
+    onRuntimeSessionReady,
+    onRuntimeSessionStarting,
+  ]);
 
   return (
     <article
