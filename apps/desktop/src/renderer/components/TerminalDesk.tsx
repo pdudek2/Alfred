@@ -71,7 +71,49 @@ export function TerminalDesk({
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const gridDensity = sessions.length <= 1 ? "single" : sessions.length === 2 ? "split" : "dense";
+  const selectedSession = selectedSessionForDesk(sessions, selectedSessionId);
+
+  useEffect(() => {
+    if (sessions.length === 0) {
+      setSelectedSessionId(null);
+      return;
+    }
+
+    if (!selectedSessionId || !sessions.some((session) => session.id === selectedSessionId)) {
+      setSelectedSessionId(sessions[0]?.id ?? null);
+    }
+  }, [selectedSessionId, sessions]);
+
+  useEffect(() => {
+    if (workMode !== "focus") return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onApplyWorkMode("desk");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onApplyWorkMode, workMode]);
+
+  const handleFocusSession = useCallback(
+    (sessionId: string) => {
+      setSelectedSessionId(sessionId);
+      if (!arrangeMode) {
+        onApplyWorkMode("focus");
+      }
+    },
+    [arrangeMode, onApplyWorkMode],
+  );
+  const handleSelectSession = useCallback((sessionId: string) => {
+    setSelectedSessionId(sessionId);
+  }, []);
   const startPointerArrange = useCallback(
     (tileId: string, mode: ArrangePointerMode, event: ReactPointerEvent<HTMLElement>) => {
       if (!arrangeMode) return;
@@ -222,7 +264,10 @@ export function TerminalDesk({
               command={session.command}
               args={session.args}
               initialBuffer={session.initialBuffer}
+              selected={selectedSession?.id === session.id}
               onClose={() => onCloseSession(session.id)}
+              onFocusSession={() => handleFocusSession(session.id)}
+              onSelectSession={() => handleSelectSession(session.id)}
               onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
               onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
               onRuntimeSessionFailed={onRuntimeSessionFailed}
@@ -236,6 +281,9 @@ export function TerminalDesk({
               layout={layouts[session.id]}
               preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
               tile={session}
+              selected={selectedSession?.id === session.id}
+              onFocusSession={() => handleFocusSession(session.id)}
+              onSelectSession={() => handleSelectSession(session.id)}
               onApprove={onApproveTile}
               onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
               onReject={onRejectTile}
@@ -246,7 +294,7 @@ export function TerminalDesk({
         )}
       </div>
       {workMode === "focus" && (
-        <AgentTimelinePanel session={focusedSession(sessions, layouts)} />
+        <AgentTimelinePanel session={selectedSession ?? focusedSession(sessions, layouts)} />
       )}
       </div>
     </section>
@@ -308,11 +356,14 @@ function ManualTerminalTile({
   layout,
   preview,
   onClose,
+  onFocusSession,
+  onSelectSession,
   onPointerMoveStart,
   onPointerResizeStart,
   onRuntimeSessionFailed,
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
+  selected,
   runtimeId,
   sessionKey,
   source,
@@ -328,11 +379,14 @@ function ManualTerminalTile({
   layout?: TileLayout | undefined;
   preview?: ArrangePreview | undefined;
   onClose: () => void;
+  onFocusSession: () => void;
+  onSelectSession: () => void;
   onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onRuntimeSessionFailed: (tileId: string) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
+  selected: boolean;
   runtimeId?: TerminalSessionId | undefined;
   sessionKey: string;
   source: SessionTile["source"];
@@ -540,12 +594,21 @@ function ManualTerminalTile({
 
   return (
     <article
-      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${status} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${status} ${selected ? "selected" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
       aria-label={title}
       style={gridStyle(layout, preview)}
+      tabIndex={0}
+      onFocus={onSelectSession}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          onFocusSession();
+        }
+      }}
     >
       <header
         className={`tile-header ${arrangeMode ? "drag-handle" : ""}`}
+        onClick={!arrangeMode ? onFocusSession : undefined}
         onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
       >
         <div className="tile-title">
@@ -597,6 +660,10 @@ function focusedSession(sessions: SessionTile[], layouts: Record<string, TileLay
     if (!best || area > best.area) best = { session, area };
   }
   return best?.session ?? null;
+}
+
+function selectedSessionForDesk(sessions: SessionTile[], selectedSessionId: string | null): SessionTile | null {
+  return sessions.find((session) => session.id === selectedSessionId) ?? null;
 }
 
 function gridStyle(layout: TileLayout | undefined, preview?: ArrangePreview | undefined): CSSProperties | undefined {
