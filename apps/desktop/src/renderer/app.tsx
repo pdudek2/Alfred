@@ -44,7 +44,6 @@ import {
   hydrateStagedPlanSessions,
   hydrateLiveTerminalSessions,
   markSessionStartFailed,
-  markSessionStarting,
   rejectAllStaged,
   rejectStaged,
   type SessionTile,
@@ -89,6 +88,7 @@ export function App() {
   const [armedUnsafeSessionIds, setArmedUnsafeSessionIds] = useState<Set<string>>(() => new Set());
   const [runtimeStatus, setRuntimeStatus] = useState<AlfredRuntimeStatus | null>(null);
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
+  const startingSessionIdsRef = useRef<Set<string>>(new Set());
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? DEFAULT_WORKSPACE;
   const activeWorkMode = workModesByWorkspace[activeWorkspace.id] ?? "desk";
@@ -223,8 +223,13 @@ export function App() {
     });
   }, []);
 
-  const handleRuntimeSessionStarting = useCallback((tileId: string) => {
-    setTerminalSessions((sessions) => markSessionStarting(sessions, tileId));
+  const handleRuntimeSessionStarting = useCallback((tileId: string): boolean => {
+    if (startingSessionIdsRef.current.has(tileId)) {
+      return false;
+    }
+
+    startingSessionIdsRef.current.add(tileId);
+    return true;
   }, []);
 
   const handleRuntimeSessionReady = useCallback((tileId: string, runtime: TerminalCreateResult) => {
@@ -237,6 +242,7 @@ export function App() {
       return;
     }
 
+    startingSessionIdsRef.current.delete(tileId);
     setTerminalSessions((sessions) => attachRuntimeSession(sessions, tileId, runtime.id));
     if (runtime.source === "alfred") {
       void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
@@ -249,6 +255,7 @@ export function App() {
   }, []);
 
   const handleRuntimeSessionFailed = useCallback((tileId: string) => {
+    startingSessionIdsRef.current.delete(tileId);
     setTerminalSessions((sessions) => markSessionStartFailed(sessions, tileId));
   }, []);
 
@@ -898,7 +905,7 @@ function TerminalGrid({
   onRejectAll: () => void;
   onRuntimeSessionFailed: (tileId: string) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
-  onRuntimeSessionStarting: (tileId: string) => void;
+  onRuntimeSessionStarting: (tileId: string) => boolean;
   onApproveTile: (tileId: string) => void;
   onRejectTile: (tileId: string) => void;
   onResizeTile: (tileId: string, deltaColSpan: number, deltaRowSpan: number) => void;
@@ -1040,7 +1047,6 @@ function TerminalGrid({
               layout={layouts[session.id]}
               preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
               sessionKey={session.id}
-              starting={session.starting === true}
               runtimeId={session.runtimeId}
               workspaceId={session.workspaceId}
               title={session.title}
@@ -1138,7 +1144,6 @@ function ManualTerminalTile({
   onRuntimeSessionStarting,
   runtimeId,
   sessionKey,
-  starting,
   source,
   workspaceId,
   title,
@@ -1156,10 +1161,9 @@ function ManualTerminalTile({
   onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onRuntimeSessionFailed: (tileId: string) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
-  onRuntimeSessionStarting: (tileId: string) => void;
+  onRuntimeSessionStarting: (tileId: string) => boolean;
   runtimeId?: TerminalSessionId | undefined;
   sessionKey: string;
-  starting: boolean;
   source: SessionTile["source"];
   workspaceId: string;
   title: string;
@@ -1286,7 +1290,7 @@ function ManualTerminalTile({
       };
     }
 
-    if (starting) {
+    if (!onRuntimeSessionStarting(sessionKey)) {
       terminal.writeln("Terminal start is already in progress...");
       return () => {
         disposed = true;
@@ -1312,7 +1316,6 @@ function ManualTerminalTile({
       baseRequest.command = command;
       baseRequest.args = args ?? [];
     }
-    onRuntimeSessionStarting(sessionKey);
     terminalApi
       .create(baseRequest)
       .then((session) => {
@@ -1359,7 +1362,6 @@ function ManualTerminalTile({
     args,
     initialBuffer,
     runtimeId,
-    starting,
     onRuntimeSessionFailed,
     onRuntimeSessionReady,
     onRuntimeSessionStarting,
