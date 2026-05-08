@@ -16,6 +16,9 @@
   --green: #63d18a;
   --coral: #f07f72;
   --violet: #a99cff;
+  --accent: var(--cyan);
+  --accent-soft: color-mix(in oklab, var(--accent) 20%, transparent);
+  --accent-strong: color-mix(in oklab, var(--accent) 70%, white 8%);
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--ink);
@@ -158,9 +161,9 @@ button:focus-visible {
   width: auto;
   min-width: 132px;
   padding: 0 13px;
-  border-color: rgba(86, 200, 213, 0.42);
+  border-color: color-mix(in oklab, var(--accent) 42%, transparent);
   background:
-    linear-gradient(180deg, rgba(86, 200, 213, 0.16), rgba(86, 200, 213, 0.08));
+    linear-gradient(180deg, color-mix(in oklab, var(--accent) 16%, transparent), color-mix(in oklab, var(--accent) 8%, transparent));
   box-shadow: inset 0 1px 0 rgba(238, 243, 247, 0.08);
   color: #cff3f6;
 }
@@ -316,7 +319,7 @@ button:focus-visible {
 }
 
 .mission-graph-node.tone-live {
-  border-color: rgba(86, 200, 213, 0.2);
+  border-color: color-mix(in oklab, var(--accent) 20%, transparent);
 }
 
 .mission-graph-node.tone-waiting {
@@ -375,10 +378,10 @@ button:focus-visible {
 }
 
 .workspace-button.active {
-  border-color: rgba(86, 200, 213, 0.46);
+  border-color: color-mix(in oklab, var(--accent) 46%, transparent);
   background:
-    linear-gradient(180deg, rgba(86, 200, 213, 0.15), rgba(86, 200, 213, 0.07));
-  box-shadow: inset 2px 0 0 rgba(86, 200, 213, 0.72);
+    linear-gradient(180deg, color-mix(in oklab, var(--accent) 15%, transparent), color-mix(in oklab, var(--accent) 7%, transparent));
+  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--accent) 72%, transparent);
   color: #cff3f6;
 }
 
@@ -475,18 +478,18 @@ button:focus-visible {
 
 .work-mode-control button.active,
 .work-mode-control button[aria-pressed="true"] {
-  border-color: rgba(86, 200, 213, 0.28);
+  border-color: color-mix(in oklab, var(--accent) 28%, transparent);
   background:
-    linear-gradient(180deg, rgba(86, 200, 213, 0.13), rgba(86, 200, 213, 0.045));
+    linear-gradient(180deg, color-mix(in oklab, var(--accent) 13%, transparent), color-mix(in oklab, var(--accent) 4.5%, transparent));
   color: #cff3f6;
 }
 
 .arrange-hint {
   min-height: 26px;
-  border: 1px solid rgba(86, 200, 213, 0.14);
+  border: 1px solid color-mix(in oklab, var(--accent) 14%, transparent);
   border-radius: 6px;
   padding: 0 9px;
-  background: rgba(86, 200, 213, 0.035);
+  background: color-mix(in oklab, var(--accent) 3.5%, transparent);
   color: #9fdde3;
   display: inline-flex;
   align-items: center;
@@ -509,7 +512,7 @@ button:focus-visible {
 
 .layout-controls button:hover,
 .layout-controls button:focus-visible {
-  border-color: rgba(86, 200, 213, 0.34);
+  border-color: color-mix(in oklab, var(--accent) 34%, transparent);
   color: #cff3f6;
 }
 
@@ -553,8 +556,8 @@ button:focus-visible {
 
 .terminal-grid.arranging {
   background:
-    linear-gradient(rgba(86, 200, 213, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(86, 200, 213, 0.055) 1px, transparent 1px),
+    linear-gradient(color-mix(in oklab, var(--accent) 5.5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--accent) 5.5%, transparent) 1px, transparent 1px),
     rgba(3, 4, 4, 0.5);
   background-size: calc((100% - 88px) / 12) 84px, calc((100% - 88px) / 12) 84px, auto;
 }
@@ -721,10 +724,10 @@ button:focus-visible {
 
 .terminal-tile.arranging.is-dragging {
   opacity: 0.88;
-  border-color: rgba(86, 200, 213, 0.62);
+  border-color: color-mix(in oklab, var(--accent) 62%, transparent);
   box-shadow:
     0 18px 46px rgba(0, 0, 0, 0.38),
-    0 0 0 1px rgba(86, 200, 213, 0.2),
+    0 0 0 1px color-mix(in oklab, var(--accent) 20%, transparent),
     inset 0 1px 0 rgba(238, 243, 247, 0.06);
   pointer-events: none;
 }
@@ -764,10 +767,10 @@ button:focus-visible {
   bottom: 8px;
   width: 32px;
   height: 32px;
-  border: 1px solid rgba(86, 200, 213, 0.42);
+  border: 1px solid color-mix(in oklab, var(--accent) 42%, transparent);
   border-radius: 8px;
   background:
-    linear-gradient(135deg, transparent 0 42%, rgba(86, 200, 213, 0.58) 42% 48%, transparent 48% 62%, rgba(86, 200, 213, 0.58) 62% 68%, transparent 68%),
+    linear-gradient(135deg, transparent 0 42%, color-mix(in oklab, var(--accent) 58%, transparent) 42% 48%, transparent 48% 62%, color-mix(in oklab, var(--accent) 58%, transparent) 62% 68%, transparent 68%),
     rgba(3, 4, 4, 0.82);
   box-shadow: 0 0 0 1px rgba(3, 4, 4, 0.7), 0 8px 20px rgba(0, 0, 0, 0.28);
   cursor: nwse-resize;
@@ -776,9 +779,9 @@ button:focus-visible {
 }
 
 .tile-resize-handle:hover {
-  border-color: rgba(86, 200, 213, 0.72);
+  border-color: color-mix(in oklab, var(--accent) 72%, transparent);
   background:
-    linear-gradient(135deg, transparent 0 42%, rgba(86, 200, 213, 0.78) 42% 48%, transparent 48% 62%, rgba(86, 200, 213, 0.78) 62% 68%, transparent 68%),
+    linear-gradient(135deg, transparent 0 42%, color-mix(in oklab, var(--accent) 78%, transparent) 42% 48%, transparent 48% 62%, color-mix(in oklab, var(--accent) 78%, transparent) 62% 68%, transparent 68%),
     rgba(12, 22, 23, 0.96);
 }
 
@@ -868,7 +871,7 @@ body.arranging-pointer {
   flex: 0 0 auto;
   border-radius: 999px;
   background: var(--cyan);
-  box-shadow: 0 0 12px rgba(86, 200, 213, 0.24);
+  box-shadow: 0 0 12px color-mix(in oklab, var(--accent) 24%, transparent);
 }
 
 .terminal-tile.ready .tool-dot {
@@ -1330,9 +1333,9 @@ body.arranging-pointer {
 
 .command-palette-list button:hover,
 .command-palette-list button:focus-visible {
-  border-color: rgba(86, 200, 213, 0.28);
+  border-color: color-mix(in oklab, var(--accent) 28%, transparent);
   background:
-    linear-gradient(90deg, rgba(86, 200, 213, 0.09), transparent 56%),
+    linear-gradient(90deg, color-mix(in oklab, var(--accent) 9%, transparent), transparent 56%),
     rgba(238, 243, 247, 0.035);
 }
 
