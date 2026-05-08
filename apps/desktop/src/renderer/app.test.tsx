@@ -186,6 +186,33 @@ describe("App integration", () => {
     });
   });
 
+  it("switches desk work modes without entering arrange mode", async () => {
+    const user = userEvent.setup();
+    const { setWorkspaceLayout } = installDesktopBridge();
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Desk" })).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("button", { name: "New terminal" }));
+    await screen.findByRole("article", { name: /Manual · zsh 2/i });
+    await user.click(screen.getByRole("button", { name: "Split" }));
+
+    expect(screen.getByRole("button", { name: "Split" })).toHaveAttribute("aria-pressed", "true");
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+      workspaceId: "A",
+      layouts: expect.objectContaining({
+        "manual-1": expect.objectContaining({ col: 1, colSpan: 6, rowSpan: 8 }),
+        "manual-2": expect.objectContaining({ col: 7, colSpan: 6, rowSpan: 8 }),
+      }),
+    });
+
+    await user.click(screen.getByRole("button", { name: "Desk" }));
+
+    expect(screen.getByRole("button", { name: "Desk" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("moves and resizes a tile with pointer gestures in arrange mode", async () => {
     const user = userEvent.setup();
     installDesktopBridge();

@@ -304,6 +304,35 @@ button:focus-visible {
   gap: 6px;
 }
 
+.work-mode-control {
+  min-height: 28px;
+  border: 1px solid rgba(245, 240, 228, 0.1);
+  border-radius: 8px;
+  padding: 2px;
+  background:
+    linear-gradient(180deg, rgba(245, 240, 228, 0.045), rgba(245, 240, 228, 0.018));
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.work-mode-control button {
+  min-height: 22px;
+  border-color: transparent;
+  border-radius: 6px;
+  padding: 0 8px;
+  background: transparent;
+  color: var(--faint);
+}
+
+.work-mode-control button.active,
+.work-mode-control button[aria-pressed="true"] {
+  border-color: rgba(86, 200, 213, 0.28);
+  background:
+    linear-gradient(180deg, rgba(86, 200, 213, 0.13), rgba(86, 200, 213, 0.045));
+  color: #cff3f6;
+}
+
 .arrange-hint {
   min-height: 26px;
   border: 1px solid rgba(86, 200, 213, 0.14);

@@ -62,11 +62,15 @@ type ArrangePreview = {
   deltaCol: number;
   deltaRow: number;
 };
+type WorkMode = "desk" | "focus" | "split";
 
 export function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(DEFAULT_WORKSPACES);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(DEFAULT_WORKSPACE_ID);
   const [arrangeMode, setArrangeMode] = useState<boolean>(false);
+  const [workModesByWorkspace, setWorkModesByWorkspace] = useState<Record<string, WorkMode>>({
+    [DEFAULT_WORKSPACE_ID]: "desk",
+  });
   const [tileLayoutsByWorkspace, setTileLayoutsByWorkspace] = useState<Record<string, Record<string, TileLayout>>>({});
   const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>([]);
   const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
@@ -77,6 +81,7 @@ export function App() {
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? DEFAULT_WORKSPACE;
+  const activeWorkMode = workModesByWorkspace[activeWorkspace.id] ?? "desk";
   const activeSessions = terminalSessions.filter((session) => session.workspaceId === activeWorkspace.id);
   const activePendingPlan = pendingPlan?.workspaceId === activeWorkspace.id ? pendingPlan : null;
   const stagedCount = activeSessions.filter((s) => s.stage === "staged").length;
@@ -130,6 +135,16 @@ export function App() {
       };
     });
   }, [activeSessions, activeWorkspace.id]);
+
+  const handleApplyWorkMode = useCallback((mode: WorkMode) => {
+    const preset: LayoutPreset = mode === "focus" ? "focus" : mode === "split" ? "two-up" : "grid";
+
+    setWorkModesByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: mode,
+    }));
+    handleApplyLayoutPreset(preset);
+  }, [activeWorkspace.id, handleApplyLayoutPreset]);
 
   const handleMoveTile = useCallback((tileId: string, deltaCol: number, deltaRow: number) => {
     const layoutApi = getDesktopLayoutApi();
@@ -451,8 +466,10 @@ export function App() {
             shortcutModifier={shortcutModifier}
             safeStagedCount={Math.max(0, stagedCount - unsafeStagedCount)}
             unsafeStagedCount={unsafeStagedCount}
+            workMode={activeWorkMode}
             onCloseSession={handleCloseSession}
             onApplyLayoutPreset={handleApplyLayoutPreset}
+            onApplyWorkMode={handleApplyWorkMode}
             onApproveAll={handleApproveAll}
             onMoveTile={handleMoveTile}
             onRejectAll={handleRejectAll}
@@ -689,8 +706,10 @@ function TerminalGrid({
   shortcutModifier,
   safeStagedCount,
   unsafeStagedCount,
+  workMode,
   onCloseSession,
   onApplyLayoutPreset,
+  onApplyWorkMode,
   onApproveAll,
   onMoveTile,
   onRejectAll,
@@ -707,8 +726,10 @@ function TerminalGrid({
   shortcutModifier: string;
   safeStagedCount: number;
   unsafeStagedCount: number;
+  workMode: WorkMode;
   onCloseSession: (sessionId: string) => void;
   onApplyLayoutPreset: (preset: LayoutPreset) => void;
+  onApplyWorkMode: (mode: WorkMode) => void;
   onApproveAll: () => void;
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
   onRejectAll: () => void;
@@ -805,7 +826,32 @@ function TerminalGrid({
             </>
           )}
           {!arrangeMode && sessions.length > 0 && (
-            <button type="button" onClick={() => onApplyLayoutPreset("grid")}>Fit desk</button>
+            <div className="work-mode-control" aria-label="work mode">
+              <button
+                type="button"
+                className={workMode === "focus" ? "active" : ""}
+                aria-pressed={workMode === "focus"}
+                onClick={() => onApplyWorkMode("focus")}
+              >
+                Focus
+              </button>
+              <button
+                type="button"
+                className={workMode === "split" ? "active" : ""}
+                aria-pressed={workMode === "split"}
+                onClick={() => onApplyWorkMode("split")}
+              >
+                Split
+              </button>
+              <button
+                type="button"
+                className={workMode === "desk" ? "active" : ""}
+                aria-pressed={workMode === "desk"}
+                onClick={() => onApplyWorkMode("desk")}
+              >
+                Desk
+              </button>
+            </div>
           )}
           <kbd>{shortcutModifier} T</kbd>
         </div>
