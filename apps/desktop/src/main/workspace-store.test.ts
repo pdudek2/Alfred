@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { DEFAULT_DESKTOP_STATE } from "./persisted-desktop-state.js";
+import { DEFAULT_WORKSPACE, createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
 import { createWorkspaceStore } from "./workspace-store.js";
 import type { WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
 
@@ -24,7 +24,10 @@ describe("workspace-store", () => {
   it("loads the default workspace state from an empty persisted store", async () => {
     const store = createWorkspaceStore({ filePath: await temporaryStateFile() });
 
-    await expect(store.getWorkspaceState()).resolves.toEqual(DEFAULT_DESKTOP_STATE);
+    await expect(store.getWorkspaceState()).resolves.toEqual({
+      workspaces: [DEFAULT_WORKSPACE],
+      activeWorkspaceId: DEFAULT_WORKSPACE.id,
+    });
   });
 
   it("persists workspace list and active workspace id", async () => {
@@ -62,5 +65,40 @@ describe("workspace-store", () => {
       ],
       activeWorkspaceId: "A",
     });
+  });
+
+  it("updates workspace state without dropping layout or staged plan data", async () => {
+    const filePath = await temporaryStateFile();
+    const persistedStateStore = createPersistedDesktopStateStore({ filePath });
+    await persistedStateStore.setState({
+      workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
+      activeWorkspaceId: "A",
+      layoutsByWorkspace: {
+        A: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
+      },
+      stagedPlan: {
+        id: "plan-1",
+        prompt: "prepare",
+        sessions: [{ id: "alfred-1", kind: "shell", title: "A", command: "echo", args: ["a"] }],
+      },
+    });
+
+    const store = createWorkspaceStore({ persistedStateStore });
+    await store.setWorkspaceState({
+      workspaces: [
+        { id: "A", label: "Alfred", shortLabel: "A" },
+        { id: "W2", label: "Workspace 2", shortLabel: "W2" },
+      ],
+      activeWorkspaceId: "W2",
+    });
+
+    await expect(persistedStateStore.getState()).resolves.toEqual(
+      expect.objectContaining({
+        layoutsByWorkspace: {
+          A: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
+        },
+        stagedPlan: expect.objectContaining({ id: "plan-1" }),
+      }),
+    );
   });
 });

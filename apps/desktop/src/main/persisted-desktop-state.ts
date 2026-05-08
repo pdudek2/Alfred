@@ -1,12 +1,17 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import type { AlfredStagedPlanSnapshot, AgentKind } from "../shared/alfred-ipc.js";
+import type { TileLayout } from "../shared/layout-ipc.js";
 import type { WorkspaceSnapshot, WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
 
 export const DESKTOP_STATE_VERSION = 1;
 export const DESKTOP_STATE_FILE_NAME = "desktop-state.json";
 
-export type DesktopStateSnapshot = WorkspaceStateSnapshot;
+export type DesktopStateSnapshot = WorkspaceStateSnapshot & {
+  layoutsByWorkspace: Record<string, Record<string, TileLayout>>;
+  stagedPlan: AlfredStagedPlanSnapshot | null;
+};
 
 export type DesktopStateFile = DesktopStateSnapshot & {
   version: typeof DESKTOP_STATE_VERSION;
@@ -32,6 +37,8 @@ export const DEFAULT_WORKSPACE: WorkspaceSnapshot = {
 export const DEFAULT_DESKTOP_STATE: DesktopStateSnapshot = {
   workspaces: [DEFAULT_WORKSPACE],
   activeWorkspaceId: DEFAULT_WORKSPACE.id,
+  layoutsByWorkspace: {},
+  stagedPlan: null,
 };
 
 export function createPersistedDesktopStateStore(
@@ -96,6 +103,8 @@ export function normalizeDesktopState(value: unknown): DesktopStateSnapshot {
   return {
     workspaces,
     activeWorkspaceId,
+    layoutsByWorkspace: normalizeLayoutsByWorkspace(value.layoutsByWorkspace),
+    stagedPlan: normalizeStagedPlan(value.stagedPlan),
   };
 }
 
@@ -122,6 +131,86 @@ function normalizeWorkspaces(value: unknown[]): WorkspaceSnapshot[] {
   }
 
   return workspaces;
+}
+
+function normalizeLayoutsByWorkspace(value: unknown): Record<string, Record<string, TileLayout>> {
+  if (!isRecord(value)) return {};
+
+  const layoutsByWorkspace: Record<string, Record<string, TileLayout>> = {};
+
+  for (const [workspaceId, rawLayouts] of Object.entries(value)) {
+    if (!workspaceId.trim() || !isRecord(rawLayouts)) continue;
+    const layouts: Record<string, TileLayout> = {};
+
+    for (const [tileId, rawLayout] of Object.entries(rawLayouts)) {
+      if (!isRecord(rawLayout)) continue;
+      if (
+        typeof rawLayout.tileId !== "string" ||
+        typeof rawLayout.col !== "number" ||
+        typeof rawLayout.row !== "number" ||
+        typeof rawLayout.colSpan !== "number" ||
+        typeof rawLayout.rowSpan !== "number"
+      ) {
+        continue;
+      }
+
+      layouts[tileId] = {
+        tileId: rawLayout.tileId,
+        col: rawLayout.col,
+        row: rawLayout.row,
+        colSpan: rawLayout.colSpan,
+        rowSpan: rawLayout.rowSpan,
+      };
+    }
+
+    layoutsByWorkspace[workspaceId] = layouts;
+  }
+
+  return layoutsByWorkspace;
+}
+
+function normalizeStagedPlan(value: unknown): AlfredStagedPlanSnapshot | null {
+  if (!isRecord(value) || typeof value.id !== "string" || typeof value.prompt !== "string" || !Array.isArray(value.sessions)) {
+    return null;
+  }
+
+  const sessions = value.sessions.flatMap((session) => {
+    if (!isRecord(session)) return [];
+    if (
+      typeof session.id !== "string" ||
+      !isAgentKind(session.kind) ||
+      typeof session.title !== "string" ||
+      typeof session.command !== "string" ||
+      !Array.isArray(session.args) ||
+      !session.args.every((arg) => typeof arg === "string")
+    ) {
+      return [];
+    }
+
+    return [{
+      id: session.id,
+      kind: session.kind,
+      title: session.title,
+      command: session.command,
+      args: [...session.args],
+      ...(typeof session.cwd === "string" ? { cwd: session.cwd } : {}),
+      ...(typeof session.workspaceId === "string" ? { workspaceId: session.workspaceId } : {}),
+      ...(typeof session.safetyNote === "string" ? { safetyNote: session.safetyNote } : {}),
+    }];
+  });
+
+  if (sessions.length === 0) return null;
+
+  return {
+    id: value.id,
+    prompt: value.prompt,
+    ...(typeof value.name === "string" ? { name: value.name } : {}),
+    sessions,
+  };
+}
+
+function isAgentKind(value: unknown): value is AgentKind {
+  return value === "codex" || value === "claude" || value === "dev-server" || value === "shell";
 }
 
 async function readDesktopStateFile(
@@ -172,6 +261,21 @@ function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
   return {
     workspaces: state.workspaces.map((workspace) => ({ ...workspace })),
     activeWorkspaceId: state.activeWorkspaceId,
+    layoutsByWorkspace: Object.fromEntries(
+      Object.entries(state.layoutsByWorkspace).map(([workspaceId, layouts]) => [
+        workspaceId,
+        Object.fromEntries(Object.entries(layouts).map(([tileId, layout]) => [tileId, { ...layout }])),
+      ]),
+    ),
+    stagedPlan: cloneStagedPlan(state.stagedPlan),
+  };
+}
+
+function cloneStagedPlan(plan: AlfredStagedPlanSnapshot | null): AlfredStagedPlanSnapshot | null {
+  if (!plan) return null;
+  return {
+    ...plan,
+    sessions: plan.sessions.map((session) => ({ ...session, args: [...session.args] })),
   };
 }
 

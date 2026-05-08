@@ -7,9 +7,9 @@ import {
 import { getLayoutsSnapshot, setWorkspaceLayoutSnapshot } from "./layout-store.js";
 
 export function registerLayoutIpc(): void {
-  ipcMain.handle(layoutChannels.get, (): WorkspaceLayoutsSnapshot => getLayoutsSnapshot());
+  ipcMain.handle(layoutChannels.get, (): Promise<WorkspaceLayoutsSnapshot> => getLayoutsSnapshot());
   ipcMain.handle(
     layoutChannels.setWorkspace,
-    (_event, request: WorkspaceLayoutSetRequest): WorkspaceLayoutsSnapshot => setWorkspaceLayoutSnapshot(request),
+    (_event, request: WorkspaceLayoutSetRequest): Promise<WorkspaceLayoutsSnapshot> => setWorkspaceLayoutSnapshot(request),
   );
 }

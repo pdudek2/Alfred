@@ -20,11 +20,21 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
 
   return {
     async getWorkspaceState(): Promise<WorkspaceStateSnapshot> {
-      return persistedStateStore.getState();
+      return toWorkspaceState(await persistedStateStore.getState());
     },
 
     async setWorkspaceState(request: WorkspaceStateSetRequest): Promise<WorkspaceStateSnapshot> {
-      return persistedStateStore.setState(normalizeDesktopState(request));
+      const current = await persistedStateStore.getState();
+      const workspaceState = toWorkspaceState(normalizeDesktopState(request));
+      const next = await persistedStateStore.setState({ ...current, ...workspaceState });
+      return toWorkspaceState(next);
     },
+  };
+}
+
+function toWorkspaceState(state: WorkspaceStateSnapshot): WorkspaceStateSnapshot {
+  return {
+    workspaces: state.workspaces.map((workspace) => ({ ...workspace })),
+    activeWorkspaceId: state.activeWorkspaceId,
   };
 }

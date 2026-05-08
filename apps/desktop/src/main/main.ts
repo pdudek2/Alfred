@@ -5,6 +5,9 @@ import { config as loadDotenv } from "dotenv";
 import { getTerminalSessionCount, killAllTerminalSessions, registerTerminalIpc } from "./terminal-manager.js";
 import { registerAlfredIpc } from "./alfred-orchestrator.js";
 import { registerLayoutIpc } from "./layout-ipc.js";
+import { configureLayoutPersistence } from "./layout-store.js";
+import { createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
+import { configureStagedPlanPersistence } from "./staged-plan-store.js";
 import { registerWorkspaceIpc } from "./workspace-ipc.js";
 import { createWorkspaceStore } from "./workspace-store.js";
 import {
@@ -73,7 +76,11 @@ async function createWindow(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
-  registerWorkspaceIpc(createWorkspaceStore({ userDataPath: app.getPath("userData") }));
+  const persistedDesktopStateStore = createPersistedDesktopStateStore({ userDataPath: app.getPath("userData") });
+
+  configureLayoutPersistence(persistedDesktopStateStore);
+  configureStagedPlanPersistence(persistedDesktopStateStore);
+  registerWorkspaceIpc(createWorkspaceStore({ persistedStateStore: persistedDesktopStateStore }));
   await createWindow();
 
   app.on("activate", () => {
