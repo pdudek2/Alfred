@@ -213,6 +213,35 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Desk" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("opens the command palette and runs desk commands", async () => {
+    const user = userEvent.setup();
+    const { setWorkspaceLayout } = installDesktopBridge();
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+
+    await user.keyboard("{Control>}k{/Control}");
+
+    expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
+    await user.click(screen.getByRole("option", { name: /New manual terminal/i }));
+
+    expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.click(screen.getByRole("option", { name: /Split mode/i }));
+
+    expect(screen.getByRole("button", { name: "Split" })).toHaveAttribute("aria-pressed", "true");
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+      workspaceId: "A",
+      layouts: expect.objectContaining({
+        "manual-1": expect.objectContaining({ colSpan: 6 }),
+        "manual-2": expect.objectContaining({ colSpan: 6 }),
+      }),
+    });
+  });
+
   it("moves and resizes a tile with pointer gestures in arrange mode", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
