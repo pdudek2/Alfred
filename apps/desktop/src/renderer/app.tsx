@@ -1,10 +1,11 @@
 import { Command, Plus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getDesktopAlfredApi, getDesktopLayoutApi, getDesktopTerminalApi } from "./desktop-api";
 import { ComposerBar } from "./composer";
 import { AlfredControlRail } from "./components/AlfredControlRail";
 import { AlfredMark } from "./components/AlfredMark";
 import { CommandPalette } from "./components/CommandPalette";
+import { OrchestratorSurface } from "./components/OrchestratorSurface";
 import { TerminalDesk } from "./components/TerminalDesk";
 import { WorkspaceRail, type WorkspaceRailWorkspace } from "./components/WorkspaceRail";
 import {
@@ -40,6 +41,7 @@ import {
   type SessionTile,
 } from "./session-state";
 import type { WorkMode } from "./terminal-desk-types";
+import { buildOrchestratorViewModel } from "./view-models/orchestrator-view-model";
 import type { AlfredRuntimeStatus, AlfredStagedPlanSnapshot, AlfredStagedSession } from "../shared/alfred-ipc";
 import type { TerminalCreateResult } from "../shared/terminal-ipc";
 import "@xterm/xterm/css/xterm.css";
@@ -78,6 +80,18 @@ export function App() {
   const unsafeStagedCount = activeSessions.filter((s) => s.stage === "staged" && s.safetyNote).length;
   const liveAlfredCount = activeSessions.filter((s) => s.stage === "live" && s.source === "alfred").length;
   const alfredExpanded = alfredStatus.kind !== "idle" || activePendingPlan !== null;
+  const orchestratorViewModel = useMemo(
+    () =>
+      buildOrchestratorViewModel({
+        activeWorkspaceId: activeWorkspace.id,
+        activeWorkspaceLabel: activeWorkspace.label,
+        model: runtimeStatus?.model,
+        openRouterConfigured: runtimeStatus?.openRouterConfigured !== false,
+        pendingPlan: activePendingPlan,
+        sessions: terminalSessions,
+      }),
+    [activePendingPlan, activeWorkspace.id, activeWorkspace.label, runtimeStatus, terminalSessions],
+  );
   const stagedWorkspaceLabel =
     pendingPlan && pendingPlan.workspaceId !== activeWorkspace.id
       ? workspaces.find((workspace) => workspace.id === pendingPlan.workspaceId)?.label ?? "another workspace"
@@ -481,29 +495,31 @@ export function App() {
             onAddWorkspace={handleAddWorkspace}
             onSelectWorkspace={handleSelectWorkspace}
           />
-          <TerminalDesk
-            arrangeMode={arrangeMode}
-            armedUnsafeSessionIds={armedUnsafeSessionIds}
-            layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
-            pendingPlan={activePendingPlan}
-            sessions={activeSessions}
-            shortcutModifier={shortcutModifier}
-            safeStagedCount={Math.max(0, stagedCount - unsafeStagedCount)}
-            unsafeStagedCount={unsafeStagedCount}
-            workMode={activeWorkMode}
-            onCloseSession={handleCloseSession}
-            onApplyLayoutPreset={handleApplyLayoutPreset}
-            onApplyWorkMode={handleApplyWorkMode}
-            onApproveAll={handleApproveAll}
-            onMoveTile={handleMoveTile}
-            onRejectAll={handleRejectAll}
-            onRuntimeSessionFailed={handleRuntimeSessionFailed}
-            onRuntimeSessionReady={handleRuntimeSessionReady}
-            onRuntimeSessionStarting={handleRuntimeSessionStarting}
-            onApproveTile={handleApproveTile}
-            onRejectTile={handleRejectTile}
-            onResizeTile={handleResizeTile}
-          />
+          <OrchestratorSurface viewModel={orchestratorViewModel}>
+            <TerminalDesk
+              arrangeMode={arrangeMode}
+              armedUnsafeSessionIds={armedUnsafeSessionIds}
+              layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
+              pendingPlan={activePendingPlan}
+              sessions={activeSessions}
+              shortcutModifier={shortcutModifier}
+              safeStagedCount={Math.max(0, stagedCount - unsafeStagedCount)}
+              unsafeStagedCount={unsafeStagedCount}
+              workMode={activeWorkMode}
+              onCloseSession={handleCloseSession}
+              onApplyLayoutPreset={handleApplyLayoutPreset}
+              onApplyWorkMode={handleApplyWorkMode}
+              onApproveAll={handleApproveAll}
+              onMoveTile={handleMoveTile}
+              onRejectAll={handleRejectAll}
+              onRuntimeSessionFailed={handleRuntimeSessionFailed}
+              onRuntimeSessionReady={handleRuntimeSessionReady}
+              onRuntimeSessionStarting={handleRuntimeSessionStarting}
+              onApproveTile={handleApproveTile}
+              onRejectTile={handleRejectTile}
+              onResizeTile={handleResizeTile}
+            />
+          </OrchestratorSurface>
           <AlfredControlRail
             status={alfredStatus}
             pendingPlan={activePendingPlan}

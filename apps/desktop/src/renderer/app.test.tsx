@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
@@ -58,7 +58,7 @@ function installDesktopBridge(
   },
   stagedPlan: AlfredStagedPlanSnapshot | null = null,
   terminalSessions: TerminalSessionSnapshot[] = [],
-  runtimeStatus: AlfredRuntimeStatus = {
+  runtimeStatus: AlfredRuntimeStatus | null = {
     model: "anthropic/claude-sonnet-4-6",
     openRouterConfigured: true,
   },
@@ -153,6 +153,9 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("region", { name: /terminals/i })).toBeInTheDocument();
+    const missionGraph = screen.getByRole("region", { name: "Mission graph" });
+    expect(missionGraph).toBeInTheDocument();
+    expect(within(missionGraph).getAllByRole("listitem")).toHaveLength(1);
     expect(screen.getByRole("complementary", { name: /alfred status/i })).toBeInTheDocument();
     expect(screen.getByRole("form", { name: /alfred composer/i })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
@@ -434,6 +437,19 @@ describe("App integration", () => {
 
     expect(screen.getByRole("button", { name: "Send prompt to Alfred" })).toBeDisabled();
     expect(requestPlan).not.toHaveBeenCalled();
+  });
+
+  it("keeps Alfred prompts available while runtime status is unknown", async () => {
+    const user = userEvent.setup();
+    const { requestPlan } = installDesktopBridge(undefined, null, [], null);
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText("Alfred prompt"), "prepare agents");
+    await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
+
+    await screen.findByRole("article", { name: /Staged Task A/i });
+    expect(requestPlan).toHaveBeenCalledWith({ prompt: "prepare agents" });
   });
 
   it("turns the first Alfred prompt into staged tiles", async () => {

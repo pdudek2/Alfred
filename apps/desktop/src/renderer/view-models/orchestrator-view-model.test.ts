@@ -96,4 +96,20 @@ describe("buildOrchestratorViewModel", () => {
     expect(vm.missionDetail).toContain("0 unsafe");
     expect(vm.graphNodes[0]).toMatchObject({ id: "alfred-unsafe-live", tone: "live" });
   });
+
+  it("preserves an explicit unconfigured model status", () => {
+    const vm = buildOrchestratorViewModel({
+      activeWorkspaceId: "A",
+      activeWorkspaceLabel: "Alfred",
+      model: undefined,
+      openRouterConfigured: false,
+      pendingPlan: null,
+      sessions: [],
+    });
+
+    expect(vm.controlRail).toMatchObject({
+      model: "unknown",
+      modelConfigured: false,
+    });
+  });
 });
