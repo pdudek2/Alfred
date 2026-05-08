@@ -1,16 +1,21 @@
 :root {
-  --night: #050607;
-  --ink: #f5f0e4;
-  --ink-soft: #d7cebb;
-  --muted: #a29a8a;
-  --faint: #8a8273;
-  --line: rgba(245, 240, 228, 0.13);
-  --glass: rgba(20, 23, 24, 0.46);
-  --terminal: #040505;
-  --brass: #d9ae46;
-  --cyan: #56c8d5;
-  --green: #78d991;
-  --coral: #ef8173;
+  --night: #07090d;
+  --panel: #0c1015;
+  --panel-raised: #111720;
+  --panel-soft: #151b24;
+  --terminal: #05070a;
+  --ink: #eef3f7;
+  --ink-soft: #c6d0da;
+  --muted: #8995a3;
+  --faint: #798697;
+  --line: rgba(188, 202, 218, 0.14);
+  --line-strong: rgba(198, 213, 231, 0.22);
+  --glass: rgba(12, 16, 21, 0.78);
+  --brass: #e0b75b;
+  --cyan: #53c7d8;
+  --green: #63d18a;
+  --coral: #f07f72;
+  --violet: #a99cff;
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--ink);
@@ -31,9 +36,11 @@ body {
   min-height: 100vh;
   overflow: hidden;
   background:
-    radial-gradient(circle at 18% 0%, rgba(86, 200, 213, 0.08), transparent 30%),
-    radial-gradient(circle at 92% 8%, rgba(217, 174, 70, 0.045), transparent 26%),
+    linear-gradient(180deg, rgba(83, 199, 216, 0.055), transparent 180px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px),
     var(--night);
+  background-size: auto, 48px 48px, 48px 48px, auto;
 }
 
 button {
@@ -49,35 +56,35 @@ button:focus-visible {
 .agent-space-shell {
   position: relative;
   min-height: 100vh;
-  padding: 10px;
+  padding: 8px;
   display: block;
 }
 
 .desktop-frame {
-  height: calc(100vh - 20px);
-  border: 1px solid rgba(245, 240, 228, 0.16);
-  border-radius: 12px;
+  height: calc(100vh - 16px);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
   overflow: hidden;
   box-shadow:
-    0 34px 110px rgba(0, 0, 0, 0.48),
-    inset 0 1px 0 rgba(245, 240, 228, 0.07);
+    0 30px 100px rgba(0, 0, 0, 0.56),
+    inset 0 1px 0 rgba(238, 243, 247, 0.06);
   background:
-    linear-gradient(180deg, rgba(245, 240, 228, 0.035), transparent 120px),
-    rgba(5, 6, 6, 0.88);
+    linear-gradient(180deg, rgba(238, 243, 247, 0.035), transparent 96px),
+    #080b10;
   display: grid;
-  grid-template-rows: 46px minmax(0, 1fr) 60px;
+  grid-template-rows: 44px minmax(0, 1fr) 58px;
 }
 
 .mission-bar {
-  border-bottom: 1px solid rgba(245, 240, 228, 0.1);
+  border-bottom: 1px solid var(--line);
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 16px;
   padding: 0 12px;
   background:
-    linear-gradient(90deg, rgba(86, 200, 213, 0.045), transparent 40%),
-    rgba(12, 14, 14, 0.72);
+    linear-gradient(90deg, rgba(83, 199, 216, 0.055), transparent 45%),
+    rgba(10, 14, 19, 0.9);
 }
 
 .desktop-frame.mac-frame .mission-bar {
@@ -97,13 +104,14 @@ button:focus-visible {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  border: 1px solid rgba(245, 240, 228, 0.15);
-  border-radius: 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
   background:
-    linear-gradient(145deg, rgba(245, 240, 228, 0.07), rgba(245, 240, 228, 0.025));
+    linear-gradient(145deg, rgba(238, 243, 247, 0.075), rgba(238, 243, 247, 0.025));
   color: var(--ink-soft);
   font-family: var(--mono);
   font-size: 12px;
+  font-weight: 650;
 }
 
 .mission-name strong,
@@ -134,10 +142,10 @@ button:focus-visible {
 }
 
 .mission-actions button {
-  min-height: 40px;
+  min-height: 34px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(245, 240, 228, 0.045);
+  border-radius: 7px;
+  background: rgba(238, 243, 247, 0.045);
   color: var(--muted);
   display: inline-flex;
   align-items: center;
@@ -153,7 +161,7 @@ button:focus-visible {
   border-color: rgba(86, 200, 213, 0.42);
   background:
     linear-gradient(180deg, rgba(86, 200, 213, 0.16), rgba(86, 200, 213, 0.08));
-  box-shadow: inset 0 1px 0 rgba(245, 240, 228, 0.08);
+  box-shadow: inset 0 1px 0 rgba(238, 243, 247, 0.08);
   color: #cff3f6;
 }
 
@@ -180,12 +188,12 @@ button:focus-visible {
 .workspace-layout {
   min-height: 0;
   display: grid;
-  grid-template-columns: 54px minmax(0, 1fr) 220px;
-  gap: 8px;
-  padding: 8px;
+  grid-template-columns: 52px minmax(0, 1fr) 218px;
+  gap: 7px;
+  padding: 7px;
   background:
-    linear-gradient(180deg, rgba(245, 240, 228, 0.018), transparent 180px),
-    rgba(3, 4, 4, 0.58);
+    linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 150px),
+    rgba(4, 7, 11, 0.72);
 }
 
 .workspace-layout.alfred-compact {
@@ -202,9 +210,11 @@ button:focus-visible {
 
 .mission-graph {
   min-width: 0;
-  border: 1px solid rgba(245, 240, 228, 0.1);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(8, 10, 10, 0.68);
+  background:
+    linear-gradient(180deg, rgba(238, 243, 247, 0.035), transparent 52px),
+    rgba(9, 13, 18, 0.88);
   padding: 8px;
 }
 
@@ -245,10 +255,10 @@ button:focus-visible {
 }
 
 .mission-graph-counts span {
-  border: 1px solid rgba(245, 240, 228, 0.09);
-  border-radius: 999px;
+  border: 1px solid rgba(188, 202, 218, 0.12);
+  border-radius: 6px;
   padding: 3px 7px;
-  background: rgba(245, 240, 228, 0.035);
+  background: rgba(238, 243, 247, 0.04);
 }
 
 .mission-graph-nodes {
@@ -263,10 +273,10 @@ button:focus-visible {
 
 .mission-graph-node {
   min-width: 0;
-  border: 1px solid rgba(245, 240, 228, 0.09);
+  border: 1px solid rgba(188, 202, 218, 0.1);
   border-radius: 7px;
-  padding: 7px;
-  background: rgba(245, 240, 228, 0.03);
+  padding: 7px 8px;
+  background: rgba(238, 243, 247, 0.028);
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr);
   gap: 7px;
@@ -276,12 +286,15 @@ button:focus-visible {
 .mission-graph-node-mark {
   width: 26px;
   height: 26px;
-  border: 1px solid rgba(245, 240, 228, 0.11);
+  border: 1px solid rgba(188, 202, 218, 0.13);
   border-radius: 6px;
   display: grid;
   place-items: center;
   color: var(--ink-soft);
-  background: rgba(245, 240, 228, 0.045);
+  background: rgba(238, 243, 247, 0.045);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 650;
 }
 
 .mission-graph-node-copy {
@@ -321,7 +334,7 @@ button:focus-visible {
   border-radius: 8px;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(245, 240, 228, 0.045), transparent 54px),
+    linear-gradient(180deg, rgba(238, 243, 247, 0.04), transparent 54px),
     var(--glass);
   display: flex;
   flex-direction: column;
@@ -332,12 +345,12 @@ button:focus-visible {
 
 .workspace-button {
   position: relative;
-  width: 42px;
-  min-height: 42px;
-  border: 1px solid rgba(245, 240, 228, 0.13);
-  border-radius: 8px;
+  width: 40px;
+  min-height: 40px;
+  border: 1px solid rgba(188, 202, 218, 0.13);
+  border-radius: 7px;
   background:
-    linear-gradient(180deg, rgba(245, 240, 228, 0.06), rgba(245, 240, 228, 0.025));
+    linear-gradient(180deg, rgba(238, 243, 247, 0.055), rgba(238, 243, 247, 0.022));
   color: var(--muted);
   cursor: pointer;
   font-family: var(--mono);
@@ -355,7 +368,7 @@ button:focus-visible {
   min-width: 13px;
   height: 13px;
   border-radius: 999px;
-  background: rgba(86, 200, 213, 0.16);
+  background: rgba(83, 199, 216, 0.16);
   color: #cff3f6;
   font-size: 9px;
   line-height: 13px;
@@ -381,15 +394,15 @@ button:focus-visible {
 .terminal-stage {
   min-width: 0;
   min-height: 0;
-  border: 1px solid rgba(245, 240, 228, 0.11);
-  border-radius: 10px;
+  border: 1px solid rgba(188, 202, 218, 0.13);
+  border-radius: 9px;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(245, 240, 228, 0.05), transparent 82px),
-    linear-gradient(135deg, rgba(86, 200, 213, 0.025), transparent 38%),
-    rgba(4, 5, 5, 0.9);
+    linear-gradient(180deg, rgba(238, 243, 247, 0.045), transparent 76px),
+    linear-gradient(90deg, rgba(238, 243, 247, 0.024), transparent 42%),
+    rgba(5, 8, 12, 0.96);
   box-shadow:
-    inset 0 1px 0 rgba(245, 240, 228, 0.055),
+    inset 0 1px 0 rgba(238, 243, 247, 0.055),
     inset 0 0 0 1px rgba(0, 0, 0, 0.34);
   display: grid;
   grid-template-rows: 44px minmax(0, 1fr);
@@ -401,15 +414,15 @@ button:focus-visible {
 
 .terminal-stage-header {
   min-width: 0;
-  border-bottom: 1px solid rgba(245, 240, 228, 0.075);
+  border-bottom: 1px solid rgba(188, 202, 218, 0.09);
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 10px;
   padding: 0 12px;
   background:
-    linear-gradient(90deg, rgba(245, 240, 228, 0.045), transparent 42%),
-    rgba(7, 8, 8, 0.62);
+    linear-gradient(90deg, rgba(238, 243, 247, 0.04), transparent 42%),
+    rgba(8, 12, 17, 0.78);
 }
 
 .terminal-stage-header strong,
@@ -440,19 +453,19 @@ button:focus-visible {
 }
 
 .work-mode-control {
-  min-height: 28px;
-  border: 1px solid rgba(245, 240, 228, 0.1);
-  border-radius: 8px;
+  min-height: 32px;
+  border: 1px solid rgba(188, 202, 218, 0.12);
+  border-radius: 7px;
   padding: 2px;
   background:
-    linear-gradient(180deg, rgba(245, 240, 228, 0.045), rgba(245, 240, 228, 0.018));
+    linear-gradient(180deg, rgba(238, 243, 247, 0.045), rgba(238, 243, 247, 0.018));
   display: inline-flex;
   align-items: center;
   gap: 2px;
 }
 
 .work-mode-control button {
-  min-height: 22px;
+  min-height: 26px;
   border-color: transparent;
   border-radius: 6px;
   padding: 0 8px;
@@ -483,11 +496,11 @@ button:focus-visible {
 
 .layout-controls button {
   min-height: 26px;
-  border: 1px solid rgba(245, 240, 228, 0.12);
+  border: 1px solid rgba(188, 202, 218, 0.13);
   border-radius: 6px;
   padding: 0 8px;
   background:
-    linear-gradient(180deg, rgba(245, 240, 228, 0.06), rgba(245, 240, 228, 0.025));
+    linear-gradient(180deg, rgba(238, 243, 247, 0.055), rgba(238, 243, 247, 0.022));
   color: var(--ink-soft);
   font-family: var(--mono);
   font-size: 11px;
@@ -502,10 +515,10 @@ button:focus-visible {
 
 .terminal-stage-header kbd {
   min-height: 26px;
-  border: 1px solid rgba(245, 240, 228, 0.14);
+  border: 1px solid rgba(188, 202, 218, 0.14);
   border-radius: 6px;
   padding: 0 8px;
-  background: rgba(245, 240, 228, 0.045);
+  background: rgba(238, 243, 247, 0.045);
   color: var(--faint);
   display: inline-flex;
   align-items: center;
@@ -519,16 +532,17 @@ button:focus-visible {
   min-height: 0;
   overflow: auto;
   background:
-    radial-gradient(circle at 16% 9%, rgba(86, 200, 213, 0.045), transparent 30%),
-    radial-gradient(circle at 86% 96%, rgba(217, 174, 70, 0.022), transparent 28%),
-    rgba(2, 3, 3, 0.58);
+    linear-gradient(90deg, rgba(188, 202, 218, 0.04) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(188, 202, 218, 0.035) 1px, transparent 1px),
+    rgba(3, 5, 8, 0.7);
+  background-size: 28px 28px, 28px 28px, auto;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(620px, 100%), 1fr));
   grid-auto-rows: minmax(320px, 1fr);
-  gap: 10px;
-  padding: 10px;
+  gap: 9px;
+  padding: 9px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(245, 240, 228, 0.18) transparent;
+  scrollbar-color: rgba(188, 202, 218, 0.18) transparent;
 }
 
 .terminal-grid.arranging,
@@ -547,8 +561,8 @@ button:focus-visible {
 
 .terminal-grid.laid-out {
   background:
-    linear-gradient(180deg, rgba(245, 240, 228, 0.018), transparent 160px),
-    rgba(2, 3, 3, 0.64);
+    linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 140px),
+    rgba(3, 5, 8, 0.72);
 }
 
 .terminal-grid.laid-out.single {
@@ -562,11 +576,11 @@ button:focus-visible {
 
 .launch-plan-strip {
   min-width: 0;
-  border-bottom: 1px solid rgba(245, 240, 228, 0.075);
+  border-bottom: 1px solid rgba(188, 202, 218, 0.09);
   padding: 10px 12px;
   background:
-    linear-gradient(90deg, rgba(217, 174, 70, 0.075), transparent 38%),
-    rgba(8, 9, 9, 0.78);
+    linear-gradient(90deg, rgba(224, 183, 91, 0.085), transparent 38%),
+    rgba(11, 14, 18, 0.9);
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) auto auto;
   align-items: center;
@@ -667,8 +681,8 @@ button:focus-visible {
 }
 
 .launch-plan-actions .launch-secondary {
-  border: 1px solid rgba(245, 240, 228, 0.12);
-  background: rgba(245, 240, 228, 0.035);
+  border: 1px solid rgba(188, 202, 218, 0.13);
+  background: rgba(238, 243, 247, 0.035);
   color: var(--muted);
 }
 
@@ -682,16 +696,16 @@ button:focus-visible {
   position: relative;
   min-width: 0;
   min-height: 0;
-  border: 1px solid rgba(245, 240, 228, 0.105);
+  border: 1px solid rgba(188, 202, 218, 0.115);
   border-radius: 8px;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(245, 240, 228, 0.038), transparent 58px),
-    linear-gradient(135deg, rgba(86, 200, 213, 0.014), transparent 28%),
-    #030404;
+    linear-gradient(180deg, rgba(238, 243, 247, 0.038), transparent 58px),
+    linear-gradient(90deg, rgba(83, 199, 216, 0.016), transparent 42%),
+    var(--terminal);
   box-shadow:
     0 18px 44px rgba(0, 0, 0, 0.16),
-    inset 0 1px 0 rgba(245, 240, 228, 0.045);
+    inset 0 1px 0 rgba(238, 243, 247, 0.045);
   display: grid;
   grid-template-rows: 42px 1fr;
 }
@@ -711,7 +725,7 @@ button:focus-visible {
   box-shadow:
     0 18px 46px rgba(0, 0, 0, 0.38),
     0 0 0 1px rgba(86, 200, 213, 0.2),
-    inset 0 1px 0 rgba(245, 240, 228, 0.06);
+    inset 0 1px 0 rgba(238, 243, 247, 0.06);
   pointer-events: none;
 }
 
@@ -720,7 +734,7 @@ button:focus-visible {
   box-shadow:
     0 12px 30px rgba(0, 0, 0, 0.28),
     0 0 0 1px rgba(217, 174, 70, 0.18),
-    inset 0 1px 0 rgba(245, 240, 228, 0.06);
+    inset 0 1px 0 rgba(238, 243, 247, 0.06);
 }
 
 .terminal-tile.arranging.is-resizing::after {
@@ -774,7 +788,7 @@ body.arranging-pointer {
 }
 
 .terminal-tile.real-terminal {
-  border-color: rgba(245, 240, 228, 0.14);
+  border-color: rgba(188, 202, 218, 0.15);
 }
 
 .terminal-tile.real-terminal.ready {
@@ -784,36 +798,36 @@ body.arranging-pointer {
 .terminal-tile.kind-manual {
   background:
     linear-gradient(180deg, rgba(120, 217, 145, 0.038), transparent 58px),
-    linear-gradient(135deg, rgba(120, 217, 145, 0.012), transparent 30%),
-    #030404;
+    linear-gradient(90deg, rgba(120, 217, 145, 0.012), transparent 34%),
+    var(--terminal);
 }
 
 .terminal-tile.kind-codex {
   border-color: rgba(86, 200, 213, 0.2);
   background:
     linear-gradient(180deg, rgba(86, 200, 213, 0.044), transparent 58px),
-    linear-gradient(135deg, rgba(86, 200, 213, 0.02), transparent 30%),
-    #030404;
+    linear-gradient(90deg, rgba(86, 200, 213, 0.02), transparent 34%),
+    var(--terminal);
 }
 
 .terminal-tile.kind-claude {
-  border-color: rgba(183, 161, 255, 0.22);
+  border-color: rgba(169, 156, 255, 0.22);
   background:
-    linear-gradient(180deg, rgba(183, 161, 255, 0.046), transparent 58px),
-    linear-gradient(135deg, rgba(183, 161, 255, 0.018), transparent 30%),
-    #030404;
+    linear-gradient(180deg, rgba(169, 156, 255, 0.042), transparent 58px),
+    linear-gradient(90deg, rgba(169, 156, 255, 0.016), transparent 34%),
+    var(--terminal);
 }
 
 .terminal-tile.kind-dev-server {
   border-color: rgba(217, 174, 70, 0.24);
   background:
     linear-gradient(180deg, rgba(217, 174, 70, 0.05), transparent 58px),
-    linear-gradient(135deg, rgba(217, 174, 70, 0.016), transparent 30%),
-    #030404;
+    linear-gradient(90deg, rgba(217, 174, 70, 0.016), transparent 34%),
+    var(--terminal);
 }
 
 .terminal-tile.kind-shell {
-  border-color: rgba(245, 240, 228, 0.14);
+  border-color: rgba(188, 202, 218, 0.15);
 }
 
 .terminal-tile.real-terminal.error,
@@ -823,7 +837,7 @@ body.arranging-pointer {
 
 .tile-header {
   min-width: 0;
-  border-bottom: 1px solid rgba(245, 240, 228, 0.065);
+  border-bottom: 1px solid rgba(188, 202, 218, 0.08);
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
@@ -833,8 +847,8 @@ body.arranging-pointer {
   font-family: var(--mono);
   font-size: 12px;
   background:
-    linear-gradient(90deg, rgba(245, 240, 228, 0.035), transparent 38%),
-    rgba(5, 6, 6, 0.7);
+    linear-gradient(90deg, rgba(238, 243, 247, 0.032), transparent 38%),
+    rgba(7, 10, 14, 0.86);
 }
 
 .tile-title {
@@ -863,16 +877,16 @@ body.arranging-pointer {
 
 .tool-dot.manual { background: var(--green); }
 .tool-dot.codex { background: var(--cyan); }
-.tool-dot.claude { background: #b7a1ff; }
+.tool-dot.claude { background: var(--violet); }
 .tool-dot.dev-server { background: var(--brass); }
 .tool-dot.shell { background: var(--ink-soft); }
 
 .tile-kind-mark {
   min-width: 40px;
   min-height: 22px;
-  border: 1px solid rgba(245, 240, 228, 0.11);
+  border: 1px solid rgba(188, 202, 218, 0.12);
   border-radius: 6px;
-  background: rgba(245, 240, 228, 0.035);
+  background: rgba(238, 243, 247, 0.035);
   color: var(--muted);
   display: inline-flex;
   align-items: center;
@@ -901,9 +915,9 @@ body.arranging-pointer {
 }
 
 .tile-kind-mark.claude {
-  border-color: rgba(183, 161, 255, 0.25);
-  background: rgba(183, 161, 255, 0.055);
-  color: #d4c5ff;
+  border-color: rgba(169, 156, 255, 0.24);
+  background: rgba(169, 156, 255, 0.052);
+  color: #cec6ff;
 }
 
 .tile-kind-mark.dev-server {
@@ -913,8 +927,8 @@ body.arranging-pointer {
 }
 
 .tile-kind-mark.shell {
-  border-color: rgba(245, 240, 228, 0.16);
-  background: rgba(245, 240, 228, 0.04);
+  border-color: rgba(188, 202, 218, 0.16);
+  background: rgba(238, 243, 247, 0.04);
   color: var(--ink-soft);
 }
 
@@ -947,7 +961,7 @@ body.arranging-pointer {
 .tile-status {
   min-height: 22px;
   border: 1px solid rgba(120, 217, 145, 0.18);
-  border-radius: 999px;
+  border-radius: 6px;
   padding: 3px 8px;
   background: rgba(120, 217, 145, 0.045);
   color: var(--cyan);
@@ -968,9 +982,9 @@ body.arranging-pointer {
 .tile-actions button {
   width: 34px;
   min-height: 34px;
-  border: 1px solid rgba(245, 240, 228, 0.11);
+  border: 1px solid rgba(188, 202, 218, 0.12);
   border-radius: 7px;
-  background: rgba(245, 240, 228, 0.035);
+  background: rgba(238, 243, 247, 0.035);
   color: var(--muted);
   display: inline-flex;
   align-items: center;
@@ -1001,8 +1015,8 @@ body.arranging-pointer {
   overflow: hidden;
   padding: 10px;
   background:
-    radial-gradient(circle at 100% 0%, rgba(86, 200, 213, 0.026), transparent 32%),
-    #030404;
+    linear-gradient(180deg, rgba(238, 243, 247, 0.014), transparent 96px),
+    var(--terminal);
 }
 
 .xterm-host .xterm {
@@ -1016,7 +1030,7 @@ body.arranging-pointer {
 
 .xterm-host .xterm-viewport {
   scrollbar-width: thin;
-  scrollbar-color: rgba(245, 240, 228, 0.18) transparent;
+  scrollbar-color: rgba(188, 202, 218, 0.18) transparent;
 }
 
 .alfred-dock {
@@ -1027,9 +1041,9 @@ body.arranging-pointer {
   border-radius: 10px;
   padding: 12px;
   background:
-    linear-gradient(180deg, rgba(217, 174, 70, 0.045), transparent 62px),
+    linear-gradient(180deg, rgba(224, 183, 91, 0.045), transparent 62px),
     var(--glass);
-  box-shadow: inset 0 1px 0 rgba(245, 240, 228, 0.045);
+  box-shadow: inset 0 1px 0 rgba(238, 243, 247, 0.045);
   color: var(--muted);
   display: grid;
   gap: 12px;
@@ -1041,8 +1055,8 @@ body.arranging-pointer {
   padding: 10px 8px;
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(217, 174, 70, 0.035), transparent 52px),
-    rgba(13, 15, 15, 0.5);
+    linear-gradient(180deg, rgba(224, 183, 91, 0.034), transparent 52px),
+    rgba(12, 16, 21, 0.72);
 }
 
 .alfred-dock-header {
@@ -1064,7 +1078,7 @@ body.arranging-pointer {
   width: 30px;
   height: 30px;
   border: 1px solid rgba(217, 174, 70, 0.26);
-  border-radius: 7px;
+  border-radius: 6px;
   background: rgba(217, 174, 70, 0.045);
   display: grid;
   place-items: center;
@@ -1119,7 +1133,7 @@ body.arranging-pointer {
 }
 
 .alfred-dock-footer {
-  border-top: 1px solid rgba(245, 240, 228, 0.09);
+  border-top: 1px solid rgba(188, 202, 218, 0.1);
   padding-top: 10px;
   display: flex;
   justify-content: space-between;
@@ -1148,7 +1162,7 @@ body.arranging-pointer {
 
 /* Composer bar (Alfred prompt input) */
 .composer-bar {
-  border-top: 1px solid rgba(245, 240, 228, 0.1);
+  border-top: 1px solid var(--line);
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr) auto;
   grid-template-rows: 1fr auto;
@@ -1157,8 +1171,8 @@ body.arranging-pointer {
   row-gap: 3px;
   padding: 7px 12px 6px;
   background:
-    linear-gradient(180deg, rgba(217, 174, 70, 0.045), transparent 28px),
-    rgba(12, 14, 14, 0.72);
+    linear-gradient(180deg, rgba(238, 243, 247, 0.024), transparent 28px),
+    rgba(10, 14, 19, 0.94);
 }
 
 .composer-bar .alfred-mark {
@@ -1170,10 +1184,10 @@ body.arranging-pointer {
   min-width: 0;
   min-height: 38px;
   max-height: 96px;
-  border: 1px solid rgba(245, 240, 228, 0.13);
-  border-radius: 8px;
+  border: 1px solid rgba(188, 202, 218, 0.15);
+  border-radius: 7px;
   padding: 8px 12px;
-  background: rgba(245, 240, 228, 0.04);
+  background: rgba(238, 243, 247, 0.04);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 13px;
@@ -1187,8 +1201,8 @@ body.arranging-pointer {
 }
 
 .composer-input:focus-visible {
-  border-color: rgba(217, 174, 70, 0.46);
-  background: rgba(217, 174, 70, 0.04);
+  border-color: rgba(83, 199, 216, 0.46);
+  background: rgba(83, 199, 216, 0.045);
 }
 
 .composer-input:disabled {
@@ -1199,7 +1213,7 @@ body.arranging-pointer {
 .composer-send {
   min-height: 38px;
   border: 1px solid rgba(217, 174, 70, 0.46);
-  border-radius: 8px;
+  border-radius: 7px;
   padding: 0 14px;
   background:
     linear-gradient(180deg, rgba(217, 174, 70, 0.18), rgba(217, 174, 70, 0.08));
@@ -1234,8 +1248,8 @@ body.arranging-pointer {
   inset: 0;
   z-index: 40;
   background:
-    radial-gradient(circle at 50% 0%, rgba(86, 200, 213, 0.08), transparent 34%),
-    rgba(0, 0, 0, 0.46);
+    linear-gradient(180deg, rgba(238, 243, 247, 0.052), transparent 38vh),
+    rgba(0, 0, 0, 0.58);
   display: grid;
   place-items: start center;
   padding-top: 14vh;
@@ -1243,20 +1257,20 @@ body.arranging-pointer {
 
 .command-palette {
   width: min(640px, calc(100vw - 48px));
-  border: 1px solid rgba(245, 240, 228, 0.16);
+  border: 1px solid rgba(188, 202, 218, 0.2);
   border-radius: 10px;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(245, 240, 228, 0.055), transparent 80px),
-    rgba(8, 9, 9, 0.96);
+    linear-gradient(180deg, rgba(238, 243, 247, 0.055), transparent 80px),
+    rgba(9, 13, 18, 0.98);
   box-shadow:
     0 28px 96px rgba(0, 0, 0, 0.52),
-    inset 0 1px 0 rgba(245, 240, 228, 0.065);
+    inset 0 1px 0 rgba(238, 243, 247, 0.065);
 }
 
 .command-palette-search {
   min-height: 50px;
-  border-bottom: 1px solid rgba(245, 240, 228, 0.09);
+  border-bottom: 1px solid rgba(188, 202, 218, 0.1);
   padding: 0 12px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1280,10 +1294,10 @@ body.arranging-pointer {
 }
 
 .command-palette-search kbd {
-  border: 1px solid rgba(245, 240, 228, 0.12);
+  border: 1px solid rgba(188, 202, 218, 0.13);
   border-radius: 6px;
   padding: 3px 7px;
-  background: rgba(245, 240, 228, 0.035);
+  background: rgba(238, 243, 247, 0.035);
   color: var(--faint);
   font-family: var(--mono);
   font-size: 10px;
@@ -1319,7 +1333,7 @@ body.arranging-pointer {
   border-color: rgba(86, 200, 213, 0.28);
   background:
     linear-gradient(90deg, rgba(86, 200, 213, 0.09), transparent 56%),
-    rgba(245, 240, 228, 0.035);
+    rgba(238, 243, 247, 0.035);
 }
 
 .command-palette-list button:disabled {
@@ -1350,10 +1364,10 @@ body.arranging-pointer {
   border: 1px solid rgba(217, 174, 70, 0.32);
   background:
     linear-gradient(180deg, rgba(217, 174, 70, 0.055), transparent 72px),
-    rgba(7, 7, 7, 0.78);
+    rgba(8, 10, 13, 0.88);
   box-shadow:
     0 20px 54px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(245, 240, 228, 0.045),
+    inset 0 1px 0 rgba(238, 243, 247, 0.045),
     inset 0 0 0 1px rgba(217, 174, 70, 0.055);
 }
 
@@ -1367,14 +1381,14 @@ body.arranging-pointer {
 }
 
 .terminal-tile.staged .tool-dot.codex { background: var(--cyan); }
-.terminal-tile.staged .tool-dot.claude { background: #b7a1ff; }
+.terminal-tile.staged .tool-dot.claude { background: var(--violet); }
 .terminal-tile.staged .tool-dot.dev-server { background: var(--green); }
 .terminal-tile.staged .tool-dot.shell { background: var(--ink-soft); }
 
 .terminal-tile.staged.kind-codex::before { background: rgba(86, 200, 213, 0.72); }
-.terminal-tile.staged.kind-claude::before { background: rgba(183, 161, 255, 0.72); }
+.terminal-tile.staged.kind-claude::before { background: rgba(169, 156, 255, 0.72); }
 .terminal-tile.staged.kind-dev-server::before { background: rgba(217, 174, 70, 0.72); }
-.terminal-tile.staged.kind-shell::before { background: rgba(245, 240, 228, 0.4); }
+.terminal-tile.staged.kind-shell::before { background: rgba(188, 202, 218, 0.46); }
 
 .staged-body {
   min-width: 0;
@@ -1426,7 +1440,7 @@ body.arranging-pointer {
   display: flex;
   gap: 8px;
   padding: 8px;
-  border-top: 1px solid rgba(245, 240, 228, 0.08);
+  border-top: 1px solid rgba(188, 202, 218, 0.09);
 }
 
 .staged-actions .approve-button {
@@ -1459,9 +1473,9 @@ body.arranging-pointer {
 .staged-actions .reject-button {
   width: 34px;
   min-height: 34px;
-  border: 1px solid rgba(245, 240, 228, 0.13);
+  border: 1px solid rgba(188, 202, 218, 0.13);
   border-radius: 7px;
-  background: rgba(245, 240, 228, 0.035);
+  background: rgba(238, 243, 247, 0.035);
   color: var(--muted);
   cursor: pointer;
   display: inline-flex;
@@ -1506,10 +1520,9 @@ body.arranging-pointer {
 .alfred-dock-plan .plan-prompt {
   margin: 0;
   padding-top: 10px;
-  border-top: 1px solid rgba(245, 240, 228, 0.09);
+  border-top: 1px solid rgba(188, 202, 218, 0.1);
   color: var(--faint);
   font-size: 11px;
-  font-style: italic;
   line-height: 1.45;
   white-space: normal;
 }
