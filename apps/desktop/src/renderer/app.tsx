@@ -46,6 +46,7 @@ import {
 } from "./session-state";
 import type { WorkMode } from "./terminal-desk-types";
 import { buildOrchestratorViewModel } from "./view-models/orchestrator-view-model";
+import { workspaceSessionSummary } from "./workspace-session-summary";
 import type { AlfredRuntimeStatus, AlfredStagedPlanSnapshot, AlfredStagedSession } from "../shared/alfred-ipc";
 import type { TerminalCreateResult } from "../shared/terminal-ipc";
 import type { WorkspaceStateSnapshot } from "../shared/workspace-ipc";
@@ -614,6 +615,7 @@ export function App() {
               <strong>{activeWorkspace.label} workspace</strong>
               <span>
                 {activeSessions.length} tile{activeSessions.length === 1 ? "" : "s"} ·{" "}
+                {workspaceSessionSummary(activeSessions)} ·{" "}
                 {workspaceDetail(activeWorkspace)}
               </span>
             </div>
