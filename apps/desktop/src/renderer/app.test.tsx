@@ -267,7 +267,7 @@ describe("App integration", () => {
 
     await user.click(screen.getByRole("button", { name: "Close Manual · zsh 2" }));
 
-    expect(await screen.findByRole("status", { name: "Empty workspace" })).toHaveTextContent("No sessions running");
+    expect(await screen.findByRole("status", { name: "Empty workspace" })).toHaveTextContent("ClientApp");
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await user.type(screen.getByRole("textbox", { name: "Search commands" }), "close current{Enter}");
@@ -668,7 +668,18 @@ describe("App integration", () => {
 
   it("offers concrete launch actions when the active workspace is empty", async () => {
     const user = userEvent.setup();
-    const { createTerminal } = installDesktopBridge();
+    const { createTerminal } = installDesktopBridge(undefined, null, [], undefined, undefined, {
+      workspaces: [
+        {
+          id: "A",
+          label: "Alfred",
+          shortLabel: "A",
+          rootPath: "/Users/patryk/Desktop/Alfred",
+          gitBranch: "main",
+        },
+      ],
+      activeWorkspaceId: "A",
+    });
 
     render(<App />);
 
@@ -680,7 +691,9 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
 
     const emptyState = await screen.findByRole("status", { name: "Empty workspace" });
-    expect(emptyState).toHaveTextContent("No sessions running");
+    expect(emptyState).toHaveTextContent("Alfred");
+    expect(emptyState).toHaveTextContent("…/Desktop/Alfred");
+    expect(emptyState).toHaveTextContent("main");
 
     await user.click(within(emptyState).getByRole("button", { name: "Start Codex" }));
 

@@ -801,6 +801,9 @@ export function App() {
               shortcutModifier={shortcutModifier}
               unsafeStagedCount={unsafeStagedCount}
               workMode={activeWorkMode}
+              workspaceGitBranch={activeWorkspace.gitBranch}
+              workspaceLabel={activeWorkspace.label}
+              workspaceRootPath={activeWorkspace.rootPath}
               onAddAgentSession={handleAddAgentSession}
               onAddManualSession={handleAddManualSession}
               onCloseSession={handleCloseSession}
