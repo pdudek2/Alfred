@@ -796,6 +796,7 @@ export function App() {
               armedUnsafeSessionIds={armedUnsafeSessionIds}
               layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
               pendingPlan={activePendingPlan}
+              recoverableSessions={activeRecoverableSessions}
               selectedSessionId={activeSelectedSessionId}
               sessions={activeSessions}
               shortcutModifier={shortcutModifier}
@@ -807,7 +808,9 @@ export function App() {
               onAddAgentSession={handleAddAgentSession}
               onAddManualSession={handleAddManualSession}
               onCloseSession={handleCloseSession}
+              onCloseRecoverableSessions={handleCloseRecoverableSessions}
               onContinueRestoredSession={handleContinueRestoredSession}
+              onContinueRecoverableSessions={handleContinueRecoverableSessions}
               onRestartSession={handleRestartSession}
               onApplyLayoutPreset={handleApplyLayoutPreset}
               onApplyWorkMode={handleApplyWorkMode}

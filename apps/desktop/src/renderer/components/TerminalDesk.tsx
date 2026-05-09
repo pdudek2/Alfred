@@ -30,6 +30,7 @@ type TerminalDeskProps = {
   armedUnsafeSessionIds: Set<string>;
   layouts: Record<string, TileLayout>;
   pendingPlan: SquadPlan | null;
+  recoverableSessions: SessionTile[];
   selectedSessionId: string | null;
   sessions: SessionTile[];
   shortcutModifier: string;
@@ -41,7 +42,9 @@ type TerminalDeskProps = {
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
   onCloseSession: (sessionId: string) => void;
+  onCloseRecoverableSessions: () => void;
   onContinueRestoredSession: (sessionId: string) => void;
+  onContinueRecoverableSessions: () => void;
   onRestartSession: (sessionId: string) => void;
   onApplyLayoutPreset: (preset: LayoutPreset) => void;
   onApplyWorkMode: (mode: WorkMode) => void;
@@ -63,6 +66,7 @@ export function TerminalDesk({
   armedUnsafeSessionIds,
   layouts,
   pendingPlan,
+  recoverableSessions,
   selectedSessionId,
   sessions,
   shortcutModifier,
@@ -74,7 +78,9 @@ export function TerminalDesk({
   onAddAgentSession,
   onAddManualSession,
   onCloseSession,
+  onCloseRecoverableSessions,
   onContinueRestoredSession,
+  onContinueRecoverableSessions,
   onRestartSession,
   onApplyLayoutPreset,
   onApplyWorkMode,
@@ -260,6 +266,13 @@ export function TerminalDesk({
       )}
       <div className="terminal-stage-body">
         <div className="terminal-grid-column">
+          {recoverableSessions.length > 0 && (
+            <RecoveryWorkspaceStrip
+              sessions={recoverableSessions}
+              onCloseRecoverableSessions={onCloseRecoverableSessions}
+              onContinueRecoverableSessions={onContinueRecoverableSessions}
+            />
+          )}
           {focusSession && sessions.length > 1 && (
             <FocusSessionStrip
               activeSessionId={focusSession.id}
@@ -335,6 +348,41 @@ export function TerminalDesk({
         {workMode === "focus" && (
           <AgentTimelinePanel session={focusSession} onSendInput={handleSendSessionInput} />
         )}
+      </div>
+    </section>
+  );
+}
+
+function RecoveryWorkspaceStrip({
+  sessions,
+  onCloseRecoverableSessions,
+  onContinueRecoverableSessions,
+}: {
+  sessions: SessionTile[];
+  onCloseRecoverableSessions: () => void;
+  onContinueRecoverableSessions: () => void;
+}) {
+  const restoredCount = sessions.filter((session) => session.runtimeStatus === "restored").length;
+  const endedCount = sessions.length - restoredCount;
+  const summary = [
+    restoredCount > 0 ? `${restoredCount} restored` : null,
+    endedCount > 0 ? `${endedCount} ended` : null,
+  ].filter((item): item is string => item !== null).join(" · ");
+
+  return (
+    <section className="recovery-workspace-strip" aria-label="Session recovery">
+      <div>
+        <span>Resume workspace</span>
+        <strong>{sessions.length} saved session{sessions.length === 1 ? "" : "s"}</strong>
+        <p>{summary || "Saved transcripts are ready."}</p>
+      </div>
+      <div>
+        <button type="button" onClick={onContinueRecoverableSessions}>
+          Relaunch saved sessions
+        </button>
+        <button type="button" onClick={onCloseRecoverableSessions}>
+          Dismiss saved sessions
+        </button>
       </div>
     </section>
   );

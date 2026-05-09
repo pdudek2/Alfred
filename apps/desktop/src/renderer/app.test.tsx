@@ -1060,7 +1060,7 @@ describe("App integration", () => {
     expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "manual-9" });
   });
 
-  it("dismisses all recoverable sessions at once", async () => {
+  it("dismisses all recoverable sessions from the workspace recovery strip", async () => {
     const { forgetTerminal } = installDesktopBridge(
       undefined,
       null,
@@ -1094,8 +1094,9 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("region", { name: "Recovery queue" })).toHaveTextContent("2 saved");
+    expect(screen.getByRole("region", { name: "Session recovery" })).toHaveTextContent("2 saved sessions");
 
-    await userEvent.click(screen.getByRole("button", { name: "Dismiss all" }));
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss saved sessions" }));
 
     expect(screen.queryByRole("article", { name: /Manual · zsh 9/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /Codex · session 9/i })).not.toBeInTheDocument();
@@ -1103,7 +1104,7 @@ describe("App integration", () => {
     expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9" });
   });
 
-  it("relaunches all restored sessions from the recovery queue", async () => {
+  it("relaunches all restored sessions from the workspace recovery strip", async () => {
     const { createTerminal, forgetTerminal } = installDesktopBridge(
       undefined,
       null,
@@ -1137,8 +1138,9 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("region", { name: "Recovery queue" })).toHaveTextContent("2 saved");
+    expect(screen.getByRole("region", { name: "Session recovery" })).toHaveTextContent("2 restored");
 
-    await userEvent.click(screen.getByRole("button", { name: "Relaunch all" }));
+    await userEvent.click(screen.getByRole("button", { name: "Relaunch saved sessions" }));
 
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "manual-9" }));
