@@ -50,18 +50,39 @@ export function AlfredControlRail({
   const safeStagedCount = Math.max(0, stagedCount - unsafeStagedCount);
   const compact = status.kind === "idle" && pendingPlan === null && recoverableSessions.length === 0;
   const sigilState = alfredSigilState(status, pendingPlan, recoverableSessions.length, unsafeStagedCount);
+  const statusText = status.kind === "thinking"
+    ? "preparing"
+    : status.kind === "error"
+      ? "needs attention"
+      : pendingPlan
+        ? "ready to launch"
+        : recoverableSessions.length > 0
+          ? "recovery ready"
+          : "standing by";
+  const footerLabel = pendingPlan ? "review queue" : recoverableSessions.length > 0 ? "recovery" : "clear desk";
+  const footerValue = safeStagedCount > 0
+    ? `${safeStagedCount} launchable`
+    : recoverableSessions.length > 0
+      ? `${recoverableSessions.length} item${recoverableSessions.length === 1 ? "" : "s"}`
+      : "no asks";
 
   return (
-    <aside className={`alfred-dock ${compact ? "compact" : ""}`} aria-label="Alfred status">
+    <aside
+      className={`alfred-dock ${compact ? "compact" : ""}`}
+      aria-label="Alfred status"
+      title={compact ? "Alfred standing by" : undefined}
+    >
       <div className="alfred-dock-header">
         <AlfredSigil state={sigilState} />
-        <div>
-          <strong>Alfred</strong>
-          <span>{status.kind === "thinking" ? "preparing" : status.kind === "error" ? "needs attention" : pendingPlan ? "ready to launch" : recoverableSessions.length > 0 ? "recovery ready" : "standing by"}</span>
-        </div>
+        {!compact && (
+          <div>
+            <strong>Alfred</strong>
+            <span>{statusText}</span>
+          </div>
+        )}
       </div>
 
-      {status.kind === "error" ? (
+      {!compact && (status.kind === "error" ? (
         <div className="alfred-dock-error" role="alert">
           <div>{status.error.message}</div>
           <button type="button" className="dismiss" onClick={onDismissError} aria-label="Dismiss error">
@@ -103,18 +124,16 @@ export function AlfredControlRail({
           onFocusSession={onFocusSession}
           onRestartSession={onRestartSession}
         />
-      ) : compact ? (
-        <p className="compact-note" aria-label="Alfred idle">
-          Quiet until asked.
-        </p>
       ) : (
         <p>Manual work stays in front. Ask Alfred when you want a workspace prepared.</p>
-      )}
+      ))}
 
-      <div className="alfred-dock-footer">
-        <span>{pendingPlan ? "review queue" : recoverableSessions.length > 0 ? "recovery" : "clear desk"}</span>
-        <span>{safeStagedCount > 0 ? `${safeStagedCount} launchable` : recoverableSessions.length > 0 ? `${recoverableSessions.length} item${recoverableSessions.length === 1 ? "" : "s"}` : "no asks"}</span>
-      </div>
+      {!compact && (
+        <div className="alfred-dock-footer">
+          <span>{footerLabel}</span>
+          <span>{footerValue}</span>
+        </div>
+      )}
     </aside>
   );
 }

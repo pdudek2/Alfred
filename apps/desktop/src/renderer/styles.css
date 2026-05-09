@@ -202,7 +202,7 @@ button:focus-visible {
 }
 
 .workspace-layout.alfred-compact {
-  grid-template-columns: 54px minmax(0, 1fr) 84px;
+  grid-template-columns: 54px minmax(0, 1fr) 48px;
 }
 
 .orchestrator-surface {
@@ -1208,13 +1208,19 @@ body.arranging-pointer {
 }
 
 .alfred-dock.compact {
+  width: 44px;
+  min-height: 44px;
   justify-items: center;
-  gap: 8px;
-  padding: 10px 8px;
-  border-radius: 8px;
+  place-items: center;
+  gap: 0;
+  padding: 5px;
+  border-radius: 12px;
   background:
-    linear-gradient(180deg, rgba(224, 183, 91, 0.034), transparent 52px),
+    radial-gradient(circle at 50% 0%, rgba(224, 183, 91, 0.1), transparent 58%),
     rgba(12, 16, 21, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(238, 243, 247, 0.06),
+    0 16px 30px -24px rgba(0, 0, 0, 0.8);
 }
 
 .alfred-dock-header {
@@ -1228,8 +1234,7 @@ body.arranging-pointer {
 .alfred-dock.compact .alfred-dock-header {
   grid-template-columns: 1fr;
   justify-items: center;
-  gap: 7px;
-  text-align: center;
+  gap: 0;
 }
 
 .alfred-sigil {
@@ -1354,34 +1359,12 @@ body.arranging-pointer {
   white-space: normal;
 }
 
-.alfred-dock .compact-note {
-  color: var(--faint);
-  font-family: var(--mono);
-  font-size: 10px;
-  line-height: 1.35;
-  text-align: center;
-}
-
 .alfred-dock-footer {
   border-top: 1px solid rgba(188, 202, 218, 0.1);
   padding-top: 10px;
   display: flex;
   justify-content: space-between;
   gap: 8px;
-}
-
-.alfred-dock.compact .alfred-dock-footer {
-  width: 100%;
-  display: grid;
-  justify-items: center;
-  gap: 4px;
-  padding-top: 8px;
-}
-
-.alfred-dock.compact .alfred-dock-footer span {
-  max-width: 100%;
-  font-size: 10px;
-  text-align: center;
 }
 
 .alfred-dock-footer span {

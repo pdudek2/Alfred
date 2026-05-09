@@ -606,6 +606,9 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
     expect(document.querySelector(".workspace-layout")).toHaveClass("alfred-compact");
     expect(screen.getByLabelText("Alfred status")).toHaveClass("compact");
+    expect(screen.getByLabelText("Alfred status")).toHaveAttribute("title", "Alfred standing by");
+    expect(screen.queryByText("standing by")).not.toBeInTheDocument();
+    expect(screen.queryByText("no asks")).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Alfred prompt"), "prepare agents");
     await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
@@ -613,6 +616,7 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Staged Task A/i })).toBeInTheDocument();
     expect(document.querySelector(".workspace-layout")).toHaveClass("alfred-expanded");
     expect(screen.getByLabelText("Alfred status")).not.toHaveClass("compact");
+    expect(screen.getByLabelText("Alfred status")).not.toHaveAttribute("title");
   });
 
   it("closes a live terminal tile and kills its runtime session", async () => {
