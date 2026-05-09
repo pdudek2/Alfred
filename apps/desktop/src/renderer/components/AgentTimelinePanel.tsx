@@ -11,6 +11,11 @@ type AgentTimelinePanelProps = {
 
 export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelProps) {
   const ageClock = useSessionAgeClock(session?.createdAt);
+  const [inputDraft, setInputDraft] = useState("");
+
+  useEffect(() => {
+    setInputDraft("");
+  }, [session?.id]);
 
   if (!session) {
     return (
@@ -46,6 +51,12 @@ export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelP
   const sendApprovalResponse = (data: string) => {
     if (!session.runtimeId || !onSendInput) return;
     onSendInput(session.runtimeId, data);
+  };
+  const submitInputDraft = () => {
+    const value = inputDraft.trim();
+    if (!value || !session.runtimeId || !onSendInput) return;
+    onSendInput(session.runtimeId, `${value}\n`);
+    setInputDraft("");
   };
   const displayedEvents =
     activityEvents.length > 0
@@ -143,6 +154,26 @@ export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelP
               Send no
             </button>
           </div>
+        )}
+        {canSendApprovalResponse && (
+          <form
+            className="agent-session-input"
+            aria-label={`Send input to ${session.title}`}
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitInputDraft();
+            }}
+          >
+            <input
+              aria-label="Session input"
+              placeholder="Send input to this session..."
+              value={inputDraft}
+              onChange={(event) => setInputDraft(event.target.value)}
+            />
+            <button type="submit" disabled={inputDraft.trim().length === 0}>
+              Send
+            </button>
+          </form>
         )}
         <ol className="agent-activity-list">
           {displayedEvents.map((event) => (

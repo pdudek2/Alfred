@@ -1,5 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { act, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import { AgentTimelinePanel } from "./AgentTimelinePanel";
 import type { SessionTile } from "../session-state";
@@ -245,5 +246,30 @@ describe("AgentTimelinePanel", () => {
     expect(screen.getByText("blocked")).toBeInTheDocument();
     expect(screen.getByText("Safety review required")).toBeInTheDocument();
     expect(screen.getAllByText("rm -rf detected").length).toBeGreaterThan(0);
+  });
+
+  it("sends custom input to the focused live session", async () => {
+    const user = userEvent.setup();
+    const onSendInput = vi.fn();
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — approval",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/tmp",
+      source: "alfred",
+      runtimeId: "runtime-1",
+      activityEvents: [
+        { id: "activity-1", kind: "approval", title: "Waiting for approval", detail: "Pick an option.", at: 100 },
+      ],
+    };
+
+    render(<AgentTimelinePanel session={session} onSendInput={onSendInput} />);
+
+    await user.type(screen.getByRole("textbox", { name: "Session input" }), "2");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(onSendInput).toHaveBeenCalledWith("runtime-1", "2\n");
+    expect(screen.getByRole("textbox", { name: "Session input" })).toHaveValue("");
   });
 });
