@@ -25,6 +25,7 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
+const openDevToolsInDev = process.env.ALFRED_DESKTOP_OPEN_DEVTOOLS === "1";
 let terminalQuitConfirmed = false;
 let terminalPersistenceFlushedForQuit = false;
 
@@ -75,7 +76,9 @@ async function createWindow(): Promise<void> {
 
   if (isDev) {
     await window.loadURL(process.env.VITE_DEV_SERVER_URL!);
-    window.webContents.openDevTools({ mode: "detach" });
+    if (openDevToolsInDev) {
+      window.webContents.openDevTools({ mode: "detach" });
+    }
     return;
   }
 
