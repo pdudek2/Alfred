@@ -18,6 +18,8 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const SYSTEM_PROMPT = `You are Alfred, an agent orchestrator for a desktop coding cockpit.
 The user will describe a workspace they want to prepare.
 Use the provided workspace context when choosing cwd defaults and labels.
+Use the existing session list to avoid launching duplicate agents unless the
+user explicitly asks for another parallel copy.
 You return a JSON plan of terminal sessions to launch — but you do NOT launch
 them. The user reviews and approves each session before it runs.
 
@@ -117,6 +119,20 @@ function userPromptWithWorkspace(prompt: string, workspace: AlfredWorkspaceConte
     `- label: ${workspace.label}`,
     workspace.rootPath ? `- cwd: ${workspace.rootPath}` : null,
     workspace.gitBranch ? `- branch: ${workspace.gitBranch}` : null,
+    ...(workspace.sessions && workspace.sessions.length > 0
+      ? [
+          "- existing sessions:",
+          ...workspace.sessions.slice(0, 8).map((session) => {
+            const parts = [
+              session.kind ?? "shell",
+              session.status,
+              session.cwd,
+              session.command ? `cmd=${session.command}` : null,
+            ].filter((item): item is string => Boolean(item));
+            return `  - ${session.title}${parts.length > 0 ? ` (${parts.join(", ")})` : ""}`;
+          }),
+        ]
+      : []),
     "",
     "User request:",
     prompt,

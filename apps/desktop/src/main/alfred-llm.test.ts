@@ -178,6 +178,15 @@ Ready.`;
         label: "Client App",
         rootPath: "/Users/patryk/Desktop/ClientApp",
         gitBranch: "feature/agent-space",
+        sessions: [
+          {
+            title: "Codex · api",
+            kind: "codex",
+            status: "active",
+            cwd: "/Users/patryk/Desktop/ClientApp",
+            command: "codex",
+          },
+        ],
       },
       fetchImpl,
     });
@@ -189,6 +198,8 @@ Ready.`;
     expect(userMessage).toContain("- label: Client App");
     expect(userMessage).toContain("- cwd: /Users/patryk/Desktop/ClientApp");
     expect(userMessage).toContain("- branch: feature/agent-space");
+    expect(userMessage).toContain("- existing sessions:");
+    expect(userMessage).toContain("Codex · api (codex, active, /Users/patryk/Desktop/ClientApp, cmd=codex)");
     expect(userMessage).toContain(baseInput.prompt);
   });
 

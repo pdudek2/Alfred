@@ -920,10 +920,16 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
 
     await screen.findByRole("article", { name: /Staged Task A/i });
-    expect(requestPlan).toHaveBeenCalledWith({
-      prompt: "prepare agents",
-      workspace: { id: "A", label: "Alfred" },
-    });
+    expect(requestPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: "prepare agents",
+        workspace: expect.objectContaining({
+          id: "A",
+          label: "Alfred",
+          sessions: expect.arrayContaining([expect.objectContaining({ title: "Manual · zsh 1" })]),
+        }),
+      }),
+    );
   });
 
   it("turns the first Alfred prompt into staged tiles", async () => {
@@ -935,10 +941,16 @@ describe("App integration", () => {
     await user.type(screen.getByLabelText("Alfred prompt"), "launch first plan");
     await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
 
-    expect(requestPlan).toHaveBeenCalledWith({
-      prompt: "launch first plan",
-      workspace: { id: "A", label: "Alfred" },
-    });
+    expect(requestPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: "launch first plan",
+        workspace: expect.objectContaining({
+          id: "A",
+          label: "Alfred",
+          sessions: expect.arrayContaining([expect.objectContaining({ title: "Manual · zsh 1" })]),
+        }),
+      }),
+    );
     expect(await screen.findByRole("region", { name: "Alfred launch plan" })).toHaveTextContent("Workspace prepared");
     expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("2 safe · 0 flagged");
     expect(screen.getByRole("button", { name: "Launch queue" })).toBeInTheDocument();
