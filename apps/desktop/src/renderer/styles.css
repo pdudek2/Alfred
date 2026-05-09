@@ -2064,6 +2064,22 @@ body.arranging-pointer {
   gap: 8px;
 }
 
+.recovery-queue header button {
+  min-height: 24px;
+  border: 1px solid color-mix(in oklab, white 8%, transparent);
+  border-radius: 7px;
+  padding: 0 8px;
+  background: color-mix(in oklab, white 4%, transparent);
+  color: var(--muted);
+  font: 700 10px var(--sans);
+}
+
+.recovery-queue header button:hover,
+.recovery-queue header button:focus-visible {
+  border-color: color-mix(in oklab, var(--accent) 30%, transparent);
+  color: var(--ink-soft);
+}
+
 .recovery-queue header span,
 .recovery-queue header strong {
   margin: 0;

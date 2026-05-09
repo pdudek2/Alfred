@@ -345,6 +345,12 @@ export function App() {
     handleCloseSession(activeSelectedSession.id);
   }, [activeSelectedSession, handleCloseSession]);
 
+  const handleCloseRecoverableSessions = useCallback(() => {
+    for (const session of activeRecoverableSessions) {
+      handleCloseSession(session.id);
+    }
+  }, [activeRecoverableSessions, handleCloseSession]);
+
   const handleRuntimeSessionStarting = useCallback((tileId: string): boolean => {
     if (startingSessionIdsRef.current.has(tileId)) {
       return false;
@@ -776,6 +782,7 @@ export function App() {
             liveAlfredCount={liveAlfredCount}
             onApproveAll={handleApproveAll}
             onApproveTile={handleApproveTile}
+            onCloseRecoverableSessions={handleCloseRecoverableSessions}
             onCloseSession={handleCloseSession}
             onContinueRestoredSession={handleContinueRestoredSession}
             onDismissError={handleDismissError}

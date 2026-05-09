@@ -16,6 +16,7 @@ type AlfredControlRailProps = {
   liveAlfredCount: number;
   onApproveAll: () => void;
   onApproveTile: (tileId: string) => void;
+  onCloseRecoverableSessions: () => void;
   onCloseSession: (tileId: string) => void;
   onContinueRestoredSession: (tileId: string) => void;
   onDismissError: () => void;
@@ -37,6 +38,7 @@ export function AlfredControlRail({
   liveAlfredCount,
   onApproveAll,
   onApproveTile,
+  onCloseRecoverableSessions,
   onCloseSession,
   onContinueRestoredSession,
   onDismissError,
@@ -95,6 +97,7 @@ export function AlfredControlRail({
         <RecoveryQueue
           selectedSessionId={selectedSessionId}
           sessions={recoverableSessions}
+          onCloseAllSessions={onCloseRecoverableSessions}
           onCloseSession={onCloseSession}
           onContinueRestoredSession={onContinueRestoredSession}
           onFocusSession={onFocusSession}
@@ -149,6 +152,7 @@ function truncate(value: string, max: number): string {
 function RecoveryQueue({
   selectedSessionId,
   sessions,
+  onCloseAllSessions,
   onCloseSession,
   onContinueRestoredSession,
   onFocusSession,
@@ -156,6 +160,7 @@ function RecoveryQueue({
 }: {
   selectedSessionId: string | null;
   sessions: SessionTile[];
+  onCloseAllSessions: () => void;
   onCloseSession: (tileId: string) => void;
   onContinueRestoredSession: (tileId: string) => void;
   onFocusSession: (tileId: string) => void;
@@ -166,6 +171,11 @@ function RecoveryQueue({
       <header>
         <span>Recovery</span>
         <strong>{sessions.length} saved</strong>
+        {sessions.length > 1 && (
+          <button type="button" onClick={onCloseAllSessions}>
+            Dismiss all
+          </button>
+        )}
       </header>
       <ol>
         {sessions.map((session) => (
