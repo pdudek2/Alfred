@@ -29,6 +29,7 @@ export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelP
   const displayStatus = terminalSessionDisplayStatus(session);
   const activityEvents = session.activityEvents ?? [];
   const ageLabel = sessionAgeLabel(session.createdAt);
+  const activityDigest = activityDigestItems(activityEvents);
   const activitySummary = summarizeActivityEvents(activityEvents);
   const latestApproval = latestApprovalEvent(activityEvents);
   const canSendApprovalResponse =
@@ -105,6 +106,16 @@ export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelP
             </div>
           )}
         </dl>
+        {activityDigest.length > 0 && (
+          <section className="agent-activity-digest" aria-label="Activity digest">
+            {activityDigest.map((item) => (
+              <div className={`tone-${item.tone}`} key={item.label}>
+                <strong>{item.value}</strong>
+                <span>{countedLabel(item.value, item.label)}</span>
+              </div>
+            ))}
+          </section>
+        )}
         {latestApproval && canSendApprovalResponse && session.runtimeId && (
           <div className="agent-approval-actions" role="group" aria-label={`Approval actions for ${session.title}`}>
             <div>
@@ -143,6 +154,30 @@ export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelP
       </div>
     </aside>
   );
+}
+
+type ActivityDigestTone = "ask" | "issue" | "plan" | "work";
+
+function activityDigestItems(events: NonNullable<SessionTile["activityEvents"]>): Array<{
+  label: string;
+  tone: ActivityDigestTone;
+  value: number;
+}> {
+  const items = [
+    { label: "command", tone: "work" as const, value: events.filter((event) => event.kind === "command").length },
+    { label: "file", tone: "work" as const, value: events.filter((event) => event.kind === "file").length },
+    { label: "plan", tone: "plan" as const, value: events.filter((event) => event.kind === "plan").length },
+    { label: "ask", tone: "ask" as const, value: events.filter((event) => event.kind === "approval").length },
+    { label: "issue", tone: "issue" as const, value: events.filter((event) => event.kind === "error" || event.kind === "warning").length },
+  ];
+
+  return items.filter((item) => item.value > 0);
+}
+
+function countedLabel(count: number, singular: string): string {
+  if (count === 1) return singular;
+  if (singular === "ask") return "asks";
+  return `${singular}s`;
 }
 
 function formatActivityTime(value: number): string {
