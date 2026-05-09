@@ -11,7 +11,7 @@ import type { SquadPlan } from "../alfred-state";
 import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import type { WorkMode } from "../terminal-desk-types";
-import type { WorkspaceAttention } from "../workspace-attention";
+import type { WorkspaceAttention, WorkspaceReviewItem } from "../workspace-attention";
 import type { AgentKind } from "../../shared/alfred-ipc";
 import type { WorkspaceRailWorkspace } from "./WorkspaceRail";
 
@@ -30,6 +30,8 @@ type CommandPaletteProps = {
   pendingPlan: SquadPlan | null;
   query: string;
   recoverableSessions: SessionTile[];
+  reviewQueueCount: number;
+  reviewQueuePreview: WorkspaceReviewItem | null;
   attention: WorkspaceAttention | null;
   safeStagedCount: number;
   selectedSessionId: string | null;
@@ -52,6 +54,7 @@ type CommandPaletteProps = {
   onFocusSession: (sessionId: string) => void;
   onFocusNextSession: () => void;
   onFocusPreviousSession: () => void;
+  onOpenReviewQueue: () => void;
   onReviewAttention: () => void;
   onRejectAll: () => void;
   onRestartSession: (sessionId: string) => void;
@@ -66,6 +69,8 @@ export function CommandPalette({
   pendingPlan,
   query,
   recoverableSessions,
+  reviewQueueCount,
+  reviewQueuePreview,
   attention,
   safeStagedCount,
   selectedSessionId,
@@ -88,6 +93,7 @@ export function CommandPalette({
   onFocusSession,
   onFocusNextSession,
   onFocusPreviousSession,
+  onOpenReviewQueue,
   onReviewAttention,
   onRejectAll,
   onRestartSession,
@@ -171,6 +177,15 @@ export function CommandPalette({
         detail: `${sessionStatusLabel(session)} · ${shortenPath(session.cwd || "default workspace")}`,
         run: () => onFocusSession(session.id),
       })),
+      {
+        id: "open-review-queue",
+        label: "Open review queue",
+        detail: reviewQueuePreview
+          ? `${reviewQueuePreview.workspaceLabel} · ${reviewQueuePreview.status.label} · ${reviewQueuePreview.session.title}`
+          : "No queued decisions",
+        disabled: reviewQueueCount === 0,
+        run: onOpenReviewQueue,
+      },
       {
         id: "review-attention",
         label: "Review attention",
@@ -296,6 +311,7 @@ export function CommandPalette({
       onFocusSession,
       onFocusNextSession,
       onFocusPreviousSession,
+      onOpenReviewQueue,
       onReviewAttention,
       onRejectAll,
       onRestartSession,
@@ -303,6 +319,8 @@ export function CommandPalette({
       onToggleArrange,
       pendingPlan,
       recoverableCount,
+      reviewQueueCount,
+      reviewQueuePreview,
       safeStagedCount,
       selectedRestartable,
       selectedSession,
