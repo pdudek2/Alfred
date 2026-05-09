@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addManualSession,
   addStagedSessions,
+  appendSessionActivity,
   approveAllStaged,
   approveStaged,
   closeSession,
@@ -11,6 +12,7 @@ import {
   hydrateLiveTerminalSessions,
   markSessionExited,
   markSessionStartFailed,
+  recordSessionOutputActivity,
   rejectAllStaged,
   rejectStaged,
 } from "./session-state";
@@ -173,6 +175,52 @@ describe("desktop session state", () => {
 
     expect(markSessionExited(hydrated, "pty-a")[0]?.runtimeStatus).toBe("exited");
     expect(markSessionStartFailed(hydrated, "manual-4")[0]?.runtimeStatus).toBe("error");
+  });
+
+  it("appends bounded first-class activity events to a session", () => {
+    const initial = createInitialSessions("/repo");
+    const next = appendSessionActivity(
+      initial,
+      "manual-1",
+      { kind: "lifecycle", title: "Session attached", detail: "zsh is running." },
+      100,
+    );
+
+    expect(next[0]).toMatchObject({
+      lastActivityAt: 100,
+      activityEvents: [
+        {
+          id: "manual-1-activity-100-1",
+          kind: "lifecycle",
+          title: "Session attached",
+          detail: "zsh is running.",
+          at: 100,
+        },
+      ],
+    });
+  });
+
+  it("records notable output lines as session activity", () => {
+    const hydrated = hydrateLiveTerminalSessions([
+      {
+        id: "pty-a",
+        clientId: "manual-4",
+        title: "Manual · zsh 4",
+        cwd: "/repo",
+        source: "manual",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+
+    const next = recordSessionOutputActivity(hydrated, "pty-a", "\u001b[31mError: build failed\u001b[0m\n", 200);
+
+    expect(next[0]?.activityEvents?.[0]).toMatchObject({
+      kind: "error",
+      title: "Error reported",
+      detail: "Error: build failed",
+      at: 200,
+    });
   });
 
   it("assigns new manual sessions to the selected workspace", () => {

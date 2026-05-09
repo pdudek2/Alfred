@@ -38,6 +38,7 @@ type TerminalDeskProps = {
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
   onRuntimeSessionFailed: (tileId: string) => void;
   onRuntimeSessionExited: (runtimeId: TerminalSessionId) => void;
+  onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
   onApproveTile: (tileId: string) => void;
@@ -61,6 +62,7 @@ export function TerminalDesk({
   onMoveTile,
   onRuntimeSessionFailed,
   onRuntimeSessionExited,
+  onRuntimeSessionOutput,
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
   onApproveTile,
@@ -269,6 +271,7 @@ export function TerminalDesk({
               onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
               onRuntimeSessionFailed={onRuntimeSessionFailed}
               onRuntimeSessionExited={onRuntimeSessionExited}
+              onRuntimeSessionOutput={onRuntimeSessionOutput}
               onRuntimeSessionReady={onRuntimeSessionReady}
               onRuntimeSessionStarting={onRuntimeSessionStarting}
             />
@@ -346,6 +349,7 @@ function ManualTerminalTile({
   onPointerResizeStart,
   onRuntimeSessionFailed,
   onRuntimeSessionExited,
+  onRuntimeSessionOutput,
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
   selected,
@@ -372,6 +376,7 @@ function ManualTerminalTile({
   onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onRuntimeSessionFailed: (tileId: string) => void;
   onRuntimeSessionExited: (runtimeId: TerminalSessionId) => void;
+  onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
   selected: boolean;
@@ -477,6 +482,7 @@ function ManualTerminalTile({
     const removeDataListener = terminalApi.onData((event) => {
       if (event.id === sessionIdRef.current) {
         terminal.write(event.data);
+        onRuntimeSessionOutput(event.id, event.data);
       }
     });
     const removeExitListener = terminalApi.onExit((event) => {
@@ -592,6 +598,7 @@ function ManualTerminalTile({
     runtimeStatus,
     onRuntimeSessionFailed,
     onRuntimeSessionExited,
+    onRuntimeSessionOutput,
     onRuntimeSessionReady,
     onRuntimeSessionStarting,
   ]);

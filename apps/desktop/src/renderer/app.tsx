@@ -28,6 +28,7 @@ import {
 import {
   addManualSession,
   addStagedSessions,
+  appendSessionActivity,
   attachRuntimeSession,
   approveAllStaged,
   approveStaged,
@@ -38,6 +39,7 @@ import {
   hydratePersistedTerminalSessions,
   markSessionExited,
   markSessionStartFailed,
+  recordSessionOutputActivity,
   rejectAllStaged,
   rejectStaged,
   type SessionTile,
@@ -266,7 +268,13 @@ export function App() {
     }
 
     startingSessionIdsRef.current.delete(tileId);
-    setTerminalSessions((sessions) => attachRuntimeSession(sessions, tileId, runtime.id));
+    setTerminalSessions((sessions) =>
+      appendSessionActivity(attachRuntimeSession(sessions, tileId, runtime.id), tileId, {
+        kind: "lifecycle",
+        title: "Session attached",
+        detail: `${runtime.shell} is running in ${runtime.cwd || "the workspace"}.`,
+      }),
+    );
     if (runtime.source === "alfred") {
       void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
       setPendingPlan((plan) => {
@@ -279,11 +287,30 @@ export function App() {
 
   const handleRuntimeSessionFailed = useCallback((tileId: string) => {
     startingSessionIdsRef.current.delete(tileId);
-    setTerminalSessions((sessions) => markSessionStartFailed(sessions, tileId));
+    setTerminalSessions((sessions) =>
+      appendSessionActivity(markSessionStartFailed(sessions, tileId), tileId, {
+        kind: "error",
+        title: "Start failed",
+        detail: "The runtime could not create this terminal.",
+      }),
+    );
   }, []);
 
   const handleRuntimeSessionExited = useCallback((runtimeId: TerminalCreateResult["id"]) => {
-    setTerminalSessions((sessions) => markSessionExited(sessions, runtimeId));
+    setTerminalSessions((sessions) => {
+      const session = sessions.find((item) => item.runtimeId === runtimeId);
+      const next = markSessionExited(sessions, runtimeId);
+      if (!session) return next;
+      return appendSessionActivity(next, session.id, {
+        kind: "lifecycle",
+        title: "Process exited",
+        detail: "The terminal process ended; scrollback remains available.",
+      });
+    });
+  }, []);
+
+  const handleRuntimeSessionOutput = useCallback((runtimeId: TerminalCreateResult["id"], data: string) => {
+    setTerminalSessions((sessions) => recordSessionOutputActivity(sessions, runtimeId, data));
   }, []);
 
   const handleSubmitPrompt = useCallback(async () => {
@@ -344,7 +371,13 @@ export function App() {
       next.delete(tileId);
       return next;
     });
-    setTerminalSessions((sessions) => approveStaged(sessions, tileId));
+    setTerminalSessions((sessions) =>
+      appendSessionActivity(approveStaged(sessions, tileId), tileId, {
+        kind: "approval",
+        title: "Approved for launch",
+        detail: "The staged command was released to the terminal runtime.",
+      }),
+    );
   }, [armedUnsafeSessionIds, terminalSessions]);
 
   const handleRejectTile = useCallback((tileId: string) => {
@@ -582,6 +615,7 @@ export function App() {
               onMoveTile={handleMoveTile}
               onRuntimeSessionFailed={handleRuntimeSessionFailed}
               onRuntimeSessionExited={handleRuntimeSessionExited}
+              onRuntimeSessionOutput={handleRuntimeSessionOutput}
               onRuntimeSessionReady={handleRuntimeSessionReady}
               onRuntimeSessionStarting={handleRuntimeSessionStarting}
               onApproveTile={handleApproveTile}

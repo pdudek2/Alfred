@@ -31,6 +31,34 @@ describe("AgentTimelinePanel", () => {
     expect(screen.getByText("Session attached")).toBeInTheDocument();
   });
 
+  it("renders recent stored activity events before generic runtime copy", () => {
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — fix",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/tmp",
+      source: "alfred",
+      runtimeId: "runtime-1",
+      lastActivityAt: 100,
+      activityEvents: [
+        {
+          id: "activity-1",
+          kind: "output",
+          title: "Progress reported",
+          detail: "✓ tests passed",
+          at: 100,
+        },
+      ],
+    };
+
+    const { container } = render(<AgentTimelinePanel session={session} />);
+
+    expect(screen.getByText("Progress reported")).toBeInTheDocument();
+    expect(screen.getByText("✓ tests passed")).toBeInTheDocument();
+    expect(container).not.toHaveTextContent("Terminal output is streaming in the workspace.");
+  });
+
   it("surfaces safety notes for staged sessions", () => {
     const session: SessionTile = {
       id: "s2",
