@@ -91,6 +91,7 @@ function installDesktopBridge(
   createWorkspaceFromFolder: ReturnType<typeof vi.fn>;
   setWorkspaceState: ReturnType<typeof vi.fn>;
   setStagedPlan: ReturnType<typeof vi.fn>;
+  writeTerminal: ReturnType<typeof vi.fn>;
   emitExit: (event: TerminalExitEvent) => void;
 } {
   const exitListeners = new Set<(event: TerminalExitEvent) => void>();
@@ -116,6 +117,7 @@ function installDesktopBridge(
   );
   const killTerminal = vi.fn();
   const forgetTerminal = vi.fn();
+  const writeTerminal = vi.fn();
   const createTerminal = vi.fn().mockImplementation((request: Parameters<TerminalApi["create"]>[0]) =>
     Promise.resolve({
       id: "runtime-1",
@@ -141,7 +143,7 @@ function installDesktopBridge(
       return () => exitListeners.delete(callback);
     }),
     resize: vi.fn(),
-    write: vi.fn(),
+    write: writeTerminal,
   };
   const bridge: DesktopBridge = {
     alfred: { clearStagedPlan, getRuntimeStatus, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan },
@@ -168,6 +170,7 @@ function installDesktopBridge(
     setWorkspaceState,
     setWorkspaceLayout,
     setWorkspaceViewState,
+    writeTerminal,
     emitExit: (event: TerminalExitEvent) => {
       for (const listener of exitListeners) listener(event);
     },
@@ -732,6 +735,43 @@ describe("App integration", () => {
 
     expect(tile).toHaveTextContent("ask");
     expect(tile).toHaveTextContent("Waiting for approval");
+  });
+
+  it("sends quick approval responses from the focused activity panel", async () => {
+    const { writeTerminal } = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "codex-a",
+        title: "Codex · session 1",
+        source: "manual",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "codex",
+        command: "codex",
+        args: [],
+        buffer: "",
+        activityEvents: [
+          {
+            id: "codex-a-approval-1",
+            kind: "approval",
+            title: "Waiting for approval",
+            detail: "Do you want to proceed? y/N",
+            at: 100,
+          },
+        ],
+      },
+    ]);
+
+    render(<App />);
+
+    const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
+    fireEvent.click(tile.querySelector(".tile-header")!);
+
+    expect(screen.getByRole("group", { name: "Approval actions for Codex · session 1" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Send yes" }));
+
+    expect(writeTerminal).toHaveBeenCalledWith({ id: "runtime-a", data: "y\n" });
   });
 
   it("hydrates saved workspace layouts from the desktop runtime", async () => {

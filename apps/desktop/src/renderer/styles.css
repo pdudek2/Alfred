@@ -2463,6 +2463,55 @@ body.arranging-pointer {
   overflow-wrap: anywhere;
 }
 
+.agent-approval-actions {
+  border: 1px solid color-mix(in oklab, var(--brass) 20%, transparent);
+  border-radius: 12px;
+  padding: 10px;
+  margin: 0 0 16px;
+  background:
+    linear-gradient(135deg, color-mix(in oklab, var(--brass) 10%, transparent), transparent 52%),
+    color-mix(in oklab, white 4%, transparent);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-approval-actions span {
+  color: var(--brass);
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.agent-approval-actions strong {
+  color: var(--ink);
+  display: block;
+  font-size: 12px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-approval-actions button {
+  min-height: 30px;
+  border: 1px solid color-mix(in oklab, var(--brass) 24%, transparent);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: rgba(217, 174, 70, 0.07);
+  color: var(--ink-soft);
+  font: 700 11px var(--sans);
+}
+
+.agent-approval-actions button:hover,
+.agent-approval-actions button:focus-visible {
+  border-color: color-mix(in oklab, var(--brass) 42%, transparent);
+  color: var(--ink);
+}
+
 .agent-activity-list {
   display: grid;
   gap: 12px;

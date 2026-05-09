@@ -120,6 +120,9 @@ export function TerminalDesk({
     [arrangeMode, onFocusSession, onSelectSession],
   );
   const handleSelectSession = useCallback((sessionId: string) => onSelectSession(sessionId), [onSelectSession]);
+  const handleSendSessionInput = useCallback((runtimeId: TerminalSessionId, data: string) => {
+    getDesktopTerminalApi()?.write({ id: runtimeId, data });
+  }, []);
   const startPointerArrange = useCallback(
     (tileId: string, mode: ArrangePointerMode, event: ReactPointerEvent<HTMLElement>) => {
       if (!arrangeMode) return;
@@ -319,7 +322,7 @@ export function TerminalDesk({
           </div>
         </div>
         {workMode === "focus" && (
-          <AgentTimelinePanel session={focusSession} />
+          <AgentTimelinePanel session={focusSession} onSendInput={handleSendSessionInput} />
         )}
       </div>
     </section>

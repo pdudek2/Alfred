@@ -3,10 +3,11 @@ import { terminalSessionDisplayStatus } from "../session-status";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 
 type AgentTimelinePanelProps = {
+  onSendInput?: (runtimeId: string, data: string) => void;
   session: SessionTile | null;
 };
 
-export function AgentTimelinePanel({ session }: AgentTimelinePanelProps) {
+export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelProps) {
   if (!session) {
     return (
       <aside className="agent-timeline-panel" aria-label="Agent activity">
@@ -27,6 +28,18 @@ export function AgentTimelinePanel({ session }: AgentTimelinePanelProps) {
   const displayStatus = terminalSessionDisplayStatus(session);
   const activityEvents = session.activityEvents ?? [];
   const activitySummary = summarizeActivityEvents(activityEvents);
+  const latestApproval = latestApprovalEvent(activityEvents);
+  const canSendApprovalResponse =
+    Boolean(onSendInput) &&
+    Boolean(session.runtimeId) &&
+    session.stage === "live" &&
+    session.runtimeStatus !== "exited" &&
+    session.runtimeStatus !== "error" &&
+    session.runtimeStatus !== "restored";
+  const sendApprovalResponse = (data: string) => {
+    if (!session.runtimeId || !onSendInput) return;
+    onSendInput(session.runtimeId, data);
+  };
   const displayedEvents =
     activityEvents.length > 0
       ? [...activityEvents].sort((a, b) => b.at - a.at)
@@ -84,6 +97,20 @@ export function AgentTimelinePanel({ session }: AgentTimelinePanelProps) {
             </div>
           )}
         </dl>
+        {latestApproval && canSendApprovalResponse && session.runtimeId && (
+          <div className="agent-approval-actions" role="group" aria-label={`Approval actions for ${session.title}`}>
+            <div>
+              <span>approval</span>
+              <strong>{latestApproval.title}</strong>
+            </div>
+            <button type="button" onClick={() => sendApprovalResponse("y\n")}>
+              Send yes
+            </button>
+            <button type="button" onClick={() => sendApprovalResponse("n\n")}>
+              Send no
+            </button>
+          </div>
+        )}
         <ol className="agent-activity-list">
           {displayedEvents.map((event) => (
             <li className={event.kind} key={event.id}>
@@ -141,6 +168,15 @@ function summarizeActivityEvents(events: NonNullable<SessionTile["activityEvents
     })
     .filter((item): item is string => item !== null)
     .join(" · ");
+}
+
+function latestApprovalEvent(events: NonNullable<SessionTile["activityEvents"]>): NonNullable<SessionTile["activityEvents"]>[number] | null {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (event?.kind === "approval") return event;
+  }
+
+  return null;
 }
 
 function runtimeEventTitle(status: SessionTile["runtimeStatus"]): string {
