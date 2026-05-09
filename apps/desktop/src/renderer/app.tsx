@@ -7,6 +7,7 @@ import { AlfredMark } from "./components/AlfredMark";
 import { CommandPalette } from "./components/CommandPalette";
 import { ReviewQueuePanel } from "./components/ReviewQueuePanel";
 import { TerminalDesk } from "./components/TerminalDesk";
+import { WorkspacePreviewPanel } from "./components/WorkspacePreviewPanel";
 import { WorkspaceRail, type WorkspaceRailWorkspace } from "./components/WorkspaceRail";
 import {
   applyLayoutPreset,
@@ -49,6 +50,7 @@ import {
   type SessionTile,
 } from "./session-state";
 import { terminalSessionDisplayStatus } from "./session-status";
+import { recordPreviewUrlsFromText, type PreviewUrlCandidate } from "./preview-state";
 import type { WorkMode } from "./terminal-desk-types";
 import { workspaceAttention, workspaceReviewQueue, type WorkspaceReviewItem } from "./workspace-attention";
 import { workspaceSessionSummary } from "./workspace-session-summary";
@@ -91,13 +93,25 @@ export function App() {
   const [reviewQueueOpen, setReviewQueueOpen] = useState<boolean>(false);
   const [armedUnsafeSessionIds, setArmedUnsafeSessionIds] = useState<Set<string>>(() => new Set());
   const [runtimeStatus, setRuntimeStatus] = useState<AlfredRuntimeStatus | null>(null);
+  const [previewCandidates, setPreviewCandidates] = useState<PreviewUrlCandidate[]>([]);
+  const [selectedPreviewUrlsByWorkspace, setSelectedPreviewUrlsByWorkspace] = useState<Record<string, string>>({});
+  const [previewRefreshKeysByWorkspace, setPreviewRefreshKeysByWorkspace] = useState<Record<string, number>>({});
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
+  const terminalSessionsRef = useRef<SessionTile[]>([]);
   const workspaceStateHydratedRef = useRef<boolean>(false);
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? DEFAULT_WORKSPACE;
   const activeWorkMode = workModesByWorkspace[activeWorkspace.id] ?? "desk";
   const activeSessions = terminalSessions.filter((session) => session.workspaceId === activeWorkspace.id);
+  const activePreviewCandidates = previewCandidates.filter((candidate) => candidate.workspaceId === activeWorkspace.id);
+  const activeSelectedPreviewUrl =
+    activePreviewCandidates.find((candidate) => candidate.url === selectedPreviewUrlsByWorkspace[activeWorkspace.id])
+      ?.url ??
+    activePreviewCandidates[0]?.url ??
+    null;
+  const activePreviewRefreshKey = previewRefreshKeysByWorkspace[activeWorkspace.id] ?? 0;
+  const previewVisible = activePreviewCandidates.length > 0;
   const activeSelectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id] ?? null;
   const activeSelectedSession =
     activeSessions.find((session) => session.id === activeSelectedSessionId) ?? activeSessions[0] ?? null;
@@ -140,6 +154,10 @@ export function App() {
       : runtimeStatus && !runtimeStatus.openRouterConfigured
         ? "Set OPENROUTER_API_KEY in repo .env to use Alfred."
         : undefined;
+
+  useEffect(() => {
+    terminalSessionsRef.current = terminalSessions;
+  }, [terminalSessions]);
 
   const handleAddManualSession = useCallback(() => {
     setTerminalSessions((sessions) => addManualSession(sessions, activeWorkspace.rootPath ?? "", activeWorkspace.id));
@@ -194,6 +212,9 @@ export function App() {
     setTileLayoutsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setWorkModesByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setSelectedSessionIdsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
+    setSelectedPreviewUrlsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
+    setPreviewRefreshKeysByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
+    setPreviewCandidates((current) => current.filter((candidate) => candidate.workspaceId !== activeWorkspace.id));
     void workspaceApi?.setWorkspaceState({
       workspaces: remainingWorkspaces,
       activeWorkspaceId: nextActiveWorkspaceId,
@@ -265,6 +286,31 @@ export function App() {
     const result = await getDesktopWorkspaceApi()?.openExternalTerminal({ cwd });
     if (!result?.ok) {
       setAlfredStatus(errored({ code: "network", message: result?.error ?? "Session terminal is unavailable." }));
+    }
+  }, []);
+
+  const handleSelectPreviewUrl = useCallback((url: string) => {
+    setSelectedPreviewUrlsByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: url,
+    }));
+  }, [activeWorkspace.id]);
+
+  const handleRefreshPreview = useCallback(() => {
+    setPreviewRefreshKeysByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: (current[activeWorkspace.id] ?? 0) + 1,
+    }));
+  }, [activeWorkspace.id]);
+
+  const handleCopyPreviewUrl = useCallback(async (url: string) => {
+    await navigator.clipboard?.writeText(url);
+  }, []);
+
+  const handleOpenPreviewExternal = useCallback(async (url: string) => {
+    const result = await getDesktopWorkspaceApi()?.openExternalUrl({ url });
+    if (!result?.ok) {
+      setAlfredStatus(errored({ code: "network", message: result?.error ?? "Preview URL is unavailable." }));
     }
   }, []);
 
@@ -444,6 +490,7 @@ export function App() {
   const handleCloseSession = useCallback((sessionId: string) => {
     const terminalApi = getDesktopTerminalApi();
     closingSessionIdsRef.current.add(sessionId);
+    setPreviewCandidates((candidates) => candidates.filter((candidate) => candidate.sessionId !== sessionId));
 
     setTerminalSessions((sessions) => {
       const session = sessions.find((item) => item.id === sessionId);
@@ -557,6 +604,10 @@ export function App() {
   }, []);
 
   const handleRuntimeSessionExited = useCallback((runtimeId: TerminalCreateResult["id"]) => {
+    const exitedSession = terminalSessionsRef.current.find((item) => item.runtimeId === runtimeId);
+    if (exitedSession) {
+      setPreviewCandidates((candidates) => candidates.filter((candidate) => candidate.sessionId !== exitedSession.id));
+    }
     setTerminalSessions((sessions) => {
       const session = sessions.find((item) => item.runtimeId === runtimeId);
       const next = markSessionExited(sessions, runtimeId);
@@ -570,6 +621,17 @@ export function App() {
   }, []);
 
   const handleRuntimeSessionOutput = useCallback((runtimeId: TerminalCreateResult["id"], data: string) => {
+    const session = terminalSessionsRef.current.find((item) => item.runtimeId === runtimeId);
+    if (session) {
+      setPreviewCandidates((candidates) =>
+        recordPreviewUrlsFromText(candidates, {
+          workspaceId: session.workspaceId,
+          sessionId: session.id,
+          sessionTitle: session.title,
+          text: data,
+        }),
+      );
+    }
     setTerminalSessions((sessions) => recordSessionOutputActivity(sessions, runtimeId, data));
   }, []);
 
@@ -888,6 +950,7 @@ export function App() {
           ensureWorkspacesForSessions(workspaceStateResult?.workspaces ?? current, hydratedSessions),
         );
         setTerminalSessions(hydratedSessions);
+        setPreviewCandidates(previewCandidatesFromSessions(hydratedSessions));
         setPendingPlan(toSquadPlan({ plan: stagedPlanResult.plan, omittedSessionIds: alreadyLiveStagedIds }));
         workspaceStateHydratedRef.current = true;
       })
@@ -1015,7 +1078,11 @@ export function App() {
           </div>
         </div>
 
-        <div className={`workspace-layout ${alfredExpanded ? "alfred-expanded" : "alfred-compact"}`}>
+        <div
+          className={`workspace-layout ${alfredExpanded ? "alfred-expanded" : "alfred-compact"} ${
+            previewVisible ? "preview-visible" : ""
+          }`}
+        >
           <WorkspaceRail
             activeWorkspaceId={activeWorkspace.id}
             sessions={terminalSessions}
@@ -1059,30 +1126,44 @@ export function App() {
               onUpdateStagedSession={handleUpdateStagedSession}
             />
           </div>
-          <AlfredControlRail
-            armedUnsafeSessionIds={armedUnsafeSessionIds}
-            status={alfredStatus}
-            activeDecisionItems={activeDecisionItems}
-            pendingPlan={activePendingPlan}
-            recoverableSessions={activeRecoverableSessions}
-            selectedSessionId={activeSelectedSessionId}
-            stagedSessions={activeStagedSessions}
-            stagedCount={stagedCount}
-            blockedStagedCount={blockedStagedCount}
-            unsafeStagedCount={unsafeStagedCount}
-            liveAlfredCount={liveAlfredCount}
-            onApproveAll={handleApproveAll}
-            onApproveTile={handleApproveTile}
-            onCloseRecoverableSessions={handleCloseRecoverableSessions}
-            onCloseSession={handleCloseSession}
-            onContinueRecoverableSessions={handleContinueRecoverableSessions}
-            onContinueRestoredSession={handleContinueRestoredSession}
-            onDismissError={handleDismissError}
-            onFocusSession={handleFocusSession}
-            onRejectAll={handleRejectAll}
-            onRejectTile={handleRejectTile}
-            onRestartSession={handleRestartSession}
-          />
+          <div className="side-dock-stack">
+            {previewVisible && (
+              <WorkspacePreviewPanel
+                candidates={activePreviewCandidates}
+                refreshKey={activePreviewRefreshKey}
+                selectedUrl={activeSelectedPreviewUrl}
+                workspaceLabel={activeWorkspace.label}
+                onCopyUrl={handleCopyPreviewUrl}
+                onOpenExternal={handleOpenPreviewExternal}
+                onRefresh={handleRefreshPreview}
+                onSelectUrl={handleSelectPreviewUrl}
+              />
+            )}
+            <AlfredControlRail
+              armedUnsafeSessionIds={armedUnsafeSessionIds}
+              status={alfredStatus}
+              activeDecisionItems={activeDecisionItems}
+              pendingPlan={activePendingPlan}
+              recoverableSessions={activeRecoverableSessions}
+              selectedSessionId={activeSelectedSessionId}
+              stagedSessions={activeStagedSessions}
+              stagedCount={stagedCount}
+              blockedStagedCount={blockedStagedCount}
+              unsafeStagedCount={unsafeStagedCount}
+              liveAlfredCount={liveAlfredCount}
+              onApproveAll={handleApproveAll}
+              onApproveTile={handleApproveTile}
+              onCloseRecoverableSessions={handleCloseRecoverableSessions}
+              onCloseSession={handleCloseSession}
+              onContinueRecoverableSessions={handleContinueRecoverableSessions}
+              onContinueRestoredSession={handleContinueRestoredSession}
+              onDismissError={handleDismissError}
+              onFocusSession={handleFocusSession}
+              onRejectAll={handleRejectAll}
+              onRejectTile={handleRejectTile}
+              onRestartSession={handleRestartSession}
+            />
+          </div>
         </div>
         <ComposerBar
           blockedActionLabel={stagedWorkspaceId && stagedWorkspaceLabel ? `Open ${stagedWorkspaceLabel}` : undefined}
@@ -1406,6 +1487,21 @@ function ensureWorkspacesForSessions(workspaces: Workspace[], sessions: SessionT
   }
 
   return additions.length === 0 ? workspaces : [...workspaces, ...additions];
+}
+
+function previewCandidatesFromSessions(sessions: SessionTile[]): PreviewUrlCandidate[] {
+  return sessions.reduce<PreviewUrlCandidate[]>((candidates, session) => {
+    if (!session.initialBuffer) return candidates;
+    const seenAt = session.lastOutputAt ?? session.lastActivityAt ?? session.createdAt;
+
+    return recordPreviewUrlsFromText(candidates, {
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      sessionTitle: session.title,
+      text: session.initialBuffer,
+      ...(seenAt === undefined ? {} : { seenAt }),
+    });
+  }, []);
 }
 
 function workspaceRootPath(state: WorkspaceStateSnapshot | null, workspaceId: string): string {
