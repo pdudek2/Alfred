@@ -47,7 +47,7 @@ describe("workspace-store", () => {
 
   it("creates a workspace from a folder and makes it active", async () => {
     const filePath = await temporaryStateFile();
-    const store = createWorkspaceStore({ filePath });
+    const store = createWorkspaceStore({ filePath, resolveGitBranch: async () => "main" });
 
     await expect(store.createWorkspaceFromPath("/Users/patryk/Desktop/Client App")).resolves.toEqual({
       workspaces: [
@@ -57,6 +57,7 @@ describe("workspace-store", () => {
           label: "Client App",
           shortLabel: "CA",
           rootPath: "/Users/patryk/Desktop/Client App",
+          gitBranch: "main",
         },
       ],
       activeWorkspaceId: "CLIENT-APP",

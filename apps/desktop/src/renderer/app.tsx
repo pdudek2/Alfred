@@ -512,7 +512,7 @@ export function App() {
               <strong>{activeWorkspace.label} workspace</strong>
               <span>
                 {activeSessions.length} tile{activeSessions.length === 1 ? "" : "s"} ·{" "}
-                {activeWorkspace.rootPath ? shortenPath(activeWorkspace.rootPath) : "local desk"}
+                {workspaceDetail(activeWorkspace)}
               </span>
             </div>
           </div>
@@ -703,6 +703,11 @@ function shortenPath(value: string): string {
   const parts = value.split("/");
   if (parts.length <= 3) return value;
   return `…/${parts.slice(-2).join("/")}`;
+}
+
+function workspaceDetail(workspace: Workspace): string {
+  const location = workspace.rootPath ? shortenPath(workspace.rootPath) : "local desk";
+  return workspace.gitBranch ? `${location} · ${workspace.gitBranch}` : location;
 }
 
 function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[]): SessionTile[] {

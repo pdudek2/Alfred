@@ -1,4 +1,6 @@
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import {
   createPersistedDesktopStateStore,
   normalizeDesktopState,
@@ -6,6 +8,8 @@ import {
   type PersistedDesktopStateStoreOptions,
 } from "./persisted-desktop-state.js";
 import type { WorkspaceStateSetRequest, WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
+
+const execFileAsync = promisify(execFile);
 
 export type WorkspaceStore = {
   createWorkspaceFromPath(rootPath: string): Promise<WorkspaceStateSnapshot>;
@@ -15,6 +19,7 @@ export type WorkspaceStore = {
 
 export type WorkspaceStoreOptions = PersistedDesktopStateStoreOptions & {
   persistedStateStore?: PersistedDesktopStateStore;
+  resolveGitBranch?: (rootPath: string) => Promise<string | undefined>;
 };
 
 export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): WorkspaceStore {
@@ -34,11 +39,13 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
 
       const label = path.basename(normalizedRootPath) || normalizedRootPath;
       const id = uniqueWorkspaceId(label, current.workspaces.map((workspace) => workspace.id));
+      const gitBranch = await (options.resolveGitBranch ?? resolveGitBranch)(normalizedRootPath);
       const workspace = {
         id,
         label,
         shortLabel: shortLabelForWorkspace(label),
         rootPath: normalizedRootPath,
+        ...(gitBranch === undefined ? {} : { gitBranch }),
       };
       const next = await persistedStateStore.setState({
         ...current,
@@ -67,6 +74,19 @@ function toWorkspaceState(state: WorkspaceStateSnapshot): WorkspaceStateSnapshot
     workspaces: state.workspaces.map((workspace) => ({ ...workspace })),
     activeWorkspaceId: state.activeWorkspaceId,
   };
+}
+
+async function resolveGitBranch(rootPath: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await execFileAsync("git", ["-C", rootPath, "rev-parse", "--abbrev-ref", "HEAD"], {
+      timeout: 1500,
+    });
+    const branch = stdout.trim();
+    if (!branch || branch === "HEAD") return undefined;
+    return branch;
+  } catch {
+    return undefined;
+  }
 }
 
 function uniqueWorkspaceId(label: string, existingIds: string[]): string {
