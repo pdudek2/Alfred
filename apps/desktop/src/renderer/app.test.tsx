@@ -421,6 +421,10 @@ describe("App integration", () => {
 
     expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 2");
+
+    fireEvent.keyDown(window, { key: "[", code: "BracketLeft", ctrlKey: true, shiftKey: true });
+
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
   });
 
   it("moves and resizes a tile with pointer gestures in arrange mode", async () => {

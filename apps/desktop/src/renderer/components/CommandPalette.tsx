@@ -38,6 +38,8 @@ type CommandPaletteProps = {
   onChangeQuery: (query: string) => void;
   onClose: () => void;
   onFocusSession: (sessionId: string) => void;
+  onFocusNextSession: () => void;
+  onFocusPreviousSession: () => void;
   onRejectAll: () => void;
   onSelectWorkspace: (workspaceId: string) => void;
   onToggleArrange: () => void;
@@ -61,6 +63,8 @@ export function CommandPalette({
   onChangeQuery,
   onClose,
   onFocusSession,
+  onFocusNextSession,
+  onFocusPreviousSession,
   onRejectAll,
   onSelectWorkspace,
   onToggleArrange,
@@ -114,6 +118,20 @@ export function CommandPalette({
         run: () => onFocusSession(session.id),
       })),
       {
+        id: "next-session",
+        label: "Next session",
+        detail: `${shortcutModifier} Shift ] · move focus forward`,
+        disabled: sessions.length < 2,
+        run: onFocusNextSession,
+      },
+      {
+        id: "previous-session",
+        label: "Previous session",
+        detail: `${shortcutModifier} Shift [ · move focus back`,
+        disabled: sessions.length < 2,
+        run: onFocusPreviousSession,
+      },
+      {
         id: "mode-focus",
         label: "Focus mode",
         detail: activeWorkMode === "focus" ? "Current mode" : "Full-width working stack",
@@ -163,6 +181,8 @@ export function CommandPalette({
       onApplyWorkMode,
       onApproveAll,
       onFocusSession,
+      onFocusNextSession,
+      onFocusPreviousSession,
       onRejectAll,
       onSelectWorkspace,
       onToggleArrange,
