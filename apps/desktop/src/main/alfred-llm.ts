@@ -7,6 +7,7 @@ import type {
   AlfredPlan,
   AlfredPlanResponse,
   AlfredPlanSession,
+  AlfredWorkspaceContext,
 } from "../shared/alfred-ipc.js";
 import { checkSafety } from "./alfred-safety.js";
 
@@ -16,6 +17,7 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const SYSTEM_PROMPT = `You are Alfred, an agent orchestrator for a desktop coding cockpit.
 The user will describe a workspace they want to prepare.
+Use the provided workspace context when choosing cwd defaults and labels.
 You return a JSON plan of terminal sessions to launch — but you do NOT launch
 them. The user reviews and approves each session before it runs.
 
@@ -65,13 +67,14 @@ const validatePlan: ValidateFunction = ajv.compile(planSchema);
 export type RunLlmPlanInput = {
   apiKey: string;
   prompt: string;
+  workspace?: AlfredWorkspaceContext;
   model?: string;
   timeoutMs?: number;
   fetchImpl: typeof fetch;
 };
 
 export async function runLlmPlan(input: RunLlmPlanInput): Promise<AlfredPlanResponse> {
-  const { apiKey, prompt, model = DEFAULT_MODEL, timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl } = input;
+  const { apiKey, prompt, workspace, model = DEFAULT_MODEL, timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl } = input;
 
   if (!apiKey) {
     return errorResponse("no_api_key", "Set OPENROUTER_API_KEY in .env to use Alfred.");
@@ -79,7 +82,7 @@ export async function runLlmPlan(input: RunLlmPlanInput): Promise<AlfredPlanResp
 
   const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
     { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: prompt },
+    { role: "user", content: userPromptWithWorkspace(prompt, workspace) },
   ];
 
   // First attempt
@@ -103,6 +106,23 @@ export async function runLlmPlan(input: RunLlmPlanInput): Promise<AlfredPlanResp
   if (secondParsed.ok) return success(secondParsed.plan);
 
   return errorResponse("malformed", "Alfred returned an invalid plan. Try a clearer prompt.");
+}
+
+function userPromptWithWorkspace(prompt: string, workspace: AlfredWorkspaceContext | undefined): string {
+  if (!workspace) return prompt;
+
+  return [
+    "Current workspace:",
+    `- id: ${workspace.id}`,
+    `- label: ${workspace.label}`,
+    workspace.rootPath ? `- cwd: ${workspace.rootPath}` : null,
+    workspace.gitBranch ? `- branch: ${workspace.gitBranch}` : null,
+    "",
+    "User request:",
+    prompt,
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
 }
 
 type CallResult = { ok: true; content: string } | (AlfredPlanResponse & { ok: false });
