@@ -203,14 +203,14 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("tab", { name: "Alfred workspace, 1 live, 0 staged" })).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Alfred workspace, 1 idle" })).toBeInTheDocument();
     expect(screen.getByText("Alfred workspace")).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Add workspace" }));
 
     expect(createWorkspaceFromFolder).toHaveBeenCalledOnce();
-    expect(screen.getByRole("tab", { name: "ClientApp workspace, 1 live, 0 staged" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "ClientApp workspace, 1 idle" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -223,7 +223,7 @@ describe("App integration", () => {
       );
     });
 
-    await user.click(screen.getByRole("tab", { name: "Alfred workspace, 1 live, 0 staged" }));
+    await user.click(screen.getByRole("tab", { name: "Alfred workspace, 1 idle" }));
 
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
@@ -249,7 +249,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("tab", { name: "Workspace 2 workspace, 1 live, 0 staged" })).toHaveAttribute(
+    expect(await screen.findByRole("tab", { name: "Workspace 2 workspace, 1 idle" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -296,7 +296,7 @@ describe("App integration", () => {
       expect(createTerminal).toHaveBeenCalledTimes(2);
     });
 
-    await user.click(screen.getByRole("tab", { name: "Alfred workspace, 1 live, 0 staged" }));
+    await user.click(screen.getByRole("tab", { name: "Alfred workspace, 1 starting" }));
 
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     expect(createTerminal).toHaveBeenCalledTimes(2);
@@ -413,7 +413,7 @@ describe("App integration", () => {
     await user.type(screen.getByRole("textbox", { name: "Search commands" }), "alfred{Enter}");
 
     await waitFor(() => {
-      expect(screen.getByRole("tab", { name: "Alfred workspace, 2 live, 0 staged" })).toHaveAttribute(
+      expect(screen.getByRole("tab", { name: "Alfred workspace, 2 idle" })).toHaveAttribute(
         "aria-selected",
         "true",
       );

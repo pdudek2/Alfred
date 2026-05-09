@@ -411,6 +411,27 @@ button:focus-visible {
   line-height: 1;
 }
 
+.workspace-button.tone-waiting small,
+.workspace-button.tone-staged small {
+  background: var(--brass);
+  color: var(--night);
+}
+
+.workspace-button.tone-error small {
+  background: var(--coral);
+  color: var(--night);
+}
+
+.workspace-button.tone-active small {
+  background: var(--green);
+  color: var(--night);
+}
+
+.workspace-button.tone-quiet small {
+  background: color-mix(in oklab, white 14%, transparent);
+  color: var(--ink-soft);
+}
+
 .workspace-button.active {
   background: color-mix(in oklab, var(--accent) 14%, transparent);
   border-color: color-mix(in oklab, var(--accent) 32%, transparent);
