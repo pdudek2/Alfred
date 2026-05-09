@@ -1,4 +1,6 @@
 // apps/desktop/src/shared/alfred-ipc.ts
+import type { WorkspaceMissionBrief } from "./workspace-ipc.js";
+
 export type AgentKind = "codex" | "claude" | "dev-server" | "shell";
 
 export type AlfredLaunchPreflight =
@@ -32,6 +34,7 @@ export type AlfredWorkspaceContext = {
   label: string;
   rootPath?: string;
   gitBranch?: string;
+  missionBrief?: WorkspaceMissionBrief;
   sessions?: AlfredWorkspaceSessionContext[];
 };
 

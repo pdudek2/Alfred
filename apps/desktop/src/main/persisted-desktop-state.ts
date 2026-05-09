@@ -13,7 +13,7 @@ import type {
   TerminalSessionIsolation,
   TerminalSessionSource,
 } from "../shared/terminal-ipc.js";
-import type { WorkspaceSnapshot, WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
+import type { WorkspaceMissionBrief, WorkspaceSnapshot, WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
 
 export const DESKTOP_STATE_VERSION = 1;
 export const DESKTOP_STATE_FILE_NAME = "desktop-state.json";
@@ -191,16 +191,56 @@ function normalizeWorkspaces(value: unknown[]): WorkspaceSnapshot[] {
     const shortLabel = item.shortLabel.trim();
     const rootPath = typeof item.rootPath === "string" ? item.rootPath.trim() : undefined;
     const gitBranch = typeof item.gitBranch === "string" ? item.gitBranch.trim() : undefined;
+    const missionBrief = normalizeMissionBrief(item.missionBrief);
 
     if (!id || !label || !shortLabel || seenIds.has(id)) {
       continue;
     }
 
     seenIds.add(id);
-    workspaces.push({ id, label, shortLabel, ...(rootPath ? { rootPath } : {}), ...(gitBranch ? { gitBranch } : {}) });
+    workspaces.push({
+      id,
+      label,
+      shortLabel,
+      ...(rootPath ? { rootPath } : {}),
+      ...(gitBranch ? { gitBranch } : {}),
+      ...(missionBrief ? { missionBrief } : {}),
+    });
   }
 
   return workspaces;
+}
+
+function normalizeMissionBrief(value: unknown): WorkspaceMissionBrief | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const goal = normalizeMissionLine(value.goal, 320);
+  const doneWhen = normalizeMissionList(value.doneWhen);
+  const guardrails = normalizeMissionList(value.guardrails);
+
+  if (!goal) return undefined;
+  return { goal, doneWhen, guardrails };
+}
+
+function normalizeMissionList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set<string>();
+  const items: string[] = [];
+  for (const item of value) {
+    const normalized = normalizeMissionLine(item, 240);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    items.push(normalized);
+    if (items.length >= 8) break;
+  }
+
+  return items;
+}
+
+function normalizeMissionLine(value: unknown, maxLength: number): string {
+  if (typeof value !== "string") return "";
+  return value.replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
 function normalizeLayoutsByWorkspace(value: unknown): Record<string, Record<string, TileLayout>> {
@@ -444,7 +484,10 @@ async function writeDesktopStateFile(filePath: string, state: DesktopStateSnapsh
 
 function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
   return {
-    workspaces: state.workspaces.map((workspace) => ({ ...workspace })),
+    workspaces: state.workspaces.map((workspace) => ({
+      ...workspace,
+      ...(workspace.missionBrief ? { missionBrief: cloneMissionBrief(workspace.missionBrief) } : {}),
+    })),
     activeWorkspaceId: state.activeWorkspaceId,
     layoutsByWorkspace: Object.fromEntries(
       Object.entries(state.layoutsByWorkspace).map(([workspaceId, layouts]) => [
@@ -458,6 +501,14 @@ function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
     stagedPlan: cloneStagedPlan(state.stagedPlan),
     restoredTerminalSessions: state.restoredTerminalSessions.map((session) => cloneRestoredTerminalSession(session)),
     windowState: cloneWindowState(state.windowState),
+  };
+}
+
+function cloneMissionBrief(brief: WorkspaceMissionBrief): WorkspaceMissionBrief {
+  return {
+    goal: brief.goal,
+    doneWhen: [...brief.doneWhen],
+    guardrails: [...brief.guardrails],
   };
 }
 

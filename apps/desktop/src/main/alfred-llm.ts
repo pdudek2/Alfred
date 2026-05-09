@@ -112,6 +112,10 @@ export async function runLlmPlan(input: RunLlmPlanInput): Promise<AlfredPlanResp
 
 function userPromptWithWorkspace(prompt: string, workspace: AlfredWorkspaceContext | undefined): string {
   if (!workspace) return prompt;
+  const missionBrief = workspace.missionBrief;
+  const hasMissionBrief =
+    missionBrief !== undefined &&
+    (missionBrief.goal.trim() || missionBrief.doneWhen.length > 0 || missionBrief.guardrails.length > 0);
 
   return [
     "Current workspace:",
@@ -119,6 +123,14 @@ function userPromptWithWorkspace(prompt: string, workspace: AlfredWorkspaceConte
     `- label: ${workspace.label}`,
     workspace.rootPath ? `- cwd: ${workspace.rootPath}` : null,
     workspace.gitBranch ? `- branch: ${workspace.gitBranch}` : null,
+    ...(hasMissionBrief
+      ? [
+          "- mission brief:",
+          missionBrief.goal.trim() ? `  goal: ${missionBrief.goal.trim()}` : null,
+          ...missionBrief.doneWhen.map((item) => `  done when: ${item}`),
+          ...missionBrief.guardrails.map((item) => `  guardrail: ${item}`),
+        ]
+      : []),
     ...(workspace.sessions && workspace.sessions.length > 0
       ? [
           "- existing sessions:",

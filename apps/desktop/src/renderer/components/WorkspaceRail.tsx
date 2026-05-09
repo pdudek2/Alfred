@@ -1,6 +1,7 @@
 import { useRef, type KeyboardEvent, type MutableRefObject } from "react";
 import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus, type SessionDisplayStatus } from "../session-status";
+import type { WorkspaceMissionBrief } from "../../shared/workspace-ipc";
 
 export type WorkspaceRailWorkspace = {
   id: string;
@@ -8,6 +9,7 @@ export type WorkspaceRailWorkspace = {
   shortLabel: string;
   rootPath?: string;
   gitBranch?: string;
+  missionBrief?: WorkspaceMissionBrief;
 };
 
 type WorkspaceRailProps = {

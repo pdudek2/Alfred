@@ -105,7 +105,16 @@ describe("workspace-store", () => {
     const state: WorkspaceStateSnapshot = {
       workspaces: [
         { id: "A", label: "Alfred", shortLabel: "A" },
-        { id: "API", label: "API", shortLabel: "API" },
+        {
+          id: "API",
+          label: "API",
+          shortLabel: "API",
+          missionBrief: {
+            goal: "Prepare API work.",
+            doneWhen: ["Tests are green"],
+            guardrails: ["Do not touch production data"],
+          },
+        },
       ],
       activeWorkspaceId: "API",
     };
@@ -168,6 +177,11 @@ describe("workspace-store", () => {
           shortLabel: "CLI",
           rootPath: "/repo/client",
           gitBranch: "main",
+          missionBrief: {
+            goal: "Keep the client workspace stable.",
+            doneWhen: ["Branch is refreshed"],
+            guardrails: ["Preserve mission context"],
+          },
         },
       ],
       activeWorkspaceId: "CLIENT",
@@ -184,6 +198,11 @@ describe("workspace-store", () => {
           shortLabel: "CLI",
           rootPath: "/repo/client",
           gitBranch: "feature/agent-space",
+          missionBrief: {
+            goal: "Keep the client workspace stable.",
+            doneWhen: ["Branch is refreshed"],
+            guardrails: ["Preserve mission context"],
+          },
         },
       ],
       activeWorkspaceId: "CLIENT",
