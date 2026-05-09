@@ -37,6 +37,9 @@ export type DesktopStateFile = DesktopStateSnapshot & {
 export type PersistedDesktopStateStore = {
   getState(): Promise<DesktopStateSnapshot>;
   setState(state: DesktopStateSnapshot): Promise<DesktopStateSnapshot>;
+  updateState(
+    updater: (current: DesktopStateSnapshot) => DesktopStateSnapshot | Promise<DesktopStateSnapshot>,
+  ): Promise<DesktopStateSnapshot>;
 };
 
 export type PersistedDesktopStateStoreOptions = {
@@ -75,28 +78,54 @@ export function createPersistedDesktopStateStore(
   const filePath = resolveDesktopStateFilePath(options);
   let hydrated = false;
   let cachedState = cloneDesktopState(DEFAULT_DESKTOP_STATE);
+  let mutationQueue: Promise<void> = Promise.resolve();
+
+  const hydrate = async (): Promise<void> => {
+    if (hydrated) return;
+    cachedState = await readDesktopStateFile(filePath, options.onWarning);
+    hydrated = true;
+  };
+
+  const enqueueMutation = async <T>(operation: () => Promise<T>): Promise<T> => {
+    const result = mutationQueue.then(operation, operation);
+    mutationQueue = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  };
+
+  const persistState = async (state: DesktopStateSnapshot): Promise<DesktopStateSnapshot> => {
+    cachedState = normalizeDesktopState(state);
+    hydrated = true;
+
+    try {
+      await writeDesktopStateFile(filePath, cachedState);
+    } catch (error) {
+      options.onWarning?.("Failed to persist desktop state.", error);
+    }
+
+    return cloneDesktopState(cachedState);
+  };
 
   return {
     async getState(): Promise<DesktopStateSnapshot> {
-      if (!hydrated) {
-        cachedState = await readDesktopStateFile(filePath, options.onWarning);
-        hydrated = true;
-      }
+      await hydrate();
 
       return cloneDesktopState(cachedState);
     },
 
     async setState(state: DesktopStateSnapshot): Promise<DesktopStateSnapshot> {
-      cachedState = normalizeDesktopState(state);
-      hydrated = true;
+      return enqueueMutation(async () => persistState(state));
+    },
 
-      try {
-        await writeDesktopStateFile(filePath, cachedState);
-      } catch (error) {
-        options.onWarning?.("Failed to persist desktop state.", error);
-      }
-
-      return cloneDesktopState(cachedState);
+    async updateState(
+      updater: (current: DesktopStateSnapshot) => DesktopStateSnapshot | Promise<DesktopStateSnapshot>,
+    ): Promise<DesktopStateSnapshot> {
+      return enqueueMutation(async () => {
+        await hydrate();
+        return persistState(await updater(cloneDesktopState(cachedState)));
+      });
     },
   };
 }

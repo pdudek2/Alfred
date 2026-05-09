@@ -26,8 +26,7 @@ export async function setStagedPlanSnapshot(
   request: AlfredStagedPlanSetRequest,
 ): Promise<AlfredStagedPlanSnapshotResponse> {
   if (persistedStateStore) {
-    const current = await persistedStateStore.getState();
-    const next = await persistedStateStore.setState({ ...current, stagedPlan: clonePlan(request) });
+    const next = await persistedStateStore.updateState((current) => ({ ...current, stagedPlan: clonePlan(request) }));
     return { plan: clonePlan(next.stagedPlan) };
   }
 
@@ -38,8 +37,21 @@ export async function setStagedPlanSnapshot(
 export async function resolveStagedPlanSessions(
   request: AlfredStagedPlanResolveRequest,
 ): Promise<AlfredStagedPlanSnapshotResponse> {
-  const currentPlan = persistedStateStore ? (await persistedStateStore.getState()).stagedPlan : stagedPlan;
+  if (persistedStateStore) {
+    const next = await persistedStateStore.updateState((current) => {
+      const currentPlan = current.stagedPlan;
+      if (!currentPlan || request.sessionIds.length === 0) return current;
 
+      const resolved = new Set(request.sessionIds);
+      const remainingSessions = currentPlan.sessions.filter((session) => !resolved.has(session.id));
+      const nextPlan = remainingSessions.length === 0 ? null : { ...currentPlan, sessions: remainingSessions };
+
+      return { ...current, stagedPlan: nextPlan };
+    });
+    return { plan: clonePlan(next.stagedPlan) };
+  }
+
+  const currentPlan = stagedPlan;
   if (!currentPlan || request.sessionIds.length === 0) {
     return getStagedPlanSnapshot();
   }
@@ -48,20 +60,13 @@ export async function resolveStagedPlanSessions(
   const remainingSessions = currentPlan.sessions.filter((session) => !resolved.has(session.id));
   const nextPlan = remainingSessions.length === 0 ? null : { ...currentPlan, sessions: remainingSessions };
 
-  if (persistedStateStore) {
-    const current = await persistedStateStore.getState();
-    const next = await persistedStateStore.setState({ ...current, stagedPlan: nextPlan });
-    return { plan: clonePlan(next.stagedPlan) };
-  }
-
   stagedPlan = nextPlan;
   return getStagedPlanSnapshot();
 }
 
 export async function clearStagedPlanSnapshot(): Promise<AlfredStagedPlanSnapshotResponse> {
   if (persistedStateStore) {
-    const current = await persistedStateStore.getState();
-    const next = await persistedStateStore.setState({ ...current, stagedPlan: null });
+    const next = await persistedStateStore.updateState((current) => ({ ...current, stagedPlan: null }));
     return { plan: clonePlan(next.stagedPlan) };
   }
 

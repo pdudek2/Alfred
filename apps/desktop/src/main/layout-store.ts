@@ -38,14 +38,13 @@ export async function getLayoutsSnapshot(): Promise<WorkspaceLayoutsSnapshot> {
 
 export async function setWorkspaceLayoutSnapshot(request: WorkspaceLayoutSetRequest): Promise<WorkspaceLayoutsSnapshot> {
   if (persistedStateStore) {
-    const current = await persistedStateStore.getState();
-    const next = await persistedStateStore.setState({
+    const next = await persistedStateStore.updateState((current) => ({
       ...current,
       layoutsByWorkspace: {
         ...current.layoutsByWorkspace,
         [request.workspaceId]: cloneLayouts(request.layouts),
       },
-    });
+    }));
     return {
       layoutsByWorkspace: cloneLayoutsByWorkspace(next.layoutsByWorkspace),
       viewStateByWorkspace: cloneViewStateByWorkspace(next.viewStateByWorkspace),
@@ -60,14 +59,13 @@ export async function setWorkspaceViewStateSnapshot(
   request: WorkspaceViewStateSetRequest,
 ): Promise<WorkspaceLayoutsSnapshot> {
   if (persistedStateStore) {
-    const current = await persistedStateStore.getState();
-    const next = await persistedStateStore.setState({
+    const next = await persistedStateStore.updateState((current) => ({
       ...current,
       viewStateByWorkspace: {
         ...current.viewStateByWorkspace,
         [request.workspaceId]: cloneViewState(request.viewState),
       },
-    });
+    }));
     return {
       layoutsByWorkspace: cloneLayoutsByWorkspace(next.layoutsByWorkspace),
       viewStateByWorkspace: cloneViewStateByWorkspace(next.viewStateByWorkspace),
@@ -80,8 +78,11 @@ export async function setWorkspaceViewStateSnapshot(
 
 export async function clearLayoutSnapshots(): Promise<void> {
   if (persistedStateStore) {
-    const current = await persistedStateStore.getState();
-    await persistedStateStore.setState({ ...current, layoutsByWorkspace: {}, viewStateByWorkspace: {} });
+    await persistedStateStore.updateState((current) => ({
+      ...current,
+      layoutsByWorkspace: {},
+      viewStateByWorkspace: {},
+    }));
     return;
   }
 

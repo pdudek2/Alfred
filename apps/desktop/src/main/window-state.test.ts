@@ -48,6 +48,10 @@ function fakeStore(initialState: DesktopStateSnapshot = DEFAULT_DESKTOP_STATE): 
       state = nextState;
       return state;
     }),
+    updateState: vi.fn(async (updater) => {
+      state = await updater(state);
+      return state;
+    }),
   };
 }
 
@@ -91,7 +95,8 @@ describe("window-state", () => {
     window.maximized = true;
     await handle.flush();
 
-    expect(store.setState).toHaveBeenCalledWith({
+    expect(store.updateState).toHaveBeenCalledOnce();
+    await expect(store.getState()).resolves.toEqual({
       ...DEFAULT_DESKTOP_STATE,
       windowState: {
         bounds: { x: 64, y: 48, width: 1600, height: 1000 },

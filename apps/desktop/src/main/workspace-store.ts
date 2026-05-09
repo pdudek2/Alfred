@@ -32,26 +32,26 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
       const current = await persistedStateStore.getState();
       if (!normalizedRootPath) return toWorkspaceState(current);
 
-      const existing = current.workspaces.find((workspace) => workspace.rootPath === normalizedRootPath);
-      if (existing) {
-        const next = await persistedStateStore.setState({ ...current, activeWorkspaceId: existing.id });
-        return toWorkspaceState(next);
-      }
-
       const label = path.basename(normalizedRootPath) || normalizedRootPath;
-      const id = uniqueWorkspaceId(label, current.workspaces.map((workspace) => workspace.id));
       const gitBranch = await (options.resolveGitBranch ?? resolveGitBranch)(normalizedRootPath);
-      const workspace = {
-        id,
-        label,
-        shortLabel: shortLabelForWorkspace(label),
-        rootPath: normalizedRootPath,
-        ...(gitBranch === undefined ? {} : { gitBranch }),
-      };
-      const next = await persistedStateStore.setState({
-        ...current,
-        workspaces: [...current.workspaces, workspace],
-        activeWorkspaceId: workspace.id,
+      const next = await persistedStateStore.updateState((latest) => {
+        const existing = latest.workspaces.find((workspace) => workspace.rootPath === normalizedRootPath);
+        if (existing) return { ...latest, activeWorkspaceId: existing.id };
+
+        const id = uniqueWorkspaceId(label, latest.workspaces.map((workspace) => workspace.id));
+        const workspace = {
+          id,
+          label,
+          shortLabel: shortLabelForWorkspace(label),
+          rootPath: normalizedRootPath,
+          ...(gitBranch === undefined ? {} : { gitBranch }),
+        };
+
+        return {
+          ...latest,
+          workspaces: [...latest.workspaces, workspace],
+          activeWorkspaceId: workspace.id,
+        };
       });
 
       return toWorkspaceState(next);
@@ -62,9 +62,8 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
     },
 
     async setWorkspaceState(request: WorkspaceStateSetRequest): Promise<WorkspaceStateSnapshot> {
-      const current = await persistedStateStore.getState();
       const workspaceState = toWorkspaceState(normalizeDesktopState(request));
-      const next = await persistedStateStore.setState({ ...current, ...workspaceState });
+      const next = await persistedStateStore.updateState((current) => ({ ...current, ...workspaceState }));
       return toWorkspaceState(next);
     },
   };
@@ -86,7 +85,11 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
     );
 
     if (!changed) return state;
-    return persistedStateStore.setState({ ...state, workspaces });
+    const refreshedById = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
+    return persistedStateStore.updateState((current) => ({
+      ...current,
+      workspaces: current.workspaces.map((workspace) => refreshedById.get(workspace.id) ?? workspace),
+    }));
   }
 }
 
