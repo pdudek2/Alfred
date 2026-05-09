@@ -751,6 +751,28 @@ export function App() {
               <Command size={15} />
               <span>{shortcutModifier} K</span>
             </button>
+            <div className="agent-launch-buttons" aria-label="agent launchers">
+              <button
+                className="agent-launch-button codex"
+                type="button"
+                aria-label="Start Codex"
+                onClick={() => handleAddAgentSession("codex")}
+                title="Start Codex in this workspace"
+              >
+                <span className="tool-dot codex" />
+                <span>Codex</span>
+              </button>
+              <button
+                className="agent-launch-button claude"
+                type="button"
+                aria-label="Start Claude"
+                onClick={() => handleAddAgentSession("claude")}
+                title="Start Claude in this workspace"
+              >
+                <span className="tool-dot claude" />
+                <span>Claude</span>
+              </button>
+            </div>
             <button
               className="new-terminal-button"
               type="button"

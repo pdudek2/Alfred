@@ -548,6 +548,29 @@ describe("App integration", () => {
     });
   });
 
+  it("starts agent sessions from the top bar", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge();
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Start Claude" }));
+
+    expect(await screen.findByRole("article", { name: /Claude · session 1/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentKind: "claude",
+          clientId: "claude-1",
+          command: "claude",
+          workspaceId: "A",
+        }),
+      );
+    });
+  });
+
   it("moves and resizes a tile with pointer gestures in arrange mode", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
