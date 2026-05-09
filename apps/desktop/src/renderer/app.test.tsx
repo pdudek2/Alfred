@@ -531,6 +531,30 @@ describe("App integration", () => {
     expect(killTerminal).toHaveBeenCalledWith({ id: "runtime-a" });
   });
 
+  it("closes the focused terminal with the desktop close shortcut", async () => {
+    const { killTerminal } = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "manual-a",
+        title: "Manual · zsh 9",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 9/i })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "w", ctrlKey: true });
+
+    expect(screen.queryByRole("article", { name: /Manual · zsh 9/i })).not.toBeInTheDocument();
+    expect(killTerminal).toHaveBeenCalledWith({ id: "runtime-a" });
+  });
+
   it("restarts an exited terminal tile in place", async () => {
     const user = userEvent.setup();
     const { createTerminal, emitExit, forgetTerminal } = installDesktopBridge(undefined, null, [

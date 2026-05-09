@@ -82,6 +82,8 @@ export function App() {
   const activeWorkMode = workModesByWorkspace[activeWorkspace.id] ?? "desk";
   const activeSessions = terminalSessions.filter((session) => session.workspaceId === activeWorkspace.id);
   const activeSelectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id] ?? null;
+  const activeSelectedSession =
+    activeSessions.find((session) => session.id === activeSelectedSessionId) ?? activeSessions[0] ?? null;
   const activePendingPlan = pendingPlan?.workspaceId === activeWorkspace.id ? pendingPlan : null;
   const activeStagedSessions = orderStagedSessions(activeSessions, activePendingPlan);
   const stagedCount = activeSessions.filter((s) => s.stage === "staged").length;
@@ -312,6 +314,11 @@ export function App() {
     });
   }, []);
 
+  const handleCloseSelectedSession = useCallback(() => {
+    if (!activeSelectedSession) return;
+    handleCloseSession(activeSelectedSession.id);
+  }, [activeSelectedSession, handleCloseSession]);
+
   const handleRuntimeSessionStarting = useCallback((tileId: string): boolean => {
     if (startingSessionIdsRef.current.has(tileId)) {
       return false;
@@ -513,6 +520,12 @@ export function App() {
         return;
       }
 
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "w") {
+        event.preventDefault();
+        handleCloseSelectedSession();
+        return;
+      }
+
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.code === "BracketRight") {
         event.preventDefault();
         handleFocusSessionByDelta(1);
@@ -529,7 +542,7 @@ export function App() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [handleAddManualSession, handleFocusSessionByDelta, handleSelectWorkspace, workspaces]);
+  }, [handleAddManualSession, handleCloseSelectedSession, handleFocusSessionByDelta, handleSelectWorkspace, workspaces]);
 
   useEffect(() => {
     const terminalApi = getDesktopTerminalApi();
@@ -753,6 +766,7 @@ export function App() {
             pendingPlan={activePendingPlan}
             query={commandQuery}
             safeStagedCount={Math.max(0, stagedCount - unsafeStagedCount)}
+            selectedSessionId={activeSelectedSessionId}
             sessions={activeSessions}
             shortcutModifier={shortcutModifier}
             unsafeStagedCount={unsafeStagedCount}
@@ -763,10 +777,12 @@ export function App() {
             onApproveAll={handleApproveAll}
             onChangeQuery={setCommandQuery}
             onClose={handleCloseCommandPalette}
+            onCloseSession={handleCloseSession}
             onFocusSession={handleFocusSession}
             onFocusNextSession={() => handleFocusSessionByDelta(1)}
             onFocusPreviousSession={() => handleFocusSessionByDelta(-1)}
             onRejectAll={handleRejectAll}
+            onRestartSession={handleRestartSession}
             onSelectWorkspace={handleSelectWorkspace}
             onToggleArrange={handleToggleArrangeMode}
           />
