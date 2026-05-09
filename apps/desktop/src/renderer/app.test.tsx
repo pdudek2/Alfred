@@ -362,7 +362,9 @@ describe("App integration", () => {
 
     expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Session attached");
+    await waitFor(() => {
+      expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Session attached");
+    });
 
     fireEvent.keyDown(window, { key: "Escape" });
 
@@ -405,13 +407,14 @@ describe("App integration", () => {
     expect(await screen.findByText("ClientApp workspace")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.keyboard("alfred");
-    await user.click(screen.getByRole("option", { name: /Switch to Alfred/i }));
+    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "alfred{Enter}");
 
-    expect(screen.getByRole("tab", { name: "Alfred workspace, 2 live, 0 staged" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Alfred workspace, 2 live, 0 staged" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
   });
 
   it("moves and resizes a tile with pointer gestures in arrange mode", async () => {
