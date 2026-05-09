@@ -3,7 +3,11 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { AlfredStagedPlanSnapshot, AgentKind } from "../shared/alfred-ipc.js";
 import type { TileLayout, WorkspaceViewState, WorkMode } from "../shared/layout-ipc.js";
-import type { SessionActivityEvent, SessionActivityEventKind } from "../shared/session-activity.js";
+import type {
+  SessionActivityEvent,
+  SessionActivityEventKind,
+  SessionActivityPayload,
+} from "../shared/session-activity.js";
 import type { PersistedTerminalSessionSnapshot, TerminalSessionSource } from "../shared/terminal-ipc.js";
 import type { WorkspaceSnapshot, WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
 
@@ -481,18 +485,23 @@ function normalizeActivityEvents(value: unknown[]): SessionActivityEvent[] {
       return [];
     }
 
+    const payload = normalizeActivityPayload(item.payload, item.kind);
     return [{
       id: item.id,
       kind: item.kind,
       title: item.title,
       detail: item.detail,
       at: item.at,
+      ...(payload === undefined ? {} : { payload }),
     }];
   });
 }
 
 function cloneActivityEvents(events: SessionActivityEvent[]): SessionActivityEvent[] {
-  return events.map((event) => ({ ...event }));
+  return events.map((event) => ({
+    ...event,
+    ...(event.payload === undefined ? {} : { payload: { ...event.payload } }),
+  }));
 }
 
 function isSessionActivityEventKind(value: unknown): value is SessionActivityEventKind {
@@ -506,6 +515,67 @@ function isSessionActivityEventKind(value: unknown): value is SessionActivityEve
     value === "plan" ||
     value === "tool" ||
     value === "warning"
+  );
+}
+
+function normalizeActivityPayload(
+  value: unknown,
+  kind: SessionActivityEventKind,
+): SessionActivityPayload | undefined {
+  if (!isRecord(value) || typeof value.type !== "string") return undefined;
+
+  if (value.type === "command" && kind === "command" && typeof value.command === "string") {
+    return { type: "command", command: value.command };
+  }
+
+  if (
+    value.type === "file" &&
+    kind === "file" &&
+    isFileActivityOperation(value.operation) &&
+    typeof value.path === "string"
+  ) {
+    return { type: "file", operation: value.operation, path: value.path };
+  }
+
+  if (
+    value.type === "tool" &&
+    kind === "tool" &&
+    typeof value.name === "string" &&
+    typeof value.input === "string"
+  ) {
+    return { type: "tool", name: value.name, input: value.input };
+  }
+
+  if (value.type === "plan" && kind === "plan" && typeof value.summary === "string") {
+    return { type: "plan", summary: value.summary };
+  }
+
+  if (value.type === "approval" && kind === "approval" && typeof value.prompt === "string") {
+    return { type: "approval", prompt: value.prompt };
+  }
+
+  if (value.type === "error" && kind === "error" && typeof value.message === "string") {
+    return { type: "error", message: value.message };
+  }
+
+  if (value.type === "warning" && kind === "warning" && typeof value.message === "string") {
+    return { type: "warning", message: value.message };
+  }
+
+  return undefined;
+}
+
+function isFileActivityOperation(
+  value: unknown,
+): value is Extract<SessionActivityPayload, { type: "file" }>["operation"] {
+  return (
+    value === "created" ||
+    value === "deleted" ||
+    value === "edited" ||
+    value === "read" ||
+    value === "renamed" ||
+    value === "updated" ||
+    value === "wrote"
   );
 }
 

@@ -370,7 +370,10 @@ function recordSessionActivity(
 }
 
 function cloneActivityEvents(events: SessionActivityEvent[]): SessionActivityEvent[] {
-  return events.map((event) => ({ ...event }));
+  return events.map((event) => ({
+    ...event,
+    ...(event.payload === undefined ? {} : { payload: { ...event.payload } }),
+  }));
 }
 
 function tailBuffer(buffer: string, maxLength: number): string {

@@ -97,4 +97,40 @@ describe("workspaceAttention", () => {
       status: { kind: "error", label: "error" },
     });
   });
+
+  it("uses structured activity as the review reason", () => {
+    const queue = workspaceReviewQueue(
+      [{ id: "A", label: "Alfred", shortLabel: "A" }],
+      [
+        {
+          ...baseSession,
+          id: "waiting",
+          title: "Waiting agent",
+          activityEvents: [
+            {
+              id: "ask-1",
+              kind: "approval",
+              title: "Waiting for approval",
+              detail: "Allow edit?",
+              at: 100,
+              payload: { type: "approval", prompt: "Allow edit in app.tsx?" },
+            },
+          ],
+        },
+        {
+          ...baseSession,
+          id: "staged",
+          title: "Queued work",
+          source: "alfred",
+          stage: "staged",
+          command: "pnpm",
+          args: ["test"],
+        },
+      ] as SessionTile[],
+      200,
+    );
+
+    expect(queue[0]?.detail).toBe("Allow edit in app.tsx?");
+    expect(queue[1]?.detail).toBe("pnpm test");
+  });
 });
