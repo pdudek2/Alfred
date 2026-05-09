@@ -28,6 +28,7 @@ export type SessionTile = {
   initialBuffer?: string;
   activityEvents?: SessionActivityEvent[];
   lastActivityAt?: number;
+  lastOutputAt?: number;
 };
 
 export type { SessionActivityEvent, SessionActivityEventKind, SessionActivityInput } from "../shared/session-activity";
@@ -88,6 +89,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     ...(snapshot.agentKind === undefined ? {} : { agentKind: snapshot.agentKind }),
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
     ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
+    ...(snapshot.lastOutputAt === undefined ? {} : { lastOutputAt: snapshot.lastOutputAt }),
     initialBuffer: snapshot.buffer,
   }));
 }
@@ -106,6 +108,7 @@ export function hydratePersistedTerminalSessions(snapshots: PersistedTerminalSes
     ...(snapshot.agentKind === undefined ? {} : { agentKind: snapshot.agentKind }),
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
     ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
+    ...(snapshot.lastOutputAt === undefined ? {} : { lastOutputAt: snapshot.lastOutputAt }),
     initialBuffer: snapshot.buffer,
   }));
 }
@@ -227,10 +230,13 @@ export function recordSessionOutputActivity(
   now = Date.now(),
 ): SessionTile[] {
   const activity = classifyTerminalOutputActivity(data);
-  if (!activity) return sessions;
   const session = sessions.find((item) => item.runtimeId === runtimeId);
   if (!session) return sessions;
-  return appendSessionActivity(sessions, session.id, activity, now);
+  const sessionsWithOutputAt = sessions.map((item) =>
+    item.id === session.id ? { ...item, lastOutputAt: now } : item,
+  );
+  if (!activity) return sessionsWithOutputAt;
+  return appendSessionActivity(sessionsWithOutputAt, session.id, activity, now);
 }
 
 function nextAlfredSessionIndex(sessions: SessionTile[]): number {

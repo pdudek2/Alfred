@@ -34,6 +34,7 @@ export type TerminalSessionSnapshot = TerminalCreateResult & {
   buffer: string;
   activityEvents?: SessionActivityEvent[];
   lastActivityAt?: number;
+  lastOutputAt?: number;
 };
 
 export type PersistedTerminalSessionSnapshot = Omit<TerminalSessionSnapshot, "id"> & {

@@ -14,6 +14,7 @@ import { getDesktopTerminalApi } from "../desktop-api";
 import type { LayoutPreset, TileLayout } from "../layout-state";
 import type { SessionTile } from "../session-state";
 import { StagedTilePreview } from "../staged-tile";
+import { terminalSessionDisplayStatus, type LocalTerminalStatus } from "../session-status";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import type { ArrangePointerMode, ArrangePreview, WorkMode } from "../terminal-desk-types";
@@ -255,6 +256,8 @@ export function TerminalDesk({
               command={session.command}
               args={session.args}
               initialBuffer={session.initialBuffer}
+              activityEvents={session.activityEvents}
+              lastOutputAt={session.lastOutputAt}
               selected={selectedSession?.id === session.id}
               onClose={() => onCloseSession(session.id)}
               onContinueRestoredSession={() => onContinueRestoredSession(session.id)}
@@ -331,7 +334,9 @@ function ManualTerminalTile({
   arrangeMode,
   cwd,
   agentKind,
+  activityEvents,
   initialBuffer,
+  lastOutputAt,
   layout,
   preview,
   onClose,
@@ -358,7 +363,9 @@ function ManualTerminalTile({
   arrangeMode: boolean;
   cwd: string;
   agentKind?: SessionTile["agentKind"];
+  activityEvents?: SessionTile["activityEvents"];
   initialBuffer?: string | undefined;
+  lastOutputAt?: number | undefined;
   layout?: TileLayout | undefined;
   preview?: ArrangePreview | undefined;
   onClose: () => void;
@@ -386,10 +393,18 @@ function ManualTerminalTile({
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const sessionIdRef = useRef<TerminalSessionId | null>(null);
-  const [status, setStatus] = useState<"connecting" | "ready" | "browser" | "exited" | "error" | "restored">("connecting");
+  const [status, setStatus] = useState<LocalTerminalStatus>("connecting");
   const [resolvedCwd, setResolvedCwd] = useState<string>(cwd);
   const kind = sessionTileKind({ agentKind, source });
   const kindMeta = tileKindMeta(kind);
+  const displayClock = useStatusClock(lastOutputAt);
+  const displaySession = {
+    stage: "live",
+    ...(runtimeStatus === undefined ? {} : { runtimeStatus }),
+    ...(lastOutputAt === undefined ? {} : { lastOutputAt }),
+    ...(activityEvents === undefined ? {} : { activityEvents }),
+  } satisfies Parameters<typeof terminalSessionDisplayStatus>[0];
+  const displayStatus = terminalSessionDisplayStatus(displaySession, status, displayClock);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -598,7 +613,7 @@ function ManualTerminalTile({
 
   return (
     <article
-      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${status} ${selected ? "selected" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${status} session-${displayStatus.kind} ${selected ? "selected" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
       aria-label={title}
       style={gridStyle(layout, preview)}
       tabIndex={0}
@@ -629,7 +644,7 @@ function ManualTerminalTile({
           </div>
         </div>
         <div className="tile-actions">
-          <span className="tile-status">{statusLabel(status)}</span>
+          <span className={`tile-status status-${displayStatus.kind}`}>{displayStatus.label}</span>
           {status === "restored" && (
             <button
               type="button"
@@ -705,23 +720,6 @@ function gridStyle(layout: TileLayout | undefined, preview?: ArrangePreview | un
   return style;
 }
 
-function statusLabel(status: "connecting" | "ready" | "browser" | "exited" | "error" | "restored"): string {
-  switch (status) {
-    case "browser":
-      return "electron only";
-    case "connecting":
-      return "starting";
-    case "error":
-      return "error";
-    case "exited":
-      return "exited";
-    case "ready":
-      return "live";
-    case "restored":
-      return "restored";
-  }
-}
-
 function shortenPath(value: string): string {
   const parts = value.split("/");
 
@@ -730,4 +728,20 @@ function shortenPath(value: string): string {
   }
 
   return `…/${parts.slice(-2).join("/")}`;
+}
+
+function useStatusClock(lastOutputAt: number | undefined): number {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    setNow(Date.now());
+    if (lastOutputAt === undefined) return;
+
+    const intervalId = window.setInterval(() => setNow(Date.now()), 5_000);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [lastOutputAt]);
+
+  return now;
 }

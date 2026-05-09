@@ -73,6 +73,7 @@ describe("desktop session state", () => {
         source: "manual",
         shell: "/bin/zsh",
         buffer: "hello\n",
+        lastOutputAt: 120,
       },
       {
         id: "pty-b",
@@ -98,6 +99,7 @@ describe("desktop session state", () => {
         cwd: "/repo",
         source: "manual",
         stage: "live",
+        lastOutputAt: 120,
         initialBuffer: "hello\n",
       },
       {
@@ -144,6 +146,7 @@ describe("desktop session state", () => {
         shell: "/bin/zsh",
         buffer: "last output\n",
         lastActivityAt: 300,
+        lastOutputAt: 320,
         activityEvents: [
           {
             id: "manual-4-activity-300-1",
@@ -166,6 +169,7 @@ describe("desktop session state", () => {
         source: "manual",
         stage: "live",
         lastActivityAt: 300,
+        lastOutputAt: 320,
         activityEvents: [
           {
             id: "manual-4-activity-300-1",
@@ -235,11 +239,53 @@ describe("desktop session state", () => {
 
     const next = recordSessionOutputActivity(hydrated, "pty-a", "\u001b[31mError: build failed\u001b[0m\n", 200);
 
+    expect(next[0]?.lastOutputAt).toBe(200);
     expect(next[0]?.activityEvents?.[0]).toMatchObject({
       kind: "error",
       title: "Error reported",
       detail: "Error: build failed",
       at: 200,
+    });
+  });
+
+  it("records generic terminal output as freshness without inventing timeline events", () => {
+    const hydrated = hydrateLiveTerminalSessions([
+      {
+        id: "pty-a",
+        clientId: "manual-4",
+        title: "Manual · zsh 4",
+        cwd: "/repo",
+        source: "manual",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+
+    const next = recordSessionOutputActivity(hydrated, "pty-a", "plain shell prompt\n", 240);
+
+    expect(next[0]).toMatchObject({ lastOutputAt: 240 });
+    expect(next[0]?.activityEvents).toBeUndefined();
+  });
+
+  it("classifies approval prompts as waiting activity", () => {
+    const hydrated = hydrateLiveTerminalSessions([
+      {
+        id: "pty-a",
+        clientId: "manual-4",
+        title: "Manual · zsh 4",
+        cwd: "/repo",
+        source: "manual",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+
+    const next = recordSessionOutputActivity(hydrated, "pty-a", "Do you want to proceed? y/N\n", 260);
+
+    expect(next[0]?.activityEvents?.[0]).toMatchObject({
+      kind: "approval",
+      title: "Waiting for approval",
+      detail: "Do you want to proceed? y/N",
     });
   });
 

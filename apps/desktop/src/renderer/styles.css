@@ -1040,6 +1040,26 @@ body.arranging-pointer {
 .terminal-tile.real-terminal.browser .tile-status    { color: var(--cyan); }
 .terminal-tile.real-terminal.restored .tile-status   { color: var(--muted); }
 
+.terminal-tile.real-terminal .tile-status.status-active  { color: var(--green); }
+.terminal-tile.real-terminal .tile-status.status-idle    { color: var(--muted); }
+.terminal-tile.real-terminal .tile-status.status-waiting { color: var(--brass); }
+.terminal-tile.real-terminal .tile-status.status-done    { color: var(--muted); }
+.terminal-tile.real-terminal .tile-status.status-error   { color: var(--coral); }
+.terminal-tile.real-terminal .tile-status.status-runtime { color: var(--cyan); }
+.terminal-tile.real-terminal .tile-status.status-restored { color: var(--muted); }
+
+.terminal-tile.real-terminal.session-active {
+  border-color: color-mix(in oklab, var(--green) 30%, transparent);
+}
+
+.terminal-tile.real-terminal.session-waiting {
+  border-color: color-mix(in oklab, var(--brass) 42%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 12%, transparent),
+    inset 0 0 0 1px color-mix(in oklab, var(--brass) 12%, transparent),
+    0 22px 46px -20px rgba(0, 0, 0, 0.88);
+}
+
 .tile-actions button {
   width: 34px;
   min-height: 34px;

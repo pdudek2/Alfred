@@ -280,6 +280,7 @@ function normalizeRestoredTerminalSessions(value: unknown): PersistedTerminalSes
         ? { args: [...item.args] }
         : {}),
       ...(typeof item.lastActivityAt === "number" ? { lastActivityAt: item.lastActivityAt } : {}),
+      ...(typeof item.lastOutputAt === "number" ? { lastOutputAt: item.lastOutputAt } : {}),
       ...(Array.isArray(item.activityEvents) ? { activityEvents: normalizeActivityEvents(item.activityEvents) } : {}),
     });
   }
