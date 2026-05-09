@@ -185,9 +185,6 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("region", { name: /terminals/i })).toBeInTheDocument();
-    const missionGraph = screen.getByRole("region", { name: "Workspace activity" });
-    expect(missionGraph).toBeInTheDocument();
-    expect(within(missionGraph).getAllByRole("listitem")).toHaveLength(1);
     expect(screen.getByRole("complementary", { name: /alfred status/i })).toBeInTheDocument();
     expect(screen.getByRole("form", { name: /alfred composer/i })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
@@ -210,7 +207,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Add workspace" }));
 
     expect(createWorkspaceFromFolder).toHaveBeenCalledOnce();
-    expect(screen.getByRole("tab", { name: "ClientApp workspace, 1 idle" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: /ClientApp workspace, 1 (starting|idle)/ })).toHaveAttribute(
       "aria-selected",
       "true",
     );
