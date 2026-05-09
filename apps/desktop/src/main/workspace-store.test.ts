@@ -130,6 +130,16 @@ describe("workspace-store", () => {
         prompt: "prepare",
         sessions: [{ id: "alfred-1", kind: "shell", title: "A", command: "echo", args: ["a"] }],
       },
+      restoredTerminalSessions: [
+        {
+          clientId: "manual-1",
+          title: "Manual · zsh 1",
+          source: "manual",
+          cwd: "/repo",
+          shell: "/bin/zsh",
+          buffer: "history\n",
+        },
+      ],
     });
 
     const store = createWorkspaceStore({ persistedStateStore });
@@ -147,6 +157,7 @@ describe("workspace-store", () => {
           A: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
         },
         stagedPlan: expect.objectContaining({ id: "plan-1" }),
+        restoredTerminalSessions: [expect.objectContaining({ clientId: "manual-1" })],
       }),
     );
   });

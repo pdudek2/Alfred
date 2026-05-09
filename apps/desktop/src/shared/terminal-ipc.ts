@@ -33,8 +33,13 @@ export type TerminalSessionSnapshot = TerminalCreateResult & {
   buffer: string;
 };
 
+export type PersistedTerminalSessionSnapshot = Omit<TerminalSessionSnapshot, "id"> & {
+  clientId: string;
+};
+
 export type TerminalListResult = {
   sessions: TerminalSessionSnapshot[];
+  restoredSessions?: PersistedTerminalSessionSnapshot[];
 };
 
 export type TerminalResizeRequest = {
@@ -50,6 +55,10 @@ export type TerminalWriteRequest = {
 
 export type TerminalKillRequest = {
   id: TerminalSessionId;
+};
+
+export type TerminalForgetRequest = {
+  clientId: string;
 };
 
 export type TerminalExitEvent = {
@@ -69,6 +78,7 @@ export type TerminalApi = {
   write(request: TerminalWriteRequest): void;
   resize(request: TerminalResizeRequest): void;
   kill(request: TerminalKillRequest): void;
+  forget(request: TerminalForgetRequest): void;
   onData(callback: (event: TerminalDataEvent) => void): () => void;
   onExit(callback: (event: TerminalExitEvent) => void): () => void;
 };
@@ -79,6 +89,7 @@ export const terminalChannels = {
   write: "alfred:terminal:write",
   resize: "alfred:terminal:resize",
   kill: "alfred:terminal:kill",
+  forget: "alfred:terminal:forget",
   data: "alfred:terminal:data",
   exit: "alfred:terminal:exit",
 } as const;

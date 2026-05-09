@@ -250,6 +250,7 @@ export function TerminalDesk({
               preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
               sessionKey={session.id}
               runtimeId={session.runtimeId}
+              runtimeStatus={session.runtimeStatus}
               workspaceId={session.workspaceId}
               title={session.title}
               source={session.source}
@@ -345,6 +346,7 @@ function ManualTerminalTile({
   onRuntimeSessionStarting,
   selected,
   runtimeId,
+  runtimeStatus,
   sessionKey,
   source,
   workspaceId,
@@ -369,6 +371,7 @@ function ManualTerminalTile({
   onRuntimeSessionStarting: (tileId: string) => boolean;
   selected: boolean;
   runtimeId?: TerminalSessionId | undefined;
+  runtimeStatus?: SessionTile["runtimeStatus"] | undefined;
   sessionKey: string;
   source: SessionTile["source"];
   workspaceId: string;
@@ -380,7 +383,7 @@ function ManualTerminalTile({
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const sessionIdRef = useRef<TerminalSessionId | null>(null);
-  const [status, setStatus] = useState<"connecting" | "ready" | "browser" | "exited" | "error">("connecting");
+  const [status, setStatus] = useState<"connecting" | "ready" | "browser" | "exited" | "error" | "restored">("connecting");
   const [resolvedCwd, setResolvedCwd] = useState<string>(cwd);
   const kind = sessionTileKind({ agentKind, source });
   const kindMeta = tileKindMeta(kind);
@@ -397,11 +400,13 @@ function ManualTerminalTile({
     sessionIdRef.current = runtimeId ?? null;
     setResolvedCwd(cwd);
     setStatus("connecting");
+    const restoredTranscript = runtimeStatus === "restored" && !runtimeId;
 
     const terminal = new Terminal({
       allowProposedApi: false,
       convertEol: true,
       cursorBlink: true,
+      disableStdin: restoredTranscript,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
       fontSize: 12,
       lineHeight: 1.25,
@@ -444,6 +449,16 @@ function ManualTerminalTile({
     };
 
     requestAnimationFrame(fitAndResize);
+
+    if (restoredTranscript) {
+      setStatus("restored");
+      if (initialBuffer) {
+        terminal.write(initialBuffer);
+      }
+      return () => {
+        terminal.dispose();
+      };
+    }
 
     if (!terminalApi) {
       setStatus("browser");
@@ -569,6 +584,7 @@ function ManualTerminalTile({
     args,
     initialBuffer,
     runtimeId,
+    runtimeStatus,
     onRuntimeSessionFailed,
     onRuntimeSessionExited,
     onRuntimeSessionReady,
@@ -671,7 +687,7 @@ function gridStyle(layout: TileLayout | undefined, preview?: ArrangePreview | un
   return style;
 }
 
-function statusLabel(status: "connecting" | "ready" | "browser" | "exited" | "error"): string {
+function statusLabel(status: "connecting" | "ready" | "browser" | "exited" | "error" | "restored"): string {
   switch (status) {
     case "browser":
       return "electron only";
@@ -683,6 +699,8 @@ function statusLabel(status: "connecting" | "ready" | "browser" | "exited" | "er
       return "exited";
     case "ready":
       return "live";
+    case "restored":
+      return "restored";
   }
 }
 

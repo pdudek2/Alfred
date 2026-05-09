@@ -35,6 +35,7 @@ import {
   createInitialSessions,
   hydrateStagedPlanSessions,
   hydrateLiveTerminalSessions,
+  hydratePersistedTerminalSessions,
   markSessionExited,
   markSessionStartFailed,
   rejectAllStaged,
@@ -227,6 +228,9 @@ export function App() {
       if (session?.runtimeId) {
         terminalApi?.kill({ id: session.runtimeId });
         window.setTimeout(() => closingSessionIdsRef.current.delete(sessionId), 5_000);
+      } else if (session?.runtimeStatus === "restored") {
+        terminalApi?.forget({ clientId: session.id });
+        closingSessionIdsRef.current.delete(sessionId);
       } else {
         closingSessionIdsRef.current.delete(sessionId);
       }
@@ -437,15 +441,12 @@ export function App() {
           setWorkspaces(workspaceStateResult.workspaces);
           setActiveWorkspaceId(workspaceStateResult.activeWorkspaceId);
         }
-        const liveSessions =
-          terminalResult.sessions.length > 0
-            ? hydrateLiveTerminalSessions(terminalResult.sessions)
-            : createInitialSessions(
-                workspaceRootPath(workspaceStateResult, workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID),
-                workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID,
-              );
+        const liveSessions = hydrateLiveTerminalSessions(terminalResult.sessions);
         const liveClientIds = new Set(
           terminalResult.sessions.map((session) => session.clientId).filter((id): id is string => Boolean(id)),
+        );
+        const restoredSessions = hydratePersistedTerminalSessions(terminalResult.restoredSessions ?? []).filter(
+          (session) => !liveClientIds.has(session.id),
         );
         const stagedSessions = hydrateStagedPlanSessions(
           stagedPlanResult.plan,
@@ -460,7 +461,13 @@ export function App() {
         if (alreadyLiveStagedIds.length > 0) {
           void alfredApi?.resolveStagedPlan({ sessionIds: alreadyLiveStagedIds });
         }
-        const hydratedSessions = [...liveSessions, ...stagedSessions];
+        const hydratedSessions =
+          liveSessions.length + restoredSessions.length + stagedSessions.length > 0
+            ? [...liveSessions, ...restoredSessions, ...stagedSessions]
+            : createInitialSessions(
+                workspaceRootPath(workspaceStateResult, workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID),
+                workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID,
+              );
         setWorkspaces((current) =>
           ensureWorkspacesForSessions(workspaceStateResult?.workspaces ?? current, hydratedSessions),
         );
@@ -606,6 +613,7 @@ export function App() {
             shortcutModifier={shortcutModifier}
             unsafeStagedCount={unsafeStagedCount}
             onAddManualSession={handleAddManualSession}
+            onAddWorkspace={handleAddWorkspace}
             onApplyWorkMode={handleApplyWorkMode}
             onApproveAll={handleApproveAll}
             onChangeQuery={setCommandQuery}

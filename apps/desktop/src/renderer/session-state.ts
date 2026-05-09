@@ -1,5 +1,9 @@
 import type { AgentKind, AlfredPlanSession, AlfredStagedPlanSnapshot } from "../shared/alfred-ipc";
-import type { TerminalSessionSnapshot, TerminalSessionId } from "../shared/terminal-ipc";
+import type {
+  PersistedTerminalSessionSnapshot,
+  TerminalSessionSnapshot,
+  TerminalSessionId,
+} from "../shared/terminal-ipc";
 
 export type SessionTile = {
   id: string;
@@ -9,7 +13,7 @@ export type SessionTile = {
   cwd: string;
   source: "manual" | "alfred";
   stage: "staged" | "live";
-  runtimeStatus?: "starting" | "live" | "exited" | "error";
+  runtimeStatus?: "starting" | "live" | "exited" | "error" | "restored";
   command?: string;
   args?: string[];
   agentKind?: AgentKind;
@@ -67,6 +71,22 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     source: snapshot.source,
     stage: "live",
     runtimeStatus: "live",
+    ...(snapshot.command === undefined ? {} : { command: snapshot.command }),
+    ...(snapshot.args === undefined ? {} : { args: snapshot.args }),
+    ...(snapshot.agentKind === undefined ? {} : { agentKind: snapshot.agentKind }),
+    initialBuffer: snapshot.buffer,
+  }));
+}
+
+export function hydratePersistedTerminalSessions(snapshots: PersistedTerminalSessionSnapshot[]): SessionTile[] {
+  return snapshots.map((snapshot) => ({
+    id: snapshot.clientId,
+    title: snapshot.title,
+    workspaceId: snapshot.workspaceId ?? "A",
+    cwd: snapshot.cwd,
+    source: snapshot.source,
+    stage: "live",
+    runtimeStatus: "restored",
     ...(snapshot.command === undefined ? {} : { command: snapshot.command }),
     ...(snapshot.args === undefined ? {} : { args: snapshot.args }),
     ...(snapshot.agentKind === undefined ? {} : { agentKind: snapshot.agentKind }),

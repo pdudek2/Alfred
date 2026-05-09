@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { AlfredStagedPlanSnapshot, AgentKind } from "../shared/alfred-ipc.js";
 import type { TileLayout } from "../shared/layout-ipc.js";
+import type { PersistedTerminalSessionSnapshot, TerminalSessionSource } from "../shared/terminal-ipc.js";
 import type { WorkspaceSnapshot, WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
 
 export const DESKTOP_STATE_VERSION = 1;
@@ -11,6 +12,7 @@ export const DESKTOP_STATE_FILE_NAME = "desktop-state.json";
 export type DesktopStateSnapshot = WorkspaceStateSnapshot & {
   layoutsByWorkspace: Record<string, Record<string, TileLayout>>;
   stagedPlan: AlfredStagedPlanSnapshot | null;
+  restoredTerminalSessions: PersistedTerminalSessionSnapshot[];
 };
 
 export type DesktopStateFile = DesktopStateSnapshot & {
@@ -39,6 +41,7 @@ export const DEFAULT_DESKTOP_STATE: DesktopStateSnapshot = {
   activeWorkspaceId: DEFAULT_WORKSPACE.id,
   layoutsByWorkspace: {},
   stagedPlan: null,
+  restoredTerminalSessions: [],
 };
 
 export function createPersistedDesktopStateStore(
@@ -105,6 +108,7 @@ export function normalizeDesktopState(value: unknown): DesktopStateSnapshot {
     activeWorkspaceId,
     layoutsByWorkspace: normalizeLayoutsByWorkspace(value.layoutsByWorkspace),
     stagedPlan: normalizeStagedPlan(value.stagedPlan),
+    restoredTerminalSessions: normalizeRestoredTerminalSessions(value.restoredTerminalSessions),
   };
 }
 
@@ -214,6 +218,52 @@ function isAgentKind(value: unknown): value is AgentKind {
   return value === "codex" || value === "claude" || value === "dev-server" || value === "shell";
 }
 
+function normalizeRestoredTerminalSessions(value: unknown): PersistedTerminalSessionSnapshot[] {
+  if (!Array.isArray(value)) return [];
+
+  const seenClientIds = new Set<string>();
+  const sessions: PersistedTerminalSessionSnapshot[] = [];
+
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    if (
+      typeof item.clientId !== "string" ||
+      typeof item.title !== "string" ||
+      !isTerminalSessionSource(item.source) ||
+      typeof item.cwd !== "string" ||
+      typeof item.shell !== "string" ||
+      typeof item.buffer !== "string"
+    ) {
+      continue;
+    }
+
+    const clientId = item.clientId.trim();
+    if (!clientId || seenClientIds.has(clientId)) continue;
+
+    seenClientIds.add(clientId);
+    sessions.push({
+      clientId,
+      title: item.title,
+      source: item.source,
+      cwd: item.cwd,
+      shell: item.shell,
+      buffer: item.buffer,
+      ...(isAgentKind(item.agentKind) ? { agentKind: item.agentKind } : {}),
+      ...(typeof item.workspaceId === "string" ? { workspaceId: item.workspaceId } : {}),
+      ...(typeof item.command === "string" ? { command: item.command } : {}),
+      ...(Array.isArray(item.args) && item.args.every((arg) => typeof arg === "string")
+        ? { args: [...item.args] }
+        : {}),
+    });
+  }
+
+  return sessions;
+}
+
+function isTerminalSessionSource(value: unknown): value is TerminalSessionSource {
+  return value === "manual" || value === "alfred";
+}
+
 async function readDesktopStateFile(
   filePath: string,
   onWarning: PersistedDesktopStateStoreOptions["onWarning"],
@@ -269,6 +319,7 @@ function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
       ]),
     ),
     stagedPlan: cloneStagedPlan(state.stagedPlan),
+    restoredTerminalSessions: state.restoredTerminalSessions.map((session) => cloneRestoredTerminalSession(session)),
   };
 }
 
@@ -277,6 +328,13 @@ function cloneStagedPlan(plan: AlfredStagedPlanSnapshot | null): AlfredStagedPla
   return {
     ...plan,
     sessions: plan.sessions.map((session) => ({ ...session, args: [...session.args] })),
+  };
+}
+
+function cloneRestoredTerminalSession(session: PersistedTerminalSessionSnapshot): PersistedTerminalSessionSnapshot {
+  return {
+    ...session,
+    ...(session.args === undefined ? {} : { args: [...session.args] }),
   };
 }
 

@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowserWindow, ipcMain } from "electron";
 import {
+  configureTerminalPersistence,
   getTerminalSessionCount,
   killAllTerminalSessions,
   registerTerminalIpc,
+  resetTerminalPersistenceForTests,
 } from "./terminal-manager.js";
 import { terminalChannels } from "../shared/terminal-ipc.js";
 import type { TerminalCreateRequest } from "../shared/terminal-ipc.js";
+import { DEFAULT_DESKTOP_STATE, type DesktopStateSnapshot, type PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 
 type IpcInvokeHandler = (event: { sender: object }, request?: unknown) => unknown;
 type IpcEventHandler = (event: { sender: object }, request: unknown) => void;
@@ -103,6 +106,7 @@ function emit(channel: string, request: unknown, sender: object = senderFor(live
 describe("terminal-manager IPC", () => {
   beforeEach(() => {
     killAllTerminalSessions();
+    resetTerminalPersistenceForTests();
     invokeHandlers.clear();
     eventHandlers.clear();
     sentEvents.length = 0;
@@ -111,6 +115,79 @@ describe("terminal-manager IPC", () => {
     vi.mocked(BrowserWindow.fromWebContents).mockImplementation(
       (sender) => (sender as { window?: ReturnType<typeof fakeWindow> }).window as never,
     );
+  });
+
+  it("persists transcript snapshots and returns them as restored sessions after restart", async () => {
+    let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+    };
+    const pty = new FakePty();
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+
+    await invoke<{ id: string }>(terminalChannels.create, {
+      clientId: "manual-1",
+      command: "node",
+      cols: 80,
+      rows: 24,
+      title: "Manual terminal",
+    });
+    pty.onDataHandler?.("saved output\n");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(state.restoredTerminalSessions).toEqual([
+      expect.objectContaining({
+        clientId: "manual-1",
+        title: "Manual terminal",
+        buffer: "saved output\n",
+      }),
+    ]);
+
+    killAllTerminalSessions();
+    const listed = await invoke<{ sessions: unknown[]; restoredSessions: unknown[] }>(terminalChannels.list);
+
+    expect(listed.sessions).toEqual([]);
+    expect(listed.restoredSessions).toEqual([
+      expect.objectContaining({ clientId: "manual-1", buffer: "saved output\n" }),
+    ]);
+  });
+
+  it("forgets restored terminal snapshots without reviving them on process exit", async () => {
+    let state: DesktopStateSnapshot = {
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [
+        {
+          clientId: "manual-1",
+          title: "Manual terminal",
+          source: "manual",
+          cwd: "/repo",
+          shell: "/bin/zsh",
+          buffer: "saved output\n",
+        },
+      ],
+    };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+    };
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(new FakePty()) as never });
+
+    await invoke(terminalChannels.list);
+    emit(terminalChannels.forget, { clientId: "manual-1" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(state.restoredTerminalSessions).toEqual([]);
   });
 
   it("creates a terminal session, streams data to the attached window, and rehydrates from list", async () => {

@@ -725,6 +725,18 @@ button:focus-visible {
     0 32px 56px -16px rgba(0, 0, 0, 0.88);
 }
 
+.terminal-tile.restored {
+  border-color: rgba(188, 202, 218, 0.14);
+  background:
+    linear-gradient(180deg, rgba(188, 202, 218, 0.045), transparent 72px),
+    rgba(8, 10, 13, 0.78);
+}
+
+.terminal-tile.restored .tile-status {
+  border-color: rgba(188, 202, 218, 0.18);
+  color: var(--muted);
+}
+
 .terminal-tile.selected {
   border-color: color-mix(in oklab, var(--accent) 54%, transparent);
   box-shadow:
