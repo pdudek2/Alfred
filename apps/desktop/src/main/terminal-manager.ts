@@ -334,11 +334,10 @@ async function persistTerminalSnapshots(): Promise<void> {
   const store = persistedStateStore;
   if (!store) return;
 
-  const current = await store.getState();
-  await store.setState({
+  await store.updateState((current) => ({
     ...current,
     restoredTerminalSessions: [...restoredSessionSnapshots.values()].map((session) => clonePersistedSession(session)),
-  });
+  }));
 }
 
 function clonePersistedSession(session: PersistedTerminalSessionSnapshot): PersistedTerminalSessionSnapshot {

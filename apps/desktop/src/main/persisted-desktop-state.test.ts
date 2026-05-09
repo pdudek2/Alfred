@@ -94,6 +94,52 @@ describe("persisted-desktop-state", () => {
     await expect(reader.getState()).resolves.toEqual(state);
   });
 
+  it("serializes state updates so concurrent writers do not drop fields", async () => {
+    const filePath = await temporaryStateFile();
+    const store = createPersistedDesktopStateStore({ filePath });
+
+    await Promise.all([
+      store.updateState(async (current) => {
+        await Promise.resolve();
+        return {
+          ...current,
+          restoredTerminalSessions: [
+            {
+              clientId: "manual-1",
+              title: "Manual",
+              source: "manual",
+              cwd: "/repo",
+              shell: "/bin/zsh",
+              buffer: "ready\n",
+            },
+          ],
+        };
+      }),
+      store.updateState((current) => ({
+        ...current,
+        windowState: {
+          bounds: { x: 64, y: 48, width: 1600, height: 1000 },
+          maximized: true,
+        },
+      })),
+    ]);
+
+    await expect(store.getState()).resolves.toEqual(
+      expect.objectContaining({
+        restoredTerminalSessions: [
+          expect.objectContaining({
+            clientId: "manual-1",
+            buffer: "ready\n",
+          }),
+        ],
+        windowState: {
+          bounds: { x: 64, y: 48, width: 1600, height: 1000 },
+          maximized: true,
+        },
+      }),
+    );
+  });
+
   it("normalizes missing and undersized window state", async () => {
     const filePath = await temporaryStateFile();
     await writeFile(

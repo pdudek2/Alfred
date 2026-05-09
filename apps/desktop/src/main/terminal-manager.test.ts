@@ -126,6 +126,10 @@ describe("terminal-manager IPC", () => {
         state = next;
         return state;
       }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
     };
     const pty = new FakePty();
     configureTerminalPersistence(store, { debounceMs: 0 });
@@ -196,6 +200,10 @@ describe("terminal-manager IPC", () => {
         state = next;
         return state;
       }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
     };
     configureTerminalPersistence(store, { debounceMs: 0 });
     registerTerminalIpc({ loadNodePty: async () => fakeNodePty(new FakePty()) as never });
@@ -214,6 +222,10 @@ describe("terminal-manager IPC", () => {
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
         return state;
       }),
     };
@@ -246,6 +258,10 @@ describe("terminal-manager IPC", () => {
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
         return state;
       }),
     };

@@ -101,4 +101,30 @@ describe("layout-store", () => {
       }),
     );
   });
+
+  it("keeps concurrent persisted layout and view-state updates", async () => {
+    const filePath = await temporaryStateFile();
+    const persistedStateStore = createPersistedDesktopStateStore({ filePath });
+    configureLayoutPersistence(persistedStateStore);
+
+    await Promise.all([
+      setWorkspaceLayoutSnapshot({
+        workspaceId: "A",
+        layouts: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
+      }),
+      setWorkspaceViewStateSnapshot({
+        workspaceId: "A",
+        viewState: { workMode: "focus", selectedSessionId: "one" },
+      }),
+    ]);
+
+    await expect(getLayoutsSnapshot()).resolves.toEqual({
+      layoutsByWorkspace: {
+        A: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
+      },
+      viewStateByWorkspace: {
+        A: { workMode: "focus", selectedSessionId: "one" },
+      },
+    });
+  });
 });

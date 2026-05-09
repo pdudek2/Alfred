@@ -51,11 +51,10 @@ export function attachWindowStatePersistence(
 
     if (window.isDestroyed()) return;
 
-    const current = await store.getState();
-    await store.setState({
+    await store.updateState((current) => ({
       ...current,
       windowState: snapshotWindowState(window),
-    });
+    }));
   };
 
   const schedule = (): void => {
