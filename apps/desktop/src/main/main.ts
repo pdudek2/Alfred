@@ -12,10 +12,16 @@ import {
 import { registerAlfredIpc } from "./alfred-orchestrator.js";
 import { registerLayoutIpc } from "./layout-ipc.js";
 import { configureLayoutPersistence } from "./layout-store.js";
-import { createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
+import { createPersistedDesktopStateStore, type PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 import { configureStagedPlanPersistence } from "./staged-plan-store.js";
 import { registerWorkspaceIpc } from "./workspace-ipc.js";
 import { createWorkspaceStore } from "./workspace-store.js";
+import {
+  attachWindowStatePersistence,
+  restoreWindowPresentation,
+  type WindowStatePersistenceHandle,
+  windowOptionsFromState,
+} from "./window-state.js";
 import {
   QUIT_GUARD_CANCEL_BUTTON,
   QUIT_GUARD_CONFIRM_BUTTON,
@@ -28,6 +34,8 @@ const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
 const openDevToolsInDev = process.env.ALFRED_DESKTOP_OPEN_DEVTOOLS === "1";
 let terminalQuitConfirmed = false;
 let terminalPersistenceFlushedForQuit = false;
+let desktopStateStore: PersistedDesktopStateStore | null = null;
+let activeWindowStatePersistence: WindowStatePersistenceHandle | null = null;
 
 // Load repo-root .env before any IPC registration so OPENROUTER_API_KEY is visible.
 // Repo root is two levels up from app.getAppPath() (apps/desktop) — same logic as
@@ -38,10 +46,10 @@ registerTerminalIpc();
 registerAlfredIpc();
 registerLayoutIpc();
 
-async function createWindow(): Promise<void> {
+async function createWindow(persistedDesktopStateStore: PersistedDesktopStateStore): Promise<void> {
+  const persistedWindowState = (await persistedDesktopStateStore.getState()).windowState;
   const window = new BrowserWindow({
-    width: 1440,
-    height: 920,
+    ...windowOptionsFromState(persistedWindowState),
     minWidth: 1120,
     minHeight: 720,
     title: "Alfred Agent Space",
@@ -54,8 +62,10 @@ async function createWindow(): Promise<void> {
       preload: path.join(__dirname, "preload.cjs"),
     },
   });
+  activeWindowStatePersistence = attachWindowStatePersistence(window, persistedDesktopStateStore);
 
   window.once("ready-to-show", () => {
+    restoreWindowPresentation(window, persistedWindowState);
     window.show();
   });
 
@@ -87,16 +97,17 @@ async function createWindow(): Promise<void> {
 
 app.whenReady().then(async () => {
   const persistedDesktopStateStore = createPersistedDesktopStateStore({ userDataPath: app.getPath("userData") });
+  desktopStateStore = persistedDesktopStateStore;
 
   configureLayoutPersistence(persistedDesktopStateStore);
   configureStagedPlanPersistence(persistedDesktopStateStore);
   configureTerminalPersistence(persistedDesktopStateStore);
   registerWorkspaceIpc(createWorkspaceStore({ persistedStateStore: persistedDesktopStateStore }));
-  await createWindow();
+  await createWindow(persistedDesktopStateStore);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      void createWindow();
+      void createWindow(persistedDesktopStateStore);
     }
   });
 });
@@ -111,8 +122,8 @@ app.on("before-quit", (event) => {
   if (!terminalQuitConfirmed && shouldConfirmTerminalQuit(getTerminalSessionCount())) {
     if (!confirmTerminalQuit()) {
       event.preventDefault();
-      if (BrowserWindow.getAllWindows().length === 0) {
-        void createWindow();
+      if (BrowserWindow.getAllWindows().length === 0 && desktopStateStore) {
+        void createWindow(desktopStateStore);
       }
       return;
     }
@@ -122,7 +133,7 @@ app.on("before-quit", (event) => {
   if (!terminalPersistenceFlushedForQuit) {
     event.preventDefault();
     killAllTerminalSessions();
-    void flushTerminalPersistence().finally(() => {
+    void Promise.all([flushTerminalPersistence(), activeWindowStatePersistence?.flush() ?? Promise.resolve()]).finally(() => {
       terminalPersistenceFlushedForQuit = true;
       app.quit();
     });

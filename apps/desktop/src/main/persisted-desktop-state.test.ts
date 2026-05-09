@@ -50,6 +50,10 @@ describe("persisted-desktop-state", () => {
           "manual-1": { tileId: "manual-1", col: 1, row: 1, colSpan: 12, rowSpan: 8 },
         },
       },
+      windowState: {
+        bounds: { x: 120, y: 80, width: 1512, height: 982 },
+        maximized: true,
+      },
       stagedPlan: {
         id: "plan-1",
         prompt: "prepare ui",
@@ -84,6 +88,31 @@ describe("persisted-desktop-state", () => {
 
     expect(raw).toEqual({ version: DESKTOP_STATE_VERSION, ...state });
     await expect(reader.getState()).resolves.toEqual(state);
+  });
+
+  it("normalizes missing and undersized window state", async () => {
+    const filePath = await temporaryStateFile();
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: DESKTOP_STATE_VERSION,
+        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
+        activeWorkspaceId: "A",
+        windowState: {
+          bounds: { x: 10.4, y: 20.6, width: 500, height: 300 },
+          maximized: "yes",
+        },
+      }),
+      "utf8",
+    );
+    const store = createPersistedDesktopStateStore({ filePath });
+
+    await expect(store.getState()).resolves.toMatchObject({
+      windowState: {
+        bounds: { x: 10, y: 21, width: 1120, height: 720 },
+        maximized: false,
+      },
+    });
   });
 
   it("falls back safely when persisted JSON is corrupt", async () => {
