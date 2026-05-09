@@ -126,13 +126,14 @@ function normalizeWorkspaces(value: unknown[]): WorkspaceSnapshot[] {
     const label = item.label.trim();
     const shortLabel = item.shortLabel.trim();
     const rootPath = typeof item.rootPath === "string" ? item.rootPath.trim() : undefined;
+    const gitBranch = typeof item.gitBranch === "string" ? item.gitBranch.trim() : undefined;
 
     if (!id || !label || !shortLabel || seenIds.has(id)) {
       continue;
     }
 
     seenIds.add(id);
-    workspaces.push({ id, label, shortLabel, ...(rootPath ? { rootPath } : {}) });
+    workspaces.push({ id, label, shortLabel, ...(rootPath ? { rootPath } : {}), ...(gitBranch ? { gitBranch } : {}) });
   }
 
   return workspaces;

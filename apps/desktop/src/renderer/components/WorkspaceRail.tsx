@@ -5,6 +5,7 @@ export type WorkspaceRailWorkspace = {
   label: string;
   shortLabel: string;
   rootPath?: string;
+  gitBranch?: string;
 };
 
 type WorkspaceRailProps = {
@@ -44,7 +45,7 @@ export function WorkspaceRail({
             key={workspace.id}
             onClick={() => onSelectWorkspace(workspace.id)}
             role="tab"
-            title={`${workspace.label}: ${counts.live} live, ${counts.staged} staged`}
+            title={`${workspace.label}${workspace.gitBranch ? ` · ${workspace.gitBranch}` : ""}: ${counts.live} live, ${counts.staged} staged`}
           >
             <span>{workspace.shortLabel}</span>
             {(counts.live > 0 || counts.staged > 0) && (

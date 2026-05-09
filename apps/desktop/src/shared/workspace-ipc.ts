@@ -3,6 +3,7 @@ export type WorkspaceSnapshot = {
   label: string;
   shortLabel: string;
   rootPath?: string;
+  gitBranch?: string;
 };
 
 export type WorkspaceStateSnapshot = {

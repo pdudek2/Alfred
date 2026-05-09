@@ -36,7 +36,13 @@ describe("persisted-desktop-state", () => {
     const state: DesktopStateSnapshot = {
       workspaces: [
         { id: "A", label: "Alfred", shortLabel: "A" },
-        { id: "UI", label: "Interface", shortLabel: "UI", rootPath: "/Users/patryk/Desktop/Interface" },
+        {
+          id: "UI",
+          label: "Interface",
+          shortLabel: "UI",
+          rootPath: "/Users/patryk/Desktop/Interface",
+          gitBranch: "main",
+        },
       ],
       activeWorkspaceId: "UI",
       layoutsByWorkspace: {
