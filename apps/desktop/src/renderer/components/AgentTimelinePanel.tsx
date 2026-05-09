@@ -1,4 +1,5 @@
 import type { SessionTile } from "../session-state";
+import { terminalSessionDisplayStatus } from "../session-status";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 
 type AgentTimelinePanelProps = {
@@ -23,7 +24,7 @@ export function AgentTimelinePanel({ session }: AgentTimelinePanelProps) {
   const kindMeta = tileKindMeta(sessionTileKind(session));
   const command = [session.command, ...(session.args ?? [])].filter(Boolean).join(" ");
   const runtimeStatus = session.runtimeStatus ?? (session.runtimeId ? "live" : "starting");
-  const status = session.stage === "staged" ? "waiting for approval" : runtimeStatusLabel(runtimeStatus);
+  const displayStatus = terminalSessionDisplayStatus(session);
   const activityEvents = session.activityEvents ?? [];
   const displayedEvents =
     activityEvents.length > 0
@@ -45,7 +46,7 @@ export function AgentTimelinePanel({ session }: AgentTimelinePanelProps) {
     <aside className="agent-timeline-panel" aria-label="Agent activity">
       <header className="agent-timeline-header">
         <strong>{session.title}</strong>
-        <span>{status}</span>
+        <span className={`agent-status-pill status-${displayStatus.kind}`}>{displayStatus.label}</span>
       </header>
       <div className="agent-timeline-body">
         <dl className="agent-session-facts" aria-label="session details">
@@ -67,6 +68,12 @@ export function AgentTimelinePanel({ session }: AgentTimelinePanelProps) {
             <div>
               <dt>last activity</dt>
               <dd>{formatActivityTime(session.lastActivityAt)}</dd>
+            </div>
+          )}
+          {session.lastOutputAt && (
+            <div>
+              <dt>last output</dt>
+              <dd>{formatActivityTime(session.lastOutputAt)}</dd>
             </div>
           )}
         </dl>
@@ -94,22 +101,6 @@ export function AgentTimelinePanel({ session }: AgentTimelinePanelProps) {
       </div>
     </aside>
   );
-}
-
-function runtimeStatusLabel(status: SessionTile["runtimeStatus"]): string {
-  switch (status) {
-    case "error":
-      return "start failed";
-    case "exited":
-      return "process exited";
-    case "live":
-      return "live runtime";
-    case "restored":
-      return "restored transcript";
-    case "starting":
-    default:
-      return "starting";
-  }
 }
 
 function formatActivityTime(value: number): string {

@@ -23,11 +23,13 @@ describe("AgentTimelinePanel", () => {
       command: "claude",
       args: ["--continue"],
       runtimeId: "runtime-1",
+      lastOutputAt: Date.now(),
     };
     render(<AgentTimelinePanel session={session} />);
     expect(screen.getByText("claude — alfred")).toBeInTheDocument();
-    expect(screen.getByText("live runtime")).toBeInTheDocument();
+    expect(screen.getByText("active")).toBeInTheDocument();
     expect(screen.getByText("claude --continue")).toBeInTheDocument();
+    expect(screen.getByText("last output")).toBeInTheDocument();
     expect(screen.getByText("Session attached")).toBeInTheDocument();
   });
 
@@ -74,7 +76,7 @@ describe("AgentTimelinePanel", () => {
 
     render(<AgentTimelinePanel session={session} />);
 
-    expect(screen.getByText("waiting for approval")).toBeInTheDocument();
+    expect(screen.getByText("blocked")).toBeInTheDocument();
     expect(screen.getByText("Safety review required")).toBeInTheDocument();
     expect(screen.getByText("rm -rf detected")).toBeInTheDocument();
   });
