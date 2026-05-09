@@ -1,6 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { Play, ShieldAlert, X } from "lucide-react";
+import { ShieldAlert, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -29,15 +29,12 @@ type TerminalDeskProps = {
   pendingPlan: SquadPlan | null;
   sessions: SessionTile[];
   shortcutModifier: string;
-  safeStagedCount: number;
   unsafeStagedCount: number;
   workMode: WorkMode;
   onCloseSession: (sessionId: string) => void;
   onApplyLayoutPreset: (preset: LayoutPreset) => void;
   onApplyWorkMode: (mode: WorkMode) => void;
-  onApproveAll: () => void;
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
-  onRejectAll: () => void;
   onRuntimeSessionFailed: (tileId: string) => void;
   onRuntimeSessionExited: (runtimeId: TerminalSessionId) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
@@ -54,15 +51,12 @@ export function TerminalDesk({
   pendingPlan,
   sessions,
   shortcutModifier,
-  safeStagedCount,
   unsafeStagedCount,
   workMode,
   onCloseSession,
   onApplyLayoutPreset,
   onApplyWorkMode,
-  onApproveAll,
   onMoveTile,
-  onRejectAll,
   onRuntimeSessionFailed,
   onRuntimeSessionExited,
   onRuntimeSessionReady,
@@ -241,10 +235,7 @@ export function TerminalDesk({
       {pendingPlan && (
         <LaunchPlanStrip
           pendingPlan={pendingPlan}
-          safeStagedCount={safeStagedCount}
           unsafeStagedCount={unsafeStagedCount}
-          onApproveAll={onApproveAll}
-          onRejectAll={onRejectAll}
         />
       )}
       <div className="terminal-stage-body">
@@ -306,16 +297,10 @@ export function TerminalDesk({
 
 function LaunchPlanStrip({
   pendingPlan,
-  safeStagedCount,
   unsafeStagedCount,
-  onApproveAll,
-  onRejectAll,
 }: {
   pendingPlan: SquadPlan;
-  safeStagedCount: number;
   unsafeStagedCount: number;
-  onApproveAll: () => void;
-  onRejectAll: () => void;
 }) {
   const totalStagedCount = pendingPlan.sessionIds.length;
 
@@ -338,15 +323,6 @@ function LaunchPlanStrip({
           <span>Unsafe commands stay staged.</span>
         </div>
       )}
-      <div className="launch-plan-actions">
-        <button type="button" className="launch-primary" onClick={onApproveAll} disabled={safeStagedCount === 0}>
-          <Play size={14} />
-          {unsafeStagedCount > 0 ? "Launch safe" : "Launch all"}
-        </button>
-        <button type="button" className="launch-secondary" onClick={onRejectAll}>
-          Clear plan
-        </button>
-      </div>
     </section>
   );
 }

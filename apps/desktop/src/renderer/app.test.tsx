@@ -376,13 +376,13 @@ describe("App integration", () => {
     await user.keyboard("{Control>}k{/Control}");
 
     expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
-    await user.click(screen.getByRole("option", { name: /New manual terminal/i }));
+    await user.keyboard("{Enter}");
 
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
     expect(await screen.findByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.click(screen.getByRole("option", { name: /Split mode/i }));
+    await user.keyboard("split{Enter}");
 
     expect(screen.getByRole("button", { name: "Split" })).toHaveAttribute("aria-pressed", "true");
     expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
@@ -542,8 +542,9 @@ describe("App integration", () => {
 
     expect(requestPlan).toHaveBeenCalledWith({ prompt: "launch first plan" });
     expect(await screen.findByRole("region", { name: "Alfred launch plan" })).toHaveTextContent("Workspace prepared");
-    expect(screen.getByRole("button", { name: "Launch all" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Clear plan" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("2 safe · 0 flagged");
+    expect(screen.getByRole("button", { name: "Launch queue" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear staged plan from review queue" })).toBeInTheDocument();
     expect(await screen.findByRole("article", { name: /Staged Task A/i })).toBeInTheDocument();
     expect(await screen.findByRole("article", { name: /Staged Task B/i })).toBeInTheDocument();
     await waitFor(() => {
@@ -642,7 +643,7 @@ describe("App integration", () => {
     await user.click(send);
     await screen.findByRole("article", { name: /Staged Task A/i });
 
-    await user.click(screen.getByRole("button", { name: "Clear plan" }));
+    await user.click(screen.getByRole("button", { name: "Clear staged plan from review queue" }));
     await user.type(composer, "second after reject");
     await user.click(send);
 

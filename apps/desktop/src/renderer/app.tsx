@@ -78,6 +78,7 @@ export function App() {
   const activeWorkMode = workModesByWorkspace[activeWorkspace.id] ?? "desk";
   const activeSessions = terminalSessions.filter((session) => session.workspaceId === activeWorkspace.id);
   const activePendingPlan = pendingPlan?.workspaceId === activeWorkspace.id ? pendingPlan : null;
+  const activeStagedSessions = orderStagedSessions(activeSessions, activePendingPlan);
   const stagedCount = activeSessions.filter((s) => s.stage === "staged").length;
   const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
   const unsafeStagedCount = activeSessions.filter((s) => s.stage === "staged" && s.safetyNote).length;
@@ -557,15 +558,12 @@ export function App() {
               pendingPlan={activePendingPlan}
               sessions={activeSessions}
               shortcutModifier={shortcutModifier}
-              safeStagedCount={Math.max(0, stagedCount - unsafeStagedCount)}
               unsafeStagedCount={unsafeStagedCount}
               workMode={activeWorkMode}
               onCloseSession={handleCloseSession}
               onApplyLayoutPreset={handleApplyLayoutPreset}
               onApplyWorkMode={handleApplyWorkMode}
-              onApproveAll={handleApproveAll}
               onMoveTile={handleMoveTile}
-              onRejectAll={handleRejectAll}
               onRuntimeSessionFailed={handleRuntimeSessionFailed}
               onRuntimeSessionExited={handleRuntimeSessionExited}
               onRuntimeSessionReady={handleRuntimeSessionReady}
@@ -576,12 +574,18 @@ export function App() {
             />
           </OrchestratorSurface>
           <AlfredControlRail
+            armedUnsafeSessionIds={armedUnsafeSessionIds}
             status={alfredStatus}
             pendingPlan={activePendingPlan}
+            stagedSessions={activeStagedSessions}
             stagedCount={stagedCount}
             unsafeStagedCount={unsafeStagedCount}
             liveAlfredCount={liveAlfredCount}
+            onApproveAll={handleApproveAll}
+            onApproveTile={handleApproveTile}
             onDismissError={handleDismissError}
+            onRejectAll={handleRejectAll}
+            onRejectTile={handleRejectTile}
           />
         </div>
         <ComposerBar
@@ -700,4 +704,15 @@ function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[])
   const additions = liveSessions.filter((session) => !existingIds.has(session.id));
 
   return [...merged, ...additions];
+}
+
+function orderStagedSessions(sessions: SessionTile[], plan: SquadPlan | null): SessionTile[] {
+  const plannedOrder = new Map((plan?.sessionIds ?? []).map((id, index) => [id, index]));
+  return sessions
+    .filter((session) => session.stage === "staged")
+    .sort((a, b) => {
+      const safetyDelta = Number(Boolean(b.safetyNote)) - Number(Boolean(a.safetyNote));
+      if (safetyDelta !== 0) return safetyDelta;
+      return (plannedOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (plannedOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER);
+    });
 }
