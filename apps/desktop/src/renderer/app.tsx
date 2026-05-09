@@ -1,11 +1,10 @@
 import { Command, Plus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getDesktopAlfredApi, getDesktopLayoutApi, getDesktopTerminalApi, getDesktopWorkspaceApi } from "./desktop-api";
 import { ComposerBar } from "./composer";
 import { AlfredControlRail } from "./components/AlfredControlRail";
 import { AlfredMark } from "./components/AlfredMark";
 import { CommandPalette } from "./components/CommandPalette";
-import { OrchestratorSurface } from "./components/OrchestratorSurface";
 import { TerminalDesk } from "./components/TerminalDesk";
 import { WorkspaceRail, type WorkspaceRailWorkspace } from "./components/WorkspaceRail";
 import {
@@ -45,7 +44,6 @@ import {
   type SessionTile,
 } from "./session-state";
 import type { WorkMode } from "./terminal-desk-types";
-import { buildOrchestratorViewModel } from "./view-models/orchestrator-view-model";
 import { workspaceSessionSummary } from "./workspace-session-summary";
 import type { AlfredRuntimeStatus, AlfredStagedPlanSnapshot, AlfredStagedSession } from "../shared/alfred-ipc";
 import type { TerminalCreateResult } from "../shared/terminal-ipc";
@@ -90,18 +88,6 @@ export function App() {
   const unsafeStagedCount = activeSessions.filter((s) => s.stage === "staged" && s.safetyNote).length;
   const liveAlfredCount = activeSessions.filter((s) => s.stage === "live" && s.source === "alfred").length;
   const alfredExpanded = alfredStatus.kind !== "idle" || activePendingPlan !== null;
-  const orchestratorViewModel = useMemo(
-    () =>
-      buildOrchestratorViewModel({
-        activeWorkspaceId: activeWorkspace.id,
-        activeWorkspaceLabel: activeWorkspace.label,
-        model: runtimeStatus?.model,
-        openRouterConfigured: runtimeStatus?.openRouterConfigured !== false,
-        pendingPlan: activePendingPlan,
-        sessions: terminalSessions,
-      }),
-    [activePendingPlan, activeWorkspace.id, activeWorkspace.label, runtimeStatus, terminalSessions],
-  );
   const stagedWorkspaceLabel =
     pendingPlan && pendingPlan.workspaceId !== activeWorkspace.id
       ? workspaces.find((workspace) => workspace.id === pendingPlan.workspaceId)?.label ?? "another workspace"
@@ -690,7 +676,7 @@ export function App() {
             onAddWorkspace={handleAddWorkspace}
             onSelectWorkspace={handleSelectWorkspace}
           />
-          <OrchestratorSurface viewModel={orchestratorViewModel}>
+          <div className="orchestrator-surface">
             <TerminalDesk
               arrangeMode={arrangeMode}
               armedUnsafeSessionIds={armedUnsafeSessionIds}
@@ -717,7 +703,7 @@ export function App() {
               onRejectTile={handleRejectTile}
               onResizeTile={handleResizeTile}
             />
-          </OrchestratorSurface>
+          </div>
           <AlfredControlRail
             armedUnsafeSessionIds={armedUnsafeSessionIds}
             status={alfredStatus}
