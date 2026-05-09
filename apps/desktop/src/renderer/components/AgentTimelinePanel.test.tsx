@@ -101,6 +101,103 @@ describe("AgentTimelinePanel", () => {
     expect(within(digest).getByText("issue")).toBeInTheDocument();
   });
 
+  it("surfaces the next approval as the primary session pulse", () => {
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — needs review",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/tmp",
+      source: "alfred",
+      runtimeId: "runtime-1",
+      activityEvents: [
+        { id: "activity-1", kind: "command", title: "Ran command", detail: "pnpm build", at: 100 },
+        { id: "activity-2", kind: "approval", title: "Waiting for approval", detail: "Allow edit?", at: 120 },
+      ],
+    };
+
+    render(<AgentTimelinePanel session={session} />);
+
+    const pulse = screen.getAllByRole("region", { name: "Session pulse" }).at(-1);
+    expect(pulse).toBeDefined();
+    if (!pulse) throw new Error("Session pulse not rendered");
+    expect(within(pulse).getByText("needs you")).toBeInTheDocument();
+    expect(within(pulse).getByText("Waiting for approval")).toBeInTheDocument();
+    expect(within(pulse).getByText("Allow edit?")).toBeInTheDocument();
+  });
+
+  it("prioritizes errors over routine structured signals", () => {
+    const session: SessionTile = {
+      id: "s1",
+      title: "claude — review",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/tmp",
+      source: "manual",
+      runtimeId: "runtime-1",
+      runtimeStatus: "error",
+      activityEvents: [
+        { id: "activity-1", kind: "file", title: "Edit file", detail: "app.tsx", at: 100 },
+        { id: "activity-2", kind: "error", title: "Error reported", detail: "build failed", at: 120 },
+      ],
+    };
+
+    render(<AgentTimelinePanel session={session} />);
+
+    const pulse = screen.getAllByRole("region", { name: "Session pulse" }).at(-1);
+    expect(pulse).toBeDefined();
+    if (!pulse) throw new Error("Session pulse not rendered");
+    expect(within(pulse).getByText("check this")).toBeInTheDocument();
+    expect(within(pulse).getByText("Error reported")).toBeInTheDocument();
+    expect(within(pulse).getByText("build failed")).toBeInTheDocument();
+  });
+
+  it("uses progress output as a pulse when no richer structured signal exists", () => {
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — build",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/tmp",
+      source: "alfred",
+      runtimeId: "runtime-1",
+      activityEvents: [
+        { id: "activity-1", kind: "output", title: "Progress reported", detail: "✓ build passed", at: 100 },
+      ],
+    };
+
+    render(<AgentTimelinePanel session={session} />);
+
+    const pulse = screen.getAllByRole("region", { name: "Session pulse" }).at(-1);
+    expect(pulse).toBeDefined();
+    if (!pulse) throw new Error("Session pulse not rendered");
+    expect(within(pulse).getByText("latest output")).toBeInTheDocument();
+    expect(within(pulse).getByText("Progress reported")).toBeInTheDocument();
+    expect(within(pulse).getByText("✓ build passed")).toBeInTheDocument();
+  });
+
+  it("shows ready staged sessions as launchable work", () => {
+    const session: SessionTile = {
+      id: "s2",
+      title: "run tests",
+      workspaceId: "w1",
+      stage: "staged",
+      cwd: "/tmp",
+      source: "alfred",
+      command: "pnpm",
+      args: ["test", "--filter", "@alfred/desktop"],
+    };
+
+    render(<AgentTimelinePanel session={session} />);
+
+    const pulse = screen.getAllByRole("region", { name: "Session pulse" }).at(-1);
+    expect(pulse).toBeDefined();
+    if (!pulse) throw new Error("Session pulse not rendered");
+    expect(within(pulse).getByText("ready to launch")).toBeInTheDocument();
+    expect(within(pulse).getByText("Plan item staged")).toBeInTheDocument();
+    expect(within(pulse).getByText("pnpm test --filter @alfred/desktop")).toBeInTheDocument();
+  });
+
   it("keeps the focused session age moving while the panel stays open", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));
@@ -147,6 +244,6 @@ describe("AgentTimelinePanel", () => {
 
     expect(screen.getByText("blocked")).toBeInTheDocument();
     expect(screen.getByText("Safety review required")).toBeInTheDocument();
-    expect(screen.getByText("rm -rf detected")).toBeInTheDocument();
+    expect(screen.getAllByText("rm -rf detected").length).toBeGreaterThan(0);
   });
 });

@@ -35,6 +35,7 @@ export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelP
   const activityDigest = activityDigestItems(activityEvents);
   const activitySummary = summarizeActivityEvents(activityEvents);
   const latestApproval = latestApprovalEvent(activityEvents);
+  const pulseCard = sessionPulseCard(session, displayStatus, activityEvents);
   const canSendApprovalResponse =
     Boolean(onSendInput) &&
     Boolean(session.runtimeId) &&
@@ -109,6 +110,16 @@ export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelP
             </div>
           )}
         </dl>
+        {pulseCard && (
+          <section className={`agent-session-pulse tone-${pulseCard.tone}`} aria-label="Session pulse">
+            <span>{pulseCard.label}</span>
+            <strong>{pulseCard.title}</strong>
+            <p>{pulseCard.detail}</p>
+            {pulseCard.at > 0 && (
+              <time dateTime={new Date(pulseCard.at).toISOString()}>{formatActivityTime(pulseCard.at)}</time>
+            )}
+          </section>
+        )}
         {activityDigest.length > 0 && (
           <section className="agent-activity-digest" aria-label="Activity digest">
             {activityDigest.map((item) => (
@@ -160,6 +171,15 @@ export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelP
 }
 
 type ActivityDigestTone = "ask" | "issue" | "plan" | "work";
+type SessionPulseTone = "ask" | "issue" | "recovery" | "signal" | "work";
+
+type SessionPulseCard = {
+  at: number;
+  detail: string;
+  label: string;
+  title: string;
+  tone: SessionPulseTone;
+};
 
 function activityDigestItems(events: NonNullable<SessionTile["activityEvents"]>): Array<{
   label: string;
@@ -237,6 +257,158 @@ function latestApprovalEvent(events: NonNullable<SessionTile["activityEvents"]>)
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
     if (event?.kind === "approval") return event;
+  }
+
+  return null;
+}
+
+function sessionPulseCard(
+  session: SessionTile,
+  displayStatus: ReturnType<typeof terminalSessionDisplayStatus>,
+  events: NonNullable<SessionTile["activityEvents"]>,
+): SessionPulseCard | null {
+  if (session.stage === "staged" && session.safetyNote) {
+    return {
+      at: session.lastActivityAt ?? 0,
+      detail: session.safetyNote,
+      label: "review before launch",
+      title: "Safety check required",
+      tone: "issue",
+    };
+  }
+
+  if (displayStatus.kind === "waiting") {
+    const approval = latestEventOfKind(events, "approval");
+    return {
+      at: approval?.at ?? session.lastActivityAt ?? 0,
+      detail: approval?.detail ?? "The session is waiting for your response.",
+      label: "needs you",
+      title: approval?.title ?? "Waiting for approval",
+      tone: "ask",
+    };
+  }
+
+  if (displayStatus.kind === "error") {
+    const error = latestEventOfKind(events, "error");
+    return {
+      at: error?.at ?? session.lastActivityAt ?? 0,
+      detail: error?.detail ?? "The session reported an error.",
+      label: "check this",
+      title: error?.title ?? "Error reported",
+      tone: "issue",
+    };
+  }
+
+  if (displayStatus.kind === "blocked") {
+    return {
+      at: session.lastActivityAt ?? 0,
+      detail: session.safetyNote ?? "This staged command needs manual review before launch.",
+      label: "blocked",
+      title: "Manual review required",
+      tone: "issue",
+    };
+  }
+
+  if (displayStatus.kind === "staged") {
+    return {
+      at: session.lastActivityAt ?? 0,
+      detail: sessionCommandLabel(session) ?? "Review the proposed session before launch.",
+      label: "ready to launch",
+      title: "Plan item staged",
+      tone: "work",
+    };
+  }
+
+  if (displayStatus.kind === "starting") {
+    return {
+      at: session.lastActivityAt ?? 0,
+      detail: "Alfred is attaching the terminal runtime.",
+      label: "starting",
+      title: "Starting session",
+      tone: "signal",
+    };
+  }
+
+  if (displayStatus.kind === "restored") {
+    return {
+      at: session.lastActivityAt ?? session.lastOutputAt ?? 0,
+      detail: "Saved scrollback is available. Relaunch starts a fresh process in this tile.",
+      label: "resume",
+      title: "Transcript restored",
+      tone: "recovery",
+    };
+  }
+
+  if (displayStatus.kind === "done") {
+    return {
+      at: session.lastActivityAt ?? session.lastOutputAt ?? 0,
+      detail: "The process ended; scrollback remains available in the tile.",
+      label: "ended",
+      title: "Process finished",
+      tone: "recovery",
+    };
+  }
+
+  const warning = latestEventOfKind(events, "warning");
+  if (warning) {
+    return {
+      at: warning.at,
+      detail: warning.detail,
+      label: "review",
+      title: warning.title,
+      tone: "issue",
+    };
+  }
+
+  const latestSignal = latestStructuredSignal(events);
+  if (latestSignal) {
+    return {
+      at: latestSignal.at,
+      detail: latestSignal.detail,
+      label: "latest signal",
+      title: latestSignal.title,
+      tone: latestSignal.kind === "plan" ? "work" : "signal",
+    };
+  }
+
+  const latestOutput = latestEventOfKind(events, "output");
+  if (latestOutput) {
+    return {
+      at: latestOutput.at,
+      detail: latestOutput.detail,
+      label: "latest output",
+      title: latestOutput.title,
+      tone: "signal",
+    };
+  }
+
+  return null;
+}
+
+function sessionCommandLabel(session: SessionTile): string | null {
+  const command = [session.command, ...(session.args ?? [])].filter(Boolean).join(" ");
+  return command || null;
+}
+
+function latestEventOfKind(
+  events: NonNullable<SessionTile["activityEvents"]>,
+  kind: NonNullable<SessionTile["activityEvents"]>[number]["kind"],
+): NonNullable<SessionTile["activityEvents"]>[number] | null {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (event?.kind === kind) return event;
+  }
+
+  return null;
+}
+
+function latestStructuredSignal(
+  events: NonNullable<SessionTile["activityEvents"]>,
+): NonNullable<SessionTile["activityEvents"]>[number] | null {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (!event || event.kind === "lifecycle" || event.kind === "output") continue;
+    return event;
   }
 
   return null;
