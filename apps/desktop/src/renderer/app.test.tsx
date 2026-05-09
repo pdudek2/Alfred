@@ -64,7 +64,7 @@ function installDesktopBridge(
     model: "anthropic/claude-sonnet-4-6",
     openRouterConfigured: true,
   },
-  layouts: WorkspaceLayoutsSnapshot = { layoutsByWorkspace: {} },
+  layouts: WorkspaceLayoutsSnapshot = { layoutsByWorkspace: {}, viewStateByWorkspace: {} },
   workspaceState: WorkspaceStateSnapshot = {
     workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
     activeWorkspaceId: "A",
@@ -81,6 +81,7 @@ function installDesktopBridge(
   requestPlan: ReturnType<typeof vi.fn>;
   resolveStagedPlan: ReturnType<typeof vi.fn>;
   setWorkspaceLayout: ReturnType<typeof vi.fn>;
+  setWorkspaceViewState: ReturnType<typeof vi.fn>;
   getWorkspaceState: ReturnType<typeof vi.fn>;
   createWorkspaceFromFolder: ReturnType<typeof vi.fn>;
   setWorkspaceState: ReturnType<typeof vi.fn>;
@@ -94,6 +95,7 @@ function installDesktopBridge(
   const setStagedPlan = vi.fn().mockImplementation((request) => Promise.resolve({ plan: request }));
   const getLayouts = vi.fn().mockResolvedValue(layouts);
   const setWorkspaceLayout = vi.fn().mockResolvedValue(layouts);
+  const setWorkspaceViewState = vi.fn().mockResolvedValue(layouts);
   const getWorkspaceState = vi.fn().mockResolvedValue(workspaceState);
   const setWorkspaceState = vi.fn().mockImplementation((request) => Promise.resolve(request));
   const createWorkspaceFromFolder = vi.fn().mockImplementation(() =>
@@ -133,7 +135,7 @@ function installDesktopBridge(
   };
   const bridge: DesktopBridge = {
     alfred: { clearStagedPlan, getRuntimeStatus, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan },
-    layout: { getLayouts, setWorkspaceLayout },
+    layout: { getLayouts, setWorkspaceLayout, setWorkspaceViewState },
     terminal,
     workspace: { createWorkspaceFromFolder, getWorkspaceState, setWorkspaceState },
     version: "test",
@@ -155,6 +157,7 @@ function installDesktopBridge(
     getWorkspaceState,
     setWorkspaceState,
     setWorkspaceLayout,
+    setWorkspaceViewState,
   };
 }
 
@@ -236,7 +239,7 @@ describe("App integration", () => {
   });
 
   it("hydrates persisted workspaces and opens the last active workspace", async () => {
-    const { createTerminal } = installDesktopBridge(undefined, null, [], undefined, { layoutsByWorkspace: {} }, {
+    const { createTerminal } = installDesktopBridge(undefined, null, [], undefined, { layoutsByWorkspace: {}, viewStateByWorkspace: {} }, {
       workspaces: [
         { id: "A", label: "Alfred", shortLabel: "A" },
         { id: "W2", label: "Workspace 2", shortLabel: "W2", rootPath: "/tmp/workspace-2" },
@@ -525,6 +528,7 @@ describe("App integration", () => {
           "manual-1": { tileId: "manual-1", col: 3, row: 2, colSpan: 6, rowSpan: 4 },
         },
       },
+      viewStateByWorkspace: {},
     });
 
     render(<App />);
@@ -533,6 +537,37 @@ describe("App integration", () => {
     await userEvent.click(screen.getByRole("button", { name: "Arrange" }));
 
     expect(tile).toHaveStyle({ gridColumn: "3 / span 6", gridRow: "2 / span 4" });
+  });
+
+  it("hydrates saved workspace view mode and selected session", async () => {
+    installDesktopBridge(undefined, null, [], undefined, {
+      layoutsByWorkspace: {},
+      viewStateByWorkspace: {
+        A: { workMode: "focus", selectedSessionId: "manual-1" },
+      },
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
+  });
+
+  it("persists focus mode and selected session as workspace view state", async () => {
+    const { setWorkspaceViewState } = installDesktopBridge();
+
+    render(<App />);
+
+    const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    fireEvent.click(tile.querySelector(".tile-header")!);
+
+    await waitFor(() => {
+      expect(setWorkspaceViewState).toHaveBeenCalledWith({
+        workspaceId: "A",
+        viewState: { workMode: "focus", selectedSessionId: "manual-1" },
+      });
+    });
   });
 
   it("blocks Alfred prompts when OpenRouter is not configured", async () => {

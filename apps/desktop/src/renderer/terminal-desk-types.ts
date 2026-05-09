@@ -1,4 +1,4 @@
-export type WorkMode = "desk" | "focus" | "split";
+export type { WorkMode } from "../shared/layout-ipc";
 
 export type ArrangePointerMode = "move" | "resize";
 

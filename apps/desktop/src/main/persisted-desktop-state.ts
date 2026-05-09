@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { AlfredStagedPlanSnapshot, AgentKind } from "../shared/alfred-ipc.js";
-import type { TileLayout } from "../shared/layout-ipc.js";
+import type { TileLayout, WorkspaceViewState, WorkMode } from "../shared/layout-ipc.js";
 import type { SessionActivityEvent, SessionActivityEventKind } from "../shared/session-activity.js";
 import type { PersistedTerminalSessionSnapshot, TerminalSessionSource } from "../shared/terminal-ipc.js";
 import type { WorkspaceSnapshot, WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
@@ -24,6 +24,7 @@ export type DesktopWindowState = {
 
 export type DesktopStateSnapshot = WorkspaceStateSnapshot & {
   layoutsByWorkspace: Record<string, Record<string, TileLayout>>;
+  viewStateByWorkspace: Record<string, WorkspaceViewState>;
   stagedPlan: AlfredStagedPlanSnapshot | null;
   restoredTerminalSessions: PersistedTerminalSessionSnapshot[];
   windowState: DesktopWindowState;
@@ -62,6 +63,7 @@ export const DEFAULT_DESKTOP_STATE: DesktopStateSnapshot = {
   workspaces: [DEFAULT_WORKSPACE],
   activeWorkspaceId: DEFAULT_WORKSPACE.id,
   layoutsByWorkspace: {},
+  viewStateByWorkspace: {},
   stagedPlan: null,
   restoredTerminalSessions: [],
   windowState: DEFAULT_DESKTOP_WINDOW_STATE,
@@ -130,6 +132,7 @@ export function normalizeDesktopState(value: unknown): DesktopStateSnapshot {
     workspaces,
     activeWorkspaceId,
     layoutsByWorkspace: normalizeLayoutsByWorkspace(value.layoutsByWorkspace),
+    viewStateByWorkspace: normalizeViewStateByWorkspace(value.viewStateByWorkspace),
     stagedPlan: normalizeStagedPlan(value.stagedPlan),
     restoredTerminalSessions: normalizeRestoredTerminalSessions(value.restoredTerminalSessions),
     windowState: normalizeWindowState(value.windowState),
@@ -197,6 +200,32 @@ function normalizeLayoutsByWorkspace(value: unknown): Record<string, Record<stri
   }
 
   return layoutsByWorkspace;
+}
+
+function normalizeViewStateByWorkspace(value: unknown): Record<string, WorkspaceViewState> {
+  if (!isRecord(value)) return {};
+
+  const viewStateByWorkspace: Record<string, WorkspaceViewState> = {};
+  for (const [workspaceId, rawViewState] of Object.entries(value)) {
+    if (!workspaceId.trim() || !isRecord(rawViewState)) continue;
+    const workMode = normalizeWorkMode(rawViewState.workMode);
+    const selectedSessionId =
+      typeof rawViewState.selectedSessionId === "string" && rawViewState.selectedSessionId.trim()
+        ? rawViewState.selectedSessionId.trim()
+        : undefined;
+
+    if (!workMode && !selectedSessionId) continue;
+    viewStateByWorkspace[workspaceId] = {
+      ...(workMode === undefined ? {} : { workMode }),
+      ...(selectedSessionId === undefined ? {} : { selectedSessionId }),
+    };
+  }
+
+  return viewStateByWorkspace;
+}
+
+function normalizeWorkMode(value: unknown): WorkMode | undefined {
+  return value === "desk" || value === "focus" || value === "split" ? value : undefined;
 }
 
 function normalizeStagedPlan(value: unknown): AlfredStagedPlanSnapshot | null {
@@ -376,6 +405,9 @@ function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
         workspaceId,
         Object.fromEntries(Object.entries(layouts).map(([tileId, layout]) => [tileId, { ...layout }])),
       ]),
+    ),
+    viewStateByWorkspace: Object.fromEntries(
+      Object.entries(state.viewStateByWorkspace).map(([workspaceId, viewState]) => [workspaceId, { ...viewState }]),
     ),
     stagedPlan: cloneStagedPlan(state.stagedPlan),
     restoredTerminalSessions: state.restoredTerminalSessions.map((session) => cloneRestoredTerminalSession(session)),

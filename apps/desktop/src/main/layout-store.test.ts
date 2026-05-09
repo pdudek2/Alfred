@@ -8,6 +8,7 @@ import {
   getLayoutsSnapshot,
   resetLayoutPersistence,
   setWorkspaceLayoutSnapshot,
+  setWorkspaceViewStateSnapshot,
 } from "./layout-store.js";
 import { createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
 
@@ -44,6 +45,7 @@ describe("layout-store", () => {
       layoutsByWorkspace: {
         A: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
       },
+      viewStateByWorkspace: {},
     });
   });
 
@@ -60,6 +62,21 @@ describe("layout-store", () => {
     expect(Object.keys((await getLayoutsSnapshot()).layoutsByWorkspace)).toEqual(["A", "W2"]);
   });
 
+  it("stores view state per workspace", async () => {
+    const response = await setWorkspaceViewStateSnapshot({
+      workspaceId: "A",
+      viewState: { workMode: "focus", selectedSessionId: "manual-1" },
+    });
+
+    expect(response.viewStateByWorkspace.A).toEqual({ workMode: "focus", selectedSessionId: "manual-1" });
+    await expect(getLayoutsSnapshot()).resolves.toEqual({
+      layoutsByWorkspace: {},
+      viewStateByWorkspace: {
+        A: { workMode: "focus", selectedSessionId: "manual-1" },
+      },
+    });
+  });
+
   it("persists layouts when configured with desktop state storage", async () => {
     const filePath = await temporaryStateFile();
     const persistedStateStore = createPersistedDesktopStateStore({ filePath });
@@ -74,6 +91,7 @@ describe("layout-store", () => {
       layoutsByWorkspace: {
         A: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
       },
+      viewStateByWorkspace: {},
     });
     await expect(createPersistedDesktopStateStore({ filePath }).getState()).resolves.toEqual(
       expect.objectContaining({
