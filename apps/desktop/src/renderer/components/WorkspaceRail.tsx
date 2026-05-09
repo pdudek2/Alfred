@@ -90,6 +90,7 @@ function emptyCounts(): WorkspaceRailCounts {
   return {
     active: 0,
     blocked: 0,
+    checking: 0,
     done: 0,
     error: 0,
     idle: 0,
@@ -109,6 +110,7 @@ function statusSummary(counts: WorkspaceRailCounts): string {
     countLabel(counts.error, "error"),
     countLabel(counts.waiting, "waiting"),
     countLabel(counts.blocked, "blocked"),
+    countLabel(counts.checking, "checking"),
     countLabel(counts.active, "active"),
     countLabel(counts.starting, "starting"),
     countLabel(counts.staged, "staged"),
@@ -129,6 +131,7 @@ function countLabel(count: number, label: string): string | null {
 function railTone(counts: WorkspaceRailCounts): string {
   if (counts.error > 0) return "error";
   if (counts.waiting > 0 || counts.blocked > 0) return "waiting";
+  if (counts.checking > 0) return "staged";
   if (counts.active > 0 || counts.starting > 0) return "active";
   if (counts.staged > 0) return "staged";
   if (counts.total > 0) return "quiet";
@@ -139,6 +142,7 @@ function priorityChip(counts: WorkspaceRailCounts): { tone: string; label: strin
   if (counts.error > 0) return { tone: "error", label: countLabel(counts.error, "error") ?? "error" };
   if (counts.waiting > 0) return { tone: "waiting", label: countLabel(counts.waiting, "waiting") ?? "waiting" };
   if (counts.blocked > 0) return { tone: "waiting", label: countLabel(counts.blocked, "blocked") ?? "blocked" };
+  if (counts.checking > 0) return { tone: "staged", label: countLabel(counts.checking, "checking") ?? "checking" };
   if (counts.active > 0) return { tone: "active", label: countLabel(counts.active, "active") ?? "active" };
   if (counts.starting > 0) return { tone: "active", label: countLabel(counts.starting, "starting") ?? "starting" };
   if (counts.staged > 0) return { tone: "staged", label: countLabel(counts.staged, "staged") ?? "staged" };

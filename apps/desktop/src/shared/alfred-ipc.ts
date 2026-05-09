@@ -62,7 +62,8 @@ export type AlfredErrorCode =
   | "timeout"
   | "network"
   | "malformed"
-  | "in_flight";
+  | "in_flight"
+  | "not_found";
 
 export type AlfredError = {
   code: AlfredErrorCode;
@@ -95,6 +96,24 @@ export type AlfredStagedPlanSnapshotResponse = {
   plan: AlfredStagedPlanSnapshot | null;
 };
 
+export type AlfredStagedSessionPatch = {
+  title?: string;
+  cwd?: string;
+  command?: string;
+  args?: string[];
+};
+
+export type AlfredStagedPlanSessionUpdateRequest = {
+  planId: string;
+  sessionId: string;
+  patch: AlfredStagedSessionPatch;
+  workspace?: AlfredWorkspaceContext;
+};
+
+export type AlfredStagedPlanSessionUpdateResponse =
+  | { ok: true; plan: AlfredStagedPlanSnapshot }
+  | { ok: false; error: AlfredError };
+
 export type AlfredRuntimeStatus = {
   model: string;
   openRouterConfigured: boolean;
@@ -105,6 +124,7 @@ export type AlfredApi = {
   getRuntimeStatus(): Promise<AlfredRuntimeStatus>;
   getStagedPlan(): Promise<AlfredStagedPlanSnapshotResponse>;
   setStagedPlan(request: AlfredStagedPlanSetRequest): Promise<AlfredStagedPlanSnapshotResponse>;
+  updateStagedSession(request: AlfredStagedPlanSessionUpdateRequest): Promise<AlfredStagedPlanSessionUpdateResponse>;
   resolveStagedPlan(request: AlfredStagedPlanResolveRequest): Promise<AlfredStagedPlanSnapshotResponse>;
   clearStagedPlan(): Promise<AlfredStagedPlanSnapshotResponse>;
 };
@@ -114,6 +134,7 @@ export const alfredChannels = {
   planGet: "alfred:plan:get",
   planRequest: "alfred:plan:request",
   planResolve: "alfred:plan:resolve",
+  planSessionUpdate: "alfred:plan:session:update",
   planSet: "alfred:plan:set",
   runtimeStatus: "alfred:runtime:status",
 } as const;

@@ -21,6 +21,7 @@ const alfredChannels = {
   planGet: "alfred:plan:get",
   planRequest: "alfred:plan:request",
   planResolve: "alfred:plan:resolve",
+  planSessionUpdate: "alfred:plan:session:update",
   planSet: "alfred:plan:set",
   runtimeStatus: "alfred:runtime:status",
 } as const;
@@ -84,6 +85,8 @@ const alfred: AlfredApi = {
   getStagedPlan: () => ipcRenderer.invoke(alfredChannels.planGet) as ReturnType<AlfredApi["getStagedPlan"]>,
   setStagedPlan: (request) =>
     ipcRenderer.invoke(alfredChannels.planSet, request) as ReturnType<AlfredApi["setStagedPlan"]>,
+  updateStagedSession: (request) =>
+    ipcRenderer.invoke(alfredChannels.planSessionUpdate, request) as ReturnType<AlfredApi["updateStagedSession"]>,
   resolveStagedPlan: (request) =>
     ipcRenderer.invoke(alfredChannels.planResolve, request) as ReturnType<AlfredApi["resolveStagedPlan"]>,
   clearStagedPlan: () => ipcRenderer.invoke(alfredChannels.planClear) as ReturnType<AlfredApi["clearStagedPlan"]>,

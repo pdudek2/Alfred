@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearStagedPlanSnapshot,
   configureStagedPlanPersistence,
@@ -9,11 +9,12 @@ import {
   resetStagedPlanPersistence,
   resolveStagedPlanSessions,
   setStagedPlanSnapshot,
+  updateStagedPlanSession,
 } from "./staged-plan-store.js";
 import { createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
 import type { AlfredStagedPlanSnapshot } from "../shared/alfred-ipc.js";
 
-const plan: AlfredStagedPlanSnapshot = {
+const createPlan = (): AlfredStagedPlanSnapshot => ({
   id: "plan-1",
   name: "Demo",
   prompt: "prepare",
@@ -46,7 +47,7 @@ const plan: AlfredStagedPlanSnapshot = {
       },
     },
   ],
-};
+});
 
 let temporaryDirectory: string | null = null;
 
@@ -69,6 +70,7 @@ describe("staged-plan-store", () => {
   });
 
   it("stores and returns a cloned staged plan snapshot", async () => {
+    const plan = createPlan();
     const response = await setStagedPlanSnapshot(plan);
 
     expect(response.plan).toEqual(plan);
@@ -77,6 +79,7 @@ describe("staged-plan-store", () => {
   });
 
   it("removes resolved sessions and clears the plan when none remain", async () => {
+    const plan = createPlan();
     await setStagedPlanSnapshot(plan);
 
     expect((await resolveStagedPlanSessions({ sessionIds: ["alfred-1"] })).plan).toEqual({
@@ -87,6 +90,7 @@ describe("staged-plan-store", () => {
   });
 
   it("clears the staged plan", async () => {
+    const plan = createPlan();
     await setStagedPlanSnapshot(plan);
 
     await expect(clearStagedPlanSnapshot()).resolves.toEqual({ plan: null });
@@ -94,11 +98,130 @@ describe("staged-plan-store", () => {
   });
 
   it("persists staged plans when configured with desktop state storage", async () => {
+    const plan = createPlan();
     const filePath = await temporaryStateFile();
     const persistedStateStore = createPersistedDesktopStateStore({ filePath });
     configureStagedPlanPersistence(persistedStateStore);
 
     await expect(setStagedPlanSnapshot(plan)).resolves.toEqual({ plan });
+    await expect(createPersistedDesktopStateStore({ filePath }).getState()).resolves.toEqual(
+      expect.objectContaining({ stagedPlan: plan }),
+    );
+  });
+
+  it("persists updates to command, args, and cwd on one staged session", async () => {
+    const plan = createPlan();
+    const filePath = await temporaryStateFile();
+    const persistedStateStore = createPersistedDesktopStateStore({ filePath });
+    configureStagedPlanPersistence(persistedStateStore);
+    await setStagedPlanSnapshot(plan);
+
+    const response = await updateStagedPlanSession(
+      {
+        planId: "plan-1",
+        sessionId: "alfred-1",
+        patch: { command: "pnpm", args: ["--filter", "@alfred/desktop", "test"], cwd: "apps/desktop" },
+        workspace: { id: "A", label: "Alfred", rootPath: "/repo" },
+      },
+      { preflightOptions: { commandExists: async () => true } },
+    );
+
+    expect(response).toMatchObject({ ok: true });
+    if (!response.ok) throw new Error(response.error.message);
+    expect(response.plan.sessions[0]).toMatchObject({
+      id: "alfred-1",
+      command: "pnpm",
+      args: ["--filter", "@alfred/desktop", "test"],
+      cwd: "apps/desktop",
+      launchPreflight: {
+        status: "ready",
+        isolation: "shared",
+      },
+    });
+    await expect(createPersistedDesktopStateStore({ filePath }).getState()).resolves.toEqual(
+      expect.objectContaining({ stagedPlan: response.plan }),
+    );
+  });
+
+  it("recomputes safety when a staged session becomes unsafe", async () => {
+    const plan = createPlan();
+    await setStagedPlanSnapshot(plan);
+
+    const response = await updateStagedPlanSession(
+      {
+        planId: "plan-1",
+        sessionId: "alfred-1",
+        patch: { command: "rm", args: ["-rf", "/tmp/alfred-risky"] },
+        workspace: { id: "A", label: "Alfred", rootPath: "/repo" },
+      },
+      { preflightOptions: { commandExists: async () => true } },
+    );
+
+    expect(response).toMatchObject({ ok: true });
+    if (!response.ok) throw new Error(response.error.message);
+    expect(response.plan.sessions[0]?.safetyNote).toBe("rm -rf detected");
+  });
+
+  it("blocks launch preflight when an edited cwd leaves the workspace", async () => {
+    const plan = createPlan();
+    await setStagedPlanSnapshot(plan);
+    const preflightAgentWorktree = vi.fn();
+
+    const response = await updateStagedPlanSession(
+      {
+        planId: "plan-1",
+        sessionId: "alfred-2",
+        patch: { cwd: "/other/repo" },
+        workspace: { id: "A", label: "Alfred", rootPath: "/repo" },
+      },
+      { preflightOptions: { commandExists: async () => true, preflightAgentWorktree } },
+    );
+
+    expect(response).toMatchObject({ ok: true });
+    if (!response.ok) throw new Error(response.error.message);
+    expect(preflightAgentWorktree).not.toHaveBeenCalled();
+    expect(response.plan.sessions[1]).toMatchObject({
+      id: "alfred-2",
+      cwd: "/other/repo",
+      launchPreflight: {
+        status: "blocked",
+        code: "cwd_outside_workspace",
+      },
+    });
+    expect(response.plan.sessions[1]?.safetyNote).toBeUndefined();
+  });
+
+  it("leaves persisted state unchanged when the plan or session is stale", async () => {
+    const plan = createPlan();
+    const filePath = await temporaryStateFile();
+    const persistedStateStore = createPersistedDesktopStateStore({ filePath });
+    configureStagedPlanPersistence(persistedStateStore);
+    await setStagedPlanSnapshot(plan);
+
+    await expect(
+      updateStagedPlanSession({
+        planId: "stale-plan",
+        sessionId: "alfred-1",
+        patch: { command: "pnpm" },
+        workspace: { id: "A", label: "Alfred", rootPath: "/repo" },
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: { code: "not_found", message: "The staged plan has changed. Refresh before editing this session." },
+    });
+    await expect(persistedStateStore.getState()).resolves.toEqual(expect.objectContaining({ stagedPlan: plan }));
+
+    await expect(
+      updateStagedPlanSession({
+        planId: "plan-1",
+        sessionId: "stale-session",
+        patch: { command: "pnpm" },
+        workspace: { id: "A", label: "Alfred", rootPath: "/repo" },
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: { code: "not_found", message: "The staged session is no longer available." },
+    });
     await expect(createPersistedDesktopStateStore({ filePath }).getState()).resolves.toEqual(
       expect.objectContaining({ stagedPlan: plan }),
     );

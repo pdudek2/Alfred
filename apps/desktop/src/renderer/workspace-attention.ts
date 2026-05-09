@@ -26,6 +26,7 @@ const ATTENTION_PRIORITY: Partial<Record<SessionDisplayStatus["kind"], number>> 
   error: 0,
   waiting: 1,
   blocked: 2,
+  checking: 3,
   staged: 3,
   restored: 4,
 };
@@ -99,6 +100,8 @@ function attentionDetail(kind: SessionDisplayStatus["kind"]): string {
       return "is waiting on you";
     case "blocked":
       return "has a flagged launch command";
+    case "checking":
+      return "is being rechecked";
     case "staged":
       return "is ready to launch";
     case "restored":
@@ -127,6 +130,10 @@ function attentionDetailForSession(session: SessionTile, kind: SessionDisplaySta
 
   if (kind === "blocked") {
     return truncateReason(session.launchPreflight?.status === "blocked" ? session.launchPreflight.reason : session.safetyNote ?? commandLabel(session)) ?? attentionDetail(kind);
+  }
+
+  if (kind === "checking") {
+    return "is rechecking edited command";
   }
 
   if (kind === "staged") {

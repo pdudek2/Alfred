@@ -701,6 +701,19 @@ describe("staged sessions", () => {
     expect(after.map((s) => s.id)).toEqual(before.map((s) => s.id)); // same ids, same order
   });
 
+  it("keeps staged tiles queued while an edit is being rechecked", () => {
+    const initial = createInitialSessions("/repo");
+    const before = addStagedSessions(initial, planSessions, "/repo").map((session) =>
+      session.id === "alfred-1" ? { ...session, stagedReviewStatus: "checking" as const } : session,
+    );
+
+    expect(approveStaged(before, "alfred-1")).toEqual(before);
+
+    const after = approveAllStaged(before);
+    expect(after.find((s) => s.id === "alfred-1")?.stage).toBe("staged");
+    expect(after.find((s) => s.id === "alfred-2")?.stage).toBe("live");
+  });
+
   it("refuses to approve preflight-blocked staged tiles", () => {
     const initial = createInitialSessions("/repo");
     const before = addStagedSessions(initial, planSessions, "/repo");

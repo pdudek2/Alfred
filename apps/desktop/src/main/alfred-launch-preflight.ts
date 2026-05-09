@@ -25,17 +25,17 @@ export async function preflightAlfredPlan(
   options: AlfredLaunchPreflightOptions = {},
 ): Promise<AlfredPlan> {
   const sessions = await Promise.all(
-    plan.sessions.map((session) => preflightPlanSession(session, workspace, options)),
+    plan.sessions.map((session) => preflightAlfredPlanSession(session, workspace, options)),
   );
 
   return { ...plan, sessions };
 }
 
-async function preflightPlanSession(
-  session: AlfredPlanSession,
+export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
+  session: T,
   workspace: AlfredWorkspaceContext | undefined,
-  options: AlfredLaunchPreflightOptions,
-): Promise<AlfredPlanSession> {
+  options: AlfredLaunchPreflightOptions = {},
+): Promise<T> {
   const commandExists = options.commandExists ?? defaultCommandExists;
 
   if (!(await commandExists(session.command))) {

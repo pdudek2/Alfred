@@ -11,17 +11,21 @@ export type SessionDisplayStatus =
   | { kind: "restored"; label: "restored" }
   | { kind: "runtime"; label: "electron only" }
   | { kind: "staged"; label: "ready" }
+  | { kind: "checking"; label: "checking" }
   | { kind: "starting"; label: "starting" }
   | { kind: "waiting"; label: "waiting" };
 
 const ACTIVE_OUTPUT_WINDOW_MS = 15_000;
 
 export function terminalSessionDisplayStatus(
-  session: Pick<SessionTile, "activityEvents" | "lastOutputAt" | "launchPreflight" | "runtimeStatus" | "safetyNote" | "stage">,
+  session: Pick<SessionTile, "activityEvents" | "lastOutputAt" | "launchPreflight" | "runtimeStatus" | "safetyNote" | "stage" | "stagedReviewStatus">,
   localStatus: LocalTerminalStatus = "ready",
   now = Date.now(),
 ): SessionDisplayStatus {
   if (session.stage === "staged") {
+    if (session.stagedReviewStatus === "checking") {
+      return { kind: "checking", label: "checking" };
+    }
     return session.safetyNote || session.launchPreflight?.status === "blocked"
       ? { kind: "blocked", label: "blocked" }
       : { kind: "staged", label: "ready" };

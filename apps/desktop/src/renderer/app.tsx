@@ -55,6 +55,7 @@ import { workspaceSessionSummary } from "./workspace-session-summary";
 import type {
   AgentKind,
   AlfredRuntimeStatus,
+  AlfredStagedSessionPatch,
   AlfredStagedPlanSnapshot,
   AlfredStagedSession,
   AlfredWorkspaceContext,
@@ -115,8 +116,10 @@ export function App() {
   const activeStagedSessions = orderStagedSessions(activeSessions, activePendingPlan);
   const stagedCount = activeSessions.filter((s) => s.stage === "staged").length;
   const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
+  const checkingStagedCount = activeSessions.filter((s) => s.stage === "staged" && s.stagedReviewStatus === "checking").length;
   const blockedStagedCount = activeSessions.filter((s) => s.stage === "staged" && isLaunchBlocked(s)).length;
   const unsafeStagedCount = activeSessions.filter((s) => s.stage === "staged" && s.safetyNote && !isLaunchBlocked(s)).length;
+  const safeStagedCount = Math.max(0, stagedCount - unsafeStagedCount - blockedStagedCount - checkingStagedCount);
   const liveAlfredCount = activeSessions.filter((s) => s.stage === "live" && s.source === "alfred").length;
   const alfredExpanded =
     alfredStatus.kind !== "idle" ||
@@ -672,6 +675,69 @@ export function App() {
     });
   }, []);
 
+  const handleUpdateStagedSession = useCallback(async (sessionId: string, patch: AlfredStagedSessionPatch) => {
+    const alfredApi = getDesktopAlfredApi();
+    const planId = pendingPlan?.id;
+    if (!alfredApi || !planId) {
+      throw new Error("No staged plan is available to edit.");
+    }
+
+    setArmedUnsafeSessionIds((ids) => {
+      if (!ids.has(sessionId)) return ids;
+      const next = new Set(ids);
+      next.delete(sessionId);
+      return next;
+    });
+    setTerminalSessions((sessions) =>
+      sessions.map((session) =>
+        session.id === sessionId && session.stage === "staged"
+          ? { ...session, stagedReviewStatus: "checking" }
+          : session,
+      ),
+    );
+
+    const response = await alfredApi.updateStagedSession({
+      planId,
+      sessionId,
+      patch,
+      workspace: workspacePlanContext(activeWorkspace, activeSessions),
+    });
+
+    if (!response.ok) {
+      setTerminalSessions((sessions) =>
+        appendSessionActivity(
+          sessions.map((session) =>
+            session.id === sessionId && session.stagedReviewStatus === "checking"
+              ? withoutStagedReviewStatus(session)
+              : session,
+          ),
+          sessionId,
+          {
+            kind: "warning",
+            title: "Edit was not saved",
+            detail: response.error.message,
+          },
+        ),
+      );
+      throw new Error(response.error.message);
+    }
+
+    setTerminalSessions((sessions) =>
+      appendSessionActivity(
+        replaceStagedSessionsFromPlan(sessions, response.plan, activeWorkspace.rootPath ?? "", activeWorkspace.id).map((session) =>
+          session.id === sessionId ? { ...session, stagedReviewStatus: "edited" } : session,
+        ),
+        sessionId,
+        {
+          kind: "plan",
+          title: "Staged command edited",
+          detail: "Alfred rechecked the command before launch.",
+        },
+      ),
+    );
+    setPendingPlan(toSquadPlan({ plan: response.plan, defaultWorkspaceId: activeWorkspace.id }));
+  }, [activeSessions, activeWorkspace, pendingPlan?.id]);
+
   const handleApproveAll = useCallback(() => {
     setArmedUnsafeSessionIds(new Set());
     setTerminalSessions((sessions) => approveAllStaged(sessions, activeWorkspace.id));
@@ -990,6 +1056,7 @@ export function App() {
               onApproveTile={handleApproveTile}
               onRejectTile={handleRejectTile}
               onResizeTile={handleResizeTile}
+              onUpdateStagedSession={handleUpdateStagedSession}
             />
           </div>
           <AlfredControlRail
@@ -1038,7 +1105,7 @@ export function App() {
             reviewQueueCount={crossWorkspaceReviewItems.length}
             reviewQueuePreview={crossWorkspaceReviewPreview}
             attention={activeAttention}
-            safeStagedCount={Math.max(0, stagedCount - unsafeStagedCount)}
+            safeStagedCount={safeStagedCount}
             selectedSessionId={activeSelectedSessionId}
             sessions={activeSessions}
             shortcutModifier={shortcutModifier}
@@ -1295,6 +1362,33 @@ function toSquadPlan({
     sessionIds,
     workspaceId: plan.sessions.find((session) => session.workspaceId)?.workspaceId ?? defaultWorkspaceId,
   };
+}
+
+function replaceStagedSessionsFromPlan(
+  sessions: SessionTile[],
+  plan: AlfredStagedPlanSnapshot,
+  defaultCwd: string,
+  defaultWorkspaceId: string,
+): SessionTile[] {
+  const replacements = hydrateStagedPlanSessions(plan, defaultCwd, defaultWorkspaceId);
+  const replacementsById = new Map(replacements.map((session) => [session.id, session]));
+  const existingIds = new Set(sessions.map((session) => session.id));
+  const replacedIds = new Set<string>();
+
+  const nextSessions = sessions.map((session) => {
+    const replacement = replacementsById.get(session.id);
+    if (!replacement || session.stage !== "staged") return session;
+    replacedIds.add(session.id);
+    return replacement;
+  });
+
+  const additions = replacements.filter((session) => !replacedIds.has(session.id) && !existingIds.has(session.id));
+  return additions.length === 0 ? nextSessions : [...nextSessions, ...additions];
+}
+
+function withoutStagedReviewStatus(session: SessionTile): SessionTile {
+  const { stagedReviewStatus: _stagedReviewStatus, ...next } = session;
+  return next;
 }
 
 function ensureWorkspacesForSessions(workspaces: Workspace[], sessions: SessionTile[]): Workspace[] {

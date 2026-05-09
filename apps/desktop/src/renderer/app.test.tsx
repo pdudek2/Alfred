@@ -93,6 +93,7 @@ function installDesktopBridge(
   createWorkspaceFromFolder: ReturnType<typeof vi.fn>;
   setWorkspaceState: ReturnType<typeof vi.fn>;
   setStagedPlan: ReturnType<typeof vi.fn>;
+  updateStagedSession: ReturnType<typeof vi.fn>;
   writeTerminal: ReturnType<typeof vi.fn>;
   emitExit: (event: TerminalExitEvent) => void;
 } {
@@ -103,6 +104,9 @@ function installDesktopBridge(
   const requestPlan = vi.fn().mockResolvedValue(planResponse);
   const resolveStagedPlan = vi.fn().mockResolvedValue({ plan: null });
   const setStagedPlan = vi.fn().mockImplementation((request) => Promise.resolve({ plan: request }));
+  const updateStagedSession = vi.fn().mockImplementation((request) =>
+    Promise.resolve({ ok: false, error: { code: "not_found", message: `No staged session ${request.sessionId}` } }),
+  );
   const getLayouts = vi.fn().mockResolvedValue(layouts);
   const setWorkspaceLayout = vi.fn().mockResolvedValue(layouts);
   const setWorkspaceViewState = vi.fn().mockResolvedValue(layouts);
@@ -159,7 +163,15 @@ function installDesktopBridge(
     write: writeTerminal,
   };
   const bridge: DesktopBridge = {
-    alfred: { clearStagedPlan, getRuntimeStatus, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan },
+    alfred: {
+      clearStagedPlan,
+      getRuntimeStatus,
+      getStagedPlan,
+      requestPlan,
+      resolveStagedPlan,
+      setStagedPlan,
+      updateStagedSession,
+    },
     layout: { getLayouts, setWorkspaceLayout, setWorkspaceViewState },
     terminal,
     workspace: { createWorkspaceFromFolder, getWorkspaceState, openExternalTerminal, revealPath, setWorkspaceState },
@@ -180,6 +192,7 @@ function installDesktopBridge(
     requestPlan,
     resolveStagedPlan,
     setStagedPlan,
+    updateStagedSession,
     createWorkspaceFromFolder,
     getWorkspaceState,
     setWorkspaceState,
@@ -1532,6 +1545,67 @@ describe("App integration", () => {
         }),
       );
     });
+  });
+
+  it("saves staged shell edits through Alfred and replaces the queued tile from the returned plan", async () => {
+    const user = userEvent.setup();
+    const { setStagedPlan, updateStagedSession } = installDesktopBridge({
+      ok: true,
+      plan: {
+        name: "Editable plan",
+        sessions: [{ kind: "shell", title: "Run old command", command: "echo", args: ["old"] }],
+      },
+    });
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText("Alfred prompt"), "stage editable shell");
+    await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
+    const stagedTile = await screen.findByRole("article", { name: /Staged Run old command/i });
+
+    await waitFor(() => {
+      expect(setStagedPlan).toHaveBeenCalled();
+    });
+    const originalPlan = setStagedPlan.mock.calls.at(-1)?.[0] as AlfredStagedPlanSnapshot;
+    const originalSession = originalPlan.sessions[0];
+    if (!originalSession) throw new Error("Expected staged session");
+    updateStagedSession.mockResolvedValueOnce({
+      ok: true,
+      plan: {
+        ...originalPlan,
+        sessions: [
+          {
+            ...originalSession,
+            title: "Run tests",
+            command: "pnpm",
+            args: ["test", "--watch"],
+            cwd: "apps/desktop",
+          },
+        ],
+      },
+    });
+
+    await user.dblClick(stagedTile.querySelector(".tile-header")!);
+    await user.click(screen.getByRole("button", { name: "Edit command" }));
+    fireEvent.change(screen.getByLabelText("Command"), { target: { value: "pnpm" } });
+    fireEvent.change(screen.getByLabelText("Arguments"), { target: { value: "test\n--watch" } });
+    fireEvent.change(screen.getByLabelText("Working directory"), { target: { value: "apps/desktop" } });
+    await user.click(screen.getByRole("button", { name: "Save and re-check" }));
+
+    await waitFor(() => {
+      expect(updateStagedSession).toHaveBeenCalledWith({
+        planId: originalPlan.id,
+        sessionId: "alfred-1",
+        patch: {
+          command: "pnpm",
+          args: ["test", "--watch"],
+          cwd: "apps/desktop",
+        },
+        workspace: expect.objectContaining({ id: "A", label: "Alfred" }),
+      });
+    });
+    expect(await screen.findByRole("article", { name: /Staged Run tests/i })).toHaveTextContent("edited · rechecked");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("pnpm test --watch");
   });
 
   it("hydrates staged Alfred tiles from the desktop runtime", async () => {
