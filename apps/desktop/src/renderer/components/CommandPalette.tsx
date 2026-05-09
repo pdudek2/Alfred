@@ -28,6 +28,7 @@ type CommandPaletteProps = {
   pendingPlan: SquadPlan | null;
   query: string;
   safeStagedCount: number;
+  selectedSessionId: string | null;
   sessions: SessionTile[];
   shortcutModifier: string;
   unsafeStagedCount: number;
@@ -38,10 +39,12 @@ type CommandPaletteProps = {
   onApproveAll: () => void;
   onChangeQuery: (query: string) => void;
   onClose: () => void;
+  onCloseSession: (sessionId: string) => void;
   onFocusSession: (sessionId: string) => void;
   onFocusNextSession: () => void;
   onFocusPreviousSession: () => void;
   onRejectAll: () => void;
+  onRestartSession: (sessionId: string) => void;
   onSelectWorkspace: (workspaceId: string) => void;
   onToggleArrange: () => void;
 };
@@ -53,6 +56,7 @@ export function CommandPalette({
   pendingPlan,
   query,
   safeStagedCount,
+  selectedSessionId,
   sessions,
   shortcutModifier,
   unsafeStagedCount,
@@ -63,10 +67,12 @@ export function CommandPalette({
   onApproveAll,
   onChangeQuery,
   onClose,
+  onCloseSession,
   onFocusSession,
   onFocusNextSession,
   onFocusPreviousSession,
   onRejectAll,
+  onRestartSession,
   onSelectWorkspace,
   onToggleArrange,
 }: CommandPaletteProps) {
@@ -86,6 +92,8 @@ export function CommandPalette({
     run();
     onClose();
   }, [onClose]);
+  const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? sessions[0] ?? null;
+  const selectedRestartable = selectedSession ? isRestartableSession(selectedSession) : false;
 
   const commands: CommandPaletteItem[] = useMemo(
     () => [
@@ -118,6 +126,30 @@ export function CommandPalette({
         detail: `${sessionStatusLabel(session)} · ${shortenPath(session.cwd || "default workspace")}`,
         run: () => onFocusSession(session.id),
       })),
+      {
+        id: "close-selected-session",
+        label: "Close focused session",
+        detail: selectedSession
+          ? `${shortcutModifier} W · ${selectedSession.title}`
+          : "No focused session",
+        disabled: !selectedSession,
+        run: () => {
+          if (selectedSession) onCloseSession(selectedSession.id);
+        },
+      },
+      {
+        id: "restart-selected-session",
+        label: "Restart focused session",
+        detail: selectedSession
+          ? selectedRestartable
+            ? selectedSession.title
+            : "Available after a session exits or errors"
+          : "No focused session",
+        disabled: !selectedSession || !selectedRestartable,
+        run: () => {
+          if (selectedSession && selectedRestartable) onRestartSession(selectedSession.id);
+        },
+      },
       {
         id: "next-session",
         label: "Next session",
@@ -181,14 +213,18 @@ export function CommandPalette({
       onAddWorkspace,
       onApplyWorkMode,
       onApproveAll,
+      onCloseSession,
       onFocusSession,
       onFocusNextSession,
       onFocusPreviousSession,
       onRejectAll,
+      onRestartSession,
       onSelectWorkspace,
       onToggleArrange,
       pendingPlan,
       safeStagedCount,
+      selectedRestartable,
+      selectedSession,
       sessions,
       shortcutModifier,
       unsafeStagedCount,
@@ -293,6 +329,11 @@ function shortenPath(value: string): string {
 
 function sessionStatusLabel(session: SessionTile): string {
   return terminalSessionDisplayStatus(session).label;
+}
+
+function isRestartableSession(session: SessionTile): boolean {
+  const status = terminalSessionDisplayStatus(session);
+  return status.kind === "done" || status.kind === "error";
 }
 
 function filterCommands(commands: CommandPaletteItem[], normalizedQuery: string): CommandPaletteItem[] {
