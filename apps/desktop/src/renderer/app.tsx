@@ -336,11 +336,9 @@ export function App() {
   }, []);
 
   const handleContinueRestoredSession = useCallback((sessionId: string) => {
-    const terminalApi = getDesktopTerminalApi();
     setTerminalSessions((sessions) => {
       const session = sessions.find((item) => item.id === sessionId);
       if (!session || session.runtimeStatus !== "restored") return sessions;
-      terminalApi?.forget({ clientId: session.id });
       return appendSessionActivity(relaunchRestoredSession(sessions, sessionId), sessionId, {
         kind: "lifecycle",
         title: "Relaunching session",
@@ -350,11 +348,9 @@ export function App() {
   }, []);
 
   const handleRestartSession = useCallback((sessionId: string) => {
-    const terminalApi = getDesktopTerminalApi();
     setTerminalSessions((sessions) => {
       const session = sessions.find((item) => item.id === sessionId);
       if (!session || (session.runtimeStatus !== "exited" && session.runtimeStatus !== "error")) return sessions;
-      terminalApi?.forget({ clientId: session.id });
       return appendSessionActivity(restartSession(sessions, sessionId), sessionId, {
         kind: "lifecycle",
         title: "Restarting session",

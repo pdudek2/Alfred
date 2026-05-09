@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
-import { render, screen, within } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { act, render, screen, within } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
 import { AgentTimelinePanel } from "./AgentTimelinePanel";
 import type { SessionTile } from "../session-state";
 
@@ -81,9 +81,10 @@ describe("AgentTimelinePanel", () => {
       activityEvents: [
         { id: "activity-1", kind: "command", title: "Ran command", detail: "pnpm test", at: 100 },
         { id: "activity-2", kind: "file", title: "Edit file", detail: "app.tsx", at: 110 },
-        { id: "activity-3", kind: "plan", title: "Plan updated", detail: "next step", at: 120 },
-        { id: "activity-4", kind: "approval", title: "Waiting for approval", detail: "Proceed?", at: 130 },
-        { id: "activity-5", kind: "error", title: "Error reported", detail: "build failed", at: 140 },
+        { id: "activity-3", kind: "tool", title: "WebSearch tool", detail: "docs", at: 120 },
+        { id: "activity-4", kind: "plan", title: "Plan updated", detail: "next step", at: 130 },
+        { id: "activity-5", kind: "approval", title: "Waiting for approval", detail: "Proceed?", at: 140 },
+        { id: "activity-6", kind: "error", title: "Error reported", detail: "build failed", at: 150 },
       ],
     };
 
@@ -94,9 +95,39 @@ describe("AgentTimelinePanel", () => {
     if (!digest) throw new Error("Activity digest not rendered");
     expect(within(digest).getByText("command")).toBeInTheDocument();
     expect(within(digest).getByText("file")).toBeInTheDocument();
+    expect(within(digest).getByText("tool")).toBeInTheDocument();
     expect(within(digest).getByText("plan")).toBeInTheDocument();
     expect(within(digest).getByText("ask")).toBeInTheDocument();
     expect(within(digest).getByText("issue")).toBeInTheDocument();
+  });
+
+  it("keeps the focused session age moving while the panel stays open", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — long task",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/tmp",
+      source: "alfred",
+      runtimeId: "runtime-1",
+      createdAt: new Date("2026-05-09T11:50:00Z").getTime(),
+    };
+
+    try {
+      render(<AgentTimelinePanel session={session} />);
+      expect(screen.getByText("10m")).toBeInTheDocument();
+
+      await act(async () => {
+        vi.setSystemTime(new Date("2026-05-09T12:12:00Z"));
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+
+      expect(screen.getByText("22m")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("surfaces safety notes for staged sessions", () => {
