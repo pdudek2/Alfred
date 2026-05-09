@@ -30,6 +30,76 @@ describe("workspace-store", () => {
     });
   });
 
+  it("binds the default workspace to a configured root path when first read", async () => {
+    const filePath = await temporaryStateFile();
+    const store = createWorkspaceStore({
+      filePath,
+      defaultRootPath: "/Users/patryk/Desktop/Alfred",
+      resolveGitBranch: async () => "main",
+    });
+    const expected: WorkspaceStateSnapshot = {
+      workspaces: [
+        {
+          ...DEFAULT_WORKSPACE,
+          rootPath: "/Users/patryk/Desktop/Alfred",
+          gitBranch: "main",
+        },
+      ],
+      activeWorkspaceId: DEFAULT_WORKSPACE.id,
+    };
+
+    await expect(store.getWorkspaceState()).resolves.toEqual(expected);
+    await expect(createWorkspaceStore({ filePath, resolveGitBranch: async () => "main" }).getWorkspaceState()).resolves.toEqual(
+      expected,
+    );
+  });
+
+  it("binds the default workspace even when no git branch can be resolved", async () => {
+    const filePath = await temporaryStateFile();
+    const store = createWorkspaceStore({
+      filePath,
+      defaultRootPath: "/Users/patryk/Desktop/PlainFolder",
+      resolveGitBranch: async () => undefined,
+    });
+
+    await expect(store.getWorkspaceState()).resolves.toEqual({
+      workspaces: [
+        {
+          ...DEFAULT_WORKSPACE,
+          rootPath: "/Users/patryk/Desktop/PlainFolder",
+        },
+      ],
+      activeWorkspaceId: DEFAULT_WORKSPACE.id,
+    });
+  });
+
+  it("does not overwrite a default workspace root path that already exists", async () => {
+    const filePath = await temporaryStateFile();
+    const persistedStateStore = createPersistedDesktopStateStore({ filePath });
+    await persistedStateStore.setState({
+      ...DEFAULT_DESKTOP_STATE,
+      workspaces: [{ ...DEFAULT_WORKSPACE, rootPath: "/Users/patryk/Desktop/Existing" }],
+      activeWorkspaceId: DEFAULT_WORKSPACE.id,
+      layoutsByWorkspace: {},
+    });
+    const store = createWorkspaceStore({
+      persistedStateStore,
+      defaultRootPath: "/Users/patryk/Desktop/Alfred",
+      resolveGitBranch: async () => "main",
+    });
+
+    await expect(store.getWorkspaceState()).resolves.toEqual({
+      workspaces: [
+        {
+          ...DEFAULT_WORKSPACE,
+          rootPath: "/Users/patryk/Desktop/Existing",
+          gitBranch: "main",
+        },
+      ],
+      activeWorkspaceId: DEFAULT_WORKSPACE.id,
+    });
+  });
+
   it("persists workspace list and active workspace id", async () => {
     const filePath = await temporaryStateFile();
     const state: WorkspaceStateSnapshot = {

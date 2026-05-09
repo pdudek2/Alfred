@@ -16,6 +16,7 @@ import { createPersistedDesktopStateStore, type PersistedDesktopStateStore } fro
 import { configureStagedPlanPersistence } from "./staged-plan-store.js";
 import { registerWorkspaceIpc } from "./workspace-ipc.js";
 import { createWorkspaceStore } from "./workspace-store.js";
+import { resolveDefaultWorkspaceRootPath } from "./default-workspace-root.js";
 import {
   attachWindowStatePersistence,
   restoreWindowPresentation,
@@ -102,7 +103,13 @@ app.whenReady().then(async () => {
   configureLayoutPersistence(persistedDesktopStateStore);
   configureStagedPlanPersistence(persistedDesktopStateStore);
   configureTerminalPersistence(persistedDesktopStateStore);
-  registerWorkspaceIpc(createWorkspaceStore({ persistedStateStore: persistedDesktopStateStore }));
+  const defaultWorkspaceRootPath = resolveDefaultWorkspaceRootPath(app.getAppPath());
+  registerWorkspaceIpc(
+    createWorkspaceStore({
+      persistedStateStore: persistedDesktopStateStore,
+      defaultRootPath: defaultWorkspaceRootPath,
+    }),
+  );
   await createWindow(persistedDesktopStateStore);
 
   app.on("activate", () => {
