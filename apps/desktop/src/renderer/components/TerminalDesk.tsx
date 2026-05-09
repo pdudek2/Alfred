@@ -10,7 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { SquadPlan } from "../alfred-state";
-import { getDesktopTerminalApi } from "../desktop-api";
+import { getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
 import type { LayoutPreset, TileLayout } from "../layout-state";
 import type { SessionTile } from "../session-state";
 import { StagedTilePreview } from "../staged-tile";
@@ -140,6 +140,18 @@ export function TerminalDesk({
   const handleSelectSession = useCallback((sessionId: string) => onSelectSession(sessionId), [onSelectSession]);
   const handleSendSessionInput = useCallback((runtimeId: TerminalSessionId, data: string) => {
     getDesktopTerminalApi()?.write({ id: runtimeId, data });
+  }, []);
+  const handleCopyActivityText = useCallback(async (value: string) => {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error("Clipboard is unavailable.");
+    }
+    await navigator.clipboard.writeText(value);
+  }, []);
+  const handleRevealActivityFile = useCallback(async (filePath: string, cwd: string) => {
+    const result = await getDesktopWorkspaceApi()?.revealPath({ cwd, path: filePath });
+    if (!result?.ok) {
+      throw new Error(result?.error ?? "Workspace runtime is unavailable.");
+    }
   }, []);
   const startPointerArrange = useCallback(
     (tileId: string, mode: ArrangePointerMode, event: ReactPointerEvent<HTMLElement>) => {
@@ -363,7 +375,12 @@ export function TerminalDesk({
           </div>
         </div>
         {workMode === "focus" && (
-          <AgentTimelinePanel session={focusSession} onSendInput={handleSendSessionInput} />
+          <AgentTimelinePanel
+            session={focusSession}
+            onCopyActivityText={handleCopyActivityText}
+            onRevealActivityFile={handleRevealActivityFile}
+            onSendInput={handleSendSessionInput}
+          />
         )}
       </div>
     </section>

@@ -119,10 +119,97 @@ describe("AgentTimelinePanel", () => {
     const objects = Array.from(container.querySelectorAll(".agent-activity-object"));
 
     expect(objects).toHaveLength(4);
-    expect(objects.some((object) => object.textContent === "commandpnpm test")).toBe(true);
-    expect(objects.some((object) => object.textContent === "editedapps/desktop/src/renderer/app.tsx")).toBe(true);
-    expect(objects.some((object) => object.textContent === "WebSearchAlfred terminal UX")).toBe(true);
-    expect(objects.some((object) => object.textContent === "approvalAllow edit in app.tsx?")).toBe(true);
+    expect(objects.some((object) => object.textContent?.includes("commandpnpm test"))).toBe(true);
+    expect(objects.some((object) => object.textContent?.includes("editedapps/desktop/src/renderer/app.tsx"))).toBe(true);
+    expect(objects.some((object) => object.textContent?.includes("WebSearchAlfred terminal UX"))).toBe(true);
+    expect(objects.some((object) => object.textContent?.includes("approvalAllow edit in app.tsx?"))).toBe(true);
+  });
+
+  it("reveals file payloads and copies text payloads from the activity object", async () => {
+    const user = userEvent.setup();
+    const onCopyActivityText = vi.fn();
+    const onRevealActivityFile = vi.fn();
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — activity",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/repo",
+      source: "alfred",
+      runtimeId: "runtime-1",
+      activityEvents: [
+        {
+          id: "activity-1",
+          kind: "command",
+          title: "Ran command",
+          detail: '"pnpm test"',
+          at: 100,
+          payload: { type: "command", command: "pnpm test" },
+        },
+        {
+          id: "activity-2",
+          kind: "file",
+          title: "Edit file",
+          detail: "apps/desktop/src/renderer/app.tsx",
+          at: 110,
+          payload: { type: "file", operation: "edited", path: "apps/desktop/src/renderer/app.tsx" },
+        },
+      ],
+    };
+
+    const { container } = render(
+      <AgentTimelinePanel
+        session={session}
+        onCopyActivityText={onCopyActivityText}
+        onRevealActivityFile={onRevealActivityFile}
+      />,
+    );
+    const panel = within(container);
+
+    await user.click(
+      panel.getByRole("button", { name: "Reveal edited: apps/desktop/src/renderer/app.tsx" }),
+    );
+    await user.click(panel.getByRole("button", { name: "Copy command: pnpm test" }));
+
+    expect(onRevealActivityFile).toHaveBeenCalledWith("apps/desktop/src/renderer/app.tsx", "/repo");
+    expect(onCopyActivityText).toHaveBeenCalledWith("pnpm test");
+  });
+
+  it("marks payload copy actions as missing when the clipboard handler fails", async () => {
+    const user = userEvent.setup();
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — activity",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/repo",
+      source: "alfred",
+      runtimeId: "runtime-1",
+      activityEvents: [
+        {
+          id: "activity-1",
+          kind: "command",
+          title: "Ran command",
+          detail: '"pnpm test"',
+          at: 100,
+          payload: { type: "command", command: "pnpm test" },
+        },
+      ],
+    };
+
+    const { container } = render(
+      <AgentTimelinePanel
+        session={session}
+        onCopyActivityText={() => {
+          throw new Error("Clipboard is unavailable.");
+        }}
+      />,
+    );
+    const panel = within(container);
+
+    await user.click(panel.getByRole("button", { name: "Copy command: pnpm test" }));
+
+    expect(panel.getByRole("button", { name: "Copy command: pnpm test" })).toHaveTextContent("missing");
   });
 
   it("summarizes structured activity as a compact digest", () => {

@@ -5,16 +5,25 @@ import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 
 type AgentTimelinePanelProps = {
+  onCopyActivityText?: (value: string) => Promise<void> | void;
+  onRevealActivityFile?: (filePath: string, cwd: string) => Promise<void> | void;
   onSendInput?: (runtimeId: string, data: string) => void;
   session: SessionTile | null;
 };
 
-export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelProps) {
+export function AgentTimelinePanel({
+  onCopyActivityText,
+  onRevealActivityFile,
+  onSendInput,
+  session,
+}: AgentTimelinePanelProps) {
   const ageClock = useSessionAgeClock(session?.createdAt);
   const [inputDraft, setInputDraft] = useState("");
+  const [payloadActionState, setPayloadActionState] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setInputDraft("");
+    setPayloadActionState({});
   }, [session?.id]);
 
   if (!session) {
@@ -57,6 +66,36 @@ export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelP
     if (!value || !session.runtimeId || !onSendInput) return;
     onSendInput(session.runtimeId, `${value}\n`);
     setInputDraft("");
+  };
+  const handlePayloadAction = async (event: SessionActivityEvent, payload: ActivityPayloadView) => {
+    const pendingLabel = payload.action === "reveal" ? "opening" : "copying";
+    setPayloadActionState((current) => ({ ...current, [event.id]: pendingLabel }));
+    try {
+      if (payload.action === "reveal") {
+        if (!onRevealActivityFile) {
+          throw new Error("Reveal action is unavailable.");
+        }
+        await onRevealActivityFile(payload.value, session.cwd);
+        setPayloadActionState((current) => ({ ...current, [event.id]: "revealed" }));
+      } else {
+        if (onCopyActivityText) {
+          await onCopyActivityText(payload.value);
+        } else {
+          await navigator.clipboard?.writeText(payload.value);
+        }
+        setPayloadActionState((current) => ({ ...current, [event.id]: "copied" }));
+      }
+    } catch {
+      setPayloadActionState((current) => ({ ...current, [event.id]: "missing" }));
+    }
+
+    window.setTimeout(() => {
+      setPayloadActionState((current) => {
+        const next = { ...current };
+        delete next[event.id];
+        return next;
+      });
+    }, 1600);
   };
   const displayedEvents: SessionActivityEvent[] =
     activityEvents.length > 0
@@ -188,6 +227,16 @@ export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelP
                     <div className={`agent-activity-object type-${payload.type}`}>
                       <span>{payload.label}</span>
                       <code>{payload.value}</code>
+                      <button
+                        type="button"
+                        onClick={() => void handlePayloadAction(event, payload)}
+                        disabled={
+                          payloadActionState[event.id] === "opening" || payloadActionState[event.id] === "copying"
+                        }
+                        aria-label={`${payload.actionLabel} ${payload.label}: ${payload.value}`}
+                      >
+                        {payloadActionState[event.id] ?? payload.actionLabel}
+                      </button>
                     </div>
                   )}
                   {event.at > 0 && (
@@ -216,6 +265,8 @@ type ActivityDigestTone = "ask" | "issue" | "plan" | "work";
 type SessionPulseTone = "ask" | "issue" | "recovery" | "signal" | "work";
 
 type ActivityPayloadView = {
+  action: "copy" | "reveal";
+  actionLabel: string;
   label: string;
   type: string;
   value: string;
@@ -260,19 +311,19 @@ function activityPayloadView(
 
   switch (payload.type) {
     case "command":
-      return { label: "command", type: "command", value: payload.command };
+      return { action: "copy", actionLabel: "Copy", label: "command", type: "command", value: payload.command };
     case "file":
-      return { label: payload.operation, type: "file", value: payload.path };
+      return { action: "reveal", actionLabel: "Reveal", label: payload.operation, type: "file", value: payload.path };
     case "tool":
-      return { label: payload.name, type: "tool", value: payload.input };
+      return { action: "copy", actionLabel: "Copy", label: payload.name, type: "tool", value: payload.input };
     case "plan":
-      return { label: "plan", type: "plan", value: payload.summary };
+      return { action: "copy", actionLabel: "Copy", label: "plan", type: "plan", value: payload.summary };
     case "approval":
-      return { label: "approval", type: "approval", value: payload.prompt };
+      return { action: "copy", actionLabel: "Copy", label: "approval", type: "approval", value: payload.prompt };
     case "error":
-      return { label: "error", type: "error", value: payload.message };
+      return { action: "copy", actionLabel: "Copy", label: "error", type: "error", value: payload.message };
     case "warning":
-      return { label: "warning", type: "warning", value: payload.message };
+      return { action: "copy", actionLabel: "Copy", label: "warning", type: "warning", value: payload.message };
     default:
       return null;
   }

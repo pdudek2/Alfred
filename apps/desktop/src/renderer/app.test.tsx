@@ -83,6 +83,7 @@ function installDesktopBridge(
   getStagedPlan: ReturnType<typeof vi.fn>;
   getRuntimeStatus: ReturnType<typeof vi.fn>;
   killTerminal: ReturnType<typeof vi.fn>;
+  revealPath: ReturnType<typeof vi.fn>;
   requestPlan: ReturnType<typeof vi.fn>;
   resolveStagedPlan: ReturnType<typeof vi.fn>;
   setWorkspaceLayout: ReturnType<typeof vi.fn>;
@@ -106,6 +107,7 @@ function installDesktopBridge(
   const setWorkspaceViewState = vi.fn().mockResolvedValue(layouts);
   const getWorkspaceState = vi.fn().mockResolvedValue(workspaceState);
   const setWorkspaceState = vi.fn().mockImplementation((request) => Promise.resolve(request));
+  const revealPath = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/patryk/Desktop/Alfred/app.tsx" });
   const createWorkspaceFromFolder = vi.fn().mockImplementation(() =>
     Promise.resolve({
       workspaces: [
@@ -149,7 +151,7 @@ function installDesktopBridge(
     alfred: { clearStagedPlan, getRuntimeStatus, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan },
     layout: { getLayouts, setWorkspaceLayout, setWorkspaceViewState },
     terminal,
-    workspace: { createWorkspaceFromFolder, getWorkspaceState, setWorkspaceState },
+    workspace: { createWorkspaceFromFolder, getWorkspaceState, revealPath, setWorkspaceState },
     version: "test",
   };
 
@@ -162,6 +164,7 @@ function installDesktopBridge(
     getRuntimeStatus,
     getStagedPlan,
     killTerminal,
+    revealPath,
     requestPlan,
     resolveStagedPlan,
     setStagedPlan,
@@ -1071,6 +1074,48 @@ describe("App integration", () => {
     await userEvent.click(screen.getByRole("button", { name: "Send yes" }));
 
     expect(writeTerminal).toHaveBeenCalledWith({ id: "runtime-a", data: "y\n" });
+  });
+
+  it("reveals file activity from the focused activity panel", async () => {
+    const user = userEvent.setup();
+    const { revealPath } = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "codex-a",
+        title: "Codex · session 1",
+        source: "manual",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "codex",
+        command: "codex",
+        args: [],
+        buffer: "",
+        activityEvents: [
+          {
+            id: "codex-a-file-1",
+            kind: "file",
+            title: "Edit file",
+            detail: "apps/desktop/src/renderer/app.tsx",
+            at: 100,
+            payload: { type: "file", operation: "edited", path: "apps/desktop/src/renderer/app.tsx" },
+          },
+        ],
+      },
+    ]);
+
+    render(<App />);
+
+    const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
+    fireEvent.click(tile.querySelector(".tile-header")!);
+    await user.click(
+      screen.getByRole("button", { name: "Reveal edited: apps/desktop/src/renderer/app.tsx" }),
+    );
+
+    expect(revealPath).toHaveBeenCalledWith({
+      cwd: "/Users/patryk/Desktop/Alfred",
+      path: "apps/desktop/src/renderer/app.tsx",
+    });
   });
 
   it("hydrates saved workspace layouts from the desktop runtime", async () => {
