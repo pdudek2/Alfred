@@ -43,7 +43,7 @@ export function workspaceAttention(sessions: SessionTile[], now = Date.now()): W
     best = {
       session,
       status,
-      detail: attentionDetail(status.kind),
+      detail: attentionDetailForSession(session, status.kind),
     };
   }
 
@@ -69,7 +69,7 @@ export function workspaceReviewQueue(
         priority,
         session,
         status,
-        detail: attentionDetail(status.kind),
+        detail: attentionDetailForSession(session, status.kind),
         workspaceId: session.workspaceId,
         workspaceLabel: workspace?.label ?? session.workspaceId,
         workspaceShortLabel: workspace?.shortLabel ?? session.workspaceId,
@@ -106,4 +106,62 @@ function attentionDetail(kind: SessionDisplayStatus["kind"]): string {
     default:
       return "needs review";
   }
+}
+
+function attentionDetailForSession(session: SessionTile, kind: SessionDisplayStatus["kind"]): string {
+  if (kind === "waiting") {
+    const approval = latestActivityOfKind(session, "approval");
+    return (
+      truncateReason(approval?.payload?.type === "approval" ? approval.payload.prompt : approval?.detail) ??
+      attentionDetail(kind)
+    );
+  }
+
+  if (kind === "error") {
+    const error = latestActivityOfKind(session, "error");
+    return (
+      truncateReason(error?.payload?.type === "error" ? error.payload.message : error?.detail) ??
+      attentionDetail(kind)
+    );
+  }
+
+  if (kind === "blocked") {
+    return truncateReason(session.safetyNote ?? commandLabel(session)) ?? attentionDetail(kind);
+  }
+
+  if (kind === "staged") {
+    return truncateReason(commandLabel(session)) ?? attentionDetail(kind);
+  }
+
+  if (kind === "restored") {
+    const latest = session.activityEvents?.at(-1);
+    return truncateReason(latest ? `${latest.title}: ${latest.detail}` : undefined) ?? attentionDetail(kind);
+  }
+
+  return attentionDetail(kind);
+}
+
+function latestActivityOfKind(
+  session: SessionTile,
+  kind: NonNullable<SessionTile["activityEvents"]>[number]["kind"],
+): NonNullable<SessionTile["activityEvents"]>[number] | null {
+  const events = session.activityEvents ?? [];
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (event?.kind === kind) return event;
+  }
+
+  return null;
+}
+
+function commandLabel(session: SessionTile): string | undefined {
+  const command = session.command?.trim();
+  if (!command) return undefined;
+  return [command, ...(session.args ?? [])].join(" ");
+}
+
+function truncateReason(value: string | undefined): string | null {
+  if (!value?.trim()) return null;
+  const normalized = value.trim();
+  return normalized.length > 96 ? `${normalized.slice(0, 93)}...` : normalized;
 }

@@ -3434,6 +3434,51 @@ body.arranging-pointer {
   line-height: 1.45;
 }
 
+.agent-activity-object {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: min(100%, 520px);
+  margin-top: 7px;
+  border: 1px solid color-mix(in oklab, currentColor 18%, transparent);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: color-mix(in oklab, currentColor 6%, transparent);
+  color: var(--accent);
+}
+
+.agent-activity-object span {
+  color: currentColor;
+  font: 700 10px var(--mono);
+  text-transform: uppercase;
+}
+
+.agent-activity-object code {
+  min-width: 0;
+  color: var(--ink);
+  font: 600 11px var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.agent-activity-object.type-approval,
+.agent-activity-object.type-plan {
+  color: var(--brass);
+}
+
+.agent-activity-object.type-command,
+.agent-activity-object.type-file {
+  color: var(--green);
+}
+
+.agent-activity-object.type-error {
+  color: var(--coral);
+}
+
+.agent-activity-object.type-warning {
+  color: #d2a45d;
+}
+
 .agent-activity-list time {
   display: block;
   margin-top: 5px;

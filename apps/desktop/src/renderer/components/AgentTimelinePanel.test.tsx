@@ -70,6 +70,61 @@ describe("AgentTimelinePanel", () => {
     expect(container).not.toHaveTextContent("Terminal output is streaming in the workspace.");
   });
 
+  it("renders structured activity payloads as inspectable objects", () => {
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — activity",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/tmp",
+      source: "alfred",
+      runtimeId: "runtime-1",
+      activityEvents: [
+        {
+          id: "activity-1",
+          kind: "command",
+          title: "Ran command",
+          detail: '"pnpm test"',
+          at: 100,
+          payload: { type: "command", command: "pnpm test" },
+        },
+        {
+          id: "activity-2",
+          kind: "file",
+          title: "Edit file",
+          detail: "apps/desktop/src/renderer/app.tsx",
+          at: 110,
+          payload: { type: "file", operation: "edited", path: "apps/desktop/src/renderer/app.tsx" },
+        },
+        {
+          id: "activity-3",
+          kind: "tool",
+          title: "WebSearch tool",
+          detail: "Alfred terminal UX",
+          at: 120,
+          payload: { type: "tool", name: "WebSearch", input: "Alfred terminal UX" },
+        },
+        {
+          id: "activity-4",
+          kind: "approval",
+          title: "Waiting for approval",
+          detail: "Allow edit?",
+          at: 130,
+          payload: { type: "approval", prompt: "Allow edit in app.tsx?" },
+        },
+      ],
+    };
+
+    const { container } = render(<AgentTimelinePanel session={session} />);
+    const objects = Array.from(container.querySelectorAll(".agent-activity-object"));
+
+    expect(objects).toHaveLength(4);
+    expect(objects.some((object) => object.textContent === "commandpnpm test")).toBe(true);
+    expect(objects.some((object) => object.textContent === "editedapps/desktop/src/renderer/app.tsx")).toBe(true);
+    expect(objects.some((object) => object.textContent === "WebSearchAlfred terminal UX")).toBe(true);
+    expect(objects.some((object) => object.textContent === "approvalAllow edit in app.tsx?")).toBe(true);
+  });
+
   it("summarizes structured activity as a compact digest", () => {
     const session: SessionTile = {
       id: "s1",

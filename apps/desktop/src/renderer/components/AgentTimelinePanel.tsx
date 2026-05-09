@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { SessionTile } from "../session-state";
+import type { SessionActivityEvent, SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
@@ -58,7 +58,7 @@ export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelP
     onSendInput(session.runtimeId, `${value}\n`);
     setInputDraft("");
   };
-  const displayedEvents =
+  const displayedEvents: SessionActivityEvent[] =
     activityEvents.length > 0
       ? [...activityEvents].sort((a, b) => b.at - a.at)
       : [
@@ -176,16 +176,27 @@ export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelP
           </form>
         )}
         <ol className="agent-activity-list">
-          {displayedEvents.map((event) => (
-            <li className={event.kind} key={event.id}>
-              <span />
-              <div>
-                <b>{event.title}</b>
-                <p>{event.detail}</p>
-                {event.at > 0 && <time dateTime={new Date(event.at).toISOString()}>{formatActivityTime(event.at)}</time>}
-              </div>
-            </li>
-          ))}
+          {displayedEvents.map((event) => {
+            const payload = activityPayloadView(event);
+            return (
+              <li className={event.kind} key={event.id}>
+                <span />
+                <div>
+                  <b>{event.title}</b>
+                  <p>{event.detail}</p>
+                  {payload && (
+                    <div className={`agent-activity-object type-${payload.type}`}>
+                      <span>{payload.label}</span>
+                      <code>{payload.value}</code>
+                    </div>
+                  )}
+                  {event.at > 0 && (
+                    <time dateTime={new Date(event.at).toISOString()}>{formatActivityTime(event.at)}</time>
+                  )}
+                </div>
+              </li>
+            );
+          })}
           {session.safetyNote && (
             <li className="warning">
               <span />
@@ -203,6 +214,12 @@ export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelP
 
 type ActivityDigestTone = "ask" | "issue" | "plan" | "work";
 type SessionPulseTone = "ask" | "issue" | "recovery" | "signal" | "work";
+
+type ActivityPayloadView = {
+  label: string;
+  type: string;
+  value: string;
+};
 
 type SessionPulseCard = {
   at: number;
@@ -233,6 +250,32 @@ function countedLabel(count: number, singular: string): string {
   if (count === 1) return singular;
   if (singular === "ask") return "asks";
   return `${singular}s`;
+}
+
+function activityPayloadView(
+  event: NonNullable<SessionTile["activityEvents"]>[number],
+): ActivityPayloadView | null {
+  const payload = event.payload;
+  if (!payload) return null;
+
+  switch (payload.type) {
+    case "command":
+      return { label: "command", type: "command", value: payload.command };
+    case "file":
+      return { label: payload.operation, type: "file", value: payload.path };
+    case "tool":
+      return { label: payload.name, type: "tool", value: payload.input };
+    case "plan":
+      return { label: "plan", type: "plan", value: payload.summary };
+    case "approval":
+      return { label: "approval", type: "approval", value: payload.prompt };
+    case "error":
+      return { label: "error", type: "error", value: payload.message };
+    case "warning":
+      return { label: "warning", type: "warning", value: payload.message };
+    default:
+      return null;
+  }
 }
 
 function useSessionAgeClock(createdAt: number | undefined): number {
