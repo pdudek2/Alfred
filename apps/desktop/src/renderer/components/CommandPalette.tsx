@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { SquadPlan } from "../alfred-state";
 import type { SessionTile } from "../session-state";
+import { terminalSessionDisplayStatus } from "../session-status";
 import type { WorkMode } from "../terminal-desk-types";
 import type { WorkspaceRailWorkspace } from "./WorkspaceRail";
 
@@ -291,20 +292,7 @@ function shortenPath(value: string): string {
 }
 
 function sessionStatusLabel(session: SessionTile): string {
-  if (session.stage === "staged") return session.safetyNote ? "needs review" : "staged";
-  switch (session.runtimeStatus) {
-    case "error":
-      return "error";
-    case "exited":
-      return "exited";
-    case "restored":
-      return "restored";
-    case "starting":
-      return "starting";
-    case "live":
-    default:
-      return "live";
-  }
+  return terminalSessionDisplayStatus(session).label;
 }
 
 function filterCommands(commands: CommandPaletteItem[], normalizedQuery: string): CommandPaletteItem[] {
