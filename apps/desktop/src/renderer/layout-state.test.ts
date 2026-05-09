@@ -114,4 +114,24 @@ describe("layout-state", () => {
       rowSpan: 6,
     });
   });
+
+  it("puts the selected session first in focus layouts", () => {
+    const sessions = [{ id: "one" }, { id: "two" }, { id: "three" }];
+    const layout = applyLayoutPreset(sessions, "focus", "three");
+
+    expect(layout.three).toEqual({
+      tileId: "three",
+      col: 1,
+      row: 1,
+      colSpan: 12,
+      rowSpan: 8,
+    });
+    expect(layout.one).toEqual({
+      tileId: "one",
+      col: 1,
+      row: 9,
+      colSpan: 12,
+      rowSpan: 8,
+    });
+  });
 });

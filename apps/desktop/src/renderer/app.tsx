@@ -150,7 +150,7 @@ export function App() {
   const handleApplyLayoutPreset = useCallback((preset: LayoutPreset) => {
     const layoutApi = getDesktopLayoutApi();
     setTileLayoutsByWorkspace((current) => {
-      const workspaceLayouts = applyLayoutPreset(activeSessions, preset);
+      const workspaceLayouts = applyLayoutPreset(activeSessions, preset, activeSelectedSessionId);
       void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
       return {
         ...current,

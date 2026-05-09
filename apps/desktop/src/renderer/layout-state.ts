@@ -75,11 +75,15 @@ export function resizeTileLayout(
   };
 }
 
-export function applyLayoutPreset(sessions: LayoutSession[], preset: LayoutPreset): Record<string, TileLayout> {
+export function applyLayoutPreset(
+  sessions: LayoutSession[],
+  preset: LayoutPreset,
+  selectedSessionId?: string | null,
+): Record<string, TileLayout> {
   switch (preset) {
     case "focus":
       return Object.fromEntries(
-        sessions.map((session, index) => [
+        focusOrderedSessions(sessions, selectedSessionId).map((session, index) => [
           session.id,
           normalizeLayout({
             tileId: session.id,
@@ -108,6 +112,13 @@ export function applyLayoutPreset(sessions: LayoutSession[], preset: LayoutPrese
         sessions.map((session, index) => [session.id, defaultLayout(session.id, index, sessions.length)]),
       );
   }
+}
+
+function focusOrderedSessions(sessions: LayoutSession[], selectedSessionId?: string | null): LayoutSession[] {
+  if (!selectedSessionId) return sessions;
+  const selected = sessions.find((session) => session.id === selectedSessionId);
+  if (!selected) return sessions;
+  return [selected, ...sessions.filter((session) => session.id !== selectedSessionId)];
 }
 
 function defaultLayout(tileId: string, index: number, tileCount: number): TileLayout {
