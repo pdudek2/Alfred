@@ -240,6 +240,39 @@ describe("terminal-manager IPC", () => {
     ]);
   });
 
+  it("records a stopped-on-quit event before killing app-scoped sessions", async () => {
+    let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+    };
+    const pty = new FakePty();
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+
+    await invoke<{ id: string }>(terminalChannels.create, {
+      clientId: "manual-1",
+      command: "node",
+      cols: 80,
+      rows: 24,
+      title: "Manual terminal",
+    });
+    killAllTerminalSessions();
+    await flushTerminalPersistence();
+
+    expect(pty.killed).toBe(true);
+    expect(state.restoredTerminalSessions[0]?.activityEvents).toEqual([
+      expect.objectContaining({
+        kind: "lifecycle",
+        title: "Stopped on quit",
+        detail: "Alfred stopped this terminal while quitting.",
+      }),
+    ]);
+  });
+
   it("creates a terminal session, streams data to the attached window, and rehydrates from list", async () => {
     const pty = new FakePty();
     const nodePty = fakeNodePty(pty);
