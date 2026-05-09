@@ -70,6 +70,19 @@ export function classifyTerminalOutputActivity(data: string): SessionActivityInp
     };
   }
 
+  const approvalLine = lines.find(
+    (line) =>
+      /\b(do you want|approve|approval required|requires approval|permission|allow|waiting on you)\b/i.test(line) ||
+      /\b(proceed|continue)\?/i.test(line),
+  );
+  if (approvalLine) {
+    return {
+      kind: "approval",
+      title: "Waiting for approval",
+      detail: truncateActivityDetail(approvalLine),
+    };
+  }
+
   const fileLine = lines.find((line) => /\b(created|deleted|modified|updated|renamed|wrote|written)\b/i.test(line));
   if (fileLine) {
     return {

@@ -68,6 +68,7 @@ describe("persisted-desktop-state", () => {
           shell: "/bin/zsh",
           buffer: "ready\n",
           lastActivityAt: 123,
+          lastOutputAt: 124,
           activityEvents: [
             {
               id: "manual-1-activity-123-1",

@@ -46,6 +46,7 @@ type TerminalSession = {
   buffer: string;
   activityEvents?: SessionActivityEvent[];
   lastActivityAt?: number;
+  lastOutputAt?: number;
   pty: PtyProcess;
   // PTY lifetime is app-scoped; BrowserWindows may close and reattach later.
   window?: BrowserWindow;
@@ -147,8 +148,10 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       rememberSessionSnapshot(session);
 
       pty.onData((data) => {
+        const now = Date.now();
         appendToBuffer(session, data);
-        recordOutputActivity(session, data);
+        session.lastOutputAt = now;
+        recordOutputActivity(session, data, now);
         rememberSessionSnapshot(session);
         sendToSessionWindow(session, terminalChannels.data, { id, data });
       });
@@ -250,6 +253,7 @@ function toSnapshot(session: TerminalSession): TerminalSessionSnapshot {
     buffer: session.buffer,
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
+    ...(session.lastOutputAt === undefined ? {} : { lastOutputAt: session.lastOutputAt }),
   };
 }
 
@@ -305,6 +309,7 @@ function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSession
     buffer: tailBuffer(session.buffer, MAX_PERSISTED_BUFFER_LENGTH),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
+    ...(session.lastOutputAt === undefined ? {} : { lastOutputAt: session.lastOutputAt }),
   };
 }
 
@@ -344,17 +349,18 @@ function clonePersistedSession(session: PersistedTerminalSessionSnapshot): Persi
   };
 }
 
-function recordOutputActivity(session: TerminalSession, data: string): void {
+function recordOutputActivity(session: TerminalSession, data: string, now = Date.now()): void {
   const activity = classifyTerminalOutputActivity(data);
   if (!activity) return;
-  recordSessionActivity(session, activity);
+  recordSessionActivity(session, activity, now);
 }
 
 function recordSessionActivity(
   session: TerminalSession,
   activity: Parameters<typeof appendActivityEvent>[2],
+  now = Date.now(),
 ): void {
-  const result = appendActivityEvent(session.activityEvents, session.clientId ?? session.id, activity);
+  const result = appendActivityEvent(session.activityEvents, session.clientId ?? session.id, activity, now);
   session.activityEvents = result.events;
   session.lastActivityAt = result.lastActivityAt;
 }
