@@ -3,6 +3,7 @@ import {
   addManualSession,
   addStagedSessions,
   appendSessionActivity,
+  attachRuntimeSession,
   approveAllStaged,
   approveStaged,
   closeSession,
@@ -199,6 +200,25 @@ describe("desktop session state", () => {
 
     expect(markSessionExited(hydrated, "pty-a")[0]?.runtimeStatus).toBe("exited");
     expect(markSessionStartFailed(hydrated, "manual-4")[0]?.runtimeStatus).toBe("error");
+  });
+
+  it("copies resolved runtime metadata back into the session tile", () => {
+    const initial = createInitialSessions("", "A");
+    const next = attachRuntimeSession(initial, "manual-1", {
+      id: "runtime-1",
+      clientId: "manual-1",
+      title: "Manual · zsh 1",
+      source: "manual",
+      workspaceId: "A",
+      cwd: "/Users/patryk/Desktop/Alfred",
+      shell: "/bin/zsh",
+    });
+
+    expect(next[0]).toMatchObject({
+      runtimeId: "runtime-1",
+      runtimeStatus: "live",
+      cwd: "/Users/patryk/Desktop/Alfred",
+    });
   });
 
   it("appends bounded first-class activity events to a session", () => {

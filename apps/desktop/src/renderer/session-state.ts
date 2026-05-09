@@ -7,6 +7,7 @@ import {
   type SessionActivityInput,
 } from "../shared/session-activity";
 import type {
+  TerminalCreateResult,
   PersistedTerminalSessionSnapshot,
   TerminalSessionSnapshot,
   TerminalSessionId,
@@ -53,10 +54,22 @@ export function closeSession(sessions: SessionTile[], sessionId: string): Sessio
 export function attachRuntimeSession(
   sessions: SessionTile[],
   tileId: string,
-  runtimeId: TerminalSessionId,
+  runtime: TerminalCreateResult,
 ): SessionTile[] {
   return sessions.map((session) =>
-    session.id === tileId ? { ...session, runtimeId, runtimeStatus: "live" } : session,
+    session.id === tileId
+      ? {
+          ...session,
+          runtimeId: runtime.id,
+          runtimeStatus: "live",
+          title: runtime.title,
+          cwd: runtime.cwd,
+          ...(runtime.command === undefined ? {} : { command: runtime.command }),
+          ...(runtime.args === undefined ? {} : { args: runtime.args }),
+          ...(runtime.agentKind === undefined ? {} : { agentKind: runtime.agentKind }),
+          ...(runtime.workspaceId === undefined ? {} : { workspaceId: runtime.workspaceId }),
+        }
+      : session,
   );
 }
 
