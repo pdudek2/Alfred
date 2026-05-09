@@ -115,6 +115,207 @@ button:focus-visible {
   gap: 10px;
 }
 
+.workspace-title-menu {
+  position: relative;
+  min-width: 0;
+}
+
+.workspace-title-trigger {
+  max-width: min(520px, 44vw);
+  min-width: 0;
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 4px 8px 4px 0;
+  background: transparent;
+  color: inherit;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workspace-title-trigger:hover,
+.workspace-title-trigger:focus-visible,
+.workspace-title-trigger[aria-expanded="true"] {
+  border-color: color-mix(in oklab, white 7%, transparent);
+  background: color-mix(in oklab, white 2.6%, transparent);
+}
+
+.workspace-title-trigger > span,
+.workspace-title-trigger strong,
+.workspace-title-trigger small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-title-trigger svg {
+  color: var(--faint);
+  transition: transform 160ms ease, color 160ms ease;
+}
+
+.workspace-title-trigger[aria-expanded="true"] svg {
+  color: var(--accent);
+  transform: rotate(180deg);
+}
+
+.workspace-title-trigger strong {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.workspace-title-trigger small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.workspace-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -2px;
+  z-index: 40;
+  width: min(328px, 72vw);
+  border: 1px solid color-mix(in oklab, white 12%, transparent);
+  border-radius: 12px;
+  padding: 6px;
+  background:
+    linear-gradient(180deg, color-mix(in oklab, white 6%, transparent), color-mix(in oklab, white 2%, transparent)),
+    rgba(8, 11, 15, 0.98);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 9%, transparent),
+    0 24px 60px rgba(0, 0, 0, 0.56);
+}
+
+.workspace-popover::before {
+  content: "Workspace";
+  display: block;
+  padding: 7px 8px 8px;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workspace-popover button {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px;
+  background: transparent;
+  color: var(--ink-soft);
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workspace-popover button:hover,
+.workspace-popover button:focus-visible {
+  border-color: color-mix(in oklab, var(--accent) 24%, transparent);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  color: var(--ink);
+}
+
+.workspace-popover button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.workspace-popover button svg {
+  color: var(--accent);
+}
+
+.workspace-popover button strong,
+.workspace-popover button small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-popover button strong {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.workspace-popover button small {
+  margin-top: 2px;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.workspace-popover hr {
+  height: 1px;
+  border: 0;
+  margin: 6px 4px;
+  background: color-mix(in oklab, white 8%, transparent);
+}
+
+.workspace-rename-form {
+  padding: 6px;
+}
+
+.workspace-rename-form label,
+.workspace-rename-form label span {
+  display: block;
+}
+
+.workspace-rename-form label span {
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workspace-rename-form input {
+  width: 100%;
+  min-height: 38px;
+  margin-top: 8px;
+  border: 1px solid color-mix(in oklab, var(--accent) 28%, transparent);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--ink);
+  font: 650 13px var(--sans);
+}
+
+.workspace-rename-form input:focus {
+  outline: 2px solid color-mix(in oklab, var(--accent) 72%, white 8%);
+  outline-offset: 2px;
+}
+
+.workspace-rename-form > div {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.workspace-rename-form > div button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
 .alfred-mark {
   width: 30px;
   height: 30px;
