@@ -1,4 +1,5 @@
 import type { AgentKind } from "./alfred-ipc.js";
+import type { SessionActivityEvent } from "./session-activity.js";
 
 export type TerminalSessionId = string;
 export type TerminalSessionSource = "manual" | "alfred";
@@ -31,6 +32,8 @@ export type TerminalCreateResult = {
 
 export type TerminalSessionSnapshot = TerminalCreateResult & {
   buffer: string;
+  activityEvents?: SessionActivityEvent[];
+  lastActivityAt?: number;
 };
 
 export type PersistedTerminalSessionSnapshot = Omit<TerminalSessionSnapshot, "id"> & {

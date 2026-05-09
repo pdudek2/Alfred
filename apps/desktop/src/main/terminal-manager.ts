@@ -5,6 +5,11 @@ import { pathToFileURL } from "node:url";
 import { chmod } from "node:fs/promises";
 import { createRequire } from "node:module";
 import {
+  appendActivityEvent,
+  classifyTerminalOutputActivity,
+  type SessionActivityEvent,
+} from "../shared/session-activity.js";
+import {
   terminalChannels,
   type PersistedTerminalSessionSnapshot,
   type TerminalCreateRequest,
@@ -39,6 +44,8 @@ type TerminalSession = {
   command?: string;
   args?: string[];
   buffer: string;
+  activityEvents?: SessionActivityEvent[];
+  lastActivityAt?: number;
   pty: PtyProcess;
   // PTY lifetime is app-scoped; BrowserWindows may close and reattach later.
   window?: BrowserWindow;
@@ -131,7 +138,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           COLORTERM: "truecolor",
         },
       });
-      const session: TerminalSession = { ...metadata, buffer: "", ownerWindowId: window.id, pty, window };
+      const session: TerminalSession = { ...metadata, buffer: "", activityEvents: [], ownerWindowId: window.id, pty, window };
 
       sessions.set(id, session);
       if (session.clientId) {
@@ -141,11 +148,17 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
 
       pty.onData((data) => {
         appendToBuffer(session, data);
+        recordOutputActivity(session, data);
         rememberSessionSnapshot(session);
         sendToSessionWindow(session, terminalChannels.data, { id, data });
       });
 
       pty.onExit(({ exitCode, signal }) => {
+        recordSessionActivity(session, {
+          kind: "lifecycle",
+          title: "Process exited",
+          detail: `The terminal process exited with code ${exitCode}.`,
+        });
         rememberSessionSnapshot(session);
         disposeSession(id);
         const payload: TerminalExitEvent = signal === undefined ? { id, exitCode } : { id, exitCode, signal };
@@ -226,6 +239,8 @@ function toSnapshot(session: TerminalSession): TerminalSessionSnapshot {
   return {
     ...toCreateResult(session),
     buffer: session.buffer,
+    ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
+    ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
   };
 }
 
@@ -279,6 +294,8 @@ function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSession
     ...(session.command === undefined ? {} : { command: session.command }),
     ...(session.args === undefined ? {} : { args: [...session.args] }),
     buffer: tailBuffer(session.buffer, MAX_PERSISTED_BUFFER_LENGTH),
+    ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
+    ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
   };
 }
 
@@ -314,7 +331,27 @@ function clonePersistedSession(session: PersistedTerminalSessionSnapshot): Persi
   return {
     ...session,
     ...(session.args === undefined ? {} : { args: [...session.args] }),
+    ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
   };
+}
+
+function recordOutputActivity(session: TerminalSession, data: string): void {
+  const activity = classifyTerminalOutputActivity(data);
+  if (!activity) return;
+  recordSessionActivity(session, activity);
+}
+
+function recordSessionActivity(
+  session: TerminalSession,
+  activity: Parameters<typeof appendActivityEvent>[2],
+): void {
+  const result = appendActivityEvent(session.activityEvents, session.clientId ?? session.id, activity);
+  session.activityEvents = result.events;
+  session.lastActivityAt = result.lastActivityAt;
+}
+
+function cloneActivityEvents(events: SessionActivityEvent[]): SessionActivityEvent[] {
+  return events.map((event) => ({ ...event }));
 }
 
 function tailBuffer(buffer: string, maxLength: number): string {
