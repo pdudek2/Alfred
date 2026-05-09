@@ -42,6 +42,7 @@ import {
   recordSessionOutputActivity,
   rejectAllStaged,
   rejectStaged,
+  relaunchRestoredSession,
   restartSession,
   type SessionTile,
 } from "./session-state";
@@ -300,10 +301,16 @@ export function App() {
   }, []);
 
   const handleContinueRestoredSession = useCallback((sessionId: string) => {
+    const terminalApi = getDesktopTerminalApi();
     setTerminalSessions((sessions) => {
       const session = sessions.find((item) => item.id === sessionId);
       if (!session || session.runtimeStatus !== "restored") return sessions;
-      return addManualSession(sessions, session.cwd, session.workspaceId);
+      terminalApi?.forget({ clientId: session.id });
+      return appendSessionActivity(relaunchRestoredSession(sessions, sessionId), sessionId, {
+        kind: "lifecycle",
+        title: "Relaunching session",
+        detail: "Alfred is starting a fresh process from this saved transcript.",
+      });
     });
   }, []);
 
