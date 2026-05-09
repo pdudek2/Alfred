@@ -514,6 +514,80 @@ button:focus-visible {
   align-content: start;
 }
 
+.terminal-empty-state {
+  grid-column: 1 / -1;
+  min-height: 360px;
+  border: 1px solid rgba(188, 202, 218, 0.12);
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, rgba(68, 206, 220, 0.08), transparent 34%),
+    linear-gradient(180deg, rgba(238, 243, 247, 0.035), rgba(238, 243, 247, 0.012)),
+    rgba(6, 8, 10, 0.78);
+  box-shadow: inset 0 1px 0 rgba(238, 243, 247, 0.045);
+  display: grid;
+  place-items: center;
+  gap: 22px;
+  padding: 32px;
+  text-align: center;
+}
+
+.terminal-empty-state span {
+  color: var(--accent);
+  display: block;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.terminal-empty-state strong {
+  color: var(--ink);
+  display: block;
+  font-size: clamp(24px, 3vw, 38px);
+  font-weight: 720;
+  line-height: 1.05;
+  margin-top: 8px;
+}
+
+.terminal-empty-state p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+  margin: 10px auto 0;
+  max-width: 380px;
+}
+
+.terminal-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.terminal-empty-actions button {
+  min-height: 36px;
+  border: 1px solid rgba(188, 202, 218, 0.16);
+  border-radius: 8px;
+  padding: 0 13px;
+  background: rgba(238, 243, 247, 0.05);
+  color: var(--ink-soft);
+  font: 700 12px var(--sans);
+}
+
+.terminal-empty-actions button:first-child {
+  border-color: rgba(68, 206, 220, 0.32);
+  background: rgba(68, 206, 220, 0.105);
+  color: #d7fbff;
+}
+
+.terminal-empty-actions button:hover,
+.terminal-empty-actions button:focus-visible {
+  border-color: rgba(68, 206, 220, 0.46);
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+
 .launch-plan-strip {
   min-width: 0;
   border-bottom: 1px solid rgba(188, 202, 218, 0.09);

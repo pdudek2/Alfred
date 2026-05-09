@@ -735,6 +735,8 @@ export function App() {
               shortcutModifier={shortcutModifier}
               unsafeStagedCount={unsafeStagedCount}
               workMode={activeWorkMode}
+              onAddAgentSession={handleAddAgentSession}
+              onAddManualSession={handleAddManualSession}
               onCloseSession={handleCloseSession}
               onContinueRestoredSession={handleContinueRestoredSession}
               onRestartSession={handleRestartSession}
