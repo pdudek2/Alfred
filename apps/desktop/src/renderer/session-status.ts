@@ -32,12 +32,14 @@ export function terminalSessionDisplayStatus(
   if (localStatus === "connecting" || session.runtimeStatus === "starting") return { kind: "starting", label: "starting" };
 
   const latestEvent = session.activityEvents?.at(-1);
-  if (latestEvent?.kind === "approval") {
-    return { kind: "waiting", label: "waiting" };
+  if (session.lastOutputAt !== undefined && now - session.lastOutputAt <= ACTIVE_OUTPUT_WINDOW_MS) {
+    if (latestEvent?.kind !== "approval" || session.lastOutputAt > latestEvent.at) {
+      return { kind: "active", label: "active" };
+    }
   }
 
-  if (session.lastOutputAt !== undefined && now - session.lastOutputAt <= ACTIVE_OUTPUT_WINDOW_MS) {
-    return { kind: "active", label: "active" };
+  if (latestEvent?.kind === "approval") {
+    return { kind: "waiting", label: "waiting" };
   }
 
   return { kind: "idle", label: "idle" };
