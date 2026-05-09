@@ -796,7 +796,8 @@ function ManualTerminalTile({
     >
       <header
         className={`tile-header ${arrangeMode ? "drag-handle" : ""}`}
-        onClick={!arrangeMode ? onFocusSession : undefined}
+        onClick={!arrangeMode ? onSelectSession : undefined}
+        onDoubleClick={!arrangeMode ? onFocusSession : undefined}
         onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
       >
         <div className="tile-title">
