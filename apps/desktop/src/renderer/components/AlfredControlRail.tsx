@@ -8,6 +8,7 @@ type AlfredControlRailProps = {
   armedUnsafeSessionIds: Set<string>;
   status: AlfredStatus;
   pendingPlan: SquadPlan | null;
+  selectedSessionId: string | null;
   stagedSessions: SessionTile[];
   stagedCount: number;
   unsafeStagedCount: number;
@@ -15,6 +16,7 @@ type AlfredControlRailProps = {
   onApproveAll: () => void;
   onApproveTile: (tileId: string) => void;
   onDismissError: () => void;
+  onFocusSession: (tileId: string) => void;
   onRejectAll: () => void;
   onRejectTile: (tileId: string) => void;
 };
@@ -23,6 +25,7 @@ export function AlfredControlRail({
   armedUnsafeSessionIds,
   status,
   pendingPlan,
+  selectedSessionId,
   stagedSessions,
   stagedCount,
   unsafeStagedCount,
@@ -30,6 +33,7 @@ export function AlfredControlRail({
   onApproveAll,
   onApproveTile,
   onDismissError,
+  onFocusSession,
   onRejectAll,
   onRejectTile,
 }: AlfredControlRailProps) {
@@ -68,10 +72,12 @@ export function AlfredControlRail({
           <PlanReviewQueue
             armedUnsafeSessionIds={armedUnsafeSessionIds}
             safeStagedCount={safeStagedCount}
+            selectedSessionId={selectedSessionId}
             sessions={stagedSessions}
             unsafeStagedCount={unsafeStagedCount}
             onApproveAll={onApproveAll}
             onApproveTile={onApproveTile}
+            onFocusSession={onFocusSession}
             onRejectAll={onRejectAll}
             onRejectTile={onRejectTile}
           />
@@ -99,19 +105,23 @@ function truncate(value: string, max: number): string {
 function PlanReviewQueue({
   armedUnsafeSessionIds,
   safeStagedCount,
+  selectedSessionId,
   sessions,
   unsafeStagedCount,
   onApproveAll,
   onApproveTile,
+  onFocusSession,
   onRejectAll,
   onRejectTile,
 }: {
   armedUnsafeSessionIds: Set<string>;
   safeStagedCount: number;
+  selectedSessionId: string | null;
   sessions: SessionTile[];
   unsafeStagedCount: number;
   onApproveAll: () => void;
   onApproveTile: (tileId: string) => void;
+  onFocusSession: (tileId: string) => void;
   onRejectAll: () => void;
   onRejectTile: (tileId: string) => void;
 }) {
@@ -151,8 +161,10 @@ function PlanReviewQueue({
           <ReviewQueueItem
             armed={armedUnsafeSessionIds.has(session.id)}
             key={session.id}
+            selected={session.id === selectedSessionId}
             session={session}
             onApprove={onApproveTile}
+            onFocus={onFocusSession}
             onReject={onRejectTile}
           />
         ))}
@@ -163,13 +175,17 @@ function PlanReviewQueue({
 
 function ReviewQueueItem({
   armed,
+  selected,
   session,
   onApprove,
+  onFocus,
   onReject,
 }: {
   armed: boolean;
+  selected: boolean;
   session: SessionTile;
   onApprove: (tileId: string) => void;
+  onFocus: (tileId: string) => void;
   onReject: (tileId: string) => void;
 }) {
   const kind = sessionTileKind(session);
@@ -183,24 +199,31 @@ function ReviewQueueItem({
     : `Launch from review queue: ${session.title}`;
 
   return (
-    <li className={`review-queue-item ${flagged ? "flagged" : "safe"} ${armed ? "armed" : ""}`}>
-      <div className="review-item-head">
-        <span className={`review-kind ${kindMeta.className}`} title={kindMeta.label}>
-          <TileKindIcon kind={kind} />
-          <span>{kindMeta.shortLabel}</span>
-        </span>
-        <div>
-          <strong>{session.title}</strong>
-          <span>{session.cwd ? shortenPath(session.cwd) : "default cwd"}</span>
+    <li className={`review-queue-item ${flagged ? "flagged" : "safe"} ${armed ? "armed" : ""} ${selected ? "selected" : ""}`}>
+      <button
+        type="button"
+        className="review-item-focus"
+        onClick={() => onFocus(session.id)}
+        aria-label={`Focus staged tile: ${session.title}`}
+      >
+        <div className="review-item-head">
+          <span className={`review-kind ${kindMeta.className}`} title={kindMeta.label}>
+            <TileKindIcon kind={kind} />
+            <span>{kindMeta.shortLabel}</span>
+          </span>
+          <div>
+            <strong>{session.title}</strong>
+            <span>{session.cwd ? shortenPath(session.cwd) : "default cwd"}</span>
+          </div>
         </div>
-      </div>
-      <code>{command}</code>
-      {session.safetyNote && (
-        <div className="review-safety-note">
-          <ShieldAlert size={13} />
-          <span>{session.safetyNote}</span>
-        </div>
-      )}
+        <code>{command}</code>
+        {session.safetyNote && (
+          <div className="review-safety-note">
+            <ShieldAlert size={13} />
+            <span>{session.safetyNote}</span>
+          </div>
+        )}
+      </button>
       <div className="review-item-actions">
         <button
           type="button"

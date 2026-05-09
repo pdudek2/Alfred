@@ -580,6 +580,12 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Clear staged plan from review queue" })).toBeInTheDocument();
     expect(await screen.findByRole("article", { name: /Staged Task A/i })).toBeInTheDocument();
     expect(await screen.findByRole("article", { name: /Staged Task B/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Focus staged tile: Task B" }));
+
+    expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Task B");
+
     await waitFor(() => {
       expect(setStagedPlan).toHaveBeenCalledWith(
         expect.objectContaining({

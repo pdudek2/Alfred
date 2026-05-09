@@ -691,6 +691,7 @@ export function App() {
             armedUnsafeSessionIds={armedUnsafeSessionIds}
             status={alfredStatus}
             pendingPlan={activePendingPlan}
+            selectedSessionId={activeSelectedSessionId}
             stagedSessions={activeStagedSessions}
             stagedCount={stagedCount}
             unsafeStagedCount={unsafeStagedCount}
@@ -698,6 +699,7 @@ export function App() {
             onApproveAll={handleApproveAll}
             onApproveTile={handleApproveTile}
             onDismissError={handleDismissError}
+            onFocusSession={handleFocusSession}
             onRejectAll={handleRejectAll}
             onRejectTile={handleRejectTile}
           />

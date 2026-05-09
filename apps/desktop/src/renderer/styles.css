@@ -1736,6 +1736,31 @@ body.arranging-pointer {
   box-shadow: inset 0 0 0 1px rgba(245, 214, 127, 0.08);
 }
 
+.review-queue-item.selected {
+  border-color: rgba(83, 199, 216, 0.44);
+  box-shadow:
+    inset 0 0 0 1px rgba(83, 199, 216, 0.12),
+    0 0 0 1px rgba(83, 199, 216, 0.08);
+}
+
+.review-item-focus {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.review-item-focus:focus-visible {
+  outline: 2px solid rgba(83, 199, 216, 0.62);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
 .review-item-head {
   min-width: 0;
   display: grid;
