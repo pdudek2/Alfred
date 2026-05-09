@@ -8,6 +8,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import type { SquadPlan } from "../alfred-state";
+import type { SessionTile } from "../session-state";
 import type { WorkMode } from "../terminal-desk-types";
 import type { WorkspaceRailWorkspace } from "./WorkspaceRail";
 
@@ -26,6 +27,7 @@ type CommandPaletteProps = {
   pendingPlan: SquadPlan | null;
   query: string;
   safeStagedCount: number;
+  sessions: SessionTile[];
   shortcutModifier: string;
   unsafeStagedCount: number;
   workspaces: WorkspaceRailWorkspace[];
@@ -35,6 +37,7 @@ type CommandPaletteProps = {
   onApproveAll: () => void;
   onChangeQuery: (query: string) => void;
   onClose: () => void;
+  onFocusSession: (sessionId: string) => void;
   onRejectAll: () => void;
   onSelectWorkspace: (workspaceId: string) => void;
   onToggleArrange: () => void;
@@ -47,6 +50,7 @@ export function CommandPalette({
   pendingPlan,
   query,
   safeStagedCount,
+  sessions,
   shortcutModifier,
   unsafeStagedCount,
   workspaces,
@@ -56,6 +60,7 @@ export function CommandPalette({
   onApproveAll,
   onChangeQuery,
   onClose,
+  onFocusSession,
   onRejectAll,
   onSelectWorkspace,
   onToggleArrange,
@@ -101,6 +106,12 @@ export function CommandPalette({
               ? `${shortenPath(workspace.rootPath ?? "local desk")} · ${workspace.gitBranch}`
               : shortenPath(workspace.rootPath ?? "local desk"),
         run: () => onSelectWorkspace(workspace.id),
+      })),
+      ...sessions.map((session) => ({
+        id: `focus-session-${session.id}`,
+        label: `Focus ${session.title}`,
+        detail: `${sessionStatusLabel(session)} · ${shortenPath(session.cwd || "default workspace")}`,
+        run: () => onFocusSession(session.id),
       })),
       {
         id: "mode-focus",
@@ -151,11 +162,13 @@ export function CommandPalette({
       onAddWorkspace,
       onApplyWorkMode,
       onApproveAll,
+      onFocusSession,
       onRejectAll,
       onSelectWorkspace,
       onToggleArrange,
       pendingPlan,
       safeStagedCount,
+      sessions,
       shortcutModifier,
       unsafeStagedCount,
       workspaces,
@@ -255,6 +268,23 @@ function shortenPath(value: string): string {
   const parts = value.split("/");
   if (parts.length <= 3) return value;
   return `…/${parts.slice(-2).join("/")}`;
+}
+
+function sessionStatusLabel(session: SessionTile): string {
+  if (session.stage === "staged") return session.safetyNote ? "needs review" : "staged";
+  switch (session.runtimeStatus) {
+    case "error":
+      return "error";
+    case "exited":
+      return "exited";
+    case "restored":
+      return "restored";
+    case "starting":
+      return "starting";
+    case "live":
+    default:
+      return "live";
+  }
 }
 
 function filterCommands(commands: CommandPaletteItem[], normalizedQuery: string): CommandPaletteItem[] {
