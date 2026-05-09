@@ -10,10 +10,23 @@ import type { WorkspaceSnapshot, WorkspaceStateSnapshot } from "../shared/worksp
 export const DESKTOP_STATE_VERSION = 1;
 export const DESKTOP_STATE_FILE_NAME = "desktop-state.json";
 
+export type DesktopWindowBounds = {
+  width: number;
+  height: number;
+  x?: number;
+  y?: number;
+};
+
+export type DesktopWindowState = {
+  bounds: DesktopWindowBounds;
+  maximized: boolean;
+};
+
 export type DesktopStateSnapshot = WorkspaceStateSnapshot & {
   layoutsByWorkspace: Record<string, Record<string, TileLayout>>;
   stagedPlan: AlfredStagedPlanSnapshot | null;
   restoredTerminalSessions: PersistedTerminalSessionSnapshot[];
+  windowState: DesktopWindowState;
 };
 
 export type DesktopStateFile = DesktopStateSnapshot & {
@@ -37,12 +50,21 @@ export const DEFAULT_WORKSPACE: WorkspaceSnapshot = {
   shortLabel: "A",
 };
 
+export const DEFAULT_DESKTOP_WINDOW_STATE: DesktopWindowState = {
+  bounds: {
+    width: 1440,
+    height: 920,
+  },
+  maximized: false,
+};
+
 export const DEFAULT_DESKTOP_STATE: DesktopStateSnapshot = {
   workspaces: [DEFAULT_WORKSPACE],
   activeWorkspaceId: DEFAULT_WORKSPACE.id,
   layoutsByWorkspace: {},
   stagedPlan: null,
   restoredTerminalSessions: [],
+  windowState: DEFAULT_DESKTOP_WINDOW_STATE,
 };
 
 export function createPersistedDesktopStateStore(
@@ -110,6 +132,7 @@ export function normalizeDesktopState(value: unknown): DesktopStateSnapshot {
     layoutsByWorkspace: normalizeLayoutsByWorkspace(value.layoutsByWorkspace),
     stagedPlan: normalizeStagedPlan(value.stagedPlan),
     restoredTerminalSessions: normalizeRestoredTerminalSessions(value.restoredTerminalSessions),
+    windowState: normalizeWindowState(value.windowState),
   };
 }
 
@@ -268,6 +291,37 @@ function isTerminalSessionSource(value: unknown): value is TerminalSessionSource
   return value === "manual" || value === "alfred";
 }
 
+function normalizeWindowState(value: unknown): DesktopWindowState {
+  if (!isRecord(value) || !isRecord(value.bounds)) {
+    return cloneWindowState(DEFAULT_DESKTOP_WINDOW_STATE);
+  }
+
+  const width = normalizeWindowDimension(value.bounds.width, DEFAULT_DESKTOP_WINDOW_STATE.bounds.width, 1120);
+  const height = normalizeWindowDimension(value.bounds.height, DEFAULT_DESKTOP_WINDOW_STATE.bounds.height, 720);
+  const x = normalizeWindowPosition(value.bounds.x);
+  const y = normalizeWindowPosition(value.bounds.y);
+
+  return {
+    bounds: {
+      width,
+      height,
+      ...(x === undefined ? {} : { x }),
+      ...(y === undefined ? {} : { y }),
+    },
+    maximized: value.maximized === true,
+  };
+}
+
+function normalizeWindowDimension(value: unknown, fallback: number, minimum: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.max(Math.round(value), minimum);
+}
+
+function normalizeWindowPosition(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  return Math.round(value);
+}
+
 async function readDesktopStateFile(
   filePath: string,
   onWarning: PersistedDesktopStateStoreOptions["onWarning"],
@@ -324,6 +378,7 @@ function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
     ),
     stagedPlan: cloneStagedPlan(state.stagedPlan),
     restoredTerminalSessions: state.restoredTerminalSessions.map((session) => cloneRestoredTerminalSession(session)),
+    windowState: cloneWindowState(state.windowState),
   };
 }
 
@@ -340,6 +395,13 @@ function cloneRestoredTerminalSession(session: PersistedTerminalSessionSnapshot)
     ...session,
     ...(session.args === undefined ? {} : { args: [...session.args] }),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
+  };
+}
+
+function cloneWindowState(state: DesktopWindowState): DesktopWindowState {
+  return {
+    bounds: { ...state.bounds },
+    maximized: state.maximized,
   };
 }
 
