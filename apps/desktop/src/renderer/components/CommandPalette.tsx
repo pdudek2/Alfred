@@ -27,6 +27,7 @@ type CommandPaletteProps = {
   shortcutModifier: string;
   unsafeStagedCount: number;
   onAddManualSession: () => void;
+  onAddWorkspace: () => void;
   onApplyWorkMode: (mode: WorkMode) => void;
   onApproveAll: () => void;
   onChangeQuery: (query: string) => void;
@@ -44,6 +45,7 @@ export function CommandPalette({
   shortcutModifier,
   unsafeStagedCount,
   onAddManualSession,
+  onAddWorkspace,
   onApplyWorkMode,
   onApproveAll,
   onChangeQuery,
@@ -70,6 +72,12 @@ export function CommandPalette({
         label: "New manual terminal",
         detail: `${shortcutModifier} T · start a shell in this workspace`,
         run: onAddManualSession,
+      },
+      {
+        id: "new-workspace",
+        label: "New workspace from folder",
+        detail: "Bind a project folder to Alfred",
+        run: onAddWorkspace,
       },
       {
         id: "mode-focus",
@@ -116,6 +124,7 @@ export function CommandPalette({
       activeWorkMode,
       arrangeMode,
       onAddManualSession,
+      onAddWorkspace,
       onApplyWorkMode,
       onApproveAll,
       onRejectAll,
