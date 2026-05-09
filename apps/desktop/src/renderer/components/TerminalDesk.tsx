@@ -85,8 +85,13 @@ export function TerminalDesk({
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
-  const gridDensity = sessions.length <= 1 ? "single" : sessions.length === 2 ? "split" : "dense";
   const selectedSession = selectedSessionForDesk(sessions, selectedSessionId);
+  const focusSession = workMode === "focus"
+    ? selectedSession ?? focusedSession(sessions, layouts) ?? sessions[0] ?? null
+    : null;
+  const inspectedSession = focusSession ?? selectedSession;
+  const visibleSessions = focusSession ? [focusSession] : sessions;
+  const gridDensity = visibleSessions.length <= 1 ? "single" : visibleSessions.length === 2 ? "split" : "dense";
 
   useEffect(() => {
     if (workMode !== "focus") return;
@@ -244,14 +249,22 @@ export function TerminalDesk({
         />
       )}
       <div className="terminal-stage-body">
-        <div className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}`} ref={gridRef}>
+        <div className="terminal-grid-column">
+          {focusSession && sessions.length > 1 && (
+            <FocusSessionStrip
+              activeSessionId={focusSession.id}
+              sessions={sessions}
+              onFocusSession={onFocusSession}
+            />
+          )}
+          <div className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}`} ref={gridRef}>
           {sessions.length === 0 && (
             <EmptyWorkspaceState
               onAddAgentSession={onAddAgentSession}
               onAddManualSession={onAddManualSession}
             />
           )}
-          {sessions.map((session) =>
+          {visibleSessions.map((session) =>
             session.stage === "live" ? (
               <ManualTerminalTile
                 arrangeMode={arrangeMode}
@@ -271,7 +284,7 @@ export function TerminalDesk({
                 initialBuffer={session.initialBuffer}
                 activityEvents={session.activityEvents}
                 lastOutputAt={session.lastOutputAt}
-                selected={selectedSession?.id === session.id}
+                selected={inspectedSession?.id === session.id}
                 onClose={() => onCloseSession(session.id)}
                 onContinueRestoredSession={() => onContinueRestoredSession(session.id)}
                 onRestartSession={() => onRestartSession(session.id)}
@@ -292,7 +305,7 @@ export function TerminalDesk({
                 layout={layouts[session.id]}
                 preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
                 tile={session}
-                selected={selectedSession?.id === session.id}
+                selected={inspectedSession?.id === session.id}
                 onFocusSession={() => handleFocusSession(session.id)}
                 onSelectSession={() => handleSelectSession(session.id)}
                 onApprove={onApproveTile}
@@ -303,12 +316,47 @@ export function TerminalDesk({
               />
             ),
           )}
+          </div>
         </div>
         {workMode === "focus" && (
-          <AgentTimelinePanel session={selectedSession ?? focusedSession(sessions, layouts)} />
+          <AgentTimelinePanel session={focusSession} />
         )}
       </div>
     </section>
+  );
+}
+
+function FocusSessionStrip({
+  activeSessionId,
+  sessions,
+  onFocusSession,
+}: {
+  activeSessionId: string;
+  sessions: SessionTile[];
+  onFocusSession: (sessionId: string) => void;
+}) {
+  return (
+    <div className="focus-session-strip" role="toolbar" aria-label="focus session switcher">
+      {sessions.map((session) => {
+        const kind = sessionTileKind(session);
+        const kindMeta = tileKindMeta(kind);
+        const active = session.id === activeSessionId;
+
+        return (
+          <button
+            type="button"
+            key={session.id}
+            className={active ? "active" : ""}
+            aria-pressed={active}
+            aria-label={`Focus ${session.title}`}
+            onClick={() => onFocusSession(session.id)}
+          >
+            <span className={`tool-dot ${kindMeta.className}`} />
+            <span>{session.title}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
