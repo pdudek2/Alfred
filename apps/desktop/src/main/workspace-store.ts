@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import {
   createPersistedDesktopStateStore,
   normalizeDesktopState,
+  type DesktopStateSnapshot,
   type PersistedDesktopStateStore,
   type PersistedDesktopStateStoreOptions,
 } from "./persisted-desktop-state.js";
@@ -57,7 +58,7 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
     },
 
     async getWorkspaceState(): Promise<WorkspaceStateSnapshot> {
-      return toWorkspaceState(await persistedStateStore.getState());
+      return toWorkspaceState(await refreshWorkspaceBranches(await persistedStateStore.getState()));
     },
 
     async setWorkspaceState(request: WorkspaceStateSetRequest): Promise<WorkspaceStateSnapshot> {
@@ -67,6 +68,26 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
       return toWorkspaceState(next);
     },
   };
+
+  async function refreshWorkspaceBranches(state: DesktopStateSnapshot): Promise<DesktopStateSnapshot> {
+    let changed = false;
+    const workspaces = await Promise.all(
+      state.workspaces.map(async (workspace) => {
+        if (!workspace.rootPath) return workspace;
+        const gitBranch = await (options.resolveGitBranch ?? resolveGitBranch)(workspace.rootPath);
+        if (workspace.gitBranch === gitBranch) return workspace;
+        changed = true;
+        if (gitBranch === undefined) {
+          const { gitBranch: _staleGitBranch, ...withoutGitBranch } = workspace;
+          return withoutGitBranch;
+        }
+        return { ...workspace, gitBranch };
+      }),
+    );
+
+    if (!changed) return state;
+    return persistedStateStore.setState({ ...state, workspaces });
+  }
 }
 
 function toWorkspaceState(state: WorkspaceStateSnapshot): WorkspaceStateSnapshot {
