@@ -178,6 +178,11 @@ Ready.`;
         label: "Client App",
         rootPath: "/Users/patryk/Desktop/ClientApp",
         gitBranch: "feature/agent-space",
+        missionBrief: {
+          goal: "Finish the launcher review without breaking manual terminals.",
+          doneWhen: ["Planner returns a safe squad", "Review queue stays clear"],
+          guardrails: ["No force push", "Ask before destructive commands"],
+        },
         sessions: [
           {
             title: "Codex · api",
@@ -198,6 +203,10 @@ Ready.`;
     expect(userMessage).toContain("- label: Client App");
     expect(userMessage).toContain("- cwd: /Users/patryk/Desktop/ClientApp");
     expect(userMessage).toContain("- branch: feature/agent-space");
+    expect(userMessage).toContain("- mission brief:");
+    expect(userMessage).toContain("goal: Finish the launcher review without breaking manual terminals.");
+    expect(userMessage).toContain("done when: Planner returns a safe squad");
+    expect(userMessage).toContain("guardrail: No force push");
     expect(userMessage).toContain("- existing sessions:");
     expect(userMessage).toContain("Codex · api (codex, active, /Users/patryk/Desktop/ClientApp, cmd=codex)");
     expect(userMessage).toContain(baseInput.prompt);

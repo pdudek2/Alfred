@@ -425,6 +425,142 @@ describe("App integration", () => {
     });
   });
 
+  it("saves a workspace mission brief and sends it with the next Alfred prompt", async () => {
+    const user = userEvent.setup();
+    const { requestPlan, setWorkspaceState } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          {
+            id: "A",
+            label: "Alfred",
+            shortLabel: "A",
+            rootPath: "/Users/patryk/Desktop/Alfred",
+            gitBranch: "main",
+          },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await user.click(screen.getByRole("button", { name: "Workspace menu for Alfred" }));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Workspace actions" })).getByRole("button", {
+        name: /Add mission brief/i,
+      }),
+    );
+
+    const missionDialog = screen.getByRole("dialog", { name: "Workspace mission brief" });
+    await user.type(within(missionDialog).getByRole("textbox", { name: "Mission goal" }), "Ship launcher v0 calmly");
+    await user.type(within(missionDialog).getByRole("textbox", { name: "Done when" }), "Agents are staged{Enter}Manual terminals keep focus");
+    await user.type(within(missionDialog).getByRole("textbox", { name: "Guardrails" }), "No force push");
+    await user.click(within(missionDialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(setWorkspaceState).toHaveBeenLastCalledWith({
+        workspaces: [
+          {
+            id: "A",
+            label: "Alfred",
+            shortLabel: "A",
+            rootPath: "/Users/patryk/Desktop/Alfred",
+            gitBranch: "main",
+            missionBrief: {
+              goal: "Ship launcher v0 calmly",
+              doneWhen: ["Agents are staged", "Manual terminals keep focus"],
+              guardrails: ["No force push"],
+            },
+          },
+        ],
+        activeWorkspaceId: "A",
+      });
+    });
+
+    expect(screen.getByRole("region", { name: "Workspace mission brief" })).toHaveTextContent("Ship launcher v0 calmly");
+
+    await user.type(screen.getByLabelText("Alfred prompt"), "prepare the next slice");
+    await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
+
+    expect(requestPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: "prepare the next slice",
+        workspace: expect.objectContaining({
+          missionBrief: {
+            goal: "Ship launcher v0 calmly",
+            doneWhen: ["Agents are staged", "Manual terminals keep focus"],
+            guardrails: ["No force push"],
+          },
+        }),
+      }),
+    );
+  });
+
+  it("clears a workspace mission brief and omits it from later Alfred prompts", async () => {
+    const user = userEvent.setup();
+    const { requestPlan, setWorkspaceState } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          {
+            id: "A",
+            label: "Alfred",
+            shortLabel: "A",
+            rootPath: "/Users/patryk/Desktop/Alfred",
+            missionBrief: {
+              goal: "Ship the launcher.",
+              doneWhen: ["Agents staged"],
+              guardrails: ["No force push"],
+            },
+          },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole("region", { name: "Workspace mission brief" })).toHaveTextContent("Ship the launcher.");
+    await user.click(screen.getByRole("button", { name: "Workspace menu for Alfred" }));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Workspace actions" })).getByRole("button", {
+        name: /Edit mission brief/i,
+      }),
+    );
+    await user.click(within(screen.getByRole("dialog", { name: "Workspace mission brief" })).getByRole("button", { name: "Clear" }));
+
+    await waitFor(() => {
+      expect(setWorkspaceState).toHaveBeenLastCalledWith({
+        workspaces: [
+          {
+            id: "A",
+            label: "Alfred",
+            shortLabel: "A",
+            rootPath: "/Users/patryk/Desktop/Alfred",
+          },
+        ],
+        activeWorkspaceId: "A",
+      });
+    });
+    expect(screen.queryByRole("region", { name: "Workspace mission brief" })).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Alfred prompt"), "prepare cleanly");
+    await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
+
+    const lastRequest = requestPlan.mock.calls.at(-1)?.[0];
+    expect(lastRequest?.workspace).not.toHaveProperty("missionBrief");
+  });
+
   it("closes an empty non-default workspace from the command palette", async () => {
     const user = userEvent.setup();
     const { createWorkspaceFromFolder, setWorkspaceState } = installDesktopBridge();

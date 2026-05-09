@@ -1,9 +1,16 @@
+export type WorkspaceMissionBrief = {
+  goal: string;
+  doneWhen: string[];
+  guardrails: string[];
+};
+
 export type WorkspaceSnapshot = {
   id: string;
   label: string;
   shortLabel: string;
   rootPath?: string;
   gitBranch?: string;
+  missionBrief?: WorkspaceMissionBrief;
 };
 
 export type WorkspaceStateSnapshot = {

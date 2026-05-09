@@ -182,7 +182,7 @@ button:focus-visible {
   top: calc(100% + 8px);
   left: -2px;
   z-index: 40;
-  width: min(328px, 72vw);
+  width: min(390px, 78vw);
   border: 1px solid color-mix(in oklab, white 12%, transparent);
   border-radius: 12px;
   padding: 6px;
@@ -266,16 +266,20 @@ button:focus-visible {
   background: color-mix(in oklab, white 8%, transparent);
 }
 
-.workspace-rename-form {
+.workspace-rename-form,
+.workspace-mission-form {
   padding: 6px;
 }
 
 .workspace-rename-form label,
-.workspace-rename-form label span {
+.workspace-rename-form label span,
+.workspace-mission-form label,
+.workspace-mission-form label span {
   display: block;
 }
 
-.workspace-rename-form label span {
+.workspace-rename-form label span,
+.workspace-mission-form label span {
   color: var(--faint);
   font-family: var(--mono);
   font-size: 10px;
@@ -284,7 +288,8 @@ button:focus-visible {
   text-transform: uppercase;
 }
 
-.workspace-rename-form input {
+.workspace-rename-form input,
+.workspace-mission-form textarea {
   width: 100%;
   min-height: 38px;
   margin-top: 8px;
@@ -296,24 +301,48 @@ button:focus-visible {
   font: 650 13px var(--sans);
 }
 
-.workspace-rename-form input:focus {
+.workspace-mission-form {
+  display: grid;
+  gap: 10px;
+}
+
+.workspace-mission-form textarea {
+  min-height: 72px;
+  padding: 10px;
+  resize: vertical;
+  line-height: 1.35;
+}
+
+.workspace-rename-form input:focus,
+.workspace-mission-form textarea:focus {
   outline: 2px solid color-mix(in oklab, var(--accent) 72%, white 8%);
   outline-offset: 2px;
 }
 
-.workspace-rename-form > div {
+.workspace-rename-form > div,
+.workspace-mission-actions {
   margin-top: 8px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, 1fr);
   gap: 7px;
 }
 
-.workspace-rename-form > div button {
+.workspace-mission-actions {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.workspace-rename-form > div button,
+.workspace-mission-actions button {
   min-height: 34px;
   display: inline-flex;
+  grid-template-columns: none;
   align-items: center;
   justify-content: center;
   text-align: center;
+}
+
+.workspace-mission-actions button.danger {
+  color: var(--coral);
 }
 
 .alfred-mark {
@@ -1955,6 +1984,47 @@ body.arranging-pointer {
   font-size: 12px;
   line-height: 1.45;
   white-space: normal;
+}
+
+.mission-brief-card {
+  display: grid;
+  gap: 10px;
+}
+
+.mission-brief-card .mission-brief-kicker,
+.mission-brief-card div > span {
+  margin: 0;
+  color: var(--brass);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: normal;
+}
+
+.mission-brief-card strong {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.mission-brief-card div {
+  border-top: 1px solid rgba(188, 202, 218, 0.1);
+  padding-top: 8px;
+}
+
+.mission-brief-card ul {
+  margin: 6px 0 0;
+  padding-left: 14px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.mission-brief-card li + li {
+  margin-top: 4px;
 }
 
 .alfred-dock-footer {

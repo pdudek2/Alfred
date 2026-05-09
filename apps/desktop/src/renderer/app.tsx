@@ -63,7 +63,7 @@ import type {
   AlfredWorkspaceContext,
 } from "../shared/alfred-ipc";
 import type { TerminalCreateResult } from "../shared/terminal-ipc";
-import type { WorkspaceStateSnapshot } from "../shared/workspace-ipc";
+import type { WorkspaceMissionBrief, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 import "@xterm/xterm/css/xterm.css";
 
 type Workspace = WorkspaceRailWorkspace;
@@ -254,6 +254,21 @@ export function App() {
       return next;
     });
   }, [activeWorkspace.id, activeWorkspace.label]);
+
+  const handleSaveWorkspaceMissionBrief = useCallback((missionBrief: WorkspaceMissionBrief | undefined) => {
+    const workspaceApi = getDesktopWorkspaceApi();
+    setWorkspaceMenuOpen(false);
+    setWorkspaceRenameEditing(false);
+    setWorkspaces((current) => {
+      const next = current.map((workspace) => {
+        if (workspace.id !== activeWorkspace.id) return workspace;
+        const { missionBrief: _previousMissionBrief, ...rest } = workspace;
+        return missionBrief ? { ...rest, missionBrief } : rest;
+      });
+      void workspaceApi?.setWorkspaceState({ workspaces: next, activeWorkspaceId: activeWorkspace.id });
+      return next;
+    });
+  }, [activeWorkspace.id]);
 
   const handleRevealActiveWorkspace = useCallback(async () => {
     if (!activeWorkspace.rootPath) return;
@@ -990,6 +1005,7 @@ export function App() {
             <WorkspaceTitleMenu
               detail={`${activeSessions.length} tile${activeSessions.length === 1 ? "" : "s"} · ${workspaceSessionSummary(activeSessions)} · ${workspaceDetail(activeWorkspace)}`}
               menuOpen={workspaceMenuOpen}
+              missionBrief={activeWorkspace.missionBrief}
               renameDraft={workspaceRenameDraft}
               renameEditing={workspaceRenameEditing}
               rootPath={activeWorkspace.rootPath}
@@ -1002,6 +1018,7 @@ export function App() {
               }}
               onOpenExternalTerminal={() => void handleOpenActiveWorkspaceTerminal()}
               onRevealFolder={() => void handleRevealActiveWorkspace()}
+              onSaveMissionBrief={handleSaveWorkspaceMissionBrief}
               onSaveRename={handleSaveWorkspaceRename}
               onStartRename={handleBeginRenameActiveWorkspace}
               onToggleMenu={() => {
@@ -1143,6 +1160,7 @@ export function App() {
               armedUnsafeSessionIds={armedUnsafeSessionIds}
               status={alfredStatus}
               activeDecisionItems={activeDecisionItems}
+              missionBrief={activeWorkspace.missionBrief}
               pendingPlan={activePendingPlan}
               recoverableSessions={activeRecoverableSessions}
               selectedSessionId={activeSelectedSessionId}
@@ -1242,6 +1260,7 @@ export function App() {
 function WorkspaceTitleMenu({
   detail,
   menuOpen,
+  missionBrief,
   renameDraft,
   renameEditing,
   rootPath,
@@ -1251,12 +1270,14 @@ function WorkspaceTitleMenu({
   onClose,
   onOpenExternalTerminal,
   onRevealFolder,
+  onSaveMissionBrief,
   onSaveRename,
   onStartRename,
   onToggleMenu,
 }: {
   detail: string;
   menuOpen: boolean;
+  missionBrief: WorkspaceMissionBrief | undefined;
   renameDraft: string;
   renameEditing: boolean;
   rootPath?: string | undefined;
@@ -1266,14 +1287,25 @@ function WorkspaceTitleMenu({
   onClose: () => void;
   onOpenExternalTerminal: () => void;
   onRevealFolder: () => void;
+  onSaveMissionBrief: (missionBrief: WorkspaceMissionBrief | undefined) => void;
   onSaveRename: (value: string) => void;
   onStartRename: () => void;
   onToggleMenu: () => void;
 }) {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const missionInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [missionEditing, setMissionEditing] = useState<boolean>(false);
+  const [missionDraft, setMissionDraft] = useState<WorkspaceMissionDraft>(() => missionBriefToDraft(missionBrief));
   const revealLabel = navigator.platform.includes("Mac") ? "Reveal in Finder" : "Reveal folder";
   const terminalLabel = navigator.platform.includes("Mac") ? "Open in Ghostty" : "Open in external terminal";
+  const popoverLabel = renameEditing
+    ? "Rename workspace"
+    : missionEditing
+      ? "Workspace mission brief"
+      : "Workspace actions";
+  const missionActionLabel = missionBrief ? "Edit mission brief..." : "Add mission brief...";
+  const missionSummary = missionBrief?.goal || missionBrief?.doneWhen[0] || "Give Alfred persistent context";
 
   useEffect(() => {
     if (!renameEditing) return;
@@ -1282,6 +1314,24 @@ function WorkspaceTitleMenu({
       inputRef.current?.select();
     });
   }, [renameEditing]);
+
+  useEffect(() => {
+    if (!missionEditing) return;
+    window.requestAnimationFrame(() => {
+      missionInputRef.current?.focus();
+      missionInputRef.current?.select();
+    });
+  }, [missionEditing]);
+
+  useEffect(() => {
+    if (menuOpen) return;
+    setMissionEditing(false);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (missionEditing) return;
+    setMissionDraft(missionBriefToDraft(missionBrief));
+  }, [missionBrief, missionEditing]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -1303,6 +1353,17 @@ function WorkspaceTitleMenu({
     onSaveRename(renameDraft);
   };
 
+  const handleMissionSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onSaveMissionBrief(missionBriefFromDraft(missionDraft));
+    setMissionEditing(false);
+  };
+
+  const handleCancelMissionEdit = () => {
+    setMissionDraft(missionBriefToDraft(missionBrief));
+    setMissionEditing(false);
+  };
+
   return (
     <div
       className="workspace-title-menu"
@@ -1310,7 +1371,13 @@ function WorkspaceTitleMenu({
       onKeyDown={(event) => {
         if (event.key !== "Escape") return;
         event.preventDefault();
-        renameEditing ? onCancelRename() : onClose();
+        if (renameEditing) {
+          onCancelRename();
+        } else if (missionEditing) {
+          handleCancelMissionEdit();
+        } else {
+          onClose();
+        }
       }}
     >
       <button
@@ -1328,7 +1395,7 @@ function WorkspaceTitleMenu({
         <ChevronDown size={14} aria-hidden="true" />
       </button>
       {menuOpen && (
-        <div className="workspace-popover" role="dialog" aria-label={renameEditing ? "Rename workspace" : "Workspace actions"}>
+        <div className="workspace-popover" role="dialog" aria-label={popoverLabel}>
           {renameEditing ? (
             <form className="workspace-rename-form" onSubmit={handleRenameSubmit}>
               <label>
@@ -1345,6 +1412,58 @@ function WorkspaceTitleMenu({
                 </button>
                 <button type="button" onClick={onCancelRename}>
                   Cancel
+                </button>
+              </div>
+            </form>
+          ) : missionEditing ? (
+            <form className="workspace-mission-form" onSubmit={handleMissionSubmit}>
+              <label>
+                <span>Mission goal</span>
+                <textarea
+                  aria-label="Mission goal"
+                  ref={missionInputRef}
+                  rows={3}
+                  value={missionDraft.goal}
+                  onChange={(event) => setMissionDraft((draft) => ({ ...draft, goal: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>Done when</span>
+                <textarea
+                  aria-label="Done when"
+                  rows={3}
+                  value={missionDraft.doneWhen}
+                  placeholder="One condition per line"
+                  onChange={(event) => setMissionDraft((draft) => ({ ...draft, doneWhen: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>Guardrails</span>
+                <textarea
+                  aria-label="Guardrails"
+                  rows={3}
+                  value={missionDraft.guardrails}
+                  placeholder="Constraints Alfred should respect"
+                  onChange={(event) => setMissionDraft((draft) => ({ ...draft, guardrails: event.target.value }))}
+                />
+              </label>
+              <div className="workspace-mission-actions">
+                <button type="submit" disabled={!hasMissionDraft(missionDraft)}>
+                  Save
+                </button>
+                <button type="button" onClick={handleCancelMissionEdit}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() => {
+                    onSaveMissionBrief(undefined);
+                    setMissionDraft(missionBriefToDraft(undefined));
+                    setMissionEditing(false);
+                  }}
+                >
+                  Clear
                 </button>
               </div>
             </form>
@@ -1385,12 +1504,72 @@ function WorkspaceTitleMenu({
                   <small>Keep this desk readable</small>
                 </span>
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMissionDraft(missionBriefToDraft(missionBrief));
+                  setMissionEditing(true);
+                }}
+              >
+                <ListChecks size={14} />
+                <span>
+                  <strong>{missionActionLabel}</strong>
+                  <small>{truncateText(missionSummary, 38)}</small>
+                </span>
+              </button>
             </>
           )}
         </div>
       )}
     </div>
   );
+}
+
+type WorkspaceMissionDraft = {
+  goal: string;
+  doneWhen: string;
+  guardrails: string;
+};
+
+function missionBriefToDraft(brief: WorkspaceMissionBrief | undefined): WorkspaceMissionDraft {
+  return {
+    goal: brief?.goal ?? "",
+    doneWhen: brief?.doneWhen.join("\n") ?? "",
+    guardrails: brief?.guardrails.join("\n") ?? "",
+  };
+}
+
+function missionBriefFromDraft(draft: WorkspaceMissionDraft): WorkspaceMissionBrief | undefined {
+  const goal = normalizeMissionDraftLine(draft.goal, 320);
+  const doneWhen = normalizeMissionDraftList(draft.doneWhen);
+  const guardrails = normalizeMissionDraftList(draft.guardrails);
+  if (!goal) return undefined;
+  return { goal, doneWhen, guardrails };
+}
+
+function hasMissionDraft(draft: WorkspaceMissionDraft): boolean {
+  return missionBriefFromDraft(draft) !== undefined;
+}
+
+function normalizeMissionDraftList(value: string): string[] {
+  const seen = new Set<string>();
+  const items: string[] = [];
+  for (const line of value.split(/\r?\n/)) {
+    const normalized = normalizeMissionDraftLine(line, 240);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    items.push(normalized);
+    if (items.length >= 8) break;
+  }
+  return items;
+}
+
+function normalizeMissionDraftLine(value: string, maxLength: number): string {
+  return value.replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function truncateText(value: string, maxLength: number): string {
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
 }
 
 function createStagedPlanSnapshot({
@@ -1521,6 +1700,7 @@ function workspacePlanContext(workspace: Workspace, sessions: SessionTile[]): Al
     label: workspace.label,
     ...(workspace.rootPath === undefined ? {} : { rootPath: workspace.rootPath }),
     ...(workspace.gitBranch === undefined ? {} : { gitBranch: workspace.gitBranch }),
+    ...(workspace.missionBrief === undefined ? {} : { missionBrief: workspace.missionBrief }),
     ...(sessions.length === 0
       ? {}
       : {

@@ -4,11 +4,13 @@ import { isLaunchBlocked, type SessionTile } from "../session-state";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import type { WorkspaceReviewItem } from "../workspace-attention";
+import type { WorkspaceMissionBrief } from "../../shared/workspace-ipc";
 
 type AlfredControlRailProps = {
   armedUnsafeSessionIds: Set<string>;
   status: AlfredStatus;
   activeDecisionItems: WorkspaceReviewItem[];
+  missionBrief: WorkspaceMissionBrief | undefined;
   pendingPlan: SquadPlan | null;
   recoverableSessions: SessionTile[];
   selectedSessionId: string | null;
@@ -34,6 +36,7 @@ export function AlfredControlRail({
   armedUnsafeSessionIds,
   status,
   activeDecisionItems,
+  missionBrief,
   pendingPlan,
   recoverableSessions,
   selectedSessionId,
@@ -56,11 +59,13 @@ export function AlfredControlRail({
 }: AlfredControlRailProps) {
   const checkingStagedCount = stagedSessions.filter((session) => session.stagedReviewStatus === "checking").length;
   const safeStagedCount = Math.max(0, stagedCount - unsafeStagedCount - blockedStagedCount - checkingStagedCount);
+  const hasMissionBrief = isMissionBriefVisible(missionBrief);
   const compact =
     status.kind === "idle" &&
     pendingPlan === null &&
     recoverableSessions.length === 0 &&
-    activeDecisionItems.length === 0;
+    activeDecisionItems.length === 0 &&
+    !hasMissionBrief;
   const sigilState = alfredSigilState(
     status,
     pendingPlan,
@@ -78,6 +83,8 @@ export function AlfredControlRail({
             ? "needs review"
           : recoverableSessions.length > 0
             ? "recovery ready"
+            : hasMissionBrief
+              ? "briefed"
           : "standing by";
   const footerLabel = pendingPlan
     ? "review queue"
@@ -85,6 +92,8 @@ export function AlfredControlRail({
         ? "decisions"
       : recoverableSessions.length > 0
         ? "recovery"
+        : hasMissionBrief
+          ? "mission"
         : "clear desk";
   const footerValue = safeStagedCount > 0
     ? `${safeStagedCount} launchable`
@@ -92,6 +101,8 @@ export function AlfredControlRail({
       ? `${activeDecisionItems.length} item${activeDecisionItems.length === 1 ? "" : "s"}`
       : recoverableSessions.length > 0
         ? `${recoverableSessions.length} item${recoverableSessions.length === 1 ? "" : "s"}`
+        : hasMissionBrief
+          ? "ready"
       : "no asks";
 
   return (
@@ -182,6 +193,8 @@ export function AlfredControlRail({
             />
           )}
         </div>
+      ) : hasMissionBrief ? (
+        <MissionBriefSummary brief={missionBrief} />
       ) : (
         <p>Manual work stays in front. Ask Alfred when you want a workspace prepared.</p>
       ))}
@@ -193,6 +206,42 @@ export function AlfredControlRail({
         </div>
       )}
     </aside>
+  );
+}
+
+function isMissionBriefVisible(brief: WorkspaceMissionBrief | undefined): brief is WorkspaceMissionBrief {
+  return Boolean(brief && (brief.goal.trim() || brief.doneWhen.length > 0 || brief.guardrails.length > 0));
+}
+
+function MissionBriefSummary({ brief }: { brief: WorkspaceMissionBrief }) {
+  const doneWhen = brief.doneWhen.slice(0, 2);
+  const guardrails = brief.guardrails.slice(0, 2);
+
+  return (
+    <section className="mission-brief-card" aria-label="Workspace mission brief">
+      <span className="mission-brief-kicker">Mission brief</span>
+      <strong>{brief.goal || "Workspace intent set"}</strong>
+      {doneWhen.length > 0 && (
+        <div>
+          <span>Done when</span>
+          <ul>
+            {doneWhen.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {guardrails.length > 0 && (
+        <div>
+          <span>Guardrails</span>
+          <ul>
+            {guardrails.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
   );
 }
 

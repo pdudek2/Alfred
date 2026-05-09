@@ -42,6 +42,11 @@ describe("persisted-desktop-state", () => {
           shortLabel: "UI",
           rootPath: "/Users/patryk/Desktop/Interface",
           gitBranch: "main",
+          missionBrief: {
+            goal: "Ship the desktop launcher without losing manual control.",
+            doneWhen: ["Staged agents can be launched", "Manual terminals keep focus"],
+            guardrails: ["No force push", "Ask before destructive commands"],
+          },
         },
       ],
       activeWorkspaceId: "UI",
@@ -237,6 +242,63 @@ describe("persisted-desktop-state", () => {
       viewStateByWorkspace: {
         A: { workMode: "focus", selectedSessionId: "manual-1" },
       },
+    });
+  });
+
+  it("normalizes workspace mission briefs", async () => {
+    const filePath = await temporaryStateFile();
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: DESKTOP_STATE_VERSION,
+        workspaces: [
+          {
+            id: " A ",
+            label: " Alfred ",
+            shortLabel: " A ",
+            missionBrief: {
+              goal: "  Prepare   a calm launch desk  ",
+              doneWhen: ["  plan reviewed  ", "", "plan reviewed", "agents launch"],
+              guardrails: [" no destructive commands ", "no destructive commands"],
+            },
+          },
+          {
+            id: "EMPTY",
+            label: "Empty",
+            shortLabel: "E",
+            missionBrief: { goal: "   ", doneWhen: [" "], guardrails: [] },
+          },
+        ],
+        activeWorkspaceId: "A",
+      }),
+      "utf8",
+    );
+    const store = createPersistedDesktopStateStore({ filePath });
+
+    await expect(store.getState()).resolves.toEqual({
+      workspaces: [
+        {
+          id: "A",
+          label: "Alfred",
+          shortLabel: "A",
+          missionBrief: {
+            goal: "Prepare a calm launch desk",
+            doneWhen: ["plan reviewed", "agents launch"],
+            guardrails: ["no destructive commands"],
+          },
+        },
+        {
+          id: "EMPTY",
+          label: "Empty",
+          shortLabel: "E",
+        },
+      ],
+      activeWorkspaceId: "A",
+      layoutsByWorkspace: {},
+      viewStateByWorkspace: {},
+      stagedPlan: null,
+      restoredTerminalSessions: [],
+      windowState: DEFAULT_DESKTOP_STATE.windowState,
     });
   });
 
