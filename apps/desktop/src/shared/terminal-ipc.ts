@@ -13,6 +13,7 @@ export type TerminalCreateRequest = {
   workspaceId?: string;
   cwd?: string;
   isolation?: TerminalSessionIsolation;
+  branchName?: string;
   cols: number;
   rows: number;
   command?: string;

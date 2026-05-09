@@ -60,7 +60,34 @@ describe("persisted-desktop-state", () => {
       stagedPlan: {
         id: "plan-1",
         prompt: "prepare ui",
-        sessions: [{ id: "alfred-1", kind: "shell", title: "Test", command: "pnpm", args: ["test"] }],
+        sessions: [
+          {
+            id: "alfred-1",
+            kind: "shell",
+            title: "Test",
+            command: "pnpm",
+            args: ["test"],
+            launchPreflight: {
+              status: "ready",
+              label: "Ready",
+              detail: "Will launch in the selected workspace.",
+              isolation: "shared",
+            },
+          },
+          {
+            id: "alfred-2",
+            kind: "codex",
+            title: "Codex",
+            command: "codex",
+            args: [],
+            launchPreflight: {
+              status: "blocked",
+              code: "cwd_outside_workspace",
+              label: "Workspace mismatch",
+              reason: "This agent asked to launch outside the selected workspace. Bind the right folder or adjust the plan.",
+            },
+          },
+        ],
       },
       restoredTerminalSessions: [
         {

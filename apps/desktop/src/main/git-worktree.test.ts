@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { prepareAgentWorktree } from "./git-worktree.js";
+import { prepareAgentWorktree, preflightAgentWorktree } from "./git-worktree.js";
 
 describe("git worktree preparation", () => {
   it("creates a unique isolated worktree branch for agent sessions", async () => {
@@ -38,6 +38,26 @@ describe("git worktree preparation", () => {
       ],
       expect.any(Object),
     );
+  });
+
+  it("preflights the exact branch and cwd without creating the worktree", async () => {
+    const execFile = vi.fn(async (_file: string, args: string[]) => {
+      if (args.includes("rev-parse")) return { stdout: "/repo\n", stderr: "" };
+      if (args.includes("status")) return { stdout: "", stderr: "" };
+      throw new Error(`unexpected git call: ${args.join(" ")}`);
+    });
+
+    const result = await preflightAgentWorktree(
+      { agentKind: "claude", branchName: "alfred-claude-review", clientId: "Review", cwd: "/repo/apps/web" },
+      { execFile },
+    );
+
+    expect(result).toEqual({
+      baseCwd: "/repo",
+      branchName: "alfred-claude-review",
+      cwd: "/.alfred-worktrees/repo/alfred-claude-review/apps/web",
+    });
+    expect(execFile).toHaveBeenCalledTimes(2);
   });
 
   it("blocks isolated agent launch when the base workspace is dirty", async () => {

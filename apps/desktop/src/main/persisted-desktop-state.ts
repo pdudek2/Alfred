@@ -292,6 +292,7 @@ function normalizeStagedPlan(value: unknown): AlfredStagedPlanSnapshot | null {
       ...(typeof session.cwd === "string" ? { cwd: session.cwd } : {}),
       ...(typeof session.workspaceId === "string" ? { workspaceId: session.workspaceId } : {}),
       ...(typeof session.safetyNote === "string" ? { safetyNote: session.safetyNote } : {}),
+      ...(isAlfredLaunchPreflight(session.launchPreflight) ? { launchPreflight: cloneLaunchPreflight(session.launchPreflight) } : {}),
     }];
   });
 
@@ -464,8 +465,37 @@ function cloneStagedPlan(plan: AlfredStagedPlanSnapshot | null): AlfredStagedPla
   if (!plan) return null;
   return {
     ...plan,
-    sessions: plan.sessions.map((session) => ({ ...session, args: [...session.args] })),
+    sessions: plan.sessions.map((session) => ({
+      ...session,
+      args: [...session.args],
+      ...(session.launchPreflight === undefined ? {} : { launchPreflight: cloneLaunchPreflight(session.launchPreflight) }),
+    })),
   };
+}
+
+function isAlfredLaunchPreflight(value: unknown): value is NonNullable<AlfredStagedPlanSnapshot["sessions"][number]["launchPreflight"]> {
+  if (!isRecord(value) || typeof value.status !== "string" || typeof value.label !== "string") return false;
+  if (value.status === "ready") {
+    return typeof value.detail === "string";
+  }
+  if (value.status === "blocked") {
+    return (
+      isLaunchPreflightBlockCode(value.code) &&
+      typeof value.reason === "string" &&
+      (value.detail === undefined || typeof value.detail === "string")
+    );
+  }
+  return false;
+}
+
+function isLaunchPreflightBlockCode(value: unknown): boolean {
+  return value === "command_missing" || value === "cwd_outside_workspace" || value === "git_not_ready" || value === "no_workspace";
+}
+
+function cloneLaunchPreflight<T extends NonNullable<AlfredStagedPlanSnapshot["sessions"][number]["launchPreflight"]>>(
+  value: T,
+): T {
+  return { ...value };
 }
 
 function cloneRestoredTerminalSession(session: PersistedTerminalSessionSnapshot): PersistedTerminalSessionSnapshot {

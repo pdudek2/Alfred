@@ -40,6 +40,7 @@ import {
   hydratePersistedTerminalSessions,
   markSessionExited,
   markSessionStartFailed,
+  isLaunchBlocked,
   recordSessionOutputActivity,
   rejectAllStaged,
   rejectStaged,
@@ -114,7 +115,8 @@ export function App() {
   const activeStagedSessions = orderStagedSessions(activeSessions, activePendingPlan);
   const stagedCount = activeSessions.filter((s) => s.stage === "staged").length;
   const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
-  const unsafeStagedCount = activeSessions.filter((s) => s.stage === "staged" && s.safetyNote).length;
+  const blockedStagedCount = activeSessions.filter((s) => s.stage === "staged" && isLaunchBlocked(s)).length;
+  const unsafeStagedCount = activeSessions.filter((s) => s.stage === "staged" && s.safetyNote && !isLaunchBlocked(s)).length;
   const liveAlfredCount = activeSessions.filter((s) => s.stage === "live" && s.source === "alfred").length;
   const alfredExpanded =
     alfredStatus.kind !== "idle" ||
@@ -618,6 +620,16 @@ export function App() {
 
   const handleApproveTile = useCallback((tileId: string) => {
     const tile = terminalSessions.find((session) => session.id === tileId);
+    if (tile && isLaunchBlocked(tile)) {
+      setTerminalSessions((sessions) =>
+        appendSessionActivity(sessions, tileId, {
+          kind: "warning",
+          title: "Launch blocked",
+          detail: tile.launchPreflight?.status === "blocked" ? tile.launchPreflight.reason : "Preflight failed.",
+        }),
+      );
+      return;
+    }
     if (tile?.safetyNote && !armedUnsafeSessionIds.has(tileId)) {
       setArmedUnsafeSessionIds((ids) => new Set(ids).add(tileId));
       return;
@@ -989,6 +1001,7 @@ export function App() {
             selectedSessionId={activeSelectedSessionId}
             stagedSessions={activeStagedSessions}
             stagedCount={stagedCount}
+            blockedStagedCount={blockedStagedCount}
             unsafeStagedCount={unsafeStagedCount}
             liveAlfredCount={liveAlfredCount}
             onApproveAll={handleApproveAll}
@@ -1251,6 +1264,7 @@ function createStagedPlanSnapshot({
     command: session.command ?? "",
     args: session.args ?? [],
     ...(session.safetyNote === undefined ? {} : { safetyNote: session.safetyNote }),
+    ...(session.launchPreflight === undefined ? {} : { launchPreflight: { ...session.launchPreflight } }),
   }));
 
   return {

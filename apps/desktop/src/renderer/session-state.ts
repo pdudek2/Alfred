@@ -1,4 +1,4 @@
-import type { AgentKind, AlfredPlanSession, AlfredStagedPlanSnapshot } from "../shared/alfred-ipc";
+import type { AgentKind, AlfredLaunchPreflight, AlfredPlanSession, AlfredStagedPlanSnapshot } from "../shared/alfred-ipc";
 import {
   appendActivityEvent,
   classifyTerminalOutputActivities,
@@ -31,6 +31,7 @@ export type SessionTile = {
   args?: string[];
   agentKind?: AgentKind;
   safetyNote?: string;
+  launchPreflight?: AlfredLaunchPreflight;
   initialBuffer?: string;
   activityEvents?: SessionActivityEvent[];
   lastActivityAt?: number;
@@ -92,6 +93,7 @@ export function attachRuntimeSession(
     const {
       createdAt: _createdAt,
       initialBuffer: _initialBuffer,
+      launchPreflight: _launchPreflight,
       lastOutputAt: _lastOutputAt,
       ...attachedSession
     } = session;
@@ -120,8 +122,9 @@ export function markSessionStartFailed(sessions: SessionTile[], tileId: string):
     if (session.runtimeStatus === "starting" && !session.runtimeId && session.initialBuffer) {
       return { ...session, runtimeStatus: "restored" };
     }
+    const { launchPreflight: _launchPreflight, ...retryableSession } = session;
     const nextStage = session.source === "alfred" && !session.runtimeId ? "staged" : session.stage;
-    return { ...session, stage: nextStage, runtimeStatus: "error" };
+    return { ...retryableSession, stage: nextStage, runtimeStatus: "error" };
   });
 }
 
@@ -223,6 +226,7 @@ export function hydrateStagedPlanSessions(
       agentKind: session.kind,
       ...(isolation === undefined ? {} : { isolation }),
       ...(session.safetyNote === undefined ? {} : { safetyNote: session.safetyNote }),
+      ...(session.launchPreflight === undefined ? {} : { launchPreflight: cloneLaunchPreflight(session.launchPreflight) }),
     };
   });
 }
@@ -278,6 +282,7 @@ export function addStagedSessions(
       agentKind: session.kind,
       ...(isolation === undefined ? {} : { isolation }),
       ...(session.safetyNote === undefined ? {} : { safetyNote: session.safetyNote }),
+      ...(session.launchPreflight === undefined ? {} : { launchPreflight: cloneLaunchPreflight(session.launchPreflight) }),
     };
     nextIndex += 1;
     return tile;
@@ -287,7 +292,9 @@ export function addStagedSessions(
 
 export function approveStaged(sessions: SessionTile[], tileId: string): SessionTile[] {
   return sessions.map((session) =>
-    session.id === tileId && session.stage === "staged" ? { ...session, stage: "live", runtimeStatus: "starting" } : session,
+    session.id === tileId && session.stage === "staged" && !isLaunchBlocked(session)
+      ? { ...session, stage: "live", runtimeStatus: "starting" }
+      : session,
   );
 }
 
@@ -297,7 +304,7 @@ export function rejectStaged(sessions: SessionTile[], tileId: string): SessionTi
 
 export function approveAllStaged(sessions: SessionTile[], workspaceId?: string): SessionTile[] {
   return sessions.map((session) =>
-    session.stage === "staged" && !session.safetyNote && (!workspaceId || session.workspaceId === workspaceId)
+    session.stage === "staged" && !session.safetyNote && !isLaunchBlocked(session) && (!workspaceId || session.workspaceId === workspaceId)
       ? { ...session, stage: "live", runtimeStatus: "starting" }
       : session,
   );
@@ -305,6 +312,14 @@ export function approveAllStaged(sessions: SessionTile[], workspaceId?: string):
 
 export function rejectAllStaged(sessions: SessionTile[], workspaceId?: string): SessionTile[] {
   return sessions.filter((session) => !(session.stage === "staged" && (!workspaceId || session.workspaceId === workspaceId)));
+}
+
+export function isLaunchBlocked(session: Pick<SessionTile, "launchPreflight">): boolean {
+  return session.launchPreflight?.status === "blocked";
+}
+
+function cloneLaunchPreflight(preflight: AlfredLaunchPreflight): AlfredLaunchPreflight {
+  return { ...preflight };
 }
 
 export function appendSessionActivity(

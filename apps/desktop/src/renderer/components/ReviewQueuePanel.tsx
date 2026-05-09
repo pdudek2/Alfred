@@ -2,6 +2,7 @@ import { AlertTriangle, ArrowRight, Play, RotateCcw, X } from "lucide-react";
 import { useEffect, useMemo, useRef, type KeyboardEvent } from "react";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
+import { isLaunchBlocked } from "../session-state";
 import type { WorkspaceReviewItem } from "../workspace-attention";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 
@@ -131,6 +132,7 @@ function ReviewQueuePanelItem({
   const action = reviewActionLabel(item, armed);
   const command = formatCommand(item.session);
   const showCommand = item.status.kind === "blocked" || item.status.kind === "staged";
+  const hardBlocked = isLaunchBlocked(item.session);
 
   const openItem = () => {
     onFocusItem(item.workspaceId, item.session.id);
@@ -138,6 +140,7 @@ function ReviewQueuePanelItem({
   };
 
   const runAction = () => {
+    if (hardBlocked) return;
     if (item.status.kind === "blocked" && !armed) {
       onApproveTile(item.session.id);
       return;
@@ -191,7 +194,13 @@ function ReviewQueuePanelItem({
         )}
         <ArrowRight size={15} />
       </button>
-      {item.session.safetyNote && (
+      {hardBlocked && item.session.launchPreflight?.status === "blocked" && (
+        <div className="global-review-warning blocked" role="note">
+          <AlertTriangle size={13} />
+          <span>{item.session.launchPreflight.reason}</span>
+        </div>
+      )}
+      {!hardBlocked && item.session.safetyNote && (
         <div className="global-review-warning" role="note">
           <AlertTriangle size={13} />
           <span>{item.session.safetyNote}</span>
@@ -208,6 +217,7 @@ function ReviewQueuePanelItem({
           type="button"
           className={`global-review-action action-${item.status.kind} ${armed ? "armed" : ""}`}
           onClick={runAction}
+          disabled={hardBlocked}
           aria-label={`${action} ${item.session.title} in ${item.workspaceLabel}`}
         >
           {item.status.kind === "error" || item.status.kind === "restored" ? <RotateCcw size={13} /> : <Play size={13} />}
@@ -219,6 +229,7 @@ function ReviewQueuePanelItem({
 }
 
 function reviewActionLabel(item: WorkspaceReviewItem, armed: boolean): string | null {
+  if (isLaunchBlocked(item.session)) return "Blocked";
   if (item.status.kind === "blocked") return armed ? "Confirm launch" : "Review command";
   if (item.status.kind === "staged") return "Launch";
   if (item.status.kind === "restored") return "Relaunch";

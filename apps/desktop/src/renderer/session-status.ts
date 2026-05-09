@@ -17,12 +17,14 @@ export type SessionDisplayStatus =
 const ACTIVE_OUTPUT_WINDOW_MS = 15_000;
 
 export function terminalSessionDisplayStatus(
-  session: Pick<SessionTile, "activityEvents" | "lastOutputAt" | "runtimeStatus" | "safetyNote" | "stage">,
+  session: Pick<SessionTile, "activityEvents" | "lastOutputAt" | "launchPreflight" | "runtimeStatus" | "safetyNote" | "stage">,
   localStatus: LocalTerminalStatus = "ready",
   now = Date.now(),
 ): SessionDisplayStatus {
   if (session.stage === "staged") {
-    return session.safetyNote ? { kind: "blocked", label: "blocked" } : { kind: "staged", label: "ready" };
+    return session.safetyNote || session.launchPreflight?.status === "blocked"
+      ? { kind: "blocked", label: "blocked" }
+      : { kind: "staged", label: "ready" };
   }
 
   if (localStatus === "browser") return { kind: "runtime", label: "electron only" };

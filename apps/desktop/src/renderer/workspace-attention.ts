@@ -126,7 +126,7 @@ function attentionDetailForSession(session: SessionTile, kind: SessionDisplaySta
   }
 
   if (kind === "blocked") {
-    return truncateReason(session.safetyNote ?? commandLabel(session)) ?? attentionDetail(kind);
+    return truncateReason(session.launchPreflight?.status === "blocked" ? session.launchPreflight.reason : session.safetyNote ?? commandLabel(session)) ?? attentionDetail(kind);
   }
 
   if (kind === "staged") {

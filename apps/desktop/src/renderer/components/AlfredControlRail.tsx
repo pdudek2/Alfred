@@ -1,6 +1,6 @@
 import { Play, RotateCcw, ShieldAlert, X } from "lucide-react";
 import type { AlfredStatus, SquadPlan } from "../alfred-state";
-import type { SessionTile } from "../session-state";
+import { isLaunchBlocked, type SessionTile } from "../session-state";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import type { WorkspaceReviewItem } from "../workspace-attention";
@@ -14,6 +14,7 @@ type AlfredControlRailProps = {
   selectedSessionId: string | null;
   stagedSessions: SessionTile[];
   stagedCount: number;
+  blockedStagedCount: number;
   unsafeStagedCount: number;
   liveAlfredCount: number;
   onApproveAll: () => void;
@@ -38,6 +39,7 @@ export function AlfredControlRail({
   selectedSessionId,
   stagedSessions,
   stagedCount,
+  blockedStagedCount,
   unsafeStagedCount,
   liveAlfredCount,
   onApproveAll,
@@ -52,7 +54,7 @@ export function AlfredControlRail({
   onRejectTile,
   onRestartSession,
 }: AlfredControlRailProps) {
-  const safeStagedCount = Math.max(0, stagedCount - unsafeStagedCount);
+  const safeStagedCount = Math.max(0, stagedCount - unsafeStagedCount - blockedStagedCount);
   const compact =
     status.kind === "idle" &&
     pendingPlan === null &&
@@ -126,12 +128,18 @@ export function AlfredControlRail({
               {unsafeStagedCount} flagged item{unsafeStagedCount === 1 ? "" : "s"} need manual approval.
             </div>
           )}
+          {blockedStagedCount > 0 && (
+            <div className="plan-safety-note blocked" role="note">
+              {blockedStagedCount} item{blockedStagedCount === 1 ? "" : "s"} blocked before launch.
+            </div>
+          )}
           <p className="plan-prompt">"{truncate(pendingPlan.prompt, 140)}"</p>
           <PlanReviewQueue
             armedUnsafeSessionIds={armedUnsafeSessionIds}
             safeStagedCount={safeStagedCount}
             selectedSessionId={selectedSessionId}
             sessions={stagedSessions}
+            blockedStagedCount={blockedStagedCount}
             unsafeStagedCount={unsafeStagedCount}
             onApproveAll={onApproveAll}
             onApproveTile={onApproveTile}
@@ -394,8 +402,10 @@ function ActiveDecisionItem({
   const kindMeta = tileKindMeta(kind);
   const actionLabel = decisionActionLabel(item, armed);
   const canReject = item.status.kind === "blocked" || item.status.kind === "staged";
+  const hardBlocked = isLaunchBlocked(session);
 
   const runAction = () => {
+    if (hardBlocked) return;
     if (item.status.kind === "blocked" || item.status.kind === "staged") {
       onApproveTile(session.id);
       return;
@@ -437,8 +447,9 @@ function ActiveDecisionItem({
       <div className={`review-item-actions ${canReject ? "" : "solo"}`}>
         <button
           type="button"
-          className={session.safetyNote ? "review-item-launch flagged" : "review-item-launch"}
+          className={hardBlocked ? "review-item-launch blocked" : session.safetyNote ? "review-item-launch flagged" : "review-item-launch"}
           onClick={runAction}
+          disabled={hardBlocked}
           aria-label={`${actionLabel} ${session.title}`}
         >
           {actionLabel}
@@ -459,6 +470,7 @@ function ActiveDecisionItem({
 }
 
 function decisionActionLabel(item: WorkspaceReviewItem, armed: boolean): string {
+  if (isLaunchBlocked(item.session)) return "Blocked";
   if (item.status.kind === "blocked") return armed ? "Confirm" : "Review";
   if (item.status.kind === "staged") return "Launch";
   if (item.status.kind === "restored") return "Relaunch";
@@ -474,6 +486,7 @@ function recoveryStatusLabel(session: SessionTile): "done" | "error" | "restored
 
 function PlanReviewQueue({
   armedUnsafeSessionIds,
+  blockedStagedCount,
   safeStagedCount,
   selectedSessionId,
   sessions,
@@ -485,6 +498,7 @@ function PlanReviewQueue({
   onRejectTile,
 }: {
   armedUnsafeSessionIds: Set<string>;
+  blockedStagedCount: number;
   safeStagedCount: number;
   selectedSessionId: string | null;
   sessions: SessionTile[];
@@ -505,6 +519,7 @@ function PlanReviewQueue({
         <span>Review queue</span>
         <strong>
           {safeStagedCount} safe · {unsafeStagedCount} flagged
+          {blockedStagedCount > 0 ? ` · ${blockedStagedCount} blocked` : ""}
         </strong>
       </header>
       <div className="review-queue-actions">
@@ -561,15 +576,18 @@ function ReviewQueueItem({
   const kind = sessionTileKind(session);
   const kindMeta = tileKindMeta(kind);
   const command = formatCommand(session);
-  const flagged = Boolean(session.safetyNote);
+  const hardBlocked = isLaunchBlocked(session);
+  const flagged = Boolean(session.safetyNote) && !hardBlocked;
   const approveLabel = flagged
     ? armed
       ? `Confirm unsafe command from review queue: ${session.title}`
       : `Review unsafe command from review queue: ${session.title}`
+    : hardBlocked
+      ? `Launch blocked from review queue: ${session.title}`
     : `Launch from review queue: ${session.title}`;
 
   return (
-    <li className={`review-queue-item ${flagged ? "flagged" : "safe"} ${armed ? "armed" : ""} ${selected ? "selected" : ""}`}>
+    <li className={`review-queue-item ${hardBlocked ? "blocked" : flagged ? "flagged" : "safe"} ${armed ? "armed" : ""} ${selected ? "selected" : ""}`}>
       <button
         type="button"
         className="review-item-focus"
@@ -587,7 +605,13 @@ function ReviewQueueItem({
           </div>
         </div>
         <code>{command}</code>
-        {session.safetyNote && (
+        {hardBlocked && session.launchPreflight?.status === "blocked" && (
+          <div className="review-safety-note blocked">
+            <ShieldAlert size={13} />
+            <span>{session.launchPreflight.reason}</span>
+          </div>
+        )}
+        {flagged && session.safetyNote && (
           <div className="review-safety-note">
             <ShieldAlert size={13} />
             <span>{session.safetyNote}</span>
@@ -597,11 +621,12 @@ function ReviewQueueItem({
       <div className="review-item-actions">
         <button
           type="button"
-          className={flagged ? "review-item-launch flagged" : "review-item-launch"}
+          className={hardBlocked ? "review-item-launch blocked" : flagged ? "review-item-launch flagged" : "review-item-launch"}
           onClick={() => onApprove(session.id)}
+          disabled={hardBlocked}
           aria-label={approveLabel}
         >
-          {flagged ? (armed ? "Confirm" : "Review") : "Launch"}
+          {hardBlocked ? "Blocked" : flagged ? (armed ? "Confirm" : "Review") : "Launch"}
         </button>
         <button
           type="button"

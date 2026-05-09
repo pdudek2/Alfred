@@ -18,8 +18,33 @@ const plan: AlfredStagedPlanSnapshot = {
   name: "Demo",
   prompt: "prepare",
   sessions: [
-    { id: "alfred-1", kind: "shell", title: "A", command: "echo", args: ["a"] },
-    { id: "alfred-2", kind: "codex", title: "B", command: "codex", args: [], safetyNote: "review" },
+    {
+      id: "alfred-1",
+      kind: "shell",
+      title: "A",
+      command: "echo",
+      args: ["a"],
+      launchPreflight: {
+        status: "ready",
+        label: "Ready",
+        detail: "Will launch in the selected workspace.",
+        isolation: "shared",
+      },
+    },
+    {
+      id: "alfred-2",
+      kind: "codex",
+      title: "B",
+      command: "codex",
+      args: [],
+      safetyNote: "review",
+      launchPreflight: {
+        status: "blocked",
+        code: "cwd_outside_workspace",
+        label: "Workspace mismatch",
+        reason: "This agent asked to launch outside the selected workspace. Bind the right folder or adjust the plan.",
+      },
+    },
   ],
 };
 

@@ -125,7 +125,9 @@ function installDesktopBridge(
   const createTerminal = vi.fn().mockImplementation((request: Parameters<TerminalApi["create"]>[0]) => {
     const baseCwd = request.cwd ?? "/tmp";
     const branchName =
-      request.isolation === "worktree" ? `alfred-${request.agentKind ?? "agent"}-${request.clientId ?? "session"}` : undefined;
+      request.isolation === "worktree"
+        ? request.branchName ?? `alfred-${request.agentKind ?? "agent"}-${request.clientId ?? "session"}`
+        : undefined;
     const cwd = branchName ? `${baseCwd}/.alfred-worktrees/${branchName}` : baseCwd;
 
     return Promise.resolve({
@@ -1967,6 +1969,201 @@ describe("App integration", () => {
     expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("0 safe · 1 flagged");
     expect(clearStagedPlan).not.toHaveBeenCalled();
+  });
+
+  it("keeps preflight-blocked staged tiles queued while launching ready tiles", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, resolveStagedPlan } = installDesktopBridge({
+      ok: true,
+      plan: {
+        name: "Preflight plan",
+        sessions: [
+          {
+            kind: "shell",
+            title: "Safe task",
+            command: "pnpm",
+            args: ["test"],
+            launchPreflight: {
+              status: "ready",
+              label: "Ready",
+              detail: "Will launch in the selected workspace.",
+              isolation: "shared",
+            },
+          },
+          {
+            kind: "codex",
+            title: "Blocked Codex",
+            command: "codex",
+            args: [],
+            launchPreflight: {
+              status: "blocked",
+              code: "git_not_ready",
+              label: "Git not ready",
+              reason: "Workspace has uncommitted or untracked changes.",
+            },
+          },
+        ],
+      },
+    });
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText("Alfred prompt"), "stage preflight");
+    await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
+
+    expect(await screen.findByRole("article", { name: /Staged Safe task/i })).toBeInTheDocument();
+    const blocked = screen.getByRole("article", { name: /Staged Blocked Codex/i });
+    expect(blocked).toHaveTextContent("Launch blocked: Workspace has uncommitted or untracked changes.");
+    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("1 safe · 0 flagged · 1 blocked");
+    expect(screen.getByRole("button", { name: "Launch blocked: Blocked Codex" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Launch queue" }));
+
+    await waitFor(() => {
+      expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
+    });
+    expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-1" }));
+    expect(createTerminal).not.toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-2" }));
+    expect(screen.queryByRole("article", { name: /Staged Safe task/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Staged Blocked Codex/i })).toBeInTheDocument();
+  });
+
+  it("launches a preflighted worktree branch for staged coding agents", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge({
+      ok: true,
+      plan: {
+        name: "Worktree plan",
+        sessions: [
+          {
+            kind: "codex",
+            title: "Codex task",
+            command: "codex",
+            args: [],
+            launchPreflight: {
+              status: "ready",
+              label: "Worktree ready",
+              detail: "Will create an isolated Git worktree on launch.",
+              isolation: "worktree",
+              branchName: "alfred-codex-preflight",
+              baseCwd: "/repo",
+              cwd: "/.alfred-worktrees/repo/alfred-codex-preflight",
+            },
+          },
+        ],
+      },
+    });
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText("Alfred prompt"), "stage codex");
+    await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
+    await screen.findByText("worktree: alfred-codex-preflight");
+
+    await user.click(screen.getByRole("button", { name: "Launch Codex task" }));
+
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          branchName: "alfred-codex-preflight",
+          clientId: "alfred-1",
+          command: "codex",
+          isolation: "worktree",
+        }),
+      );
+    });
+  });
+
+  it("does not reuse a one-shot preflight branch after a failed staged start", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge({
+      ok: true,
+      plan: {
+        name: "Worktree retry plan",
+        sessions: [
+          {
+            kind: "codex",
+            title: "Codex task",
+            command: "codex",
+            args: [],
+            launchPreflight: {
+              status: "ready",
+              label: "Worktree ready",
+              detail: "Will create an isolated Git worktree on launch.",
+              isolation: "worktree",
+              branchName: "alfred-codex-preflight",
+              baseCwd: "/repo",
+              cwd: "/.alfred-worktrees/repo/alfred-codex-preflight",
+            },
+          },
+        ],
+      },
+    });
+    let codexAttempts = 0;
+    createTerminal.mockImplementation((request: Parameters<TerminalApi["create"]>[0]) => {
+      if (request.clientId === "alfred-1" && codexAttempts === 0) {
+        codexAttempts += 1;
+        return Promise.reject(new Error("spawn failed after worktree creation"));
+      }
+      if (request.clientId === "alfred-1") codexAttempts += 1;
+
+      const baseCwd = request.cwd ?? "/tmp";
+      const branchName =
+        request.isolation === "worktree"
+          ? request.branchName ?? `alfred-${request.agentKind ?? "agent"}-${request.clientId ?? "session"}`
+          : undefined;
+      const cwd = branchName ? `${baseCwd}/.alfred-worktrees/${branchName}` : baseCwd;
+
+      return Promise.resolve({
+        id: `runtime-${request.clientId ?? "manual"}`,
+        clientId: request.clientId ?? "manual-1",
+        title: request.title ?? "Manual · zsh 1",
+        source: request.source ?? "manual",
+        workspaceId: request.workspaceId ?? "A",
+        cwd,
+        shell: "bash",
+        ...(request.agentKind === undefined ? {} : { agentKind: request.agentKind }),
+        ...(request.isolation === undefined ? {} : { isolation: request.isolation }),
+        ...(branchName === undefined ? {} : { branchName, baseCwd }),
+        ...(request.command === undefined ? {} : { command: request.command }),
+        ...(request.args === undefined ? {} : { args: request.args }),
+      });
+    });
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText("Alfred prompt"), "stage codex");
+    await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
+    const tile = await screen.findByRole("article", { name: /Staged Codex task/i });
+    await screen.findByText("worktree: alfred-codex-preflight");
+
+    await user.click(within(tile).getByRole("button", { name: "Launch Codex task" }));
+
+    await waitFor(() => {
+      const codexCalls = createTerminal.mock.calls.filter(([request]) => request.clientId === "alfred-1");
+      expect(codexCalls).toHaveLength(1);
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("worktree: alfred-codex-preflight")).not.toBeInTheDocument();
+    });
+
+    await user.click(
+      within(screen.getByRole("article", { name: /Staged Codex task/i })).getByRole("button", {
+        name: "Launch Codex task",
+      }),
+    );
+
+    await waitFor(() => {
+      const codexCalls = createTerminal.mock.calls.filter(([request]) => request.clientId === "alfred-1");
+      expect(codexCalls).toHaveLength(2);
+    });
+    const codexCalls = createTerminal.mock.calls
+      .map(([request]) => request)
+      .filter((request) => request.clientId === "alfred-1");
+
+    expect(codexCalls[0]).toMatchObject({ branchName: "alfred-codex-preflight", isolation: "worktree" });
+    expect(codexCalls[1]).toMatchObject({ isolation: "worktree" });
+    expect(codexCalls[1]?.branchName).toBeUndefined();
   });
 
   it("keeps a safe staged tile queued when its terminal fails to start", async () => {

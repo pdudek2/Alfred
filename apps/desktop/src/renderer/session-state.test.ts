@@ -329,7 +329,20 @@ describe("desktop session state", () => {
   });
 
   it("copies resolved runtime metadata back into the session tile", () => {
-    const initial = [{ ...createInitialSessions("", "A")[0]!, initialBuffer: "old transcript\n", lastOutputAt: 100 }];
+    const initial = [{
+      ...createInitialSessions("", "A")[0]!,
+      initialBuffer: "old transcript\n",
+      lastOutputAt: 100,
+      launchPreflight: {
+        status: "ready",
+        label: "Worktree ready",
+        detail: "Will create an isolated Git worktree on launch.",
+        isolation: "worktree",
+        branchName: "alfred-codex-codex-1-20260509191530-abc123",
+        baseCwd: "/Users/patryk/Desktop/Alfred",
+        cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/alfred-codex-codex-1-20260509191530-abc123",
+      } as const,
+    }];
     const next = attachRuntimeSession(initial, "manual-1", {
       id: "runtime-1",
       clientId: "manual-1",
@@ -354,6 +367,7 @@ describe("desktop session state", () => {
       createdAt: 500,
     });
     expect(next[0]?.initialBuffer).toBeUndefined();
+    expect(next[0]?.launchPreflight).toBeUndefined();
     expect(next[0]?.lastOutputAt).toBeUndefined();
   });
 
@@ -506,13 +520,25 @@ describe("staged sessions", () => {
     { kind: "dev-server", title: "API dev", command: "pnpm", args: ["--filter", "@alfred/api", "dev"] },
     { kind: "shell", title: "DB logs", command: "tail", args: ["-f", "logs/db.log"], cwd: "/var/log" },
     { kind: "codex", title: "Refactor pass", command: "codex", args: [], safetyNote: "rm -rf detected" },
+    {
+      kind: "claude",
+      title: "Blocked review",
+      command: "claude",
+      args: [],
+      launchPreflight: {
+        status: "blocked",
+        code: "git_not_ready",
+        label: "Git not ready",
+        reason: "Workspace has uncommitted or untracked changes.",
+      },
+    },
   ];
 
   it("addStagedSessions appends one tile per plan session with stable Alfred-prefixed ids", () => {
     const initial = createInitialSessions("/repo");
     const next = addStagedSessions(initial, planSessions, "/repo");
 
-    expect(next).toHaveLength(4); // 1 manual + 3 staged
+    expect(next).toHaveLength(5); // 1 manual + 4 staged
     const staged = next.slice(1);
     expect(staged[0]).toEqual({
       id: "alfred-1",
@@ -532,6 +558,12 @@ describe("staged sessions", () => {
       isolation: "worktree",
       safetyNote: "rm -rf detected",
     });
+    expect(staged[3]).toMatchObject({
+      id: "alfred-4",
+      agentKind: "claude",
+      isolation: "worktree",
+      launchPreflight: expect.objectContaining({ status: "blocked" }),
+    });
   });
 
   it("hydrates staged tiles from a persisted Alfred plan snapshot", () => {
@@ -548,6 +580,15 @@ describe("staged sessions", () => {
           args: [],
           cwd: "/repo",
           safetyNote: "review command",
+          launchPreflight: {
+            status: "ready",
+            label: "Worktree ready",
+            detail: "Will create an isolated Git worktree on launch.",
+            isolation: "worktree",
+            branchName: "alfred-codex-review",
+            baseCwd: "/repo",
+            cwd: "/.alfred-worktrees/repo/alfred-codex-review",
+          },
         },
       ],
     };
@@ -576,6 +617,15 @@ describe("staged sessions", () => {
         agentKind: "codex",
         isolation: "worktree",
         safetyNote: "review command",
+        launchPreflight: {
+          status: "ready",
+          label: "Worktree ready",
+          detail: "Will create an isolated Git worktree on launch.",
+          isolation: "worktree",
+          branchName: "alfred-codex-review",
+          baseCwd: "/repo",
+          cwd: "/.alfred-worktrees/repo/alfred-codex-review",
+        },
       },
     ]);
   });
@@ -613,6 +663,7 @@ describe("staged sessions", () => {
     expect(after.find((s) => s.id === "alfred-2")?.stage).toBe("live");
     expect(after.find((s) => s.id === "alfred-1")?.stage).toBe("staged");
     expect(after.find((s) => s.id === "alfred-3")?.stage).toBe("staged");
+    expect(after.find((s) => s.id === "alfred-4")?.stage).toBe("staged");
   });
 
   it("approveStaged is a no-op for unknown ids and for already-live tiles", () => {
@@ -627,7 +678,7 @@ describe("staged sessions", () => {
     const before = addStagedSessions(initial, planSessions, "/repo");
     const after = rejectStaged(before, "alfred-2");
 
-    expect(after.map((s) => s.id)).toEqual(["manual-1", "alfred-1", "alfred-3"]);
+    expect(after.map((s) => s.id)).toEqual(["manual-1", "alfred-1", "alfred-3", "alfred-4"]);
   });
 
   it("rejectStaged refuses to remove live tiles", () => {
@@ -646,7 +697,49 @@ describe("staged sessions", () => {
     expect(after.find((s) => s.id === "alfred-1")?.stage).toBe("live");
     expect(after.find((s) => s.id === "alfred-2")?.stage).toBe("live");
     expect(after.find((s) => s.id === "alfred-3")?.stage).toBe("staged");
+    expect(after.find((s) => s.id === "alfred-4")?.stage).toBe("staged");
     expect(after.map((s) => s.id)).toEqual(before.map((s) => s.id)); // same ids, same order
+  });
+
+  it("refuses to approve preflight-blocked staged tiles", () => {
+    const initial = createInitialSessions("/repo");
+    const before = addStagedSessions(initial, planSessions, "/repo");
+
+    expect(approveStaged(before, "alfred-4")).toEqual(before);
+  });
+
+  it("drops one-shot launch preflight after a staged launch fails", () => {
+    const initial = createInitialSessions("/repo");
+    const before = addStagedSessions(
+      initial,
+      [
+        {
+          kind: "codex",
+          title: "Codex task",
+          command: "codex",
+          args: [],
+          launchPreflight: {
+            status: "ready",
+            label: "Worktree ready",
+            detail: "Will create an isolated Git worktree on launch.",
+            isolation: "worktree",
+            branchName: "alfred-codex-task",
+            baseCwd: "/repo",
+            cwd: "/.alfred-worktrees/repo/alfred-codex-task",
+          },
+        },
+      ],
+      "/repo",
+    );
+    const launching = approveStaged(before, "alfred-1");
+    const failed = markSessionStartFailed(launching, "alfred-1");
+
+    expect(failed[1]).toMatchObject({
+      id: "alfred-1",
+      stage: "staged",
+      runtimeStatus: "error",
+    });
+    expect(failed[1]?.launchPreflight).toBeUndefined();
   });
 
   it("rejectAllStaged removes every staged tile and leaves manual tiles untouched", () => {
