@@ -843,6 +843,129 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
   });
 
+  it("jumps to sessions in other workspaces from the command palette", async () => {
+    const user = userEvent.setup();
+    const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge(
+      undefined,
+      null,
+      [
+        {
+          id: "runtime-manual",
+          clientId: "manual-a",
+          title: "Manual · zsh 1",
+          source: "manual",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "/bin/zsh",
+          buffer: "",
+        },
+        {
+          id: "runtime-client",
+          clientId: "client-codex",
+          title: "API worker",
+          source: "alfred",
+          agentKind: "codex",
+          workspaceId: "CLIENT",
+          cwd: "/Users/patryk/Desktop/ClientApp",
+          shell: "/bin/zsh",
+          buffer: "",
+        },
+      ],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Alfred workspace/i })).toHaveAttribute("aria-selected", "true");
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    const palette = screen.getByRole("dialog", { name: "Command palette" });
+    expect(within(palette).getByText("Open Manual · zsh 1")).toBeInTheDocument();
+    expect(within(palette).queryByText("Open API worker")).not.toBeInTheDocument();
+    await user.type(within(palette).getByRole("textbox", { name: "Search commands" }), "api worker");
+
+    expect(within(palette).getByRole("option", { name: /ClientApp · idle · .*ClientApp/i })).toHaveTextContent("Open API worker");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /ClientApp workspace/i })).toHaveAttribute("aria-selected", "true");
+    });
+    expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("API worker");
+    expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
+      workspaceId: "CLIENT",
+      viewState: { workMode: "focus", selectedSessionId: "client-codex" },
+    });
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+      workspaceId: "CLIENT",
+      layouts: expect.objectContaining({
+        "client-codex": expect.objectContaining({ col: 1, colSpan: 12 }),
+      }),
+    });
+  });
+
+  it("keeps focused-session commands scoped to the active workspace", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(
+      undefined,
+      null,
+      [
+        {
+          id: "runtime-manual",
+          clientId: "manual-a",
+          title: "Manual · zsh 1",
+          source: "manual",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "/bin/zsh",
+          buffer: "",
+        },
+        {
+          id: "runtime-client",
+          clientId: "client-codex",
+          title: "API worker",
+          source: "alfred",
+          agentKind: "codex",
+          workspaceId: "CLIENT",
+          cwd: "/Users/patryk/Desktop/ClientApp",
+          shell: "/bin/zsh",
+          buffer: "",
+        },
+      ],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "close focused session{Enter}");
+
+    await waitFor(() => {
+      expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
+
+    expect(await screen.findByRole("article", { name: /API worker/i })).toBeInTheDocument();
+  });
+
   it("starts agent sessions directly from the command palette", async () => {
     const user = userEvent.setup();
     const { createTerminal } = installDesktopBridge();

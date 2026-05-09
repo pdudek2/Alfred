@@ -27,6 +27,7 @@ type CommandPaletteProps = {
   activeWorkspaceId: string;
   activeWorkMode: WorkMode;
   arrangeMode: boolean;
+  allSessions: SessionTile[];
   pendingPlan: SquadPlan | null;
   query: string;
   recoverableSessions: SessionTile[];
@@ -57,7 +58,7 @@ type CommandPaletteProps = {
   onOpenSessionFolder: (cwd: string) => void;
   onOpenSessionTerminal: (cwd: string) => void;
   onRenameWorkspace: () => void;
-  onFocusSession: (sessionId: string) => void;
+  onFocusSessionInWorkspace: (workspaceId: string, sessionId: string) => void;
   onFocusNextSession: () => void;
   onFocusPreviousSession: () => void;
   onOpenReviewQueue: () => void;
@@ -72,6 +73,7 @@ export function CommandPalette({
   activeWorkspaceId,
   activeWorkMode,
   arrangeMode,
+  allSessions,
   pendingPlan,
   query,
   recoverableSessions,
@@ -102,7 +104,7 @@ export function CommandPalette({
   onOpenSessionFolder,
   onOpenSessionTerminal,
   onRenameWorkspace,
-  onFocusSession,
+  onFocusSessionInWorkspace,
   onFocusNextSession,
   onFocusPreviousSession,
   onOpenReviewQueue,
@@ -131,6 +133,20 @@ export function CommandPalette({
   const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? sessions[0] ?? null;
   const selectedRestartable = selectedSession ? isRestartableSession(selectedSession) : false;
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
+  const normalizedQuery = query.trim().toLowerCase();
+  const workspaceById = useMemo(
+    () => new Map(workspaces.map((workspace) => [workspace.id, workspace])),
+    [workspaces],
+  );
+  const activeSearchableSessions = useMemo(
+    () => [...sessions].sort((a, b) => compareSessionsForPalette(a, b, activeWorkspaceId)),
+    [activeWorkspaceId, sessions],
+  );
+  const globalSearchableSessions = useMemo(
+    () => [...allSessions].sort((a, b) => compareSessionsForPalette(a, b, activeWorkspaceId)),
+    [activeWorkspaceId, allSessions],
+  );
+  const searchableSessions = normalizedQuery ? globalSearchableSessions : activeSearchableSessions;
   const recoverableCount = recoverableSessions.length;
 
   const commands: CommandPaletteItem[] = useMemo(
@@ -206,12 +222,17 @@ export function CommandPalette({
               : shortenPath(workspace.rootPath ?? "local desk"),
         run: () => onSelectWorkspace(workspace.id),
       })),
-      ...sessions.map((session) => ({
-        id: `focus-session-${session.id}`,
-        label: `Focus ${session.title}`,
-        detail: `${sessionStatusLabel(session)} · ${shortenPath(session.cwd || "default workspace")}`,
-        run: () => onFocusSession(session.id),
-      })),
+      ...searchableSessions.map((session) => {
+        const workspace = workspaceById.get(session.workspaceId);
+        const workspaceLabel = workspace?.label ?? `Workspace ${session.workspaceId}`;
+        const location = session.branchName ?? session.cwd ?? workspace?.rootPath ?? "default workspace";
+        return {
+          id: `focus-session-${session.workspaceId}-${session.id}`,
+          label: `Open ${session.title}`,
+          detail: `${workspaceLabel} · ${sessionStatusLabel(session)} · ${shortenPath(location)}`,
+          run: () => onFocusSessionInWorkspace(session.workspaceId, session.id),
+        };
+      }),
       {
         id: "open-review-queue",
         label: "Open review queue",
@@ -358,6 +379,7 @@ export function CommandPalette({
       activeWorkMode,
       activeWorkspaceId,
       activeWorkspace,
+      activeSearchableSessions,
       attention,
       arrangeMode,
       canCloseWorkspace,
@@ -376,7 +398,7 @@ export function CommandPalette({
       onOpenSessionFolder,
       onOpenSessionTerminal,
       onRenameWorkspace,
-      onFocusSession,
+      onFocusSessionInWorkspace,
       onFocusNextSession,
       onFocusPreviousSession,
       onOpenReviewQueue,
@@ -390,15 +412,18 @@ export function CommandPalette({
       reviewQueueCount,
       reviewQueuePreview,
       safeStagedCount,
+      globalSearchableSessions,
+      normalizedQuery,
       selectedRestartable,
       selectedSession,
       sessions,
       shortcutModifier,
+      searchableSessions,
       unsafeStagedCount,
+      workspaceById,
       workspaces,
     ],
   );
-  const normalizedQuery = query.trim().toLowerCase();
   const filteredCommands = filterCommands(commands, normalizedQuery);
   const enabledCommands = filteredCommands.filter((command) => !command.disabled);
 
@@ -496,6 +521,16 @@ function shortenPath(value: string): string {
 
 function sessionStatusLabel(session: SessionTile): string {
   return terminalSessionDisplayStatus(session).label;
+}
+
+function compareSessionsForPalette(a: SessionTile, b: SessionTile, activeWorkspaceId: string): number {
+  const aWorkspaceBias = a.workspaceId === activeWorkspaceId ? 0 : 1;
+  const bWorkspaceBias = b.workspaceId === activeWorkspaceId ? 0 : 1;
+  if (aWorkspaceBias !== bWorkspaceBias) return aWorkspaceBias - bWorkspaceBias;
+
+  const aActivity = a.lastActivityAt ?? a.lastOutputAt ?? a.createdAt ?? 0;
+  const bActivity = b.lastActivityAt ?? b.lastOutputAt ?? b.createdAt ?? 0;
+  return bActivity - aActivity;
 }
 
 function isRestartableSession(session: SessionTile): boolean {
