@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
@@ -9,6 +10,8 @@ type AgentTimelinePanelProps = {
 };
 
 export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelProps) {
+  const ageClock = useSessionAgeClock(session?.createdAt);
+
   if (!session) {
     return (
       <aside className="agent-timeline-panel" aria-label="Agent activity">
@@ -28,7 +31,7 @@ export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelP
   const runtimeStatus = session.runtimeStatus ?? (session.runtimeId ? "live" : "starting");
   const displayStatus = terminalSessionDisplayStatus(session);
   const activityEvents = session.activityEvents ?? [];
-  const ageLabel = sessionAgeLabel(session.createdAt);
+  const ageLabel = sessionAgeLabel(session.createdAt, ageClock);
   const activityDigest = activityDigestItems(activityEvents);
   const activitySummary = summarizeActivityEvents(activityEvents);
   const latestApproval = latestApprovalEvent(activityEvents);
@@ -166,6 +169,7 @@ function activityDigestItems(events: NonNullable<SessionTile["activityEvents"]>)
   const items = [
     { label: "command", tone: "work" as const, value: events.filter((event) => event.kind === "command").length },
     { label: "file", tone: "work" as const, value: events.filter((event) => event.kind === "file").length },
+    { label: "tool", tone: "work" as const, value: events.filter((event) => event.kind === "tool").length },
     { label: "plan", tone: "plan" as const, value: events.filter((event) => event.kind === "plan").length },
     { label: "ask", tone: "ask" as const, value: events.filter((event) => event.kind === "approval").length },
     { label: "issue", tone: "issue" as const, value: events.filter((event) => event.kind === "error" || event.kind === "warning").length },
@@ -178,6 +182,22 @@ function countedLabel(count: number, singular: string): string {
   if (count === 1) return singular;
   if (singular === "ask") return "asks";
   return `${singular}s`;
+}
+
+function useSessionAgeClock(createdAt: number | undefined): number {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    setNow(Date.now());
+    if (createdAt === undefined) return;
+
+    const intervalId = window.setInterval(() => setNow(Date.now()), 5_000);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [createdAt]);
+
+  return now;
 }
 
 function formatActivityTime(value: number): string {

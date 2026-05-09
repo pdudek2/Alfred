@@ -263,6 +263,7 @@ describe("desktop session state", () => {
         args: [],
         shell: "codex",
         buffer: "saved output\n",
+        createdAt: 300,
         lastOutputAt: 320,
       },
     ]);
@@ -275,9 +276,36 @@ describe("desktop session state", () => {
       source: "manual",
       stage: "live",
       runtimeStatus: "starting",
+      createdAt: 300,
+      lastOutputAt: 320,
       agentKind: "codex",
       command: "codex",
       args: [],
+      initialBuffer: "saved output\n",
+    });
+  });
+
+  it("returns a failed restored relaunch to recovery instead of losing the transcript", () => {
+    const restored = hydratePersistedTerminalSessions([
+      {
+        clientId: "codex-2",
+        title: "Codex · session 2",
+        cwd: "/repo",
+        source: "manual",
+        agentKind: "codex",
+        command: "codex",
+        args: [],
+        shell: "codex",
+        buffer: "saved output\n",
+      },
+    ]);
+
+    const relaunching = relaunchRestoredSession(restored, "codex-2");
+    const failed = markSessionStartFailed(relaunching, "codex-2");
+
+    expect(failed[0]).toMatchObject({
+      runtimeStatus: "restored",
+      initialBuffer: "saved output\n",
     });
   });
 
@@ -299,7 +327,7 @@ describe("desktop session state", () => {
   });
 
   it("copies resolved runtime metadata back into the session tile", () => {
-    const initial = createInitialSessions("", "A");
+    const initial = [{ ...createInitialSessions("", "A")[0]!, initialBuffer: "old transcript\n", lastOutputAt: 100 }];
     const next = attachRuntimeSession(initial, "manual-1", {
       id: "runtime-1",
       clientId: "manual-1",
@@ -317,6 +345,8 @@ describe("desktop session state", () => {
       cwd: "/Users/patryk/Desktop/Alfred",
       createdAt: 500,
     });
+    expect(next[0]?.initialBuffer).toBeUndefined();
+    expect(next[0]?.lastOutputAt).toBeUndefined();
   });
 
   it("appends bounded first-class activity events to a session", () => {

@@ -76,6 +76,7 @@ export function AlfredControlRail({
     >
       <div className="alfred-dock-header">
         <AlfredSigil state={sigilState} />
+        {compact && <span className="visually-hidden">Alfred {statusText}</span>}
         {!compact && (
           <div>
             <strong>Alfred</strong>

@@ -82,27 +82,36 @@ export function attachRuntimeSession(
   tileId: string,
   runtime: TerminalCreateResult,
 ): SessionTile[] {
-  return sessions.map((session) =>
-    session.id === tileId
-      ? {
-          ...session,
-          runtimeId: runtime.id,
-          runtimeStatus: "live",
-          title: runtime.title,
-          cwd: runtime.cwd,
-          ...(runtime.createdAt === undefined ? {} : { createdAt: runtime.createdAt }),
-          ...(runtime.command === undefined ? {} : { command: runtime.command }),
-          ...(runtime.args === undefined ? {} : { args: runtime.args }),
-          ...(runtime.agentKind === undefined ? {} : { agentKind: runtime.agentKind }),
-          ...(runtime.workspaceId === undefined ? {} : { workspaceId: runtime.workspaceId }),
-        }
-      : session,
-  );
+  return sessions.map((session) => {
+    if (session.id !== tileId) return session;
+    const {
+      createdAt: _createdAt,
+      initialBuffer: _initialBuffer,
+      lastOutputAt: _lastOutputAt,
+      ...attachedSession
+    } = session;
+
+    return {
+      ...attachedSession,
+      runtimeId: runtime.id,
+      runtimeStatus: "live",
+      title: runtime.title,
+      cwd: runtime.cwd,
+      ...(runtime.createdAt === undefined ? {} : { createdAt: runtime.createdAt }),
+      ...(runtime.command === undefined ? {} : { command: runtime.command }),
+      ...(runtime.args === undefined ? {} : { args: runtime.args }),
+      ...(runtime.agentKind === undefined ? {} : { agentKind: runtime.agentKind }),
+      ...(runtime.workspaceId === undefined ? {} : { workspaceId: runtime.workspaceId }),
+    };
+  });
 }
 
 export function markSessionStartFailed(sessions: SessionTile[], tileId: string): SessionTile[] {
   return sessions.map((session) => {
     if (session.id !== tileId) return session;
+    if (session.runtimeStatus === "starting" && !session.runtimeId && session.initialBuffer) {
+      return { ...session, runtimeStatus: "restored" };
+    }
     const nextStage = session.source === "alfred" && !session.runtimeId ? "staged" : session.stage;
     return { ...session, stage: nextStage, runtimeStatus: "error" };
   });
@@ -132,10 +141,7 @@ export function relaunchRestoredSession(sessions: SessionTile[], sessionId: stri
   return sessions.map((session) => {
     if (session.id !== sessionId || session.runtimeStatus !== "restored") return session;
     const {
-      initialBuffer: _initialBuffer,
-      lastOutputAt: _lastOutputAt,
       runtimeId: _runtimeId,
-      createdAt: _createdAt,
       ...relaunchableSession
     } = session;
     return { ...relaunchableSession, runtimeStatus: "starting" };

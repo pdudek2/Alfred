@@ -746,7 +746,7 @@ describe("App integration", () => {
     expect(await within(tile).findByRole("button", { name: "Restart Manual · zsh 9" })).toBeInTheDocument();
     await user.click(within(tile).getByRole("button", { name: "Restart Manual · zsh 9" }));
 
-    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "manual-a" });
+    expect(forgetTerminal).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1014,7 +1014,7 @@ describe("App integration", () => {
       }),
     );
     expect(screen.queryByRole("article", { name: /Manual · zsh 10/i })).not.toBeInTheDocument();
-    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9" });
+    expect(forgetTerminal).not.toHaveBeenCalled();
   });
 
   it("dismisses restored sessions from the recovery queue", async () => {
@@ -1131,8 +1131,50 @@ describe("App integration", () => {
       expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "manual-9" }));
       expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "codex-9", command: "codex" }));
     });
-    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "manual-9" });
-    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9" });
+    expect(forgetTerminal).not.toHaveBeenCalled();
+  });
+
+  it("keeps restored transcripts recoverable when relaunch all cannot start a process", async () => {
+    const { createTerminal, forgetTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "manual-9",
+          title: "Manual · zsh 9",
+          cwd: "/repo",
+          source: "manual",
+          shell: "/bin/zsh",
+          buffer: "saved output\n",
+        },
+        {
+          clientId: "manual-10",
+          title: "Manual · zsh 10",
+          cwd: "/repo",
+          source: "manual",
+          shell: "/bin/zsh",
+          buffer: "second output\n",
+        },
+      ],
+    );
+    createTerminal.mockRejectedValue(new Error("spawn failed"));
+
+    render(<App />);
+
+    expect(await screen.findByRole("region", { name: "Recovery queue" })).toHaveTextContent("2 saved");
+
+    await userEvent.click(screen.getByRole("button", { name: "Relaunch all" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("article", { name: /Manual · zsh 9/i })).toHaveTextContent("restored");
+      expect(screen.getByRole("article", { name: /Manual · zsh 10/i })).toHaveTextContent("restored");
+    });
+    expect(screen.getByRole("region", { name: "Recovery queue" })).toHaveTextContent("2 saved");
+    expect(forgetTerminal).not.toHaveBeenCalled();
   });
 
   it("does not duplicate a restored staged tile that is already live", async () => {
