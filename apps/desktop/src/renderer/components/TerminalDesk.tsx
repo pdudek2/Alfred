@@ -1,6 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { ShieldAlert, X } from "lucide-react";
+import { Play, ShieldAlert, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -32,6 +32,7 @@ type TerminalDeskProps = {
   unsafeStagedCount: number;
   workMode: WorkMode;
   onCloseSession: (sessionId: string) => void;
+  onContinueRestoredSession: (sessionId: string) => void;
   onApplyLayoutPreset: (preset: LayoutPreset) => void;
   onApplyWorkMode: (mode: WorkMode) => void;
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
@@ -54,6 +55,7 @@ export function TerminalDesk({
   unsafeStagedCount,
   workMode,
   onCloseSession,
+  onContinueRestoredSession,
   onApplyLayoutPreset,
   onApplyWorkMode,
   onMoveTile,
@@ -260,6 +262,7 @@ export function TerminalDesk({
               initialBuffer={session.initialBuffer}
               selected={selectedSession?.id === session.id}
               onClose={() => onCloseSession(session.id)}
+              onContinueRestoredSession={() => onContinueRestoredSession(session.id)}
               onFocusSession={() => handleFocusSession(session.id)}
               onSelectSession={() => handleSelectSession(session.id)}
               onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
@@ -336,6 +339,7 @@ function ManualTerminalTile({
   layout,
   preview,
   onClose,
+  onContinueRestoredSession,
   onFocusSession,
   onSelectSession,
   onPointerMoveStart,
@@ -361,6 +365,7 @@ function ManualTerminalTile({
   layout?: TileLayout | undefined;
   preview?: ArrangePreview | undefined;
   onClose: () => void;
+  onContinueRestoredSession: () => void;
   onFocusSession: () => void;
   onSelectSession: () => void;
   onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
@@ -625,6 +630,19 @@ function ManualTerminalTile({
         </div>
         <div className="tile-actions">
           <span className="tile-status">{statusLabel(status)}</span>
+          {status === "restored" && (
+            <button
+              type="button"
+              className="continue-button"
+              aria-label={`Continue from ${title}`}
+              onClick={onContinueRestoredSession}
+              onPointerDown={(event) => event.stopPropagation()}
+              title="Start a new terminal from this transcript"
+            >
+              <Play size={13} />
+              <span>Continue</span>
+            </button>
+          )}
           <button
             type="button"
             aria-label={`Close ${title}`}
