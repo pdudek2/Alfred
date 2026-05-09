@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowserWindow, ipcMain } from "electron";
 import {
   configureTerminalPersistence,
+  flushTerminalPersistence,
   getTerminalSessionCount,
   killAllTerminalSessions,
   registerTerminalIpc,
@@ -205,6 +206,38 @@ describe("terminal-manager IPC", () => {
     await Promise.resolve();
 
     expect(state.restoredTerminalSessions).toEqual([]);
+  });
+
+  it("flushes pending terminal snapshots without waiting for the debounce timer", async () => {
+    let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+    };
+    const pty = new FakePty();
+    configureTerminalPersistence(store, { debounceMs: 60_000 });
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+
+    await invoke<{ id: string }>(terminalChannels.create, {
+      clientId: "manual-1",
+      command: "node",
+      cols: 80,
+      rows: 24,
+      title: "Manual terminal",
+    });
+    pty.onDataHandler?.("Server ready\n");
+
+    await flushTerminalPersistence();
+
+    expect(state.restoredTerminalSessions).toEqual([
+      expect.objectContaining({
+        clientId: "manual-1",
+        buffer: "Server ready\n",
+      }),
+    ]);
   });
 
   it("creates a terminal session, streams data to the attached window, and rehydrates from list", async () => {

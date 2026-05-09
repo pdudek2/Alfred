@@ -4,6 +4,7 @@ import path from "node:path";
 import { config as loadDotenv } from "dotenv";
 import {
   configureTerminalPersistence,
+  flushTerminalPersistence,
   getTerminalSessionCount,
   killAllTerminalSessions,
   registerTerminalIpc,
@@ -25,6 +26,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
 let terminalQuitConfirmed = false;
+let terminalPersistenceFlushedForQuit = false;
 
 // Load repo-root .env before any IPC registration so OPENROUTER_API_KEY is visible.
 // Repo root is two levels up from app.getAppPath() (apps/desktop) — same logic as
@@ -112,6 +114,16 @@ app.on("before-quit", (event) => {
       return;
     }
     terminalQuitConfirmed = true;
+  }
+
+  if (!terminalPersistenceFlushedForQuit) {
+    event.preventDefault();
+    killAllTerminalSessions();
+    void flushTerminalPersistence().finally(() => {
+      terminalPersistenceFlushedForQuit = true;
+      app.quit();
+    });
+    return;
   }
 
   killAllTerminalSessions();

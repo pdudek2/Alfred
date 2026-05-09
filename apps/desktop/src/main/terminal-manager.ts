@@ -196,6 +196,15 @@ export function killAllTerminalSessions(): void {
   }
 }
 
+export async function flushTerminalPersistence(): Promise<void> {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+
+  await persistTerminalSnapshots();
+}
+
 export function getTerminalSessionCount(): number {
   return sessions.size;
 }
