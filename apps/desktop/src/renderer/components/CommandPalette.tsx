@@ -11,6 +11,7 @@ import type { SquadPlan } from "../alfred-state";
 import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import type { WorkMode } from "../terminal-desk-types";
+import type { WorkspaceAttention } from "../workspace-attention";
 import type { AgentKind } from "../../shared/alfred-ipc";
 import type { WorkspaceRailWorkspace } from "./WorkspaceRail";
 
@@ -29,6 +30,7 @@ type CommandPaletteProps = {
   pendingPlan: SquadPlan | null;
   query: string;
   recoverableSessions: SessionTile[];
+  attention: WorkspaceAttention | null;
   safeStagedCount: number;
   selectedSessionId: string | null;
   sessions: SessionTile[];
@@ -50,6 +52,7 @@ type CommandPaletteProps = {
   onFocusSession: (sessionId: string) => void;
   onFocusNextSession: () => void;
   onFocusPreviousSession: () => void;
+  onReviewAttention: () => void;
   onRejectAll: () => void;
   onRestartSession: (sessionId: string) => void;
   onSelectWorkspace: (workspaceId: string) => void;
@@ -63,6 +66,7 @@ export function CommandPalette({
   pendingPlan,
   query,
   recoverableSessions,
+  attention,
   safeStagedCount,
   selectedSessionId,
   sessions,
@@ -84,6 +88,7 @@ export function CommandPalette({
   onFocusSession,
   onFocusNextSession,
   onFocusPreviousSession,
+  onReviewAttention,
   onRejectAll,
   onRestartSession,
   onSelectWorkspace,
@@ -166,6 +171,15 @@ export function CommandPalette({
         detail: `${sessionStatusLabel(session)} · ${shortenPath(session.cwd || "default workspace")}`,
         run: () => onFocusSession(session.id),
       })),
+      {
+        id: "review-attention",
+        label: "Review attention",
+        detail: attention
+          ? `${attention.status.label} · ${attention.session.title} ${attention.detail}`
+          : "No session needs review",
+        disabled: attention === null,
+        run: onReviewAttention,
+      },
       {
         id: "close-selected-session",
         label: "Close focused session",
@@ -267,6 +281,7 @@ export function CommandPalette({
       activeWorkMode,
       activeWorkspaceId,
       activeWorkspace,
+      attention,
       arrangeMode,
       canCloseWorkspace,
       onAddAgentSession,
@@ -281,6 +296,7 @@ export function CommandPalette({
       onFocusSession,
       onFocusNextSession,
       onFocusPreviousSession,
+      onReviewAttention,
       onRejectAll,
       onRestartSession,
       onSelectWorkspace,

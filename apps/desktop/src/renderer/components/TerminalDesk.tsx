@@ -19,6 +19,7 @@ import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import type { ArrangePointerMode, ArrangePreview, WorkMode } from "../terminal-desk-types";
+import type { WorkspaceAttention } from "../workspace-attention";
 import type { AgentKind } from "../../shared/alfred-ipc";
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../../shared/terminal-ipc";
 import { AgentTimelinePanel } from "./AgentTimelinePanel";
@@ -31,6 +32,7 @@ type TerminalDeskProps = {
   layouts: Record<string, TileLayout>;
   pendingPlan: SquadPlan | null;
   recoverableSessions: SessionTile[];
+  attention: WorkspaceAttention | null;
   selectedSessionId: string | null;
   sessions: SessionTile[];
   shortcutModifier: string;
@@ -55,6 +57,7 @@ type TerminalDeskProps = {
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
   onFocusSession: (sessionId: string) => void;
+  onReviewAttention: () => void;
   onSelectSession: (sessionId: string) => void;
   onApproveTile: (tileId: string) => void;
   onRejectTile: (tileId: string) => void;
@@ -67,6 +70,7 @@ export function TerminalDesk({
   layouts,
   pendingPlan,
   recoverableSessions,
+  attention,
   selectedSessionId,
   sessions,
   shortcutModifier,
@@ -91,6 +95,7 @@ export function TerminalDesk({
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
   onFocusSession,
+  onReviewAttention,
   onSelectSession,
   onApproveTile,
   onRejectTile,
@@ -226,6 +231,18 @@ export function TerminalDesk({
               </button>
               <span className="arrange-hint">drag header · resize corner</span>
             </>
+          )}
+          {!arrangeMode && attention && (
+            <button
+              type="button"
+              className={`attention-jump tone-${attention.status.kind}`}
+              aria-label={`Review attention: ${attention.session.title}`}
+              onClick={onReviewAttention}
+              title={`${attention.session.title} ${attention.detail}`}
+            >
+              <span>{attention.status.label}</span>
+              <strong>{attention.session.title}</strong>
+            </button>
           )}
           {!arrangeMode && sessions.length > 0 && (
             <div className="work-mode-control" aria-label="work mode">

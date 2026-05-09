@@ -603,6 +603,56 @@ button:focus-visible {
   color: #cff3f6;
 }
 
+.layout-controls .attention-jump {
+  max-width: 230px;
+  min-height: 32px;
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  border-color: color-mix(in oklab, var(--brass) 34%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--brass) 13%, transparent), color-mix(in oklab, var(--brass) 5%, transparent));
+  color: #f5e6b8;
+}
+
+.attention-jump span,
+.attention-jump strong {
+  display: inline-block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attention-jump span {
+  min-height: 18px;
+  border-radius: 999px;
+  padding: 0 6px;
+  background: color-mix(in oklab, var(--brass) 16%, transparent);
+  color: #ffe6a9;
+  font-size: 10px;
+  line-height: 18px;
+}
+
+.attention-jump strong {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.attention-jump.tone-error {
+  border-color: color-mix(in oklab, var(--coral) 42%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--coral) 13%, transparent), color-mix(in oklab, var(--coral) 5%, transparent));
+  color: #ffd1ca;
+}
+
+.attention-jump.tone-error span {
+  background: color-mix(in oklab, var(--coral) 17%, transparent);
+  color: #ffd1ca;
+}
+
 .terminal-stage-header kbd {
   min-height: 26px;
   border: 1px solid rgba(188, 202, 218, 0.14);
