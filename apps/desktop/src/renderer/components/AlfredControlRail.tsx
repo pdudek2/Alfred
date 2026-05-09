@@ -18,6 +18,7 @@ type AlfredControlRailProps = {
   onApproveTile: (tileId: string) => void;
   onCloseRecoverableSessions: () => void;
   onCloseSession: (tileId: string) => void;
+  onContinueRecoverableSessions: () => void;
   onContinueRestoredSession: (tileId: string) => void;
   onDismissError: () => void;
   onFocusSession: (tileId: string) => void;
@@ -40,6 +41,7 @@ export function AlfredControlRail({
   onApproveTile,
   onCloseRecoverableSessions,
   onCloseSession,
+  onContinueRecoverableSessions,
   onContinueRestoredSession,
   onDismissError,
   onFocusSession,
@@ -120,6 +122,7 @@ export function AlfredControlRail({
           sessions={recoverableSessions}
           onCloseAllSessions={onCloseRecoverableSessions}
           onCloseSession={onCloseSession}
+          onContinueAllSessions={onContinueRecoverableSessions}
           onContinueRestoredSession={onContinueRestoredSession}
           onFocusSession={onFocusSession}
           onRestartSession={onRestartSession}
@@ -173,6 +176,7 @@ function RecoveryQueue({
   sessions,
   onCloseAllSessions,
   onCloseSession,
+  onContinueAllSessions,
   onContinueRestoredSession,
   onFocusSession,
   onRestartSession,
@@ -181,6 +185,7 @@ function RecoveryQueue({
   sessions: SessionTile[];
   onCloseAllSessions: () => void;
   onCloseSession: (tileId: string) => void;
+  onContinueAllSessions: () => void;
   onContinueRestoredSession: (tileId: string) => void;
   onFocusSession: (tileId: string) => void;
   onRestartSession: (tileId: string) => void;
@@ -191,9 +196,14 @@ function RecoveryQueue({
         <span>Recovery</span>
         <strong>{sessions.length} saved</strong>
         {sessions.length > 1 && (
-          <button type="button" onClick={onCloseAllSessions}>
-            Dismiss all
-          </button>
+          <div className="recovery-queue-actions">
+            <button type="button" onClick={onContinueAllSessions}>
+              Relaunch all
+            </button>
+            <button type="button" onClick={onCloseAllSessions}>
+              Dismiss all
+            </button>
+          </div>
         )}
       </header>
       <ol>

@@ -374,6 +374,16 @@ export function App() {
     }
   }, [activeRecoverableSessions, handleCloseSession]);
 
+  const handleContinueRecoverableSessions = useCallback(() => {
+    for (const session of activeRecoverableSessions) {
+      if (session.runtimeStatus === "restored") {
+        handleContinueRestoredSession(session.id);
+      } else if (session.runtimeStatus === "exited" || session.runtimeStatus === "error") {
+        handleRestartSession(session.id);
+      }
+    }
+  }, [activeRecoverableSessions, handleContinueRestoredSession, handleRestartSession]);
+
   const handleRuntimeSessionStarting = useCallback((tileId: string): boolean => {
     if (startingSessionIdsRef.current.has(tileId)) {
       return false;
@@ -807,6 +817,7 @@ export function App() {
             onApproveTile={handleApproveTile}
             onCloseRecoverableSessions={handleCloseRecoverableSessions}
             onCloseSession={handleCloseSession}
+            onContinueRecoverableSessions={handleContinueRecoverableSessions}
             onContinueRestoredSession={handleContinueRestoredSession}
             onDismissError={handleDismissError}
             onFocusSession={handleFocusSession}
