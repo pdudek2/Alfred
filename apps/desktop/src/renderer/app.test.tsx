@@ -616,6 +616,43 @@ describe("App integration", () => {
     });
   });
 
+  it("surfaces the latest important activity on the terminal tile", async () => {
+    installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "codex-a",
+        title: "Codex · session 1",
+        source: "manual",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "codex",
+        command: "codex",
+        args: [],
+        buffer: "",
+        activityEvents: [
+          {
+            id: "codex-a-activity-1",
+            kind: "approval",
+            title: "Waiting for approval",
+            detail: "Do you want to proceed? y/N",
+            at: 100,
+          },
+        ],
+        lastActivityAt: 100,
+      },
+    ]);
+
+    render(<App />);
+
+    const tile = await screen.findByRole("article", {
+      name: /Codex · session 1, Waiting for approval: Do you want to proceed\? y\/N/i,
+    });
+
+    expect(tile).toHaveTextContent("ask");
+    expect(tile).toHaveTextContent("Waiting for approval");
+  });
+
   it("hydrates saved workspace layouts from the desktop runtime", async () => {
     installDesktopBridge(undefined, null, [], undefined, {
       layoutsByWorkspace: {
