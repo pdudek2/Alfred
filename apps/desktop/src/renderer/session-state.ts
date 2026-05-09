@@ -47,6 +47,31 @@ export function addManualSession(sessions: SessionTile[], cwd: string, workspace
   return [...sessions, createManualSession(nextIndex, cwd, workspaceId)];
 }
 
+export function addAgentSession(
+  sessions: SessionTile[],
+  kind: Extract<AgentKind, "claude" | "codex">,
+  cwd: string,
+  workspaceId = "A",
+): SessionTile[] {
+  const nextIndex = nextPrefixedSessionIndex(sessions, `${kind}-`);
+  const title = `${kind === "codex" ? "Codex" : "Claude"} · session ${nextIndex}`;
+  return [
+    ...sessions,
+    {
+      id: `${kind}-${nextIndex}`,
+      title,
+      workspaceId,
+      cwd,
+      source: "manual",
+      stage: "live",
+      runtimeStatus: "starting",
+      agentKind: kind,
+      command: kind,
+      args: [],
+    },
+  ];
+}
+
 export function closeSession(sessions: SessionTile[], sessionId: string): SessionTile[] {
   return sessions.filter((session) => session.id !== sessionId);
 }
@@ -172,12 +197,13 @@ function createManualSession(index: number, cwd: string, workspaceId: string): S
 }
 
 function nextManualSessionIndex(sessions: SessionTile[]): number {
-  const usedIndexes = sessions.map((session) => {
-    if (!session.id.startsWith(MANUAL_SESSION_PREFIX)) {
-      return 0;
-    }
+  return nextPrefixedSessionIndex(sessions, MANUAL_SESSION_PREFIX);
+}
 
-    const index = Number.parseInt(session.id.slice(MANUAL_SESSION_PREFIX.length), 10);
+function nextPrefixedSessionIndex(sessions: SessionTile[], prefix: string): number {
+  const usedIndexes = sessions.map((session) => {
+    if (!session.id.startsWith(prefix)) return 0;
+    const index = Number.parseInt(session.id.slice(prefix.length), 10);
     return Number.isInteger(index) ? index : 0;
   });
 

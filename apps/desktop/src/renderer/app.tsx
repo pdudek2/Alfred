@@ -25,6 +25,7 @@ import {
   type SquadPlan,
 } from "./alfred-state";
 import {
+  addAgentSession,
   addManualSession,
   addStagedSessions,
   appendSessionActivity,
@@ -46,7 +47,7 @@ import {
 } from "./session-state";
 import type { WorkMode } from "./terminal-desk-types";
 import { workspaceSessionSummary } from "./workspace-session-summary";
-import type { AlfredRuntimeStatus, AlfredStagedPlanSnapshot, AlfredStagedSession } from "../shared/alfred-ipc";
+import type { AgentKind, AlfredRuntimeStatus, AlfredStagedPlanSnapshot, AlfredStagedSession } from "../shared/alfred-ipc";
 import type { TerminalCreateResult } from "../shared/terminal-ipc";
 import type { WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 import "@xterm/xterm/css/xterm.css";
@@ -106,6 +107,12 @@ export function App() {
 
   const handleAddManualSession = useCallback(() => {
     setTerminalSessions((sessions) => addManualSession(sessions, activeWorkspace.rootPath ?? "", activeWorkspace.id));
+  }, [activeWorkspace.id, activeWorkspace.rootPath]);
+
+  const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">) => {
+    setTerminalSessions((sessions) =>
+      addAgentSession(sessions, kind, activeWorkspace.rootPath ?? "", activeWorkspace.id),
+    );
   }, [activeWorkspace.id, activeWorkspace.rootPath]);
 
   const handleAddWorkspace = useCallback(async () => {
@@ -771,6 +778,7 @@ export function App() {
             shortcutModifier={shortcutModifier}
             unsafeStagedCount={unsafeStagedCount}
             workspaces={workspaces}
+            onAddAgentSession={handleAddAgentSession}
             onAddManualSession={handleAddManualSession}
             onAddWorkspace={handleAddWorkspace}
             onApplyWorkMode={handleApplyWorkMode}

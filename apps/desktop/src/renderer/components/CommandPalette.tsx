@@ -11,6 +11,7 @@ import type { SquadPlan } from "../alfred-state";
 import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import type { WorkMode } from "../terminal-desk-types";
+import type { AgentKind } from "../../shared/alfred-ipc";
 import type { WorkspaceRailWorkspace } from "./WorkspaceRail";
 
 type CommandPaletteItem = {
@@ -33,6 +34,7 @@ type CommandPaletteProps = {
   shortcutModifier: string;
   unsafeStagedCount: number;
   workspaces: WorkspaceRailWorkspace[];
+  onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
   onAddWorkspace: () => void;
   onApplyWorkMode: (mode: WorkMode) => void;
@@ -61,6 +63,7 @@ export function CommandPalette({
   shortcutModifier,
   unsafeStagedCount,
   workspaces,
+  onAddAgentSession,
   onAddManualSession,
   onAddWorkspace,
   onApplyWorkMode,
@@ -102,6 +105,18 @@ export function CommandPalette({
         label: "New manual terminal",
         detail: `${shortcutModifier} T · start a shell in this workspace`,
         run: onAddManualSession,
+      },
+      {
+        id: "new-codex-session",
+        label: "New Codex session",
+        detail: "Start codex in this workspace",
+        run: () => onAddAgentSession("codex"),
+      },
+      {
+        id: "new-claude-session",
+        label: "New Claude session",
+        detail: "Start claude in this workspace",
+        run: () => onAddAgentSession("claude"),
       },
       {
         id: "new-workspace",
@@ -209,6 +224,7 @@ export function CommandPalette({
       activeWorkMode,
       activeWorkspaceId,
       arrangeMode,
+      onAddAgentSession,
       onAddManualSession,
       onAddWorkspace,
       onApplyWorkMode,
