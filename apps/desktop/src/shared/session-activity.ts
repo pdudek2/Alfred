@@ -54,87 +54,87 @@ export function appendActivityEvent(
 }
 
 export function classifyTerminalOutputActivity(data: string): SessionActivityInput | null {
-  const lines = stripAnsi(data)
+  return classifyTerminalOutputActivities(data)[0] ?? null;
+}
+
+export function classifyTerminalOutputActivities(data: string): SessionActivityInput[] {
+  return normalizedOutputLines(data).flatMap((line) => {
+    const activity = classifyOutputLine(line);
+    return activity ? [activity] : [];
+  });
+}
+
+function normalizedOutputLines(data: string): string[] {
+  return stripAnsi(data)
     .replace(/\r/g, "\n")
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
-  if (lines.length === 0) return null;
+}
 
-  const errorLine = lines.find((line) => /\b(error|failed|failure|exception|traceback|fatal)\b/i.test(line));
-  if (errorLine) {
+function classifyOutputLine(line: string): SessionActivityInput | null {
+  if (/\b(error|failed|failure|exception|traceback|fatal)\b/i.test(line)) {
     return {
       kind: "error",
       title: "Error reported",
-      detail: truncateActivityDetail(errorLine),
+      detail: truncateActivityDetail(line),
     };
   }
 
-  const warningLine = lines.find((line) => /\b(warn(?:ing)?|deprecated|caution)\b/i.test(line));
-  if (warningLine) {
+  if (/\b(warn(?:ing)?|deprecated|caution)\b/i.test(line)) {
     return {
       kind: "warning",
       title: "Warning reported",
-      detail: truncateActivityDetail(warningLine),
+      detail: truncateActivityDetail(line),
     };
   }
 
-  const approvalLine = lines.find(
-    (line) =>
-      /\b(do you want|approve|approval required|requires approval|permission|allow|waiting on you)\b/i.test(line) ||
-      /\b(proceed|continue)\?/i.test(line),
-  );
-  if (approvalLine) {
+  if (
+    /\b(do you want|approve|approval required|requires approval|permission|allow|waiting on you)\b/i.test(line) ||
+    /\b(proceed|continue)\?/i.test(line)
+  ) {
     return {
       kind: "approval",
       title: "Waiting for approval",
-      detail: truncateActivityDetail(approvalLine),
+      detail: truncateActivityDetail(line),
     };
   }
 
-  const toolActivity = lines.map(classifyToolLine).find((activity) => activity !== null);
+  const toolActivity = classifyToolLine(line);
   if (toolActivity) return toolActivity;
 
-  const commandLine = lines.find((line) =>
-    /^(?:[•●⏺]\s*)?(ran|run|running|executed|bash)\s+(.+)/i.test(line),
-  );
-  if (commandLine) {
+  if (/^(?:[•●⏺]\s*)?(ran|run|running|executed|bash)\s+(.+)/i.test(line)) {
     return {
       kind: "command",
       title: "Ran command",
-      detail: truncateActivityDetail(cleanActivityLine(commandLine)),
+      detail: truncateActivityDetail(cleanActivityLine(line)),
     };
   }
 
-  const fileLine = lines.find((line) =>
+  if (
     /^(?:[•●⏺]\s*)?(created|deleted|modified|updated|renamed|edited|wrote|written)\s+(.+)/i.test(line) ||
-    /\b(created|deleted|modified|updated|renamed|edited|wrote|written)\b.+\.[a-z0-9]+/i.test(line),
-  );
-  if (fileLine) {
+    /\b(created|deleted|modified|updated|renamed|edited|wrote|written)\b.+\.[a-z0-9]+/i.test(line)
+  ) {
     return {
       kind: "file",
       title: "File activity",
-      detail: truncateActivityDetail(cleanActivityLine(fileLine)),
+      detail: truncateActivityDetail(cleanActivityLine(line)),
     };
   }
 
-  const planLine = lines.find((line) =>
-    /^(?:[•●⏺]\s*)?(plan updated|updated plan|todowrite|todo|task list|next steps)\b/i.test(line),
-  );
-  if (planLine) {
+  if (/^(?:[•●⏺]\s*)?(plan updated|updated plan|todowrite|todo|task list|next steps)\b/i.test(line)) {
     return {
       kind: "plan",
       title: "Plan updated",
-      detail: truncateActivityDetail(cleanActivityLine(planLine)),
+      detail: truncateActivityDetail(cleanActivityLine(line)),
     };
   }
 
-  const readyLine = lines.find((line) => /(^✓|^✔|\b(done|passed|ready|listening|compiled|built|completed)\b)/i.test(line));
-  if (readyLine) {
+  if (/(^✓|^✔|\b(done|passed|ready|listening|compiled|built|completed)\b)/i.test(line)) {
     return {
       kind: "output",
       title: "Progress reported",
-      detail: truncateActivityDetail(readyLine),
+      detail: truncateActivityDetail(line),
     };
   }
 

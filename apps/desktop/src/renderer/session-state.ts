@@ -1,7 +1,7 @@
 import type { AgentKind, AlfredPlanSession, AlfredStagedPlanSnapshot } from "../shared/alfred-ipc";
 import {
   appendActivityEvent,
-  classifyTerminalOutputActivity,
+  classifyTerminalOutputActivities,
   type SessionActivityEvent,
   type SessionActivityEventKind,
   type SessionActivityInput,
@@ -242,14 +242,17 @@ export function recordSessionOutputActivity(
   data: string,
   now = Date.now(),
 ): SessionTile[] {
-  const activity = classifyTerminalOutputActivity(data);
+  const activities = classifyTerminalOutputActivities(data);
   const session = sessions.find((item) => item.runtimeId === runtimeId);
   if (!session) return sessions;
   const sessionsWithOutputAt = sessions.map((item) =>
     item.id === session.id ? { ...item, lastOutputAt: now } : item,
   );
-  if (!activity) return sessionsWithOutputAt;
-  return appendSessionActivity(sessionsWithOutputAt, session.id, activity, now);
+  if (activities.length === 0) return sessionsWithOutputAt;
+  return activities.reduce(
+    (nextSessions, activity) => appendSessionActivity(nextSessions, session.id, activity, now),
+    sessionsWithOutputAt,
+  );
 }
 
 function nextAlfredSessionIndex(sessions: SessionTile[]): number {

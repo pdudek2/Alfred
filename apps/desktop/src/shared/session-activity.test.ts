@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyTerminalOutputActivity } from "./session-activity";
+import { classifyTerminalOutputActivities, classifyTerminalOutputActivity } from "./session-activity";
 
 describe("session activity classifier", () => {
   it("classifies agent command, file, plan, and tool lines", () => {
@@ -32,5 +32,20 @@ describe("session activity classifier", () => {
       title: "WebSearch tool",
       detail: "Alfred desktop app patterns",
     });
+  });
+
+  it("keeps multiple structured events from the same output chunk", () => {
+    expect(classifyTerminalOutputActivities('Bash("pnpm test")\nEdit(apps/desktop/src/renderer/app.tsx)\n')).toEqual([
+      {
+        kind: "command",
+        title: "Ran command",
+        detail: '"pnpm test"',
+      },
+      {
+        kind: "file",
+        title: "Edit file",
+        detail: "apps/desktop/src/renderer/app.tsx",
+      },
+    ]);
   });
 });

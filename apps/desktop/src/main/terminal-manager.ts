@@ -6,7 +6,7 @@ import { chmod } from "node:fs/promises";
 import { createRequire } from "node:module";
 import {
   appendActivityEvent,
-  classifyTerminalOutputActivity,
+  classifyTerminalOutputActivities,
   type SessionActivityEvent,
 } from "../shared/session-activity.js";
 import {
@@ -349,9 +349,9 @@ function clonePersistedSession(session: PersistedTerminalSessionSnapshot): Persi
 }
 
 function recordOutputActivity(session: TerminalSession, data: string, now = Date.now()): void {
-  const activity = classifyTerminalOutputActivity(data);
-  if (!activity) return;
-  recordSessionActivity(session, activity, now);
+  for (const activity of classifyTerminalOutputActivities(data)) {
+    recordSessionActivity(session, activity, now);
+  }
 }
 
 function recordSessionActivity(

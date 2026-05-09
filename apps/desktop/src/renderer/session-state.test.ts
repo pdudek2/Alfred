@@ -309,6 +309,32 @@ describe("desktop session state", () => {
     });
   });
 
+  it("records multiple structured activity events from one terminal chunk", () => {
+    const hydrated = hydrateLiveTerminalSessions([
+      {
+        id: "pty-a",
+        clientId: "manual-4",
+        title: "Manual · zsh 4",
+        cwd: "/repo",
+        source: "manual",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+
+    const next = recordSessionOutputActivity(
+      hydrated,
+      "pty-a",
+      'Bash("pnpm test")\nEdit(apps/desktop/src/renderer/app.tsx)\n',
+      280,
+    );
+
+    expect(next[0]?.activityEvents).toEqual([
+      expect.objectContaining({ kind: "command", title: "Ran command" }),
+      expect.objectContaining({ kind: "file", title: "Edit file" }),
+    ]);
+  });
+
   it("assigns new manual sessions to the selected workspace", () => {
     const next = addManualSession(createInitialSessions("/repo", "A"), "/repo", "UI");
 
