@@ -495,7 +495,17 @@ function cloneActivityEvents(events: SessionActivityEvent[]): SessionActivityEve
 }
 
 function isSessionActivityEventKind(value: unknown): value is SessionActivityEventKind {
-  return value === "lifecycle" || value === "output" || value === "warning" || value === "error" || value === "approval";
+  return (
+    value === "approval" ||
+    value === "command" ||
+    value === "error" ||
+    value === "file" ||
+    value === "lifecycle" ||
+    value === "output" ||
+    value === "plan" ||
+    value === "tool" ||
+    value === "warning"
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

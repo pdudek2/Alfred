@@ -2138,6 +2138,26 @@ body.arranging-pointer {
   box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 12%, transparent);
 }
 
+.agent-activity-list li.command > span {
+  background: var(--green);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--green) 12%, transparent);
+}
+
+.agent-activity-list li.file > span {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 12%, transparent);
+}
+
+.agent-activity-list li.plan > span {
+  background: var(--brass);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--brass) 12%, transparent);
+}
+
+.agent-activity-list li.tool > span {
+  background: var(--cyan);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--cyan) 12%, transparent);
+}
+
 .agent-activity-list b {
   display: block;
   color: var(--ink);
