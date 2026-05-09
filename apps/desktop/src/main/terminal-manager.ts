@@ -416,6 +416,13 @@ function killSession(id: TerminalSessionId, options: { forgetSnapshot: boolean }
   sessions.delete(id);
   if (options.forgetSnapshot && session.clientId) {
     forgetPersistedSession(session.clientId);
+  } else if (!options.forgetSnapshot) {
+    recordSessionActivity(session, {
+      kind: "lifecycle",
+      title: "Stopped on quit",
+      detail: "Alfred stopped this terminal while quitting.",
+    });
+    rememberSessionSnapshot(session);
   }
   session.pty.kill();
 }
