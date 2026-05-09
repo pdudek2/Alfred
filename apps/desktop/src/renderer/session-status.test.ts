@@ -45,6 +45,25 @@ describe("session-status", () => {
         90_000,
       ),
     ).toEqual({ kind: "waiting", label: "waiting" });
+
+    expect(
+      terminalSessionDisplayStatus(
+        liveSession({
+          lastOutputAt: 2_000,
+          activityEvents: [
+            {
+              id: "a1",
+              kind: "approval",
+              title: "Waiting for approval",
+              detail: "Do you want to proceed?",
+              at: 1_000,
+            },
+          ],
+        }),
+        "ready",
+        3_000,
+      ),
+    ).toEqual({ kind: "active", label: "active" });
   });
 
   it("maps terminal lifecycle states to user-facing labels", () => {
