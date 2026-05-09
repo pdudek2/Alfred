@@ -46,6 +46,7 @@ import {
   restartSession,
   type SessionTile,
 } from "./session-state";
+import { terminalSessionDisplayStatus } from "./session-status";
 import type { WorkMode } from "./terminal-desk-types";
 import { workspaceSessionSummary } from "./workspace-session-summary";
 import type {
@@ -457,7 +458,7 @@ export function App() {
     setAlfredStatus(thinking());
     const response = await alfredApi.requestPlan({
       prompt,
-      workspace: workspacePlanContext(activeWorkspace),
+      workspace: workspacePlanContext(activeWorkspace, activeSessions),
     });
     if (!response.ok) {
       setAlfredStatus(errored(response.error));
@@ -491,7 +492,7 @@ export function App() {
       }
       return after;
     });
-  }, [activeWorkspace.id, activeWorkspace.rootPath, alfredStatus, composerValue, globalStagedCount]);
+  }, [activeSessions, activeWorkspace, alfredStatus, composerValue, globalStagedCount]);
 
   const handleApproveTile = useCallback((tileId: string) => {
     const tile = terminalSessions.find((session) => session.id === tileId);
@@ -977,12 +978,26 @@ function omitWorkspaceRecord<T>(record: Record<string, T>, workspaceId: string):
   return next;
 }
 
-function workspacePlanContext(workspace: Workspace): AlfredWorkspaceContext {
+function workspacePlanContext(workspace: Workspace, sessions: SessionTile[]): AlfredWorkspaceContext {
   return {
     id: workspace.id,
     label: workspace.label,
     ...(workspace.rootPath === undefined ? {} : { rootPath: workspace.rootPath }),
     ...(workspace.gitBranch === undefined ? {} : { gitBranch: workspace.gitBranch }),
+    ...(sessions.length === 0
+      ? {}
+      : {
+          sessions: sessions.slice(0, 8).map((session) => {
+            const command = [session.command, ...(session.args ?? [])].filter(Boolean).join(" ");
+            return {
+              title: session.title,
+              kind: session.agentKind ?? "shell",
+              status: terminalSessionDisplayStatus(session).label,
+              ...(session.cwd ? { cwd: session.cwd } : {}),
+              ...(command ? { command } : {}),
+            };
+          }),
+        }),
   };
 }
 

@@ -1,11 +1,20 @@
 // apps/desktop/src/shared/alfred-ipc.ts
 export type AgentKind = "codex" | "claude" | "dev-server" | "shell";
 
+export type AlfredWorkspaceSessionContext = {
+  title: string;
+  kind?: AgentKind;
+  status?: string;
+  cwd?: string;
+  command?: string;
+};
+
 export type AlfredWorkspaceContext = {
   id: string;
   label: string;
   rootPath?: string;
   gitBranch?: string;
+  sessions?: AlfredWorkspaceSessionContext[];
 };
 
 export type AlfredPlanRequest = {
