@@ -143,6 +143,16 @@ describe("desktop session state", () => {
         source: "manual",
         shell: "/bin/zsh",
         buffer: "last output\n",
+        lastActivityAt: 300,
+        activityEvents: [
+          {
+            id: "manual-4-activity-300-1",
+            kind: "output",
+            title: "Progress reported",
+            detail: "last output ready",
+            at: 300,
+          },
+        ],
       },
     ]);
 
@@ -155,6 +165,16 @@ describe("desktop session state", () => {
         cwd: "/repo",
         source: "manual",
         stage: "live",
+        lastActivityAt: 300,
+        activityEvents: [
+          {
+            id: "manual-4-activity-300-1",
+            kind: "output",
+            title: "Progress reported",
+            detail: "last output ready",
+            at: 300,
+          },
+        ],
         initialBuffer: "last output\n",
       },
     ]);

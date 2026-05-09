@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { AlfredStagedPlanSnapshot, AgentKind } from "../shared/alfred-ipc.js";
 import type { TileLayout } from "../shared/layout-ipc.js";
+import type { SessionActivityEvent, SessionActivityEventKind } from "../shared/session-activity.js";
 import type { PersistedTerminalSessionSnapshot, TerminalSessionSource } from "../shared/terminal-ipc.js";
 import type { WorkspaceSnapshot, WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
 
@@ -255,6 +256,8 @@ function normalizeRestoredTerminalSessions(value: unknown): PersistedTerminalSes
       ...(Array.isArray(item.args) && item.args.every((arg) => typeof arg === "string")
         ? { args: [...item.args] }
         : {}),
+      ...(typeof item.lastActivityAt === "number" ? { lastActivityAt: item.lastActivityAt } : {}),
+      ...(Array.isArray(item.activityEvents) ? { activityEvents: normalizeActivityEvents(item.activityEvents) } : {}),
     });
   }
 
@@ -336,7 +339,39 @@ function cloneRestoredTerminalSession(session: PersistedTerminalSessionSnapshot)
   return {
     ...session,
     ...(session.args === undefined ? {} : { args: [...session.args] }),
+    ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
   };
+}
+
+function normalizeActivityEvents(value: unknown[]): SessionActivityEvent[] {
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    if (
+      typeof item.id !== "string" ||
+      !isSessionActivityEventKind(item.kind) ||
+      typeof item.title !== "string" ||
+      typeof item.detail !== "string" ||
+      typeof item.at !== "number"
+    ) {
+      return [];
+    }
+
+    return [{
+      id: item.id,
+      kind: item.kind,
+      title: item.title,
+      detail: item.detail,
+      at: item.at,
+    }];
+  });
+}
+
+function cloneActivityEvents(events: SessionActivityEvent[]): SessionActivityEvent[] {
+  return events.map((event) => ({ ...event }));
+}
+
+function isSessionActivityEventKind(value: unknown): value is SessionActivityEventKind {
+  return value === "lifecycle" || value === "output" || value === "warning" || value === "error" || value === "approval";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

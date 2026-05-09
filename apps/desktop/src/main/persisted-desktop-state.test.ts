@@ -63,6 +63,16 @@ describe("persisted-desktop-state", () => {
           cwd: "/Users/patryk/Desktop/Interface",
           shell: "/bin/zsh",
           buffer: "ready\n",
+          lastActivityAt: 123,
+          activityEvents: [
+            {
+              id: "manual-1-activity-123-1",
+              kind: "output",
+              title: "Progress reported",
+              detail: "ready",
+              at: 123,
+            },
+          ],
         },
       ],
     };

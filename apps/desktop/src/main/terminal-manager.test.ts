@@ -137,7 +137,7 @@ describe("terminal-manager IPC", () => {
       rows: 24,
       title: "Manual terminal",
     });
-    pty.onDataHandler?.("saved output\n");
+    pty.onDataHandler?.("Server ready\n");
     await Promise.resolve();
     await Promise.resolve();
 
@@ -145,7 +145,14 @@ describe("terminal-manager IPC", () => {
       expect.objectContaining({
         clientId: "manual-1",
         title: "Manual terminal",
-        buffer: "saved output\n",
+        buffer: "Server ready\n",
+        activityEvents: [
+          expect.objectContaining({
+            kind: "output",
+            title: "Progress reported",
+            detail: "Server ready",
+          }),
+        ],
       }),
     ]);
 
@@ -154,7 +161,17 @@ describe("terminal-manager IPC", () => {
 
     expect(listed.sessions).toEqual([]);
     expect(listed.restoredSessions).toEqual([
-      expect.objectContaining({ clientId: "manual-1", buffer: "saved output\n" }),
+      expect.objectContaining({
+        clientId: "manual-1",
+        buffer: "Server ready\n",
+        activityEvents: [
+          expect.objectContaining({
+            kind: "output",
+            title: "Progress reported",
+            detail: "Server ready",
+          }),
+        ],
+      }),
     ]);
   });
 
