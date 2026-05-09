@@ -18,6 +18,7 @@ import { terminalSessionDisplayStatus, type LocalTerminalStatus } from "../sessi
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import type { ArrangePointerMode, ArrangePreview, WorkMode } from "../terminal-desk-types";
+import type { AgentKind } from "../../shared/alfred-ipc";
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../../shared/terminal-ipc";
 import { AgentTimelinePanel } from "./AgentTimelinePanel";
 
@@ -33,6 +34,8 @@ type TerminalDeskProps = {
   shortcutModifier: string;
   unsafeStagedCount: number;
   workMode: WorkMode;
+  onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
+  onAddManualSession: () => void;
   onCloseSession: (sessionId: string) => void;
   onContinueRestoredSession: (sessionId: string) => void;
   onRestartSession: (sessionId: string) => void;
@@ -61,6 +64,8 @@ export function TerminalDesk({
   shortcutModifier,
   unsafeStagedCount,
   workMode,
+  onAddAgentSession,
+  onAddManualSession,
   onCloseSession,
   onContinueRestoredSession,
   onRestartSession,
@@ -239,65 +244,100 @@ export function TerminalDesk({
         />
       )}
       <div className="terminal-stage-body">
-      <div className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}`} ref={gridRef}>
-        {sessions.map((session) =>
-          session.stage === "live" ? (
-            <ManualTerminalTile
-              arrangeMode={arrangeMode}
-              cwd={session.cwd}
-              key={session.id}
-              layout={layouts[session.id]}
-              preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
-              sessionKey={session.id}
-              runtimeId={session.runtimeId}
-              runtimeStatus={session.runtimeStatus}
-              workspaceId={session.workspaceId}
-              title={session.title}
-              source={session.source}
-              agentKind={session.agentKind}
-              command={session.command}
-              args={session.args}
-              initialBuffer={session.initialBuffer}
-              activityEvents={session.activityEvents}
-              lastOutputAt={session.lastOutputAt}
-              selected={selectedSession?.id === session.id}
-              onClose={() => onCloseSession(session.id)}
-              onContinueRestoredSession={() => onContinueRestoredSession(session.id)}
-              onRestartSession={() => onRestartSession(session.id)}
-              onFocusSession={() => handleFocusSession(session.id)}
-              onSelectSession={() => handleSelectSession(session.id)}
-              onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
-              onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
-              onRuntimeSessionFailed={onRuntimeSessionFailed}
-              onRuntimeSessionExited={onRuntimeSessionExited}
-              onRuntimeSessionOutput={onRuntimeSessionOutput}
-              onRuntimeSessionReady={onRuntimeSessionReady}
-              onRuntimeSessionStarting={onRuntimeSessionStarting}
+        <div className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}`} ref={gridRef}>
+          {sessions.length === 0 && (
+            <EmptyWorkspaceState
+              onAddAgentSession={onAddAgentSession}
+              onAddManualSession={onAddManualSession}
             />
-          ) : (
-            <StagedTilePreview
-              armed={armedUnsafeSessionIds.has(session.id)}
-              key={session.id}
-              layout={layouts[session.id]}
-              preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
-              tile={session}
-              selected={selectedSession?.id === session.id}
-              onFocusSession={() => handleFocusSession(session.id)}
-              onSelectSession={() => handleSelectSession(session.id)}
-              onApprove={onApproveTile}
-              onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
-              onReject={onRejectTile}
-              onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
-              arrangeMode={arrangeMode}
-            />
-          ),
+          )}
+          {sessions.map((session) =>
+            session.stage === "live" ? (
+              <ManualTerminalTile
+                arrangeMode={arrangeMode}
+                cwd={session.cwd}
+                key={session.id}
+                layout={layouts[session.id]}
+                preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
+                sessionKey={session.id}
+                runtimeId={session.runtimeId}
+                runtimeStatus={session.runtimeStatus}
+                workspaceId={session.workspaceId}
+                title={session.title}
+                source={session.source}
+                agentKind={session.agentKind}
+                command={session.command}
+                args={session.args}
+                initialBuffer={session.initialBuffer}
+                activityEvents={session.activityEvents}
+                lastOutputAt={session.lastOutputAt}
+                selected={selectedSession?.id === session.id}
+                onClose={() => onCloseSession(session.id)}
+                onContinueRestoredSession={() => onContinueRestoredSession(session.id)}
+                onRestartSession={() => onRestartSession(session.id)}
+                onFocusSession={() => handleFocusSession(session.id)}
+                onSelectSession={() => handleSelectSession(session.id)}
+                onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
+                onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
+                onRuntimeSessionFailed={onRuntimeSessionFailed}
+                onRuntimeSessionExited={onRuntimeSessionExited}
+                onRuntimeSessionOutput={onRuntimeSessionOutput}
+                onRuntimeSessionReady={onRuntimeSessionReady}
+                onRuntimeSessionStarting={onRuntimeSessionStarting}
+              />
+            ) : (
+              <StagedTilePreview
+                armed={armedUnsafeSessionIds.has(session.id)}
+                key={session.id}
+                layout={layouts[session.id]}
+                preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
+                tile={session}
+                selected={selectedSession?.id === session.id}
+                onFocusSession={() => handleFocusSession(session.id)}
+                onSelectSession={() => handleSelectSession(session.id)}
+                onApprove={onApproveTile}
+                onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
+                onReject={onRejectTile}
+                onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
+                arrangeMode={arrangeMode}
+              />
+            ),
+          )}
+        </div>
+        {workMode === "focus" && (
+          <AgentTimelinePanel session={selectedSession ?? focusedSession(sessions, layouts)} />
         )}
       </div>
-      {workMode === "focus" && (
-        <AgentTimelinePanel session={selectedSession ?? focusedSession(sessions, layouts)} />
-      )}
-      </div>
     </section>
+  );
+}
+
+function EmptyWorkspaceState({
+  onAddAgentSession,
+  onAddManualSession,
+}: {
+  onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
+  onAddManualSession: () => void;
+}) {
+  return (
+    <div className="terminal-empty-state" role="status" aria-label="Empty workspace">
+      <div>
+        <span>Workspace ready</span>
+        <strong>No sessions running</strong>
+        <p>Start a terminal or launch an agent in this workspace.</p>
+      </div>
+      <div className="terminal-empty-actions" aria-label="empty workspace actions">
+        <button type="button" onClick={onAddManualSession}>
+          New terminal
+        </button>
+        <button type="button" onClick={() => onAddAgentSession("codex")}>
+          Start Codex
+        </button>
+        <button type="button" onClick={() => onAddAgentSession("claude")}>
+          Start Claude
+        </button>
+      </div>
+    </div>
   );
 }
 

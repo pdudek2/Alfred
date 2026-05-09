@@ -555,6 +555,37 @@ describe("App integration", () => {
     expect(killTerminal).toHaveBeenCalledWith({ id: "runtime-a" });
   });
 
+  it("offers concrete launch actions when the active workspace is empty", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge();
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledTimes(1);
+    });
+
+    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
+
+    const emptyState = await screen.findByRole("status", { name: "Empty workspace" });
+    expect(emptyState).toHaveTextContent("No sessions running");
+
+    await user.click(within(emptyState).getByRole("button", { name: "Start Codex" }));
+
+    expect(await screen.findByRole("article", { name: /Codex · session 1/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          agentKind: "codex",
+          clientId: "codex-1",
+          command: "codex",
+          workspaceId: "A",
+        }),
+      );
+    });
+  });
+
   it("closes the focused terminal with the desktop close shortcut", async () => {
     const { killTerminal } = installDesktopBridge(undefined, null, [
       {
