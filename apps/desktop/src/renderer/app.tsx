@@ -163,29 +163,42 @@ export function App() {
     });
   }, [activeSessions, activeWorkspace.id]);
 
-  const handleApplyWorkMode = useCallback((mode: WorkMode) => {
+  const handleApplyWorkMode = useCallback((mode: WorkMode, selectedSessionId = activeSelectedSessionId) => {
     const preset: LayoutPreset = mode === "focus" ? "focus" : mode === "split" ? "two-up" : "grid";
+    const layoutApi = getDesktopLayoutApi();
 
     setWorkModesByWorkspace((current) => ({
       ...current,
       [activeWorkspace.id]: mode,
     }));
+    void layoutApi?.setWorkspaceViewState({
+      workspaceId: activeWorkspace.id,
+      viewState: {
+        workMode: mode,
+        ...(selectedSessionId === null ? {} : { selectedSessionId }),
+      },
+    });
     handleApplyLayoutPreset(preset);
-  }, [activeWorkspace.id, handleApplyLayoutPreset]);
+  }, [activeSelectedSessionId, activeWorkspace.id, handleApplyLayoutPreset]);
 
   const handleSelectSession = useCallback((sessionId: string) => {
+    const layoutApi = getDesktopLayoutApi();
     setSelectedSessionIdsByWorkspace((current) => ({
       ...current,
       [activeWorkspace.id]: sessionId,
     }));
-  }, [activeWorkspace.id]);
+    void layoutApi?.setWorkspaceViewState({
+      workspaceId: activeWorkspace.id,
+      viewState: { workMode: activeWorkMode, selectedSessionId: sessionId },
+    });
+  }, [activeWorkMode, activeWorkspace.id]);
 
   const handleFocusSession = useCallback((sessionId: string) => {
     setSelectedSessionIdsByWorkspace((current) => ({
       ...current,
       [activeWorkspace.id]: sessionId,
     }));
-    handleApplyWorkMode("focus");
+    handleApplyWorkMode("focus", sessionId);
   }, [activeWorkspace.id, handleApplyWorkMode]);
 
   const handleFocusSessionByDelta = useCallback((delta: number) => {
@@ -533,13 +546,29 @@ export function App() {
       terminalApi.list(),
       alfredApi?.getStagedPlan().catch(() => ({ plan: null })) ?? Promise.resolve({ plan: null }),
       alfredApi?.getRuntimeStatus().catch(() => null) ?? Promise.resolve(null),
-      layoutApi?.getLayouts().catch(() => ({ layoutsByWorkspace: {} })) ?? Promise.resolve({ layoutsByWorkspace: {} }),
+      layoutApi?.getLayouts().catch(() => ({ layoutsByWorkspace: {}, viewStateByWorkspace: {} })) ??
+        Promise.resolve({ layoutsByWorkspace: {}, viewStateByWorkspace: {} }),
       workspaceApi?.getWorkspaceState().catch(() => null) ?? Promise.resolve(null),
     ])
       .then(([terminalResult, stagedPlanResult, runtimeStatusResult, layoutResult, workspaceStateResult]) => {
         if (cancelled) return;
         setRuntimeStatus(runtimeStatusResult);
         setTileLayoutsByWorkspace(layoutResult.layoutsByWorkspace);
+        setWorkModesByWorkspace({
+          [DEFAULT_WORKSPACE_ID]: "desk",
+          ...Object.fromEntries(
+            Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
+              viewState.workMode ? [[workspaceId, viewState.workMode]] : [],
+            ),
+          ),
+        });
+        setSelectedSessionIdsByWorkspace(
+          Object.fromEntries(
+            Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
+              viewState.selectedSessionId ? [[workspaceId, viewState.selectedSessionId]] : [],
+            ),
+          ),
+        );
         if (workspaceStateResult) {
           setWorkspaces(workspaceStateResult.workspaces);
           setActiveWorkspaceId(workspaceStateResult.activeWorkspaceId);

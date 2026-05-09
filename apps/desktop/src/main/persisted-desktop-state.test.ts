@@ -50,6 +50,9 @@ describe("persisted-desktop-state", () => {
           "manual-1": { tileId: "manual-1", col: 1, row: 1, colSpan: 12, rowSpan: 8 },
         },
       },
+      viewStateByWorkspace: {
+        UI: { workMode: "focus", selectedSessionId: "manual-1" },
+      },
       windowState: {
         bounds: { x: 120, y: 80, width: 1512, height: 982 },
         maximized: true,
@@ -99,6 +102,10 @@ describe("persisted-desktop-state", () => {
         version: DESKTOP_STATE_VERSION,
         workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
         activeWorkspaceId: "A",
+        viewStateByWorkspace: {
+          A: { workMode: "focus", selectedSessionId: "manual-1" },
+          BAD: { workMode: "huge", selectedSessionId: "" },
+        },
         windowState: {
           bounds: { x: 10.4, y: 20.6, width: 500, height: 300 },
           maximized: "yes",
@@ -112,6 +119,9 @@ describe("persisted-desktop-state", () => {
       windowState: {
         bounds: { x: 10, y: 21, width: 1120, height: 720 },
         maximized: false,
+      },
+      viewStateByWorkspace: {
+        A: { workMode: "focus", selectedSessionId: "manual-1" },
       },
     });
   });

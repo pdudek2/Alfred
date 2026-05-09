@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { DEFAULT_WORKSPACE, createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
+import { DEFAULT_DESKTOP_STATE, DEFAULT_WORKSPACE, createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
 import { createWorkspaceStore } from "./workspace-store.js";
 import type { WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
 
@@ -89,6 +89,7 @@ describe("workspace-store", () => {
     const filePath = await temporaryStateFile();
     const persistedStateStore = createPersistedDesktopStateStore({ filePath });
     await persistedStateStore.setState({
+      ...DEFAULT_DESKTOP_STATE,
       workspaces: [
         { id: "A", label: "Alfred", shortLabel: "A" },
         {
@@ -101,8 +102,6 @@ describe("workspace-store", () => {
       ],
       activeWorkspaceId: "CLIENT",
       layoutsByWorkspace: {},
-      stagedPlan: null,
-      restoredTerminalSessions: [],
     });
     const store = createWorkspaceStore({ persistedStateStore, resolveGitBranch: async () => "feature/agent-space" });
 
@@ -157,6 +156,7 @@ describe("workspace-store", () => {
     const filePath = await temporaryStateFile();
     const persistedStateStore = createPersistedDesktopStateStore({ filePath });
     await persistedStateStore.setState({
+      ...DEFAULT_DESKTOP_STATE,
       workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
       activeWorkspaceId: "A",
       layoutsByWorkspace: {
