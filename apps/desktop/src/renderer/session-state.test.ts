@@ -401,6 +401,29 @@ describe("desktop session state", () => {
     });
   });
 
+  it("keeps the latest visible activity last after notable output", () => {
+    const hydrated = hydrateLiveTerminalSessions([
+      {
+        id: "pty-a",
+        clientId: "codex-1",
+        title: "Codex · session 1",
+        cwd: "/repo",
+        source: "manual",
+        agentKind: "codex",
+        shell: "codex",
+        buffer: "",
+      },
+    ]);
+
+    const next = recordSessionOutputActivity(hydrated, "pty-a", 'Bash("pnpm test")\nDo you want to proceed? y/N\n', 300);
+
+    expect(next[0]?.activityEvents?.at(-1)).toMatchObject({
+      kind: "approval",
+      title: "Waiting for approval",
+      detail: "Do you want to proceed? y/N",
+    });
+  });
+
   it("records multiple structured activity events from one terminal chunk", () => {
     const hydrated = hydrateLiveTerminalSessions([
       {

@@ -411,6 +411,7 @@ function ManualTerminalTile({
   } satisfies Parameters<typeof terminalSessionDisplayStatus>[0];
   const displayStatus = terminalSessionDisplayStatus(displaySession, status, displayClock);
   const restartable = displayStatus.kind === "done" || displayStatus.kind === "error";
+  const latestActivity = latestVisibleActivity(activityEvents);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -620,7 +621,7 @@ function ManualTerminalTile({
   return (
     <article
       className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${status} session-${displayStatus.kind} ${selected ? "selected" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
-      aria-label={title}
+      aria-label={latestActivity ? `${title}, ${latestActivity.title}: ${latestActivity.detail}` : title}
       style={gridStyle(layout, preview)}
       tabIndex={0}
       onFocus={onSelectSession}
@@ -649,6 +650,13 @@ function ManualTerminalTile({
             </small>
           </div>
         </div>
+        {latestActivity && (
+          <div className={`tile-activity activity-${latestActivity.kind}`} title={latestActivity.detail}>
+            <span>{activityKindLabel(latestActivity.kind)}</span>
+            <strong>{latestActivity.title}</strong>
+            <small>{latestActivity.detail}</small>
+          </div>
+        )}
         <div className="tile-actions">
           <span className={`tile-status status-${displayStatus.kind}`}>{displayStatus.label}</span>
           {status === "restored" && (
@@ -699,6 +707,35 @@ function ManualTerminalTile({
       )}
     </article>
   );
+}
+
+function latestVisibleActivity(events: SessionTile["activityEvents"] | undefined): NonNullable<SessionTile["activityEvents"]>[number] | null {
+  const latest = events?.at(-1);
+  if (!latest || latest.kind === "lifecycle" || latest.kind === "output") return null;
+  return latest;
+}
+
+function activityKindLabel(kind: NonNullable<SessionTile["activityEvents"]>[number]["kind"]): string {
+  switch (kind) {
+    case "approval":
+      return "ask";
+    case "command":
+      return "cmd";
+    case "error":
+      return "err";
+    case "file":
+      return "file";
+    case "plan":
+      return "plan";
+    case "tool":
+      return "tool";
+    case "warning":
+      return "warn";
+    case "lifecycle":
+      return "state";
+    case "output":
+      return "out";
+  }
 }
 
 function focusedSession(sessions: SessionTile[], layouts: Record<string, TileLayout>): SessionTile | null {
