@@ -34,6 +34,42 @@ describe("AgentTimelinePanel", () => {
     expect(screen.getByText("Session attached")).toBeInTheDocument();
   });
 
+  it("offers session handoff actions for cwd and command", async () => {
+    const user = userEvent.setup();
+    const onCopyActivityText = vi.fn();
+    const onRevealActivityFile = vi.fn();
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — feature",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/repo/alfred",
+      source: "alfred",
+      command: "codex",
+      args: ["--resume", "--prompt", "hello world", "src/odd's file.ts"],
+      runtimeId: "runtime-1",
+    };
+
+    render(
+      <AgentTimelinePanel
+        session={session}
+        onCopyActivityText={onCopyActivityText}
+        onRevealActivityFile={onRevealActivityFile}
+      />,
+    );
+
+    const handoff = screen.getByRole("region", { name: "Handoff actions for codex — feature" });
+    expect(handoff).toHaveTextContent("Continue outside Alfred");
+
+    await user.click(within(handoff).getByRole("button", { name: "Reveal folder for codex — feature" }));
+    await user.click(within(handoff).getByRole("button", { name: "Copy cwd for codex — feature" }));
+    await user.click(within(handoff).getByRole("button", { name: "Copy command for codex — feature" }));
+
+    expect(onRevealActivityFile).toHaveBeenCalledWith(".", "/repo/alfred");
+    expect(onCopyActivityText).toHaveBeenCalledWith("/repo/alfred");
+    expect(onCopyActivityText).toHaveBeenCalledWith("codex --resume --prompt 'hello world' 'src/odd'\\''s file.ts'");
+  });
+
   it("renders recent stored activity events before generic runtime copy", () => {
     const session: SessionTile = {
       id: "s1",
