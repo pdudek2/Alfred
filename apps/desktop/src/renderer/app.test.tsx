@@ -415,6 +415,12 @@ describe("App integration", () => {
         "true",
       );
     });
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "zsh 2{Enter}");
+
+    expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 2");
   });
 
   it("moves and resizes a tile with pointer gestures in arrange mode", async () => {

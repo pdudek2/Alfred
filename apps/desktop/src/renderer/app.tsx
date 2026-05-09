@@ -66,6 +66,7 @@ export function App() {
   });
   const [tileLayoutsByWorkspace, setTileLayoutsByWorkspace] = useState<Record<string, Record<string, TileLayout>>>({});
   const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>([]);
+  const [selectedSessionIdsByWorkspace, setSelectedSessionIdsByWorkspace] = useState<Record<string, string>>({});
   const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
   const [pendingPlan, setPendingPlan] = useState<SquadPlan | null>(null);
   const [composerValue, setComposerValue] = useState<string>("");
@@ -80,6 +81,7 @@ export function App() {
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? DEFAULT_WORKSPACE;
   const activeWorkMode = workModesByWorkspace[activeWorkspace.id] ?? "desk";
   const activeSessions = terminalSessions.filter((session) => session.workspaceId === activeWorkspace.id);
+  const activeSelectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id] ?? null;
   const activePendingPlan = pendingPlan?.workspaceId === activeWorkspace.id ? pendingPlan : null;
   const activeStagedSessions = orderStagedSessions(activeSessions, activePendingPlan);
   const stagedCount = activeSessions.filter((s) => s.stage === "staged").length;
@@ -170,6 +172,21 @@ export function App() {
     handleApplyLayoutPreset(preset);
   }, [activeWorkspace.id, handleApplyLayoutPreset]);
 
+  const handleSelectSession = useCallback((sessionId: string) => {
+    setSelectedSessionIdsByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: sessionId,
+    }));
+  }, [activeWorkspace.id]);
+
+  const handleFocusSession = useCallback((sessionId: string) => {
+    setSelectedSessionIdsByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: sessionId,
+    }));
+    handleApplyWorkMode("focus");
+  }, [activeWorkspace.id, handleApplyWorkMode]);
+
   const handleMoveTile = useCallback((tileId: string, deltaCol: number, deltaRow: number) => {
     const layoutApi = getDesktopLayoutApi();
     setTileLayoutsByWorkspace((current) => {
@@ -220,6 +237,25 @@ export function App() {
     setActiveWorkspaceId(workspaceId);
     void refreshLiveSessions();
   }, [refreshLiveSessions]);
+
+  useEffect(() => {
+    setSelectedSessionIdsByWorkspace((current) => {
+      const currentId = current[activeWorkspace.id];
+      if (activeSessions.length === 0) {
+        if (!currentId) return current;
+        const next = { ...current };
+        delete next[activeWorkspace.id];
+        return next;
+      }
+      if (currentId && activeSessions.some((session) => session.id === currentId)) {
+        return current;
+      }
+      return {
+        ...current,
+        [activeWorkspace.id]: activeSessions[0]?.id ?? "",
+      };
+    });
+  }, [activeSessions, activeWorkspace.id]);
 
   const handleCloseSession = useCallback((sessionId: string) => {
     const terminalApi = getDesktopTerminalApi();
@@ -604,6 +640,7 @@ export function App() {
               armedUnsafeSessionIds={armedUnsafeSessionIds}
               layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
               pendingPlan={activePendingPlan}
+              selectedSessionId={activeSelectedSessionId}
               sessions={activeSessions}
               shortcutModifier={shortcutModifier}
               unsafeStagedCount={unsafeStagedCount}
@@ -618,6 +655,8 @@ export function App() {
               onRuntimeSessionOutput={handleRuntimeSessionOutput}
               onRuntimeSessionReady={handleRuntimeSessionReady}
               onRuntimeSessionStarting={handleRuntimeSessionStarting}
+              onFocusSession={handleFocusSession}
+              onSelectSession={handleSelectSession}
               onApproveTile={handleApproveTile}
               onRejectTile={handleRejectTile}
               onResizeTile={handleResizeTile}
@@ -654,6 +693,7 @@ export function App() {
             pendingPlan={activePendingPlan}
             query={commandQuery}
             safeStagedCount={Math.max(0, stagedCount - unsafeStagedCount)}
+            sessions={activeSessions}
             shortcutModifier={shortcutModifier}
             unsafeStagedCount={unsafeStagedCount}
             workspaces={workspaces}
@@ -663,6 +703,7 @@ export function App() {
             onApproveAll={handleApproveAll}
             onChangeQuery={setCommandQuery}
             onClose={handleCloseCommandPalette}
+            onFocusSession={handleFocusSession}
             onRejectAll={handleRejectAll}
             onSelectWorkspace={handleSelectWorkspace}
             onToggleArrange={handleToggleArrangeMode}

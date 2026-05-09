@@ -27,6 +27,7 @@ type TerminalDeskProps = {
   armedUnsafeSessionIds: Set<string>;
   layouts: Record<string, TileLayout>;
   pendingPlan: SquadPlan | null;
+  selectedSessionId: string | null;
   sessions: SessionTile[];
   shortcutModifier: string;
   unsafeStagedCount: number;
@@ -41,6 +42,8 @@ type TerminalDeskProps = {
   onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
+  onFocusSession: (sessionId: string) => void;
+  onSelectSession: (sessionId: string) => void;
   onApproveTile: (tileId: string) => void;
   onRejectTile: (tileId: string) => void;
   onResizeTile: (tileId: string, deltaColSpan: number, deltaRowSpan: number) => void;
@@ -51,6 +54,7 @@ export function TerminalDesk({
   armedUnsafeSessionIds,
   layouts,
   pendingPlan,
+  selectedSessionId,
   sessions,
   shortcutModifier,
   unsafeStagedCount,
@@ -65,26 +69,16 @@ export function TerminalDesk({
   onRuntimeSessionOutput,
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
+  onFocusSession,
+  onSelectSession,
   onApproveTile,
   onRejectTile,
   onResizeTile,
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const gridDensity = sessions.length <= 1 ? "single" : sessions.length === 2 ? "split" : "dense";
   const selectedSession = selectedSessionForDesk(sessions, selectedSessionId);
-
-  useEffect(() => {
-    if (sessions.length === 0) {
-      setSelectedSessionId(null);
-      return;
-    }
-
-    if (!selectedSessionId || !sessions.some((session) => session.id === selectedSessionId)) {
-      setSelectedSessionId(sessions[0]?.id ?? null);
-    }
-  }, [selectedSessionId, sessions]);
 
   useEffect(() => {
     if (workMode !== "focus") return;
@@ -104,16 +98,15 @@ export function TerminalDesk({
 
   const handleFocusSession = useCallback(
     (sessionId: string) => {
-      setSelectedSessionId(sessionId);
       if (!arrangeMode) {
-        onApplyWorkMode("focus");
+        onFocusSession(sessionId);
+        return;
       }
+      onSelectSession(sessionId);
     },
-    [arrangeMode, onApplyWorkMode],
+    [arrangeMode, onFocusSession, onSelectSession],
   );
-  const handleSelectSession = useCallback((sessionId: string) => {
-    setSelectedSessionId(sessionId);
-  }, []);
+  const handleSelectSession = useCallback((sessionId: string) => onSelectSession(sessionId), [onSelectSession]);
   const startPointerArrange = useCallback(
     (tileId: string, mode: ArrangePointerMode, event: ReactPointerEvent<HTMLElement>) => {
       if (!arrangeMode) return;
