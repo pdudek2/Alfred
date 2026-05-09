@@ -2072,6 +2072,12 @@ body.arranging-pointer {
   color: var(--ink-soft);
 }
 
+.recovery-queue-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .recovery-queue header span,
 .recovery-queue header strong {
   margin: 0;

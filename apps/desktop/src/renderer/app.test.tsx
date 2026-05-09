@@ -1067,6 +1067,51 @@ describe("App integration", () => {
     expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9" });
   });
 
+  it("relaunches all restored sessions from the recovery queue", async () => {
+    const { createTerminal, forgetTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "manual-9",
+          title: "Manual · zsh 9",
+          cwd: "/repo",
+          source: "manual",
+          shell: "/bin/zsh",
+          buffer: "saved output\n",
+        },
+        {
+          clientId: "codex-9",
+          title: "Codex · session 9",
+          cwd: "/repo",
+          source: "manual",
+          agentKind: "codex",
+          command: "codex",
+          args: [],
+          shell: "codex",
+          buffer: "saved output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole("region", { name: "Recovery queue" })).toHaveTextContent("2 saved");
+
+    await userEvent.click(screen.getByRole("button", { name: "Relaunch all" }));
+
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "manual-9" }));
+      expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "codex-9", command: "codex" }));
+    });
+    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "manual-9" });
+    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9" });
+  });
+
   it("does not duplicate a restored staged tile that is already live", async () => {
     const stagedPlan: AlfredStagedPlanSnapshot = {
       id: "plan-restore",
