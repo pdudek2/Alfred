@@ -571,6 +571,52 @@ describe("App integration", () => {
     });
   });
 
+  it("surfaces the next session needing attention and jumps to it", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-manual",
+        clientId: "manual-a",
+        title: "Manual · zsh 1",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+      {
+        id: "runtime-codex",
+        clientId: "codex-a",
+        title: "Codex · review",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "/bin/zsh",
+        buffer: "",
+        activityEvents: [
+          { id: "ask-1", kind: "approval", title: "Waiting for approval", detail: "Allow edit?", at: 100 },
+        ],
+      },
+    ]);
+
+    render(<App />);
+
+    const attentionButton = await screen.findByRole("button", { name: "Review attention: Codex · review" });
+    expect(attentionButton).toHaveTextContent("waiting");
+
+    await user.click(attentionButton);
+
+    expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "review attention{Enter}");
+
+    expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
+  });
+
   it("moves and resizes a tile with pointer gestures in arrange mode", async () => {
     const user = userEvent.setup();
     installDesktopBridge();

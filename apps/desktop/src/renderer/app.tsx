@@ -48,6 +48,7 @@ import {
 } from "./session-state";
 import { terminalSessionDisplayStatus } from "./session-status";
 import type { WorkMode } from "./terminal-desk-types";
+import { workspaceAttention } from "./workspace-attention";
 import { workspaceSessionSummary } from "./workspace-session-summary";
 import type {
   AgentKind,
@@ -99,6 +100,7 @@ export function App() {
   const activeRecoverableSessions = activeSessions.filter((session) =>
     session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error",
   );
+  const activeAttention = workspaceAttention(activeSessions);
   const activeStagedSessions = orderStagedSessions(activeSessions, activePendingPlan);
   const stagedCount = activeSessions.filter((s) => s.stage === "staged").length;
   const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
@@ -232,6 +234,10 @@ export function App() {
     }));
     handleApplyWorkMode("focus", sessionId);
   }, [activeWorkspace.id, handleApplyWorkMode]);
+  const handleReviewAttention = useCallback(() => {
+    if (!activeAttention) return;
+    handleFocusSession(activeAttention.session.id);
+  }, [activeAttention, handleFocusSession]);
 
   const handleFocusSessionByDelta = useCallback((delta: number) => {
     if (activeSessions.length === 0) return;
@@ -800,6 +806,7 @@ export function App() {
               layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
               pendingPlan={activePendingPlan}
               recoverableSessions={activeRecoverableSessions}
+              attention={activeAttention}
               selectedSessionId={activeSelectedSessionId}
               sessions={activeSessions}
               shortcutModifier={shortcutModifier}
@@ -824,6 +831,7 @@ export function App() {
               onRuntimeSessionReady={handleRuntimeSessionReady}
               onRuntimeSessionStarting={handleRuntimeSessionStarting}
               onFocusSession={handleFocusSession}
+              onReviewAttention={handleReviewAttention}
               onSelectSession={handleSelectSession}
               onApproveTile={handleApproveTile}
               onRejectTile={handleRejectTile}
@@ -871,6 +879,7 @@ export function App() {
             pendingPlan={activePendingPlan}
             query={commandQuery}
             recoverableSessions={activeRecoverableSessions}
+            attention={activeAttention}
             safeStagedCount={Math.max(0, stagedCount - unsafeStagedCount)}
             selectedSessionId={activeSelectedSessionId}
             sessions={activeSessions}
@@ -892,6 +901,7 @@ export function App() {
             onFocusSession={handleFocusSession}
             onFocusNextSession={() => handleFocusSessionByDelta(1)}
             onFocusPreviousSession={() => handleFocusSessionByDelta(-1)}
+            onReviewAttention={handleReviewAttention}
             onRejectAll={handleRejectAll}
             onRestartSession={handleRestartSession}
             onSelectWorkspace={handleSelectWorkspace}
