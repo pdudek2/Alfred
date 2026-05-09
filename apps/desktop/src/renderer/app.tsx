@@ -238,6 +238,14 @@ export function App() {
     });
   }, []);
 
+  const handleContinueRestoredSession = useCallback((sessionId: string) => {
+    setTerminalSessions((sessions) => {
+      const session = sessions.find((item) => item.id === sessionId);
+      if (!session || session.runtimeStatus !== "restored") return sessions;
+      return addManualSession(sessions, session.cwd, session.workspaceId);
+    });
+  }, []);
+
   const handleRuntimeSessionStarting = useCallback((tileId: string): boolean => {
     if (startingSessionIdsRef.current.has(tileId)) {
       return false;
@@ -568,6 +576,7 @@ export function App() {
               unsafeStagedCount={unsafeStagedCount}
               workMode={activeWorkMode}
               onCloseSession={handleCloseSession}
+              onContinueRestoredSession={handleContinueRestoredSession}
               onApplyLayoutPreset={handleApplyLayoutPreset}
               onApplyWorkMode={handleApplyWorkMode}
               onMoveTile={handleMoveTile}

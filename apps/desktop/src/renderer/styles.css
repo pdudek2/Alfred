@@ -1038,6 +1038,7 @@ body.arranging-pointer {
 .terminal-tile.real-terminal.exited .tile-status     { color: var(--muted); }
 .terminal-tile.real-terminal.error .tile-status      { color: var(--coral); }
 .terminal-tile.real-terminal.browser .tile-status    { color: var(--cyan); }
+.terminal-tile.real-terminal.restored .tile-status   { color: var(--muted); }
 
 .tile-actions button {
   width: 34px;
@@ -1067,6 +1068,26 @@ body.arranging-pointer {
 .tile-actions button:focus-visible {
   border-color: rgba(239, 129, 115, 0.42);
   color: var(--coral);
+}
+
+.tile-actions .continue-button {
+  width: auto;
+  gap: 6px;
+  padding: 0 9px;
+  color: #f5e6b8;
+  border-color: rgba(217, 174, 70, 0.34);
+  background: rgba(217, 174, 70, 0.075);
+}
+
+.tile-actions .continue-button:hover,
+.tile-actions .continue-button:focus-visible {
+  border-color: rgba(217, 174, 70, 0.5);
+  color: #fff1bf;
+}
+
+.tile-actions .continue-button span {
+  font-family: var(--mono);
+  font-size: 11px;
 }
 
 .xterm-host {

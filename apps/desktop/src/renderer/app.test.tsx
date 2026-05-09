@@ -626,6 +626,17 @@ describe("App integration", () => {
     });
     expect(createTerminal).not.toHaveBeenCalled();
 
+    await userEvent.click(within(restored).getByRole("button", { name: "Continue from Manual · zsh 9" }));
+
+    await screen.findByRole("article", { name: /Manual · zsh 10/i });
+    expect(createTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientId: "manual-10",
+        cwd: "/repo",
+        workspaceId: "A",
+      }),
+    );
+
     await userEvent.click(within(restored).getByRole("button", { name: "Close Manual · zsh 9" }));
 
     expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "manual-9" });
