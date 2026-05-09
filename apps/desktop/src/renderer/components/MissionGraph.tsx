@@ -6,20 +6,22 @@ type MissionGraphProps = {
 };
 
 export function MissionGraph({ viewModel }: MissionGraphProps) {
+  const heading = viewModel.missionTitle.endsWith(" workspace") ? "Activity" : viewModel.missionTitle;
+
   return (
-    <section className="mission-graph" aria-label="Mission graph">
+    <section className="mission-graph" aria-label="Workspace activity">
       <header className="mission-graph-header">
         <div>
-          <strong>Mission: {viewModel.missionTitle}</strong>
+          <strong>{heading}</strong>
           <span>{viewModel.missionDetail}</span>
         </div>
-        <div className="mission-graph-counts" aria-label="Mission graph counts">
+        <div className="mission-graph-counts" aria-label="Workspace activity counts">
           <span>{viewModel.counts.live} live</span>
           <span>{viewModel.counts.staged} staged</span>
           <span>{viewModel.counts.terminals} total</span>
         </div>
       </header>
-      <ol className="mission-graph-nodes" aria-label={`${viewModel.graphNodes.length} mission graph nodes`}>
+      <ol className="mission-graph-nodes" aria-label={`${viewModel.graphNodes.length} activity nodes`}>
         {viewModel.graphNodes.map((node) => {
           const kind = tileKindMeta(node.kind);
 

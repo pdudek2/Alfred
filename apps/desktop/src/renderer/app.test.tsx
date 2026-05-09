@@ -185,7 +185,7 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("region", { name: /terminals/i })).toBeInTheDocument();
-    const missionGraph = screen.getByRole("region", { name: "Mission graph" });
+    const missionGraph = screen.getByRole("region", { name: "Workspace activity" });
     expect(missionGraph).toBeInTheDocument();
     expect(within(missionGraph).getAllByRole("listitem")).toHaveLength(1);
     expect(screen.getByRole("complementary", { name: /alfred status/i })).toBeInTheDocument();
