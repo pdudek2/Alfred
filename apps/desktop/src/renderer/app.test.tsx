@@ -994,6 +994,49 @@ describe("App integration", () => {
     expect(screen.getByText('"restore this plan"')).toBeInTheDocument();
   });
 
+  it("jumps from the composer to a workspace with staged Alfred work", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(
+      undefined,
+      {
+        id: "plan-w2",
+        name: "Workspace 2 plan",
+        prompt: "prepare client work",
+        sessions: [
+          {
+            id: "alfred-w2",
+            kind: "shell",
+            title: "Client task",
+            command: "echo",
+            args: ["ok"],
+            workspaceId: "W2",
+          },
+        ],
+      },
+      [],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A" },
+          { id: "W2", label: "ClientApp", shortLabel: "CLI", rootPath: "/repo/client" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+
+    const composer = screen.getByRole("form", { name: "Alfred composer" });
+    expect(await within(composer).findByRole("status")).toHaveTextContent(
+      "Review staged items in ClientApp workspace first.",
+    );
+    await user.click(screen.getByRole("button", { name: "Open ClientApp" }));
+
+    expect(screen.getByRole("tab", { name: /ClientApp workspace/ })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("article", { name: /Staged Client task/i })).toBeInTheDocument();
+  });
+
   it("relaunches restored terminal transcripts in place", async () => {
     const { createTerminal, forgetTerminal } = installDesktopBridge(
       undefined,

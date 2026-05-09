@@ -1534,15 +1534,43 @@ body.arranging-pointer {
   opacity: 0.5;
 }
 
-.composer-status {
+.composer-status-row {
   grid-column: 2 / 4;
   min-height: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.composer-status {
+  min-width: 0;
+  flex: 1 1 auto;
   color: var(--faint);
   font-family: var(--mono);
   font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.composer-blocked-action {
+  min-height: 22px;
+  border: 1px solid color-mix(in oklab, var(--brass) 24%, transparent);
+  border-radius: 6px;
+  padding: 0 8px;
+  background: color-mix(in oklab, var(--brass) 7%, transparent);
+  color: #f5e6b8;
+  font-family: var(--mono);
+  font-size: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.composer-blocked-action:hover,
+.composer-blocked-action:focus-visible {
+  border-color: color-mix(in oklab, var(--brass) 44%, transparent);
+  color: var(--ink);
 }
 
 /* Command palette */

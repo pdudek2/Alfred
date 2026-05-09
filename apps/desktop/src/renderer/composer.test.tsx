@@ -62,4 +62,27 @@ describe("ComposerBar", () => {
 
     expect(onSubmit).toHaveBeenCalledOnce();
   });
+
+  it("offers a blocked action when another workspace needs review", async () => {
+    const user = userEvent.setup();
+    const onBlockedAction = vi.fn();
+
+    render(
+      <ComposerBar
+        blockedActionLabel="Open ClientApp"
+        blockedReason="Review staged items in ClientApp workspace first."
+        thinking={false}
+        value="prepare dev servers"
+        workspaceName="Alfred"
+        onBlockedAction={onBlockedAction}
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("Review staged items in ClientApp workspace first.");
+    await user.click(screen.getByRole("button", { name: "Open ClientApp" }));
+
+    expect(onBlockedAction).toHaveBeenCalledOnce();
+  });
 });
