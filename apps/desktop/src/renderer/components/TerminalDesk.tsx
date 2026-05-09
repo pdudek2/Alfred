@@ -316,6 +316,7 @@ export function TerminalDesk({
                 isolation={session.isolation}
                 branchName={session.branchName}
                 baseCwd={session.baseCwd}
+                launchPreflight={session.launchPreflight}
                 command={session.command}
                 args={session.args}
                 initialBuffer={session.initialBuffer}
@@ -503,6 +504,7 @@ function ManualTerminalTile({
   isolation,
   branchName,
   baseCwd,
+  launchPreflight,
   activityEvents,
   initialBuffer,
   lastOutputAt,
@@ -537,6 +539,7 @@ function ManualTerminalTile({
   isolation?: SessionTile["isolation"] | undefined;
   branchName?: string | undefined;
   baseCwd?: string | undefined;
+  launchPreflight?: SessionTile["launchPreflight"];
   activityEvents?: SessionTile["activityEvents"];
   initialBuffer?: string | undefined;
   lastOutputAt?: number | undefined;
@@ -733,6 +736,10 @@ function ManualTerminalTile({
     if (agentKind) baseRequest.agentKind = agentKind;
     if (cwd) baseRequest.cwd = cwd;
     if (isolation === "worktree" && !branchName) baseRequest.isolation = "worktree";
+    if (!branchName && launchPreflight?.status === "ready" && launchPreflight.isolation === "worktree") {
+      baseRequest.isolation = "worktree";
+      if (launchPreflight.branchName) baseRequest.branchName = launchPreflight.branchName;
+    }
     if (command) {
       baseRequest.command = command;
       baseRequest.args = args ?? [];
@@ -781,6 +788,7 @@ function ManualTerminalTile({
     agentKind,
     isolation,
     branchName,
+    launchPreflight,
     command,
     args,
     initialBuffer,

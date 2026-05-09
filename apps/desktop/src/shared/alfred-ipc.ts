@@ -1,6 +1,24 @@
 // apps/desktop/src/shared/alfred-ipc.ts
 export type AgentKind = "codex" | "claude" | "dev-server" | "shell";
 
+export type AlfredLaunchPreflight =
+  | {
+      status: "ready";
+      label: string;
+      detail: string;
+      isolation?: "shared" | "worktree";
+      branchName?: string;
+      baseCwd?: string;
+      cwd?: string;
+    }
+  | {
+      status: "blocked";
+      code: "command_missing" | "cwd_outside_workspace" | "git_not_ready" | "no_workspace";
+      label: string;
+      reason: string;
+      detail?: string;
+    };
+
 export type AlfredWorkspaceSessionContext = {
   title: string;
   kind?: AgentKind;
@@ -29,6 +47,7 @@ export type AlfredPlanSession = {
   command: string;
   args: string[];
   safetyNote?: string;
+  launchPreflight?: AlfredLaunchPreflight;
 };
 
 export type AlfredPlan = {

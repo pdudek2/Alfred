@@ -417,6 +417,40 @@ describe("terminal-manager IPC", () => {
     });
   });
 
+  it("uses a preflighted branch name for isolated staged sessions", async () => {
+    const pty = new FakePty();
+    const nodePty = fakeNodePty(pty);
+    const prepareAgentWorktree = vi.fn(async () => ({
+      baseCwd: "/repo",
+      branchName: "alfred-codex-preflight",
+      cwd: "/repo/.alfred-worktrees/alfred-codex-preflight",
+    }));
+    registerTerminalIpc({
+      loadNodePty: async () => nodePty as never,
+      prepareAgentWorktree,
+    });
+
+    await invoke(terminalChannels.create, {
+      agentKind: "codex",
+      branchName: "alfred-codex-preflight",
+      clientId: "alfred-1",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+      source: "alfred",
+      title: "Codex plan",
+    });
+
+    expect(prepareAgentWorktree).toHaveBeenCalledWith({
+      agentKind: "codex",
+      branchName: "alfred-codex-preflight",
+      clientId: "alfred-1",
+      cwd: "/repo",
+    });
+  });
+
   it("supports write, resize, kill, and session count", async () => {
     const pty = new FakePty();
     registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });

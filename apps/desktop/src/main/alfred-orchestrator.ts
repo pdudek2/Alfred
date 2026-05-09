@@ -9,6 +9,7 @@ import {
   type AlfredStagedPlanSnapshotResponse,
 } from "../shared/alfred-ipc.js";
 import { runLlmPlan, DEFAULT_MODEL } from "./alfred-llm.js";
+import { preflightAlfredPlan } from "./alfred-launch-preflight.js";
 import {
   clearStagedPlanSnapshot,
   getStagedPlanSnapshot,
@@ -57,8 +58,12 @@ export function registerAlfredIpc(): void {
         });
         if (!response.ok) {
           console.error("[alfred-orchestrator]", response.error);
+          return response;
         }
-        return response;
+        return {
+          ok: true,
+          plan: await preflightAlfredPlan(response.plan, request.workspace),
+        };
       } finally {
         inFlight = false;
       }

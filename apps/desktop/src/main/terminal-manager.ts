@@ -518,6 +518,7 @@ async function resolveLaunchCwd(
 
   return prepareAgentWorktree({
     ...(request.agentKind === undefined ? {} : { agentKind: request.agentKind }),
+    ...(request.branchName === undefined ? {} : { branchName: request.branchName }),
     ...(request.clientId === undefined ? {} : { clientId: request.clientId }),
     cwd,
   });

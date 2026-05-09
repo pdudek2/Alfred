@@ -9,7 +9,7 @@ import type { AgentKind } from "../shared/alfred-ipc.js";
 type ExecFile = (
   file: string,
   args: string[],
-  options?: { cwd?: string | undefined },
+  options?: { cwd?: string | undefined; timeout?: number | undefined },
 ) => Promise<{ stdout: string; stderr: string }>;
 
 type PrepareAgentWorktreeOptions = {
@@ -21,6 +21,7 @@ type PrepareAgentWorktreeOptions = {
 
 export type AgentWorktreeRequest = {
   agentKind?: AgentKind | undefined;
+  branchName?: string | undefined;
   clientId?: string | undefined;
   cwd: string;
 };
@@ -37,11 +38,29 @@ export async function prepareAgentWorktree(
   request: AgentWorktreeRequest,
   options: PrepareAgentWorktreeOptions = {},
 ): Promise<AgentWorktreeResult> {
+  const result = await preflightAgentWorktree(request, options);
+  const run = options.execFile ?? execFile;
+  const mkdirImpl = options.mkdir ?? mkdir;
+  const worktreePath = worktreeRootPath(result);
+
+  await mkdirImpl(path.dirname(worktreePath), { recursive: true });
+  await gitOutput(
+    run,
+    ["-C", result.baseCwd, "worktree", "add", "-b", result.branchName, worktreePath, "HEAD"],
+    "Unable to create isolated Git worktree.",
+  );
+
+  return result;
+}
+
+export async function preflightAgentWorktree(
+  request: AgentWorktreeRequest,
+  options: Pick<PrepareAgentWorktreeOptions, "execFile" | "now" | "randomSuffix"> = {},
+): Promise<AgentWorktreeResult> {
   const run = options.execFile ?? execFile;
   const gitRoot = await gitOutput(run, ["-C", request.cwd, "rev-parse", "--show-toplevel"], "Workspace is not a Git repository.");
   const relativeLaunchPath = safeRelativePath(gitRoot, path.resolve(request.cwd));
   const status = await gitOutput(run, ["-C", gitRoot, "status", "--porcelain"], "Unable to inspect Git workspace status.");
-  const mkdirImpl = options.mkdir ?? mkdir;
 
   if (status.length > 0) {
     throw new Error(
@@ -49,22 +68,19 @@ export async function prepareAgentWorktree(
     );
   }
 
-  const branchName = createAgentBranchName(request, options);
+  const branchName = request.branchName ? sanitizeBranchSegment(request.branchName) : createAgentBranchName(request, options);
   const worktreePath = path.join(path.dirname(gitRoot), ".alfred-worktrees", path.basename(gitRoot), branchName);
   const launchCwd = relativeLaunchPath ? path.join(worktreePath, relativeLaunchPath) : worktreePath;
-
-  await mkdirImpl(path.dirname(worktreePath), { recursive: true });
-  await gitOutput(
-    run,
-    ["-C", gitRoot, "worktree", "add", "-b", branchName, worktreePath, "HEAD"],
-    "Unable to create isolated Git worktree.",
-  );
 
   return {
     baseCwd: gitRoot,
     branchName,
     cwd: launchCwd,
   };
+}
+
+function worktreeRootPath(result: AgentWorktreeResult): string {
+  return path.join(path.dirname(result.baseCwd), ".alfred-worktrees", path.basename(result.baseCwd), result.branchName);
 }
 
 function safeRelativePath(root: string, cwd: string): string {
@@ -96,7 +112,7 @@ function sanitizeBranchSegment(value: string): string {
 
 async function gitOutput(run: ExecFile, args: string[], fallbackMessage: string): Promise<string> {
   try {
-    const { stdout } = await run("git", args, { cwd: os.homedir() });
+    const { stdout } = await run("git", args, { cwd: os.homedir(), timeout: 2_500 });
     return stdout.trim();
   } catch (error: unknown) {
     throw new Error(`${fallbackMessage} ${errorMessage(error)}`);

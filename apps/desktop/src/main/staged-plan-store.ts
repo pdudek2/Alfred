@@ -83,6 +83,10 @@ function clonePlan(plan: AlfredStagedPlanSnapshot | null): AlfredStagedPlanSnaps
   if (!plan) return null;
   return {
     ...plan,
-    sessions: plan.sessions.map((session) => ({ ...session, args: [...session.args] })),
+    sessions: plan.sessions.map((session) => ({
+      ...session,
+      args: [...session.args],
+      ...(session.launchPreflight === undefined ? {} : { launchPreflight: { ...session.launchPreflight } }),
+    })),
   };
 }

@@ -41,9 +41,13 @@ export function StagedTilePreview({
   const kind = sessionTileKind(tile);
   const kindMeta = tileKindMeta(kind);
   const isolated = tile.isolation === "worktree";
-  const unsafe = Boolean(tile.safetyNote);
-  const approveLabel = unsafe ? (armed ? "Confirm" : "Review") : "Launch";
-  const approveAriaLabel = unsafe
+  const launchBlocked = tile.launchPreflight?.status === "blocked";
+  const launchBlockReason = tile.launchPreflight?.status === "blocked" ? tile.launchPreflight.reason : null;
+  const unsafe = Boolean(tile.safetyNote) && !launchBlocked;
+  const approveLabel = launchBlocked ? "Blocked" : unsafe ? (armed ? "Confirm" : "Review") : "Launch";
+  const approveAriaLabel = launchBlocked
+    ? `Launch blocked: ${tile.title}`
+    : unsafe
     ? armed
       ? `Confirm unsafe command: ${tile.title}`
       : `Review unsafe command: ${tile.title}`
@@ -81,7 +85,9 @@ export function StagedTilePreview({
           </div>
         </div>
         <div className="tile-actions">
-          <span className="tile-status">ready</span>
+          <span className={`tile-status ${launchBlocked ? "status-blocked" : ""}`}>
+            {launchBlocked ? "blocked" : "ready"}
+          </span>
         </div>
       </header>
       <div className="staged-body">
@@ -91,9 +97,23 @@ export function StagedTilePreview({
             {tile.safetyNote}
           </div>
         )}
+        {launchBlocked && (
+          <div className="staged-safety-chip blocked" role="note">
+            Launch blocked: {launchBlockReason}
+          </div>
+        )}
         <div className="staged-label">Will launch</div>
         <div className="staged-command">{fullCommand || "(no command)"}</div>
-        {isolated && <div className="staged-isolation">isolated Git worktree</div>}
+        {isolated && (
+          <div className={`staged-isolation ${launchBlocked ? "blocked" : ""}`}>
+            {tile.launchPreflight?.status === "ready" && tile.launchPreflight.branchName
+              ? `worktree: ${tile.launchPreflight.branchName}`
+              : "isolated Git worktree"}
+          </div>
+        )}
+        {tile.launchPreflight?.status === "ready" && tile.launchPreflight.cwd && (
+          <div className="staged-cwd">target: {shortenPath(tile.launchPreflight.cwd)}</div>
+        )}
         {tile.cwd && <div className="staged-cwd">cwd: {tile.cwd}</div>}
       </div>
       <div className="staged-actions">
@@ -101,6 +121,7 @@ export function StagedTilePreview({
           type="button"
           className={`approve-button ${unsafe ? "unsafe" : ""} ${armed ? "armed" : ""}`}
           onClick={() => onApprove(tile.id)}
+          disabled={launchBlocked}
           aria-label={approveAriaLabel}
         >
           {approveLabel}
