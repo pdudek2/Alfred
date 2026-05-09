@@ -3,10 +3,12 @@ import type { AlfredStatus, SquadPlan } from "../alfred-state";
 import type { SessionTile } from "../session-state";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
+import type { WorkspaceReviewItem } from "../workspace-attention";
 
 type AlfredControlRailProps = {
   armedUnsafeSessionIds: Set<string>;
   status: AlfredStatus;
+  activeDecisionItems: WorkspaceReviewItem[];
   pendingPlan: SquadPlan | null;
   recoverableSessions: SessionTile[];
   selectedSessionId: string | null;
@@ -30,6 +32,7 @@ type AlfredControlRailProps = {
 export function AlfredControlRail({
   armedUnsafeSessionIds,
   status,
+  activeDecisionItems,
   pendingPlan,
   recoverableSessions,
   selectedSessionId,
@@ -50,22 +53,42 @@ export function AlfredControlRail({
   onRestartSession,
 }: AlfredControlRailProps) {
   const safeStagedCount = Math.max(0, stagedCount - unsafeStagedCount);
-  const compact = status.kind === "idle" && pendingPlan === null && recoverableSessions.length === 0;
-  const sigilState = alfredSigilState(status, pendingPlan, recoverableSessions.length, unsafeStagedCount);
+  const compact =
+    status.kind === "idle" &&
+    pendingPlan === null &&
+    recoverableSessions.length === 0 &&
+    activeDecisionItems.length === 0;
+  const sigilState = alfredSigilState(
+    status,
+    pendingPlan,
+    recoverableSessions.length,
+    unsafeStagedCount,
+    activeDecisionItems.length,
+  );
   const statusText = status.kind === "thinking"
     ? "preparing"
     : status.kind === "error"
       ? "needs attention"
       : pendingPlan
         ? "ready to launch"
-        : recoverableSessions.length > 0
-          ? "recovery ready"
+        : activeDecisionItems.length > 0
+            ? "needs review"
+          : recoverableSessions.length > 0
+            ? "recovery ready"
           : "standing by";
-  const footerLabel = pendingPlan ? "review queue" : recoverableSessions.length > 0 ? "recovery" : "clear desk";
+  const footerLabel = pendingPlan
+    ? "review queue"
+    : activeDecisionItems.length > 0
+        ? "decisions"
+      : recoverableSessions.length > 0
+        ? "recovery"
+        : "clear desk";
   const footerValue = safeStagedCount > 0
     ? `${safeStagedCount} launchable`
-    : recoverableSessions.length > 0
-      ? `${recoverableSessions.length} item${recoverableSessions.length === 1 ? "" : "s"}`
+    : activeDecisionItems.length > 0
+      ? `${activeDecisionItems.length} item${activeDecisionItems.length === 1 ? "" : "s"}`
+      : recoverableSessions.length > 0
+        ? `${recoverableSessions.length} item${recoverableSessions.length === 1 ? "" : "s"}`
       : "no asks";
 
   return (
@@ -117,17 +140,33 @@ export function AlfredControlRail({
             onRejectTile={onRejectTile}
           />
         </div>
-      ) : recoverableSessions.length > 0 ? (
-        <RecoveryQueue
-          selectedSessionId={selectedSessionId}
-          sessions={recoverableSessions}
-          onCloseAllSessions={onCloseRecoverableSessions}
-          onCloseSession={onCloseSession}
-          onContinueAllSessions={onContinueRecoverableSessions}
-          onContinueRestoredSession={onContinueRestoredSession}
-          onFocusSession={onFocusSession}
-          onRestartSession={onRestartSession}
-        />
+      ) : recoverableSessions.length > 0 || activeDecisionItems.length > 0 ? (
+        <div className="alfred-dock-queues">
+          {activeDecisionItems.length > 0 && (
+            <ActiveDecisionQueue
+              armedUnsafeSessionIds={armedUnsafeSessionIds}
+              items={activeDecisionItems}
+              selectedSessionId={selectedSessionId}
+              onApproveTile={onApproveTile}
+              onContinueRestoredSession={onContinueRestoredSession}
+              onFocusSession={onFocusSession}
+              onRejectTile={onRejectTile}
+              onRestartSession={onRestartSession}
+            />
+          )}
+          {recoverableSessions.length > 0 && (
+            <RecoveryQueue
+              selectedSessionId={selectedSessionId}
+              sessions={recoverableSessions}
+              onCloseAllSessions={onCloseRecoverableSessions}
+              onCloseSession={onCloseSession}
+              onContinueAllSessions={onContinueRecoverableSessions}
+              onContinueRestoredSession={onContinueRestoredSession}
+              onFocusSession={onFocusSession}
+              onRestartSession={onRestartSession}
+            />
+          )}
+        </div>
       ) : (
         <p>Manual work stays in front. Ask Alfred when you want a workspace prepared.</p>
       ))}
@@ -159,9 +198,11 @@ function alfredSigilState(
   pendingPlan: SquadPlan | null,
   recoverableCount: number,
   unsafeStagedCount: number,
+  activeReviewCount: number,
 ): AlfredSigilState {
   if (status.kind === "error") return "error";
   if (unsafeStagedCount > 0) return "ask";
+  if (activeReviewCount > 0) return "ask";
   if (pendingPlan) return "active";
   if (recoverableCount > 0) return "recovery";
   if (status.kind === "thinking") return "active";
@@ -283,6 +324,146 @@ function RecoveryQueueItem({
       </div>
     </li>
   );
+}
+
+function ActiveDecisionQueue({
+  armedUnsafeSessionIds,
+  items,
+  selectedSessionId,
+  onApproveTile,
+  onContinueRestoredSession,
+  onFocusSession,
+  onRejectTile,
+  onRestartSession,
+}: {
+  armedUnsafeSessionIds: Set<string>;
+  items: WorkspaceReviewItem[];
+  selectedSessionId: string | null;
+  onApproveTile: (tileId: string) => void;
+  onContinueRestoredSession: (tileId: string) => void;
+  onFocusSession: (tileId: string) => void;
+  onRejectTile: (tileId: string) => void;
+  onRestartSession: (tileId: string) => void;
+}) {
+  return (
+    <section className="review-queue active-decisions" aria-label="Current workspace decisions">
+      <header>
+        <span>Needs review</span>
+        <strong>{items.length} item{items.length === 1 ? "" : "s"}</strong>
+      </header>
+      <ol>
+        {items.map((item) => (
+          <ActiveDecisionItem
+            armed={armedUnsafeSessionIds.has(item.session.id)}
+            item={item}
+            key={item.id}
+            selected={item.session.id === selectedSessionId}
+            onApproveTile={onApproveTile}
+            onContinueRestoredSession={onContinueRestoredSession}
+            onFocusSession={onFocusSession}
+            onRejectTile={onRejectTile}
+            onRestartSession={onRestartSession}
+          />
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function ActiveDecisionItem({
+  armed,
+  item,
+  selected,
+  onApproveTile,
+  onContinueRestoredSession,
+  onFocusSession,
+  onRejectTile,
+  onRestartSession,
+}: {
+  armed: boolean;
+  item: WorkspaceReviewItem;
+  selected: boolean;
+  onApproveTile: (tileId: string) => void;
+  onContinueRestoredSession: (tileId: string) => void;
+  onFocusSession: (tileId: string) => void;
+  onRejectTile: (tileId: string) => void;
+  onRestartSession: (tileId: string) => void;
+}) {
+  const session = item.session;
+  const kind = sessionTileKind(session);
+  const kindMeta = tileKindMeta(kind);
+  const actionLabel = decisionActionLabel(item, armed);
+  const canReject = item.status.kind === "blocked" || item.status.kind === "staged";
+
+  const runAction = () => {
+    if (item.status.kind === "blocked" || item.status.kind === "staged") {
+      onApproveTile(session.id);
+      return;
+    }
+
+    if (item.status.kind === "restored") {
+      onContinueRestoredSession(session.id);
+      return;
+    }
+
+    if (item.status.kind === "error") {
+      onRestartSession(session.id);
+      return;
+    }
+
+    onFocusSession(session.id);
+  };
+
+  return (
+    <li className={`review-queue-item decision-item tone-${item.status.kind} ${selected ? "selected" : ""}`}>
+      <button
+        type="button"
+        className="review-item-focus"
+        onClick={() => onFocusSession(session.id)}
+        aria-label={`Focus decision: ${session.title}`}
+      >
+        <div className="review-item-head">
+          <span className={`review-kind ${kindMeta.className}`} title={kindMeta.label}>
+            <TileKindIcon kind={kind} />
+            <span>{kindMeta.shortLabel}</span>
+          </span>
+          <div>
+            <strong>{session.title}</strong>
+            <span>{item.status.label} · {session.cwd ? shortenPath(session.cwd) : "default cwd"}</span>
+          </div>
+        </div>
+        <p className="decision-detail">{item.detail}</p>
+      </button>
+      <div className={`review-item-actions ${canReject ? "" : "solo"}`}>
+        <button
+          type="button"
+          className={session.safetyNote ? "review-item-launch flagged" : "review-item-launch"}
+          onClick={runAction}
+          aria-label={`${actionLabel} ${session.title}`}
+        >
+          {actionLabel}
+        </button>
+        {canReject && (
+          <button
+            type="button"
+            className="review-item-reject"
+            onClick={() => onRejectTile(session.id)}
+            aria-label={`Remove decision: ${session.title}`}
+          >
+            <X size={13} />
+          </button>
+        )}
+      </div>
+    </li>
+  );
+}
+
+function decisionActionLabel(item: WorkspaceReviewItem, armed: boolean): string {
+  if (item.status.kind === "blocked") return armed ? "Confirm" : "Review";
+  if (item.status.kind === "staged") return "Launch";
+  if (item.status.kind === "restored") return "Relaunch";
+  if (item.status.kind === "error") return "Restart";
+  return "Open";
 }
 
 function recoveryStatusLabel(session: SessionTile): "done" | "error" | "restored" {

@@ -1,6 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { Play, RotateCcw, ShieldAlert, X } from "lucide-react";
+import { Play, RotateCcw, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -9,7 +9,6 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import type { SquadPlan } from "../alfred-state";
 import { getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
 import type { LayoutPreset, TileLayout } from "../layout-state";
 import type { SessionTile } from "../session-state";
@@ -19,7 +18,6 @@ import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import type { ArrangePointerMode, ArrangePreview, WorkMode } from "../terminal-desk-types";
-import type { WorkspaceAttention } from "../workspace-attention";
 import type { AgentKind } from "../../shared/alfred-ipc";
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../../shared/terminal-ipc";
 import { AgentTimelinePanel } from "./AgentTimelinePanel";
@@ -30,13 +28,10 @@ type TerminalDeskProps = {
   arrangeMode: boolean;
   armedUnsafeSessionIds: Set<string>;
   layouts: Record<string, TileLayout>;
-  pendingPlan: SquadPlan | null;
   recoverableSessions: SessionTile[];
-  attention: WorkspaceAttention | null;
   selectedSessionId: string | null;
   sessions: SessionTile[];
   shortcutModifier: string;
-  unsafeStagedCount: number;
   workMode: WorkMode;
   workspaceGitBranch?: string | undefined;
   workspaceLabel: string;
@@ -57,7 +52,6 @@ type TerminalDeskProps = {
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
   onFocusSession: (sessionId: string) => void;
-  onReviewAttention: () => void;
   onSelectSession: (sessionId: string) => void;
   onApproveTile: (tileId: string) => void;
   onRejectTile: (tileId: string) => void;
@@ -68,13 +62,10 @@ export function TerminalDesk({
   arrangeMode,
   armedUnsafeSessionIds,
   layouts,
-  pendingPlan,
   recoverableSessions,
-  attention,
   selectedSessionId,
   sessions,
   shortcutModifier,
-  unsafeStagedCount,
   workMode,
   workspaceGitBranch,
   workspaceLabel,
@@ -95,7 +86,6 @@ export function TerminalDesk({
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
   onFocusSession,
-  onReviewAttention,
   onSelectSession,
   onApproveTile,
   onRejectTile,
@@ -221,7 +211,7 @@ export function TerminalDesk({
   );
 
   return (
-    <section className={`terminal-stage ${arrangeMode ? "arranging" : ""} ${pendingPlan ? "has-plan" : ""} mode-${workMode}`} aria-label="terminals">
+    <section className={`terminal-stage ${arrangeMode ? "arranging" : ""} mode-${workMode}`} aria-label="terminals">
       <header className="terminal-stage-header">
         <div>
           <strong>Desk</strong>
@@ -243,18 +233,6 @@ export function TerminalDesk({
               </button>
               <span className="arrange-hint">drag header · resize corner</span>
             </>
-          )}
-          {!arrangeMode && attention && (
-            <button
-              type="button"
-              className={`attention-jump tone-${attention.status.kind}`}
-              aria-label={`Review attention: ${attention.session.title}`}
-              onClick={onReviewAttention}
-              title={`${attention.session.title} ${attention.detail}`}
-            >
-              <span>{attention.status.label}</span>
-              <strong>{attention.session.title}</strong>
-            </button>
           )}
           {!arrangeMode && sessions.length > 0 && (
             <div className="work-mode-control" aria-label="work mode">
@@ -287,12 +265,6 @@ export function TerminalDesk({
           <kbd>{shortcutModifier} T</kbd>
         </div>
       </header>
-      {pendingPlan && (
-        <LaunchPlanStrip
-          pendingPlan={pendingPlan}
-          unsafeStagedCount={unsafeStagedCount}
-        />
-      )}
       <div className="terminal-stage-body">
         <div className="terminal-grid-column">
           {recoverableSessions.length > 0 && (
@@ -511,38 +483,6 @@ function workspaceHomeCopy(rootPath: string | undefined, gitBranch: string | und
   }
 
   return "No project folder is bound yet. Start manually or add a workspace from the sidebar.";
-}
-
-function LaunchPlanStrip({
-  pendingPlan,
-  unsafeStagedCount,
-}: {
-  pendingPlan: SquadPlan;
-  unsafeStagedCount: number;
-}) {
-  const totalStagedCount = pendingPlan.sessionIds.length;
-
-  return (
-    <section className="launch-plan-strip" aria-label="Alfred launch plan">
-      <div className="launch-plan-mark" aria-hidden="true">
-        A
-      </div>
-      <div className="launch-plan-copy">
-        <span>Workspace prepared</span>
-        <strong>{pendingPlan.name ?? "Alfred plan"}</strong>
-        <p>
-          {totalStagedCount} proposed tile{totalStagedCount === 1 ? "" : "s"}
-          {unsafeStagedCount > 0 ? ` · ${unsafeStagedCount} need review` : " · ready to launch"}
-        </p>
-      </div>
-      {unsafeStagedCount > 0 && (
-        <div className="launch-plan-warning" role="note">
-          <ShieldAlert size={14} />
-          <span>Unsafe commands stay staged.</span>
-        </div>
-      )}
-    </section>
-  );
 }
 
 function ManualTerminalTile({
