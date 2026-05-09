@@ -51,6 +51,9 @@ type CommandPaletteProps = {
   onCloseSession: (sessionId: string) => void;
   onCloseWorkspace: () => void;
   onContinueRecoverableSessions: () => void;
+  onOpenWorkspaceFolder: () => void;
+  onOpenWorkspaceTerminal: () => void;
+  onRenameWorkspace: () => void;
   onFocusSession: (sessionId: string) => void;
   onFocusNextSession: () => void;
   onFocusPreviousSession: () => void;
@@ -90,6 +93,9 @@ export function CommandPalette({
   onCloseSession,
   onCloseWorkspace,
   onContinueRecoverableSessions,
+  onOpenWorkspaceFolder,
+  onOpenWorkspaceTerminal,
+  onRenameWorkspace,
   onFocusSession,
   onFocusNextSession,
   onFocusPreviousSession,
@@ -159,6 +165,29 @@ export function CommandPalette({
               : "No workspace to close",
         disabled: !canCloseWorkspace,
         run: onCloseWorkspace,
+      },
+      {
+        id: "rename-workspace",
+        label: "Rename current workspace",
+        detail: activeWorkspace ? `Current name: ${activeWorkspace.label}` : "No active workspace",
+        disabled: !activeWorkspace,
+        run: onRenameWorkspace,
+      },
+      {
+        id: "reveal-workspace-folder",
+        label: "Reveal workspace folder",
+        detail: activeWorkspace?.rootPath ? shortenPath(activeWorkspace.rootPath) : "No folder bound to this workspace",
+        disabled: !activeWorkspace?.rootPath,
+        run: onOpenWorkspaceFolder,
+      },
+      {
+        id: "open-workspace-terminal",
+        label: "Open workspace in external terminal",
+        detail: activeWorkspace?.rootPath
+          ? `Open ${shortenPath(activeWorkspace.rootPath)} outside Alfred`
+          : "No folder bound to this workspace",
+        disabled: !activeWorkspace?.rootPath,
+        run: onOpenWorkspaceTerminal,
       },
       ...workspaces.map((workspace) => ({
         id: `switch-workspace-${workspace.id}`,
@@ -308,6 +337,9 @@ export function CommandPalette({
       onCloseRecoverableSessions,
       onCloseWorkspace,
       onContinueRecoverableSessions,
+      onOpenWorkspaceFolder,
+      onOpenWorkspaceTerminal,
+      onRenameWorkspace,
       onFocusSession,
       onFocusNextSession,
       onFocusPreviousSession,

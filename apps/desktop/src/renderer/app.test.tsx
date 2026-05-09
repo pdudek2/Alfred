@@ -257,6 +257,74 @@ describe("App integration", () => {
     });
   });
 
+  it("keeps workspace actions in a compact title menu", async () => {
+    const user = userEvent.setup();
+    const { openExternalTerminal, revealPath, setWorkspaceState } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          {
+            id: "A",
+            label: "Alfred",
+            shortLabel: "A",
+            rootPath: "/Users/patryk/Desktop/Alfred",
+            gitBranch: "main",
+          },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    const trigger = screen.getByRole("button", { name: "Workspace menu for Alfred" });
+
+    await user.click(trigger);
+    await user.click(within(screen.getByRole("dialog", { name: "Workspace actions" })).getByRole("button", { name: /Open in/ }));
+
+    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
+    expect(screen.queryByRole("dialog", { name: "Workspace actions" })).not.toBeInTheDocument();
+
+    await user.click(trigger);
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Workspace actions" })).getByRole("button", { name: /Reveal/ }),
+    );
+
+    expect(revealPath).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred", path: "." });
+
+    await user.click(trigger);
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Workspace actions" })).getByRole("button", {
+        name: /Rename workspace/i,
+      }),
+    );
+    expect(screen.queryByRole("dialog", { name: "Workspace actions" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Rename workspace" })).toBeInTheDocument();
+    await user.clear(screen.getByRole("textbox", { name: "Workspace name" }));
+    await user.type(screen.getByRole("textbox", { name: "Workspace name" }), "Ops Console{Enter}");
+
+    expect(screen.getByRole("button", { name: "Workspace menu for Ops Console" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(setWorkspaceState).toHaveBeenLastCalledWith({
+        workspaces: [
+          {
+            id: "A",
+            label: "Ops Console",
+            shortLabel: "OC",
+            rootPath: "/Users/patryk/Desktop/Alfred",
+            gitBranch: "main",
+          },
+        ],
+        activeWorkspaceId: "A",
+      });
+    });
+  });
+
   it("closes an empty non-default workspace from the command palette", async () => {
     const user = userEvent.setup();
     const { createWorkspaceFromFolder, setWorkspaceState } = installDesktopBridge();

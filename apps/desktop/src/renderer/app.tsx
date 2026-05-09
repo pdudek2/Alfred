@@ -1,5 +1,5 @@
-import { Command, ListChecks, Plus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronDown, Command, FolderOpen, ListChecks, Plus, SquareTerminal } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { getDesktopAlfredApi, getDesktopLayoutApi, getDesktopTerminalApi, getDesktopWorkspaceApi } from "./desktop-api";
 import { ComposerBar } from "./composer";
 import { AlfredControlRail } from "./components/AlfredControlRail";
@@ -83,6 +83,9 @@ export function App() {
   const [composerValue, setComposerValue] = useState<string>("");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState<boolean>(false);
   const [commandQuery, setCommandQuery] = useState<string>("");
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState<boolean>(false);
+  const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState<string>("");
+  const [workspaceRenameEditing, setWorkspaceRenameEditing] = useState<boolean>(false);
   const [reviewQueueOpen, setReviewQueueOpen] = useState<boolean>(false);
   const [armedUnsafeSessionIds, setArmedUnsafeSessionIds] = useState<Set<string>>(() => new Set());
   const [runtimeStatus, setRuntimeStatus] = useState<AlfredRuntimeStatus | null>(null);
@@ -195,6 +198,52 @@ export function App() {
   const handleToggleArrangeMode = useCallback(() => {
     setArrangeMode((enabled) => !enabled);
   }, []);
+
+  const handleBeginRenameActiveWorkspace = useCallback(() => {
+    setWorkspaceRenameDraft(activeWorkspace.label);
+    setWorkspaceRenameEditing(true);
+    setWorkspaceMenuOpen(true);
+  }, [activeWorkspace.label]);
+
+  const handleCancelWorkspaceRename = useCallback(() => {
+    setWorkspaceRenameDraft(activeWorkspace.label);
+    setWorkspaceRenameEditing(false);
+  }, [activeWorkspace.label]);
+
+  const handleSaveWorkspaceRename = useCallback((label: string) => {
+    const nextLabel = label.trim();
+    if (!nextLabel) return;
+    setWorkspaceRenameEditing(false);
+    setWorkspaceMenuOpen(false);
+    if (nextLabel === activeWorkspace.label) return;
+
+    const workspaceApi = getDesktopWorkspaceApi();
+    setWorkspaces((current) => {
+      const next = current.map((workspace) =>
+        workspace.id === activeWorkspace.id
+          ? { ...workspace, label: nextLabel, shortLabel: shortLabelForWorkspace(nextLabel) }
+          : workspace,
+      );
+      void workspaceApi?.setWorkspaceState({ workspaces: next, activeWorkspaceId: activeWorkspace.id });
+      return next;
+    });
+  }, [activeWorkspace.id, activeWorkspace.label]);
+
+  const handleRevealActiveWorkspace = useCallback(async () => {
+    if (!activeWorkspace.rootPath) return;
+    const result = await getDesktopWorkspaceApi()?.revealPath({ cwd: activeWorkspace.rootPath, path: "." });
+    if (!result?.ok) {
+      setAlfredStatus(errored({ code: "network", message: result?.error ?? "Workspace folder is unavailable." }));
+    }
+  }, [activeWorkspace.rootPath]);
+
+  const handleOpenActiveWorkspaceTerminal = useCallback(async () => {
+    if (!activeWorkspace.rootPath) return;
+    const result = await getDesktopWorkspaceApi()?.openExternalTerminal({ cwd: activeWorkspace.rootPath });
+    if (!result?.ok) {
+      setAlfredStatus(errored({ code: "network", message: result?.error ?? "Workspace terminal is unavailable." }));
+    }
+  }, [activeWorkspace.rootPath]);
 
   const handleApplyLayoutPreset = useCallback((preset: LayoutPreset, selectedSessionId = activeSelectedSessionId) => {
     const layoutApi = getDesktopLayoutApi();
@@ -779,14 +828,28 @@ export function App() {
         <div className="mission-bar">
           <div className="mission-name">
             <AlfredMark label={activeWorkspace.shortLabel} />
-            <div>
-              <strong>{activeWorkspace.label} workspace</strong>
-              <span>
-                {activeSessions.length} tile{activeSessions.length === 1 ? "" : "s"} ·{" "}
-                {workspaceSessionSummary(activeSessions)} ·{" "}
-                {workspaceDetail(activeWorkspace)}
-              </span>
-            </div>
+            <WorkspaceTitleMenu
+              detail={`${activeSessions.length} tile${activeSessions.length === 1 ? "" : "s"} · ${workspaceSessionSummary(activeSessions)} · ${workspaceDetail(activeWorkspace)}`}
+              menuOpen={workspaceMenuOpen}
+              renameDraft={workspaceRenameDraft}
+              renameEditing={workspaceRenameEditing}
+              rootPath={activeWorkspace.rootPath}
+              workspaceLabel={activeWorkspace.label}
+              onCancelRename={handleCancelWorkspaceRename}
+              onChangeRenameDraft={setWorkspaceRenameDraft}
+              onClose={() => {
+                setWorkspaceMenuOpen(false);
+                setWorkspaceRenameEditing(false);
+              }}
+              onOpenExternalTerminal={() => void handleOpenActiveWorkspaceTerminal()}
+              onRevealFolder={() => void handleRevealActiveWorkspace()}
+              onSaveRename={handleSaveWorkspaceRename}
+              onStartRename={handleBeginRenameActiveWorkspace}
+              onToggleMenu={() => {
+                setWorkspaceMenuOpen((open) => !open);
+                setWorkspaceRenameEditing(false);
+              }}
+            />
           </div>
           <div className="mission-actions" aria-label="terminal actions">
             {crossWorkspaceReviewPreview && (
@@ -962,6 +1025,9 @@ export function App() {
             onCloseSession={handleCloseSession}
             onCloseWorkspace={handleCloseActiveWorkspace}
             onContinueRecoverableSessions={handleContinueRecoverableSessions}
+            onOpenWorkspaceFolder={() => void handleRevealActiveWorkspace()}
+            onOpenWorkspaceTerminal={() => void handleOpenActiveWorkspaceTerminal()}
+            onRenameWorkspace={handleBeginRenameActiveWorkspace}
             onFocusSession={handleFocusSession}
             onFocusNextSession={() => handleFocusSessionByDelta(1)}
             onFocusPreviousSession={() => handleFocusSessionByDelta(-1)}
@@ -988,6 +1054,160 @@ export function App() {
         )}
       </section>
     </main>
+  );
+}
+
+function WorkspaceTitleMenu({
+  detail,
+  menuOpen,
+  renameDraft,
+  renameEditing,
+  rootPath,
+  workspaceLabel,
+  onCancelRename,
+  onChangeRenameDraft,
+  onClose,
+  onOpenExternalTerminal,
+  onRevealFolder,
+  onSaveRename,
+  onStartRename,
+  onToggleMenu,
+}: {
+  detail: string;
+  menuOpen: boolean;
+  renameDraft: string;
+  renameEditing: boolean;
+  rootPath?: string | undefined;
+  workspaceLabel: string;
+  onCancelRename: () => void;
+  onChangeRenameDraft: (value: string) => void;
+  onClose: () => void;
+  onOpenExternalTerminal: () => void;
+  onRevealFolder: () => void;
+  onSaveRename: (value: string) => void;
+  onStartRename: () => void;
+  onToggleMenu: () => void;
+}) {
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const revealLabel = navigator.platform.includes("Mac") ? "Reveal in Finder" : "Reveal folder";
+  const terminalLabel = navigator.platform.includes("Mac") ? "Open in Ghostty" : "Open in external terminal";
+
+  useEffect(() => {
+    if (!renameEditing) return;
+    window.requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+  }, [renameEditing]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && surfaceRef.current?.contains(target)) return;
+      onClose();
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [menuOpen, onClose]);
+
+  const handleRenameSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onSaveRename(renameDraft);
+  };
+
+  return (
+    <div
+      className="workspace-title-menu"
+      ref={surfaceRef}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape") return;
+        event.preventDefault();
+        renameEditing ? onCancelRename() : onClose();
+      }}
+    >
+      <button
+        type="button"
+        className="workspace-title-trigger"
+        aria-haspopup="dialog"
+        aria-expanded={menuOpen}
+        aria-label={`Workspace menu for ${workspaceLabel}`}
+        onClick={onToggleMenu}
+      >
+        <span>
+          <strong>{workspaceLabel} workspace</strong>
+          <small>{detail}</small>
+        </span>
+        <ChevronDown size={14} aria-hidden="true" />
+      </button>
+      {menuOpen && (
+        <div className="workspace-popover" role="dialog" aria-label={renameEditing ? "Rename workspace" : "Workspace actions"}>
+          {renameEditing ? (
+            <form className="workspace-rename-form" onSubmit={handleRenameSubmit}>
+              <label>
+                <span>Workspace name</span>
+                <input
+                  ref={inputRef}
+                  value={renameDraft}
+                  onChange={(event) => onChangeRenameDraft(event.target.value)}
+                />
+              </label>
+              <div>
+                <button type="submit" disabled={!renameDraft.trim()}>
+                  Save
+                </button>
+                <button type="button" onClick={onCancelRename}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={!rootPath}
+                onClick={() => {
+                  onOpenExternalTerminal();
+                  onClose();
+                }}
+              >
+                <SquareTerminal size={14} />
+                <span>
+                  <strong>{terminalLabel}</strong>
+                  <small>{rootPath ? shortenPath(rootPath) : "No folder bound"}</small>
+                </span>
+              </button>
+              <button
+                type="button"
+                disabled={!rootPath}
+                onClick={() => {
+                  onRevealFolder();
+                  onClose();
+                }}
+              >
+                <FolderOpen size={14} />
+                <span>
+                  <strong>{revealLabel}</strong>
+                  <small>{rootPath ? shortenPath(rootPath) : "No folder bound"}</small>
+                </span>
+              </button>
+              <hr />
+              <button type="button" onClick={onStartRename}>
+                <span>
+                  <strong>Rename workspace...</strong>
+                  <small>Keep this desk readable</small>
+                </span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1102,6 +1322,12 @@ function shortenPath(value: string): string {
 function workspaceDetail(workspace: Workspace): string {
   const location = workspace.rootPath ? shortenPath(workspace.rootPath) : "local desk";
   return workspace.gitBranch ? `${location} · ${workspace.gitBranch}` : location;
+}
+
+function shortLabelForWorkspace(label: string): string {
+  const words = label.trim().split(/[^a-zA-Z0-9]+/).filter(Boolean);
+  const letters = words.length > 1 ? words.map((word) => word[0]).join("") : label.slice(0, 3);
+  return (letters || "W").slice(0, 3).toUpperCase();
 }
 
 function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[]): SessionTile[] {
