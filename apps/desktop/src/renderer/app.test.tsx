@@ -473,13 +473,22 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Desk" })).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("opens a selected session inspector from the tile header and collapses it with Escape", async () => {
+  it("selects a tile on click and opens the inspector on double click", async () => {
+    const user = userEvent.setup();
     installDesktopBridge();
 
     render(<App />);
 
     const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
-    fireEvent.click(tile.querySelector(".tile-header")!);
+    const header = tile.querySelector(".tile-header")!;
+
+    await user.click(header);
+
+    expect(screen.getByRole("button", { name: "Desk" })).toHaveAttribute("aria-pressed", "true");
+    expect(tile).toHaveClass("selected");
+    expect(screen.queryByLabelText("Agent activity")).not.toBeInTheDocument();
+
+    await user.dblClick(header);
 
     expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
@@ -522,7 +531,7 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     const secondTile = screen.getByRole("article", { name: /Manual · zsh 2/i });
 
-    fireEvent.click(secondTile.querySelector(".tile-header")!);
+    await userEvent.dblClick(secondTile.querySelector(".tile-header")!);
 
     expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 2");
@@ -1229,6 +1238,7 @@ describe("App integration", () => {
   });
 
   it("sends quick approval responses from the focused activity panel", async () => {
+    const user = userEvent.setup();
     const { writeTerminal } = installDesktopBridge(undefined, null, [
       {
         id: "runtime-a",
@@ -1257,10 +1267,10 @@ describe("App integration", () => {
     render(<App />);
 
     const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
-    fireEvent.click(tile.querySelector(".tile-header")!);
+    await user.dblClick(tile.querySelector(".tile-header")!);
 
     expect(screen.getByRole("group", { name: "Approval actions for Codex · session 1" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Send yes" }));
+    await user.click(screen.getByRole("button", { name: "Send yes" }));
 
     expect(writeTerminal).toHaveBeenCalledWith({ id: "runtime-a", data: "y\n" });
   });
@@ -1296,7 +1306,7 @@ describe("App integration", () => {
     render(<App />);
 
     const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
-    fireEvent.click(tile.querySelector(".tile-header")!);
+    await user.dblClick(tile.querySelector(".tile-header")!);
     await user.click(
       screen.getByRole("button", { name: "Reveal edited: apps/desktop/src/renderer/app.tsx" }),
     );
@@ -1328,7 +1338,7 @@ describe("App integration", () => {
     render(<App />);
 
     const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
-    fireEvent.click(tile.querySelector(".tile-header")!);
+    await user.dblClick(tile.querySelector(".tile-header")!);
     await user.click(screen.getByRole("button", { name: "Open external terminal for Codex · session 1" }));
 
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
@@ -1401,12 +1411,13 @@ describe("App integration", () => {
   });
 
   it("persists focus mode and selected session as workspace view state", async () => {
+    const user = userEvent.setup();
     const { setWorkspaceViewState } = installDesktopBridge();
 
     render(<App />);
 
     const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
-    fireEvent.click(tile.querySelector(".tile-header")!);
+    await user.dblClick(tile.querySelector(".tile-header")!);
 
     await waitFor(() => {
       expect(setWorkspaceViewState).toHaveBeenCalledWith({
@@ -1480,9 +1491,16 @@ describe("App integration", () => {
     expect(within(rail).getByRole("button", { name: "Launch queue" })).toBeInTheDocument();
     expect(within(rail).getByRole("button", { name: "Clear staged plan from review queue" })).toBeInTheDocument();
     expect(await screen.findByRole("article", { name: /Staged Task A/i })).toBeInTheDocument();
-    expect(await screen.findByRole("article", { name: /Staged Task B/i })).toBeInTheDocument();
+    const stagedTaskB = await screen.findByRole("article", { name: /Staged Task B/i });
+    const stagedTaskBHeader = stagedTaskB.querySelector(".tile-header")!;
 
-    await user.click(within(rail).getByRole("button", { name: "Focus staged tile: Task B" }));
+    await user.click(stagedTaskBHeader);
+
+    expect(screen.getByRole("button", { name: "Desk" })).toHaveAttribute("aria-pressed", "true");
+    expect(stagedTaskB).toHaveClass("selected");
+    expect(screen.queryByLabelText("Agent activity")).not.toBeInTheDocument();
+
+    await user.dblClick(stagedTaskBHeader);
 
     expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Task B");
