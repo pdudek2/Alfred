@@ -2051,6 +2051,21 @@ body.arranging-pointer {
   box-shadow: 0 0 0 4px color-mix(in oklab, var(--brass) 14%, transparent);
 }
 
+.agent-activity-list li.error > span {
+  background: var(--coral);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--coral) 14%, transparent);
+}
+
+.agent-activity-list li.approval > span {
+  background: var(--brass);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--brass) 14%, transparent);
+}
+
+.agent-activity-list li.output > span {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 12%, transparent);
+}
+
 .agent-activity-list b {
   display: block;
   color: var(--ink);
@@ -2063,4 +2078,12 @@ body.arranging-pointer {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.45;
+}
+
+.agent-activity-list time {
+  display: block;
+  margin-top: 5px;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10px;
 }

@@ -24,6 +24,22 @@ export function AgentTimelinePanel({ session }: AgentTimelinePanelProps) {
   const command = [session.command, ...(session.args ?? [])].filter(Boolean).join(" ");
   const runtimeStatus = session.runtimeStatus ?? (session.runtimeId ? "live" : "starting");
   const status = session.stage === "staged" ? "waiting for approval" : runtimeStatusLabel(runtimeStatus);
+  const activityEvents = session.activityEvents ?? [];
+  const displayedEvents =
+    activityEvents.length > 0
+      ? [...activityEvents].sort((a, b) => b.at - a.at)
+      : [
+          {
+            id: `${session.id}-runtime-status`,
+            kind: session.stage === "staged" ? "approval" : runtimeStatus === "error" ? "error" : "lifecycle",
+            title: session.stage === "staged" ? "Queued by Alfred" : runtimeEventTitle(runtimeStatus),
+            detail:
+              session.stage === "staged"
+                ? "Review the proposed command before it starts."
+                : runtimeEventCopy(runtimeStatus),
+            at: session.lastActivityAt ?? 0,
+          },
+        ];
 
   return (
     <aside className="agent-timeline-panel" aria-label="Agent activity">
@@ -47,19 +63,24 @@ export function AgentTimelinePanel({ session }: AgentTimelinePanelProps) {
               <dd>{command}</dd>
             </div>
           )}
+          {session.lastActivityAt && (
+            <div>
+              <dt>last activity</dt>
+              <dd>{formatActivityTime(session.lastActivityAt)}</dd>
+            </div>
+          )}
         </dl>
         <ol className="agent-activity-list">
-          <li>
-            <span />
-            <div>
-              <b>{session.stage === "staged" ? "Queued by Alfred" : runtimeEventTitle(runtimeStatus)}</b>
-              <p>
-                {session.stage === "staged"
-                  ? "Review the proposed command before it starts."
-                  : runtimeEventCopy(runtimeStatus)}
-              </p>
-            </div>
-          </li>
+          {displayedEvents.map((event) => (
+            <li className={event.kind} key={event.id}>
+              <span />
+              <div>
+                <b>{event.title}</b>
+                <p>{event.detail}</p>
+                {event.at > 0 && <time dateTime={new Date(event.at).toISOString()}>{formatActivityTime(event.at)}</time>}
+              </div>
+            </li>
+          ))}
           {session.safetyNote && (
             <li className="warning">
               <span />
@@ -89,6 +110,14 @@ function runtimeStatusLabel(status: SessionTile["runtimeStatus"]): string {
     default:
       return "starting";
   }
+}
+
+function formatActivityTime(value: number): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(value);
 }
 
 function runtimeEventTitle(status: SessionTile["runtimeStatus"]): string {

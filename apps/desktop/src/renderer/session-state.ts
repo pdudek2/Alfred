@@ -19,10 +19,29 @@ export type SessionTile = {
   agentKind?: AgentKind;
   safetyNote?: string;
   initialBuffer?: string;
+  activityEvents?: SessionActivityEvent[];
+  lastActivityAt?: number;
+};
+
+export type SessionActivityEventKind = "lifecycle" | "output" | "warning" | "error" | "approval";
+
+export type SessionActivityEvent = {
+  id: string;
+  kind: SessionActivityEventKind;
+  title: string;
+  detail: string;
+  at: number;
+};
+
+export type SessionActivityInput = {
+  kind: SessionActivityEventKind;
+  title: string;
+  detail: string;
 };
 
 const MANUAL_SESSION_PREFIX = "manual-";
 const ALFRED_SESSION_PREFIX = "alfred-";
+const MAX_ACTIVITY_EVENTS = 40;
 
 export function createInitialSessions(cwd: string, workspaceId = "A"): SessionTile[] {
   return [createManualSession(1, cwd, workspaceId)];
@@ -187,6 +206,50 @@ export function rejectAllStaged(sessions: SessionTile[], workspaceId?: string): 
   return sessions.filter((session) => !(session.stage === "staged" && (!workspaceId || session.workspaceId === workspaceId)));
 }
 
+export function appendSessionActivity(
+  sessions: SessionTile[],
+  sessionId: string,
+  activity: SessionActivityInput,
+  now = Date.now(),
+): SessionTile[] {
+  return sessions.map((session) => {
+    if (session.id !== sessionId) return session;
+    const previousEvents = session.activityEvents ?? [];
+    const lastEvent = previousEvents.at(-1);
+    if (
+      lastEvent &&
+      lastEvent.kind === activity.kind &&
+      lastEvent.title === activity.title &&
+      lastEvent.detail === activity.detail
+    ) {
+      return { ...session, lastActivityAt: now };
+    }
+    const event: SessionActivityEvent = {
+      id: `${session.id}-activity-${now}-${previousEvents.length + 1}`,
+      ...activity,
+      at: now,
+    };
+    return {
+      ...session,
+      lastActivityAt: now,
+      activityEvents: [...previousEvents, event].slice(-MAX_ACTIVITY_EVENTS),
+    };
+  });
+}
+
+export function recordSessionOutputActivity(
+  sessions: SessionTile[],
+  runtimeId: TerminalSessionId,
+  data: string,
+  now = Date.now(),
+): SessionTile[] {
+  const activity = classifyOutputActivity(data);
+  if (!activity) return sessions;
+  const session = sessions.find((item) => item.runtimeId === runtimeId);
+  if (!session) return sessions;
+  return appendSessionActivity(sessions, session.id, activity, now);
+}
+
 function nextAlfredSessionIndex(sessions: SessionTile[]): number {
   const usedIndexes = sessions
     .filter((session) => session.id.startsWith(ALFRED_SESSION_PREFIX))
@@ -196,4 +259,59 @@ function nextAlfredSessionIndex(sessions: SessionTile[]): number {
     });
 
   return Math.max(0, ...usedIndexes) + 1;
+}
+
+function classifyOutputActivity(data: string): SessionActivityInput | null {
+  const lines = stripAnsi(data)
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return null;
+
+  const errorLine = lines.find((line) => /\b(error|failed|failure|exception|traceback|fatal)\b/i.test(line));
+  if (errorLine) {
+    return {
+      kind: "error",
+      title: "Error reported",
+      detail: truncateActivityDetail(errorLine),
+    };
+  }
+
+  const warningLine = lines.find((line) => /\b(warn(?:ing)?|deprecated|caution)\b/i.test(line));
+  if (warningLine) {
+    return {
+      kind: "warning",
+      title: "Warning reported",
+      detail: truncateActivityDetail(warningLine),
+    };
+  }
+
+  const fileLine = lines.find((line) => /\b(created|deleted|modified|updated|renamed|wrote|written)\b/i.test(line));
+  if (fileLine) {
+    return {
+      kind: "output",
+      title: "File activity",
+      detail: truncateActivityDetail(fileLine),
+    };
+  }
+
+  const readyLine = lines.find((line) => /(^✓|^✔|\b(done|passed|ready|listening|compiled|built|completed)\b)/i.test(line));
+  if (readyLine) {
+    return {
+      kind: "output",
+      title: "Progress reported",
+      detail: truncateActivityDetail(readyLine),
+    };
+  }
+
+  return null;
+}
+
+function stripAnsi(value: string): string {
+  return value.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "");
+}
+
+function truncateActivityDetail(value: string): string {
+  return value.length > 180 ? `${value.slice(0, 177)}...` : value;
 }
