@@ -1198,6 +1198,7 @@ export function App() {
             activeWorkspaceId={activeWorkspace.id}
             activeWorkMode={activeWorkMode}
             arrangeMode={arrangeMode}
+            allSessions={terminalSessions}
             pendingPlan={activePendingPlan}
             query={commandQuery}
             recoverableSessions={activeRecoverableSessions}
@@ -1228,7 +1229,7 @@ export function App() {
             onOpenSessionFolder={(cwd) => void handleOpenSessionFolder(cwd)}
             onOpenSessionTerminal={(cwd) => void handleOpenSessionTerminal(cwd)}
             onRenameWorkspace={handleBeginRenameActiveWorkspace}
-            onFocusSession={handleFocusSession}
+            onFocusSessionInWorkspace={handleFocusSessionInWorkspace}
             onFocusNextSession={() => handleFocusSessionByDelta(1)}
             onFocusPreviousSession={() => handleFocusSessionByDelta(-1)}
             onOpenReviewQueue={handleOpenReviewQueue}
