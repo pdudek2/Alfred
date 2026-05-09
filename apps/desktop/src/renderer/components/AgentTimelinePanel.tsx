@@ -20,10 +20,12 @@ export function AgentTimelinePanel({
   const ageClock = useSessionAgeClock(session?.createdAt);
   const [inputDraft, setInputDraft] = useState("");
   const [payloadActionState, setPayloadActionState] = useState<Record<string, string>>({});
+  const [sessionActionState, setSessionActionState] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setInputDraft("");
     setPayloadActionState({});
+    setSessionActionState({});
   }, [session?.id]);
 
   if (!session) {
@@ -41,7 +43,7 @@ export function AgentTimelinePanel({
   }
 
   const kindMeta = tileKindMeta(sessionTileKind(session));
-  const command = [session.command, ...(session.args ?? [])].filter(Boolean).join(" ");
+  const command = sessionCommandLabel(session) ?? "";
   const runtimeStatus = session.runtimeStatus ?? (session.runtimeId ? "live" : "starting");
   const displayStatus = terminalSessionDisplayStatus(session);
   const activityEvents = session.activityEvents ?? [];
@@ -50,6 +52,7 @@ export function AgentTimelinePanel({
   const activitySummary = summarizeActivityEvents(activityEvents);
   const latestApproval = latestApprovalEvent(activityEvents);
   const pulseCard = sessionPulseCard(session, displayStatus, activityEvents);
+  const handoffActions = sessionHandoffActions(session, command);
   const canSendApprovalResponse =
     Boolean(onSendInput) &&
     Boolean(session.runtimeId) &&
@@ -93,6 +96,37 @@ export function AgentTimelinePanel({
       setPayloadActionState((current) => {
         const next = { ...current };
         delete next[event.id];
+        return next;
+      });
+    }, 1600);
+  };
+  const handleSessionAction = async (action: SessionHandoffAction) => {
+    const pendingLabel = action.kind === "reveal-folder" ? "opening" : "copying";
+    const actionKey = sessionHandoffActionKey(session.id, action.id);
+    setSessionActionState((current) => ({ ...current, [actionKey]: pendingLabel }));
+    try {
+      if (action.kind === "reveal-folder") {
+        if (!onRevealActivityFile) {
+          throw new Error("Reveal action is unavailable.");
+        }
+        await onRevealActivityFile(".", action.cwd);
+        setSessionActionState((current) => ({ ...current, [actionKey]: "opened" }));
+      } else {
+        if (onCopyActivityText) {
+          await onCopyActivityText(action.value);
+        } else {
+          await navigator.clipboard?.writeText(action.value);
+        }
+        setSessionActionState((current) => ({ ...current, [actionKey]: "copied" }));
+      }
+    } catch {
+      setSessionActionState((current) => ({ ...current, [actionKey]: "missing" }));
+    }
+
+    window.setTimeout(() => {
+      setSessionActionState((current) => {
+        const next = { ...current };
+        delete next[actionKey];
         return next;
       });
     }, 1600);
@@ -160,6 +194,24 @@ export function AgentTimelinePanel({
             </div>
           )}
         </dl>
+        {handoffActions.length > 0 && (
+          <section className="agent-handoff-actions" aria-label={`Handoff actions for ${session.title}`}>
+            <div>
+              <span>handoff</span>
+              <strong>Continue outside Alfred</strong>
+            </div>
+            <div className="agent-handoff-buttons">
+              {handoffActions.map((action) => (
+                <HandoffActionButton
+                  action={action}
+                  actionState={sessionActionState[sessionHandoffActionKey(session.id, action.id)]}
+                  key={action.id}
+                  onAction={handleSessionAction}
+                />
+              ))}
+            </div>
+          </section>
+        )}
         {pulseCard && (
           <section className={`agent-session-pulse tone-${pulseCard.tone}`} aria-label="Session pulse">
             <span>{pulseCard.label}</span>
@@ -264,6 +316,22 @@ export function AgentTimelinePanel({
 type ActivityDigestTone = "ask" | "issue" | "plan" | "work";
 type SessionPulseTone = "ask" | "issue" | "recovery" | "signal" | "work";
 
+type SessionHandoffAction =
+  | {
+      ariaLabel: string;
+      id: "copy-cwd" | "copy-command";
+      kind: "copy";
+      label: string;
+      value: string;
+    }
+  | {
+      ariaLabel: string;
+      cwd: string;
+      id: "reveal-folder";
+      kind: "reveal-folder";
+      label: string;
+    };
+
 type ActivityPayloadView = {
   action: "copy" | "reveal";
   actionLabel: string;
@@ -279,6 +347,63 @@ type SessionPulseCard = {
   title: string;
   tone: SessionPulseTone;
 };
+
+function HandoffActionButton({
+  action,
+  actionState,
+  onAction,
+}: {
+  action: SessionHandoffAction;
+  actionState: string | undefined;
+  onAction: (action: SessionHandoffAction) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onAction(action)}
+      disabled={actionState === "opening" || actionState === "copying"}
+      aria-label={action.ariaLabel}
+    >
+      {actionState ?? action.label}
+    </button>
+  );
+}
+
+function sessionHandoffActions(session: SessionTile, command: string): SessionHandoffAction[] {
+  const actions: SessionHandoffAction[] = [];
+  if (session.cwd) {
+    actions.push({
+      id: "reveal-folder",
+      kind: "reveal-folder",
+      label: "Reveal",
+      ariaLabel: `Reveal folder for ${session.title}`,
+      cwd: session.cwd,
+    });
+    actions.push({
+      id: "copy-cwd",
+      kind: "copy",
+      label: "Copy cwd",
+      ariaLabel: `Copy cwd for ${session.title}`,
+      value: session.cwd,
+    });
+  }
+
+  if (command) {
+    actions.push({
+      id: "copy-command",
+      kind: "copy",
+      label: "Copy command",
+      ariaLabel: `Copy command for ${session.title}`,
+      value: command,
+    });
+  }
+
+  return actions;
+}
+
+function sessionHandoffActionKey(sessionId: string, actionId: SessionHandoffAction["id"]): string {
+  return `${sessionId}:${actionId}`;
+}
 
 function activityDigestItems(events: NonNullable<SessionTile["activityEvents"]>): Array<{
   label: string;
@@ -511,8 +636,16 @@ function sessionPulseCard(
 }
 
 function sessionCommandLabel(session: SessionTile): string | null {
-  const command = [session.command, ...(session.args ?? [])].filter(Boolean).join(" ");
-  return command || null;
+  if (!session.command) return null;
+  return [session.command, ...(session.args ?? [])].map(shellQuoteToken).join(" ");
+}
+
+const SHELL_SAFE_TOKEN = /^[A-Za-z0-9_./:@%+=,-]+$/;
+
+function shellQuoteToken(value: string): string {
+  if (value.length === 0) return "''";
+  if (SHELL_SAFE_TOKEN.test(value)) return value;
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 function latestEventOfKind(
