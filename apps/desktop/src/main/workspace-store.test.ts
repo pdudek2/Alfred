@@ -85,6 +85,42 @@ describe("workspace-store", () => {
     });
   });
 
+  it("refreshes persisted git branches when workspace state is read", async () => {
+    const filePath = await temporaryStateFile();
+    const persistedStateStore = createPersistedDesktopStateStore({ filePath });
+    await persistedStateStore.setState({
+      workspaces: [
+        { id: "A", label: "Alfred", shortLabel: "A" },
+        {
+          id: "CLIENT",
+          label: "Client",
+          shortLabel: "CLI",
+          rootPath: "/repo/client",
+          gitBranch: "main",
+        },
+      ],
+      activeWorkspaceId: "CLIENT",
+      layoutsByWorkspace: {},
+      stagedPlan: null,
+      restoredTerminalSessions: [],
+    });
+    const store = createWorkspaceStore({ persistedStateStore, resolveGitBranch: async () => "feature/agent-space" });
+
+    await expect(store.getWorkspaceState()).resolves.toEqual({
+      workspaces: [
+        { id: "A", label: "Alfred", shortLabel: "A" },
+        {
+          id: "CLIENT",
+          label: "Client",
+          shortLabel: "CLI",
+          rootPath: "/repo/client",
+          gitBranch: "feature/agent-space",
+        },
+      ],
+      activeWorkspaceId: "CLIENT",
+    });
+  });
+
   it("keeps ids unique when two folders share a basename", async () => {
     const filePath = await temporaryStateFile();
     const store = createWorkspaceStore({ filePath });
