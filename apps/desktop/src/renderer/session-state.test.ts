@@ -16,6 +16,7 @@ import {
   recordSessionOutputActivity,
   rejectAllStaged,
   rejectStaged,
+  restartSession,
 } from "./session-state";
 import type { AlfredPlanSession } from "../shared/alfred-ipc";
 import type { AlfredStagedPlanSnapshot } from "../shared/alfred-ipc";
@@ -135,6 +136,32 @@ describe("desktop session state", () => {
     const next = addManualSession(hydrated, "/repo");
 
     expect(next.map((session) => session.id)).toEqual(["manual-4", "manual-5"]);
+  });
+
+  it("restarts an existing tile without carrying stale runtime state", () => {
+    const hydrated = hydrateLiveTerminalSessions([
+      {
+        id: "pty-a",
+        clientId: "manual-4",
+        title: "Manual · zsh 4",
+        cwd: "/repo",
+        source: "manual",
+        shell: "/bin/zsh",
+        buffer: "old output\n",
+        lastOutputAt: 100,
+      },
+    ]);
+    const exited = markSessionExited(hydrated, "pty-a");
+
+    expect(restartSession(exited, "manual-4")[0]).toEqual({
+      id: "manual-4",
+      title: "Manual · zsh 4",
+      workspaceId: "A",
+      cwd: "/repo",
+      source: "manual",
+      stage: "live",
+      runtimeStatus: "starting",
+    });
   });
 
   it("hydrates restored transcript tiles without runtime ids", () => {
