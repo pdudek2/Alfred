@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowserWindow, ipcMain } from "electron";
 import {
   configureTerminalPersistence,
@@ -116,6 +116,10 @@ describe("terminal-manager IPC", () => {
     vi.mocked(BrowserWindow.fromWebContents).mockImplementation(
       (sender) => (sender as { window?: ReturnType<typeof fakeWindow> }).window as never,
     );
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("persists transcript snapshots and returns them as restored sessions after restart", async () => {
@@ -335,6 +339,30 @@ describe("terminal-manager IPC", () => {
     expect(listed.sessions).toEqual([
       expect.objectContaining({ id: created.id, buffer: "hello\n", clientId: "manual-1" }),
     ]);
+  });
+
+  it("uses the configured default workspace cwd when a create request omits cwd", async () => {
+    vi.stubEnv("ALFRED_DESKTOP_WORKSPACE_CWD", "/Users/patryk/Desktop/Configured");
+    vi.stubEnv("INIT_CWD", "/tmp/ignored");
+    const pty = new FakePty();
+    const nodePty = fakeNodePty(pty);
+    registerTerminalIpc({ loadNodePty: async () => nodePty as never });
+
+    await invoke(terminalChannels.create, {
+      command: "node",
+      cols: 80,
+      rows: 24,
+    });
+
+    expect(nodePty.spawn).toHaveBeenCalledWith(
+      "node",
+      [],
+      expect.objectContaining({
+        cols: 80,
+        cwd: "/Users/patryk/Desktop/Configured",
+        rows: 24,
+      }),
+    );
   });
 
   it("supports write, resize, kill, and session count", async () => {

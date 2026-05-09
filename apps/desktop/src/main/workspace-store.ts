@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import {
   createPersistedDesktopStateStore,
+  DEFAULT_WORKSPACE,
   normalizeDesktopState,
   type DesktopStateSnapshot,
   type PersistedDesktopStateStore,
@@ -19,6 +20,7 @@ export type WorkspaceStore = {
 };
 
 export type WorkspaceStoreOptions = PersistedDesktopStateStoreOptions & {
+  defaultRootPath?: string;
   persistedStateStore?: PersistedDesktopStateStore;
   resolveGitBranch?: (rootPath: string) => Promise<string | undefined>;
 };
@@ -58,7 +60,8 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
     },
 
     async getWorkspaceState(): Promise<WorkspaceStateSnapshot> {
-      return toWorkspaceState(await refreshWorkspaceBranches(await persistedStateStore.getState()));
+      const state = await ensureDefaultWorkspaceRoot(await persistedStateStore.getState());
+      return toWorkspaceState(await refreshWorkspaceBranches(state));
     },
 
     async setWorkspaceState(request: WorkspaceStateSetRequest): Promise<WorkspaceStateSnapshot> {
@@ -67,6 +70,28 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
       return toWorkspaceState(next);
     },
   };
+
+  async function ensureDefaultWorkspaceRoot(state: DesktopStateSnapshot): Promise<DesktopStateSnapshot> {
+    const defaultRootPath = options.defaultRootPath?.trim();
+    if (!defaultRootPath) return state;
+
+    const normalizedRootPath = path.resolve(defaultRootPath);
+    const defaultWorkspace = state.workspaces.find((workspace) => workspace.id === DEFAULT_WORKSPACE.id);
+    if (!defaultWorkspace || defaultWorkspace.rootPath) return state;
+
+    const gitBranch = await (options.resolveGitBranch ?? resolveGitBranch)(normalizedRootPath);
+    return persistedStateStore.updateState((current) => ({
+      ...current,
+      workspaces: current.workspaces.map((workspace) => {
+        if (workspace.id !== DEFAULT_WORKSPACE.id || workspace.rootPath) return workspace;
+        return {
+          ...workspace,
+          rootPath: normalizedRootPath,
+          ...(gitBranch === undefined ? {} : { gitBranch }),
+        };
+      }),
+    }));
+  }
 
   async function refreshWorkspaceBranches(state: DesktopStateSnapshot): Promise<DesktopStateSnapshot> {
     let changed = false;

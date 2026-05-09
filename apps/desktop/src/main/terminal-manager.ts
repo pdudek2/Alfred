@@ -24,6 +24,7 @@ import {
   type TerminalSessionSource,
   type TerminalWriteRequest,
 } from "../shared/terminal-ipc.js";
+import { resolveDefaultWorkspaceRootPath } from "./default-workspace-root.js";
 import type { PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 
 type PtyProcess = import("node-pty").IPty;
@@ -504,7 +505,7 @@ function resolveTerminalCwd(cwd: string | undefined): string {
 }
 
 function defaultTerminalCwd(): string {
-  return process.env.ALFRED_DESKTOP_WORKSPACE_CWD ?? process.env.INIT_CWD ?? path.resolve(app.getAppPath(), "../..");
+  return resolveDefaultWorkspaceRootPath(app.getAppPath());
 }
 
 function normalizeDimension(value: number, fallback: number): number {
