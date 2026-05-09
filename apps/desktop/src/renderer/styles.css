@@ -2372,6 +2372,80 @@ body.arranging-pointer {
   min-width: 0;
 }
 
+.recovery-workspace-strip {
+  min-height: 60px;
+  border: 1px solid color-mix(in oklab, var(--violet) 24%, transparent);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background:
+    linear-gradient(135deg, color-mix(in oklab, var(--violet) 10%, transparent), transparent 48%),
+    linear-gradient(180deg, color-mix(in oklab, white 5%, transparent), color-mix(in oklab, white 1.5%, transparent)),
+    rgba(8, 10, 14, 0.72);
+  color: var(--violet);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 8%, transparent),
+    0 18px 36px -28px currentColor;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.recovery-workspace-strip span,
+.recovery-workspace-strip strong,
+.recovery-workspace-strip p {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recovery-workspace-strip span {
+  color: currentColor;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+
+.recovery-workspace-strip strong {
+  margin-top: 3px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.recovery-workspace-strip p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.recovery-workspace-strip > div:last-child {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.recovery-workspace-strip button {
+  min-height: 32px;
+  border: 1px solid color-mix(in oklab, currentColor 22%, transparent);
+  border-radius: 8px;
+  padding: 0 11px;
+  background: color-mix(in oklab, currentColor 7%, transparent);
+  color: var(--ink-soft);
+  font: 700 11px var(--sans);
+  cursor: pointer;
+}
+
+.recovery-workspace-strip button:hover,
+.recovery-workspace-strip button:focus-visible {
+  border-color: color-mix(in oklab, currentColor 42%, transparent);
+  color: var(--ink);
+}
+
 .focus-session-strip {
   min-height: 38px;
   border: 1px solid color-mix(in oklab, white 7%, transparent);
