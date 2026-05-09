@@ -26,6 +26,7 @@ export function AgentTimelinePanel({ session }: AgentTimelinePanelProps) {
   const runtimeStatus = session.runtimeStatus ?? (session.runtimeId ? "live" : "starting");
   const displayStatus = terminalSessionDisplayStatus(session);
   const activityEvents = session.activityEvents ?? [];
+  const activitySummary = summarizeActivityEvents(activityEvents);
   const displayedEvents =
     activityEvents.length > 0
       ? [...activityEvents].sort((a, b) => b.at - a.at)
@@ -62,6 +63,12 @@ export function AgentTimelinePanel({ session }: AgentTimelinePanelProps) {
             <div>
               <dt>command</dt>
               <dd>{command}</dd>
+            </div>
+          )}
+          {activitySummary && (
+            <div>
+              <dt>activity</dt>
+              <dd>{activitySummary}</dd>
             </div>
           )}
           {session.lastActivityAt && (
@@ -109,6 +116,31 @@ function formatActivityTime(value: number): string {
     minute: "2-digit",
     second: "2-digit",
   }).format(value);
+}
+
+function summarizeActivityEvents(events: NonNullable<SessionTile["activityEvents"]>): string | null {
+  if (events.length === 0) return null;
+
+  const labels: Array<[NonNullable<SessionTile["activityEvents"]>[number]["kind"], string]> = [
+    ["command", "command"],
+    ["file", "file"],
+    ["plan", "plan"],
+    ["tool", "tool"],
+    ["approval", "ask"],
+    ["error", "error"],
+    ["warning", "warning"],
+    ["output", "signal"],
+    ["lifecycle", "state"],
+  ];
+
+  return labels
+    .map(([kind, label]) => {
+      const count = events.filter((event) => event.kind === kind).length;
+      if (count === 0) return null;
+      return `${count} ${label}${count === 1 ? "" : "s"}`;
+    })
+    .filter((item): item is string => item !== null)
+    .join(" · ");
 }
 
 function runtimeEventTitle(status: SessionTile["runtimeStatus"]): string {

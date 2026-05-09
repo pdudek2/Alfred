@@ -51,6 +51,13 @@ describe("AgentTimelinePanel", () => {
           detail: "✓ tests passed",
           at: 100,
         },
+        {
+          id: "activity-2",
+          kind: "command",
+          title: "Ran command",
+          detail: "pnpm test",
+          at: 120,
+        },
       ],
     };
 
@@ -58,6 +65,7 @@ describe("AgentTimelinePanel", () => {
 
     expect(screen.getByText("Progress reported")).toBeInTheDocument();
     expect(screen.getByText("✓ tests passed")).toBeInTheDocument();
+    expect(screen.getByText("1 command · 1 signal")).toBeInTheDocument();
     expect(container).not.toHaveTextContent("Terminal output is streaming in the workspace.");
   });
 

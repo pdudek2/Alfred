@@ -1,4 +1,13 @@
-export type SessionActivityEventKind = "lifecycle" | "output" | "warning" | "error" | "approval";
+export type SessionActivityEventKind =
+  | "approval"
+  | "command"
+  | "error"
+  | "file"
+  | "lifecycle"
+  | "output"
+  | "plan"
+  | "tool"
+  | "warning";
 
 export type SessionActivityEvent = {
   id: string;
@@ -83,12 +92,40 @@ export function classifyTerminalOutputActivity(data: string): SessionActivityInp
     };
   }
 
-  const fileLine = lines.find((line) => /\b(created|deleted|modified|updated|renamed|wrote|written)\b/i.test(line));
+  const toolActivity = lines.map(classifyToolLine).find((activity) => activity !== null);
+  if (toolActivity) return toolActivity;
+
+  const commandLine = lines.find((line) =>
+    /^(?:[•●⏺]\s*)?(ran|run|running|executed|bash)\s+(.+)/i.test(line),
+  );
+  if (commandLine) {
+    return {
+      kind: "command",
+      title: "Ran command",
+      detail: truncateActivityDetail(cleanActivityLine(commandLine)),
+    };
+  }
+
+  const fileLine = lines.find((line) =>
+    /^(?:[•●⏺]\s*)?(created|deleted|modified|updated|renamed|edited|wrote|written)\s+(.+)/i.test(line) ||
+    /\b(created|deleted|modified|updated|renamed|edited|wrote|written)\b.+\.[a-z0-9]+/i.test(line),
+  );
   if (fileLine) {
     return {
-      kind: "output",
+      kind: "file",
       title: "File activity",
-      detail: truncateActivityDetail(fileLine),
+      detail: truncateActivityDetail(cleanActivityLine(fileLine)),
+    };
+  }
+
+  const planLine = lines.find((line) =>
+    /^(?:[•●⏺]\s*)?(plan updated|updated plan|todowrite|todo|task list|next steps)\b/i.test(line),
+  );
+  if (planLine) {
+    return {
+      kind: "plan",
+      title: "Plan updated",
+      detail: truncateActivityDetail(cleanActivityLine(planLine)),
     };
   }
 
@@ -102,6 +139,50 @@ export function classifyTerminalOutputActivity(data: string): SessionActivityInp
   }
 
   return null;
+}
+
+function classifyToolLine(line: string): SessionActivityInput | null {
+  const match = line.match(/^(?:[•●⏺]\s*)?([A-Za-z][A-Za-z0-9_-]*)\((.*)\)$/);
+  if (!match) return null;
+
+  const toolName = match[1] ?? "";
+  const rawDetail = match[2] ?? "";
+  const detail = truncateActivityDetail(rawDetail.trim() || cleanActivityLine(line));
+  const normalizedTool = toolName.toLowerCase();
+
+  if (normalizedTool === "bash") {
+    return {
+      kind: "command",
+      title: "Ran command",
+      detail,
+    };
+  }
+
+  if (["edit", "multiedit", "read", "write"].includes(normalizedTool)) {
+    return {
+      kind: "file",
+      title: `${toolName} file`,
+      detail,
+    };
+  }
+
+  if (normalizedTool === "todowrite") {
+    return {
+      kind: "plan",
+      title: "Plan updated",
+      detail,
+    };
+  }
+
+  return {
+    kind: "tool",
+    title: `${toolName} tool`,
+    detail,
+  };
+}
+
+function cleanActivityLine(value: string): string {
+  return value.replace(/^[•●⏺]\s*/, "").trim();
 }
 
 function stripAnsi(value: string): string {

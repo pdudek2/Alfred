@@ -75,9 +75,9 @@ describe("persisted-desktop-state", () => {
           activityEvents: [
             {
               id: "manual-1-activity-123-1",
-              kind: "output",
-              title: "Progress reported",
-              detail: "ready",
+              kind: "file",
+              title: "Edit file",
+              detail: "apps/desktop/src/renderer/app.tsx",
               at: 123,
             },
           ],
