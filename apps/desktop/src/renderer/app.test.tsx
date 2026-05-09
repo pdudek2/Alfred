@@ -251,6 +251,37 @@ describe("App integration", () => {
     });
   });
 
+  it("closes an empty non-default workspace from the command palette", async () => {
+    const user = userEvent.setup();
+    const { createWorkspaceFromFolder, setWorkspaceState } = installDesktopBridge();
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Add workspace" }));
+
+    expect(createWorkspaceFromFolder).toHaveBeenCalledOnce();
+    expect(await screen.findByText("ClientApp workspace")).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 2" }));
+
+    expect(await screen.findByRole("status", { name: "Empty workspace" })).toHaveTextContent("No sessions running");
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "close current{Enter}");
+
+    expect(screen.queryByText("ClientApp workspace")).not.toBeInTheDocument();
+    expect(screen.getByText("Alfred workspace")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(setWorkspaceState).toHaveBeenLastCalledWith({
+        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
+        activeWorkspaceId: "A",
+      });
+    });
+  });
+
   it("hydrates persisted workspaces and opens the last active workspace", async () => {
     const { createTerminal } = installDesktopBridge(undefined, null, [], undefined, { layoutsByWorkspace: {}, viewStateByWorkspace: {} }, {
       workspaces: [

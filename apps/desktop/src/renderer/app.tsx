@@ -93,6 +93,8 @@ export function App() {
   const activeSelectedSession =
     activeSessions.find((session) => session.id === activeSelectedSessionId) ?? activeSessions[0] ?? null;
   const activePendingPlan = pendingPlan?.workspaceId === activeWorkspace.id ? pendingPlan : null;
+  const canCloseActiveWorkspace =
+    activeWorkspace.id !== DEFAULT_WORKSPACE_ID && workspaces.length > 1 && activeSessions.length === 0;
   const activeRecoverableSessions = activeSessions.filter((session) =>
     session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error",
   );
@@ -152,6 +154,27 @@ export function App() {
       return [...current, workspace];
     });
   }, [workspaces]);
+
+  const handleCloseActiveWorkspace = useCallback(() => {
+    if (!canCloseActiveWorkspace) return;
+
+    const remainingWorkspaces = workspaces.filter((workspace) => workspace.id !== activeWorkspace.id);
+    const nextActiveWorkspaceId =
+      remainingWorkspaces.find((workspace) => workspace.id === DEFAULT_WORKSPACE_ID)?.id ??
+      remainingWorkspaces[0]?.id ??
+      DEFAULT_WORKSPACE_ID;
+    const workspaceApi = getDesktopWorkspaceApi();
+
+    setWorkspaces(remainingWorkspaces);
+    setActiveWorkspaceId(nextActiveWorkspaceId);
+    setTileLayoutsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
+    setWorkModesByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
+    setSelectedSessionIdsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
+    void workspaceApi?.setWorkspaceState({
+      workspaces: remainingWorkspaces,
+      activeWorkspaceId: nextActiveWorkspaceId,
+    });
+  }, [activeWorkspace.id, canCloseActiveWorkspace, workspaces]);
 
   const handleToggleArrangeMode = useCallback(() => {
     setArrangeMode((enabled) => !enabled);
@@ -813,6 +836,7 @@ export function App() {
             shortcutModifier={shortcutModifier}
             unsafeStagedCount={unsafeStagedCount}
             workspaces={workspaces}
+            canCloseWorkspace={canCloseActiveWorkspace}
             onAddAgentSession={handleAddAgentSession}
             onAddManualSession={handleAddManualSession}
             onAddWorkspace={handleAddWorkspace}
@@ -821,6 +845,7 @@ export function App() {
             onChangeQuery={setCommandQuery}
             onClose={handleCloseCommandPalette}
             onCloseSession={handleCloseSession}
+            onCloseWorkspace={handleCloseActiveWorkspace}
             onFocusSession={handleFocusSession}
             onFocusNextSession={() => handleFocusSessionByDelta(1)}
             onFocusPreviousSession={() => handleFocusSessionByDelta(-1)}
@@ -905,6 +930,13 @@ function ensureWorkspacesForSessions(workspaces: Workspace[], sessions: SessionT
 
 function workspaceRootPath(state: WorkspaceStateSnapshot | null, workspaceId: string): string {
   return state?.workspaces.find((workspace) => workspace.id === workspaceId)?.rootPath ?? "";
+}
+
+function omitWorkspaceRecord<T>(record: Record<string, T>, workspaceId: string): Record<string, T> {
+  if (!(workspaceId in record)) return record;
+  const next = { ...record };
+  delete next[workspaceId];
+  return next;
 }
 
 function workspacePlanContext(workspace: Workspace): AlfredWorkspaceContext {
