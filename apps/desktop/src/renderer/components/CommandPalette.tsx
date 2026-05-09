@@ -51,8 +51,11 @@ type CommandPaletteProps = {
   onCloseSession: (sessionId: string) => void;
   onCloseWorkspace: () => void;
   onContinueRecoverableSessions: () => void;
+  onCopySessionCwd: (cwd: string) => void;
   onOpenWorkspaceFolder: () => void;
   onOpenWorkspaceTerminal: () => void;
+  onOpenSessionFolder: (cwd: string) => void;
+  onOpenSessionTerminal: (cwd: string) => void;
   onRenameWorkspace: () => void;
   onFocusSession: (sessionId: string) => void;
   onFocusNextSession: () => void;
@@ -93,8 +96,11 @@ export function CommandPalette({
   onCloseSession,
   onCloseWorkspace,
   onContinueRecoverableSessions,
+  onCopySessionCwd,
   onOpenWorkspaceFolder,
   onOpenWorkspaceTerminal,
+  onOpenSessionFolder,
+  onOpenSessionTerminal,
   onRenameWorkspace,
   onFocusSession,
   onFocusNextSession,
@@ -249,6 +255,33 @@ export function CommandPalette({
         },
       },
       {
+        id: "open-focused-session-terminal",
+        label: "Open focused session in external terminal",
+        detail: selectedSession?.cwd ? shortenPath(selectedSession.cwd) : "No focused session folder",
+        disabled: !selectedSession?.cwd,
+        run: () => {
+          if (selectedSession?.cwd) onOpenSessionTerminal(selectedSession.cwd);
+        },
+      },
+      {
+        id: "reveal-focused-session-folder",
+        label: "Reveal focused session folder",
+        detail: selectedSession?.cwd ? shortenPath(selectedSession.cwd) : "No focused session folder",
+        disabled: !selectedSession?.cwd,
+        run: () => {
+          if (selectedSession?.cwd) onOpenSessionFolder(selectedSession.cwd);
+        },
+      },
+      {
+        id: "copy-focused-session-cwd",
+        label: "Copy focused session cwd",
+        detail: selectedSession?.cwd ? selectedSession.cwd : "No focused session folder",
+        disabled: !selectedSession?.cwd,
+        run: () => {
+          if (selectedSession?.cwd) onCopySessionCwd(selectedSession.cwd);
+        },
+      },
+      {
         id: "relaunch-saved-sessions",
         label: "Relaunch saved sessions",
         detail: recoverableCount > 0
@@ -337,8 +370,11 @@ export function CommandPalette({
       onCloseRecoverableSessions,
       onCloseWorkspace,
       onContinueRecoverableSessions,
+      onCopySessionCwd,
       onOpenWorkspaceFolder,
       onOpenWorkspaceTerminal,
+      onOpenSessionFolder,
+      onOpenSessionTerminal,
       onRenameWorkspace,
       onFocusSession,
       onFocusNextSession,

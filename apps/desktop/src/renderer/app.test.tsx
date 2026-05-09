@@ -1334,6 +1334,39 @@ describe("App integration", () => {
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
   });
 
+  it("offers focused session handoff commands from the command palette", async () => {
+    const user = userEvent.setup();
+    const { openExternalTerminal, revealPath } = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "codex-a",
+        title: "Codex · session 1",
+        source: "manual",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "codex",
+        command: "codex",
+        args: [],
+        buffer: "",
+      },
+    ]);
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Codex · session 1/i });
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "open focused session{Enter}");
+
+    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "reveal focused session{Enter}");
+
+    expect(revealPath).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred", path: "." });
+  });
+
   it("hydrates saved workspace layouts from the desktop runtime", async () => {
     installDesktopBridge(undefined, null, [], undefined, {
       layoutsByWorkspace: {
