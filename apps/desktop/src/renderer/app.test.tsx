@@ -403,6 +403,15 @@ describe("App integration", () => {
 
     expect(createWorkspaceFromFolder).toHaveBeenCalledOnce();
     expect(await screen.findByText("ClientApp workspace")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.keyboard("alfred");
+    await user.click(screen.getByRole("option", { name: /Switch to Alfred/i }));
+
+    expect(screen.getByRole("tab", { name: "Alfred workspace, 2 live, 0 staged" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 
   it("moves and resizes a tile with pointer gestures in arrange mode", async () => {
@@ -612,7 +621,9 @@ describe("App integration", () => {
     render(<App />);
 
     const restored = await screen.findByRole("article", { name: /Manual · zsh 9/i });
-    expect(restored).toHaveTextContent("restored");
+    await waitFor(() => {
+      expect(restored).toHaveTextContent("restored");
+    });
     expect(createTerminal).not.toHaveBeenCalled();
 
     await userEvent.click(within(restored).getByRole("button", { name: "Close Manual · zsh 9" }));

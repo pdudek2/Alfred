@@ -605,6 +605,7 @@ export function App() {
         />
         {commandPaletteOpen && (
           <CommandPalette
+            activeWorkspaceId={activeWorkspace.id}
             activeWorkMode={activeWorkMode}
             arrangeMode={arrangeMode}
             pendingPlan={activePendingPlan}
@@ -612,6 +613,7 @@ export function App() {
             safeStagedCount={Math.max(0, stagedCount - unsafeStagedCount)}
             shortcutModifier={shortcutModifier}
             unsafeStagedCount={unsafeStagedCount}
+            workspaces={workspaces}
             onAddManualSession={handleAddManualSession}
             onAddWorkspace={handleAddWorkspace}
             onApplyWorkMode={handleApplyWorkMode}
@@ -619,6 +621,7 @@ export function App() {
             onChangeQuery={setCommandQuery}
             onClose={handleCloseCommandPalette}
             onRejectAll={handleRejectAll}
+            onSelectWorkspace={handleSelectWorkspace}
             onToggleArrange={handleToggleArrangeMode}
           />
         )}
