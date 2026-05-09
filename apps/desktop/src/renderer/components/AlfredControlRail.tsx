@@ -47,11 +47,12 @@ export function AlfredControlRail({
 }: AlfredControlRailProps) {
   const safeStagedCount = Math.max(0, stagedCount - unsafeStagedCount);
   const compact = status.kind === "idle" && pendingPlan === null && recoverableSessions.length === 0;
+  const sigilState = alfredSigilState(status, pendingPlan, recoverableSessions.length, unsafeStagedCount);
 
   return (
     <aside className={`alfred-dock ${compact ? "compact" : ""}`} aria-label="Alfred status">
       <div className="alfred-dock-header">
-        <div className="alfred-dock-mark">A</div>
+        <AlfredSigil state={sigilState} />
         <div>
           <strong>Alfred</strong>
           <span>{status.kind === "thinking" ? "preparing" : status.kind === "error" ? "needs attention" : pendingPlan ? "ready to launch" : recoverableSessions.length > 0 ? "recovery ready" : "standing by"}</span>
@@ -113,6 +114,32 @@ export function AlfredControlRail({
       </div>
     </aside>
   );
+}
+
+type AlfredSigilState = "idle" | "active" | "ask" | "error" | "recovery";
+
+function AlfredSigil({ state }: { state: AlfredSigilState }) {
+  return (
+    <div className={`alfred-sigil state-${state}`} aria-hidden="true">
+      <span />
+      <i />
+      <b>A</b>
+    </div>
+  );
+}
+
+function alfredSigilState(
+  status: AlfredStatus,
+  pendingPlan: SquadPlan | null,
+  recoverableCount: number,
+  unsafeStagedCount: number,
+): AlfredSigilState {
+  if (status.kind === "error") return "error";
+  if (unsafeStagedCount > 0) return "ask";
+  if (pendingPlan) return "active";
+  if (recoverableCount > 0) return "recovery";
+  if (status.kind === "thinking") return "active";
+  return "idle";
 }
 
 function truncate(value: string, max: number): string {
