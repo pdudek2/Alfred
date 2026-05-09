@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { SquadPlan } from "../alfred-state";
 import type { WorkMode } from "../terminal-desk-types";
+import type { WorkspaceRailWorkspace } from "./WorkspaceRail";
 
 type CommandPaletteItem = {
   id: string;
@@ -19,6 +20,7 @@ type CommandPaletteItem = {
 };
 
 type CommandPaletteProps = {
+  activeWorkspaceId: string;
   activeWorkMode: WorkMode;
   arrangeMode: boolean;
   pendingPlan: SquadPlan | null;
@@ -26,6 +28,7 @@ type CommandPaletteProps = {
   safeStagedCount: number;
   shortcutModifier: string;
   unsafeStagedCount: number;
+  workspaces: WorkspaceRailWorkspace[];
   onAddManualSession: () => void;
   onAddWorkspace: () => void;
   onApplyWorkMode: (mode: WorkMode) => void;
@@ -33,10 +36,12 @@ type CommandPaletteProps = {
   onChangeQuery: (query: string) => void;
   onClose: () => void;
   onRejectAll: () => void;
+  onSelectWorkspace: (workspaceId: string) => void;
   onToggleArrange: () => void;
 };
 
 export function CommandPalette({
+  activeWorkspaceId,
   activeWorkMode,
   arrangeMode,
   pendingPlan,
@@ -44,6 +49,7 @@ export function CommandPalette({
   safeStagedCount,
   shortcutModifier,
   unsafeStagedCount,
+  workspaces,
   onAddManualSession,
   onAddWorkspace,
   onApplyWorkMode,
@@ -51,6 +57,7 @@ export function CommandPalette({
   onChangeQuery,
   onClose,
   onRejectAll,
+  onSelectWorkspace,
   onToggleArrange,
 }: CommandPaletteProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -79,6 +86,17 @@ export function CommandPalette({
         detail: "Bind a project folder to Alfred",
         run: onAddWorkspace,
       },
+      ...workspaces.map((workspace) => ({
+        id: `switch-workspace-${workspace.id}`,
+        label: `Switch to ${workspace.label}`,
+        detail:
+          workspace.id === activeWorkspaceId
+            ? "Current workspace"
+            : workspace.gitBranch
+              ? `${shortenPath(workspace.rootPath ?? "local desk")} · ${workspace.gitBranch}`
+              : shortenPath(workspace.rootPath ?? "local desk"),
+        run: () => onSelectWorkspace(workspace.id),
+      })),
       {
         id: "mode-focus",
         label: "Focus mode",
@@ -122,17 +140,20 @@ export function CommandPalette({
     ],
     [
       activeWorkMode,
+      activeWorkspaceId,
       arrangeMode,
       onAddManualSession,
       onAddWorkspace,
       onApplyWorkMode,
       onApproveAll,
       onRejectAll,
+      onSelectWorkspace,
       onToggleArrange,
       pendingPlan,
       safeStagedCount,
       shortcutModifier,
       unsafeStagedCount,
+      workspaces,
     ],
   );
   const normalizedQuery = query.trim().toLowerCase();
@@ -221,4 +242,10 @@ export function CommandPalette({
       </div>
     </div>
   );
+}
+
+function shortenPath(value: string): string {
+  const parts = value.split("/");
+  if (parts.length <= 3) return value;
+  return `…/${parts.slice(-2).join("/")}`;
 }
