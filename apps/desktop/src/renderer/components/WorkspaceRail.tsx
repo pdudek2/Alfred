@@ -1,3 +1,4 @@
+import { useRef, type KeyboardEvent, type MutableRefObject } from "react";
 import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus, type SessionDisplayStatus } from "../session-status";
 
@@ -24,6 +25,7 @@ export function WorkspaceRail({
   onAddWorkspace,
   onSelectWorkspace,
 }: WorkspaceRailProps) {
+  const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const countsByWorkspace = new Map<string, WorkspaceRailCounts>();
   for (const session of sessions) {
     const counts = countsByWorkspace.get(session.workspaceId) ?? emptyCounts();
@@ -33,25 +35,40 @@ export function WorkspaceRail({
   }
 
   return (
-    <nav className="workspace-rail" aria-label="workspaces" role="tablist">
+    <nav className="workspace-rail" aria-label="workspaces" aria-orientation="vertical" role="tablist">
       {workspaces.map((workspace) => {
         const active = workspace.id === activeWorkspaceId;
         const counts = countsByWorkspace.get(workspace.id) ?? emptyCounts();
         const summary = statusSummary(counts);
         const tone = railTone(counts);
+        const priority = priorityChip(counts);
+        const meta = workspaceMeta(workspace);
+        const metaId = `workspace-${safeDomId(workspace.id)}-meta`;
         return (
           <button
             className={`workspace-button ${active ? "active" : ""} tone-${tone}`}
             type="button"
+            aria-describedby={metaId}
             aria-label={`${workspace.label} workspace, ${summary}`}
             aria-selected={active}
             key={workspace.id}
             onClick={() => onSelectWorkspace(workspace.id)}
+            onKeyDown={(event) => handleWorkspaceKeyDown(event, workspaces, workspace.id, onSelectWorkspace, buttonRefs)}
+            ref={(element) => {
+              buttonRefs.current[workspace.id] = element;
+            }}
             role="tab"
+            tabIndex={active ? 0 : -1}
             title={`${workspace.label}${workspace.gitBranch ? ` · ${workspace.gitBranch}` : ""}: ${summary}`}
           >
-            <span>{workspace.shortLabel}</span>
-            {counts.total > 0 && <small aria-hidden="true">{priorityBadgeCount(counts)}</small>}
+            <span className="workspace-monogram">{workspace.shortLabel}</span>
+            <span className="workspace-button-details">
+              <strong>{workspace.label}</strong>
+              <span id={metaId}>{meta}</span>
+            </span>
+            <small className={`workspace-priority-chip tone-${priority.tone}`} aria-hidden="true">
+              {priority.label}
+            </small>
           </button>
         );
       })}
@@ -118,6 +135,68 @@ function railTone(counts: WorkspaceRailCounts): string {
   return "empty";
 }
 
-function priorityBadgeCount(counts: WorkspaceRailCounts): number {
-  return counts.error || counts.waiting || counts.blocked || counts.active || counts.starting || counts.staged || counts.total;
+function priorityChip(counts: WorkspaceRailCounts): { tone: string; label: string } {
+  if (counts.error > 0) return { tone: "error", label: countLabel(counts.error, "error") ?? "error" };
+  if (counts.waiting > 0) return { tone: "waiting", label: countLabel(counts.waiting, "waiting") ?? "waiting" };
+  if (counts.blocked > 0) return { tone: "waiting", label: countLabel(counts.blocked, "blocked") ?? "blocked" };
+  if (counts.active > 0) return { tone: "active", label: countLabel(counts.active, "active") ?? "active" };
+  if (counts.starting > 0) return { tone: "active", label: countLabel(counts.starting, "starting") ?? "starting" };
+  if (counts.staged > 0) return { tone: "staged", label: countLabel(counts.staged, "staged") ?? "staged" };
+  if (counts.restored > 0) return { tone: "quiet", label: countLabel(counts.restored, "saved") ?? "saved" };
+  if (counts.total > 0) return { tone: "quiet", label: `${counts.total} session${counts.total === 1 ? "" : "s"}` };
+  return { tone: "empty", label: "empty" };
+}
+
+function workspaceMeta(workspace: WorkspaceRailWorkspace): string {
+  const location = workspace.rootPath ? shortenPath(workspace.rootPath) : "folder not bound";
+  return workspace.gitBranch ? `${location} · ${workspace.gitBranch}` : location;
+}
+
+function shortenPath(value: string): string {
+  const normalized = value.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length <= 2) return value;
+  return `…/${parts.slice(-2).join("/")}`;
+}
+
+function safeDomId(value: string): string {
+  return value.replace(/[^A-Za-z0-9_-]/g, "-");
+}
+
+function handleWorkspaceKeyDown(
+  event: KeyboardEvent<HTMLButtonElement>,
+  workspaces: WorkspaceRailWorkspace[],
+  currentWorkspaceId: string,
+  onSelectWorkspace: (workspaceId: string) => void,
+  buttonRefs: MutableRefObject<Record<string, HTMLButtonElement | null>>,
+): void {
+  const currentIndex = workspaces.findIndex((workspace) => workspace.id === currentWorkspaceId);
+  if (currentIndex === -1) return;
+
+  const keyDelta: Record<string, number> = {
+    ArrowDown: 1,
+    ArrowRight: 1,
+    ArrowUp: -1,
+    ArrowLeft: -1,
+  };
+
+  let nextIndex: number | null = null;
+  const delta = keyDelta[event.key];
+  if (delta !== undefined) {
+    nextIndex = (currentIndex + delta + workspaces.length) % workspaces.length;
+  } else if (event.key === "Home") {
+    nextIndex = 0;
+  } else if (event.key === "End") {
+    nextIndex = workspaces.length - 1;
+  }
+
+  if (nextIndex === null) return;
+  event.preventDefault();
+  const nextWorkspace = workspaces[nextIndex];
+  if (!nextWorkspace) return;
+
+  onSelectWorkspace(nextWorkspace.id);
+  window.requestAnimationFrame(() => {
+    buttonRefs.current[nextWorkspace.id]?.focus();
+  });
 }
