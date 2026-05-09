@@ -26,6 +26,7 @@ export type SessionTile = {
   createdAt?: number;
   source: "manual" | "alfred";
   stage: "staged" | "live";
+  stagedReviewStatus?: "checking" | "edited";
   runtimeStatus?: "starting" | "live" | "exited" | "error" | "restored";
   command?: string;
   args?: string[];
@@ -292,7 +293,7 @@ export function addStagedSessions(
 
 export function approveStaged(sessions: SessionTile[], tileId: string): SessionTile[] {
   return sessions.map((session) =>
-    session.id === tileId && session.stage === "staged" && !isLaunchBlocked(session)
+    session.id === tileId && session.stage === "staged" && isLaunchableStagedSession(session)
       ? { ...session, stage: "live", runtimeStatus: "starting" }
       : session,
   );
@@ -304,7 +305,7 @@ export function rejectStaged(sessions: SessionTile[], tileId: string): SessionTi
 
 export function approveAllStaged(sessions: SessionTile[], workspaceId?: string): SessionTile[] {
   return sessions.map((session) =>
-    session.stage === "staged" && !session.safetyNote && !isLaunchBlocked(session) && (!workspaceId || session.workspaceId === workspaceId)
+    session.stage === "staged" && isLaunchableStagedSession(session) && !session.safetyNote && (!workspaceId || session.workspaceId === workspaceId)
       ? { ...session, stage: "live", runtimeStatus: "starting" }
       : session,
   );
@@ -316,6 +317,12 @@ export function rejectAllStaged(sessions: SessionTile[], workspaceId?: string): 
 
 export function isLaunchBlocked(session: Pick<SessionTile, "launchPreflight">): boolean {
   return session.launchPreflight?.status === "blocked";
+}
+
+function isLaunchableStagedSession(
+  session: Pick<SessionTile, "launchPreflight" | "stagedReviewStatus">,
+): boolean {
+  return session.stagedReviewStatus !== "checking" && !isLaunchBlocked(session);
 }
 
 function cloneLaunchPreflight(preflight: AlfredLaunchPreflight): AlfredLaunchPreflight {

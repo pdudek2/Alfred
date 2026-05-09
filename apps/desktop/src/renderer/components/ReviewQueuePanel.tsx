@@ -131,8 +131,9 @@ function ReviewQueuePanelItem({
   const ageLabel = sessionAgeLabel(ageSource);
   const action = reviewActionLabel(item, armed);
   const command = formatCommand(item.session);
-  const showCommand = item.status.kind === "blocked" || item.status.kind === "staged";
+  const showCommand = item.status.kind === "blocked" || item.status.kind === "checking" || item.status.kind === "staged";
   const hardBlocked = isLaunchBlocked(item.session);
+  const checking = item.status.kind === "checking";
 
   const openItem = () => {
     onFocusItem(item.workspaceId, item.session.id);
@@ -140,7 +141,7 @@ function ReviewQueuePanelItem({
   };
 
   const runAction = () => {
-    if (hardBlocked) return;
+    if (hardBlocked || checking) return;
     if (item.status.kind === "blocked" && !armed) {
       onApproveTile(item.session.id);
       return;
@@ -194,6 +195,12 @@ function ReviewQueuePanelItem({
         )}
         <ArrowRight size={15} />
       </button>
+      {checking && (
+        <div className="global-review-warning checking" role="note">
+          <AlertTriangle size={13} />
+          <span>Rechecking edited command before launch.</span>
+        </div>
+      )}
       {hardBlocked && item.session.launchPreflight?.status === "blocked" && (
         <div className="global-review-warning blocked" role="note">
           <AlertTriangle size={13} />
@@ -217,7 +224,7 @@ function ReviewQueuePanelItem({
           type="button"
           className={`global-review-action action-${item.status.kind} ${armed ? "armed" : ""}`}
           onClick={runAction}
-          disabled={hardBlocked}
+          disabled={hardBlocked || checking}
           aria-label={`${action} ${item.session.title} in ${item.workspaceLabel}`}
         >
           {item.status.kind === "error" || item.status.kind === "restored" ? <RotateCcw size={13} /> : <Play size={13} />}
@@ -229,6 +236,7 @@ function ReviewQueuePanelItem({
 }
 
 function reviewActionLabel(item: WorkspaceReviewItem, armed: boolean): string | null {
+  if (item.status.kind === "checking") return "Checking";
   if (isLaunchBlocked(item.session)) return "Blocked";
   if (item.status.kind === "blocked") return armed ? "Confirm launch" : "Review command";
   if (item.status.kind === "staged") return "Launch";

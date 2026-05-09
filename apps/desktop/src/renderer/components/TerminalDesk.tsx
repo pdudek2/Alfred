@@ -18,7 +18,7 @@ import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import type { ArrangePointerMode, ArrangePreview, WorkMode } from "../terminal-desk-types";
-import type { AgentKind } from "../../shared/alfred-ipc";
+import type { AgentKind, AlfredStagedSessionPatch } from "../../shared/alfred-ipc";
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../../shared/terminal-ipc";
 import { AgentTimelinePanel } from "./AgentTimelinePanel";
 
@@ -56,6 +56,7 @@ type TerminalDeskProps = {
   onApproveTile: (tileId: string) => void;
   onRejectTile: (tileId: string) => void;
   onResizeTile: (tileId: string, deltaColSpan: number, deltaRowSpan: number) => void;
+  onUpdateStagedSession: (sessionId: string, patch: AlfredStagedSessionPatch) => Promise<void>;
 };
 
 export function TerminalDesk({
@@ -90,6 +91,7 @@ export function TerminalDesk({
   onApproveTile,
   onRejectTile,
   onResizeTile,
+  onUpdateStagedSession,
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
@@ -363,6 +365,7 @@ export function TerminalDesk({
             onOpenExternalTerminal={handleOpenExternalTerminal}
             onRevealActivityFile={handleRevealActivityFile}
             onSendInput={handleSendSessionInput}
+            onUpdateStagedSession={onUpdateStagedSession}
           />
         )}
       </div>

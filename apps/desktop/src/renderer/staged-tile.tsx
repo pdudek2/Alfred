@@ -41,11 +41,15 @@ export function StagedTilePreview({
   const kind = sessionTileKind(tile);
   const kindMeta = tileKindMeta(kind);
   const isolated = tile.isolation === "worktree";
+  const checking = tile.stagedReviewStatus === "checking";
+  const edited = tile.stagedReviewStatus === "edited";
   const launchBlocked = tile.launchPreflight?.status === "blocked";
   const launchBlockReason = tile.launchPreflight?.status === "blocked" ? tile.launchPreflight.reason : null;
   const unsafe = Boolean(tile.safetyNote) && !launchBlocked;
-  const approveLabel = launchBlocked ? "Blocked" : unsafe ? (armed ? "Confirm" : "Review") : "Launch";
-  const approveAriaLabel = launchBlocked
+  const approveLabel = checking ? "Checking" : launchBlocked ? "Blocked" : unsafe ? (armed ? "Confirm" : "Review") : "Launch";
+  const approveAriaLabel = checking
+    ? `Checking edited command: ${tile.title}`
+    : launchBlocked
     ? `Launch blocked: ${tile.title}`
     : unsafe
     ? armed
@@ -85,12 +89,17 @@ export function StagedTilePreview({
           </div>
         </div>
         <div className="tile-actions">
-          <span className={`tile-status ${launchBlocked ? "status-blocked" : ""}`}>
-            {launchBlocked ? "blocked" : "ready"}
+          <span className={`tile-status ${checking ? "status-checking" : launchBlocked ? "status-blocked" : ""}`}>
+            {checking ? "checking" : launchBlocked ? "blocked" : "ready"}
           </span>
         </div>
       </header>
       <div className="staged-body">
+        {edited && !checking && (
+          <div className="staged-edited-chip" role="note">
+            edited · rechecked
+          </div>
+        )}
         {unsafe && (
           <div className={`staged-safety-chip ${armed ? "armed" : ""}`} role="note">
             {armed ? "Confirm to launch: " : "Review before launch: "}
@@ -121,7 +130,7 @@ export function StagedTilePreview({
           type="button"
           className={`approve-button ${unsafe ? "unsafe" : ""} ${armed ? "armed" : ""}`}
           onClick={() => onApprove(tile.id)}
-          disabled={launchBlocked}
+          disabled={checking || launchBlocked}
           aria-label={approveAriaLabel}
         >
           {approveLabel}

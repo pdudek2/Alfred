@@ -4,6 +4,8 @@ import {
   type AlfredPlanRequest,
   type AlfredPlanResponse,
   type AlfredRuntimeStatus,
+  type AlfredStagedPlanSessionUpdateRequest,
+  type AlfredStagedPlanSessionUpdateResponse,
   type AlfredStagedPlanResolveRequest,
   type AlfredStagedPlanSetRequest,
   type AlfredStagedPlanSnapshotResponse,
@@ -15,6 +17,7 @@ import {
   getStagedPlanSnapshot,
   resolveStagedPlanSessions,
   setStagedPlanSnapshot,
+  updateStagedPlanSession,
 } from "./staged-plan-store.js";
 
 let inFlight = false;
@@ -34,6 +37,23 @@ export function registerAlfredIpc(): void {
     alfredChannels.planResolve,
     (_event, request: AlfredStagedPlanResolveRequest): Promise<AlfredStagedPlanSnapshotResponse> =>
       resolveStagedPlanSessions(request),
+  );
+  ipcMain.handle(
+    alfredChannels.planSessionUpdate,
+    async (_event, request: AlfredStagedPlanSessionUpdateRequest): Promise<AlfredStagedPlanSessionUpdateResponse> => {
+      try {
+        return await updateStagedPlanSession(request);
+      } catch (error: unknown) {
+        console.error("[alfred-orchestrator] failed to update staged session", error);
+        return {
+          ok: false,
+          error: {
+            code: "malformed",
+            message: error instanceof Error ? error.message : "Failed to update staged session.",
+          },
+        };
+      }
+    },
   );
   ipcMain.handle(alfredChannels.planClear, (): Promise<AlfredStagedPlanSnapshotResponse> => clearStagedPlanSnapshot());
   ipcMain.handle(

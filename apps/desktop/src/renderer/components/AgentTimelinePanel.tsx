@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import type { AlfredStagedSessionPatch } from "../../shared/alfred-ipc";
 import type { SessionActivityEvent, SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
@@ -9,6 +10,7 @@ type AgentTimelinePanelProps = {
   onOpenExternalTerminal?: (cwd: string) => Promise<void> | void;
   onRevealActivityFile?: (filePath: string, cwd: string) => Promise<void> | void;
   onSendInput?: (runtimeId: string, data: string) => void;
+  onUpdateStagedSession?: (sessionId: string, patch: AlfredStagedSessionPatch) => Promise<void>;
   session: SessionTile | null;
 };
 
@@ -17,18 +19,33 @@ export function AgentTimelinePanel({
   onOpenExternalTerminal,
   onRevealActivityFile,
   onSendInput,
+  onUpdateStagedSession,
   session,
 }: AgentTimelinePanelProps) {
   const ageClock = useSessionAgeClock(session?.createdAt);
+  const commandInputRef = useRef<HTMLInputElement | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editDraft, setEditDraft] = useState<StagedEditDraft>(() => emptyEditDraft());
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
   const [inputDraft, setInputDraft] = useState("");
   const [payloadActionState, setPayloadActionState] = useState<Record<string, string>>({});
   const [sessionActionState, setSessionActionState] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    setEditMode(false);
+    setEditDraft(emptyEditDraft());
+    setEditError(null);
+    setEditSaving(false);
     setInputDraft("");
     setPayloadActionState({});
     setSessionActionState({});
   }, [session?.id]);
+
+  useEffect(() => {
+    if (!editMode) return;
+    commandInputRef.current?.focus();
+  }, [editMode]);
 
   if (!session) {
     return (
@@ -55,6 +72,7 @@ export function AgentTimelinePanel({
   const latestApproval = latestApprovalEvent(activityEvents);
   const pulseCard = sessionPulseCard(session, displayStatus, activityEvents);
   const handoffActions = sessionHandoffActions(session, command);
+  const canEditStagedSession = isEditableStagedSession(session) && Boolean(onUpdateStagedSession);
   const canSendApprovalResponse =
     Boolean(onSendInput) &&
     Boolean(session.runtimeId) &&
@@ -71,6 +89,56 @@ export function AgentTimelinePanel({
     if (!value || !session.runtimeId || !onSendInput) return;
     onSendInput(session.runtimeId, `${value}\n`);
     setInputDraft("");
+  };
+  const startEdit = () => {
+    setEditDraft({
+      args: argsToDraft(session.args),
+      command: session.command ?? "",
+      cwd: session.cwd,
+    });
+    setEditError(null);
+    setEditMode(true);
+  };
+  const cancelEdit = () => {
+    setEditDraft(emptyEditDraft());
+    setEditError(null);
+    setEditMode(false);
+  };
+  const submitEdit = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    if (!onUpdateStagedSession || !canEditStagedSession) return;
+    const commandValue = editDraft.command.trim();
+    if (!commandValue) {
+      setEditError("Command is required.");
+      return;
+    }
+
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      await onUpdateStagedSession(session.id, {
+        command: commandValue,
+        args: draftToArgs(editDraft.args),
+        cwd: editDraft.cwd.trim(),
+      });
+      setEditMode(false);
+    } catch (error: unknown) {
+      setEditError(error instanceof Error ? error.message : "Could not save the edited command.");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+  const handleEditKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      cancelEdit();
+      return;
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault();
+      void submitEdit();
+    }
   };
   const handlePayloadAction = async (event: SessionActivityEvent, payload: ActivityPayloadView) => {
     const pendingLabel = payload.action === "reveal" ? "opening" : "copying";
@@ -162,6 +230,58 @@ export function AgentTimelinePanel({
         <span className={`agent-status-pill status-${displayStatus.kind}`}>{displayStatus.label}</span>
       </header>
       <div className="agent-timeline-body">
+        {canEditStagedSession && !editMode && (
+          <section className="agent-staged-editor" aria-label={`Edit staged command for ${session.title}`}>
+            <div>
+              <span>staged plan</span>
+              <strong>{session.stagedReviewStatus === "edited" ? "Edited and rechecked" : "Command can be adjusted"}</strong>
+            </div>
+            <button type="button" onClick={startEdit}>
+              Edit command
+            </button>
+          </section>
+        )}
+        {canEditStagedSession && editMode && (
+          <form
+            className="agent-staged-edit-form"
+            aria-label={`Edit staged command for ${session.title}`}
+            onSubmit={(event) => void submitEdit(event)}
+            onKeyDown={handleEditKeyDown}
+          >
+            <label>
+              <span>Command</span>
+              <input
+                ref={commandInputRef}
+                value={editDraft.command}
+                onChange={(event) => setEditDraft((draft) => ({ ...draft, command: event.target.value }))}
+              />
+            </label>
+            <label>
+              <span>Arguments</span>
+              <textarea
+                value={editDraft.args}
+                onChange={(event) => setEditDraft((draft) => ({ ...draft, args: event.target.value }))}
+                rows={4}
+              />
+            </label>
+            <label>
+              <span>Working directory</span>
+              <input
+                value={editDraft.cwd}
+                onChange={(event) => setEditDraft((draft) => ({ ...draft, cwd: event.target.value }))}
+              />
+            </label>
+            {editError && <p role="alert">{editError}</p>}
+            <div className="agent-staged-edit-actions">
+              <button type="button" onClick={cancelEdit} disabled={editSaving}>
+                Cancel
+              </button>
+              <button type="submit" disabled={editSaving || !editDraft.command.trim()}>
+                {editSaving ? "Checking..." : "Save and re-check"}
+              </button>
+            </div>
+          </form>
+        )}
         <dl className="agent-session-facts" aria-label="session details">
           <div>
             <dt>kind</dt>
@@ -373,6 +493,35 @@ type SessionPulseCard = {
   title: string;
   tone: SessionPulseTone;
 };
+
+type StagedEditDraft = {
+  args: string;
+  command: string;
+  cwd: string;
+};
+
+function emptyEditDraft(): StagedEditDraft {
+  return {
+    args: "",
+    command: "",
+    cwd: "",
+  };
+}
+
+function isEditableStagedSession(session: SessionTile): boolean {
+  return session.stage === "staged" && (session.agentKind === "shell" || session.agentKind === "dev-server");
+}
+
+function argsToDraft(args: string[] | undefined): string {
+  return (args ?? []).join("\n");
+}
+
+function draftToArgs(value: string): string[] {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
 
 function HandoffActionButton({
   action,

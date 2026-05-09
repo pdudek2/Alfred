@@ -86,6 +86,10 @@ describe("session-status", () => {
   });
 
   it("keeps staged safety separate from live runtime state", () => {
+    expect(terminalSessionDisplayStatus(liveSession({ stage: "staged", stagedReviewStatus: "checking" }))).toEqual({
+      kind: "checking",
+      label: "checking",
+    });
     expect(terminalSessionDisplayStatus(liveSession({ stage: "staged", safetyNote: "rm -rf" }))).toEqual({
       kind: "blocked",
       label: "blocked",

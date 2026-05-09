@@ -381,6 +381,58 @@ describe("AgentTimelinePanel", () => {
     expect(within(pulse).getByText("pnpm test --filter @alfred/desktop")).toBeInTheDocument();
   });
 
+  it("lets editable staged shell sessions save command changes for re-check", async () => {
+    const user = userEvent.setup();
+    const onUpdateStagedSession = vi.fn().mockResolvedValue(undefined);
+    const session: SessionTile = {
+      id: "s2",
+      title: "run tests",
+      workspaceId: "w1",
+      stage: "staged",
+      cwd: "/repo",
+      source: "alfred",
+      agentKind: "shell",
+      command: "echo",
+      args: ["old"],
+    };
+
+    render(<AgentTimelinePanel session={session} onUpdateStagedSession={onUpdateStagedSession} />);
+
+    await user.click(screen.getByRole("button", { name: "Edit command" }));
+    await user.clear(screen.getByLabelText("Command"));
+    await user.type(screen.getByLabelText("Command"), "pnpm");
+    await user.clear(screen.getByLabelText("Arguments"));
+    await user.type(screen.getByLabelText("Arguments"), "test{enter}--watch");
+    await user.clear(screen.getByLabelText("Working directory"));
+    await user.type(screen.getByLabelText("Working directory"), "apps/desktop");
+    await user.click(screen.getByRole("button", { name: "Save and re-check" }));
+
+    expect(onUpdateStagedSession).toHaveBeenCalledWith("s2", {
+      command: "pnpm",
+      args: ["test", "--watch"],
+      cwd: "apps/desktop",
+    });
+  });
+
+  it("keeps coding-agent staged sessions read-only until launch defaults are wired", () => {
+    const onUpdateStagedSession = vi.fn().mockResolvedValue(undefined);
+    const session: SessionTile = {
+      id: "s3",
+      title: "review feature",
+      workspaceId: "w1",
+      stage: "staged",
+      cwd: "/repo",
+      source: "alfred",
+      agentKind: "codex",
+      command: "codex",
+      args: [],
+    };
+
+    const { container } = render(<AgentTimelinePanel session={session} onUpdateStagedSession={onUpdateStagedSession} />);
+
+    expect(within(container).queryByRole("button", { name: "Edit command" })).not.toBeInTheDocument();
+  });
+
   it("keeps the focused session age moving while the panel stays open", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));

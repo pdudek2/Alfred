@@ -1474,6 +1474,7 @@ body.arranging-pointer {
 .terminal-tile.real-terminal .tile-status.status-runtime { color: var(--cyan); }
 .terminal-tile.real-terminal .tile-status.status-restored { color: var(--muted); }
 .terminal-tile.staged .tile-status.status-blocked { color: var(--brass); }
+.terminal-tile.staged .tile-status.status-checking { color: var(--cyan); }
 
 .terminal-tile.real-terminal.session-active {
   border-color: color-mix(in oklab, var(--green) 30%, transparent);
@@ -1995,6 +1996,10 @@ body.arranging-pointer {
   border-color: rgba(217, 174, 70, 0.24);
 }
 
+.global-review-item.tone-checking {
+  border-color: color-mix(in oklab, var(--cyan) 28%, transparent);
+}
+
 .global-review-item.selected {
   border-color: rgba(83, 199, 216, 0.44);
   box-shadow: inset 0 0 0 1px rgba(83, 199, 216, 0.1);
@@ -2093,6 +2098,12 @@ body.arranging-pointer {
   color: #f5e6b8;
 }
 
+.global-review-warning.checking {
+  border-color: color-mix(in oklab, var(--cyan) 32%, transparent);
+  background: color-mix(in oklab, var(--cyan) 7%, transparent);
+  color: #b6eef2;
+}
+
 .global-review-warning span {
   min-width: 0;
 }
@@ -2156,6 +2167,12 @@ body.arranging-pointer {
   border-color: rgba(120, 217, 145, 0.32);
   background: rgba(120, 217, 145, 0.07);
   color: #bff2c8;
+}
+
+.global-review-action.action-checking {
+  border-color: color-mix(in oklab, var(--cyan) 28%, transparent);
+  background: color-mix(in oklab, var(--cyan) 6%, transparent);
+  color: #b6eef2;
 }
 
 .global-review-action.armed {
@@ -2399,6 +2416,17 @@ body.arranging-pointer {
   color: #f5d67f;
 }
 
+.staged-edited-chip {
+  align-self: start;
+  justify-self: start;
+  border: 1px solid rgba(83, 199, 216, 0.34);
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: rgba(83, 199, 216, 0.08);
+  color: #9be7ef;
+  font-size: 11px;
+}
+
 .staged-actions {
   display: flex;
   gap: 8px;
@@ -2489,6 +2517,12 @@ body.arranging-pointer {
   border-color: rgba(217, 174, 70, 0.38);
   background: rgba(217, 174, 70, 0.065);
   color: #f5d67f;
+}
+
+.alfred-dock-plan .plan-safety-note.checking {
+  border-color: rgba(83, 199, 216, 0.32);
+  background: rgba(83, 199, 216, 0.06);
+  color: #9be7ef;
 }
 
 .alfred-dock-plan .plan-prompt {
@@ -2632,6 +2666,13 @@ body.arranging-pointer {
     rgba(8, 6, 3, 0.58);
 }
 
+.review-queue-item.checking {
+  border-color: color-mix(in oklab, var(--cyan) 28%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--cyan) 6%, transparent), transparent 56px),
+    rgba(4, 7, 8, 0.58);
+}
+
 .review-queue-item.armed {
   border-color: rgba(245, 214, 127, 0.44);
   box-shadow: inset 0 0 0 1px rgba(245, 214, 127, 0.08);
@@ -2761,6 +2802,12 @@ body.arranging-pointer {
   border-color: rgba(217, 174, 70, 0.3);
   background: rgba(217, 174, 70, 0.06);
   color: #f5e6b8;
+}
+
+.review-safety-note.checking {
+  border-color: color-mix(in oklab, var(--cyan) 28%, transparent);
+  background: color-mix(in oklab, var(--cyan) 7%, transparent);
+  color: #b6eef2;
 }
 
 .review-safety-note span {
@@ -3289,6 +3336,7 @@ body.arranging-pointer {
 .agent-status-pill.status-waiting,
 .agent-status-pill.status-blocked { color: var(--brass); }
 .agent-status-pill.status-error { color: var(--coral); }
+.agent-status-pill.status-checking,
 .agent-status-pill.status-runtime { color: var(--cyan); }
 
 .agent-timeline-body {
@@ -3334,6 +3382,132 @@ body.arranging-pointer {
   font-family: var(--mono);
   font-size: 11px;
   overflow-wrap: anywhere;
+}
+
+.agent-staged-editor,
+.agent-staged-edit-form {
+  margin: -2px 0 16px;
+  border: 1px solid color-mix(in oklab, var(--brass) 20%, transparent);
+  border-radius: 13px;
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--brass) 8%, transparent), transparent 66px),
+    color-mix(in oklab, black 18%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, white 7%, transparent);
+}
+
+.agent-staged-editor {
+  padding: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.agent-staged-editor span,
+.agent-staged-editor strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-staged-editor span,
+.agent-staged-edit-form label span {
+  color: var(--brass);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: lowercase;
+}
+
+.agent-staged-editor strong {
+  margin-top: 3px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.agent-staged-editor button,
+.agent-staged-edit-actions button {
+  min-height: 30px;
+  border-radius: 8px;
+  font: 700 11px var(--sans);
+  cursor: pointer;
+}
+
+.agent-staged-editor button,
+.agent-staged-edit-actions button[type="submit"] {
+  border: 1px solid color-mix(in oklab, var(--brass) 36%, transparent);
+  background: color-mix(in oklab, var(--brass) 9%, transparent);
+  color: #f5e6b8;
+}
+
+.agent-staged-edit-form {
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.agent-staged-edit-form label {
+  display: grid;
+  gap: 5px;
+}
+
+.agent-staged-edit-form input,
+.agent-staged-edit-form textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid color-mix(in oklab, white 8%, transparent);
+  border-radius: 8px;
+  padding: 8px 9px;
+  background: rgba(2, 4, 6, 0.66);
+  color: var(--ink);
+  font: 12px var(--mono);
+  outline: none;
+}
+
+.agent-staged-edit-form textarea {
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.agent-staged-edit-form input:focus-visible,
+.agent-staged-edit-form textarea:focus-visible {
+  border-color: color-mix(in oklab, var(--brass) 42%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--brass) 12%, transparent);
+}
+
+.agent-staged-edit-form p[role="alert"] {
+  margin: 0;
+  color: var(--coral);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.agent-staged-edit-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 8px;
+}
+
+.agent-staged-edit-actions button[type="button"] {
+  border: 1px solid color-mix(in oklab, white 10%, transparent);
+  background: color-mix(in oklab, white 4%, transparent);
+  color: var(--muted);
+}
+
+.agent-staged-editor button:hover,
+.agent-staged-editor button:focus-visible,
+.agent-staged-edit-actions button:hover,
+.agent-staged-edit-actions button:focus-visible {
+  border-color: color-mix(in oklab, var(--brass) 48%, transparent);
+  color: var(--ink);
+}
+
+.agent-staged-edit-actions button:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 .agent-handoff-actions {
