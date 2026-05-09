@@ -84,6 +84,7 @@ describe("desktop session state", () => {
         agentKind: "codex",
         command: "codex",
         args: [],
+        isolation: "worktree",
       },
       {
         id: "claude-1",
@@ -96,6 +97,7 @@ describe("desktop session state", () => {
         agentKind: "claude",
         command: "claude",
         args: [],
+        isolation: "worktree",
       },
     ]);
   });
@@ -335,6 +337,9 @@ describe("desktop session state", () => {
       source: "manual",
       workspaceId: "A",
       cwd: "/Users/patryk/Desktop/Alfred",
+      isolation: "worktree",
+      branchName: "alfred-codex-codex-1-20260509191530-abc123",
+      baseCwd: "/Users/patryk/Desktop/Alfred",
       createdAt: 500,
       shell: "/bin/zsh",
     });
@@ -343,6 +348,9 @@ describe("desktop session state", () => {
       runtimeId: "runtime-1",
       runtimeStatus: "live",
       cwd: "/Users/patryk/Desktop/Alfred",
+      isolation: "worktree",
+      branchName: "alfred-codex-codex-1-20260509191530-abc123",
+      baseCwd: "/Users/patryk/Desktop/Alfred",
       createdAt: 500,
     });
     expect(next[0]?.initialBuffer).toBeUndefined();
@@ -518,7 +526,12 @@ describe("staged sessions", () => {
       agentKind: "dev-server",
     });
     expect(staged[1]).toMatchObject({ id: "alfred-2", cwd: "/var/log", agentKind: "shell" });
-    expect(staged[2]).toMatchObject({ id: "alfred-3", agentKind: "codex", safetyNote: "rm -rf detected" });
+    expect(staged[2]).toMatchObject({
+      id: "alfred-3",
+      agentKind: "codex",
+      isolation: "worktree",
+      safetyNote: "rm -rf detected",
+    });
   });
 
   it("hydrates staged tiles from a persisted Alfred plan snapshot", () => {
@@ -561,6 +574,7 @@ describe("staged sessions", () => {
         command: "codex",
         args: [],
         agentKind: "codex",
+        isolation: "worktree",
         safetyNote: "review command",
       },
     ]);

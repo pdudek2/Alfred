@@ -313,6 +313,9 @@ export function TerminalDesk({
                 title={session.title}
                 source={session.source}
                 agentKind={session.agentKind}
+                isolation={session.isolation}
+                branchName={session.branchName}
+                baseCwd={session.baseCwd}
                 command={session.command}
                 args={session.args}
                 initialBuffer={session.initialBuffer}
@@ -497,6 +500,9 @@ function ManualTerminalTile({
   cwd,
   createdAt,
   agentKind,
+  isolation,
+  branchName,
+  baseCwd,
   activityEvents,
   initialBuffer,
   lastOutputAt,
@@ -528,6 +534,9 @@ function ManualTerminalTile({
   cwd: string;
   createdAt?: number | undefined;
   agentKind?: SessionTile["agentKind"];
+  isolation?: SessionTile["isolation"] | undefined;
+  branchName?: string | undefined;
+  baseCwd?: string | undefined;
   activityEvents?: SessionTile["activityEvents"];
   initialBuffer?: string | undefined;
   lastOutputAt?: number | undefined;
@@ -574,6 +583,7 @@ function ManualTerminalTile({
   const restartable = displayStatus.kind === "done" || displayStatus.kind === "error";
   const latestActivity = latestVisibleActivity(activityEvents);
   const ageLabel = sessionAgeLabel(createdAt, displayClock);
+  const sessionLocationLabel = branchName ?? (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
 
   useEffect(() => {
     const container = containerRef.current;
@@ -722,6 +732,7 @@ function ManualTerminalTile({
     };
     if (agentKind) baseRequest.agentKind = agentKind;
     if (cwd) baseRequest.cwd = cwd;
+    if (isolation === "worktree" && !branchName) baseRequest.isolation = "worktree";
     if (command) {
       baseRequest.command = command;
       baseRequest.args = args ?? [];
@@ -768,6 +779,8 @@ function ManualTerminalTile({
     source,
     workspaceId,
     agentKind,
+    isolation,
+    branchName,
     command,
     args,
     initialBuffer,
@@ -809,10 +822,15 @@ function ManualTerminalTile({
           <div>
             <b>{title}</b>
             <small>
-              {kindMeta.label} · {resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd"}
+              {kindMeta.label} · {sessionLocationLabel}
             </small>
           </div>
         </div>
+        {branchName && (
+          <span className="tile-branch" title={baseCwd ? `Isolated from ${baseCwd}` : "Isolated worktree"}>
+            {branchName}
+          </span>
+        )}
         {latestActivity && (
           <div className={`tile-activity activity-${latestActivity.kind}`} title={latestActivity.detail}>
             <span>{activityKindLabel(latestActivity.kind)}</span>

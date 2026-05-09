@@ -365,6 +365,58 @@ describe("terminal-manager IPC", () => {
     );
   });
 
+  it("creates an isolated worktree before spawning an agent session", async () => {
+    const pty = new FakePty();
+    const nodePty = fakeNodePty(pty);
+    const prepareAgentWorktree = vi.fn(async () => ({
+      baseCwd: "/repo",
+      branchName: "alfred-codex-codex-1-20260509191530-abc123",
+      cwd: "/repo/.alfred-worktrees/alfred-codex-codex-1-20260509191530-abc123",
+    }));
+    registerTerminalIpc({
+      loadNodePty: async () => nodePty as never,
+      prepareAgentWorktree,
+    });
+
+    const created = await invoke<{
+      agentKind: string;
+      baseCwd: string;
+      branchName: string;
+      cwd: string;
+      isolation: string;
+    }>(terminalChannels.create, {
+      agentKind: "codex",
+      clientId: "codex-1",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+      source: "manual",
+      title: "Codex · session 1",
+    });
+
+    expect(prepareAgentWorktree).toHaveBeenCalledWith({
+      agentKind: "codex",
+      clientId: "codex-1",
+      cwd: "/repo",
+    });
+    expect(nodePty.spawn).toHaveBeenCalledWith(
+      "codex",
+      [],
+      expect.objectContaining({
+        cwd: "/repo/.alfred-worktrees/alfred-codex-codex-1-20260509191530-abc123",
+      }),
+    );
+    expect(created).toMatchObject({
+      agentKind: "codex",
+      baseCwd: "/repo",
+      branchName: "alfred-codex-codex-1-20260509191530-abc123",
+      cwd: "/repo/.alfred-worktrees/alfred-codex-codex-1-20260509191530-abc123",
+      isolation: "worktree",
+    });
+  });
+
   it("supports write, resize, kill, and session count", async () => {
     const pty = new FakePty();
     registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });

@@ -11,6 +11,7 @@ import type {
   PersistedTerminalSessionSnapshot,
   TerminalSessionSnapshot,
   TerminalSessionId,
+  TerminalSessionIsolation,
 } from "../shared/terminal-ipc";
 
 export type SessionTile = {
@@ -19,6 +20,9 @@ export type SessionTile = {
   title: string;
   workspaceId: string;
   cwd: string;
+  isolation?: TerminalSessionIsolation;
+  branchName?: string;
+  baseCwd?: string;
   createdAt?: number;
   source: "manual" | "alfred";
   stage: "staged" | "live";
@@ -69,6 +73,7 @@ export function addAgentSession(
       agentKind: kind,
       command: kind,
       args: [],
+      isolation: "worktree",
     },
   ];
 }
@@ -97,6 +102,9 @@ export function attachRuntimeSession(
       runtimeStatus: "live",
       title: runtime.title,
       cwd: runtime.cwd,
+      ...(runtime.isolation === undefined ? {} : { isolation: runtime.isolation }),
+      ...(runtime.branchName === undefined ? {} : { branchName: runtime.branchName }),
+      ...(runtime.baseCwd === undefined ? {} : { baseCwd: runtime.baseCwd }),
       ...(runtime.createdAt === undefined ? {} : { createdAt: runtime.createdAt }),
       ...(runtime.command === undefined ? {} : { command: runtime.command }),
       ...(runtime.args === undefined ? {} : { args: runtime.args }),
@@ -155,6 +163,9 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     title: snapshot.title,
     workspaceId: snapshot.workspaceId ?? "A",
     cwd: snapshot.cwd,
+    ...(snapshot.isolation === undefined ? {} : { isolation: snapshot.isolation }),
+    ...(snapshot.branchName === undefined ? {} : { branchName: snapshot.branchName }),
+    ...(snapshot.baseCwd === undefined ? {} : { baseCwd: snapshot.baseCwd }),
     ...(snapshot.createdAt === undefined ? {} : { createdAt: snapshot.createdAt }),
     source: snapshot.source,
     stage: "live",
@@ -175,6 +186,9 @@ export function hydratePersistedTerminalSessions(snapshots: PersistedTerminalSes
     title: snapshot.title,
     workspaceId: snapshot.workspaceId ?? "A",
     cwd: snapshot.cwd,
+    ...(snapshot.isolation === undefined ? {} : { isolation: snapshot.isolation }),
+    ...(snapshot.branchName === undefined ? {} : { branchName: snapshot.branchName }),
+    ...(snapshot.baseCwd === undefined ? {} : { baseCwd: snapshot.baseCwd }),
     ...(snapshot.createdAt === undefined ? {} : { createdAt: snapshot.createdAt }),
     source: snapshot.source,
     stage: "live",
@@ -195,18 +209,26 @@ export function hydrateStagedPlanSessions(
   defaultWorkspaceId = "A",
 ): SessionTile[] {
   if (!plan) return [];
-  return plan.sessions.map((session) => ({
-    id: session.id,
-    title: session.title,
-    workspaceId: session.workspaceId ?? defaultWorkspaceId,
-    cwd: session.cwd ?? defaultCwd,
-    source: "alfred",
-    stage: "staged",
-    command: session.command,
-    args: session.args,
-    agentKind: session.kind,
-    ...(session.safetyNote === undefined ? {} : { safetyNote: session.safetyNote }),
-  }));
+  return plan.sessions.map((session) => {
+    const isolation = codingAgentIsolation(session.kind);
+    return {
+      id: session.id,
+      title: session.title,
+      workspaceId: session.workspaceId ?? defaultWorkspaceId,
+      cwd: session.cwd ?? defaultCwd,
+      source: "alfred",
+      stage: "staged",
+      command: session.command,
+      args: session.args,
+      agentKind: session.kind,
+      ...(isolation === undefined ? {} : { isolation }),
+      ...(session.safetyNote === undefined ? {} : { safetyNote: session.safetyNote }),
+    };
+  });
+}
+
+function codingAgentIsolation(kind: AgentKind): TerminalSessionIsolation | undefined {
+  return kind === "codex" || kind === "claude" ? "worktree" : undefined;
 }
 
 function createManualSession(index: number, cwd: string, workspaceId: string): SessionTile {
@@ -243,6 +265,7 @@ export function addStagedSessions(
 ): SessionTile[] {
   let nextIndex = nextAlfredSessionIndex(sessions);
   const staged: SessionTile[] = planSessions.map((session) => {
+    const isolation = codingAgentIsolation(session.kind);
     const tile: SessionTile = {
       id: `${ALFRED_SESSION_PREFIX}${nextIndex}`,
       title: session.title,
@@ -253,6 +276,7 @@ export function addStagedSessions(
       command: session.command,
       args: session.args,
       agentKind: session.kind,
+      ...(isolation === undefined ? {} : { isolation }),
       ...(session.safetyNote === undefined ? {} : { safetyNote: session.safetyNote }),
     };
     nextIndex += 1;

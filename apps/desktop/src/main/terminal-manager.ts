@@ -25,12 +25,14 @@ import {
   type TerminalWriteRequest,
 } from "../shared/terminal-ipc.js";
 import { resolveDefaultWorkspaceRootPath } from "./default-workspace-root.js";
+import { prepareAgentWorktree as defaultPrepareAgentWorktree, type AgentWorktreeResult } from "./git-worktree.js";
 import type { PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 
 type PtyProcess = import("node-pty").IPty;
 type NodePtyModule = typeof import("node-pty");
 type TerminalIpcOptions = {
   loadNodePty?: () => Promise<NodePtyModule>;
+  prepareAgentWorktree?: typeof defaultPrepareAgentWorktree;
 };
 
 type TerminalSession = {
@@ -41,6 +43,9 @@ type TerminalSession = {
   agentKind?: TerminalCreateResult["agentKind"];
   workspaceId?: string;
   cwd: string;
+  isolation?: TerminalCreateResult["isolation"];
+  branchName?: string;
+  baseCwd?: string;
   createdAt: number;
   shell: string;
   command?: string;
@@ -125,11 +130,12 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         throw new Error("Terminal session requires an owning window.");
       }
 
+      const launchCwd = await resolveLaunchCwd(request, options.prepareAgentWorktree ?? defaultPrepareAgentWorktree);
+      const cwd = typeof launchCwd === "string" ? launchCwd : launchCwd.cwd;
       const nodePty = await (options.loadNodePty ?? loadNodePty)();
-      const cwd = resolveTerminalCwd(request.cwd);
       const resolved = resolveCommand(request);
       const id = randomUUID();
-      const metadata = sessionMetadata(id, request, cwd, resolved.command, Date.now());
+      const metadata = sessionMetadata(id, request, launchCwd, resolved.command, Date.now());
       const pty = nodePty.spawn(resolved.command, resolved.args, {
         name: "xterm-256color",
         cols: normalizeDimension(request.cols, 80),
@@ -217,10 +223,13 @@ export function getTerminalSessionCount(): number {
 function sessionMetadata(
   id: TerminalSessionId,
   request: TerminalCreateRequest,
-  cwd: string,
+  launchCwd: string | AgentWorktreeResult,
   shell: string,
   createdAt: number,
 ): TerminalCreateResult & { createdAt: number } {
+  const cwd = typeof launchCwd === "string" ? launchCwd : launchCwd.cwd;
+  const worktree = typeof launchCwd === "string" ? null : launchCwd;
+
   return {
     id,
     ...(request.clientId === undefined ? {} : { clientId: request.clientId }),
@@ -229,6 +238,9 @@ function sessionMetadata(
     ...(request.agentKind === undefined ? {} : { agentKind: request.agentKind }),
     ...(request.workspaceId === undefined ? {} : { workspaceId: request.workspaceId }),
     cwd,
+    ...(request.isolation === undefined && !worktree ? {} : { isolation: worktree ? "worktree" : request.isolation }),
+    ...(worktree?.branchName === undefined ? {} : { branchName: worktree.branchName }),
+    ...(worktree?.baseCwd === undefined ? {} : { baseCwd: worktree.baseCwd }),
     createdAt,
     shell,
     ...(request.command === undefined ? {} : { command: request.command }),
@@ -245,6 +257,9 @@ function toCreateResult(session: TerminalSession): TerminalCreateResult {
     ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
     ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
     cwd: session.cwd,
+    ...(session.isolation === undefined ? {} : { isolation: session.isolation }),
+    ...(session.branchName === undefined ? {} : { branchName: session.branchName }),
+    ...(session.baseCwd === undefined ? {} : { baseCwd: session.baseCwd }),
     createdAt: session.createdAt,
     shell: session.shell,
     ...(session.command === undefined ? {} : { command: session.command }),
@@ -308,6 +323,9 @@ function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSession
     ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
     ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
     cwd: session.cwd,
+    ...(session.isolation === undefined ? {} : { isolation: session.isolation }),
+    ...(session.branchName === undefined ? {} : { branchName: session.branchName }),
+    ...(session.baseCwd === undefined ? {} : { baseCwd: session.baseCwd }),
     createdAt: session.createdAt,
     shell: session.shell,
     ...(session.command === undefined ? {} : { command: session.command }),
@@ -486,6 +504,23 @@ function resolveCommand(request: TerminalCreateRequest): { command: string; args
     return { command: request.command, args: request.args ?? [] };
   }
   return resolveShell();
+}
+
+async function resolveLaunchCwd(
+  request: TerminalCreateRequest,
+  prepareAgentWorktree: typeof defaultPrepareAgentWorktree,
+): Promise<string | AgentWorktreeResult> {
+  const cwd = resolveTerminalCwd(request.cwd);
+
+  if (request.isolation !== "worktree") {
+    return cwd;
+  }
+
+  return prepareAgentWorktree({
+    ...(request.agentKind === undefined ? {} : { agentKind: request.agentKind }),
+    ...(request.clientId === undefined ? {} : { clientId: request.clientId }),
+    cwd,
+  });
 }
 
 function resolveShell(): { command: string; args: string[] } {
