@@ -151,10 +151,10 @@ export function App() {
     setArrangeMode((enabled) => !enabled);
   }, []);
 
-  const handleApplyLayoutPreset = useCallback((preset: LayoutPreset) => {
+  const handleApplyLayoutPreset = useCallback((preset: LayoutPreset, selectedSessionId = activeSelectedSessionId) => {
     const layoutApi = getDesktopLayoutApi();
     setTileLayoutsByWorkspace((current) => {
-      const workspaceLayouts = applyLayoutPreset(activeSessions, preset, activeSelectedSessionId);
+      const workspaceLayouts = applyLayoutPreset(activeSessions, preset, selectedSessionId);
       void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
       return {
         ...current,
@@ -178,7 +178,7 @@ export function App() {
         ...(selectedSessionId === null ? {} : { selectedSessionId }),
       },
     });
-    handleApplyLayoutPreset(preset);
+    handleApplyLayoutPreset(preset, selectedSessionId);
   }, [activeSelectedSessionId, activeWorkspace.id, handleApplyLayoutPreset]);
 
   const handleSelectSession = useCallback((sessionId: string) => {

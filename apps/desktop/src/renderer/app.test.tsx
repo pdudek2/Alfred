@@ -385,6 +385,56 @@ describe("App integration", () => {
     expect(screen.queryByLabelText("Agent activity")).not.toBeInTheDocument();
   });
 
+  it("focus mode isolates the selected session and keeps nearby sessions switchable", async () => {
+    const { setWorkspaceLayout } = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "manual-1",
+        title: "Manual · zsh 1",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+      {
+        id: "runtime-b",
+        clientId: "manual-2",
+        title: "Manual · zsh 2",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    const secondTile = screen.getByRole("article", { name: /Manual · zsh 2/i });
+
+    fireEvent.click(secondTile.querySelector(".tile-header")!);
+
+    expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 2");
+    expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
+    expect(screen.getByRole("toolbar", { name: "focus session switcher" })).toBeInTheDocument();
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+      workspaceId: "A",
+      layouts: expect.objectContaining({
+        "manual-2": expect.objectContaining({ col: 1, colSpan: 12 }),
+      }),
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Focus Manual · zsh 1" }));
+
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
+    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
+  });
+
   it("opens the command palette and runs desk commands", async () => {
     const user = userEvent.setup();
     const { createWorkspaceFromFolder, setWorkspaceLayout } = installDesktopBridge();
