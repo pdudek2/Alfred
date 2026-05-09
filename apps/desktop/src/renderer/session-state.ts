@@ -125,6 +125,19 @@ export function restartSession(sessions: SessionTile[], sessionId: string): Sess
   });
 }
 
+export function relaunchRestoredSession(sessions: SessionTile[], sessionId: string): SessionTile[] {
+  return sessions.map((session) => {
+    if (session.id !== sessionId || session.runtimeStatus !== "restored") return session;
+    const {
+      initialBuffer: _initialBuffer,
+      lastOutputAt: _lastOutputAt,
+      runtimeId: _runtimeId,
+      ...relaunchableSession
+    } = session;
+    return { ...relaunchableSession, runtimeStatus: "starting" };
+  });
+}
+
 export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]): SessionTile[] {
   return snapshots.map((snapshot) => ({
     id: snapshot.clientId ?? `runtime-${snapshot.id}`,

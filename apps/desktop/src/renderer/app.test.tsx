@@ -747,7 +747,7 @@ describe("App integration", () => {
     expect(screen.getByText('"restore this plan"')).toBeInTheDocument();
   });
 
-  it("hydrates restored terminal transcripts without starting a new runtime", async () => {
+  it("relaunches restored terminal transcripts in place", async () => {
     const { createTerminal, forgetTerminal } = installDesktopBridge(
       undefined,
       null,
@@ -757,11 +757,14 @@ describe("App integration", () => {
       undefined,
       [
         {
-          clientId: "manual-9",
-          title: "Manual · zsh 9",
+          clientId: "codex-9",
+          title: "Codex · session 9",
           cwd: "/repo",
           source: "manual",
-          shell: "/bin/zsh",
+          agentKind: "codex",
+          command: "codex",
+          args: [],
+          shell: "codex",
           buffer: "saved output\n",
         },
       ],
@@ -769,26 +772,29 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const restored = await screen.findByRole("article", { name: /Manual · zsh 9/i });
+    const restored = await screen.findByRole("article", { name: /Codex · session 9/i });
     await waitFor(() => {
       expect(restored).toHaveTextContent("restored");
     });
     expect(createTerminal).not.toHaveBeenCalled();
 
-    await userEvent.click(within(restored).getByRole("button", { name: "Continue from Manual · zsh 9" }));
+    await userEvent.click(within(restored).getByRole("button", { name: "Continue from Codex · session 9" }));
 
-    await screen.findByRole("article", { name: /Manual · zsh 10/i });
     expect(createTerminal).toHaveBeenCalledWith(
       expect.objectContaining({
-        clientId: "manual-10",
+        agentKind: "codex",
+        clientId: "codex-9",
+        command: "codex",
         cwd: "/repo",
         workspaceId: "A",
       }),
     );
+    expect(screen.queryByRole("article", { name: /Manual · zsh 10/i })).not.toBeInTheDocument();
+    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9" });
 
-    await userEvent.click(within(restored).getByRole("button", { name: "Close Manual · zsh 9" }));
+    await userEvent.click(within(restored).getByRole("button", { name: "Close Codex · session 9" }));
 
-    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "manual-9" });
+    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9" });
   });
 
   it("does not duplicate a restored staged tile that is already live", async () => {

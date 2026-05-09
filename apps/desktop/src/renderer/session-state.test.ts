@@ -17,6 +17,7 @@ import {
   recordSessionOutputActivity,
   rejectAllStaged,
   rejectStaged,
+  relaunchRestoredSession,
   restartSession,
 } from "./session-state";
 import type { AlfredPlanSession } from "../shared/alfred-ipc";
@@ -244,6 +245,36 @@ describe("desktop session state", () => {
         initialBuffer: "last output\n",
       },
     ]);
+  });
+
+  it("relaunches a restored transcript in the same tile", () => {
+    const restored = hydratePersistedTerminalSessions([
+      {
+        clientId: "codex-2",
+        title: "Codex · session 2",
+        cwd: "/repo",
+        source: "manual",
+        agentKind: "codex",
+        command: "codex",
+        args: [],
+        shell: "codex",
+        buffer: "saved output\n",
+        lastOutputAt: 320,
+      },
+    ]);
+
+    expect(relaunchRestoredSession(restored, "codex-2")[0]).toEqual({
+      id: "codex-2",
+      title: "Codex · session 2",
+      workspaceId: "A",
+      cwd: "/repo",
+      source: "manual",
+      stage: "live",
+      runtimeStatus: "starting",
+      agentKind: "codex",
+      command: "codex",
+      args: [],
+    });
   });
 
   it("tracks runtime lifecycle transitions for live sessions", () => {

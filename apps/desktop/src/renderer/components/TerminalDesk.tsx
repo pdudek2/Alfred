@@ -658,10 +658,10 @@ function ManualTerminalTile({
               aria-label={`Continue from ${title}`}
               onClick={onContinueRestoredSession}
               onPointerDown={(event) => event.stopPropagation()}
-              title="Start a new terminal from this transcript"
+              title="Relaunch this saved session"
             >
               <Play size={13} />
-              <span>Continue</span>
+              <span>Relaunch</span>
             </button>
           )}
           {restartable && (
