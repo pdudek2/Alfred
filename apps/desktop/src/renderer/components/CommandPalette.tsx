@@ -61,11 +61,16 @@ export function CommandPalette({
   onToggleArrange,
 }: CommandPaletteProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const queryRef = useRef<string>(query);
   const [activeCommandId, setActiveCommandId] = useState<string | null>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    queryRef.current = query;
+  }, [query]);
 
   const runAndClose = useCallback((run: () => void) => {
     run();
@@ -157,11 +162,7 @@ export function CommandPalette({
     ],
   );
   const normalizedQuery = query.trim().toLowerCase();
-  const filteredCommands = normalizedQuery
-    ? commands.filter((command) =>
-        `${command.label} ${command.detail}`.toLowerCase().includes(normalizedQuery),
-      )
-    : commands;
+  const filteredCommands = filterCommands(commands, normalizedQuery);
   const enabledCommands = filteredCommands.filter((command) => !command.disabled);
 
   useEffect(() => {
@@ -191,7 +192,10 @@ export function CommandPalette({
     }
 
     if (event.key === "Enter") {
-      const command = enabledCommands.find((item) => item.id === activeCommandId);
+      const currentCommands = filterCommands(commands, queryRef.current.trim().toLowerCase());
+      const currentEnabledCommands = currentCommands.filter((item) => !item.disabled);
+      const command =
+        currentEnabledCommands.find((item) => item.id === activeCommandId) ?? currentEnabledCommands[0];
       if (!command) return;
       event.preventDefault();
       runAndClose(command.run);
@@ -215,7 +219,10 @@ export function CommandPalette({
             value={query}
             placeholder="Type a command..."
             aria-label="Search commands"
-            onChange={(event) => onChangeQuery(event.target.value)}
+            onChange={(event) => {
+              queryRef.current = event.target.value;
+              onChangeQuery(event.target.value);
+            }}
           />
           <kbd>esc</kbd>
         </div>
@@ -248,4 +255,16 @@ function shortenPath(value: string): string {
   const parts = value.split("/");
   if (parts.length <= 3) return value;
   return `…/${parts.slice(-2).join("/")}`;
+}
+
+function filterCommands(commands: CommandPaletteItem[], normalizedQuery: string): CommandPaletteItem[] {
+  if (!normalizedQuery) return commands;
+
+  const labelMatches = commands.filter((command) => command.label.toLowerCase().includes(normalizedQuery));
+  const labelMatchIds = new Set(labelMatches.map((command) => command.id));
+  const detailMatches = commands.filter(
+    (command) => !labelMatchIds.has(command.id) && command.detail.toLowerCase().includes(normalizedQuery),
+  );
+
+  return [...labelMatches, ...detailMatches];
 }
