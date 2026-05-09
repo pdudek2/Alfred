@@ -865,6 +865,7 @@ export function App() {
             arrangeMode={arrangeMode}
             pendingPlan={activePendingPlan}
             query={commandQuery}
+            recoverableSessions={activeRecoverableSessions}
             safeStagedCount={Math.max(0, stagedCount - unsafeStagedCount)}
             selectedSessionId={activeSelectedSessionId}
             sessions={activeSessions}
@@ -878,9 +879,11 @@ export function App() {
             onApplyWorkMode={handleApplyWorkMode}
             onApproveAll={handleApproveAll}
             onChangeQuery={setCommandQuery}
+            onCloseRecoverableSessions={handleCloseRecoverableSessions}
             onClose={handleCloseCommandPalette}
             onCloseSession={handleCloseSession}
             onCloseWorkspace={handleCloseActiveWorkspace}
+            onContinueRecoverableSessions={handleContinueRecoverableSessions}
             onFocusSession={handleFocusSession}
             onFocusNextSession={() => handleFocusSessionByDelta(1)}
             onFocusPreviousSession={() => handleFocusSessionByDelta(-1)}

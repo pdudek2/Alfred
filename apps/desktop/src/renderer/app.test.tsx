@@ -1149,6 +1149,39 @@ describe("App integration", () => {
     expect(forgetTerminal).not.toHaveBeenCalled();
   });
 
+  it("relaunches saved sessions from the command palette", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "manual-9",
+          title: "Manual · zsh 9",
+          cwd: "/repo",
+          source: "manual",
+          shell: "/bin/zsh",
+          buffer: "saved output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole("region", { name: "Session recovery" })).toHaveTextContent("1 saved session");
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "relaunch saved{Enter}");
+
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "manual-9" }));
+    });
+  });
+
   it("keeps restored transcripts recoverable when relaunch all cannot start a process", async () => {
     const { createTerminal, forgetTerminal } = installDesktopBridge(
       undefined,

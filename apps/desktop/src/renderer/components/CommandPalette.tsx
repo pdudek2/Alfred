@@ -28,6 +28,7 @@ type CommandPaletteProps = {
   arrangeMode: boolean;
   pendingPlan: SquadPlan | null;
   query: string;
+  recoverableSessions: SessionTile[];
   safeStagedCount: number;
   selectedSessionId: string | null;
   sessions: SessionTile[];
@@ -41,9 +42,11 @@ type CommandPaletteProps = {
   onApplyWorkMode: (mode: WorkMode) => void;
   onApproveAll: () => void;
   onChangeQuery: (query: string) => void;
+  onCloseRecoverableSessions: () => void;
   onClose: () => void;
   onCloseSession: (sessionId: string) => void;
   onCloseWorkspace: () => void;
+  onContinueRecoverableSessions: () => void;
   onFocusSession: (sessionId: string) => void;
   onFocusNextSession: () => void;
   onFocusPreviousSession: () => void;
@@ -59,6 +62,7 @@ export function CommandPalette({
   arrangeMode,
   pendingPlan,
   query,
+  recoverableSessions,
   safeStagedCount,
   selectedSessionId,
   sessions,
@@ -72,9 +76,11 @@ export function CommandPalette({
   onApplyWorkMode,
   onApproveAll,
   onChangeQuery,
+  onCloseRecoverableSessions,
   onClose,
   onCloseSession,
   onCloseWorkspace,
+  onContinueRecoverableSessions,
   onFocusSession,
   onFocusNextSession,
   onFocusPreviousSession,
@@ -102,6 +108,7 @@ export function CommandPalette({
   const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? sessions[0] ?? null;
   const selectedRestartable = selectedSession ? isRestartableSession(selectedSession) : false;
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
+  const recoverableCount = recoverableSessions.length;
 
   const commands: CommandPaletteItem[] = useMemo(
     () => [
@@ -184,6 +191,24 @@ export function CommandPalette({
         },
       },
       {
+        id: "relaunch-saved-sessions",
+        label: "Relaunch saved sessions",
+        detail: recoverableCount > 0
+          ? `${recoverableCount} saved session${recoverableCount === 1 ? "" : "s"} in this workspace`
+          : "No saved sessions in this workspace",
+        disabled: recoverableCount === 0,
+        run: onContinueRecoverableSessions,
+      },
+      {
+        id: "dismiss-saved-sessions",
+        label: "Dismiss saved sessions",
+        detail: recoverableCount > 0
+          ? `Remove ${recoverableCount} saved transcript${recoverableCount === 1 ? "" : "s"}`
+          : "No saved sessions in this workspace",
+        disabled: recoverableCount === 0,
+        run: onCloseRecoverableSessions,
+      },
+      {
         id: "next-session",
         label: "Next session",
         detail: `${shortcutModifier} Shift ] · move focus forward`,
@@ -250,7 +275,9 @@ export function CommandPalette({
       onApplyWorkMode,
       onApproveAll,
       onCloseSession,
+      onCloseRecoverableSessions,
       onCloseWorkspace,
+      onContinueRecoverableSessions,
       onFocusSession,
       onFocusNextSession,
       onFocusPreviousSession,
@@ -259,6 +286,7 @@ export function CommandPalette({
       onSelectWorkspace,
       onToggleArrange,
       pendingPlan,
+      recoverableCount,
       safeStagedCount,
       selectedRestartable,
       selectedSession,
