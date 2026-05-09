@@ -11,6 +11,7 @@ const terminalChannels = {
   write: "alfred:terminal:write",
   resize: "alfred:terminal:resize",
   kill: "alfred:terminal:kill",
+  forget: "alfred:terminal:forget",
   data: "alfred:terminal:data",
   exit: "alfred:terminal:exit",
 } as const;
@@ -46,6 +47,9 @@ const terminal: TerminalApi = {
   },
   kill: (request) => {
     ipcRenderer.send(terminalChannels.kill, request);
+  },
+  forget: (request) => {
+    ipcRenderer.send(terminalChannels.forget, request);
   },
   onData: (callback) => {
     const listener = (_event: IpcRendererEvent, payload: TerminalDataEvent) => {

@@ -6,8 +6,10 @@ import { chmod } from "node:fs/promises";
 import { createRequire } from "node:module";
 import {
   terminalChannels,
+  type PersistedTerminalSessionSnapshot,
   type TerminalCreateRequest,
   type TerminalCreateResult,
+  type TerminalForgetRequest,
   type TerminalExitEvent,
   type TerminalKillRequest,
   type TerminalListResult,
@@ -17,6 +19,7 @@ import {
   type TerminalSessionSource,
   type TerminalWriteRequest,
 } from "../shared/terminal-ipc.js";
+import type { PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 
 type PtyProcess = import("node-pty").IPty;
 type NodePtyModule = typeof import("node-pty");
@@ -43,19 +46,53 @@ type TerminalSession = {
 };
 
 const sessions = new Map<TerminalSessionId, TerminalSession>();
+const restoredSessionSnapshots = new Map<string, PersistedTerminalSessionSnapshot>();
+const forgottenClientIds = new Set<string>();
 const require = createRequire(import.meta.url);
 const NODE_PTY_HELPER_MODE = 0o755;
 const MAX_BUFFER_LENGTH = 200_000;
+const MAX_PERSISTED_BUFFER_LENGTH = 120_000;
+let persistedStateStore: PersistedDesktopStateStore | null = null;
+let persistenceHydrated = false;
+let persistDebounceMs = 250;
+let persistTimer: NodeJS.Timeout | null = null;
+
+export function configureTerminalPersistence(
+  store: PersistedDesktopStateStore,
+  options: { debounceMs?: number } = {},
+): void {
+  persistedStateStore = store;
+  persistenceHydrated = false;
+  restoredSessionSnapshots.clear();
+  forgottenClientIds.clear();
+  persistDebounceMs = options.debounceMs ?? 250;
+}
+
+export function resetTerminalPersistenceForTests(): void {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  persistedStateStore = null;
+  persistenceHydrated = false;
+  restoredSessionSnapshots.clear();
+  forgottenClientIds.clear();
+  persistDebounceMs = 250;
+}
 
 export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
-  ipcMain.handle(terminalChannels.list, (event): TerminalListResult => {
+  ipcMain.handle(terminalChannels.list, async (event): Promise<TerminalListResult> => {
     const window = BrowserWindow.fromWebContents(event.sender);
 
     if (!window) {
       return { sessions: [] };
     }
 
+    await hydratePersistedTerminalSessions();
     const visibleSessions = [...sessions.values()].filter((session) => canAttachToWindow(session, window));
+    const liveClientIds = new Set(
+      visibleSessions.map((session) => session.clientId).filter((clientId): clientId is string => Boolean(clientId)),
+    );
 
     for (const session of visibleSessions) {
       attachSessionWindow(session, window);
@@ -63,6 +100,9 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
 
     return {
       sessions: visibleSessions.map(toSnapshot),
+      restoredSessions: [...restoredSessionSnapshots.values()].filter(
+        (session) => !liveClientIds.has(session.clientId),
+      ),
     };
   });
 
@@ -94,13 +134,19 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       const session: TerminalSession = { ...metadata, buffer: "", ownerWindowId: window.id, pty, window };
 
       sessions.set(id, session);
+      if (session.clientId) {
+        forgottenClientIds.delete(session.clientId);
+      }
+      rememberSessionSnapshot(session);
 
       pty.onData((data) => {
         appendToBuffer(session, data);
+        rememberSessionSnapshot(session);
         sendToSessionWindow(session, terminalChannels.data, { id, data });
       });
 
       pty.onExit(({ exitCode, signal }) => {
+        rememberSessionSnapshot(session);
         disposeSession(id);
         const payload: TerminalExitEvent = signal === undefined ? { id, exitCode } : { id, exitCode, signal };
         sendToSessionWindow(session, terminalChannels.exit, payload);
@@ -122,14 +168,18 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
 
   ipcMain.on(terminalChannels.kill, (event, request: TerminalKillRequest) => {
     if (getOwnedSession(event.sender, request.id)) {
-      killSession(request.id);
+      killSession(request.id, { forgetSnapshot: true });
     }
+  });
+
+  ipcMain.on(terminalChannels.forget, (_event, request: TerminalForgetRequest) => {
+    forgetPersistedSession(request.clientId);
   });
 }
 
 export function killAllTerminalSessions(): void {
   for (const id of sessions.keys()) {
-    killSession(id);
+    killSession(id, { forgetSnapshot: false });
   }
 }
 
@@ -187,6 +237,90 @@ function appendToBuffer(session: TerminalSession, data: string): void {
   }
 }
 
+async function hydratePersistedTerminalSessions(): Promise<void> {
+  if (persistenceHydrated || !persistedStateStore) {
+    return;
+  }
+
+  const state = await persistedStateStore.getState();
+  restoredSessionSnapshots.clear();
+  for (const session of state.restoredTerminalSessions) {
+    restoredSessionSnapshots.set(session.clientId, clonePersistedSession(session));
+  }
+  persistenceHydrated = true;
+}
+
+function rememberSessionSnapshot(session: TerminalSession): void {
+  const snapshot = toPersistedSnapshot(session);
+  if (!snapshot) return;
+  if (forgottenClientIds.has(snapshot.clientId)) return;
+
+  restoredSessionSnapshots.set(snapshot.clientId, snapshot);
+  scheduleTerminalPersistence();
+}
+
+function forgetPersistedSession(clientId: string): void {
+  if (!clientId) return;
+  forgottenClientIds.add(clientId);
+  restoredSessionSnapshots.delete(clientId);
+  scheduleTerminalPersistence();
+}
+
+function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSessionSnapshot | null {
+  if (!session.clientId) return null;
+  return {
+    clientId: session.clientId,
+    title: session.title,
+    source: session.source,
+    ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
+    ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
+    cwd: session.cwd,
+    shell: session.shell,
+    ...(session.command === undefined ? {} : { command: session.command }),
+    ...(session.args === undefined ? {} : { args: [...session.args] }),
+    buffer: tailBuffer(session.buffer, MAX_PERSISTED_BUFFER_LENGTH),
+  };
+}
+
+function scheduleTerminalPersistence(): void {
+  if (!persistedStateStore) return;
+
+  if (persistDebounceMs <= 0) {
+    void persistTerminalSnapshots();
+    return;
+  }
+
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+  }
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    void persistTerminalSnapshots();
+  }, persistDebounceMs);
+}
+
+async function persistTerminalSnapshots(): Promise<void> {
+  const store = persistedStateStore;
+  if (!store) return;
+
+  const current = await store.getState();
+  await store.setState({
+    ...current,
+    restoredTerminalSessions: [...restoredSessionSnapshots.values()].map((session) => clonePersistedSession(session)),
+  });
+}
+
+function clonePersistedSession(session: PersistedTerminalSessionSnapshot): PersistedTerminalSessionSnapshot {
+  return {
+    ...session,
+    ...(session.args === undefined ? {} : { args: [...session.args] }),
+  };
+}
+
+function tailBuffer(buffer: string, maxLength: number): string {
+  return buffer.length > maxLength ? buffer.slice(-maxLength) : buffer;
+}
+
 function attachSessionWindow(session: TerminalSession, window: BrowserWindow): void {
   if (!window.isDestroyed()) {
     session.window = window;
@@ -226,7 +360,7 @@ function defaultSessionTitle(source: TerminalSessionSource, shell: string): stri
   return source === "alfred" ? shell : "Manual terminal";
 }
 
-function killSession(id: TerminalSessionId): void {
+function killSession(id: TerminalSessionId, options: { forgetSnapshot: boolean }): void {
   const session = sessions.get(id);
 
   if (!session) {
@@ -234,6 +368,9 @@ function killSession(id: TerminalSessionId): void {
   }
 
   sessions.delete(id);
+  if (options.forgetSnapshot && session.clientId) {
+    forgetPersistedSession(session.clientId);
+  }
   session.pty.kill();
 }
 

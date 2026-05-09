@@ -10,7 +10,7 @@ import type {
   AlfredStagedPlanSnapshot,
 } from "../shared/alfred-ipc";
 import type { LayoutApi, WorkspaceLayoutsSnapshot } from "../shared/layout-ipc";
-import type { TerminalApi, TerminalSessionSnapshot } from "../shared/terminal-ipc";
+import type { PersistedTerminalSessionSnapshot, TerminalApi, TerminalSessionSnapshot } from "../shared/terminal-ipc";
 import type { WorkspaceApi, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 
 vi.mock("@xterm/xterm", () => ({
@@ -69,9 +69,11 @@ function installDesktopBridge(
     workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
     activeWorkspaceId: "A",
   },
+  restoredTerminalSessions: PersistedTerminalSessionSnapshot[] = [],
 ): {
   clearStagedPlan: ReturnType<typeof vi.fn>;
   createTerminal: ReturnType<typeof vi.fn>;
+  forgetTerminal: ReturnType<typeof vi.fn>;
   getLayouts: ReturnType<typeof vi.fn>;
   getStagedPlan: ReturnType<typeof vi.fn>;
   getRuntimeStatus: ReturnType<typeof vi.fn>;
@@ -104,6 +106,7 @@ function installDesktopBridge(
     }),
   );
   const killTerminal = vi.fn();
+  const forgetTerminal = vi.fn();
   const createTerminal = vi.fn().mockImplementation((request: Parameters<TerminalApi["create"]>[0]) =>
     Promise.resolve({
       id: "runtime-1",
@@ -120,8 +123,9 @@ function installDesktopBridge(
   );
   const terminal: TerminalApi = {
     create: createTerminal,
+    forget: forgetTerminal,
     kill: killTerminal,
-    list: vi.fn().mockResolvedValue({ sessions: terminalSessions }),
+    list: vi.fn().mockResolvedValue({ sessions: terminalSessions, restoredSessions: restoredTerminalSessions }),
     onData: vi.fn(() => vi.fn()),
     onExit: vi.fn(() => vi.fn()),
     resize: vi.fn(),
@@ -139,6 +143,7 @@ function installDesktopBridge(
   return {
     clearStagedPlan,
     createTerminal,
+    forgetTerminal,
     getLayouts,
     getRuntimeStatus,
     getStagedPlan,
@@ -582,6 +587,37 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Staged Restored shell/i })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Resolve the current Alfred plan");
     expect(screen.getByText('"restore this plan"')).toBeInTheDocument();
+  });
+
+  it("hydrates restored terminal transcripts without starting a new runtime", async () => {
+    const { createTerminal, forgetTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "manual-9",
+          title: "Manual · zsh 9",
+          cwd: "/repo",
+          source: "manual",
+          shell: "/bin/zsh",
+          buffer: "saved output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+
+    const restored = await screen.findByRole("article", { name: /Manual · zsh 9/i });
+    expect(restored).toHaveTextContent("restored");
+    expect(createTerminal).not.toHaveBeenCalled();
+
+    await userEvent.click(within(restored).getByRole("button", { name: "Close Manual · zsh 9" }));
+
+    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "manual-9" });
   });
 
   it("does not duplicate a restored staged tile that is already live", async () => {

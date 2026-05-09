@@ -83,6 +83,8 @@ function runtimeStatusLabel(status: SessionTile["runtimeStatus"]): string {
       return "process exited";
     case "live":
       return "live runtime";
+    case "restored":
+      return "restored transcript";
     case "starting":
     default:
       return "starting";
@@ -97,6 +99,8 @@ function runtimeEventTitle(status: SessionTile["runtimeStatus"]): string {
       return "Process exited";
     case "live":
       return "Session attached";
+    case "restored":
+      return "Transcript restored";
     case "starting":
     default:
       return "Starting terminal";
@@ -111,6 +115,8 @@ function runtimeEventCopy(status: SessionTile["runtimeStatus"]): string {
       return "The process has ended; scrollback remains available in the tile.";
     case "live":
       return "Terminal output is streaming in the workspace.";
+    case "restored":
+      return "This is the last saved scrollback. Start a new terminal to continue work.";
     case "starting":
     default:
       return "Alfred is attaching the runtime process.";

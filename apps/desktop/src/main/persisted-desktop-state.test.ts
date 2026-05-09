@@ -49,6 +49,16 @@ describe("persisted-desktop-state", () => {
         prompt: "prepare ui",
         sessions: [{ id: "alfred-1", kind: "shell", title: "Test", command: "pnpm", args: ["test"] }],
       },
+      restoredTerminalSessions: [
+        {
+          clientId: "manual-1",
+          title: "Manual · zsh 1",
+          source: "manual",
+          cwd: "/Users/patryk/Desktop/Interface",
+          shell: "/bin/zsh",
+          buffer: "ready\n",
+        },
+      ],
     };
 
     const writer = createPersistedDesktopStateStore({ filePath });

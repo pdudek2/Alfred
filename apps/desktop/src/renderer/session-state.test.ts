@@ -6,6 +6,7 @@ import {
   approveStaged,
   closeSession,
   createInitialSessions,
+  hydratePersistedTerminalSessions,
   hydrateStagedPlanSessions,
   hydrateLiveTerminalSessions,
   markSessionExited,
@@ -129,6 +130,32 @@ describe("desktop session state", () => {
     const next = addManualSession(hydrated, "/repo");
 
     expect(next.map((session) => session.id)).toEqual(["manual-4", "manual-5"]);
+  });
+
+  it("hydrates restored transcript tiles without runtime ids", () => {
+    const hydrated = hydratePersistedTerminalSessions([
+      {
+        clientId: "manual-4",
+        title: "Manual · zsh 4",
+        cwd: "/repo",
+        source: "manual",
+        shell: "/bin/zsh",
+        buffer: "last output\n",
+      },
+    ]);
+
+    expect(hydrated).toEqual([
+      {
+        id: "manual-4",
+        runtimeStatus: "restored",
+        title: "Manual · zsh 4",
+        workspaceId: "A",
+        cwd: "/repo",
+        source: "manual",
+        stage: "live",
+        initialBuffer: "last output\n",
+      },
+    ]);
   });
 
   it("tracks runtime lifecycle transitions for live sessions", () => {

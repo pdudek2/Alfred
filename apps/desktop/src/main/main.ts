@@ -2,7 +2,12 @@ import { app, BrowserWindow, dialog, type MessageBoxSyncOptions } from "electron
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { config as loadDotenv } from "dotenv";
-import { getTerminalSessionCount, killAllTerminalSessions, registerTerminalIpc } from "./terminal-manager.js";
+import {
+  configureTerminalPersistence,
+  getTerminalSessionCount,
+  killAllTerminalSessions,
+  registerTerminalIpc,
+} from "./terminal-manager.js";
 import { registerAlfredIpc } from "./alfred-orchestrator.js";
 import { registerLayoutIpc } from "./layout-ipc.js";
 import { configureLayoutPersistence } from "./layout-store.js";
@@ -80,6 +85,7 @@ app.whenReady().then(async () => {
 
   configureLayoutPersistence(persistedDesktopStateStore);
   configureStagedPlanPersistence(persistedDesktopStateStore);
+  configureTerminalPersistence(persistedDesktopStateStore);
   registerWorkspaceIpc(createWorkspaceStore({ persistedStateStore: persistedDesktopStateStore }));
   await createWindow();
 
