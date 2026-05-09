@@ -2023,6 +2023,33 @@ body.arranging-pointer {
   font-family: var(--mono);
 }
 
+.agent-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 3px 9px 3px 8px;
+  border: 1px solid color-mix(in oklab, white 8%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, white 4%, transparent);
+  color: var(--muted);
+}
+
+.agent-status-pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.agent-status-pill.status-active { color: var(--green); }
+.agent-status-pill.status-waiting,
+.agent-status-pill.status-blocked { color: var(--brass); }
+.agent-status-pill.status-error { color: var(--coral); }
+.agent-status-pill.status-runtime { color: var(--cyan); }
+
 .agent-timeline-body {
   flex: 1 1 auto;
   padding: 16px 18px;
