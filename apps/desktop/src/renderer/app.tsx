@@ -87,12 +87,15 @@ export function App() {
   const activeSelectedSession =
     activeSessions.find((session) => session.id === activeSelectedSessionId) ?? activeSessions[0] ?? null;
   const activePendingPlan = pendingPlan?.workspaceId === activeWorkspace.id ? pendingPlan : null;
+  const activeRecoverableSessions = activeSessions.filter((session) =>
+    session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error",
+  );
   const activeStagedSessions = orderStagedSessions(activeSessions, activePendingPlan);
   const stagedCount = activeSessions.filter((s) => s.stage === "staged").length;
   const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
   const unsafeStagedCount = activeSessions.filter((s) => s.stage === "staged" && s.safetyNote).length;
   const liveAlfredCount = activeSessions.filter((s) => s.stage === "live" && s.source === "alfred").length;
-  const alfredExpanded = alfredStatus.kind !== "idle" || activePendingPlan !== null;
+  const alfredExpanded = alfredStatus.kind !== "idle" || activePendingPlan !== null || activeRecoverableSessions.length > 0;
   const stagedWorkspaceLabel =
     pendingPlan && pendingPlan.workspaceId !== activeWorkspace.id
       ? workspaces.find((workspace) => workspace.id === pendingPlan.workspaceId)?.label ?? "another workspace"
@@ -287,12 +290,15 @@ export function App() {
 
     setTerminalSessions((sessions) => {
       const session = sessions.find((item) => item.id === sessionId);
-      if (session?.runtimeId) {
+      if (session?.runtimeStatus === "restored" || session?.runtimeStatus === "exited" || session?.runtimeStatus === "error") {
+        terminalApi?.forget({ clientId: session.id });
+        if (session.runtimeId) {
+          terminalApi?.kill({ id: session.runtimeId });
+        }
+        closingSessionIdsRef.current.delete(sessionId);
+      } else if (session?.runtimeId) {
         terminalApi?.kill({ id: session.runtimeId });
         window.setTimeout(() => closingSessionIdsRef.current.delete(sessionId), 5_000);
-      } else if (session?.runtimeStatus === "restored") {
-        terminalApi?.forget({ clientId: session.id });
-        closingSessionIdsRef.current.delete(sessionId);
       } else {
         closingSessionIdsRef.current.delete(sessionId);
       }
@@ -751,6 +757,7 @@ export function App() {
             armedUnsafeSessionIds={armedUnsafeSessionIds}
             status={alfredStatus}
             pendingPlan={activePendingPlan}
+            recoverableSessions={activeRecoverableSessions}
             selectedSessionId={activeSelectedSessionId}
             stagedSessions={activeStagedSessions}
             stagedCount={stagedCount}
@@ -758,10 +765,13 @@ export function App() {
             liveAlfredCount={liveAlfredCount}
             onApproveAll={handleApproveAll}
             onApproveTile={handleApproveTile}
+            onCloseSession={handleCloseSession}
+            onContinueRestoredSession={handleContinueRestoredSession}
             onDismissError={handleDismissError}
             onFocusSession={handleFocusSession}
             onRejectAll={handleRejectAll}
             onRejectTile={handleRejectTile}
+            onRestartSession={handleRestartSession}
           />
         </div>
         <ComposerBar
