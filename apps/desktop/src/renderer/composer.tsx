@@ -1,15 +1,26 @@
 import { useCallback } from "react";
 
 type ComposerBarProps = {
+  blockedActionLabel?: string | undefined;
   blockedReason: string | undefined;
   value: string;
   thinking: boolean;
   workspaceName: string;
   onChange: (value: string) => void;
+  onBlockedAction?: (() => void) | undefined;
   onSubmit: () => void;
 };
 
-export function ComposerBar({ blockedReason, value, thinking, workspaceName, onChange, onSubmit }: ComposerBarProps) {
+export function ComposerBar({
+  blockedActionLabel,
+  blockedReason,
+  value,
+  thinking,
+  workspaceName,
+  onBlockedAction,
+  onChange,
+  onSubmit,
+}: ComposerBarProps) {
   const blocked = blockedReason !== undefined;
   const canSubmit = !thinking && !blocked && value.trim().length > 0;
   const status = thinking
@@ -56,9 +67,16 @@ export function ComposerBar({ blockedReason, value, thinking, workspaceName, onC
       >
         {thinking ? "Thinking…" : "Send"}
       </button>
-      <span className="composer-status" id="composer-status" role="status" aria-live="polite">
-        {status}
-      </span>
+      <div className="composer-status-row">
+        <span className="composer-status" id="composer-status" role="status" aria-live="polite">
+          {status}
+        </span>
+        {blocked && blockedActionLabel && onBlockedAction && (
+          <button type="button" className="composer-blocked-action" onClick={onBlockedAction}>
+            {blockedActionLabel}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

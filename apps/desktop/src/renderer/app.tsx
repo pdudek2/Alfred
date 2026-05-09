@@ -109,6 +109,8 @@ export function App() {
     pendingPlan && pendingPlan.workspaceId !== activeWorkspace.id
       ? workspaces.find((workspace) => workspace.id === pendingPlan.workspaceId)?.label ?? "another workspace"
       : undefined;
+  const stagedWorkspaceId =
+    pendingPlan && pendingPlan.workspaceId !== activeWorkspace.id ? pendingPlan.workspaceId : null;
   const composerBlockedReason =
     globalStagedCount > 0
       ? stagedWorkspaceLabel
@@ -852,10 +854,12 @@ export function App() {
           />
         </div>
         <ComposerBar
+          blockedActionLabel={stagedWorkspaceId && stagedWorkspaceLabel ? `Open ${stagedWorkspaceLabel}` : undefined}
           blockedReason={composerBlockedReason}
           value={composerValue}
           thinking={isThinking(alfredStatus)}
           workspaceName={activeWorkspace.label === "Alfred" ? "this workspace" : activeWorkspace.label}
+          onBlockedAction={stagedWorkspaceId ? () => handleSelectWorkspace(stagedWorkspaceId) : undefined}
           onChange={setComposerValue}
           onSubmit={handleSubmitPrompt}
         />
