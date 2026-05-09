@@ -35,6 +35,9 @@ type TerminalDeskProps = {
   shortcutModifier: string;
   unsafeStagedCount: number;
   workMode: WorkMode;
+  workspaceGitBranch?: string | undefined;
+  workspaceLabel: string;
+  workspaceRootPath?: string | undefined;
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
   onCloseSession: (sessionId: string) => void;
@@ -65,6 +68,9 @@ export function TerminalDesk({
   shortcutModifier,
   unsafeStagedCount,
   workMode,
+  workspaceGitBranch,
+  workspaceLabel,
+  workspaceRootPath,
   onAddAgentSession,
   onAddManualSession,
   onCloseSession,
@@ -266,6 +272,9 @@ export function TerminalDesk({
             <EmptyWorkspaceState
               onAddAgentSession={onAddAgentSession}
               onAddManualSession={onAddManualSession}
+              workspaceGitBranch={workspaceGitBranch}
+              workspaceLabel={workspaceLabel}
+              workspaceRootPath={workspaceRootPath}
             />
           )}
           {visibleSessions.map((session) =>
@@ -368,17 +377,33 @@ function FocusSessionStrip({
 function EmptyWorkspaceState({
   onAddAgentSession,
   onAddManualSession,
+  workspaceGitBranch,
+  workspaceLabel,
+  workspaceRootPath,
 }: {
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
+  workspaceGitBranch?: string | undefined;
+  workspaceLabel: string;
+  workspaceRootPath?: string | undefined;
 }) {
   return (
     <div className="terminal-empty-state" role="status" aria-label="Empty workspace">
       <div>
         <span>Workspace ready</span>
-        <strong>No sessions running</strong>
-        <p>Start a terminal or launch an agent in this workspace.</p>
+        <strong>{workspaceLabel}</strong>
+        <p>{workspaceHomeCopy(workspaceRootPath, workspaceGitBranch)}</p>
       </div>
+      <dl className="terminal-empty-facts" aria-label="workspace details">
+        <div>
+          <dt>folder</dt>
+          <dd>{workspaceRootPath ? shortenPath(workspaceRootPath) : "local desk"}</dd>
+        </div>
+        <div>
+          <dt>branch</dt>
+          <dd>{workspaceGitBranch ?? "not detected"}</dd>
+        </div>
+      </dl>
       <div className="terminal-empty-actions" aria-label="empty workspace actions">
         <button type="button" onClick={onAddManualSession}>
           New terminal
@@ -392,6 +417,18 @@ function EmptyWorkspaceState({
       </div>
     </div>
   );
+}
+
+function workspaceHomeCopy(rootPath: string | undefined, gitBranch: string | undefined): string {
+  if (rootPath && gitBranch) {
+    return `Bound to ${shortenPath(rootPath)} on ${gitBranch}. Start a session when you are ready.`;
+  }
+
+  if (rootPath) {
+    return `Bound to ${shortenPath(rootPath)}. Start a session when you are ready.`;
+  }
+
+  return "No project folder is bound yet. Start manually or add a workspace from the sidebar.";
 }
 
 function LaunchPlanStrip({
