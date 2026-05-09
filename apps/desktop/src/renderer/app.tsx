@@ -187,6 +187,19 @@ export function App() {
     handleApplyWorkMode("focus");
   }, [activeWorkspace.id, handleApplyWorkMode]);
 
+  const handleFocusSessionByDelta = useCallback((delta: number) => {
+    if (activeSessions.length === 0) return;
+    const currentIndex = Math.max(
+      0,
+      activeSessions.findIndex((session) => session.id === activeSelectedSessionId),
+    );
+    const nextIndex = (currentIndex + delta + activeSessions.length) % activeSessions.length;
+    const nextSession = activeSessions[nextIndex];
+    if (nextSession) {
+      handleFocusSession(nextSession.id);
+    }
+  }, [activeSelectedSessionId, activeSessions, handleFocusSession]);
+
   const handleMoveTile = useCallback((tileId: string, deltaCol: number, deltaRow: number) => {
     const layoutApi = getDesktopLayoutApi();
     setTileLayoutsByWorkspace((current) => {
@@ -482,6 +495,18 @@ export function App() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "t") {
         event.preventDefault();
         handleAddManualSession();
+        return;
+      }
+
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.code === "BracketRight") {
+        event.preventDefault();
+        handleFocusSessionByDelta(1);
+        return;
+      }
+
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.code === "BracketLeft") {
+        event.preventDefault();
+        handleFocusSessionByDelta(-1);
       }
     };
 
@@ -489,7 +514,7 @@ export function App() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [handleAddManualSession, handleSelectWorkspace, workspaces]);
+  }, [handleAddManualSession, handleFocusSessionByDelta, handleSelectWorkspace, workspaces]);
 
   useEffect(() => {
     const terminalApi = getDesktopTerminalApi();
@@ -704,6 +729,8 @@ export function App() {
             onChangeQuery={setCommandQuery}
             onClose={handleCloseCommandPalette}
             onFocusSession={handleFocusSession}
+            onFocusNextSession={() => handleFocusSessionByDelta(1)}
+            onFocusPreviousSession={() => handleFocusSessionByDelta(-1)}
             onRejectAll={handleRejectAll}
             onSelectWorkspace={handleSelectWorkspace}
             onToggleArrange={handleToggleArrangeMode}
