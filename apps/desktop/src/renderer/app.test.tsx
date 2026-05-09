@@ -440,6 +440,30 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
   });
 
+  it("starts agent sessions directly from the command palette", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge();
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "codex{Enter}");
+
+    expect(await screen.findByRole("article", { name: /Codex · session 1/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentKind: "codex",
+          clientId: "codex-1",
+          command: "codex",
+          workspaceId: "A",
+        }),
+      );
+    });
+  });
+
   it("moves and resizes a tile with pointer gestures in arrange mode", async () => {
     const user = userEvent.setup();
     installDesktopBridge();

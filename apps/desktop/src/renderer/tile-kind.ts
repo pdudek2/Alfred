@@ -12,8 +12,7 @@ export function sessionTileKind(session: {
   agentKind?: SessionTile["agentKind"] | undefined;
   source: SessionTile["source"];
 }): TileKind {
-  if (session.source === "manual") return "manual";
-  return session.agentKind ?? "shell";
+  return session.agentKind ?? (session.source === "manual" ? "manual" : "shell");
 }
 
 export function tileKindMeta(kind: TileKind): TileKindMeta {

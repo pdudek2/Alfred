@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  addAgentSession,
   addManualSession,
   addStagedSessions,
   appendSessionActivity,
@@ -63,6 +64,39 @@ describe("desktop session state", () => {
 
     expect(next.map((session) => session.id)).toEqual(["manual-2", "manual-3"]);
     expect(next.map((session) => session.title)).toEqual(["Manual · zsh 2", "Manual · zsh 3"]);
+  });
+
+  it("adds first-class Codex and Claude sessions", () => {
+    const initial = createInitialSessions("/repo");
+    const withCodex = addAgentSession(initial, "codex", "/repo", "A");
+    const withClaude = addAgentSession(withCodex, "claude", "/repo", "A");
+
+    expect(withClaude.slice(1)).toEqual([
+      {
+        id: "codex-1",
+        title: "Codex · session 1",
+        workspaceId: "A",
+        cwd: "/repo",
+        source: "manual",
+        stage: "live",
+        runtimeStatus: "starting",
+        agentKind: "codex",
+        command: "codex",
+        args: [],
+      },
+      {
+        id: "claude-1",
+        title: "Claude · session 1",
+        workspaceId: "A",
+        cwd: "/repo",
+        source: "manual",
+        stage: "live",
+        runtimeStatus: "starting",
+        agentKind: "claude",
+        command: "claude",
+        args: [],
+      },
+    ]);
   });
 
   it("hydrates live terminal tiles from persisted runtime snapshots", () => {
