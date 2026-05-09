@@ -171,6 +171,24 @@ export function AgentTimelinePanel({
             <dt>cwd</dt>
             <dd>{session.cwd || "default workspace"}</dd>
           </div>
+          {session.isolation && (
+            <div>
+              <dt>isolation</dt>
+              <dd>{session.isolation === "worktree" ? "isolated worktree" : "shared workspace"}</dd>
+            </div>
+          )}
+          {session.branchName && (
+            <div>
+              <dt>branch</dt>
+              <dd>{session.branchName}</dd>
+            </div>
+          )}
+          {session.baseCwd && (
+            <div>
+              <dt>base</dt>
+              <dd>{session.baseCwd}</dd>
+            </div>
+          )}
           {command && (
             <div>
               <dt>command</dt>

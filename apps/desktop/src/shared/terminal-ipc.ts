@@ -3,6 +3,7 @@ import type { SessionActivityEvent } from "./session-activity.js";
 
 export type TerminalSessionId = string;
 export type TerminalSessionSource = "manual" | "alfred";
+export type TerminalSessionIsolation = "shared" | "worktree";
 
 export type TerminalCreateRequest = {
   clientId?: string;
@@ -11,6 +12,7 @@ export type TerminalCreateRequest = {
   agentKind?: AgentKind;
   workspaceId?: string;
   cwd?: string;
+  isolation?: TerminalSessionIsolation;
   cols: number;
   rows: number;
   command?: string;
@@ -25,6 +27,9 @@ export type TerminalCreateResult = {
   agentKind?: AgentKind;
   workspaceId?: string;
   cwd: string;
+  isolation?: TerminalSessionIsolation;
+  branchName?: string;
+  baseCwd?: string;
   createdAt?: number;
   shell: string;
   command?: string;

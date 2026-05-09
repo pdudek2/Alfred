@@ -40,6 +40,7 @@ export function StagedTilePreview({
   const fullCommand = [command, ...args].join(" ").trim();
   const kind = sessionTileKind(tile);
   const kindMeta = tileKindMeta(kind);
+  const isolated = tile.isolation === "worktree";
   const unsafe = Boolean(tile.safetyNote);
   const approveLabel = unsafe ? (armed ? "Confirm" : "Review") : "Launch";
   const approveAriaLabel = unsafe
@@ -92,6 +93,7 @@ export function StagedTilePreview({
         )}
         <div className="staged-label">Will launch</div>
         <div className="staged-command">{fullCommand || "(no command)"}</div>
+        {isolated && <div className="staged-isolation">isolated Git worktree</div>}
         {tile.cwd && <div className="staged-cwd">cwd: {tile.cwd}</div>}
       </div>
       <div className="staged-actions">

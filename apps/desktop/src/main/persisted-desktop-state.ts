@@ -8,7 +8,11 @@ import type {
   SessionActivityEventKind,
   SessionActivityPayload,
 } from "../shared/session-activity.js";
-import type { PersistedTerminalSessionSnapshot, TerminalSessionSource } from "../shared/terminal-ipc.js";
+import type {
+  PersistedTerminalSessionSnapshot,
+  TerminalSessionIsolation,
+  TerminalSessionSource,
+} from "../shared/terminal-ipc.js";
 import type { WorkspaceSnapshot, WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
 
 export const DESKTOP_STATE_VERSION = 1;
@@ -305,6 +309,10 @@ function isAgentKind(value: unknown): value is AgentKind {
   return value === "codex" || value === "claude" || value === "dev-server" || value === "shell";
 }
 
+function isTerminalSessionIsolation(value: unknown): value is TerminalSessionIsolation {
+  return value === "shared" || value === "worktree";
+}
+
 function normalizeRestoredTerminalSessions(value: unknown): PersistedTerminalSessionSnapshot[] {
   if (!Array.isArray(value)) return [];
 
@@ -337,6 +345,9 @@ function normalizeRestoredTerminalSessions(value: unknown): PersistedTerminalSes
       buffer: item.buffer,
       ...(isAgentKind(item.agentKind) ? { agentKind: item.agentKind } : {}),
       ...(typeof item.workspaceId === "string" ? { workspaceId: item.workspaceId } : {}),
+      ...(isTerminalSessionIsolation(item.isolation) ? { isolation: item.isolation } : {}),
+      ...(typeof item.branchName === "string" ? { branchName: item.branchName } : {}),
+      ...(typeof item.baseCwd === "string" ? { baseCwd: item.baseCwd } : {}),
       ...(typeof item.createdAt === "number" ? { createdAt: item.createdAt } : {}),
       ...(typeof item.command === "string" ? { command: item.command } : {}),
       ...(Array.isArray(item.args) && item.args.every((arg) => typeof arg === "string")

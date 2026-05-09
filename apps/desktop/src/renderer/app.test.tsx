@@ -122,20 +122,27 @@ function installDesktopBridge(
   const killTerminal = vi.fn();
   const forgetTerminal = vi.fn();
   const writeTerminal = vi.fn();
-  const createTerminal = vi.fn().mockImplementation((request: Parameters<TerminalApi["create"]>[0]) =>
-    Promise.resolve({
+  const createTerminal = vi.fn().mockImplementation((request: Parameters<TerminalApi["create"]>[0]) => {
+    const baseCwd = request.cwd ?? "/tmp";
+    const branchName =
+      request.isolation === "worktree" ? `alfred-${request.agentKind ?? "agent"}-${request.clientId ?? "session"}` : undefined;
+    const cwd = branchName ? `${baseCwd}/.alfred-worktrees/${branchName}` : baseCwd;
+
+    return Promise.resolve({
       id: "runtime-1",
       clientId: request.clientId ?? "manual-1",
       title: request.title ?? "Manual · zsh 1",
       source: request.source ?? "manual",
       workspaceId: request.workspaceId ?? "A",
-      cwd: request.cwd ?? "/tmp",
+      cwd,
       shell: "bash",
       ...(request.agentKind === undefined ? {} : { agentKind: request.agentKind }),
+      ...(request.isolation === undefined ? {} : { isolation: request.isolation }),
+      ...(branchName === undefined ? {} : { branchName, baseCwd }),
       ...(request.command === undefined ? {} : { command: request.command }),
       ...(request.args === undefined ? {} : { args: request.args }),
-    }),
-  );
+    });
+  });
   const terminal: TerminalApi = {
     create: createTerminal,
     forget: forgetTerminal,
@@ -618,16 +625,20 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await user.type(screen.getByRole("textbox", { name: "Search commands" }), "codex{Enter}");
 
-    expect(await screen.findByRole("article", { name: /Codex · session 1/i })).toBeInTheDocument();
+    const codexTile = await screen.findByRole("article", { name: /Codex · session 1/i });
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
         expect.objectContaining({
           agentKind: "codex",
           clientId: "codex-1",
           command: "codex",
+          isolation: "worktree",
           workspaceId: "A",
         }),
       );
+    });
+    await waitFor(() => {
+      expect(codexTile).toHaveTextContent("alfred-codex-codex-1");
     });
   });
 
@@ -648,6 +659,7 @@ describe("App integration", () => {
           agentKind: "claude",
           clientId: "claude-1",
           command: "claude",
+          isolation: "worktree",
           workspaceId: "A",
         }),
       );
@@ -1129,6 +1141,7 @@ describe("App integration", () => {
           agentKind: "codex",
           clientId: "codex-1",
           command: "codex",
+          isolation: "worktree",
           workspaceId: "A",
         }),
       );
