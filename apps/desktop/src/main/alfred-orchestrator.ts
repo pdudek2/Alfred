@@ -51,6 +51,7 @@ export function registerAlfredIpc(): void {
         const response = await runLlmPlan({
           apiKey,
           prompt: request.prompt,
+          ...(request.workspace === undefined ? {} : { workspace: request.workspace }),
           model,
           fetchImpl: globalThis.fetch,
         });

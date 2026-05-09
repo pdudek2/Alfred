@@ -165,6 +165,33 @@ Ready.`;
     expect(body.messages.find((m: { role: string }) => m.role === "user").content).toBe(baseInput.prompt);
   });
 
+  it("includes workspace context in the user message when provided", async () => {
+    const plan = JSON.stringify({
+      sessions: [{ kind: "shell", title: "ok", command: "ls", args: [] }],
+    });
+    const fetchImpl = mockFetchOk(plan);
+
+    await runLlmPlan({
+      ...baseInput,
+      workspace: {
+        id: "CLIENT",
+        label: "Client App",
+        rootPath: "/Users/patryk/Desktop/ClientApp",
+        gitBranch: "feature/agent-space",
+      },
+      fetchImpl,
+    });
+
+    const body = JSON.parse(((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as RequestInit).body as string);
+    const userMessage = body.messages.find((message: { role: string }) => message.role === "user").content;
+
+    expect(userMessage).toContain("Current workspace:");
+    expect(userMessage).toContain("- label: Client App");
+    expect(userMessage).toContain("- cwd: /Users/patryk/Desktop/ClientApp");
+    expect(userMessage).toContain("- branch: feature/agent-space");
+    expect(userMessage).toContain(baseInput.prompt);
+  });
+
   it("returns timeout when fetch is aborted", async () => {
     // Simulate AbortController firing: fetchImpl rejects with AbortError.
     const fetchImpl = vi.fn(async () => {

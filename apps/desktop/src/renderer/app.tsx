@@ -48,7 +48,13 @@ import {
 } from "./session-state";
 import type { WorkMode } from "./terminal-desk-types";
 import { workspaceSessionSummary } from "./workspace-session-summary";
-import type { AgentKind, AlfredRuntimeStatus, AlfredStagedPlanSnapshot, AlfredStagedSession } from "../shared/alfred-ipc";
+import type {
+  AgentKind,
+  AlfredRuntimeStatus,
+  AlfredStagedPlanSnapshot,
+  AlfredStagedSession,
+  AlfredWorkspaceContext,
+} from "../shared/alfred-ipc";
 import type { TerminalCreateResult } from "../shared/terminal-ipc";
 import type { WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 import "@xterm/xterm/css/xterm.css";
@@ -414,7 +420,10 @@ export function App() {
       return;
     }
     setAlfredStatus(thinking());
-    const response = await alfredApi.requestPlan({ prompt });
+    const response = await alfredApi.requestPlan({
+      prompt,
+      workspace: workspacePlanContext(activeWorkspace),
+    });
     if (!response.ok) {
       setAlfredStatus(errored(response.error));
       return;
@@ -889,6 +898,15 @@ function ensureWorkspacesForSessions(workspaces: Workspace[], sessions: SessionT
 
 function workspaceRootPath(state: WorkspaceStateSnapshot | null, workspaceId: string): string {
   return state?.workspaces.find((workspace) => workspace.id === workspaceId)?.rootPath ?? "";
+}
+
+function workspacePlanContext(workspace: Workspace): AlfredWorkspaceContext {
+  return {
+    id: workspace.id,
+    label: workspace.label,
+    ...(workspace.rootPath === undefined ? {} : { rootPath: workspace.rootPath }),
+    ...(workspace.gitBranch === undefined ? {} : { gitBranch: workspace.gitBranch }),
+  };
 }
 
 function shortenPath(value: string): string {
