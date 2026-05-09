@@ -34,6 +34,7 @@ type CommandPaletteProps = {
   shortcutModifier: string;
   unsafeStagedCount: number;
   workspaces: WorkspaceRailWorkspace[];
+  canCloseWorkspace: boolean;
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
   onAddWorkspace: () => void;
@@ -42,6 +43,7 @@ type CommandPaletteProps = {
   onChangeQuery: (query: string) => void;
   onClose: () => void;
   onCloseSession: (sessionId: string) => void;
+  onCloseWorkspace: () => void;
   onFocusSession: (sessionId: string) => void;
   onFocusNextSession: () => void;
   onFocusPreviousSession: () => void;
@@ -63,6 +65,7 @@ export function CommandPalette({
   shortcutModifier,
   unsafeStagedCount,
   workspaces,
+  canCloseWorkspace,
   onAddAgentSession,
   onAddManualSession,
   onAddWorkspace,
@@ -71,6 +74,7 @@ export function CommandPalette({
   onChangeQuery,
   onClose,
   onCloseSession,
+  onCloseWorkspace,
   onFocusSession,
   onFocusNextSession,
   onFocusPreviousSession,
@@ -97,6 +101,7 @@ export function CommandPalette({
   }, [onClose]);
   const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? sessions[0] ?? null;
   const selectedRestartable = selectedSession ? isRestartableSession(selectedSession) : false;
+  const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
 
   const commands: CommandPaletteItem[] = useMemo(
     () => [
@@ -123,6 +128,19 @@ export function CommandPalette({
         label: "New workspace from folder",
         detail: "Bind a project folder to Alfred",
         run: onAddWorkspace,
+      },
+      {
+        id: "close-workspace",
+        label: "Close current workspace",
+        detail: canCloseWorkspace
+          ? `Remove ${activeWorkspace?.label ?? "this workspace"} from the sidebar`
+          : sessions.length > 0
+            ? "Close sessions first"
+            : activeWorkspaceId === "A"
+              ? "Default workspace stays pinned"
+              : "No workspace to close",
+        disabled: !canCloseWorkspace,
+        run: onCloseWorkspace,
       },
       ...workspaces.map((workspace) => ({
         id: `switch-workspace-${workspace.id}`,
@@ -223,13 +241,16 @@ export function CommandPalette({
     [
       activeWorkMode,
       activeWorkspaceId,
+      activeWorkspace,
       arrangeMode,
+      canCloseWorkspace,
       onAddAgentSession,
       onAddManualSession,
       onAddWorkspace,
       onApplyWorkMode,
       onApproveAll,
       onCloseSession,
+      onCloseWorkspace,
       onFocusSession,
       onFocusNextSession,
       onFocusPreviousSession,
