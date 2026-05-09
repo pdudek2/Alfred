@@ -41,6 +41,7 @@ import {
   recordSessionOutputActivity,
   rejectAllStaged,
   rejectStaged,
+  restartSession,
   type SessionTile,
 } from "./session-state";
 import type { WorkMode } from "./terminal-desk-types";
@@ -294,6 +295,20 @@ export function App() {
       const session = sessions.find((item) => item.id === sessionId);
       if (!session || session.runtimeStatus !== "restored") return sessions;
       return addManualSession(sessions, session.cwd, session.workspaceId);
+    });
+  }, []);
+
+  const handleRestartSession = useCallback((sessionId: string) => {
+    const terminalApi = getDesktopTerminalApi();
+    setTerminalSessions((sessions) => {
+      const session = sessions.find((item) => item.id === sessionId);
+      if (!session || (session.runtimeStatus !== "exited" && session.runtimeStatus !== "error")) return sessions;
+      terminalApi?.forget({ clientId: session.id });
+      return appendSessionActivity(restartSession(sessions, sessionId), sessionId, {
+        kind: "lifecycle",
+        title: "Restarting session",
+        detail: "Alfred is starting a fresh process in this tile.",
+      });
     });
   }, []);
 
@@ -689,6 +704,7 @@ export function App() {
               workMode={activeWorkMode}
               onCloseSession={handleCloseSession}
               onContinueRestoredSession={handleContinueRestoredSession}
+              onRestartSession={handleRestartSession}
               onApplyLayoutPreset={handleApplyLayoutPreset}
               onApplyWorkMode={handleApplyWorkMode}
               onMoveTile={handleMoveTile}

@@ -1,6 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { Play, ShieldAlert, X } from "lucide-react";
+import { Play, RotateCcw, ShieldAlert, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -35,6 +35,7 @@ type TerminalDeskProps = {
   workMode: WorkMode;
   onCloseSession: (sessionId: string) => void;
   onContinueRestoredSession: (sessionId: string) => void;
+  onRestartSession: (sessionId: string) => void;
   onApplyLayoutPreset: (preset: LayoutPreset) => void;
   onApplyWorkMode: (mode: WorkMode) => void;
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
@@ -62,6 +63,7 @@ export function TerminalDesk({
   workMode,
   onCloseSession,
   onContinueRestoredSession,
+  onRestartSession,
   onApplyLayoutPreset,
   onApplyWorkMode,
   onMoveTile,
@@ -261,6 +263,7 @@ export function TerminalDesk({
               selected={selectedSession?.id === session.id}
               onClose={() => onCloseSession(session.id)}
               onContinueRestoredSession={() => onContinueRestoredSession(session.id)}
+              onRestartSession={() => onRestartSession(session.id)}
               onFocusSession={() => handleFocusSession(session.id)}
               onSelectSession={() => handleSelectSession(session.id)}
               onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
@@ -341,6 +344,7 @@ function ManualTerminalTile({
   preview,
   onClose,
   onContinueRestoredSession,
+  onRestartSession,
   onFocusSession,
   onSelectSession,
   onPointerMoveStart,
@@ -370,6 +374,7 @@ function ManualTerminalTile({
   preview?: ArrangePreview | undefined;
   onClose: () => void;
   onContinueRestoredSession: () => void;
+  onRestartSession: () => void;
   onFocusSession: () => void;
   onSelectSession: () => void;
   onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
@@ -405,6 +410,7 @@ function ManualTerminalTile({
     ...(activityEvents === undefined ? {} : { activityEvents }),
   } satisfies Parameters<typeof terminalSessionDisplayStatus>[0];
   const displayStatus = terminalSessionDisplayStatus(displaySession, status, displayClock);
+  const restartable = displayStatus.kind === "done" || displayStatus.kind === "error";
 
   useEffect(() => {
     const container = containerRef.current;
@@ -656,6 +662,19 @@ function ManualTerminalTile({
             >
               <Play size={13} />
               <span>Continue</span>
+            </button>
+          )}
+          {restartable && (
+            <button
+              type="button"
+              className="continue-button"
+              aria-label={`Restart ${title}`}
+              onClick={onRestartSession}
+              onPointerDown={(event) => event.stopPropagation()}
+              title="Restart this session"
+            >
+              <RotateCcw size={13} />
+              <span>Restart</span>
             </button>
           )}
           <button

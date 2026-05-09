@@ -87,6 +87,19 @@ export function markSessionExited(sessions: SessionTile[], runtimeId: TerminalSe
   );
 }
 
+export function restartSession(sessions: SessionTile[], sessionId: string): SessionTile[] {
+  return sessions.map((session) => {
+    if (session.id !== sessionId) return session;
+    const {
+      initialBuffer: _initialBuffer,
+      lastOutputAt: _lastOutputAt,
+      runtimeId: _runtimeId,
+      ...restartableSession
+    } = session;
+    return { ...restartableSession, runtimeStatus: "starting" };
+  });
+}
+
 export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]): SessionTile[] {
   return snapshots.map((snapshot) => ({
     id: snapshot.clientId ?? `runtime-${snapshot.id}`,

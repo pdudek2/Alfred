@@ -10,7 +10,12 @@ import type {
   AlfredStagedPlanSnapshot,
 } from "../shared/alfred-ipc";
 import type { LayoutApi, WorkspaceLayoutsSnapshot } from "../shared/layout-ipc";
-import type { PersistedTerminalSessionSnapshot, TerminalApi, TerminalSessionSnapshot } from "../shared/terminal-ipc";
+import type {
+  PersistedTerminalSessionSnapshot,
+  TerminalApi,
+  TerminalExitEvent,
+  TerminalSessionSnapshot,
+} from "../shared/terminal-ipc";
 import type { WorkspaceApi, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 
 vi.mock("@xterm/xterm", () => ({
@@ -86,7 +91,9 @@ function installDesktopBridge(
   createWorkspaceFromFolder: ReturnType<typeof vi.fn>;
   setWorkspaceState: ReturnType<typeof vi.fn>;
   setStagedPlan: ReturnType<typeof vi.fn>;
+  emitExit: (event: TerminalExitEvent) => void;
 } {
+  const exitListeners = new Set<(event: TerminalExitEvent) => void>();
   const clearStagedPlan = vi.fn().mockResolvedValue({ plan: null });
   const getStagedPlan = vi.fn().mockResolvedValue({ plan: stagedPlan });
   const getRuntimeStatus = vi.fn().mockResolvedValue(runtimeStatus);
@@ -129,7 +136,10 @@ function installDesktopBridge(
     kill: killTerminal,
     list: vi.fn().mockResolvedValue({ sessions: terminalSessions, restoredSessions: restoredTerminalSessions }),
     onData: vi.fn(() => vi.fn()),
-    onExit: vi.fn(() => vi.fn()),
+    onExit: vi.fn((callback: (event: TerminalExitEvent) => void) => {
+      exitListeners.add(callback);
+      return () => exitListeners.delete(callback);
+    }),
     resize: vi.fn(),
     write: vi.fn(),
   };
@@ -158,6 +168,9 @@ function installDesktopBridge(
     setWorkspaceState,
     setWorkspaceLayout,
     setWorkspaceViewState,
+    emitExit: (event: TerminalExitEvent) => {
+      for (const listener of exitListeners) listener(event);
+    },
   };
 }
 
@@ -516,6 +529,43 @@ describe("App integration", () => {
 
     expect(screen.queryByRole("article", { name: /Manual · zsh 9/i })).not.toBeInTheDocument();
     expect(killTerminal).toHaveBeenCalledWith({ id: "runtime-a" });
+  });
+
+  it("restarts an exited terminal tile in place", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, emitExit, forgetTerminal } = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "manual-a",
+        title: "Manual · zsh 9",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+
+    render(<App />);
+
+    const tile = await screen.findByRole("article", { name: /Manual · zsh 9/i });
+    expect(createTerminal).not.toHaveBeenCalled();
+
+    emitExit({ id: "runtime-a", exitCode: 0 });
+
+    expect(await within(tile).findByRole("button", { name: "Restart Manual · zsh 9" })).toBeInTheDocument();
+    await user.click(within(tile).getByRole("button", { name: "Restart Manual · zsh 9" }));
+
+    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "manual-a" });
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          clientId: "manual-a",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          workspaceId: "A",
+        }),
+      );
+    });
   });
 
   it("hydrates saved workspace layouts from the desktop runtime", async () => {
