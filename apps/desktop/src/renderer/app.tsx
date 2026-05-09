@@ -1,10 +1,11 @@
-import { Command, Plus } from "lucide-react";
+import { Command, ListChecks, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getDesktopAlfredApi, getDesktopLayoutApi, getDesktopTerminalApi, getDesktopWorkspaceApi } from "./desktop-api";
 import { ComposerBar } from "./composer";
 import { AlfredControlRail } from "./components/AlfredControlRail";
 import { AlfredMark } from "./components/AlfredMark";
 import { CommandPalette } from "./components/CommandPalette";
+import { ReviewQueuePanel } from "./components/ReviewQueuePanel";
 import { TerminalDesk } from "./components/TerminalDesk";
 import { WorkspaceRail, type WorkspaceRailWorkspace } from "./components/WorkspaceRail";
 import {
@@ -48,7 +49,7 @@ import {
 } from "./session-state";
 import { terminalSessionDisplayStatus } from "./session-status";
 import type { WorkMode } from "./terminal-desk-types";
-import { workspaceAttention } from "./workspace-attention";
+import { workspaceAttention, workspaceReviewQueue } from "./workspace-attention";
 import { workspaceSessionSummary } from "./workspace-session-summary";
 import type {
   AgentKind,
@@ -82,6 +83,7 @@ export function App() {
   const [composerValue, setComposerValue] = useState<string>("");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState<boolean>(false);
   const [commandQuery, setCommandQuery] = useState<string>("");
+  const [reviewQueueOpen, setReviewQueueOpen] = useState<boolean>(false);
   const [armedUnsafeSessionIds, setArmedUnsafeSessionIds] = useState<Set<string>>(() => new Set());
   const [runtimeStatus, setRuntimeStatus] = useState<AlfredRuntimeStatus | null>(null);
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
@@ -101,6 +103,8 @@ export function App() {
     session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error",
   );
   const activeAttention = workspaceAttention(activeSessions);
+  const globalReviewItems = workspaceReviewQueue(workspaces, terminalSessions);
+  const globalReviewPreview = globalReviewItems[0] ?? null;
   const activeStagedSessions = orderStagedSessions(activeSessions, activePendingPlan);
   const stagedCount = activeSessions.filter((s) => s.stage === "staged").length;
   const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
@@ -239,6 +243,14 @@ export function App() {
     handleFocusSession(activeAttention.session.id);
   }, [activeAttention, handleFocusSession]);
 
+  const handleOpenReviewQueue = useCallback(() => {
+    setReviewQueueOpen(true);
+  }, []);
+
+  const handleCloseReviewQueue = useCallback(() => {
+    setReviewQueueOpen(false);
+  }, []);
+
   const handleFocusSessionByDelta = useCallback((delta: number) => {
     if (activeSessions.length === 0) return;
     const currentIndex = Math.max(
@@ -302,6 +314,34 @@ export function App() {
     setActiveWorkspaceId(workspaceId);
     void refreshLiveSessions();
   }, [refreshLiveSessions]);
+
+  const handleFocusSessionInWorkspace = useCallback((workspaceId: string, sessionId: string) => {
+    const targetSessions = terminalSessions.filter((session) => session.workspaceId === workspaceId);
+    if (!targetSessions.some((session) => session.id === sessionId)) return;
+
+    const layoutApi = getDesktopLayoutApi();
+    const workspaceLayouts = applyLayoutPreset(targetSessions, "focus", sessionId);
+
+    setActiveWorkspaceId(workspaceId);
+    setSelectedSessionIdsByWorkspace((current) => ({
+      ...current,
+      [workspaceId]: sessionId,
+    }));
+    setWorkModesByWorkspace((current) => ({
+      ...current,
+      [workspaceId]: "focus",
+    }));
+    setTileLayoutsByWorkspace((current) => ({
+      ...current,
+      [workspaceId]: workspaceLayouts,
+    }));
+    void layoutApi?.setWorkspaceViewState({
+      workspaceId,
+      viewState: { workMode: "focus", selectedSessionId: sessionId },
+    });
+    void layoutApi?.setWorkspaceLayout({ workspaceId, layouts: workspaceLayouts });
+    void refreshLiveSessions();
+  }, [refreshLiveSessions, terminalSessions]);
 
   useEffect(() => {
     setSelectedSessionIdsByWorkspace((current) => {
@@ -524,6 +564,11 @@ export function App() {
     );
   }, [armedUnsafeSessionIds, terminalSessions]);
 
+  const handleLaunchReviewQueueItem = useCallback((workspaceId: string, sessionId: string) => {
+    handleApproveTile(sessionId);
+    handleFocusSessionInWorkspace(workspaceId, sessionId);
+  }, [handleApproveTile, handleFocusSessionInWorkspace]);
+
   const handleRejectTile = useCallback((tileId: string) => {
     const alfredApi = getDesktopAlfredApi();
     setArmedUnsafeSessionIds((ids) => {
@@ -737,6 +782,19 @@ export function App() {
             </div>
           </div>
           <div className="mission-actions" aria-label="terminal actions">
+            {globalReviewPreview && (
+              <button
+                className={`review-queue-button tone-${globalReviewPreview.status.kind}`}
+                type="button"
+                aria-label={`Open review queue, ${globalReviewItems.length} item${globalReviewItems.length === 1 ? "" : "s"}`}
+                onClick={handleOpenReviewQueue}
+                title={`${globalReviewPreview.workspaceLabel}: ${globalReviewPreview.session.title}`}
+              >
+                <ListChecks size={15} />
+                <span>Review</span>
+                <strong>{globalReviewItems.length}</strong>
+              </button>
+            )}
             <button
               className={`arrange-button ${arrangeMode ? "active" : ""}`}
               type="button"
@@ -879,6 +937,8 @@ export function App() {
             pendingPlan={activePendingPlan}
             query={commandQuery}
             recoverableSessions={activeRecoverableSessions}
+            reviewQueueCount={globalReviewItems.length}
+            reviewQueuePreview={globalReviewPreview}
             attention={activeAttention}
             safeStagedCount={Math.max(0, stagedCount - unsafeStagedCount)}
             selectedSessionId={activeSelectedSessionId}
@@ -901,11 +961,25 @@ export function App() {
             onFocusSession={handleFocusSession}
             onFocusNextSession={() => handleFocusSessionByDelta(1)}
             onFocusPreviousSession={() => handleFocusSessionByDelta(-1)}
+            onOpenReviewQueue={handleOpenReviewQueue}
             onReviewAttention={handleReviewAttention}
             onRejectAll={handleRejectAll}
             onRestartSession={handleRestartSession}
             onSelectWorkspace={handleSelectWorkspace}
             onToggleArrange={handleToggleArrangeMode}
+          />
+        )}
+        {reviewQueueOpen && (
+          <ReviewQueuePanel
+            armedUnsafeSessionIds={armedUnsafeSessionIds}
+            items={globalReviewItems}
+            selectedSessionId={activeSelectedSessionId}
+            onApproveTile={handleApproveTile}
+            onClose={handleCloseReviewQueue}
+            onContinueRestoredSession={handleContinueRestoredSession}
+            onFocusItem={handleFocusSessionInWorkspace}
+            onLaunchItem={handleLaunchReviewQueueItem}
+            onRestartSession={handleRestartSession}
           />
         )}
       </section>

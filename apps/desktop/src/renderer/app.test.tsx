@@ -617,6 +617,188 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
   });
 
+  it("opens a global review queue and focuses attention in another workspace", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(
+      undefined,
+      null,
+      [
+        {
+          id: "runtime-manual",
+          clientId: "manual-a",
+          title: "Manual · zsh 1",
+          source: "manual",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "/bin/zsh",
+          buffer: "",
+        },
+        {
+          id: "runtime-codex",
+          clientId: "codex-w2",
+          title: "Codex · review",
+          source: "manual",
+          agentKind: "codex",
+          workspaceId: "W2",
+          cwd: "/repo/client",
+          shell: "codex",
+          command: "codex",
+          args: [],
+          buffer: "",
+          activityEvents: [
+            { id: "ask-1", kind: "approval", title: "Waiting for approval", detail: "Allow edit?", at: 100 },
+          ],
+          lastActivityAt: 100,
+        },
+      ],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A" },
+          { id: "W2", label: "ClientApp", shortLabel: "CLI", rootPath: "/repo/client" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Open review queue, 1 item" }));
+
+    const queue = screen.getByRole("dialog", { name: "Review queue" });
+    expect(queue).toHaveTextContent("ClientApp");
+    expect(queue).toHaveTextContent("Codex · review");
+
+    await user.click(within(queue).getByRole("button", { name: "Open Codex · review in ClientApp" }));
+
+    expect(screen.queryByRole("dialog", { name: "Review queue" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /ClientApp workspace, 1 waiting/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "open review queue{Enter}");
+
+    expect(screen.getByRole("dialog", { name: "Review queue" })).toBeInTheDocument();
+  });
+
+  it("launches staged work from the global review queue in its workspace", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, resolveStagedPlan } = installDesktopBridge(
+      undefined,
+      {
+        id: "plan-w2",
+        name: "Client plan",
+        prompt: "prepare client work",
+        sessions: [
+          {
+            id: "alfred-w2",
+            kind: "shell",
+            title: "Client task",
+            command: "echo",
+            args: ["ok"],
+            workspaceId: "W2",
+          },
+        ],
+      },
+      [],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A" },
+          { id: "W2", label: "ClientApp", shortLabel: "CLI", rootPath: "/repo/client" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Open review queue, 1 item" }));
+    await user.click(screen.getByRole("button", { name: "Launch Client task in ClientApp" }));
+
+    expect(screen.getByRole("tab", { name: /ClientApp workspace/i })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          clientId: "alfred-w2",
+          command: "echo",
+          workspaceId: "W2",
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-w2"] });
+    });
+  });
+
+  it("shows unsafe commands before confirming them from the global review queue", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, resolveStagedPlan } = installDesktopBridge(
+      undefined,
+      {
+        id: "plan-w2",
+        name: "Risky client plan",
+        prompt: "prepare cleanup",
+        sessions: [
+          {
+            id: "alfred-risky-w2",
+            kind: "shell",
+            title: "Risky cleanup",
+            cwd: "/repo/client",
+            command: "rm",
+            args: ["-rf", "dist"],
+            safetyNote: "rm -rf detected",
+            workspaceId: "W2",
+          },
+        ],
+      },
+      [],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A" },
+          { id: "W2", label: "ClientApp", shortLabel: "CLI", rootPath: "/repo/client" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Open review queue, 1 item" }));
+
+    const queue = screen.getByRole("dialog", { name: "Review queue" });
+    expect(queue).toHaveTextContent("/repo/client");
+    expect(queue).toHaveTextContent("rm -rf dist");
+    expect(queue).toHaveTextContent("rm -rf detected");
+
+    await user.click(within(queue).getByRole("button", { name: "Review command Risky cleanup in ClientApp" }));
+
+    expect(resolveStagedPlan).not.toHaveBeenCalled();
+    expect(createTerminal).not.toHaveBeenCalled();
+    expect(within(queue).getByRole("button", { name: "Confirm launch Risky cleanup in ClientApp" })).toBeInTheDocument();
+
+    await user.click(within(queue).getByRole("button", { name: "Confirm launch Risky cleanup in ClientApp" }));
+
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          clientId: "alfred-risky-w2",
+          command: "rm",
+          args: ["-rf", "dist"],
+          workspaceId: "W2",
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-risky-w2"] });
+    });
+  });
+
   it("moves and resizes a tile with pointer gestures in arrange mode", async () => {
     const user = userEvent.setup();
     installDesktopBridge();

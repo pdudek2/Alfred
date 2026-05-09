@@ -8,6 +8,20 @@ export type WorkspaceAttention = {
   detail: string;
 };
 
+export type WorkspaceReviewItem = WorkspaceAttention & {
+  id: string;
+  priority: number;
+  workspaceId: string;
+  workspaceLabel: string;
+  workspaceShortLabel: string;
+};
+
+type WorkspaceReviewScope = {
+  id: string;
+  label: string;
+  shortLabel: string;
+};
+
 const ATTENTION_PRIORITY: Partial<Record<SessionDisplayStatus["kind"], number>> = {
   error: 0,
   waiting: 1,
@@ -34,6 +48,47 @@ export function workspaceAttention(sessions: SessionTile[], now = Date.now()): W
   }
 
   return best;
+}
+
+export function workspaceReviewQueue(
+  workspaces: WorkspaceReviewScope[],
+  sessions: SessionTile[],
+  now = Date.now(),
+): WorkspaceReviewItem[] {
+  const workspacesById = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
+
+  return sessions
+    .flatMap((session): WorkspaceReviewItem[] => {
+      const status = terminalSessionDisplayStatus(session, "ready", now);
+      const priority = ATTENTION_PRIORITY[status.kind];
+      if (priority === undefined) return [];
+
+      const workspace = workspacesById.get(session.workspaceId);
+      return [{
+        id: `${session.workspaceId}:${session.id}`,
+        priority,
+        session,
+        status,
+        detail: attentionDetail(status.kind),
+        workspaceId: session.workspaceId,
+        workspaceLabel: workspace?.label ?? session.workspaceId,
+        workspaceShortLabel: workspace?.shortLabel ?? session.workspaceId,
+      }];
+    })
+    .sort(compareReviewItems);
+}
+
+function compareReviewItems(a: WorkspaceReviewItem, b: WorkspaceReviewItem): number {
+  if (a.priority !== b.priority) return a.priority - b.priority;
+
+  const aTime = a.session.lastActivityAt ?? a.session.lastOutputAt ?? a.session.createdAt ?? 0;
+  const bTime = b.session.lastActivityAt ?? b.session.lastOutputAt ?? b.session.createdAt ?? 0;
+  if (aTime !== bTime) return bTime - aTime;
+
+  const workspace = a.workspaceLabel.localeCompare(b.workspaceLabel);
+  if (workspace !== 0) return workspace;
+
+  return a.session.title.localeCompare(b.session.title);
 }
 
 function attentionDetail(kind: SessionDisplayStatus["kind"]): string {
