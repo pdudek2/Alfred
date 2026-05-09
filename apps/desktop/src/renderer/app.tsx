@@ -245,6 +245,24 @@ export function App() {
     }
   }, [activeWorkspace.rootPath]);
 
+  const handleCopySessionCwd = useCallback((cwd: string) => {
+    void navigator.clipboard?.writeText(cwd);
+  }, []);
+
+  const handleOpenSessionFolder = useCallback(async (cwd: string) => {
+    const result = await getDesktopWorkspaceApi()?.revealPath({ cwd, path: "." });
+    if (!result?.ok) {
+      setAlfredStatus(errored({ code: "network", message: result?.error ?? "Session folder is unavailable." }));
+    }
+  }, []);
+
+  const handleOpenSessionTerminal = useCallback(async (cwd: string) => {
+    const result = await getDesktopWorkspaceApi()?.openExternalTerminal({ cwd });
+    if (!result?.ok) {
+      setAlfredStatus(errored({ code: "network", message: result?.error ?? "Session terminal is unavailable." }));
+    }
+  }, []);
+
   const handleApplyLayoutPreset = useCallback((preset: LayoutPreset, selectedSessionId = activeSelectedSessionId) => {
     const layoutApi = getDesktopLayoutApi();
     setTileLayoutsByWorkspace((current) => {
@@ -1025,8 +1043,11 @@ export function App() {
             onCloseSession={handleCloseSession}
             onCloseWorkspace={handleCloseActiveWorkspace}
             onContinueRecoverableSessions={handleContinueRecoverableSessions}
+            onCopySessionCwd={handleCopySessionCwd}
             onOpenWorkspaceFolder={() => void handleRevealActiveWorkspace()}
             onOpenWorkspaceTerminal={() => void handleOpenActiveWorkspaceTerminal()}
+            onOpenSessionFolder={(cwd) => void handleOpenSessionFolder(cwd)}
+            onOpenSessionTerminal={(cwd) => void handleOpenSessionTerminal(cwd)}
             onRenameWorkspace={handleBeginRenameActiveWorkspace}
             onFocusSession={handleFocusSession}
             onFocusNextSession={() => handleFocusSessionByDelta(1)}
