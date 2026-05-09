@@ -35,6 +35,7 @@ const layoutChannels = {
 const workspaceChannels = {
   createFromFolder: "alfred:workspace:create-from-folder",
   get: "alfred:workspace:get",
+  openExternalUrl: "alfred:workspace:open-external-url",
   openExternalTerminal: "alfred:workspace:open-external-terminal",
   revealPath: "alfred:workspace:reveal-path",
   set: "alfred:workspace:set",
@@ -105,6 +106,8 @@ const workspace: WorkspaceApi = {
     ipcRenderer.invoke(workspaceChannels.createFromFolder) as ReturnType<WorkspaceApi["createWorkspaceFromFolder"]>,
   getWorkspaceState: () =>
     ipcRenderer.invoke(workspaceChannels.get) as ReturnType<WorkspaceApi["getWorkspaceState"]>,
+  openExternalUrl: (request) =>
+    ipcRenderer.invoke(workspaceChannels.openExternalUrl, request) as ReturnType<WorkspaceApi["openExternalUrl"]>,
   openExternalTerminal: (request) =>
     ipcRenderer.invoke(workspaceChannels.openExternalTerminal, request) as ReturnType<WorkspaceApi["openExternalTerminal"]>,
   revealPath: (request) =>

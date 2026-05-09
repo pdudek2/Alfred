@@ -13,6 +13,7 @@ import type { LayoutApi, WorkspaceLayoutsSnapshot } from "../shared/layout-ipc";
 import type {
   PersistedTerminalSessionSnapshot,
   TerminalApi,
+  TerminalDataEvent,
   TerminalExitEvent,
   TerminalSessionSnapshot,
 } from "../shared/terminal-ipc";
@@ -95,8 +96,11 @@ function installDesktopBridge(
   setStagedPlan: ReturnType<typeof vi.fn>;
   updateStagedSession: ReturnType<typeof vi.fn>;
   writeTerminal: ReturnType<typeof vi.fn>;
+  openExternalUrl: ReturnType<typeof vi.fn>;
+  emitData: (event: TerminalDataEvent) => void;
   emitExit: (event: TerminalExitEvent) => void;
 } {
+  const dataListeners = new Set<(event: TerminalDataEvent) => void>();
   const exitListeners = new Set<(event: TerminalExitEvent) => void>();
   const clearStagedPlan = vi.fn().mockResolvedValue({ plan: null });
   const getStagedPlan = vi.fn().mockResolvedValue({ plan: stagedPlan });
@@ -113,6 +117,11 @@ function installDesktopBridge(
   const getWorkspaceState = vi.fn().mockResolvedValue(workspaceState);
   const setWorkspaceState = vi.fn().mockImplementation((request) => Promise.resolve(request));
   const openExternalTerminal = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/patryk/Desktop/Alfred", terminal: "Ghostty" });
+  const openExternalUrl = vi
+    .fn()
+    .mockImplementation((request: Parameters<WorkspaceApi["openExternalUrl"]>[0]) =>
+      Promise.resolve({ ok: true, url: request.url }),
+    );
   const revealPath = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/patryk/Desktop/Alfred/app.tsx" });
   const createWorkspaceFromFolder = vi.fn().mockImplementation(() =>
     Promise.resolve({
@@ -154,7 +163,10 @@ function installDesktopBridge(
     forget: forgetTerminal,
     kill: killTerminal,
     list: vi.fn().mockResolvedValue({ sessions: terminalSessions, restoredSessions: restoredTerminalSessions }),
-    onData: vi.fn(() => vi.fn()),
+    onData: vi.fn((callback: (event: TerminalDataEvent) => void) => {
+      dataListeners.add(callback);
+      return () => dataListeners.delete(callback);
+    }),
     onExit: vi.fn((callback: (event: TerminalExitEvent) => void) => {
       exitListeners.add(callback);
       return () => exitListeners.delete(callback);
@@ -174,7 +186,14 @@ function installDesktopBridge(
     },
     layout: { getLayouts, setWorkspaceLayout, setWorkspaceViewState },
     terminal,
-    workspace: { createWorkspaceFromFolder, getWorkspaceState, openExternalTerminal, revealPath, setWorkspaceState },
+    workspace: {
+      createWorkspaceFromFolder,
+      getWorkspaceState,
+      openExternalTerminal,
+      openExternalUrl,
+      revealPath,
+      setWorkspaceState,
+    },
     version: "test",
   };
 
@@ -199,6 +218,10 @@ function installDesktopBridge(
     setWorkspaceLayout,
     setWorkspaceViewState,
     writeTerminal,
+    openExternalUrl,
+    emitData: (event: TerminalDataEvent) => {
+      for (const listener of dataListeners) listener(event);
+    },
     emitExit: (event: TerminalExitEvent) => {
       for (const listener of exitListeners) listener(event);
     },
@@ -236,6 +259,61 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
 
     expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
+  });
+
+  it("surfaces detected localhost URLs in the workspace preview dock", async () => {
+    const user = userEvent.setup();
+    const { openExternalUrl } = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-dev",
+        clientId: "manual-dev",
+        title: "Manual · dev server",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "/bin/zsh",
+        buffer: "Vite ready at http://localhost:5173/\nExternal: http://example.com\n",
+      },
+    ]);
+
+    render(<App />);
+
+    const preview = await screen.findByLabelText("Workspace preview");
+    expect(within(preview).getAllByText("localhost:5173")).toHaveLength(2);
+    expect(within(preview).queryByText("example.com")).not.toBeInTheDocument();
+    expect(within(preview).getByTitle("Preview of http://localhost:5173/")).toBeInTheDocument();
+
+    await user.click(within(preview).getByRole("button", { name: "Open preview externally" }));
+
+    expect(openExternalUrl).toHaveBeenCalledWith({ url: "http://localhost:5173/" });
+
+    await user.click(screen.getByRole("button", { name: "Close Manual · dev server" }));
+
+    expect(screen.queryByLabelText("Workspace preview")).not.toBeInTheDocument();
+  });
+
+  it("adds preview URLs from live terminal output", async () => {
+    const { emitData } = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-dev",
+        clientId: "manual-dev",
+        title: "Manual · dev server",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · dev server/i })).toBeInTheDocument();
+    emitData({ id: "runtime-dev", data: "ready on http://127.0.0.1:3000/app\n" });
+
+    const preview = await screen.findByLabelText("Workspace preview");
+    expect(within(preview).getAllByText("127.0.0.1:3000")).toHaveLength(2);
+    expect(within(preview).getByTitle("Preview of http://127.0.0.1:3000/app")).toBeInTheDocument();
   });
 
   it("creates real workspaces and scopes terminals to the active workspace", async () => {
