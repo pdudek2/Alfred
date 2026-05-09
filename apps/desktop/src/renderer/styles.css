@@ -533,10 +533,6 @@ button:focus-visible {
   grid-template-rows: 44px minmax(0, 1fr);
 }
 
-.terminal-stage.has-plan {
-  grid-template-rows: 44px auto minmax(0, 1fr);
-}
-
 .terminal-stage-header {
   min-width: 0;
   border-bottom: 1px solid rgba(188, 202, 218, 0.09);
@@ -636,56 +632,6 @@ button:focus-visible {
 .layout-controls button:focus-visible {
   border-color: color-mix(in oklab, var(--accent) 34%, transparent);
   color: #cff3f6;
-}
-
-.layout-controls .attention-jump {
-  max-width: 230px;
-  min-height: 32px;
-  display: inline-grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 7px;
-  border-color: color-mix(in oklab, var(--brass) 34%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--brass) 13%, transparent), color-mix(in oklab, var(--brass) 5%, transparent));
-  color: #f5e6b8;
-}
-
-.attention-jump span,
-.attention-jump strong {
-  display: inline-block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.attention-jump span {
-  min-height: 18px;
-  border-radius: 999px;
-  padding: 0 6px;
-  background: color-mix(in oklab, var(--brass) 16%, transparent);
-  color: #ffe6a9;
-  font-size: 10px;
-  line-height: 18px;
-}
-
-.attention-jump strong {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 650;
-}
-
-.attention-jump.tone-error {
-  border-color: color-mix(in oklab, var(--coral) 42%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--coral) 13%, transparent), color-mix(in oklab, var(--coral) 5%, transparent));
-  color: #ffd1ca;
-}
-
-.attention-jump.tone-error span {
-  background: color-mix(in oklab, var(--coral) 17%, transparent);
-  color: #ffd1ca;
 }
 
 .terminal-stage-header kbd {
@@ -857,82 +803,6 @@ button:focus-visible {
   border-color: rgba(68, 206, 220, 0.46);
   color: var(--ink);
   transform: translateY(-1px);
-}
-
-.launch-plan-strip {
-  min-width: 0;
-  border-bottom: 1px solid rgba(188, 202, 218, 0.09);
-  padding: 10px 12px;
-  background:
-    linear-gradient(90deg, rgba(224, 183, 91, 0.085), transparent 38%),
-    rgba(11, 14, 18, 0.9);
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-}
-
-.launch-plan-mark {
-  width: 32px;
-  height: 32px;
-  border: 1px solid rgba(217, 174, 70, 0.34);
-  border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(217, 174, 70, 0.12), rgba(217, 174, 70, 0.045));
-  color: var(--brass);
-  display: grid;
-  place-items: center;
-  font-family: var(--mono);
-  font-size: 12px;
-}
-
-.launch-plan-copy {
-  min-width: 0;
-}
-
-.launch-plan-copy span,
-.launch-plan-copy strong,
-.launch-plan-copy p {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.launch-plan-copy span {
-  color: var(--brass);
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.launch-plan-copy strong {
-  margin-top: 2px;
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.launch-plan-copy p {
-  margin: 2px 0 0;
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 11px;
-}
-
-.launch-plan-warning {
-  min-height: 30px;
-  border: 1px solid rgba(239, 129, 115, 0.25);
-  border-radius: 999px;
-  padding: 0 10px;
-  background: rgba(239, 129, 115, 0.055);
-  color: #ffd5cc;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-family: var(--mono);
-  font-size: 11px;
 }
 
 .terminal-tile {
@@ -1651,6 +1521,17 @@ body.arranging-pointer {
   margin: 0;
   color: var(--faint);
   font-size: 11px;
+}
+
+.alfred-dock-queues {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.alfred-dock-queues > .recovery-queue:not(:first-child) {
+  border-top: 1px solid rgba(188, 202, 218, 0.1);
+  padding-top: 10px;
 }
 
 /* Composer bar (Alfred prompt input) */
@@ -2613,10 +2494,23 @@ body.arranging-pointer {
   white-space: normal;
 }
 
+.decision-detail {
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
 .review-item-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 32px;
   gap: 7px;
+}
+
+.review-item-actions.solo {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .review-item-launch {

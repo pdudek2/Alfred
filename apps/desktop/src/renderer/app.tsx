@@ -49,7 +49,7 @@ import {
 } from "./session-state";
 import { terminalSessionDisplayStatus } from "./session-status";
 import type { WorkMode } from "./terminal-desk-types";
-import { workspaceAttention, workspaceReviewQueue } from "./workspace-attention";
+import { workspaceAttention, workspaceReviewQueue, type WorkspaceReviewItem } from "./workspace-attention";
 import { workspaceSessionSummary } from "./workspace-session-summary";
 import type {
   AgentKind,
@@ -104,13 +104,20 @@ export function App() {
   );
   const activeAttention = workspaceAttention(activeSessions);
   const globalReviewItems = workspaceReviewQueue(workspaces, terminalSessions);
-  const globalReviewPreview = globalReviewItems[0] ?? null;
+  const activeWorkspaceReviewItems = globalReviewItems.filter((item) => item.workspaceId === activeWorkspace.id);
+  const activeDecisionItems = activeWorkspaceReviewItems.filter(isDecisionReviewItem);
+  const crossWorkspaceReviewItems = globalReviewItems.filter((item) => item.workspaceId !== activeWorkspace.id);
+  const crossWorkspaceReviewPreview = crossWorkspaceReviewItems[0] ?? null;
   const activeStagedSessions = orderStagedSessions(activeSessions, activePendingPlan);
   const stagedCount = activeSessions.filter((s) => s.stage === "staged").length;
   const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
   const unsafeStagedCount = activeSessions.filter((s) => s.stage === "staged" && s.safetyNote).length;
   const liveAlfredCount = activeSessions.filter((s) => s.stage === "live" && s.source === "alfred").length;
-  const alfredExpanded = alfredStatus.kind !== "idle" || activePendingPlan !== null || activeRecoverableSessions.length > 0;
+  const alfredExpanded =
+    alfredStatus.kind !== "idle" ||
+    activePendingPlan !== null ||
+    activeRecoverableSessions.length > 0 ||
+    activeDecisionItems.length > 0;
   const stagedWorkspaceLabel =
     pendingPlan && pendingPlan.workspaceId !== activeWorkspace.id
       ? workspaces.find((workspace) => workspace.id === pendingPlan.workspaceId)?.label ?? "another workspace"
@@ -782,17 +789,17 @@ export function App() {
             </div>
           </div>
           <div className="mission-actions" aria-label="terminal actions">
-            {globalReviewPreview && (
+            {crossWorkspaceReviewPreview && (
               <button
-                className={`review-queue-button tone-${globalReviewPreview.status.kind}`}
+                className={`review-queue-button tone-${crossWorkspaceReviewPreview.status.kind}`}
                 type="button"
-                aria-label={`Open review queue, ${globalReviewItems.length} item${globalReviewItems.length === 1 ? "" : "s"}`}
+                aria-label={`Open review queue, ${crossWorkspaceReviewItems.length} item${crossWorkspaceReviewItems.length === 1 ? "" : "s"}`}
                 onClick={handleOpenReviewQueue}
-                title={`${globalReviewPreview.workspaceLabel}: ${globalReviewPreview.session.title}`}
+                title={`${crossWorkspaceReviewPreview.workspaceLabel}: ${crossWorkspaceReviewPreview.session.title}`}
               >
                 <ListChecks size={15} />
                 <span>Review</span>
-                <strong>{globalReviewItems.length}</strong>
+                <strong>{crossWorkspaceReviewItems.length}</strong>
               </button>
             )}
             <button
@@ -862,13 +869,10 @@ export function App() {
               arrangeMode={arrangeMode}
               armedUnsafeSessionIds={armedUnsafeSessionIds}
               layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
-              pendingPlan={activePendingPlan}
               recoverableSessions={activeRecoverableSessions}
-              attention={activeAttention}
               selectedSessionId={activeSelectedSessionId}
               sessions={activeSessions}
               shortcutModifier={shortcutModifier}
-              unsafeStagedCount={unsafeStagedCount}
               workMode={activeWorkMode}
               workspaceGitBranch={activeWorkspace.gitBranch}
               workspaceLabel={activeWorkspace.label}
@@ -889,7 +893,6 @@ export function App() {
               onRuntimeSessionReady={handleRuntimeSessionReady}
               onRuntimeSessionStarting={handleRuntimeSessionStarting}
               onFocusSession={handleFocusSession}
-              onReviewAttention={handleReviewAttention}
               onSelectSession={handleSelectSession}
               onApproveTile={handleApproveTile}
               onRejectTile={handleRejectTile}
@@ -899,6 +902,7 @@ export function App() {
           <AlfredControlRail
             armedUnsafeSessionIds={armedUnsafeSessionIds}
             status={alfredStatus}
+            activeDecisionItems={activeDecisionItems}
             pendingPlan={activePendingPlan}
             recoverableSessions={activeRecoverableSessions}
             selectedSessionId={activeSelectedSessionId}
@@ -937,8 +941,8 @@ export function App() {
             pendingPlan={activePendingPlan}
             query={commandQuery}
             recoverableSessions={activeRecoverableSessions}
-            reviewQueueCount={globalReviewItems.length}
-            reviewQueuePreview={globalReviewPreview}
+            reviewQueueCount={crossWorkspaceReviewItems.length}
+            reviewQueuePreview={crossWorkspaceReviewPreview}
             attention={activeAttention}
             safeStagedCount={Math.max(0, stagedCount - unsafeStagedCount)}
             selectedSessionId={activeSelectedSessionId}
@@ -972,7 +976,7 @@ export function App() {
         {reviewQueueOpen && (
           <ReviewQueuePanel
             armedUnsafeSessionIds={armedUnsafeSessionIds}
-            items={globalReviewItems}
+            items={crossWorkspaceReviewItems}
             selectedSessionId={activeSelectedSessionId}
             onApproveTile={handleApproveTile}
             onClose={handleCloseReviewQueue}
@@ -1118,4 +1122,8 @@ function orderStagedSessions(sessions: SessionTile[], plan: SquadPlan | null): S
       if (safetyDelta !== 0) return safetyDelta;
       return (plannedOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (plannedOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER);
     });
+}
+
+function isDecisionReviewItem(item: WorkspaceReviewItem): boolean {
+  return item.status.kind === "waiting" || item.status.kind === "blocked" || item.status.kind === "staged";
 }

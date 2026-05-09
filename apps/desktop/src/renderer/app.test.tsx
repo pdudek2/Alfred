@@ -574,7 +574,7 @@ describe("App integration", () => {
     });
   });
 
-  it("surfaces the next session needing attention and jumps to it", async () => {
+  it("surfaces the next current-workspace decision in Alfred's rail and jumps to it", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [
       {
@@ -605,7 +605,9 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const attentionButton = await screen.findByRole("button", { name: "Review attention: Codex · review" });
+    const rail = await screen.findByLabelText("Alfred status");
+    expect(within(rail).getByText("Needs review")).toBeInTheDocument();
+    const attentionButton = within(rail).getByRole("button", { name: "Focus decision: Codex · review" });
     expect(attentionButton).toHaveTextContent("waiting");
 
     await user.click(attentionButton);
@@ -635,6 +637,23 @@ describe("App integration", () => {
           cwd: "/Users/patryk/Desktop/Alfred",
           shell: "/bin/zsh",
           buffer: "",
+        },
+        {
+          id: "runtime-local-codex",
+          clientId: "codex-local",
+          title: "Local Codex · review",
+          source: "manual",
+          agentKind: "codex",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "codex",
+          command: "codex",
+          args: [],
+          buffer: "",
+          activityEvents: [
+            { id: "ask-local", kind: "approval", title: "Waiting for approval", detail: "Local edit?", at: 90 },
+          ],
+          lastActivityAt: 90,
         },
         {
           id: "runtime-codex",
@@ -672,6 +691,7 @@ describe("App integration", () => {
     const queue = screen.getByRole("dialog", { name: "Review queue" });
     expect(queue).toHaveTextContent("ClientApp");
     expect(queue).toHaveTextContent("Codex · review");
+    expect(queue).not.toHaveTextContent("Local Codex · review");
 
     await user.click(within(queue).getByRole("button", { name: "Open Codex · review in ClientApp" }));
 
@@ -680,10 +700,104 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
 
+    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await user.type(screen.getByRole("textbox", { name: "Search commands" }), "open review queue{Enter}");
 
     expect(screen.getByRole("dialog", { name: "Review queue" })).toBeInTheDocument();
+  });
+
+  it("surfaces current workspace decisions in Alfred's rail instead of the top review button", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(
+      undefined,
+      null,
+      [
+        {
+          id: "runtime-codex",
+          clientId: "codex-a",
+          title: "Codex · review",
+          source: "manual",
+          agentKind: "codex",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "codex",
+          command: "codex",
+          args: [],
+          buffer: "",
+          activityEvents: [
+            { id: "ask-1", kind: "approval", title: "Waiting for approval", detail: "Allow edit?", at: 100 },
+          ],
+          lastActivityAt: 100,
+        },
+      ],
+    );
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Codex · review/i });
+
+    expect(screen.queryByRole("button", { name: "Open review queue, 1 item" })).not.toBeInTheDocument();
+    expect(document.querySelector(".workspace-layout")).toHaveClass("alfred-expanded");
+    const rail = screen.getByLabelText("Alfred status");
+    expect(rail).not.toHaveClass("compact");
+    expect(within(rail).getByText("Needs review")).toBeInTheDocument();
+    expect(within(rail).getByText("Allow edit?")).toBeInTheDocument();
+
+    await user.click(within(rail).getByRole("button", { name: "Focus decision: Codex · review" }));
+
+    expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
+  });
+
+  it("keeps current decisions visible when recovery is also available", async () => {
+    installDesktopBridge(
+      undefined,
+      null,
+      [
+        {
+          id: "runtime-codex",
+          clientId: "codex-a",
+          title: "Codex · review",
+          source: "manual",
+          agentKind: "codex",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "codex",
+          command: "codex",
+          args: [],
+          buffer: "",
+          activityEvents: [
+            { id: "ask-1", kind: "approval", title: "Waiting for approval", detail: "Allow edit?", at: 100 },
+          ],
+          lastActivityAt: 100,
+        },
+      ],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "manual-restored",
+          title: "Manual · saved",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          source: "manual",
+          shell: "/bin/zsh",
+          buffer: "saved output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Codex · review/i });
+    const rail = screen.getByLabelText("Alfred status");
+
+    expect(rail).toHaveTextContent("needs review");
+    expect(within(rail).getByRole("region", { name: "Current workspace decisions" })).toHaveTextContent("Allow edit?");
+    expect(within(rail).getByRole("region", { name: "Recovery queue" })).toHaveTextContent("Manual · saved");
+    expect(within(rail).getByRole("button", { name: "Relaunch Manual · saved" })).toBeInTheDocument();
   });
 
   it("launches staged work from the global review queue in its workspace", async () => {
@@ -985,10 +1099,14 @@ describe("App integration", () => {
     const tile = await screen.findByRole("article", { name: /Manual · zsh 9/i });
     expect(createTerminal).not.toHaveBeenCalled();
 
+    await waitFor(() => {
+      expect(window.alfredDesktop?.terminal.onExit).toHaveBeenCalled();
+    });
     emitExit({ id: "runtime-a", exitCode: 0 });
 
-    expect(await within(tile).findByRole("button", { name: "Restart Manual · zsh 9" })).toBeInTheDocument();
-    await user.click(within(tile).getByRole("button", { name: "Restart Manual · zsh 9" }));
+    const rail = await screen.findByLabelText("Alfred status");
+    expect(await within(rail).findByRole("button", { name: "Restart Manual · zsh 9" })).toBeInTheDocument();
+    await user.click(within(rail).getByRole("button", { name: "Restart Manual · zsh 9" }));
 
     expect(forgetTerminal).not.toHaveBeenCalled();
     await waitFor(() => {
@@ -1224,14 +1342,16 @@ describe("App integration", () => {
         }),
       }),
     );
-    expect(await screen.findByRole("region", { name: "Alfred launch plan" })).toHaveTextContent("Workspace prepared");
-    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("2 safe · 0 flagged");
-    expect(screen.getByRole("button", { name: "Launch queue" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Clear staged plan from review queue" })).toBeInTheDocument();
+    const rail = await screen.findByLabelText("Alfred status");
+    const reviewQueue = within(rail).getByRole("region", { name: "Alfred review queue" });
+    expect(rail).toHaveTextContent("ready to launch");
+    expect(reviewQueue).toHaveTextContent("2 safe · 0 flagged");
+    expect(within(rail).getByRole("button", { name: "Launch queue" })).toBeInTheDocument();
+    expect(within(rail).getByRole("button", { name: "Clear staged plan from review queue" })).toBeInTheDocument();
     expect(await screen.findByRole("article", { name: /Staged Task A/i })).toBeInTheDocument();
     expect(await screen.findByRole("article", { name: /Staged Task B/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Focus staged tile: Task B" }));
+    await user.click(within(rail).getByRole("button", { name: "Focus staged tile: Task B" }));
 
     expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Task B");
@@ -1683,7 +1803,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("article", { name: /Staged Safe task/i })).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Safe task/i })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Alfred launch plan" })).toHaveTextContent("1 need review");
+    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("0 safe · 1 flagged");
     expect(clearStagedPlan).not.toHaveBeenCalled();
   });
 
@@ -1741,7 +1861,7 @@ describe("App integration", () => {
       expect(screen.getByRole("article", { name: /Staged Safe task/i })).toBeInTheDocument();
     });
     expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Alfred launch plan" })).toHaveTextContent("2 proposed");
+    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("1 safe · 1 flagged");
     expect(resolveStagedPlan).not.toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
   });
 
