@@ -367,7 +367,7 @@ describe("App integration", () => {
 
   it("opens the command palette and runs desk commands", async () => {
     const user = userEvent.setup();
-    const { setWorkspaceLayout } = installDesktopBridge();
+    const { createWorkspaceFromFolder, setWorkspaceLayout } = installDesktopBridge();
 
     render(<App />);
 
@@ -392,6 +392,12 @@ describe("App integration", () => {
         "manual-2": expect.objectContaining({ colSpan: 6 }),
       }),
     });
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.keyboard("folder{Enter}");
+
+    expect(createWorkspaceFromFolder).toHaveBeenCalledOnce();
+    expect(await screen.findByText("ClientApp workspace")).toBeInTheDocument();
   });
 
   it("moves and resizes a tile with pointer gestures in arrange mode", async () => {
