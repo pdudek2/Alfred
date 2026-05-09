@@ -332,7 +332,7 @@ export function App() {
 
     startingSessionIdsRef.current.delete(tileId);
     setTerminalSessions((sessions) =>
-      appendSessionActivity(attachRuntimeSession(sessions, tileId, runtime.id), tileId, {
+      appendSessionActivity(attachRuntimeSession(sessions, tileId, runtime), tileId, {
         kind: "lifecycle",
         title: "Session attached",
         detail: `${runtime.shell} is running in ${runtime.cwd || "the workspace"}.`,
