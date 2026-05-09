@@ -19,6 +19,7 @@ export type SessionTile = {
   title: string;
   workspaceId: string;
   cwd: string;
+  createdAt?: number;
   source: "manual" | "alfred";
   stage: "staged" | "live";
   runtimeStatus?: "starting" | "live" | "exited" | "error" | "restored";
@@ -89,6 +90,7 @@ export function attachRuntimeSession(
           runtimeStatus: "live",
           title: runtime.title,
           cwd: runtime.cwd,
+          ...(runtime.createdAt === undefined ? {} : { createdAt: runtime.createdAt }),
           ...(runtime.command === undefined ? {} : { command: runtime.command }),
           ...(runtime.args === undefined ? {} : { args: runtime.args }),
           ...(runtime.agentKind === undefined ? {} : { agentKind: runtime.agentKind }),
@@ -119,6 +121,7 @@ export function restartSession(sessions: SessionTile[], sessionId: string): Sess
       initialBuffer: _initialBuffer,
       lastOutputAt: _lastOutputAt,
       runtimeId: _runtimeId,
+      createdAt: _createdAt,
       ...restartableSession
     } = session;
     return { ...restartableSession, runtimeStatus: "starting" };
@@ -132,6 +135,7 @@ export function relaunchRestoredSession(sessions: SessionTile[], sessionId: stri
       initialBuffer: _initialBuffer,
       lastOutputAt: _lastOutputAt,
       runtimeId: _runtimeId,
+      createdAt: _createdAt,
       ...relaunchableSession
     } = session;
     return { ...relaunchableSession, runtimeStatus: "starting" };
@@ -145,6 +149,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     title: snapshot.title,
     workspaceId: snapshot.workspaceId ?? "A",
     cwd: snapshot.cwd,
+    ...(snapshot.createdAt === undefined ? {} : { createdAt: snapshot.createdAt }),
     source: snapshot.source,
     stage: "live",
     runtimeStatus: "live",
@@ -164,6 +169,7 @@ export function hydratePersistedTerminalSessions(snapshots: PersistedTerminalSes
     title: snapshot.title,
     workspaceId: snapshot.workspaceId ?? "A",
     cwd: snapshot.cwd,
+    ...(snapshot.createdAt === undefined ? {} : { createdAt: snapshot.createdAt }),
     source: snapshot.source,
     stage: "live",
     runtimeStatus: "restored",

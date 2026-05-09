@@ -25,6 +25,7 @@ export type TerminalCreateResult = {
   agentKind?: AgentKind;
   workspaceId?: string;
   cwd: string;
+  createdAt?: number;
   shell: string;
   command?: string;
   args?: string[];

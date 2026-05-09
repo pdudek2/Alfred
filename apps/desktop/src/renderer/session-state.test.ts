@@ -107,6 +107,7 @@ describe("desktop session state", () => {
         clientId: "manual-1",
         title: "Manual · zsh 1",
         cwd: "/repo",
+        createdAt: 100,
         source: "manual",
         shell: "/bin/zsh",
         buffer: "hello\n",
@@ -134,6 +135,7 @@ describe("desktop session state", () => {
         title: "Manual · zsh 1",
         workspaceId: "A",
         cwd: "/repo",
+        createdAt: 100,
         source: "manual",
         stage: "live",
         lastOutputAt: 120,
@@ -208,6 +210,7 @@ describe("desktop session state", () => {
         source: "manual",
         shell: "/bin/zsh",
         buffer: "last output\n",
+        createdAt: 250,
         lastActivityAt: 300,
         lastOutputAt: 320,
         activityEvents: [
@@ -229,6 +232,7 @@ describe("desktop session state", () => {
         title: "Manual · zsh 4",
         workspaceId: "A",
         cwd: "/repo",
+        createdAt: 250,
         source: "manual",
         stage: "live",
         lastActivityAt: 300,
@@ -303,6 +307,7 @@ describe("desktop session state", () => {
       source: "manual",
       workspaceId: "A",
       cwd: "/Users/patryk/Desktop/Alfred",
+      createdAt: 500,
       shell: "/bin/zsh",
     });
 
@@ -310,6 +315,7 @@ describe("desktop session state", () => {
       runtimeId: "runtime-1",
       runtimeStatus: "live",
       cwd: "/Users/patryk/Desktop/Alfred",
+      createdAt: 500,
     });
   });
 

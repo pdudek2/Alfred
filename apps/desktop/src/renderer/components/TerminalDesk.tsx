@@ -15,6 +15,7 @@ import type { LayoutPreset, TileLayout } from "../layout-state";
 import type { SessionTile } from "../session-state";
 import { StagedTilePreview } from "../staged-tile";
 import { terminalSessionDisplayStatus, type LocalTerminalStatus } from "../session-status";
+import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import type { ArrangePointerMode, ArrangePreview, WorkMode } from "../terminal-desk-types";
@@ -272,6 +273,7 @@ export function TerminalDesk({
               <ManualTerminalTile
                 arrangeMode={arrangeMode}
                 cwd={session.cwd}
+                createdAt={session.createdAt}
                 key={session.id}
                 layout={layouts[session.id]}
                 preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
@@ -427,6 +429,7 @@ function LaunchPlanStrip({
 function ManualTerminalTile({
   arrangeMode,
   cwd,
+  createdAt,
   agentKind,
   activityEvents,
   initialBuffer,
@@ -457,6 +460,7 @@ function ManualTerminalTile({
 }: {
   arrangeMode: boolean;
   cwd: string;
+  createdAt?: number | undefined;
   agentKind?: SessionTile["agentKind"];
   activityEvents?: SessionTile["activityEvents"];
   initialBuffer?: string | undefined;
@@ -493,7 +497,7 @@ function ManualTerminalTile({
   const [resolvedCwd, setResolvedCwd] = useState<string>(cwd);
   const kind = sessionTileKind({ agentKind, source });
   const kindMeta = tileKindMeta(kind);
-  const displayClock = useStatusClock(lastOutputAt);
+  const displayClock = useStatusClock(createdAt ?? lastOutputAt);
   const displaySession = {
     stage: "live",
     ...(runtimeStatus === undefined ? {} : { runtimeStatus }),
@@ -503,6 +507,7 @@ function ManualTerminalTile({
   const displayStatus = terminalSessionDisplayStatus(displaySession, status, displayClock);
   const restartable = displayStatus.kind === "done" || displayStatus.kind === "error";
   const latestActivity = latestVisibleActivity(activityEvents);
+  const ageLabel = sessionAgeLabel(createdAt, displayClock);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -749,6 +754,11 @@ function ManualTerminalTile({
           </div>
         )}
         <div className="tile-actions">
+          {ageLabel && (
+            <span className="tile-age" title={sessionAgeTitle(createdAt)}>
+              {ageLabel}
+            </span>
+          )}
           <span className={`tile-status status-${displayStatus.kind}`}>{displayStatus.label}</span>
           {status === "restored" && (
             <button

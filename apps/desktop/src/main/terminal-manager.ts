@@ -40,6 +40,7 @@ type TerminalSession = {
   agentKind?: TerminalCreateResult["agentKind"];
   workspaceId?: string;
   cwd: string;
+  createdAt: number;
   shell: string;
   command?: string;
   args?: string[];
@@ -127,7 +128,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       const cwd = resolveTerminalCwd(request.cwd);
       const resolved = resolveCommand(request);
       const id = randomUUID();
-      const metadata = sessionMetadata(id, request, cwd, resolved.command);
+      const metadata = sessionMetadata(id, request, cwd, resolved.command, Date.now());
       const pty = nodePty.spawn(resolved.command, resolved.args, {
         name: "xterm-256color",
         cols: normalizeDimension(request.cols, 80),
@@ -217,7 +218,8 @@ function sessionMetadata(
   request: TerminalCreateRequest,
   cwd: string,
   shell: string,
-): TerminalCreateResult {
+  createdAt: number,
+): TerminalCreateResult & { createdAt: number } {
   return {
     id,
     ...(request.clientId === undefined ? {} : { clientId: request.clientId }),
@@ -226,6 +228,7 @@ function sessionMetadata(
     ...(request.agentKind === undefined ? {} : { agentKind: request.agentKind }),
     ...(request.workspaceId === undefined ? {} : { workspaceId: request.workspaceId }),
     cwd,
+    createdAt,
     shell,
     ...(request.command === undefined ? {} : { command: request.command }),
     ...(request.args === undefined ? {} : { args: request.args }),
@@ -241,6 +244,7 @@ function toCreateResult(session: TerminalSession): TerminalCreateResult {
     ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
     ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
     cwd: session.cwd,
+    createdAt: session.createdAt,
     shell: session.shell,
     ...(session.command === undefined ? {} : { command: session.command }),
     ...(session.args === undefined ? {} : { args: session.args }),
@@ -303,6 +307,7 @@ function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSession
     ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
     ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
     cwd: session.cwd,
+    createdAt: session.createdAt,
     shell: session.shell,
     ...(session.command === undefined ? {} : { command: session.command }),
     ...(session.args === undefined ? {} : { args: [...session.args] }),

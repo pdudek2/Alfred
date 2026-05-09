@@ -333,6 +333,7 @@ function normalizeRestoredTerminalSessions(value: unknown): PersistedTerminalSes
       buffer: item.buffer,
       ...(isAgentKind(item.agentKind) ? { agentKind: item.agentKind } : {}),
       ...(typeof item.workspaceId === "string" ? { workspaceId: item.workspaceId } : {}),
+      ...(typeof item.createdAt === "number" ? { createdAt: item.createdAt } : {}),
       ...(typeof item.command === "string" ? { command: item.command } : {}),
       ...(Array.isArray(item.args) && item.args.every((arg) => typeof arg === "string")
         ? { args: [...item.args] }

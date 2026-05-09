@@ -1,5 +1,6 @@
 import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
+import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 
 type AgentTimelinePanelProps = {
@@ -27,6 +28,7 @@ export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelP
   const runtimeStatus = session.runtimeStatus ?? (session.runtimeId ? "live" : "starting");
   const displayStatus = terminalSessionDisplayStatus(session);
   const activityEvents = session.activityEvents ?? [];
+  const ageLabel = sessionAgeLabel(session.createdAt);
   const activitySummary = summarizeActivityEvents(activityEvents);
   const latestApproval = latestApprovalEvent(activityEvents);
   const canSendApprovalResponse =
@@ -76,6 +78,12 @@ export function AgentTimelinePanel({ onSendInput, session }: AgentTimelinePanelP
             <div>
               <dt>command</dt>
               <dd>{command}</dd>
+            </div>
+          )}
+          {ageLabel && (
+            <div>
+              <dt>age</dt>
+              <dd title={sessionAgeTitle(session.createdAt)}>{ageLabel}</dd>
             </div>
           )}
           {activitySummary && (

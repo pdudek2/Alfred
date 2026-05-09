@@ -1083,6 +1083,15 @@ body.arranging-pointer {
   line-height: 1.2;
 }
 
+.tile-age {
+  min-width: 34px;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .tile-status::before {
   content: "";
   width: 6px;
