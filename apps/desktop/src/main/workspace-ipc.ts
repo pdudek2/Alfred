@@ -4,6 +4,7 @@ import {
   type WorkspaceStateSetRequest,
   type WorkspaceStateSnapshot,
 } from "../shared/workspace-ipc.js";
+import { openExternalTerminal } from "./external-terminal.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 import { resolveWorkspacePathForReveal } from "./workspace-path.js";
 
@@ -21,6 +22,7 @@ export function registerWorkspaceIpc(store: WorkspaceStore): void {
     return store.createWorkspaceFromPath(result.filePaths[0] ?? "");
   });
   ipcMain.handle(workspaceChannels.get, (): Promise<WorkspaceStateSnapshot> => store.getWorkspaceState());
+  ipcMain.handle(workspaceChannels.openExternalTerminal, (_event, request) => openExternalTerminal(request));
   ipcMain.handle(workspaceChannels.revealPath, async (_event, request) => {
     const result = await resolveWorkspacePathForReveal(request);
     if (result.ok) {

@@ -37,6 +37,7 @@ describe("AgentTimelinePanel", () => {
   it("offers session handoff actions for cwd and command", async () => {
     const user = userEvent.setup();
     const onCopyActivityText = vi.fn();
+    const onOpenExternalTerminal = vi.fn();
     const onRevealActivityFile = vi.fn();
     const session: SessionTile = {
       id: "s1",
@@ -54,6 +55,7 @@ describe("AgentTimelinePanel", () => {
       <AgentTimelinePanel
         session={session}
         onCopyActivityText={onCopyActivityText}
+        onOpenExternalTerminal={onOpenExternalTerminal}
         onRevealActivityFile={onRevealActivityFile}
       />,
     );
@@ -62,10 +64,12 @@ describe("AgentTimelinePanel", () => {
     expect(handoff).toHaveTextContent("Continue outside Alfred");
 
     await user.click(within(handoff).getByRole("button", { name: "Reveal folder for codex — feature" }));
+    await user.click(within(handoff).getByRole("button", { name: "Open external terminal for codex — feature" }));
     await user.click(within(handoff).getByRole("button", { name: "Copy cwd for codex — feature" }));
     await user.click(within(handoff).getByRole("button", { name: "Copy command for codex — feature" }));
 
     expect(onRevealActivityFile).toHaveBeenCalledWith(".", "/repo/alfred");
+    expect(onOpenExternalTerminal).toHaveBeenCalledWith("/repo/alfred");
     expect(onCopyActivityText).toHaveBeenCalledWith("/repo/alfred");
     expect(onCopyActivityText).toHaveBeenCalledWith("codex --resume --prompt 'hello world' 'src/odd'\\''s file.ts'");
   });

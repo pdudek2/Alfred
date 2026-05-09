@@ -6,6 +6,7 @@ import { sessionTileKind, tileKindMeta } from "../tile-kind";
 
 type AgentTimelinePanelProps = {
   onCopyActivityText?: (value: string) => Promise<void> | void;
+  onOpenExternalTerminal?: (cwd: string) => Promise<void> | void;
   onRevealActivityFile?: (filePath: string, cwd: string) => Promise<void> | void;
   onSendInput?: (runtimeId: string, data: string) => void;
   session: SessionTile | null;
@@ -13,6 +14,7 @@ type AgentTimelinePanelProps = {
 
 export function AgentTimelinePanel({
   onCopyActivityText,
+  onOpenExternalTerminal,
   onRevealActivityFile,
   onSendInput,
   session,
@@ -101,23 +103,29 @@ export function AgentTimelinePanel({
     }, 1600);
   };
   const handleSessionAction = async (action: SessionHandoffAction) => {
-    const pendingLabel = action.kind === "reveal-folder" ? "opening" : "copying";
+    const pendingLabel = action.kind === "copy" ? "copying" : "opening";
     const actionKey = sessionHandoffActionKey(session.id, action.id);
     setSessionActionState((current) => ({ ...current, [actionKey]: pendingLabel }));
     try {
-      if (action.kind === "reveal-folder") {
-        if (!onRevealActivityFile) {
-          throw new Error("Reveal action is unavailable.");
-        }
-        await onRevealActivityFile(".", action.cwd);
-        setSessionActionState((current) => ({ ...current, [actionKey]: "opened" }));
-      } else {
+      if (action.kind === "copy") {
         if (onCopyActivityText) {
           await onCopyActivityText(action.value);
         } else {
           await navigator.clipboard?.writeText(action.value);
         }
         setSessionActionState((current) => ({ ...current, [actionKey]: "copied" }));
+      } else if (action.kind === "reveal-folder") {
+        if (!onRevealActivityFile) {
+          throw new Error("Reveal action is unavailable.");
+        }
+        await onRevealActivityFile(".", action.cwd);
+        setSessionActionState((current) => ({ ...current, [actionKey]: "opened" }));
+      } else if (action.kind === "open-terminal") {
+        if (!onOpenExternalTerminal) {
+          throw new Error("External terminal action is unavailable.");
+        }
+        await onOpenExternalTerminal(action.cwd);
+        setSessionActionState((current) => ({ ...current, [actionKey]: "opened" }));
       }
     } catch {
       setSessionActionState((current) => ({ ...current, [actionKey]: "missing" }));
@@ -327,8 +335,8 @@ type SessionHandoffAction =
   | {
       ariaLabel: string;
       cwd: string;
-      id: "reveal-folder";
-      kind: "reveal-folder";
+      id: "open-terminal" | "reveal-folder";
+      kind: "open-terminal" | "reveal-folder";
       label: string;
     };
 
@@ -377,6 +385,13 @@ function sessionHandoffActions(session: SessionTile, command: string): SessionHa
       kind: "reveal-folder",
       label: "Reveal",
       ariaLabel: `Reveal folder for ${session.title}`,
+      cwd: session.cwd,
+    });
+    actions.push({
+      id: "open-terminal",
+      kind: "open-terminal",
+      label: "Open terminal",
+      ariaLabel: `Open external terminal for ${session.title}`,
       cwd: session.cwd,
     });
     actions.push({
