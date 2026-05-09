@@ -813,9 +813,11 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(restored).toHaveTextContent("restored");
     });
+    expect(screen.getByRole("region", { name: "Recovery queue" })).toHaveTextContent("Codex · session 9");
+    expect(screen.getByLabelText("Alfred status")).not.toHaveClass("compact");
     expect(createTerminal).not.toHaveBeenCalled();
 
-    await userEvent.click(within(restored).getByRole("button", { name: "Continue from Codex · session 9" }));
+    await userEvent.click(screen.getByRole("button", { name: "Relaunch Codex · session 9" }));
 
     expect(createTerminal).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -828,10 +830,36 @@ describe("App integration", () => {
     );
     expect(screen.queryByRole("article", { name: /Manual · zsh 10/i })).not.toBeInTheDocument();
     expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9" });
+  });
 
-    await userEvent.click(within(restored).getByRole("button", { name: "Close Codex · session 9" }));
+  it("dismisses restored sessions from the recovery queue", async () => {
+    const { forgetTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "manual-9",
+          title: "Manual · zsh 9",
+          cwd: "/repo",
+          source: "manual",
+          shell: "/bin/zsh",
+          buffer: "saved output\n",
+        },
+      ],
+    );
 
-    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9" });
+    render(<App />);
+
+    expect(await screen.findByRole("region", { name: "Recovery queue" })).toHaveTextContent("Manual · zsh 9");
+
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss Manual · zsh 9" }));
+
+    expect(screen.queryByRole("article", { name: /Manual · zsh 9/i })).not.toBeInTheDocument();
+    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "manual-9" });
   });
 
   it("does not duplicate a restored staged tile that is already live", async () => {

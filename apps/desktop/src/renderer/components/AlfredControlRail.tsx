@@ -1,4 +1,4 @@
-import { Play, ShieldAlert, X } from "lucide-react";
+import { Play, RotateCcw, ShieldAlert, X } from "lucide-react";
 import type { AlfredStatus, SquadPlan } from "../alfred-state";
 import type { SessionTile } from "../session-state";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
@@ -8,6 +8,7 @@ type AlfredControlRailProps = {
   armedUnsafeSessionIds: Set<string>;
   status: AlfredStatus;
   pendingPlan: SquadPlan | null;
+  recoverableSessions: SessionTile[];
   selectedSessionId: string | null;
   stagedSessions: SessionTile[];
   stagedCount: number;
@@ -15,16 +16,20 @@ type AlfredControlRailProps = {
   liveAlfredCount: number;
   onApproveAll: () => void;
   onApproveTile: (tileId: string) => void;
+  onCloseSession: (tileId: string) => void;
+  onContinueRestoredSession: (tileId: string) => void;
   onDismissError: () => void;
   onFocusSession: (tileId: string) => void;
   onRejectAll: () => void;
   onRejectTile: (tileId: string) => void;
+  onRestartSession: (tileId: string) => void;
 };
 
 export function AlfredControlRail({
   armedUnsafeSessionIds,
   status,
   pendingPlan,
+  recoverableSessions,
   selectedSessionId,
   stagedSessions,
   stagedCount,
@@ -32,13 +37,16 @@ export function AlfredControlRail({
   liveAlfredCount,
   onApproveAll,
   onApproveTile,
+  onCloseSession,
+  onContinueRestoredSession,
   onDismissError,
   onFocusSession,
   onRejectAll,
   onRejectTile,
+  onRestartSession,
 }: AlfredControlRailProps) {
   const safeStagedCount = Math.max(0, stagedCount - unsafeStagedCount);
-  const compact = status.kind === "idle" && pendingPlan === null;
+  const compact = status.kind === "idle" && pendingPlan === null && recoverableSessions.length === 0;
 
   return (
     <aside className={`alfred-dock ${compact ? "compact" : ""}`} aria-label="Alfred status">
@@ -46,7 +54,7 @@ export function AlfredControlRail({
         <div className="alfred-dock-mark">A</div>
         <div>
           <strong>Alfred</strong>
-          <span>{status.kind === "thinking" ? "preparing" : status.kind === "error" ? "needs attention" : pendingPlan ? "ready to launch" : "standing by"}</span>
+          <span>{status.kind === "thinking" ? "preparing" : status.kind === "error" ? "needs attention" : pendingPlan ? "ready to launch" : recoverableSessions.length > 0 ? "recovery ready" : "standing by"}</span>
         </div>
       </div>
 
@@ -82,6 +90,15 @@ export function AlfredControlRail({
             onRejectTile={onRejectTile}
           />
         </div>
+      ) : recoverableSessions.length > 0 ? (
+        <RecoveryQueue
+          selectedSessionId={selectedSessionId}
+          sessions={recoverableSessions}
+          onCloseSession={onCloseSession}
+          onContinueRestoredSession={onContinueRestoredSession}
+          onFocusSession={onFocusSession}
+          onRestartSession={onRestartSession}
+        />
       ) : compact ? (
         <p className="compact-note" aria-label="Alfred idle">
           Quiet until asked.
@@ -91,8 +108,8 @@ export function AlfredControlRail({
       )}
 
       <div className="alfred-dock-footer">
-        <span>{pendingPlan ? "review queue" : "clear desk"}</span>
-        <span>{safeStagedCount > 0 ? `${safeStagedCount} launchable` : "no asks"}</span>
+        <span>{pendingPlan ? "review queue" : recoverableSessions.length > 0 ? "recovery" : "clear desk"}</span>
+        <span>{safeStagedCount > 0 ? `${safeStagedCount} launchable` : recoverableSessions.length > 0 ? `${recoverableSessions.length} item${recoverableSessions.length === 1 ? "" : "s"}` : "no asks"}</span>
       </div>
     </aside>
   );
@@ -100,6 +117,111 @@ export function AlfredControlRail({
 
 function truncate(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
+}
+
+function RecoveryQueue({
+  selectedSessionId,
+  sessions,
+  onCloseSession,
+  onContinueRestoredSession,
+  onFocusSession,
+  onRestartSession,
+}: {
+  selectedSessionId: string | null;
+  sessions: SessionTile[];
+  onCloseSession: (tileId: string) => void;
+  onContinueRestoredSession: (tileId: string) => void;
+  onFocusSession: (tileId: string) => void;
+  onRestartSession: (tileId: string) => void;
+}) {
+  return (
+    <section className="recovery-queue" aria-label="Recovery queue">
+      <header>
+        <span>Recovery</span>
+        <strong>{sessions.length} saved</strong>
+      </header>
+      <ol>
+        {sessions.map((session) => (
+          <RecoveryQueueItem
+            key={session.id}
+            selected={session.id === selectedSessionId}
+            session={session}
+            onCloseSession={onCloseSession}
+            onContinueRestoredSession={onContinueRestoredSession}
+            onFocusSession={onFocusSession}
+            onRestartSession={onRestartSession}
+          />
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function RecoveryQueueItem({
+  selected,
+  session,
+  onCloseSession,
+  onContinueRestoredSession,
+  onFocusSession,
+  onRestartSession,
+}: {
+  selected: boolean;
+  session: SessionTile;
+  onCloseSession: (tileId: string) => void;
+  onContinueRestoredSession: (tileId: string) => void;
+  onFocusSession: (tileId: string) => void;
+  onRestartSession: (tileId: string) => void;
+}) {
+  const kind = sessionTileKind(session);
+  const kindMeta = tileKindMeta(kind);
+  const actionLabel = session.runtimeStatus === "restored" ? "Relaunch" : "Restart";
+  const action = session.runtimeStatus === "restored" ? onContinueRestoredSession : onRestartSession;
+  const statusLabel = recoveryStatusLabel(session);
+
+  return (
+    <li className={`recovery-item status-${statusLabel} ${selected ? "selected" : ""}`}>
+      <button
+        type="button"
+        className="recovery-item-focus"
+        onClick={() => onFocusSession(session.id)}
+        aria-label={`Focus recoverable session: ${session.title}`}
+      >
+        <span className={`review-kind ${kindMeta.className}`} title={kindMeta.label}>
+          <TileKindIcon kind={kind} />
+          <span>{kindMeta.shortLabel}</span>
+        </span>
+        <div>
+          <strong>{session.title}</strong>
+          <span>{statusLabel} · {session.cwd ? shortenPath(session.cwd) : "default cwd"}</span>
+        </div>
+      </button>
+      <div className="recovery-item-actions">
+        <button
+          type="button"
+          className="recovery-action"
+          onClick={() => action(session.id)}
+          aria-label={`${actionLabel} ${session.title}`}
+        >
+          {session.runtimeStatus === "restored" ? <Play size={13} /> : <RotateCcw size={13} />}
+          <span>{actionLabel}</span>
+        </button>
+        <button
+          type="button"
+          className="recovery-dismiss"
+          onClick={() => onCloseSession(session.id)}
+          aria-label={`Dismiss ${session.title}`}
+        >
+          <X size={13} />
+        </button>
+      </div>
+    </li>
+  );
+}
+
+function recoveryStatusLabel(session: SessionTile): "done" | "error" | "restored" {
+  if (session.runtimeStatus === "error") return "error";
+  if (session.runtimeStatus === "restored") return "restored";
+  return "done";
 }
 
 function PlanReviewQueue({
