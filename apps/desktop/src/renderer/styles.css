@@ -190,6 +190,39 @@ button:focus-visible {
   font-size: 11px;
 }
 
+.agent-launch-buttons {
+  min-height: 34px;
+  border: 1px solid color-mix(in oklab, white 6%, transparent);
+  border-radius: 8px;
+  padding: 3px;
+  background: color-mix(in oklab, white 2%, transparent);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.mission-actions .agent-launch-button {
+  min-height: 26px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 8px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.mission-actions .agent-launch-button:hover,
+.mission-actions .agent-launch-button:focus-visible {
+  background: color-mix(in oklab, white 5%, transparent);
+  color: var(--ink-soft);
+}
+
+.mission-actions .agent-launch-button .tool-dot {
+  width: 6px;
+  height: 6px;
+}
+
 .workspace-layout {
   min-height: 0;
   display: grid;
