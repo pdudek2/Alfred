@@ -83,6 +83,7 @@ function installDesktopBridge(
   getStagedPlan: ReturnType<typeof vi.fn>;
   getRuntimeStatus: ReturnType<typeof vi.fn>;
   killTerminal: ReturnType<typeof vi.fn>;
+  openExternalTerminal: ReturnType<typeof vi.fn>;
   revealPath: ReturnType<typeof vi.fn>;
   requestPlan: ReturnType<typeof vi.fn>;
   resolveStagedPlan: ReturnType<typeof vi.fn>;
@@ -107,6 +108,7 @@ function installDesktopBridge(
   const setWorkspaceViewState = vi.fn().mockResolvedValue(layouts);
   const getWorkspaceState = vi.fn().mockResolvedValue(workspaceState);
   const setWorkspaceState = vi.fn().mockImplementation((request) => Promise.resolve(request));
+  const openExternalTerminal = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/patryk/Desktop/Alfred", terminal: "Ghostty" });
   const revealPath = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/patryk/Desktop/Alfred/app.tsx" });
   const createWorkspaceFromFolder = vi.fn().mockImplementation(() =>
     Promise.resolve({
@@ -151,7 +153,7 @@ function installDesktopBridge(
     alfred: { clearStagedPlan, getRuntimeStatus, getStagedPlan, requestPlan, resolveStagedPlan, setStagedPlan },
     layout: { getLayouts, setWorkspaceLayout, setWorkspaceViewState },
     terminal,
-    workspace: { createWorkspaceFromFolder, getWorkspaceState, revealPath, setWorkspaceState },
+    workspace: { createWorkspaceFromFolder, getWorkspaceState, openExternalTerminal, revealPath, setWorkspaceState },
     version: "test",
   };
 
@@ -164,6 +166,7 @@ function installDesktopBridge(
     getRuntimeStatus,
     getStagedPlan,
     killTerminal,
+    openExternalTerminal,
     revealPath,
     requestPlan,
     resolveStagedPlan,
@@ -1234,6 +1237,33 @@ describe("App integration", () => {
       cwd: "/Users/patryk/Desktop/Alfred",
       path: "apps/desktop/src/renderer/app.tsx",
     });
+  });
+
+  it("opens the focused session cwd in an external terminal", async () => {
+    const user = userEvent.setup();
+    const { openExternalTerminal } = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "codex-a",
+        title: "Codex · session 1",
+        source: "manual",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "codex",
+        command: "codex",
+        args: [],
+        buffer: "",
+      },
+    ]);
+
+    render(<App />);
+
+    const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
+    fireEvent.click(tile.querySelector(".tile-header")!);
+    await user.click(screen.getByRole("button", { name: "Open external terminal for Codex · session 1" }));
+
+    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
   });
 
   it("hydrates saved workspace layouts from the desktop runtime", async () => {

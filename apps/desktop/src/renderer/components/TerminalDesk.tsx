@@ -143,6 +143,12 @@ export function TerminalDesk({
       throw new Error(result?.error ?? "Workspace runtime is unavailable.");
     }
   }, []);
+  const handleOpenExternalTerminal = useCallback(async (cwd: string) => {
+    const result = await getDesktopWorkspaceApi()?.openExternalTerminal({ cwd });
+    if (!result?.ok) {
+      throw new Error(result?.error ?? "Workspace runtime is unavailable.");
+    }
+  }, []);
   const startPointerArrange = useCallback(
     (tileId: string, mode: ArrangePointerMode, event: ReactPointerEvent<HTMLElement>) => {
       if (!arrangeMode) return;
@@ -350,6 +356,7 @@ export function TerminalDesk({
           <AgentTimelinePanel
             session={focusSession}
             onCopyActivityText={handleCopyActivityText}
+            onOpenExternalTerminal={handleOpenExternalTerminal}
             onRevealActivityFile={handleRevealActivityFile}
             onSendInput={handleSendSessionInput}
           />
