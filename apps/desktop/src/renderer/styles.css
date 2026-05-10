@@ -2842,6 +2842,14 @@ body.arranging-pointer {
   font-size: 12px;
 }
 
+.alfred-dock-plan .plan-eyebrow {
+  color: var(--brass);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .alfred-dock-plan .plan-counts {
   color: var(--ink-soft);
   font-size: 12px;

@@ -130,7 +130,8 @@ export function AlfredControlRail({
           </button>
         </div>
       ) : pendingPlan ? (
-        <div className="alfred-dock-plan">
+        <section className="alfred-dock-plan" aria-label="Alfred launch plan">
+          <span className="plan-eyebrow">Workspace prepared</span>
           <div className="plan-name">{pendingPlan.name ?? "Squad"}</div>
           <div className="plan-counts">
             {stagedCount} staged · {liveAlfredCount} live
@@ -165,7 +166,7 @@ export function AlfredControlRail({
             onRejectAll={onRejectAll}
             onRejectTile={onRejectTile}
           />
-        </div>
+        </section>
       ) : recoverableSessions.length > 0 || activeDecisionItems.length > 0 ? (
         <div className="alfred-dock-queues">
           {activeDecisionItems.length > 0 && (
