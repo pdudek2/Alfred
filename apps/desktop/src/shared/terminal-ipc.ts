@@ -72,6 +72,11 @@ export type TerminalForgetRequest = {
   clientId: string;
 };
 
+export type TerminalRenameRequest = {
+  clientId: string;
+  title: string;
+};
+
 export type TerminalExitEvent = {
   id: TerminalSessionId;
   exitCode: number;
@@ -90,6 +95,7 @@ export type TerminalApi = {
   resize(request: TerminalResizeRequest): void;
   kill(request: TerminalKillRequest): void;
   forget(request: TerminalForgetRequest): void;
+  rename(request: TerminalRenameRequest): Promise<void>;
   onData(callback: (event: TerminalDataEvent) => void): () => void;
   onExit(callback: (event: TerminalExitEvent) => void): () => void;
 };
@@ -101,6 +107,7 @@ export const terminalChannels = {
   resize: "alfred:terminal:resize",
   kill: "alfred:terminal:kill",
   forget: "alfred:terminal:forget",
+  rename: "alfred:terminal:rename",
   data: "alfred:terminal:data",
   exit: "alfred:terminal:exit",
 } as const;

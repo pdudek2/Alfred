@@ -84,6 +84,13 @@ export function closeSession(sessions: SessionTile[], sessionId: string): Sessio
   return sessions.filter((session) => session.id !== sessionId);
 }
 
+export function renameSession(sessions: SessionTile[], sessionId: string, title: string): SessionTile[] {
+  const normalizedTitle = title.trim().replace(/\s+/g, " ").slice(0, 80);
+  if (!normalizedTitle) return sessions;
+
+  return sessions.map((session) => session.id === sessionId ? { ...session, title: normalizedTitle } : session);
+}
+
 export function attachRuntimeSession(
   sessions: SessionTile[],
   tileId: string,

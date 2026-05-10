@@ -18,6 +18,7 @@ import {
   type TerminalExitEvent,
   type TerminalKillRequest,
   type TerminalListResult,
+  type TerminalRenameRequest,
   type TerminalResizeRequest,
   type TerminalSessionSnapshot,
   type TerminalSessionId,
@@ -197,6 +198,30 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
 
   ipcMain.on(terminalChannels.forget, (_event, request: TerminalForgetRequest) => {
     forgetPersistedSession(request.clientId);
+  });
+
+  ipcMain.handle(terminalChannels.rename, async (event, request: TerminalRenameRequest): Promise<void> => {
+    const title = normalizedSessionTitle(request.title);
+    if (!title) {
+      throw new Error("Session title is required.");
+    }
+
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const liveSession = [...sessions.values()].find(
+      (session) => session.clientId === request.clientId && (!window || canAttachToWindow(session, window)),
+    );
+
+    if (liveSession) {
+      liveSession.title = title;
+      rememberSessionSnapshot(liveSession);
+      return;
+    }
+
+    const restoredSession = restoredSessionSnapshots.get(request.clientId);
+    if (restoredSession) {
+      restoredSessionSnapshots.set(request.clientId, { ...restoredSession, title });
+      scheduleTerminalPersistence();
+    }
   });
 }
 
@@ -435,6 +460,10 @@ function sendToSessionWindow(session: TerminalSession, channel: string, payload:
 
 function defaultSessionTitle(source: TerminalSessionSource, shell: string): string {
   return source === "alfred" ? shell : "Manual terminal";
+}
+
+function normalizedSessionTitle(value: string): string {
+  return value.trim().replace(/\s+/g, " ").slice(0, 80);
 }
 
 function killSession(id: TerminalSessionId, options: { forgetSnapshot: boolean }): void {

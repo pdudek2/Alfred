@@ -1440,6 +1440,45 @@ body.arranging-pointer {
   white-space: nowrap;
 }
 
+.session-rename-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.session-rename-form input {
+  width: min(260px, 22vw);
+  min-width: 120px;
+  height: 24px;
+  border: 1px solid color-mix(in oklab, var(--cyan) 42%, transparent);
+  border-radius: 6px;
+  background: rgba(9, 12, 12, 0.96);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  outline: none;
+  padding: 0 8px;
+}
+
+.session-rename-form button {
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  border: 1px solid color-mix(in oklab, var(--cyan) 32%, transparent);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--cyan) 9%, transparent);
+  color: var(--cyan);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.session-rename-form button:disabled {
+  opacity: 0.45;
+}
+
 .tile-title small {
   display: block;
   overflow: hidden;

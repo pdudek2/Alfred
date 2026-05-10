@@ -12,6 +12,7 @@ const terminalChannels = {
   resize: "alfred:terminal:resize",
   kill: "alfred:terminal:kill",
   forget: "alfred:terminal:forget",
+  rename: "alfred:terminal:rename",
   data: "alfred:terminal:data",
   exit: "alfred:terminal:exit",
 } as const;
@@ -56,6 +57,7 @@ const terminal: TerminalApi = {
   forget: (request) => {
     ipcRenderer.send(terminalChannels.forget, request);
   },
+  rename: (request) => ipcRenderer.invoke(terminalChannels.rename, request) as ReturnType<TerminalApi["rename"]>,
   onData: (callback) => {
     const listener = (_event: IpcRendererEvent, payload: TerminalDataEvent) => {
       callback(payload);
