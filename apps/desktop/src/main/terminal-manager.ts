@@ -1,4 +1,4 @@
-import { BrowserWindow, app, ipcMain } from "electron";
+import { BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
@@ -24,7 +24,6 @@ import {
   type TerminalSessionSource,
   type TerminalWriteRequest,
 } from "../shared/terminal-ipc.js";
-import { resolveDefaultWorkspaceRootPath } from "./default-workspace-root.js";
 import { prepareAgentWorktree as defaultPrepareAgentWorktree, type AgentWorktreeResult } from "./git-worktree.js";
 import type { PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 
@@ -533,15 +532,11 @@ function resolveShell(): { command: string; args: string[] } {
 }
 
 function resolveTerminalCwd(cwd: string | undefined): string {
-  if (!cwd) {
-    return defaultTerminalCwd();
+  if (!cwd?.trim()) {
+    throw new Error("Terminal session requires a bound workspace folder.");
   }
 
   return path.resolve(cwd);
-}
-
-function defaultTerminalCwd(): string {
-  return resolveDefaultWorkspaceRootPath(app.getAppPath());
 }
 
 function normalizeDimension(value: number, fallback: number): number {

@@ -72,7 +72,9 @@ function installDesktopBridge(
   },
   layouts: WorkspaceLayoutsSnapshot = { layoutsByWorkspace: {}, viewStateByWorkspace: {} },
   workspaceState: WorkspaceStateSnapshot = {
-    workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
+    workspaces: [
+      { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
+    ],
     activeWorkspaceId: "A",
   },
   restoredTerminalSessions: PersistedTerminalSessionSnapshot[] = [],
@@ -316,6 +318,50 @@ describe("App integration", () => {
     expect(within(preview).getByTitle("Preview of http://127.0.0.1:3000/app")).toBeInTheDocument();
   });
 
+  it("requires a bound folder before starting new sessions", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, createWorkspaceFromFolder, requestPlan } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      {
+        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+
+    const emptyState = await screen.findByRole("status", { name: "Empty workspace" });
+    expect(emptyState).toHaveTextContent("Bind folder first");
+    expect(emptyState).toHaveTextContent("Add a folder before starting sessions.");
+    expect(screen.queryByRole("article", { name: /Manual · zsh/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start Codex" })).toBeDisabled();
+
+    await user.keyboard("{Meta>}t{/Meta}");
+    expect(createTerminal).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "manual terminal");
+    const palette = screen.getByRole("dialog", { name: "Command palette" });
+    expect(within(palette).getByText("New manual terminal")).toBeInTheDocument();
+    expect(within(palette).getByText("Bind a folder before starting sessions")).toBeInTheDocument();
+    await user.keyboard("{Enter}");
+    expect(createTerminal).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+
+    await user.type(screen.getByRole("textbox", { name: "Alfred prompt" }), "prepare codex");
+    expect(screen.getByRole("button", { name: "Send prompt to Alfred" })).toBeDisabled();
+    expect(requestPlan).not.toHaveBeenCalled();
+    expect(await screen.findByText("Bind a folder before asking Alfred to launch sessions.")).toBeInTheDocument();
+
+    await user.click(within(emptyState).getByRole("button", { name: "Add workspace from folder" }));
+
+    expect(createWorkspaceFromFolder).toHaveBeenCalledOnce();
+  });
+
   it("creates real workspaces and scopes terminals to the active workspace", async () => {
     const user = userEvent.setup();
     const { createTerminal, createWorkspaceFromFolder, setWorkspaceState } = installDesktopBridge();
@@ -349,7 +395,7 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(setWorkspaceState).toHaveBeenLastCalledWith({
         workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A" },
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
           { id: "CLIENTAPP", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
         ],
         activeWorkspaceId: "A",
@@ -586,7 +632,9 @@ describe("App integration", () => {
     expect(screen.getByText("Alfred workspace")).toBeInTheDocument();
     await waitFor(() => {
       expect(setWorkspaceState).toHaveBeenLastCalledWith({
-        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
+        ],
         activeWorkspaceId: "A",
       });
     });

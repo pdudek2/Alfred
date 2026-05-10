@@ -133,6 +133,7 @@ export function CommandPalette({
   const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? sessions[0] ?? null;
   const selectedRestartable = selectedSession ? isRestartableSession(selectedSession) : false;
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
+  const activeWorkspaceBound = Boolean(activeWorkspace?.rootPath);
   const normalizedQuery = query.trim().toLowerCase();
   const workspaceById = useMemo(
     () => new Map(workspaces.map((workspace) => [workspace.id, workspace])),
@@ -154,19 +155,24 @@ export function CommandPalette({
       {
         id: "new-terminal",
         label: "New manual terminal",
-        detail: `${shortcutModifier} T · start a shell in this workspace`,
+        detail: activeWorkspaceBound
+          ? `${shortcutModifier} T · start a shell in this workspace`
+          : "Bind a folder before starting sessions",
+        disabled: !activeWorkspaceBound,
         run: onAddManualSession,
       },
       {
         id: "new-codex-session",
         label: "New Codex session",
-        detail: "Start codex in this workspace",
+        detail: activeWorkspaceBound ? "Start codex in this workspace" : "Bind a folder before starting agents",
+        disabled: !activeWorkspaceBound,
         run: () => onAddAgentSession("codex"),
       },
       {
         id: "new-claude-session",
         label: "New Claude session",
-        detail: "Start claude in this workspace",
+        detail: activeWorkspaceBound ? "Start claude in this workspace" : "Bind a folder before starting agents",
+        disabled: !activeWorkspaceBound,
         run: () => onAddAgentSession("claude"),
       },
       {
@@ -379,6 +385,7 @@ export function CommandPalette({
       activeWorkMode,
       activeWorkspaceId,
       activeWorkspace,
+      activeWorkspaceBound,
       activeSearchableSessions,
       attention,
       arrangeMode,
