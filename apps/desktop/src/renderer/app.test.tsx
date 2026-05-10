@@ -1757,6 +1757,32 @@ describe("App integration", () => {
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
   });
 
+  it("hands off a terminal tile to the external terminal without entering focus mode", async () => {
+    const user = userEvent.setup();
+    const { openExternalTerminal } = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "codex-a",
+        title: "Codex · session 1",
+        source: "manual",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "codex",
+        command: "codex",
+        args: [],
+        buffer: "",
+      },
+    ]);
+
+    render(<App />);
+
+    const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
+    await user.click(within(tile).getByRole("button", { name: "Open Codex · session 1 in external terminal" }));
+
+    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
+  });
+
   it("offers focused session handoff commands from the command palette", async () => {
     const user = userEvent.setup();
     const { openExternalTerminal, revealPath } = installDesktopBridge(undefined, null, [

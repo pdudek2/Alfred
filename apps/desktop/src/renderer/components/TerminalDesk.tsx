@@ -1,6 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { Play, RotateCcw, X } from "lucide-react";
+import { Play, RotateCcw, SquareTerminal, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -340,6 +340,7 @@ export function TerminalDesk({
                 onRuntimeSessionOutput={onRuntimeSessionOutput}
                 onRuntimeSessionReady={onRuntimeSessionReady}
                 onRuntimeSessionStarting={onRuntimeSessionStarting}
+                onOpenExternalTerminal={handleOpenExternalTerminal}
               />
             ) : (
               <StagedTilePreview
@@ -540,6 +541,7 @@ function ManualTerminalTile({
   onRuntimeSessionOutput,
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
+  onOpenExternalTerminal,
   selected,
   runtimeId,
   runtimeStatus,
@@ -575,6 +577,7 @@ function ManualTerminalTile({
   onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
+  onOpenExternalTerminal: (cwd: string) => Promise<void>;
   selected: boolean;
   runtimeId?: TerminalSessionId | undefined;
   runtimeStatus?: SessionTile["runtimeStatus"] | undefined;
@@ -605,6 +608,7 @@ function ManualTerminalTile({
   const latestActivity = latestVisibleActivity(activityEvents);
   const ageLabel = sessionAgeLabel(createdAt, displayClock);
   const sessionLocationLabel = branchName ?? (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
+  const externalTerminalCwd = resolvedCwd || cwd;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -895,6 +899,18 @@ function ManualTerminalTile({
             >
               <RotateCcw size={13} />
               <span>Restart</span>
+            </button>
+          )}
+          {externalTerminalCwd && (
+            <button
+              type="button"
+              className="handoff-button"
+              aria-label={`Open ${title} in external terminal`}
+              onClick={() => void onOpenExternalTerminal(externalTerminalCwd)}
+              onPointerDown={(event) => event.stopPropagation()}
+              title={`Open in external terminal: ${shortenPath(externalTerminalCwd)}`}
+            >
+              <SquareTerminal size={14} />
             </button>
           )}
           <button
