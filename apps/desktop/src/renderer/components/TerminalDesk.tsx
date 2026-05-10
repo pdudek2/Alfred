@@ -469,7 +469,7 @@ function EmptyWorkspaceState({
   return (
     <div className="terminal-empty-state" role="status" aria-label="Empty workspace">
       <div>
-        <span>{bound ? "Workspace ready" : "Bind folder first"}</span>
+        <span>{bound ? "Workspace ready" : "Scratch workspace ready"}</span>
         <strong>{workspaceLabel}</strong>
         <p>{workspaceHomeCopy(workspaceRootPath, workspaceGitBranch)}</p>
       </div>
@@ -484,21 +484,18 @@ function EmptyWorkspaceState({
         </div>
       </dl>
       <div className="terminal-empty-actions" aria-label="empty workspace actions">
-        {bound ? (
-          <>
-            <button type="button" onClick={onAddManualSession}>
-              New terminal
-            </button>
-            <button type="button" onClick={() => onAddAgentSession("codex")}>
-              Start Codex
-            </button>
-            <button type="button" onClick={() => onAddAgentSession("claude")}>
-              Start Claude
-            </button>
-          </>
-        ) : (
+        <button type="button" onClick={onAddManualSession}>
+          New terminal
+        </button>
+        <button type="button" onClick={() => onAddAgentSession("codex")}>
+          Start Codex
+        </button>
+        <button type="button" onClick={() => onAddAgentSession("claude")}>
+          Start Claude
+        </button>
+        {!bound && (
           <button type="button" onClick={onBindWorkspace}>
-            Add workspace from folder
+            Bind folder
           </button>
         )}
       </div>
@@ -515,7 +512,7 @@ function workspaceHomeCopy(rootPath: string | undefined, gitBranch: string | und
     return `Bound to ${shortenPath(rootPath)}. Start a session when you are ready.`;
   }
 
-  return "No project folder is bound yet. Add a folder before starting sessions.";
+  return "No project folder is bound yet. Start in the scratch desk, or bind a folder when you want project context.";
 }
 
 function ManualTerminalTile({

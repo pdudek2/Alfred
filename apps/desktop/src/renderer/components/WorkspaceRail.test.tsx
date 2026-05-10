@@ -61,7 +61,7 @@ describe("WorkspaceRail", () => {
     expect(screen.getByText("…/Desktop/Alfred · main")).toBeInTheDocument();
     expect(screen.getByText("1 waiting")).toBeInTheDocument();
     expect(screen.getByText("1 error")).toBeInTheDocument();
-    expect(screen.getByText("folder not bound")).toBeInTheDocument();
+    expect(screen.getByText("scratch desk")).toBeInTheDocument();
   });
 
   it("moves workspace focus with arrow keys", async () => {

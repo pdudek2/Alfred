@@ -133,7 +133,6 @@ export function CommandPalette({
   const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? sessions[0] ?? null;
   const selectedRestartable = selectedSession ? isRestartableSession(selectedSession) : false;
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
-  const activeWorkspaceBound = Boolean(activeWorkspace?.rootPath);
   const normalizedQuery = query.trim().toLowerCase();
   const workspaceById = useMemo(
     () => new Map(workspaces.map((workspace) => [workspace.id, workspace])),
@@ -155,30 +154,27 @@ export function CommandPalette({
       {
         id: "new-terminal",
         label: "New manual terminal",
-        detail: activeWorkspaceBound
+        detail: activeWorkspace?.rootPath
           ? `${shortcutModifier} T · start a shell in this workspace`
-          : "Bind a folder before starting sessions",
-        disabled: !activeWorkspaceBound,
+          : `${shortcutModifier} T · start a shell in the scratch desk`,
         run: onAddManualSession,
       },
       {
         id: "new-codex-session",
         label: "New Codex session",
-        detail: activeWorkspaceBound ? "Start codex in this workspace" : "Bind a folder before starting agents",
-        disabled: !activeWorkspaceBound,
+        detail: activeWorkspace?.rootPath ? "Start codex in this workspace" : "Start codex in the scratch desk",
         run: () => onAddAgentSession("codex"),
       },
       {
         id: "new-claude-session",
         label: "New Claude session",
-        detail: activeWorkspaceBound ? "Start claude in this workspace" : "Bind a folder before starting agents",
-        disabled: !activeWorkspaceBound,
+        detail: activeWorkspace?.rootPath ? "Start claude in this workspace" : "Start claude in the scratch desk",
         run: () => onAddAgentSession("claude"),
       },
       {
         id: "new-workspace",
-        label: "New workspace from folder",
-        detail: "Bind a project folder to Alfred",
+        label: "New scratch workspace",
+        detail: "Create an empty desk without choosing a folder",
         run: onAddWorkspace,
       },
       {
@@ -387,7 +383,6 @@ export function CommandPalette({
       activeWorkMode,
       activeWorkspaceId,
       activeWorkspace,
-      activeWorkspaceBound,
       activeSearchableSessions,
       attention,
       arrangeMode,

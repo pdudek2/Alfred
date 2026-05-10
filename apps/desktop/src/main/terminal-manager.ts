@@ -1,9 +1,11 @@
 import { BrowserWindow, ipcMain } from "electron";
-import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { pathToFileURL } from "node:url";
+import { existsSync } from "node:fs";
 import { chmod } from "node:fs/promises";
 import { createRequire } from "node:module";
+import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   appendActivityEvent,
   classifyTerminalOutputActivities,
@@ -562,10 +564,18 @@ function resolveShell(): { command: string; args: string[] } {
 
 function resolveTerminalCwd(cwd: string | undefined): string {
   if (!cwd?.trim()) {
-    throw new Error("Terminal session requires a bound workspace folder.");
+    return defaultScratchCwd();
   }
 
   return path.resolve(cwd);
+}
+
+function defaultScratchCwd(): string {
+  const configured = process.env.ALFRED_DESKTOP_WORKSPACE_CWD?.trim();
+  if (configured) return path.resolve(configured);
+
+  const desktop = path.join(os.homedir(), "Desktop");
+  return existsSync(desktop) ? desktop : os.homedir();
 }
 
 function normalizeDimension(value: number, fallback: number): number {
