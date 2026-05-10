@@ -59,6 +59,7 @@ export function addAgentSession(
   kind: Extract<AgentKind, "claude" | "codex">,
   cwd: string,
   workspaceId = "A",
+  isolation: TerminalSessionIsolation = "worktree",
 ): SessionTile[] {
   const nextIndex = nextPrefixedSessionIndex(sessions, `${kind}-`);
   const title = `${kind === "codex" ? "Codex" : "Claude"} · session ${nextIndex}`;
@@ -75,7 +76,7 @@ export function addAgentSession(
       agentKind: kind,
       command: kind,
       args: [],
-      isolation: "worktree",
+      isolation,
     },
   ];
 }
@@ -221,7 +222,7 @@ export function hydrateStagedPlanSessions(
 ): SessionTile[] {
   if (!plan) return [];
   return plan.sessions.map((session) => {
-    const isolation = codingAgentIsolation(session.kind);
+    const isolation = plannedSessionIsolation(session.kind, session.launchPreflight);
     return {
       id: session.id,
       title: session.title,
@@ -241,6 +242,14 @@ export function hydrateStagedPlanSessions(
 
 function codingAgentIsolation(kind: AgentKind): TerminalSessionIsolation | undefined {
   return kind === "codex" || kind === "claude" ? "worktree" : undefined;
+}
+
+function plannedSessionIsolation(
+  kind: AgentKind,
+  launchPreflight: AlfredLaunchPreflight | undefined,
+): TerminalSessionIsolation | undefined {
+  if (launchPreflight?.status === "ready") return launchPreflight.isolation;
+  return codingAgentIsolation(kind);
 }
 
 function createManualSession(index: number, cwd: string, workspaceId: string): SessionTile {
@@ -277,7 +286,7 @@ export function addStagedSessions(
 ): SessionTile[] {
   let nextIndex = nextAlfredSessionIndex(sessions);
   const staged: SessionTile[] = planSessions.map((session) => {
-    const isolation = codingAgentIsolation(session.kind);
+    const isolation = plannedSessionIsolation(session.kind, session.launchPreflight);
     const tile: SessionTile = {
       id: `${ALFRED_SESSION_PREFIX}${nextIndex}`,
       title: session.title,

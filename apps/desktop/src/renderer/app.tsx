@@ -176,10 +176,11 @@ export function App() {
       setAlfredStatus(errored({ code: "malformed", message: "Bind a folder before starting an agent session." }));
       return;
     }
+    const isolation = activeWorkspace.gitBranch ? "worktree" : "shared";
     setTerminalSessions((sessions) =>
-      addAgentSession(sessions, kind, activeWorkspace.rootPath ?? "", activeWorkspace.id),
+      addAgentSession(sessions, kind, activeWorkspace.rootPath ?? "", activeWorkspace.id, isolation),
     );
-  }, [activeWorkspace.id, activeWorkspace.rootPath]);
+  }, [activeWorkspace.gitBranch, activeWorkspace.id, activeWorkspace.rootPath]);
 
   const handleAddWorkspace = useCallback(async () => {
     const workspaceApi = getDesktopWorkspaceApi();

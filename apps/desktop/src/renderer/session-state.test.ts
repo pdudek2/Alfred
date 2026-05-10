@@ -110,6 +110,20 @@ describe("desktop session state", () => {
     ]);
   });
 
+  it("can add first-class agent sessions in a shared non-Git workspace", () => {
+    const initial = createInitialSessions("/plain-folder");
+    const withCodex = addAgentSession(initial, "codex", "/plain-folder", "A", "shared");
+
+    expect(withCodex[1]).toMatchObject({
+      id: "codex-1",
+      title: "Codex · session 1",
+      cwd: "/plain-folder",
+      agentKind: "codex",
+      command: "codex",
+      isolation: "shared",
+    });
+  });
+
   it("hydrates live terminal tiles from persisted runtime snapshots", () => {
     const snapshots: TerminalSessionSnapshot[] = [
       {
@@ -655,6 +669,30 @@ describe("staged sessions", () => {
     ];
     const next = addStagedSessions(initial, planWithoutCwd, "/some/default");
     expect(next[1]?.cwd).toBe("/some/default");
+  });
+
+  it("keeps staged coding agents shared when preflight falls back from Git worktrees", () => {
+    const initial = createInitialSessions("/plain-folder");
+    const next = addStagedSessions(initial, [
+      {
+        kind: "codex",
+        title: "Codex in plain folder",
+        command: "codex",
+        args: [],
+        launchPreflight: {
+          status: "ready",
+          label: "Shared workspace",
+          detail: "Workspace is not Git; will launch in the selected folder.",
+          isolation: "shared",
+        },
+      },
+    ], "/plain-folder");
+
+    expect(next[1]).toMatchObject({
+      agentKind: "codex",
+      isolation: "shared",
+      launchPreflight: expect.objectContaining({ status: "ready", isolation: "shared" }),
+    });
   });
 
   it("addStagedSessions assigns staged tiles to the active workspace", () => {
