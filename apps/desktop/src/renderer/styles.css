@@ -1060,23 +1060,16 @@ button:focus-visible {
   position: relative;
   min-width: 0;
   min-height: 0;
-  border: 1px solid color-mix(in oklab, white 9%, transparent);
-  border-radius: 16px;
+  border: 1px solid color-mix(in oklab, white 7%, transparent);
+  border-radius: 10px;
   overflow: hidden;
   background:
-    linear-gradient(180deg,
-      color-mix(in oklab, white 7%, transparent),
-      color-mix(in oklab, white 2%, transparent) 80px,
-      transparent 160px),
-    linear-gradient(90deg, color-mix(in oklab, var(--accent) 3.5%, transparent), transparent 32%),
-    rgba(14, 19, 26, 0.74);
-  backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
+    linear-gradient(180deg, color-mix(in oklab, white 3.5%, transparent), transparent 52px),
+    #050807;
   box-shadow:
-    inset 0 1px 0 color-mix(in oklab, white 11%, transparent),
-    inset 0 0 0 1px color-mix(in oklab, var(--accent) 5%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 8%, transparent),
     0 2px 4px -2px rgba(0, 0, 0, 0.32),
-    0 24px 48px -18px rgba(0, 0, 0, 0.82);
+    0 20px 42px -24px rgba(0, 0, 0, 0.86);
   display: grid;
   grid-template-rows: 42px 1fr;
   transition:
@@ -1086,13 +1079,12 @@ button:focus-visible {
 }
 
 .terminal-tile:not(.arranging):hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in oklab, white 16%, transparent);
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, white 13%, transparent);
   box-shadow:
-    inset 0 1px 0 color-mix(in oklab, white 14%, transparent),
-    inset 0 0 0 1px color-mix(in oklab, var(--accent) 10%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 10%, transparent),
     0 4px 10px -2px rgba(0, 0, 0, 0.4),
-    0 32px 56px -16px rgba(0, 0, 0, 0.88);
+    0 24px 48px -22px rgba(0, 0, 0, 0.9);
 }
 
 .terminal-tile.restored {
@@ -1214,32 +1206,28 @@ body.arranging-pointer {
 
 .terminal-tile.kind-manual {
   background:
-    linear-gradient(180deg, rgba(120, 217, 145, 0.038), transparent 58px),
-    linear-gradient(90deg, rgba(120, 217, 145, 0.012), transparent 34%),
+    linear-gradient(180deg, rgba(120, 217, 145, 0.028), transparent 44px),
     var(--terminal);
 }
 
 .terminal-tile.kind-codex {
   border-color: rgba(86, 200, 213, 0.2);
   background:
-    linear-gradient(180deg, rgba(86, 200, 213, 0.044), transparent 58px),
-    linear-gradient(90deg, rgba(86, 200, 213, 0.02), transparent 34%),
+    linear-gradient(180deg, rgba(86, 200, 213, 0.034), transparent 44px),
     var(--terminal);
 }
 
 .terminal-tile.kind-claude {
   border-color: rgba(169, 156, 255, 0.22);
   background:
-    linear-gradient(180deg, rgba(169, 156, 255, 0.042), transparent 58px),
-    linear-gradient(90deg, rgba(169, 156, 255, 0.016), transparent 34%),
+    linear-gradient(180deg, rgba(169, 156, 255, 0.032), transparent 44px),
     var(--terminal);
 }
 
 .terminal-tile.kind-dev-server {
   border-color: rgba(217, 174, 70, 0.24);
   background:
-    linear-gradient(180deg, rgba(217, 174, 70, 0.05), transparent 58px),
-    linear-gradient(90deg, rgba(217, 174, 70, 0.016), transparent 34%),
+    linear-gradient(180deg, rgba(217, 174, 70, 0.04), transparent 44px),
     var(--terminal);
 }
 
@@ -1259,14 +1247,13 @@ body.arranging-pointer {
   grid-template-columns: minmax(0, 0.86fr) minmax(180px, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 0 14px;
+  padding: 0 12px;
   color: var(--muted);
   font-family: var(--mono);
   font-size: 12px;
   background:
-    linear-gradient(180deg,
-      color-mix(in oklab, white 3.5%, transparent),
-      transparent);
+    linear-gradient(180deg, color-mix(in oklab, white 2.5%, transparent), transparent),
+    #070a0b;
 }
 
 .tile-activity {
@@ -1637,17 +1624,22 @@ body.arranging-pointer {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  padding: 10px 12px;
-  background: var(--terminal);
+  padding: 12px 14px 14px;
+  background: #050807;
 }
 
 .xterm-host .xterm {
   height: 100%;
+  letter-spacing: 0;
 }
 
 .xterm-host .xterm-viewport,
 .xterm-host .xterm-screen {
-  border-radius: 6px;
+  border-radius: 4px;
+}
+
+.xterm-host .xterm-screen {
+  filter: saturate(1.04);
 }
 
 .xterm-host .xterm-viewport {
