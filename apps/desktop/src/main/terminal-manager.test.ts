@@ -143,6 +143,7 @@ describe("terminal-manager IPC", () => {
       clientId: "manual-1",
       command: "node",
       cols: 80,
+      cwd: "/repo",
       rows: 24,
       title: "Manual terminal",
     });
@@ -253,6 +254,7 @@ describe("terminal-manager IPC", () => {
       clientId: "manual-1",
       command: "node",
       cols: 80,
+      cwd: "/repo",
       rows: 24,
       title: "Manual terminal",
     });
@@ -289,6 +291,7 @@ describe("terminal-manager IPC", () => {
       clientId: "manual-1",
       command: "node",
       cols: 80,
+      cwd: "/repo",
       rows: 24,
       title: "Manual terminal",
     });
@@ -341,28 +344,18 @@ describe("terminal-manager IPC", () => {
     ]);
   });
 
-  it("uses the configured default workspace cwd when a create request omits cwd", async () => {
-    vi.stubEnv("ALFRED_DESKTOP_WORKSPACE_CWD", "/Users/patryk/Desktop/Configured");
-    vi.stubEnv("INIT_CWD", "/tmp/ignored");
+  it("rejects new terminal sessions without a bound workspace cwd", async () => {
     const pty = new FakePty();
     const nodePty = fakeNodePty(pty);
     registerTerminalIpc({ loadNodePty: async () => nodePty as never });
 
-    await invoke(terminalChannels.create, {
+    await expect(invoke(terminalChannels.create, {
       command: "node",
       cols: 80,
       rows: 24,
-    });
+    })).rejects.toThrow("Terminal session requires a bound workspace folder.");
 
-    expect(nodePty.spawn).toHaveBeenCalledWith(
-      "node",
-      [],
-      expect.objectContaining({
-        cols: 80,
-        cwd: "/Users/patryk/Desktop/Configured",
-        rows: 24,
-      }),
-    );
+    expect(nodePty.spawn).not.toHaveBeenCalled();
   });
 
   it("creates an isolated worktree before spawning an agent session", async () => {
@@ -458,6 +451,7 @@ describe("terminal-manager IPC", () => {
     const created = await invoke<{ id: string }>(terminalChannels.create, {
       command: "node",
       cols: 80,
+      cwd: "/repo",
       rows: 24,
     });
 
@@ -483,7 +477,7 @@ describe("terminal-manager IPC", () => {
 
     const created = await invoke<{ id: string }>(
       terminalChannels.create,
-      { command: "node", cols: 80, rows: 24 },
+      { command: "node", cols: 80, cwd: "/repo", rows: 24 },
       ownerSender,
     );
     const otherList = await invoke<{ sessions: Array<{ id: string }> }>(terminalChannels.list, undefined, otherSender);
@@ -509,7 +503,7 @@ describe("terminal-manager IPC", () => {
 
     const created = await invoke<{ id: string }>(
       terminalChannels.create,
-      { command: "node", cols: 80, rows: 24 },
+      { command: "node", cols: 80, cwd: "/repo", rows: 24 },
       oldSender,
     );
     liveWindows = [newWindow];

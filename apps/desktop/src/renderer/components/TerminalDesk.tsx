@@ -36,6 +36,7 @@ type TerminalDeskProps = {
   workspaceGitBranch?: string | undefined;
   workspaceLabel: string;
   workspaceRootPath?: string | undefined;
+  onBindWorkspace: () => void;
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
   onCloseSession: (sessionId: string) => void;
@@ -71,6 +72,7 @@ export function TerminalDesk({
   workspaceGitBranch,
   workspaceLabel,
   workspaceRootPath,
+  onBindWorkspace,
   onAddAgentSession,
   onAddManualSession,
   onCloseSession,
@@ -294,6 +296,7 @@ export function TerminalDesk({
             <EmptyWorkspaceState
               onAddAgentSession={onAddAgentSession}
               onAddManualSession={onAddManualSession}
+              onBindWorkspace={onBindWorkspace}
               workspaceGitBranch={workspaceGitBranch}
               workspaceLabel={workspaceLabel}
               workspaceRootPath={workspaceRootPath}
@@ -445,20 +448,24 @@ function FocusSessionStrip({
 function EmptyWorkspaceState({
   onAddAgentSession,
   onAddManualSession,
+  onBindWorkspace,
   workspaceGitBranch,
   workspaceLabel,
   workspaceRootPath,
 }: {
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
+  onBindWorkspace: () => void;
   workspaceGitBranch?: string | undefined;
   workspaceLabel: string;
   workspaceRootPath?: string | undefined;
 }) {
+  const bound = Boolean(workspaceRootPath);
+
   return (
     <div className="terminal-empty-state" role="status" aria-label="Empty workspace">
       <div>
-        <span>Workspace ready</span>
+        <span>{bound ? "Workspace ready" : "Bind folder first"}</span>
         <strong>{workspaceLabel}</strong>
         <p>{workspaceHomeCopy(workspaceRootPath, workspaceGitBranch)}</p>
       </div>
@@ -473,15 +480,23 @@ function EmptyWorkspaceState({
         </div>
       </dl>
       <div className="terminal-empty-actions" aria-label="empty workspace actions">
-        <button type="button" onClick={onAddManualSession}>
-          New terminal
-        </button>
-        <button type="button" onClick={() => onAddAgentSession("codex")}>
-          Start Codex
-        </button>
-        <button type="button" onClick={() => onAddAgentSession("claude")}>
-          Start Claude
-        </button>
+        {bound ? (
+          <>
+            <button type="button" onClick={onAddManualSession}>
+              New terminal
+            </button>
+            <button type="button" onClick={() => onAddAgentSession("codex")}>
+              Start Codex
+            </button>
+            <button type="button" onClick={() => onAddAgentSession("claude")}>
+              Start Claude
+            </button>
+          </>
+        ) : (
+          <button type="button" onClick={onBindWorkspace}>
+            Add workspace from folder
+          </button>
+        )}
       </div>
     </div>
   );
@@ -496,7 +511,7 @@ function workspaceHomeCopy(rootPath: string | undefined, gitBranch: string | und
     return `Bound to ${shortenPath(rootPath)}. Start a session when you are ready.`;
   }
 
-  return "No project folder is bound yet. Start manually or add a workspace from the sidebar.";
+  return "No project folder is bound yet. Add a folder before starting sessions.";
 }
 
 function ManualTerminalTile({
