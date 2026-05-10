@@ -888,6 +888,14 @@ export function App() {
         return;
       }
 
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "o") {
+        if (activeSelectedSession?.cwd) {
+          event.preventDefault();
+          void handleOpenSessionTerminal(activeSelectedSession.cwd);
+        }
+        return;
+      }
+
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.code === "BracketRight") {
         event.preventDefault();
         handleFocusSessionByDelta(1);
@@ -904,7 +912,15 @@ export function App() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [handleAddManualSession, handleCloseSelectedSession, handleFocusSessionByDelta, handleSelectWorkspace, workspaces]);
+  }, [
+    activeSelectedSession,
+    handleAddManualSession,
+    handleCloseSelectedSession,
+    handleFocusSessionByDelta,
+    handleOpenSessionTerminal,
+    handleSelectWorkspace,
+    workspaces,
+  ]);
 
   useEffect(() => {
     const terminalApi = getDesktopTerminalApi();

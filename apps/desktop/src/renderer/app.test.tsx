@@ -1783,6 +1783,29 @@ describe("App integration", () => {
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
   });
 
+  it("hands off the focused session to the external terminal with a keyboard shortcut", async () => {
+    const user = userEvent.setup();
+    const { openExternalTerminal } = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "manual-a",
+        title: "Manual · zsh 1",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await user.keyboard("{Meta>}{Shift>}o{/Shift}{/Meta}");
+
+    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
+  });
+
   it("offers focused session handoff commands from the command palette", async () => {
     const user = userEvent.setup();
     const { openExternalTerminal, revealPath } = installDesktopBridge(undefined, null, [
