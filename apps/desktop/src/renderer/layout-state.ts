@@ -21,6 +21,14 @@ export function ensureTileLayouts(
   existing: Record<string, TileLayout>,
 ): Record<string, TileLayout> {
   const sessionIds = new Set(sessions.map((session) => session.id));
+  const existingIds = Object.keys(existing);
+  const matchingExistingCount = existingIds.filter((tileId) => sessionIds.has(tileId)).length;
+  const exactSameMembership = existingIds.length === sessions.length && matchingExistingCount === sessions.length;
+
+  if (!exactSameMembership) {
+    return defaultLayouts(sessions);
+  }
+
   const next: Record<string, TileLayout> = {};
 
   sessions.forEach((session, index) => {
@@ -108,10 +116,14 @@ export function applyLayoutPreset(
         ]),
       );
     case "grid":
-      return Object.fromEntries(
-        sessions.map((session, index) => [session.id, defaultLayout(session.id, index, sessions.length)]),
-      );
+      return defaultLayouts(sessions);
   }
+}
+
+function defaultLayouts(sessions: LayoutSession[]): Record<string, TileLayout> {
+  return Object.fromEntries(
+    sessions.map((session, index) => [session.id, defaultLayout(session.id, index, sessions.length)]),
+  );
 }
 
 function focusOrderedSessions(sessions: LayoutSession[], selectedSessionId?: string | null): LayoutSession[] {
