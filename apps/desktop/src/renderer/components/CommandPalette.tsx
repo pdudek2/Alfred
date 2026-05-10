@@ -284,7 +284,9 @@ export function CommandPalette({
       {
         id: "open-focused-session-terminal",
         label: "Open focused session in external terminal",
-        detail: selectedSession?.cwd ? shortenPath(selectedSession.cwd) : "No focused session folder",
+        detail: selectedSession?.cwd
+          ? `${shortcutModifier} Shift O · ${shortenPath(selectedSession.cwd)}`
+          : "No focused session folder",
         disabled: !selectedSession?.cwd,
         run: () => {
           if (selectedSession?.cwd) onOpenSessionTerminal(selectedSession.cwd);
