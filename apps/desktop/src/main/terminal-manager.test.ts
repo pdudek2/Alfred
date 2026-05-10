@@ -9,7 +9,7 @@ import {
   resetTerminalPersistenceForTests,
 } from "./terminal-manager.js";
 import { terminalChannels } from "../shared/terminal-ipc.js";
-import type { TerminalCreateRequest } from "../shared/terminal-ipc.js";
+import type { TerminalCreateRequest, TerminalListResult } from "../shared/terminal-ipc.js";
 import { DEFAULT_DESKTOP_STATE, type DesktopStateSnapshot, type PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 
 type IpcInvokeHandler = (event: { sender: object }, request?: unknown) => unknown;
@@ -195,6 +195,45 @@ describe("terminal-manager IPC", () => {
         ],
       }),
     ]);
+  });
+
+  it("renames live sessions and persists the updated title", async () => {
+    let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(new FakePty()) as never });
+
+    await invoke<{ id: string }>(terminalChannels.create, {
+      clientId: "manual-1",
+      command: "node",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+      title: "Manual terminal",
+    });
+
+    await invoke(terminalChannels.rename, { clientId: "manual-1", title: "  Spec   reviewer  " });
+    await Promise.resolve();
+
+    expect(state.restoredTerminalSessions).toEqual([
+      expect.objectContaining({
+        clientId: "manual-1",
+        title: "Spec reviewer",
+      }),
+    ]);
+    expect((await invoke<TerminalListResult>(terminalChannels.list)).sessions[0]).toEqual(
+      expect.objectContaining({ clientId: "manual-1", title: "Spec reviewer" }),
+    );
   });
 
   it("forgets restored terminal snapshots without reviving them on process exit", async () => {

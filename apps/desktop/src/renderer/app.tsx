@@ -46,6 +46,7 @@ import {
   rejectAllStaged,
   rejectStaged,
   relaunchRestoredSession,
+  renameSession,
   restartSession,
   type SessionTile,
 } from "./session-state";
@@ -558,6 +559,13 @@ export function App() {
         detail: "Alfred is starting a fresh process in this tile.",
       });
     });
+  }, []);
+
+  const handleRenameSession = useCallback((sessionId: string, title: string) => {
+    const normalizedTitle = title.trim().replace(/\s+/g, " ").slice(0, 80);
+    if (!normalizedTitle) return;
+    setTerminalSessions((sessions) => renameSession(sessions, sessionId, normalizedTitle));
+    void getDesktopTerminalApi()?.rename({ clientId: sessionId, title: normalizedTitle });
   }, []);
 
   const handleCloseSelectedSession = useCallback(() => {
@@ -1171,6 +1179,7 @@ export function App() {
               onRuntimeSessionOutput={handleRuntimeSessionOutput}
               onRuntimeSessionReady={handleRuntimeSessionReady}
               onRuntimeSessionStarting={handleRuntimeSessionStarting}
+              onRenameSession={handleRenameSession}
               onFocusSession={handleFocusSession}
               onSelectSession={handleSelectSession}
               onApproveTile={handleApproveTile}

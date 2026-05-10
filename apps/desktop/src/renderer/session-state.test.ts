@@ -18,6 +18,7 @@ import {
   rejectAllStaged,
   rejectStaged,
   relaunchRestoredSession,
+  renameSession,
   restartSession,
 } from "./session-state";
 import type { AlfredPlanSession } from "../shared/alfred-ipc";
@@ -65,6 +66,13 @@ describe("desktop session state", () => {
 
     expect(next.map((session) => session.id)).toEqual(["manual-2", "manual-3"]);
     expect(next.map((session) => session.title)).toEqual(["Manual · zsh 2", "Manual · zsh 3"]);
+  });
+
+  it("renames a session with normalized display text", () => {
+    const initial = createInitialSessions("/Users/patryk/Desktop/Alfred");
+    const renamed = renameSession(initial, "manual-1", "  Spec   reviewer  ");
+
+    expect(renamed[0]?.title).toBe("Spec reviewer");
   });
 
   it("adds first-class Codex and Claude sessions", () => {

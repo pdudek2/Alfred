@@ -1,6 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { Play, RotateCcw, SquareTerminal, X } from "lucide-react";
+import { Check, Pencil, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -52,6 +52,7 @@ type TerminalDeskProps = {
   onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
+  onRenameSession: (sessionId: string, title: string) => void;
   onFocusSession: (sessionId: string) => void;
   onSelectSession: (sessionId: string) => void;
   onApproveTile: (tileId: string) => void;
@@ -88,6 +89,7 @@ export function TerminalDesk({
   onRuntimeSessionOutput,
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
+  onRenameSession,
   onFocusSession,
   onSelectSession,
   onApproveTile,
@@ -341,6 +343,7 @@ export function TerminalDesk({
                 onRuntimeSessionReady={onRuntimeSessionReady}
                 onRuntimeSessionStarting={onRuntimeSessionStarting}
                 onOpenExternalTerminal={handleOpenExternalTerminal}
+                onRenameSession={onRenameSession}
               />
             ) : (
               <StagedTilePreview
@@ -542,6 +545,7 @@ function ManualTerminalTile({
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
   onOpenExternalTerminal,
+  onRenameSession,
   selected,
   runtimeId,
   runtimeStatus,
@@ -578,6 +582,7 @@ function ManualTerminalTile({
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
   onOpenExternalTerminal: (cwd: string) => Promise<void>;
+  onRenameSession: (sessionId: string, title: string) => void;
   selected: boolean;
   runtimeId?: TerminalSessionId | undefined;
   runtimeStatus?: SessionTile["runtimeStatus"] | undefined;
@@ -594,6 +599,8 @@ function ManualTerminalTile({
   const sessionIdRef = useRef<TerminalSessionId | null>(null);
   const [status, setStatus] = useState<LocalTerminalStatus>("connecting");
   const [resolvedCwd, setResolvedCwd] = useState<string>(cwd);
+  const [renaming, setRenaming] = useState(false);
+  const [renameDraft, setRenameDraft] = useState(title);
   const kind = sessionTileKind({ agentKind, source });
   const kindMeta = tileKindMeta(kind);
   const displayClock = useStatusClock(createdAt ?? lastOutputAt);
@@ -609,6 +616,20 @@ function ManualTerminalTile({
   const ageLabel = sessionAgeLabel(createdAt, displayClock);
   const sessionLocationLabel = branchName ?? (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
   const externalTerminalCwd = resolvedCwd || cwd;
+
+  useEffect(() => {
+    if (!renaming) {
+      setRenameDraft(title);
+    }
+  }, [renaming, title]);
+
+  const submitRename = () => {
+    const nextTitle = renameDraft.trim().replace(/\s+/g, " ").slice(0, 80);
+    if (nextTitle) {
+      onRenameSession(sessionKey, nextTitle);
+    }
+    setRenaming(false);
+  };
 
   useEffect(() => {
     const container = containerRef.current;
@@ -850,7 +871,49 @@ function ManualTerminalTile({
             <span>{kindMeta.shortLabel}</span>
           </span>
           <div>
-            <b>{title}</b>
+            {renaming ? (
+              <form
+                className="session-rename-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  submitRename();
+                }}
+              >
+                <input
+                  aria-label={`Rename ${title}`}
+                  value={renameDraft}
+                  maxLength={80}
+                  onChange={(event) => setRenameDraft(event.target.value)}
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      submitRename();
+                      return;
+                    }
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setRenameDraft(title);
+                      setRenaming(false);
+                    }
+                  }}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  autoFocus
+                />
+                <button
+                  type="submit"
+                  aria-label={`Save title for ${title}`}
+                  disabled={!renameDraft.trim()}
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  <Check size={12} />
+                </button>
+              </form>
+            ) : (
+              <b>{title}</b>
+            )}
             <small>
               {kindMeta.label} · {sessionLocationLabel}
             </small>
@@ -913,6 +976,19 @@ function ManualTerminalTile({
               <SquareTerminal size={14} />
             </button>
           )}
+          <button
+            type="button"
+            className="rename-session-button"
+            aria-label={`Rename ${title}`}
+            onClick={() => {
+              setRenameDraft(title);
+              setRenaming(true);
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+            title="Rename session"
+          >
+            <Pencil size={13} />
+          </button>
           <button
             type="button"
             aria-label={`Close ${title}`}

@@ -86,6 +86,7 @@ function installDesktopBridge(
   getStagedPlan: ReturnType<typeof vi.fn>;
   getRuntimeStatus: ReturnType<typeof vi.fn>;
   killTerminal: ReturnType<typeof vi.fn>;
+  renameTerminal: ReturnType<typeof vi.fn>;
   openExternalTerminal: ReturnType<typeof vi.fn>;
   revealPath: ReturnType<typeof vi.fn>;
   requestPlan: ReturnType<typeof vi.fn>;
@@ -136,6 +137,7 @@ function installDesktopBridge(
   );
   const killTerminal = vi.fn();
   const forgetTerminal = vi.fn();
+  const renameTerminal = vi.fn().mockResolvedValue(undefined);
   const writeTerminal = vi.fn();
   const createTerminal = vi.fn().mockImplementation((request: Parameters<TerminalApi["create"]>[0]) => {
     const baseCwd = request.cwd ?? "/tmp";
@@ -165,6 +167,7 @@ function installDesktopBridge(
     forget: forgetTerminal,
     kill: killTerminal,
     list: vi.fn().mockResolvedValue({ sessions: terminalSessions, restoredSessions: restoredTerminalSessions }),
+    rename: renameTerminal,
     onData: vi.fn((callback: (event: TerminalDataEvent) => void) => {
       dataListeners.add(callback);
       return () => dataListeners.delete(callback);
@@ -208,6 +211,7 @@ function installDesktopBridge(
     getRuntimeStatus,
     getStagedPlan,
     killTerminal,
+    renameTerminal,
     openExternalTerminal,
     revealPath,
     requestPlan,
@@ -1804,6 +1808,36 @@ describe("App integration", () => {
     await user.keyboard("{Meta>}{Shift>}o{/Shift}{/Meta}");
 
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
+  });
+
+  it("renames a terminal tile and persists the runtime title", async () => {
+    const user = userEvent.setup();
+    const { renameTerminal } = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "codex-a",
+        title: "Codex · session 1",
+        source: "manual",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "codex",
+        command: "codex",
+        args: [],
+        buffer: "",
+      },
+    ]);
+
+    render(<App />);
+
+    const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
+    await user.click(within(tile).getByRole("button", { name: "Rename Codex · session 1" }));
+    const input = within(tile).getByRole("textbox", { name: "Rename Codex · session 1" });
+    await user.clear(input);
+    await user.type(input, "Spec reviewer{Enter}");
+
+    expect(await within(tile).findByText("Spec reviewer")).toBeInTheDocument();
+    expect(renameTerminal).toHaveBeenCalledWith({ clientId: "codex-a", title: "Spec reviewer" });
   });
 
   it("offers focused session handoff commands from the command palette", async () => {
