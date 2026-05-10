@@ -9,16 +9,25 @@ import {
 } from "./layout-state";
 
 describe("layout-state", () => {
-  it("keeps existing layouts, adds new tiles, and removes missing tiles", () => {
+  it("refits the desk when tile membership changes", () => {
     const existing: Record<string, TileLayout> = {
       one: { tileId: "one", col: 2, row: 3, colSpan: 5, rowSpan: 4 },
       stale: { tileId: "stale", col: 1, row: 1, colSpan: 6, rowSpan: 4 },
     };
 
     expect(ensureTileLayouts([{ id: "one" }, { id: "two" }], existing)).toEqual({
-      one: { tileId: "one", col: 2, row: 3, colSpan: 5, rowSpan: 4 },
+      one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 8 },
       two: { tileId: "two", col: 7, row: 1, colSpan: 6, rowSpan: 8 },
     });
+  });
+
+  it("keeps existing layouts while the same tiles remain on the desk", () => {
+    const existing: Record<string, TileLayout> = {
+      one: { tileId: "one", col: 2, row: 3, colSpan: 5, rowSpan: 4 },
+      two: { tileId: "two", col: 7, row: 3, colSpan: 5, rowSpan: 4 },
+    };
+
+    expect(ensureTileLayouts([{ id: "one" }, { id: "two" }], existing)).toEqual(existing);
   });
 
   it("defaults one tile to a full-width composed panel", () => {
