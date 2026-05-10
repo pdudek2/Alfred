@@ -96,6 +96,18 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
       launchPreflight: readyWorktreePreflight(worktree),
     };
   } catch (error: unknown) {
+    if (isNotGitRepositoryError(error)) {
+      return {
+        ...session,
+        launchPreflight: {
+          status: "ready",
+          label: "Shared workspace",
+          detail: "Workspace is not Git; will launch in the selected folder.",
+          isolation: "shared",
+        },
+      };
+    }
+
     return {
       ...session,
       launchPreflight: blockedPreflight(
@@ -105,6 +117,11 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
       ),
     };
   }
+}
+
+function isNotGitRepositoryError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("not a Git repository");
 }
 
 function usesIsolatedWorktree(session: AlfredPlanSession): boolean {

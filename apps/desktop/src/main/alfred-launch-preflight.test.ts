@@ -125,4 +125,26 @@ describe("preflightAlfredPlan", () => {
       reason: "Workspace has uncommitted or untracked changes.",
     });
   });
+
+  it("falls back to shared workspace for coding agents in non-Git folders", async () => {
+    const result = await preflightAlfredPlan(
+      {
+        sessions: [{ kind: "codex", title: "Codex", command: "codex", args: [] }],
+      },
+      { id: "A", label: "Alfred", rootPath: "/plain-folder" },
+      {
+        commandExists: async () => true,
+        preflightAgentWorktree: async () => {
+          throw new Error("Workspace is not a Git repository. fatal: not a Git repository");
+        },
+      },
+    );
+
+    expect(result.sessions[0]?.launchPreflight).toEqual({
+      status: "ready",
+      label: "Shared workspace",
+      detail: "Workspace is not Git; will launch in the selected folder.",
+      isolation: "shared",
+    });
+  });
 });
