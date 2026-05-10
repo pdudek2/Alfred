@@ -383,18 +383,24 @@ describe("terminal-manager IPC", () => {
     ]);
   });
 
-  it("rejects new terminal sessions without a bound workspace cwd", async () => {
+  it("starts scratch terminal sessions without a bound workspace cwd", async () => {
     const pty = new FakePty();
     const nodePty = fakeNodePty(pty);
+    vi.stubEnv("ALFRED_DESKTOP_WORKSPACE_CWD", "/tmp/alfred-scratch");
     registerTerminalIpc({ loadNodePty: async () => nodePty as never });
 
-    await expect(invoke(terminalChannels.create, {
+    const created = await invoke<{ cwd: string }>(terminalChannels.create, {
       command: "node",
       cols: 80,
       rows: 24,
-    })).rejects.toThrow("Terminal session requires a bound workspace folder.");
+    });
 
-    expect(nodePty.spawn).not.toHaveBeenCalled();
+    expect(nodePty.spawn).toHaveBeenCalledWith(
+      "node",
+      [],
+      expect.objectContaining({ cols: 80, cwd: "/tmp/alfred-scratch", rows: 24 }),
+    );
+    expect(created.cwd).toBe("/tmp/alfred-scratch");
   });
 
   it("creates an isolated worktree before spawning an agent session", async () => {

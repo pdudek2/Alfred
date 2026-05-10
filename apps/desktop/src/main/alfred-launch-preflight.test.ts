@@ -90,7 +90,7 @@ describe("preflightAlfredPlan", () => {
     });
   });
 
-  it("blocks coding agents when no workspace folder is bound", async () => {
+  it("falls back to a shared scratch launch when no workspace folder is bound", async () => {
     const result = await preflightAlfredPlan(
       {
         sessions: [{ kind: "claude", title: "Review", command: "claude", args: [] }],
@@ -100,8 +100,9 @@ describe("preflightAlfredPlan", () => {
     );
 
     expect(result.sessions[0]?.launchPreflight).toMatchObject({
-      status: "blocked",
-      code: "no_workspace",
+      status: "ready",
+      isolation: "shared",
+      label: "Scratch workspace",
     });
   });
 

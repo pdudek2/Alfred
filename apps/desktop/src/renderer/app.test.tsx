@@ -322,7 +322,7 @@ describe("App integration", () => {
     expect(within(preview).getByTitle("Preview of http://127.0.0.1:3000/app")).toBeInTheDocument();
   });
 
-  it("requires a bound folder before starting new sessions", async () => {
+  it("starts sessions in a scratch workspace before a folder is bound", async () => {
     const user = userEvent.setup();
     const { createTerminal, createWorkspaceFromFolder, requestPlan } = installDesktopBridge(
       undefined,
@@ -339,34 +339,41 @@ describe("App integration", () => {
     render(<App />);
 
     const emptyState = await screen.findByRole("status", { name: "Empty workspace" });
-    expect(emptyState).toHaveTextContent("Bind folder first");
-    expect(emptyState).toHaveTextContent("Add a folder before starting sessions.");
+    expect(emptyState).toHaveTextContent("Scratch workspace ready");
+    expect(emptyState).toHaveTextContent("Start in the scratch desk");
     expect(screen.queryByRole("article", { name: /Manual · zsh/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start Codex" })).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: "Start Codex" }).every((button) => !button.hasAttribute("disabled"))).toBe(true);
+    expect(within(emptyState).getByRole("button", { name: "Bind folder" })).toBeInTheDocument();
 
-    await user.keyboard("{Meta>}t{/Meta}");
-    expect(createTerminal).not.toHaveBeenCalled();
+    await user.click(within(emptyState).getByRole("button", { name: "New terminal" }));
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ source: "manual", workspaceId: "A" }));
+    });
+    expect(createTerminal.mock.calls[0]?.[0]).not.toHaveProperty("cwd");
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await user.type(screen.getByRole("textbox", { name: "Search commands" }), "manual terminal");
     const palette = screen.getByRole("dialog", { name: "Command palette" });
     expect(within(palette).getByText("New manual terminal")).toBeInTheDocument();
-    expect(within(palette).getByText("Bind a folder before starting sessions")).toBeInTheDocument();
+    expect(within(palette).getByText(/(?:Cmd|Ctrl) T · start a shell in the scratch desk/)).toBeInTheDocument();
     await user.keyboard("{Enter}");
-    expect(createTerminal).not.toHaveBeenCalled();
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(2));
     await user.keyboard("{Escape}");
 
     await user.type(screen.getByRole("textbox", { name: "Alfred prompt" }), "prepare codex");
-    expect(screen.getByRole("button", { name: "Send prompt to Alfred" })).toBeDisabled();
-    expect(requestPlan).not.toHaveBeenCalled();
-    expect(await screen.findByText("Bind a folder before asking Alfred to launch sessions.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
+    await waitFor(() => expect(requestPlan).toHaveBeenCalledOnce());
+    expect(requestPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: "prepare codex",
+        workspace: expect.not.objectContaining({ rootPath: expect.any(String) }),
+      }),
+    );
 
-    await user.click(within(emptyState).getByRole("button", { name: "Add workspace from folder" }));
-
-    expect(createWorkspaceFromFolder).toHaveBeenCalledOnce();
+    expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
   });
 
-  it("creates real workspaces and scopes terminals to the active workspace", async () => {
+  it("creates scratch workspaces and scopes terminals to the active workspace", async () => {
     const user = userEvent.setup();
     const { createTerminal, createWorkspaceFromFolder, setWorkspaceState } = installDesktopBridge();
 
@@ -378,17 +385,17 @@ describe("App integration", () => {
 
     await user.click(screen.getByRole("button", { name: "Add workspace" }));
 
-    expect(createWorkspaceFromFolder).toHaveBeenCalledOnce();
-    expect(screen.getByRole("tab", { name: /ClientApp workspace, 1 (starting|idle)/ })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(screen.getByText("ClientApp workspace")).toBeInTheDocument();
-    expect(screen.getByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
+    expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
+    expect(screen.getByRole("tab", { name: "Workspace 2 workspace, empty" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Workspace 2 workspace")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Empty workspace" })).toHaveTextContent("Scratch workspace ready");
     expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
+
+    await user.click(within(screen.getByRole("status", { name: "Empty workspace" })).getByRole("button", { name: "New terminal" }));
+    expect(screen.getByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenLastCalledWith(
-        expect.objectContaining({ cwd: "/Users/patryk/Desktop/ClientApp", workspaceId: "CLIENTAPP" }),
+        expect.objectContaining({ workspaceId: "W2" }),
       );
     });
 
@@ -400,7 +407,7 @@ describe("App integration", () => {
       expect(setWorkspaceState).toHaveBeenLastCalledWith({
         workspaces: [
           { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
-          { id: "CLIENTAPP", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+          { id: "W2", label: "Workspace 2", shortLabel: "W2" },
         ],
         activeWorkspaceId: "A",
       });
@@ -621,18 +628,14 @@ describe("App integration", () => {
 
     await user.click(screen.getByRole("button", { name: "Add workspace" }));
 
-    expect(createWorkspaceFromFolder).toHaveBeenCalledOnce();
-    expect(await screen.findByText("ClientApp workspace")).toBeInTheDocument();
-    expect(await screen.findByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 2" }));
-
-    expect(await screen.findByRole("status", { name: "Empty workspace" })).toHaveTextContent("ClientApp");
+    expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
+    expect(await screen.findByText("Workspace 2 workspace")).toBeInTheDocument();
+    expect(await screen.findByRole("status", { name: "Empty workspace" })).toHaveTextContent("Workspace 2");
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await user.type(screen.getByRole("textbox", { name: "Search commands" }), "close current{Enter}");
 
-    expect(screen.queryByText("ClientApp workspace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Workspace 2 workspace")).not.toBeInTheDocument();
     expect(screen.getByText("Alfred workspace")).toBeInTheDocument();
     await waitFor(() => {
       expect(setWorkspaceState).toHaveBeenLastCalledWith({
@@ -697,15 +700,13 @@ describe("App integration", () => {
 
     await user.click(screen.getByRole("button", { name: "Add workspace" }));
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
-    await waitFor(() => {
-      expect(createTerminal).toHaveBeenCalledTimes(2);
-    });
+    expect(await screen.findByRole("status", { name: "Empty workspace" })).toHaveTextContent("Workspace 2");
+    expect(createTerminal).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole("tab", { name: "Alfred workspace, 1 starting" }));
 
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
-    expect(createTerminal).toHaveBeenCalledTimes(2);
+    expect(createTerminal).toHaveBeenCalledTimes(1);
   });
 
   it("enables arrange mode with layout presets without per-tile debug controls", async () => {
@@ -842,7 +843,7 @@ describe("App integration", () => {
 
   it("opens the command palette and runs desk commands", async () => {
     const user = userEvent.setup();
-    const { createWorkspaceFromFolder, setWorkspaceLayout } = installDesktopBridge();
+    const { createWorkspaceFromFolder, setWorkspaceLayout, setWorkspaceState } = installDesktopBridge();
 
     render(<App />);
 
@@ -869,10 +870,17 @@ describe("App integration", () => {
     });
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.keyboard("folder{Enter}");
+    await user.keyboard("scratch{Enter}");
 
-    expect(createWorkspaceFromFolder).toHaveBeenCalledOnce();
-    expect(await screen.findByText("ClientApp workspace")).toBeInTheDocument();
+    expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
+    expect(await screen.findByText("Workspace 2 workspace")).toBeInTheDocument();
+    expect(setWorkspaceState).toHaveBeenLastCalledWith({
+      workspaces: [
+        { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
+        { id: "W2", label: "Workspace 2", shortLabel: "W2" },
+      ],
+      activeWorkspaceId: "W2",
+    });
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await user.type(screen.getByRole("textbox", { name: "Search commands" }), "alfred{Enter}");

@@ -64,11 +64,12 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
   if (!workspace?.rootPath) {
     return {
       ...session,
-      launchPreflight: blockedPreflight(
-        "no_workspace",
-        "No workspace folder",
-        "Bind a project folder before launching isolated agent sessions.",
-      ),
+      launchPreflight: {
+        status: "ready",
+        label: "Scratch workspace",
+        detail: "No folder is bound; will launch in Alfred's scratch desk.",
+        isolation: "shared",
+      },
     };
   }
 

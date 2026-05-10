@@ -103,7 +103,6 @@ export function App() {
   const workspaceStateHydratedRef = useRef<boolean>(false);
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? DEFAULT_WORKSPACE;
-  const activeWorkspaceBound = Boolean(activeWorkspace.rootPath);
   const activeWorkMode = workModesByWorkspace[activeWorkspace.id] ?? "desk";
   const activeSessions = terminalSessions.filter((session) => session.workspaceId === activeWorkspace.id);
   const activePreviewCandidates = previewCandidates.filter((candidate) => candidate.workspaceId === activeWorkspace.id);
@@ -155,8 +154,6 @@ export function App() {
         : "Resolve the current Alfred plan before asking for another."
       : runtimeStatus && !runtimeStatus.openRouterConfigured
         ? "Set OPENROUTER_API_KEY in repo .env to use Alfred."
-        : !activeWorkspaceBound
-          ? "Bind a folder before asking Alfred to launch sessions."
         : undefined;
 
   useEffect(() => {
@@ -164,18 +161,10 @@ export function App() {
   }, [terminalSessions]);
 
   const handleAddManualSession = useCallback(() => {
-    if (!activeWorkspace.rootPath) {
-      setAlfredStatus(errored({ code: "malformed", message: "Bind a folder before starting a terminal." }));
-      return;
-    }
     setTerminalSessions((sessions) => addManualSession(sessions, activeWorkspace.rootPath ?? "", activeWorkspace.id));
   }, [activeWorkspace.id, activeWorkspace.rootPath]);
 
   const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">) => {
-    if (!activeWorkspace.rootPath) {
-      setAlfredStatus(errored({ code: "malformed", message: "Bind a folder before starting an agent session." }));
-      return;
-    }
     const isolation = activeWorkspace.gitBranch ? "worktree" : "shared";
     setTerminalSessions((sessions) =>
       addAgentSession(sessions, kind, activeWorkspace.rootPath ?? "", activeWorkspace.id, isolation),
@@ -183,6 +172,21 @@ export function App() {
   }, [activeWorkspace.gitBranch, activeWorkspace.id, activeWorkspace.rootPath]);
 
   const handleAddWorkspace = useCallback(async () => {
+    const snapshot = createScratchWorkspaceState(workspaces);
+    const workspaceApi = getDesktopWorkspaceApi();
+
+    if (workspaceApi) {
+      const persisted = await workspaceApi.setWorkspaceState(snapshot);
+      setWorkspaces(persisted.workspaces);
+      setActiveWorkspaceId(persisted.activeWorkspaceId);
+      return;
+    }
+
+    setWorkspaces(snapshot.workspaces);
+    setActiveWorkspaceId(snapshot.activeWorkspaceId);
+  }, [workspaces]);
+
+  const handleBindWorkspaceFromFolder = useCallback(async () => {
     const workspaceApi = getDesktopWorkspaceApi();
     if (workspaceApi) {
       const previousWorkspaceIds = new Set(workspaces.map((workspace) => workspace.id));
@@ -674,10 +678,6 @@ export function App() {
     const prompt = composerValue.trim();
     if (!prompt) return;
     if (!canRequestPlan(alfredStatus, globalStagedCount)) return;
-    if (!activeWorkspace.rootPath) {
-      setAlfredStatus(errored({ code: "malformed", message: "Bind a folder before asking Alfred to launch sessions." }));
-      return;
-    }
     const alfredApi = getDesktopAlfredApi();
     if (!alfredApi) {
       setAlfredStatus(errored({ code: "network", message: "Alfred runtime is unavailable. Open the desktop app." }));
@@ -1107,9 +1107,8 @@ export function App() {
                 className="agent-launch-button codex"
                 type="button"
                 aria-label="Start Codex"
-                disabled={!activeWorkspaceBound}
                 onClick={() => handleAddAgentSession("codex")}
-                title={activeWorkspaceBound ? "Start Codex in this workspace" : "Bind a folder before starting Codex"}
+                title={activeWorkspace.rootPath ? "Start Codex in this workspace" : "Start Codex in a scratch workspace"}
               >
                 <span className="tool-dot codex" />
                 <span>Codex</span>
@@ -1118,9 +1117,8 @@ export function App() {
                 className="agent-launch-button claude"
                 type="button"
                 aria-label="Start Claude"
-                disabled={!activeWorkspaceBound}
                 onClick={() => handleAddAgentSession("claude")}
-                title={activeWorkspaceBound ? "Start Claude in this workspace" : "Bind a folder before starting Claude"}
+                title={activeWorkspace.rootPath ? "Start Claude in this workspace" : "Start Claude in a scratch workspace"}
               >
                 <span className="tool-dot claude" />
                 <span>Claude</span>
@@ -1129,12 +1127,12 @@ export function App() {
             <button
               className="new-terminal-button"
               type="button"
-              aria-label={activeWorkspaceBound ? "New terminal" : "Bind folder"}
-              onClick={activeWorkspaceBound ? handleAddManualSession : handleAddWorkspace}
-              title={activeWorkspaceBound ? "New terminal" : "Bind a folder before starting sessions"}
+              aria-label="New terminal"
+              onClick={handleAddManualSession}
+              title={activeWorkspace.rootPath ? "New terminal" : "New terminal in a scratch workspace"}
             >
               <Plus size={17} />
-              <span>{activeWorkspaceBound ? "New terminal" : "Bind folder"}</span>
+              <span>New terminal</span>
             </button>
           </div>
         </div>
@@ -1164,7 +1162,7 @@ export function App() {
               workspaceGitBranch={activeWorkspace.gitBranch}
               workspaceLabel={activeWorkspace.label}
               workspaceRootPath={activeWorkspace.rootPath}
-              onBindWorkspace={handleAddWorkspace}
+              onBindWorkspace={handleBindWorkspaceFromFolder}
               onAddAgentSession={handleAddAgentSession}
               onAddManualSession={handleAddManualSession}
               onCloseSession={handleCloseSession}
@@ -1233,9 +1231,7 @@ export function App() {
           blockedActionLabel={
             stagedWorkspaceId && stagedWorkspaceLabel
               ? `Open ${stagedWorkspaceLabel}`
-              : !activeWorkspaceBound
-                ? "Bind folder"
-                : undefined
+              : undefined
           }
           blockedReason={composerBlockedReason}
           value={composerValue}
@@ -1244,9 +1240,7 @@ export function App() {
           onBlockedAction={
             stagedWorkspaceId
               ? () => handleSelectWorkspace(stagedWorkspaceId)
-              : !activeWorkspaceBound
-                ? handleAddWorkspace
-                : undefined
+              : undefined
           }
           onChange={setComposerValue}
           onSubmit={handleSubmitPrompt}
@@ -1744,6 +1738,28 @@ function previewCandidatesFromSessions(sessions: SessionTile[]): PreviewUrlCandi
 
 function workspaceRootPath(state: WorkspaceStateSnapshot | null, workspaceId: string): string {
   return state?.workspaces.find((workspace) => workspace.id === workspaceId)?.rootPath ?? "";
+}
+
+function createScratchWorkspaceState(workspaces: Workspace[]): WorkspaceStateSnapshot {
+  const usedIds = new Set(workspaces.map((workspace) => workspace.id));
+  let index = workspaces.length + 1;
+  let id = `W${index}`;
+
+  while (usedIds.has(id)) {
+    index += 1;
+    id = `W${index}`;
+  }
+
+  const workspace: Workspace = {
+    id,
+    label: `Workspace ${index}`,
+    shortLabel: id,
+  };
+
+  return {
+    workspaces: [...workspaces, workspace],
+    activeWorkspaceId: workspace.id,
+  };
 }
 
 function omitWorkspaceRecord<T>(record: Record<string, T>, workspaceId: string): Record<string, T> {

@@ -154,7 +154,7 @@ function priorityChip(counts: WorkspaceRailCounts): { tone: string; label: strin
 }
 
 function workspaceMeta(workspace: WorkspaceRailWorkspace): string {
-  const location = workspace.rootPath ? shortenPath(workspace.rootPath) : "folder not bound";
+  const location = workspace.rootPath ? shortenPath(workspace.rootPath) : "scratch desk";
   return workspace.gitBranch ? `${location} · ${workspace.gitBranch}` : location;
 }
 
