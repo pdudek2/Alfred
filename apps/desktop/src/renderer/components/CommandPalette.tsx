@@ -430,6 +430,7 @@ export function CommandPalette({
   );
   const filteredCommands = filterCommands(commands, normalizedQuery);
   const enabledCommands = filteredCommands.filter((command) => !command.disabled);
+  const paletteRows = groupPaletteCommands(filteredCommands);
 
   useEffect(() => {
     const activeStillVisible = filteredCommands.some((command) => command.id === activeCommandId && !command.disabled);
@@ -493,21 +494,30 @@ export function CommandPalette({
           <kbd>esc</kbd>
         </div>
         <div className="command-palette-list" role="listbox" aria-label="Commands">
-          {filteredCommands.map((command) => (
-            <button
-              key={command.id}
-              type="button"
-              className={command.id === activeCommandId ? "active" : ""}
-              role="option"
-              aria-selected={command.id === activeCommandId}
-              disabled={command.disabled}
-              onClick={() => runAndClose(command.run)}
-              onMouseEnter={() => setActiveCommandId(command.id)}
-            >
-              <span>{command.label}</span>
-              <small>{command.detail}</small>
-            </button>
-          ))}
+          {paletteRows.map((row) =>
+            row.type === "group" ? (
+              <div className="command-palette-group" key={row.id} role="presentation">
+                {row.label}
+              </div>
+            ) : (
+              <button
+                key={row.command.id}
+                type="button"
+                className={row.command.id === activeCommandId ? "active" : ""}
+                role="option"
+                aria-selected={row.command.id === activeCommandId}
+                disabled={row.command.disabled}
+                onClick={() => runAndClose(row.command.run)}
+                onMouseEnter={() => setActiveCommandId(row.command.id)}
+              >
+                <span>{row.command.label}</span>
+                <small>
+                  {row.command.disabled && <b>Unavailable: </b>}
+                  {row.command.detail}
+                </small>
+              </button>
+            ),
+          )}
           {filteredCommands.length === 0 && (
             <div className="command-palette-empty">No matching command.</div>
           )}
@@ -552,4 +562,68 @@ function filterCommands(commands: CommandPaletteItem[], normalizedQuery: string)
   );
 
   return [...labelMatches, ...detailMatches];
+}
+
+type CommandPaletteRow =
+  | { type: "group"; id: string; label: string }
+  | { type: "command"; command: CommandPaletteItem };
+
+function groupPaletteCommands(commands: CommandPaletteItem[]): CommandPaletteRow[] {
+  const rows: CommandPaletteRow[] = [];
+  const groupOrder = ["Launch", "Workspaces", "Review and recovery", "Focused session", "Desk layout", "Commands"];
+
+  for (const group of groupOrder) {
+    const groupCommands = commands.filter((command) => commandGroupLabel(command.id) === group);
+    if (groupCommands.length > 0) {
+      rows.push({
+        type: "group",
+        id: `group-${rows.length}-${group.toLowerCase().replace(/\W+/g, "-")}`,
+        label: group,
+      });
+      rows.push(...groupCommands.map((command) => ({ type: "command" as const, command })));
+    }
+  }
+
+  return rows;
+}
+
+function commandGroupLabel(commandId: string): string {
+  if (
+    commandId.includes("review") ||
+    commandId.includes("saved-sessions") ||
+    commandId === "launch-plan" ||
+    commandId === "clear-plan"
+  ) {
+    return "Review and recovery";
+  }
+
+  if (
+    commandId.includes("workspace") ||
+    commandId.startsWith("switch-workspace")
+  ) {
+    return "Workspaces";
+  }
+
+  if (
+    commandId === "new-terminal" ||
+    commandId === "new-codex-session" ||
+    commandId === "new-claude-session"
+  ) {
+    return "Launch";
+  }
+
+  if (
+    commandId.includes("selected-session") ||
+    commandId.includes("focused-session") ||
+    commandId === "next-session" ||
+    commandId === "previous-session"
+  ) {
+    return "Focused session";
+  }
+
+  if (commandId.startsWith("mode-") || commandId === "arrange") {
+    return "Desk layout";
+  }
+
+  return "Commands";
 }

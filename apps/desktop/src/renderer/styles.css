@@ -1,16 +1,17 @@
 :root {
-  --night: #07090d;
-  --panel: #0c1015;
-  --panel-raised: #111720;
-  --panel-soft: #151b24;
-  --terminal: #05070a;
+  --night: #06080b;
+  --panel: #0b0f14;
+  --panel-raised: #10161d;
+  --panel-soft: #141a22;
+  --terminal: #040608;
   --ink: #eef3f7;
   --ink-soft: #c6d0da;
-  --muted: #8995a3;
-  --faint: #798697;
+  --muted: #94a0ad;
+  --faint: #8290a0;
+  --passive: #657180;
   --line: rgba(188, 202, 218, 0.14);
   --line-strong: rgba(198, 213, 231, 0.22);
-  --glass: rgba(12, 16, 21, 0.78);
+  --glass: rgba(11, 15, 20, 0.92);
   --brass: #e0b75b;
   --cyan: #53c7d8;
   --green: #63d18a;
@@ -39,13 +40,12 @@ body {
   min-height: 100vh;
   overflow: hidden;
   background:
-    radial-gradient(ellipse 900px 650px at 14% 6%, color-mix(in oklab, var(--accent) 9%, transparent), transparent 68%),
-    radial-gradient(ellipse 700px 500px at 88% 92%, color-mix(in oklab, var(--accent) 5%, transparent), transparent 70%),
-    linear-gradient(180deg, color-mix(in oklab, var(--accent) 6%, transparent), transparent 240px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    radial-gradient(ellipse 840px 560px at 18% 0%, color-mix(in oklab, var(--accent) 4%, transparent), transparent 72%),
+    linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 220px),
+    linear-gradient(90deg, rgba(188, 202, 218, 0.018) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(188, 202, 218, 0.014) 1px, transparent 1px),
     var(--night);
-  background-size: auto, auto, auto, 48px 48px, 48px 48px, auto;
+  background-size: auto, auto, 48px 48px, 48px 48px, auto;
 }
 
 button {
@@ -83,13 +83,13 @@ button:focus-visible {
   border-radius: 10px;
   overflow: hidden;
   box-shadow:
-    0 30px 100px rgba(0, 0, 0, 0.56),
-    inset 0 1px 0 rgba(238, 243, 247, 0.06);
+    0 24px 80px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(238, 243, 247, 0.045);
   background:
     linear-gradient(180deg, rgba(238, 243, 247, 0.035), transparent 96px),
     #080b10;
   display: grid;
-  grid-template-rows: 44px minmax(0, 1fr) 58px;
+  grid-template-rows: 44px minmax(0, 1fr) 66px;
 }
 
 .mission-bar {
@@ -507,8 +507,8 @@ button:focus-visible {
   gap: 7px;
   padding: 7px;
   background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 150px),
-    rgba(4, 7, 11, 0.72);
+    linear-gradient(180deg, rgba(238, 243, 247, 0.012), transparent 150px),
+    rgba(4, 7, 11, 0.82);
 }
 
 .workspace-layout.alfred-compact {
@@ -550,14 +550,12 @@ button:focus-visible {
   overflow: hidden;
   background:
     linear-gradient(180deg,
-      color-mix(in oklab, white 4%, transparent),
-      color-mix(in oklab, white 1.5%, transparent) 64px,
+      color-mix(in oklab, white 2.4%, transparent),
+      color-mix(in oklab, white 0.8%, transparent) 64px,
       transparent),
-    rgba(12, 16, 21, 0.55);
-  backdrop-filter: blur(22px) saturate(160%);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
+    rgba(8, 12, 16, 0.92);
   box-shadow:
-    inset 0 1px 0 color-mix(in oklab, white 8%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 5%, transparent),
     0 12px 24px -16px rgba(0, 0, 0, 0.6);
   display: flex;
   flex-direction: column;
@@ -573,8 +571,8 @@ button:focus-visible {
   border: 1px solid color-mix(in oklab, white 5%, transparent);
   border-radius: 10px;
   background:
-    linear-gradient(180deg, color-mix(in oklab, white 3.4%, transparent), color-mix(in oklab, white 1.2%, transparent)),
-    color-mix(in oklab, white 1.4%, transparent);
+    linear-gradient(180deg, color-mix(in oklab, white 2.2%, transparent), color-mix(in oklab, white 0.8%, transparent)),
+    color-mix(in oklab, white 0.9%, transparent);
   color: var(--ink-soft);
   cursor: pointer;
   font-family: var(--mono);
@@ -596,10 +594,10 @@ button:focus-visible {
 
 .workspace-button:hover {
   background:
-    linear-gradient(180deg, color-mix(in oklab, white 5.5%, transparent), color-mix(in oklab, white 2%, transparent)),
-    color-mix(in oklab, white 2%, transparent);
+    linear-gradient(180deg, color-mix(in oklab, white 4%, transparent), color-mix(in oklab, white 1.4%, transparent)),
+    color-mix(in oklab, white 1.4%, transparent);
   border-color: color-mix(in oklab, white 10%, transparent);
-  box-shadow: 0 14px 24px -22px color-mix(in oklab, var(--accent) 55%, transparent);
+  box-shadow: 0 14px 24px -22px rgba(0, 0, 0, 0.82);
   transform: translateY(-1px);
 }
 
@@ -687,9 +685,9 @@ button:focus-visible {
 }
 
 .workspace-priority-chip.tone-active {
-  border-color: color-mix(in oklab, var(--green) 34%, transparent);
-  background: color-mix(in oklab, var(--green) 10%, transparent);
-  color: #c8f8d7;
+  border-color: color-mix(in oklab, var(--green) 22%, transparent);
+  background: color-mix(in oklab, var(--green) 5%, transparent);
+  color: #bfe8c9;
 }
 
 .workspace-priority-chip.tone-empty {
@@ -698,13 +696,13 @@ button:focus-visible {
 
 .workspace-button.active {
   background:
-    linear-gradient(180deg, color-mix(in oklab, var(--accent) 14%, transparent), color-mix(in oklab, var(--accent) 4.5%, transparent)),
-    color-mix(in oklab, white 2%, transparent);
-  border-color: color-mix(in oklab, var(--accent) 32%, transparent);
+    linear-gradient(180deg, color-mix(in oklab, var(--accent) 9%, transparent), color-mix(in oklab, var(--accent) 2.8%, transparent)),
+    color-mix(in oklab, white 1.4%, transparent);
+  border-color: color-mix(in oklab, var(--accent) 38%, transparent);
   color: var(--ink);
   box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--accent) 12%, transparent),
-    0 18px 32px -26px color-mix(in oklab, var(--accent) 70%, transparent);
+    inset 0 0 0 1px color-mix(in oklab, var(--accent) 10%, transparent),
+    0 16px 28px -24px color-mix(in oklab, var(--accent) 52%, transparent);
 }
 
 .workspace-button.active .workspace-monogram {
@@ -904,9 +902,9 @@ button:focus-visible {
   min-height: 0;
   overflow: auto;
   background:
-    linear-gradient(90deg, rgba(188, 202, 218, 0.04) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(188, 202, 218, 0.035) 1px, transparent 1px),
-    rgba(3, 5, 8, 0.7);
+    linear-gradient(90deg, rgba(188, 202, 218, 0.024) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(188, 202, 218, 0.02) 1px, transparent 1px),
+    rgba(3, 5, 8, 0.82);
   background-size: 28px 28px, 28px 28px, auto;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(620px, 100%), 1fr));
@@ -925,15 +923,15 @@ button:focus-visible {
 
 .terminal-grid.arranging {
   background:
-    linear-gradient(color-mix(in oklab, var(--accent) 5.5%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklab, var(--accent) 5.5%, transparent) 1px, transparent 1px),
-    rgba(3, 4, 4, 0.5);
+    linear-gradient(color-mix(in oklab, var(--accent) 9%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--accent) 9%, transparent) 1px, transparent 1px),
+    rgba(3, 5, 8, 0.76);
   background-size: calc((100% - 88px) / 12) 84px, calc((100% - 88px) / 12) 84px, auto;
 }
 
 .terminal-grid.laid-out {
   background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 140px),
+    linear-gradient(180deg, rgba(238, 243, 247, 0.012), transparent 140px),
     rgba(3, 5, 8, 0.72);
 }
 
@@ -952,9 +950,9 @@ button:focus-visible {
   border: 1px solid rgba(188, 202, 218, 0.12);
   border-radius: 10px;
   background:
-    linear-gradient(135deg, rgba(68, 206, 220, 0.08), transparent 34%),
-    linear-gradient(180deg, rgba(238, 243, 247, 0.035), rgba(238, 243, 247, 0.012)),
-    rgba(6, 8, 10, 0.78);
+    linear-gradient(135deg, rgba(83, 199, 216, 0.045), transparent 34%),
+    linear-gradient(180deg, rgba(238, 243, 247, 0.026), rgba(238, 243, 247, 0.01)),
+    rgba(6, 8, 10, 0.84);
   box-shadow: inset 0 1px 0 rgba(238, 243, 247, 0.045);
   display: grid;
   place-items: center;
@@ -1056,6 +1054,71 @@ button:focus-visible {
   transform: translateY(-1px);
 }
 
+.split-empty-state {
+  grid-column: 7 / span 6;
+  grid-row: 1 / span 8;
+  min-width: 0;
+  min-height: 320px;
+  border: 1px dashed color-mix(in oklab, white 13%, transparent);
+  border-radius: 10px;
+  padding: 24px;
+  background:
+    linear-gradient(180deg, color-mix(in oklab, white 2.6%, transparent), transparent 96px),
+    rgba(5, 7, 10, 0.58);
+  color: var(--muted);
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 10px;
+}
+
+.split-empty-state span {
+  color: var(--passive);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 720;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.split-empty-state strong {
+  color: var(--ink-soft);
+  font-size: 16px;
+  font-weight: 640;
+}
+
+.split-empty-state p {
+  max-width: 420px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.split-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.split-empty-state button {
+  min-height: 32px;
+  border: 1px solid color-mix(in oklab, white 11%, transparent);
+  border-radius: 7px;
+  padding: 0 10px;
+  background: color-mix(in oklab, white 3%, transparent);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.split-empty-state button:hover,
+.split-empty-state button:focus-visible {
+  border-color: color-mix(in oklab, var(--accent) 34%, transparent);
+  color: #cff3f6;
+}
+
 .terminal-tile {
   position: relative;
   min-width: 0;
@@ -1064,12 +1127,12 @@ button:focus-visible {
   border-radius: 10px;
   overflow: hidden;
   background:
-    linear-gradient(180deg, color-mix(in oklab, white 3.5%, transparent), transparent 52px),
+    linear-gradient(180deg, color-mix(in oklab, white 2.4%, transparent), transparent 52px),
     #050807;
   box-shadow:
-    inset 0 1px 0 color-mix(in oklab, white 8%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 5%, transparent),
     0 2px 4px -2px rgba(0, 0, 0, 0.32),
-    0 20px 42px -24px rgba(0, 0, 0, 0.86);
+    0 16px 34px -25px rgba(0, 0, 0, 0.86);
   display: grid;
   grid-template-rows: 42px 1fr;
   transition:
@@ -1100,13 +1163,13 @@ button:focus-visible {
 }
 
 .terminal-tile.selected {
-  border-color: color-mix(in oklab, var(--accent) 54%, transparent);
+  border-color: color-mix(in oklab, var(--accent) 50%, transparent);
   box-shadow:
-    inset 0 1px 0 color-mix(in oklab, white 15%, transparent),
-    inset 0 0 0 1px color-mix(in oklab, var(--accent) 28%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 11%, transparent),
+    inset 0 0 0 1px color-mix(in oklab, var(--accent) 22%, transparent),
     0 0 0 1px rgba(3, 4, 4, 0.86),
-    0 18px 42px -20px color-mix(in oklab, var(--accent) 42%, black 58%),
-    0 32px 56px -18px rgba(0, 0, 0, 0.88);
+    0 14px 34px -22px color-mix(in oklab, var(--accent) 34%, black 66%),
+    0 26px 48px -20px rgba(0, 0, 0, 0.88);
 }
 
 .terminal-tile:focus-visible {
@@ -1164,19 +1227,34 @@ button:focus-visible {
 
 .tile-resize-handle {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
-  width: 32px;
-  height: 32px;
-  border: 1px solid color-mix(in oklab, var(--accent) 42%, transparent);
-  border-radius: 8px;
+  right: 10px;
+  bottom: 10px;
+  width: 40px;
+  height: 40px;
+  border: 1px solid color-mix(in oklab, var(--accent) 58%, transparent);
+  border-radius: 10px;
   background:
-    linear-gradient(135deg, transparent 0 42%, color-mix(in oklab, var(--accent) 58%, transparent) 42% 48%, transparent 48% 62%, color-mix(in oklab, var(--accent) 58%, transparent) 62% 68%, transparent 68%),
+    linear-gradient(135deg, transparent 0 42%, color-mix(in oklab, var(--accent) 72%, transparent) 42% 48%, transparent 48% 62%, color-mix(in oklab, var(--accent) 72%, transparent) 62% 68%, transparent 68%),
     rgba(3, 4, 4, 0.82);
-  box-shadow: 0 0 0 1px rgba(3, 4, 4, 0.7), 0 8px 20px rgba(0, 0, 0, 0.28);
+  box-shadow:
+    0 0 0 1px rgba(3, 4, 4, 0.78),
+    0 10px 24px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 color-mix(in oklab, white 10%, transparent);
   cursor: nwse-resize;
   touch-action: none;
   z-index: 5;
+}
+
+.tile-resize-handle::before {
+  content: "";
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 17px;
+  height: 17px;
+  border-right: 2px solid color-mix(in oklab, var(--accent) 72%, white 8%);
+  border-bottom: 2px solid color-mix(in oklab, var(--accent) 72%, white 8%);
+  box-shadow: 5px 5px 0 -3px color-mix(in oklab, var(--accent) 62%, transparent);
 }
 
 .tile-resize-handle:hover {
@@ -1196,7 +1274,7 @@ body.arranging-pointer {
 }
 
 .terminal-tile.real-terminal.ready {
-  border-color: color-mix(in oklab, var(--green) 26%, transparent);
+  border-color: color-mix(in oklab, var(--green) 16%, transparent);
 }
 
 .terminal-tile.real-terminal.selected,
@@ -1206,28 +1284,28 @@ body.arranging-pointer {
 
 .terminal-tile.kind-manual {
   background:
-    linear-gradient(180deg, rgba(120, 217, 145, 0.028), transparent 44px),
+    linear-gradient(180deg, rgba(120, 217, 145, 0.018), transparent 44px),
     var(--terminal);
 }
 
 .terminal-tile.kind-codex {
-  border-color: rgba(86, 200, 213, 0.2);
+  border-color: rgba(86, 200, 213, 0.14);
   background:
-    linear-gradient(180deg, rgba(86, 200, 213, 0.034), transparent 44px),
+    linear-gradient(180deg, rgba(86, 200, 213, 0.022), transparent 44px),
     var(--terminal);
 }
 
 .terminal-tile.kind-claude {
-  border-color: rgba(169, 156, 255, 0.22);
+  border-color: rgba(169, 156, 255, 0.14);
   background:
-    linear-gradient(180deg, rgba(169, 156, 255, 0.032), transparent 44px),
+    linear-gradient(180deg, rgba(169, 156, 255, 0.02), transparent 44px),
     var(--terminal);
 }
 
 .terminal-tile.kind-dev-server {
-  border-color: rgba(217, 174, 70, 0.24);
+  border-color: rgba(217, 174, 70, 0.16);
   background:
-    linear-gradient(180deg, rgba(217, 174, 70, 0.04), transparent 44px),
+    linear-gradient(180deg, rgba(217, 174, 70, 0.024), transparent 44px),
     var(--terminal);
 }
 
@@ -1354,11 +1432,19 @@ body.arranging-pointer {
   flex: 0 0 auto;
   border-radius: 999px;
   background: var(--cyan);
-  box-shadow: 0 0 12px color-mix(in oklab, var(--accent) 24%, transparent);
+  box-shadow: none;
+  opacity: 0.8;
 }
 
 .terminal-tile.ready .tool-dot {
   background: var(--green);
+}
+
+.terminal-tile.selected .tool-dot,
+.terminal-tile.session-waiting .tool-dot,
+.terminal-tile.error .tool-dot {
+  opacity: 1;
+  box-shadow: 0 0 10px color-mix(in oklab, currentColor 24%, transparent);
 }
 
 .tool-dot.manual { background: var(--green); }
@@ -1507,7 +1593,7 @@ body.arranging-pointer {
   padding: 3px 10px 3px 8px;
   border: 1px solid color-mix(in oklab, white 7%, transparent);
   border-radius: 999px;
-  background: color-mix(in oklab, white 4%, transparent);
+  background: color-mix(in oklab, white 2.8%, transparent);
   color: var(--ink-soft);
   font-family: var(--mono);
   font-size: 11px;
@@ -1532,28 +1618,32 @@ body.arranging-pointer {
   height: 6px;
   border-radius: 999px;
   background: currentColor;
-  box-shadow: 0 0 8px currentColor;
+  box-shadow: none;
 }
 
 .terminal-tile.real-terminal.connecting .tile-status { color: var(--brass); }
-.terminal-tile.real-terminal.ready .tile-status      { color: var(--green); }
+.terminal-tile.real-terminal.ready .tile-status      { color: color-mix(in oklab, var(--green) 72%, var(--muted)); }
 .terminal-tile.real-terminal.exited .tile-status     { color: var(--muted); }
 .terminal-tile.real-terminal.error .tile-status      { color: var(--coral); }
-.terminal-tile.real-terminal.browser .tile-status    { color: var(--cyan); }
+.terminal-tile.real-terminal.browser .tile-status    { color: var(--passive); }
 .terminal-tile.real-terminal.restored .tile-status   { color: var(--muted); }
 
-.terminal-tile.real-terminal .tile-status.status-active  { color: var(--green); }
+.terminal-tile.real-terminal .tile-status.status-active  { color: color-mix(in oklab, var(--green) 82%, white 4%); }
 .terminal-tile.real-terminal .tile-status.status-idle    { color: var(--muted); }
 .terminal-tile.real-terminal .tile-status.status-waiting { color: var(--brass); }
 .terminal-tile.real-terminal .tile-status.status-done    { color: var(--muted); }
 .terminal-tile.real-terminal .tile-status.status-error   { color: var(--coral); }
-.terminal-tile.real-terminal .tile-status.status-runtime { color: var(--cyan); }
+.terminal-tile.real-terminal .tile-status.status-runtime { color: var(--passive); }
 .terminal-tile.real-terminal .tile-status.status-restored { color: var(--muted); }
 .terminal-tile.staged .tile-status.status-blocked { color: var(--brass); }
 .terminal-tile.staged .tile-status.status-checking { color: var(--cyan); }
 
+.terminal-tile.real-terminal.browser .tile-status.status-runtime {
+  color: var(--passive);
+}
+
 .terminal-tile.real-terminal.session-active {
-  border-color: color-mix(in oklab, var(--green) 30%, transparent);
+  border-color: color-mix(in oklab, var(--green) 18%, transparent);
 }
 
 .terminal-tile.real-terminal.session-waiting {
@@ -1562,6 +1652,26 @@ body.arranging-pointer {
     inset 0 1px 0 color-mix(in oklab, white 12%, transparent),
     inset 0 0 0 1px color-mix(in oklab, var(--brass) 12%, transparent),
     0 22px 46px -20px rgba(0, 0, 0, 0.88);
+}
+
+.terminal-tile.real-terminal.browser {
+  border-color: color-mix(in oklab, white 8%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, white 2%, transparent), transparent 46px),
+    rgba(4, 6, 8, 0.78);
+  opacity: 0.82;
+}
+
+.terminal-tile.real-terminal.browser .xterm-host {
+  filter: grayscale(0.45);
+  opacity: 0.76;
+}
+
+.terminal-tile.real-terminal.error .tile-status::before,
+.terminal-tile.real-terminal.session-waiting .tile-status::before,
+.terminal-tile.selected .tile-status.status-active::before,
+.terminal-tile.staged .tile-status.status-blocked::before {
+  box-shadow: 0 0 8px currentColor;
 }
 
 .tile-actions button {
@@ -1863,7 +1973,7 @@ body.arranging-pointer {
   border-radius: 10px;
   padding: 12px;
   background:
-    linear-gradient(180deg, rgba(224, 183, 91, 0.045), transparent 62px),
+    linear-gradient(180deg, rgba(224, 183, 91, 0.026), transparent 62px),
     var(--glass);
   box-shadow: inset 0 1px 0 rgba(238, 243, 247, 0.045);
   color: var(--muted);
@@ -1880,8 +1990,8 @@ body.arranging-pointer {
   padding: 5px;
   border-radius: 12px;
   background:
-    radial-gradient(circle at 50% 0%, rgba(224, 183, 91, 0.1), transparent 58%),
-    rgba(12, 16, 21, 0.72);
+    radial-gradient(circle at 50% 0%, rgba(224, 183, 91, 0.05), transparent 58%),
+    rgba(10, 14, 19, 0.92);
   box-shadow:
     inset 0 1px 0 rgba(238, 243, 247, 0.06),
     0 16px 30px -24px rgba(0, 0, 0, 0.8);
@@ -1916,8 +2026,8 @@ body.arranging-pointer {
     linear-gradient(145deg, rgba(238, 243, 247, 0.075), rgba(238, 243, 247, 0.018)),
     rgba(7, 9, 11, 0.82);
   box-shadow:
-    inset 0 1px 0 rgba(238, 243, 247, 0.12),
-    0 14px 28px -20px var(--sigil-glow);
+    inset 0 1px 0 rgba(238, 243, 247, 0.1),
+    0 12px 24px -22px var(--sigil-glow);
   color: var(--sigil-color);
   overflow: hidden;
   transform: perspective(160px) rotateX(8deg) rotateY(-10deg);
@@ -1947,7 +2057,7 @@ body.arranging-pointer {
   background: currentColor;
   border: 0;
   opacity: 0.76;
-  filter: drop-shadow(0 0 8px var(--sigil-glow));
+  filter: none;
 }
 
 .alfred-sigil b {
@@ -1982,8 +2092,14 @@ body.arranging-pointer {
 }
 
 .alfred-sigil.state-recovery {
-  --sigil-color: var(--green);
-  --sigil-glow: rgba(120, 217, 145, 0.36);
+  --sigil-color: var(--brass);
+  --sigil-glow: rgba(217, 174, 70, 0.32);
+}
+
+.alfred-sigil.state-ask i,
+.alfred-sigil.state-error i,
+.alfred-sigil.state-recovery i {
+  filter: drop-shadow(0 0 8px var(--sigil-glow));
 }
 
 .alfred-dock strong,
@@ -2098,9 +2214,9 @@ body.arranging-pointer {
   align-items: center;
   column-gap: 12px;
   row-gap: 3px;
-  padding: 7px 12px 6px;
+  padding: 8px 12px calc(9px + env(safe-area-inset-bottom));
   background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.024), transparent 28px),
+    linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 28px),
     rgba(10, 14, 19, 0.94);
 }
 
@@ -2113,7 +2229,7 @@ body.arranging-pointer {
   min-width: 0;
   min-height: 38px;
   max-height: 96px;
-  border: 1px solid rgba(188, 202, 218, 0.15);
+  border: 1px solid rgba(188, 202, 218, 0.18);
   border-radius: 7px;
   padding: 8px 12px;
   background: rgba(238, 243, 247, 0.04);
@@ -2132,6 +2248,7 @@ body.arranging-pointer {
 .composer-input:focus-visible {
   border-color: rgba(83, 199, 216, 0.46);
   background: rgba(83, 199, 216, 0.045);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 12%, transparent);
 }
 
 .composer-input:disabled {
@@ -2555,7 +2672,7 @@ body.arranging-pointer {
   border-radius: 10px;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.055), transparent 80px),
+    linear-gradient(180deg, rgba(238, 243, 247, 0.038), transparent 80px),
     rgba(9, 13, 18, 0.98);
   box-shadow:
     0 28px 96px rgba(0, 0, 0, 0.52),
@@ -2605,6 +2722,17 @@ body.arranging-pointer {
   gap: 4px;
 }
 
+.command-palette-group {
+  min-height: 24px;
+  padding: 9px 10px 3px;
+  color: var(--passive);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 760;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .command-palette-list button,
 .command-palette-empty {
   min-width: 0;
@@ -2625,9 +2753,9 @@ body.arranging-pointer {
 .command-palette-list button:hover,
 .command-palette-list button:focus-visible,
 .command-palette-list button.active {
-  border-color: color-mix(in oklab, var(--accent) 28%, transparent);
+  border-color: color-mix(in oklab, var(--accent) 34%, transparent);
   background:
-    linear-gradient(90deg, color-mix(in oklab, var(--accent) 9%, transparent), transparent 56%),
+    linear-gradient(90deg, color-mix(in oklab, var(--accent) 7%, transparent), transparent 56%),
     rgba(238, 243, 247, 0.035);
 }
 
@@ -2652,6 +2780,11 @@ body.arranging-pointer {
   color: var(--faint);
   font-family: var(--mono);
   font-size: 11px;
+}
+
+.command-palette-list button small b {
+  color: color-mix(in oklab, var(--brass) 78%, white 8%);
+  font-weight: 650;
 }
 
 /* Staged tile (Alfred-proposed, awaiting approval) */
@@ -3469,17 +3602,16 @@ body.arranging-pointer {
 
 .recovery-workspace-strip {
   min-height: 60px;
-  border: 1px solid color-mix(in oklab, var(--violet) 24%, transparent);
-  border-radius: 14px;
+  border: 1px solid color-mix(in oklab, var(--brass) 20%, transparent);
+  border-radius: 10px;
   padding: 10px 12px;
   background:
-    linear-gradient(135deg, color-mix(in oklab, var(--violet) 10%, transparent), transparent 48%),
-    linear-gradient(180deg, color-mix(in oklab, white 5%, transparent), color-mix(in oklab, white 1.5%, transparent)),
-    rgba(8, 10, 14, 0.72);
-  color: var(--violet);
+    linear-gradient(90deg, color-mix(in oklab, var(--brass) 5%, transparent), transparent 42%),
+    linear-gradient(180deg, color-mix(in oklab, white 2.8%, transparent), color-mix(in oklab, white 0.8%, transparent)),
+    rgba(8, 10, 14, 0.78);
+  color: var(--brass);
   box-shadow:
-    inset 0 1px 0 color-mix(in oklab, white 8%, transparent),
-    0 18px 36px -28px currentColor;
+    inset 0 1px 0 color-mix(in oklab, white 5%, transparent);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -3496,7 +3628,7 @@ body.arranging-pointer {
 }
 
 .recovery-workspace-strip span {
-  color: currentColor;
+  color: color-mix(in oklab, currentColor 72%, var(--muted));
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 700;
@@ -3506,7 +3638,7 @@ body.arranging-pointer {
 
 .recovery-workspace-strip strong {
   margin-top: 3px;
-  color: var(--ink);
+  color: var(--ink-soft);
   font-size: 13px;
   font-weight: 650;
 }
@@ -3529,7 +3661,7 @@ body.arranging-pointer {
   border: 1px solid color-mix(in oklab, currentColor 22%, transparent);
   border-radius: 8px;
   padding: 0 11px;
-  background: color-mix(in oklab, currentColor 7%, transparent);
+  background: color-mix(in oklab, currentColor 5%, transparent);
   color: var(--ink-soft);
   font: 700 11px var(--sans);
   cursor: pointer;
