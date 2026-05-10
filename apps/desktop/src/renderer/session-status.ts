@@ -9,7 +9,7 @@ export type SessionDisplayStatus =
   | { kind: "error"; label: "error" }
   | { kind: "idle"; label: "idle" }
   | { kind: "restored"; label: "restored" }
-  | { kind: "runtime"; label: "electron only" }
+  | { kind: "runtime"; label: "unavailable" }
   | { kind: "staged"; label: "ready" }
   | { kind: "checking"; label: "checking" }
   | { kind: "starting"; label: "starting" }
@@ -31,7 +31,7 @@ export function terminalSessionDisplayStatus(
       : { kind: "staged", label: "ready" };
   }
 
-  if (localStatus === "browser") return { kind: "runtime", label: "electron only" };
+  if (localStatus === "browser") return { kind: "runtime", label: "unavailable" };
   if (localStatus === "error" || session.runtimeStatus === "error") return { kind: "error", label: "error" };
   if (localStatus === "exited" || session.runtimeStatus === "exited") return { kind: "done", label: "done" };
   if (localStatus === "restored" || session.runtimeStatus === "restored") return { kind: "restored", label: "restored" };

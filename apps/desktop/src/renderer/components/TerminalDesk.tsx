@@ -103,9 +103,14 @@ export function TerminalDesk({
   const focusSession = workMode === "focus"
     ? selectedSession ?? focusedSession(sessions, layouts) ?? sessions[0] ?? null
     : null;
-  const inspectedSession = focusSession ?? selectedSession;
-  const visibleSessions = focusSession ? [focusSession] : sessions;
-  const gridDensity = visibleSessions.length <= 1 ? "single" : visibleSessions.length === 2 ? "split" : "dense";
+  const splitSessions = workMode === "split"
+    ? splitSessionsForDesk(sessions, selectedSessionId, layouts)
+    : sessions;
+  const visibleSessions = focusSession ? [focusSession] : splitSessions;
+  const inspectedSession = focusSession ?? selectedSession ?? visibleSessions[0] ?? null;
+  const showSplitEmptyState = workMode === "split" && sessions.length > 0 && visibleSessions.length < 2;
+  const gridDensity =
+    workMode === "split" ? "split" : visibleSessions.length <= 1 ? "single" : visibleSessions.length === 2 ? "split" : "dense";
 
   useEffect(() => {
     if (workMode !== "focus") return;
@@ -363,6 +368,13 @@ export function TerminalDesk({
               />
             ),
           )}
+          {showSplitEmptyState && (
+            <SplitModeEmptyState
+              onAddManualSession={onAddManualSession}
+              onApplyWorkMode={onApplyWorkMode}
+              workspaceLabel={workspaceLabel}
+            />
+          )}
           </div>
         </div>
         {workMode === "focus" && (
@@ -399,9 +411,9 @@ function RecoveryWorkspaceStrip({
   return (
     <section className="recovery-workspace-strip" aria-label="Session recovery">
       <div>
-        <span>Resume workspace</span>
+        <span>Recovery queue</span>
         <strong>{sessions.length} saved session{sessions.length === 1 ? "" : "s"}</strong>
-        <p>{summary || "Saved transcripts are ready."}</p>
+        <p>{summary || "Mirrored in Alfred. Choose when to relaunch."}</p>
       </div>
       <div>
         <button type="button" onClick={onContinueRecoverableSessions}>
@@ -412,6 +424,37 @@ function RecoveryWorkspaceStrip({
         </button>
       </div>
     </section>
+  );
+}
+
+function SplitModeEmptyState({
+  onAddManualSession,
+  onApplyWorkMode,
+  workspaceLabel,
+}: {
+  onAddManualSession: () => void;
+  onApplyWorkMode: (mode: WorkMode) => void;
+  workspaceLabel: string;
+}) {
+  return (
+    <aside className="split-empty-state" role="status" aria-label="Split mode needs another session">
+      <div>
+        <span>split slot</span>
+        <strong>Select another session to split</strong>
+        <p>
+          {workspaceLabel} has one visible tile. Create a second terminal for this side, or return to the
+          full desk when you want the whole surface.
+        </p>
+      </div>
+      <div className="split-empty-actions">
+        <button type="button" onClick={onAddManualSession}>
+          New terminal
+        </button>
+        <button type="button" onClick={() => onApplyWorkMode("desk")}>
+          Back to desk
+        </button>
+      </div>
+    </aside>
   );
 }
 
@@ -646,7 +689,7 @@ function ManualTerminalTile({
       allowProposedApi: false,
       convertEol: true,
       cursorBlink: true,
-      disableStdin: restoredTranscript,
+      disableStdin: restoredTranscript || !terminalApi,
       fontFamily: '"Berkeley Mono", "JetBrains Mono", "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
       fontSize: 13,
       lineHeight: 1.32,
@@ -705,8 +748,9 @@ function ManualTerminalTile({
 
     if (!terminalApi) {
       setStatus("browser");
-      terminal.writeln("Manual terminal requires the Electron desktop runtime.");
-      terminal.writeln("Open it with: pnpm --filter @alfred/desktop dev:electron");
+      terminal.writeln("Terminal unavailable outside Electron.");
+      terminal.writeln("Open Alfred Desktop to attach a real local PTY.");
+      terminal.writeln("Dev fallback: pnpm --filter @alfred/desktop dev:electron");
       return () => {
         terminal.dispose();
       };
@@ -1052,6 +1096,18 @@ function focusedSession(sessions: SessionTile[], layouts: Record<string, TileLay
     if (!best || area > best.area) best = { session, area };
   }
   return best?.session ?? null;
+}
+
+function splitSessionsForDesk(
+  sessions: SessionTile[],
+  selectedSessionId: string | null,
+  layouts: Record<string, TileLayout>,
+): SessionTile[] {
+  const primary = selectedSessionForDesk(sessions, selectedSessionId) ?? focusedSession(sessions, layouts) ?? sessions[0] ?? null;
+  if (!primary) return [];
+
+  const secondary = sessions.find((session) => session.id !== primary.id) ?? null;
+  return secondary ? [primary, secondary] : [primary];
 }
 
 function selectedSessionForDesk(sessions: SessionTile[], selectedSessionId: string | null): SessionTile | null {

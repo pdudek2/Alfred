@@ -762,6 +762,23 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Desk" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("shows a useful second pane prompt when split mode has one session", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Split" }));
+
+    const splitPrompt = screen.getByLabelText("Split mode needs another session");
+    expect(splitPrompt).toHaveTextContent("Select another session to split");
+
+    await user.click(within(splitPrompt).getByRole("button", { name: "Back to desk" }));
+
+    expect(screen.getByRole("button", { name: "Desk" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("selects a tile on click and opens the inspector on double click", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
@@ -852,6 +869,8 @@ describe("App integration", () => {
     await user.keyboard("{Control>}k{/Control}");
 
     expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
+    expect(screen.getByText("Launch")).toBeInTheDocument();
+    expect(screen.getByText("Review and recovery")).toBeInTheDocument();
     await user.keyboard("{Enter}");
 
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
