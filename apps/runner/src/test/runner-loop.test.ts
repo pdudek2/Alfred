@@ -1,8 +1,8 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { IngestBatchSchema, type IngestEvent } from "@alfred/schema";
 
 import { runRunnerLoop, runRunnerOnce } from "../index.js";
@@ -11,10 +11,11 @@ import { flushOutboxOnce } from "../outbox/outbox-worker.js";
 
 const workspaceId = "00000000-0000-4000-8000-000000000001";
 const deviceId = "00000000-0000-4000-8000-000000000101";
+const tempDirs: string[] = [];
 type FetchMock = { mock: { calls: Array<[string, RequestInit]> } };
 
 function createOutbox() {
-  const dir = mkdtempSync(join(tmpdir(), "alfred-outbox-worker-"));
+  const dir = trackedTempDir("alfred-outbox-worker-");
   return new OutboxDb(join(dir, "outbox.sqlite"));
 }
 
@@ -38,6 +39,12 @@ function enqueueValidEvent(outbox: OutboxDb, eventId = "123456789012") {
 }
 
 describe("flushOutboxOnce", () => {
+  afterEach(() => {
+    for (const dir of tempDirs.splice(0)) {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  });
+
   it("sends ready events and removes them after success", async () => {
     const outbox = createOutbox();
     enqueueValidEvent(outbox);
@@ -103,7 +110,7 @@ describe("flushOutboxOnce", () => {
   });
 
   it("collects adapter events, redacts payload, and flushes a valid batch", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "alfred-runner-main-"));
+    const dir = trackedTempDir("alfred-runner-main-");
     const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
     const event: IngestEvent = {
       event_id: "123456789012",
@@ -148,7 +155,7 @@ describe("flushOutboxOnce", () => {
   });
 
   it("drains all ready outbox batches after collecting a large import", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "alfred-runner-drain-"));
+    const dir = trackedTempDir("alfred-runner-drain-");
     const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
     const events: IngestEvent[] = Array.from({ length: 250 }, (_, index) => {
       const eventId = `event-${String(index).padStart(12, "0")}`;
@@ -196,7 +203,7 @@ describe("flushOutboxOnce", () => {
   });
 
   it("stores the newest collected event timestamp as the source cursor", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "alfred-runner-cursor-"));
+    const dir = trackedTempDir("alfred-runner-cursor-");
     const outboxPath = join(dir, "outbox.sqlite");
     const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
     const firstEvent: IngestEvent = {
@@ -247,7 +254,7 @@ describe("flushOutboxOnce", () => {
   });
 
   it("advances explicit Codex since with the stored source cursor", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "alfred-runner-codex-cursor-"));
+    const dir = trackedTempDir("alfred-runner-codex-cursor-");
     const codexHome = join(dir, ".codex");
     const sessionPath = join(codexHome, "sessions/2026/04/28/session.jsonl");
     const outboxPath = join(dir, "outbox.sqlite");
@@ -301,7 +308,7 @@ describe("flushOutboxOnce", () => {
   });
 
   it("collects multiple source adapters and stores independent cursors", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "alfred-runner-multi-source-"));
+    const dir = trackedTempDir("alfred-runner-multi-source-");
     const outboxPath = join(dir, "outbox.sqlite");
     const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
     const codexEvent: IngestEvent = {
@@ -372,7 +379,7 @@ describe("flushOutboxOnce", () => {
   });
 
   it("keeps polling while the runner loop is active", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "alfred-runner-loop-"));
+    const dir = trackedTempDir("alfred-runner-loop-");
     const outboxPath = join(dir, "outbox.sqlite");
     const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
     const collect = vi
@@ -433,3 +440,9 @@ describe("flushOutboxOnce", () => {
     expect(sleep).toHaveBeenCalledWith(1_500);
   });
 });
+
+function trackedTempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}

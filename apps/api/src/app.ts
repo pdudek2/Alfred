@@ -32,6 +32,7 @@ export function createApp() {
           userId: env.ALFRED_BOOTSTRAP_USER_ID,
           workspaceId: env.ALFRED_BOOTSTRAP_WORKSPACE_ID,
         });
+  const ensureBootstrapAuth = createBootstrapAuthGate(bootstrapAuth);
   const staticSessionStore = createStaticSessionStore(env.AUTH_DEV_SESSION_TOKEN, {
     userId: env.ALFRED_BOOTSTRAP_USER_ID,
     email: env.ALFRED_BOOTSTRAP_ADMIN_EMAIL,
@@ -52,7 +53,7 @@ export function createApp() {
     : dbDeviceAuthStore;
 
   app.use("*", async (_c, next) => {
-    await bootstrapAuth;
+    await ensureBootstrapAuth();
     await next();
   });
 
@@ -85,11 +86,23 @@ export function createApp() {
   app.route("/api/health", healthRoutes);
   app.route("/auth", createAuthRoutes(db, authRouteOptions));
   app.route("/api/auth", createAuthRoutes(db, { ...authRouteOptions, callbackPath: "/api/auth/callback" }));
-  app.route("/v1/ingest", createIngestRoutes(db, deviceAuthStore));
-  app.route("/v1/runs", createRunsRoutes(db, { sessionStore }));
-  app.route("/v1/system", createSystemRoutes(systemStatusStore, sessionStore));
-  app.route("/api/v1/ingest", createIngestRoutes(db, deviceAuthStore));
-  app.route("/api/v1/runs", createRunsRoutes(db, { sessionStore }));
-  app.route("/api/v1/system", createSystemRoutes(systemStatusStore, sessionStore));
+  mountVersionedApiRoutes("/v1");
+  mountVersionedApiRoutes("/api/v1");
   return app;
+
+  function mountVersionedApiRoutes(prefix: string) {
+    app.route(`${prefix}/ingest`, createIngestRoutes(db, deviceAuthStore));
+    app.route(`${prefix}/runs`, createRunsRoutes(db, { sessionStore }));
+    app.route(`${prefix}/system`, createSystemRoutes(systemStatusStore, sessionStore));
+  }
+}
+
+function createBootstrapAuthGate(bootstrapAuth: Promise<void>) {
+  let ready = false;
+
+  return async () => {
+    if (ready) return;
+    await bootstrapAuth;
+    ready = true;
+  };
 }

@@ -231,11 +231,7 @@ function jsonCandidate(content: string): string {
   const fenced = /```(?:json)?\s*([\s\S]*?)\s*```/i.exec(trimmed);
   if (fenced?.[1]) return fenced[1].trim();
 
-  const objectStart = trimmed.indexOf("{");
-  const objectEnd = trimmed.lastIndexOf("}");
-  if (objectStart >= 0 && objectEnd > objectStart) {
-    return trimmed.slice(objectStart, objectEnd + 1);
-  }
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed;
 
   return trimmed;
 }

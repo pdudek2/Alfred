@@ -145,11 +145,16 @@ async function runSmoke({ env, handler }) {
 
 function runNode(file, env) {
   return new Promise((resolve) => {
+    let settled = false;
     const child = spawn(process.execPath, [file], {
       cwd: repoRoot,
       env,
       stdio: ["ignore", "pipe", "pipe"],
     });
+    const timeout = setTimeout(() => {
+      child.kill("SIGKILL");
+      finish({ code: null, stderr: `${stderr}\nprocess timed out`, stdout });
+    }, 10_000);
 
     let stdout = "";
     let stderr = "";
@@ -160,8 +165,18 @@ function runNode(file, env) {
       stderr += chunk;
     });
     child.on("close", (code) => {
-      resolve({ code, stderr, stdout });
+      finish({ code, stderr, stdout });
     });
+    child.on("error", (error) => {
+      finish({ code: null, stderr: `${stderr}\n${error.message}`, stdout });
+    });
+
+    function finish(result) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve(result);
+    }
   });
 }
 

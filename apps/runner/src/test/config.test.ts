@@ -11,8 +11,27 @@ describe("runner env", () => {
     expect(env.RUNNER_DEVICE_TOKEN).toBe("dev-device-token");
     expect(env.ALFRED_SOURCES).toEqual(["codex"]);
     expect(env.ALFRED_RUNNER_POLL_MS).toBe(5_000);
-    expect(env.ALFRED_CODEX_HOME).toBe("/tmp/home/.codex");
-    expect(env.ALFRED_CLAUDE_HOME).toBe("/tmp/home/.claude");
+    expect(env.ALFRED_CODEX_HOME).toBe("apps/runner/src/test/fixtures/codex-home");
+    expect(env.ALFRED_CLAUDE_HOME).toBe("apps/runner/src/test/fixtures/claude-home");
+  });
+
+  it("does not read real agent homes when dev config is enabled", () => {
+    const env = parseRunnerEnv({ ALFRED_ALLOW_DEV_CONFIG: "1", HOME: "/Users/patryk" });
+
+    expect(env.ALFRED_CODEX_HOME).not.toBe("/Users/patryk/.codex");
+    expect(env.ALFRED_CLAUDE_HOME).not.toBe("/Users/patryk/.claude");
+  });
+
+  it("allows explicit source homes to override safe dev defaults", () => {
+    const env = parseRunnerEnv({
+      ALFRED_ALLOW_DEV_CONFIG: "1",
+      ALFRED_CODEX_HOME: "/tmp/codex-fixture",
+      ALFRED_CLAUDE_HOME: "/tmp/claude-fixture",
+      HOME: "/Users/patryk",
+    });
+
+    expect(env.ALFRED_CODEX_HOME).toBe("/tmp/codex-fixture");
+    expect(env.ALFRED_CLAUDE_HOME).toBe("/tmp/claude-fixture");
   });
 
   it("requires credentials outside dev opt-in", () => {

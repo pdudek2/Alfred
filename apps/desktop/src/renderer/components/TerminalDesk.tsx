@@ -24,6 +24,7 @@ import { AgentTimelinePanel } from "./AgentTimelinePanel";
 import { shortenPath, shortenWorktreeLabel } from "../path-display";
 import { recoveryHeadline, recoverySummary } from "../recovery-display";
 import { sessionRelaunchSafety } from "../relaunch-safety";
+import { normalizeSessionTitle } from "../../shared/session-title";
 
 const ARRANGE_GRID_ROW_HEIGHT = 84;
 
@@ -669,7 +670,7 @@ function ManualTerminalTile({
   }, [renaming, title]);
 
   const submitRename = () => {
-    const nextTitle = renameDraft.trim().replace(/\s+/g, " ").slice(0, 80);
+    const nextTitle = normalizeSessionTitle(renameDraft);
     if (nextTitle) {
       onRenameSession(sessionKey, nextTitle);
     }

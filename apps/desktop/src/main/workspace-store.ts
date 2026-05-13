@@ -9,6 +9,7 @@ import {
   type PersistedDesktopStateStore,
   type PersistedDesktopStateStoreOptions,
 } from "./persisted-desktop-state.js";
+import { shortLabelForWorkspace } from "../shared/workspace-label.js";
 import type { WorkspaceStateSetRequest, WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
 
 const execFileAsync = promisify(execFile);
@@ -154,10 +155,4 @@ function uniqueWorkspaceId(label: string, existingIds: string[]): string {
   }
 
   return candidate;
-}
-
-function shortLabelForWorkspace(label: string): string {
-  const words = label.trim().split(/[^a-zA-Z0-9]+/).filter(Boolean);
-  const letters = words.length > 1 ? words.map((word) => word[0]).join("") : label.slice(0, 3);
-  return (letters || "W").slice(0, 3).toUpperCase();
 }

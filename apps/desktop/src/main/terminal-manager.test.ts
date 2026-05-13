@@ -148,8 +148,7 @@ describe("terminal-manager IPC", () => {
       title: "Manual terminal",
     });
     pty.onDataHandler?.("Server ready\nBash(\"pnpm test\")\n");
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushTerminalPersistence();
 
     expect(state.restoredTerminalSessions).toEqual([
       expect.objectContaining({
@@ -223,7 +222,7 @@ describe("terminal-manager IPC", () => {
     });
 
     await invoke(terminalChannels.rename, { clientId: "manual-1", title: "  Spec   reviewer  " });
-    await Promise.resolve();
+    await flushTerminalPersistence();
 
     expect(state.restoredTerminalSessions).toEqual([
       expect.objectContaining({
@@ -266,8 +265,7 @@ describe("terminal-manager IPC", () => {
 
     await invoke(terminalChannels.list);
     emit(terminalChannels.forget, { clientId: "manual-1" });
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushTerminalPersistence();
 
     expect(state.restoredTerminalSessions).toEqual([]);
   });
@@ -453,6 +451,35 @@ describe("terminal-manager IPC", () => {
       cwd: "/repo/.alfred-worktrees/alfred-codex-codex-1-20260509191530-abc123",
       isolation: "worktree",
     });
+  });
+
+  it("does not spawn a session when isolated worktree preparation fails", async () => {
+    const nodePty = fakeNodePty(new FakePty());
+    const prepareAgentWorktree = vi.fn(async () => {
+      throw new Error("Workspace has uncommitted changes.");
+    });
+    registerTerminalIpc({
+      loadNodePty: async () => nodePty as never,
+      prepareAgentWorktree,
+    });
+
+    await expect(
+      invoke(terminalChannels.create, {
+        agentKind: "codex",
+        clientId: "codex-1",
+        command: "codex",
+        cols: 80,
+        cwd: "/repo",
+        isolation: "worktree",
+        rows: 24,
+        source: "manual",
+        title: "Codex · session 1",
+      }),
+    ).rejects.toThrow("Workspace has uncommitted changes.");
+
+    expect(prepareAgentWorktree).toHaveBeenCalledOnce();
+    expect(nodePty.spawn).not.toHaveBeenCalled();
+    expect(getTerminalSessionCount()).toBe(0);
   });
 
   it("uses a preflighted branch name for isolated staged sessions", async () => {

@@ -13,6 +13,7 @@ import type {
   TerminalSessionId,
   TerminalSessionIsolation,
 } from "../shared/terminal-ipc";
+import { normalizeSessionTitle } from "../shared/session-title";
 
 export type SessionTile = {
   id: string;
@@ -86,7 +87,7 @@ export function closeSession(sessions: SessionTile[], sessionId: string): Sessio
 }
 
 export function renameSession(sessions: SessionTile[], sessionId: string, title: string): SessionTile[] {
-  const normalizedTitle = title.trim().replace(/\s+/g, " ").slice(0, 80);
+  const normalizedTitle = normalizeSessionTitle(title);
   if (!normalizedTitle) return sessions;
 
   return sessions.map((session) => session.id === sessionId ? { ...session, title: normalizedTitle } : session);

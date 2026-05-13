@@ -1,4 +1,4 @@
-import { createDb, type Database } from "@alfred/db";
+import { type Database } from "@alfred/db";
 import { AgentSource, RunStatus } from "@alfred/schema";
 import { Hono } from "hono";
 
@@ -17,7 +17,7 @@ export type RunsRouteOptions = {
   sessionStore: AuthSessionStore;
 };
 
-export function createRunsRoutes(db: Database | RunsQueryStore = createDb(), options: RunsRouteOptions) {
+export function createRunsRoutes(db: Database | RunsQueryStore, options: RunsRouteOptions) {
   const runsRoutes = new Hono<{ Variables: AuthVariables }>();
   const store = isRunsQueryStore(db) ? db : createRunsQueryStore(db);
 

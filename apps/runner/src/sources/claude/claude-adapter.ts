@@ -345,6 +345,24 @@ function projectKeyFromCwd(cwd: string | undefined): string | undefined {
 
 function projectKeyFromClaudeProjectPath(file: string): string {
   const encodedProject = basename(dirname(file));
+  const normalizedProject = encodedProject.replace(/^-+/, "");
+  const commonRootMarkers = [
+    "-Desktop-",
+    "-Documents-",
+    "-Developer-",
+    "-Projects-",
+    "-repos-",
+    "-src-",
+    "-workspaces-",
+  ];
+
+  for (const marker of commonRootMarkers) {
+    const markerIndex = normalizedProject.lastIndexOf(marker);
+    if (markerIndex < 0) continue;
+    const projectName = normalizedProject.slice(markerIndex + marker.length);
+    if (projectName) return projectName;
+  }
+
   const segments = encodedProject.split("-").filter(Boolean);
   return segments.at(-1) ?? "unknown-project";
 }

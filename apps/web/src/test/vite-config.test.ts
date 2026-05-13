@@ -1,6 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 describe("web Vite config", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
   it("uses worktree-friendly ports from the environment", async () => {
     vi.stubEnv("WEB_PORT", "4310");
     vi.stubEnv("API_PORT", "4311");
