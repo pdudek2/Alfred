@@ -1156,7 +1156,8 @@ describe("App integration", () => {
       );
     });
     await waitFor(() => {
-      expect(codexTile).toHaveTextContent("alfred-codex-codex-1");
+      expect(codexTile).toHaveTextContent("Codex · isolated worktree");
+      expect(codexTile).not.toHaveTextContent("alfred-codex-codex-1");
     });
   });
 

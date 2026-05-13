@@ -21,7 +21,7 @@ import type { ArrangePointerMode, ArrangePreview, WorkMode } from "../terminal-d
 import type { AgentKind, AlfredStagedSessionPatch } from "../../shared/alfred-ipc";
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../../shared/terminal-ipc";
 import { AgentTimelinePanel } from "./AgentTimelinePanel";
-import { shortenPath, shortenWorktreeLabel } from "../path-display";
+import { shortenPath } from "../path-display";
 import { recoveryHeadline, recoverySummary } from "../recovery-display";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { normalizeSessionTitle } from "../../shared/session-title";
@@ -653,14 +653,12 @@ function ManualTerminalTile({
   const relaunchNeedsReview = !relaunchSafety.safe;
   const latestActivity = latestVisibleActivity(activityEvents);
   const ageLabel = sessionAgeLabel(createdAt, displayClock);
-  const branchLabel = branchName ? shortenWorktreeLabel(branchName, 24) : null;
-  const branchTitle = branchName
+  const sessionLocationLabel = branchName ? "isolated worktree" : (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
+  const sessionLocationTitle = branchName
     ? baseCwd
       ? `${branchName} · isolated from ${baseCwd}`
       : `${branchName} · isolated worktree`
-    : undefined;
-  const sessionLocationLabel = branchLabel ?? (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
-  const sessionLocationTitle = branchName ?? resolvedCwd ?? "runtime cwd";
+    : resolvedCwd ?? "runtime cwd";
   const externalTerminalCwd = resolvedCwd || cwd;
 
   useEffect(() => {
@@ -973,11 +971,6 @@ function ManualTerminalTile({
             </small>
           </div>
         </div>
-        {branchName && (
-          <span className="tile-branch" title={branchTitle}>
-            {branchLabel}
-          </span>
-        )}
         {latestActivity && (
           <div className={`tile-activity activity-${latestActivity.kind}`} title={latestActivity.detail}>
             <span>{activityKindLabel(latestActivity.kind)}</span>
