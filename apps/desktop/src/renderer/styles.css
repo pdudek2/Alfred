@@ -1745,9 +1745,16 @@ body.arranging-pointer {
 .tile-actions .discard-session-button {
   width: auto;
   gap: 6px;
-  padding: 0 9px;
-  border-color: rgba(239, 129, 115, 0.28);
-  background: rgba(239, 129, 115, 0.055);
+  padding: 0 7px;
+  border-color: transparent;
+  background: transparent;
+  color: color-mix(in oklab, var(--coral) 68%, var(--muted));
+}
+
+.tile-actions .discard-session-button:hover,
+.tile-actions .discard-session-button:focus-visible {
+  border-color: transparent;
+  background: rgba(239, 129, 115, 0.045);
   color: #ffd5cc;
 }
 
@@ -2223,9 +2230,9 @@ body.arranging-pointer {
 .review-context-summary {
   min-width: 0;
   border-top: 1px solid rgba(188, 202, 218, 0.1);
-  padding-top: 10px;
+  padding-top: 9px;
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .review-context-summary header {
@@ -2246,7 +2253,7 @@ body.arranging-pointer {
 }
 
 .review-context-summary header span {
-  color: var(--ink-soft);
+  color: var(--faint);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -2260,24 +2267,22 @@ body.arranging-pointer {
 
 .review-context-item {
   min-width: 0;
-  border: 1px solid rgba(188, 202, 218, 0.1);
-  border-radius: 8px;
-  padding: 8px;
-  background: rgba(238, 243, 247, 0.025);
+  border: 0;
+  border-radius: 7px;
+  padding: 4px 0;
+  background: transparent;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-columns: 24px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
 }
 
 .review-context-item.tone-decision {
-  border-color: rgba(217, 174, 70, 0.18);
-  background: color-mix(in oklab, var(--brass) 4%, transparent);
+  color: color-mix(in oklab, var(--brass) 70%, var(--muted));
 }
 
 .review-context-item.tone-recovery {
-  border-color: rgba(83, 199, 216, 0.15);
-  background: color-mix(in oklab, var(--cyan) 3%, transparent);
+  color: color-mix(in oklab, var(--cyan) 62%, var(--muted));
 }
 
 .review-context-item strong,
@@ -2290,8 +2295,8 @@ body.arranging-pointer {
 
 .review-context-item strong {
   color: var(--ink-soft);
-  font-size: 12px;
-  font-weight: 620;
+  font-size: 11px;
+  font-weight: 580;
 }
 
 .review-context-item div > span {
@@ -2424,6 +2429,8 @@ body.arranging-pointer {
   display: grid;
   place-items: start center;
   padding-top: 14vh;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .review-queue-backdrop {
@@ -2714,7 +2721,15 @@ body.arranging-pointer {
 }
 
 .global-review-discard {
-  border-color: rgba(239, 129, 115, 0.26);
+  min-width: 86px;
+  border-color: transparent;
+  background: transparent;
+  color: color-mix(in oklab, var(--coral) 68%, var(--muted));
+}
+
+.global-review-discard:hover,
+.global-review-discard:focus-visible {
+  border-color: transparent;
   background: rgba(239, 129, 115, 0.045);
   color: #ffd5cc;
 }
@@ -2897,11 +2912,6 @@ body.arranging-pointer {
   color: var(--faint);
   font-family: var(--mono);
   font-size: 11px;
-}
-
-.command-palette-list button small b {
-  color: color-mix(in oklab, var(--brass) 78%, white 8%);
-  font-weight: 650;
 }
 
 /* Staged tile (Alfred-proposed, awaiting approval) */
@@ -3524,18 +3534,25 @@ body.arranging-pointer {
 }
 
 .recovery-workspace-strip {
-  min-height: 60px;
-  border: 1px solid color-mix(in oklab, var(--brass) 20%, transparent);
-  border-radius: 10px;
-  padding: 10px 12px;
+  min-height: 36px;
+  border: 1px solid color-mix(in oklab, var(--brass) 14%, transparent);
+  border-radius: 8px;
+  padding: 7px 10px;
   background:
-    linear-gradient(90deg, color-mix(in oklab, var(--brass) 5%, transparent), transparent 42%),
-    linear-gradient(180deg, color-mix(in oklab, white 2.8%, transparent), color-mix(in oklab, white 0.8%, transparent)),
-    rgba(8, 10, 14, 0.78);
+    linear-gradient(90deg, color-mix(in oklab, var(--brass) 3%, transparent), transparent 36%),
+    rgba(8, 10, 14, 0.66);
   color: var(--brass);
   box-shadow:
-    inset 0 1px 0 color-mix(in oklab, white 5%, transparent);
-  display: block;
+    inset 0 1px 0 color-mix(in oklab, white 4%, transparent);
+  display: flex;
+  align-items: center;
+}
+
+.recovery-workspace-strip > div {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
 }
 
 .recovery-workspace-strip span,
@@ -3557,14 +3574,14 @@ body.arranging-pointer {
 }
 
 .recovery-workspace-strip strong {
-  margin-top: 3px;
+  margin-top: 0;
   color: var(--ink-soft);
-  font-size: 13px;
-  font-weight: 650;
+  font-size: 12px;
+  font-weight: 620;
 }
 
 .recovery-workspace-strip p {
-  margin: 2px 0 0;
+  margin: 0;
   color: var(--muted);
   font-family: var(--mono);
   font-size: 11px;
@@ -3754,7 +3771,9 @@ body.arranging-pointer {
   color: var(--ink-soft);
   font-family: var(--mono);
   font-size: 11px;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agent-staged-editor,

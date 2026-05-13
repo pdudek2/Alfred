@@ -4,6 +4,7 @@ import type { SessionActivityEvent, SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
+import { shortenWorktreeLabel } from "../path-display";
 
 type AgentTimelinePanelProps = {
   onCopyActivityText?: (value: string) => Promise<void> | void;
@@ -72,6 +73,9 @@ export function AgentTimelinePanel({
   const latestApproval = latestApprovalEvent(activityEvents);
   const pulseCard = sessionPulseCard(session, displayStatus, activityEvents);
   const handoffActions = sessionHandoffActions(session, command);
+  const cwdFactLabel = session.cwd ? shortenWorktreeLabel(session.cwd) : "default workspace";
+  const branchFactLabel = session.branchName ? shortenWorktreeLabel(session.branchName) : null;
+  const baseFactLabel = session.baseCwd ? shortenWorktreeLabel(session.baseCwd) : null;
   const canEditStagedSession = isEditableStagedSession(session) && Boolean(onUpdateStagedSession);
   const canSendApprovalResponse =
     Boolean(onSendInput) &&
@@ -289,7 +293,7 @@ export function AgentTimelinePanel({
           </div>
           <div>
             <dt>cwd</dt>
-            <dd>{session.cwd || "default workspace"}</dd>
+            <dd {...fullFactValueProps(session.cwd, cwdFactLabel)}>{cwdFactLabel}</dd>
           </div>
           {session.isolation && (
             <div>
@@ -300,13 +304,15 @@ export function AgentTimelinePanel({
           {session.branchName && (
             <div>
               <dt>branch</dt>
-              <dd>{session.branchName}</dd>
+              <dd {...fullFactValueProps(session.branchName, branchFactLabel ?? session.branchName)}>
+                {branchFactLabel}
+              </dd>
             </div>
           )}
           {session.baseCwd && (
             <div>
               <dt>base</dt>
-              <dd>{session.baseCwd}</dd>
+              <dd {...fullFactValueProps(session.baseCwd, baseFactLabel ?? session.baseCwd)}>{baseFactLabel}</dd>
             </div>
           )}
           {command && (
@@ -542,6 +548,11 @@ function HandoffActionButton({
       {actionState ?? action.label}
     </button>
   );
+}
+
+function fullFactValueProps(value: string | undefined, displayValue: string): { title?: string; "aria-label"?: string } {
+  if (!value || value === displayValue) return {};
+  return { title: value, "aria-label": value };
 }
 
 function sessionHandoffActions(session: SessionTile, command: string): SessionHandoffAction[] {

@@ -239,7 +239,7 @@ function ReviewRecoveryContext({
   return (
     <section className="review-context-summary" aria-label="Review and recovery context">
       <header>
-        <span>Review context</span>
+        <span>Session summary</span>
         <strong>{summary}</strong>
       </header>
       {firstDecision && <ReviewContextItem item={firstDecision} />}

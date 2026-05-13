@@ -74,6 +74,43 @@ describe("AgentTimelinePanel", () => {
     expect(onCopyActivityText).toHaveBeenCalledWith("codex --resume --prompt 'hello world' 'src/odd'\\''s file.ts'");
   });
 
+  it("shortens noisy worktree facts without changing cwd handoff copy", async () => {
+    const user = userEvent.setup();
+    const onCopyActivityText = vi.fn();
+    const cwd = "/Users/patryk/Desktop/Alfred/.worktrees/path-noise-pass-with-extra-detail";
+    const branchName = "codex/alfred/focus/right-dock/path-noise-pass-branch";
+    const baseCwd = "/Users/patryk/Desktop/Alfred";
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — path noise",
+      workspaceId: "w1",
+      stage: "live",
+      cwd,
+      source: "alfred",
+      command: "codex",
+      runtimeId: "runtime-1",
+      isolation: "worktree",
+      branchName,
+      baseCwd,
+    };
+
+    const { container } = render(<AgentTimelinePanel session={session} onCopyActivityText={onCopyActivityText} />);
+
+    const facts = container.querySelector<HTMLElement>(".agent-session-facts");
+    if (!facts) throw new Error("Session facts not rendered");
+    expect(within(facts).getByText("…/.worktrees/path…with-extra-detail")).toHaveAttribute("title", cwd);
+    expect(within(facts).getByText("…/.worktrees/path…with-extra-detail")).toHaveAttribute("aria-label", cwd);
+    expect(within(facts).getByText("…/right-dock/path-noise-pass-branch")).toHaveAttribute("title", branchName);
+    expect(within(facts).getByText("…/Desktop/Alfred")).toHaveAttribute("title", baseCwd);
+    expect(facts).not.toHaveTextContent(cwd);
+    expect(facts).not.toHaveTextContent(branchName);
+
+    const handoff = within(container).getByRole("region", { name: "Handoff actions for codex — path noise" });
+    await user.click(within(handoff).getByRole("button", { name: "Copy cwd for codex — path noise" }));
+
+    expect(onCopyActivityText).toHaveBeenCalledWith(cwd);
+  });
+
   it("renders recent stored activity events before generic runtime copy", () => {
     const session: SessionTile = {
       id: "s1",
