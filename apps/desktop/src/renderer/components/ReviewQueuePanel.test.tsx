@@ -116,4 +116,42 @@ describe("ReviewQueuePanel", () => {
     expect(handlers.onRestartSession).not.toHaveBeenCalled();
     expect(handlers.onClose).not.toHaveBeenCalled();
   });
+
+  it("lets blocked staged commands be discarded from the queue", async () => {
+    const user = userEvent.setup();
+    const handlers = renderPanel({
+      id: "A:claude-review",
+      priority: 6,
+      session: {
+        id: "claude-review",
+        title: "UI/UX Deep Analysis",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        source: "alfred",
+        stage: "staged",
+        command: "claude",
+        args: ["--print", "review UI"],
+        agentKind: "claude",
+        launchPreflight: {
+          status: "blocked",
+          code: "command_missing",
+          label: "Launch blocked",
+          reason: "Command \"claude\" is not available on PATH.",
+        },
+      },
+      status: { kind: "blocked", label: "blocked" },
+      detail: "Command is unavailable",
+      workspaceId: "A",
+      workspaceLabel: "Alfred",
+      workspaceShortLabel: "A",
+    });
+
+    expect(screen.getByRole("button", { name: "Blocked UI/UX Deep Analysis in Alfred" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Discard UI/UX Deep Analysis from Alfred" }));
+
+    expect(handlers.onDiscardSession).toHaveBeenCalledWith("claude-review");
+    expect(handlers.onLaunchItem).not.toHaveBeenCalled();
+    expect(handlers.onClose).not.toHaveBeenCalled();
+  });
 });

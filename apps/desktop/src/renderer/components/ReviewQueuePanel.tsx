@@ -172,7 +172,8 @@ function ReviewQueuePanelItem({
   const action = reviewActionLabel(item, armed);
   const command = formatCommand(item.session);
   const recoveryAction = item.status.kind === "restored" || item.status.kind === "done" || item.status.kind === "error";
-  const discardable = recoveryAction;
+  const stagedAction = item.status.kind === "staged" || item.status.kind === "blocked" || item.status.kind === "checking";
+  const discardable = recoveryAction || stagedAction;
   const relaunchSafety = sessionRelaunchSafety(item.session);
   const relaunchNeedsReview = recoveryAction && !relaunchSafety.safe;
   const showCommand =
