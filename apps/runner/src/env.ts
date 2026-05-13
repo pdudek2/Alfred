@@ -7,6 +7,8 @@ const DEFAULT_WORKSPACE_ID = LOCAL_WORKSPACE_ID;
 const DEFAULT_DEVICE_ID = LOCAL_DEVICE_ID;
 const DEFAULT_OUTBOX_PATH = ".alfred-runner/outbox.sqlite";
 const DEFAULT_RUNNER_POLL_MS = 5_000;
+const DEFAULT_DEV_CODEX_HOME = "apps/runner/src/test/fixtures/codex-home";
+const DEFAULT_DEV_CLAUDE_HOME = "apps/runner/src/test/fixtures/claude-home";
 
 const PrivacyModeSchema = z.enum(["minimal", "standard", "full"]);
 const RunnerSourceSchema = z.enum(["codex", "claude"]);
@@ -50,6 +52,22 @@ function parseRunnerSources(raw: string | undefined): RunnerSource[] {
 export function parseRunnerEnv(input: NodeJS.ProcessEnv): RunnerEnv {
   const allowDevDefaults = input.NODE_ENV === "test" || input.ALFRED_ALLOW_DEV_CONFIG === "1";
   const home = input.HOME ?? process.env.HOME ?? ".";
+  const codexHome = resolveSourceHome({
+    allowDevDefaults,
+    explicitValue: input.ALFRED_CODEX_HOME,
+    home,
+    productionPath: ".codex",
+    safeDevPath: DEFAULT_DEV_CODEX_HOME,
+    variableName: "ALFRED_CODEX_HOME",
+  });
+  const claudeHome = resolveSourceHome({
+    allowDevDefaults,
+    explicitValue: input.ALFRED_CLAUDE_HOME,
+    home,
+    productionPath: ".claude",
+    safeDevPath: DEFAULT_DEV_CLAUDE_HOME,
+    variableName: "ALFRED_CLAUDE_HOME",
+  });
 
   const deviceToken = input.RUNNER_DEVICE_TOKEN ?? (allowDevDefaults ? DEFAULT_DEVICE_TOKEN : undefined);
   if (!deviceToken) {
@@ -104,11 +122,11 @@ export function parseRunnerEnv(input: NodeJS.ProcessEnv): RunnerEnv {
     ALFRED_PRIVACY_MODE: privacyMode.data,
     ALFRED_RUNNER_DB_PATH: input.ALFRED_RUNNER_DB_PATH ?? DEFAULT_OUTBOX_PATH,
     ALFRED_RUNNER_POLL_MS: runnerPollMs,
-    ALFRED_CODEX_HOME: input.ALFRED_CODEX_HOME ?? `${home}/.codex`,
+    ALFRED_CODEX_HOME: codexHome,
     ...(input.ALFRED_CODEX_SINCE !== undefined
       ? { ALFRED_CODEX_SINCE: input.ALFRED_CODEX_SINCE }
       : {}),
-    ALFRED_CLAUDE_HOME: input.ALFRED_CLAUDE_HOME ?? `${home}/.claude`,
+    ALFRED_CLAUDE_HOME: claudeHome,
     ...(input.ALFRED_CLAUDE_SINCE !== undefined
       ? { ALFRED_CLAUDE_SINCE: input.ALFRED_CLAUDE_SINCE }
       : {}),
@@ -116,6 +134,27 @@ export function parseRunnerEnv(input: NodeJS.ProcessEnv): RunnerEnv {
       ? { VERCEL_AUTOMATION_BYPASS_SECRET: input.VERCEL_AUTOMATION_BYPASS_SECRET }
       : {}),
   };
+}
+
+function resolveSourceHome({
+  allowDevDefaults,
+  explicitValue,
+  home,
+  productionPath,
+  safeDevPath,
+  variableName,
+}: {
+  allowDevDefaults: boolean;
+  explicitValue: string | undefined;
+  home: string;
+  productionPath: string;
+  safeDevPath: string;
+  variableName: string;
+}): string {
+  if (explicitValue?.trim()) return explicitValue.trim();
+  if (allowDevDefaults) return safeDevPath;
+  if (!home) throw new Error(`${variableName} is required`);
+  return `${home}/${productionPath}`;
 }
 
 function parseRunnerPollMs(raw: string | undefined): number {

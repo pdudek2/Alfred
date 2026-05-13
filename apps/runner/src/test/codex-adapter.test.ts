@@ -1,16 +1,17 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 
 import { IngestEventSchema } from "@alfred/schema";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { collectCodexEvents } from "../sources/codex/codex-adapter.js";
 import { readJsonlFile, readJsonlRecords } from "../sources/codex/codex-jsonl.js";
 
 const workspaceId = "00000000-0000-4000-8000-000000000001";
 const deviceId = "00000000-0000-4000-8000-000000000101";
+const tempDirs: string[] = [];
 
 function fixturePath() {
   return fileURLToPath(new URL("./fixtures/codex-session.jsonl", import.meta.url));
@@ -21,7 +22,7 @@ function turnCompleteFixturePath() {
 }
 
 function createCodexHome(sourceFixturePath = fixturePath()) {
-  const codexHome = mkdtempSync(join(tmpdir(), "alfred-codex-home-"));
+  const codexHome = trackedTempDir("alfred-codex-home-");
   const target = join(codexHome, "sessions/2026/04/28/session.jsonl");
   mkdirSync(dirname(target), { recursive: true });
   copyFileSync(sourceFixturePath, target);
@@ -29,6 +30,12 @@ function createCodexHome(sourceFixturePath = fixturePath()) {
 }
 
 describe("readJsonlFile", () => {
+  afterEach(() => {
+    for (const dir of tempDirs.splice(0)) {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  });
+
   it("reads jsonl records and ignores invalid lines", async () => {
     const records = await readJsonlFile(fixturePath());
 
@@ -36,7 +43,7 @@ describe("readJsonlFile", () => {
   });
 
   it("streams jsonl records without whole-file readFile", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "alfred-codex-jsonl-"));
+    const dir = trackedTempDir("alfred-codex-jsonl-");
     const file = join(dir, "large-session.jsonl");
     writeFileSync(
       file,
@@ -63,6 +70,12 @@ describe("readJsonlFile", () => {
 });
 
 describe("collectCodexEvents", () => {
+  afterEach(() => {
+    for (const dir of tempDirs.splice(0)) {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  });
+
   it("collects Codex session events into ingest events", async () => {
     const events = await collectCodexEvents({
       codexHome: createCodexHome(),
@@ -121,3 +134,9 @@ describe("collectCodexEvents", () => {
     });
   });
 });
+
+function trackedTempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}

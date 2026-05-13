@@ -6,7 +6,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "dev:alfred": "node scripts/dev-alfred.mjs",
-    "runner:local": "ALFRED_ALLOW_DEV_CONFIG=1 RUNNER_API_URL=http://127.0.0.1:4301 ALFRED_SOURCES=codex ALFRED_RUNNER_LOOP=1 ALFRED_RUNNER_DB_PATH=apps/runner/.alfred-runner/outbox.sqlite tsx apps/runner/src/index.ts",
+    "runner:local": "ALFRED_ALLOW_DEV_CONFIG=1 RUNNER_API_URL=http://127.0.0.1:4301 ALFRED_SOURCES=codex ALFRED_CODEX_HOME=apps/runner/src/test/fixtures/codex-home ALFRED_CLAUDE_HOME=apps/runner/src/test/fixtures/claude-home ALFRED_RUNNER_LOOP=1 ALFRED_RUNNER_DB_PATH=apps/runner/.alfred-runner/outbox.sqlite tsx apps/runner/src/index.ts",
     "runner:service": "node scripts/runner-service.mjs",
     "runner:service:install": "node scripts/runner-service.mjs install",
     "runner:service:run": "node scripts/runner-service.mjs run",

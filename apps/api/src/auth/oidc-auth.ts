@@ -25,6 +25,8 @@ type TokenResponse = {
   id_token?: string;
 };
 
+type VerifiedUserInfo = Required<Pick<UserInfo, "email" | "sub">> & UserInfo;
+
 type UserInfo = {
   sub?: string;
   email?: string;
@@ -60,9 +62,6 @@ export async function completeOidcLogin(
   const discovery = await discoverOidc(config.issuer, fetchImpl);
   const token = await exchangeCode(discovery, config, code, fetchImpl);
   const userInfo = await readUserInfo(discovery, token, fetchImpl);
-  if (!userInfo.sub || !userInfo.email) {
-    throw new Error("OIDC profile is missing subject or email");
-  }
 
   const [existingIdentity] = await db
     .select({ userId: oidcIdentities.userId })
@@ -70,21 +69,7 @@ export async function completeOidcLogin(
     .where(and(eq(oidcIdentities.issuer, config.issuer), eq(oidcIdentities.subject, userInfo.sub)))
     .limit(1);
 
-  const userId = existingIdentity?.userId ?? randomUuid();
-  await db
-    .insert(users)
-    .values({
-      id: userId,
-      email: userInfo.email,
-      displayName: userInfo.name ?? userInfo.email,
-    })
-    .onConflictDoUpdate({
-      target: users.email,
-      set: {
-        displayName: userInfo.name ?? userInfo.email,
-        updatedAt: updatedAtNow,
-      },
-    });
+  const userId = await resolveOidcUserId(db, config.issuer, userInfo, existingIdentity?.userId);
 
   await db
     .insert(oidcIdentities)
@@ -99,6 +84,7 @@ export async function completeOidcLogin(
     .onConflictDoUpdate({
       target: [oidcIdentities.issuer, oidcIdentities.subject],
       set: {
+        userId,
         email: userInfo.email,
         emailVerified: Boolean(userInfo.email_verified),
         claims: userInfo,
@@ -122,6 +108,56 @@ export async function completeOidcLogin(
   });
 
   return sessionToken;
+}
+
+async function resolveOidcUserId(
+  db: Database,
+  issuer: string,
+  userInfo: VerifiedUserInfo,
+  existingIdentityUserId: string | undefined,
+): Promise<string> {
+  if (existingIdentityUserId) {
+    await db
+      .update(users)
+      .set({
+        email: userInfo.email,
+        displayName: userInfo.name ?? userInfo.email,
+        updatedAt: updatedAtNow,
+      })
+      .where(eq(users.id, existingIdentityUserId));
+    return existingIdentityUserId;
+  }
+
+  const newUserId = randomUuid();
+  const [upsertedUser] = await db
+    .insert(users)
+    .values({
+      id: newUserId,
+      email: userInfo.email,
+      displayName: userInfo.name ?? userInfo.email,
+    })
+    .onConflictDoUpdate({
+      target: users.email,
+      set: {
+        displayName: userInfo.name ?? userInfo.email,
+        updatedAt: updatedAtNow,
+      },
+    })
+    .returning({ id: users.id });
+
+  if (upsertedUser) return upsertedUser.id;
+
+  const [userByEmail] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, userInfo.email))
+    .limit(1);
+
+  if (!userByEmail) {
+    throw new Error(`Failed to resolve OIDC user for ${issuer}`);
+  }
+
+  return userByEmail.id;
 }
 
 async function discoverOidc(issuer: string, fetchImpl: typeof fetch = fetch): Promise<OidcDiscovery> {
@@ -155,26 +191,30 @@ async function readUserInfo(
   discovery: OidcDiscovery,
   token: TokenResponse,
   fetchImpl: typeof fetch,
-): Promise<UserInfo> {
-  if (discovery.userinfo_endpoint && token.access_token) {
-    const response = await fetchImpl(discovery.userinfo_endpoint, {
-      headers: { authorization: `Bearer ${token.access_token}` },
-    });
-    if (response.ok) return (await response.json()) as UserInfo;
+): Promise<VerifiedUserInfo> {
+  if (!discovery.userinfo_endpoint) {
+    throw new Error("OIDC discovery is missing userinfo endpoint");
+  }
+  if (!token.access_token) {
+    throw new Error("OIDC token response has no access token for userinfo");
   }
 
-  if (!token.id_token) throw new Error("OIDC token response has no user profile");
-  return decodeJwtPayload(token.id_token) as UserInfo;
+  const response = await fetchImpl(discovery.userinfo_endpoint, {
+    headers: { authorization: `Bearer ${token.access_token}` },
+  });
+  if (!response.ok) {
+    throw new Error("OIDC userinfo request failed");
+  }
+
+  const userInfo = (await response.json()) as UserInfo;
+  if (!userInfo.sub || !userInfo.email) {
+    throw new Error("OIDC profile is missing subject or email");
+  }
+  return userInfo as VerifiedUserInfo;
 }
 
 function callbackUrl(appBaseUrl: string, callbackPath = "/auth/callback"): string {
   return new URL(callbackPath, appBaseUrl).toString();
-}
-
-function decodeJwtPayload(jwt: string): Record<string, unknown> {
-  const payload = jwt.split(".")[1];
-  if (!payload) throw new Error("Invalid OIDC id_token");
-  return JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>;
 }
 
 function randomUuid(): string {

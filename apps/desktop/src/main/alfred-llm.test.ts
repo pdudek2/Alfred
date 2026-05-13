@@ -100,6 +100,26 @@ Ready.`;
     }
   });
 
+  it("does not scrape an unfenced JSON object out of prose", async () => {
+    const proseWithJson = `Here is the plan:
+{
+  "sessions": [
+    { "kind": "shell", "title": "pwd", "command": "pwd", "args": [] }
+  ]
+}
+Ready.`;
+    const fetchImpl = mockFetchSequence([
+      new Response(JSON.stringify({ choices: [{ message: { content: proseWithJson } }] }), { status: 200 }),
+      new Response(JSON.stringify({ choices: [{ message: { content: proseWithJson } }] }), { status: 200 }),
+    ]);
+
+    const result = await runLlmPlan({ ...baseInput, fetchImpl });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("malformed");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
   it("retries once on schema failure then returns ok if retry is valid", async () => {
     const bad = JSON.stringify({ sessions: [{ kind: "wrong", title: "x" }] });
     const good = JSON.stringify({

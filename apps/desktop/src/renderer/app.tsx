@@ -58,6 +58,8 @@ import { workspaceAttention, workspaceReviewQueue, type WorkspaceReviewItem } fr
 import { workspaceSessionSummary } from "./workspace-session-summary";
 import { shortenPath } from "./path-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
+import { normalizeSessionTitle } from "../shared/session-title";
+import { shortLabelForWorkspace } from "../shared/workspace-label";
 import type {
   AgentKind,
   AlfredRuntimeStatus,
@@ -601,7 +603,7 @@ export function App() {
   }, [armedUnsafeSessionIds]);
 
   const handleRenameSession = useCallback((sessionId: string, title: string) => {
-    const normalizedTitle = title.trim().replace(/\s+/g, " ").slice(0, 80);
+    const normalizedTitle = normalizeSessionTitle(title);
     if (!normalizedTitle) return;
     setTerminalSessions((sessions) => renameSession(sessions, sessionId, normalizedTitle));
     void getDesktopTerminalApi()?.rename({ clientId: sessionId, title: normalizedTitle });
@@ -1867,12 +1869,6 @@ function workspacePlanContext(workspace: Workspace, sessions: SessionTile[]): Al
 function workspaceDetail(workspace: Workspace): string {
   const location = workspace.rootPath ? shortenPath(workspace.rootPath) : "local desk";
   return workspace.gitBranch ? `${location} · ${workspace.gitBranch}` : location;
-}
-
-function shortLabelForWorkspace(label: string): string {
-  const words = label.trim().split(/[^a-zA-Z0-9]+/).filter(Boolean);
-  const letters = words.length > 1 ? words.map((word) => word[0]).join("") : label.slice(0, 3);
-  return (letters || "W").slice(0, 3).toUpperCase();
 }
 
 function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[]): SessionTile[] {

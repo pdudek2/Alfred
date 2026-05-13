@@ -1,17 +1,25 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { OutboxDb } from "../outbox/outbox-db.js";
 
+const tempDirs: string[] = [];
+
 function createOutbox() {
-  const dir = mkdtempSync(join(tmpdir(), "alfred-outbox-"));
+  const dir = trackedTempDir("alfred-outbox-");
   return new OutboxDb(join(dir, "outbox.sqlite"));
 }
 
 describe("OutboxDb", () => {
+  afterEach(() => {
+    for (const dir of tempDirs.splice(0)) {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  });
+
   it("enqueues and lists ready events", () => {
     const outbox = createOutbox();
 
@@ -135,3 +143,9 @@ describe("OutboxDb", () => {
     outbox.close();
   });
 });
+
+function trackedTempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}

@@ -1,24 +1,11 @@
-import { createDb, type Database } from "@alfred/db";
+import { type Database } from "@alfred/db";
 import { IngestBatchSchema } from "@alfred/schema";
 import { Hono } from "hono";
 
-import {
-  createStaticDeviceAuthStore,
-  requireDeviceToken,
-  type DeviceAuthStore,
-  type DeviceAuthVariables,
-} from "../auth/device-auth.js";
-import { env } from "../env.js";
+import { requireDeviceToken, type DeviceAuthStore, type DeviceAuthVariables } from "../auth/device-auth.js";
 import { ingestBatch, markRunnerHeartbeat, type IngestStore } from "../services/ingest-service.js";
 
-export function createIngestRoutes(
-  db: Database | IngestStore = createDb(),
-  deviceAuthStore: DeviceAuthStore = createStaticDeviceAuthStore(
-    env.RUNNER_DEVICE_TOKEN,
-    env.RUNNER_WORKSPACE_ID,
-    env.RUNNER_DEVICE_ID,
-  ),
-) {
+export function createIngestRoutes(db: Database | IngestStore, deviceAuthStore: DeviceAuthStore) {
   const ingestRoutes = new Hono<{ Variables: DeviceAuthVariables }>();
 
   ingestRoutes.post("/batches", requireDeviceToken(deviceAuthStore), async (c) => {

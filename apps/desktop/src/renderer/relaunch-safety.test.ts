@@ -24,6 +24,51 @@ describe("sessionRelaunchSafety", () => {
     });
   });
 
+  it.each([
+    [
+      "force push",
+      { source: "manual" as const, command: "git", args: ["push", "--force-with-lease=origin/main"] },
+      "git push --force would be replayed",
+    ],
+    [
+      "sudo",
+      { source: "manual" as const, command: "sudo", args: ["pnpm", "install"] },
+      "sudo command would be replayed",
+    ],
+    [
+      "dropdb",
+      { source: "manual" as const, command: "dropdb", args: ["alfred"] },
+      "database drop command would be replayed",
+    ],
+    [
+      "sql database drop",
+      { source: "manual" as const, command: "psql", args: ["-c", "drop database alfred"] },
+      "database drop command would be replayed",
+    ],
+    [
+      "rsync delete",
+      { source: "manual" as const, command: "rsync", args: ["-av", "--delete", "dist/", "deploy/"] },
+      "rsync --delete would be replayed",
+    ],
+    [
+      "recursive chmod",
+      { source: "manual" as const, command: "chmod", args: ["-R", "755", "dist"] },
+      "chmod -R would be replayed",
+    ],
+    [
+      "recursive chown",
+      { source: "manual" as const, command: "chown", args: ["-R", "patryk", "dist"] },
+      "chown -R would be replayed",
+    ],
+    [
+      "copy",
+      { source: "manual" as const, command: "cp", args: ["source", "target"] },
+      "cp command mutates files when replayed",
+    ],
+  ])("requires review before replaying %s", (_label, session, reason) => {
+    expect(sessionRelaunchSafety(session)).toEqual({ safe: false, reason });
+  });
+
   it("requires review before shell snippets are replayed", () => {
     expect(sessionRelaunchSafety({ source: "manual", command: "bash", args: ["-lc", "pnpm test"] })).toEqual({
       safe: false,
