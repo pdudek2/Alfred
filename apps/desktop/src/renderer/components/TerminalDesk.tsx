@@ -21,7 +21,7 @@ import type { ArrangePointerMode, ArrangePreview, WorkMode } from "../terminal-d
 import type { AgentKind, AlfredStagedSessionPatch } from "../../shared/alfred-ipc";
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../../shared/terminal-ipc";
 import { AgentTimelinePanel } from "./AgentTimelinePanel";
-import { shortenPath } from "../path-display";
+import { shortenPath, shortenWorktreeLabel } from "../path-display";
 import { recoveryHeadline, recoverySummary } from "../recovery-display";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 
@@ -652,7 +652,14 @@ function ManualTerminalTile({
   const relaunchNeedsReview = !relaunchSafety.safe;
   const latestActivity = latestVisibleActivity(activityEvents);
   const ageLabel = sessionAgeLabel(createdAt, displayClock);
-  const sessionLocationLabel = branchName ?? (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
+  const branchLabel = branchName ? shortenWorktreeLabel(branchName, 24) : null;
+  const branchTitle = branchName
+    ? baseCwd
+      ? `${branchName} · isolated from ${baseCwd}`
+      : `${branchName} · isolated worktree`
+    : undefined;
+  const sessionLocationLabel = branchLabel ?? (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
+  const sessionLocationTitle = branchName ?? resolvedCwd ?? "runtime cwd";
   const externalTerminalCwd = resolvedCwd || cwd;
 
   useEffect(() => {
@@ -960,14 +967,14 @@ function ManualTerminalTile({
             ) : (
               <b>{title}</b>
             )}
-            <small>
+            <small title={sessionLocationTitle}>
               {kindMeta.label} · {sessionLocationLabel}
             </small>
           </div>
         </div>
         {branchName && (
-          <span className="tile-branch" title={baseCwd ? `Isolated from ${baseCwd}` : "Isolated worktree"}>
-            {branchName}
+          <span className="tile-branch" title={branchTitle}>
+            {branchLabel}
           </span>
         )}
         {latestActivity && (

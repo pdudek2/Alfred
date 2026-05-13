@@ -203,10 +203,10 @@ export function CommandPalette({
         detail: canCloseWorkspace
           ? `Remove ${activeWorkspace?.label ?? "this workspace"} from the sidebar`
           : sessions.length > 0
-            ? "Close sessions first"
+            ? "Available when every session is closed"
             : activeWorkspaceId === "A"
-              ? "Default workspace stays pinned"
-              : "No workspace to close",
+              ? "Pinned workspace"
+              : "No workspace selected",
         disabled: !canCloseWorkspace,
         run: onCloseWorkspace,
       },
@@ -220,7 +220,7 @@ export function CommandPalette({
       {
         id: "reveal-workspace-folder",
         label: "Reveal workspace folder",
-        detail: activeWorkspace?.rootPath ? shortenPath(activeWorkspace.rootPath) : "No folder bound to this workspace",
+        detail: activeWorkspace?.rootPath ? shortenPath(activeWorkspace.rootPath) : "No folder bound",
         disabled: !activeWorkspace?.rootPath,
         run: onOpenWorkspaceFolder,
       },
@@ -229,7 +229,7 @@ export function CommandPalette({
         label: "Open workspace in external terminal",
         detail: activeWorkspace?.rootPath
           ? `Open ${shortenPath(activeWorkspace.rootPath)} outside Alfred`
-          : "No folder bound to this workspace",
+          : "No folder bound",
         disabled: !activeWorkspace?.rootPath,
         run: onOpenWorkspaceTerminal,
       },
@@ -333,7 +333,7 @@ export function CommandPalette({
           ? recoverableNeedsReview
             ? "One or more recovery commands needs review before relaunch"
             : `${recoverableSummary || `${recoverableCount} recovery item${recoverableCount === 1 ? "" : "s"}`} in this workspace`
-          : "No recovery items in this workspace",
+          : "No recovery items",
         disabled: recoverableCount === 0,
         run: recoverableNeedsReview ? onOpenReviewQueue : onContinueRecoverableSessions,
       },
@@ -342,7 +342,7 @@ export function CommandPalette({
         label: recoverableOnlySaved ? "Dismiss saved sessions" : "Clear recovery items",
         detail: recoverableCount > 0
           ? `Remove ${recoverableSummary || `${recoverableCount} recovery item${recoverableCount === 1 ? "" : "s"}`}`
-          : "No recovery items in this workspace",
+          : "No recovery items",
         disabled: recoverableCount === 0,
         run: onCloseRecoverableSessions,
       },
@@ -542,10 +542,7 @@ export function CommandPalette({
                 onMouseEnter={() => setActiveCommandId(row.command.id)}
               >
                 <span>{row.command.label}</span>
-                <small>
-                  {row.command.disabled && <b>Unavailable: </b>}
-                  {row.command.detail}
-                </small>
+                <small>{row.command.detail}</small>
               </button>
             ),
           )}
