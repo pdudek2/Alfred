@@ -29,6 +29,7 @@ const ATTENTION_PRIORITY: Partial<Record<SessionDisplayStatus["kind"], number>> 
   checking: 3,
   staged: 3,
   restored: 4,
+  done: 5,
 };
 
 export function workspaceAttention(sessions: SessionTile[], now = Date.now()): WorkspaceAttention | null {
@@ -106,6 +107,8 @@ function attentionDetail(kind: SessionDisplayStatus["kind"]): string {
       return "is ready to launch";
     case "restored":
       return "can be relaunched";
+    case "done":
+      return "can be restarted";
     default:
       return "needs review";
   }

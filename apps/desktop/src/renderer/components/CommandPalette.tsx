@@ -2,6 +2,7 @@ import { Search } from "lucide-react";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -14,6 +15,9 @@ import type { WorkMode } from "../terminal-desk-types";
 import type { WorkspaceAttention, WorkspaceReviewItem } from "../workspace-attention";
 import type { AgentKind } from "../../shared/alfred-ipc";
 import type { WorkspaceRailWorkspace } from "./WorkspaceRail";
+import { shortenPath } from "../path-display";
+import { recoveryCounts, recoverySummary } from "../recovery-display";
+import { relaunchNeedsReview } from "../relaunch-safety";
 
 type CommandPaletteItem = {
   id: string;
@@ -114,12 +118,24 @@ export function CommandPalette({
   onSelectWorkspace,
   onToggleArrange,
 }: CommandPaletteProps) {
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const queryRef = useRef<string>(query);
   const [activeCommandId, setActiveCommandId] = useState<string | null>(null);
 
-  useEffect(() => {
-    inputRef.current?.focus();
+  useLayoutEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusInput = () => inputRef.current?.focus();
+
+    focusInput();
+    const frame = window.requestAnimationFrame(focusInput);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (previousFocus && document.contains(previousFocus)) {
+        previousFocus.focus();
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -148,6 +164,10 @@ export function CommandPalette({
   );
   const searchableSessions = normalizedQuery ? globalSearchableSessions : activeSearchableSessions;
   const recoverableCount = recoverableSessions.length;
+  const recoverableCounts = recoveryCounts(recoverableSessions);
+  const recoverableOnlySaved = recoverableCount > 0 && recoverableCounts.saved === recoverableCount;
+  const recoverableSummary = recoverySummary(recoverableSessions);
+  const recoverableNeedsReview = recoverableSessions.some(relaunchNeedsReview);
 
   const commands: CommandPaletteItem[] = useMemo(
     () => [
@@ -308,19 +328,21 @@ export function CommandPalette({
       },
       {
         id: "relaunch-saved-sessions",
-        label: "Relaunch saved sessions",
+        label: recoverableNeedsReview ? "Review recovery queue" : recoverableOnlySaved ? "Relaunch saved sessions" : "Recover sessions",
         detail: recoverableCount > 0
-          ? `${recoverableCount} saved session${recoverableCount === 1 ? "" : "s"} in this workspace`
-          : "No saved sessions in this workspace",
+          ? recoverableNeedsReview
+            ? "One or more recovery commands needs review before relaunch"
+            : `${recoverableSummary || `${recoverableCount} recovery item${recoverableCount === 1 ? "" : "s"}`} in this workspace`
+          : "No recovery items in this workspace",
         disabled: recoverableCount === 0,
-        run: onContinueRecoverableSessions,
+        run: recoverableNeedsReview ? onOpenReviewQueue : onContinueRecoverableSessions,
       },
       {
         id: "dismiss-saved-sessions",
-        label: "Dismiss saved sessions",
+        label: recoverableOnlySaved ? "Dismiss saved sessions" : "Clear recovery items",
         detail: recoverableCount > 0
-          ? `Remove ${recoverableCount} saved transcript${recoverableCount === 1 ? "" : "s"}`
-          : "No saved sessions in this workspace",
+          ? `Remove ${recoverableSummary || `${recoverableCount} recovery item${recoverableCount === 1 ? "" : "s"}`}`
+          : "No recovery items in this workspace",
         disabled: recoverableCount === 0,
         run: onCloseRecoverableSessions,
       },
@@ -413,6 +435,9 @@ export function CommandPalette({
       onToggleArrange,
       pendingPlan,
       recoverableCount,
+      recoverableNeedsReview,
+      recoverableOnlySaved,
+      recoverableSummary,
       reviewQueueCount,
       reviewQueuePreview,
       safeStagedCount,
@@ -439,6 +464,11 @@ export function CommandPalette({
   }, [activeCommandId, enabledCommands, filteredCommands]);
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Tab") {
+      trapDialogFocus(event, panelRef.current);
+      return;
+    }
+
     if (event.key === "Escape") {
       event.preventDefault();
       onClose();
@@ -472,6 +502,7 @@ export function CommandPalette({
   return (
     <div className="command-palette-backdrop" role="presentation" onMouseDown={onClose}>
       <div
+        ref={panelRef}
         className="command-palette"
         role="dialog"
         aria-modal="true"
@@ -527,12 +558,6 @@ export function CommandPalette({
   );
 }
 
-function shortenPath(value: string): string {
-  const parts = value.split("/");
-  if (parts.length <= 3) return value;
-  return `…/${parts.slice(-2).join("/")}`;
-}
-
 function sessionStatusLabel(session: SessionTile): string {
   return terminalSessionDisplayStatus(session).label;
 }
@@ -550,6 +575,32 @@ function compareSessionsForPalette(a: SessionTile, b: SessionTile, activeWorkspa
 function isRestartableSession(session: SessionTile): boolean {
   const status = terminalSessionDisplayStatus(session);
   return status.kind === "done" || status.kind === "error";
+}
+
+function trapDialogFocus(event: ReactKeyboardEvent, panel: HTMLElement | null): void {
+  if (!panel) return;
+  const focusable = Array.from(
+    panel.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), [href], select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  );
+
+  if (focusable.length === 0) return;
+
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (!first || !last) return;
+
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+    return;
+  }
+
+  if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 function filterCommands(commands: CommandPaletteItem[], normalizedQuery: string): CommandPaletteItem[] {

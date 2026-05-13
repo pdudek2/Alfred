@@ -41,6 +41,7 @@ import {
   hydratePersistedTerminalSessions,
   markSessionExited,
   markSessionStartFailed,
+  markSessionUnavailable,
   isLaunchBlocked,
   recordSessionOutputActivity,
   rejectAllStaged,
@@ -55,6 +56,8 @@ import { recordPreviewUrlsFromText, type PreviewUrlCandidate } from "./preview-s
 import type { WorkMode } from "./terminal-desk-types";
 import { workspaceAttention, workspaceReviewQueue, type WorkspaceReviewItem } from "./workspace-attention";
 import { workspaceSessionSummary } from "./workspace-session-summary";
+import { shortenPath } from "./path-display";
+import { sessionRelaunchSafety } from "./relaunch-safety";
 import type {
   AgentKind,
   AlfredRuntimeStatus,
@@ -126,8 +129,7 @@ export function App() {
   const globalReviewItems = workspaceReviewQueue(workspaces, terminalSessions);
   const activeWorkspaceReviewItems = globalReviewItems.filter((item) => item.workspaceId === activeWorkspace.id);
   const activeDecisionItems = activeWorkspaceReviewItems.filter(isDecisionReviewItem);
-  const crossWorkspaceReviewItems = globalReviewItems.filter((item) => item.workspaceId !== activeWorkspace.id);
-  const crossWorkspaceReviewPreview = crossWorkspaceReviewItems[0] ?? null;
+  const reviewQueuePreview = globalReviewItems[0] ?? null;
   const activeStagedSessions = orderStagedSessions(activeSessions, activePendingPlan);
   const stagedCount = activeSessions.filter((s) => s.stage === "staged").length;
   const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
@@ -401,6 +403,8 @@ export function App() {
   }, [activeAttention, handleFocusSession]);
 
   const handleOpenReviewQueue = useCallback(() => {
+    setCommandPaletteOpen(false);
+    setCommandQuery("");
     setReviewQueueOpen(true);
   }, []);
 
@@ -546,25 +550,55 @@ export function App() {
     setTerminalSessions((sessions) => {
       const session = sessions.find((item) => item.id === sessionId);
       if (!session || session.runtimeStatus !== "restored") return sessions;
+      const relaunchSafety = sessionRelaunchSafety(session);
+      if (!relaunchSafety.safe && !armedUnsafeSessionIds.has(sessionId)) {
+        setArmedUnsafeSessionIds((ids) => new Set(ids).add(sessionId));
+        return appendSessionActivity(sessions, sessionId, {
+          kind: "warning",
+          title: "Review before relaunch",
+          detail: relaunchSafety.reason,
+        });
+      }
+      setArmedUnsafeSessionIds((ids) => {
+        if (!ids.has(sessionId)) return ids;
+        const next = new Set(ids);
+        next.delete(sessionId);
+        return next;
+      });
       return appendSessionActivity(relaunchRestoredSession(sessions, sessionId), sessionId, {
         kind: "lifecycle",
         title: "Relaunching session",
         detail: "Alfred is starting a fresh process from this saved transcript.",
       });
     });
-  }, []);
+  }, [armedUnsafeSessionIds]);
 
   const handleRestartSession = useCallback((sessionId: string) => {
     setTerminalSessions((sessions) => {
       const session = sessions.find((item) => item.id === sessionId);
       if (!session || (session.runtimeStatus !== "exited" && session.runtimeStatus !== "error")) return sessions;
+      const restartSafety = sessionRelaunchSafety(session);
+      if (!restartSafety.safe && !armedUnsafeSessionIds.has(sessionId)) {
+        setArmedUnsafeSessionIds((ids) => new Set(ids).add(sessionId));
+        return appendSessionActivity(sessions, sessionId, {
+          kind: "warning",
+          title: "Review before restart",
+          detail: restartSafety.reason,
+        });
+      }
+      setArmedUnsafeSessionIds((ids) => {
+        if (!ids.has(sessionId)) return ids;
+        const next = new Set(ids);
+        next.delete(sessionId);
+        return next;
+      });
       return appendSessionActivity(restartSession(sessions, sessionId), sessionId, {
         kind: "lifecycle",
         title: "Restarting session",
         detail: "Alfred is starting a fresh process in this tile.",
       });
     });
-  }, []);
+  }, [armedUnsafeSessionIds]);
 
   const handleRenameSession = useCallback((sessionId: string, title: string) => {
     const normalizedTitle = title.trim().replace(/\s+/g, " ").slice(0, 80);
@@ -638,6 +672,17 @@ export function App() {
         kind: "error",
         title: "Start failed",
         detail: "The runtime could not create this terminal.",
+      }),
+    );
+  }, []);
+
+  const handleRuntimeSessionUnavailable = useCallback((tileId: string) => {
+    startingSessionIdsRef.current.delete(tileId);
+    setTerminalSessions((sessions) =>
+      appendSessionActivity(markSessionUnavailable(sessions, tileId), tileId, {
+        kind: "warning",
+        title: "Desktop terminal unavailable",
+        detail: "Open Alfred Desktop to attach a real local PTY.",
       }),
     );
   }, []);
@@ -857,6 +902,7 @@ export function App() {
   }, []);
 
   const handleOpenCommandPalette = useCallback(() => {
+    setReviewQueueOpen(false);
     setCommandQuery("");
     setCommandPaletteOpen(true);
   }, []);
@@ -868,6 +914,28 @@ export function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (commandPaletteOpen) {
+        const shortcutPressed = event.metaKey || event.ctrlKey;
+        const key = event.key.toLowerCase();
+        const appShortcut =
+          shortcutPressed && (
+            /^[1-9]$/.test(event.key) ||
+            key === "k" ||
+            key === "t" ||
+            key === "w" ||
+            (event.shiftKey && key === "o") ||
+            (event.shiftKey && (event.code === "BracketRight" || event.code === "BracketLeft"))
+          );
+
+        if (appShortcut) {
+          event.preventDefault();
+          if (key === "k") {
+            handleCloseCommandPalette();
+          }
+        }
+        return;
+      }
+
       if ((event.metaKey || event.ctrlKey) && /^[1-9]$/.test(event.key)) {
         const index = Number.parseInt(event.key, 10) - 1;
         const workspace = workspaces[index];
@@ -880,8 +948,11 @@ export function App() {
 
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        setCommandQuery("");
-        setCommandPaletteOpen((open) => !open);
+        if (commandPaletteOpen) {
+          handleCloseCommandPalette();
+        } else {
+          handleOpenCommandPalette();
+        }
         return;
       }
 
@@ -923,9 +994,12 @@ export function App() {
     };
   }, [
     activeSelectedSession,
+    commandPaletteOpen,
     handleAddManualSession,
     handleCloseSelectedSession,
+    handleCloseCommandPalette,
     handleFocusSessionByDelta,
+    handleOpenCommandPalette,
     handleOpenSessionTerminal,
     handleSelectWorkspace,
     workspaces,
@@ -1070,17 +1144,17 @@ export function App() {
             />
           </div>
           <div className="mission-actions" aria-label="terminal actions">
-            {crossWorkspaceReviewPreview && (
+            {reviewQueuePreview && (
               <button
-                className={`review-queue-button tone-${crossWorkspaceReviewPreview.status.kind}`}
+                className={`review-queue-button tone-${reviewQueuePreview.status.kind}`}
                 type="button"
-                aria-label={`Open review queue, ${crossWorkspaceReviewItems.length} item${crossWorkspaceReviewItems.length === 1 ? "" : "s"}`}
+                aria-label={`Open review queue, ${globalReviewItems.length} item${globalReviewItems.length === 1 ? "" : "s"}`}
                 onClick={handleOpenReviewQueue}
-                title={`${crossWorkspaceReviewPreview.workspaceLabel}: ${crossWorkspaceReviewPreview.session.title}`}
+                title={`${reviewQueuePreview.workspaceLabel}: ${reviewQueuePreview.session.title}`}
               >
                 <ListChecks size={15} />
                 <span>Review</span>
-                <strong>{crossWorkspaceReviewItems.length}</strong>
+                <strong>{globalReviewItems.length}</strong>
               </button>
             )}
             <button
@@ -1166,9 +1240,7 @@ export function App() {
               onAddAgentSession={handleAddAgentSession}
               onAddManualSession={handleAddManualSession}
               onCloseSession={handleCloseSession}
-              onCloseRecoverableSessions={handleCloseRecoverableSessions}
               onContinueRestoredSession={handleContinueRestoredSession}
-              onContinueRecoverableSessions={handleContinueRecoverableSessions}
               onRestartSession={handleRestartSession}
               onApplyLayoutPreset={handleApplyLayoutPreset}
               onApplyWorkMode={handleApplyWorkMode}
@@ -1178,7 +1250,9 @@ export function App() {
               onRuntimeSessionOutput={handleRuntimeSessionOutput}
               onRuntimeSessionReady={handleRuntimeSessionReady}
               onRuntimeSessionStarting={handleRuntimeSessionStarting}
+              onRuntimeSessionUnavailable={handleRuntimeSessionUnavailable}
               onRenameSession={handleRenameSession}
+              relaunchArmedSessionIds={armedUnsafeSessionIds}
               onFocusSession={handleFocusSession}
               onSelectSession={handleSelectSession}
               onApproveTile={handleApproveTile}
@@ -1215,15 +1289,10 @@ export function App() {
               liveAlfredCount={liveAlfredCount}
               onApproveAll={handleApproveAll}
               onApproveTile={handleApproveTile}
-              onCloseRecoverableSessions={handleCloseRecoverableSessions}
-              onCloseSession={handleCloseSession}
-              onContinueRecoverableSessions={handleContinueRecoverableSessions}
-              onContinueRestoredSession={handleContinueRestoredSession}
               onDismissError={handleDismissError}
               onFocusSession={handleFocusSession}
               onRejectAll={handleRejectAll}
               onRejectTile={handleRejectTile}
-              onRestartSession={handleRestartSession}
             />
           </div>
         </div>
@@ -1236,6 +1305,7 @@ export function App() {
           blockedReason={composerBlockedReason}
           value={composerValue}
           thinking={isThinking(alfredStatus)}
+          disabled={commandPaletteOpen}
           workspaceName={activeWorkspace.label === "Alfred" ? "this workspace" : activeWorkspace.label}
           onBlockedAction={
             stagedWorkspaceId
@@ -1254,8 +1324,8 @@ export function App() {
             pendingPlan={activePendingPlan}
             query={commandQuery}
             recoverableSessions={activeRecoverableSessions}
-            reviewQueueCount={crossWorkspaceReviewItems.length}
-            reviewQueuePreview={crossWorkspaceReviewPreview}
+            reviewQueueCount={globalReviewItems.length}
+            reviewQueuePreview={reviewQueuePreview}
             attention={activeAttention}
             safeStagedCount={safeStagedCount}
             selectedSessionId={activeSelectedSessionId}
@@ -1295,11 +1365,12 @@ export function App() {
         {reviewQueueOpen && (
           <ReviewQueuePanel
             armedUnsafeSessionIds={armedUnsafeSessionIds}
-            items={crossWorkspaceReviewItems}
+            items={globalReviewItems}
             selectedSessionId={activeSelectedSessionId}
             onApproveTile={handleApproveTile}
             onClose={handleCloseReviewQueue}
             onContinueRestoredSession={handleContinueRestoredSession}
+            onDiscardSession={handleCloseSession}
             onFocusItem={handleFocusSessionInWorkspace}
             onLaunchItem={handleLaunchReviewQueueItem}
             onRestartSession={handleRestartSession}
@@ -1791,12 +1862,6 @@ function workspacePlanContext(workspace: Workspace, sessions: SessionTile[]): Al
           }),
         }),
   };
-}
-
-function shortenPath(value: string): string {
-  const parts = value.split("/");
-  if (parts.length <= 3) return value;
-  return `…/${parts.slice(-2).join("/")}`;
 }
 
 function workspaceDetail(workspace: Workspace): string {

@@ -127,6 +127,32 @@ describe("preflightAlfredPlan", () => {
     });
   });
 
+  it("marks dirty worktree snapshots ready for coding agents", async () => {
+    const result = await preflightAlfredPlan(
+      {
+        sessions: [{ kind: "codex", title: "Review", command: "codex", args: [], cwd: "/repo" }],
+      },
+      { id: "A", label: "Alfred", rootPath: "/repo" },
+      {
+        commandExists: async () => true,
+        preflightAgentWorktree: async () => ({
+          baseCwd: "/repo",
+          branchName: "alfred-codex-review",
+          cwd: "/.alfred-worktrees/repo/alfred-codex-review",
+          snapshot: { trackedChanges: true, untrackedFiles: 2 },
+        }),
+      },
+    );
+
+    expect(result.sessions[0]?.launchPreflight).toMatchObject({
+      status: "ready",
+      label: "Snapshot worktree ready",
+      detail: "Will create an isolated Git worktree and copy current workspace changes into it.",
+      isolation: "worktree",
+      branchName: "alfred-codex-review",
+    });
+  });
+
   it("falls back to shared workspace for coding agents in non-Git folders", async () => {
     const result = await preflightAlfredPlan(
       {

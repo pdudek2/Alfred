@@ -25,6 +25,9 @@ vi.mock("@alfred/db", () => ({
 }));
 
 vi.mock("@alfred/schema", () => ({
+  LOCAL_USER_ID: "00000000-0000-4000-8000-000000000011",
+  LOCAL_WORKSPACE_ID: "00000000-0000-4000-8000-000000000001",
+  LOCAL_DEVICE_ID: "00000000-0000-4000-8000-000000000101",
   IngestBatchSchema: {
     safeParse: vi.fn(() => ({ success: false })),
   },

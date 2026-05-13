@@ -3,6 +3,7 @@ import { useCallback } from "react";
 type ComposerBarProps = {
   blockedActionLabel?: string | undefined;
   blockedReason: string | undefined;
+  disabled?: boolean;
   value: string;
   thinking: boolean;
   workspaceName: string;
@@ -14,6 +15,7 @@ type ComposerBarProps = {
 export function ComposerBar({
   blockedActionLabel,
   blockedReason,
+  disabled = false,
   value,
   thinking,
   workspaceName,
@@ -22,7 +24,8 @@ export function ComposerBar({
   onSubmit,
 }: ComposerBarProps) {
   const blocked = blockedReason !== undefined;
-  const canSubmit = !thinking && !blocked && value.trim().length > 0;
+  const composerDisabled = disabled || thinking;
+  const canSubmit = !composerDisabled && !blocked && value.trim().length > 0;
   const status = thinking
     ? "Alfred is preparing a launch plan."
     : blocked
@@ -52,7 +55,7 @@ export function ComposerBar({
         rows={1}
         value={value}
         placeholder={`Ask Alfred to prepare ${workspaceName}…`}
-        disabled={thinking}
+        disabled={composerDisabled}
         aria-label="Alfred prompt"
         aria-describedby="composer-status"
         onChange={(event) => onChange(event.target.value)}

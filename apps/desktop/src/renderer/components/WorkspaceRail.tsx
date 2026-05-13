@@ -2,6 +2,7 @@ import { useRef, type KeyboardEvent, type MutableRefObject } from "react";
 import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus, type SessionDisplayStatus } from "../session-status";
 import type { WorkspaceMissionBrief } from "../../shared/workspace-ipc";
+import { shortenPath } from "../path-display";
 
 export type WorkspaceRailWorkspace = {
   id: string;
@@ -113,13 +114,13 @@ function statusSummary(counts: WorkspaceRailCounts): string {
     countLabel(counts.waiting, "waiting"),
     countLabel(counts.blocked, "blocked"),
     countLabel(counts.checking, "checking"),
+    countLabel(counts.runtime, "unavailable"),
     countLabel(counts.active, "active"),
     countLabel(counts.starting, "starting"),
     countLabel(counts.staged, "staged"),
     countLabel(counts.idle, "idle"),
     countLabel(counts.done, "done"),
     countLabel(counts.restored, "restored"),
-    countLabel(counts.runtime, "runtime"),
   ]
     .filter((item): item is string => item !== null)
     .join(", ");
@@ -145,6 +146,7 @@ function priorityChip(counts: WorkspaceRailCounts): { tone: string; label: strin
   if (counts.waiting > 0) return { tone: "waiting", label: countLabel(counts.waiting, "waiting") ?? "waiting" };
   if (counts.blocked > 0) return { tone: "waiting", label: countLabel(counts.blocked, "blocked") ?? "blocked" };
   if (counts.checking > 0) return { tone: "staged", label: countLabel(counts.checking, "checking") ?? "checking" };
+  if (counts.runtime > 0) return { tone: "quiet", label: countLabel(counts.runtime, "unavailable") ?? "unavailable" };
   if (counts.active > 0) return { tone: "active", label: countLabel(counts.active, "active") ?? "active" };
   if (counts.starting > 0) return { tone: "active", label: countLabel(counts.starting, "starting") ?? "starting" };
   if (counts.staged > 0) return { tone: "staged", label: countLabel(counts.staged, "staged") ?? "staged" };
@@ -156,13 +158,6 @@ function priorityChip(counts: WorkspaceRailCounts): { tone: string; label: strin
 function workspaceMeta(workspace: WorkspaceRailWorkspace): string {
   const location = workspace.rootPath ? shortenPath(workspace.rootPath) : "scratch desk";
   return workspace.gitBranch ? `${location} · ${workspace.gitBranch}` : location;
-}
-
-function shortenPath(value: string): string {
-  const normalized = value.replace(/\\/g, "/");
-  const parts = normalized.split("/").filter(Boolean);
-  if (parts.length <= 2) return value;
-  return `…/${parts.slice(-2).join("/")}`;
 }
 
 function safeDomId(value: string): string {

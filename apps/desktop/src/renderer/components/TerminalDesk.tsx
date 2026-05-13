@@ -1,6 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { Check, Pencil, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
+import { AlertTriangle, Check, Pencil, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -21,6 +21,9 @@ import type { ArrangePointerMode, ArrangePreview, WorkMode } from "../terminal-d
 import type { AgentKind, AlfredStagedSessionPatch } from "../../shared/alfred-ipc";
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../../shared/terminal-ipc";
 import { AgentTimelinePanel } from "./AgentTimelinePanel";
+import { shortenPath } from "../path-display";
+import { recoveryHeadline, recoverySummary } from "../recovery-display";
+import { sessionRelaunchSafety } from "../relaunch-safety";
 
 const ARRANGE_GRID_ROW_HEIGHT = 84;
 
@@ -29,6 +32,7 @@ type TerminalDeskProps = {
   armedUnsafeSessionIds: Set<string>;
   layouts: Record<string, TileLayout>;
   recoverableSessions: SessionTile[];
+  relaunchArmedSessionIds: Set<string>;
   selectedSessionId: string | null;
   sessions: SessionTile[];
   shortcutModifier: string;
@@ -40,9 +44,7 @@ type TerminalDeskProps = {
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
   onCloseSession: (sessionId: string) => void;
-  onCloseRecoverableSessions: () => void;
   onContinueRestoredSession: (sessionId: string) => void;
-  onContinueRecoverableSessions: () => void;
   onRestartSession: (sessionId: string) => void;
   onApplyLayoutPreset: (preset: LayoutPreset) => void;
   onApplyWorkMode: (mode: WorkMode) => void;
@@ -52,6 +54,7 @@ type TerminalDeskProps = {
   onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
+  onRuntimeSessionUnavailable: (tileId: string) => void;
   onRenameSession: (sessionId: string, title: string) => void;
   onFocusSession: (sessionId: string) => void;
   onSelectSession: (sessionId: string) => void;
@@ -66,6 +69,7 @@ export function TerminalDesk({
   armedUnsafeSessionIds,
   layouts,
   recoverableSessions,
+  relaunchArmedSessionIds,
   selectedSessionId,
   sessions,
   shortcutModifier,
@@ -77,9 +81,7 @@ export function TerminalDesk({
   onAddAgentSession,
   onAddManualSession,
   onCloseSession,
-  onCloseRecoverableSessions,
   onContinueRestoredSession,
-  onContinueRecoverableSessions,
   onRestartSession,
   onApplyLayoutPreset,
   onApplyWorkMode,
@@ -89,6 +91,7 @@ export function TerminalDesk({
   onRuntimeSessionOutput,
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
+  onRuntimeSessionUnavailable,
   onRenameSession,
   onFocusSession,
   onSelectSession,
@@ -287,8 +290,6 @@ export function TerminalDesk({
           {recoverableSessions.length > 0 && (
             <RecoveryWorkspaceStrip
               sessions={recoverableSessions}
-              onCloseRecoverableSessions={onCloseRecoverableSessions}
-              onContinueRecoverableSessions={onContinueRecoverableSessions}
             />
           )}
           {focusSession && sessions.length > 1 && (
@@ -321,6 +322,7 @@ export function TerminalDesk({
                 sessionKey={session.id}
                 runtimeId={session.runtimeId}
                 runtimeStatus={session.runtimeStatus}
+                relaunchArmed={relaunchArmedSessionIds.has(session.id)}
                 workspaceId={session.workspaceId}
                 title={session.title}
                 source={session.source}
@@ -347,6 +349,7 @@ export function TerminalDesk({
                 onRuntimeSessionOutput={onRuntimeSessionOutput}
                 onRuntimeSessionReady={onRuntimeSessionReady}
                 onRuntimeSessionStarting={onRuntimeSessionStarting}
+                onRuntimeSessionUnavailable={onRuntimeSessionUnavailable}
                 onOpenExternalTerminal={handleOpenExternalTerminal}
                 onRenameSession={onRenameSession}
               />
@@ -392,36 +395,13 @@ export function TerminalDesk({
   );
 }
 
-function RecoveryWorkspaceStrip({
-  sessions,
-  onCloseRecoverableSessions,
-  onContinueRecoverableSessions,
-}: {
-  sessions: SessionTile[];
-  onCloseRecoverableSessions: () => void;
-  onContinueRecoverableSessions: () => void;
-}) {
-  const restoredCount = sessions.filter((session) => session.runtimeStatus === "restored").length;
-  const endedCount = sessions.length - restoredCount;
-  const summary = [
-    restoredCount > 0 ? `${restoredCount} restored` : null,
-    endedCount > 0 ? `${endedCount} ended` : null,
-  ].filter((item): item is string => item !== null).join(" · ");
-
+function RecoveryWorkspaceStrip({ sessions }: { sessions: SessionTile[] }) {
   return (
     <section className="recovery-workspace-strip" aria-label="Session recovery">
       <div>
-        <span>Recovery queue</span>
-        <strong>{sessions.length} saved session{sessions.length === 1 ? "" : "s"}</strong>
-        <p>{summary || "Mirrored in Alfred. Choose when to relaunch."}</p>
-      </div>
-      <div>
-        <button type="button" onClick={onContinueRecoverableSessions}>
-          Relaunch saved sessions
-        </button>
-        <button type="button" onClick={onCloseRecoverableSessions}>
-          Dismiss saved sessions
-        </button>
+        <span>Recovery</span>
+        <strong>{recoveryHeadline(sessions)}</strong>
+        <p>{recoverySummary(sessions) || "Saved transcript available"}</p>
       </div>
     </section>
   );
@@ -440,7 +420,7 @@ function SplitModeEmptyState({
     <aside className="split-empty-state" role="status" aria-label="Split mode needs another session">
       <div>
         <span>split slot</span>
-        <strong>Select another session to split</strong>
+        <strong>Create another terminal to fill this split</strong>
         <p>
           {workspaceLabel} has one visible tile. Create a second terminal for this side, or return to the
           full desk when you want the whole surface.
@@ -558,6 +538,12 @@ function workspaceHomeCopy(rootPath: string | undefined, gitBranch: string | und
   return "No project folder is bound yet. Start in the scratch desk, or bind a folder when you want project context.";
 }
 
+function relaunchButtonLabel(action: "relaunch" | "restart", unsafe: boolean, armed: boolean): string {
+  if (!unsafe) return action === "relaunch" ? "Relaunch" : "Restart";
+  if (armed) return action === "relaunch" ? "Confirm relaunch" : "Confirm restart";
+  return action === "relaunch" ? "Review relaunch" : "Review restart";
+}
+
 function ManualTerminalTile({
   arrangeMode,
   cwd,
@@ -572,6 +558,7 @@ function ManualTerminalTile({
   lastOutputAt,
   layout,
   preview,
+  relaunchArmed,
   onClose,
   onContinueRestoredSession,
   onRestartSession,
@@ -584,6 +571,7 @@ function ManualTerminalTile({
   onRuntimeSessionOutput,
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
+  onRuntimeSessionUnavailable,
   onOpenExternalTerminal,
   onRenameSession,
   selected,
@@ -609,6 +597,7 @@ function ManualTerminalTile({
   lastOutputAt?: number | undefined;
   layout?: TileLayout | undefined;
   preview?: ArrangePreview | undefined;
+  relaunchArmed: boolean;
   onClose: () => void;
   onContinueRestoredSession: () => void;
   onRestartSession: () => void;
@@ -621,6 +610,7 @@ function ManualTerminalTile({
   onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
+  onRuntimeSessionUnavailable: (tileId: string) => void;
   onOpenExternalTerminal: (cwd: string) => Promise<void>;
   onRenameSession: (sessionId: string, title: string) => void;
   selected: boolean;
@@ -652,6 +642,14 @@ function ManualTerminalTile({
   } satisfies Parameters<typeof terminalSessionDisplayStatus>[0];
   const displayStatus = terminalSessionDisplayStatus(displaySession, status, displayClock);
   const restartable = displayStatus.kind === "done" || displayStatus.kind === "error";
+  const discardableSession = displayStatus.kind === "restored" || restartable;
+  const relaunchSafety = sessionRelaunchSafety({
+    source,
+    ...(agentKind === undefined ? {} : { agentKind }),
+    ...(args === undefined ? {} : { args }),
+    ...(command === undefined ? {} : { command }),
+  });
+  const relaunchNeedsReview = !relaunchSafety.safe;
   const latestActivity = latestVisibleActivity(activityEvents);
   const ageLabel = sessionAgeLabel(createdAt, displayClock);
   const sessionLocationLabel = branchName ?? (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
@@ -747,6 +745,9 @@ function ManualTerminalTile({
     }
 
     if (!terminalApi) {
+      if (runtimeStatus !== "unavailable") {
+        onRuntimeSessionUnavailable(sessionKey);
+      }
       setStatus("browser");
       terminal.writeln("Terminal unavailable outside Electron.");
       terminal.writeln("Open Alfred Desktop to attach a real local PTY.");
@@ -886,6 +887,7 @@ function ManualTerminalTile({
     onRuntimeSessionOutput,
     onRuntimeSessionReady,
     onRuntimeSessionStarting,
+    onRuntimeSessionUnavailable,
   ]);
 
   return (
@@ -985,27 +987,27 @@ function ManualTerminalTile({
           {status === "restored" && (
             <button
               type="button"
-              className="continue-button"
-              aria-label={`Continue from ${title}`}
+              className={`continue-button ${relaunchNeedsReview ? "unsafe" : ""} ${relaunchArmed ? "armed" : ""}`}
+              aria-label={`${relaunchButtonLabel("relaunch", relaunchNeedsReview, relaunchArmed)} ${title}`}
               onClick={onContinueRestoredSession}
               onPointerDown={(event) => event.stopPropagation()}
-              title="Relaunch this saved session"
+              title={relaunchNeedsReview ? relaunchSafety.reason : "Relaunch this saved session"}
             >
-              <Play size={13} />
-              <span>Relaunch</span>
+              {relaunchNeedsReview ? <AlertTriangle size={13} /> : <Play size={13} />}
+              <span>{relaunchButtonLabel("relaunch", relaunchNeedsReview, relaunchArmed)}</span>
             </button>
           )}
           {restartable && (
             <button
               type="button"
-              className="continue-button"
-              aria-label={`Restart ${title}`}
+              className={`continue-button ${relaunchNeedsReview ? "unsafe" : ""} ${relaunchArmed ? "armed" : ""}`}
+              aria-label={`${relaunchButtonLabel("restart", relaunchNeedsReview, relaunchArmed)} ${title}`}
               onClick={onRestartSession}
               onPointerDown={(event) => event.stopPropagation()}
-              title="Restart this session"
+              title={relaunchNeedsReview ? relaunchSafety.reason : "Restart this session"}
             >
-              <RotateCcw size={13} />
-              <span>Restart</span>
+              {relaunchNeedsReview ? <AlertTriangle size={13} /> : <RotateCcw size={13} />}
+              <span>{relaunchButtonLabel("restart", relaunchNeedsReview, relaunchArmed)}</span>
             </button>
           )}
           {externalTerminalCwd && (
@@ -1035,12 +1037,14 @@ function ManualTerminalTile({
           </button>
           <button
             type="button"
-            aria-label={`Close ${title}`}
+            className={discardableSession ? "discard-session-button" : undefined}
+            aria-label={discardableSession ? `Discard ${title}` : `Close ${title}`}
             onClick={onClose}
             onPointerDown={(event) => event.stopPropagation()}
-            title="Close terminal"
+            title={discardableSession ? "Discard this recovery item" : "Close terminal"}
           >
             <X size={14} />
+            {discardableSession && <span>Discard</span>}
           </button>
         </div>
       </header>
@@ -1134,16 +1138,6 @@ function gridStyle(layout: TileLayout | undefined, preview?: ArrangePreview | un
   }
 
   return style;
-}
-
-function shortenPath(value: string): string {
-  const parts = value.split("/");
-
-  if (parts.length <= 3) {
-    return value;
-  }
-
-  return `…/${parts.slice(-2).join("/")}`;
 }
 
 function useStatusClock(lastOutputAt: number | undefined): number {

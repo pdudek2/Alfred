@@ -1,5 +1,6 @@
 import { type Database } from "@alfred/db";
 import { Hono } from "hono";
+import { readCookie } from "../auth/cookies.js";
 import {
   completeOidcLogin,
   buildOidcLoginUrl,
@@ -84,21 +85,6 @@ function configuredOidcConfig(options: AuthRouteOptions): ConfiguredOidcConfig {
     ...options.config,
     ...(options.callbackPath ? { callbackPath: options.callbackPath } : {}),
   };
-}
-
-function readCookie(cookieHeader: string | undefined, cookieName: string): string | null {
-  if (!cookieHeader) return null;
-  for (const part of cookieHeader.split(";")) {
-    const [name, ...valueParts] = part.trim().split("=");
-    if (name === cookieName) {
-      try {
-        return decodeURIComponent(valueParts.join("="));
-      } catch {
-        return null;
-      }
-    }
-  }
-  return null;
 }
 
 function setCookie(

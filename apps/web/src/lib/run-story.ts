@@ -1,4 +1,5 @@
 import type { RunDetail, RunEventItem } from "./api-client";
+import { normalizeStatus } from "./status";
 
 export type StoryHighlight = {
   start: number;
@@ -339,10 +340,6 @@ function isFailureEvent(event: RunEventItem): boolean {
   const type = event.type.toLowerCase();
   const status = event.status?.toLowerCase() ?? "";
   return status === "failed" || status === "error" || type.includes("fail") || type.includes("error");
-}
-
-function normalizeStatus(status: string): string {
-  return status.trim().toLowerCase();
 }
 
 function normalizeKnownStatus(status: string): StoryStatus {

@@ -12,11 +12,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@alfred/schema": "workspace:*",
     "drizzle-orm": "latest",
     "pg": "latest"
   },
   "devDependencies": {
-    "@alfred/schema": "workspace:*",
     "@types/pg": "latest",
     "drizzle-kit": "latest",
     "typescript": "latest",
