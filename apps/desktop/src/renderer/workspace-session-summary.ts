@@ -1,7 +1,7 @@
 import { terminalSessionDisplayStatus } from "./session-status";
 import type { SessionTile } from "./session-state";
 
-const STATUS_ORDER = ["error", "waiting", "blocked", "active", "starting", "done", "restored", "staged", "idle"] as const;
+const STATUS_ORDER = ["error", "waiting", "blocked", "runtime", "active", "starting", "done", "restored", "staged", "idle"] as const;
 
 export function workspaceSessionSummary(sessions: SessionTile[], now = Date.now()): string {
   if (sessions.length === 0) return "empty";
@@ -28,6 +28,8 @@ function statusLabel(status: (typeof STATUS_ORDER)[number]): string {
       return "error";
     case "restored":
       return "restored";
+    case "runtime":
+      return "unavailable";
     case "staged":
       return "ready";
     case "starting":

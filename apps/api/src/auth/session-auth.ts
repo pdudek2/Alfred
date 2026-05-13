@@ -2,6 +2,7 @@ import type { MiddlewareHandler } from "hono";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { sessions, users, type Database } from "@alfred/db";
 import { hashToken } from "./token-hash.js";
+import { readCookie } from "./cookies.js";
 
 export type AuthSession = {
   sessionId: string;
@@ -22,7 +23,7 @@ const SESSION_COOKIE = "alfred_session";
 
 export function requireSession(sessionStore: AuthSessionStore): MiddlewareHandler<{ Variables: AuthVariables }> {
   return async (c, next) => {
-    const token = readSessionToken(c.req.header("cookie"));
+    const token = readCookie(c.req.header("cookie"), SESSION_COOKIE);
     if (!token) {
       return c.json({ error: "unauthorized" }, 401);
     }
@@ -36,7 +37,6 @@ export function requireSession(sessionStore: AuthSessionStore): MiddlewareHandle
     await next();
   };
 }
-
 export function createStaticSessionStore(
   expectedToken: string,
   session: Omit<AuthSession, "sessionId">,
@@ -97,23 +97,4 @@ export function createFallbackSessionStore(
       }
     },
   };
-}
-
-function readSessionToken(cookieHeader: string | undefined): string | null {
-  if (!cookieHeader) return null;
-
-  for (const part of cookieHeader.split(";")) {
-    const [name, ...valueParts] = part.trim().split("=");
-    if (name === SESSION_COOKIE) {
-      const value = valueParts.join("=");
-      if (!value) return null;
-      try {
-        return decodeURIComponent(value);
-      } catch {
-        return null;
-      }
-    }
-  }
-
-  return null;
 }

@@ -12,9 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const LOCAL_WORKSPACE_ID = "00000000-0000-4000-8000-000000000001";
-export const LOCAL_USER_ID = "00000000-0000-4000-8000-000000000011";
-export const LOCAL_DEVICE_ID = "00000000-0000-4000-8000-000000000101";
+export { LOCAL_DEVICE_ID, LOCAL_USER_ID, LOCAL_WORKSPACE_ID } from "@alfred/schema";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();

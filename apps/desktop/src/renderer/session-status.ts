@@ -31,7 +31,7 @@ export function terminalSessionDisplayStatus(
       : { kind: "staged", label: "ready" };
   }
 
-  if (localStatus === "browser") return { kind: "runtime", label: "unavailable" };
+  if (localStatus === "browser" || session.runtimeStatus === "unavailable") return { kind: "runtime", label: "unavailable" };
   if (localStatus === "error" || session.runtimeStatus === "error") return { kind: "error", label: "error" };
   if (localStatus === "exited" || session.runtimeStatus === "exited") return { kind: "done", label: "done" };
   if (localStatus === "restored" || session.runtimeStatus === "restored") return { kind: "restored", label: "restored" };

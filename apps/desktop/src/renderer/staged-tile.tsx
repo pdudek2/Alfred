@@ -5,6 +5,7 @@ import type { SessionTile } from "./session-state";
 import type { ArrangePreview } from "./terminal-desk-types";
 import { sessionTileKind, tileKindMeta } from "./tile-kind";
 import { TileKindIcon } from "./tile-kind-icon";
+import { shortenPath } from "./path-display";
 
 type StagedTilePreviewProps = {
   arrangeMode: boolean;
@@ -177,10 +178,4 @@ function gridStyle(layout: TileLayout | undefined, preview?: ArrangePreview | un
   }
 
   return style;
-}
-
-function shortenPath(value: string): string {
-  const parts = value.split("/");
-  if (parts.length <= 3) return value;
-  return `…/${parts.slice(-2).join("/")}`;
 }

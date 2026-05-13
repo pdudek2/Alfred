@@ -1,5 +1,4 @@
 import { basename } from "node:path";
-import { basename as fileBasename } from "node:path";
 
 import { normalizeEvent } from "@alfred/adapters";
 import { IngestEventSchema, type IngestEvent, type PrivacyMode } from "@alfred/schema";
@@ -154,7 +153,7 @@ async function codexSessionContextFromFile(file: string): Promise<CodexSessionCo
     }
   }
 
-  const sourceRunId = stringValue(payload.id) ?? fileBasename(file, ".jsonl");
+  const sourceRunId = stringValue(payload.id) ?? basename(file, ".jsonl");
   const cwd = stringValue(payload.cwd);
 
   return {

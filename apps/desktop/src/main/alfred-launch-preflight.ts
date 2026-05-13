@@ -130,10 +130,13 @@ function usesIsolatedWorktree(session: AlfredPlanSession): boolean {
 }
 
 function readyWorktreePreflight(worktree: AgentWorktreeResult): AlfredLaunchPreflight {
+  const dirtySnapshot = worktree.snapshot !== undefined;
   return {
     status: "ready",
-    label: "Worktree ready",
-    detail: "Will create an isolated Git worktree on launch.",
+    label: dirtySnapshot ? "Snapshot worktree ready" : "Worktree ready",
+    detail: dirtySnapshot
+      ? "Will create an isolated Git worktree and copy current workspace changes into it."
+      : "Will create an isolated Git worktree on launch.",
     isolation: "worktree",
     branchName: worktree.branchName,
     baseCwd: worktree.baseCwd,

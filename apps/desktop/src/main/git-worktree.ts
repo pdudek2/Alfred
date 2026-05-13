@@ -1,6 +1,6 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { copyFile, mkdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -13,10 +13,12 @@ type ExecFile = (
 ) => Promise<{ stdout: string; stderr: string }>;
 
 type PrepareAgentWorktreeOptions = {
+  copyFile?: typeof copyFile;
   execFile?: ExecFile;
   mkdir?: typeof mkdir;
   now?: () => Date;
   randomSuffix?: () => string;
+  rm?: typeof rm;
 };
 
 export type AgentWorktreeRequest = {
@@ -30,6 +32,12 @@ export type AgentWorktreeResult = {
   baseCwd: string;
   branchName: string;
   cwd: string;
+  snapshot?: AgentWorktreeSnapshot;
+};
+
+export type AgentWorktreeSnapshot = {
+  trackedChanges: boolean;
+  untrackedFiles: number;
 };
 
 const execFile = promisify(execFileCallback) as ExecFile;
@@ -49,6 +57,7 @@ export async function prepareAgentWorktree(
     ["-C", result.baseCwd, "worktree", "add", "-b", result.branchName, worktreePath, "HEAD"],
     "Unable to create isolated Git worktree.",
   );
+  await applyDirtySnapshot(result, options);
 
   return result;
 }
@@ -60,13 +69,12 @@ export async function preflightAgentWorktree(
   const run = options.execFile ?? execFile;
   const gitRoot = await gitOutput(run, ["-C", request.cwd, "rev-parse", "--show-toplevel"], "Workspace is not a Git repository.");
   const relativeLaunchPath = safeRelativePath(gitRoot, path.resolve(request.cwd));
-  const status = await gitOutput(run, ["-C", gitRoot, "status", "--porcelain"], "Unable to inspect Git workspace status.");
-
-  if (status.length > 0) {
-    throw new Error(
-      "Workspace has uncommitted or untracked changes. Commit, stash with git stash -u, or clean them before launching isolated agent sessions.",
-    );
-  }
+  const status = await gitOutput(
+    run,
+    ["-C", gitRoot, "status", "--porcelain", "--untracked-files=all"],
+    "Unable to inspect Git workspace status.",
+  );
+  const snapshot = dirtySnapshotFromStatus(status);
 
   const branchName = request.branchName ? sanitizeBranchSegment(request.branchName) : createAgentBranchName(request, options);
   const worktreePath = path.join(path.dirname(gitRoot), ".alfred-worktrees", path.basename(gitRoot), branchName);
@@ -76,7 +84,87 @@ export async function preflightAgentWorktree(
     baseCwd: gitRoot,
     branchName,
     cwd: launchCwd,
+    ...(snapshot === null ? {} : { snapshot }),
   };
+}
+
+async function applyDirtySnapshot(
+  result: AgentWorktreeResult,
+  options: Pick<PrepareAgentWorktreeOptions, "copyFile" | "execFile" | "mkdir" | "rm">,
+): Promise<void> {
+  if (!result.snapshot) return;
+
+  const run = options.execFile ?? execFile;
+  const mkdirImpl = options.mkdir ?? mkdir;
+  const copyFileImpl = options.copyFile ?? copyFile;
+  const rmImpl = options.rm ?? rm;
+  const worktreePath = worktreeRootPath(result);
+
+  if (result.snapshot.trackedChanges) {
+    const patchPath = path.join(os.tmpdir(), `${result.branchName}.patch`);
+    try {
+      await gitOutput(
+        run,
+        ["-C", result.baseCwd, "diff", "--binary", "HEAD", `--output=${patchPath}`],
+        "Unable to snapshot tracked workspace changes.",
+      );
+      await gitOutput(
+        run,
+        ["-C", worktreePath, "apply", "--whitespace=nowarn", patchPath],
+        "Unable to apply tracked workspace snapshot.",
+      );
+    } finally {
+      await rmImpl(patchPath, { force: true }).catch(() => undefined);
+    }
+  }
+
+  if (result.snapshot.untrackedFiles === 0) return;
+
+  const rawUntrackedPaths = await gitOutputRaw(
+    run,
+    ["-C", result.baseCwd, "ls-files", "--others", "--exclude-standard", "-z"],
+    "Unable to snapshot untracked workspace files.",
+  );
+  for (const relativePath of splitNulOutput(rawUntrackedPaths)) {
+    if (!safeSnapshotRelativePath(relativePath)) {
+      throw new Error(`Unable to snapshot unsafe untracked path: ${relativePath}`);
+    }
+
+    const sourcePath = path.join(result.baseCwd, relativePath);
+    const destinationPath = path.join(worktreePath, relativePath);
+    await mkdirImpl(path.dirname(destinationPath), { recursive: true });
+    await copyFileImpl(sourcePath, destinationPath);
+  }
+}
+
+function dirtySnapshotFromStatus(status: string): AgentWorktreeSnapshot | null {
+  if (!status.trim()) return null;
+
+  const lines = status.split(/\r?\n/).filter(Boolean);
+  const unmerged = lines.find(isUnmergedStatusLine);
+  if (unmerged) {
+    throw new Error("Workspace has unresolved merge conflicts. Resolve them before launching isolated agent sessions.");
+  }
+
+  const untrackedFiles = lines.filter((line) => line.startsWith("?? ")).length;
+  const trackedChanges = lines.some((line) => !line.startsWith("?? "));
+
+  return { trackedChanges, untrackedFiles };
+}
+
+function isUnmergedStatusLine(line: string): boolean {
+  const code = line.slice(0, 2);
+  return code.includes("U") || code === "AA" || code === "DD";
+}
+
+function splitNulOutput(value: string): string[] {
+  return value.split("\0").filter(Boolean);
+}
+
+function safeSnapshotRelativePath(value: string): boolean {
+  if (!value || path.isAbsolute(value)) return false;
+  const normalized = path.normalize(value);
+  return normalized !== ".." && !normalized.startsWith(`..${path.sep}`);
 }
 
 function worktreeRootPath(result: AgentWorktreeResult): string {
@@ -111,9 +199,13 @@ function sanitizeBranchSegment(value: string): string {
 }
 
 async function gitOutput(run: ExecFile, args: string[], fallbackMessage: string): Promise<string> {
+  return (await gitOutputRaw(run, args, fallbackMessage)).trim();
+}
+
+async function gitOutputRaw(run: ExecFile, args: string[], fallbackMessage: string): Promise<string> {
   try {
     const { stdout } = await run("git", args, { cwd: os.homedir(), timeout: 2_500 });
-    return stdout.trim();
+    return stdout;
   } catch (error: unknown) {
     throw new Error(`${fallbackMessage} ${errorMessage(error)}`);
   }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LOCAL_DEVICE_ID, LOCAL_USER_ID, LOCAL_WORKSPACE_ID } from "@alfred/schema";
 
 const DEFAULT_AUTH_DEV_SESSION_TOKEN = "dev-session-token";
 const DEFAULT_RUNNER_DEVICE_TOKEN = "dev-device-token";
@@ -29,10 +30,10 @@ function createEnvSchema(devAuthEnabled: boolean) {
     AUTH_OIDC_CLIENT_SECRET: z.string().min(1).optional(),
     APP_BASE_URL: z.string().url().default("http://127.0.0.1:4300"),
     ALFRED_BOOTSTRAP_ADMIN_EMAIL: z.string().email().default("local@alfred.local"),
-    ALFRED_BOOTSTRAP_USER_ID: z.string().uuid().default("00000000-0000-4000-8000-000000000011"),
-    ALFRED_BOOTSTRAP_WORKSPACE_ID: z.string().uuid().default("00000000-0000-4000-8000-000000000001"),
-    RUNNER_WORKSPACE_ID: z.string().uuid().default("00000000-0000-4000-8000-000000000001"),
-    RUNNER_DEVICE_ID: z.string().uuid().default("00000000-0000-4000-8000-000000000101"),
+    ALFRED_BOOTSTRAP_USER_ID: z.string().uuid().default(LOCAL_USER_ID),
+    ALFRED_BOOTSTRAP_WORKSPACE_ID: z.string().uuid().default(LOCAL_WORKSPACE_ID),
+    RUNNER_WORKSPACE_ID: z.string().uuid().default(LOCAL_WORKSPACE_ID),
+    RUNNER_DEVICE_ID: z.string().uuid().default(LOCAL_DEVICE_ID),
     RUNNER_DEVICE_TOKEN: z
       .string()
       .min(1)

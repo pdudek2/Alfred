@@ -1,9 +1,10 @@
 import { z } from "zod";
+import { LOCAL_DEVICE_ID, LOCAL_WORKSPACE_ID } from "@alfred/schema";
 
 const DEFAULT_API_URL = "http://127.0.0.1:4301";
 const DEFAULT_DEVICE_TOKEN = "dev-device-token";
-const DEFAULT_WORKSPACE_ID = "00000000-0000-4000-8000-000000000001";
-const DEFAULT_DEVICE_ID = "00000000-0000-4000-8000-000000000101";
+const DEFAULT_WORKSPACE_ID = LOCAL_WORKSPACE_ID;
+const DEFAULT_DEVICE_ID = LOCAL_DEVICE_ID;
 const DEFAULT_OUTBOX_PATH = ".alfred-runner/outbox.sqlite";
 const DEFAULT_RUNNER_POLL_MS = 5_000;
 

@@ -27,7 +27,7 @@ export type SessionTile = {
   source: "manual" | "alfred";
   stage: "staged" | "live";
   stagedReviewStatus?: "checking" | "edited";
-  runtimeStatus?: "starting" | "live" | "exited" | "error" | "restored";
+  runtimeStatus?: "starting" | "live" | "exited" | "error" | "restored" | "unavailable";
   command?: string;
   args?: string[];
   agentKind?: AgentKind;
@@ -134,6 +134,15 @@ export function markSessionStartFailed(sessions: SessionTile[], tileId: string):
     const { launchPreflight: _launchPreflight, ...retryableSession } = session;
     const nextStage = session.source === "alfred" && !session.runtimeId ? "staged" : session.stage;
     return { ...retryableSession, stage: nextStage, runtimeStatus: "error" };
+  });
+}
+
+export function markSessionUnavailable(sessions: SessionTile[], tileId: string): SessionTile[] {
+  return sessions.map((session) => {
+    if (session.id !== tileId) return session;
+    if (session.runtimeStatus === "unavailable") return session;
+    const { launchPreflight: _launchPreflight, runtimeId: _runtimeId, ...unavailableSession } = session;
+    return { ...unavailableSession, runtimeStatus: "unavailable" };
   });
 }
 

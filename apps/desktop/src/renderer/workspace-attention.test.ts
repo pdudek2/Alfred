@@ -133,4 +133,84 @@ describe("workspaceAttention", () => {
     expect(queue[0]?.detail).toBe("Allow edit in app.tsx?");
     expect(queue[1]?.detail).toBe("pnpm test");
   });
+
+  it("includes ended sessions as low-priority restartable review items", () => {
+    const queue = workspaceReviewQueue(
+      [
+        { id: "A", label: "Alfred", shortLabel: "A" },
+        { id: "W2", label: "ClientApp", shortLabel: "CLI" },
+      ],
+      [
+        {
+          ...baseSession,
+          id: "restored",
+          title: "Saved shell",
+          runtimeStatus: "restored",
+        },
+        {
+          ...baseSession,
+          id: "ended",
+          title: "Ended shell",
+          workspaceId: "W2",
+          runtimeStatus: "exited",
+        },
+      ] as SessionTile[],
+      200,
+    );
+
+    expect(queue.map((item) => [item.session.id, item.status.kind, item.detail])).toEqual([
+      ["restored", "restored", "can be relaunched"],
+      ["ended", "done", "can be restarted"],
+    ]);
+    expect(queue[1]).toMatchObject({
+      workspaceId: "W2",
+      workspaceLabel: "ClientApp",
+      workspaceShortLabel: "CLI",
+    });
+  });
+
+  it("keeps review queue ordering deterministic when priority and activity time match", () => {
+    const queue = workspaceReviewQueue(
+      [
+        { id: "B", label: "Beta", shortLabel: "B" },
+        { id: "A", label: "Alpha", shortLabel: "A" },
+      ],
+      [
+        {
+          ...baseSession,
+          id: "beta-zed",
+          workspaceId: "B",
+          title: "Zed task",
+          source: "alfred",
+          stage: "staged",
+          lastActivityAt: 100,
+        },
+        {
+          ...baseSession,
+          id: "alpha-zed",
+          workspaceId: "A",
+          title: "Zed task",
+          source: "alfred",
+          stage: "staged",
+          lastActivityAt: 100,
+        },
+        {
+          ...baseSession,
+          id: "alpha-alpha",
+          workspaceId: "A",
+          title: "Alpha task",
+          source: "alfred",
+          stage: "staged",
+          lastActivityAt: 100,
+        },
+      ] as SessionTile[],
+      200,
+    );
+
+    expect(queue.map((item) => `${item.workspaceLabel}:${item.session.title}`)).toEqual([
+      "Alpha:Alpha task",
+      "Alpha:Zed task",
+      "Beta:Zed task",
+    ]);
+  });
 });

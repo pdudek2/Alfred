@@ -1,4 +1,5 @@
 import type { RunCardVM } from "../lib/run-view-model";
+import { normalizeStatus } from "../lib/status";
 
 type RunRowProps = {
   card: RunCardVM;
@@ -41,7 +42,7 @@ export function RunRow({ card, subtitle, selected, onSelect }: RunRowProps) {
 }
 
 function stateLabel(status: string): string {
-  const normalized = normalizeStatus(status);
+  const normalized = normalizeStatus(status, "other");
   if (normalized === "waiting") return "needs you";
   if (normalized === "completed") return "ok";
   if (normalized === "cancelled") return "cancelled";
@@ -49,10 +50,6 @@ function stateLabel(status: string): string {
 }
 
 function stateClassKey(status: string): string {
-  const normalized = normalizeStatus(status);
+  const normalized = normalizeStatus(status, "other");
   return STATE_CLASS_KEYS.has(normalized) ? normalized : "other";
-}
-
-function normalizeStatus(status: string): string {
-  return status.trim().toLowerCase() || "other";
 }

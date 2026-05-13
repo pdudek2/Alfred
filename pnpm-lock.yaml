@@ -235,6 +235,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@alfred/schema':
+        specifier: workspace:*
+        version: link:../schema
       drizzle-orm:
         specifier: latest
         version: 0.45.2(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@12.9.0)(pg@8.20.0)
@@ -242,9 +245,6 @@ importers:
         specifier: latest
         version: 8.20.0
     devDependencies:
-      '@alfred/schema':
-        specifier: workspace:*
-        version: link:../schema
       '@types/pg':
         specifier: latest
         version: 8.20.0

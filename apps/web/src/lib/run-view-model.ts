@@ -1,5 +1,6 @@
 import type { RunDetail, RunEventItem, RunListItem } from "./api-client";
 import { formatDateTime, formatDuration } from "./time";
+import { normalizeStatus } from "./status";
 
 export type RunTab = "all" | "live" | "needs" | "problems" | "done";
 export type TriageTab = RunTab;
@@ -240,7 +241,7 @@ export function buildRunCardVM(run: RunListItem, now = new Date()): RunCardVM {
   const title = titleLabel || sourceRunLabel || run.id;
   const projectLabel = getProjectLabel(run);
   const sourceLabel = run.source_id || "unknown source";
-  const sourceStatus = normalizeStatus(run.status);
+  const sourceStatus = normalizeStatus(run.status, "unknown");
   const status = effectiveStatus(run, now);
   const intent = deriveIntent({ projectLabel, sourceRunLabel, status, titleLabel });
   const headline = `${projectLabel} · ${intent}`;
@@ -361,7 +362,7 @@ export function buildRunFactsVM(run: RunListItem, events: RunEventItem[]): RunFa
     facts: [
       { label: "Project", value: getProjectLabel(run) },
       { label: "Source", value: run.source_id || "unknown source" },
-      { label: "Status", value: normalizeStatus(run.status) },
+      { label: "Status", value: normalizeStatus(run.status, "unknown") },
       { label: "Started", value: formatDateTime(run.started_at) },
       { label: "Completed", value: formatDateTime(run.completed_at) },
       { label: "Duration", value: formatDuration(run.started_at, run.completed_at) },
@@ -510,12 +511,8 @@ function getProjectLabel(run: RunListItem): string {
   return run.project_name?.trim() || run.project_key?.trim() || "unknown project";
 }
 
-function normalizeStatus(status: string): string {
-  return status.trim().toLowerCase() || "unknown";
-}
-
 function triageState(status: string): RunTriageState {
-  const normalized = normalizeStatus(status);
+  const normalized = normalizeStatus(status, "unknown");
   if (normalized === "running") return "running";
   if (normalized === "waiting") return "waiting";
   if (normalized === "failed") return "failed";
@@ -538,12 +535,12 @@ function statusGroupOrder(status: string): number {
 }
 
 function effectiveStatus(run: RunListItem, now = new Date()): string {
-  const lifecycleStatus = normalizeStatus(run.lifecycle_status ?? "");
+  const lifecycleStatus = normalizeStatus(run.lifecycle_status ?? "", "unknown");
   if (lifecycleStatus !== "unknown") {
     return lifecycleStatus;
   }
 
-  const status = normalizeStatus(run.status);
+  const status = normalizeStatus(run.status, "unknown");
   if ((status === "unknown" || status === "other") && run.completed_at) {
     return "completed";
   }
