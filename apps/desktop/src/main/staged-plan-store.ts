@@ -8,6 +8,7 @@ import type {
   AlfredStagedPlanSnapshotResponse,
   AlfredStagedSession,
 } from "../shared/alfred-ipc.js";
+import { normalizeAgentCommand } from "../shared/agent-command.js";
 import { checkSafety } from "./alfred-safety.js";
 import { preflightAlfredPlanSession, type AlfredLaunchPreflightOptions } from "./alfred-launch-preflight.js";
 import type { PersistedDesktopStateStore } from "./persisted-desktop-state.js";
@@ -114,6 +115,22 @@ export async function clearStagedPlanSnapshot(): Promise<AlfredStagedPlanSnapsho
   return getStagedPlanSnapshot();
 }
 
+export async function isStagedSessionLaunchAllowed(request: {
+  args?: string[];
+  clientId?: string;
+  command?: string;
+}): Promise<boolean> {
+  if (!request.clientId || !request.command) return false;
+
+  const { plan } = await getStagedPlanSnapshot();
+  const session = plan?.sessions.find((item) => item.id === request.clientId);
+  if (!session) return false;
+  if (session.safetyNote) return false;
+  if (session.launchPreflight?.status === "blocked") return false;
+  if (session.command !== request.command) return false;
+  return stringArraysEqual(session.args, request.args ?? []);
+}
+
 export function resetStagedPlanPersistence(): void {
   persistedStateStore = null;
   stagedPlan = null;
@@ -214,6 +231,10 @@ function withoutSafetyNote(session: AlfredStagedSession): AlfredStagedSession {
   return next;
 }
 
+function stringArraysEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 function malformedError(message: string): AlfredError {
   return { code: "malformed", message };
 }
@@ -238,10 +259,15 @@ function clonePlan(plan: AlfredStagedPlanSnapshot | null): AlfredStagedPlanSnaps
 function cloneExistingPlan(plan: AlfredStagedPlanSnapshot): AlfredStagedPlanSnapshot {
   return {
     ...plan,
-    sessions: plan.sessions.map((session) => ({
-      ...session,
-      args: [...session.args],
-      ...(session.launchPreflight === undefined ? {} : { launchPreflight: { ...session.launchPreflight } }),
-    })),
+    sessions: plan.sessions.map((session) => {
+      const normalizedSession = normalizeAgentCommand(session);
+      return {
+        ...normalizedSession,
+        args: [...normalizedSession.args],
+        ...(normalizedSession.launchPreflight === undefined
+          ? {}
+          : { launchPreflight: { ...normalizedSession.launchPreflight } }),
+      };
+    }),
   };
 }

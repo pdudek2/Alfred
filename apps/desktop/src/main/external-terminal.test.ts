@@ -94,4 +94,24 @@ describe("external-terminal", () => {
     });
     expect(spawned).not.toHaveBeenCalled();
   });
+
+  it("rejects directories outside allowed workspace roots without spawning", async () => {
+    const spawned = vi.fn();
+    const workspaceRoot = path.join(temporaryDirectory, "workspace");
+    const outsideRoot = path.join(temporaryDirectory, "outside");
+    await fs.mkdir(workspaceRoot);
+    await fs.mkdir(outsideRoot);
+
+    await expect(
+      openExternalTerminal(
+        { cwd: outsideRoot },
+        { allowedRoots: [workspaceRoot], platform: "darwin", env: {}, spawnImpl: spawned as never },
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      error: "Path is outside registered workspaces.",
+      resolvedPath: outsideRoot,
+    });
+    expect(spawned).not.toHaveBeenCalled();
+  });
 });

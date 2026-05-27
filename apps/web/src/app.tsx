@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell, type AppShellMode } from "./components/app-shell";
 import { RunReader } from "./components/run-reader";
-import { createApiClient, isAuthError, type RunDetail, type RunListItem } from "./lib/api-client";
+import { ApiError, createApiClient, isAuthError, type RunDetail, type RunListItem } from "./lib/api-client";
 import { getSystemStatus } from "./lib/system-api-client";
 import { buildSystemStatusVM, type SystemStatusSnapshot } from "./lib/system-status-view-model";
 import { useKeyboardShortcut } from "./lib/use-keyboard-shortcut";
@@ -119,13 +119,9 @@ export function App() {
       setLastRunsLoadedAt(syncedAt);
 
       const currentSelectedRunId = selectedRunIdRef.current;
-      const nextSelectedRunId =
-        currentSelectedRunId && items.some((run) => run.id === currentSelectedRunId) ? currentSelectedRunId : null;
-
-      commitSelectedRunId(nextSelectedRunId);
-      if (refreshDetail && nextSelectedRunId) {
-        await loadSelectedRun(nextSelectedRunId, false);
-      } else if (!nextSelectedRunId) {
+      if (refreshDetail && currentSelectedRunId) {
+        await loadSelectedRun(currentSelectedRunId, false);
+      } else if (!currentSelectedRunId) {
         setSelectedRun(null);
       }
     } catch (loadError) {
@@ -291,8 +287,13 @@ export function App() {
       return;
     }
 
-    setSelectedFromDrawer(null);
     setSelectedRun(null);
+    if (loadError instanceof ApiError && loadError.status === 404) {
+      setSelectedFromDrawer(null);
+      setRunLoadNotice("I couldn't open that run. The feed is still usable.");
+      return;
+    }
+
     setRunLoadNotice("I couldn't open that run. The feed is still usable.");
   }
 }

@@ -321,7 +321,14 @@ function reviewActionLabel(item: WorkspaceReviewItem, armed: boolean): string | 
   if (item.status.kind === "blocked") return armed ? "Confirm launch" : "Review command";
   if (item.status.kind === "staged") return "Launch";
   if (item.status.kind === "restored") {
-    return sessionRelaunchSafety(item.session).safe ? "Relaunch" : armed ? "Confirm relaunch" : "Review relaunch";
+    const codingAgent = item.session.agentKind === "codex" ||
+      item.session.agentKind === "claude" ||
+      item.session.command === "codex" ||
+      item.session.command === "claude";
+    if (!codingAgent) {
+      return sessionRelaunchSafety(item.session).safe ? "Relaunch" : armed ? "Confirm relaunch" : "Review relaunch";
+    }
+    return sessionRelaunchSafety(item.session).safe ? "Resume" : armed ? "Confirm resume" : "Review resume";
   }
   if (item.status.kind === "error") {
     return sessionRelaunchSafety(item.session).safe ? "Restart" : armed ? "Confirm restart" : "Review restart";

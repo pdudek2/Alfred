@@ -23,11 +23,16 @@ vi.mock("@xterm/xterm", () => ({
   Terminal: class {
     cols = 80;
     rows = 24;
+    element: HTMLElement | null = null;
     dispose = vi.fn();
-    focus = vi.fn();
+    focus = vi.fn(() => {
+      this.element?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    });
     loadAddon = vi.fn();
     onData = vi.fn(() => ({ dispose: vi.fn() }));
-    open = vi.fn();
+    open = vi.fn((element: HTMLElement) => {
+      this.element = element;
+    });
     write = vi.fn();
     writeln = vi.fn();
   },
@@ -866,6 +871,231 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Desk" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("boots a split workspace with restored Alfred sessions without an update loop", async () => {
+    const restoredTerminalSessions: PersistedTerminalSessionSnapshot[] = [
+      {
+        clientId: "alfred-1",
+        title: "Codex - Backend Code Quality Analysis",
+        source: "alfred",
+        cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/codex-worktree",
+        shell: "codex",
+        buffer: "Codex ready",
+        agentKind: "codex",
+        workspaceId: "A",
+        command: "codex",
+        args: ["review backend"],
+        lastOutputAt: 1778709873400,
+      },
+      {
+        clientId: "alfred-2",
+        title: "Claude - UI/UX Deep Analysis",
+        source: "alfred",
+        cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/claude-worktree",
+        shell: "claude",
+        buffer: "Claude ready\n".repeat(200),
+        agentKind: "claude",
+        workspaceId: "A",
+        command: "claude",
+        args: ["review ui"],
+        lastOutputAt: 1778709847526,
+      },
+    ];
+    installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      {
+        layoutsByWorkspace: {
+          A: {
+            "alfred-1": { tileId: "alfred-1", col: 1, row: 1, colSpan: 6, rowSpan: 8 },
+            "alfred-2": { tileId: "alfred-2", col: 7, row: 1, colSpan: 6, rowSpan: 8 },
+          },
+        },
+        viewStateByWorkspace: {
+          A: { workMode: "split", selectedSessionId: "alfred-2" },
+        },
+      },
+      undefined,
+      restoredTerminalSessions,
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: "Split" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("article", { name: /Codex - Backend Code Quality Analysis/i })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Claude - UI\/UX Deep Analysis/i })).toBeInTheDocument();
+  });
+
+  it("ignores duplicate terminal focus events for the already selected session", async () => {
+    const { setWorkspaceViewState } = installDesktopBridge(
+      undefined,
+      null,
+      [
+        {
+          id: "runtime-codex",
+          clientId: "alfred-1",
+          title: "Codex - Backend Code Quality Analysis",
+          source: "alfred",
+          agentKind: "codex",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/codex-worktree",
+          shell: "codex",
+          command: "codex",
+          args: ["review backend"],
+          buffer: "Codex ready",
+        },
+        {
+          id: "runtime-claude",
+          clientId: "alfred-2",
+          title: "Claude - UI/UX Deep Analysis",
+          source: "alfred",
+          agentKind: "claude",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/claude-worktree",
+          shell: "claude",
+          command: "claude",
+          args: ["review ui"],
+          buffer: "Claude ready",
+        },
+      ],
+      undefined,
+      {
+        layoutsByWorkspace: {
+          A: {
+            "alfred-1": { tileId: "alfred-1", col: 1, row: 1, colSpan: 6, rowSpan: 8 },
+            "alfred-2": { tileId: "alfred-2", col: 7, row: 1, colSpan: 6, rowSpan: 8 },
+          },
+        },
+        viewStateByWorkspace: {
+          A: { workMode: "focus", selectedSessionId: "alfred-2" },
+        },
+      },
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
+    const selectedTile = await screen.findByRole("article", { name: /Claude - UI\/UX Deep Analysis/i });
+    const terminalHost = selectedTile.querySelector(".xterm-host");
+    expect(terminalHost).toBeInstanceOf(HTMLElement);
+
+    setWorkspaceViewState.mockClear();
+    fireEvent.focus(terminalHost!);
+    fireEvent.focus(terminalHost!);
+
+    expect(setWorkspaceViewState).not.toHaveBeenCalled();
+  });
+
+  it("keeps the selected resumed session stable when switching focus back to split", async () => {
+    const user = userEvent.setup();
+    const { setWorkspaceViewState } = installDesktopBridge(
+      undefined,
+      null,
+      [
+        {
+          id: "runtime-codex",
+          clientId: "alfred-1",
+          title: "Codex - Backend Code Quality Analysis",
+          source: "alfred",
+          agentKind: "codex",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/codex-worktree",
+          shell: "codex",
+          command: "codex",
+          args: ["review backend"],
+          buffer: "Codex ready",
+        },
+        {
+          id: "runtime-claude",
+          clientId: "alfred-2",
+          title: "Claude - UI/UX Deep Analysis",
+          source: "alfred",
+          agentKind: "claude",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/claude-worktree",
+          shell: "claude",
+          command: "claude",
+          args: ["review ui"],
+          buffer: "Claude ready",
+        },
+      ],
+      undefined,
+      {
+        layoutsByWorkspace: {
+          A: {
+            "alfred-1": { tileId: "alfred-1", col: 1, row: 1, colSpan: 6, rowSpan: 8 },
+            "alfred-2": { tileId: "alfred-2", col: 1, row: 1, colSpan: 12, rowSpan: 8 },
+          },
+        },
+        viewStateByWorkspace: {
+          A: { workMode: "focus", selectedSessionId: "alfred-2" },
+        },
+      },
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
+    const focusedTile = await screen.findByRole("article", { name: /Claude - UI\/UX Deep Analysis/i });
+    expect(focusedTile).toHaveClass("selected");
+
+    setWorkspaceViewState.mockClear();
+    await user.click(screen.getByRole("button", { name: "Split" }));
+
+    expect(screen.getByRole("button", { name: "Split" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("article", { name: /Codex - Backend Code Quality Analysis/i })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Claude - UI\/UX Deep Analysis/i })).toHaveClass("selected");
+    expect(setWorkspaceViewState).toHaveBeenCalledTimes(1);
+    expect(setWorkspaceViewState).toHaveBeenCalledWith({
+      workspaceId: "A",
+      viewState: { workMode: "split", selectedSessionId: "alfred-2" },
+    });
+  });
+
+  it("does not auto-relaunch a failed live agent when switching work modes", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge();
+    createTerminal.mockImplementation((request: Parameters<TerminalApi["create"]>[0]) => {
+      if (request.clientId === "codex-1") {
+        return Promise.reject(new Error("spawn failed"));
+      }
+
+      return Promise.resolve({
+        id: `runtime-${request.clientId ?? "manual-1"}`,
+        clientId: request.clientId ?? "manual-1",
+        title: request.title ?? "Manual · zsh 1",
+        source: request.source ?? "manual",
+        workspaceId: request.workspaceId ?? "A",
+        cwd: request.cwd ?? "/Users/patryk/Desktop/Alfred",
+        shell: "bash",
+        ...(request.command === undefined ? {} : { command: request.command }),
+        ...(request.args === undefined ? {} : { args: request.args }),
+        ...(request.agentKind === undefined ? {} : { agentKind: request.agentKind }),
+      });
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Start Codex" }));
+
+    await waitFor(() => {
+      const codexCalls = createTerminal.mock.calls.filter(([request]) => request.clientId === "codex-1");
+      expect(codexCalls).toHaveLength(1);
+    });
+    expect(await screen.findByRole("article", { name: /Codex · session 1/i })).toHaveTextContent("spawn failed");
+
+    await user.click(screen.getByRole("button", { name: "Focus" }));
+    await user.click(screen.getByRole("button", { name: "Split" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Split" })).toHaveAttribute("aria-pressed", "true");
+    });
+    const codexCalls = createTerminal.mock.calls.filter(([request]) => request.clientId === "codex-1");
+    expect(codexCalls).toHaveLength(1);
+  });
+
   it("selects a tile on click and opens the inspector on double click", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
@@ -1481,7 +1711,7 @@ describe("App integration", () => {
     });
   });
 
-  it("shows unsafe commands before confirming them from the global review queue", async () => {
+  it("shows unsafe commands as blocked in the global review queue", async () => {
     const user = userEvent.setup();
     const { createTerminal, resolveStagedPlan } = installDesktopBridge(
       undefined,
@@ -1523,27 +1753,9 @@ describe("App integration", () => {
     expect(queue).toHaveTextContent("rm -rf dist");
     expect(queue).toHaveTextContent("rm -rf detected");
 
-    await user.click(within(queue).getByRole("button", { name: "Review command Risky cleanup in ClientApp" }));
-
+    expect(within(queue).getByRole("button", { name: "Blocked Risky cleanup in ClientApp" })).toBeDisabled();
     expect(resolveStagedPlan).not.toHaveBeenCalled();
     expect(createTerminal).not.toHaveBeenCalled();
-    expect(within(queue).getByRole("button", { name: "Confirm launch Risky cleanup in ClientApp" })).toBeInTheDocument();
-
-    await user.click(within(queue).getByRole("button", { name: "Confirm launch Risky cleanup in ClientApp" }));
-
-    await waitFor(() => {
-      expect(createTerminal).toHaveBeenCalledWith(
-        expect.objectContaining({
-          clientId: "alfred-risky-w2",
-          command: "rm",
-          args: ["-rf", "dist"],
-          workspaceId: "W2",
-        }),
-      );
-    });
-    await waitFor(() => {
-      expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-risky-w2"] });
-    });
   });
 
   it("moves and resizes a tile with pointer gestures in arrange mode", async () => {
@@ -2283,10 +2495,10 @@ describe("App integration", () => {
           clientId: "codex-9",
           title: "Codex · session 9",
           cwd: "/repo",
-          source: "manual",
+          source: "alfred",
           agentKind: "codex",
           command: "codex",
-          args: [],
+          args: ["original Alfred prompt"],
           shell: "codex",
           buffer: "saved output\n",
         },
@@ -2304,13 +2516,14 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Alfred status")).not.toHaveClass("compact");
     expect(createTerminal).not.toHaveBeenCalled();
 
-    await userEvent.click(screen.getByRole("button", { name: "Relaunch Codex · session 9" }));
+    await userEvent.click(screen.getByRole("button", { name: "Resume Codex · session 9" }));
 
     expect(createTerminal).toHaveBeenCalledWith(
       expect.objectContaining({
         agentKind: "codex",
         clientId: "codex-9",
         command: "codex",
+        args: ["resume", "--last"],
         cwd: "/repo",
         workspaceId: "A",
       }),
@@ -2489,10 +2702,12 @@ describe("App integration", () => {
     const queue = screen.getByRole("dialog", { name: "Review queue" });
     expect(queue).toHaveTextContent("Manual · zsh 9");
     expect(queue).toHaveTextContent("Codex · session 9");
-    await userEvent.click(within(queue).getByRole("button", { name: "Relaunch Codex · session 9 in Alfred" }));
+    await userEvent.click(within(queue).getByRole("button", { name: "Resume Codex · session 9 in Alfred" }));
 
     await waitFor(() => {
-      expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "codex-9", command: "codex" }));
+      expect(createTerminal).toHaveBeenCalledWith(
+        expect.objectContaining({ clientId: "codex-9", command: "codex", args: ["resume", "--last"] }),
+      );
     });
     expect(forgetTerminal).not.toHaveBeenCalled();
   });
@@ -2718,7 +2933,7 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Staged Safe task/i })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Launch safe" }));
+    await user.click(screen.getByRole("button", { name: "Launch queue" }));
 
     await waitFor(() => {
       expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
@@ -2726,7 +2941,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("article", { name: /Staged Safe task/i })).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Safe task/i })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("0 safe · 1 flagged");
+    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("0 safe · 0 flagged · 1 blocked");
     expect(clearStagedPlan).not.toHaveBeenCalled();
   });
 
@@ -2973,17 +3188,17 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
     await screen.findByRole("article", { name: /Staged Safe task/i });
 
-    await user.click(screen.getByRole("button", { name: "Launch safe" }));
+    await user.click(screen.getByRole("button", { name: "Launch queue" }));
 
     await waitFor(() => {
       expect(screen.getByRole("article", { name: /Staged Safe task/i })).toBeInTheDocument();
     });
     expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("1 safe · 1 flagged");
+    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("1 safe · 0 flagged");
     expect(resolveStagedPlan).not.toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
   });
 
-  it("requires two clicks before approving an unsafe staged tile", async () => {
+  it("blocks unsafe staged tiles until they are edited or discarded", async () => {
     const user = userEvent.setup();
     const { resolveStagedPlan } = installDesktopBridge({
       ok: true,
@@ -3007,17 +3222,9 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
     await screen.findByRole("article", { name: /Staged Risky task/i });
 
-    await user.click(screen.getByRole("button", { name: "Review unsafe command: Risky task" }));
-
+    expect(screen.getByRole("button", { name: "Launch blocked: Risky task" })).toBeDisabled();
+    expect(screen.getByRole("article", { name: /Staged Risky task/i })).toHaveTextContent("rm -rf detected");
     expect(resolveStagedPlan).not.toHaveBeenCalled();
-    expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Confirm unsafe command: Risky task" })).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Confirm unsafe command: Risky task" }));
-
-    await waitFor(() => {
-      expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
-    });
   });
 
   it("keeps the draft when Alfred plan creation fails", async () => {

@@ -135,15 +135,20 @@ function makeInMemoryStore(): IngestStore & {
     upsertRun: async (event) => {
       const key = `${event.workspace_id}:${event.source_id}:${event.source_run_id}`;
       const timestamps = runTimestampsForTest(event);
+      const occurredAt = new Date(event.occurred_at);
       const existing = runs.get(key);
       if (existing) {
         const nextStatus = runStatusForTest(event);
-        existing.status = nextStatus ?? existing.status;
+        const isOlderThanTerminalState =
+          existing.completedAt !== null && occurredAt.getTime() <= existing.completedAt.getTime();
+        existing.status = !nextStatus || isOlderThanTerminalState ? existing.status : nextStatus;
         existing.startedAt = timestamps.startedAt ?? existing.startedAt;
-        existing.completedAt =
-          nextStatus === "running" || nextStatus === "waiting"
-            ? null
-            : timestamps.completedAt ?? existing.completedAt;
+        if (!isOlderThanTerminalState) {
+          existing.completedAt =
+            nextStatus === "running" || nextStatus === "waiting"
+              ? null
+              : timestamps.completedAt ?? existing.completedAt;
+        }
         return existing;
       }
       const run = {
@@ -278,6 +283,37 @@ describe("ingest", () => {
       status: "running",
       startedAt: new Date("2026-01-01T10:00:00.000Z"),
       completedAt: null,
+    });
+  });
+
+  it("does not reopen a terminal run from an older waiting event", async () => {
+    const db = makeInMemoryStore();
+
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000201", {
+        source_event_id: "source-event-completed",
+        event_id: "event-000000000001",
+        type: "run.completed",
+        status: "completed",
+        occurred_at: "2026-01-01T10:05:00.000Z",
+      }),
+    );
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000202", {
+        source_event_id: "source-event-waiting",
+        event_id: "event-000000000002",
+        type: "agent.waiting",
+        status: "waiting",
+        occurred_at: "2026-01-01T10:04:00.000Z",
+      }),
+    );
+
+    const run = db.getRun(`${workspaceId}:codex-cli:run-1`);
+    expect(run).toMatchObject({
+      status: "completed",
+      completedAt: new Date("2026-01-01T10:05:00.000Z"),
     });
   });
 

@@ -381,6 +381,88 @@ describe("terminal-manager IPC", () => {
     ]);
   });
 
+  it("blocks unsafe terminal commands in the main process", async () => {
+    const nodePty = fakeNodePty(new FakePty());
+    registerTerminalIpc({ loadNodePty: async () => nodePty as never });
+
+    await expect(
+      invoke(terminalChannels.create, {
+        args: ["-rf", "/"],
+        command: "rm",
+        cols: 80,
+        cwd: "/repo",
+        rows: 24,
+      }),
+    ).rejects.toThrow("Terminal command blocked: rm -rf detected.");
+
+    expect(nodePty.spawn).not.toHaveBeenCalled();
+  });
+
+  it("blocks terminal cwd values outside registered workspaces", async () => {
+    const nodePty = fakeNodePty(new FakePty());
+    registerTerminalIpc({
+      allowedCwdRoots: async () => ["/repo"],
+      loadNodePty: async () => nodePty as never,
+    });
+
+    await expect(
+      invoke(terminalChannels.create, {
+        command: "node",
+        cols: 80,
+        cwd: "/tmp/outside",
+        rows: 24,
+      }),
+    ).rejects.toThrow("Terminal cwd is outside registered workspaces.");
+
+    expect(nodePty.spawn).not.toHaveBeenCalled();
+  });
+
+  it("blocks custom renderer commands unless they are approved staged launches", async () => {
+    const nodePty = fakeNodePty(new FakePty());
+    registerTerminalIpc({
+      isStagedCommandAllowed: async () => false,
+      loadNodePty: async () => nodePty as never,
+    });
+
+    await expect(
+      invoke(terminalChannels.create, {
+        command: "python3",
+        args: ["-c", "print('surprise')"],
+        cols: 80,
+        cwd: "/repo",
+        rows: 24,
+        source: "manual",
+      }),
+    ).rejects.toThrow("Terminal command is not approved for launch.");
+
+    expect(nodePty.spawn).not.toHaveBeenCalled();
+  });
+
+  it("allows custom Alfred commands only when the staged plan store approves them", async () => {
+    const pty = new FakePty();
+    const nodePty = fakeNodePty(pty);
+    const isStagedCommandAllowed = vi.fn(async () => true);
+    registerTerminalIpc({
+      isStagedCommandAllowed,
+      loadNodePty: async () => nodePty as never,
+    });
+
+    await invoke(terminalChannels.create, {
+      command: "pnpm",
+      args: ["test"],
+      clientId: "alfred-1",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+      source: "alfred",
+    });
+
+    expect(isStagedCommandAllowed).toHaveBeenCalledWith(
+      expect.objectContaining({ command: "pnpm", args: ["test"], clientId: "alfred-1" }),
+    );
+    expect(nodePty.spawn).toHaveBeenCalledWith("pnpm", ["test"], expect.objectContaining({ cwd: "/repo" }));
+  });
+
   it("starts scratch terminal sessions without a bound workspace cwd", async () => {
     const pty = new FakePty();
     const nodePty = fakeNodePty(pty);
@@ -451,6 +533,39 @@ describe("terminal-manager IPC", () => {
       cwd: "/repo/.alfred-worktrees/alfred-codex-codex-1-20260509191530-abc123",
       isolation: "worktree",
     });
+  });
+
+  it("normalizes stale Alfred prompt flags before spawning agent sessions", async () => {
+    const pty = new FakePty();
+    const nodePty = fakeNodePty(pty);
+    registerTerminalIpc({
+      loadNodePty: async () => nodePty as never,
+      prepareAgentWorktree: async () => ({
+        baseCwd: "/repo",
+        branchName: "alfred-codex-review",
+        cwd: "/repo/.alfred-worktrees/alfred-codex-review",
+      }),
+    });
+
+    const created = await invoke<{ args: string[] }>(terminalChannels.create, {
+      agentKind: "codex",
+      clientId: "alfred-1",
+      command: "codex",
+      args: ["--prompt", "Review the backend"],
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+      source: "alfred",
+      title: "Codex review",
+    });
+
+    expect(nodePty.spawn).toHaveBeenCalledWith(
+      "codex",
+      ["Review the backend"],
+      expect.objectContaining({ cwd: "/repo/.alfred-worktrees/alfred-codex-review" }),
+    );
+    expect(created.args).toEqual(["Review the backend"]);
   });
 
   it("does not spawn a session when isolated worktree preparation fails", async () => {

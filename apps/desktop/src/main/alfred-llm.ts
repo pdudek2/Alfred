@@ -29,6 +29,11 @@ Each session has: kind, title, cwd, command, args.
 - "claude" runs the claude (Claude Code) CLI
 - "dev-server" runs a local dev server (e.g. pnpm dev, next dev)
 - "shell" is a generic fallback for arbitrary commands (tail, docker logs, tests, etc.)
+- For codex prompts, use command "codex" with the prompt as a positional
+  arg, e.g. args ["Review the backend"]. Never use "--prompt".
+- For claude prompts, use command "claude" with the prompt as a positional
+  arg for interactive sessions. Use "--print" only for intentionally
+  non-interactive one-shot output. Never use "--prompt".
 
 Title is a short human label (max 60 chars).
 cwd is optional; if absent, current workspace cwd is used.

@@ -341,10 +341,28 @@ function sourceEventIdFor(
   occurredAt: string,
   index: number,
 ): string {
+  const payloadType = stringValue(payload.type);
+  const callId = stringValue(payload.call_id);
+  if (callId && isCallPayloadType(payloadType)) return `${callId}:call`;
+  if (callId && isOutputPayloadType(payloadType)) return `${callId}:output`;
+
   return (
-    stringValue(payload.call_id) ??
+    callId ??
     stringValue(payload.turn_id) ??
     stringValue(payload.id) ??
     `${envelopeType}:${occurredAt}:${index}`
+  );
+}
+
+function isCallPayloadType(payloadType: string | undefined): boolean {
+  return payloadType === "function_call" || payloadType === "custom_tool_call" || payloadType === "tool_search_call";
+}
+
+function isOutputPayloadType(payloadType: string | undefined): boolean {
+  return (
+    payloadType === "function_call_output" ||
+    payloadType === "custom_tool_call_output" ||
+    payloadType === "tool_search_output" ||
+    payloadType === "mcp_tool_call_end"
   );
 }

@@ -11,6 +11,70 @@ const oidcConfig: ConfiguredOidcConfig = {
 };
 
 describe("completeOidcLogin", () => {
+  it("rejects a new OIDC identity when the email is not verified", async () => {
+    const db = createOidcDb();
+    const fetchImpl = createOidcFetch({
+      userInfo: {
+        sub: "idp-subject",
+        email: "patryk@example.test",
+        email_verified: false,
+        name: "Patryk",
+      },
+    });
+
+    await expect(completeOidcLogin(db.db, oidcConfig, "auth-code", fetchImpl)).rejects.toThrow(
+      "OIDC email is not verified",
+    );
+    expect(db.state.users).toEqual([]);
+    expect(db.state.identities).toEqual([]);
+    expect(db.state.sessions).toEqual([]);
+  });
+
+  it("keeps an existing issuer and subject login valid when email verification is absent", async () => {
+    const db = createOidcDb({
+      users: [{ id: "user-existing", email: "patryk@example.test", displayName: "Patryk" }],
+      workspaces: [{ id: "workspace-existing", ownerUserId: "user-existing" }],
+      identities: [
+        {
+          userId: "user-existing",
+          issuer: oidcConfig.issuer,
+          subject: "idp-subject",
+          email: "patryk@example.test",
+          emailVerified: true,
+          claims: {},
+        },
+      ],
+    });
+    const fetchImpl = createOidcFetch({
+      userInfo: {
+        sub: "idp-subject",
+        email: "new-unverified@example.test",
+        name: "Unverified Rename",
+      },
+    });
+
+    await expect(completeOidcLogin(db.db, oidcConfig, "auth-code", fetchImpl)).resolves.toEqual(expect.any(String));
+
+    expect(db.state.users).toEqual([
+      { id: "user-existing", email: "patryk@example.test", displayName: "Unverified Rename" },
+    ]);
+    expect(db.state.identities).toEqual([
+      expect.objectContaining({
+        userId: "user-existing",
+        issuer: oidcConfig.issuer,
+        subject: "idp-subject",
+        email: "new-unverified@example.test",
+        emailVerified: false,
+      }),
+    ]);
+    expect(db.state.sessions).toEqual([
+      expect.objectContaining({
+        userId: "user-existing",
+        workspaceId: "workspace-existing",
+      }),
+    ]);
+  });
+
   it("uses the canonical user id when a new OIDC identity matches an existing email", async () => {
     const db = createOidcDb({
       users: [{ id: "user-existing", email: "patryk@example.test", displayName: "Patryk" }],

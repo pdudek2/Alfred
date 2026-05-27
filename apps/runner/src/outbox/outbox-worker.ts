@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { IngestBatchSchema, type IngestEvent } from "@alfred/schema";
+import { IngestBatchSchema, IngestEventSchema, type IngestEvent } from "@alfred/schema";
 
 import type { OutboxDb, OutboxRecord } from "./outbox-db.js";
 import { postIngestBatch, type IngestClientConfig } from "../sync/ingest-client.js";
@@ -20,20 +20,36 @@ export async function flushOutboxOnce(outbox: OutboxDb, config: FlushOutboxConfi
     return 0;
   }
 
+  const validRecords: Array<{ record: OutboxRecord; event: IngestEvent }> = [];
+
+  for (const record of records) {
+    const parsed = IngestEventSchema.safeParse(record.payload);
+    if (!parsed.success || parsed.data.workspace_id !== config.workspaceId || parsed.data.device_id !== config.deviceId) {
+      outbox.markSent([record.id]);
+      continue;
+    }
+
+    validRecords.push({ record, event: parsed.data });
+  }
+
+  if (validRecords.length === 0) {
+    return 0;
+  }
+
   const batch = IngestBatchSchema.parse({
     batch_id: randomUUID(),
     workspace_id: config.workspaceId,
     device_id: config.deviceId,
     sent_at: now.toISOString(),
-    events: records.map((record) => record.payload) as IngestEvent[],
+    events: validRecords.map(({ event }) => event),
   });
 
   try {
     await postIngestBatch(config, batch);
-    outbox.markSent(records.map((record) => record.id));
-    return records.length;
+    outbox.markSent(validRecords.map(({ record }) => record.id));
+    return validRecords.length;
   } catch (error) {
-    for (const record of records) {
+    for (const { record } of validRecords) {
       outbox.markFailed(record.id, nextRetryAt(record, now));
     }
 

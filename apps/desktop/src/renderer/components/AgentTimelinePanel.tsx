@@ -773,9 +773,16 @@ function sessionPulseCard(
   }
 
   if (displayStatus.kind === "restored") {
+    const codingAgent = session.agentKind === "codex" ||
+      session.agentKind === "claude" ||
+      session.command === "codex" ||
+      session.command === "claude";
+
     return {
       at: session.lastActivityAt ?? session.lastOutputAt ?? 0,
-      detail: "Saved scrollback is available. Relaunch starts a fresh process in this tile.",
+      detail: codingAgent
+        ? "Saved scrollback is available. Resume continues the latest agent conversation in this workspace."
+        : "Saved scrollback is available. Relaunch starts a fresh process in this tile.",
       label: "resume",
       title: "Transcript restored",
       tone: "recovery",

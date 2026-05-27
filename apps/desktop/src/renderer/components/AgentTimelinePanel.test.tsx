@@ -47,7 +47,7 @@ describe("AgentTimelinePanel", () => {
       cwd: "/repo/alfred",
       source: "alfred",
       command: "codex",
-      args: ["--resume", "--prompt", "hello world", "src/odd's file.ts"],
+      args: ["--resume", "hello world", "src/odd's file.ts"],
       runtimeId: "runtime-1",
     };
 
@@ -71,7 +71,7 @@ describe("AgentTimelinePanel", () => {
     expect(onRevealActivityFile).toHaveBeenCalledWith(".", "/repo/alfred");
     expect(onOpenExternalTerminal).toHaveBeenCalledWith("/repo/alfred");
     expect(onCopyActivityText).toHaveBeenCalledWith("/repo/alfred");
-    expect(onCopyActivityText).toHaveBeenCalledWith("codex --resume --prompt 'hello world' 'src/odd'\\''s file.ts'");
+    expect(onCopyActivityText).toHaveBeenCalledWith("codex --resume 'hello world' 'src/odd'\\''s file.ts'");
   });
 
   it("shortens noisy worktree facts without changing cwd handoff copy", async () => {

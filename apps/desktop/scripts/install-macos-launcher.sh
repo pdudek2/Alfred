@@ -49,7 +49,7 @@ cat > "${macos_dir}/Alfred" <<LAUNCHER
 #!/bin/zsh
 set -euo pipefail
 
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH="${HOME}/.local/bin:${HOME}/.bun/bin:${HOME}/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 cd "${repo_root}"
 exec "${pnpm_bin}" --filter @alfred/desktop dev:electron
 LAUNCHER

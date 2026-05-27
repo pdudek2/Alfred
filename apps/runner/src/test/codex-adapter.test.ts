@@ -133,6 +133,22 @@ describe("collectCodexEvents", () => {
       status: "waiting",
     });
   });
+
+  it("uses distinct source event ids for call and output payloads with the same call id", async () => {
+    const events = await collectCodexEvents({
+      codexHome: createCodexHome(turnCompleteFixturePath()),
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+    });
+
+    expect(events.map((event) => event.source_event_id)).toEqual([
+      "codex-run-1",
+      "tool-1:call",
+      "tool-1:output",
+      "turn-1",
+    ]);
+  });
 });
 
 function trackedTempDir(prefix: string): string {

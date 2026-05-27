@@ -1,6 +1,7 @@
 import { execFile as execFileCallback } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
+import { normalizeAgentCommand } from "../shared/agent-command.js";
 import type { AlfredLaunchPreflight, AlfredPlan, AlfredPlanSession, AlfredWorkspaceContext } from "../shared/alfred-ipc.js";
 import { preflightAgentWorktree as defaultPreflightAgentWorktree, type AgentWorktreeResult } from "./git-worktree.js";
 
@@ -36,22 +37,23 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
   workspace: AlfredWorkspaceContext | undefined,
   options: AlfredLaunchPreflightOptions = {},
 ): Promise<T> {
+  const normalizedSession = normalizeAgentCommand(session);
   const commandExists = options.commandExists ?? defaultCommandExists;
 
-  if (!(await commandExists(session.command))) {
+  if (!(await commandExists(normalizedSession.command))) {
     return {
-      ...session,
+      ...normalizedSession,
       launchPreflight: blockedPreflight(
         "command_missing",
         "Command missing",
-        `Command "${session.command}" is not available on PATH.`,
+        `Command "${normalizedSession.command}" is not available on PATH.`,
       ),
     };
   }
 
-  if (!usesIsolatedWorktree(session)) {
+  if (!usesIsolatedWorktree(normalizedSession)) {
     return {
-      ...session,
+      ...normalizedSession,
       launchPreflight: {
         status: "ready",
         label: "Ready",
@@ -63,7 +65,7 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
 
   if (!workspace?.rootPath) {
     return {
-      ...session,
+      ...normalizedSession,
       launchPreflight: {
         status: "ready",
         label: "Scratch workspace",
@@ -73,10 +75,10 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
     };
   }
 
-  const cwd = resolveSessionCwd(session.cwd, workspace.rootPath);
+  const cwd = resolveSessionCwd(normalizedSession.cwd, workspace.rootPath);
   if (!cwd) {
     return {
-      ...session,
+      ...normalizedSession,
       launchPreflight: blockedPreflight(
         "cwd_outside_workspace",
         "Workspace mismatch",
@@ -87,19 +89,19 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
 
   try {
     const worktree = await (options.preflightAgentWorktree ?? defaultPreflightAgentWorktree)({
-      agentKind: session.kind,
-      clientId: session.title,
+      agentKind: normalizedSession.kind,
+      clientId: normalizedSession.title,
       cwd,
     });
 
     return {
-      ...session,
+      ...normalizedSession,
       launchPreflight: readyWorktreePreflight(worktree),
     };
   } catch (error: unknown) {
     if (isNotGitRepositoryError(error)) {
       return {
-        ...session,
+        ...normalizedSession,
         launchPreflight: {
           status: "ready",
           label: "Shared workspace",
@@ -110,7 +112,7 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
     }
 
     return {
-      ...session,
+      ...normalizedSession,
       launchPreflight: blockedPreflight(
         "git_not_ready",
         "Git not ready",

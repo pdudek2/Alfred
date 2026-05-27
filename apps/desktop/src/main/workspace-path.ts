@@ -3,8 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import type { WorkspaceRevealPathRequest, WorkspaceRevealPathResult } from "../shared/workspace-ipc.js";
 
+export type WorkspacePathAccessOptions = {
+  allowedRoots?: string[];
+};
+
 export async function resolveWorkspacePathForReveal(
   request: unknown,
+  options: WorkspacePathAccessOptions = {},
 ): Promise<WorkspaceRevealPathResult> {
   const normalizedRequest = normalizeRevealPathRequest(request);
   if (normalizedRequest.status === "invalid") return normalizedRequest.result;
@@ -16,6 +21,10 @@ export async function resolveWorkspacePathForReveal(
   }
 
   const resolvedPath = resolveWorkspacePath(rawPath, revealRequest.cwd);
+  if (!isAllowedWorkspacePath(resolvedPath, options.allowedRoots)) {
+    return { ok: false, error: "Path is outside registered workspaces.", resolvedPath };
+  }
+
   try {
     await fs.access(resolvedPath);
   } catch {
@@ -60,4 +69,12 @@ function resolveWorkspacePath(rawPath: string, cwd: string | undefined): string 
   }
 
   return path.resolve(cwd?.trim() || process.cwd(), expandedPath);
+}
+
+export function isAllowedWorkspacePath(resolvedPath: string, allowedRoots: string[] | undefined): boolean {
+  const roots = (allowedRoots ?? []).map((root) => path.resolve(root)).filter(Boolean);
+  if (roots.length === 0) return true;
+
+  const normalizedPath = path.resolve(resolvedPath);
+  return roots.some((root) => normalizedPath === root || normalizedPath.startsWith(`${root}${path.sep}`));
 }

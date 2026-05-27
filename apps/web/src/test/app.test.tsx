@@ -317,6 +317,51 @@ describe("App (new shell)", () => {
     expect(window.location.search).toContain("run=run-1");
   });
 
+  it("keeps a deep-linked run selected when it is outside the first list page", async () => {
+    window.history.pushState({}, "", "/?run=run-99");
+    const deepLinkedRunDetail = {
+      ...runDetailFixture,
+      id: "run-99",
+      source_run_id: "codex-run-99",
+      title: "Deep linked run",
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.startsWith("/api/v1/runs?")) {
+          return new Response(JSON.stringify({ items: [runFixture] }), { status: 200 });
+        }
+        if (url === "/api/v1/system/status") {
+          return new Response(
+            JSON.stringify({
+              runner: {
+                state: "live",
+                seconds_since_last_device_seen: 8,
+                seconds_since_last_ingest: 8,
+                last_device_seen_at: "2026-04-30T12:00:00.000Z",
+                last_ingest_at: "2026-04-30T12:00:00.000Z",
+                latest_run_updated_at: "2026-04-30T12:00:00.000Z",
+              },
+            }),
+            { status: 200 },
+          );
+        }
+        if (url === "/api/v1/runs/run-99") {
+          return new Response(JSON.stringify(deepLinkedRunDetail), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+
+    render(<App />);
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/v1/runs/run-99"));
+    expect(await screen.findByRole("dialog", { name: /deep linked run/i })).toBeInTheDocument();
+    expect(window.location.search).toContain("run=run-99");
+  });
+
   it("syncs the run drawer with browser history changes", async () => {
     render(<App />);
 
@@ -358,7 +403,7 @@ describe("App (new shell)", () => {
     await waitFor(() => expect(screen.getByRole("region", { name: /run feed/i })).toBeInTheDocument());
   });
 
-  it("keeps the feed usable when run detail fails to load", async () => {
+  it("keeps the feed usable when a selected run is not found", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -382,7 +427,7 @@ describe("App (new shell)", () => {
           );
         }
         if (url === "/api/v1/runs/run-1") {
-          return new Response("detail failed", { status: 500 });
+          return new Response("detail failed", { status: 404 });
         }
         return new Response("not found", { status: 404 });
       }),

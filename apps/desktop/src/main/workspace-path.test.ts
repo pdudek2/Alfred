@@ -38,6 +38,21 @@ describe("workspace-path", () => {
     });
   });
 
+  it("rejects paths outside allowed workspace roots", async () => {
+    const allowedRoot = path.join(temporaryDirectory, "workspace");
+    const outsideFile = path.join(temporaryDirectory, "outside.txt");
+    await fs.mkdir(allowedRoot);
+    await fs.writeFile(outsideFile, "secret\n");
+
+    await expect(
+      resolveWorkspacePathForReveal({ cwd: allowedRoot, path: outsideFile }, { allowedRoots: [allowedRoot] }),
+    ).resolves.toEqual({
+      ok: false,
+      error: "Path is outside registered workspaces.",
+      resolvedPath: outsideFile,
+    });
+  });
+
   it("returns a resolved path for missing files without opening them", async () => {
     const missingPath = path.join(temporaryDirectory, "missing.ts");
 

@@ -61,6 +61,35 @@ describe("git worktree preparation", () => {
     expect(execFile).toHaveBeenCalledTimes(2);
   });
 
+  it("preserves a preflighted launch branch during worktree creation", async () => {
+    const execFile = vi.fn(async (_file: string, args: string[]) => {
+      if (args.includes("rev-parse")) return { stdout: "/repo\n", stderr: "" };
+      if (args.includes("status")) return { stdout: "", stderr: "" };
+      if (args.includes("worktree")) return { stdout: "prepared\n", stderr: "" };
+      return { stdout: "", stderr: "" };
+    });
+    const branchName = "alfred-codex-codex-backend-code-quality-analysis-20260513213856-2069afba";
+
+    const result = await prepareAgentWorktree(
+      { agentKind: "codex", branchName, clientId: "alfred-1", cwd: "/repo" },
+      {
+        execFile,
+        mkdir: vi.fn(async () => undefined),
+      },
+    );
+
+    expect(result).toEqual({
+      baseCwd: "/repo",
+      branchName,
+      cwd: `/.alfred-worktrees/repo/${branchName}`,
+    });
+    expect(execFile).toHaveBeenCalledWith(
+      "git",
+      ["-C", "/repo", "worktree", "add", "-b", branchName, `/.alfred-worktrees/repo/${branchName}`, "HEAD"],
+      expect.any(Object),
+    );
+  });
+
   it("applies tracked dirty workspace changes into the isolated worktree", async () => {
     const execFile = vi.fn(async (_file: string, args: string[]) => {
       if (args.includes("rev-parse")) return { stdout: "/repo\n", stderr: "" };

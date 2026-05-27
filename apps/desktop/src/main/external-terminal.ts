@@ -5,10 +5,12 @@ import type {
   WorkspaceOpenExternalTerminalRequest,
   WorkspaceOpenExternalTerminalResult,
 } from "../shared/workspace-ipc.js";
+import { isAllowedWorkspacePath, type WorkspacePathAccessOptions } from "./workspace-path.js";
 
 type SpawnLike = typeof spawn;
 
 export type ExternalTerminalOptions = {
+  allowedRoots?: WorkspacePathAccessOptions["allowedRoots"];
   env?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
   spawnImpl?: SpawnLike;
@@ -28,6 +30,10 @@ export async function openExternalTerminal(
   if (normalizedRequest.status === "invalid") return normalizedRequest.result;
 
   const resolvedPath = path.resolve(normalizedRequest.request.cwd);
+  if (!isAllowedWorkspacePath(resolvedPath, options.allowedRoots)) {
+    return { ok: false, error: "Path is outside registered workspaces.", resolvedPath };
+  }
+
   const directoryResult = await verifyDirectory(resolvedPath);
   if (!directoryResult.ok) return directoryResult;
 

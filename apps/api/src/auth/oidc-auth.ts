@@ -120,12 +120,16 @@ async function resolveOidcUserId(
     await db
       .update(users)
       .set({
-        email: userInfo.email,
+        ...(userInfo.email_verified ? { email: userInfo.email } : {}),
         displayName: userInfo.name ?? userInfo.email,
         updatedAt: updatedAtNow,
       })
       .where(eq(users.id, existingIdentityUserId));
     return existingIdentityUserId;
+  }
+
+  if (!userInfo.email_verified) {
+    throw new Error("OIDC email is not verified");
   }
 
   const newUserId = randomUuid();

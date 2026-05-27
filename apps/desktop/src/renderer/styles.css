@@ -70,6 +70,73 @@ button:focus-visible {
   border: 0;
 }
 
+.renderer-crash-shell {
+  min-height: 100vh;
+  padding: 24px;
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(180deg, rgba(238, 243, 247, 0.028), transparent 180px),
+    var(--night);
+}
+
+.renderer-crash-card {
+  width: min(560px, 100%);
+  border: 1px solid color-mix(in oklab, var(--coral) 35%, transparent);
+  border-radius: 10px;
+  padding: 22px;
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--coral) 8%, transparent), transparent 120px),
+    rgba(8, 11, 15, 0.96);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 7%, transparent),
+    0 24px 70px rgba(0, 0, 0, 0.5);
+}
+
+.renderer-crash-card span {
+  color: var(--coral);
+  display: block;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.renderer-crash-card strong {
+  margin-top: 8px;
+  color: var(--ink);
+  display: block;
+  font-size: 22px;
+}
+
+.renderer-crash-card p {
+  margin: 10px 0 18px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.renderer-crash-card pre {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid color-mix(in oklab, white 9%, transparent);
+  border-radius: 7px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--ink-soft);
+  font: 11px/1.45 var(--mono);
+  white-space: pre-wrap;
+}
+
+.renderer-crash-card button {
+  min-height: 34px;
+  border: 1px solid color-mix(in oklab, var(--accent) 34%, transparent);
+  border-radius: 7px;
+  padding: 0 12px;
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  color: #cff3f6;
+  cursor: pointer;
+}
+
 .agent-space-shell {
   position: relative;
   min-height: 100vh;
@@ -102,10 +169,19 @@ button:focus-visible {
   background:
     linear-gradient(90deg, rgba(83, 199, 216, 0.055), transparent 45%),
     rgba(10, 14, 19, 0.9);
+  -webkit-app-region: drag;
+  user-select: none;
 }
 
 .desktop-frame.mac-frame .mission-bar {
   padding-left: 88px;
+}
+
+.mission-bar button,
+.mission-bar input,
+.mission-bar textarea,
+.mission-bar .workspace-popover {
+  -webkit-app-region: no-drag;
 }
 
 .mission-name {
@@ -530,6 +606,12 @@ button:focus-visible {
 
 .side-dock-stack > .alfred-dock.compact {
   align-self: flex-end;
+}
+
+.workspace-layout.preview-visible .workspace-preview-panel {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: none;
 }
 
 .orchestrator-surface {
@@ -1172,9 +1254,14 @@ button:focus-visible {
     0 26px 48px -20px rgba(0, 0, 0, 0.88);
 }
 
+.terminal-stage.mode-focus .terminal-tile.focus-hidden {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .terminal-tile:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--accent) 78%, white 8%);
-  outline-offset: 3px;
+  outline: none;
 }
 
 .terminal-tile.arranging {
@@ -1316,6 +1403,18 @@ body.arranging-pointer {
 .terminal-tile.real-terminal.error,
 .terminal-tile.real-terminal.exited {
   border-color: rgba(239, 129, 115, 0.42);
+}
+
+.terminal-tile.selected,
+.terminal-tile:focus-within {
+  border-color: color-mix(in oklab, var(--accent) 68%, transparent);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in oklab, var(--accent) 34%, transparent),
+    inset 0 1px 0 color-mix(in oklab, white 12%, transparent),
+    0 0 0 1px rgba(3, 4, 4, 0.88),
+    0 0 0 4px color-mix(in oklab, var(--accent) 10%, transparent),
+    0 18px 38px -22px color-mix(in oklab, var(--accent) 42%, black 58%),
+    0 28px 50px -22px rgba(0, 0, 0, 0.9);
 }
 
 .tile-header {
@@ -1922,18 +2021,28 @@ body.arranging-pointer {
 .workspace-preview-fallback {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: 2;
   display: grid;
   place-content: center;
   gap: 5px;
   padding: 18px;
   text-align: center;
   color: var(--faint);
+  background:
+    radial-gradient(circle at 50% 40%, color-mix(in oklab, var(--danger) 12%, transparent), transparent 34%),
+    rgba(4, 6, 8, 0.92);
+  opacity: 0;
   pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.workspace-preview-fallback.visible {
+  opacity: 1;
 }
 
 .workspace-preview-fallback span,
-.workspace-preview-fallback strong {
+.workspace-preview-fallback strong,
+.workspace-preview-fallback p {
   display: block;
   min-width: 0;
   overflow: hidden;
@@ -1953,6 +2062,14 @@ body.arranging-pointer {
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 500;
+}
+
+.workspace-preview-fallback p {
+  max-width: 260px;
+  margin: 6px 0 0;
+  color: var(--faint);
+  font-size: 12px;
+  white-space: normal;
 }
 
 .workspace-preview-empty {
