@@ -297,6 +297,7 @@ function createDrizzleIngestStore(db: DrizzleIngestDb): IngestStore {
 
     upsertRun: async (event, projectId) => {
       const timestamps = runTimestampsFor(event);
+      const occurredAt = new Date(event.occurred_at);
       const [run] = await db
         .insert(runs)
         .values({
@@ -315,10 +316,22 @@ function createDrizzleIngestStore(db: DrizzleIngestDb): IngestStore {
           set: {
             deviceId: event.device_id,
             projectId,
-            status: sql`case when excluded.status <> 'unknown' then excluded.status else ${runs.status} end`,
+            status: sql`
+              case
+                when excluded.status = 'unknown' then ${runs.status}
+                when ${runs.completedAt} is not null and ${occurredAt} <= ${runs.completedAt} then ${runs.status}
+                else excluded.status
+              end
+            `,
             privacyMode: event.privacy_mode,
             startedAt: sql`coalesce(excluded.started_at, ${runs.startedAt})`,
-            completedAt: sql`case when excluded.status in ('running', 'waiting') then null else coalesce(excluded.completed_at, ${runs.completedAt}) end`,
+            completedAt: sql`
+              case
+                when ${runs.completedAt} is not null and ${occurredAt} <= ${runs.completedAt} then ${runs.completedAt}
+                when excluded.status in ('running', 'waiting') then null
+                else coalesce(excluded.completed_at, ${runs.completedAt})
+              end
+            `,
             updatedAt: updatedAtNow,
           },
         })

@@ -11,6 +11,7 @@ import {
   classifyTerminalOutputActivities,
   type SessionActivityEvent,
 } from "../shared/session-activity.js";
+import { normalizeAgentCommand } from "../shared/agent-command.js";
 import {
   terminalChannels,
   type PersistedTerminalSessionSnapshot,
@@ -27,12 +28,15 @@ import {
   type TerminalSessionSource,
   type TerminalWriteRequest,
 } from "../shared/terminal-ipc.js";
+import { checkSafety } from "./alfred-safety.js";
 import { prepareAgentWorktree as defaultPrepareAgentWorktree, type AgentWorktreeResult } from "./git-worktree.js";
 import type { PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 
 type PtyProcess = import("node-pty").IPty;
 type NodePtyModule = typeof import("node-pty");
 type TerminalIpcOptions = {
+  allowedCwdRoots?: () => Promise<string[]>;
+  isStagedCommandAllowed?: (request: Pick<TerminalCreateRequest, "args" | "clientId" | "command">) => Promise<boolean>;
   loadNodePty?: () => Promise<NodePtyModule>;
   prepareAgentWorktree?: typeof defaultPrepareAgentWorktree;
 };
@@ -132,12 +136,15 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         throw new Error("Terminal session requires an owning window.");
       }
 
-      const launchCwd = await resolveLaunchCwd(request, options.prepareAgentWorktree ?? defaultPrepareAgentWorktree);
+      const safeRequest = validateTerminalCreateRequest(request);
+      await validateTerminalCommandLaunch(safeRequest, options.isStagedCommandAllowed);
+      await validateTerminalCwd(safeRequest, options.allowedCwdRoots);
+      const launchCwd = await resolveLaunchCwd(safeRequest, options.prepareAgentWorktree ?? defaultPrepareAgentWorktree);
       const cwd = typeof launchCwd === "string" ? launchCwd : launchCwd.cwd;
       const nodePty = await (options.loadNodePty ?? loadNodePty)();
-      const resolved = resolveCommand(request);
+      const resolved = resolveCommand(safeRequest);
       const id = randomUUID();
-      const metadata = sessionMetadata(id, request, launchCwd, resolved.command, Date.now());
+      const metadata = sessionMetadata(id, safeRequest, launchCwd, resolved.command, Date.now());
       const pty = nodePty.spawn(resolved.command, resolved.args, {
         name: "xterm-256color",
         cols: normalizeDimension(request.cols, 80),
@@ -536,6 +543,84 @@ function resolveCommand(request: TerminalCreateRequest): { command: string; args
   return resolveShell();
 }
 
+function validateTerminalCreateRequest(request: TerminalCreateRequest): TerminalCreateRequest {
+  if (!isRecord(request)) {
+    throw new Error("Invalid terminal create request.");
+  }
+
+  const command = typeof request.command === "string" ? request.command.trim() : "";
+  if (request.command !== undefined && !command) {
+    throw new Error("Terminal command is required.");
+  }
+  if (request.args !== undefined && !Array.isArray(request.args)) {
+    throw new Error("Terminal args must be an array.");
+  }
+
+  const args = request.args?.map((arg) => {
+    if (typeof arg !== "string") {
+      throw new Error("Terminal args must be strings.");
+    }
+    return arg;
+  });
+
+  const requestWithValidatedFields: TerminalCreateRequest = {
+    ...request,
+    ...(command ? { command } : {}),
+    ...(args === undefined ? {} : { args }),
+  };
+  const normalizedRequest = command
+    ? normalizeAgentCommand({ ...requestWithValidatedFields, command })
+    : requestWithValidatedFields;
+
+  if (normalizedRequest.command) {
+    const safety = checkSafety(normalizedRequest.command, normalizedRequest.args ?? []);
+    if (safety.unsafe) {
+      throw new Error(`Terminal command blocked: ${safety.reason}.`);
+    }
+  }
+
+  return normalizedRequest;
+}
+
+async function validateTerminalCommandLaunch(
+  request: TerminalCreateRequest,
+  isStagedCommandAllowed: TerminalIpcOptions["isStagedCommandAllowed"],
+): Promise<void> {
+  if (!request.command) return;
+
+  if (isTrustedAgentLaunch(request)) return;
+  if (!isStagedCommandAllowed) return;
+
+  if (request.source === "alfred" && await isStagedCommandAllowed?.(request)) {
+    return;
+  }
+
+  throw new Error("Terminal command is not approved for launch.");
+}
+
+function isTrustedAgentLaunch(request: TerminalCreateRequest): boolean {
+  if (request.agentKind !== "codex" && request.agentKind !== "claude") return false;
+  if (request.command !== request.agentKind) return false;
+  return true;
+}
+
+async function validateTerminalCwd(
+  request: TerminalCreateRequest,
+  allowedCwdRoots: TerminalIpcOptions["allowedCwdRoots"],
+): Promise<void> {
+  if (!request.cwd || !allowedCwdRoots) return;
+
+  const resolvedCwd = path.resolve(request.cwd);
+  const roots = await allowedCwdRoots();
+  const allowed = roots
+    .map((root) => path.resolve(root))
+    .some((root) => resolvedCwd === root || resolvedCwd.startsWith(`${root}${path.sep}`));
+
+  if (!allowed) {
+    throw new Error("Terminal cwd is outside registered workspaces.");
+  }
+}
+
 async function resolveLaunchCwd(
   request: TerminalCreateRequest,
   prepareAgentWorktree: typeof defaultPrepareAgentWorktree,
@@ -580,4 +665,8 @@ function defaultScratchCwd(): string {
 
 function normalizeDimension(value: number, fallback: number): number {
   return Number.isInteger(value) && value > 0 && value < 1000 ? value : fallback;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

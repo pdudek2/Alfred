@@ -10,6 +10,10 @@ const dbMock = vi.hoisted(() => ({
   listRuns: vi.fn(),
 }));
 
+const bootstrapAuthMock = vi.hoisted(() => ({
+  seedBootstrapAuth: vi.fn(),
+}));
+
 vi.mock("@alfred/db", () => ({
   LOCAL_USER_ID: "local-user",
   createDb: () => dbMock,
@@ -32,6 +36,8 @@ vi.mock("@alfred/schema", () => ({
     safeParse: vi.fn(() => ({ success: false })),
   },
 }));
+
+vi.mock("../auth/bootstrap-auth", () => bootstrapAuthMock);
 
 import { createApp } from "../app";
 
@@ -59,6 +65,8 @@ describe("api", () => {
     dbMock.listRuns.mockReset();
     dbMock.getRun.mockResolvedValue(null);
     dbMock.listRuns.mockResolvedValue([run]);
+    bootstrapAuthMock.seedBootstrapAuth.mockReset();
+    bootstrapAuthMock.seedBootstrapAuth.mockResolvedValue(undefined);
   });
 
   it("returns endpoint metadata at the root", async () => {
@@ -131,6 +139,49 @@ describe("api", () => {
     expect(login.status).toBe(302);
     expect(login.headers.get("location")).toBe("/");
     expect(login.headers.get("set-cookie")).toContain("alfred_session=dev-session-token");
+  });
+
+  it("serves health endpoints even when bootstrap auth fails", async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    bootstrapAuthMock.seedBootstrapAuth.mockRejectedValue(new Error("bootstrap unavailable"));
+
+    try {
+      const app = createApp();
+
+      const health = await app.request("/health");
+      const apiHealth = await app.request("/api/health");
+      const runs = await app.request("/api/v1/runs", {
+        headers: { cookie: "alfred_session=dev-session-token" },
+      });
+
+      expect(health.status).toBe(200);
+      expect(apiHealth.status).toBe(200);
+      expect(runs.status).toBeGreaterThanOrEqual(500);
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+  });
+
+  it("retries bootstrap auth after a rejected attempt", async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    bootstrapAuthMock.seedBootstrapAuth
+      .mockRejectedValueOnce(new Error("temporary bootstrap failure"))
+      .mockResolvedValueOnce(undefined);
+
+    try {
+      const app = createApp();
+
+      const first = await app.request("/api/v1/system/status");
+      const second = await app.request("/api/v1/system/status");
+
+      expect(first.status).toBeGreaterThanOrEqual(500);
+      expect(second.status).toBe(401);
+      expect(bootstrapAuthMock.seedBootstrapAuth).toHaveBeenCalledTimes(2);
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
   });
 
   it("uses the cloud auth callback path when starting OIDC through the api alias", async () => {

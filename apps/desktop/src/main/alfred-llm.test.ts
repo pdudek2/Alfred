@@ -182,6 +182,7 @@ Ready.`;
     const body = JSON.parse(((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as RequestInit).body as string);
     expect(body.response_format).toEqual({ type: "json_object" });
     expect(body.model).toBe("anthropic/claude-sonnet-4-6");
+    expect(body.messages.find((m: { role: string }) => m.role === "system").content).toContain('Never use "--prompt"');
     expect(body.messages.find((m: { role: string }) => m.role === "user").content).toBe(baseInput.prompt);
   });
 

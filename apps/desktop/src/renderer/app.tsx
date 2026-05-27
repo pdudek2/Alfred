@@ -78,6 +78,32 @@ const DEFAULT_WORKSPACE_ID = "A";
 const DEFAULT_WORKSPACE: Workspace = { id: DEFAULT_WORKSPACE_ID, label: "Alfred", shortLabel: "A" };
 const DEFAULT_WORKSPACES: Workspace[] = [DEFAULT_WORKSPACE];
 
+function tileLayoutRecordsEqual(
+  left: Record<string, TileLayout> | undefined,
+  right: Record<string, TileLayout>,
+): boolean {
+  const leftLayouts = left ?? {};
+  const leftKeys = Object.keys(leftLayouts);
+  const rightKeys = Object.keys(right);
+
+  if (leftKeys.length !== rightKeys.length) return false;
+
+  return rightKeys.every((tileId) => {
+    const leftLayout = leftLayouts[tileId];
+    const rightLayout = right[tileId];
+
+    if (!leftLayout || !rightLayout) return false;
+
+    return (
+      leftLayout.tileId === rightLayout.tileId &&
+      leftLayout.col === rightLayout.col &&
+      leftLayout.row === rightLayout.row &&
+      leftLayout.colSpan === rightLayout.colSpan &&
+      leftLayout.rowSpan === rightLayout.rowSpan
+    );
+  });
+}
+
 export function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(DEFAULT_WORKSPACES);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(DEFAULT_WORKSPACE_ID);
@@ -110,6 +136,7 @@ export function App() {
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? DEFAULT_WORKSPACE;
   const activeWorkMode = workModesByWorkspace[activeWorkspace.id] ?? "desk";
   const activeSessions = terminalSessions.filter((session) => session.workspaceId === activeWorkspace.id);
+  const activeSessionKey = activeSessions.map((session) => session.id).join("\0");
   const activePreviewCandidates = previewCandidates.filter((candidate) => candidate.workspaceId === activeWorkspace.id);
   const activeSelectedPreviewUrl =
     activePreviewCandidates.find((candidate) => candidate.url === selectedPreviewUrlsByWorkspace[activeWorkspace.id])
@@ -352,51 +379,68 @@ export function App() {
 
   const handleApplyLayoutPreset = useCallback((preset: LayoutPreset, selectedSessionId = activeSelectedSessionId) => {
     const layoutApi = getDesktopLayoutApi();
+    const workspaceLayouts = applyLayoutPreset(activeSessions, preset, selectedSessionId);
+
     setTileLayoutsByWorkspace((current) => {
-      const workspaceLayouts = applyLayoutPreset(activeSessions, preset, selectedSessionId);
+      if (tileLayoutRecordsEqual(current[activeWorkspace.id], workspaceLayouts)) return current;
+
       void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
       return {
         ...current,
         [activeWorkspace.id]: workspaceLayouts,
       };
     });
-  }, [activeSessions, activeWorkspace.id]);
+  }, [activeSelectedSessionId, activeSessionKey, activeWorkspace.id]);
 
   const handleApplyWorkMode = useCallback((mode: WorkMode, selectedSessionId = activeSelectedSessionId) => {
     const preset: LayoutPreset = mode === "focus" ? "focus" : mode === "split" ? "two-up" : "grid";
     const layoutApi = getDesktopLayoutApi();
+    const viewStateChanged =
+      activeWorkMode !== mode || (selectedSessionId !== null && activeSelectedSessionId !== selectedSessionId);
 
-    setWorkModesByWorkspace((current) => ({
-      ...current,
-      [activeWorkspace.id]: mode,
-    }));
-    void layoutApi?.setWorkspaceViewState({
-      workspaceId: activeWorkspace.id,
-      viewState: {
-        workMode: mode,
-        ...(selectedSessionId === null ? {} : { selectedSessionId }),
-      },
+    setWorkModesByWorkspace((current) => {
+      if ((current[activeWorkspace.id] ?? "desk") === mode) return current;
+      return {
+        ...current,
+        [activeWorkspace.id]: mode,
+      };
     });
+    if (viewStateChanged) {
+      void layoutApi?.setWorkspaceViewState({
+        workspaceId: activeWorkspace.id,
+        viewState: {
+          workMode: mode,
+          ...(selectedSessionId === null ? {} : { selectedSessionId }),
+        },
+      });
+    }
     handleApplyLayoutPreset(preset, selectedSessionId);
-  }, [activeSelectedSessionId, activeWorkspace.id, handleApplyLayoutPreset]);
+  }, [activeSelectedSessionId, activeWorkMode, activeWorkspace.id, handleApplyLayoutPreset]);
 
   const handleSelectSession = useCallback((sessionId: string) => {
     const layoutApi = getDesktopLayoutApi();
-    setSelectedSessionIdsByWorkspace((current) => ({
-      ...current,
-      [activeWorkspace.id]: sessionId,
-    }));
-    void layoutApi?.setWorkspaceViewState({
-      workspaceId: activeWorkspace.id,
-      viewState: { workMode: activeWorkMode, selectedSessionId: sessionId },
+    setSelectedSessionIdsByWorkspace((current) => {
+      if (current[activeWorkspace.id] === sessionId) return current;
+
+      void layoutApi?.setWorkspaceViewState({
+        workspaceId: activeWorkspace.id,
+        viewState: { workMode: activeWorkMode, selectedSessionId: sessionId },
+      });
+      return {
+        ...current,
+        [activeWorkspace.id]: sessionId,
+      };
     });
   }, [activeWorkMode, activeWorkspace.id]);
 
   const handleFocusSession = useCallback((sessionId: string) => {
-    setSelectedSessionIdsByWorkspace((current) => ({
-      ...current,
-      [activeWorkspace.id]: sessionId,
-    }));
+    setSelectedSessionIdsByWorkspace((current) => {
+      if (current[activeWorkspace.id] === sessionId) return current;
+      return {
+        ...current,
+        [activeWorkspace.id]: sessionId,
+      };
+    });
     handleApplyWorkMode("focus", sessionId);
   }, [activeWorkspace.id, handleApplyWorkMode]);
   const handleReviewAttention = useCallback(() => {
@@ -484,27 +528,50 @@ export function App() {
 
     const layoutApi = getDesktopLayoutApi();
     const workspaceLayouts = applyLayoutPreset(targetSessions, "focus", sessionId);
+    const viewStateChanged =
+      (workModesByWorkspace[workspaceId] ?? "desk") !== "focus" ||
+      selectedSessionIdsByWorkspace[workspaceId] !== sessionId;
 
-    setActiveWorkspaceId(workspaceId);
-    setSelectedSessionIdsByWorkspace((current) => ({
-      ...current,
-      [workspaceId]: sessionId,
-    }));
-    setWorkModesByWorkspace((current) => ({
-      ...current,
-      [workspaceId]: "focus",
-    }));
-    setTileLayoutsByWorkspace((current) => ({
-      ...current,
-      [workspaceId]: workspaceLayouts,
-    }));
-    void layoutApi?.setWorkspaceViewState({
-      workspaceId,
-      viewState: { workMode: "focus", selectedSessionId: sessionId },
+    if (activeWorkspaceId !== workspaceId) {
+      setActiveWorkspaceId(workspaceId);
+    }
+    setSelectedSessionIdsByWorkspace((current) => {
+      if (current[workspaceId] === sessionId) return current;
+      return {
+        ...current,
+        [workspaceId]: sessionId,
+      };
     });
-    void layoutApi?.setWorkspaceLayout({ workspaceId, layouts: workspaceLayouts });
+    setWorkModesByWorkspace((current) => {
+      if ((current[workspaceId] ?? "desk") === "focus") return current;
+      return {
+        ...current,
+        [workspaceId]: "focus",
+      };
+    });
+    setTileLayoutsByWorkspace((current) => {
+      if (tileLayoutRecordsEqual(current[workspaceId], workspaceLayouts)) return current;
+
+      void layoutApi?.setWorkspaceLayout({ workspaceId, layouts: workspaceLayouts });
+      return {
+        ...current,
+        [workspaceId]: workspaceLayouts,
+      };
+    });
+    if (viewStateChanged) {
+      void layoutApi?.setWorkspaceViewState({
+        workspaceId,
+        viewState: { workMode: "focus", selectedSessionId: sessionId },
+      });
+    }
     void refreshLiveSessions();
-  }, [refreshLiveSessions, terminalSessions]);
+  }, [
+    activeWorkspaceId,
+    refreshLiveSessions,
+    selectedSessionIdsByWorkspace,
+    terminalSessions,
+    workModesByWorkspace,
+  ]);
 
   useEffect(() => {
     setSelectedSessionIdsByWorkspace((current) => {
@@ -667,13 +734,13 @@ export function App() {
     }
   }, []);
 
-  const handleRuntimeSessionFailed = useCallback((tileId: string) => {
+  const handleRuntimeSessionFailed = useCallback((tileId: string, reason?: string) => {
     startingSessionIdsRef.current.delete(tileId);
     setTerminalSessions((sessions) =>
       appendSessionActivity(markSessionStartFailed(sessions, tileId), tileId, {
         kind: "error",
         title: "Start failed",
-        detail: "The runtime could not create this terminal.",
+        detail: reason?.trim() || "The runtime could not create this terminal.",
       }),
     );
   }, []);
@@ -689,19 +756,22 @@ export function App() {
     );
   }, []);
 
-  const handleRuntimeSessionExited = useCallback((runtimeId: TerminalCreateResult["id"]) => {
+  const handleRuntimeSessionExited = useCallback((runtimeId: TerminalCreateResult["id"], exitCode = 0) => {
     const exitedSession = terminalSessionsRef.current.find((item) => item.runtimeId === runtimeId);
     if (exitedSession) {
       setPreviewCandidates((candidates) => candidates.filter((candidate) => candidate.sessionId !== exitedSession.id));
     }
     setTerminalSessions((sessions) => {
       const session = sessions.find((item) => item.runtimeId === runtimeId);
-      const next = markSessionExited(sessions, runtimeId);
+      const failed = exitCode !== 0;
+      const next = markSessionExited(sessions, runtimeId, exitCode);
       if (!session) return next;
       return appendSessionActivity(next, session.id, {
-        kind: "lifecycle",
-        title: "Process exited",
-        detail: "The terminal process ended; scrollback remains available.",
+        kind: failed ? "error" : "lifecycle",
+        title: failed ? "Process failed" : "Process exited",
+        detail: failed
+          ? `The terminal process exited with code ${exitCode}.`
+          : "The terminal process ended; scrollback remains available.",
       });
     });
   }, []);
@@ -781,8 +851,14 @@ export function App() {
       );
       return;
     }
-    if (tile?.safetyNote && !armedUnsafeSessionIds.has(tileId)) {
-      setArmedUnsafeSessionIds((ids) => new Set(ids).add(tileId));
+    if (tile?.safetyNote) {
+      setTerminalSessions((sessions) =>
+        appendSessionActivity(sessions, tileId, {
+          kind: "warning",
+          title: "Launch blocked",
+          detail: tile.safetyNote ?? "This command needs to be edited before launch.",
+        }),
+      );
       return;
     }
 

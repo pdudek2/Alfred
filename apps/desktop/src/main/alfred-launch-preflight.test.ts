@@ -69,6 +69,41 @@ describe("preflightAlfredPlan", () => {
     });
   });
 
+  it("normalizes unsupported prompt flags before launch preflight", async () => {
+    const result = await preflightAlfredPlan(
+      {
+        sessions: [
+          {
+            kind: "codex",
+            title: "Review",
+            command: "codex",
+            args: ["--model", "gpt-5.5", "--prompt", "Review the backend"],
+            cwd: "/repo",
+          },
+          {
+            kind: "claude",
+            title: "UX",
+            command: "claude",
+            args: ["--prompt=Review the UI"],
+            cwd: "/repo",
+          },
+        ],
+      },
+      { id: "A", label: "Alfred", rootPath: "/repo" },
+      {
+        commandExists: async () => true,
+        preflightAgentWorktree: async ({ agentKind }) => ({
+          baseCwd: "/repo",
+          branchName: `alfred-${agentKind}-review`,
+          cwd: `/.alfred-worktrees/repo/alfred-${agentKind}-review`,
+        }),
+      },
+    );
+
+    expect(result.sessions[0]?.args).toEqual(["--model", "gpt-5.5", "Review the backend"]);
+    expect(result.sessions[1]?.args).toEqual(["Review the UI"]);
+  });
+
   it("blocks coding agents that ask to launch outside the selected workspace", async () => {
     const preflightAgentWorktree = vi.fn();
     const result = await preflightAlfredPlan(

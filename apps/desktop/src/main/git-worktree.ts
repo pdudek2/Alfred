@@ -76,7 +76,7 @@ export async function preflightAgentWorktree(
   );
   const snapshot = dirtySnapshotFromStatus(status);
 
-  const branchName = request.branchName ? sanitizeBranchSegment(request.branchName) : createAgentBranchName(request, options);
+  const branchName = request.branchName ? sanitizeBranchName(request.branchName) : createAgentBranchName(request, options);
   const worktreePath = path.join(path.dirname(gitRoot), ".alfred-worktrees", path.basename(gitRoot), branchName);
   const launchCwd = relativeLaunchPath ? path.join(worktreePath, relativeLaunchPath) : worktreePath;
 
@@ -196,6 +196,17 @@ function sanitizeBranchSegment(value: string): string {
     .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/^[._-]+|[._-]+$/g, "")
     .slice(0, 48) || "session";
+}
+
+function sanitizeBranchName(value: string): string {
+  const segments = value
+    .toLowerCase()
+    .replace(/[^a-z0-9._/-]+/g, "-")
+    .split("/")
+    .map((segment) => segment.replace(/^[._-]+|[._-]+$/g, ""))
+    .filter(Boolean);
+
+  return segments.join("-") || "session";
 }
 
 async function gitOutput(run: ExecFile, args: string[], fallbackMessage: string): Promise<string> {

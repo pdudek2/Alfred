@@ -91,6 +91,39 @@ describe("flushOutboxOnce", () => {
     outbox.close();
   });
 
+  it("discards invalid records while flushing valid records", async () => {
+    const outbox = createOutbox();
+    outbox.enqueue(
+      {
+        event_id: "invalid-event-1",
+        type: "run.started",
+      },
+      new Date("2026-04-28T10:00:00.000Z"),
+    );
+    enqueueValidEvent(outbox, "valid-event-000001");
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
+
+    await expect(
+      flushOutboxOnce(outbox, {
+        apiUrl: "http://127.0.0.1:4301",
+        deviceToken: "token-1",
+        workspaceId,
+        deviceId,
+        fetchImpl,
+        now: new Date("2026-04-28T10:00:00.000Z"),
+      }),
+    ).resolves.toBe(1);
+
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    const request = (fetchImpl as unknown as FetchMock).mock.calls[0]?.[1];
+    const body = typeof request?.body === "string" ? JSON.parse(request.body) : null;
+    const parsed = IngestBatchSchema.parse(body);
+    expect(parsed.events.map((event) => event.event_id)).toEqual(["valid-event-000001"]);
+    expect(outbox.listReady(10, new Date("2026-04-28T10:00:00.500Z"))).toHaveLength(0);
+    expect(outbox.listReady(10, new Date("2026-04-28T10:00:01.000Z"))).toHaveLength(0);
+    outbox.close();
+  });
+
   it("does not send requests for an empty outbox", async () => {
     const outbox = createOutbox();
     const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));

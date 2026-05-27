@@ -24,14 +24,15 @@ export function createApp() {
   const db = createDb();
   const bootstrapAuth =
     process.env.NODE_ENV === "test"
-      ? Promise.resolve()
-      : seedBootstrapAuth(db, {
-          adminEmail: env.ALFRED_BOOTSTRAP_ADMIN_EMAIL,
-          deviceId: env.RUNNER_DEVICE_ID,
-          deviceToken: env.RUNNER_DEVICE_TOKEN,
-          userId: env.ALFRED_BOOTSTRAP_USER_ID,
-          workspaceId: env.ALFRED_BOOTSTRAP_WORKSPACE_ID,
-        });
+      ? async () => undefined
+      : () =>
+          seedBootstrapAuth(db, {
+            adminEmail: env.ALFRED_BOOTSTRAP_ADMIN_EMAIL,
+            deviceId: env.RUNNER_DEVICE_ID,
+            deviceToken: env.RUNNER_DEVICE_TOKEN,
+            userId: env.ALFRED_BOOTSTRAP_USER_ID,
+            workspaceId: env.ALFRED_BOOTSTRAP_WORKSPACE_ID,
+          });
   const ensureBootstrapAuth = createBootstrapAuthGate(bootstrapAuth);
   const staticSessionStore = createStaticSessionStore(env.AUTH_DEV_SESSION_TOKEN, {
     userId: env.ALFRED_BOOTSTRAP_USER_ID,
@@ -52,7 +53,12 @@ export function createApp() {
       )
     : dbDeviceAuthStore;
 
-  app.use("*", async (_c, next) => {
+  app.use("*", async (c, next) => {
+    if (isLivenessPath(c.req.path)) {
+      await next();
+      return;
+    }
+
     await ensureBootstrapAuth();
     await next();
   });
@@ -97,12 +103,24 @@ export function createApp() {
   }
 }
 
-function createBootstrapAuthGate(bootstrapAuth: Promise<void>) {
+function createBootstrapAuthGate(bootstrapAuth: () => Promise<void>) {
   let ready = false;
+  let pending: Promise<void> | undefined;
 
   return async () => {
     if (ready) return;
-    await bootstrapAuth;
-    ready = true;
+    pending ??= bootstrapAuth()
+      .then(() => {
+        ready = true;
+      })
+      .catch((error) => {
+        pending = undefined;
+        throw error;
+      });
+    await pending;
   };
+}
+
+function isLivenessPath(path: string): boolean {
+  return path === "/health" || path === "/api/health";
 }

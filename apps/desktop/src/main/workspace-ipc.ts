@@ -1,4 +1,5 @@
 import { BrowserWindow, dialog, ipcMain, shell } from "electron";
+import path from "node:path";
 import {
   workspaceChannels,
   type WorkspaceStateSetRequest,
@@ -24,9 +25,11 @@ export function registerWorkspaceIpc(store: WorkspaceStore): void {
   });
   ipcMain.handle(workspaceChannels.get, (): Promise<WorkspaceStateSnapshot> => store.getWorkspaceState());
   ipcMain.handle(workspaceChannels.openExternalUrl, (_event, request) => openExternalUrl(request));
-  ipcMain.handle(workspaceChannels.openExternalTerminal, (_event, request) => openExternalTerminal(request));
+  ipcMain.handle(workspaceChannels.openExternalTerminal, async (_event, request) =>
+    openExternalTerminal(request, { allowedRoots: await allowedWorkspaceRoots(store) }),
+  );
   ipcMain.handle(workspaceChannels.revealPath, async (_event, request) => {
-    const result = await resolveWorkspacePathForReveal(request);
+    const result = await resolveWorkspacePathForReveal(request, { allowedRoots: await allowedWorkspaceRoots(store) });
     if (result.ok) {
       shell.showItemInFolder(result.resolvedPath);
     }
@@ -36,4 +39,14 @@ export function registerWorkspaceIpc(store: WorkspaceStore): void {
     workspaceChannels.set,
     (_event, request: WorkspaceStateSetRequest): Promise<WorkspaceStateSnapshot> => store.setWorkspaceState(request),
   );
+}
+
+export async function allowedWorkspaceRoots(store: WorkspaceStore): Promise<string[]> {
+  const state = await store.getWorkspaceState();
+  return state.workspaces.flatMap((workspace) => {
+    if (!workspace.rootPath) return [];
+    const rootPath = path.resolve(workspace.rootPath);
+    const worktreeRoot = path.join(path.dirname(rootPath), ".alfred-worktrees", path.basename(rootPath));
+    return [rootPath, worktreeRoot];
+  });
 }

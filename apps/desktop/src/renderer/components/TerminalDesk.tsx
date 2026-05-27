@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type FocusEvent as ReactFocusEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
@@ -50,8 +51,8 @@ type TerminalDeskProps = {
   onApplyLayoutPreset: (preset: LayoutPreset) => void;
   onApplyWorkMode: (mode: WorkMode) => void;
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
-  onRuntimeSessionFailed: (tileId: string) => void;
-  onRuntimeSessionExited: (runtimeId: TerminalSessionId) => void;
+  onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
+  onRuntimeSessionExited: (runtimeId: TerminalSessionId, exitCode: number) => void;
   onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
@@ -111,6 +112,7 @@ export function TerminalDesk({
     ? splitSessionsForDesk(sessions, selectedSessionId, layouts)
     : sessions;
   const visibleSessions = focusSession ? [focusSession] : splitSessions;
+  const renderedSessions = focusSession ? sessions : visibleSessions;
   const inspectedSession = focusSession ?? selectedSession ?? visibleSessions[0] ?? null;
   const showSplitEmptyState = workMode === "split" && sessions.length > 0 && visibleSessions.length < 2;
   const gridDensity =
@@ -311,8 +313,9 @@ export function TerminalDesk({
               workspaceRootPath={workspaceRootPath}
             />
           )}
-          {visibleSessions.map((session) =>
-            session.stage === "live" ? (
+          {renderedSessions.map((session) => {
+            const focusHidden = Boolean(focusSession && session.id !== focusSession.id);
+            return session.stage === "live" ? (
               <ManualTerminalTile
                 arrangeMode={arrangeMode}
                 cwd={session.cwd}
@@ -326,6 +329,7 @@ export function TerminalDesk({
                 relaunchArmed={relaunchArmedSessionIds.has(session.id)}
                 workspaceId={session.workspaceId}
                 title={session.title}
+                focusHidden={focusHidden}
                 source={session.source}
                 agentKind={session.agentKind}
                 isolation={session.isolation}
@@ -357,6 +361,7 @@ export function TerminalDesk({
             ) : (
               <StagedTilePreview
                 armed={armedUnsafeSessionIds.has(session.id)}
+                focusHidden={focusHidden}
                 key={session.id}
                 layout={layouts[session.id]}
                 preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
@@ -370,8 +375,8 @@ export function TerminalDesk({
                 onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
                 arrangeMode={arrangeMode}
               />
-            ),
-          )}
+            );
+          })}
           {showSplitEmptyState && (
             <SplitModeEmptyState
               onAddManualSession={onAddManualSession}
@@ -545,6 +550,21 @@ function relaunchButtonLabel(action: "relaunch" | "restart", unsafe: boolean, ar
   return action === "relaunch" ? "Review relaunch" : "Review restart";
 }
 
+function restoredButtonLabel(
+  session: { agentKind?: SessionTile["agentKind"] | undefined; command?: string | undefined },
+  unsafe: boolean,
+  armed: boolean,
+): string {
+  const codingAgent = session.agentKind === "codex" ||
+    session.agentKind === "claude" ||
+    session.command === "codex" ||
+    session.command === "claude";
+
+  if (!codingAgent) return relaunchButtonLabel("relaunch", unsafe, armed);
+  if (!unsafe) return "Resume";
+  return armed ? "Confirm resume" : "Review resume";
+}
+
 function ManualTerminalTile({
   arrangeMode,
   cwd,
@@ -582,6 +602,7 @@ function ManualTerminalTile({
   source,
   workspaceId,
   title,
+  focusHidden = false,
   command,
   args,
 }: {
@@ -606,8 +627,8 @@ function ManualTerminalTile({
   onSelectSession: () => void;
   onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
-  onRuntimeSessionFailed: (tileId: string) => void;
-  onRuntimeSessionExited: (runtimeId: TerminalSessionId) => void;
+  onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
+  onRuntimeSessionExited: (runtimeId: TerminalSessionId, exitCode: number) => void;
   onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
@@ -621,6 +642,7 @@ function ManualTerminalTile({
   source: SessionTile["source"];
   workspaceId: string;
   title: string;
+  focusHidden?: boolean;
   command?: string | undefined;
   args?: string[] | undefined;
 }) {
@@ -635,13 +657,15 @@ function ManualTerminalTile({
   const kind = sessionTileKind({ agentKind, source });
   const kindMeta = tileKindMeta(kind);
   const displayClock = useStatusClock(createdAt ?? lastOutputAt);
+  const restoredTranscript = runtimeStatus === "restored" && !runtimeId;
+  const tileStatus = restoredTranscript ? "restored" : status;
   const displaySession = {
     stage: "live",
     ...(runtimeStatus === undefined ? {} : { runtimeStatus }),
     ...(lastOutputAt === undefined ? {} : { lastOutputAt }),
     ...(activityEvents === undefined ? {} : { activityEvents }),
   } satisfies Parameters<typeof terminalSessionDisplayStatus>[0];
-  const displayStatus = terminalSessionDisplayStatus(displaySession, status, displayClock);
+  const displayStatus = terminalSessionDisplayStatus(displaySession, tileStatus, displayClock);
   const restartable = displayStatus.kind === "done" || displayStatus.kind === "error";
   const discardableSession = displayStatus.kind === "restored" || restartable;
   const relaunchSafety = sessionRelaunchSafety({
@@ -651,6 +675,7 @@ function ManualTerminalTile({
     ...(command === undefined ? {} : { command }),
   });
   const relaunchNeedsReview = !relaunchSafety.safe;
+  const restoredActionLabel = restoredButtonLabel({ agentKind, command }, relaunchNeedsReview, relaunchArmed);
   const latestActivity = latestVisibleActivity(activityEvents);
   const ageLabel = sessionAgeLabel(createdAt, displayClock);
   const sessionLocationLabel = branchName ? "isolated worktree" : (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
@@ -687,7 +712,6 @@ function ManualTerminalTile({
     sessionIdRef.current = runtimeId ?? null;
     setResolvedCwd(cwd);
     setStatus("connecting");
-    const restoredTranscript = runtimeStatus === "restored" && !runtimeId;
 
     const terminal = new Terminal({
       allowProposedApi: false,
@@ -737,15 +761,54 @@ function ManualTerminalTile({
         terminalApi.resize({ id: sessionId, cols: terminal.cols, rows: terminal.rows });
       }
     };
+    const repaintTerminal = () => {
+      fitAndResize();
+      const refresh = (terminal as { refresh?: (start: number, end: number) => void }).refresh;
+      refresh?.call(terminal, 0, Math.max(0, terminal.rows - 1));
+    };
+    const scheduleRepaint = (passes = 2) => {
+      requestAnimationFrame(() => {
+        if (disposed) return;
+        repaintTerminal();
+        if (passes > 1) scheduleRepaint(passes - 1);
+      });
+    };
+    const writeAndRepaint = (data: string) => {
+      terminal.write(data, () => scheduleRepaint());
+      scheduleRepaint();
+    };
+    const resizeObserver = new ResizeObserver(() => scheduleRepaint());
 
-    requestAnimationFrame(fitAndResize);
+    resizeObserver.observe(container);
+    scheduleRepaint();
 
     if (restoredTranscript) {
       setStatus("restored");
       if (initialBuffer) {
-        terminal.write(initialBuffer);
+        writeAndRepaint(initialBuffer);
       }
       return () => {
+        disposed = true;
+        resizeObserver.disconnect();
+        terminal.dispose();
+      };
+    }
+
+    if (!runtimeId && (runtimeStatus === "error" || runtimeStatus === "exited")) {
+      setStatus(runtimeStatus === "exited" ? "exited" : "error");
+      if (initialBuffer) {
+        writeAndRepaint(initialBuffer);
+      } else {
+        terminal.writeln(
+          runtimeStatus === "exited"
+            ? "This terminal process has ended."
+            : "This terminal failed to start. Use Restart to create a fresh runtime.",
+        );
+      }
+      scheduleRepaint();
+      return () => {
+        disposed = true;
+        resizeObserver.disconnect();
         terminal.dispose();
       };
     }
@@ -758,7 +821,10 @@ function ManualTerminalTile({
       terminal.writeln("Terminal unavailable outside Electron.");
       terminal.writeln("Open Alfred Desktop to attach a real local PTY.");
       terminal.writeln("Dev fallback: pnpm --filter @alfred/desktop dev:electron");
+      scheduleRepaint();
       return () => {
+        disposed = true;
+        resizeObserver.disconnect();
         terminal.dispose();
       };
     }
@@ -771,8 +837,8 @@ function ManualTerminalTile({
     });
     const removeExitListener = terminalApi.onExit((event) => {
       if (event.id === sessionIdRef.current) {
-        onRuntimeSessionExited(event.id);
-        setStatus("exited");
+        onRuntimeSessionExited(event.id, event.exitCode);
+        setStatus(event.exitCode === 0 ? "exited" : "error");
         terminal.writeln("");
         terminal.writeln(`[process exited with code ${event.exitCode}]`);
       }
@@ -784,18 +850,13 @@ function ManualTerminalTile({
         terminalApi.write({ id: sessionId, data });
       }
     });
-    const resizeObserver = new ResizeObserver(fitAndResize);
-
-    resizeObserver.observe(container);
-
     if (runtimeId) {
       sessionIdRef.current = runtimeId;
       setStatus("ready");
       if (initialBuffer) {
-        terminal.write(initialBuffer);
+        writeAndRepaint(initialBuffer);
       }
-      requestAnimationFrame(fitAndResize);
-      terminal.focus();
+      scheduleRepaint();
 
       return () => {
         disposed = true;
@@ -851,17 +912,17 @@ function ManualTerminalTile({
         setResolvedCwd(session.cwd);
         setStatus("ready");
         fitAndResize();
-        terminal.focus();
       })
       .catch((error: unknown) => {
-        onRuntimeSessionFailed(sessionKey);
+        const reason = error instanceof Error ? error.message : String(error);
+        onRuntimeSessionFailed(sessionKey, reason);
         if (disposed) {
           return;
         }
 
         setStatus("error");
         terminal.writeln("Failed to start manual terminal.");
-        terminal.writeln(error instanceof Error ? error.message : String(error));
+        terminal.writeln(reason);
       });
 
     return () => {
@@ -894,15 +955,24 @@ function ManualTerminalTile({
     onRuntimeSessionReady,
     onRuntimeSessionStarting,
     onRuntimeSessionUnavailable,
+    restoredTranscript,
   ]);
+
+  useEffect(() => {
+    if (!selected || status !== "ready") return;
+    terminalRef.current?.focus();
+  }, [selected, status]);
 
   return (
     <article
-      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${status} session-${displayStatus.kind} ${selected ? "selected" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${focusHidden ? "focus-hidden" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
       aria-label={latestActivity ? `${title}, ${latestActivity.title}: ${latestActivity.detail}` : title}
+      aria-hidden={focusHidden ? "true" : undefined}
       style={gridStyle(layout, preview)}
-      tabIndex={0}
-      onFocus={onSelectSession}
+      tabIndex={focusHidden ? -1 : 0}
+      onFocus={(event) => {
+        if (focusEnteredTile(event)) onSelectSession();
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter") {
           event.preventDefault();
@@ -985,17 +1055,17 @@ function ManualTerminalTile({
             </span>
           )}
           <span className={`tile-status status-${displayStatus.kind}`}>{displayStatus.label}</span>
-          {status === "restored" && (
+          {tileStatus === "restored" && (
             <button
               type="button"
               className={`continue-button ${relaunchNeedsReview ? "unsafe" : ""} ${relaunchArmed ? "armed" : ""}`}
-              aria-label={`${relaunchButtonLabel("relaunch", relaunchNeedsReview, relaunchArmed)} ${title}`}
+              aria-label={`${restoredActionLabel} ${title}`}
               onClick={onContinueRestoredSession}
               onPointerDown={(event) => event.stopPropagation()}
-              title={relaunchNeedsReview ? relaunchSafety.reason : "Relaunch this saved session"}
+              title={relaunchNeedsReview ? relaunchSafety.reason : "Resume this saved session"}
             >
               {relaunchNeedsReview ? <AlertTriangle size={13} /> : <Play size={13} />}
-              <span>{relaunchButtonLabel("relaunch", relaunchNeedsReview, relaunchArmed)}</span>
+              <span>{restoredActionLabel}</span>
             </button>
           )}
           {restartable && (
@@ -1108,6 +1178,13 @@ function splitSessionsForDesk(
   selectedSessionId: string | null,
   layouts: Record<string, TileLayout>,
 ): SessionTile[] {
+  if (sessions.length <= 2) return sessions;
+
+  const defaultVisible = sessions.slice(0, 2);
+  if (!selectedSessionId || defaultVisible.some((session) => session.id === selectedSessionId)) {
+    return defaultVisible;
+  }
+
   const primary = selectedSessionForDesk(sessions, selectedSessionId) ?? focusedSession(sessions, layouts) ?? sessions[0] ?? null;
   if (!primary) return [];
 
@@ -1139,6 +1216,11 @@ function gridStyle(layout: TileLayout | undefined, preview?: ArrangePreview | un
   }
 
   return style;
+}
+
+function focusEnteredTile(event: ReactFocusEvent<HTMLElement>): boolean {
+  const relatedTarget = event.relatedTarget;
+  return !(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget);
 }
 
 function useStatusClock(lastOutputAt: number | undefined): number {

@@ -6,6 +6,7 @@ import {
   clearStagedPlanSnapshot,
   configureStagedPlanPersistence,
   getStagedPlanSnapshot,
+  isStagedSessionLaunchAllowed,
   resetStagedPlanPersistence,
   resolveStagedPlanSessions,
   setStagedPlanSnapshot,
@@ -87,6 +88,20 @@ describe("staged-plan-store", () => {
       sessions: [plan.sessions[1]],
     });
     expect((await resolveStagedPlanSessions({ sessionIds: ["alfred-2"] })).plan).toBeNull();
+  });
+
+  it("allows launch only for matching safe staged sessions", async () => {
+    await setStagedPlanSnapshot(createPlan());
+
+    await expect(
+      isStagedSessionLaunchAllowed({ clientId: "alfred-1", command: "echo", args: ["a"] }),
+    ).resolves.toBe(true);
+    await expect(
+      isStagedSessionLaunchAllowed({ clientId: "alfred-1", command: "echo", args: ["changed"] }),
+    ).resolves.toBe(false);
+    await expect(
+      isStagedSessionLaunchAllowed({ clientId: "alfred-2", command: "codex", args: [] }),
+    ).resolves.toBe(false);
   });
 
   it("clears the staged plan", async () => {

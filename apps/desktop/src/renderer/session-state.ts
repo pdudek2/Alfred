@@ -147,9 +147,10 @@ export function markSessionUnavailable(sessions: SessionTile[], tileId: string):
   });
 }
 
-export function markSessionExited(sessions: SessionTile[], runtimeId: TerminalSessionId): SessionTile[] {
+export function markSessionExited(sessions: SessionTile[], runtimeId: TerminalSessionId, exitCode = 0): SessionTile[] {
+  const runtimeStatus = exitCode === 0 ? "exited" : "error";
   return sessions.map((session) =>
-    session.runtimeId === runtimeId ? { ...session, runtimeStatus: "exited" } : session,
+    session.runtimeId === runtimeId ? { ...session, runtimeStatus } : session,
   );
 }
 
@@ -174,7 +175,7 @@ export function relaunchRestoredSession(sessions: SessionTile[], sessionId: stri
       runtimeId: _runtimeId,
       ...relaunchableSession
     } = session;
-    return { ...relaunchableSession, runtimeStatus: "starting" };
+    return { ...relaunchableSession, ...resumeLaunchForRestoredAgent(session), runtimeStatus: "starting" };
   });
 }
 
@@ -252,6 +253,22 @@ export function hydrateStagedPlanSessions(
 
 function codingAgentIsolation(kind: AgentKind): TerminalSessionIsolation | undefined {
   return kind === "codex" || kind === "claude" ? "worktree" : undefined;
+}
+
+function resumeLaunchForRestoredAgent(
+  session: Pick<SessionTile, "agentKind" | "command">,
+): Pick<SessionTile, "command" | "args"> {
+  const agentKind = session.agentKind ?? (session.command === "codex" || session.command === "claude" ? session.command : undefined);
+
+  if (agentKind === "codex") {
+    return { command: "codex", args: ["resume", "--last"] };
+  }
+
+  if (agentKind === "claude") {
+    return { command: "claude", args: ["--continue"] };
+  }
+
+  return {};
 }
 
 function plannedSessionIsolation(
@@ -341,8 +358,8 @@ export function rejectAllStaged(sessions: SessionTile[], workspaceId?: string): 
   return sessions.filter((session) => !(session.stage === "staged" && (!workspaceId || session.workspaceId === workspaceId)));
 }
 
-export function isLaunchBlocked(session: Pick<SessionTile, "launchPreflight">): boolean {
-  return session.launchPreflight?.status === "blocked";
+export function isLaunchBlocked(session: Pick<SessionTile, "launchPreflight" | "safetyNote">): boolean {
+  return Boolean(session.safetyNote) || session.launchPreflight?.status === "blocked";
 }
 
 function isLaunchableStagedSession(

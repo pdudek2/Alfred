@@ -1,5 +1,8 @@
+import { useEffect, useState } from "react";
 import { Copy, ExternalLink, RefreshCw } from "lucide-react";
 import type { PreviewUrlCandidate } from "../preview-state";
+
+type PreviewReachability = "checking" | "online" | "offline";
 
 type WorkspacePreviewPanelProps = {
   candidates: PreviewUrlCandidate[];
@@ -23,6 +26,38 @@ export function WorkspacePreviewPanel({
   onSelectUrl,
 }: WorkspacePreviewPanelProps) {
   const selected = candidates.find((candidate) => candidate.url === selectedUrl) ?? candidates[0] ?? null;
+  const [reachability, setReachability] = useState<PreviewReachability>("checking");
+
+  useEffect(() => {
+    if (!selected) {
+      setReachability("checking");
+      return;
+    }
+
+    let disposed = false;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 2_500);
+
+    setReachability("checking");
+    void fetch(selected.url, {
+      cache: "no-store",
+      mode: "no-cors",
+      signal: controller.signal,
+    })
+      .then(() => {
+        if (!disposed) setReachability("online");
+      })
+      .catch(() => {
+        if (!disposed) setReachability("offline");
+      })
+      .finally(() => window.clearTimeout(timeout));
+
+    return () => {
+      disposed = true;
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [refreshKey, selected]);
 
   return (
     <aside className="workspace-preview-panel" aria-label="Workspace preview">
@@ -70,10 +105,13 @@ export function WorkspacePreviewPanel({
               title={`Preview of ${selected.url}`}
               referrerPolicy="no-referrer"
             />
-            <div className="workspace-preview-fallback" aria-hidden="true">
-              <span>Preview unavailable?</span>
-              <strong>{selected.url}</strong>
-            </div>
+            {reachability === "offline" && (
+              <div className="workspace-preview-fallback visible" role="status">
+                <span>Preview offline</span>
+                <strong>{selected.url}</strong>
+                <p>Start or restart the local dev server for this workspace.</p>
+              </div>
+            )}
           </div>
         </>
       ) : (

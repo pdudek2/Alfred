@@ -278,23 +278,22 @@ describe("desktop session state", () => {
   it("relaunches a restored transcript in the same tile", () => {
     const restored = hydratePersistedTerminalSessions([
       {
-        clientId: "codex-2",
-        title: "Codex · session 2",
+        clientId: "manual-2",
+        title: "Manual · zsh 2",
         cwd: "/repo",
         source: "manual",
-        agentKind: "codex",
-        command: "codex",
-        args: [],
-        shell: "codex",
+        command: "pnpm",
+        args: ["test"],
+        shell: "pnpm",
         buffer: "saved output\n",
         createdAt: 300,
         lastOutputAt: 320,
       },
     ]);
 
-    expect(relaunchRestoredSession(restored, "codex-2")[0]).toEqual({
-      id: "codex-2",
-      title: "Codex · session 2",
+    expect(relaunchRestoredSession(restored, "manual-2")[0]).toEqual({
+      id: "manual-2",
+      title: "Manual · zsh 2",
       workspaceId: "A",
       cwd: "/repo",
       source: "manual",
@@ -302,10 +301,51 @@ describe("desktop session state", () => {
       runtimeStatus: "starting",
       createdAt: 300,
       lastOutputAt: 320,
-      agentKind: "codex",
-      command: "codex",
-      args: [],
+      command: "pnpm",
+      args: ["test"],
       initialBuffer: "saved output\n",
+    });
+  });
+
+  it("resumes restored Codex and Claude agent conversations instead of replaying the original prompt", () => {
+    const restored = hydratePersistedTerminalSessions([
+      {
+        clientId: "alfred-codex",
+        title: "Codex audit",
+        cwd: "/repo/.alfred-worktrees/codex-audit",
+        source: "alfred",
+        agentKind: "codex",
+        command: "codex",
+        args: ["do the original audit"],
+        shell: "codex",
+        buffer: "saved codex output\n",
+      },
+      {
+        clientId: "alfred-claude",
+        title: "Claude UI review",
+        cwd: "/repo/.alfred-worktrees/claude-ui",
+        source: "alfred",
+        agentKind: "claude",
+        command: "claude",
+        args: ["do the original UI review"],
+        shell: "claude",
+        buffer: "saved claude output\n",
+      },
+    ]);
+
+    expect(relaunchRestoredSession(restored, "alfred-codex")[0]).toMatchObject({
+      id: "alfred-codex",
+      runtimeStatus: "starting",
+      command: "codex",
+      args: ["resume", "--last"],
+      initialBuffer: "saved codex output\n",
+    });
+    expect(relaunchRestoredSession(restored, "alfred-claude")[1]).toMatchObject({
+      id: "alfred-claude",
+      runtimeStatus: "starting",
+      command: "claude",
+      args: ["--continue"],
+      initialBuffer: "saved claude output\n",
     });
   });
 
@@ -347,6 +387,7 @@ describe("desktop session state", () => {
     ]);
 
     expect(markSessionExited(hydrated, "pty-a")[0]?.runtimeStatus).toBe("exited");
+    expect(markSessionExited(hydrated, "pty-a", 2)[0]?.runtimeStatus).toBe("error");
     expect(markSessionStartFailed(hydrated, "manual-4")[0]?.runtimeStatus).toBe("error");
   });
 

@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, FocusEvent as ReactFocusEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { TileLayout } from "./layout-state";
 import type { SessionTile } from "./session-state";
 import type { ArrangePreview } from "./terminal-desk-types";
@@ -10,6 +10,7 @@ import { shortenPath } from "./path-display";
 type StagedTilePreviewProps = {
   arrangeMode: boolean;
   armed: boolean;
+  focusHidden?: boolean;
   layout?: TileLayout | undefined;
   preview?: ArrangePreview | undefined;
   selected: boolean;
@@ -25,6 +26,7 @@ type StagedTilePreviewProps = {
 export function StagedTilePreview({
   arrangeMode,
   armed,
+  focusHidden = false,
   layout,
   preview,
   selected,
@@ -44,8 +46,8 @@ export function StagedTilePreview({
   const isolated = tile.isolation === "worktree";
   const checking = tile.stagedReviewStatus === "checking";
   const edited = tile.stagedReviewStatus === "edited";
-  const launchBlocked = tile.launchPreflight?.status === "blocked";
-  const launchBlockReason = tile.launchPreflight?.status === "blocked" ? tile.launchPreflight.reason : null;
+  const launchBlocked = tile.launchPreflight?.status === "blocked" || Boolean(tile.safetyNote);
+  const launchBlockReason = tile.launchPreflight?.status === "blocked" ? tile.launchPreflight.reason : tile.safetyNote ?? null;
   const unsafe = Boolean(tile.safetyNote) && !launchBlocked;
   const approveLabel = checking ? "Checking" : launchBlocked ? "Blocked" : unsafe ? (armed ? "Confirm" : "Review") : "Launch";
   const approveAriaLabel = checking
@@ -60,11 +62,14 @@ export function StagedTilePreview({
 
   return (
     <article
-      className={`terminal-tile staged kind-${kindMeta.className} ${selected ? "selected" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      className={`terminal-tile staged kind-${kindMeta.className} ${selected ? "selected" : ""} ${focusHidden ? "focus-hidden" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
       aria-label={`Staged ${tile.title}`}
+      aria-hidden={focusHidden ? "true" : undefined}
       style={gridStyle(layout, preview)}
-      tabIndex={0}
-      onFocus={onSelectSession}
+      tabIndex={focusHidden ? -1 : 0}
+      onFocus={(event) => {
+        if (focusEnteredTile(event)) onSelectSession();
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter") {
           event.preventDefault();
@@ -178,4 +183,9 @@ function gridStyle(layout: TileLayout | undefined, preview?: ArrangePreview | un
   }
 
   return style;
+}
+
+function focusEnteredTile(event: ReactFocusEvent<HTMLElement>): boolean {
+  const relatedTarget = event.relatedTarget;
+  return !(relatedTarget instanceof Node) || !event.currentTarget.contains(relatedTarget);
 }

@@ -13,8 +13,8 @@ import { registerAlfredIpc } from "./alfred-orchestrator.js";
 import { registerLayoutIpc } from "./layout-ipc.js";
 import { configureLayoutPersistence } from "./layout-store.js";
 import { createPersistedDesktopStateStore, type PersistedDesktopStateStore } from "./persisted-desktop-state.js";
-import { configureStagedPlanPersistence } from "./staged-plan-store.js";
-import { registerWorkspaceIpc } from "./workspace-ipc.js";
+import { configureStagedPlanPersistence, isStagedSessionLaunchAllowed } from "./staged-plan-store.js";
+import { allowedWorkspaceRoots, registerWorkspaceIpc } from "./workspace-ipc.js";
 import { createWorkspaceStore } from "./workspace-store.js";
 import { resolveDefaultWorkspaceRootPath } from "./default-workspace-root.js";
 import {
@@ -43,7 +43,6 @@ let activeWindowStatePersistence: WindowStatePersistenceHandle | null = null;
 // terminal-manager.ts:defaultTerminalCwd().
 loadDotenv({ path: path.resolve(app.getAppPath(), "../..", ".env") });
 
-registerTerminalIpc();
 registerAlfredIpc();
 registerLayoutIpc();
 
@@ -104,12 +103,15 @@ app.whenReady().then(async () => {
   configureStagedPlanPersistence(persistedDesktopStateStore);
   configureTerminalPersistence(persistedDesktopStateStore);
   const defaultWorkspaceRootPath = resolveDefaultWorkspaceRootPath(app.getAppPath());
-  registerWorkspaceIpc(
-    createWorkspaceStore({
-      persistedStateStore: persistedDesktopStateStore,
-      defaultRootPath: defaultWorkspaceRootPath,
-    }),
-  );
+  const workspaceStore = createWorkspaceStore({
+    persistedStateStore: persistedDesktopStateStore,
+    defaultRootPath: defaultWorkspaceRootPath,
+  });
+  registerTerminalIpc({
+    allowedCwdRoots: () => allowedWorkspaceRoots(workspaceStore),
+    isStagedCommandAllowed: isStagedSessionLaunchAllowed,
+  });
+  registerWorkspaceIpc(workspaceStore);
   await createWindow(persistedDesktopStateStore);
 
   app.on("activate", () => {
