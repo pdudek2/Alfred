@@ -9,8 +9,13 @@ import { openExternalUrl } from "./external-url.js";
 import { openExternalTerminal } from "./external-terminal.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 import { resolveWorkspacePathForReveal } from "./workspace-path.js";
+import { managedProjectWorktreeRoot } from "./git-worktree.js";
 
-export function registerWorkspaceIpc(store: WorkspaceStore): void {
+type WorkspaceIpcOptions = {
+  managedWorktreeRootPath?: string;
+};
+
+export function registerWorkspaceIpc(store: WorkspaceStore, options: WorkspaceIpcOptions = {}): void {
   ipcMain.handle(workspaceChannels.createFromFolder, async (event): Promise<WorkspaceStateSnapshot> => {
     const window = BrowserWindow.fromWebContents(event.sender);
     const result = window
@@ -26,10 +31,10 @@ export function registerWorkspaceIpc(store: WorkspaceStore): void {
   ipcMain.handle(workspaceChannels.get, (): Promise<WorkspaceStateSnapshot> => store.getWorkspaceState());
   ipcMain.handle(workspaceChannels.openExternalUrl, (_event, request) => openExternalUrl(request));
   ipcMain.handle(workspaceChannels.openExternalTerminal, async (_event, request) =>
-    openExternalTerminal(request, { allowedRoots: await allowedWorkspaceRoots(store) }),
+    openExternalTerminal(request, { allowedRoots: await allowedWorkspaceRoots(store, options) }),
   );
   ipcMain.handle(workspaceChannels.revealPath, async (_event, request) => {
-    const result = await resolveWorkspacePathForReveal(request, { allowedRoots: await allowedWorkspaceRoots(store) });
+    const result = await resolveWorkspacePathForReveal(request, { allowedRoots: await allowedWorkspaceRoots(store, options) });
     if (result.ok) {
       shell.showItemInFolder(result.resolvedPath);
     }
@@ -41,12 +46,27 @@ export function registerWorkspaceIpc(store: WorkspaceStore): void {
   );
 }
 
-export async function allowedWorkspaceRoots(store: WorkspaceStore): Promise<string[]> {
+export async function allowedWorkspaceRoots(store: WorkspaceStore, options: WorkspaceIpcOptions = {}): Promise<string[]> {
   const state = await store.getWorkspaceState();
-  return state.workspaces.flatMap((workspace) => {
+  const workspaceRoots = state.workspaces.flatMap((workspace) => {
     if (!workspace.rootPath) return [];
-    const rootPath = path.resolve(workspace.rootPath);
-    const worktreeRoot = path.join(path.dirname(rootPath), ".alfred-worktrees", path.basename(rootPath));
-    return [rootPath, worktreeRoot];
+    return [path.resolve(workspace.rootPath)];
   });
+  const legacyProjectRoots = state.workspaces.flatMap((workspace) => {
+    if (!workspace.rootPath) return [];
+    return [legacyProjectWorktreeRoot(workspace.rootPath)];
+  });
+  const managedRoot = options.managedWorktreeRootPath?.trim();
+  if (!managedRoot) return [...workspaceRoots, ...legacyProjectRoots];
+
+  const managedProjectRoots = state.workspaces.flatMap((workspace) => {
+    if (!workspace.rootPath) return [];
+    return [managedProjectWorktreeRoot(managedRoot, workspace.rootPath)];
+  });
+  return [...workspaceRoots, ...legacyProjectRoots, ...managedProjectRoots];
+}
+
+function legacyProjectWorktreeRoot(rootPath: string): string {
+  const resolvedRootPath = path.resolve(rootPath);
+  return path.join(path.dirname(resolvedRootPath), ".alfred-worktrees", path.basename(resolvedRootPath));
 }

@@ -12,7 +12,7 @@ import {
 } from "react";
 import { getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
 import type { LayoutPreset, TileLayout } from "../layout-state";
-import type { SessionTile } from "../session-state";
+import { sessionInstanceKey, type SessionTile } from "../session-state";
 import { StagedTilePreview } from "../staged-tile";
 import { terminalSessionDisplayStatus, type LocalTerminalStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
@@ -29,6 +29,8 @@ import { normalizeSessionTitle } from "../../shared/session-title";
 
 const ARRANGE_GRID_ROW_HEIGHT = 84;
 
+export type WorktreeActionKind = "review" | "apply";
+
 type TerminalDeskProps = {
   arrangeMode: boolean;
   armedUnsafeSessionIds: Set<string>;
@@ -39,12 +41,14 @@ type TerminalDeskProps = {
   sessions: SessionTile[];
   shortcutModifier: string;
   workMode: WorkMode;
+  worktreeActionPending: Record<string, WorktreeActionKind | undefined>;
   workspaceGitBranch?: string | undefined;
   workspaceLabel: string;
   workspaceRootPath?: string | undefined;
   onBindWorkspace: () => void;
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
+  onApplyWorktree: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
   onContinueRestoredSession: (sessionId: string) => void;
   onRestartSession: (sessionId: string) => void;
@@ -63,6 +67,7 @@ type TerminalDeskProps = {
   onApproveTile: (tileId: string) => void;
   onRejectTile: (tileId: string) => void;
   onResizeTile: (tileId: string, deltaColSpan: number, deltaRowSpan: number) => void;
+  onReviewWorktree: (sessionId: string) => void;
   onUpdateStagedSession: (sessionId: string, patch: AlfredStagedSessionPatch) => Promise<void>;
 };
 
@@ -76,12 +81,14 @@ export function TerminalDesk({
   sessions,
   shortcutModifier,
   workMode,
+  worktreeActionPending,
   workspaceGitBranch,
   workspaceLabel,
   workspaceRootPath,
   onBindWorkspace,
   onAddAgentSession,
   onAddManualSession,
+  onApplyWorktree,
   onCloseSession,
   onContinueRestoredSession,
   onRestartSession,
@@ -100,6 +107,7 @@ export function TerminalDesk({
   onApproveTile,
   onRejectTile,
   onResizeTile,
+  onReviewWorktree,
   onUpdateStagedSession,
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -302,6 +310,14 @@ export function TerminalDesk({
               onFocusSession={onFocusSession}
             />
           )}
+          {focusSession && isReviewableIsolatedCheckout(focusSession) && (
+            <WorktreeActionStrip
+              pendingAction={worktreeActionPending[sessionInstanceKey(focusSession)]}
+              session={focusSession}
+              onApplyWorktree={onApplyWorktree}
+              onReviewWorktree={onReviewWorktree}
+            />
+          )}
           <div className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}`} ref={gridRef}>
           {sessions.length === 0 && (
             <EmptyWorkspaceState
@@ -398,6 +414,34 @@ export function TerminalDesk({
         )}
       </div>
     </section>
+  );
+}
+
+function WorktreeActionStrip({
+  pendingAction,
+  session,
+  onApplyWorktree,
+  onReviewWorktree,
+}: {
+  pendingAction?: WorktreeActionKind | undefined;
+  session: SessionTile;
+  onApplyWorktree: (sessionId: string) => void;
+  onReviewWorktree: (sessionId: string) => void;
+}) {
+  const disabled = pendingAction !== undefined;
+  return (
+    <div
+      className="focus-session-strip worktree-action-strip"
+      role="toolbar"
+      aria-label={`checkout actions for ${session.title}`}
+    >
+      <button type="button" disabled={disabled} onClick={() => onReviewWorktree(session.id)}>
+        {pendingAction === "review" ? "Reviewing..." : "Review diff"}
+      </button>
+      <button type="button" disabled={disabled} onClick={() => onApplyWorktree(session.id)}>
+        {pendingAction === "apply" ? "Applying..." : "Apply to project"}
+      </button>
+    </div>
   );
 }
 
@@ -668,6 +712,8 @@ function ManualTerminalTile({
   const displayStatus = terminalSessionDisplayStatus(displaySession, tileStatus, displayClock);
   const restartable = displayStatus.kind === "done" || displayStatus.kind === "error";
   const discardableSession = displayStatus.kind === "restored" || restartable;
+  const existingCheckoutMetadata = isReusableIsolatedCheckoutMetadata({ isolation, branchName, baseCwd });
+  const isolatedCheckout = isIsolatedCheckout({ isolation, branchName, baseCwd });
   const relaunchSafety = sessionRelaunchSafety({
     source,
     ...(agentKind === undefined ? {} : { agentKind }),
@@ -678,13 +724,24 @@ function ManualTerminalTile({
   const restoredActionLabel = restoredButtonLabel({ agentKind, command }, relaunchNeedsReview, relaunchArmed);
   const latestActivity = latestVisibleActivity(activityEvents);
   const ageLabel = sessionAgeLabel(createdAt, displayClock);
-  const sessionLocationLabel = branchName ? "isolated worktree" : (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
-  const sessionLocationTitle = branchName
-    ? baseCwd
-      ? `${branchName} · isolated from ${baseCwd}`
-      : `${branchName} · isolated worktree`
+  const sessionLocationLabel = isolatedCheckout ? "isolated worktree" : (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
+  const sessionLocationTitle = isolatedCheckout
+    ? branchName
+      ? baseCwd
+        ? `${branchName} · isolated from ${baseCwd}`
+        : `${branchName} · isolated worktree`
+      : baseCwd
+        ? `isolated worktree from ${baseCwd}`
+        : "isolated worktree"
     : resolvedCwd ?? "runtime cwd";
   const externalTerminalCwd = resolvedCwd || cwd;
+  const worktreeRecoverySession = discardableSession && isolatedCheckout;
+  const closeActionLabel = discardableSession ? (worktreeRecoverySession ? "Discard checkout" : "Discard") : "Close";
+  const closeActionTitle = discardableSession
+    ? worktreeRecoverySession
+      ? "Discard this isolated checkout"
+      : "Discard this recovery item"
+    : "Close terminal";
 
   useEffect(() => {
     if (!renaming) {
@@ -890,10 +947,15 @@ function ManualTerminalTile({
     };
     if (agentKind) baseRequest.agentKind = agentKind;
     if (cwd) baseRequest.cwd = cwd;
-    if (isolation === "worktree" && !branchName) baseRequest.isolation = "worktree";
-    if (!branchName && launchPreflight?.status === "ready" && launchPreflight.isolation === "worktree") {
+    if (existingCheckoutMetadata) {
+      baseRequest.isolation = "worktree";
+      if (branchName) baseRequest.branchName = branchName;
+      if (baseCwd) baseRequest.baseCwd = baseCwd;
+    } else if (!branchName && launchPreflight?.status === "ready" && launchPreflight.isolation === "worktree") {
       baseRequest.isolation = "worktree";
       if (launchPreflight.branchName) baseRequest.branchName = launchPreflight.branchName;
+    } else if (isolation) {
+      baseRequest.isolation = isolation;
     }
     if (command) {
       baseRequest.command = command;
@@ -943,6 +1005,8 @@ function ManualTerminalTile({
     agentKind,
     isolation,
     branchName,
+    baseCwd,
+    existingCheckoutMetadata,
     launchPreflight,
     command,
     args,
@@ -1109,13 +1173,13 @@ function ManualTerminalTile({
           <button
             type="button"
             className={discardableSession ? "discard-session-button" : undefined}
-            aria-label={discardableSession ? `Discard ${title}` : `Close ${title}`}
+            aria-label={`${closeActionLabel} ${title}`}
             onClick={onClose}
             onPointerDown={(event) => event.stopPropagation()}
-            title={discardableSession ? "Discard this recovery item" : "Close terminal"}
+            title={closeActionTitle}
           >
             <X size={14} />
-            {discardableSession && <span>Discard</span>}
+            {discardableSession && <span>{closeActionLabel}</span>}
           </button>
         </div>
       </header>
@@ -1136,6 +1200,47 @@ function latestVisibleActivity(events: SessionTile["activityEvents"] | undefined
   const latest = events?.at(-1);
   if (!latest || latest.kind === "lifecycle" || latest.kind === "output") return null;
   return latest;
+}
+
+function isIsolatedCheckout({
+  isolation,
+  branchName,
+  baseCwd,
+}: {
+  isolation?: SessionTile["isolation"] | undefined;
+  branchName?: string | undefined;
+  baseCwd?: string | undefined;
+}): boolean {
+  if (isolation === "shared") return false;
+  return hasIsolatedCheckoutMetadata({ branchName, baseCwd }) || isolation === "worktree";
+}
+
+function isReviewableIsolatedCheckout(session: Pick<SessionTile, "baseCwd" | "branchName" | "isolation">): boolean {
+  if (session.isolation === "shared") return false;
+  return hasIsolatedCheckoutMetadata(session);
+}
+
+function isReusableIsolatedCheckoutMetadata({
+  isolation,
+  branchName,
+  baseCwd,
+}: {
+  isolation?: SessionTile["isolation"] | undefined;
+  branchName?: string | undefined;
+  baseCwd?: string | undefined;
+}): boolean {
+  if (isolation === "shared") return false;
+  return hasIsolatedCheckoutMetadata({ branchName, baseCwd });
+}
+
+function hasIsolatedCheckoutMetadata({
+  branchName,
+  baseCwd,
+}: {
+  branchName?: string | undefined;
+  baseCwd?: string | undefined;
+}): boolean {
+  return Boolean(branchName && baseCwd);
 }
 
 function activityKindLabel(kind: NonNullable<SessionTile["activityEvents"]>[number]["kind"]): string {

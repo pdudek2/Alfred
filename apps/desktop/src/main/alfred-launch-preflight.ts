@@ -51,18 +51,6 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
     };
   }
 
-  if (!usesIsolatedWorktree(normalizedSession)) {
-    return {
-      ...normalizedSession,
-      launchPreflight: {
-        status: "ready",
-        label: "Ready",
-        detail: "Will launch in the selected workspace.",
-        isolation: "shared",
-      },
-    };
-  }
-
   if (!workspace?.rootPath) {
     return {
       ...normalizedSession,
@@ -84,6 +72,18 @@ export async function preflightAlfredPlanSession<T extends AlfredPlanSession>(
         "Workspace mismatch",
         "This agent asked to launch outside the selected workspace. Bind the right folder or adjust the plan.",
       ),
+    };
+  }
+
+  if (!usesIsolatedWorktree(normalizedSession)) {
+    return {
+      ...normalizedSession,
+      launchPreflight: {
+        status: "ready",
+        label: "Ready",
+        detail: "Will launch in the selected workspace.",
+        isolation: "shared",
+      },
     };
   }
 
@@ -128,7 +128,11 @@ function isNotGitRepositoryError(error: unknown): boolean {
 }
 
 function usesIsolatedWorktree(session: AlfredPlanSession): boolean {
-  return session.kind === "codex" || session.kind === "claude";
+  return session.isolation === "worktree" && isCodingAgentKind(session.kind);
+}
+
+function isCodingAgentKind(kind: AlfredPlanSession["kind"]): boolean {
+  return kind === "codex" || kind === "claude";
 }
 
 function readyWorktreePreflight(worktree: AgentWorktreeResult): AlfredLaunchPreflight {

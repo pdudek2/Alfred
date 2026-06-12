@@ -103,15 +103,17 @@ app.whenReady().then(async () => {
   configureStagedPlanPersistence(persistedDesktopStateStore);
   configureTerminalPersistence(persistedDesktopStateStore);
   const defaultWorkspaceRootPath = resolveDefaultWorkspaceRootPath(app.getAppPath());
+  const managedWorktreeRootPath = path.join(app.getPath("userData"), "worktrees");
   const workspaceStore = createWorkspaceStore({
     persistedStateStore: persistedDesktopStateStore,
     defaultRootPath: defaultWorkspaceRootPath,
   });
   registerTerminalIpc({
-    allowedCwdRoots: () => allowedWorkspaceRoots(workspaceStore),
+    allowedCwdRoots: () => allowedWorkspaceRoots(workspaceStore, { managedWorktreeRootPath }),
     isStagedCommandAllowed: isStagedSessionLaunchAllowed,
+    managedWorktreeRootPath,
   });
-  registerWorkspaceIpc(workspaceStore);
+  registerWorkspaceIpc(workspaceStore, { managedWorktreeRootPath });
   await createWindow(persistedDesktopStateStore);
 
   app.on("activate", () => {

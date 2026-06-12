@@ -75,6 +75,26 @@ describe("desktop session state", () => {
     expect(renamed[0]?.title).toBe("Spec reviewer");
   });
 
+  it("adds new Codex sessions in the shared workspace by default", () => {
+    const next = addAgentSession([], "codex", "/repo", "A");
+
+    expect(next).toEqual([
+      {
+        id: "codex-1",
+        title: "Codex · session 1",
+        workspaceId: "A",
+        cwd: "/repo",
+        source: "manual",
+        stage: "live",
+        runtimeStatus: "starting",
+        agentKind: "codex",
+        command: "codex",
+        args: [],
+        isolation: "shared",
+      },
+    ]);
+  });
+
   it("adds first-class Codex and Claude sessions", () => {
     const initial = createInitialSessions("/repo");
     const withCodex = addAgentSession(initial, "codex", "/repo", "A");
@@ -92,7 +112,7 @@ describe("desktop session state", () => {
         agentKind: "codex",
         command: "codex",
         args: [],
-        isolation: "worktree",
+        isolation: "shared",
       },
       {
         id: "claude-1",
@@ -105,7 +125,7 @@ describe("desktop session state", () => {
         agentKind: "claude",
         command: "claude",
         args: [],
-        isolation: "worktree",
+        isolation: "shared",
       },
     ]);
   });
@@ -618,13 +638,13 @@ describe("staged sessions", () => {
     expect(staged[2]).toMatchObject({
       id: "alfred-3",
       agentKind: "codex",
-      isolation: "worktree",
+      isolation: "shared",
       safetyNote: "rm -rf detected",
     });
     expect(staged[3]).toMatchObject({
       id: "alfred-4",
       agentKind: "claude",
-      isolation: "worktree",
+      isolation: "shared",
       launchPreflight: expect.objectContaining({ status: "blocked" }),
     });
   });

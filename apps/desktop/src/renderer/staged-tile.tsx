@@ -44,6 +44,11 @@ export function StagedTilePreview({
   const kind = sessionTileKind(tile);
   const kindMeta = tileKindMeta(kind);
   const isolated = tile.isolation === "worktree";
+  const launchMode = isolated
+    ? tile.launchPreflight?.status === "ready" && tile.launchPreflight.branchName
+      ? `isolated checkout: ${tile.launchPreflight.branchName}`
+      : "isolated checkout"
+    : "normal workspace";
   const checking = tile.stagedReviewStatus === "checking";
   const edited = tile.stagedReviewStatus === "edited";
   const launchBlocked = tile.launchPreflight?.status === "blocked" || Boolean(tile.safetyNote);
@@ -119,13 +124,7 @@ export function StagedTilePreview({
         )}
         <div className="staged-label">Will launch</div>
         <div className="staged-command">{fullCommand || "(no command)"}</div>
-        {isolated && (
-          <div className={`staged-isolation ${launchBlocked ? "blocked" : ""}`}>
-            {tile.launchPreflight?.status === "ready" && tile.launchPreflight.branchName
-              ? `worktree: ${tile.launchPreflight.branchName}`
-              : "isolated Git worktree"}
-          </div>
-        )}
+        <div className={`staged-isolation ${launchBlocked ? "blocked" : ""}`}>{launchMode}</div>
         {tile.launchPreflight?.status === "ready" && tile.launchPreflight.cwd && (
           <div className="staged-cwd">target: {shortenPath(tile.launchPreflight.cwd)}</div>
         )}

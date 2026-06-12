@@ -155,6 +155,9 @@ async function applyStagedPlanSessionUpdate(
     return { ok: false, error: notFoundError("The staged session is no longer available.") };
   }
 
+  const invalidIsolationPatch = validateSessionIsolationPatch(currentSession, request);
+  if (invalidIsolationPatch) return { ok: false, error: invalidIsolationPatch };
+
   const patchedSession = applyEditablePatch(currentSession, request);
   const safety = checkSafety(patchedSession.command, patchedSession.args);
   const safetyAnnotatedSession = safety.unsafe
@@ -185,6 +188,9 @@ function applyEditablePatch(
   if (hasOwn(patch, "args")) {
     next.args = [...(patch.args as string[])];
   }
+  if (hasOwn(patch, "isolation")) {
+    next.isolation = patch.isolation as "shared" | "worktree";
+  }
 
   return next;
 }
@@ -199,7 +205,7 @@ function validateUpdateRequest(request: AlfredStagedPlanSessionUpdateRequest): A
   }
 
   const patch = request.patch as Record<string, unknown>;
-  const editableKeys = new Set(["title", "cwd", "command", "args"]);
+  const editableKeys = new Set(["title", "cwd", "command", "args", "isolation"]);
 
   for (const key of Object.keys(patch)) {
     if (!editableKeys.has(key)) {
@@ -221,6 +227,28 @@ function validateUpdateRequest(request: AlfredStagedPlanSessionUpdateRequest): A
     (!Array.isArray(patch.args) || !patch.args.every((arg) => typeof arg === "string"))
   ) {
     return malformedError("Staged session args must be an array of strings.");
+  }
+  if (hasOwn(patch, "isolation") && patch.isolation !== "shared" && patch.isolation !== "worktree") {
+    return malformedError("Staged session isolation must be shared or worktree.");
+  }
+
+  return null;
+}
+
+function validateSessionIsolationPatch(
+  session: AlfredStagedSession,
+  request: AlfredStagedPlanSessionUpdateRequest,
+): AlfredError | null {
+  if (!hasOwn(request.patch, "isolation") || request.patch.isolation !== "worktree") {
+    return null;
+  }
+
+  if (session.kind !== "codex" && session.kind !== "claude") {
+    return malformedError("Staged session worktree isolation requires a codex or claude session.");
+  }
+
+  if (!request.workspace?.rootPath?.trim()) {
+    return malformedError("Staged session worktree isolation requires a workspace root.");
   }
 
   return null;

@@ -13,6 +13,8 @@ const terminalChannels = {
   kill: "alfred:terminal:kill",
   forget: "alfred:terminal:forget",
   rename: "alfred:terminal:rename",
+  worktreeDiff: "alfred:terminal:worktree-diff",
+  worktreeApply: "alfred:terminal:worktree-apply",
   data: "alfred:terminal:data",
   exit: "alfred:terminal:exit",
 } as const;
@@ -58,6 +60,10 @@ const terminal: TerminalApi = {
     ipcRenderer.send(terminalChannels.forget, request);
   },
   rename: (request) => ipcRenderer.invoke(terminalChannels.rename, request) as ReturnType<TerminalApi["rename"]>,
+  worktreeDiff: (request) =>
+    ipcRenderer.invoke(terminalChannels.worktreeDiff, request) as ReturnType<TerminalApi["worktreeDiff"]>,
+  worktreeApply: (request) =>
+    ipcRenderer.invoke(terminalChannels.worktreeApply, request) as ReturnType<TerminalApi["worktreeApply"]>,
   onData: (callback) => {
     const listener = (_event: IpcRendererEvent, payload: TerminalDataEvent) => {
       callback(payload);

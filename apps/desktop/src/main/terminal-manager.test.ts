@@ -10,6 +10,7 @@ import {
 } from "./terminal-manager.js";
 import { terminalChannels } from "../shared/terminal-ipc.js";
 import type { TerminalCreateRequest, TerminalListResult } from "../shared/terminal-ipc.js";
+import type { AgentWorktreeCleanupRequest } from "./git-worktree.js";
 import { DEFAULT_DESKTOP_STATE, type DesktopStateSnapshot, type PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 
 type IpcInvokeHandler = (event: { sender: object }, request?: unknown) => unknown;
@@ -493,6 +494,7 @@ describe("terminal-manager IPC", () => {
     }));
     registerTerminalIpc({
       loadNodePty: async () => nodePty as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
       prepareAgentWorktree,
     });
 
@@ -518,6 +520,8 @@ describe("terminal-manager IPC", () => {
       agentKind: "codex",
       clientId: "codex-1",
       cwd: "/repo",
+    }, {
+      worktreeStoreRoot: "/alfred/userData/worktrees",
     });
     expect(nodePty.spawn).toHaveBeenCalledWith(
       "codex",
@@ -533,6 +537,596 @@ describe("terminal-manager IPC", () => {
       cwd: "/repo/.alfred-worktrees/alfred-codex-codex-1-20260509191530-abc123",
       isolation: "worktree",
     });
+  });
+
+  it("reuses an existing isolated checkout when launch metadata is present", async () => {
+    const pty = new FakePty();
+    const nodePty = fakeNodePty(pty);
+    const prepareAgentWorktree = vi.fn();
+    registerTerminalIpc({
+      loadNodePty: async () => nodePty as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+      prepareAgentWorktree,
+    });
+
+    const created = await invoke<{
+      agentKind: string;
+      baseCwd: string;
+      branchName: string;
+      cwd: string;
+      isolation: string;
+    }>(terminalChannels.create, {
+      agentKind: "codex",
+      baseCwd: "/repo",
+      branchName: "alfred-codex-review",
+      clientId: "codex-1",
+      command: "codex",
+      cols: 80,
+      cwd: "/.alfred-worktrees/repo/alfred-codex-review/packages/app",
+      isolation: "worktree",
+      rows: 24,
+      source: "alfred",
+      title: "Codex review",
+    });
+
+    expect(prepareAgentWorktree).not.toHaveBeenCalled();
+    expect(nodePty.spawn).toHaveBeenCalledWith(
+      "codex",
+      [],
+      expect.objectContaining({ cwd: "/.alfred-worktrees/repo/alfred-codex-review/packages/app" }),
+    );
+    expect(created).toMatchObject({
+      agentKind: "codex",
+      baseCwd: "/repo",
+      branchName: "alfred-codex-review",
+      cwd: "/.alfred-worktrees/repo/alfred-codex-review/packages/app",
+      isolation: "worktree",
+    });
+  });
+
+  it("launches non-coding worktree requests in the shared cwd without preparing a worktree", async () => {
+    const pty = new FakePty();
+    const nodePty = fakeNodePty(pty);
+    const prepareAgentWorktree = vi.fn(async () => ({
+      baseCwd: "/repo",
+      branchName: "alfred-dev-server",
+      cwd: "/repo/.alfred-worktrees/alfred-dev-server",
+    }));
+    registerTerminalIpc({
+      loadNodePty: async () => nodePty as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+      prepareAgentWorktree,
+    });
+
+    const created = await invoke<{
+      agentKind: string;
+      cwd: string;
+      isolation: string;
+    }>(terminalChannels.create, {
+      agentKind: "dev-server",
+      clientId: "dev-1",
+      command: "pnpm",
+      args: ["dev"],
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+      source: "alfred",
+      title: "Dev server",
+    });
+
+    expect(prepareAgentWorktree).not.toHaveBeenCalled();
+    expect(nodePty.spawn).toHaveBeenCalledWith(
+      "pnpm",
+      ["dev"],
+      expect.objectContaining({ cwd: "/repo" }),
+    );
+    expect(created).toMatchObject({
+      agentKind: "dev-server",
+      cwd: "/repo",
+      isolation: "shared",
+    });
+    expect(created).not.toHaveProperty("branchName");
+    expect(created).not.toHaveProperty("baseCwd");
+  });
+
+  it("launches worktree requests without an agent kind in the shared cwd without preparing a worktree", async () => {
+    const pty = new FakePty();
+    const nodePty = fakeNodePty(pty);
+    const prepareAgentWorktree = vi.fn();
+    registerTerminalIpc({
+      loadNodePty: async () => nodePty as never,
+      prepareAgentWorktree,
+    });
+
+    const created = await invoke<{
+      cwd: string;
+      isolation: string;
+    }>(terminalChannels.create, {
+      clientId: "manual-1",
+      command: "node",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+      source: "manual",
+      title: "Manual terminal",
+    });
+
+    expect(prepareAgentWorktree).not.toHaveBeenCalled();
+    expect(nodePty.spawn).toHaveBeenCalledWith(
+      "node",
+      [],
+      expect.objectContaining({ cwd: "/repo" }),
+    );
+    expect(created).toMatchObject({
+      cwd: "/repo",
+      isolation: "shared",
+    });
+    expect(created).not.toHaveProperty("branchName");
+    expect(created).not.toHaveProperty("baseCwd");
+  });
+
+  it("cleans the isolated worktree when a live agent session is forgotten", async () => {
+    const pty = new FakePty();
+    const cleanupAgentWorktree = vi.fn(async (_request: AgentWorktreeCleanupRequest): Promise<void> => undefined);
+    const prepareAgentWorktree = vi.fn(async () => ({
+      baseCwd: "/repo",
+      branchName: "alfred-codex-review",
+      cwd: "/alfred/userData/worktrees/repo-816fc349/alfred-codex-review",
+    }));
+    registerTerminalIpc({
+      cleanupAgentWorktree,
+      loadNodePty: async () => fakeNodePty(pty) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+      prepareAgentWorktree,
+    });
+
+    const created = await invoke<{ id: string }>(terminalChannels.create, {
+      agentKind: "codex",
+      clientId: "codex-1",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+      source: "alfred",
+      title: "Codex review",
+    });
+
+    emit(terminalChannels.kill, { id: created.id, cleanupWorktree: true });
+
+    expect(cleanupAgentWorktree).toHaveBeenCalledWith({
+      baseCwd: "/repo",
+      branchName: "alfred-codex-review",
+      cwd: "/alfred/userData/worktrees/repo-816fc349/alfred-codex-review",
+      force: true,
+    }, {
+      worktreeStoreRoot: "/alfred/userData/worktrees",
+    });
+  });
+
+  it("cleans the isolated worktree when a restored agent session is forgotten", async () => {
+    let state: DesktopStateSnapshot = {
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [
+        {
+          clientId: "codex-1",
+          title: "Codex review",
+          source: "alfred",
+          agentKind: "codex",
+          cwd: "/.alfred-worktrees/repo/alfred-codex-review",
+          isolation: "worktree",
+          branchName: "alfred-codex-review",
+          baseCwd: "/repo",
+          createdAt: 1,
+          shell: "codex",
+          command: "codex",
+          buffer: "done",
+        },
+      ],
+    };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const cleanupAgentWorktree = vi.fn(async (_request: AgentWorktreeCleanupRequest): Promise<void> => undefined);
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({
+      cleanupAgentWorktree,
+      loadNodePty: async () => fakeNodePty(new FakePty()) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+    });
+
+    await invoke<TerminalListResult>(terminalChannels.list);
+    emit(terminalChannels.forget, { clientId: "codex-1", cleanupWorktree: true });
+
+    expect(cleanupAgentWorktree).toHaveBeenCalledWith({
+      baseCwd: "/repo",
+      branchName: "alfred-codex-review",
+      cwd: "/.alfred-worktrees/repo/alfred-codex-review",
+      force: true,
+    }, {
+      worktreeStoreRoot: "/alfred/userData/worktrees",
+    });
+  });
+
+  it("cleans legacy restored worktrees that predate persisted isolation metadata", async () => {
+    let state: DesktopStateSnapshot = {
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [
+        {
+          clientId: "codex-legacy",
+          title: "Codex legacy",
+          source: "alfred",
+          agentKind: "codex",
+          cwd: "/.alfred-worktrees/repo/alfred-codex-legacy",
+          branchName: "alfred-codex-legacy",
+          baseCwd: "/repo",
+          createdAt: 1,
+          shell: "codex",
+          command: "codex",
+          buffer: "done",
+        },
+      ],
+    };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const cleanupAgentWorktree = vi.fn(async (_request: AgentWorktreeCleanupRequest): Promise<void> => undefined);
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({
+      cleanupAgentWorktree,
+      loadNodePty: async () => fakeNodePty(new FakePty()) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+    });
+
+    await invoke<TerminalListResult>(terminalChannels.list);
+    emit(terminalChannels.forget, { clientId: "codex-legacy", cleanupWorktree: true });
+
+    expect(cleanupAgentWorktree).toHaveBeenCalledWith({
+      baseCwd: "/repo",
+      branchName: "alfred-codex-legacy",
+      cwd: "/.alfred-worktrees/repo/alfred-codex-legacy",
+      force: true,
+    }, {
+      worktreeStoreRoot: "/alfred/userData/worktrees",
+    });
+  });
+
+  it("does not clean explicitly shared restored sessions even if stale worktree metadata exists", async () => {
+    let state: DesktopStateSnapshot = {
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [
+        {
+          clientId: "codex-shared",
+          title: "Codex shared",
+          source: "alfred",
+          agentKind: "codex",
+          cwd: "/repo",
+          isolation: "shared",
+          branchName: "alfred-codex-stale",
+          baseCwd: "/repo",
+          createdAt: 1,
+          shell: "codex",
+          command: "codex",
+          buffer: "done",
+        },
+      ],
+    };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const cleanupAgentWorktree = vi.fn(async (_request: AgentWorktreeCleanupRequest): Promise<void> => undefined);
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({
+      cleanupAgentWorktree,
+      loadNodePty: async () => fakeNodePty(new FakePty()) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+    });
+
+    await invoke<TerminalListResult>(terminalChannels.list);
+    emit(terminalChannels.forget, { clientId: "codex-shared", cleanupWorktree: true });
+
+    expect(cleanupAgentWorktree).not.toHaveBeenCalled();
+  });
+
+  it("returns a diff summary for a live isolated checkout", async () => {
+    const pty = new FakePty();
+    const inspectAgentWorktree = vi.fn(async () => ({
+      summary: "2 changed files",
+      files: [
+        { path: "src/app.tsx", status: "M" },
+        { path: "notes/review.md", status: "??" },
+      ],
+    }));
+    const prepareAgentWorktree = vi.fn(async () => ({
+      baseCwd: "/repo",
+      branchName: "alfred-codex-review",
+      cwd: "/alfred/userData/worktrees/repo-816fc349/alfred-codex-review",
+    }));
+    registerTerminalIpc({
+      inspectAgentWorktree,
+      loadNodePty: async () => fakeNodePty(pty) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+      prepareAgentWorktree,
+    });
+
+    await invoke(terminalChannels.create, {
+      agentKind: "codex",
+      clientId: "codex-1",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+      source: "alfred",
+      title: "Codex review",
+    });
+
+    const result = await invoke(terminalChannels.worktreeDiff, { clientId: "codex-1" });
+
+    expect(result).toEqual({
+      ok: true,
+      summary: "2 changed files",
+      files: [
+        { path: "src/app.tsx", status: "M" },
+        { path: "notes/review.md", status: "??" },
+      ],
+    });
+    expect(inspectAgentWorktree).toHaveBeenCalledWith({
+      baseCwd: "/repo",
+      branchName: "alfred-codex-review",
+      cwd: "/alfred/userData/worktrees/repo-816fc349/alfred-codex-review",
+    }, {
+      worktreeStoreRoot: "/alfred/userData/worktrees",
+    });
+  });
+
+  it("applies a legacy restored checkout by client id even without persisted isolation", async () => {
+    let state: DesktopStateSnapshot = {
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [
+        {
+          clientId: "codex-1",
+          title: "Codex review",
+          source: "alfred",
+          agentKind: "codex",
+          cwd: "/.alfred-worktrees/repo/alfred-codex-review",
+          branchName: "alfred-codex-review",
+          baseCwd: "/repo",
+          createdAt: 1,
+          shell: "codex",
+          command: "codex",
+          buffer: "done",
+        },
+      ],
+    };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const applyAgentWorktreePatch = vi.fn(async () => ({ appliedFiles: 3 }));
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({
+      applyAgentWorktreePatch,
+      loadNodePty: async () => fakeNodePty(new FakePty()) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+    });
+
+    const result = await invoke(terminalChannels.worktreeApply, { clientId: "codex-1" });
+
+    expect(result).toEqual({ ok: true, appliedFiles: 3 });
+    expect(applyAgentWorktreePatch).toHaveBeenCalledWith({
+      baseCwd: "/repo",
+      branchName: "alfred-codex-review",
+      cwd: "/.alfred-worktrees/repo/alfred-codex-review",
+    }, {
+      worktreeStoreRoot: "/alfred/userData/worktrees",
+    });
+  });
+
+  it("does not apply shared sessions as isolated checkouts", async () => {
+    const pty = new FakePty();
+    const applyAgentWorktreePatch = vi.fn(async () => ({ appliedFiles: 1 }));
+    registerTerminalIpc({
+      applyAgentWorktreePatch,
+      loadNodePty: async () => fakeNodePty(pty) as never,
+    });
+
+    await invoke(terminalChannels.create, {
+      agentKind: "codex",
+      clientId: "codex-1",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "shared",
+      rows: 24,
+      source: "manual",
+      title: "Codex shared",
+    });
+
+    const result = await invoke(terminalChannels.worktreeApply, { clientId: "codex-1" });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Session is not an isolated checkout.",
+      needsManualReview: true,
+    });
+    expect(applyAgentWorktreePatch).not.toHaveBeenCalled();
+  });
+
+  it("does not apply explicitly shared restored sessions with stale worktree metadata", async () => {
+    let state: DesktopStateSnapshot = {
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [
+        {
+          clientId: "codex-shared",
+          title: "Codex shared",
+          source: "alfred",
+          agentKind: "codex",
+          cwd: "/repo",
+          isolation: "shared",
+          branchName: "alfred-codex-stale",
+          baseCwd: "/repo",
+          createdAt: 1,
+          shell: "codex",
+          command: "codex",
+          buffer: "done",
+        },
+      ],
+    };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const applyAgentWorktreePatch = vi.fn(async () => ({ appliedFiles: 1 }));
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({
+      applyAgentWorktreePatch,
+      loadNodePty: async () => fakeNodePty(new FakePty()) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+    });
+
+    const result = await invoke(terminalChannels.worktreeApply, { clientId: "codex-shared" });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Session is not an isolated checkout.",
+      needsManualReview: true,
+    });
+    expect(applyAgentWorktreePatch).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsafe isolated checkout metadata before apply", async () => {
+    let state: DesktopStateSnapshot = {
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [
+        {
+          clientId: "codex-1",
+          title: "Codex review",
+          source: "alfred",
+          agentKind: "codex",
+          cwd: "/alfred/userData/worktrees/alfred-12345678/../escape",
+          isolation: "worktree",
+          branchName: "../escape",
+          baseCwd: "/repo",
+          createdAt: 1,
+          shell: "codex",
+          command: "codex",
+          buffer: "done",
+        },
+      ],
+    };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const applyAgentWorktreePatch = vi.fn(async () => ({ appliedFiles: 1 }));
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({
+      applyAgentWorktreePatch,
+      loadNodePty: async () => fakeNodePty(new FakePty()) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+    });
+
+    const result = await invoke(terminalChannels.worktreeApply, { clientId: "codex-1" });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Isolated checkout metadata is not safe.",
+      needsManualReview: true,
+    });
+    expect(applyAgentWorktreePatch).not.toHaveBeenCalled();
+  });
+
+  it("does not clean restored worktrees with unsafe traversal metadata", async () => {
+    let state: DesktopStateSnapshot = {
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [
+        {
+          clientId: "codex-1",
+          title: "Codex review",
+          source: "alfred",
+          agentKind: "codex",
+          cwd: "/alfred/userData/worktrees/alfred-12345678/../escape",
+          isolation: "worktree",
+          branchName: "../escape",
+          baseCwd: "/repo",
+          createdAt: 1,
+          shell: "codex",
+          command: "codex",
+          buffer: "done",
+        },
+      ],
+    };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const cleanupAgentWorktree = vi.fn(async (_request: AgentWorktreeCleanupRequest): Promise<void> => undefined);
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({
+      cleanupAgentWorktree,
+      loadNodePty: async () => fakeNodePty(new FakePty()) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+    });
+
+    await invoke<TerminalListResult>(terminalChannels.list);
+    emit(terminalChannels.forget, { clientId: "codex-1", cleanupWorktree: true });
+
+    expect(cleanupAgentWorktree).not.toHaveBeenCalled();
   });
 
   it("normalizes stale Alfred prompt flags before spawning agent sessions", async () => {
@@ -575,6 +1169,7 @@ describe("terminal-manager IPC", () => {
     });
     registerTerminalIpc({
       loadNodePty: async () => nodePty as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
       prepareAgentWorktree,
     });
 
@@ -607,6 +1202,7 @@ describe("terminal-manager IPC", () => {
     }));
     registerTerminalIpc({
       loadNodePty: async () => nodePty as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
       prepareAgentWorktree,
     });
 
@@ -628,6 +1224,8 @@ describe("terminal-manager IPC", () => {
       branchName: "alfred-codex-preflight",
       clientId: "alfred-1",
       cwd: "/repo",
+    }, {
+      worktreeStoreRoot: "/alfred/userData/worktrees",
     });
   });
 
@@ -676,6 +1274,95 @@ describe("terminal-manager IPC", () => {
     expect(pty.writes).toEqual([]);
     expect(pty.resized).toEqual([]);
     expect(pty.killed).toBe(false);
+    expect(getTerminalSessionCount()).toBe(1);
+  });
+
+  it("rejects live isolated checkout operations from a different window even when a snapshot exists", async () => {
+    const ownerWindow = fakeWindow(1);
+    const otherWindow = fakeWindow(2);
+    liveWindows = [ownerWindow, otherWindow];
+    const ownerSender = senderFor(ownerWindow);
+    const otherSender = senderFor(otherWindow);
+    const pty = new FakePty();
+    const inspectAgentWorktree = vi.fn(async () => ({ summary: "1 changed file", files: [] }));
+    const applyAgentWorktreePatch = vi.fn(async () => ({ appliedFiles: 1 }));
+    registerTerminalIpc({
+      applyAgentWorktreePatch,
+      inspectAgentWorktree,
+      loadNodePty: async () => fakeNodePty(pty) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+      prepareAgentWorktree: async () => ({
+        baseCwd: "/repo",
+        branchName: "alfred-codex-review",
+        cwd: "/alfred/userData/worktrees/repo-816fc349/alfred-codex-review",
+      }),
+    });
+
+    await invoke(
+      terminalChannels.create,
+      {
+        agentKind: "codex",
+        clientId: "codex-1",
+        command: "codex",
+        cols: 80,
+        cwd: "/repo",
+        isolation: "worktree",
+        rows: 24,
+        source: "alfred",
+        title: "Codex review",
+      },
+      ownerSender,
+    );
+    pty.onDataHandler?.("snapshot exists\n");
+
+    const diff = await invoke(terminalChannels.worktreeDiff, { clientId: "codex-1" }, otherSender);
+    const apply = await invoke(terminalChannels.worktreeApply, { clientId: "codex-1" }, otherSender);
+
+    expect(diff).toEqual({ ok: false, error: "Session not found." });
+    expect(apply).toEqual({ ok: false, error: "Session not found.", needsManualReview: true });
+    expect(inspectAgentWorktree).not.toHaveBeenCalled();
+    expect(applyAgentWorktreePatch).not.toHaveBeenCalled();
+  });
+
+  it("does not let another window forget or clean a live isolated checkout by client id", async () => {
+    const ownerWindow = fakeWindow(1);
+    const otherWindow = fakeWindow(2);
+    liveWindows = [ownerWindow, otherWindow];
+    const ownerSender = senderFor(ownerWindow);
+    const otherSender = senderFor(otherWindow);
+    const pty = new FakePty();
+    const cleanupAgentWorktree = vi.fn(async (_request: AgentWorktreeCleanupRequest): Promise<void> => undefined);
+    registerTerminalIpc({
+      cleanupAgentWorktree,
+      loadNodePty: async () => fakeNodePty(pty) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+      prepareAgentWorktree: async () => ({
+        baseCwd: "/repo",
+        branchName: "alfred-codex-review",
+        cwd: "/alfred/userData/worktrees/repo-816fc349/alfred-codex-review",
+      }),
+    });
+
+    await invoke(
+      terminalChannels.create,
+      {
+        agentKind: "codex",
+        clientId: "codex-1",
+        command: "codex",
+        cols: 80,
+        cwd: "/repo",
+        isolation: "worktree",
+        rows: 24,
+        source: "alfred",
+        title: "Codex review",
+      },
+      ownerSender,
+    );
+    pty.onDataHandler?.("snapshot exists\n");
+
+    emit(terminalChannels.forget, { clientId: "codex-1", cleanupWorktree: true }, otherSender);
+
+    expect(cleanupAgentWorktree).not.toHaveBeenCalled();
     expect(getTerminalSessionCount()).toBe(1);
   });
 

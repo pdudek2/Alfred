@@ -25,6 +25,8 @@ them. The user reviews and approves each session before it runs.
 
 Each session has: kind, title, cwd, command, args.
 - kind ∈ ["codex", "claude", "dev-server", "shell"]
+- isolation is optional and may be "shared" or "worktree". Omit it unless the
+  user explicitly asks for an isolated worktree.
 - "codex" runs the codex CLI for AI coding assistance
 - "claude" runs the claude (Claude Code) CLI
 - "dev-server" runs a local dev server (e.g. pnpm dev, next dev)
@@ -62,6 +64,7 @@ const planSchema = {
           cwd: { type: "string" },
           command: { type: "string", minLength: 1 },
           args: { type: "array", items: { type: "string" } },
+          isolation: { enum: ["shared", "worktree"] },
         },
       },
     },

@@ -60,7 +60,7 @@ export function addAgentSession(
   kind: Extract<AgentKind, "claude" | "codex">,
   cwd: string,
   workspaceId = "A",
-  isolation: TerminalSessionIsolation = "worktree",
+  isolation: TerminalSessionIsolation = "shared",
 ): SessionTile[] {
   const nextIndex = nextPrefixedSessionIndex(sessions, `${kind}-`);
   const title = `${kind === "codex" ? "Codex" : "Claude"} · session ${nextIndex}`;
@@ -84,6 +84,21 @@ export function addAgentSession(
 
 export function closeSession(sessions: SessionTile[], sessionId: string): SessionTile[] {
   return sessions.filter((session) => session.id !== sessionId);
+}
+
+export function sessionInstanceKey(
+  session: Pick<
+    SessionTile,
+    "baseCwd" | "branchName" | "createdAt" | "id" | "runtimeId"
+  >,
+): string {
+  return [
+    session.id,
+    session.runtimeId ?? "",
+    session.createdAt ?? "",
+    session.branchName ?? "",
+    session.baseCwd ?? "",
+  ].join("\u001f");
 }
 
 export function renameSession(sessions: SessionTile[], sessionId: string, title: string): SessionTile[] {
@@ -233,7 +248,7 @@ export function hydrateStagedPlanSessions(
 ): SessionTile[] {
   if (!plan) return [];
   return plan.sessions.map((session) => {
-    const isolation = plannedSessionIsolation(session.kind, session.launchPreflight);
+    const isolation = plannedSessionIsolation(session.kind, session.launchPreflight, planSessionIsolation(session));
     return {
       id: session.id,
       title: session.title,
@@ -249,10 +264,6 @@ export function hydrateStagedPlanSessions(
       ...(session.launchPreflight === undefined ? {} : { launchPreflight: cloneLaunchPreflight(session.launchPreflight) }),
     };
   });
-}
-
-function codingAgentIsolation(kind: AgentKind): TerminalSessionIsolation | undefined {
-  return kind === "codex" || kind === "claude" ? "worktree" : undefined;
 }
 
 function resumeLaunchForRestoredAgent(
@@ -274,9 +285,15 @@ function resumeLaunchForRestoredAgent(
 function plannedSessionIsolation(
   kind: AgentKind,
   launchPreflight: AlfredLaunchPreflight | undefined,
+  explicitIsolation?: TerminalSessionIsolation,
 ): TerminalSessionIsolation | undefined {
   if (launchPreflight?.status === "ready") return launchPreflight.isolation;
-  return codingAgentIsolation(kind);
+  if (explicitIsolation) return explicitIsolation;
+  return kind === "codex" || kind === "claude" ? "shared" : undefined;
+}
+
+function planSessionIsolation(session: AlfredPlanSession): TerminalSessionIsolation | undefined {
+  return session.isolation;
 }
 
 function createManualSession(index: number, cwd: string, workspaceId: string): SessionTile {
@@ -313,7 +330,7 @@ export function addStagedSessions(
 ): SessionTile[] {
   let nextIndex = nextAlfredSessionIndex(sessions);
   const staged: SessionTile[] = planSessions.map((session) => {
-    const isolation = plannedSessionIsolation(session.kind, session.launchPreflight);
+    const isolation = plannedSessionIsolation(session.kind, session.launchPreflight, planSessionIsolation(session));
     const tile: SessionTile = {
       id: `${ALFRED_SESSION_PREFIX}${nextIndex}`,
       title: session.title,
