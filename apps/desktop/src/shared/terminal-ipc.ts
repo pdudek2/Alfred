@@ -14,6 +14,7 @@ export type TerminalCreateRequest = {
   cwd?: string;
   isolation?: TerminalSessionIsolation;
   branchName?: string;
+  baseCwd?: string;
   cols: number;
   rows: number;
   command?: string;
@@ -66,16 +67,34 @@ export type TerminalWriteRequest = {
 
 export type TerminalKillRequest = {
   id: TerminalSessionId;
+  cleanupWorktree?: boolean;
 };
 
 export type TerminalForgetRequest = {
   clientId: string;
+  cleanupWorktree?: boolean;
 };
 
 export type TerminalRenameRequest = {
   clientId: string;
   title: string;
 };
+
+export type TerminalWorktreeDiffRequest = {
+  clientId: string;
+};
+
+export type TerminalWorktreeDiffResult =
+  | { ok: true; summary: string; files: Array<{ path: string; status: string }> }
+  | { ok: false; error: string };
+
+export type TerminalWorktreeApplyRequest = {
+  clientId: string;
+};
+
+export type TerminalWorktreeApplyResult =
+  | { ok: true; appliedFiles: number }
+  | { ok: false; error: string; needsManualReview?: boolean };
 
 export type TerminalExitEvent = {
   id: TerminalSessionId;
@@ -96,6 +115,8 @@ export type TerminalApi = {
   kill(request: TerminalKillRequest): void;
   forget(request: TerminalForgetRequest): void;
   rename(request: TerminalRenameRequest): Promise<void>;
+  worktreeDiff(request: TerminalWorktreeDiffRequest): Promise<TerminalWorktreeDiffResult>;
+  worktreeApply(request: TerminalWorktreeApplyRequest): Promise<TerminalWorktreeApplyResult>;
   onData(callback: (event: TerminalDataEvent) => void): () => void;
   onExit(callback: (event: TerminalExitEvent) => void): () => void;
 };
@@ -108,6 +129,8 @@ export const terminalChannels = {
   kill: "alfred:terminal:kill",
   forget: "alfred:terminal:forget",
   rename: "alfred:terminal:rename",
+  worktreeDiff: "alfred:terminal:worktree-diff",
+  worktreeApply: "alfred:terminal:worktree-apply",
   data: "alfred:terminal:data",
   exit: "alfred:terminal:exit",
 } as const;

@@ -138,6 +138,32 @@ Ready.`;
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  it("accepts and preserves explicit worktree isolation in a valid plan", async () => {
+    const plan = JSON.stringify({
+      sessions: [
+        {
+          kind: "codex",
+          title: "Isolated refactor",
+          command: "codex",
+          args: ["Refactor safely"],
+          isolation: "worktree",
+        },
+      ],
+    });
+    const fetchImpl = mockFetchOk(plan);
+
+    const result = await runLlmPlan({ ...baseInput, fetchImpl });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.plan.sessions[0]).toMatchObject({
+        kind: "codex",
+        title: "Isolated refactor",
+        isolation: "worktree",
+      });
+    }
+  });
+
   it("returns malformed when retry also fails schema", async () => {
     const bad = JSON.stringify({ sessions: [{ kind: "wrong" }] });
     const fetchImpl = mockFetchSequence([

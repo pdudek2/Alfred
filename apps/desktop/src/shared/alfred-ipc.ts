@@ -49,6 +49,7 @@ export type AlfredPlanSession = {
   cwd?: string;
   command: string;
   args: string[];
+  isolation?: "shared" | "worktree";
   safetyNote?: string;
   launchPreflight?: AlfredLaunchPreflight;
 };
@@ -104,6 +105,7 @@ export type AlfredStagedSessionPatch = {
   cwd?: string;
   command?: string;
   args?: string[];
+  isolation?: "shared" | "worktree";
 };
 
 export type AlfredStagedPlanSessionUpdateRequest = {

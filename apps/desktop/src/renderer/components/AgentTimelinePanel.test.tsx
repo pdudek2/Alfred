@@ -111,6 +111,51 @@ describe("AgentTimelinePanel", () => {
     expect(onCopyActivityText).toHaveBeenCalledWith(cwd);
   });
 
+  it("shows isolated checkout lifecycle preview for worktree and legacy worktree sessions only", () => {
+    const legacyWorktreeSession: SessionTile = {
+      id: "s1",
+      title: "codex — isolated",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/repo/.worktrees/codex-isolated",
+      source: "alfred",
+      command: "codex",
+      runtimeId: "runtime-1",
+      branchName: "alfred-codex-isolated",
+      baseCwd: "/repo",
+    };
+
+    const { rerender, container } = render(<AgentTimelinePanel session={legacyWorktreeSession} />);
+    const lifecycle = within(container).getByRole("region", { name: "Checkout lifecycle for codex — isolated" });
+
+    expect(within(lifecycle).getByText("Review diff")).toBeInTheDocument();
+    expect(within(lifecycle).getByText("Apply to project")).toBeInTheDocument();
+    expect(within(lifecycle).getByText("Use the checkout actions above to review or apply changes.")).toBeInTheDocument();
+    expect(within(lifecycle).queryByRole("button", { name: "Review diff" })).not.toBeInTheDocument();
+    expect(within(lifecycle).queryByRole("button", { name: "Apply to project" })).not.toBeInTheDocument();
+
+    rerender(
+      <AgentTimelinePanel
+        session={{
+          id: "s2",
+          title: "codex — shared",
+          workspaceId: "w1",
+          stage: "live",
+          cwd: "/repo",
+          source: "alfred",
+          command: "codex",
+          runtimeId: "runtime-1",
+          isolation: "shared",
+          branchName: "alfred-codex-stale",
+          baseCwd: "/repo",
+        }}
+      />,
+    );
+
+    expect(within(container).queryByRole("region", { name: "Checkout lifecycle for codex — shared" })).not.toBeInTheDocument();
+    expect(within(container).queryByText("Use the checkout actions above to review or apply changes.")).not.toBeInTheDocument();
+  });
+
   it("renders recent stored activity events before generic runtime copy", () => {
     const session: SessionTile = {
       id: "s1",

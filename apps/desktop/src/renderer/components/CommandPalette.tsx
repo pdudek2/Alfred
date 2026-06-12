@@ -14,6 +14,7 @@ import { terminalSessionDisplayStatus } from "../session-status";
 import type { WorkMode } from "../terminal-desk-types";
 import type { WorkspaceAttention, WorkspaceReviewItem } from "../workspace-attention";
 import type { AgentKind } from "../../shared/alfred-ipc";
+import type { TerminalSessionIsolation } from "../../shared/terminal-ipc";
 import type { WorkspaceRailWorkspace } from "./WorkspaceRail";
 import { shortenPath } from "../path-display";
 import { recoveryCounts, recoverySummary } from "../recovery-display";
@@ -45,7 +46,7 @@ type CommandPaletteProps = {
   unsafeStagedCount: number;
   workspaces: WorkspaceRailWorkspace[];
   canCloseWorkspace: boolean;
-  onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
+  onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">, isolation?: TerminalSessionIsolation) => void;
   onAddManualSession: () => void;
   onAddWorkspace: () => void;
   onApplyWorkMode: (mode: WorkMode) => void;
@@ -149,6 +150,7 @@ export function CommandPalette({
   const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? sessions[0] ?? null;
   const selectedRestartable = selectedSession ? isRestartableSession(selectedSession) : false;
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
+  const activeWorkspaceBound = Boolean(activeWorkspace?.rootPath);
   const normalizedQuery = query.trim().toLowerCase();
   const workspaceById = useMemo(
     () => new Map(workspaces.map((workspace) => [workspace.id, workspace])),
@@ -182,14 +184,32 @@ export function CommandPalette({
       {
         id: "new-codex-session",
         label: "New Codex session",
-        detail: activeWorkspace?.rootPath ? "Start codex in this workspace" : "Start codex in the scratch desk",
+        detail: activeWorkspaceBound ? "Start Codex in this workspace" : "Start Codex in the scratch desk",
         run: () => onAddAgentSession("codex"),
       },
       {
         id: "new-claude-session",
         label: "New Claude session",
-        detail: activeWorkspace?.rootPath ? "Start claude in this workspace" : "Start claude in the scratch desk",
+        detail: activeWorkspaceBound ? "Start Claude in this workspace" : "Start Claude in the scratch desk",
         run: () => onAddAgentSession("claude"),
+      },
+      {
+        id: "new-codex-isolated-session",
+        label: "New Codex isolated checkout",
+        detail: activeWorkspaceBound
+          ? "Create a temporary Git worktree for risky or parallel edits"
+          : "Bind a workspace folder to create a temporary Git worktree for risky or parallel edits",
+        disabled: !activeWorkspaceBound,
+        run: () => onAddAgentSession("codex", "worktree"),
+      },
+      {
+        id: "new-claude-isolated-session",
+        label: "New Claude isolated checkout",
+        detail: activeWorkspaceBound
+          ? "Create a temporary Git worktree for risky or parallel edits"
+          : "Bind a workspace folder to create a temporary Git worktree for risky or parallel edits",
+        disabled: !activeWorkspaceBound,
+        run: () => onAddAgentSession("claude", "worktree"),
       },
       {
         id: "new-workspace",
@@ -405,6 +425,7 @@ export function CommandPalette({
       activeWorkMode,
       activeWorkspaceId,
       activeWorkspace,
+      activeWorkspaceBound,
       activeSearchableSessions,
       attention,
       arrangeMode,
@@ -655,7 +676,9 @@ function commandGroupLabel(commandId: string): string {
   if (
     commandId === "new-terminal" ||
     commandId === "new-codex-session" ||
-    commandId === "new-claude-session"
+    commandId === "new-claude-session" ||
+    commandId === "new-codex-isolated-session" ||
+    commandId === "new-claude-isolated-session"
   ) {
     return "Launch";
   }

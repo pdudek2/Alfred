@@ -4044,6 +4044,13 @@ body.arranging-pointer {
   gap: 7px;
 }
 
+.agent-handoff-note {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .agent-handoff-buttons button {
   min-height: 28px;
   border: 1px solid color-mix(in oklab, var(--accent) 22%, transparent);
@@ -4065,6 +4072,19 @@ body.arranging-pointer {
 .agent-handoff-buttons button:disabled {
   cursor: wait;
   opacity: 0.7;
+}
+
+.agent-preview-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border: 1px solid color-mix(in oklab, var(--accent) 16%, transparent);
+  border-radius: 999px;
+  padding: 0 10px;
+  background: color-mix(in oklab, var(--accent) 5%, transparent);
+  color: var(--muted);
+  font: 700 10px var(--mono);
+  letter-spacing: 0.01em;
 }
 
 .agent-session-pulse {

@@ -73,9 +73,12 @@ export function AgentTimelinePanel({
   const latestApproval = latestApprovalEvent(activityEvents);
   const pulseCard = sessionPulseCard(session, displayStatus, activityEvents);
   const handoffActions = sessionHandoffActions(session, command);
+  const isolatedCheckout = isIsolatedCheckoutSession(session);
+  const worktreeLifecycleActions = isolatedCheckout ? isolatedCheckoutLifecycleActions() : [];
   const cwdFactLabel = session.cwd ? shortenWorktreeLabel(session.cwd) : "default workspace";
   const branchFactLabel = session.branchName ? shortenWorktreeLabel(session.branchName) : null;
   const baseFactLabel = session.baseCwd ? shortenWorktreeLabel(session.baseCwd) : null;
+  const isolationFactLabel = isolatedCheckout ? "isolated worktree" : session.isolation === "shared" ? "shared workspace" : null;
   const canEditStagedSession = isEditableStagedSession(session) && Boolean(onUpdateStagedSession);
   const canSendApprovalResponse =
     Boolean(onSendInput) &&
@@ -295,10 +298,10 @@ export function AgentTimelinePanel({
             <dt>cwd</dt>
             <dd {...fullFactValueProps(session.cwd, cwdFactLabel)}>{cwdFactLabel}</dd>
           </div>
-          {session.isolation && (
+          {isolationFactLabel && (
             <div>
               <dt>isolation</dt>
-              <dd>{session.isolation === "worktree" ? "isolated worktree" : "shared workspace"}</dd>
+              <dd>{isolationFactLabel}</dd>
             </div>
           )}
           {session.branchName && (
@@ -360,6 +363,22 @@ export function AgentTimelinePanel({
                   key={action.id}
                   onAction={handleSessionAction}
                 />
+              ))}
+            </div>
+          </section>
+        )}
+        {worktreeLifecycleActions.length > 0 && (
+          <section className="agent-handoff-actions" aria-label={`Checkout lifecycle for ${session.title}`}>
+            <div>
+              <span>checkout</span>
+              <strong>Keep isolated changes explicit</strong>
+              <p className="agent-handoff-note">Use the checkout actions above to review or apply changes.</p>
+            </div>
+            <div className="agent-handoff-buttons">
+              {worktreeLifecycleActions.map((action) => (
+                <span key={action.id} className="agent-preview-chip">
+                  {action.label}
+                </span>
               ))}
             </div>
           </section>
@@ -500,6 +519,11 @@ type SessionPulseCard = {
   tone: SessionPulseTone;
 };
 
+type IsolatedCheckoutLifecycleAction = {
+  id: "review-diff" | "apply-to-project";
+  label: string;
+};
+
 type StagedEditDraft = {
   args: string;
   command: string;
@@ -553,6 +577,18 @@ function HandoffActionButton({
 function fullFactValueProps(value: string | undefined, displayValue: string): { title?: string; "aria-label"?: string } {
   if (!value || value === displayValue) return {};
   return { title: value, "aria-label": value };
+}
+
+function isIsolatedCheckoutSession(session: Pick<SessionTile, "isolation" | "branchName" | "baseCwd">): boolean {
+  if (session.isolation === "shared") return false;
+  return Boolean(session.branchName && session.baseCwd) || session.isolation === "worktree";
+}
+
+function isolatedCheckoutLifecycleActions(): IsolatedCheckoutLifecycleAction[] {
+  return [
+    { id: "review-diff", label: "Review diff" },
+    { id: "apply-to-project", label: "Apply to project" },
+  ];
 }
 
 function sessionHandoffActions(session: SessionTile, command: string): SessionHandoffAction[] {

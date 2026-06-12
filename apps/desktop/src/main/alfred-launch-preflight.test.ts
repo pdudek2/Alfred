@@ -35,16 +35,48 @@ describe("preflightAlfredPlan", () => {
     });
   });
 
-  it("preflights coding agents into a future isolated worktree", async () => {
+  it("preflights plain coding agents in Git workspaces as shared", async () => {
+    const preflightAgentWorktree = vi.fn();
+
+    const result = await preflightAlfredPlan(
+      {
+        sessions: [{ kind: "codex", title: "Refactor", command: "codex", args: [], cwd: "apps/desktop" }],
+      },
+      { id: "A", label: "Alfred", rootPath: "/repo" },
+      {
+        commandExists: async () => true,
+        preflightAgentWorktree,
+      },
+    );
+
+    expect(preflightAgentWorktree).not.toHaveBeenCalled();
+    expect(result.sessions[0]?.launchPreflight).toEqual({
+      status: "ready",
+      label: "Ready",
+      detail: "Will launch in the selected workspace.",
+      isolation: "shared",
+    });
+  });
+
+  it("preflights coding agents into a future isolated worktree when explicitly requested", async () => {
     const preflightAgentWorktree = vi.fn(async () => ({
       baseCwd: "/repo",
       branchName: "alfred-codex-refactor",
       cwd: "/.alfred-worktrees/repo/alfred-codex-refactor",
     }));
 
+    const session = {
+      kind: "codex",
+      title: "Refactor",
+      command: "codex",
+      args: [],
+      cwd: "apps/desktop",
+      isolation: "worktree",
+    };
+
     const result = await preflightAlfredPlan(
       {
-        sessions: [{ kind: "codex", title: "Refactor", command: "codex", args: [], cwd: "apps/desktop" }],
+        sessions: [session],
       },
       { id: "A", label: "Alfred", rootPath: "/repo" },
       {
@@ -66,6 +98,36 @@ describe("preflightAlfredPlan", () => {
       branchName: "alfred-codex-refactor",
       baseCwd: "/repo",
       cwd: "/.alfred-worktrees/repo/alfred-codex-refactor",
+    });
+  });
+
+  it("ignores worktree isolation requests for shared utility sessions", async () => {
+    const preflightAgentWorktree = vi.fn();
+
+    const result = await preflightAlfredPlan(
+      {
+        sessions: [{
+          kind: "shell",
+          title: "Logs",
+          command: "tail",
+          args: ["-f", "app.log"],
+          cwd: "/repo",
+          isolation: "worktree",
+        }],
+      },
+      { id: "A", label: "Alfred", rootPath: "/repo" },
+      {
+        commandExists: async () => true,
+        preflightAgentWorktree,
+      },
+    );
+
+    expect(preflightAgentWorktree).not.toHaveBeenCalled();
+    expect(result.sessions[0]?.launchPreflight).toEqual({
+      status: "ready",
+      label: "Ready",
+      detail: "Will launch in the selected workspace.",
+      isolation: "shared",
     });
   });
 
@@ -144,7 +206,14 @@ describe("preflightAlfredPlan", () => {
   it("blocks coding agents when Git worktree preparation is not ready", async () => {
     const result = await preflightAlfredPlan(
       {
-        sessions: [{ kind: "claude", title: "Review", command: "claude", args: [], cwd: "/repo" }],
+        sessions: [{
+          kind: "claude",
+          title: "Review",
+          command: "claude",
+          args: [],
+          cwd: "/repo",
+          isolation: "worktree",
+        }],
       },
       { id: "A", label: "Alfred", rootPath: "/repo" },
       {
@@ -165,7 +234,14 @@ describe("preflightAlfredPlan", () => {
   it("marks dirty worktree snapshots ready for coding agents", async () => {
     const result = await preflightAlfredPlan(
       {
-        sessions: [{ kind: "codex", title: "Review", command: "codex", args: [], cwd: "/repo" }],
+        sessions: [{
+          kind: "codex",
+          title: "Review",
+          command: "codex",
+          args: [],
+          cwd: "/repo",
+          isolation: "worktree",
+        }],
       },
       { id: "A", label: "Alfred", rootPath: "/repo" },
       {
@@ -191,7 +267,13 @@ describe("preflightAlfredPlan", () => {
   it("falls back to shared workspace for coding agents in non-Git folders", async () => {
     const result = await preflightAlfredPlan(
       {
-        sessions: [{ kind: "codex", title: "Codex", command: "codex", args: [] }],
+        sessions: [{
+          kind: "codex",
+          title: "Codex",
+          command: "codex",
+          args: [],
+          isolation: "worktree",
+        }],
       },
       { id: "A", label: "Alfred", rootPath: "/plain-folder" },
       {

@@ -6,7 +6,7 @@ import { AlfredControlRail } from "./components/AlfredControlRail";
 import { AlfredMark } from "./components/AlfredMark";
 import { CommandPalette } from "./components/CommandPalette";
 import { ReviewQueuePanel } from "./components/ReviewQueuePanel";
-import { TerminalDesk } from "./components/TerminalDesk";
+import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
 import { WorkspacePreviewPanel } from "./components/WorkspacePreviewPanel";
 import { WorkspaceRail, type WorkspaceRailWorkspace } from "./components/WorkspaceRail";
 import {
@@ -49,6 +49,7 @@ import {
   relaunchRestoredSession,
   renameSession,
   restartSession,
+  sessionInstanceKey,
   type SessionTile,
 } from "./session-state";
 import { terminalSessionDisplayStatus } from "./session-status";
@@ -68,7 +69,7 @@ import type {
   AlfredStagedSession,
   AlfredWorkspaceContext,
 } from "../shared/alfred-ipc";
-import type { TerminalCreateResult } from "../shared/terminal-ipc";
+import type { TerminalCreateResult, TerminalSessionIsolation } from "../shared/terminal-ipc";
 import type { WorkspaceMissionBrief, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 import "@xterm/xterm/css/xterm.css";
 
@@ -128,8 +129,10 @@ export function App() {
   const [previewCandidates, setPreviewCandidates] = useState<PreviewUrlCandidate[]>([]);
   const [selectedPreviewUrlsByWorkspace, setSelectedPreviewUrlsByWorkspace] = useState<Record<string, string>>({});
   const [previewRefreshKeysByWorkspace, setPreviewRefreshKeysByWorkspace] = useState<Record<string, number>>({});
+  const [worktreeActionPending, setWorktreeActionPending] = useState<Record<string, WorktreeActionKind | undefined>>({});
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
+  const worktreeActionPendingRef = useRef<Set<string>>(new Set());
   const terminalSessionsRef = useRef<SessionTile[]>([]);
   const workspaceStateHydratedRef = useRef<boolean>(false);
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
@@ -195,12 +198,11 @@ export function App() {
     setTerminalSessions((sessions) => addManualSession(sessions, activeWorkspace.rootPath ?? "", activeWorkspace.id));
   }, [activeWorkspace.id, activeWorkspace.rootPath]);
 
-  const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">) => {
-    const isolation = activeWorkspace.gitBranch ? "worktree" : "shared";
+  const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, isolation: TerminalSessionIsolation = "shared") => {
     setTerminalSessions((sessions) =>
       addAgentSession(sessions, kind, activeWorkspace.rootPath ?? "", activeWorkspace.id, isolation),
     );
-  }, [activeWorkspace.gitBranch, activeWorkspace.id, activeWorkspace.rootPath]);
+  }, [activeWorkspace.id, activeWorkspace.rootPath]);
 
   const handleAddWorkspace = useCallback(async () => {
     const snapshot = createScratchWorkspaceState(workspaces);
@@ -600,7 +602,7 @@ export function App() {
     setTerminalSessions((sessions) => {
       const session = sessions.find((item) => item.id === sessionId);
       if (session?.runtimeStatus === "restored" || session?.runtimeStatus === "exited" || session?.runtimeStatus === "error") {
-        terminalApi?.forget({ clientId: session.id });
+        terminalApi?.forget({ clientId: session.id, cleanupWorktree: true });
         if (session.runtimeId) {
           terminalApi?.kill({ id: session.runtimeId });
         }
@@ -675,6 +677,142 @@ export function App() {
     setTerminalSessions((sessions) => renameSession(sessions, sessionId, normalizedTitle));
     void getDesktopTerminalApi()?.rename({ clientId: sessionId, title: normalizedTitle });
   }, []);
+
+  const beginWorktreeAction = useCallback((session: SessionTile, action: WorktreeActionKind): string | null => {
+    const actionKey = sessionInstanceKey(session);
+    if (worktreeActionPendingRef.current.has(actionKey)) return null;
+    worktreeActionPendingRef.current.add(actionKey);
+    setWorktreeActionPending((pending) => ({ ...pending, [actionKey]: action }));
+    return actionKey;
+  }, []);
+
+  const finishWorktreeAction = useCallback((actionKey: string): void => {
+    worktreeActionPendingRef.current.delete(actionKey);
+    setWorktreeActionPending((pending) => {
+      if (!pending[actionKey]) return pending;
+      const next = { ...pending };
+      delete next[actionKey];
+      return next;
+    });
+  }, []);
+
+  const isCurrentSessionInstance = useCallback((sessionId: string, actionKey: string): boolean => {
+    const currentSession = terminalSessionsRef.current.find((item) => item.id === sessionId);
+    return Boolean(currentSession && sessionInstanceKey(currentSession) === actionKey);
+  }, []);
+
+  const handleReviewWorktree = useCallback(async (sessionId: string) => {
+    const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
+    if (!session || !isReviewableWorktreeSession(session)) {
+      setTerminalSessions((sessions) =>
+        appendSessionActivity(sessions, sessionId, {
+          kind: "warning",
+          title: "Review diff unavailable",
+          detail: "Session is not an isolated checkout.",
+        }),
+      );
+      return;
+    }
+
+    const terminalApi = getDesktopTerminalApi();
+    if (!terminalApi) {
+      setTerminalSessions((sessions) =>
+        appendSessionActivity(sessions, sessionId, {
+          kind: "error",
+          title: "Review diff failed",
+          detail: "Desktop terminal API is unavailable.",
+        }),
+      );
+      return;
+    }
+
+    const actionKey = beginWorktreeAction(session, "review");
+    if (!actionKey) return;
+    try {
+      const result = await terminalApi.worktreeDiff({ clientId: sessionId });
+      if (!isCurrentSessionInstance(sessionId, actionKey)) return;
+      setTerminalSessions((sessions) =>
+        sessions.some((item) => item.id === sessionId && sessionInstanceKey(item) === actionKey)
+          ? appendSessionActivity(
+              sessions,
+              sessionId,
+              result.ok
+                ? {
+                    kind: "plan",
+                    title: "Checkout diff reviewed",
+                    detail: worktreeDiffDetail(result),
+                    payload: { type: "plan", summary: worktreeDiffDetail(result) },
+                  }
+                : {
+                    kind: "error",
+                    title: "Review diff failed",
+                    detail: result.error,
+                    payload: { type: "error", message: result.error },
+                  },
+            )
+          : sessions,
+      );
+    } finally {
+      finishWorktreeAction(actionKey);
+    }
+  }, [beginWorktreeAction, finishWorktreeAction, isCurrentSessionInstance]);
+
+  const handleApplyWorktree = useCallback(async (sessionId: string) => {
+    const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
+    if (!session || !isReviewableWorktreeSession(session)) {
+      setTerminalSessions((sessions) =>
+        appendSessionActivity(sessions, sessionId, {
+          kind: "warning",
+          title: "Apply blocked",
+          detail: "Session is not an isolated checkout.",
+        }),
+      );
+      return;
+    }
+
+    const terminalApi = getDesktopTerminalApi();
+    if (!terminalApi) {
+      setTerminalSessions((sessions) =>
+        appendSessionActivity(sessions, sessionId, {
+          kind: "error",
+          title: "Apply failed",
+          detail: "Desktop terminal API is unavailable.",
+        }),
+      );
+      return;
+    }
+
+    const actionKey = beginWorktreeAction(session, "apply");
+    if (!actionKey) return;
+    try {
+      const result = await terminalApi.worktreeApply({ clientId: sessionId });
+      if (!isCurrentSessionInstance(sessionId, actionKey)) return;
+      setTerminalSessions((sessions) =>
+        sessions.some((item) => item.id === sessionId && sessionInstanceKey(item) === actionKey)
+          ? appendSessionActivity(
+              sessions,
+              sessionId,
+              result.ok
+                ? {
+                    kind: "lifecycle",
+                    title: "Applied to project",
+                    detail: `${changedFileCountLabel(result.appliedFiles)} applied to the base workspace. Review and commit normally.`,
+                  }
+                : {
+                    kind: result.needsManualReview ? "warning" : "error",
+                    title: result.needsManualReview ? "Apply needs review" : "Apply failed",
+                    detail: result.error,
+                    payload: result.needsManualReview
+                      ? { type: "warning", message: result.error }
+                      : { type: "error", message: result.error },
+                  },
+            )
+          : sessions,
+      );
+    } finally {
+      finishWorktreeAction(actionKey);
+    }
+  }, [beginWorktreeAction, finishWorktreeAction, isCurrentSessionInstance]);
 
   const handleCloseSelectedSession = useCallback(() => {
     if (!activeSelectedSession) return;
@@ -1311,12 +1449,14 @@ export function App() {
               sessions={activeSessions}
               shortcutModifier={shortcutModifier}
               workMode={activeWorkMode}
+              worktreeActionPending={worktreeActionPending}
               workspaceGitBranch={activeWorkspace.gitBranch}
               workspaceLabel={activeWorkspace.label}
               workspaceRootPath={activeWorkspace.rootPath}
               onBindWorkspace={handleBindWorkspaceFromFolder}
               onAddAgentSession={handleAddAgentSession}
               onAddManualSession={handleAddManualSession}
+              onApplyWorktree={handleApplyWorktree}
               onCloseSession={handleCloseSession}
               onContinueRestoredSession={handleContinueRestoredSession}
               onRestartSession={handleRestartSession}
@@ -1336,6 +1476,7 @@ export function App() {
               onApproveTile={handleApproveTile}
               onRejectTile={handleRejectTile}
               onResizeTile={handleResizeTile}
+              onReviewWorktree={handleReviewWorktree}
               onUpdateStagedSession={handleUpdateStagedSession}
             />
           </div>
@@ -1772,6 +1913,33 @@ function normalizeMissionDraftLine(value: string, maxLength: number): string {
 
 function truncateText(value: string, maxLength: number): string {
   return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
+}
+
+function isReviewableWorktreeSession(
+  session: Pick<SessionTile, "baseCwd" | "branchName" | "isolation"> | null | undefined,
+): boolean {
+  if (session?.isolation === "shared") return false;
+  return Boolean(session?.baseCwd && session.branchName);
+}
+
+function worktreeDiffDetail(result: {
+  summary: string;
+  files: Array<{ path: string; status: string }>;
+}): string {
+  if (result.files.length === 0) {
+    return "No changes in the isolated checkout.";
+  }
+
+  const preview = result.files
+    .slice(0, 5)
+    .map((file) => `${file.status} ${file.path}`)
+    .join(", ");
+  const remaining = result.files.length > 5 ? `, +${result.files.length - 5} more` : "";
+  return `${result.summary}: ${preview}${remaining}`;
+}
+
+function changedFileCountLabel(count: number): string {
+  return `${count} file${count === 1 ? "" : "s"}`;
 }
 
 function createStagedPlanSnapshot({

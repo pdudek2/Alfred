@@ -158,6 +158,106 @@ describe("staged-plan-store", () => {
     );
   });
 
+  it.each(["codex", "claude"] as const)("persists %s isolation updates and recomputes worktree preflight", async (kind) => {
+    const plan = createPlan();
+    if (plan.sessions[0]) {
+      plan.sessions[0] = { ...plan.sessions[0], kind, command: kind, args: [] };
+    }
+    await setStagedPlanSnapshot(plan);
+    const preflightAgentWorktree = vi.fn().mockResolvedValue({
+      ok: true,
+      branchName: `alfred-${kind}-isolated`,
+      baseCwd: "/repo",
+      cwd: `/repo/.alfred-worktrees/alfred-${kind}-isolated`,
+    });
+
+    const response = await updateStagedPlanSession(
+      {
+        planId: "plan-1",
+        sessionId: "alfred-1",
+        patch: { isolation: "worktree" },
+        workspace: { id: "A", label: "Alfred", rootPath: "/repo" },
+      },
+      { preflightOptions: { commandExists: async () => true, preflightAgentWorktree } },
+    );
+
+    expect(response).toMatchObject({ ok: true });
+    if (!response.ok) throw new Error(response.error.message);
+    expect(preflightAgentWorktree).toHaveBeenCalled();
+    expect(response.plan.sessions[0]).toMatchObject({
+      id: "alfred-1",
+      kind,
+      isolation: "worktree",
+      launchPreflight: {
+        status: "ready",
+        isolation: "worktree",
+        branchName: `alfred-${kind}-isolated`,
+      },
+    });
+  });
+
+  it.each(["shell", "dev-server"] as const)("rejects %s worktree isolation patches", async (kind) => {
+    const plan = createPlan();
+    if (plan.sessions[0]) {
+      plan.sessions[0] = { ...plan.sessions[0], kind };
+    }
+    await setStagedPlanSnapshot(plan);
+
+    await expect(
+      updateStagedPlanSession({
+        planId: "plan-1",
+        sessionId: "alfred-1",
+        patch: { isolation: "worktree" },
+        workspace: { id: "A", label: "Alfred", rootPath: "/repo" },
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: {
+        code: "malformed",
+        message: "Staged session worktree isolation requires a codex or claude session.",
+      },
+    });
+  });
+
+  it.each(["codex", "claude"] as const)("rejects %s worktree isolation patches without a workspace root", async (kind) => {
+    const plan = createPlan();
+    if (plan.sessions[0]) {
+      plan.sessions[0] = { ...plan.sessions[0], kind, command: kind, args: [] };
+    }
+    await setStagedPlanSnapshot(plan);
+
+    await expect(
+      updateStagedPlanSession({
+        planId: "plan-1",
+        sessionId: "alfred-1",
+        patch: { isolation: "worktree" },
+        workspace: { id: "A", label: "Alfred" },
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: {
+        code: "malformed",
+        message: "Staged session worktree isolation requires a workspace root.",
+      },
+    });
+  });
+
+  it("rejects invalid isolation patches", async () => {
+    await setStagedPlanSnapshot(createPlan());
+
+    await expect(
+      updateStagedPlanSession({
+        planId: "plan-1",
+        sessionId: "alfred-1",
+        patch: { isolation: "detached" as "worktree" },
+        workspace: { id: "A", label: "Alfred", rootPath: "/repo" },
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: { code: "malformed", message: "Staged session isolation must be shared or worktree." },
+    });
+  });
+
   it("recomputes safety when a staged session becomes unsafe", async () => {
     const plan = createPlan();
     await setStagedPlanSnapshot(plan);
