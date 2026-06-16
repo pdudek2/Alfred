@@ -2330,7 +2330,7 @@ describe("App integration", () => {
     expect(tile).toHaveTextContent("Waiting for approval");
   });
 
-  it("sends quick approval responses from the focused activity panel", async () => {
+  it("keeps approval context informational in the focused activity panel", async () => {
     const user = userEvent.setup();
     const { writeTerminal } = installDesktopBridge(undefined, null, [
       {
@@ -2362,10 +2362,13 @@ describe("App integration", () => {
     const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
     await user.dblClick(tile.querySelector(".tile-header")!);
 
-    expect(screen.getByRole("group", { name: "Approval actions for Codex · session 1" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Send yes" }));
-
-    expect(writeTerminal).toHaveBeenCalledWith({ id: "runtime-a", data: "y\n" });
+    const pulse = screen.getByRole("region", { name: "Session pulse" });
+    expect(pulse).toHaveTextContent("needs you");
+    expect(pulse).toHaveTextContent("Waiting for approval");
+    expect(screen.queryByRole("group", { name: "Approval actions for Codex · session 1" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send yes" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send no" })).not.toBeInTheDocument();
+    expect(writeTerminal).not.toHaveBeenCalled();
   });
 
   it("reveals file activity from the focused activity panel", async () => {

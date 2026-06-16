@@ -153,9 +153,6 @@ export function TerminalDesk({
     [arrangeMode, onFocusSession, onSelectSession],
   );
   const handleSelectSession = useCallback((sessionId: string) => onSelectSession(sessionId), [onSelectSession]);
-  const handleSendSessionInput = useCallback((runtimeId: TerminalSessionId, data: string) => {
-    getDesktopTerminalApi()?.write({ id: runtimeId, data });
-  }, []);
   const handleCopyActivityText = useCallback(async (value: string) => {
     if (!navigator.clipboard?.writeText) {
       throw new Error("Clipboard is unavailable.");
@@ -408,7 +405,6 @@ export function TerminalDesk({
             onCopyActivityText={handleCopyActivityText}
             onOpenExternalTerminal={handleOpenExternalTerminal}
             onRevealActivityFile={handleRevealActivityFile}
-            onSendInput={handleSendSessionInput}
             onUpdateStagedSession={onUpdateStagedSession}
           />
         )}
@@ -446,13 +442,23 @@ function WorktreeActionStrip({
 }
 
 function RecoveryWorkspaceStrip({ sessions }: { sessions: SessionTile[] }) {
+  const headline = recoveryHeadline(sessions);
+  const summary = recoverySummary(sessions);
+
   return (
     <section className="recovery-workspace-strip" aria-label="Session recovery">
-      <div>
-        <span>Recovery</span>
-        <strong>{recoveryHeadline(sessions)}</strong>
-        <p>{recoverySummary(sessions) || "Saved transcript available"}</p>
-      </div>
+      <span>Recovery</span>
+      <p>
+        <strong>{headline}</strong>
+        {summary ? (
+          <>
+            <span aria-hidden="true"> · </span>
+            <span>{summary}</span>
+          </>
+        ) : (
+          <span>Saved transcript available</span>
+        )}
+      </p>
     </section>
   );
 }
@@ -557,20 +563,22 @@ function EmptyWorkspaceState({
         </div>
       </dl>
       <div className="terminal-empty-actions" aria-label="empty workspace actions">
-        <button type="button" onClick={onAddManualSession}>
+        <button type="button" className="terminal-empty-primary-action" onClick={onAddManualSession}>
           New terminal
         </button>
-        <button type="button" onClick={() => onAddAgentSession("codex")}>
-          Start Codex
-        </button>
-        <button type="button" onClick={() => onAddAgentSession("claude")}>
-          Start Claude
-        </button>
-        {!bound && (
-          <button type="button" onClick={onBindWorkspace}>
-            Bind folder
+        <div className="terminal-empty-secondary-actions">
+          <button type="button" onClick={() => onAddAgentSession("codex")}>
+            Start Codex
           </button>
-        )}
+          <button type="button" onClick={() => onAddAgentSession("claude")}>
+            Start Claude
+          </button>
+          {!bound && (
+            <button type="button" onClick={onBindWorkspace}>
+              Bind folder
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -578,14 +586,14 @@ function EmptyWorkspaceState({
 
 function workspaceHomeCopy(rootPath: string | undefined, gitBranch: string | undefined): string {
   if (rootPath && gitBranch) {
-    return `Bound to ${shortenPath(rootPath)} on ${gitBranch}. Start a session when you are ready.`;
+    return `Start a terminal in ${shortenPath(rootPath)} on ${gitBranch}.`;
   }
 
   if (rootPath) {
-    return `Bound to ${shortenPath(rootPath)}. Start a session when you are ready.`;
+    return `Start a terminal in ${shortenPath(rootPath)}.`;
   }
 
-  return "No project folder is bound yet. Start in the scratch desk, or bind a folder when you want project context.";
+  return "Start in the scratch desk, or bind a folder for project context.";
 }
 
 function relaunchButtonLabel(action: "relaunch" | "restart", unsafe: boolean, armed: boolean): string {
@@ -725,6 +733,7 @@ function ManualTerminalTile({
   const latestActivity = latestVisibleActivity(activityEvents);
   const ageLabel = sessionAgeLabel(createdAt, displayClock);
   const sessionLocationLabel = isolatedCheckout ? "isolated worktree" : (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
+  const sessionLocationMetaLabel = isolatedCheckout ? "worktree" : "cwd";
   const sessionLocationTitle = isolatedCheckout
     ? branchName
       ? baseCwd
@@ -1101,7 +1110,8 @@ function ManualTerminalTile({
               <b>{title}</b>
             )}
             <small title={sessionLocationTitle}>
-              {kindMeta.label} · {sessionLocationLabel}
+              <span>{sessionLocationMetaLabel}</span>
+              <span>{sessionLocationLabel}</span>
             </small>
           </div>
         </div>
@@ -1113,74 +1123,84 @@ function ManualTerminalTile({
           </div>
         )}
         <div className="tile-actions">
-          {ageLabel && (
-            <span className="tile-age" title={sessionAgeTitle(createdAt)}>
-              {ageLabel}
-            </span>
+          <div className="tile-action-group tile-status-group">
+            {ageLabel && (
+              <span className="tile-age" title={sessionAgeTitle(createdAt)}>
+                {ageLabel}
+              </span>
+            )}
+            <span className={`tile-status status-${displayStatus.kind}`}>{displayStatus.label}</span>
+          </div>
+          {(tileStatus === "restored" || restartable) && (
+            <div className="tile-action-group tile-primary-actions">
+              {tileStatus === "restored" && (
+                <button
+                  type="button"
+                  className={`continue-button ${relaunchNeedsReview ? "unsafe" : ""} ${relaunchArmed ? "armed" : ""}`}
+                  aria-label={`${restoredActionLabel} ${title}`}
+                  onClick={onContinueRestoredSession}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  title={relaunchNeedsReview ? relaunchSafety.reason : "Resume this saved session"}
+                >
+                  {relaunchNeedsReview ? <AlertTriangle size={13} /> : <Play size={13} />}
+                  <span>{restoredActionLabel}</span>
+                </button>
+              )}
+              {restartable && (
+                <button
+                  type="button"
+                  className={`continue-button ${relaunchNeedsReview ? "unsafe" : ""} ${relaunchArmed ? "armed" : ""}`}
+                  aria-label={`${relaunchButtonLabel("restart", relaunchNeedsReview, relaunchArmed)} ${title}`}
+                  onClick={onRestartSession}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  title={relaunchNeedsReview ? relaunchSafety.reason : "Restart this session"}
+                >
+                  {relaunchNeedsReview ? <AlertTriangle size={13} /> : <RotateCcw size={13} />}
+                  <span>{relaunchButtonLabel("restart", relaunchNeedsReview, relaunchArmed)}</span>
+                </button>
+              )}
+            </div>
           )}
-          <span className={`tile-status status-${displayStatus.kind}`}>{displayStatus.label}</span>
-          {tileStatus === "restored" && (
+          <div className="tile-action-group tile-utility-actions">
+            {externalTerminalCwd && (
+              <button
+                type="button"
+                className="handoff-button"
+                aria-label={`Open ${title} in external terminal`}
+                onClick={() => void onOpenExternalTerminal(externalTerminalCwd)}
+                onPointerDown={(event) => event.stopPropagation()}
+                title={`Open in external terminal: ${shortenPath(externalTerminalCwd)}`}
+              >
+                <SquareTerminal size={14} />
+              </button>
+            )}
             <button
               type="button"
-              className={`continue-button ${relaunchNeedsReview ? "unsafe" : ""} ${relaunchArmed ? "armed" : ""}`}
-              aria-label={`${restoredActionLabel} ${title}`}
-              onClick={onContinueRestoredSession}
+              className="rename-session-button"
+              aria-label={`Rename ${title}`}
+              onClick={() => {
+                setRenameDraft(title);
+                setRenaming(true);
+              }}
               onPointerDown={(event) => event.stopPropagation()}
-              title={relaunchNeedsReview ? relaunchSafety.reason : "Resume this saved session"}
+              title="Rename session"
             >
-              {relaunchNeedsReview ? <AlertTriangle size={13} /> : <Play size={13} />}
-              <span>{restoredActionLabel}</span>
+              <Pencil size={13} />
             </button>
-          )}
-          {restartable && (
+          </div>
+          <div className="tile-action-group tile-danger-actions">
             <button
               type="button"
-              className={`continue-button ${relaunchNeedsReview ? "unsafe" : ""} ${relaunchArmed ? "armed" : ""}`}
-              aria-label={`${relaunchButtonLabel("restart", relaunchNeedsReview, relaunchArmed)} ${title}`}
-              onClick={onRestartSession}
+              className={discardableSession ? "discard-session-button" : undefined}
+              aria-label={`${closeActionLabel} ${title}`}
+              onClick={onClose}
               onPointerDown={(event) => event.stopPropagation()}
-              title={relaunchNeedsReview ? relaunchSafety.reason : "Restart this session"}
+              title={closeActionTitle}
             >
-              {relaunchNeedsReview ? <AlertTriangle size={13} /> : <RotateCcw size={13} />}
-              <span>{relaunchButtonLabel("restart", relaunchNeedsReview, relaunchArmed)}</span>
+              <X size={14} />
+              {discardableSession && <span>{closeActionLabel}</span>}
             </button>
-          )}
-          {externalTerminalCwd && (
-            <button
-              type="button"
-              className="handoff-button"
-              aria-label={`Open ${title} in external terminal`}
-              onClick={() => void onOpenExternalTerminal(externalTerminalCwd)}
-              onPointerDown={(event) => event.stopPropagation()}
-              title={`Open in external terminal: ${shortenPath(externalTerminalCwd)}`}
-            >
-              <SquareTerminal size={14} />
-            </button>
-          )}
-          <button
-            type="button"
-            className="rename-session-button"
-            aria-label={`Rename ${title}`}
-            onClick={() => {
-              setRenameDraft(title);
-              setRenaming(true);
-            }}
-            onPointerDown={(event) => event.stopPropagation()}
-            title="Rename session"
-          >
-            <Pencil size={13} />
-          </button>
-          <button
-            type="button"
-            className={discardableSession ? "discard-session-button" : undefined}
-            aria-label={`${closeActionLabel} ${title}`}
-            onClick={onClose}
-            onPointerDown={(event) => event.stopPropagation()}
-            title={closeActionTitle}
-          >
-            <X size={14} />
-            {discardableSession && <span>{closeActionLabel}</span>}
-          </button>
+          </div>
         </div>
       </header>
       <div className="xterm-host" ref={containerRef} />

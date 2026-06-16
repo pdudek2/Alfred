@@ -26,10 +26,13 @@ export function ComposerBar({
   const blocked = blockedReason !== undefined;
   const composerDisabled = disabled || thinking;
   const canSubmit = !composerDisabled && !blocked && value.trim().length > 0;
+  const state = thinking ? "busy" : blocked ? "blocked" : disabled ? "disabled" : "ready";
   const status = thinking
     ? "Alfred is preparing a launch plan."
     : blocked
       ? blockedReason
+      : disabled
+        ? "Composer paused."
       : `Ready in ${workspaceName}.`;
 
   const handleKeyDown = useCallback(
@@ -48,7 +51,7 @@ export function ComposerBar({
   );
 
   return (
-    <div className="composer-bar" role="form" aria-label="Alfred composer">
+    <div className="composer-bar" role="form" aria-label="Alfred composer" data-state={state}>
       <div className="alfred-mark" aria-hidden="true">A</div>
       <textarea
         className="composer-input"
@@ -71,6 +74,7 @@ export function ComposerBar({
         {thinking ? "Thinking…" : "Send"}
       </button>
       <div className="composer-status-row">
+        <span className="composer-status-indicator" aria-hidden="true" />
         <span className="composer-status" id="composer-status" role="status" aria-live="polite">
           {status}
         </span>

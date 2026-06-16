@@ -85,4 +85,23 @@ describe("ComposerBar", () => {
 
     expect(onBlockedAction).toHaveBeenCalledOnce();
   });
+
+  it("shows a disabled status without changing form semantics", () => {
+    render(
+      <ComposerBar
+        blockedReason={undefined}
+        thinking={false}
+        disabled
+        value=""
+        workspaceName="Alfred"
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("form", { name: "Alfred composer" })).toHaveAttribute("data-state", "disabled");
+    expect(screen.getByRole("status")).toHaveTextContent("Composer paused.");
+    expect(screen.getByLabelText("Alfred prompt")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send prompt to Alfred" })).toBeDisabled();
+  });
 });

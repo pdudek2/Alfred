@@ -564,9 +564,7 @@ describe("AgentTimelinePanel", () => {
     expect(screen.getAllByText("rm -rf detected").length).toBeGreaterThan(0);
   });
 
-  it("sends custom input to the focused live session", async () => {
-    const user = userEvent.setup();
-    const onSendInput = vi.fn();
+  it("keeps live approval sessions informational in the right dock", () => {
     const session: SessionTile = {
       id: "s1",
       title: "codex — approval",
@@ -580,12 +578,15 @@ describe("AgentTimelinePanel", () => {
       ],
     };
 
-    render(<AgentTimelinePanel session={session} onSendInput={onSendInput} />);
+    render(<AgentTimelinePanel session={session} />);
 
-    await user.type(screen.getByRole("textbox", { name: "Session input" }), "2");
-    await user.click(screen.getByRole("button", { name: "Send" }));
-
-    expect(onSendInput).toHaveBeenCalledWith("runtime-1", "2\n");
-    expect(screen.getByRole("textbox", { name: "Session input" })).toHaveValue("");
+    const pulse = screen.getAllByRole("region", { name: "Session pulse" }).at(-1);
+    expect(pulse).toBeDefined();
+    if (!pulse) throw new Error("Session pulse not rendered");
+    expect(within(pulse).getByText("needs you")).toBeInTheDocument();
+    expect(within(pulse).getByText("Waiting for approval")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Session input" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send yes" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send no" })).not.toBeInTheDocument();
   });
 });
