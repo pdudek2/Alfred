@@ -10,7 +10,6 @@ type AgentTimelinePanelProps = {
   onCopyActivityText?: (value: string) => Promise<void> | void;
   onOpenExternalTerminal?: (cwd: string) => Promise<void> | void;
   onRevealActivityFile?: (filePath: string, cwd: string) => Promise<void> | void;
-  onSendInput?: (runtimeId: string, data: string) => void;
   onUpdateStagedSession?: (sessionId: string, patch: AlfredStagedSessionPatch) => Promise<void>;
   session: SessionTile | null;
 };
@@ -19,7 +18,6 @@ export function AgentTimelinePanel({
   onCopyActivityText,
   onOpenExternalTerminal,
   onRevealActivityFile,
-  onSendInput,
   onUpdateStagedSession,
   session,
 }: AgentTimelinePanelProps) {
@@ -29,7 +27,6 @@ export function AgentTimelinePanel({
   const [editDraft, setEditDraft] = useState<StagedEditDraft>(() => emptyEditDraft());
   const [editError, setEditError] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
-  const [inputDraft, setInputDraft] = useState("");
   const [payloadActionState, setPayloadActionState] = useState<Record<string, string>>({});
   const [sessionActionState, setSessionActionState] = useState<Record<string, string>>({});
 
@@ -38,7 +35,6 @@ export function AgentTimelinePanel({
     setEditDraft(emptyEditDraft());
     setEditError(null);
     setEditSaving(false);
-    setInputDraft("");
     setPayloadActionState({});
     setSessionActionState({});
   }, [session?.id]);
@@ -70,33 +66,16 @@ export function AgentTimelinePanel({
   const ageLabel = sessionAgeLabel(session.createdAt, ageClock);
   const activityDigest = activityDigestItems(activityEvents);
   const activitySummary = summarizeActivityEvents(activityEvents);
-  const latestApproval = latestApprovalEvent(activityEvents);
   const pulseCard = sessionPulseCard(session, displayStatus, activityEvents);
-  const handoffActions = sessionHandoffActions(session, command);
   const isolatedCheckout = isIsolatedCheckoutSession(session);
+  const summaryCard = sessionSummaryCard(session, kindMeta.label, isolatedCheckout);
+  const handoffActions = sessionHandoffActions(session, command);
   const worktreeLifecycleActions = isolatedCheckout ? isolatedCheckoutLifecycleActions() : [];
   const cwdFactLabel = session.cwd ? shortenWorktreeLabel(session.cwd) : "default workspace";
   const branchFactLabel = session.branchName ? shortenWorktreeLabel(session.branchName) : null;
   const baseFactLabel = session.baseCwd ? shortenWorktreeLabel(session.baseCwd) : null;
   const isolationFactLabel = isolatedCheckout ? "isolated worktree" : session.isolation === "shared" ? "shared workspace" : null;
   const canEditStagedSession = isEditableStagedSession(session) && Boolean(onUpdateStagedSession);
-  const canSendApprovalResponse =
-    Boolean(onSendInput) &&
-    Boolean(session.runtimeId) &&
-    session.stage === "live" &&
-    session.runtimeStatus !== "exited" &&
-    session.runtimeStatus !== "error" &&
-    session.runtimeStatus !== "restored";
-  const sendApprovalResponse = (data: string) => {
-    if (!session.runtimeId || !onSendInput) return;
-    onSendInput(session.runtimeId, data);
-  };
-  const submitInputDraft = () => {
-    const value = inputDraft.trim();
-    if (!value || !session.runtimeId || !onSendInput) return;
-    onSendInput(session.runtimeId, `${value}\n`);
-    setInputDraft("");
-  };
   const startEdit = () => {
     setEditDraft({
       args: argsToDraft(session.args),
@@ -289,69 +268,86 @@ export function AgentTimelinePanel({
             </div>
           </form>
         )}
-        <dl className="agent-session-facts" aria-label="session details">
-          <div>
-            <dt>kind</dt>
-            <dd>{kindMeta.label}</dd>
+        <section className="agent-panel-section agent-session-summary" aria-label="Session summary">
+          <div className="agent-section-heading">
+            <span>summary</span>
+            <strong>{summaryCard.title}</strong>
+            {summaryCard.detail && <p>{summaryCard.detail}</p>}
           </div>
-          <div>
-            <dt>cwd</dt>
-            <dd {...fullFactValueProps(session.cwd, cwdFactLabel)}>{cwdFactLabel}</dd>
-          </div>
-          {isolationFactLabel && (
+          <dl className="agent-session-facts" aria-label="session details">
             <div>
-              <dt>isolation</dt>
-              <dd>{isolationFactLabel}</dd>
+              <dt>kind</dt>
+              <dd>{kindMeta.label}</dd>
             </div>
-          )}
-          {session.branchName && (
             <div>
-              <dt>branch</dt>
-              <dd {...fullFactValueProps(session.branchName, branchFactLabel ?? session.branchName)}>
-                {branchFactLabel}
-              </dd>
+              <dt>cwd</dt>
+              <dd {...fullFactValueProps(session.cwd, cwdFactLabel)}>{cwdFactLabel}</dd>
             </div>
+            {isolationFactLabel && (
+              <div>
+                <dt>isolation</dt>
+                <dd>{isolationFactLabel}</dd>
+              </div>
+            )}
+            {session.branchName && (
+              <div>
+                <dt>branch</dt>
+                <dd {...fullFactValueProps(session.branchName, branchFactLabel ?? session.branchName)}>
+                  {branchFactLabel}
+                </dd>
+              </div>
+            )}
+            {session.baseCwd && (
+              <div>
+                <dt>base</dt>
+                <dd {...fullFactValueProps(session.baseCwd, baseFactLabel ?? session.baseCwd)}>{baseFactLabel}</dd>
+              </div>
+            )}
+            {command && (
+              <div>
+                <dt>command</dt>
+                <dd title={command} aria-label={command}>{command}</dd>
+              </div>
+            )}
+            {ageLabel && (
+              <div>
+                <dt>age</dt>
+                <dd title={sessionAgeTitle(session.createdAt)}>{ageLabel}</dd>
+              </div>
+            )}
+            {activitySummary && (
+              <div>
+                <dt>activity</dt>
+                <dd>{activitySummary}</dd>
+              </div>
+            )}
+            {session.lastActivityAt && (
+              <div>
+                <dt>last activity</dt>
+                <dd>{formatActivityTime(session.lastActivityAt)}</dd>
+              </div>
+            )}
+            {session.lastOutputAt && (
+              <div>
+                <dt>last output</dt>
+                <dd>{formatActivityTime(session.lastOutputAt)}</dd>
+              </div>
+            )}
+          </dl>
+          {activityDigest.length > 0 && (
+            <section className="agent-activity-digest" aria-label="Activity digest">
+              {activityDigest.map((item) => (
+                <div className={`tone-${item.tone}`} key={item.label}>
+                  <strong>{item.value}</strong>
+                  <span>{countedLabel(item.value, item.label)}</span>
+                </div>
+              ))}
+            </section>
           )}
-          {session.baseCwd && (
-            <div>
-              <dt>base</dt>
-              <dd {...fullFactValueProps(session.baseCwd, baseFactLabel ?? session.baseCwd)}>{baseFactLabel}</dd>
-            </div>
-          )}
-          {command && (
-            <div>
-              <dt>command</dt>
-              <dd>{command}</dd>
-            </div>
-          )}
-          {ageLabel && (
-            <div>
-              <dt>age</dt>
-              <dd title={sessionAgeTitle(session.createdAt)}>{ageLabel}</dd>
-            </div>
-          )}
-          {activitySummary && (
-            <div>
-              <dt>activity</dt>
-              <dd>{activitySummary}</dd>
-            </div>
-          )}
-          {session.lastActivityAt && (
-            <div>
-              <dt>last activity</dt>
-              <dd>{formatActivityTime(session.lastActivityAt)}</dd>
-            </div>
-          )}
-          {session.lastOutputAt && (
-            <div>
-              <dt>last output</dt>
-              <dd>{formatActivityTime(session.lastOutputAt)}</dd>
-            </div>
-          )}
-        </dl>
+        </section>
         {handoffActions.length > 0 && (
-          <section className="agent-handoff-actions" aria-label={`Handoff actions for ${session.title}`}>
-            <div>
+          <section className="agent-panel-section agent-handoff-actions" aria-label={`Handoff actions for ${session.title}`}>
+            <div className="agent-section-heading">
               <span>handoff</span>
               <strong>Continue outside Alfred</strong>
             </div>
@@ -368,10 +364,10 @@ export function AgentTimelinePanel({
           </section>
         )}
         {worktreeLifecycleActions.length > 0 && (
-          <section className="agent-handoff-actions" aria-label={`Checkout lifecycle for ${session.title}`}>
-            <div>
+          <section className="agent-panel-section agent-handoff-actions" aria-label={`Checkout lifecycle for ${session.title}`}>
+            <div className="agent-section-heading">
               <span>checkout</span>
-              <strong>Keep isolated changes explicit</strong>
+              <strong>Isolated checkout context</strong>
               <p className="agent-handoff-note">Use the checkout actions above to review or apply changes.</p>
             </div>
             <div className="agent-handoff-buttons">
@@ -384,101 +380,61 @@ export function AgentTimelinePanel({
           </section>
         )}
         {pulseCard && (
-          <section className={`agent-session-pulse tone-${pulseCard.tone}`} aria-label="Session pulse">
-            <span>{pulseCard.label}</span>
-            <strong>{pulseCard.title}</strong>
-            <p>{pulseCard.detail}</p>
-            {pulseCard.at > 0 && (
-              <time dateTime={new Date(pulseCard.at).toISOString()}>{formatActivityTime(pulseCard.at)}</time>
-            )}
-          </section>
-        )}
-        {activityDigest.length > 0 && (
-          <section className="agent-activity-digest" aria-label="Activity digest">
-            {activityDigest.map((item) => (
-              <div className={`tone-${item.tone}`} key={item.label}>
-                <strong>{item.value}</strong>
-                <span>{countedLabel(item.value, item.label)}</span>
-              </div>
-            ))}
-          </section>
-        )}
-        {latestApproval && canSendApprovalResponse && session.runtimeId && (
-          <div className="agent-approval-actions" role="group" aria-label={`Approval actions for ${session.title}`}>
-            <div>
-              <span>approval</span>
-              <strong>{latestApproval.title}</strong>
+          <section className="agent-panel-section agent-key-signal" aria-label="Session pulse">
+            <div className="agent-section-heading">
+              <span>signal</span>
+              <strong>Key signal</strong>
             </div>
-            <button type="button" onClick={() => sendApprovalResponse("y\n")}>
-              Send yes
-            </button>
-            <button type="button" onClick={() => sendApprovalResponse("n\n")}>
-              Send no
-            </button>
+            <div className={`agent-session-pulse tone-${pulseCard.tone}`}>
+              <span>{pulseCard.label}</span>
+              <strong>{pulseCard.title}</strong>
+              <p>{pulseCard.detail}</p>
+              {pulseCard.at > 0 && (
+                <time dateTime={new Date(pulseCard.at).toISOString()}>{formatActivityTime(pulseCard.at)}</time>
+              )}
+            </div>
+          </section>
+        )}
+        <section className="agent-panel-section agent-timeline-section" aria-label="Activity timeline">
+          <div className="agent-section-heading">
+            <span>timeline</span>
+            <strong>{displayedEvents.length === 1 ? "1 event" : `${displayedEvents.length} events`}</strong>
+            <p>Latest stored activity and runtime state.</p>
           </div>
-        )}
-        {canSendApprovalResponse && (
-          <form
-            className="agent-session-input"
-            aria-label={`Send input to ${session.title}`}
-            onSubmit={(event) => {
-              event.preventDefault();
-              submitInputDraft();
-            }}
-          >
-            <input
-              aria-label="Session input"
-              placeholder="Send input to this session..."
-              value={inputDraft}
-              onChange={(event) => setInputDraft(event.target.value)}
-            />
-            <button type="submit" disabled={inputDraft.trim().length === 0}>
-              Send
-            </button>
-          </form>
-        )}
-        <ol className="agent-activity-list">
-          {displayedEvents.map((event) => {
-            const payload = activityPayloadView(event);
-            return (
-              <li className={event.kind} key={event.id}>
-                <span />
-                <div>
-                  <b>{event.title}</b>
-                  <p>{event.detail}</p>
-                  {payload && (
-                    <div className={`agent-activity-object type-${payload.type}`}>
-                      <span>{payload.label}</span>
-                      <code>{payload.value}</code>
-                      <button
-                        type="button"
-                        onClick={() => void handlePayloadAction(event, payload)}
-                        disabled={
-                          payloadActionState[event.id] === "opening" || payloadActionState[event.id] === "copying"
-                        }
-                        aria-label={`${payload.actionLabel} ${payload.label}: ${payload.value}`}
-                      >
-                        {payloadActionState[event.id] ?? payload.actionLabel}
-                      </button>
-                    </div>
-                  )}
-                  {event.at > 0 && (
-                    <time dateTime={new Date(event.at).toISOString()}>{formatActivityTime(event.at)}</time>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-          {session.safetyNote && (
-            <li className="warning">
-              <span />
-              <div>
-                <b>Safety review required</b>
-                <p>{session.safetyNote}</p>
-              </div>
-            </li>
-          )}
-        </ol>
+          <ol className="agent-activity-list">
+            {displayedEvents.map((event) => {
+              const payload = activityPayloadView(event);
+              return (
+                <li className={event.kind} key={event.id}>
+                  <span />
+                  <div>
+                    <b>{event.title}</b>
+                    <p>{event.detail}</p>
+                    {payload && (
+                      <div className={`agent-activity-object type-${payload.type}`}>
+                        <span>{payload.label}</span>
+                        <code>{payload.value}</code>
+                        <button
+                          type="button"
+                          onClick={() => void handlePayloadAction(event, payload)}
+                          disabled={
+                            payloadActionState[event.id] === "opening" || payloadActionState[event.id] === "copying"
+                          }
+                          aria-label={`${payload.actionLabel} ${payload.label}: ${payload.value}`}
+                        >
+                          {payloadActionState[event.id] ?? payload.actionLabel}
+                        </button>
+                      </div>
+                    )}
+                    {event.at > 0 && (
+                      <time dateTime={new Date(event.at).toISOString()}>{formatActivityTime(event.at)}</time>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
       </div>
     </aside>
   );
@@ -517,6 +473,11 @@ type SessionPulseCard = {
   label: string;
   title: string;
   tone: SessionPulseTone;
+};
+
+type SessionSummaryCard = {
+  detail: string | null;
+  title: string;
 };
 
 type IsolatedCheckoutLifecycleAction = {
@@ -732,15 +693,6 @@ function summarizeActivityEvents(events: NonNullable<SessionTile["activityEvents
     .join(" · ");
 }
 
-function latestApprovalEvent(events: NonNullable<SessionTile["activityEvents"]>): NonNullable<SessionTile["activityEvents"]>[number] | null {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index];
-    if (event?.kind === "approval") return event;
-  }
-
-  return null;
-}
-
 function sessionPulseCard(
   session: SessionTile,
   displayStatus: ReturnType<typeof terminalSessionDisplayStatus>,
@@ -751,7 +703,7 @@ function sessionPulseCard(
       at: session.lastActivityAt ?? 0,
       detail: session.safetyNote,
       label: "review before launch",
-      title: "Safety check required",
+      title: "Safety review required",
       tone: "issue",
     };
   }
@@ -783,7 +735,7 @@ function sessionPulseCard(
       at: session.lastActivityAt ?? 0,
       detail: session.safetyNote ?? "This staged command needs manual review before launch.",
       label: "blocked",
-      title: "Manual review required",
+      title: "Safety review required",
       tone: "issue",
     };
   }
@@ -869,6 +821,24 @@ function sessionPulseCard(
   }
 
   return null;
+}
+
+function sessionSummaryCard(
+  session: SessionTile,
+  kindLabel: string,
+  isolatedCheckout: boolean,
+): SessionSummaryCard {
+  if (session.stage === "staged") {
+    return {
+      title: `${kindLabel} staged plan`,
+      detail: "Launch decisions stay in the review flow; this panel keeps the command context.",
+    };
+  }
+
+  return {
+    title: isolatedCheckout ? "Isolated checkout context" : `${kindLabel} session context`,
+    detail: "Use the facts below for path and command context.",
+  };
 }
 
 function sessionCommandLabel(session: SessionTile): string | null {
