@@ -20,11 +20,16 @@ import type {
 } from "../shared/terminal-ipc";
 import type { WorkspaceApi, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 
+const { terminalConstructorOptions } = vi.hoisted(() => ({
+  terminalConstructorOptions: [] as unknown[],
+}));
+
 vi.mock("@xterm/xterm", () => ({
   Terminal: class {
     cols = 80;
     rows = 24;
     element: HTMLElement | null = null;
+    options: unknown;
     dispose = vi.fn();
     focus = vi.fn(() => {
       this.element?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
@@ -36,6 +41,11 @@ vi.mock("@xterm/xterm", () => ({
     });
     write = vi.fn();
     writeln = vi.fn();
+
+    constructor(options: unknown) {
+      this.options = options;
+      terminalConstructorOptions.push(options);
+    }
   },
 }));
 
@@ -256,6 +266,7 @@ function installDesktopBridge(
 }
 
 beforeEach(() => {
+  terminalConstructorOptions.length = 0;
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
@@ -1167,6 +1178,43 @@ describe("App integration", () => {
       expect(beta).toHaveClass("selected");
       expect(alpha).not.toHaveClass("selected");
     });
+  });
+
+  it("creates embedded terminals with the Ghostty Vesper visual profile", async () => {
+    installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "manual-a",
+        title: "Manual · alpha",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "/bin/zsh",
+        buffer: "alpha output\n",
+      },
+    ]);
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · alpha/i });
+
+    expect(terminalConstructorOptions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          cursorBlink: true,
+          cursorStyle: "bar",
+          fontFamily: expect.stringContaining("Geist Mono"),
+          fontSize: 13,
+          lineHeight: 1.32,
+          theme: expect.objectContaining({
+            background: "#101010",
+            cursor: "#b9aeda",
+            selectionBackground: "#3a2a38",
+            selectionForeground: "#ffffff",
+          }),
+        }),
+      ]),
+    );
   });
 
   it("does not auto-relaunch a failed live agent when switching work modes", async () => {
