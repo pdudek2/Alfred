@@ -1,9 +1,13 @@
 import "@testing-library/jest-dom/vitest";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { AgentTimelinePanel } from "./AgentTimelinePanel";
 import type { SessionTile } from "../session-state";
+
+afterEach(() => {
+  cleanup();
+});
 
 describe("AgentTimelinePanel", () => {
   it("renders an empty state when no session is focused", () => {
@@ -186,8 +190,9 @@ describe("AgentTimelinePanel", () => {
 
     const { container } = render(<AgentTimelinePanel session={session} />);
 
-    expect(screen.getByText("Progress reported")).toBeInTheDocument();
-    expect(screen.getByText("✓ tests passed")).toBeInTheDocument();
+    const timeline = within(container).getByRole("region", { name: "Activity timeline" });
+    expect(within(timeline).getByText("Progress reported")).toBeInTheDocument();
+    expect(within(timeline).getByText("✓ tests passed")).toBeInTheDocument();
     expect(screen.getByText("1 command · 1 signal")).toBeInTheDocument();
     expect(container).not.toHaveTextContent("Terminal output is streaming in the workspace.");
   });
@@ -245,6 +250,45 @@ describe("AgentTimelinePanel", () => {
     expect(objects.some((object) => object.textContent?.includes("editedapps/desktop/src/renderer/app.tsx"))).toBe(true);
     expect(objects.some((object) => object.textContent?.includes("WebSearchAlfred terminal UX"))).toBe(true);
     expect(objects.some((object) => object.textContent?.includes("approvalAllow edit in app.tsx?"))).toBe(true);
+  });
+
+  it("hides raw hook noise behind an explicit raw toggle", async () => {
+    const user = userEvent.setup();
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — hygiene",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/tmp",
+      source: "alfred",
+      runtimeId: "runtime-1",
+      activityEvents: [
+        {
+          id: "raw-1",
+          kind: "output",
+          title: "Progress reported",
+          detail: "SessionStart hook (completed)",
+          at: 100,
+        },
+        {
+          id: "work-1",
+          kind: "file",
+          title: "File activity",
+          detail: "apps/desktop/src/renderer/app.tsx(modified)",
+          at: 120,
+        },
+      ],
+    };
+
+    render(<AgentTimelinePanel session={session} />);
+
+    expect(screen.getByText("File activity")).toBeInTheDocument();
+    expect(screen.queryByText("SessionStart hook (completed)")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Show raw (1)" }));
+
+    expect(screen.getByText("SessionStart hook (completed)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide raw" })).toBeInTheDocument();
   });
 
   it("reveals file payloads and copies text payloads from the activity object", async () => {

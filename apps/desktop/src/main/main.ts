@@ -11,6 +11,7 @@ import {
 } from "./terminal-manager.js";
 import { registerAlfredIpc } from "./alfred-orchestrator.js";
 import { registerLayoutIpc } from "./layout-ipc.js";
+import { registerSessionIndexIpc } from "./session-index-ipc.js";
 import { configureLayoutPersistence } from "./layout-store.js";
 import { createPersistedDesktopStateStore, type PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 import { configureStagedPlanPersistence, isStagedSessionLaunchAllowed } from "./staged-plan-store.js";
@@ -45,6 +46,7 @@ loadDotenv({ path: path.resolve(app.getAppPath(), "../..", ".env") });
 
 registerAlfredIpc();
 registerLayoutIpc();
+registerSessionIndexIpc();
 
 async function createWindow(persistedDesktopStateStore: PersistedDesktopStateStore): Promise<void> {
   const persistedWindowState = (await persistedDesktopStateStore.getState()).windowState;

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import type { AlfredStagedSessionPatch } from "../../shared/alfred-ipc";
+import { meaningfulSignalEvents, presentActivityEvents } from "../activity-presentation";
 import type { SessionActivityEvent, SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
@@ -29,6 +30,7 @@ export function AgentTimelinePanel({
   const [editSaving, setEditSaving] = useState(false);
   const [payloadActionState, setPayloadActionState] = useState<Record<string, string>>({});
   const [sessionActionState, setSessionActionState] = useState<Record<string, string>>({});
+  const [showRawActivity, setShowRawActivity] = useState(false);
 
   useEffect(() => {
     setEditMode(false);
@@ -37,6 +39,7 @@ export function AgentTimelinePanel({
     setEditSaving(false);
     setPayloadActionState({});
     setSessionActionState({});
+    setShowRawActivity(false);
   }, [session?.id]);
 
   useEffect(() => {
@@ -63,6 +66,7 @@ export function AgentTimelinePanel({
   const runtimeStatus = session.runtimeStatus ?? (session.runtimeId ? "live" : "starting");
   const displayStatus = terminalSessionDisplayStatus(session);
   const activityEvents = session.activityEvents ?? [];
+  const presentedActivity = presentActivityEvents(activityEvents, { includeRaw: showRawActivity });
   const ageLabel = sessionAgeLabel(session.createdAt, ageClock);
   const activityDigest = activityDigestItems(activityEvents);
   const activitySummary = summarizeActivityEvents(activityEvents);
@@ -195,7 +199,7 @@ export function AgentTimelinePanel({
   };
   const displayedEvents: SessionActivityEvent[] =
     activityEvents.length > 0
-      ? [...activityEvents].sort((a, b) => b.at - a.at)
+      ? presentedActivity.visibleEvents
       : [
           {
             id: `${session.id}-runtime-status`,
@@ -404,9 +408,27 @@ export function AgentTimelinePanel({
         <section className="agent-panel-section agent-timeline-section" aria-label="Activity timeline">
           <div className="agent-section-heading">
             <span>timeline</span>
-            <strong>{displayedEvents.length === 1 ? "1 event" : `${displayedEvents.length} events`}</strong>
-            <p>Latest stored activity and runtime state.</p>
+            <strong>{activityEvents.length === 1 ? "1 event" : `${activityEvents.length} events`}</strong>
+            <p>{showRawActivity ? "Raw stream with debug activity included." : "Important activity, with debug noise hidden."}</p>
           </div>
+          {presentedActivity.hiddenRawCount > 0 && (
+            <button
+              type="button"
+              className="agent-raw-toggle"
+              onClick={() => setShowRawActivity(true)}
+            >
+              Show raw ({presentedActivity.hiddenRawCount})
+            </button>
+          )}
+          {showRawActivity && presentedActivity.rawEvents.length > 0 && (
+            <button
+              type="button"
+              className="agent-raw-toggle"
+              onClick={() => setShowRawActivity(false)}
+            >
+              Hide raw
+            </button>
+          )}
           <ol className="agent-activity-list">
             {displayedEvents.map((event) => {
               const payload = activityPayloadView(event);
@@ -809,20 +831,9 @@ function sessionPulseCard(
     return {
       at: latestSignal.at,
       detail: latestSignal.detail,
-      label: "latest signal",
+      label: latestSignal.kind === "output" ? "latest output" : "latest signal",
       title: latestSignal.title,
       tone: latestSignal.kind === "plan" ? "work" : "signal",
-    };
-  }
-
-  const latestOutput = latestEventOfKind(events, "output");
-  if (latestOutput) {
-    return {
-      at: latestOutput.at,
-      detail: latestOutput.detail,
-      label: "latest output",
-      title: latestOutput.title,
-      tone: "signal",
     };
   }
 
@@ -875,13 +886,7 @@ function latestEventOfKind(
 function latestStructuredSignal(
   events: NonNullable<SessionTile["activityEvents"]>,
 ): NonNullable<SessionTile["activityEvents"]>[number] | null {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index];
-    if (!event || event.kind === "lifecycle" || event.kind === "output") continue;
-    return event;
-  }
-
-  return null;
+  return meaningfulSignalEvents(events).at(-1) ?? null;
 }
 
 function runtimeEventTitle(status: SessionTile["runtimeStatus"]): string {
