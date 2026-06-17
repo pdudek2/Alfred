@@ -25,6 +25,7 @@ import { shortenPath } from "../path-display";
 import { recoveryHeadline, recoverySummary } from "../recovery-display";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { normalizeSessionTitle } from "../../shared/session-title";
+import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 
 const ARRANGE_GRID_ROW_HEIGHT = 84;
 
@@ -758,35 +759,13 @@ function ManualTerminalTile({
     const terminal = new Terminal({
       allowProposedApi: false,
       convertEol: true,
-      cursorBlink: true,
+      cursorBlink: ghosttyVesperTerminalProfile.cursorBlink,
+      cursorStyle: ghosttyVesperTerminalProfile.cursorStyle,
       disableStdin: restoredTranscript || !terminalApi,
-      fontFamily: '"Berkeley Mono", "JetBrains Mono", "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
-      fontSize: 13,
-      lineHeight: 1.32,
-      theme: {
-        background: "#050807",
-        foreground: "#ded8c8",
-        cursor: "#fff4d8",
-        cursorAccent: "#050807",
-        selectionBackground: "#29494d",
-        selectionForeground: "#fff8e9",
-        black: "#050807",
-        blue: "#48b9d6",
-        brightBlack: "#8a8171",
-        brightBlue: "#88dcf2",
-        brightCyan: "#9eeaf2",
-        brightGreen: "#b5f0be",
-        brightMagenta: "#d0c6ff",
-        brightRed: "#ff9d92",
-        brightWhite: "#fff8e9",
-        brightYellow: "#ffe08a",
-        cyan: "#56d4df",
-        green: "#7ce08f",
-        magenta: "#b7a1ff",
-        red: "#ef8173",
-        white: "#f2eadc",
-        yellow: "#e0b84e",
-      },
+      fontFamily: ghosttyVesperTerminalProfile.fontFamily,
+      fontSize: ghosttyVesperTerminalProfile.fontSize,
+      lineHeight: ghosttyVesperTerminalProfile.lineHeight,
+      theme: ghosttyVesperTerminalProfile.theme,
     });
     const fitAddon = new FitAddon();
 
