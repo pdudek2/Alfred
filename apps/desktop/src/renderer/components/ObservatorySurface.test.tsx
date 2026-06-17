@@ -109,4 +109,5 @@ describe("ObservatorySurface", () => {
     expect(screen.getByText("No sessions match.")).toBeInTheDocument();
     expect(screen.queryByText("/Users/patryk/.codex/sessions/hidden.jsonl")).not.toBeInTheDocument();
   });
+
 });
