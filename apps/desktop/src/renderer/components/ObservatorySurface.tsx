@@ -1,4 +1,4 @@
-import { ExternalLink, Play, RefreshCcw, Search } from "lucide-react";
+import { ChevronRight, ExternalLink, FolderGit2, Layers3, Play, RefreshCcw, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { ExternalCodexSessionSummary } from "../../shared/session-index-ipc";
 import type { SessionTile } from "../session-state";
@@ -116,13 +116,21 @@ export function ObservatorySurface({
           <button
             type="button"
             className={`observatory-project ${selectedProjectId === "all" ? "active" : ""}`}
+            aria-label={`All projects, ${rows.length} sessions`}
             onClick={() => {
               setSelectedProjectId("all");
               setSelectedRowId(null);
             }}
           >
-            <span>All</span>
-            <strong>{rows.length}</strong>
+            <span className="observatory-project-marker" aria-hidden="true">
+              <Layers3 size={14} />
+            </span>
+            <span className="observatory-project-copy">
+              <span>All</span>
+              <small>Every indexed session</small>
+            </span>
+            <strong className="observatory-project-count">{rows.length}</strong>
+            <ChevronRight className="observatory-project-arrow" size={14} aria-hidden="true" />
           </button>
           {workspaces.map((workspace) => {
             const count = rows.filter((row) => row.workspaceId === workspace.id).length;
@@ -132,6 +140,7 @@ export function ObservatorySurface({
                 className={`observatory-project ${workspace.id === selectedProjectId ? "active" : ""} ${
                   workspace.id === activeWorkspaceId ? "current" : ""
                 }`}
+                aria-label={`${workspace.label}, ${count} sessions`}
                 key={workspace.id}
                 onClick={() => {
                   onSelectWorkspace(workspace.id);
@@ -139,9 +148,15 @@ export function ObservatorySurface({
                   setSelectedRowId(null);
                 }}
               >
-                <span>{workspace.label}</span>
-                <small>{workspace.rootPath ? shortenPath(workspace.rootPath) : "scratch desk"}</small>
-                <strong>{count}</strong>
+                <span className="observatory-project-marker" aria-hidden="true">
+                  <FolderGit2 size={14} />
+                </span>
+                <span className="observatory-project-copy">
+                  <span>{workspace.label}</span>
+                  <small>{workspace.rootPath ? shortenPath(workspace.rootPath) : "scratch desk"}</small>
+                </span>
+                <strong className="observatory-project-count">{count}</strong>
+                <ChevronRight className="observatory-project-arrow" size={14} aria-hidden="true" />
               </button>
             );
           })}

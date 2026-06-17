@@ -212,6 +212,8 @@ export function AgentTimelinePanel({
             at: session.lastActivityAt ?? 0,
           },
         ];
+  const visibleTimelineEvents = showRawActivity ? displayedEvents : displayedEvents.slice(0, TIMELINE_PREVIEW_LIMIT);
+  const hiddenPreviewCount = Math.max(0, displayedEvents.length - visibleTimelineEvents.length);
 
   return (
     <aside className="agent-timeline-panel" aria-label="Agent activity">
@@ -408,8 +410,14 @@ export function AgentTimelinePanel({
         <section className="agent-panel-section agent-timeline-section" aria-label="Activity timeline">
           <div className="agent-section-heading">
             <span>timeline</span>
-            <strong>{activityEvents.length === 1 ? "1 event" : `${activityEvents.length} events`}</strong>
-            <p>{showRawActivity ? "Raw stream with debug activity included." : "Important activity, with debug noise hidden."}</p>
+            <strong>{timelinePreviewLabel(visibleTimelineEvents.length)}</strong>
+            <p>
+              {showRawActivity
+                ? "Raw stream with debug activity included."
+                : hiddenPreviewCount > 0
+                  ? `${hiddenPreviewCount} older ${hiddenPreviewCount === 1 ? "event" : "events"} hidden; debug noise stays out.`
+                  : "Important activity, with debug noise hidden."}
+            </p>
           </div>
           {presentedActivity.hiddenRawCount > 0 && (
             <button
@@ -430,7 +438,7 @@ export function AgentTimelinePanel({
             </button>
           )}
           <ol className="agent-activity-list">
-            {displayedEvents.map((event) => {
+            {visibleTimelineEvents.map((event) => {
               const payload = activityPayloadView(event);
               return (
                 <li className={event.kind} key={event.id}>
@@ -519,12 +527,20 @@ type StagedEditDraft = {
   cwd: string;
 };
 
+const TIMELINE_PREVIEW_LIMIT = 4;
+
 function emptyEditDraft(): StagedEditDraft {
   return {
     args: "",
     command: "",
     cwd: "",
   };
+}
+
+function timelinePreviewLabel(count: number): string {
+  if (count === 0) return "No preview events";
+  if (count === 1) return "1-event preview";
+  return `${count}-event preview`;
 }
 
 function isEditableStagedSession(session: SessionTile): boolean {

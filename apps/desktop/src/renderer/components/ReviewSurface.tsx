@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, Play, RotateCcw, X } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, Play, RotateCcw, ShieldAlert, X } from "lucide-react";
 import { isLaunchBlocked } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
@@ -51,9 +51,29 @@ export function ReviewSurface({
 
       {items.length === 0 ? (
         <div className="review-surface-empty" role="status">
-          <span>Clear queue</span>
-          <strong>No decisions waiting.</strong>
-          <p>Desk can stay focused on active terminal work.</p>
+          <div className="review-empty-lead">
+            <CheckCircle2 size={20} aria-hidden="true" />
+            <span>Queue clear</span>
+            <strong>No decisions waiting.</strong>
+            <p>New launch gates and recovery prompts will land here while Desk stays focused on active terminals.</p>
+          </div>
+          <div className="review-empty-lanes" aria-label="Empty review lanes">
+            <div>
+              <Play size={14} aria-hidden="true" />
+              <span>staged launches</span>
+              <strong>0</strong>
+            </div>
+            <div>
+              <ShieldAlert size={14} aria-hidden="true" />
+              <span>blocked checks</span>
+              <strong>0</strong>
+            </div>
+            <div>
+              <RotateCcw size={14} aria-hidden="true" />
+              <span>recovery prompts</span>
+              <strong>0</strong>
+            </div>
+          </div>
         </div>
       ) : (
         <ol className="review-surface-list" aria-label="Review items">
