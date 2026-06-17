@@ -3,6 +3,7 @@ import type { IpcRendererEvent } from "electron";
 import type { TerminalApi, TerminalDataEvent, TerminalExitEvent } from "../shared/terminal-ipc.js";
 import type { AlfredApi } from "../shared/alfred-ipc.js";
 import type { LayoutApi } from "../shared/layout-ipc.js";
+import type { SessionIndexApi } from "../shared/session-index-ipc.js";
 import type { WorkspaceApi } from "../shared/workspace-ipc.js";
 
 const terminalChannels = {
@@ -42,6 +43,10 @@ const workspaceChannels = {
   openExternalTerminal: "alfred:workspace:open-external-terminal",
   revealPath: "alfred:workspace:reveal-path",
   set: "alfred:workspace:set",
+} as const;
+
+const sessionIndexChannels = {
+  listExternalCodexSessions: "alfred:session-index:list-external-codex",
 } as const;
 
 const terminal: TerminalApi = {
@@ -124,10 +129,18 @@ const workspace: WorkspaceApi = {
     ipcRenderer.invoke(workspaceChannels.set, request) as ReturnType<WorkspaceApi["setWorkspaceState"]>,
 };
 
+const sessionIndex: SessionIndexApi = {
+  listExternalCodexSessions: () =>
+    ipcRenderer.invoke(sessionIndexChannels.listExternalCodexSessions) as ReturnType<
+      SessionIndexApi["listExternalCodexSessions"]
+    >,
+};
+
 contextBridge.exposeInMainWorld("alfredDesktop", {
   terminal,
   alfred,
   layout,
   workspace,
+  sessionIndex,
   version: "desktop-launcher-v0",
 });

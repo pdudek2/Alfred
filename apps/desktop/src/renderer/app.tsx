@@ -1,12 +1,20 @@
 import { ChevronDown, Command, FolderOpen, ListChecks, Pencil, Plus, Search, SquareTerminal } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { getDesktopAlfredApi, getDesktopLayoutApi, getDesktopTerminalApi, getDesktopWorkspaceApi } from "./desktop-api";
+import {
+  getDesktopAlfredApi,
+  getDesktopLayoutApi,
+  getDesktopSessionIndexApi,
+  getDesktopTerminalApi,
+  getDesktopWorkspaceApi,
+} from "./desktop-api";
 import { ComposerBar } from "./composer";
 import { AlfredControlRail } from "./components/AlfredControlRail";
 import { AlfredMark } from "./components/AlfredMark";
 import { AgentTimelinePanel } from "./components/AgentTimelinePanel";
 import { CommandPalette } from "./components/CommandPalette";
+import { ObservatorySurface } from "./components/ObservatorySurface";
 import { ReviewQueuePanel } from "./components/ReviewQueuePanel";
+import { ReviewSurface } from "./components/ReviewSurface";
 import { SessionObservatoryPanel } from "./components/SessionObservatoryPanel";
 import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
 import { WorkspacePreviewPanel } from "./components/WorkspacePreviewPanel";
@@ -73,9 +81,11 @@ import type {
 } from "../shared/alfred-ipc";
 import type { TerminalCreateResult, TerminalSessionIsolation } from "../shared/terminal-ipc";
 import type { WorkspaceMissionBrief, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
+import type { ExternalCodexSessionSummary } from "../shared/session-index-ipc";
 import "@xterm/xterm/css/xterm.css";
 
 type Workspace = WorkspaceRailWorkspace;
+type ActiveSurface = "desk" | "review" | "observatory";
 
 const DEFAULT_WORKSPACE_ID = "A";
 const DEFAULT_WORKSPACE: Workspace = { id: DEFAULT_WORKSPACE_ID, label: "Alfred", shortLabel: "A" };
@@ -123,6 +133,9 @@ export function App() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState<boolean>(false);
   const [commandQuery, setCommandQuery] = useState<string>("");
   const [sessionObservatoryOpen, setSessionObservatoryOpen] = useState<boolean>(false);
+  const [activeSurface, setActiveSurface] = useState<ActiveSurface>("desk");
+  const [externalCodexSessions, setExternalCodexSessions] = useState<ExternalCodexSessionSummary[]>([]);
+  const [externalCodexSessionsLoading, setExternalCodexSessionsLoading] = useState<boolean>(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState<boolean>(false);
   const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState<string>("");
   const [workspaceRenameEditing, setWorkspaceRenameEditing] = useState<boolean>(false);
@@ -1169,6 +1182,75 @@ export function App() {
     setSessionObservatoryOpen(false);
   }, []);
 
+  const handleRefreshExternalCodexSessions = useCallback(async () => {
+    const sessionIndexApi = getDesktopSessionIndexApi();
+    if (!sessionIndexApi) {
+      setExternalCodexSessions([]);
+      return;
+    }
+
+    setExternalCodexSessionsLoading(true);
+    try {
+      const result = await sessionIndexApi.listExternalCodexSessions();
+      setExternalCodexSessions(result.sessions);
+    } catch {
+      setExternalCodexSessions([]);
+    } finally {
+      setExternalCodexSessionsLoading(false);
+    }
+  }, []);
+
+  const handleOpenManagedSessionFromObservatory = useCallback((workspaceId: string, sessionId: string) => {
+    setActiveSurface("desk");
+    handleFocusSessionInWorkspace(workspaceId, sessionId);
+  }, [handleFocusSessionInWorkspace]);
+
+  const handleResumeExternalCodexSession = useCallback((session: ExternalCodexSessionSummary) => {
+    const now = Date.now();
+    const workspaceApi = getDesktopWorkspaceApi();
+    const targetWorkspace = workspaceForCwd(session.cwd, workspaces) ?? createWorkspaceForCwd(session.cwd, workspaces);
+    const nextWorkspaces = workspaces.some((workspace) => workspace.id === targetWorkspace.id)
+      ? workspaces
+      : [...workspaces, targetWorkspace];
+    const title = normalizeSessionTitle(session.title ? `Codex · ${session.title}` : "Codex resume") ?? "Codex resume";
+    const tile: SessionTile = {
+      id: `external-codex-${session.id.slice(0, 8)}-${now}`,
+      title,
+      workspaceId: targetWorkspace.id,
+      cwd: session.cwd || targetWorkspace.rootPath || activeWorkspace.rootPath || "",
+      source: "manual",
+      stage: "live",
+      runtimeStatus: "starting",
+      agentKind: "codex",
+      command: "codex",
+      args: ["resume", session.id],
+      isolation: "shared",
+      createdAt: now,
+      activityEvents: [
+        {
+          id: `external-codex-${session.id.slice(0, 8)}-${now}-resume`,
+          kind: "approval",
+          title: "External Codex session resumed",
+          detail: "Alfred is opening this Codex transcript in a managed terminal.",
+          at: now,
+        },
+      ],
+      lastActivityAt: now,
+    };
+
+    setWorkspaces(nextWorkspaces);
+    setActiveWorkspaceId(targetWorkspace.id);
+    setActiveSurface("desk");
+    setSelectedSessionIdsByWorkspace((current) => ({ ...current, [targetWorkspace.id]: tile.id }));
+    setTerminalSessions((sessions) => [...sessions, tile]);
+    void workspaceApi?.setWorkspaceState({ workspaces: nextWorkspaces, activeWorkspaceId: targetWorkspace.id });
+  }, [activeWorkspace.rootPath, workspaces]);
+
+  useEffect(() => {
+    if (activeSurface !== "observatory") return;
+    void handleRefreshExternalCodexSessions();
+  }, [activeSurface, handleRefreshExternalCodexSessions]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (commandPaletteOpen || sessionObservatoryOpen || reviewQueueOpen) {
@@ -1407,6 +1489,36 @@ export function App() {
             />
           </div>
           <div className="mission-actions" role="group" aria-label="terminal actions">
+            <nav className="surface-nav" aria-label="Workspace surfaces">
+              <button
+                type="button"
+                className={activeSurface === "desk" ? "active" : ""}
+                aria-label="Open Desk surface"
+                aria-current={activeSurface === "desk" ? "page" : undefined}
+                onClick={() => setActiveSurface("desk")}
+              >
+                Desk
+              </button>
+              <button
+                type="button"
+                className={activeSurface === "review" ? "active" : ""}
+                aria-label="Open Review surface"
+                aria-current={activeSurface === "review" ? "page" : undefined}
+                onClick={() => setActiveSurface("review")}
+              >
+                Review
+                {globalReviewItems.length > 0 && <strong>{globalReviewItems.length}</strong>}
+              </button>
+              <button
+                type="button"
+                className={activeSurface === "observatory" ? "active" : ""}
+                aria-label="Open Observatory surface"
+                aria-current={activeSurface === "observatory" ? "page" : undefined}
+                onClick={() => setActiveSurface("observatory")}
+              >
+                Observatory
+              </button>
+            </nav>
             {terminalSessions.length > 0 && (
               <button
                 className="session-observatory-button"
@@ -1429,7 +1541,7 @@ export function App() {
                 title={`${reviewQueuePreview.workspaceLabel}: ${reviewQueuePreview.session.title}`}
               >
                 <ListChecks size={15} />
-                <span>Review</span>
+                <span>Queue</span>
                 <strong>{globalReviewItems.length}</strong>
               </button>
             )}
@@ -1488,7 +1600,7 @@ export function App() {
         </div>
 
         <div
-          className={`workspace-layout ${alfredExpanded ? "alfred-expanded" : "alfred-compact"} ${
+          className={`workspace-layout surface-${activeSurface} ${alfredExpanded ? "alfred-expanded" : "alfred-compact"} ${
             previewVisible ? "preview-visible" : ""
           }`}
         >
@@ -1500,46 +1612,74 @@ export function App() {
             onSelectWorkspace={handleSelectWorkspace}
           />
           <div className="orchestrator-surface">
-            <TerminalDesk
-              arrangeMode={arrangeMode}
-              armedUnsafeSessionIds={armedUnsafeSessionIds}
-              layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
-              recoverableSessions={activeRecoverableSessions}
-              selectedSessionId={activeSelectedSessionId}
-              sessions={activeSessions}
-              shortcutModifier={shortcutModifier}
-              workMode={activeWorkMode}
-              worktreeActionPending={worktreeActionPending}
-              workspaceGitBranch={activeWorkspace.gitBranch}
-              workspaceLabel={activeWorkspace.label}
-              workspaceRootPath={activeWorkspace.rootPath}
-              onBindWorkspace={handleBindWorkspaceFromFolder}
-              onAddAgentSession={handleAddAgentSession}
-              onAddManualSession={handleAddManualSession}
-              onApplyWorktree={handleApplyWorktree}
-              onCloseSession={handleCloseSession}
-              onContinueRestoredSession={handleContinueRestoredSession}
-              onRestartSession={handleRestartSession}
-              onApplyLayoutPreset={handleApplyLayoutPreset}
-              onApplyWorkMode={handleApplyWorkMode}
-              onMoveTile={handleMoveTile}
-              onRuntimeSessionFailed={handleRuntimeSessionFailed}
-              onRuntimeSessionExited={handleRuntimeSessionExited}
-              onRuntimeSessionOutput={handleRuntimeSessionOutput}
-              onRuntimeSessionReady={handleRuntimeSessionReady}
-              onRuntimeSessionStarting={handleRuntimeSessionStarting}
-              onRuntimeSessionUnavailable={handleRuntimeSessionUnavailable}
-              onRenameSession={handleRenameSession}
-              relaunchArmedSessionIds={armedUnsafeSessionIds}
-              onFocusSession={handleFocusSession}
-              onSelectSession={handleSelectSession}
-              onApproveTile={handleApproveTile}
-              onRejectTile={handleRejectTile}
-              onResizeTile={handleResizeTile}
-              onReviewWorktree={handleReviewWorktree}
-            />
+            {activeSurface === "desk" && (
+              <TerminalDesk
+                arrangeMode={arrangeMode}
+                armedUnsafeSessionIds={armedUnsafeSessionIds}
+                layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
+                recoverableSessions={activeRecoverableSessions}
+                selectedSessionId={activeSelectedSessionId}
+                sessions={activeSessions}
+                shortcutModifier={shortcutModifier}
+                workMode={activeWorkMode}
+                worktreeActionPending={worktreeActionPending}
+                workspaceGitBranch={activeWorkspace.gitBranch}
+                workspaceLabel={activeWorkspace.label}
+                workspaceRootPath={activeWorkspace.rootPath}
+                onBindWorkspace={handleBindWorkspaceFromFolder}
+                onAddAgentSession={handleAddAgentSession}
+                onAddManualSession={handleAddManualSession}
+                onApplyWorktree={handleApplyWorktree}
+                onCloseSession={handleCloseSession}
+                onContinueRestoredSession={handleContinueRestoredSession}
+                onRestartSession={handleRestartSession}
+                onApplyLayoutPreset={handleApplyLayoutPreset}
+                onApplyWorkMode={handleApplyWorkMode}
+                onMoveTile={handleMoveTile}
+                onRuntimeSessionFailed={handleRuntimeSessionFailed}
+                onRuntimeSessionExited={handleRuntimeSessionExited}
+                onRuntimeSessionOutput={handleRuntimeSessionOutput}
+                onRuntimeSessionReady={handleRuntimeSessionReady}
+                onRuntimeSessionStarting={handleRuntimeSessionStarting}
+                onRuntimeSessionUnavailable={handleRuntimeSessionUnavailable}
+                onRenameSession={handleRenameSession}
+                relaunchArmedSessionIds={armedUnsafeSessionIds}
+                onFocusSession={handleFocusSession}
+                onSelectSession={handleSelectSession}
+                onApproveTile={handleApproveTile}
+                onRejectTile={handleRejectTile}
+                onResizeTile={handleResizeTile}
+                onReviewWorktree={handleReviewWorktree}
+              />
+            )}
+            {activeSurface === "review" && (
+              <ReviewSurface
+                armedUnsafeSessionIds={armedUnsafeSessionIds}
+                items={globalReviewItems}
+                selectedSessionId={activeSelectedSessionId}
+                onApproveTile={handleApproveTile}
+                onContinueRestoredSession={handleContinueRestoredSession}
+                onDiscardSession={handleCloseSession}
+                onFocusItem={handleOpenManagedSessionFromObservatory}
+                onLaunchItem={handleLaunchReviewQueueItem}
+                onRestartSession={handleRestartSession}
+              />
+            )}
+            {activeSurface === "observatory" && (
+              <ObservatorySurface
+                activeWorkspaceId={activeWorkspace.id}
+                externalCodexSessions={externalCodexSessions}
+                loadingExternalSessions={externalCodexSessionsLoading}
+                sessions={terminalSessions}
+                workspaces={workspaces}
+                onOpenManagedSession={handleOpenManagedSessionFromObservatory}
+                onRefreshExternalSessions={handleRefreshExternalCodexSessions}
+                onResumeExternalCodexSession={handleResumeExternalCodexSession}
+                onSelectWorkspace={handleSelectWorkspace}
+              />
+            )}
           </div>
-          <div className="side-dock-stack">
+          {activeSurface === "desk" && <div className="side-dock-stack">
             {previewVisible && (
               <WorkspacePreviewPanel
                 candidates={activePreviewCandidates}
@@ -1579,7 +1719,7 @@ export function App() {
               onRejectAll={handleRejectAll}
               onRejectTile={handleRejectTile}
             />
-          </div>
+          </div>}
         </div>
         <ComposerBar
           blockedActionLabel={
@@ -2153,6 +2293,43 @@ function createScratchWorkspaceState(workspaces: Workspace[]): WorkspaceStateSna
     workspaces: [...workspaces, workspace],
     activeWorkspaceId: workspace.id,
   };
+}
+
+function workspaceForCwd(cwd: string, workspaces: Workspace[]): Workspace | null {
+  if (!cwd.trim()) return null;
+  const exact = workspaces.find((workspace) => workspace.rootPath === cwd);
+  if (exact) return exact;
+  return workspaces
+    .filter((workspace) => workspace.rootPath && (cwd === workspace.rootPath || cwd.startsWith(`${workspace.rootPath}/`)))
+    .sort((left, right) => (right.rootPath?.length ?? 0) - (left.rootPath?.length ?? 0))[0] ?? null;
+}
+
+function createWorkspaceForCwd(cwd: string, workspaces: Workspace[]): Workspace {
+  const label = pathLabel(cwd) || `Workspace ${workspaces.length + 1}`;
+  const id = uniqueWorkspaceId(shortLabelForWorkspace(label), workspaces.map((workspace) => workspace.id));
+  return {
+    id,
+    label,
+    shortLabel: shortLabelForWorkspace(label),
+    ...(cwd.trim() ? { rootPath: cwd.trim() } : {}),
+  };
+}
+
+function uniqueWorkspaceId(base: string, existingIds: string[]): string {
+  const used = new Set(existingIds);
+  const normalizedBase = base.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toUpperCase() || "WORKSPACE";
+  let candidate = normalizedBase;
+  let suffix = 2;
+  while (used.has(candidate)) {
+    candidate = `${normalizedBase}-${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+}
+
+function pathLabel(value: string): string {
+  const trimmed = value.trim().replace(/\/+$/, "");
+  return trimmed.split("/").filter(Boolean).at(-1) ?? "";
 }
 
 function omitWorkspaceRecord<T>(record: Record<string, T>, workspaceId: string): Record<string, T> {
