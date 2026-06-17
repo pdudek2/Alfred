@@ -5799,3 +5799,465 @@ body {
 .recovery-workspace-strip strong {
   color: color-mix(in oklab, var(--text-primary) 92%, var(--accent-strong));
 }
+
+/* Observatory: cross-workspace session radar, separate from the command palette. */
+.mission-actions .session-observatory-button {
+  width: auto;
+  min-width: 108px;
+  padding: 0 10px;
+  gap: 8px;
+  border-color: rgba(58, 211, 127, 0.16);
+  background:
+    linear-gradient(180deg, rgba(58, 211, 127, 0.065), rgba(58, 211, 127, 0.022)),
+    color-mix(in oklab, var(--surface-raised) 82%, black 18%);
+  color: var(--text-secondary);
+  box-shadow:
+    inset 0 1px 0 rgba(216, 255, 235, 0.045),
+    0 12px 24px -22px var(--accent-halo);
+}
+
+.mission-actions .session-observatory-button:hover,
+.mission-actions .session-observatory-button:focus-visible {
+  border-color: rgba(58, 211, 127, 0.3);
+  background:
+    linear-gradient(180deg, rgba(58, 211, 127, 0.11), rgba(58, 211, 127, 0.035)),
+    color-mix(in oklab, var(--surface-raised) 88%, black 12%);
+  color: var(--text-primary);
+  box-shadow:
+    0 0 0 1px rgba(58, 211, 127, 0.11),
+    0 16px 30px -24px var(--accent-halo);
+}
+
+.mission-actions .session-observatory-button span {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.mission-actions .session-observatory-button strong {
+  min-width: 20px;
+  min-height: 20px;
+  border: 1px solid rgba(58, 211, 127, 0.16);
+  border-radius: 999px;
+  padding: 0 6px;
+  background: rgba(3, 10, 6, 0.44);
+  color: var(--accent-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 650 11px/1 var(--mono);
+}
+
+.session-observatory-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 42;
+  padding: 8vh 48px 48px;
+  background:
+    radial-gradient(820px 520px at 18% 0%, rgba(58, 211, 127, 0.09), transparent 66%),
+    radial-gradient(760px 460px at 90% 96%, rgba(58, 211, 127, 0.045), transparent 68%),
+    rgba(0, 0, 0, 0.68);
+  display: grid;
+  place-items: start center;
+  backdrop-filter: blur(14px) saturate(132%);
+  -webkit-backdrop-filter: blur(14px) saturate(132%);
+}
+
+.session-observatory-panel {
+  width: min(1040px, calc(100vw - 96px));
+  max-height: min(760px, calc(100vh - 96px));
+  border: 1px solid rgba(120, 210, 160, 0.18);
+  border-radius: 22px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(216, 255, 235, 0.055), transparent 140px),
+    radial-gradient(620px 300px at 12% -12%, rgba(58, 211, 127, 0.115), transparent 72%),
+    color-mix(in oklab, var(--surface-panel) 90%, black 10%);
+  box-shadow:
+    var(--depth-raised),
+    var(--shadow-panel),
+    0 0 0 1px rgba(58, 211, 127, 0.055);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+
+.session-observatory-header {
+  min-width: 0;
+  border-bottom: 1px solid var(--line-strong);
+  padding: 22px 24px 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  gap: 18px;
+  align-items: start;
+}
+
+.session-observatory-header > div {
+  min-width: 0;
+}
+
+.session-observatory-header span,
+.session-observatory-header strong,
+.session-observatory-header small {
+  display: block;
+}
+
+.session-observatory-header span {
+  color: var(--accent-strong);
+  font: 680 11px/1.2 var(--sans);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.session-observatory-header strong {
+  margin-top: 7px;
+  color: var(--text-primary);
+  font: 690 29px/1.05 var(--sans);
+}
+
+.session-observatory-header small {
+  margin-top: 7px;
+  color: var(--text-muted);
+  font: 13px/1.4 var(--sans);
+}
+
+.session-observatory-close {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(216, 255, 235, 0.045), transparent),
+    var(--surface-raised);
+  color: var(--text-secondary);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: var(--depth-card);
+}
+
+.session-observatory-close:hover,
+.session-observatory-close:focus-visible {
+  border-color: rgba(58, 211, 127, 0.34);
+  color: var(--text-primary);
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(58, 211, 127, 0.10),
+    var(--depth-card);
+}
+
+.session-observatory-search {
+  min-height: 52px;
+  margin: 18px 24px 0;
+  border: 1px solid rgba(58, 211, 127, 0.18);
+  border-radius: 16px;
+  padding: 0 16px;
+  background:
+    linear-gradient(180deg, rgba(216, 255, 235, 0.035), transparent),
+    var(--surface-sunken);
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  box-shadow:
+    inset 0 1px 0 rgba(216, 255, 235, 0.04),
+    0 18px 36px -30px rgba(0, 0, 0, 0.86);
+}
+
+.session-observatory-search svg {
+  color: var(--accent-strong);
+}
+
+.session-observatory-search input {
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: 16px/1.35 var(--sans);
+  outline: none;
+}
+
+.session-observatory-search input::placeholder {
+  color: color-mix(in oklab, var(--text-muted) 72%, transparent);
+}
+
+.session-observatory-search:focus-within {
+  border-color: rgba(58, 211, 127, 0.42);
+  box-shadow:
+    0 0 0 3px rgba(58, 211, 127, 0.09),
+    inset 0 1px 0 rgba(216, 255, 235, 0.055),
+    0 20px 42px -30px var(--accent-halo);
+}
+
+.session-observatory-stats {
+  padding: 16px 24px 18px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.session-observatory-stat {
+  min-width: 0;
+  min-height: 76px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 13px 14px;
+  background:
+    linear-gradient(180deg, rgba(216, 255, 235, 0.035), transparent 80%),
+    color-mix(in oklab, var(--surface-raised) 76%, black 24%);
+  box-shadow: var(--depth-card);
+}
+
+.session-observatory-stat strong,
+.session-observatory-stat span {
+  display: block;
+}
+
+.session-observatory-stat strong {
+  color: var(--text-primary);
+  font: 720 27px/1 var(--sans);
+}
+
+.session-observatory-stat span {
+  margin-top: 7px;
+  color: var(--text-muted);
+  font: 680 10px/1.2 var(--sans);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.session-observatory-stat.tone-active,
+.session-observatory-stat.tone-recovery {
+  border-color: rgba(58, 211, 127, 0.18);
+  background:
+    linear-gradient(180deg, rgba(58, 211, 127, 0.085), transparent 82%),
+    color-mix(in oklab, var(--surface-raised) 80%, black 20%);
+}
+
+.session-observatory-stat.tone-active strong,
+.session-observatory-stat.tone-recovery strong {
+  color: var(--accent-strong);
+}
+
+.session-observatory-stat.tone-review {
+  border-color: color-mix(in oklab, var(--brass) 32%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--brass) 10%, transparent), transparent 82%),
+    color-mix(in oklab, var(--surface-raised) 80%, black 20%);
+}
+
+.session-observatory-list {
+  min-height: 0;
+  margin: 0;
+  padding: 0 24px 24px;
+  display: grid;
+  gap: 10px;
+  overflow: auto;
+  list-style: none;
+}
+
+.session-observatory-row {
+  min-width: 0;
+}
+
+.session-observatory-main {
+  width: 100%;
+  min-width: 0;
+  min-height: 72px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px 13px;
+  background:
+    linear-gradient(180deg, rgba(216, 255, 235, 0.028), transparent 90%),
+    rgba(2, 8, 5, 0.56);
+  color: var(--text-secondary);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(216, 255, 235, 0.028);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.session-observatory-main:hover,
+.session-observatory-main:focus-visible {
+  border-color: rgba(58, 211, 127, 0.32);
+  background:
+    linear-gradient(180deg, rgba(58, 211, 127, 0.07), transparent 92%),
+    color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  box-shadow:
+    0 0 0 1px rgba(58, 211, 127, 0.08),
+    var(--depth-card);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.session-observatory-kind {
+  min-width: 50px;
+  min-height: 34px;
+  border: 1px solid rgba(58, 211, 127, 0.18);
+  border-radius: 11px;
+  background:
+    linear-gradient(180deg, rgba(58, 211, 127, 0.095), rgba(58, 211, 127, 0.025)),
+    var(--surface-sunken);
+  color: var(--accent-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: inset 0 1px 0 rgba(216, 255, 235, 0.04);
+}
+
+.session-observatory-kind.claude {
+  border-color: rgba(151, 126, 255, 0.28);
+  color: #b7a7ff;
+}
+
+.session-observatory-kind.manual,
+.session-observatory-kind.shell {
+  border-color: rgba(185, 200, 191, 0.16);
+  color: var(--text-secondary);
+}
+
+.session-observatory-kind span {
+  font: 700 11px/1 var(--mono);
+}
+
+.session-observatory-copy {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.session-observatory-copy strong,
+.session-observatory-copy small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-observatory-copy strong {
+  color: var(--text-primary);
+  font: 650 14px/1.25 var(--sans);
+}
+
+.session-observatory-copy small {
+  color: var(--text-muted);
+  font: 12px/1.25 var(--sans);
+}
+
+.session-observatory-meta {
+  min-width: 104px;
+  display: grid;
+  justify-items: end;
+  gap: 7px;
+}
+
+.session-observatory-meta time,
+.session-observatory-meta span {
+  max-width: 112px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+}
+
+.session-observatory-meta time {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.session-observatory-meta span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(216, 255, 235, 0.026);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.session-observatory-row.status-active .session-observatory-meta span,
+.session-observatory-row.status-starting .session-observatory-meta span {
+  border-color: rgba(58, 211, 127, 0.28);
+  color: var(--accent-strong);
+}
+
+.session-observatory-row.status-error .session-observatory-meta span,
+.session-observatory-row.status-blocked .session-observatory-meta span {
+  border-color: color-mix(in oklab, var(--tone-error) 36%, transparent);
+  color: color-mix(in oklab, var(--tone-error) 82%, white 12%);
+}
+
+.session-observatory-row.status-waiting .session-observatory-meta span,
+.session-observatory-row.status-staged .session-observatory-meta span,
+.session-observatory-row.status-checking .session-observatory-meta span {
+  border-color: color-mix(in oklab, var(--brass) 36%, transparent);
+  color: color-mix(in oklab, var(--brass) 84%, white 8%);
+}
+
+.session-observatory-empty {
+  min-height: 220px;
+  margin: 0 24px 24px;
+  border: 1px dashed rgba(120, 210, 160, 0.18);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(216, 255, 235, 0.02), transparent 120px),
+    rgba(1, 4, 3, 0.36);
+  color: var(--text-muted);
+  display: grid;
+  place-content: center;
+  gap: 7px;
+  text-align: center;
+}
+
+.session-observatory-empty span {
+  color: var(--text-secondary);
+  font: 650 16px/1.3 var(--sans);
+}
+
+.session-observatory-empty strong {
+  color: var(--text-muted);
+  font: 500 13px/1.4 var(--sans);
+}
+
+@media (max-width: 900px) {
+  .mission-actions .session-observatory-button span {
+    display: none;
+  }
+
+  .mission-actions .session-observatory-button {
+    min-width: 48px;
+  }
+
+  .session-observatory-backdrop {
+    padding: 56px 16px 24px;
+  }
+
+  .session-observatory-panel {
+    width: calc(100vw - 32px);
+  }
+
+  .session-observatory-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .session-observatory-main {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .session-observatory-meta {
+    grid-column: 2;
+    justify-items: start;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+}
