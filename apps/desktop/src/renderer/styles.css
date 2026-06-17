@@ -2178,13 +2178,16 @@ body.arranging-pointer {
 .real-terminal .xterm {
   min-width: 0;
   min-height: 0;
-  background: #050807;
+  background: #101010;
 }
 
 .xterm-host {
   overflow: hidden;
   border-radius: 0 0 10px 10px;
-  padding: 12px 14px 14px;
+  padding: 12px 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 72px),
+    #101010;
 }
 
 .xterm-host .xterm {
@@ -2198,12 +2201,12 @@ body.arranging-pointer {
 }
 
 .xterm-host .xterm-screen {
-  filter: saturate(1.04);
+  filter: saturate(1.02);
 }
 
 .xterm-host .xterm-viewport {
   scrollbar-width: thin;
-  scrollbar-color: rgba(188, 202, 218, 0.18) transparent;
+  scrollbar-color: rgba(185, 174, 218, 0.28) transparent;
 }
 
 .workspace-preview-panel {
