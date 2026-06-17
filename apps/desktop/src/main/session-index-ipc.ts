@@ -18,6 +18,7 @@ type SessionMetaPayload = {
   id?: unknown;
   model?: unknown;
   originator?: unknown;
+  parent_thread_id?: unknown;
   timestamp?: unknown;
 };
 
@@ -38,6 +39,7 @@ export async function listExternalCodexSessions({
   limit?: number;
 } = {}): Promise<ExternalCodexSessionSummary[]> {
   const sessionsRoot = path.join(codexHome, "sessions");
+  const titleIndex = await readCodexSessionTitleIndex(codexHome);
   const files = await findJsonlFiles(sessionsRoot);
   const newestFiles = files
     .sort((left, right) => right.updatedAt - left.updatedAt)
@@ -45,7 +47,7 @@ export async function listExternalCodexSessions({
   const sessions: ExternalCodexSessionSummary[] = [];
 
   for (const file of newestFiles) {
-    const summary = await summarizeCodexSessionFile(file.path, file.updatedAt);
+    const summary = await summarizeCodexSessionFile(file.path, file.updatedAt, titleIndex);
     if (summary) sessions.push(summary);
     if (sessions.length >= limit) break;
   }
@@ -55,6 +57,25 @@ export async function listExternalCodexSessions({
 
 function defaultCodexHome(): string {
   return process.env.CODEX_HOME ?? path.join(app?.getPath?.("home") ?? os.homedir(), ".codex");
+}
+
+async function readCodexSessionTitleIndex(codexHome: string): Promise<Map<string, string>> {
+  let content: string;
+  try {
+    content = await readFile(path.join(codexHome, "session_index.jsonl"), "utf8");
+  } catch {
+    return new Map();
+  }
+
+  const titles = new Map<string, string>();
+  for (const line of content.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const record = parseJsonRecord(line);
+    const id = stringValue(record?.id);
+    const title = titleFromText(stringValue(record?.thread_name) ?? "");
+    if (id && title) titles.set(id, title);
+  }
+  return titles;
 }
 
 async function findJsonlFiles(root: string): Promise<Array<{ path: string; updatedAt: number }>> {
@@ -93,6 +114,7 @@ async function findJsonlFiles(root: string): Promise<Array<{ path: string; updat
 async function summarizeCodexSessionFile(
   transcriptPath: string,
   updatedAt: number,
+  titleIndex: Map<string, string>,
 ): Promise<ExternalCodexSessionSummary | null> {
   let content: string;
   try {
@@ -102,7 +124,7 @@ async function summarizeCodexSessionFile(
   }
 
   let meta: SessionMetaPayload | null = null;
-  let firstUserText = "";
+  let titleText = "";
   let firstTimestamp = 0;
 
   for (const line of content.split(/\r?\n/).slice(0, 140)) {
@@ -118,19 +140,25 @@ async function summarizeCodexSessionFile(
       continue;
     }
 
-    if (!firstUserText) {
-      firstUserText = extractUserText(record);
+    if (!titleText) {
+      const candidate = extractUserText(record);
+      if (candidate && !isInjectedSessionContext(candidate)) {
+        titleText = candidate;
+      }
     }
 
-    if (meta && firstUserText) break;
+    if (meta && titleText) break;
   }
 
   const id = stringValue(meta?.id) ?? idFromFilename(transcriptPath);
   const cwd = stringValue(meta?.cwd) ?? "";
   const createdAt = timestampToMs(meta?.timestamp) || firstTimestamp || updatedAt;
-  const title = titleFromText(firstUserText) || idFromFilename(transcriptPath);
+  const titleFromUser = titleFromText(titleText);
+  const indexedTitle = titleIndex.get(id);
+  const title = indexedTitle || titleFromUser || fallbackTitle(cwd, id);
   const model = stringValue(meta?.model);
   const originator = stringValue(meta?.originator);
+  const parentThreadId = stringValue(meta?.parent_thread_id);
 
   return {
     id,
@@ -139,6 +167,7 @@ async function summarizeCodexSessionFile(
     createdAt,
     updatedAt,
     transcriptPath,
+    ...(parentThreadId ? { parentThreadId } : {}),
     ...(model ? { model } : {}),
     ...(originator ? { originator } : {}),
   };
@@ -177,6 +206,16 @@ function titleFromText(value: string): string {
   const firstLine = value.replace(/\s+/g, " ").trim();
   if (!firstLine) return "";
   return firstLine.length > MAX_TITLE_LENGTH ? `${firstLine.slice(0, MAX_TITLE_LENGTH - 1)}...` : firstLine;
+}
+
+function isInjectedSessionContext(value: string): boolean {
+  const normalized = value.trim();
+  return /^#\s*AGENTS\.md instructions\b/i.test(normalized);
+}
+
+function fallbackTitle(cwd: string, id: string): string {
+  const projectName = cwd ? path.basename(cwd) : "";
+  return projectName ? `${projectName} Codex session` : id;
 }
 
 function idFromFilename(filePath: string): string {

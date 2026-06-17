@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { mkdtempSync } from "node:fs";
@@ -74,6 +74,80 @@ describe("session-index IPC", () => {
     expect(JSON.stringify(result[0])).not.toContain("do not leak this");
   });
 
+  it("uses Codex session index thread names before transcript-derived titles", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const sessionDir = path.join(codexHome, "sessions", "2026", "06", "18");
+    await mkdir(sessionDir, { recursive: true });
+    await writeSessionIndex(codexHome, [
+      {
+        id: "019eee33-1111-7222-8333-444444444444",
+        thread_name: "Load Alfred memory",
+        updated_at: "2026-06-18T08:05:00.000Z",
+      },
+    ]);
+    await writeFile(
+      path.join(sessionDir, "rollout-2026-06-18T10-00-00-019eee33-1111-7222-8333-444444444444.jsonl"),
+      codexSessionLines({
+        id: "019eee33-1111-7222-8333-444444444444",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        messages: [
+          "# AGENTS.md instructions for /Users/patryk/Desktop/Alfred <INSTRUCTIONS> keep this out of titles",
+          "Fix Observatory session grouping",
+        ],
+      }),
+    );
+
+    const result = await listExternalCodexSessions({ codexHome });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.title).toBe("Load Alfred memory");
+  });
+
+  it("keeps separate Codex sessions even when they share a parent thread", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const sessionDir = path.join(codexHome, "sessions", "2026", "06", "18");
+    const olderPath = path.join(sessionDir, "rollout-2026-06-18T10-00-00-019eee44-1111-7222-8333-444444444444.jsonl");
+    const newerPath = path.join(sessionDir, "rollout-2026-06-18T10-05-00-019eee55-1111-7222-8333-444444444444.jsonl");
+    await mkdir(sessionDir, { recursive: true });
+    await writeSessionIndex(codexHome, [
+      {
+        id: "019eee44-1111-7222-8333-444444444444",
+        thread_name: "Spec compliance review",
+        updated_at: "2026-06-18T10:00:00.000Z",
+      },
+      {
+        id: "019eee55-1111-7222-8333-444444444444",
+        thread_name: "Code quality review",
+        updated_at: "2026-06-18T10:05:00.000Z",
+      },
+    ]);
+    await writeFile(
+      olderPath,
+      codexSessionLines({
+        id: "019eee44-1111-7222-8333-444444444444",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        parentThreadId: "019parent-1111-7222-8333-444444444444",
+        messages: ["# AGENTS.md instructions for /Users/patryk/Desktop/Alfred <INSTRUCTIONS>"],
+      }),
+    );
+    await writeFile(
+      newerPath,
+      codexSessionLines({
+        id: "019eee55-1111-7222-8333-444444444444",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        parentThreadId: "019parent-1111-7222-8333-444444444444",
+        messages: ["Fix Observatory session grouping"],
+      }),
+    );
+    await utimes(olderPath, new Date("2026-06-18T10:00:00.000Z"), new Date("2026-06-18T10:00:00.000Z"));
+    await utimes(newerPath, new Date("2026-06-18T10:05:00.000Z"), new Date("2026-06-18T10:05:00.000Z"));
+
+    const result = await listExternalCodexSessions({ codexHome });
+
+    expect(result).toHaveLength(2);
+    expect(result.map((session) => session.title)).toEqual(["Code quality review", "Spec compliance review"]);
+  });
+
   it("ignores invalid lines and missing session directories", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
     const sessionDir = path.join(codexHome, "sessions", "2026", "06", "18");
@@ -106,3 +180,48 @@ describe("session-index IPC", () => {
     await expect(handler?.()).resolves.toEqual({ sessions: [] });
   });
 });
+
+async function writeSessionIndex(
+  codexHome: string,
+  entries: Array<{ id: string; thread_name: string; updated_at: string }>,
+): Promise<void> {
+  await writeFile(path.join(codexHome, "session_index.jsonl"), entries.map((entry) => JSON.stringify(entry)).join("\n"));
+}
+
+function codexSessionLines({
+  cwd,
+  id,
+  messages,
+  parentThreadId,
+}: {
+  cwd: string;
+  id: string;
+  messages: string[];
+  parentThreadId?: string;
+}): string {
+  return [
+    JSON.stringify({
+      timestamp: "2026-06-18T08:00:00.000Z",
+      type: "session_meta",
+      payload: {
+        id,
+        timestamp: "2026-06-18T07:59:58.000Z",
+        cwd,
+        model: "gpt-5.5",
+        originator: "Codex Desktop",
+        ...(parentThreadId ? { parent_thread_id: parentThreadId } : {}),
+      },
+    }),
+    ...messages.map((text, index) =>
+      JSON.stringify({
+        timestamp: `2026-06-18T08:0${index + 1}:00.000Z`,
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text }],
+        },
+      }),
+    ),
+  ].join("\n");
+}

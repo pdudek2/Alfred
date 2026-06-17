@@ -5,6 +5,7 @@ export type ExternalCodexSessionSummary = {
   createdAt: number;
   updatedAt: number;
   transcriptPath: string;
+  parentThreadId?: string;
   model?: string;
   originator?: string;
 };
