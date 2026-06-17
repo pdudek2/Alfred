@@ -5303,3 +5303,499 @@ body {
   font-size: 15px;
   font-weight: 600;
 }
+
+/* ============================================================
+   ALFRED DEPTH v2 — hierarchy polish pass
+   Keep the locked dark-emerald language, but make the remaining
+   dense UI read as product surfaces instead of equal-weight text.
+   ============================================================ */
+
+:root,
+.agent-space-shell {
+  --type-region: 16px;
+  --type-panel-title: 14px;
+  --type-ui: 12px;
+  --tone-waiting: #d8c078;
+  --tone-error: #ee8f83;
+  --tone-active: var(--accent-strong);
+}
+
+/* Region titles: sans for chrome, mono only where data/terminal content needs it. */
+.terminal-stage-header strong,
+.agent-timeline-header strong,
+.workspace-preview-header strong,
+.review-modal-header h2,
+.command-palette-search input,
+.empty-workspace-card h2 {
+  font-family: var(--sans);
+  letter-spacing: 0;
+}
+
+.terminal-stage-header strong {
+  font-size: var(--type-region);
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.terminal-stage-header span,
+.agent-timeline-header span,
+.review-context-summary header span,
+.agent-section-heading > span {
+  font-family: var(--sans);
+  letter-spacing: 0.08em;
+}
+
+.agent-timeline-header {
+  padding: 18px 20px;
+}
+
+.agent-timeline-header strong {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.agent-section-heading > strong {
+  font-size: var(--type-panel-title);
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.agent-section-heading > p {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.review-context-summary {
+  border-top-color: var(--line);
+  padding-top: 12px;
+  gap: 8px;
+}
+
+.review-context-summary header span,
+.review-context-summary header strong {
+  font-family: var(--sans);
+}
+
+.review-context-summary header span {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.review-context-summary header strong {
+  font-size: 11px;
+  font-weight: 550;
+  color: var(--text-muted);
+}
+
+.review-context-item {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.review-context-item.tone-recovery {
+  background: rgba(58, 211, 127, 0.035);
+  border-color: rgba(58, 211, 127, 0.08);
+}
+
+.review-context-item strong {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.review-context-item div > span {
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Recovery is the one visible recovery lead, but still a lifted ribbon. */
+.recovery-workspace-strip {
+  min-height: 38px;
+  border: 1px solid rgba(58, 211, 127, 0.14);
+  border-radius: 14px;
+  padding: 0 14px;
+  background:
+    radial-gradient(420px 120px at 12% 0%, rgba(58, 211, 127, 0.09), transparent 70%),
+    linear-gradient(180deg, rgba(216, 255, 235, 0.035), rgba(216, 255, 235, 0.01)),
+    var(--surface-panel);
+  box-shadow: var(--depth-card);
+}
+
+.recovery-workspace-strip > span {
+  color: var(--accent-strong);
+  font-family: var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.recovery-workspace-strip p {
+  font-family: var(--sans);
+  font-size: 12px;
+}
+
+.recovery-workspace-strip strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.recovery-workspace-strip p span {
+  color: var(--text-muted);
+}
+
+/* Workspace popover: floating command surface, not a flat menu. */
+.workspace-popover {
+  width: min(430px, 82vw);
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  padding: 10px;
+  background:
+    radial-gradient(420px 210px at 12% -16%, rgba(58, 211, 127, 0.12), transparent 72%),
+    linear-gradient(180deg, rgba(216, 255, 235, 0.045), transparent 130px),
+    color-mix(in oklab, var(--surface-panel) 94%, black 6%);
+  box-shadow: var(--depth-raised), var(--shadow-panel);
+}
+
+.workspace-popover::before {
+  padding: 8px 9px 10px;
+  color: var(--accent-strong);
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+}
+
+.workspace-popover button {
+  min-height: 54px;
+  border-radius: 12px;
+  padding: 10px;
+  color: var(--text-secondary);
+}
+
+.workspace-popover button:hover,
+.workspace-popover button:focus-visible {
+  border-color: rgba(58, 211, 127, 0.28);
+  background:
+    linear-gradient(180deg, rgba(58, 211, 127, 0.105), rgba(58, 211, 127, 0.035)),
+    var(--surface-raised);
+  box-shadow: var(--depth-card);
+}
+
+.workspace-popover button strong,
+.workspace-popover button small {
+  font-family: var(--sans);
+}
+
+.workspace-popover button strong {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.workspace-popover button small {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.workspace-popover hr {
+  margin: 9px 4px;
+  background: var(--border-subtle);
+}
+
+.workspace-rename-form,
+.workspace-mission-form {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  background:
+    linear-gradient(180deg, rgba(58, 211, 127, 0.055), transparent 90px),
+    var(--surface-raised);
+  box-shadow: var(--depth-card);
+}
+
+.workspace-rename-form label span,
+.workspace-mission-form label span {
+  color: var(--text-muted);
+  font-family: var(--sans);
+  letter-spacing: 0.08em;
+}
+
+.workspace-rename-form input,
+.workspace-mission-form textarea,
+.agent-staged-edit-form input,
+.agent-staged-edit-form textarea {
+  background: var(--surface-sunken);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.workspace-rename-form input:focus,
+.workspace-mission-form textarea:focus,
+.agent-staged-edit-form input:focus-visible,
+.agent-staged-edit-form textarea:focus-visible {
+  outline: none;
+  border-color: rgba(58, 211, 127, 0.42);
+  box-shadow:
+    0 0 0 1px rgba(58, 211, 127, 0.28),
+    0 0 0 4px rgba(58, 211, 127, 0.11);
+}
+
+.workspace-rename-form > div button,
+.workspace-mission-actions button {
+  border-radius: 10px;
+}
+
+/* Staged command editor: emerald review surface instead of brass warning card. */
+.agent-staged-editor,
+.agent-staged-edit-form {
+  border: 1px solid rgba(58, 211, 127, 0.16);
+  border-radius: 16px;
+  background:
+    radial-gradient(380px 180px at 15% -12%, rgba(58, 211, 127, 0.12), transparent 72%),
+    linear-gradient(180deg, rgba(216, 255, 235, 0.035), transparent 110px),
+    var(--surface-raised);
+  box-shadow: var(--depth-card);
+}
+
+.agent-staged-editor {
+  padding: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+}
+
+.agent-staged-editor-copy,
+.agent-staged-edit-heading {
+  min-width: 0;
+}
+
+.agent-staged-editor-copy span,
+.agent-staged-edit-heading span,
+.agent-staged-edit-form label span {
+  color: var(--accent-strong);
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.agent-staged-editor-copy strong,
+.agent-staged-edit-heading strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-primary);
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.agent-staged-editor-copy p,
+.agent-staged-edit-heading p {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font: 12px/1.45 var(--sans);
+}
+
+.agent-staged-editor button,
+.agent-staged-edit-actions button[type="submit"] {
+  border-color: rgba(58, 211, 127, 0.38);
+  background:
+    linear-gradient(180deg, rgba(58, 211, 127, 0.14), rgba(58, 211, 127, 0.055)),
+    var(--surface-panel);
+  color: var(--accent-strong);
+  box-shadow: 0 10px 20px -18px var(--accent-halo);
+}
+
+.agent-staged-edit-form {
+  padding: 14px;
+  gap: 12px;
+}
+
+.agent-staged-edit-heading {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+
+.agent-staged-edit-actions {
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.35fr);
+}
+
+.agent-staged-edit-actions button[type="button"] {
+  background: rgba(216, 255, 235, 0.035);
+  border-color: var(--line);
+  color: var(--text-secondary);
+}
+
+/* Priority chips: all tones use the same dark pill grammar as empty. */
+.workspace-priority-chip {
+  min-height: 23px;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(216, 255, 235, 0.035), rgba(216, 255, 235, 0.01)),
+    var(--surface-sunken);
+  border-color: var(--line);
+  color: var(--text-muted);
+  box-shadow: inset 0 1px 0 rgba(216, 255, 235, 0.04);
+}
+
+.workspace-priority-chip.tone-waiting,
+.workspace-priority-chip.tone-staged {
+  border-color: color-mix(in oklab, var(--tone-waiting) 30%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--tone-waiting) 12%, transparent), transparent),
+    var(--surface-sunken);
+  color: color-mix(in oklab, var(--tone-waiting) 86%, white 6%);
+}
+
+.workspace-priority-chip.tone-error {
+  border-color: color-mix(in oklab, var(--tone-error) 34%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--tone-error) 12%, transparent), transparent),
+    var(--surface-sunken);
+  color: color-mix(in oklab, var(--tone-error) 88%, white 7%);
+}
+
+.workspace-priority-chip.tone-active {
+  border-color: rgba(58, 211, 127, 0.34);
+  background:
+    linear-gradient(180deg, rgba(58, 211, 127, 0.14), rgba(58, 211, 127, 0.035)),
+    var(--surface-sunken);
+  color: var(--tone-active);
+}
+
+/* ============================================================
+   ALFRED DEPTH v2 — restraint pass
+   The terminal is the center of work. Navigation and evidence stay
+   elevated, but stop competing with the live tile.
+   ============================================================ */
+
+.workspace-rail {
+  background:
+    radial-gradient(360px 300px at 18% 0%, rgba(58, 211, 127, 0.035), transparent 72%),
+    color-mix(in oklab, var(--surface-panel) 88%, black 12%);
+}
+
+.workspace-button.active {
+  background:
+    linear-gradient(180deg, rgba(58, 211, 127, 0.075), rgba(58, 211, 127, 0.025)),
+    color-mix(in oklab, var(--surface-raised) 86%, black 14%);
+  border-color: rgba(58, 211, 127, 0.24);
+  box-shadow:
+    0 0 0 1px rgba(58, 211, 127, 0.13),
+    0 14px 26px -24px var(--accent-halo);
+}
+
+.workspace-button.active .workspace-monogram {
+  background:
+    linear-gradient(180deg, rgba(95, 227, 154, 0.94), rgba(43, 191, 112, 0.9));
+  box-shadow: 0 8px 18px -14px var(--accent-halo);
+}
+
+.workspace-priority-chip {
+  opacity: 0.9;
+}
+
+.workspace-priority-chip.tone-quiet,
+.workspace-priority-chip.tone-empty {
+  background: rgba(2, 6, 4, 0.34);
+}
+
+.terminal-grid.laid-out {
+  background:
+    linear-gradient(180deg, rgba(216, 255, 235, 0.01), transparent 120px),
+    rgba(1, 4, 3, 0.62);
+}
+
+.terminal-tile.selected,
+.terminal-tile:focus-visible {
+  border-color: rgba(58, 211, 127, 0.27);
+  box-shadow:
+    0 0 0 1px rgba(58, 211, 127, 0.24),
+    0 0 0 3px rgba(58, 211, 127, 0.08),
+    var(--depth-raised);
+}
+
+.split-empty-state {
+  min-height: 240px;
+  border-color: rgba(120, 210, 160, 0.09);
+  border-style: solid;
+  border-radius: 16px;
+  padding: 26px 30px;
+  background:
+    linear-gradient(180deg, rgba(216, 255, 235, 0.018), transparent 120px),
+    rgba(1, 4, 3, 0.3);
+  box-shadow: inset 0 1px 0 rgba(216, 255, 235, 0.025);
+}
+
+.split-empty-state span {
+  color: var(--text-muted);
+  font-family: var(--sans);
+}
+
+.split-empty-state strong {
+  color: var(--text-secondary);
+  font-family: var(--sans);
+  font-size: 15px;
+}
+
+.split-empty-state p {
+  max-width: 520px;
+  color: color-mix(in oklab, var(--text-muted) 86%, transparent);
+  font-size: 12px;
+}
+
+.split-empty-state button {
+  font-family: var(--sans);
+  background: rgba(216, 255, 235, 0.026);
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+.agent-timeline-panel {
+  background:
+    radial-gradient(280px 210px at 75% 0%, rgba(58, 211, 127, 0.03), transparent 72%),
+    color-mix(in oklab, var(--surface-panel) 88%, black 12%);
+}
+
+.agent-panel-section.agent-session-summary {
+  background:
+    linear-gradient(180deg, rgba(58, 211, 127, 0.045), transparent 76%),
+    color-mix(in oklab, var(--surface-raised) 82%, black 18%);
+  border-color: rgba(58, 211, 127, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(216, 255, 235, 0.04),
+    0 14px 30px -26px rgba(0, 0, 0, 0.78);
+}
+
+.agent-panel-section.agent-key-signal .agent-section-heading > span,
+.agent-section-heading > span,
+.review-context-summary header span {
+  color: color-mix(in oklab, var(--accent-strong) 66%, var(--text-muted));
+}
+
+.agent-panel-section.agent-key-signal {
+  border-top-color: rgba(120, 210, 160, 0.12);
+}
+
+.recovery-workspace-strip {
+  min-height: 34px;
+  border-color: rgba(58, 211, 127, 0.1);
+  background:
+    linear-gradient(180deg, rgba(58, 211, 127, 0.045), rgba(58, 211, 127, 0.018)),
+    color-mix(in oklab, var(--surface-panel) 86%, black 14%);
+  box-shadow:
+    inset 0 1px 0 rgba(216, 255, 235, 0.035),
+    0 14px 28px -28px rgba(0, 0, 0, 0.8);
+}
+
+.recovery-workspace-strip > span {
+  color: color-mix(in oklab, var(--accent-strong) 82%, var(--text-secondary));
+}
+
+.recovery-workspace-strip strong {
+  color: color-mix(in oklab, var(--text-primary) 92%, var(--accent-strong));
+}

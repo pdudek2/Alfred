@@ -1,4 +1,4 @@
-import { ChevronDown, Command, FolderOpen, ListChecks, Plus, SquareTerminal } from "lucide-react";
+import { ChevronDown, Command, FolderOpen, ListChecks, Pencil, Plus, SquareTerminal } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { getDesktopAlfredApi, getDesktopLayoutApi, getDesktopTerminalApi, getDesktopWorkspaceApi } from "./desktop-api";
 import { ComposerBar } from "./composer";
@@ -1874,6 +1874,7 @@ function WorkspaceTitleMenu({
               </button>
               <hr />
               <button type="button" onClick={onStartRename}>
+                <Pencil size={14} />
                 <span>
                   <strong>Rename workspace...</strong>
                   <small>Keep this desk readable</small>

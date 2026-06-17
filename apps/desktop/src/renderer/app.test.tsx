@@ -2063,7 +2063,8 @@ describe("App integration", () => {
     expect(rail).toHaveTextContent("needs review");
     const context = within(rail).getByRole("region", { name: "Review and recovery context" });
     expect(context).toHaveTextContent("Allow edit?");
-    expect(context).toHaveTextContent("1 saved session ready");
+    expect(context).toHaveTextContent("Manual · saved");
+    expect(context).not.toHaveTextContent("1 saved session ready");
     expect(within(rail).queryByRole("button", { name: "Relaunch Manual · saved" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open review queue, 2 items" })).toBeInTheDocument();
   });

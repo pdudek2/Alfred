@@ -7,7 +7,7 @@ import type { WorkspaceReviewItem } from "../workspace-attention";
 import type { WorkspaceMissionBrief } from "../../shared/workspace-ipc";
 import { shortenPath } from "../path-display";
 import { formatCommand } from "../command-display";
-import { recoveryCounts, recoveryHeadline, recoveryStatusLabel } from "../recovery-display";
+import { recoveryCounts, recoveryStatusLabel } from "../recovery-display";
 
 type AlfredControlRailProps = {
   armedUnsafeSessionIds: Set<string>;
@@ -227,16 +227,13 @@ function ReviewRecoveryContext({
   const firstDecision = activeDecisionItems[0] ?? null;
   const firstRecoverable = recoverableSessions[0] ?? null;
   const counts = recoveryCounts(recoverableSessions);
-  const recoverySummary = [
-    counts.saved > 0 ? `${counts.saved} saved` : null,
-    counts.ended > 0 ? `${counts.ended} ended` : null,
-    counts.failed > 0 ? `${counts.failed} failed` : null,
-  ].filter((item): item is string => item !== null).join(" · ");
-  const summary = recoverySummary || (
+  const hasRecoveryContext = counts.saved > 0 || counts.ended > 0 || counts.failed > 0;
+  const summary =
     activeDecisionItems.length > 0
       ? `${activeDecisionItems.length} decision${activeDecisionItems.length === 1 ? "" : "s"}`
-      : "No queued sessions"
-  );
+      : hasRecoveryContext
+        ? "Recovery context"
+        : "No queued sessions";
 
   return (
     <section className="review-context-summary" aria-label="Review and recovery context">
@@ -291,8 +288,8 @@ function RecoveryContextItem({
         <span>{kindMeta.shortLabel}</span>
       </span>
       <div>
-        <strong>{recoveryHeadline(sessions)}</strong>
-        <span>{statusLabel} · {session.title}</span>
+        <strong>{session.title}</strong>
+        <span>{statusLabel} · transcript context</span>
       </div>
     </div>
   );
