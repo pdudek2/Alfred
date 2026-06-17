@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
 import type {
@@ -271,6 +272,30 @@ afterEach(() => {
 });
 
 describe("App integration", () => {
+  it("keeps Alfred shell hierarchy focused on workspace, decisions, and launch actions", async () => {
+    installDesktopBridge(undefined, null, [], undefined, undefined, {
+      workspaces: [
+        {
+          id: "A",
+          label: "Alfred",
+          shortLabel: "A",
+          rootPath: "/Users/patryk/Desktop/Alfred",
+          gitBranch: "main",
+        },
+      ],
+      activeWorkspaceId: "A",
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: "Workspace menu for Alfred" })).toBeInTheDocument();
+    expect(screen.getByRole("tablist", { name: "workspaces" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open command palette" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New terminal" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: /terminals/i })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: /alfred status/i })).toBeInTheDocument();
+  });
+
   it("keeps the current shell landmarks and command palette reachable", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
@@ -431,10 +456,15 @@ describe("App integration", () => {
     expect(emptyState).toHaveTextContent("Scratch workspace ready");
     expect(emptyState).toHaveTextContent("Start in the scratch desk");
     expect(screen.queryByRole("article", { name: /Manual · zsh/i })).not.toBeInTheDocument();
+    const primaryAction = within(emptyState).getByRole("button", { name: "New terminal" });
     expect(screen.getAllByRole("button", { name: "Start Codex" }).every((button) => !button.hasAttribute("disabled"))).toBe(true);
-    expect(within(emptyState).getByRole("button", { name: "Bind folder" })).toBeInTheDocument();
+    const secondaryActions = within(emptyState).getByRole("group", { name: "secondary empty workspace actions" });
+    expect(secondaryActions).not.toBeNull();
+    expect(within(secondaryActions).getByRole("button", { name: "Start Codex" })).toBeInTheDocument();
+    expect(within(secondaryActions).getByRole("button", { name: "Start Claude" })).toBeInTheDocument();
+    expect(within(secondaryActions).getByRole("button", { name: "Bind folder" })).toBeInTheDocument();
 
-    await user.click(within(emptyState).getByRole("button", { name: "New terminal" }));
+    await user.click(primaryAction);
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ source: "manual", workspaceId: "A" }));
     });
@@ -1068,6 +1098,53 @@ describe("App integration", () => {
     });
   });
 
+  it("keeps the selected terminal tile inspectable while preserving xterm host", async () => {
+    installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "manual-a",
+        title: "Manual · alpha",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "/bin/zsh",
+        buffer: "alpha output\n",
+      },
+      {
+        id: "runtime-b",
+        clientId: "manual-b",
+        title: "Manual · beta",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "/bin/zsh",
+        buffer: "beta output\n",
+      },
+    ]);
+
+    render(<App />);
+
+    const alpha = await screen.findByRole("article", { name: /Manual · alpha/i });
+    const beta = await screen.findByRole("article", { name: /Manual · beta/i });
+
+    await waitFor(() => {
+      expect(alpha).toHaveClass("selected");
+      expect(beta).not.toHaveClass("selected");
+    });
+
+    expect(alpha.querySelector(".xterm-host")).toBeInTheDocument();
+    expect(beta.querySelector(".xterm-host")).toBeInTheDocument();
+
+    await act(async () => {
+      beta.focus();
+    });
+
+    await waitFor(() => {
+      expect(beta).toHaveClass("selected");
+      expect(alpha).not.toHaveClass("selected");
+    });
+  });
+
   it("does not auto-relaunch a failed live agent when switching work modes", async () => {
     const user = userEvent.setup();
     const { createTerminal } = installDesktopBridge();
@@ -1124,7 +1201,7 @@ describe("App integration", () => {
 
     expect(screen.getByRole("button", { name: "Desk" })).toHaveAttribute("aria-pressed", "true");
     expect(tile).toHaveClass("selected");
-    expect(screen.queryByLabelText("Agent activity")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
 
     await user.dblClick(header);
 
@@ -1137,7 +1214,7 @@ describe("App integration", () => {
     fireEvent.keyDown(window, { key: "Escape" });
 
     expect(screen.getByRole("button", { name: "Desk" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.queryByLabelText("Agent activity")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
   });
 
   it("focus mode isolates the selected session and keeps nearby sessions switchable", async () => {
@@ -2413,6 +2490,28 @@ describe("App integration", () => {
     });
   });
 
+  it("shows selected session evidence in the right dock", async () => {
+    installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "manual-a",
+        title: "Manual · alpha",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "/bin/zsh",
+        buffer: "alpha output\n",
+      },
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · alpha/i })).toBeInTheDocument();
+    const inspector = screen.getByRole("complementary", { name: "Agent activity" });
+    expect(within(inspector).getByText("Manual · alpha")).toBeInTheDocument();
+    expect(within(inspector).getByText("Continue outside Alfred")).toBeInTheDocument();
+  });
+
   it("opens the focused session cwd in an external terminal", async () => {
     const user = userEvent.setup();
     const { openExternalTerminal } = installDesktopBridge(undefined, null, [
@@ -2674,7 +2773,7 @@ describe("App integration", () => {
 
     expect(screen.getByRole("button", { name: "Desk" })).toHaveAttribute("aria-pressed", "true");
     expect(stagedTaskB).toHaveClass("selected");
-    expect(screen.queryByLabelText("Agent activity")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Task B");
 
     await user.dblClick(stagedTaskBHeader);
 
@@ -3210,6 +3309,33 @@ describe("App integration", () => {
       );
     });
     expect(forgetTerminal).not.toHaveBeenCalled();
+  });
+
+  it("shows recovery as a desk ribbon and keeps Review as the primary global decision entry", async () => {
+    installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "manual-9",
+          title: "Manual · zsh 9",
+          cwd: "/repo",
+          source: "manual",
+          shell: "/bin/zsh",
+          buffer: "saved output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+
+    expect(await screen.findByLabelText("Session recovery")).toHaveTextContent("saved session");
+    expect(screen.getByRole("button", { name: "Open review queue, 1 item" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: /alfred status/i })).toBeInTheDocument();
   });
 
   it("relaunches saved sessions from the command palette", async () => {

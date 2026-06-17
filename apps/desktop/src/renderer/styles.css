@@ -1,23 +1,38 @@
 :root {
-  --night: #06080b;
-  --panel: #0b0f14;
-  --panel-raised: #10161d;
+  --surface-canvas: #06080b;
+  --surface-panel: #0b0f14;
+  --surface-raised: #10161d;
+  --surface-sunken: #040608;
+  --text-primary: #eef3f7;
+  --text-secondary: #c6d0da;
+  --text-muted: #94a0ad;
+  --accent-primary: #53c7d8;
+  --accent-focus: color-mix(in oklab, var(--accent-primary) 74%, white 16%);
+  --border-subtle: rgba(188, 202, 218, 0.14);
+  --border-strong: rgba(198, 213, 231, 0.22);
+  --shadow-panel: 0 28px 80px rgba(0, 0, 0, 0.5);
+  --night: var(--surface-canvas);
+  --panel: var(--surface-panel);
+  --panel-raised: var(--surface-raised);
   --panel-soft: #141a22;
-  --terminal: #040608;
-  --ink: #eef3f7;
-  --ink-soft: #c6d0da;
-  --muted: #94a0ad;
+  --terminal: var(--surface-sunken);
+  --ink: var(--text-primary);
+  --ink-soft: var(--text-secondary);
+  --muted: var(--text-muted);
   --faint: #8290a0;
   --passive: #657180;
-  --line: rgba(188, 202, 218, 0.14);
-  --line-strong: rgba(198, 213, 231, 0.22);
+  --line: var(--border-subtle);
+  --line-strong: var(--border-strong);
   --glass: rgba(11, 15, 20, 0.92);
   --brass: #e0b75b;
   --cyan: #53c7d8;
   --green: #63d18a;
   --coral: #f07f72;
   --violet: #a99cff;
-  --accent: var(--cyan);
+  --accent: var(--accent-primary);
+  --focus-border: var(--accent-focus);
+  --highlight-soft: rgba(237, 242, 246, 0.055);
+  --shadow-soft: 0 14px 30px -22px rgba(0, 0, 0, 0.72);
   --accent-soft: color-mix(in oklab, var(--accent) 20%, transparent);
   --accent-strong: color-mix(in oklab, var(--accent) 70%, white 8%);
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
@@ -54,7 +69,7 @@ button {
 }
 
 button:focus-visible {
-  outline: 2px solid var(--cyan);
+  outline: 1px solid var(--focus-border);
   outline-offset: 2px;
 }
 
@@ -142,45 +157,36 @@ button:focus-visible {
   min-height: 100vh;
   padding: 8px;
   display: block;
-  --desk-night: #07090c;
-  --desk-panel: #0d1116;
-  --desk-panel-raised: #121821;
-  --desk-panel-soft: #18202a;
-  --desk-terminal: #05070a;
-  --desk-ink: #edf2f6;
-  --desk-ink-soft: #c9d2db;
-  --desk-muted: #9da8b4;
-  --desk-faint: #8996a5;
-  --desk-line: rgba(176, 188, 201, 0.12);
-  --desk-line-strong: rgba(191, 203, 218, 0.2);
-  --desk-glass: rgba(12, 16, 21, 0.94);
-  --desk-accent: #5eb1a9;
-  --desk-focus: color-mix(in oklab, var(--desk-accent) 74%, white 16%);
-  --desk-highlight-soft: rgba(237, 242, 246, 0.055);
-  --desk-shadow-soft: 0 14px 30px -22px rgba(0, 0, 0, 0.72);
-  --desk-shadow-deep: 0 28px 80px rgba(0, 0, 0, 0.5);
+  --surface-canvas: #07090c;
+  --surface-panel: #0d1116;
+  --surface-raised: #121821;
+  --surface-sunken: #05070a;
+  --text-primary: #edf2f6;
+  --text-secondary: #c9d2db;
+  --text-muted: #9da8b4;
+  --panel-soft: #18202a;
+  --faint: #8996a5;
+  --border-subtle: rgba(176, 188, 201, 0.12);
+  --border-strong: rgba(191, 203, 218, 0.2);
+  --glass: rgba(12, 16, 21, 0.94);
   background:
-    radial-gradient(circle at 16% 0%, color-mix(in oklab, var(--desk-accent) 3.5%, transparent), transparent 34%),
+    radial-gradient(circle at 16% 0%, color-mix(in oklab, var(--accent) 3.5%, transparent), transparent 34%),
     linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 180px),
-    linear-gradient(90deg, rgba(201, 163, 93, 0.025), transparent 28%, transparent 72%, rgba(94, 177, 169, 0.02)),
-    var(--desk-night);
-}
-
-.agent-space-shell button:focus-visible {
-  outline-color: var(--desk-focus);
+    linear-gradient(90deg, rgba(201, 163, 93, 0.025), transparent 28%, transparent 72%, color-mix(in oklab, var(--accent) 2%, transparent)),
+    var(--night);
 }
 
 .desktop-frame {
   height: calc(100vh - 16px);
-  border: 1px solid var(--desk-line);
+  border: 1px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
   box-shadow:
-    var(--desk-shadow-deep),
+    var(--shadow-panel),
     inset 0 1px 0 rgba(238, 243, 247, 0.045);
   background:
     linear-gradient(180deg, rgba(238, 243, 247, 0.03), transparent 88px),
-    var(--desk-panel);
+    var(--panel);
   display: grid;
   grid-template-rows: 46px minmax(0, 1fr) 66px;
 }
@@ -194,8 +200,8 @@ button:focus-visible {
   padding: 0 14px;
   background:
     linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 100%),
-    linear-gradient(90deg, color-mix(in oklab, var(--desk-accent) 4%, transparent), transparent 34%),
-    var(--desk-glass);
+    linear-gradient(90deg, color-mix(in oklab, var(--accent) 4%, transparent), transparent 34%),
+    var(--glass);
   -webkit-app-region: drag;
   user-select: none;
 }
@@ -212,10 +218,11 @@ button:focus-visible {
 }
 
 .mission-name {
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .workspace-title-menu {
@@ -227,12 +234,12 @@ button:focus-visible {
   max-width: min(520px, 44vw);
   min-width: 0;
   min-height: 36px;
-  border: 1px solid color-mix(in oklab, var(--desk-line) 88%, transparent);
+  border: 1px solid color-mix(in oklab, var(--line) 88%, transparent);
   border-radius: 10px;
   padding: 4px 10px 4px 8px;
   background:
     linear-gradient(180deg, rgba(238, 243, 247, 0.02), transparent 72%),
-    color-mix(in oklab, var(--desk-panel-raised) 92%, transparent);
+    color-mix(in oklab, var(--panel-raised) 92%, transparent);
   box-shadow: inset 0 1px 0 rgba(238, 243, 247, 0.035);
   color: inherit;
   display: grid;
@@ -246,10 +253,10 @@ button:focus-visible {
 .workspace-title-trigger:hover,
 .workspace-title-trigger:focus-visible,
 .workspace-title-trigger[aria-expanded="true"] {
-  border-color: color-mix(in oklab, var(--desk-accent) 24%, var(--desk-line));
+  border-color: color-mix(in oklab, var(--accent) 24%, var(--line));
   background:
     linear-gradient(180deg, rgba(238, 243, 247, 0.028), transparent 72%),
-    color-mix(in oklab, var(--desk-panel-soft) 88%, transparent);
+    color-mix(in oklab, var(--panel-soft) 88%, transparent);
 }
 
 .workspace-title-trigger > span,
@@ -273,7 +280,7 @@ button:focus-visible {
 }
 
 .workspace-title-trigger strong {
-  color: var(--desk-ink);
+  color: var(--ink);
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -281,7 +288,7 @@ button:focus-visible {
 
 .workspace-title-trigger small {
   margin-top: 2px;
-  color: var(--desk-muted);
+  color: var(--muted);
   font-family: var(--mono);
   font-size: 11px;
 }
@@ -292,12 +299,12 @@ button:focus-visible {
   left: -2px;
   z-index: 40;
   width: min(390px, 78vw);
-  border: 1px solid var(--desk-line-strong);
+  border: 1px solid var(--line-strong);
   border-radius: 10px;
   padding: 7px;
-  background: color-mix(in oklab, var(--desk-panel-raised) 94%, black 6%);
+  background: color-mix(in oklab, var(--panel-raised) 94%, black 6%);
   box-shadow:
-    inset 0 1px 0 var(--desk-highlight-soft),
+    inset 0 1px 0 var(--highlight-soft),
     0 22px 54px rgba(0, 0, 0, 0.48);
 }
 
@@ -320,7 +327,7 @@ button:focus-visible {
   border-radius: 7px;
   padding: 8px;
   background: transparent;
-  color: var(--desk-ink-soft);
+  color: var(--ink-soft);
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
   align-items: center;
@@ -331,9 +338,9 @@ button:focus-visible {
 
 .workspace-popover button:hover,
 .workspace-popover button:focus-visible {
-  border-color: color-mix(in oklab, var(--desk-accent) 18%, var(--desk-line));
-  background: color-mix(in oklab, var(--desk-accent) 6%, var(--desk-panel-soft));
-  color: var(--desk-ink);
+  border-color: color-mix(in oklab, var(--accent) 18%, var(--line));
+  background: color-mix(in oklab, var(--accent) 6%, var(--panel-soft));
+  color: var(--ink);
 }
 
 .workspace-popover button:disabled {
@@ -342,7 +349,7 @@ button:focus-visible {
 }
 
 .workspace-popover button svg {
-  color: var(--desk-accent);
+  color: var(--accent);
 }
 
 .workspace-popover button strong,
@@ -361,7 +368,7 @@ button:focus-visible {
 
 .workspace-popover button small {
   margin-top: 2px;
-  color: var(--desk-faint);
+  color: var(--faint);
   font-family: var(--mono);
   font-size: 10px;
 }
@@ -370,7 +377,7 @@ button:focus-visible {
   height: 1px;
   border: 0;
   margin: 6px 4px;
-  background: var(--desk-line);
+  background: var(--line);
 }
 
 .workspace-rename-form,
@@ -400,11 +407,11 @@ button:focus-visible {
   width: 100%;
   min-height: 38px;
   margin-top: 8px;
-  border: 1px solid var(--desk-line-strong);
+  border: 1px solid var(--line-strong);
   border-radius: 8px;
   padding: 0 10px;
-  background: color-mix(in oklab, var(--desk-terminal) 78%, var(--desk-panel) 22%);
-  color: var(--desk-ink);
+  background: color-mix(in oklab, var(--terminal) 78%, var(--panel) 22%);
+  color: var(--ink);
   font: 650 13px var(--sans);
 }
 
@@ -422,7 +429,7 @@ button:focus-visible {
 
 .workspace-rename-form input:focus,
 .workspace-mission-form textarea:focus {
-  outline: 2px solid color-mix(in oklab, var(--desk-accent) 72%, white 8%);
+  outline: 2px solid color-mix(in oklab, var(--accent) 72%, white 8%);
   outline-offset: 2px;
 }
 
@@ -458,11 +465,11 @@ button:focus-visible {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  border: 1px solid var(--desk-line);
+  border: 1px solid var(--line);
   border-radius: 6px;
   background:
     linear-gradient(145deg, rgba(238, 243, 247, 0.055), rgba(238, 243, 247, 0.018));
-  color: var(--desk-ink-soft);
+  color: var(--ink-soft);
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 650;
@@ -491,19 +498,19 @@ button:focus-visible {
 
 .mission-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
 .mission-actions button {
   min-height: 34px;
-  border: 1px solid var(--desk-line);
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0 10px;
   background:
     linear-gradient(180deg, rgba(238, 243, 247, 0.022), transparent 100%),
-    color-mix(in oklab, var(--desk-panel-raised) 94%, transparent);
-  color: var(--desk-ink-soft);
+    color-mix(in oklab, var(--panel-raised) 94%, transparent);
+  color: var(--ink-soft);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -518,11 +525,11 @@ button:focus-visible {
 
 .mission-actions button:hover,
 .mission-actions button:focus-visible {
-  border-color: var(--desk-line-strong);
+  border-color: var(--line-strong);
   background:
     linear-gradient(180deg, rgba(238, 243, 247, 0.03), transparent 100%),
-    color-mix(in oklab, var(--desk-panel-soft) 92%, transparent);
-  color: var(--desk-ink);
+    color-mix(in oklab, var(--panel-soft) 92%, transparent);
+  color: var(--ink);
   box-shadow: inset 0 1px 0 rgba(238, 243, 247, 0.04);
 }
 
@@ -530,13 +537,13 @@ button:focus-visible {
   width: auto;
   min-width: 132px;
   padding: 0 13px;
-  border-color: color-mix(in oklab, var(--desk-accent) 32%, var(--desk-line));
+  border-color: color-mix(in oklab, var(--accent) 32%, var(--line));
   background:
-    linear-gradient(180deg, color-mix(in oklab, var(--desk-accent) 14%, transparent), color-mix(in oklab, var(--desk-accent) 6%, transparent)),
-    color-mix(in oklab, var(--desk-panel-raised) 92%, transparent);
+    linear-gradient(180deg, color-mix(in oklab, var(--accent) 14%, transparent), color-mix(in oklab, var(--accent) 6%, transparent)),
+    color-mix(in oklab, var(--panel-raised) 92%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(238, 243, 247, 0.06),
-    0 10px 20px -18px color-mix(in oklab, var(--desk-accent) 44%, black 56%);
+    0 10px 20px -18px color-mix(in oklab, var(--accent) 44%, black 56%);
   color: #dcefed;
 }
 
@@ -550,10 +557,10 @@ button:focus-visible {
 .mission-actions .review-queue-button {
   min-width: 108px;
   padding: 0 10px;
-  border-color: color-mix(in oklab, var(--brass) 34%, var(--desk-line));
+  border-color: color-mix(in oklab, var(--brass) 34%, var(--line));
   background:
     linear-gradient(180deg, color-mix(in oklab, var(--brass) 12%, transparent), color-mix(in oklab, var(--brass) 5%, transparent)),
-    color-mix(in oklab, var(--desk-panel-raised) 92%, transparent);
+    color-mix(in oklab, var(--panel-raised) 92%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(238, 243, 247, 0.05),
     0 10px 20px -18px color-mix(in oklab, var(--brass) 34%, black 66%);
@@ -644,7 +651,7 @@ button:focus-visible {
 }
 
 .workspace-layout.alfred-compact {
-  grid-template-columns: minmax(194px, 220px) minmax(0, 1fr) 48px;
+  grid-template-columns: minmax(194px, 220px) minmax(0, 1fr) minmax(320px, 34vw);
 }
 
 .workspace-layout.preview-visible {
@@ -664,6 +671,11 @@ button:focus-visible {
   align-self: flex-end;
 }
 
+.side-dock-stack > .agent-timeline-panel {
+  width: 100%;
+  min-width: 0;
+}
+
 .workspace-layout.preview-visible .workspace-preview-panel {
   flex: 1 1 0;
   min-height: 0;
@@ -681,17 +693,18 @@ button:focus-visible {
 }
 
 .workspace-rail {
+  width: 100%;
   min-width: 0;
   min-height: 0;
-  border: 1px solid var(--desk-line);
+  border: 1px solid var(--line);
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
   background:
     linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 72px),
-    color-mix(in oklab, var(--desk-panel-raised) 96%, transparent);
+    color-mix(in oklab, var(--panel-raised) 96%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(238, 243, 247, 0.03),
-    var(--desk-shadow-soft);
+    var(--shadow-soft);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -702,13 +715,15 @@ button:focus-visible {
 .workspace-button {
   position: relative;
   width: 100%;
-  min-height: 54px;
+  min-height: 56px;
   border: 1px solid transparent;
   border-radius: 10px;
+  font-family: var(--sans);
+  font-weight: 600;
   background:
     linear-gradient(180deg, rgba(238, 243, 247, 0.012), transparent 100%),
     transparent;
-  color: var(--desk-ink-soft);
+  color: var(--ink-soft);
   cursor: pointer;
   font-family: var(--mono);
   font-size: 12px;
@@ -730,25 +745,27 @@ button:focus-visible {
 .workspace-button:hover {
   background:
     linear-gradient(180deg, rgba(238, 243, 247, 0.02), transparent 100%),
-    color-mix(in oklab, var(--desk-panel-soft) 76%, transparent);
-  border-color: color-mix(in oklab, var(--desk-line-strong) 88%, transparent);
+    color-mix(in oklab, var(--panel-soft) 76%, transparent);
+  border-color: color-mix(in oklab, var(--line-strong) 88%, transparent);
   box-shadow: inset 0 1px 0 rgba(238, 243, 247, 0.03);
   transform: translateY(-1px);
 }
 
 .workspace-button:focus-visible {
-  outline: 2px solid var(--desk-focus);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow:
+    inset 0 0 0 2px color-mix(in oklab, var(--accent) 84%, var(--ink) 16%),
+    inset 2px 0 0 color-mix(in oklab, var(--accent) 76%, transparent);
 }
 
 .workspace-monogram {
   width: 34px;
   height: 34px;
-  border: 1px solid color-mix(in oklab, var(--desk-line-strong) 92%, transparent);
+  border: 1px solid color-mix(in oklab, var(--line-strong) 92%, transparent);
   border-radius: 8px;
   background:
     linear-gradient(145deg, rgba(238, 243, 247, 0.04), rgba(238, 243, 247, 0.012));
-  color: var(--desk-ink-soft);
+  color: var(--ink-soft);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -772,7 +789,7 @@ button:focus-visible {
 }
 
 .workspace-button-details strong {
-  color: var(--desk-ink);
+  color: var(--ink);
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 650;
@@ -781,20 +798,20 @@ button:focus-visible {
 
 .workspace-button-details span {
   margin-top: 3px;
-  color: var(--desk-muted);
+  color: var(--muted);
   font-size: 11px;
   line-height: 1.25;
 }
 
 .workspace-priority-chip {
   justify-self: end;
-  max-width: 74px;
+  max-width: 78px;
   min-height: 22px;
   padding: 0 7px;
-  border: 1px solid color-mix(in oklab, var(--desk-line) 92%, transparent);
+  border: 1px solid color-mix(in oklab, var(--line) 92%, transparent);
   border-radius: 999px;
-  background: color-mix(in oklab, var(--desk-panel) 92%, black 8%);
-  color: var(--desk-muted);
+  background: color-mix(in oklab, var(--panel) 92%, black 8%);
+  color: var(--muted);
   font-size: 11px;
   font-weight: 650;
   display: inline-flex;
@@ -826,42 +843,42 @@ button:focus-visible {
 }
 
 .workspace-priority-chip.tone-empty {
-  color: color-mix(in oklab, var(--desk-muted) 78%, transparent);
+  color: color-mix(in oklab, var(--muted) 78%, transparent);
 }
 
 .workspace-button.active {
   background:
-    linear-gradient(180deg, color-mix(in oklab, var(--desk-accent) 8%, transparent), transparent 100%),
-    color-mix(in oklab, var(--desk-panel-soft) 88%, transparent);
-  border-color: color-mix(in oklab, var(--desk-accent) 26%, var(--desk-line));
-  color: var(--desk-ink);
+    linear-gradient(180deg, color-mix(in oklab, var(--accent) 8%, transparent), transparent 100%),
+    color-mix(in oklab, var(--panel-soft) 88%, transparent);
+  border-color: color-mix(in oklab, var(--accent) 26%, var(--line));
+  color: var(--ink);
   box-shadow:
-    inset 2px 0 0 color-mix(in oklab, var(--desk-accent) 76%, transparent),
+    inset 2px 0 0 color-mix(in oklab, var(--accent) 76%, transparent),
     inset 0 1px 0 rgba(238, 243, 247, 0.03),
-    0 14px 26px -24px color-mix(in oklab, var(--desk-accent) 30%, black 70%);
+    0 14px 26px -24px color-mix(in oklab, var(--accent) 30%, black 70%);
 }
 
 .workspace-button.active .workspace-monogram {
-  border-color: color-mix(in oklab, var(--desk-accent) 34%, transparent);
-  background: color-mix(in oklab, var(--desk-accent) 10%, transparent);
+  border-color: color-mix(in oklab, var(--accent) 34%, transparent);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
   color: #d8efec;
 }
 
 .workspace-button.active .workspace-button-details strong {
-  color: var(--desk-ink);
+  color: var(--ink);
 }
 
 .workspace-button.active .workspace-button-details span {
-  color: var(--desk-ink-soft);
+  color: var(--ink-soft);
 }
 
 .workspace-button.add-workspace {
   min-height: 42px;
   grid-template-columns: 1fr;
   place-items: center;
-  border-color: color-mix(in oklab, var(--desk-line) 82%, transparent);
-  background: color-mix(in oklab, var(--desk-panel-soft) 74%, transparent);
-  color: var(--desk-muted);
+  border-color: color-mix(in oklab, var(--line) 82%, transparent);
+  background: color-mix(in oklab, var(--panel-soft) 74%, transparent);
+  color: var(--muted);
   font-size: 15px;
 }
 
@@ -880,7 +897,7 @@ button:focus-visible {
   }
 
   .workspace-layout.alfred-compact {
-    grid-template-columns: 58px minmax(0, 1fr) 48px;
+    grid-template-columns: 58px minmax(0, 1fr) minmax(280px, 34vw);
   }
 
   .workspace-layout.preview-visible {
@@ -989,6 +1006,11 @@ button:focus-visible {
   color: var(--faint);
 }
 
+.work-mode-control button:hover,
+.work-mode-control button:focus-visible {
+  color: var(--ink-soft);
+}
+
 .work-mode-control button.active,
 .work-mode-control button[aria-pressed="true"] {
   border-color: color-mix(in oklab, var(--accent) 28%, transparent);
@@ -1046,7 +1068,7 @@ button:focus-visible {
 .terminal-grid {
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+  overflow: visible;
   background:
     linear-gradient(90deg, rgba(188, 202, 218, 0.024) 1px, transparent 1px),
     linear-gradient(180deg, rgba(188, 202, 218, 0.02) 1px, transparent 1px),
@@ -1292,7 +1314,7 @@ button:focus-visible {
   min-height: 0;
   border: 1px solid color-mix(in oklab, white 7%, transparent);
   border-radius: 10px;
-  overflow: visible;
+  overflow: hidden;
   background:
     linear-gradient(180deg, color-mix(in oklab, white 2.4%, transparent), transparent 52px),
     #050807;
@@ -1720,7 +1742,8 @@ body.arranging-pointer {
 }
 
 .tile-title small {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 6px;
   min-width: 0;
@@ -1729,7 +1752,7 @@ body.arranging-pointer {
   line-height: 1.15;
 }
 
-.tile-title small span:first-child {
+.tile-title .session-location-meta {
   flex: 0 0 auto;
   color: color-mix(in oklab, var(--faint) 74%, var(--muted));
   font-size: 9px;
@@ -1737,11 +1760,12 @@ body.arranging-pointer {
   text-transform: uppercase;
 }
 
-.tile-title small span:last-child {
+.tile-title .session-location-value {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: color-mix(in oklab, var(--ink-soft) 72%, var(--faint));
 }
 
 .tile-actions {
@@ -1774,15 +1798,18 @@ body.arranging-pointer {
 
 .tile-primary-actions {
   min-width: 0;
+  gap: 8px;
 }
 
 .tile-utility-actions {
   gap: 4px;
+  padding-left: 12px;
+  margin-left: 12px;
 }
 
 .tile-danger-actions {
-  padding-left: 8px;
-  margin-left: 8px;
+  padding-left: 12px;
+  margin-left: 12px;
 }
 
 .tile-status {
@@ -1869,6 +1896,8 @@ body.arranging-pointer {
 
 .terminal-tile.selected,
 .terminal-tile:focus-within {
+  outline: 1px solid var(--focus-border);
+  outline-offset: 2px;
   border-color: color-mix(in oklab, var(--accent) 68%, transparent);
   box-shadow:
     inset 0 0 0 1px color-mix(in oklab, var(--accent) 38%, transparent),
@@ -1957,14 +1986,31 @@ body.arranging-pointer {
   }
 
   .tile-action-group {
-    gap: 4px;
-    padding-left: 6px;
-    margin-left: 6px;
+    gap: 3px;
+    padding-left: 4px;
+    margin-left: 4px;
+  }
+
+  .tile-primary-actions {
+    gap: 3px;
+  }
+
+  .tile-utility-actions,
+  .tile-danger-actions {
+    padding-left: 4px;
+    margin-left: 4px;
   }
 
   .tile-actions .continue-button span,
   .tile-actions .discard-session-button span {
     display: none;
+  }
+
+  .tile-actions .continue-button,
+  .tile-actions .discard-session-button {
+    width: 32px;
+    min-width: 32px;
+    padding: 0;
   }
 }
 
@@ -2021,15 +2067,22 @@ body.arranging-pointer {
     font-size: 0;
   }
 
-  .tile-actions button {
-    width: 30px;
-    min-height: 30px;
-  }
-
   .tile-action-group {
     gap: 3px;
     padding-left: 2px;
     margin-left: 2px;
+  }
+
+  .tile-actions button {
+    min-height: 32px;
+  }
+
+  .tile-actions .continue-button,
+  .tile-actions .discard-session-button {
+    width: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    padding: 0;
   }
 }
 
@@ -2049,11 +2102,25 @@ body.arranging-pointer {
 
 .tile-actions .continue-button {
   width: auto;
+  min-width: 88px;
   gap: 6px;
   padding: 0 10px;
   color: #f5e6b8;
   border-color: rgba(217, 174, 70, 0.34);
   background: rgba(217, 174, 70, 0.07);
+}
+
+.tile-primary-actions .continue-button:not(.unsafe) {
+  border-color: color-mix(in oklab, var(--accent) 40%, transparent);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  color: #d8fbff;
+}
+
+.tile-primary-actions .continue-button:not(.unsafe):hover,
+.tile-primary-actions .continue-button:not(.unsafe):focus-visible {
+  border-color: color-mix(in oklab, var(--accent) 56%, transparent);
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  color: #effeff;
 }
 
 .tile-actions .continue-button:hover,
@@ -2107,13 +2174,17 @@ body.arranging-pointer {
   font-size: 11px;
 }
 
-.xterm-host {
+.xterm-host,
+.real-terminal .xterm {
   min-width: 0;
   min-height: 0;
+  background: #050807;
+}
+
+.xterm-host {
   overflow: hidden;
   border-radius: 0 0 10px 10px;
   padding: 12px 14px 14px;
-  background: #050807;
 }
 
 .xterm-host .xterm {
@@ -2618,8 +2689,7 @@ body.arranging-pointer {
 .review-context-summary header span {
   color: var(--faint);
   font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
 }
 
 .review-context-summary header strong {
@@ -2669,18 +2739,19 @@ body.arranging-pointer {
   font-size: 10px;
 }
 
-/* Composer bar (Alfred prompt input) */
+/* Composer */
 .composer-bar {
+  min-height: 66px;
   border-top: 1px solid var(--line);
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr) 96px;
-  grid-template-rows: 34px 18px;
+  grid-template-rows: 36px 16px;
   align-items: center;
   column-gap: 12px;
-  row-gap: 2px;
-  padding: 5px 12px 6px;
+  row-gap: 4px;
+  padding: 7px 12px 7px;
   background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.016), transparent 28px),
+    linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 34px),
     rgba(8, 11, 15, 0.94);
 }
 
@@ -2709,12 +2780,17 @@ body.arranging-pointer {
 
 .composer-input {
   min-width: 0;
-  min-height: 34px;
-  max-height: 34px;
-  border: 1px solid rgba(188, 202, 218, 0.12);
-  border-radius: 7px;
-  padding: 6px 11px;
-  background: rgba(238, 243, 247, 0.028);
+  min-height: 36px;
+  max-height: 36px;
+  border: 1px solid rgba(188, 202, 218, 0.1);
+  border-radius: 8px;
+  padding: 7px 11px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.22), rgba(238, 243, 247, 0.016)),
+    rgba(4, 7, 10, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(238, 243, 247, 0.02),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.12);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 13px;
@@ -2734,27 +2810,33 @@ body.arranging-pointer {
 }
 
 .composer-input:focus-visible {
-  border-color: rgba(83, 199, 216, 0.46);
-  background: rgba(83, 199, 216, 0.045);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 12%, transparent);
+  border-color: var(--focus-border);
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.16), color-mix(in oklab, var(--accent) 5%, transparent)),
+    rgba(5, 9, 12, 0.94);
+  box-shadow:
+    inset 0 1px 0 rgba(238, 243, 247, 0.03),
+    0 0 0 1px color-mix(in oklab, var(--accent) 12%, transparent);
 }
 
 .composer-input:disabled {
   border-color: rgba(188, 202, 218, 0.08);
-  background: rgba(238, 243, 247, 0.018);
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(238, 243, 247, 0.012)),
+    rgba(6, 9, 12, 0.9);
   color: color-mix(in oklab, var(--ink-soft) 80%, var(--muted));
   opacity: 1;
   cursor: not-allowed;
 }
 
 .composer-send {
-  min-height: 34px;
-  min-width: 96px;
-  border: 1px solid rgba(188, 202, 218, 0.16);
-  border-radius: 7px;
+  min-height: 36px;
+  min-width: 84px;
+  border: 1px solid rgba(188, 202, 218, 0.14);
+  border-radius: 8px;
   padding: 0 14px;
   background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.035), rgba(238, 243, 247, 0.015));
+    linear-gradient(180deg, rgba(238, 243, 247, 0.032), rgba(238, 243, 247, 0.012));
   color: var(--ink-soft);
   font-family: var(--mono);
   font-size: 12px;
@@ -2770,12 +2852,22 @@ body.arranging-pointer {
     opacity 160ms ease;
 }
 
-.composer-send:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
+.composer-send:focus-visible {
+  border-color: var(--focus-border);
+  color: var(--ink);
 }
 
-.composer-bar[data-state="ready"] .composer-send {
+.composer-send:disabled {
+  border-color: rgba(188, 202, 218, 0.1);
+  background:
+    linear-gradient(180deg, rgba(238, 243, 247, 0.018), rgba(238, 243, 247, 0.008)),
+    rgba(255, 255, 255, 0.01);
+  color: color-mix(in oklab, var(--muted) 88%, var(--ink-soft));
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.composer-bar[data-state="ready"] .composer-send:enabled {
   border-color: rgba(83, 199, 216, 0.22);
   background:
     linear-gradient(180deg, rgba(83, 199, 216, 0.08), rgba(83, 199, 216, 0.03)),
@@ -2783,19 +2875,19 @@ body.arranging-pointer {
   color: #d4f4f7;
 }
 
-.composer-bar[data-state="busy"] .composer-send {
+.composer-bar[data-state="busy"] .composer-send:enabled {
   border-color: rgba(83, 199, 216, 0.28);
   color: #d4f4f7;
 }
 
-.composer-bar[data-state="blocked"] .composer-send {
+.composer-bar[data-state="blocked"] .composer-send:enabled {
   border-color: rgba(217, 174, 70, 0.28);
   color: #eadbb1;
 }
 
 .composer-status-row {
   grid-column: 2 / 4;
-  min-height: 18px;
+  min-height: 16px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2827,7 +2919,9 @@ body.arranging-pointer {
   flex: 1 1 auto;
   color: var(--faint);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2852,7 +2946,7 @@ body.arranging-pointer {
   color: var(--ink);
 }
 
-/* Command palette */
+/* Command palette and review modal */
 .review-queue-backdrop,
 .command-palette-backdrop {
   position: fixed;
@@ -3011,7 +3105,7 @@ body.arranging-pointer {
 }
 
 .global-review-item-main:focus-visible {
-  outline: 2px solid rgba(83, 199, 216, 0.62);
+  outline: 2px solid var(--focus-border);
   outline-offset: 5px;
   border-radius: 8px;
 }
@@ -3156,10 +3250,12 @@ body.arranging-pointer {
 }
 
 .global-review-discard {
-  min-width: 86px;
+  min-width: 0;
   border-color: transparent;
+  padding-inline: 6px;
   background: transparent;
   color: color-mix(in oklab, var(--coral) 68%, var(--muted));
+  justify-self: start;
 }
 
 .global-review-discard:hover,
@@ -3737,7 +3833,7 @@ body.arranging-pointer {
 }
 
 .review-item-focus:focus-visible {
-  outline: 2px solid rgba(83, 199, 216, 0.62);
+  outline: 2px solid var(--focus-border);
   outline-offset: 4px;
   border-radius: 8px;
 }
@@ -3945,7 +4041,7 @@ body.arranging-pointer {
   }
 }
 
-/* ----- Focus mode + agent timeline panel (Task 4) ----- */
+/* Focus mode and inspector */
 
 .terminal-stage-body {
   display: flex;
@@ -3970,7 +4066,7 @@ body.arranging-pointer {
 
 .recovery-workspace-strip {
   min-height: 30px;
-  border: 1px solid color-mix(in oklab, var(--desk-line) 88%, transparent);
+  border: 1px solid color-mix(in oklab, var(--line) 88%, transparent);
   border-radius: 8px;
   padding: 0 10px;
   background:
@@ -3995,18 +4091,17 @@ body.arranging-pointer {
 
 .recovery-workspace-strip > span {
   flex: 0 0 auto;
-  color: color-mix(in oklab, var(--brass) 38%, var(--desk-muted));
+  color: color-mix(in oklab, var(--brass) 38%, var(--muted));
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: lowercase;
+  letter-spacing: 0;
 }
 
 .recovery-workspace-strip p {
   margin: 0;
   min-width: 0;
-  color: var(--desk-muted);
+  color: var(--muted);
   display: flex;
   align-items: baseline;
   gap: 0;
@@ -4725,267 +4820,486 @@ body.arranging-pointer {
   font-size: 10px;
 }
 
-/* ===================================================================== */
-/* ALFRED DEPTH — vertical slice: mission-bar + workspace-rail.          */
-/* Dark, green-tinted, emerald-accent surface with layered depth and a   */
-/* soft ambient glow, in the language of the reference dashboards        */
-/* (ClauseOS / FlowTune). Appended override (wins by source order).      */
-/* Delete this banner block to revert the slice. Canonical token +       */
-/* language reference for docs/REDESIGN_BRIEF.md.                        */
-/* ===================================================================== */
+/* ============================================================
+   ALFRED DEPTH v2 — dark + emerald + real elevation
+   Appended override layer. Source-order wins at equal specificity.
+   Reference language: ClauseOS / FlowTune (dark, layered, emerald,
+   ambient glow). This is NOT a recolor: it restores the depth Codex
+   stripped (net -7 box-shadows) and flips the accent system whole.
+   Remove this whole block to revert direction.
+   ============================================================ */
 
-:root {
-  --ab-canvas: #070b0a;
-  --ab-card: #101614;
-  --ab-raised: #18211c;
-  --ab-sunken: #0b100e;
+/* Target BOTH :root and .agent-space-shell — the shell re-declares these tokens
+   locally (line ~160), and custom properties resolve from the nearest ancestor,
+   so a :root-only override never reaches inside the shell. This is why earlier
+   surface/border/text changes did not show. Later source order + equal
+   specificity means these win on the shell element. */
+:root,
+.agent-space-shell {
+  /* surfaces: near-black with a green undertone, clearly layered */
+  --surface-canvas: #070b09;
+  --surface-panel: #0d1411;
+  --surface-raised: #15201a;
+  --surface-sunken: #050806;
+  --panel-soft: #111b16;
+  --glass: rgba(11, 18, 14, 0.86);
 
-  --ab-ink: #eef4f0;
-  --ab-ink-soft: #bcc8c1;
-  --ab-ink-muted: #88958c;
-  --ab-ink-faint: #5e6b63;
+  /* text hierarchy */
+  --text-primary: #eef5f0;
+  --text-secondary: #b9c8bf;
+  --text-muted: #82938a;
+  --faint: #5d6c63;
+  --passive: #55645b;
 
-  --ab-hair: rgba(180, 230, 205, 0.08);
-  --ab-hair-strong: rgba(180, 230, 205, 0.14);
-  --ab-highlight: rgba(216, 255, 235, 0.05);
+  /* one accent system: emerald, with a real halo */
+  --accent-primary: #3ad37f;
+  --accent: var(--accent-primary);
+  --cyan: var(--accent-primary);
+  --green: #4fe08f;
+  --accent-press: #2bbf70;
+  --accent-soft: rgba(58, 211, 127, 0.13);
+  --accent-strong: #5fe39a;
+  --accent-halo: rgba(58, 211, 127, 0.42);
+  --on-accent: #04160c;
 
-  --ab-accent: #3ad37f;
-  --ab-accent-press: #2bbf70;
-  --ab-accent-soft: rgba(58, 211, 127, 0.14);
-  --ab-accent-halo: rgba(58, 211, 127, 0.4);
-  --ab-on-accent: #05160d;
+  /* green-tinted hairlines */
+  --border-subtle: rgba(120, 210, 160, 0.10);
+  --border-strong: rgba(120, 210, 160, 0.18);
+  --line: var(--border-subtle);
+  --line-strong: var(--border-strong);
+  --highlight-soft: rgba(216, 255, 235, 0.05);
 
-  --ab-radius-sm: 10px;
-  --ab-radius: 14px;
-  --ab-radius-lg: 18px;
-
-  --ab-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --ab-shadow-md: 0 16px 34px -20px rgba(0, 0, 0, 0.78), 0 2px 8px -3px rgba(0, 0, 0, 0.55);
-  --ab-shadow-lg: 0 34px 72px -26px rgba(0, 0, 0, 0.72);
+  /* a true depth scale (Codex deleted these) */
+  --shadow-soft: 0 16px 34px -24px rgba(0, 0, 0, 0.82);
+  --shadow-panel:
+    0 34px 72px -30px rgba(0, 0, 0, 0.78),
+    0 2px 10px -4px rgba(0, 0, 0, 0.6);
+  --depth-card:
+    0 1px 0 rgba(216, 255, 235, 0.045) inset,
+    0 18px 38px -26px rgba(0, 0, 0, 0.85);
+  --depth-raised:
+    0 1px 0 rgba(216, 255, 235, 0.06) inset,
+    0 26px 56px -28px rgba(0, 0, 0, 0.8),
+    0 2px 8px -3px rgba(0, 0, 0, 0.55);
 }
 
-/* ---- Top bar -------------------------------------------------------- */
-
-.mission-bar {
-  border-bottom: 1px solid var(--ab-hair);
+/* canvas: strong emerald ambient glow bleeding from corners (FlowTune signature) */
+body {
   background:
-    radial-gradient(80% 180% at 12% 0%, var(--ab-accent-soft), transparent 42%),
-    linear-gradient(180deg, var(--ab-raised), var(--ab-card));
-  box-shadow: inset 0 1px 0 var(--ab-highlight);
+    radial-gradient(1200px 760px at 6% -8%, rgba(58, 211, 127, 0.14), transparent 58%),
+    radial-gradient(1000px 720px at 100% 112%, rgba(58, 211, 127, 0.10), transparent 60%),
+    radial-gradient(720px 540px at 96% 2%, rgba(58, 211, 127, 0.05), transparent 64%),
+    linear-gradient(180deg, rgba(216, 255, 235, 0.014), transparent 260px),
+    var(--surface-canvas);
+}
+
+/* --- Mission bar: floating lit header --- */
+.mission-bar {
+  border-bottom: 1px solid var(--line-strong);
+  background:
+    radial-gradient(620px 130px at 18% -40%, rgba(58, 211, 127, 0.10), transparent 70%),
+    linear-gradient(180deg, rgba(216, 255, 235, 0.04), transparent 70%),
+    var(--surface-panel);
+  box-shadow:
+    0 1px 0 rgba(216, 255, 235, 0.05) inset,
+    0 18px 40px -34px rgba(0, 0, 0, 0.9);
 }
 
 .alfred-mark {
-  border: 1px solid var(--ab-hair);
-  background: var(--ab-sunken);
-  color: var(--ab-ink-soft);
+  box-shadow: 0 0 0 1px var(--border-strong), 0 8px 18px -10px var(--accent-halo);
 }
 
-.workspace-title-trigger {
-  border: 1px solid var(--ab-hair);
-  border-radius: var(--ab-radius-sm);
-  background: var(--ab-card);
-  box-shadow: inset 0 1px 0 var(--ab-highlight), var(--ab-shadow-sm);
+/* --- Workspace rail: raised navigation card --- */
+.workspace-rail {
+  background:
+    radial-gradient(420px 320px at 30% 0%, rgba(58, 211, 127, 0.05), transparent 70%),
+    var(--surface-panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--depth-card);
 }
 
-.workspace-title-trigger:hover,
-.workspace-title-trigger:focus-visible,
-.workspace-title-trigger[aria-expanded="true"] {
-  border-color: color-mix(in oklab, var(--ab-accent) 30%, var(--ab-hair-strong));
-  background: var(--ab-raised);
-  box-shadow: var(--ab-shadow-sm), 0 0 0 3px var(--ab-accent-soft);
-}
-
-.workspace-title-trigger strong {
-  color: var(--ab-ink);
+.workspace-button {
   font-family: var(--sans);
-  font-weight: 700;
+  border: 1px solid transparent;
 }
 
-.workspace-title-trigger > span,
-.workspace-title-trigger span {
-  color: var(--ab-ink-muted);
+.workspace-button:hover {
+  background: rgba(216, 255, 235, 0.035);
+  border-color: var(--border-subtle);
 }
 
-.mission-name strong {
-  color: var(--ab-ink);
+.workspace-button.active {
+  background:
+    linear-gradient(180deg, rgba(58, 211, 127, 0.12), rgba(58, 211, 127, 0.04)),
+    var(--surface-raised);
+  border-color: rgba(58, 211, 127, 0.32);
+  box-shadow:
+    0 0 0 1px rgba(58, 211, 127, 0.22),
+    0 14px 30px -20px var(--accent-halo);
 }
 
-.mission-name span {
-  color: var(--ab-ink-muted);
+.workspace-button.active .workspace-monogram,
+.workspace-monogram {
+  font-weight: 600;
 }
 
-/* Secondary (ghost) actions */
-.mission-actions button {
-  border: 1px solid var(--ab-hair);
-  border-radius: var(--ab-radius-sm);
-  background: var(--ab-card);
-  color: var(--ab-ink-soft);
-  box-shadow: var(--ab-shadow-sm);
+.workspace-button.active .workspace-monogram {
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent-press));
+  color: var(--on-accent);
+  box-shadow: 0 6px 16px -8px var(--accent-halo);
 }
 
-.mission-actions button:hover,
-.mission-actions button:focus-visible {
-  border-color: var(--ab-hair-strong);
-  background: var(--ab-raised);
-  color: var(--ab-ink);
+.workspace-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--surface-canvas), 0 0 0 4px var(--accent-halo);
 }
 
-/* Primary CTA */
+/* --- Terminal stage: the desk plate --- */
+.terminal-stage {
+  background:
+    radial-gradient(700px 400px at 50% -10%, rgba(58, 211, 127, 0.035), transparent 70%),
+    var(--surface-canvas);
+}
+
+/* --- Terminal tile: raised workbench panel (xterm stays darkest) --- */
+.terminal-tile {
+  background: var(--surface-panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--depth-card);
+}
+
+.terminal-tile:not(.arranging):hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--depth-raised);
+}
+
+.terminal-tile.selected,
+.terminal-tile:focus-visible {
+  outline: none;
+  border-color: rgba(58, 211, 127, 0.34);
+  box-shadow:
+    0 0 0 1px rgba(58, 211, 127, 0.3),
+    0 0 0 4px rgba(58, 211, 127, 0.12),
+    var(--depth-raised);
+}
+
+.terminal-tile .xterm,
+.terminal-tile .terminal-viewport {
+  background: var(--surface-sunken);
+}
+
+/* --- Primary CTA: emerald --- */
 .mission-actions .new-terminal-button {
-  border-color: transparent;
-  background: linear-gradient(180deg, color-mix(in oklab, var(--ab-accent) 90%, white), var(--ab-accent));
-  color: var(--ab-on-accent);
-  box-shadow: var(--ab-shadow-sm), 0 8px 18px -10px var(--ab-accent-halo);
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent-press));
+  border: 1px solid rgba(58, 211, 127, 0.5);
+  color: var(--on-accent);
+  font-weight: 600;
+  box-shadow:
+    0 1px 0 rgba(216, 255, 235, 0.25) inset,
+    0 10px 24px -12px var(--accent-halo);
 }
 
 .mission-actions .new-terminal-button:hover,
 .mission-actions .new-terminal-button:focus-visible {
-  background: var(--ab-accent-press);
-  color: var(--ab-on-accent);
+  background: linear-gradient(180deg, #74e9a9, var(--accent-primary));
+  box-shadow:
+    0 1px 0 rgba(216, 255, 235, 0.3) inset,
+    0 14px 30px -12px var(--accent-halo);
 }
 
-.mission-actions .command-palette-button {
-  color: var(--ab-ink-muted);
-}
-
-.mission-actions .command-palette-button span {
-  border: 1px solid var(--ab-hair);
-  background: var(--ab-sunken);
-  color: var(--ab-ink-muted);
-}
-
-/* Segmented agent launcher */
-.agent-launch-buttons {
-  border: 1px solid var(--ab-hair);
-  border-radius: var(--ab-radius-sm);
-  background: var(--ab-sunken);
-}
-
-.mission-actions .agent-launch-button {
-  background: transparent;
-  color: var(--ab-ink-muted);
-}
-
-.mission-actions .agent-launch-button:hover,
-.mission-actions .agent-launch-button:focus-visible {
-  background: var(--ab-card);
-  color: var(--ab-ink);
-  box-shadow: var(--ab-shadow-sm);
-}
-
-/* Review queue button keeps an amber tone, on light */
-.mission-actions .review-queue-button {
-  border-color: color-mix(in oklab, #e8b765 36%, var(--ab-hair));
-  background: color-mix(in oklab, #e8b765 12%, var(--ab-card));
-  color: #f0d79a;
-}
-
-.mission-actions .review-queue-button strong {
-  background: rgba(255, 255, 255, 0.08);
-  color: inherit;
-}
-
-/* ---- Left rail (white card floating on the dark desk) --------------- */
-
-.workspace-rail {
-  border: 1px solid var(--ab-hair);
-  border-radius: var(--ab-radius);
+/* --- Side dock: raised evidence cards --- */
+.alfred-dock,
+.agent-timeline-panel,
+.workspace-preview-panel {
   background:
-    radial-gradient(120% 55% at 50% -6%, var(--ab-accent-soft), transparent 62%),
-    var(--ab-card);
-  box-shadow: inset 0 1px 0 var(--ab-highlight), var(--ab-shadow-md);
-  gap: 4px;
-  padding: 8px;
+    radial-gradient(360px 240px at 80% 0%, rgba(58, 211, 127, 0.04), transparent 70%),
+    var(--surface-panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--depth-card);
 }
 
-.workspace-button {
-  border: 1px solid transparent;
-  border-radius: var(--ab-radius-sm);
+/* --- Composer: elevated command bar --- */
+.composer-bar {
+  background:
+    linear-gradient(180deg, rgba(216, 255, 235, 0.03), transparent 60%),
+    var(--surface-panel);
+  border-top: 1px solid var(--line-strong);
+  box-shadow:
+    0 1px 0 rgba(216, 255, 235, 0.045) inset,
+    0 -16px 36px -32px rgba(0, 0, 0, 0.9);
+}
+
+.composer-input:focus-visible {
+  box-shadow: 0 0 0 1px var(--accent-halo), 0 0 0 4px rgba(58, 211, 127, 0.12);
+}
+
+.composer-send {
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent-press));
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+/* --- Inspector dock: hierarchy, not four equal boxes --- */
+/* Eyebrow labels: tiny, uppercase, quiet — consistent across sections. */
+/* Eyebrow = the <span> only; title + detail stay normal-case and wrap (no clip). */
+.agent-section-heading > span {
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.agent-section-heading > strong {
+  text-transform: none;
+  white-space: normal;
+  font-family: var(--sans);
+}
+
+.agent-section-heading > p {
+  text-transform: none;
+  color: var(--text-muted);
+}
+
+/* Secondary sections: quiet, divider-separated — no competing boxes. */
+.agent-panel-section {
   background: transparent;
-  color: var(--ab-ink-soft);
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 16px 2px;
+}
+
+/* Lead block: the one prominent surface — session context. */
+.agent-panel-section.agent-session-summary {
+  background:
+    linear-gradient(180deg, rgba(58, 211, 127, 0.07), transparent 72%),
+    var(--surface-raised);
+  border: 1px solid rgba(58, 211, 127, 0.16);
+  border-radius: 14px;
+  box-shadow: var(--depth-card);
+  padding: 16px;
+}
+
+/* Key signal keeps a faint emerald edge — it answers "what happened". */
+.agent-panel-section.agent-key-signal {
+  border-top: 1px solid var(--line-strong);
+}
+
+.agent-panel-section.agent-key-signal .agent-section-heading > span {
+  color: var(--accent);
+}
+
+/* Handoff actions read as a quiet utility row, not a primary panel. */
+.agent-handoff-buttons button {
+  background: rgba(216, 255, 235, 0.035);
+  border: 1px solid var(--line);
+  color: var(--text-secondary);
+}
+
+.agent-handoff-buttons button:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.agent-timeline-header strong {
   font-family: var(--sans);
   font-weight: 600;
 }
 
-.workspace-button:hover {
-  border-color: var(--ab-hair);
-  background: var(--ab-sunken);
+/* --- Mission bar: one primary weight; utilities recede --- */
+.mission-name strong {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.01em;
+}
+
+.mission-name span {
+  color: var(--text-muted);
+}
+
+/* Secondary actions step back so the emerald CTA leads the eye. */
+.mission-actions .arrange-button,
+.mission-actions .command-palette-button {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-secondary);
+}
+
+.mission-actions .arrange-button:hover,
+.mission-actions .arrange-button:focus-visible,
+.mission-actions .command-palette-button:hover,
+.mission-actions .command-palette-button:focus-visible,
+.mission-actions .arrange-button.active {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+  background: rgba(216, 255, 235, 0.035);
+}
+
+/* --- Workspace rail: active dominant, empties quiet --- */
+.workspace-button:not(.active) .workspace-button-details strong {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.workspace-button:not(.active) .workspace-button-details span {
+  color: var(--faint);
+}
+
+.workspace-button:not(.active) .workspace-monogram {
+  opacity: 0.82;
+}
+
+.workspace-priority-chip.tone-empty {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--passive);
+  opacity: 0.72;
+}
+
+/* --- Desk: segmented work-mode control, emerald active --- */
+.work-mode-control {
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.work-mode-control button {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  border-radius: 7px;
+}
+
+.work-mode-control button:hover,
+.work-mode-control button:focus-visible {
+  color: var(--text-primary);
+}
+
+.work-mode-control button.active,
+.work-mode-control button[aria-pressed="true"] {
+  background:
+    linear-gradient(180deg, rgba(58, 211, 127, 0.16), rgba(58, 211, 127, 0.05)),
+    var(--surface-raised);
+  color: var(--accent-strong);
+  box-shadow:
+    0 0 0 1px rgba(58, 211, 127, 0.22),
+    0 6px 14px -10px var(--accent-halo);
+}
+
+/* --- Recovery: one quiet line, not a competing panel --- */
+.recovery-workspace-strip {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
   box-shadow: none;
-  transform: none;
+  color: var(--text-muted);
 }
 
-.workspace-button.active {
-  border-color: color-mix(in oklab, var(--ab-accent) 30%, transparent);
-  background: var(--ab-accent-soft);
-  color: var(--ab-ink);
-  box-shadow: inset 2px 0 0 var(--ab-accent), var(--ab-shadow-sm);
+/* --- Terminal tile actions: emerald primary, quiet danger --- */
+.tile-primary-actions button {
+  border-color: rgba(58, 211, 127, 0.42);
+  color: var(--accent-strong);
 }
 
-.workspace-monogram {
-  border: 1px solid var(--ab-hair);
-  border-radius: 9px;
-  background: var(--ab-sunken);
-  color: var(--ab-ink-soft);
+.tile-primary-actions button:hover,
+.tile-primary-actions button:focus-visible {
+  background: var(--accent-soft);
+  border-color: rgba(58, 211, 127, 0.6);
 }
 
-.workspace-button.active .workspace-monogram {
+.tile-danger-actions button {
+  background: transparent;
   border-color: transparent;
-  background: var(--ab-accent);
-  color: var(--ab-on-accent);
+  color: var(--text-muted);
 }
 
-.workspace-button-details strong {
-  color: var(--ab-ink);
+.tile-danger-actions button:hover,
+.tile-danger-actions button:focus-visible {
+  color: var(--coral);
+  border-color: var(--line);
 }
 
-.workspace-button-details span {
-  color: var(--ab-ink-muted);
+/* --- Command palette: raised glass modal, emerald active row --- */
+.command-palette-backdrop {
+  background: rgba(3, 6, 5, 0.6);
+  backdrop-filter: blur(6px);
 }
 
-.workspace-button.active .workspace-button-details strong {
-  color: var(--ab-ink);
+.command-palette {
+  background:
+    radial-gradient(520px 200px at 50% -12%, rgba(58, 211, 127, 0.07), transparent 70%),
+    var(--surface-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  box-shadow: var(--depth-raised), var(--shadow-panel);
 }
 
-.workspace-button.active .workspace-button-details span {
-  color: var(--ab-ink-soft);
+.command-palette-search input:focus-visible {
+  box-shadow: 0 0 0 1px var(--accent-halo);
 }
 
-.workspace-button.add-workspace {
-  border: 1px dashed var(--ab-hair-strong);
-  background: var(--ab-raised);
-  color: var(--ab-ink-muted);
+.command-palette-list button.active,
+.command-palette-list button:hover,
+.command-palette-list button:focus-visible {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
-.workspace-button.add-workspace:hover {
-  border-color: color-mix(in oklab, var(--ab-accent) 40%, var(--ab-hair-strong));
-  background: var(--ab-sunken);
-  color: var(--ab-ink);
+/* ============================================================
+   ALFRED DEPTH v2 — composition pass
+   Float the working panels on the glowing canvas: transparent
+   shell containers + generous gaps + softer radius + more air.
+   Top bar and composer stay full-bleed (macOS window controls).
+   ============================================================ */
+
+/* Glowing substrate the floating panels sit on. */
+.agent-space-shell {
+  padding: 10px;
+  background:
+    radial-gradient(1100px 760px at 4% -6%, rgba(58, 211, 127, 0.09), transparent 58%),
+    radial-gradient(960px 720px at 100% 108%, rgba(58, 211, 127, 0.055), transparent 62%),
+    var(--surface-canvas);
 }
 
-.workspace-priority-chip {
-  color: var(--ab-ink-faint);
+/* Frame + layout go transparent so the glow shows between the panels. */
+.desktop-frame {
+  background: transparent;
+  border-color: var(--border-subtle);
 }
 
-.workspace-priority-chip.tone-waiting,
-.workspace-priority-chip.tone-staged {
-  background: color-mix(in oklab, #e8b765 16%, var(--ab-sunken));
-  color: #f0d79a;
+.workspace-layout {
+  background: transparent;
+  gap: 16px;
+  padding: 16px;
 }
 
-.workspace-priority-chip.tone-error {
-  background: color-mix(in oklab, #f0746b 16%, var(--ab-sunken));
-  color: #ffc4bd;
+.side-dock-stack {
+  gap: 16px;
 }
 
-.workspace-priority-chip.tone-active {
-  background: var(--ab-accent-soft);
-  color: var(--ab-accent);
+/* Softer, premium card radius + more internal breathing room. */
+.workspace-rail {
+  border-radius: 18px;
+  padding: 10px;
+  gap: 8px;
 }
 
-/* Accent focus rings on the slice */
-.workspace-button:focus-visible,
-.workspace-title-trigger:focus-visible,
-.mission-actions button:focus-visible {
-  outline: 2px solid var(--ab-accent);
-  outline-offset: 2px;
+.terminal-stage,
+.alfred-dock,
+.agent-timeline-panel,
+.workspace-preview-panel {
+  border-radius: 18px;
+}
+
+/* A calmer, larger desk header. */
+.terminal-stage-header strong {
+  font-size: 15px;
+  font-weight: 600;
 }

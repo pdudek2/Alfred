@@ -9,6 +9,26 @@ afterEach(() => {
 });
 
 describe("ComposerBar", () => {
+  it("keeps send disabled until the composer has text and no blocking reason", () => {
+    const onChange = vi.fn();
+    const onSubmit = vi.fn();
+
+    render(
+      <ComposerBar
+        blockedReason={undefined}
+        value=""
+        thinking={false}
+        disabled={false}
+        workspaceName="Alfred"
+        onChange={onChange}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Send prompt to Alfred" })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Ready in Alfred.");
+  });
+
   it("blocks submit and keeps the draft editable while a plan is staged", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

@@ -4,6 +4,7 @@ import { getDesktopAlfredApi, getDesktopLayoutApi, getDesktopTerminalApi, getDes
 import { ComposerBar } from "./composer";
 import { AlfredControlRail } from "./components/AlfredControlRail";
 import { AlfredMark } from "./components/AlfredMark";
+import { AgentTimelinePanel } from "./components/AgentTimelinePanel";
 import { CommandPalette } from "./components/CommandPalette";
 import { ReviewQueuePanel } from "./components/ReviewQueuePanel";
 import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
@@ -149,6 +150,10 @@ export function App() {
   const activePreviewRefreshKey = previewRefreshKeysByWorkspace[activeWorkspace.id] ?? 0;
   const previewVisible = activePreviewCandidates.length > 0;
   const activeSelectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id] ?? null;
+  const activeInspectedSession =
+    activeSelectedSessionId
+      ? activeSessions.find((session) => session.id === activeSelectedSessionId) ?? activeSessions[0] ?? null
+      : activeSessions[0] ?? null;
   const activeSelectedSession =
     activeSessions.find((session) => session.id === activeSelectedSessionId) ?? activeSessions[0] ?? null;
   const activePendingPlan = pendingPlan?.workspaceId === activeWorkspace.id ? pendingPlan : null;
@@ -335,6 +340,27 @@ export function App() {
       setAlfredStatus(errored({ code: "network", message: result?.error ?? "Workspace terminal is unavailable." }));
     }
   }, [activeWorkspace.rootPath]);
+
+  const handleCopyActivityText = useCallback(async (value: string) => {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error("Clipboard is unavailable.");
+    }
+    await navigator.clipboard.writeText(value);
+  }, []);
+
+  const handleRevealActivityFile = useCallback(async (filePath: string, cwd: string) => {
+    const result = await getDesktopWorkspaceApi()?.revealPath({ cwd, path: filePath });
+    if (!result?.ok) {
+      throw new Error(result?.error ?? "Workspace runtime is unavailable.");
+    }
+  }, []);
+
+  const handleOpenExternalTerminalForCwd = useCallback(async (cwd: string) => {
+    const result = await getDesktopWorkspaceApi()?.openExternalTerminal({ cwd });
+    if (!result?.ok) {
+      throw new Error(result?.error ?? "Workspace runtime is unavailable.");
+    }
+  }, []);
 
   const handleCopySessionCwd = useCallback((cwd: string) => {
     void navigator.clipboard?.writeText(cwd);
@@ -1332,7 +1358,7 @@ export function App() {
         aria-label="Alfred Agent Space desktop shell"
       >
         <div className="mission-bar">
-          <div className="mission-name">
+          <div className="mission-name" role="group" aria-label="Workspace context">
             <AlfredMark label={activeWorkspace.shortLabel} />
             <WorkspaceTitleMenu
               detail={`${activeSessions.length} tile${activeSessions.length === 1 ? "" : "s"} · ${workspaceSessionSummary(activeSessions)} · ${workspaceDetail(activeWorkspace)}`}
@@ -1359,7 +1385,7 @@ export function App() {
               }}
             />
           </div>
-          <div className="mission-actions" aria-label="terminal actions">
+          <div className="mission-actions" role="group" aria-label="terminal actions">
             {reviewQueuePreview && (
               <button
                 className={`review-queue-button tone-${reviewQueuePreview.status.kind}`}
@@ -1477,7 +1503,6 @@ export function App() {
               onRejectTile={handleRejectTile}
               onResizeTile={handleResizeTile}
               onReviewWorktree={handleReviewWorktree}
-              onUpdateStagedSession={handleUpdateStagedSession}
             />
           </div>
           <div className="side-dock-stack">
@@ -1493,6 +1518,13 @@ export function App() {
                 onSelectUrl={handleSelectPreviewUrl}
               />
             )}
+            <AgentTimelinePanel
+              session={activeInspectedSession}
+              onCopyActivityText={handleCopyActivityText}
+              onOpenExternalTerminal={handleOpenExternalTerminalForCwd}
+              onRevealActivityFile={handleRevealActivityFile}
+              onUpdateStagedSession={handleUpdateStagedSession}
+            />
             <AlfredControlRail
               armedUnsafeSessionIds={armedUnsafeSessionIds}
               status={alfredStatus}

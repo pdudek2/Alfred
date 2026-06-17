@@ -154,4 +154,45 @@ describe("ReviewQueuePanel", () => {
     expect(handlers.onLaunchItem).not.toHaveBeenCalled();
     expect(handlers.onClose).not.toHaveBeenCalled();
   });
+
+  it("keeps recovery restart and discard on separate decision paths", async () => {
+    const user = userEvent.setup();
+    const discardHandlers = renderPanel({
+      id: "W2:client-shell",
+      priority: 5,
+      session: endedSession,
+      status: { kind: "done", label: "done" },
+      detail: "can be restarted",
+      workspaceId: "W2",
+      workspaceLabel: "ClientApp",
+      workspaceShortLabel: "CLI",
+    });
+
+    await user.click(screen.getByRole("button", { name: "Discard Client shell from ClientApp" }));
+
+    expect(discardHandlers.onDiscardSession).toHaveBeenCalledWith("client-shell");
+    expect(discardHandlers.onRestartSession).not.toHaveBeenCalled();
+    expect(discardHandlers.onFocusItem).not.toHaveBeenCalled();
+    expect(discardHandlers.onClose).not.toHaveBeenCalled();
+
+    cleanup();
+
+    const restartHandlers = renderPanel({
+      id: "W2:client-shell",
+      priority: 5,
+      session: endedSession,
+      status: { kind: "done", label: "done" },
+      detail: "can be restarted",
+      workspaceId: "W2",
+      workspaceLabel: "ClientApp",
+      workspaceShortLabel: "CLI",
+    });
+
+    await user.click(screen.getByRole("button", { name: "Restart Client shell in ClientApp" }));
+
+    expect(restartHandlers.onRestartSession).toHaveBeenCalledWith("client-shell");
+    expect(restartHandlers.onFocusItem).toHaveBeenCalledWith("W2", "client-shell");
+    expect(restartHandlers.onClose).toHaveBeenCalled();
+    expect(restartHandlers.onDiscardSession).not.toHaveBeenCalled();
+  });
 });
