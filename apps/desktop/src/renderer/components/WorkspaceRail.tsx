@@ -150,7 +150,7 @@ function priorityChip(counts: WorkspaceRailCounts): { tone: string; label: strin
   if (counts.active > 0) return { tone: "active", label: countLabel(counts.active, "active") ?? "active" };
   if (counts.starting > 0) return { tone: "active", label: countLabel(counts.starting, "starting") ?? "starting" };
   if (counts.staged > 0) return { tone: "staged", label: countLabel(counts.staged, "staged") ?? "staged" };
-  if (counts.restored > 0) return { tone: "quiet", label: countLabel(counts.restored, "saved") ?? "saved" };
+  if (counts.restored > 0) return { tone: "quiet", label: "restored" };
   if (counts.total > 0) return { tone: "quiet", label: `${counts.total} session${counts.total === 1 ? "" : "s"}` };
   return { tone: "empty", label: "empty" };
 }

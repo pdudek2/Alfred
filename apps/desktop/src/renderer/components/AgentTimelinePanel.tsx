@@ -218,9 +218,10 @@ export function AgentTimelinePanel({
       <div className="agent-timeline-body">
         {canEditStagedSession && !editMode && (
           <section className="agent-staged-editor" aria-label={`Edit staged command for ${session.title}`}>
-            <div>
-              <span>staged plan</span>
-              <strong>{session.stagedReviewStatus === "edited" ? "Edited and rechecked" : "Command can be adjusted"}</strong>
+            <div className="agent-staged-editor-copy">
+              <span>review gate</span>
+              <strong>{session.stagedReviewStatus === "edited" ? "Edited and rechecked" : "Adjust before launch"}</strong>
+              <p>Command, arguments, and cwd can be corrected before Alfred releases this tile.</p>
             </div>
             <button type="button" onClick={startEdit}>
               Edit command
@@ -234,6 +235,11 @@ export function AgentTimelinePanel({
             onSubmit={(event) => void submitEdit(event)}
             onKeyDown={handleEditKeyDown}
           >
+            <div className="agent-staged-edit-heading">
+              <span>command editor</span>
+              <strong>Review launch details</strong>
+              <p>Save runs the safety check again before the command can launch.</p>
+            </div>
             <label>
               <span>Command</span>
               <input
