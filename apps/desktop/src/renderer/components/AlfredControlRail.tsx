@@ -227,14 +227,16 @@ function ReviewRecoveryContext({
   const firstDecision = activeDecisionItems[0] ?? null;
   const firstRecoverable = recoverableSessions[0] ?? null;
   const counts = recoveryCounts(recoverableSessions);
-  const summary = [
-    activeDecisionItems.length > 0
-      ? `${activeDecisionItems.length} decision${activeDecisionItems.length === 1 ? "" : "s"}`
-      : null,
+  const recoverySummary = [
     counts.saved > 0 ? `${counts.saved} saved` : null,
     counts.ended > 0 ? `${counts.ended} ended` : null,
     counts.failed > 0 ? `${counts.failed} failed` : null,
   ].filter((item): item is string => item !== null).join(" · ");
+  const summary = recoverySummary || (
+    activeDecisionItems.length > 0
+      ? `${activeDecisionItems.length} decision${activeDecisionItems.length === 1 ? "" : "s"}`
+      : "No queued sessions"
+  );
 
   return (
     <section className="review-context-summary" aria-label="Review and recovery context">

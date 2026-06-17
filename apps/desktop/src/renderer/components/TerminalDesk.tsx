@@ -19,9 +19,8 @@ import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import type { ArrangePointerMode, ArrangePreview, WorkMode } from "../terminal-desk-types";
-import type { AgentKind, AlfredStagedSessionPatch } from "../../shared/alfred-ipc";
+import type { AgentKind } from "../../shared/alfred-ipc";
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../../shared/terminal-ipc";
-import { AgentTimelinePanel } from "./AgentTimelinePanel";
 import { shortenPath } from "../path-display";
 import { recoveryHeadline, recoverySummary } from "../recovery-display";
 import { sessionRelaunchSafety } from "../relaunch-safety";
@@ -68,7 +67,6 @@ type TerminalDeskProps = {
   onRejectTile: (tileId: string) => void;
   onResizeTile: (tileId: string, deltaColSpan: number, deltaRowSpan: number) => void;
   onReviewWorktree: (sessionId: string) => void;
-  onUpdateStagedSession: (sessionId: string, patch: AlfredStagedSessionPatch) => Promise<void>;
 };
 
 export function TerminalDesk({
@@ -108,7 +106,6 @@ export function TerminalDesk({
   onRejectTile,
   onResizeTile,
   onReviewWorktree,
-  onUpdateStagedSession,
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
@@ -153,18 +150,6 @@ export function TerminalDesk({
     [arrangeMode, onFocusSession, onSelectSession],
   );
   const handleSelectSession = useCallback((sessionId: string) => onSelectSession(sessionId), [onSelectSession]);
-  const handleCopyActivityText = useCallback(async (value: string) => {
-    if (!navigator.clipboard?.writeText) {
-      throw new Error("Clipboard is unavailable.");
-    }
-    await navigator.clipboard.writeText(value);
-  }, []);
-  const handleRevealActivityFile = useCallback(async (filePath: string, cwd: string) => {
-    const result = await getDesktopWorkspaceApi()?.revealPath({ cwd, path: filePath });
-    if (!result?.ok) {
-      throw new Error(result?.error ?? "Workspace runtime is unavailable.");
-    }
-  }, []);
   const handleOpenExternalTerminal = useCallback(async (cwd: string) => {
     const result = await getDesktopWorkspaceApi()?.openExternalTerminal({ cwd });
     if (!result?.ok) {
@@ -399,15 +384,6 @@ export function TerminalDesk({
           )}
           </div>
         </div>
-        {workMode === "focus" && (
-          <AgentTimelinePanel
-            session={focusSession}
-            onCopyActivityText={handleCopyActivityText}
-            onOpenExternalTerminal={handleOpenExternalTerminal}
-            onRevealActivityFile={handleRevealActivityFile}
-            onUpdateStagedSession={onUpdateStagedSession}
-          />
-        )}
       </div>
     </section>
   );
@@ -566,7 +542,7 @@ function EmptyWorkspaceState({
         <button type="button" className="terminal-empty-primary-action" onClick={onAddManualSession}>
           New terminal
         </button>
-        <div className="terminal-empty-secondary-actions">
+        <div className="terminal-empty-secondary-actions" role="group" aria-label="secondary empty workspace actions">
           <button type="button" onClick={() => onAddAgentSession("codex")}>
             Start Codex
           </button>
@@ -1109,9 +1085,9 @@ function ManualTerminalTile({
             ) : (
               <b>{title}</b>
             )}
-            <small title={sessionLocationTitle}>
-              <span>{sessionLocationMetaLabel}</span>
-              <span>{sessionLocationLabel}</span>
+            <small title={sessionLocationTitle} aria-label={`${sessionLocationMetaLabel} ${sessionLocationTitle}`}>
+              <span className="session-location-meta">{sessionLocationMetaLabel}</span>
+              <span className="session-location-value">{sessionLocationLabel}</span>
             </small>
           </div>
         </div>

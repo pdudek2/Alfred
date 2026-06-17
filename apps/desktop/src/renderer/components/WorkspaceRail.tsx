@@ -69,7 +69,7 @@ export function WorkspaceRail({
               <strong>{workspace.label}</strong>
               <span id={metaId}>{meta}</span>
             </span>
-            <small className={`workspace-priority-chip tone-${priority.tone}`} aria-hidden="true">
+            <small className={`workspace-priority-chip tone-${priority.tone}`} aria-hidden="true" title={priority.label}>
               {priority.label}
             </small>
           </button>
