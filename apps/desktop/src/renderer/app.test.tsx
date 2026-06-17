@@ -378,6 +378,30 @@ describe("App integration", () => {
     expect(screen.queryByRole("dialog", { name: "Review queue" })).not.toBeInTheDocument();
   });
 
+  it("switches from session observatory to command palette with the global shortcut", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [], undefined, undefined, undefined, [
+      {
+        clientId: "manual-9",
+        title: "Manual · zsh 9",
+        cwd: "/repo",
+        source: "manual",
+        shell: "/bin/zsh",
+        buffer: "saved output\n",
+      },
+    ]);
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Open session observatory, 1 session" }));
+    expect(screen.getByRole("dialog", { name: "Session observatory" })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "k", code: "KeyK", metaKey: true });
+
+    expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Session observatory" })).not.toBeInTheDocument();
+  });
+
   it("surfaces detected localhost URLs in the workspace preview dock", async () => {
     const user = userEvent.setup();
     const { openExternalUrl } = installDesktopBridge(undefined, null, [

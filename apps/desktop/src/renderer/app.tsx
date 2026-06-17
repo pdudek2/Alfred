@@ -1,4 +1,4 @@
-import { ChevronDown, Command, FolderOpen, ListChecks, Pencil, Plus, SquareTerminal } from "lucide-react";
+import { ChevronDown, Command, FolderOpen, ListChecks, Pencil, Plus, Search, SquareTerminal } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { getDesktopAlfredApi, getDesktopLayoutApi, getDesktopTerminalApi, getDesktopWorkspaceApi } from "./desktop-api";
 import { ComposerBar } from "./composer";
@@ -7,6 +7,7 @@ import { AlfredMark } from "./components/AlfredMark";
 import { AgentTimelinePanel } from "./components/AgentTimelinePanel";
 import { CommandPalette } from "./components/CommandPalette";
 import { ReviewQueuePanel } from "./components/ReviewQueuePanel";
+import { SessionObservatoryPanel } from "./components/SessionObservatoryPanel";
 import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
 import { WorkspacePreviewPanel } from "./components/WorkspacePreviewPanel";
 import { WorkspaceRail, type WorkspaceRailWorkspace } from "./components/WorkspaceRail";
@@ -121,6 +122,7 @@ export function App() {
   const [composerValue, setComposerValue] = useState<string>("");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState<boolean>(false);
   const [commandQuery, setCommandQuery] = useState<string>("");
+  const [sessionObservatoryOpen, setSessionObservatoryOpen] = useState<boolean>(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState<boolean>(false);
   const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState<string>("");
   const [workspaceRenameEditing, setWorkspaceRenameEditing] = useState<boolean>(false);
@@ -479,6 +481,7 @@ export function App() {
   const handleOpenReviewQueue = useCallback(() => {
     setCommandPaletteOpen(false);
     setCommandQuery("");
+    setSessionObservatoryOpen(false);
     setReviewQueueOpen(true);
   }, []);
 
@@ -1145,6 +1148,7 @@ export function App() {
 
   const handleOpenCommandPalette = useCallback(() => {
     setReviewQueueOpen(false);
+    setSessionObservatoryOpen(false);
     setCommandQuery("");
     setCommandPaletteOpen(true);
   }, []);
@@ -1154,9 +1158,20 @@ export function App() {
     setCommandQuery("");
   }, []);
 
+  const handleOpenSessionObservatory = useCallback(() => {
+    setReviewQueueOpen(false);
+    setCommandPaletteOpen(false);
+    setCommandQuery("");
+    setSessionObservatoryOpen(true);
+  }, []);
+
+  const handleCloseSessionObservatory = useCallback(() => {
+    setSessionObservatoryOpen(false);
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (commandPaletteOpen) {
+      if (commandPaletteOpen || sessionObservatoryOpen || reviewQueueOpen) {
         const shortcutPressed = event.metaKey || event.ctrlKey;
         const key = event.key.toLowerCase();
         const appShortcut =
@@ -1172,7 +1187,11 @@ export function App() {
         if (appShortcut) {
           event.preventDefault();
           if (key === "k") {
-            handleCloseCommandPalette();
+            if (commandPaletteOpen) {
+              handleCloseCommandPalette();
+            } else {
+              handleOpenCommandPalette();
+            }
           }
         }
         return;
@@ -1244,6 +1263,8 @@ export function App() {
     handleOpenCommandPalette,
     handleOpenSessionTerminal,
     handleSelectWorkspace,
+    reviewQueueOpen,
+    sessionObservatoryOpen,
     workspaces,
   ]);
 
@@ -1386,6 +1407,19 @@ export function App() {
             />
           </div>
           <div className="mission-actions" role="group" aria-label="terminal actions">
+            {terminalSessions.length > 0 && (
+              <button
+                className="session-observatory-button"
+                type="button"
+                aria-label={`Open session observatory, ${terminalSessions.length} session${terminalSessions.length === 1 ? "" : "s"}`}
+                onClick={handleOpenSessionObservatory}
+                title="Search sessions across workspaces"
+              >
+                <Search size={15} />
+                <span>Sessions</span>
+                <strong>{terminalSessions.length}</strong>
+              </button>
+            )}
             {reviewQueuePreview && (
               <button
                 className={`review-queue-button tone-${reviewQueuePreview.status.kind}`}
@@ -1556,7 +1590,7 @@ export function App() {
           blockedReason={composerBlockedReason}
           value={composerValue}
           thinking={isThinking(alfredStatus)}
-          disabled={commandPaletteOpen}
+          disabled={commandPaletteOpen || sessionObservatoryOpen}
           workspaceName={activeWorkspace.label === "Alfred" ? "this workspace" : activeWorkspace.label}
           onBlockedAction={
             stagedWorkspaceId
@@ -1611,6 +1645,15 @@ export function App() {
             onRestartSession={handleRestartSession}
             onSelectWorkspace={handleSelectWorkspace}
             onToggleArrange={handleToggleArrangeMode}
+          />
+        )}
+        {sessionObservatoryOpen && (
+          <SessionObservatoryPanel
+            activeWorkspaceId={activeWorkspace.id}
+            sessions={terminalSessions}
+            workspaces={workspaces}
+            onClose={handleCloseSessionObservatory}
+            onOpenSession={handleFocusSessionInWorkspace}
           />
         )}
         {reviewQueueOpen && (
