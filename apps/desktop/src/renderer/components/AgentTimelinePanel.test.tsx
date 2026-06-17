@@ -197,6 +197,33 @@ describe("AgentTimelinePanel", () => {
     expect(container).not.toHaveTextContent("Terminal output is streaming in the workspace.");
   });
 
+  it("keeps the timeline to a short important preview", () => {
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — busy",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/tmp",
+      source: "alfred",
+      runtimeId: "runtime-1",
+      activityEvents: [
+        { id: "activity-1", kind: "command", title: "Oldest command", detail: "pnpm install", at: 100 },
+        { id: "activity-2", kind: "file", title: "File one", detail: "a.ts", at: 110 },
+        { id: "activity-3", kind: "file", title: "File two", detail: "b.ts", at: 120 },
+        { id: "activity-4", kind: "plan", title: "Plan update", detail: "next edits", at: 130 },
+        { id: "activity-5", kind: "command", title: "Latest command", detail: "pnpm test", at: 140 },
+      ],
+    };
+
+    const { container } = render(<AgentTimelinePanel session={session} />);
+    const timeline = within(container).getByRole("region", { name: "Activity timeline" });
+
+    expect(within(timeline).getByText("4-event preview")).toBeInTheDocument();
+    expect(within(timeline).getByText("Latest command")).toBeInTheDocument();
+    expect(within(timeline).queryByText("Oldest command")).not.toBeInTheDocument();
+    expect(within(timeline).getByText("1 older event hidden; debug noise stays out.")).toBeInTheDocument();
+  });
+
   it("renders structured activity payloads as inspectable objects", () => {
     const session: SessionTile = {
       id: "s1",

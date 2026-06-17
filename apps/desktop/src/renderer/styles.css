@@ -5761,6 +5761,15 @@ body {
     color-mix(in oklab, var(--surface-panel) 88%, black 12%);
 }
 
+.agent-timeline-body {
+  padding: 12px 14px 14px;
+}
+
+.agent-timeline-body .agent-panel-section {
+  margin-bottom: 10px;
+  padding: 12px 2px;
+}
+
 .agent-panel-section.agent-session-summary {
   background:
     linear-gradient(180deg, rgba(58, 211, 127, 0.045), transparent 76%),
@@ -5769,6 +5778,29 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(216, 255, 235, 0.04),
     0 14px 30px -26px rgba(0, 0, 0, 0.78);
+  padding: 13px;
+}
+
+.agent-session-summary .agent-section-heading {
+  margin-bottom: 9px;
+}
+
+.agent-session-facts {
+  gap: 7px;
+}
+
+.agent-session-facts > div {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.agent-activity-digest {
+  margin-top: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
+  gap: 6px;
+}
+
+.agent-activity-digest > div {
+  padding: 7px;
 }
 
 .agent-panel-section.agent-key-signal .agent-section-heading > span,
@@ -5779,6 +5811,23 @@ body {
 
 .agent-panel-section.agent-key-signal {
   border-top-color: rgba(120, 210, 160, 0.12);
+}
+
+.agent-timeline-section .agent-section-heading {
+  margin-bottom: 8px;
+}
+
+.agent-activity-list {
+  gap: 8px;
+}
+
+.agent-activity-list li {
+  grid-template-columns: 10px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.agent-activity-list p {
+  margin-top: 3px;
 }
 
 .recovery-workspace-strip {
@@ -6375,7 +6424,7 @@ body {
 .review-surface-header span,
 .observatory-surface-header span,
 .observatory-column-heading span,
-.review-surface-empty span,
+.review-empty-lead > span,
 .observatory-empty span,
 .observatory-detail-card > span {
   color: var(--accent);
@@ -6641,6 +6690,29 @@ body {
   text-align: center;
 }
 
+.review-surface-empty {
+  border-style: solid;
+  border-color: rgba(58, 211, 127, 0.12);
+  padding: 28px;
+  background:
+    radial-gradient(420px 230px at 50% 0%, rgba(58, 211, 127, 0.08), transparent 72%),
+    linear-gradient(180deg, rgba(216, 255, 235, 0.026), transparent 160px),
+    rgba(0, 0, 0, 0.16);
+  place-items: center;
+}
+
+.review-empty-lead {
+  max-width: 520px;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.review-empty-lead svg {
+  color: var(--accent-strong);
+  filter: drop-shadow(0 0 12px rgba(58, 211, 127, 0.24));
+}
+
 .review-surface-empty strong,
 .observatory-empty strong {
   color: var(--text-primary);
@@ -6650,6 +6722,43 @@ body {
 .review-surface-empty p {
   margin: 0;
   color: var(--text-muted);
+  font: 13px/1.5 var(--sans);
+}
+
+.review-empty-lanes {
+  width: min(100%, 620px);
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.review-empty-lanes div {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(216, 255, 235, 0.026);
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+}
+
+.review-empty-lanes svg {
+  color: color-mix(in oklab, var(--accent-strong) 76%, var(--text-muted));
+}
+
+.review-empty-lanes span {
+  min-width: 0;
+  color: var(--text-muted);
+  font: 650 10px/1.2 var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.review-empty-lanes strong {
+  color: var(--text-primary);
+  font: 720 22px/1 var(--sans);
 }
 
 .observatory-surface {
@@ -6722,6 +6831,26 @@ body {
   overflow: auto;
 }
 
+.observatory-projects {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(58, 211, 127, 0.28) transparent;
+}
+
+.observatory-projects::-webkit-scrollbar {
+  width: 8px;
+}
+
+.observatory-projects::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.observatory-projects::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(58, 211, 127, 0.24);
+  background-clip: padding-box;
+}
+
 .observatory-column-heading {
   display: flex;
   align-items: center;
@@ -6738,14 +6867,16 @@ body {
 .observatory-project {
   width: 100%;
   min-width: 0;
+  min-height: 54px;
   border: 1px solid transparent;
   border-radius: 13px;
-  padding: 10px 11px;
+  padding: 8px 9px;
   background: transparent;
   color: var(--text-secondary);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px 8px;
+  grid-template-columns: 28px minmax(0, 1fr) auto 14px;
+  gap: 9px;
+  align-items: center;
   text-align: left;
   cursor: pointer;
 }
@@ -6766,33 +6897,76 @@ body {
   box-shadow: inset 2px 0 0 rgba(58, 211, 127, 0.24);
 }
 
-.observatory-project span,
-.observatory-project small {
+.observatory-project-marker {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(216, 255, 235, 0.028);
+  color: var(--text-muted);
+  display: inline-grid;
+  place-items: center;
+}
+
+.observatory-project.active .observatory-project-marker {
+  border-color: rgba(58, 211, 127, 0.28);
+  background: rgba(58, 211, 127, 0.09);
+  color: var(--accent-strong);
+}
+
+.observatory-project-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.observatory-project-copy span,
+.observatory-project-copy small {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.observatory-project span {
+.observatory-project-copy span {
   color: var(--text-primary);
   font: 620 13px/1.25 var(--sans);
 }
 
-.observatory-project small {
-  grid-column: 1;
+.observatory-project-copy small {
   color: var(--text-muted);
   font: 11px/1.2 var(--sans);
 }
 
-.observatory-project strong {
-  grid-row: 1 / span 2;
-  align-self: center;
-  border: 1px solid var(--line);
+.observatory-project-count {
+  min-width: 24px;
+  height: 24px;
   border-radius: 999px;
-  padding: 3px 7px;
+  padding: 0 7px;
+  background: rgba(216, 255, 235, 0.045);
+  color: var(--text-secondary);
+  display: inline-grid;
+  place-items: center;
+  font: 700 11px/1 var(--sans);
+}
+
+.observatory-project.active .observatory-project-count {
+  background: rgba(58, 211, 127, 0.14);
+  color: var(--accent-strong);
+}
+
+.observatory-project-arrow {
   color: var(--text-muted);
-  font: 700 11px/1 var(--mono);
+  opacity: 0;
+  transform: translateX(-3px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.observatory-project:hover .observatory-project-arrow,
+.observatory-project:focus-visible .observatory-project-arrow,
+.observatory-project.active .observatory-project-arrow {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .observatory-project-note {
@@ -7000,6 +7174,10 @@ body {
   .review-surface-header,
   .observatory-surface-header,
   .observatory-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .review-empty-lanes {
     grid-template-columns: minmax(0, 1fr);
   }
 }
