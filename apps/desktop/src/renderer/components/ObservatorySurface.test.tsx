@@ -147,4 +147,42 @@ describe("ObservatorySurface", () => {
     expect(onResumeExternalCodexSession).not.toHaveBeenCalled();
   });
 
+  it("attributes external Codex sessions in legacy Alfred worktrees to the base workspace", async () => {
+    const user = userEvent.setup();
+    const onResumeExternalCodexSession = vi.fn();
+    const worktreeSession: ExternalCodexSessionSummary = {
+      id: "019eee11-6666-7222-8333-444444444444",
+      title: "Legacy worktree session",
+      cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/audit-hardening",
+      createdAt: 1_000,
+      updatedAt: 2_200,
+      transcriptPath: "/Users/patryk/.codex/sessions/worktree.jsonl",
+    };
+
+    render(
+      <ObservatorySurface
+        activeWorkspaceId="A"
+        externalCodexSessions={[worktreeSession]}
+        loadingExternalSessions={false}
+        sessions={[]}
+        workspaces={workspaces}
+        onOpenManagedSession={vi.fn()}
+        onRefreshExternalSessions={vi.fn()}
+        onResumeExternalCodexSession={onResumeExternalCodexSession}
+        onSelectWorkspace={vi.fn()}
+      />,
+    );
+
+    const projects = screen.getByRole("complementary", { name: "Projects" });
+    await user.click(within(projects).getByRole("button", { name: /Alfred, 1 sessions/i }));
+    expect(screen.getByRole("button", { name: /Legacy worktree session/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Legacy worktree session/i }));
+    const detail = screen.getByRole("complementary", { name: "Session detail" });
+
+    expect(within(detail).getByText("Alfred")).toBeInTheDocument();
+    await user.click(within(detail).getByRole("button", { name: "Resume in Alfred" }));
+    expect(onResumeExternalCodexSession).toHaveBeenCalledWith(worktreeSession);
+  });
+
 });

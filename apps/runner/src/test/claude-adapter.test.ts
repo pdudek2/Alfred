@@ -107,6 +107,35 @@ describe("collectClaudeEvents", () => {
     expect(events.length).toBeGreaterThan(0);
     expect(events.every((event) => event.project_key === "client-app")).toBe(true);
   });
+
+  it("attributes legacy Alfred worktree cwd to the base project", async () => {
+    const claudeHome = trackedTempDir("alfred-claude-home-");
+    const target = join(
+      claudeHome,
+      "projects/-Users-patryk-Desktop--alfred-worktrees-Alfred-audit-hardening/claude-session-1.jsonl",
+    );
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(
+      target,
+      `${JSON.stringify({
+        sessionId: "claude-session-1",
+        type: "user",
+        timestamp: "2026-06-19T08:00:00.000Z",
+        cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/audit-hardening",
+        message: { role: "user", content: "hello" },
+      })}\n`,
+    );
+
+    const events = await collectClaudeEvents({
+      claudeHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+    });
+
+    expect(events.length).toBeGreaterThan(0);
+    expect(events.every((event) => event.project_key === "Alfred")).toBe(true);
+  });
 });
 
 function trackedTempDir(prefix: string): string {
