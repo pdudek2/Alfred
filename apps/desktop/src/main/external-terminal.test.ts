@@ -114,4 +114,26 @@ describe("external-terminal", () => {
     });
     expect(spawned).not.toHaveBeenCalled();
   });
+
+  it("rejects symlinked directories that resolve outside allowed workspace roots without spawning", async () => {
+    const spawned = vi.fn();
+    const workspaceRoot = path.join(temporaryDirectory, "workspace");
+    const outsideRoot = path.join(temporaryDirectory, "outside");
+    const symlinkPath = path.join(workspaceRoot, "linked-outside");
+    await fs.mkdir(workspaceRoot);
+    await fs.mkdir(outsideRoot);
+    await fs.symlink(outsideRoot, symlinkPath, "dir");
+
+    await expect(
+      openExternalTerminal(
+        { cwd: symlinkPath },
+        { allowedRoots: [workspaceRoot], platform: "darwin", env: {}, spawnImpl: spawned as never },
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      error: "Path is outside registered workspaces.",
+      resolvedPath: symlinkPath,
+    });
+    expect(spawned).not.toHaveBeenCalled();
+  });
 });
