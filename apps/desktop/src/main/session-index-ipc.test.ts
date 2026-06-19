@@ -148,6 +148,89 @@ describe("session-index IPC", () => {
     expect(result.map((session) => session.title)).toEqual(["Code quality review", "Spec compliance review"]);
   });
 
+  it("finds the newest Codex session after scanning more than the legacy traversal cap", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const oldSessionDir = path.join(codexHome, "sessions", "2026", "06", "18");
+    const newestSessionDir = path.join(codexHome, "sessions", "2026", "06", "19");
+    await mkdir(oldSessionDir, { recursive: true });
+    await mkdir(newestSessionDir, { recursive: true });
+
+    for (let index = 0; index < 605; index += 1) {
+      const id = `old-${String(index).padStart(4, "0")}`;
+      const filePath = path.join(oldSessionDir, `old-${String(index).padStart(4, "0")}.jsonl`);
+      await writeFile(
+        filePath,
+        codexSessionLines({
+          id,
+          cwd: "/Users/patryk/Desktop/Old",
+          messages: [`Old session ${index}`],
+        }),
+      );
+      await utimes(filePath, new Date("2026-06-18T08:00:00.000Z"), new Date("2026-06-18T08:00:00.000Z"));
+    }
+
+    const newestPath = path.join(newestSessionDir, "newest.jsonl");
+    await writeFile(
+      newestPath,
+      codexSessionLines({
+        id: "newest-session",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        messages: ["Newest session should win"],
+      }),
+    );
+    await utimes(newestPath, new Date("2026-06-19T08:00:00.000Z"), new Date("2026-06-19T08:00:00.000Z"));
+
+    const result = await listExternalCodexSessions({ codexHome, limit: 1 });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      id: "newest-session",
+      title: "Newest session should win",
+    });
+  });
+
+  it("ignores transcript title candidates beyond the 140-line prefix", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const sessionDir = path.join(codexHome, "sessions", "2026", "06", "19");
+    await mkdir(sessionDir, { recursive: true });
+    await writeFile(
+      path.join(sessionDir, "prefix-limited.jsonl"),
+      [
+        JSON.stringify({
+          timestamp: "2026-06-19T08:00:00.000Z",
+          type: "session_meta",
+          payload: {
+            id: "prefix-limited",
+            timestamp: "2026-06-19T07:59:58.000Z",
+            cwd: "/Users/patryk/Desktop/Alfred",
+          },
+        }),
+        ...Array.from({ length: 139 }, (_, index) =>
+          JSON.stringify({
+            type: "response_item",
+            payload: {
+              type: "message",
+              role: "assistant",
+              content: [{ type: "output_text", text: `noise ${index}` }],
+            },
+          }),
+        ),
+        JSON.stringify({
+          type: "response_item",
+          payload: {
+            type: "message",
+            role: "user",
+            content: [{ type: "input_text", text: "This title is too late" }],
+          },
+        }),
+      ].join("\n"),
+    );
+
+    const result = await listExternalCodexSessions({ codexHome, limit: 1 });
+
+    expect(result[0]?.title).toBe("Alfred Codex session");
+  });
+
   it("ignores invalid lines and missing session directories", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
     const sessionDir = path.join(codexHome, "sessions", "2026", "06", "18");

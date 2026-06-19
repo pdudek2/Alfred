@@ -1,13 +1,15 @@
 import { app, ipcMain } from "electron";
+import { createReadStream } from "node:fs";
 import { opendir, readFile, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { createInterface } from "node:readline";
 import { sessionIndexChannels } from "../shared/session-index-ipc.js";
 import type { ExternalCodexSessionSummary } from "../shared/session-index-ipc.js";
 
 const DEFAULT_LIMIT = 80;
-const MAX_SCAN_FILES = 600;
 const MAX_TITLE_LENGTH = 92;
+const MAX_TRANSCRIPT_PREFIX_LINES = 140;
 
 type RegisterSessionIndexOptions = {
   codexHome?: string;
@@ -82,7 +84,6 @@ async function findJsonlFiles(root: string): Promise<Array<{ path: string; updat
   const files: Array<{ path: string; updatedAt: number }> = [];
 
   async function visit(dir: string): Promise<void> {
-    if (files.length >= MAX_SCAN_FILES) return;
     let handle: Awaited<ReturnType<typeof opendir>>;
     try {
       handle = await opendir(dir);
@@ -103,7 +104,6 @@ async function findJsonlFiles(root: string): Promise<Array<{ path: string; updat
       } catch {
         // Ignore files that disappear while the Codex app writes its session index.
       }
-      if (files.length >= MAX_SCAN_FILES) break;
     }
   }
 
@@ -116,9 +116,9 @@ async function summarizeCodexSessionFile(
   updatedAt: number,
   titleIndex: Map<string, string>,
 ): Promise<ExternalCodexSessionSummary | null> {
-  let content: string;
+  let lines: string[];
   try {
-    content = await readFile(transcriptPath, "utf8");
+    lines = await readTranscriptPrefixLines(transcriptPath, MAX_TRANSCRIPT_PREFIX_LINES);
   } catch {
     return null;
   }
@@ -127,7 +127,7 @@ async function summarizeCodexSessionFile(
   let titleText = "";
   let firstTimestamp = 0;
 
-  for (const line of content.split(/\r?\n/).slice(0, 140)) {
+  for (const line of lines) {
     if (!line.trim()) continue;
     const record = parseJsonRecord(line);
     if (!record) continue;
@@ -171,6 +171,28 @@ async function summarizeCodexSessionFile(
     ...(model ? { model } : {}),
     ...(originator ? { originator } : {}),
   };
+}
+
+async function readTranscriptPrefixLines(filePath: string, maxLines: number): Promise<string[]> {
+  const stream = createReadStream(filePath, { encoding: "utf8" });
+  const reader = createInterface({ input: stream, crlfDelay: Infinity });
+  const lines: string[] = [];
+
+  try {
+    for await (const line of reader) {
+      lines.push(line);
+      if (lines.length >= maxLines) {
+        reader.close();
+        stream.destroy();
+        break;
+      }
+    }
+  } finally {
+    reader.close();
+    stream.destroy();
+  }
+
+  return lines;
 }
 
 function parseJsonRecord(line: string): Record<string, unknown> | null {
