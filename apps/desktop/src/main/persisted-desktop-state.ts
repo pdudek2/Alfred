@@ -331,6 +331,7 @@ function normalizeStagedPlan(value: unknown): AlfredStagedPlanSnapshot | null {
       args: [...session.args],
       ...(typeof session.cwd === "string" ? { cwd: session.cwd } : {}),
       ...(typeof session.workspaceId === "string" ? { workspaceId: session.workspaceId } : {}),
+      ...(isTerminalSessionIsolation(session.isolation) ? { isolation: session.isolation } : {}),
       ...(typeof session.safetyNote === "string" ? { safetyNote: session.safetyNote } : {}),
       ...(isAlfredLaunchPreflight(session.launchPreflight) ? { launchPreflight: cloneLaunchPreflight(session.launchPreflight) } : {}),
     }];

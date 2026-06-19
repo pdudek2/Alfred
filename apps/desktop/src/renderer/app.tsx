@@ -2183,6 +2183,7 @@ function createStagedPlanSnapshot({
     ...(session.cwd === "" ? {} : { cwd: session.cwd }),
     command: session.command ?? "",
     args: session.args ?? [],
+    ...(session.isolation === undefined ? {} : { isolation: session.isolation }),
     ...(session.safetyNote === undefined ? {} : { safetyNote: session.safetyNote }),
     ...(session.launchPreflight === undefined ? {} : { launchPreflight: { ...session.launchPreflight } }),
   }));

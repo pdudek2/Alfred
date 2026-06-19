@@ -2990,6 +2990,47 @@ describe("App integration", () => {
     });
   });
 
+  it("persists staged worktree isolation in the saved Alfred plan", async () => {
+    const user = userEvent.setup();
+    const { setStagedPlan } = installDesktopBridge({
+      ok: true,
+      plan: {
+        name: "Isolated agents",
+        sessions: [
+          {
+            kind: "codex",
+            title: "Codex isolated audit",
+            command: "codex",
+            args: [],
+            isolation: "worktree",
+          },
+        ],
+      },
+    });
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText("Alfred prompt"), "stage isolated codex");
+    await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
+
+    await waitFor(() => {
+      expect(setStagedPlan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Isolated agents",
+          prompt: "stage isolated codex",
+          sessions: [
+            expect.objectContaining({
+              id: "alfred-1",
+              kind: "codex",
+              isolation: "worktree",
+              title: "Codex isolated audit",
+            }),
+          ],
+        }),
+      );
+    });
+  });
+
   it("saves staged shell edits through Alfred and replaces the queued tile from the returned plan", async () => {
     const user = userEvent.setup();
     const { setStagedPlan, updateStagedSession } = installDesktopBridge({
