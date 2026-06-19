@@ -369,6 +369,31 @@ describe("desktop session state", () => {
     });
   });
 
+  it("keeps a specific Codex resume target when relaunching a restored external session", () => {
+    const codexSessionId = "019edc4b-0000-7000-9000-specific";
+    const restored = hydratePersistedTerminalSessions([
+      {
+        clientId: "external-codex",
+        title: "Codex · Load Alfred memory",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        source: "manual",
+        agentKind: "codex",
+        command: "codex",
+        args: ["resume", codexSessionId],
+        shell: "codex",
+        buffer: "saved external output\n",
+      },
+    ]);
+
+    expect(relaunchRestoredSession(restored, "external-codex")[0]).toMatchObject({
+      id: "external-codex",
+      runtimeStatus: "starting",
+      command: "codex",
+      args: ["resume", codexSessionId],
+      initialBuffer: "saved external output\n",
+    });
+  });
+
   it("returns a failed restored relaunch to recovery instead of losing the transcript", () => {
     const restored = hydratePersistedTerminalSessions([
       {

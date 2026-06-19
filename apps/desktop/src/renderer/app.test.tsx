@@ -19,9 +19,11 @@ import type {
   TerminalSessionSnapshot,
 } from "../shared/terminal-ipc";
 import type { WorkspaceApi, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
+import type { ExternalCodexSessionSummary, SessionIndexApi } from "../shared/session-index-ipc";
 
-const { terminalConstructorOptions } = vi.hoisted(() => ({
+const { terminalConstructorOptions, terminalDisposeCalls } = vi.hoisted(() => ({
   terminalConstructorOptions: [] as unknown[],
+  terminalDisposeCalls: [] as unknown[],
 }));
 
 vi.mock("@xterm/xterm", () => ({
@@ -30,7 +32,9 @@ vi.mock("@xterm/xterm", () => ({
     rows = 24;
     element: HTMLElement | null = null;
     options: unknown;
-    dispose = vi.fn();
+    dispose = vi.fn(() => {
+      terminalDisposeCalls.push(this.options);
+    });
     focus = vi.fn(() => {
       this.element?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
     });
@@ -64,6 +68,7 @@ class TestResizeObserver implements ResizeObserver {
 type DesktopBridge = {
   alfred: AlfredApi;
   layout: LayoutApi;
+  sessionIndex?: SessionIndexApi;
   terminal: TerminalApi;
   workspace: WorkspaceApi;
   version: string;
@@ -94,6 +99,7 @@ function installDesktopBridge(
     activeWorkspaceId: "A",
   },
   restoredTerminalSessions: PersistedTerminalSessionSnapshot[] = [],
+  externalCodexSessions: ExternalCodexSessionSummary[] = [],
 ): {
   clearStagedPlan: ReturnType<typeof vi.fn>;
   createTerminal: ReturnType<typeof vi.fn>;
@@ -118,6 +124,7 @@ function installDesktopBridge(
   worktreeApply: ReturnType<typeof vi.fn>;
   worktreeDiff: ReturnType<typeof vi.fn>;
   openExternalUrl: ReturnType<typeof vi.fn>;
+  listExternalCodexSessions: ReturnType<typeof vi.fn>;
   emitData: (event: TerminalDataEvent) => void;
   emitExit: (event: TerminalExitEvent) => void;
 } {
@@ -143,6 +150,7 @@ function installDesktopBridge(
     .mockImplementation((request: Parameters<WorkspaceApi["openExternalUrl"]>[0]) =>
       Promise.resolve({ ok: true, url: request.url }),
     );
+  const listExternalCodexSessions = vi.fn().mockResolvedValue({ sessions: externalCodexSessions });
   const revealPath = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/patryk/Desktop/Alfred/app.tsx" });
   const createWorkspaceFromFolder = vi.fn().mockImplementation(() =>
     Promise.resolve({
@@ -219,6 +227,7 @@ function installDesktopBridge(
       updateStagedSession,
     },
     layout: { getLayouts, setWorkspaceLayout, setWorkspaceViewState },
+    sessionIndex: { listExternalCodexSessions },
     terminal,
     workspace: {
       createWorkspaceFromFolder,
@@ -256,6 +265,7 @@ function installDesktopBridge(
     worktreeApply,
     worktreeDiff,
     openExternalUrl,
+    listExternalCodexSessions,
     emitData: (event: TerminalDataEvent) => {
       for (const listener of dataListeners) listener(event);
     },
@@ -267,6 +277,7 @@ function installDesktopBridge(
 
 beforeEach(() => {
   terminalConstructorOptions.length = 0;
+  terminalDisposeCalls.length = 0;
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
@@ -363,6 +374,76 @@ describe("App integration", () => {
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
     expect(composer).not.toBeDisabled();
+  });
+
+  it("keeps the xterm renderer mounted while moving from Desk to Observatory and back", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge();
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledTimes(1);
+    });
+    await act(async () => {});
+    const constructorCountBeforeSurfaceSwitch = terminalConstructorOptions.length;
+    const disposeCountBeforeSurfaceSwitch = terminalDisposeCalls.length;
+
+    await user.click(screen.getByRole("button", { name: "Open Observatory surface" }));
+
+    expect(await screen.findByRole("region", { name: "Observatory workspace" })).toBeInTheDocument();
+    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeSurfaceSwitch);
+
+    await user.click(screen.getByRole("button", { name: "Open Desk surface" }));
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(terminalConstructorOptions).toHaveLength(constructorCountBeforeSurfaceSwitch);
+    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeSurfaceSwitch);
+  });
+
+  it("resumes an external Codex Observatory row with the selected session id", async () => {
+    const user = userEvent.setup();
+    const externalSessionId = "019edc4b-0000-7000-9000-observatory";
+    const { createTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [],
+      [
+        {
+          id: externalSessionId,
+          title: "Load Alfred memory",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          createdAt: 100,
+          updatedAt: 200,
+          transcriptPath: "/Users/patryk/.codex/sessions/session.jsonl",
+          model: "gpt-5",
+          originator: "codex",
+        },
+      ],
+    );
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Open Observatory surface" }));
+    await user.click(await screen.findByRole("button", { name: /Load Alfred memory/i }));
+    await user.click(screen.getByRole("button", { name: "Resume in Alfred" }));
+
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentKind: "codex",
+          command: "codex",
+          args: ["resume", externalSessionId],
+          cwd: "/Users/patryk/Desktop/Alfred",
+          workspaceId: "A",
+        }),
+      );
+    });
   });
 
   it("keeps only one global modal open at a time", async () => {

@@ -685,10 +685,23 @@ button:focus-visible {
 .orchestrator-surface {
   min-width: 0;
   min-height: 0;
+  display: grid;
+}
+
+.surface-panel {
+  grid-area: 1 / 1;
+  min-width: 0;
+  min-height: 0;
   display: flex;
 }
 
-.orchestrator-surface > .terminal-stage {
+.surface-panel.inactive {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.surface-panel > .terminal-stage {
   flex: 1 1 auto;
 }
 

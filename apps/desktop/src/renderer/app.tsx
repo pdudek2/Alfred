@@ -1454,6 +1454,8 @@ export function App() {
     void workspaceApi.setWorkspaceState(snapshot);
   }, [activeWorkspaceId, workspaces]);
 
+  const deskSurfaceHidden = activeSurface !== "desk";
+
   return (
     <main className="agent-space-shell">
       <section
@@ -1612,7 +1614,11 @@ export function App() {
             onSelectWorkspace={handleSelectWorkspace}
           />
           <div className="orchestrator-surface">
-            {activeSurface === "desk" && (
+            <div
+              className={`surface-panel desk-surface-panel ${deskSurfaceHidden ? "inactive" : "active"}`}
+              aria-hidden={deskSurfaceHidden || undefined}
+              inert={deskSurfaceHidden || undefined}
+            >
               <TerminalDesk
                 arrangeMode={arrangeMode}
                 armedUnsafeSessionIds={armedUnsafeSessionIds}
@@ -1651,32 +1657,36 @@ export function App() {
                 onResizeTile={handleResizeTile}
                 onReviewWorktree={handleReviewWorktree}
               />
-            )}
+            </div>
             {activeSurface === "review" && (
-              <ReviewSurface
-                armedUnsafeSessionIds={armedUnsafeSessionIds}
-                items={globalReviewItems}
-                selectedSessionId={activeSelectedSessionId}
-                onApproveTile={handleApproveTile}
-                onContinueRestoredSession={handleContinueRestoredSession}
-                onDiscardSession={handleCloseSession}
-                onFocusItem={handleOpenManagedSessionFromObservatory}
-                onLaunchItem={handleLaunchReviewQueueItem}
-                onRestartSession={handleRestartSession}
-              />
+              <div className="surface-panel active">
+                <ReviewSurface
+                  armedUnsafeSessionIds={armedUnsafeSessionIds}
+                  items={globalReviewItems}
+                  selectedSessionId={activeSelectedSessionId}
+                  onApproveTile={handleApproveTile}
+                  onContinueRestoredSession={handleContinueRestoredSession}
+                  onDiscardSession={handleCloseSession}
+                  onFocusItem={handleOpenManagedSessionFromObservatory}
+                  onLaunchItem={handleLaunchReviewQueueItem}
+                  onRestartSession={handleRestartSession}
+                />
+              </div>
             )}
             {activeSurface === "observatory" && (
-              <ObservatorySurface
-                activeWorkspaceId={activeWorkspace.id}
-                externalCodexSessions={externalCodexSessions}
-                loadingExternalSessions={externalCodexSessionsLoading}
-                sessions={terminalSessions}
-                workspaces={workspaces}
-                onOpenManagedSession={handleOpenManagedSessionFromObservatory}
-                onRefreshExternalSessions={handleRefreshExternalCodexSessions}
-                onResumeExternalCodexSession={handleResumeExternalCodexSession}
-                onSelectWorkspace={handleSelectWorkspace}
-              />
+              <div className="surface-panel active">
+                <ObservatorySurface
+                  activeWorkspaceId={activeWorkspace.id}
+                  externalCodexSessions={externalCodexSessions}
+                  loadingExternalSessions={externalCodexSessionsLoading}
+                  sessions={terminalSessions}
+                  workspaces={workspaces}
+                  onOpenManagedSession={handleOpenManagedSessionFromObservatory}
+                  onRefreshExternalSessions={handleRefreshExternalCodexSessions}
+                  onResumeExternalCodexSession={handleResumeExternalCodexSession}
+                  onSelectWorkspace={handleSelectWorkspace}
+                />
+              </div>
             )}
           </div>
           {activeSurface === "desk" && <div className="side-dock-stack">
