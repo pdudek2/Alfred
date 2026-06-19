@@ -6787,6 +6787,11 @@ body {
   opacity: 0.68;
 }
 
+.observatory-detail-card button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .observatory-search {
   min-height: 46px;
   margin: 16px 18px 0;

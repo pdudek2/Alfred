@@ -110,4 +110,41 @@ describe("ObservatorySurface", () => {
     expect(screen.queryByText("/Users/patryk/.codex/sessions/hidden.jsonl")).not.toBeInTheDocument();
   });
 
+  it("blocks external Codex resume when the cwd is not a trusted workspace", async () => {
+    const user = userEvent.setup();
+    const onResumeExternalCodexSession = vi.fn();
+    const untrustedSession: ExternalCodexSessionSummary = {
+      id: "019eee11-5555-7222-8333-444444444444",
+      title: "External unknown workspace",
+      cwd: "/Users/patryk/Downloads/UnknownProject",
+      createdAt: 1_000,
+      updatedAt: 2_100,
+      transcriptPath: "/Users/patryk/.codex/sessions/unknown.jsonl",
+    };
+
+    render(
+      <ObservatorySurface
+        activeWorkspaceId="A"
+        externalCodexSessions={[untrustedSession]}
+        loadingExternalSessions={false}
+        sessions={managedSessions}
+        workspaces={workspaces}
+        onOpenManagedSession={vi.fn()}
+        onRefreshExternalSessions={vi.fn()}
+        onResumeExternalCodexSession={onResumeExternalCodexSession}
+        onSelectWorkspace={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /External unknown workspace/i }));
+    const detail = screen.getByRole("complementary", { name: "Session detail" });
+    const resume = within(detail).getByRole("button", { name: "Trust workspace first" });
+
+    expect(within(detail).getByText("Add this folder as a workspace before resuming this Codex session.")).toBeInTheDocument();
+    expect(resume).toBeDisabled();
+
+    await user.click(resume);
+    expect(onResumeExternalCodexSession).not.toHaveBeenCalled();
+  });
+
 });
