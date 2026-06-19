@@ -197,6 +197,39 @@ describe("terminal-manager IPC", () => {
     ]);
   });
 
+  it("limits persisted terminal scrollback to the latest 80,000 characters", async () => {
+    let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const pty = new FakePty();
+    const retainedTail = "b".repeat(80_000);
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+
+    await invoke<{ id: string }>(terminalChannels.create, {
+      clientId: "manual-large-buffer",
+      command: "node",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+      title: "Manual terminal",
+    });
+    pty.onDataHandler?.(`${"a".repeat(20_000)}${retainedTail}`);
+    await flushTerminalPersistence();
+
+    expect(state.restoredTerminalSessions[0]?.buffer).toHaveLength(80_000);
+    expect(state.restoredTerminalSessions[0]?.buffer).toBe(retainedTail);
+  });
+
   it("renames live sessions and persists the updated title", async () => {
     let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
     const store: PersistedDesktopStateStore = {

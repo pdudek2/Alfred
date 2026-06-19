@@ -140,6 +140,31 @@ describe("redactPayload", () => {
     ).toEqual({ user_password_hash: "[redacted]", value: 1 });
   });
 
+  it("redacts obvious secret values inside standard-mode text payloads", () => {
+    expect(
+      redactPayload(
+        {
+          summary: "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.signature",
+          output: "created key sk-proj-1234567890abcdef",
+          link: "github token ghp_1234567890abcdef",
+          nested: {
+            log: [
+              "-----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----",
+            ],
+          },
+        },
+        "standard",
+      ),
+    ).toEqual({
+      summary: "Authorization: [redacted]",
+      output: "created key [redacted]",
+      link: "github token [redacted]",
+      nested: {
+        log: ["[redacted]"],
+      },
+    });
+  });
+
   it("keeps only minimal keys in minimal mode", () => {
     expect(
       redactPayload(
