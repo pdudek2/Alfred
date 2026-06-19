@@ -1208,10 +1208,8 @@ export function App() {
   const handleResumeExternalCodexSession = useCallback((session: ExternalCodexSessionSummary) => {
     const now = Date.now();
     const workspaceApi = getDesktopWorkspaceApi();
-    const targetWorkspace = workspaceForCwd(session.cwd, workspaces) ?? createWorkspaceForCwd(session.cwd, workspaces);
-    const nextWorkspaces = workspaces.some((workspace) => workspace.id === targetWorkspace.id)
-      ? workspaces
-      : [...workspaces, targetWorkspace];
+    const targetWorkspace = workspaceForCwd(session.cwd, workspaces);
+    if (!targetWorkspace) return;
     const title = normalizeSessionTitle(session.title ? `Codex · ${session.title}` : "Codex resume") ?? "Codex resume";
     const tile: SessionTile = {
       id: `external-codex-${session.id.slice(0, 8)}-${now}`,
@@ -1238,12 +1236,11 @@ export function App() {
       lastActivityAt: now,
     };
 
-    setWorkspaces(nextWorkspaces);
     setActiveWorkspaceId(targetWorkspace.id);
     setActiveSurface("desk");
     setSelectedSessionIdsByWorkspace((current) => ({ ...current, [targetWorkspace.id]: tile.id }));
     setTerminalSessions((sessions) => [...sessions, tile]);
-    void workspaceApi?.setWorkspaceState({ workspaces: nextWorkspaces, activeWorkspaceId: targetWorkspace.id });
+    void workspaceApi?.setWorkspaceState({ workspaces, activeWorkspaceId: targetWorkspace.id });
   }, [activeWorkspace.rootPath, workspaces]);
 
   useEffect(() => {
@@ -2314,17 +2311,6 @@ function workspaceForCwd(cwd: string, workspaces: Workspace[]): Workspace | null
     .sort((left, right) => (right.rootPath?.length ?? 0) - (left.rootPath?.length ?? 0))[0] ?? null;
 }
 
-function createWorkspaceForCwd(cwd: string, workspaces: Workspace[]): Workspace {
-  const label = pathLabel(cwd) || `Workspace ${workspaces.length + 1}`;
-  const id = uniqueWorkspaceId(shortLabelForWorkspace(label), workspaces.map((workspace) => workspace.id));
-  return {
-    id,
-    label,
-    shortLabel: shortLabelForWorkspace(label),
-    ...(cwd.trim() ? { rootPath: cwd.trim() } : {}),
-  };
-}
-
 function uniqueWorkspaceId(base: string, existingIds: string[]): string {
   const used = new Set(existingIds);
   const normalizedBase = base.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toUpperCase() || "WORKSPACE";
@@ -2335,11 +2321,6 @@ function uniqueWorkspaceId(base: string, existingIds: string[]): string {
     suffix += 1;
   }
   return candidate;
-}
-
-function pathLabel(value: string): string {
-  const trimmed = value.trim().replace(/\/+$/, "");
-  return trimmed.split("/").filter(Boolean).at(-1) ?? "";
 }
 
 function omitWorkspaceRecord<T>(record: Record<string, T>, workspaceId: string): Record<string, T> {

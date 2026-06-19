@@ -446,6 +446,48 @@ describe("App integration", () => {
     });
   });
 
+  it("does not trust an unknown external Codex cwd by creating a workspace during resume", async () => {
+    const user = userEvent.setup();
+    const externalSessionId = "019edc4b-0000-7000-9000-untrusted";
+    const { createTerminal, setWorkspaceState } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [],
+      [
+        {
+          id: externalSessionId,
+          title: "Unknown external workspace",
+          cwd: "/Users/patryk/Downloads/UnknownProject",
+          createdAt: 100,
+          updatedAt: 200,
+          transcriptPath: "/Users/patryk/.codex/sessions/unknown.jsonl",
+        },
+      ],
+    );
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledTimes(1);
+    });
+    setWorkspaceState.mockClear();
+
+    await user.click(await screen.findByRole("button", { name: "Open Observatory surface" }));
+    await user.click(await screen.findByRole("button", { name: /Unknown external workspace/i }));
+
+    const resume = screen.getByRole("button", { name: "Trust workspace first" });
+    expect(resume).toBeDisabled();
+
+    await user.click(resume);
+    expect(createTerminal).toHaveBeenCalledTimes(1);
+    expect(setWorkspaceState).not.toHaveBeenCalled();
+    expect(screen.queryByRole("tab", { name: /UnknownProject workspace/i })).not.toBeInTheDocument();
+  });
+
   it("keeps only one global modal open at a time", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [], undefined, undefined, undefined, [

@@ -241,7 +241,7 @@ function ObservatoryDetail({
     <div className={`observatory-detail-card source-${row.source}`}>
       <span>{row.source === "managed-alfred" ? "Managed by Alfred" : "External Codex"}</span>
       <strong>{row.title}</strong>
-      <p>{row.source === "managed-alfred" ? "Live or saved terminal managed by Alfred." : "Read-only Codex history. Resume creates a new Alfred terminal."}</p>
+      <p>{detailCopy(row)}</p>
       <dl>
         <div>
           <dt>project</dt>
@@ -278,13 +278,25 @@ function ObservatoryDetail({
           <span>Open in Desk</span>
         </button>
       ) : (
-        <button type="button" onClick={() => onResumeExternalCodexSession(row.session)}>
+        <button
+          type="button"
+          disabled={!row.workspaceId}
+          onClick={() => {
+            if (row.workspaceId) onResumeExternalCodexSession(row.session);
+          }}
+        >
           <Play size={15} />
-          <span>Resume in Alfred</span>
+          <span>{row.workspaceId ? "Resume in Alfred" : "Trust workspace first"}</span>
         </button>
       )}
     </div>
   );
+}
+
+function detailCopy(row: ObservatoryRow): string {
+  if (row.source === "managed-alfred") return "Live or saved terminal managed by Alfred.";
+  if (!row.workspaceId) return "Add this folder as a workspace before resuming this Codex session.";
+  return "Read-only Codex history. Resume creates a new Alfred terminal.";
 }
 
 function buildObservatoryRows({
@@ -343,7 +355,7 @@ function buildObservatoryRows({
       workspaceLabel: workspace?.label ?? "External Codex",
       location: shortenPath(session.cwd || "unknown cwd"),
       updatedAt: session.updatedAt,
-      status: "read-only",
+      status: workspace ? "read-only" : "untrusted cwd",
       kindLabel: "Cx",
       kindClassName: "codex",
       rawSearchText: [
