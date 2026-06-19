@@ -85,6 +85,7 @@ describe("persisted-desktop-state", () => {
             title: "Codex",
             command: "codex",
             args: [],
+            isolation: "worktree",
             launchPreflight: {
               status: "blocked",
               code: "cwd_outside_workspace",
