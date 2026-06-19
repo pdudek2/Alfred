@@ -30,7 +30,7 @@ export async function openExternalTerminal(
   if (normalizedRequest.status === "invalid") return normalizedRequest.result;
 
   const resolvedPath = path.resolve(normalizedRequest.request.cwd);
-  if (!isAllowedWorkspacePath(resolvedPath, options.allowedRoots)) {
+  if (!await isAllowedWorkspacePath(resolvedPath, options.allowedRoots)) {
     return { ok: false, error: "Path is outside registered workspaces.", resolvedPath };
   }
 

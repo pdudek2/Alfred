@@ -53,6 +53,28 @@ describe("workspace-path", () => {
     });
   });
 
+  it("rejects symlinked paths that resolve outside allowed workspace roots", async () => {
+    const allowedRoot = path.join(temporaryDirectory, "workspace");
+    const outsideRoot = path.join(temporaryDirectory, "outside");
+    const outsideFile = path.join(outsideRoot, "secret.txt");
+    const symlinkPath = path.join(allowedRoot, "linked-outside");
+    await fs.mkdir(allowedRoot);
+    await fs.mkdir(outsideRoot);
+    await fs.writeFile(outsideFile, "secret\n");
+    await fs.symlink(outsideRoot, symlinkPath, "dir");
+
+    await expect(
+      resolveWorkspacePathForReveal(
+        { cwd: allowedRoot, path: "linked-outside/secret.txt" },
+        { allowedRoots: [allowedRoot] },
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      error: "Path is outside registered workspaces.",
+      resolvedPath: path.join(symlinkPath, "secret.txt"),
+    });
+  });
+
   it("returns a resolved path for missing files without opening them", async () => {
     const missingPath = path.join(temporaryDirectory, "missing.ts");
 

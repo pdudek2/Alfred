@@ -43,6 +43,7 @@ import {
   type AgentWorktreeResult,
 } from "./git-worktree.js";
 import type { PersistedDesktopStateStore } from "./persisted-desktop-state.js";
+import { isAllowedWorkspacePath } from "./workspace-path.js";
 
 type PtyProcess = import("node-pty").IPty;
 type NodePtyModule = typeof import("node-pty");
@@ -848,9 +849,7 @@ async function validateTerminalCwd(
 
   const resolvedCwd = path.resolve(request.cwd);
   const roots = await allowedCwdRoots();
-  const allowed = roots
-    .map((root) => path.resolve(root))
-    .some((root) => resolvedCwd === root || resolvedCwd.startsWith(`${root}${path.sep}`));
+  const allowed = await isAllowedWorkspacePath(resolvedCwd, roots);
 
   if (!allowed) {
     throw new Error("Terminal cwd is outside registered workspaces.");

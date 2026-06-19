@@ -418,6 +418,38 @@ describe("terminal-manager IPC", () => {
     expect(nodePty.spawn).not.toHaveBeenCalled();
   });
 
+  it("blocks terminal cwd symlinks that resolve outside registered workspaces", async () => {
+    const fs = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "alfred-terminal-cwd-"));
+    const workspaceRoot = path.join(root, "workspace");
+    const outsideRoot = path.join(root, "outside");
+    const symlinkPath = path.join(workspaceRoot, "linked-outside");
+    await fs.mkdir(workspaceRoot);
+    await fs.mkdir(outsideRoot);
+    await fs.symlink(outsideRoot, symlinkPath, "dir");
+    const nodePty = fakeNodePty(new FakePty());
+    registerTerminalIpc({
+      allowedCwdRoots: async () => [workspaceRoot],
+      loadNodePty: async () => nodePty as never,
+    });
+
+    try {
+      await expect(
+        invoke(terminalChannels.create, {
+          command: "node",
+          cols: 80,
+          cwd: symlinkPath,
+          rows: 24,
+        }),
+      ).rejects.toThrow("Terminal cwd is outside registered workspaces.");
+      expect(nodePty.spawn).not.toHaveBeenCalled();
+    } finally {
+      await fs.rm(root, { force: true, recursive: true });
+    }
+  });
+
   it("blocks custom renderer commands unless they are approved staged launches", async () => {
     const nodePty = fakeNodePty(new FakePty());
     registerTerminalIpc({

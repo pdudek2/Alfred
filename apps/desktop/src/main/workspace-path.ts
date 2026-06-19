@@ -21,7 +21,7 @@ export async function resolveWorkspacePathForReveal(
   }
 
   const resolvedPath = resolveWorkspacePath(rawPath, revealRequest.cwd);
-  if (!isAllowedWorkspacePath(resolvedPath, options.allowedRoots)) {
+  if (!await isAllowedWorkspacePath(resolvedPath, options.allowedRoots)) {
     return { ok: false, error: "Path is outside registered workspaces.", resolvedPath };
   }
 
@@ -71,10 +71,36 @@ function resolveWorkspacePath(rawPath: string, cwd: string | undefined): string 
   return path.resolve(cwd?.trim() || process.cwd(), expandedPath);
 }
 
-export function isAllowedWorkspacePath(resolvedPath: string, allowedRoots: string[] | undefined): boolean {
-  const roots = (allowedRoots ?? []).map((root) => path.resolve(root)).filter(Boolean);
+export async function isAllowedWorkspacePath(resolvedPath: string, allowedRoots: string[] | undefined): Promise<boolean> {
+  const roots = await Promise.all((allowedRoots ?? []).map((root) => canonicalWorkspacePath(root)));
   if (roots.length === 0) return true;
 
-  const normalizedPath = path.resolve(resolvedPath);
+  const normalizedPath = await canonicalWorkspacePath(resolvedPath);
   return roots.some((root) => normalizedPath === root || normalizedPath.startsWith(`${root}${path.sep}`));
+}
+
+async function canonicalWorkspacePath(value: string): Promise<string> {
+  const resolved = path.resolve(value);
+  try {
+    return await fs.realpath(resolved);
+  } catch {
+    return canonicalMissingPath(resolved);
+  }
+}
+
+async function canonicalMissingPath(resolvedPath: string): Promise<string> {
+  const missingSegments: string[] = [];
+  let current = resolvedPath;
+
+  while (true) {
+    try {
+      const existingPath = await fs.realpath(current);
+      return path.join(existingPath, ...missingSegments);
+    } catch {
+      const parent = path.dirname(current);
+      if (parent === current) return resolvedPath;
+      missingSegments.unshift(path.basename(current));
+      current = parent;
+    }
+  }
 }
