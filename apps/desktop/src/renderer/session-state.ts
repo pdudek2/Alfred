@@ -267,12 +267,12 @@ export function hydrateStagedPlanSessions(
 }
 
 function resumeLaunchForRestoredAgent(
-  session: Pick<SessionTile, "agentKind" | "command">,
+  session: Pick<SessionTile, "agentKind" | "args" | "command">,
 ): Pick<SessionTile, "command" | "args"> {
   const agentKind = session.agentKind ?? (session.command === "codex" || session.command === "claude" ? session.command : undefined);
 
   if (agentKind === "codex") {
-    return { command: "codex", args: ["resume", "--last"] };
+    return { command: "codex", args: codexResumeArgs(session.args) };
   }
 
   if (agentKind === "claude") {
@@ -280,6 +280,14 @@ function resumeLaunchForRestoredAgent(
   }
 
   return {};
+}
+
+function codexResumeArgs(args: string[] | undefined): string[] {
+  if (args?.[0] === "resume" && args[1] && args[1] !== "--last") {
+    return ["resume", args[1]];
+  }
+
+  return ["resume", "--last"];
 }
 
 function plannedSessionIsolation(
