@@ -68,6 +68,7 @@ import type { WorkMode } from "./terminal-desk-types";
 import { workspaceAttention, workspaceReviewQueue, type WorkspaceReviewItem } from "./workspace-attention";
 import { workspaceSessionSummary } from "./workspace-session-summary";
 import { shortenPath } from "./path-display";
+import { findWorkspaceForCwd } from "./workspace-path-matching";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { normalizeSessionTitle } from "../shared/session-title";
 import { shortLabelForWorkspace } from "../shared/workspace-label";
@@ -2304,12 +2305,7 @@ function createScratchWorkspaceState(workspaces: Workspace[]): WorkspaceStateSna
 }
 
 function workspaceForCwd(cwd: string, workspaces: Workspace[]): Workspace | null {
-  if (!cwd.trim()) return null;
-  const exact = workspaces.find((workspace) => workspace.rootPath === cwd);
-  if (exact) return exact;
-  return workspaces
-    .filter((workspace) => workspace.rootPath && (cwd === workspace.rootPath || cwd.startsWith(`${workspace.rootPath}/`)))
-    .sort((left, right) => (right.rootPath?.length ?? 0) - (left.rootPath?.length ?? 0))[0] ?? null;
+  return findWorkspaceForCwd(cwd, workspaces);
 }
 
 function uniqueWorkspaceId(base: string, existingIds: string[]): string {

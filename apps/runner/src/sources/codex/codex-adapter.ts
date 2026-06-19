@@ -5,6 +5,7 @@ import { IngestEventSchema, type IngestEvent, type PrivacyMode } from "@alfred/s
 import fg from "fast-glob";
 
 import type { SourceAdapter } from "../source-adapter.js";
+import { projectKeyFromCwdPath } from "../worktree-project-key.js";
 import { readJsonlRecords } from "./codex-jsonl.js";
 
 export type CodexAdapterConfig = {
@@ -319,8 +320,7 @@ function parseEvent(input: ParseEventInput): IngestEvent {
 }
 
 function projectKeyFromCwd(cwd: string | undefined): string {
-  if (!cwd) return "unknown-project";
-  return basename(cwd) || "unknown-project";
+  return projectKeyFromCwdPath(cwd) ?? "unknown-project";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

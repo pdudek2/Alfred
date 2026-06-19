@@ -134,6 +134,33 @@ describe("collectCodexEvents", () => {
     });
   });
 
+  it("attributes legacy Alfred worktree cwd to the base project", async () => {
+    const codexHome = trackedTempDir("alfred-codex-home-");
+    const target = join(codexHome, "sessions/2026/06/19/worktree-session.jsonl");
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(
+      target,
+      `${JSON.stringify({
+        timestamp: "2026-06-19T08:00:00.000Z",
+        type: "session.start",
+        id: "codex-worktree-run",
+        cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/audit-hardening",
+      })}\n`,
+    );
+
+    const events = await collectCodexEvents({
+      codexHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      project_key: "Alfred",
+    });
+  });
+
   it("uses distinct source event ids for call and output payloads with the same call id", async () => {
     const events = await collectCodexEvents({
       codexHome: createCodexHome(turnCompleteFixturePath()),

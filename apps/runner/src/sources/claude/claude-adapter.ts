@@ -6,6 +6,7 @@ import { IngestEventSchema, type IngestEvent, type PrivacyMode } from "@alfred/s
 import fg from "fast-glob";
 
 import type { SourceAdapter } from "../source-adapter.js";
+import { projectKeyFromCwdPath } from "../worktree-project-key.js";
 
 export type ClaudeAdapterConfig = {
   claudeHome: string;
@@ -339,8 +340,7 @@ function firstString(records: unknown[], key: string): string | undefined {
 }
 
 function projectKeyFromCwd(cwd: string | undefined): string | undefined {
-  if (!cwd) return undefined;
-  return basename(cwd) || undefined;
+  return projectKeyFromCwdPath(cwd);
 }
 
 function projectKeyFromClaudeProjectPath(file: string): string {

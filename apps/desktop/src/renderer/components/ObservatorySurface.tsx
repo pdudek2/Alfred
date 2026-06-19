@@ -7,6 +7,7 @@ import { sessionAgeLabel } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import { shortenPath } from "../path-display";
+import { findWorkspaceForCwd } from "../workspace-path-matching";
 import type { WorkspaceRailWorkspace } from "./WorkspaceRail";
 
 type ObservatorySurfaceProps = {
@@ -309,22 +310,23 @@ function buildObservatoryRows({
   workspaces: WorkspaceRailWorkspace[];
 }): ObservatoryRow[] {
   const workspaceById = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
-  const workspaceByRoot = new Map(
-    workspaces.flatMap((workspace) => (workspace.rootPath ? [[workspace.rootPath, workspace] as const] : [])),
-  );
   const managedRows: ObservatoryRow[] = sessions.map((session) => {
-    const workspace = workspaceById.get(session.workspaceId);
+    const workspace =
+      (session.baseCwd ? findWorkspaceForCwd(session.baseCwd, workspaces) : null) ??
+      findWorkspaceForCwd(session.cwd, workspaces) ??
+      workspaceById.get(session.workspaceId);
+    const workspaceId = workspace?.id ?? session.workspaceId;
     const status = terminalSessionDisplayStatus(session);
     const kind = sessionTileKind(session);
     const kindMeta = tileKindMeta(kind);
     const updatedAt = session.lastActivityAt ?? session.lastOutputAt ?? session.createdAt ?? 0;
     const location = session.cwd || workspace?.rootPath || "local desk";
     return {
-      id: `managed:${session.workspaceId}:${session.id}`,
+      id: `managed:${workspaceId}:${session.id}`,
       source: "managed-alfred",
       title: session.title,
-      workspaceId: session.workspaceId,
-      workspaceLabel: workspace?.label ?? session.workspaceId,
+      workspaceId,
+      workspaceLabel: workspace?.label ?? workspaceId,
       location: shortenPath(location),
       updatedAt,
       status: status.label,
@@ -346,7 +348,7 @@ function buildObservatoryRows({
     };
   });
   const externalRows: ObservatoryRow[] = externalCodexSessions.map((session) => {
-    const workspace = workspaceForExternalCwd(session.cwd, workspaceByRoot);
+    const workspace = findWorkspaceForCwd(session.cwd, workspaces);
     return {
       id: `external-codex:${session.id}`,
       source: "external-codex",
@@ -371,19 +373,6 @@ function buildObservatoryRows({
   });
 
   return [...managedRows, ...externalRows];
-}
-
-function workspaceForExternalCwd(
-  cwd: string,
-  workspaceByRoot: Map<string, WorkspaceRailWorkspace>,
-): WorkspaceRailWorkspace | null {
-  if (!cwd) return null;
-  const exact = workspaceByRoot.get(cwd);
-  if (exact) return exact;
-  const matches = Array.from(workspaceByRoot.entries())
-    .filter(([root]) => cwd === root || cwd.startsWith(`${root}/`))
-    .sort((left, right) => right[0].length - left[0].length);
-  return matches[0]?.[1] ?? null;
 }
 
 function matchesObservatoryRow(row: ObservatoryRow, query: string): boolean {
