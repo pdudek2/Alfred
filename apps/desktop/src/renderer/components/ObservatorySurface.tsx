@@ -13,6 +13,7 @@ import type { WorkspaceRailWorkspace } from "./WorkspaceRail";
 type ObservatorySurfaceProps = {
   activeWorkspaceId: string;
   externalCodexSessions: ExternalCodexSessionSummary[];
+  externalSessionsError?: string | null;
   loadingExternalSessions: boolean;
   sessions: SessionTile[];
   workspaces: WorkspaceRailWorkspace[];
@@ -20,6 +21,7 @@ type ObservatorySurfaceProps = {
   onRefreshExternalSessions: () => void;
   onResumeExternalCodexSession: (session: ExternalCodexSessionSummary) => void;
   onSelectWorkspace: (workspaceId: string) => void;
+  onTrustExternalCodexWorkspace?: (session: ExternalCodexSessionSummary) => void;
 };
 
 type ObservatoryRow =
@@ -56,6 +58,7 @@ type ObservatoryRow =
 export function ObservatorySurface({
   activeWorkspaceId,
   externalCodexSessions,
+  externalSessionsError,
   loadingExternalSessions,
   sessions,
   workspaces,
@@ -63,6 +66,7 @@ export function ObservatorySurface({
   onRefreshExternalSessions,
   onResumeExternalCodexSession,
   onSelectWorkspace,
+  onTrustExternalCodexWorkspace,
 }: ObservatorySurfaceProps) {
   const [query, setQuery] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>("all");
@@ -107,6 +111,13 @@ export function ObservatorySurface({
           onChange={(event) => setQuery(event.target.value)}
         />
       </div>
+
+      {externalSessionsError && (
+        <div className="observatory-refresh-status" role="status">
+          <strong>Showing last successful results.</strong>
+          <span>{externalSessionsError}</span>
+        </div>
+      )}
 
       <div className="observatory-grid">
         <aside className="observatory-projects" aria-label="Projects">
@@ -216,6 +227,7 @@ export function ObservatorySurface({
               row={selectedRow}
               onOpenManagedSession={onOpenManagedSession}
               onResumeExternalCodexSession={onResumeExternalCodexSession}
+              {...(onTrustExternalCodexWorkspace ? { onTrustExternalCodexWorkspace } : {})}
             />
           ) : (
             <div className="observatory-empty detail">
@@ -233,10 +245,12 @@ function ObservatoryDetail({
   row,
   onOpenManagedSession,
   onResumeExternalCodexSession,
+  onTrustExternalCodexWorkspace,
 }: {
   row: ObservatoryRow;
   onOpenManagedSession: (workspaceId: string, sessionId: string) => void;
   onResumeExternalCodexSession: (session: ExternalCodexSessionSummary) => void;
+  onTrustExternalCodexWorkspace?: (session: ExternalCodexSessionSummary) => void;
 }) {
   return (
     <div className={`observatory-detail-card source-${row.source}`}>
@@ -281,9 +295,13 @@ function ObservatoryDetail({
       ) : (
         <button
           type="button"
-          disabled={!row.workspaceId}
+          disabled={!row.workspaceId && !onTrustExternalCodexWorkspace}
           onClick={() => {
-            if (row.workspaceId) onResumeExternalCodexSession(row.session);
+            if (row.workspaceId) {
+              onResumeExternalCodexSession(row.session);
+              return;
+            }
+            onTrustExternalCodexWorkspace?.(row.session);
           }}
         >
           <Play size={15} />

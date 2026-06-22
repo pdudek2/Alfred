@@ -6,6 +6,7 @@ import type { WorkspaceStore } from "./workspace-store.js";
 
 function fakeWorkspaceStore(rootPaths: Array<string | undefined>): WorkspaceStore {
   return {
+    bindWorkspaceToPath: vi.fn(),
     createWorkspaceFromPath: vi.fn(),
     getWorkspaceState: vi.fn(async () => ({
       activeWorkspaceId: "workspace-1",

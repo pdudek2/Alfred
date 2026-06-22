@@ -38,6 +38,7 @@ const layoutChannels = {
 } as const;
 
 const workspaceChannels = {
+  bindFolder: "alfred:workspace:bind-folder",
   createFromFolder: "alfred:workspace:create-from-folder",
   get: "alfred:workspace:get",
   openExternalUrl: "alfred:workspace:open-external-url",
@@ -118,6 +119,8 @@ const layout: LayoutApi = {
 };
 
 const workspace: WorkspaceApi = {
+  bindFolderToWorkspace: (request) =>
+    ipcRenderer.invoke(workspaceChannels.bindFolder, request) as ReturnType<WorkspaceApi["bindFolderToWorkspace"]>,
   createWorkspaceFromFolder: () =>
     ipcRenderer.invoke(workspaceChannels.createFromFolder) as ReturnType<WorkspaceApi["createWorkspaceFromFolder"]>,
   getWorkspaceState: () =>

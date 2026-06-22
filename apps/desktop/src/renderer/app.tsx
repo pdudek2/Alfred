@@ -1,4 +1,4 @@
-import { ChevronDown, Command, FolderOpen, ListChecks, Pencil, Plus, Search, SquareTerminal } from "lucide-react";
+import { ChevronDown, Command, FolderOpen, ListChecks, Pencil, Plus, Search, SquareTerminal, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   getDesktopAlfredApi,
@@ -88,6 +88,13 @@ import "@xterm/xterm/css/xterm.css";
 type Workspace = WorkspaceRailWorkspace;
 type ActiveSurface = "desk" | "review" | "observatory";
 
+type PendingDiscardConfirmation = {
+  files: Array<{ path: string; status: string }>;
+  sessionId: string;
+  summary: string;
+  title: string;
+};
+
 const DEFAULT_WORKSPACE_ID = "A";
 const DEFAULT_WORKSPACE: Workspace = { id: DEFAULT_WORKSPACE_ID, label: "Alfred", shortLabel: "A" };
 const DEFAULT_WORKSPACES: Workspace[] = [DEFAULT_WORKSPACE];
@@ -136,6 +143,7 @@ export function App() {
   const [sessionObservatoryOpen, setSessionObservatoryOpen] = useState<boolean>(false);
   const [activeSurface, setActiveSurface] = useState<ActiveSurface>("desk");
   const [externalCodexSessions, setExternalCodexSessions] = useState<ExternalCodexSessionSummary[]>([]);
+  const [externalCodexSessionsError, setExternalCodexSessionsError] = useState<string | null>(null);
   const [externalCodexSessionsLoading, setExternalCodexSessionsLoading] = useState<boolean>(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState<boolean>(false);
   const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState<string>("");
@@ -147,6 +155,7 @@ export function App() {
   const [selectedPreviewUrlsByWorkspace, setSelectedPreviewUrlsByWorkspace] = useState<Record<string, string>>({});
   const [previewRefreshKeysByWorkspace, setPreviewRefreshKeysByWorkspace] = useState<Record<string, number>>({});
   const [worktreeActionPending, setWorktreeActionPending] = useState<Record<string, WorktreeActionKind | undefined>>({});
+  const [pendingDiscardConfirmation, setPendingDiscardConfirmation] = useState<PendingDiscardConfirmation | null>(null);
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
   const worktreeActionPendingRef = useRef<Set<string>>(new Set());
@@ -637,7 +646,7 @@ export function App() {
     });
   }, [activeSessions, activeWorkspace.id]);
 
-  const handleCloseSession = useCallback((sessionId: string) => {
+  const closeSessionNow = useCallback((sessionId: string) => {
     const terminalApi = getDesktopTerminalApi();
     closingSessionIdsRef.current.add(sessionId);
     setPreviewCandidates((candidates) => candidates.filter((candidate) => candidate.sessionId !== sessionId));
@@ -659,6 +668,55 @@ export function App() {
       return closeSession(sessions, sessionId);
     });
   }, []);
+
+  const handleCloseSession = useCallback((sessionId: string) => {
+    const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
+    const terminalApi = getDesktopTerminalApi();
+
+    const destructiveWorktreeCleanup =
+      session?.runtimeStatus === "restored" || session?.runtimeStatus === "exited" || session?.runtimeStatus === "error";
+
+    if (!session || !destructiveWorktreeCleanup || !isReviewableWorktreeSession(session)) {
+      closeSessionNow(sessionId);
+      return;
+    }
+
+    if (!terminalApi) {
+      setTerminalSessions((sessions) =>
+        appendSessionActivity(sessions, sessionId, {
+          kind: "error",
+          title: "Discard checkout blocked",
+          detail: "Desktop terminal API is unavailable, so Alfred cannot inspect this checkout before deleting it.",
+        }),
+      );
+      return;
+    }
+
+    void terminalApi.worktreeDiff({ clientId: sessionId }).then((result) => {
+      if (!result.ok) {
+        setTerminalSessions((sessions) =>
+          appendSessionActivity(sessions, sessionId, {
+            kind: "warning",
+            title: "Discard checkout blocked",
+            detail: result.error,
+          }),
+        );
+        return;
+      }
+
+      if (result.files.length === 0) {
+        closeSessionNow(sessionId);
+        return;
+      }
+
+      setPendingDiscardConfirmation({
+        sessionId,
+        title: session.title,
+        summary: result.summary,
+        files: result.files,
+      });
+    });
+  }, [closeSessionNow]);
 
   const handleContinueRestoredSession = useCallback((sessionId: string) => {
     setTerminalSessions((sessions) => {
@@ -867,6 +925,26 @@ export function App() {
       handleCloseSession(session.id);
     }
   }, [activeRecoverableSessions, handleCloseSession]);
+
+  const handleCancelDiscardCheckout = useCallback(() => {
+    setPendingDiscardConfirmation(null);
+  }, []);
+
+  const handleReviewDiscardCheckout = useCallback(() => {
+    const confirmation = pendingDiscardConfirmation;
+    if (!confirmation) return;
+
+    setPendingDiscardConfirmation(null);
+    void handleReviewWorktree(confirmation.sessionId);
+  }, [handleReviewWorktree, pendingDiscardConfirmation]);
+
+  const handleConfirmDiscardCheckout = useCallback(() => {
+    const confirmation = pendingDiscardConfirmation;
+    if (!confirmation) return;
+
+    setPendingDiscardConfirmation(null);
+    closeSessionNow(confirmation.sessionId);
+  }, [closeSessionNow, pendingDiscardConfirmation]);
 
   const handleContinueRecoverableSessions = useCallback(() => {
     for (const session of activeRecoverableSessions) {
@@ -1186,16 +1264,18 @@ export function App() {
   const handleRefreshExternalCodexSessions = useCallback(async () => {
     const sessionIndexApi = getDesktopSessionIndexApi();
     if (!sessionIndexApi) {
-      setExternalCodexSessions([]);
+      setExternalCodexSessionsError("External Codex indexing is unavailable in this build.");
       return;
     }
 
     setExternalCodexSessionsLoading(true);
+    setExternalCodexSessionsError(null);
     try {
       const result = await sessionIndexApi.listExternalCodexSessions();
       setExternalCodexSessions(result.sessions);
+      setExternalCodexSessionsError(null);
     } catch {
-      setExternalCodexSessions([]);
+      setExternalCodexSessionsError("Refresh failed. Retry when the local session index is available.");
     } finally {
       setExternalCodexSessionsLoading(false);
     }
@@ -1244,6 +1324,15 @@ export function App() {
     setTerminalSessions((sessions) => [...sessions, tile]);
     void workspaceApi?.setWorkspaceState({ workspaces, activeWorkspaceId: targetWorkspace.id });
   }, [activeWorkspace.rootPath, workspaces]);
+
+  const handleTrustExternalCodexWorkspace = useCallback(async (_session: ExternalCodexSessionSummary) => {
+    const workspaceApi = getDesktopWorkspaceApi();
+    if (!workspaceApi) return;
+
+    const snapshot = await workspaceApi.bindFolderToWorkspace({ workspaceId: activeWorkspace.id });
+    setWorkspaces(snapshot.workspaces);
+    setActiveWorkspaceId(snapshot.activeWorkspaceId);
+  }, [activeWorkspace.id]);
 
   useEffect(() => {
     if (activeSurface !== "observatory") return;
@@ -1677,12 +1766,14 @@ export function App() {
                 <ObservatorySurface
                   activeWorkspaceId={activeWorkspace.id}
                   externalCodexSessions={externalCodexSessions}
+                  externalSessionsError={externalCodexSessionsError}
                   loadingExternalSessions={externalCodexSessionsLoading}
                   sessions={terminalSessions}
                   workspaces={workspaces}
                   onOpenManagedSession={handleOpenManagedSessionFromObservatory}
                   onRefreshExternalSessions={handleRefreshExternalCodexSessions}
                   onResumeExternalCodexSession={handleResumeExternalCodexSession}
+                  onTrustExternalCodexWorkspace={handleTrustExternalCodexWorkspace}
                   onSelectWorkspace={handleSelectWorkspace}
                 />
               </div>
@@ -1749,6 +1840,14 @@ export function App() {
           onChange={setComposerValue}
           onSubmit={handleSubmitPrompt}
         />
+        {pendingDiscardConfirmation && (
+          <DiscardCheckoutDialog
+            confirmation={pendingDiscardConfirmation}
+            onCancel={handleCancelDiscardCheckout}
+            onConfirmDiscard={handleConfirmDiscardCheckout}
+            onReviewChanges={handleReviewDiscardCheckout}
+          />
+        )}
         {commandPaletteOpen && (
           <CommandPalette
             activeWorkspaceId={activeWorkspace.id}
@@ -1821,6 +1920,81 @@ export function App() {
         )}
       </section>
     </main>
+  );
+}
+
+function DiscardCheckoutDialog({
+  confirmation,
+  onCancel,
+  onConfirmDiscard,
+  onReviewChanges,
+}: {
+  confirmation: PendingDiscardConfirmation;
+  onCancel: () => void;
+  onConfirmDiscard: () => void;
+  onReviewChanges: () => void;
+}) {
+  const changedFileLabel = `${confirmation.files.length} changed file${confirmation.files.length === 1 ? "" : "s"}`;
+  const previewFiles = confirmation.files.slice(0, 6);
+  const remaining = confirmation.files.length - previewFiles.length;
+
+  return (
+    <div className="review-queue-backdrop" role="presentation" onMouseDown={onCancel}>
+      <div
+        className="global-review-panel discard-checkout-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Discard isolated checkout"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="global-review-header">
+          <div>
+            <span>Destructive action</span>
+            <strong>Discard isolated checkout</strong>
+            <small>{confirmation.title} · {changedFileLabel}</small>
+          </div>
+          <button type="button" className="global-review-close" onClick={onCancel} aria-label="Close discard dialog">
+            <X size={15} />
+          </button>
+        </header>
+        <div className="discard-checkout-body">
+          <p>
+            This checkout has local changes. Review them before deleting the isolated worktree, or confirm discard
+            explicitly.
+          </p>
+          <dl>
+            <div>
+              <dt>status</dt>
+              <dd>{confirmation.summary}</dd>
+            </div>
+            <div>
+              <dt>files</dt>
+              <dd>{changedFileLabel}</dd>
+            </div>
+          </dl>
+          <ol aria-label="Changed files">
+            {previewFiles.map((file) => (
+              <li key={`${file.status}:${file.path}`}>
+                <span>{file.status}</span>
+                <code>{file.path}</code>
+              </li>
+            ))}
+            {remaining > 0 && <li className="discard-checkout-more">+{remaining} more</li>}
+          </ol>
+        </div>
+        <footer className="discard-checkout-actions">
+          <button type="button" className="discard-checkout-primary" onClick={onReviewChanges}>
+            Review changes
+          </button>
+          <button type="button" className="discard-checkout-cancel" onClick={onCancel} autoFocus>
+            Cancel
+          </button>
+          <button type="button" className="discard-checkout-danger" onClick={onConfirmDiscard}>
+            Discard checkout permanently
+          </button>
+        </footer>
+      </div>
+    </div>
   );
 }
 

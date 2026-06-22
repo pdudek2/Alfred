@@ -20,6 +20,10 @@ export type WorkspaceStateSnapshot = {
 
 export type WorkspaceStateSetRequest = WorkspaceStateSnapshot;
 
+export type WorkspaceBindFolderRequest = {
+  workspaceId: string;
+};
+
 export type WorkspaceRevealPathRequest = {
   cwd?: string;
   path: string;
@@ -46,6 +50,7 @@ export type WorkspaceOpenExternalUrlResult =
   | { ok: false; error: string; url?: string };
 
 export type WorkspaceApi = {
+  bindFolderToWorkspace(request: WorkspaceBindFolderRequest): Promise<WorkspaceStateSnapshot>;
   createWorkspaceFromFolder(): Promise<WorkspaceStateSnapshot>;
   getWorkspaceState(): Promise<WorkspaceStateSnapshot>;
   openExternalUrl(request: WorkspaceOpenExternalUrlRequest): Promise<WorkspaceOpenExternalUrlResult>;
@@ -55,6 +60,7 @@ export type WorkspaceApi = {
 };
 
 export const workspaceChannels = {
+  bindFolder: "alfred:workspace:bind-folder",
   createFromFolder: "alfred:workspace:create-from-folder",
   get: "alfred:workspace:get",
   openExternalUrl: "alfred:workspace:open-external-url",
