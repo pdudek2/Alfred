@@ -113,6 +113,7 @@ describe("ObservatorySurface", () => {
   it("blocks external Codex resume when the cwd is not a trusted workspace", async () => {
     const user = userEvent.setup();
     const onResumeExternalCodexSession = vi.fn();
+    const onTrustExternalCodexWorkspace = vi.fn();
     const untrustedSession: ExternalCodexSessionSummary = {
       id: "019eee11-5555-7222-8333-444444444444",
       title: "External unknown workspace",
@@ -132,6 +133,7 @@ describe("ObservatorySurface", () => {
         onOpenManagedSession={vi.fn()}
         onRefreshExternalSessions={vi.fn()}
         onResumeExternalCodexSession={onResumeExternalCodexSession}
+        onTrustExternalCodexWorkspace={onTrustExternalCodexWorkspace}
         onSelectWorkspace={vi.fn()}
       />,
     );
@@ -141,10 +143,11 @@ describe("ObservatorySurface", () => {
     const resume = within(detail).getByRole("button", { name: "Trust workspace first" });
 
     expect(within(detail).getByText("Add this folder as a workspace before resuming this Codex session.")).toBeInTheDocument();
-    expect(resume).toBeDisabled();
+    expect(resume).toBeEnabled();
 
     await user.click(resume);
     expect(onResumeExternalCodexSession).not.toHaveBeenCalled();
+    expect(onTrustExternalCodexWorkspace).toHaveBeenCalledWith(untrustedSession);
   });
 
   it("attributes external Codex sessions in legacy Alfred worktrees to the base workspace", async () => {

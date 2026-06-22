@@ -10,11 +10,16 @@ import {
   type PersistedDesktopStateStoreOptions,
 } from "./persisted-desktop-state.js";
 import { shortLabelForWorkspace } from "../shared/workspace-label.js";
-import type { WorkspaceStateSetRequest, WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
+import type {
+  WorkspaceBindFolderRequest,
+  WorkspaceStateSetRequest,
+  WorkspaceStateSnapshot,
+} from "../shared/workspace-ipc.js";
 
 const execFileAsync = promisify(execFile);
 
 export type WorkspaceStore = {
+  bindWorkspaceToPath(request: WorkspaceBindFolderRequest & { rootPath: string }): Promise<WorkspaceStateSnapshot>;
   createWorkspaceFromPath(rootPath: string): Promise<WorkspaceStateSnapshot>;
   getWorkspaceState(): Promise<WorkspaceStateSnapshot>;
   setWorkspaceState(request: WorkspaceStateSetRequest): Promise<WorkspaceStateSnapshot>;
@@ -30,6 +35,35 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
   const persistedStateStore = options.persistedStateStore ?? createPersistedDesktopStateStore(options);
 
   return {
+    async bindWorkspaceToPath(request): Promise<WorkspaceStateSnapshot> {
+      const workspaceId = request.workspaceId.trim();
+      const normalizedRootPath = request.rootPath.trim();
+      const current = await persistedStateStore.getState();
+      if (!workspaceId || !normalizedRootPath) return toWorkspaceState(current);
+
+      const label = path.basename(normalizedRootPath) || normalizedRootPath;
+      const gitBranch = await (options.resolveGitBranch ?? resolveGitBranch)(normalizedRootPath);
+      const next = await persistedStateStore.updateState((latest) => ({
+        ...latest,
+        workspaces: latest.workspaces.map((workspace) => {
+          if (workspace.id !== workspaceId) return workspace;
+          const { gitBranch: _previousGitBranch, ...workspaceWithoutBranch } = workspace;
+          return {
+            ...workspaceWithoutBranch,
+            label,
+            shortLabel: shortLabelForWorkspace(label),
+            rootPath: normalizedRootPath,
+            ...(gitBranch === undefined ? {} : { gitBranch }),
+          };
+        }),
+        activeWorkspaceId: latest.workspaces.some((workspace) => workspace.id === workspaceId)
+          ? workspaceId
+          : latest.activeWorkspaceId,
+      }));
+
+      return toWorkspaceState(next);
+    },
+
     async createWorkspaceFromPath(rootPath: string): Promise<WorkspaceStateSnapshot> {
       const normalizedRootPath = rootPath.trim();
       const current = await persistedStateStore.getState();

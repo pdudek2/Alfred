@@ -164,6 +164,58 @@ describe("workspace-store", () => {
     });
   });
 
+  it("binds a folder to an existing workspace without changing its id or mission data", async () => {
+    const filePath = await temporaryStateFile();
+    const persistedStateStore = createPersistedDesktopStateStore({ filePath });
+    await persistedStateStore.setState({
+      ...DEFAULT_DESKTOP_STATE,
+      workspaces: [
+        {
+          id: "SCRATCH-1",
+          label: "Scratch",
+          shortLabel: "S",
+          missionBrief: {
+            goal: "Keep context while binding.",
+            doneWhen: ["Workspace keeps its id"],
+            guardrails: ["Do not create a duplicate workspace"],
+          },
+        },
+      ],
+      activeWorkspaceId: "SCRATCH-1",
+      layoutsByWorkspace: {
+        "SCRATCH-1": { desk: { tileId: "desk", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
+      },
+    });
+    const store = createWorkspaceStore({ persistedStateStore, resolveGitBranch: async () => "feature/hardening" });
+
+    await expect(
+      store.bindWorkspaceToPath({ workspaceId: "SCRATCH-1", rootPath: "/Users/patryk/Desktop/Client App" }),
+    ).resolves.toEqual({
+      workspaces: [
+        {
+          id: "SCRATCH-1",
+          label: "Client App",
+          shortLabel: "CA",
+          rootPath: "/Users/patryk/Desktop/Client App",
+          gitBranch: "feature/hardening",
+          missionBrief: {
+            goal: "Keep context while binding.",
+            doneWhen: ["Workspace keeps its id"],
+            guardrails: ["Do not create a duplicate workspace"],
+          },
+        },
+      ],
+      activeWorkspaceId: "SCRATCH-1",
+    });
+    await expect(persistedStateStore.getState()).resolves.toEqual(
+      expect.objectContaining({
+        layoutsByWorkspace: {
+          "SCRATCH-1": { desk: { tileId: "desk", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
+        },
+      }),
+    );
+  });
+
   it("refreshes persisted git branches when workspace state is read", async () => {
     const filePath = await temporaryStateFile();
     const persistedStateStore = createPersistedDesktopStateStore({ filePath });

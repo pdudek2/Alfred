@@ -116,6 +116,7 @@ function installDesktopBridge(
   setWorkspaceLayout: ReturnType<typeof vi.fn>;
   setWorkspaceViewState: ReturnType<typeof vi.fn>;
   getWorkspaceState: ReturnType<typeof vi.fn>;
+  bindFolderToWorkspace: ReturnType<typeof vi.fn>;
   createWorkspaceFromFolder: ReturnType<typeof vi.fn>;
   setWorkspaceState: ReturnType<typeof vi.fn>;
   setStagedPlan: ReturnType<typeof vi.fn>;
@@ -145,6 +146,16 @@ function installDesktopBridge(
   const setWorkspaceViewState = vi.fn().mockResolvedValue(layouts);
   const getWorkspaceState = vi.fn().mockResolvedValue(workspaceState);
   const setWorkspaceState = vi.fn().mockImplementation((request) => Promise.resolve(request));
+  const bindFolderToWorkspace = vi.fn().mockImplementation((request: { workspaceId: string }) =>
+    Promise.resolve({
+      workspaces: workspaceState.workspaces.map((workspace) =>
+        workspace.id === request.workspaceId
+          ? { ...workspace, rootPath: workspace.rootPath ?? "/Users/patryk/TrustedWorkspace" }
+          : workspace,
+      ),
+      activeWorkspaceId: request.workspaceId,
+    }),
+  );
   const openExternalTerminal = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/patryk/Desktop/Alfred", terminal: "Ghostty" });
   const openExternalUrl = vi
     .fn()
@@ -233,6 +244,7 @@ function installDesktopBridge(
     sessionIndex: { listExternalCodexSessions },
     terminal,
     workspace: {
+      bindFolderToWorkspace,
       createWorkspaceFromFolder,
       getWorkspaceState,
       openExternalTerminal,
@@ -260,6 +272,7 @@ function installDesktopBridge(
     setStagedPlan,
     prepareLaunch,
     updateStagedSession,
+    bindFolderToWorkspace,
     createWorkspaceFromFolder,
     getWorkspaceState,
     setWorkspaceState,
@@ -450,10 +463,10 @@ describe("App integration", () => {
     });
   });
 
-  it("does not trust an unknown external Codex cwd by creating a workspace during resume", async () => {
+  it("opens a bind/trust workspace dialog for an unknown external Codex cwd", async () => {
     const user = userEvent.setup();
     const externalSessionId = "019edc4b-0000-7000-9000-untrusted";
-    const { createTerminal, setWorkspaceState } = installDesktopBridge(
+    const { bindFolderToWorkspace, createTerminal, setWorkspaceState } = installDesktopBridge(
       undefined,
       null,
       [],
@@ -484,12 +497,55 @@ describe("App integration", () => {
     await user.click(await screen.findByRole("button", { name: /Unknown external workspace/i }));
 
     const resume = screen.getByRole("button", { name: "Trust workspace first" });
-    expect(resume).toBeDisabled();
+    expect(resume).toBeEnabled();
 
     await user.click(resume);
     expect(createTerminal).toHaveBeenCalledTimes(1);
-    expect(setWorkspaceState).not.toHaveBeenCalled();
+    expect(bindFolderToWorkspace).toHaveBeenCalledWith({ workspaceId: "A" });
+    expect(setWorkspaceState).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaces: expect.arrayContaining([
+          expect.objectContaining({ rootPath: "/Users/patryk/Downloads/UnknownProject" }),
+        ]),
+      }),
+    );
     expect(screen.queryByRole("tab", { name: /UnknownProject workspace/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps stale external Codex rows when Observatory refresh fails", async () => {
+    const user = userEvent.setup();
+    const externalSession: ExternalCodexSessionSummary = {
+      id: "019edc4b-0000-7000-9000-stale",
+      title: "Previously indexed Codex",
+      cwd: "/Users/patryk/Desktop/Alfred",
+      createdAt: 100,
+      updatedAt: 200,
+      transcriptPath: "/Users/patryk/.codex/sessions/stale.jsonl",
+    };
+    const { listExternalCodexSessions } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [],
+      [externalSession],
+    );
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Open Observatory surface" }));
+    expect(await screen.findByRole("button", { name: /Previously indexed Codex/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(listExternalCodexSessions).toHaveBeenCalledTimes(1);
+    });
+
+    listExternalCodexSessions.mockRejectedValueOnce(new Error("index unavailable"));
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+
+    expect(await screen.findByText("Showing last successful results.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Previously indexed Codex/i })).toBeInTheDocument();
   });
 
   it("keeps only one global modal open at a time", async () => {
@@ -3289,7 +3345,7 @@ describe("App integration", () => {
 
   it("labels isolated recovery cleanup as discard checkout for legacy worktree snapshots and keeps forget wired", async () => {
     const user = userEvent.setup();
-    const { forgetTerminal } = installDesktopBridge(
+    const { forgetTerminal, worktreeDiff } = installDesktopBridge(
       undefined,
       null,
       [],
@@ -3318,6 +3374,18 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Codex · session 9/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Discard checkout Codex · session 9" }));
+
+    expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-9" });
+    const discardDialog = screen.getByRole("dialog", { name: "Discard isolated checkout" });
+    expect(discardDialog).toHaveTextContent("2 changed files");
+    expect(forgetTerminal).not.toHaveBeenCalled();
+
+    await user.click(within(discardDialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Codex · session 9/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Discard checkout Codex · session 9" }));
+    await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
 
     expect(screen.queryByRole("article", { name: /Codex · session 9/i })).not.toBeInTheDocument();
     expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9", cleanupWorktree: true });
