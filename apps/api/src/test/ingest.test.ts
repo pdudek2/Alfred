@@ -445,6 +445,44 @@ describe("ingest", () => {
     await expect(response.json()).resolves.toEqual({ error: "invalid_body" });
   });
 
+  it("returns 413 before parsing oversized ingest batches", async () => {
+    const app = new Hono();
+    app.route("/v1/ingest", createIngestRoutes(makeInMemoryStore(), createDeviceAuthStore()));
+
+    const response = await app.request("/v1/ingest/batches", {
+      method: "POST",
+      body: "{",
+      headers: {
+        authorization: "Bearer secret",
+        "content-length": String(5 * 1024 * 1024 + 1),
+        "content-type": "application/json",
+      },
+    });
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({ error: "batch_too_large" });
+  });
+
+  it("returns 413 for oversized event payloads", async () => {
+    const app = new Hono();
+    app.route("/v1/ingest", createIngestRoutes(makeInMemoryStore(), createDeviceAuthStore()));
+    const batch = makeBatch("00000000-0000-4000-8000-000000000301", {
+      payload: { text: "x".repeat(256 * 1024 + 1) },
+    });
+
+    const response = await app.request("/v1/ingest/batches", {
+      method: "POST",
+      body: JSON.stringify(batch),
+      headers: {
+        authorization: "Bearer secret",
+        "content-type": "application/json",
+      },
+    });
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({ error: "event_payload_too_large", event_index: 0 });
+  });
+
   it("returns 400 for schema-invalid JSON", async () => {
     const app = new Hono();
     app.route("/v1/ingest", createIngestRoutes(makeInMemoryStore(), createDeviceAuthStore()));
