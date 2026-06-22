@@ -31,10 +31,12 @@ const baseRun: RunListItem = {
 };
 
 function createStore(): RunsQueryStore & {
+  observedDetailOptions: unknown[];
   observedLimits: number[];
   observedFilters: RunsListFilters[];
   observedWorkspaceIds: string[];
 } {
+  const observedDetailOptions: unknown[] = [];
   const observedLimits: number[] = [];
   const observedFilters: RunsListFilters[] = [];
   const observedWorkspaceIds: string[] = [];
@@ -59,10 +61,20 @@ function createStore(): RunsQueryStore & {
         occurred_at: "2026-04-28T10:00:01.000Z",
         payload: { tool_name: "exec_command" },
       },
+      ...Array.from({ length: 499 }, (_, index) => ({
+        id: `event-${index + 3}`,
+        event_id: `event-${String(index + 3).padStart(12, "0")}`,
+        source_event_id: `source-event-${index + 3}`,
+        type: "tool.completed",
+        status: "completed",
+        occurred_at: new Date(Date.UTC(2026, 3, 28, 10, 0, index + 2)).toISOString(),
+        payload: { tool_name: "exec_command" },
+      })),
     ],
   };
 
   return {
+    observedDetailOptions,
     observedLimits,
     observedFilters,
     observedWorkspaceIds,
@@ -72,9 +84,19 @@ function createStore(): RunsQueryStore & {
       observedFilters.push(filters);
       return [baseRun].slice(0, limit);
     },
-    getRun: async (workspaceId, runId) => {
+    getRun: async (workspaceId, runId, options) => {
       observedWorkspaceIds.push(workspaceId);
-      return runId === baseRun.id ? runDetail : null;
+      observedDetailOptions.push(options);
+      if (runId !== baseRun.id) return null;
+      const eventLimit = options?.eventLimit ?? runDetail.events.length;
+      const eventCursor = options?.eventCursor ?? 0;
+      return {
+        ...runDetail,
+        events: runDetail.events.slice(eventCursor, eventCursor + eventLimit),
+        ...(eventCursor + eventLimit < runDetail.events.length
+          ? { eventsNextCursor: String(eventCursor + eventLimit) }
+          : {}),
+      };
     },
   };
 }
@@ -216,7 +238,7 @@ describe("runs routes", () => {
   it("returns run detail with timeline events", async () => {
     const app = createRunsRoutes(createStore(), { sessionStore: createSessionStore() });
 
-    const response = await app.request(`/${baseRun.id}`, { headers: sessionHeaders });
+    const response = await app.request(`/${baseRun.id}?eventLimit=2`, { headers: sessionHeaders });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -227,6 +249,33 @@ describe("runs routes", () => {
         { type: "tool.started", payload: { tool_name: "exec_command" } },
       ],
     });
+  });
+
+  it("paginates run detail events by default and returns the next cursor", async () => {
+    const store = createStore();
+    const app = createRunsRoutes(store, { sessionStore: createSessionStore() });
+
+    const response = await app.request(`/${baseRun.id}`, { headers: sessionHeaders });
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.id).toBe(baseRun.id);
+    expect(body.events).toHaveLength(500);
+    expect(body.events[0]).toMatchObject({ type: "run.started" });
+    expect(body.eventsNextCursor).toBe("500");
+    expect(store.observedDetailOptions).toEqual([{ eventLimit: 500, eventCursor: 0 }]);
+  });
+
+  it("accepts run detail event cursor and limit query params", async () => {
+    const store = createStore();
+    const app = createRunsRoutes(store, { sessionStore: createSessionStore() });
+
+    const response = await app.request(`/${baseRun.id}?eventCursor=1&eventLimit=1`, { headers: sessionHeaders });
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.events).toEqual([expect.objectContaining({ type: "tool.started" })]);
+    expect(store.observedDetailOptions).toEqual([{ eventLimit: 1, eventCursor: 1 }]);
   });
 
   it("returns 404 for missing runs", async () => {

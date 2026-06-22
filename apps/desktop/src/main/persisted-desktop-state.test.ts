@@ -333,4 +333,15 @@ describe("persisted-desktop-state", () => {
 
     await expect(store.getState()).resolves.toEqual(DEFAULT_DESKTOP_STATE);
   });
+
+  it("rejects state updates when the desktop state file cannot be written", async () => {
+    const warnings: string[] = [];
+    const store = createPersistedDesktopStateStore({
+      filePath: "/dev/null/desktop-state.json",
+      onWarning: (message) => warnings.push(message),
+    });
+
+    await expect(store.setState(DEFAULT_DESKTOP_STATE)).rejects.toThrow("Failed to persist desktop state.");
+    expect(warnings).toEqual(["Failed to persist desktop state."]);
+  });
 });

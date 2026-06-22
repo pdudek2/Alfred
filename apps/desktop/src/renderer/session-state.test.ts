@@ -394,6 +394,35 @@ describe("desktop session state", () => {
     });
   });
 
+  it("uses persisted resumeTarget when relaunching a restored managed Codex session", () => {
+    const codexSessionId = "019edc4b-0000-7000-9000-managed";
+    const restored = hydratePersistedTerminalSessions([
+      {
+        clientId: "alfred-codex",
+        title: "Codex audit",
+        cwd: "/repo/.alfred-worktrees/codex-audit",
+        source: "alfred",
+        agentKind: "codex",
+        command: "codex",
+        args: ["do the original audit"],
+        resumeTarget: { agentKind: "codex", sessionId: codexSessionId, source: "codex-session-index" },
+        shell: "codex",
+        buffer: "saved codex output\n",
+      },
+    ]);
+
+    expect(restored[0]).toMatchObject({
+      resumeTarget: { agentKind: "codex", sessionId: codexSessionId, source: "codex-session-index" },
+    });
+    expect(relaunchRestoredSession(restored, "alfred-codex")[0]).toMatchObject({
+      id: "alfred-codex",
+      runtimeStatus: "starting",
+      command: "codex",
+      args: ["resume", codexSessionId],
+      resumeTarget: { agentKind: "codex", sessionId: codexSessionId, source: "codex-session-index" },
+    });
+  });
+
   it("returns a failed restored relaunch to recovery instead of losing the transcript", () => {
     const restored = hydratePersistedTerminalSessions([
       {

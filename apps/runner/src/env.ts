@@ -113,8 +113,11 @@ export function parseRunnerEnv(input: NodeJS.ProcessEnv): RunnerEnv {
 
   const runnerPollMs = parseRunnerPollMs(input.ALFRED_RUNNER_POLL_MS);
 
+  const runnerApiUrl = input.RUNNER_API_URL ?? DEFAULT_API_URL;
+  validateRunnerApiUrl(runnerApiUrl);
+
   return {
-    RUNNER_API_URL: input.RUNNER_API_URL ?? DEFAULT_API_URL,
+    RUNNER_API_URL: runnerApiUrl,
     RUNNER_DEVICE_TOKEN: deviceToken,
     RUNNER_WORKSPACE_ID: workspaceId,
     RUNNER_DEVICE_ID: deviceId,
@@ -134,6 +137,25 @@ export function parseRunnerEnv(input: NodeJS.ProcessEnv): RunnerEnv {
       ? { VERCEL_AUTOMATION_BYPASS_SECRET: input.VERCEL_AUTOMATION_BYPASS_SECRET }
       : {}),
   };
+}
+
+function validateRunnerApiUrl(rawUrl: string): void {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new Error("Invalid RUNNER_API_URL");
+  }
+
+  if (url.protocol === "https:") return;
+  if (url.protocol === "http:" && isLocalHttpHost(url.hostname)) return;
+
+  throw new Error("RUNNER_API_URL must use HTTPS unless it targets a local address");
+}
+
+function isLocalHttpHost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return normalized === "localhost" || normalized.endsWith(".localhost") || normalized === "127.0.0.1" || normalized === "::1" || normalized === "[::1]";
 }
 
 function resolveSourceHome({

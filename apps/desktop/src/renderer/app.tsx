@@ -1223,6 +1223,7 @@ export function App() {
       agentKind: "codex",
       command: "codex",
       args: ["resume", session.id],
+      resumeTarget: { agentKind: "codex", sessionId: session.id, source: "external-session-index" },
       isolation: "shared",
       createdAt: now,
       activityEvents: [

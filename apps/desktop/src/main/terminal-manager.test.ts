@@ -504,6 +504,57 @@ describe("terminal-manager IPC", () => {
     expect(nodePty.spawn).not.toHaveBeenCalled();
   });
 
+  it("requires a one-time launch ticket for agent commands when ticket enforcement is enabled", async () => {
+    const nodePty = fakeNodePty(new FakePty());
+    registerTerminalIpc({
+      loadNodePty: async () => nodePty as never,
+      requireLaunchTickets: true,
+    });
+
+    await expect(
+      invoke(terminalChannels.create, {
+        agentKind: "codex",
+        clientId: "codex-1",
+        command: "codex",
+        cols: 80,
+        cwd: "/repo",
+        rows: 24,
+        source: "manual",
+      }),
+    ).rejects.toThrow("Terminal launch ticket is required.");
+
+    expect(nodePty.spawn).not.toHaveBeenCalled();
+  });
+
+  it("consumes a launch ticket once and rejects mismatched cwd reuse", async () => {
+    const nodePty = fakeNodePty(new FakePty());
+    registerTerminalIpc({
+      allowedCwdRoots: async () => ["/repo"],
+      loadNodePty: async () => nodePty as never,
+      requireLaunchTickets: true,
+    });
+    const request: TerminalCreateRequest = {
+      agentKind: "codex",
+      clientId: "codex-1",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+      source: "manual",
+    };
+
+    const prepared = await invoke<{ launchTicketId: string }>(terminalChannels.prepareLaunch, request);
+    await invoke(terminalChannels.create, { ...request, launchTicketId: prepared.launchTicketId });
+    await expect(
+      invoke(terminalChannels.create, { ...request, launchTicketId: prepared.launchTicketId }),
+    ).rejects.toThrow("Terminal launch ticket is invalid or expired.");
+
+    const second = await invoke<{ launchTicketId: string }>(terminalChannels.prepareLaunch, request);
+    await expect(
+      invoke(terminalChannels.create, { ...request, cwd: "/repo/other", launchTicketId: second.launchTicketId }),
+    ).rejects.toThrow("Terminal launch ticket does not match this request.");
+  });
+
   it("allows custom Alfred commands only when the staged plan store approves them", async () => {
     const pty = new FakePty();
     const nodePty = fakeNodePty(pty);
@@ -547,6 +598,28 @@ describe("terminal-manager IPC", () => {
       expect.objectContaining({ cols: 80, cwd: "/tmp/alfred-scratch", rows: 24 }),
     );
     expect(created.cwd).toBe("/tmp/alfred-scratch");
+  });
+
+  it("uses an app-owned scratch root instead of Desktop or Home when cwd is omitted", async () => {
+    const pty = new FakePty();
+    const nodePty = fakeNodePty(pty);
+    registerTerminalIpc({
+      loadNodePty: async () => nodePty as never,
+      scratchRootPath: "/alfred/userData/scratch",
+    });
+
+    const created = await invoke<{ cwd: string }>(terminalChannels.create, {
+      cols: 80,
+      rows: 24,
+      workspaceId: "A",
+    });
+
+    expect(created.cwd).toBe("/alfred/userData/scratch/A");
+    expect(nodePty.spawn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Array),
+      expect.objectContaining({ cwd: "/alfred/userData/scratch/A" }),
+    );
   });
 
   it("creates an isolated worktree before spawning an agent session", async () => {

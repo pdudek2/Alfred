@@ -10,6 +10,7 @@ import type {
 } from "../shared/session-activity.js";
 import type {
   PersistedTerminalSessionSnapshot,
+  TerminalResumeTarget,
   TerminalSessionIsolation,
   TerminalSessionSource,
 } from "../shared/terminal-ipc.js";
@@ -104,15 +105,17 @@ export function createPersistedDesktopStateStore(
   };
 
   const persistState = async (state: DesktopStateSnapshot): Promise<DesktopStateSnapshot> => {
-    cachedState = normalizeDesktopState(state);
-    hydrated = true;
+    const nextState = normalizeDesktopState(state);
 
     try {
-      await writeDesktopStateFile(filePath, cachedState);
+      await writeDesktopStateFile(filePath, nextState);
     } catch (error) {
       options.onWarning?.("Failed to persist desktop state.", error);
+      throw new Error("Failed to persist desktop state.", { cause: error });
     }
 
+    cachedState = nextState;
+    hydrated = true;
     return cloneDesktopState(cachedState);
   };
 
@@ -395,6 +398,7 @@ function normalizeRestoredTerminalSessions(value: unknown): PersistedTerminalSes
       ...(Array.isArray(item.args) && item.args.every((arg) => typeof arg === "string")
         ? { args: [...item.args] }
         : {}),
+      ...(isTerminalResumeTarget(item.resumeTarget) ? { resumeTarget: { ...item.resumeTarget } } : {}),
       ...(typeof item.lastActivityAt === "number" ? { lastActivityAt: item.lastActivityAt } : {}),
       ...(typeof item.lastOutputAt === "number" ? { lastOutputAt: item.lastOutputAt } : {}),
       ...(Array.isArray(item.activityEvents) ? { activityEvents: normalizeActivityEvents(item.activityEvents) } : {}),
@@ -406,6 +410,16 @@ function normalizeRestoredTerminalSessions(value: unknown): PersistedTerminalSes
 
 function isTerminalSessionSource(value: unknown): value is TerminalSessionSource {
   return value === "manual" || value === "alfred";
+}
+
+function isTerminalResumeTarget(value: unknown): value is TerminalResumeTarget {
+  if (!isRecord(value)) return false;
+  return (
+    value.agentKind === "codex" &&
+    typeof value.sessionId === "string" &&
+    value.sessionId.trim().length > 0 &&
+    (value.source === "codex-session-index" || value.source === "external-session-index")
+  );
 }
 
 function normalizeWindowState(value: unknown): DesktopWindowState {
@@ -554,6 +568,7 @@ function cloneRestoredTerminalSession(session: PersistedTerminalSessionSnapshot)
   return {
     ...session,
     ...(session.args === undefined ? {} : { args: [...session.args] }),
+    ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
   };
 }

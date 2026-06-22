@@ -1,4 +1,5 @@
 import type { PrivacyMode } from "@alfred/schema";
+import { createHash } from "node:crypto";
 
 const MINIMAL_KEYS = new Set(["summary", "status", "tool_name", "exit_code"]);
 const SECRET_KEY_PATTERN =
@@ -9,6 +10,7 @@ const SECRET_TEXT_PATTERNS = [
   /\bsk-[A-Za-z0-9_-]{8,}\b/g,
   /\bghp_[A-Za-z0-9_]{8,}\b/g,
 ];
+const ABSOLUTE_LOCAL_PATH_PATTERN = /(?:\/Users|\/home|\/tmp|\/private\/tmp|\/var\/folders|\/Volumes)\/[^\s"'`]+/g;
 const REDACTED = "[redacted]";
 
 export function redactPayload(payload: Record<string, unknown>, mode: PrivacyMode): Record<string, unknown> {
@@ -17,7 +19,10 @@ export function redactPayload(payload: Record<string, unknown>, mode: PrivacyMod
   }
 
   if (mode === "minimal") {
-    return Object.fromEntries(Object.entries(payload).filter(([key]) => MINIMAL_KEYS.has(key)));
+    return redactValue(Object.fromEntries(Object.entries(payload).filter(([key]) => MINIMAL_KEYS.has(key)))) as Record<
+      string,
+      unknown
+    >;
   }
 
   return redactValue(payload) as Record<string, unknown>;
@@ -46,7 +51,13 @@ function redactValue(value: unknown, key?: string): unknown {
 }
 
 function redactSecretText(value: string): string {
-  return SECRET_TEXT_PATTERNS.reduce((text, pattern) => text.replace(pattern, REDACTED), value);
+  const withoutSecrets = SECRET_TEXT_PATTERNS.reduce((text, pattern) => text.replace(pattern, REDACTED), value);
+  return withoutSecrets.replace(ABSOLUTE_LOCAL_PATH_PATTERN, (matchedPath) => redactedPathMarker(matchedPath));
+}
+
+function redactedPathMarker(value: string): string {
+  const digest = createHash("sha256").update(value).digest("hex").slice(0, 8);
+  return `[redacted-path:${digest}]`;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

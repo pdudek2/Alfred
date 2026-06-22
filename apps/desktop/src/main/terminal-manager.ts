@@ -62,9 +62,17 @@ type TerminalIpcOptions = {
   cleanupAgentWorktree?: typeof defaultCleanupAgentWorktree;
   inspectAgentWorktree?: InspectAgentWorktree;
   isStagedCommandAllowed?: (request: Pick<TerminalCreateRequest, "args" | "clientId" | "command">) => Promise<boolean>;
+  launchTicketTtlMs?: number;
   loadNodePty?: () => Promise<NodePtyModule>;
   managedWorktreeRootPath?: string;
   prepareAgentWorktree?: typeof defaultPrepareAgentWorktree;
+  requireLaunchTickets?: boolean;
+  scratchRootPath?: string;
+};
+
+type LaunchTicket = {
+  expiresAt: number;
+  fingerprint: string;
 };
 
 type TerminalSession = {
@@ -82,6 +90,7 @@ type TerminalSession = {
   shell: string;
   command?: string;
   args?: string[];
+  resumeTarget?: TerminalCreateResult["resumeTarget"];
   buffer: string;
   activityEvents?: SessionActivityEvent[];
   lastActivityAt?: number;
@@ -128,6 +137,8 @@ export function resetTerminalPersistenceForTests(): void {
 }
 
 export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
+  const launchTickets = new Map<string, LaunchTicket>();
+
   ipcMain.handle(terminalChannels.list, async (event): Promise<TerminalListResult> => {
     const window = BrowserWindow.fromWebContents(event.sender);
 
@@ -154,6 +165,22 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
   });
 
   ipcMain.handle(
+    terminalChannels.prepareLaunch,
+    async (_event, request: TerminalCreateRequest) => {
+      const safeRequest = validateTerminalCreateRequest(request);
+      await validateTerminalCommandApproval(safeRequest, options.isStagedCommandAllowed);
+      await validateTerminalCwd(safeRequest, options.allowedCwdRoots);
+      const launchTicketId = randomUUID();
+      const expiresAt = Date.now() + (options.launchTicketTtlMs ?? 2 * 60 * 1000);
+      launchTickets.set(launchTicketId, {
+        expiresAt,
+        fingerprint: launchFingerprint(safeRequest, options),
+      });
+      return { launchTicketId, expiresAt };
+    },
+  );
+
+  ipcMain.handle(
     terminalChannels.create,
     async (event, request: TerminalCreateRequest): Promise<TerminalCreateResult> => {
       const window = BrowserWindow.fromWebContents(event.sender);
@@ -163,12 +190,19 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       }
 
       const safeRequest = validateTerminalCreateRequest(request);
-      await validateTerminalCommandLaunch(safeRequest, options.isStagedCommandAllowed);
+      if (options.requireLaunchTickets && requestRequiresLaunchTicket(safeRequest)) {
+        consumeLaunchTicket(safeRequest, launchTickets, options);
+      } else {
+        await validateTerminalCommandApproval(safeRequest, options.isStagedCommandAllowed);
+      }
       await validateTerminalCwd(safeRequest, options.allowedCwdRoots);
       const launchCwd = await resolveLaunchCwd(
         safeRequest,
         options.prepareAgentWorktree ?? defaultPrepareAgentWorktree,
-        terminalWorktreeOptions(options),
+        {
+          ...terminalWorktreeOptions(options),
+          ...(options.scratchRootPath === undefined ? {} : { scratchRootPath: options.scratchRootPath }),
+        },
       );
       const cwd = typeof launchCwd === "string" ? launchCwd : launchCwd.cwd;
       const nodePty = await (options.loadNodePty ?? loadNodePty)();
@@ -373,6 +407,7 @@ function sessionMetadata(
     shell,
     ...(request.command === undefined ? {} : { command: request.command }),
     ...(request.args === undefined ? {} : { args: request.args }),
+    ...(request.resumeTarget === undefined ? {} : { resumeTarget: { ...request.resumeTarget } }),
   };
 }
 
@@ -398,6 +433,7 @@ function toCreateResult(session: TerminalSession): TerminalCreateResult {
     shell: session.shell,
     ...(session.command === undefined ? {} : { command: session.command }),
     ...(session.args === undefined ? {} : { args: session.args }),
+    ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
   };
 }
 
@@ -587,6 +623,7 @@ function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSession
     shell: session.shell,
     ...(session.command === undefined ? {} : { command: session.command }),
     ...(session.args === undefined ? {} : { args: [...session.args] }),
+    ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
     buffer: tailBuffer(session.buffer, MAX_PERSISTED_BUFFER_LENGTH),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
@@ -625,6 +662,7 @@ function clonePersistedSession(session: PersistedTerminalSessionSnapshot): Persi
   return {
     ...session,
     ...(session.args === undefined ? {} : { args: [...session.args] }),
+    ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
   };
 }
@@ -819,7 +857,7 @@ function validateTerminalCreateRequest(request: TerminalCreateRequest): Terminal
   return normalizedRequest;
 }
 
-async function validateTerminalCommandLaunch(
+async function validateTerminalCommandApproval(
   request: TerminalCreateRequest,
   isStagedCommandAllowed: TerminalIpcOptions["isStagedCommandAllowed"],
 ): Promise<void> {
@@ -859,9 +897,9 @@ async function validateTerminalCwd(
 async function resolveLaunchCwd(
   request: TerminalCreateRequest,
   prepareAgentWorktree: typeof defaultPrepareAgentWorktree,
-  options: { managedWorktreeRootPath?: string } = {},
+  options: { managedWorktreeRootPath?: string; scratchRootPath?: string } = {},
 ): Promise<string | AgentWorktreeResult> {
-  const cwd = resolveTerminalCwd(request.cwd);
+  const cwd = resolveTerminalCwd(request.cwd, options.scratchRootPath, request.workspaceId);
 
   if (request.isolation !== "worktree" || !isCodingAgentKind(request.agentKind)) {
     return cwd;
@@ -919,20 +957,67 @@ function resolveShell(): { command: string; args: string[] } {
   return { command: process.env.SHELL ?? "/bin/zsh", args: ["-l"] };
 }
 
-function resolveTerminalCwd(cwd: string | undefined): string {
+function requestRequiresLaunchTicket(request: TerminalCreateRequest): boolean {
+  return Boolean(request.command);
+}
+
+function consumeLaunchTicket(
+  request: TerminalCreateRequest,
+  launchTickets: Map<string, LaunchTicket>,
+  options: Pick<TerminalIpcOptions, "scratchRootPath">,
+): void {
+  if (!request.launchTicketId) {
+    throw new Error("Terminal launch ticket is required.");
+  }
+
+  const ticket = launchTickets.get(request.launchTicketId);
+  launchTickets.delete(request.launchTicketId);
+  if (!ticket || ticket.expiresAt < Date.now()) {
+    throw new Error("Terminal launch ticket is invalid or expired.");
+  }
+
+  if (ticket.fingerprint !== launchFingerprint(request, options)) {
+    throw new Error("Terminal launch ticket does not match this request.");
+  }
+}
+
+function launchFingerprint(request: TerminalCreateRequest, options: Pick<TerminalIpcOptions, "scratchRootPath">): string {
+  return JSON.stringify({
+    agentKind: request.agentKind ?? null,
+    args: request.args ?? [],
+    baseCwd: request.baseCwd ? path.resolve(request.baseCwd) : null,
+    branchName: request.branchName ?? null,
+    clientId: request.clientId ?? null,
+    command: request.command ?? null,
+    cwd: resolveTerminalCwd(request.cwd, options.scratchRootPath, request.workspaceId),
+    isolation: request.isolation ?? null,
+    source: request.source ?? "manual",
+    workspaceId: request.workspaceId ?? null,
+  });
+}
+
+function resolveTerminalCwd(cwd: string | undefined, scratchRootPath?: string, workspaceId?: string): string {
   if (!cwd?.trim()) {
-    return defaultScratchCwd();
+    return defaultScratchCwd(scratchRootPath, workspaceId);
   }
 
   return path.resolve(cwd);
 }
 
-function defaultScratchCwd(): string {
+function defaultScratchCwd(scratchRootPath?: string, workspaceId?: string): string {
+  if (scratchRootPath?.trim()) {
+    return path.join(path.resolve(scratchRootPath), safeScratchSegment(workspaceId ?? "default"));
+  }
+
   const configured = process.env.ALFRED_DESKTOP_WORKSPACE_CWD?.trim();
   if (configured) return path.resolve(configured);
 
   const desktop = path.join(os.homedir(), "Desktop");
   return existsSync(desktop) ? desktop : os.homedir();
+}
+
+function safeScratchSegment(value: string): string {
+  return value.trim().replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "default";
 }
 
 function normalizeDimension(value: number, fallback: number): number {
