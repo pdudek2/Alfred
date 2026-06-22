@@ -4,9 +4,15 @@ import type { SessionActivityEvent } from "./session-activity.js";
 export type TerminalSessionId = string;
 export type TerminalSessionSource = "manual" | "alfred";
 export type TerminalSessionIsolation = "shared" | "worktree";
+export type TerminalResumeTarget = {
+  agentKind: "codex";
+  sessionId: string;
+  source: "codex-session-index" | "external-session-index";
+};
 
 export type TerminalCreateRequest = {
   clientId?: string;
+  launchTicketId?: string;
   title?: string;
   source?: TerminalSessionSource;
   agentKind?: AgentKind;
@@ -19,6 +25,12 @@ export type TerminalCreateRequest = {
   rows: number;
   command?: string;
   args?: string[];
+  resumeTarget?: TerminalResumeTarget;
+};
+
+export type TerminalPrepareLaunchResult = {
+  launchTicketId: string;
+  expiresAt: number;
 };
 
 export type TerminalCreateResult = {
@@ -36,6 +48,7 @@ export type TerminalCreateResult = {
   shell: string;
   command?: string;
   args?: string[];
+  resumeTarget?: TerminalResumeTarget;
 };
 
 export type TerminalSessionSnapshot = TerminalCreateResult & {
@@ -109,6 +122,7 @@ export type TerminalDataEvent = {
 
 export type TerminalApi = {
   list(): Promise<TerminalListResult>;
+  prepareLaunch(request: TerminalCreateRequest): Promise<TerminalPrepareLaunchResult>;
   create(request: TerminalCreateRequest): Promise<TerminalCreateResult>;
   write(request: TerminalWriteRequest): void;
   resize(request: TerminalResizeRequest): void;
@@ -123,6 +137,7 @@ export type TerminalApi = {
 
 export const terminalChannels = {
   list: "alfred:terminal:list",
+  prepareLaunch: "alfred:terminal:prepare-launch",
   create: "alfred:terminal:create",
   write: "alfred:terminal:write",
   resize: "alfred:terminal:resize",

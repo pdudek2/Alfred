@@ -1,6 +1,11 @@
 import { Hono } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createDbDeviceAuthStore, requireDeviceToken } from "../auth/device-auth";
+import {
+  createDbDeviceAuthStore,
+  createFallbackDeviceAuthStore,
+  createStaticDeviceAuthStore,
+  requireDeviceToken,
+} from "../auth/device-auth";
 import { hashToken } from "../auth/token-hash";
 import { createAuthRoutes } from "../routes/auth";
 import type { RunListItem } from "../services/runs-query-service";
@@ -268,6 +273,30 @@ describe("api", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ ok: true });
+  });
+
+  it("does not fall back to static device auth after a primary auth miss", async () => {
+    const primary = { authenticateDeviceToken: vi.fn(async () => null) };
+    const fallback = createStaticDeviceAuthStore("secret", "workspace-1", "device-1");
+    const store = createFallbackDeviceAuthStore(primary, fallback, true);
+
+    await expect(store.authenticateDeviceToken("secret")).resolves.toBeNull();
+    expect(primary.authenticateDeviceToken).toHaveBeenCalledWith("secret");
+  });
+
+  it("uses static device auth only when the primary store throws in local fallback mode", async () => {
+    const primary = {
+      authenticateDeviceToken: vi.fn(async () => {
+        throw new Error("db unavailable");
+      }),
+    };
+    const fallback = createStaticDeviceAuthStore("secret", "workspace-1", "device-1");
+    const store = createFallbackDeviceAuthStore(primary, fallback, true);
+
+    await expect(store.authenticateDeviceToken("secret")).resolves.toEqual({
+      workspaceId: "workspace-1",
+      deviceId: "device-1",
+    });
   });
 
   it("authenticates devices by stored token hash", async () => {

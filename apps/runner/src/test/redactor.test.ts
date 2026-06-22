@@ -194,6 +194,40 @@ describe("redactPayload", () => {
     ).toEqual({ summary: "s" });
   });
 
+  it("minimal mode still redacts secret-looking values that survive the key allowlist", () => {
+    expect(
+      redactPayload(
+        {
+          summary: "created Authorization: Bearer abc.def.ghi",
+          status: "pushed ghp_1234567890abcdef",
+          tool_name: "exec_command",
+          exit_code: 0,
+        },
+        "minimal",
+      ),
+    ).toEqual({
+      summary: "created Authorization: [redacted]",
+      status: "pushed [redacted]",
+      tool_name: "exec_command",
+      exit_code: 0,
+    });
+  });
+
+  it("standard mode redacts absolute local paths in text payloads", () => {
+    expect(
+      redactPayload(
+        {
+          summary: "cwd /Users/patryk/Desktop/Alfred and /tmp/alfred-secret",
+          nested: { cwd: "/Users/patryk/.codex/sessions/session.jsonl" },
+        },
+        "standard",
+      ),
+    ).toEqual({
+      summary: "cwd [redacted-path:44c8fe0e] and [redacted-path:bf2fcc30]",
+      nested: { cwd: "[redacted-path:cbcdbb8b]" },
+    });
+  });
+
   it("keeps payload unchanged in full mode", () => {
     const payload = { token: "abc", nested: { password: "p" } };
 

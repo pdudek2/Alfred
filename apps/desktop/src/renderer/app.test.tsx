@@ -119,6 +119,7 @@ function installDesktopBridge(
   createWorkspaceFromFolder: ReturnType<typeof vi.fn>;
   setWorkspaceState: ReturnType<typeof vi.fn>;
   setStagedPlan: ReturnType<typeof vi.fn>;
+  prepareLaunch: ReturnType<typeof vi.fn>;
   updateStagedSession: ReturnType<typeof vi.fn>;
   writeTerminal: ReturnType<typeof vi.fn>;
   worktreeApply: ReturnType<typeof vi.fn>;
@@ -164,6 +165,7 @@ function installDesktopBridge(
   const killTerminal = vi.fn();
   const forgetTerminal = vi.fn();
   const renameTerminal = vi.fn().mockResolvedValue(undefined);
+  const prepareLaunch = vi.fn().mockResolvedValue({ launchTicketId: "ticket-1", expiresAt: Date.now() + 120_000 });
   const writeTerminal = vi.fn();
   const worktreeApply = vi.fn().mockResolvedValue({ ok: true, appliedFiles: 2 });
   const worktreeDiff = vi.fn().mockResolvedValue({
@@ -202,6 +204,7 @@ function installDesktopBridge(
     forget: forgetTerminal,
     kill: killTerminal,
     list: vi.fn().mockResolvedValue({ sessions: terminalSessions, restoredSessions: restoredTerminalSessions }),
+    prepareLaunch,
     rename: renameTerminal,
     onData: vi.fn((callback: (event: TerminalDataEvent) => void) => {
       dataListeners.add(callback);
@@ -255,6 +258,7 @@ function installDesktopBridge(
     requestPlan,
     resolveStagedPlan,
     setStagedPlan,
+    prepareLaunch,
     updateStagedSession,
     createWorkspaceFromFolder,
     getWorkspaceState,
@@ -3186,7 +3190,7 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Alfred status")).not.toHaveClass("compact");
     expect(createTerminal).not.toHaveBeenCalled();
 
-    await userEvent.click(screen.getByRole("button", { name: "Resume Codex · session 9" }));
+    await userEvent.click(screen.getByRole("button", { name: "Resume latest Codex · session 9" }));
 
     expect(createTerminal).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -3349,7 +3353,7 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("article", { name: /Codex · session 9/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Resume Codex · session 9" }));
+    await user.click(screen.getByRole("button", { name: "Resume latest Codex · session 9" }));
 
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
@@ -3396,7 +3400,7 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Codex · shared session/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Discard checkout Codex · shared session" })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Resume Codex · shared session" }));
+    await user.click(screen.getByRole("button", { name: "Resume latest Codex · shared session" }));
 
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(

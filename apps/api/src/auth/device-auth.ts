@@ -53,12 +53,11 @@ export function createFallbackDeviceAuthStore(
   return {
     authenticateDeviceToken: async (token) => {
       if (!catchPrimaryErrors) {
-        return (await primary.authenticateDeviceToken(token)) ?? fallback.authenticateDeviceToken(token);
+        return primary.authenticateDeviceToken(token);
       }
 
       try {
-        const auth = await primary.authenticateDeviceToken(token);
-        return auth ?? fallback.authenticateDeviceToken(token);
+        return await primary.authenticateDeviceToken(token);
       } catch {
         return fallback.authenticateDeviceToken(token);
       }

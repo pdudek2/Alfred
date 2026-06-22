@@ -12,6 +12,7 @@ import type {
   TerminalSessionSnapshot,
   TerminalSessionId,
   TerminalSessionIsolation,
+  TerminalResumeTarget,
 } from "../shared/terminal-ipc";
 import { normalizeSessionTitle } from "../shared/session-title";
 
@@ -31,6 +32,7 @@ export type SessionTile = {
   runtimeStatus?: "starting" | "live" | "exited" | "error" | "restored" | "unavailable";
   command?: string;
   args?: string[];
+  resumeTarget?: TerminalResumeTarget;
   agentKind?: AgentKind;
   safetyNote?: string;
   launchPreflight?: AlfredLaunchPreflight;
@@ -135,6 +137,7 @@ export function attachRuntimeSession(
       ...(runtime.createdAt === undefined ? {} : { createdAt: runtime.createdAt }),
       ...(runtime.command === undefined ? {} : { command: runtime.command }),
       ...(runtime.args === undefined ? {} : { args: runtime.args }),
+      ...(runtime.resumeTarget === undefined ? {} : { resumeTarget: runtime.resumeTarget }),
       ...(runtime.agentKind === undefined ? {} : { agentKind: runtime.agentKind }),
       ...(runtime.workspaceId === undefined ? {} : { workspaceId: runtime.workspaceId }),
     };
@@ -210,6 +213,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     runtimeStatus: "live",
     ...(snapshot.command === undefined ? {} : { command: snapshot.command }),
     ...(snapshot.args === undefined ? {} : { args: snapshot.args }),
+    ...(snapshot.resumeTarget === undefined ? {} : { resumeTarget: snapshot.resumeTarget }),
     ...(snapshot.agentKind === undefined ? {} : { agentKind: snapshot.agentKind }),
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
     ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
@@ -233,6 +237,7 @@ export function hydratePersistedTerminalSessions(snapshots: PersistedTerminalSes
     runtimeStatus: "restored",
     ...(snapshot.command === undefined ? {} : { command: snapshot.command }),
     ...(snapshot.args === undefined ? {} : { args: snapshot.args }),
+    ...(snapshot.resumeTarget === undefined ? {} : { resumeTarget: snapshot.resumeTarget }),
     ...(snapshot.agentKind === undefined ? {} : { agentKind: snapshot.agentKind }),
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
     ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
@@ -267,11 +272,14 @@ export function hydrateStagedPlanSessions(
 }
 
 function resumeLaunchForRestoredAgent(
-  session: Pick<SessionTile, "agentKind" | "args" | "command">,
+  session: Pick<SessionTile, "agentKind" | "args" | "command" | "resumeTarget">,
 ): Pick<SessionTile, "command" | "args"> {
   const agentKind = session.agentKind ?? (session.command === "codex" || session.command === "claude" ? session.command : undefined);
 
   if (agentKind === "codex") {
+    if (session.resumeTarget?.agentKind === "codex") {
+      return { command: "codex", args: ["resume", session.resumeTarget.sessionId] };
+    }
     return { command: "codex", args: codexResumeArgs(session.args) };
   }
 

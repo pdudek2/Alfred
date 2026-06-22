@@ -11,6 +11,8 @@ import {
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
+const DEFAULT_EVENT_LIMIT = 500;
+const MAX_EVENT_LIMIT = 1_000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type RunsRouteOptions = {
@@ -73,7 +75,16 @@ export function createRunsRoutes(db: Database | RunsQueryStore, options: RunsRou
     }
 
     const auth = c.get("auth");
-    const run = await store.getRun(auth.workspaceId, runId);
+    const eventLimit = parseBoundedInteger(c.req.query("eventLimit"), DEFAULT_EVENT_LIMIT, MAX_EVENT_LIMIT);
+    if (eventLimit === null) {
+      return c.json({ error: "invalid_event_limit" }, 400);
+    }
+    const eventCursor = parseCursor(c.req.query("eventCursor"));
+    if (eventCursor === null) {
+      return c.json({ error: "invalid_event_cursor" }, 400);
+    }
+
+    const run = await store.getRun(auth.workspaceId, runId, { eventLimit, eventCursor });
     if (!run) {
       return c.json({ error: "not_found" }, 404);
     }
@@ -89,9 +100,20 @@ function isRunsQueryStore(value: Database | RunsQueryStore): value is RunsQueryS
 }
 
 function parseLimit(value: string | undefined): number | null {
-  if (!value) return DEFAULT_LIMIT;
+  return parseBoundedInteger(value, DEFAULT_LIMIT, MAX_LIMIT);
+}
+
+function parseBoundedInteger(value: string | undefined, fallback: number, max: number): number | null {
+  if (!value) return fallback;
   if (!/^\d+$/.test(value)) return null;
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed < 1) return null;
-  return Math.min(parsed, MAX_LIMIT);
+  return Math.min(parsed, max);
+}
+
+function parseCursor(value: string | undefined): number | null {
+  if (!value) return 0;
+  if (!/^\d+$/.test(value)) return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
 }

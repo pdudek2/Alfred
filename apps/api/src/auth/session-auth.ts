@@ -86,12 +86,11 @@ export function createFallbackSessionStore(
   return {
     getSession: async (token) => {
       if (!catchPrimaryErrors) {
-        return (await primary.getSession(token)) ?? fallback.getSession(token);
+        return primary.getSession(token);
       }
 
       try {
-        const session = await primary.getSession(token);
-        return session ?? fallback.getSession(token);
+        return await primary.getSession(token);
       } catch {
         return fallback.getSession(token);
       }

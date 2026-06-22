@@ -49,11 +49,17 @@ export type RunEventItem = {
 
 export type RunDetail = RunListItem & {
   events: RunEventItem[];
+  eventsNextCursor?: string;
+};
+
+export type RunDetailOptions = {
+  eventCursor?: number;
+  eventLimit?: number;
 };
 
 export type RunsQueryStore = {
   listRuns(workspaceId: string, limit: number, filters?: RunsListFilters): Promise<RunListItem[]>;
-  getRun(workspaceId: string, runId: string): Promise<RunDetail | null>;
+  getRun(workspaceId: string, runId: string, options?: RunDetailOptions): Promise<RunDetail | null>;
 };
 
 type RunRow = {
@@ -129,7 +135,9 @@ export function createRunsQueryStore(db: Database): RunsQueryStore {
       return rows.map(mapRunRow);
     },
 
-    getRun: async (workspaceId, runId) => {
+    getRun: async (workspaceId, runId, options = {}) => {
+      const eventLimit = options.eventLimit ?? 500;
+      const eventCursor = options.eventCursor ?? 0;
       const latestEvents = latestEventsForWorkspace(db, workspaceId);
       const [run] = await db
         .select({
@@ -168,11 +176,16 @@ export function createRunsQueryStore(db: Database): RunsQueryStore {
         })
         .from(events)
         .where(and(eq(events.workspaceId, workspaceId), eq(events.runId, runId)))
-        .orderBy(events.occurredAt);
+        .orderBy(events.occurredAt)
+        .limit(eventLimit + 1)
+        .offset(eventCursor);
+
+      const visibleEvents = runEvents.slice(0, eventLimit);
 
       return {
         ...mapRunRow(run),
-        events: runEvents.map(mapEventRow),
+        events: visibleEvents.map(mapEventRow),
+        ...(runEvents.length > eventLimit ? { eventsNextCursor: String(eventCursor + eventLimit) } : {}),
       };
     },
   };

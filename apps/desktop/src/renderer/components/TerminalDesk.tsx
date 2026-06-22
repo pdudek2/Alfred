@@ -337,6 +337,7 @@ export function TerminalDesk({
                 launchPreflight={session.launchPreflight}
                 command={session.command}
                 args={session.args}
+                resumeTarget={session.resumeTarget}
                 initialBuffer={session.initialBuffer}
                 activityEvents={session.activityEvents}
                 lastOutputAt={session.lastOutputAt}
@@ -580,18 +581,53 @@ function relaunchButtonLabel(action: "relaunch" | "restart", unsafe: boolean, ar
 }
 
 function restoredButtonLabel(
-  session: { agentKind?: SessionTile["agentKind"] | undefined; command?: string | undefined },
+  session: {
+    agentKind?: SessionTile["agentKind"] | undefined;
+    args?: string[] | undefined;
+    command?: string | undefined;
+    resumeTarget?: SessionTile["resumeTarget"] | undefined;
+  },
   unsafe: boolean,
   armed: boolean,
 ): string {
-  const codingAgent = session.agentKind === "codex" ||
-    session.agentKind === "claude" ||
-    session.command === "codex" ||
-    session.command === "claude";
+  const codexAgent = session.agentKind === "codex" || session.command === "codex";
+  const claudeAgent = session.agentKind === "claude" || session.command === "claude";
+  const codingAgent = codexAgent || claudeAgent;
 
   if (!codingAgent) return relaunchButtonLabel("relaunch", unsafe, armed);
+  if (codexAgent && !hasExactCodexResumeTarget(session)) {
+    if (!unsafe) return "Resume latest";
+    return armed ? "Confirm resume latest" : "Review resume latest";
+  }
+  if (claudeAgent) {
+    if (!unsafe) return "Continue latest";
+    return armed ? "Confirm continue latest" : "Review continue latest";
+  }
   if (!unsafe) return "Resume";
   return armed ? "Confirm resume" : "Review resume";
+}
+
+function hasExactCodexResumeTarget(session: {
+  args?: string[] | undefined;
+  resumeTarget?: SessionTile["resumeTarget"] | undefined;
+}): boolean {
+  if (session.resumeTarget?.agentKind === "codex" && session.resumeTarget.sessionId) return true;
+  return Boolean(session.args?.[0] === "resume" && session.args[1] && session.args[1] !== "--last");
+}
+
+function restoredResumeTitle(session: {
+  agentKind?: SessionTile["agentKind"] | undefined;
+  args?: string[] | undefined;
+  command?: string | undefined;
+  resumeTarget?: SessionTile["resumeTarget"] | undefined;
+}): string {
+  if ((session.agentKind === "codex" || session.command === "codex") && !hasExactCodexResumeTarget(session)) {
+    return "Resume the latest Codex conversation for this workspace.";
+  }
+  if (session.agentKind === "claude" || session.command === "claude") {
+    return "Continue the latest Claude conversation for this workspace.";
+  }
+  return "Resume this saved session";
 }
 
 function ManualTerminalTile({
@@ -634,6 +670,7 @@ function ManualTerminalTile({
   focusHidden = false,
   command,
   args,
+  resumeTarget,
 }: {
   arrangeMode: boolean;
   cwd: string;
@@ -674,6 +711,7 @@ function ManualTerminalTile({
   focusHidden?: boolean;
   command?: string | undefined;
   args?: string[] | undefined;
+  resumeTarget?: SessionTile["resumeTarget"] | undefined;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -706,7 +744,7 @@ function ManualTerminalTile({
     ...(command === undefined ? {} : { command }),
   });
   const relaunchNeedsReview = !relaunchSafety.safe;
-  const restoredActionLabel = restoredButtonLabel({ agentKind, command }, relaunchNeedsReview, relaunchArmed);
+  const restoredActionLabel = restoredButtonLabel({ agentKind, args, command, resumeTarget }, relaunchNeedsReview, relaunchArmed);
   const latestActivity = latestVisibleActivity(activityEvents);
   const ageLabel = sessionAgeLabel(createdAt, displayClock);
   const sessionLocationLabel = isolatedCheckout ? "isolated worktree" : (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
@@ -925,8 +963,16 @@ function ManualTerminalTile({
       baseRequest.command = command;
       baseRequest.args = args ?? [];
     }
-    terminalApi
-      .create(baseRequest)
+    if (resumeTarget) {
+      baseRequest.resumeTarget = resumeTarget;
+    }
+    const createTerminalSession = command
+      ? terminalApi.prepareLaunch(baseRequest).then((prepared) =>
+          terminalApi.create({ ...baseRequest, launchTicketId: prepared.launchTicketId }),
+        )
+      : terminalApi.create(baseRequest);
+
+    createTerminalSession
       .then((session) => {
         onRuntimeSessionReady(sessionKey, session);
 
@@ -974,6 +1020,7 @@ function ManualTerminalTile({
     launchPreflight,
     command,
     args,
+    resumeTarget,
     initialBuffer,
     runtimeId,
     runtimeStatus,
@@ -1095,7 +1142,7 @@ function ManualTerminalTile({
                   aria-label={`${restoredActionLabel} ${title}`}
                   onClick={onContinueRestoredSession}
                   onPointerDown={(event) => event.stopPropagation()}
-                  title={relaunchNeedsReview ? relaunchSafety.reason : "Resume this saved session"}
+                  title={relaunchNeedsReview ? relaunchSafety.reason : restoredResumeTitle({ agentKind, args, command, resumeTarget })}
                 >
                   {relaunchNeedsReview ? <AlertTriangle size={13} /> : <Play size={13} />}
                   <span>{restoredActionLabel}</span>
