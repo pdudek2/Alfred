@@ -1,5 +1,6 @@
-import type { PrivacyMode } from "@alfred/schema";
 import { createHash } from "node:crypto";
+
+import type { PrivacyMode } from "./enums.js";
 
 const MINIMAL_KEYS = new Set(["summary", "status", "tool_name", "exit_code"]);
 const SECRET_KEY_PATTERN =
@@ -26,6 +27,14 @@ export function redactPayload(payload: Record<string, unknown>, mode: PrivacyMod
   }
 
   return redactValue(payload) as Record<string, unknown>;
+}
+
+export function redactText(value: string): string {
+  return redactSecretText(value);
+}
+
+export function redactUnknown(value: unknown): unknown {
+  return redactValue(value);
 }
 
 function redactValue(value: unknown, key?: string): unknown {

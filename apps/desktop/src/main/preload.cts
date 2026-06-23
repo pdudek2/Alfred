@@ -4,6 +4,7 @@ import type { TerminalApi, TerminalDataEvent, TerminalExitEvent } from "../share
 import type { AlfredApi } from "../shared/alfred-ipc.js";
 import type { LayoutApi } from "../shared/layout-ipc.js";
 import type { SessionIndexApi } from "../shared/session-index-ipc.js";
+import type { DesktopStateApi, DesktopSaveStatus } from "../shared/desktop-state-ipc.js";
 import type { WorkspaceApi } from "../shared/workspace-ipc.js";
 
 const terminalChannels = {
@@ -49,6 +50,15 @@ const workspaceChannels = {
 
 const sessionIndexChannels = {
   listExternalCodexSessions: "alfred:session-index:list-external-codex",
+} as const;
+
+const desktopStateChannels = {
+  getPrivacySettings: "alfred:desktop-state:get-privacy-settings",
+  updatePrivacySettings: "alfred:desktop-state:update-privacy-settings",
+  clearSavedTerminalData: "alfred:desktop-state:clear-saved-terminal-data",
+  revealStateFile: "alfred:desktop-state:reveal-state-file",
+  retrySave: "alfred:desktop-state:retry-save",
+  saveStatus: "alfred:desktop-state:save-status",
 } as const;
 
 const terminal: TerminalApi = {
@@ -142,9 +152,37 @@ const sessionIndex: SessionIndexApi = {
     >,
 };
 
+const desktopState: DesktopStateApi = {
+  getPrivacySettings: () =>
+    ipcRenderer.invoke(desktopStateChannels.getPrivacySettings) as ReturnType<DesktopStateApi["getPrivacySettings"]>,
+  updatePrivacySettings: (request) =>
+    ipcRenderer.invoke(desktopStateChannels.updatePrivacySettings, request) as ReturnType<
+      DesktopStateApi["updatePrivacySettings"]
+    >,
+  clearSavedTerminalData: () =>
+    ipcRenderer.invoke(desktopStateChannels.clearSavedTerminalData) as ReturnType<
+      DesktopStateApi["clearSavedTerminalData"]
+    >,
+  revealStateFile: () =>
+    ipcRenderer.invoke(desktopStateChannels.revealStateFile) as ReturnType<DesktopStateApi["revealStateFile"]>,
+  retrySave: () =>
+    ipcRenderer.invoke(desktopStateChannels.retrySave) as ReturnType<DesktopStateApi["retrySave"]>,
+  onSaveStatus: (callback) => {
+    const listener = (_event: IpcRendererEvent, payload: DesktopSaveStatus) => {
+      callback(payload);
+    };
+
+    ipcRenderer.on(desktopStateChannels.saveStatus, listener);
+    return () => {
+      ipcRenderer.off(desktopStateChannels.saveStatus, listener);
+    };
+  },
+};
+
 contextBridge.exposeInMainWorld("alfredDesktop", {
   terminal,
   alfred,
+  desktopState,
   layout,
   workspace,
   sessionIndex,

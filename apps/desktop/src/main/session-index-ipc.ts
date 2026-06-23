@@ -13,6 +13,7 @@ const MAX_TRANSCRIPT_PREFIX_LINES = 140;
 
 type RegisterSessionIndexOptions = {
   codexHome?: string;
+  isExternalSessionIndexingEnabled?: () => Promise<boolean> | boolean;
 };
 
 type SessionMetaPayload = {
@@ -25,12 +26,17 @@ type SessionMetaPayload = {
 };
 
 export function registerSessionIndexIpc(options: RegisterSessionIndexOptions = {}): void {
-  ipcMain.handle(sessionIndexChannels.listExternalCodexSessions, async () => ({
-    sessions: await listExternalCodexSessions({
+  ipcMain.handle(sessionIndexChannels.listExternalCodexSessions, async () => {
+    const indexingEnabled = await (options.isExternalSessionIndexingEnabled?.() ?? true);
+    if (!indexingEnabled) return { sessions: [] };
+
+    return {
+      sessions: await listExternalCodexSessions({
       codexHome: options.codexHome ?? defaultCodexHome(),
       limit: DEFAULT_LIMIT,
-    }),
-  }));
+      }),
+    };
+  });
 }
 
 export async function listExternalCodexSessions({

@@ -230,6 +230,93 @@ describe("terminal-manager IPC", () => {
     expect(state.restoredTerminalSessions[0]?.buffer).toBe(retainedTail);
   });
 
+  it("redacts persisted terminal scrollback and activity", async () => {
+    let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const pty = new FakePty();
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+
+    await invoke<{ id: string }>(terminalChannels.create, {
+      clientId: "manual-secret-output",
+      command: "node",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+      title: "Manual /Users/patryk/Desktop/Alfred",
+    });
+    pty.onDataHandler?.("Authorization: Bearer abc.def.ghi\nBash(\"echo sk-proj-1234567890abcdef\")\n");
+    await flushTerminalPersistence();
+
+    const session = state.restoredTerminalSessions[0];
+    expect(session?.title).toBe("Manual [redacted-path:44c8fe0e]");
+    expect(session?.buffer).toContain("Authorization: [redacted]");
+    expect(session?.buffer).toContain("Bash(\"echo [redacted]\")");
+    expect(session?.buffer).not.toContain("abc.def.ghi");
+    expect(session?.buffer).not.toContain("sk-proj-1234567890abcdef");
+    expect(session?.activityEvents).toEqual([
+      expect.objectContaining({
+        kind: "command",
+        detail: "\"echo [redacted]\"",
+        payload: { type: "command", command: "echo [redacted]" },
+      }),
+    ]);
+  });
+
+  it("drops persisted terminal scrollback and activity when retention is off", async () => {
+    let state: DesktopStateSnapshot = {
+      ...DEFAULT_DESKTOP_STATE,
+      privacySettings: {
+        ...DEFAULT_DESKTOP_STATE.privacySettings,
+        terminalScrollbackRetention: "off",
+      },
+      restoredTerminalSessions: [],
+    };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const pty = new FakePty();
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+
+    await invoke<{ id: string }>(terminalChannels.create, {
+      clientId: "manual-no-retention",
+      command: "node",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+      title: "Manual terminal",
+    });
+    pty.onDataHandler?.("Server ready\nBash(\"pnpm test\")\n");
+    await flushTerminalPersistence();
+
+    expect(state.restoredTerminalSessions[0]).toEqual(
+      expect.objectContaining({
+        clientId: "manual-no-retention",
+        buffer: "",
+      }),
+    );
+    expect(state.restoredTerminalSessions[0]).not.toHaveProperty("activityEvents");
+  });
+
   it("renames live sessions and persists the updated title", async () => {
     let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
     const store: PersistedDesktopStateStore = {

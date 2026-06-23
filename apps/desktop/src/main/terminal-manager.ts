@@ -6,10 +6,12 @@ import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { redactText, redactUnknown } from "@alfred/schema";
 import {
   appendActivityEvent,
   classifyTerminalOutputActivities,
   type SessionActivityEvent,
+  type SessionActivityPayload,
 } from "../shared/session-activity.js";
 import { normalizeAgentCommand } from "../shared/agent-command.js";
 import {
@@ -42,7 +44,7 @@ import {
   type AgentWorktreeCleanupRequest,
   type AgentWorktreeResult,
 } from "./git-worktree.js";
-import type { PersistedDesktopStateStore } from "./persisted-desktop-state.js";
+import type { DesktopPrivacySettings, PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 import { isAllowedWorkspacePath } from "./workspace-path.js";
 
 type PtyProcess = import("node-pty").IPty;
@@ -381,6 +383,35 @@ export function getTerminalSessionCount(): number {
   return sessions.size;
 }
 
+export function clearTerminalSavedDataInMemory(): number {
+  const clearedClientIds = new Set<string>();
+
+  for (const [clientId, snapshot] of restoredSessionSnapshots) {
+    if (snapshot.buffer || snapshot.activityEvents?.length || snapshot.lastActivityAt || snapshot.lastOutputAt) {
+      clearedClientIds.add(clientId);
+    }
+    const { activityEvents: _activityEvents, lastActivityAt: _lastActivityAt, lastOutputAt: _lastOutputAt, ...rest } = snapshot;
+    restoredSessionSnapshots.set(clientId, { ...rest, buffer: "" });
+  }
+
+  for (const session of sessions.values()) {
+    if (!session.clientId) continue;
+    if (session.buffer || session.activityEvents?.length || session.lastActivityAt || session.lastOutputAt) {
+      clearedClientIds.add(session.clientId);
+    }
+    session.buffer = "";
+    delete session.activityEvents;
+    delete session.lastActivityAt;
+    delete session.lastOutputAt;
+    const snapshot = toPersistedSnapshot(session);
+    if (snapshot) {
+      restoredSessionSnapshots.set(snapshot.clientId, snapshot);
+    }
+  }
+
+  return clearedClientIds.size;
+}
+
 function sessionMetadata(
   id: TerminalSessionId,
   request: TerminalCreateRequest,
@@ -652,10 +683,19 @@ async function persistTerminalSnapshots(): Promise<void> {
   const store = persistedStateStore;
   if (!store) return;
 
-  await store.updateState((current) => ({
-    ...current,
-    restoredTerminalSessions: [...restoredSessionSnapshots.values()].map((session) => clonePersistedSession(session)),
-  }));
+  await store.updateState((current) => {
+    const restoredTerminalSessions = [...restoredSessionSnapshots.values()].map((session) =>
+      preparePersistedSessionForPrivacy(session, current.privacySettings),
+    );
+    restoredSessionSnapshots.clear();
+    for (const session of restoredTerminalSessions) {
+      restoredSessionSnapshots.set(session.clientId, clonePersistedSession(session));
+    }
+    return {
+      ...current,
+      restoredTerminalSessions,
+    };
+  });
 }
 
 function clonePersistedSession(session: PersistedTerminalSessionSnapshot): PersistedTerminalSessionSnapshot {
@@ -687,6 +727,41 @@ function cloneActivityEvents(events: SessionActivityEvent[]): SessionActivityEve
   return events.map((event) => ({
     ...event,
     ...(event.payload === undefined ? {} : { payload: { ...event.payload } }),
+  }));
+}
+
+function preparePersistedSessionForPrivacy(
+  session: PersistedTerminalSessionSnapshot,
+  privacySettings: DesktopPrivacySettings,
+): PersistedTerminalSessionSnapshot {
+  const { activityEvents: _activityEvents, ...baseSession } = clonePersistedSession(session);
+  const redactedBase = {
+    ...baseSession,
+    title: redactText(baseSession.title),
+  };
+
+  if (privacySettings.terminalScrollbackRetention === "off") {
+    return {
+      ...redactedBase,
+      buffer: "",
+    };
+  }
+
+  return {
+    ...redactedBase,
+    buffer: redactText(tailBuffer(session.buffer, MAX_PERSISTED_BUFFER_LENGTH)),
+    ...(session.activityEvents === undefined ? {} : { activityEvents: redactActivityEvents(session.activityEvents) }),
+  };
+}
+
+function redactActivityEvents(events: SessionActivityEvent[]): SessionActivityEvent[] {
+  return events.map((event) => ({
+    ...event,
+    title: redactText(event.title),
+    detail: redactText(event.detail),
+    ...(event.payload === undefined
+      ? {}
+      : { payload: redactUnknown(event.payload) as SessionActivityPayload }),
   }));
 }
 

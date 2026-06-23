@@ -13,6 +13,7 @@ import type { WorkspaceRailWorkspace } from "./WorkspaceRail";
 type ObservatorySurfaceProps = {
   activeWorkspaceId: string;
   externalCodexSessions: ExternalCodexSessionSummary[];
+  externalSessionIndexingEnabled?: boolean;
   externalSessionsError?: string | null;
   loadingExternalSessions: boolean;
   sessions: SessionTile[];
@@ -58,6 +59,7 @@ type ObservatoryRow =
 export function ObservatorySurface({
   activeWorkspaceId,
   externalCodexSessions,
+  externalSessionIndexingEnabled = true,
   externalSessionsError,
   loadingExternalSessions,
   sessions,
@@ -96,9 +98,13 @@ export function ObservatorySurface({
           <strong>Sessions and project memory</strong>
           <p>Browse Alfred-managed terminals and external Codex sessions. External sessions are read-only until resumed.</p>
         </div>
-        <button type="button" onClick={onRefreshExternalSessions} disabled={loadingExternalSessions}>
+        <button
+          type="button"
+          onClick={onRefreshExternalSessions}
+          disabled={loadingExternalSessions || !externalSessionIndexingEnabled}
+        >
           <RefreshCcw size={15} />
-          <span>{loadingExternalSessions ? "Refreshing" : "Refresh"}</span>
+          <span>{!externalSessionIndexingEnabled ? "Disabled" : loadingExternalSessions ? "Refreshing" : "Refresh"}</span>
         </button>
       </header>
 
@@ -112,7 +118,14 @@ export function ObservatorySurface({
         />
       </div>
 
-      {externalSessionsError && (
+      {!externalSessionIndexingEnabled && (
+        <div className="observatory-refresh-status" role="status">
+          <strong>External Codex indexing is off.</strong>
+          <span>Turn it on in Local Data & Privacy to browse external Codex sessions.</span>
+        </div>
+      )}
+
+      {externalSessionIndexingEnabled && externalSessionsError && (
         <div className="observatory-refresh-status" role="status">
           <strong>Showing last successful results.</strong>
           <span>{externalSessionsError}</span>

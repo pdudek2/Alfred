@@ -2964,6 +2964,53 @@ body.arranging-pointer {
   color: var(--ink);
 }
 
+.desktop-save-banner {
+  margin: 10px 14px 0;
+  border: 1px solid color-mix(in oklab, var(--brass) 38%, transparent);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--brass) 11%, transparent), transparent),
+    rgba(18, 16, 10, 0.88);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.desktop-save-banner div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.desktop-save-banner strong {
+  font: 700 12px/1.2 var(--sans);
+}
+
+.desktop-save-banner span {
+  min-width: 0;
+  color: var(--text-secondary);
+  font: 12px/1.3 var(--sans);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-save-banner button {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in oklab, var(--brass) 44%, transparent);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: rgba(238, 243, 247, 0.05);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+}
+
 /* Command palette and review modal */
 .review-queue-backdrop,
 .command-palette-backdrop {
@@ -3063,6 +3110,146 @@ body.arranging-pointer {
 .discard-checkout-dialog {
   width: min(640px, calc(100vw - 88px));
   grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.privacy-panel {
+  width: min(720px, calc(100vw - 88px));
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.privacy-panel-body {
+  min-width: 0;
+  padding: 18px;
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+}
+
+.privacy-control-row,
+.privacy-action-row {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(216, 255, 235, 0.026);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.privacy-control-row > div:first-child,
+.privacy-action-row > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.privacy-control-row strong,
+.privacy-action-row strong {
+  color: var(--text-primary);
+  font: 700 13px/1.2 var(--sans);
+}
+
+.privacy-control-row span,
+.privacy-action-row span {
+  color: var(--text-secondary);
+  font: 12px/1.35 var(--sans);
+}
+
+.privacy-segmented {
+  border: 1px solid rgba(188, 202, 218, 0.13);
+  border-radius: 9px;
+  padding: 3px;
+  background: rgba(0, 0, 0, 0.18);
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+}
+
+.privacy-segmented button,
+.privacy-action-button,
+.privacy-confirm-actions button,
+.privacy-panel-status button {
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 7px 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+}
+
+.privacy-segmented button[aria-pressed="true"] {
+  border-color: color-mix(in oklab, var(--accent) 36%, transparent);
+  background: color-mix(in oklab, var(--accent) 13%, transparent);
+  color: var(--ink);
+}
+
+.privacy-action-button {
+  border-color: rgba(188, 202, 218, 0.14);
+  background: rgba(238, 243, 247, 0.035);
+  color: var(--ink);
+}
+
+.privacy-action-button.danger,
+.privacy-confirm-actions .danger {
+  border-color: color-mix(in oklab, var(--coral) 38%, transparent);
+  color: color-mix(in oklab, var(--coral) 82%, white 12%);
+}
+
+.privacy-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.privacy-confirm-actions button {
+  border-color: rgba(188, 202, 218, 0.14);
+  background: rgba(238, 243, 247, 0.035);
+}
+
+.privacy-toggle {
+  border: 1px solid rgba(188, 202, 218, 0.14);
+  border-radius: 999px;
+  padding: 5px 10px 5px 7px;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.privacy-toggle input {
+  accent-color: var(--accent);
+}
+
+.privacy-panel-status {
+  border: 1px solid color-mix(in oklab, var(--accent) 30%, transparent);
+  border-radius: 9px;
+  padding: 9px 10px;
+  background: rgba(216, 255, 235, 0.035);
+  color: var(--text-secondary);
+  font: 12px/1.35 var(--sans);
+}
+
+.privacy-panel-status.error {
+  border-color: color-mix(in oklab, var(--brass) 38%, transparent);
+  background: rgba(18, 16, 10, 0.82);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.privacy-panel-status.error button {
+  border-color: color-mix(in oklab, var(--brass) 44%, transparent);
+  background: rgba(238, 243, 247, 0.035);
+  color: var(--ink);
 }
 
 .discard-checkout-body {

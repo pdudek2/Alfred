@@ -1,11 +1,10 @@
 import { fileURLToPath } from "node:url";
 
-import type { IngestEvent } from "@alfred/schema";
+import { redactPayload, type IngestEvent } from "@alfred/schema";
 
 import { loadRunnerConfig, type RunnerConfig } from "./config.js";
 import { OutboxDb } from "./outbox/outbox-db.js";
 import { flushOutboxOnce } from "./outbox/outbox-worker.js";
-import { redactPayload } from "./privacy/redactor.js";
 import { createClaudeAdapter } from "./sources/claude/claude-adapter.js";
 import { createCodexAdapter } from "./sources/codex/codex-adapter.js";
 import type { SourceAdapter } from "./sources/source-adapter.js";

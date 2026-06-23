@@ -67,6 +67,7 @@ type CommandPaletteProps = {
   onFocusNextSession: () => void;
   onFocusPreviousSession: () => void;
   onOpenReviewQueue: () => void;
+  onOpenPrivacyControls: () => void;
   onReviewAttention: () => void;
   onRejectAll: () => void;
   onRestartSession: (sessionId: string) => void;
@@ -113,6 +114,7 @@ export function CommandPalette({
   onFocusNextSession,
   onFocusPreviousSession,
   onOpenReviewQueue,
+  onOpenPrivacyControls,
   onReviewAttention,
   onRejectAll,
   onRestartSession,
@@ -275,6 +277,12 @@ export function CommandPalette({
           run: () => onFocusSessionInWorkspace(session.workspaceId, session.id),
         };
       }),
+      {
+        id: "local-data-privacy",
+        label: "Local Data & Privacy",
+        detail: "Saved scrollback, external Codex indexing, and local state",
+        run: onOpenPrivacyControls,
+      },
       {
         id: "open-review-queue",
         label: "Open review queue",
@@ -449,6 +457,7 @@ export function CommandPalette({
       onFocusNextSession,
       onFocusPreviousSession,
       onOpenReviewQueue,
+      onOpenPrivacyControls,
       onReviewAttention,
       onRejectAll,
       onRestartSession,

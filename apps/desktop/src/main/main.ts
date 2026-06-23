@@ -12,6 +12,7 @@ import {
 import { registerAlfredIpc } from "./alfred-orchestrator.js";
 import { registerLayoutIpc } from "./layout-ipc.js";
 import { registerSessionIndexIpc } from "./session-index-ipc.js";
+import { registerDesktopStateIpc } from "./desktop-state-ipc.js";
 import { configureLayoutPersistence } from "./layout-store.js";
 import { createPersistedDesktopStateStore, type PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 import { configureStagedPlanPersistence, isStagedSessionLaunchAllowed } from "./staged-plan-store.js";
@@ -46,7 +47,6 @@ loadDotenv({ path: path.resolve(app.getAppPath(), "../..", ".env") });
 
 registerAlfredIpc();
 registerLayoutIpc();
-registerSessionIndexIpc();
 
 async function createWindow(persistedDesktopStateStore: PersistedDesktopStateStore): Promise<void> {
   const persistedWindowState = (await persistedDesktopStateStore.getState()).windowState;
@@ -104,6 +104,11 @@ app.whenReady().then(async () => {
   configureLayoutPersistence(persistedDesktopStateStore);
   configureStagedPlanPersistence(persistedDesktopStateStore);
   configureTerminalPersistence(persistedDesktopStateStore);
+  registerDesktopStateIpc(persistedDesktopStateStore);
+  registerSessionIndexIpc({
+    isExternalSessionIndexingEnabled: async () =>
+      (await persistedDesktopStateStore.getState()).privacySettings.externalSessionIndexingEnabled,
+  });
   const defaultWorkspaceRootPath = resolveDefaultWorkspaceRootPath(app.getAppPath());
   const managedWorktreeRootPath = path.join(app.getPath("userData"), "worktrees");
   const workspaceStore = createWorkspaceStore({

@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { redactText, redactUnknown } from "@alfred/schema";
 import type { AlfredStagedPlanSnapshot, AgentKind } from "../shared/alfred-ipc.js";
 import type { TileLayout, WorkspaceViewState, WorkMode } from "../shared/layout-ipc.js";
 import type {
@@ -18,6 +19,18 @@ import type { WorkspaceMissionBrief, WorkspaceSnapshot, WorkspaceStateSnapshot }
 
 export const DESKTOP_STATE_VERSION = 1;
 export const DESKTOP_STATE_FILE_NAME = "desktop-state.json";
+export const MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH = 80_000;
+
+export type TerminalScrollbackRetention = "off" | "redactedTail";
+
+export type DesktopPrivacySettings = {
+  terminalScrollbackRetention: TerminalScrollbackRetention;
+  externalSessionIndexingEnabled: boolean;
+};
+
+export type DesktopSaveStatus =
+  | { status: "saved" }
+  | { status: "saveFailed"; message: string; failedAt: number };
 
 export type DesktopWindowBounds = {
   width: number;
@@ -37,6 +50,7 @@ export type DesktopStateSnapshot = WorkspaceStateSnapshot & {
   stagedPlan: AlfredStagedPlanSnapshot | null;
   restoredTerminalSessions: PersistedTerminalSessionSnapshot[];
   windowState: DesktopWindowState;
+  privacySettings: DesktopPrivacySettings;
 };
 
 export type DesktopStateFile = DesktopStateSnapshot & {
@@ -45,6 +59,10 @@ export type DesktopStateFile = DesktopStateSnapshot & {
 
 export type PersistedDesktopStateStore = {
   getState(): Promise<DesktopStateSnapshot>;
+  getFilePath(): string;
+  getSaveStatus(): DesktopSaveStatus;
+  onSaveStatus(listener: (status: DesktopSaveStatus) => void): () => void;
+  retrySave(): Promise<DesktopStateSnapshot>;
   setState(state: DesktopStateSnapshot): Promise<DesktopStateSnapshot>;
   updateState(
     updater: (current: DesktopStateSnapshot) => DesktopStateSnapshot | Promise<DesktopStateSnapshot>,
@@ -71,6 +89,11 @@ export const DEFAULT_DESKTOP_WINDOW_STATE: DesktopWindowState = {
   maximized: false,
 };
 
+export const DEFAULT_PRIVACY_SETTINGS: DesktopPrivacySettings = {
+  terminalScrollbackRetention: "redactedTail",
+  externalSessionIndexingEnabled: true,
+};
+
 export const DEFAULT_DESKTOP_STATE: DesktopStateSnapshot = {
   workspaces: [DEFAULT_WORKSPACE],
   activeWorkspaceId: DEFAULT_WORKSPACE.id,
@@ -79,6 +102,7 @@ export const DEFAULT_DESKTOP_STATE: DesktopStateSnapshot = {
   stagedPlan: null,
   restoredTerminalSessions: [],
   windowState: DEFAULT_DESKTOP_WINDOW_STATE,
+  privacySettings: DEFAULT_PRIVACY_SETTINGS,
 };
 
 export function createPersistedDesktopStateStore(
@@ -87,6 +111,9 @@ export function createPersistedDesktopStateStore(
   const filePath = resolveDesktopStateFilePath(options);
   let hydrated = false;
   let cachedState = cloneDesktopState(DEFAULT_DESKTOP_STATE);
+  let failedState: DesktopStateSnapshot | null = null;
+  let saveStatus: DesktopSaveStatus = { status: "saved" };
+  const saveStatusListeners = new Set<(status: DesktopSaveStatus) => void>();
   let mutationQueue: Promise<void> = Promise.resolve();
 
   const hydrate = async (): Promise<void> => {
@@ -110,13 +137,24 @@ export function createPersistedDesktopStateStore(
     try {
       await writeDesktopStateFile(filePath, nextState);
     } catch (error) {
+      failedState = nextState;
+      setSaveStatus({ status: "saveFailed", message: "Failed to persist desktop state.", failedAt: Date.now() });
       options.onWarning?.("Failed to persist desktop state.", error);
       throw new Error("Failed to persist desktop state.", { cause: error });
     }
 
     cachedState = nextState;
+    failedState = null;
     hydrated = true;
+    setSaveStatus({ status: "saved" });
     return cloneDesktopState(cachedState);
+  };
+
+  const setSaveStatus = (status: DesktopSaveStatus): void => {
+    saveStatus = status;
+    for (const listener of saveStatusListeners) {
+      listener({ ...status });
+    }
   };
 
   return {
@@ -124,6 +162,31 @@ export function createPersistedDesktopStateStore(
       await hydrate();
 
       return cloneDesktopState(cachedState);
+    },
+
+    getFilePath(): string {
+      return filePath;
+    },
+
+    getSaveStatus(): DesktopSaveStatus {
+      return { ...saveStatus };
+    },
+
+    onSaveStatus(listener: (status: DesktopSaveStatus) => void): () => void {
+      saveStatusListeners.add(listener);
+      return () => {
+        saveStatusListeners.delete(listener);
+      };
+    },
+
+    async retrySave(): Promise<DesktopStateSnapshot> {
+      return enqueueMutation(async () => {
+        if (!failedState) {
+          await hydrate();
+          return cloneDesktopState(cachedState);
+        }
+        return persistState(failedState);
+      });
     },
 
     async setState(state: DesktopStateSnapshot): Promise<DesktopStateSnapshot> {
@@ -168,14 +231,32 @@ export function normalizeDesktopState(value: unknown): DesktopStateSnapshot {
     ? value.activeWorkspaceId
     : workspaces[0]?.id ?? DEFAULT_WORKSPACE.id;
 
+  const privacySettings = normalizeDesktopPrivacySettings(value.privacySettings);
+
   return {
     workspaces,
     activeWorkspaceId,
     layoutsByWorkspace: normalizeLayoutsByWorkspace(value.layoutsByWorkspace),
     viewStateByWorkspace: normalizeViewStateByWorkspace(value.viewStateByWorkspace),
     stagedPlan: normalizeStagedPlan(value.stagedPlan),
-    restoredTerminalSessions: normalizeRestoredTerminalSessions(value.restoredTerminalSessions),
+    restoredTerminalSessions: normalizeRestoredTerminalSessions(value.restoredTerminalSessions, privacySettings),
     windowState: normalizeWindowState(value.windowState),
+    privacySettings,
+  };
+}
+
+export function normalizeDesktopPrivacySettings(value: unknown): DesktopPrivacySettings {
+  if (!isRecord(value)) return { ...DEFAULT_PRIVACY_SETTINGS };
+
+  return {
+    terminalScrollbackRetention:
+      value.terminalScrollbackRetention === "off" || value.terminalScrollbackRetention === "redactedTail"
+        ? value.terminalScrollbackRetention
+        : DEFAULT_PRIVACY_SETTINGS.terminalScrollbackRetention,
+    externalSessionIndexingEnabled:
+      typeof value.externalSessionIndexingEnabled === "boolean"
+        ? value.externalSessionIndexingEnabled
+        : DEFAULT_PRIVACY_SETTINGS.externalSessionIndexingEnabled,
   };
 }
 
@@ -358,7 +439,10 @@ function isTerminalSessionIsolation(value: unknown): value is TerminalSessionIso
   return value === "shared" || value === "worktree";
 }
 
-function normalizeRestoredTerminalSessions(value: unknown): PersistedTerminalSessionSnapshot[] {
+function normalizeRestoredTerminalSessions(
+  value: unknown,
+  privacySettings: DesktopPrivacySettings,
+): PersistedTerminalSessionSnapshot[] {
   if (!Array.isArray(value)) return [];
 
   const seenClientIds = new Set<string>();
@@ -381,13 +465,19 @@ function normalizeRestoredTerminalSessions(value: unknown): PersistedTerminalSes
     if (!clientId || seenClientIds.has(clientId)) continue;
 
     seenClientIds.add(clientId);
+    const activityEvents = Array.isArray(item.activityEvents) ? normalizeActivityEvents(item.activityEvents) : undefined;
+    const buffer =
+      privacySettings.terminalScrollbackRetention === "off"
+        ? ""
+        : redactText(tailText(item.buffer, MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH));
+
     sessions.push({
       clientId,
-      title: item.title,
+      title: redactText(item.title),
       source: item.source,
       cwd: item.cwd,
       shell: item.shell,
-      buffer: item.buffer,
+      buffer,
       ...(isAgentKind(item.agentKind) ? { agentKind: item.agentKind } : {}),
       ...(typeof item.workspaceId === "string" ? { workspaceId: item.workspaceId } : {}),
       ...(isTerminalSessionIsolation(item.isolation) ? { isolation: item.isolation } : {}),
@@ -401,11 +491,25 @@ function normalizeRestoredTerminalSessions(value: unknown): PersistedTerminalSes
       ...(isTerminalResumeTarget(item.resumeTarget) ? { resumeTarget: { ...item.resumeTarget } } : {}),
       ...(typeof item.lastActivityAt === "number" ? { lastActivityAt: item.lastActivityAt } : {}),
       ...(typeof item.lastOutputAt === "number" ? { lastOutputAt: item.lastOutputAt } : {}),
-      ...(Array.isArray(item.activityEvents) ? { activityEvents: normalizeActivityEvents(item.activityEvents) } : {}),
+      ...(privacySettings.terminalScrollbackRetention === "off" || activityEvents === undefined
+        ? {}
+        : { activityEvents: redactActivityEvents(activityEvents) }),
     });
   }
 
   return sessions;
+}
+
+function redactActivityEvents(events: SessionActivityEvent[]): SessionActivityEvent[] {
+  return events.map((event) => {
+    const payload = event.payload === undefined ? undefined : normalizeActivityPayload(redactUnknown(event.payload), event.kind);
+    return {
+      ...event,
+      title: redactText(event.title),
+      detail: redactText(event.detail),
+      ...(payload === undefined ? {} : { payload }),
+    };
+  });
 }
 
 function isTerminalSessionSource(value: unknown): value is TerminalSessionSource {
@@ -516,7 +620,12 @@ function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
     stagedPlan: cloneStagedPlan(state.stagedPlan),
     restoredTerminalSessions: state.restoredTerminalSessions.map((session) => cloneRestoredTerminalSession(session)),
     windowState: cloneWindowState(state.windowState),
+    privacySettings: { ...state.privacySettings },
   };
+}
+
+function tailText(value: string, maxLength: number): string {
+  return value.length > maxLength ? value.slice(-maxLength) : value;
 }
 
 function cloneMissionBrief(brief: WorkspaceMissionBrief): WorkspaceMissionBrief {
