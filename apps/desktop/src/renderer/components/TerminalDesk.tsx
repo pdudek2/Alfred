@@ -24,10 +24,13 @@ import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } f
 import { shortenPath } from "../path-display";
 import { recoveryHeadline, recoverySummary } from "../recovery-display";
 import { sessionRelaunchSafety } from "../relaunch-safety";
+import { restoredSessionActionLabel, restoredSessionActionTitle } from "../restored-session-action";
 import { normalizeSessionTitle } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 
 const ARRANGE_GRID_ROW_HEIGHT = 84;
+const MIN_TERMINAL_FIT_HEIGHT = 48;
+const MIN_TERMINAL_FIT_WIDTH = 80;
 
 export type WorktreeActionKind = "review" | "apply";
 
@@ -580,54 +583,23 @@ function relaunchButtonLabel(action: "relaunch" | "restart", unsafe: boolean, ar
   return action === "relaunch" ? "Review relaunch" : "Review restart";
 }
 
-function restoredButtonLabel(
-  session: {
-    agentKind?: SessionTile["agentKind"] | undefined;
-    args?: string[] | undefined;
-    command?: string | undefined;
-    resumeTarget?: SessionTile["resumeTarget"] | undefined;
-  },
-  unsafe: boolean,
-  armed: boolean,
-): string {
-  const codexAgent = session.agentKind === "codex" || session.command === "codex";
-  const claudeAgent = session.agentKind === "claude" || session.command === "claude";
-  const codingAgent = codexAgent || claudeAgent;
-
-  if (!codingAgent) return relaunchButtonLabel("relaunch", unsafe, armed);
-  if (codexAgent && !hasExactCodexResumeTarget(session)) {
-    if (!unsafe) return "Resume latest";
-    return armed ? "Confirm resume latest" : "Review resume latest";
-  }
-  if (claudeAgent) {
-    if (!unsafe) return "Continue latest";
-    return armed ? "Confirm continue latest" : "Review continue latest";
-  }
-  if (!unsafe) return "Resume";
-  return armed ? "Confirm resume" : "Review resume";
+function terminalHostHasStableGeometry(container: HTMLElement): boolean {
+  if (!container.isConnected) return false;
+  const rect = container.getBoundingClientRect();
+  return rect.width >= MIN_TERMINAL_FIT_WIDTH && rect.height >= MIN_TERMINAL_FIT_HEIGHT;
 }
 
-function hasExactCodexResumeTarget(session: {
-  args?: string[] | undefined;
-  resumeTarget?: SessionTile["resumeTarget"] | undefined;
-}): boolean {
-  if (session.resumeTarget?.agentKind === "codex" && session.resumeTarget.sessionId) return true;
-  return Boolean(session.args?.[0] === "resume" && session.args[1] && session.args[1] !== "--last");
-}
-
-function restoredResumeTitle(session: {
-  agentKind?: SessionTile["agentKind"] | undefined;
-  args?: string[] | undefined;
-  command?: string | undefined;
-  resumeTarget?: SessionTile["resumeTarget"] | undefined;
-}): string {
-  if ((session.agentKind === "codex" || session.command === "codex") && !hasExactCodexResumeTarget(session)) {
-    return "Resume the latest Codex conversation for this workspace.";
-  }
-  if (session.agentKind === "claude" || session.command === "claude") {
-    return "Continue the latest Claude conversation for this workspace.";
-  }
-  return "Resume this saved session";
+function usableTerminalDimensions(dimensions: { cols: number; rows: number } | undefined): dimensions is {
+  cols: number;
+  rows: number;
+} {
+  return Boolean(
+    dimensions &&
+      Number.isFinite(dimensions.cols) &&
+      Number.isFinite(dimensions.rows) &&
+      dimensions.cols >= 2 &&
+      dimensions.rows >= 1,
+  );
 }
 
 function ManualTerminalTile({
@@ -716,6 +688,7 @@ function ManualTerminalTile({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const lastResizeRef = useRef<{ id: TerminalSessionId; cols: number; rows: number } | null>(null);
   const sessionIdRef = useRef<TerminalSessionId | null>(null);
   const [status, setStatus] = useState<LocalTerminalStatus>("connecting");
   const [resolvedCwd, setResolvedCwd] = useState<string>(cwd);
@@ -744,7 +717,11 @@ function ManualTerminalTile({
     ...(command === undefined ? {} : { command }),
   });
   const relaunchNeedsReview = !relaunchSafety.safe;
-  const restoredActionLabel = restoredButtonLabel({ agentKind, args, command, resumeTarget }, relaunchNeedsReview, relaunchArmed);
+  const restoredActionLabel = restoredSessionActionLabel(
+    { agentKind, args, command, resumeTarget },
+    relaunchNeedsReview,
+    relaunchArmed,
+  );
   const latestActivity = latestVisibleActivity(activityEvents);
   const ageLabel = sessionAgeLabel(createdAt, displayClock);
   const sessionLocationLabel = isolatedCheckout ? "isolated worktree" : (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
@@ -813,15 +790,27 @@ function ManualTerminalTile({
     fitAddonRef.current = fitAddon;
 
     const fitAndResize = () => {
+      if (!terminalHostHasStableGeometry(container)) return false;
+      const proposedDimensions = fitAddon.proposeDimensions();
+      if (!usableTerminalDimensions(proposedDimensions)) return false;
+
       fitAddon.fit();
       const sessionId = sessionIdRef.current;
 
-      if (sessionId && terminalApi) {
+      if (
+        sessionId &&
+        terminalApi &&
+        (lastResizeRef.current?.id !== sessionId ||
+          lastResizeRef.current.cols !== terminal.cols ||
+          lastResizeRef.current.rows !== terminal.rows)
+      ) {
         terminalApi.resize({ id: sessionId, cols: terminal.cols, rows: terminal.rows });
+        lastResizeRef.current = { id: sessionId, cols: terminal.cols, rows: terminal.rows };
       }
+      return true;
     };
     const repaintTerminal = () => {
-      fitAndResize();
+      if (!fitAndResize()) return;
       const refresh = (terminal as { refresh?: (start: number, end: number) => void }).refresh;
       refresh?.call(terminal, 0, Math.max(0, terminal.rows - 1));
     };
@@ -1142,7 +1131,9 @@ function ManualTerminalTile({
                   aria-label={`${restoredActionLabel} ${title}`}
                   onClick={onContinueRestoredSession}
                   onPointerDown={(event) => event.stopPropagation()}
-                  title={relaunchNeedsReview ? relaunchSafety.reason : restoredResumeTitle({ agentKind, args, command, resumeTarget })}
+                  title={relaunchNeedsReview
+                    ? relaunchSafety.reason
+                    : restoredSessionActionTitle({ agentKind, args, command, resumeTarget })}
                 >
                   {relaunchNeedsReview ? <AlertTriangle size={13} /> : <Play size={13} />}
                   <span>{restoredActionLabel}</span>
