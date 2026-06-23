@@ -262,6 +262,18 @@ describe("session-index IPC", () => {
     expect(handler).toBeDefined();
     await expect(handler?.()).resolves.toEqual({ sessions: [] });
   });
+
+  it("does not scan Codex sessions when external indexing is disabled", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const indexingEnabled = vi.fn(async () => false);
+    registerSessionIndexIpc({ codexHome, isExternalSessionIndexingEnabled: indexingEnabled });
+
+    const handler = handlers.get(sessionIndexChannels.listExternalCodexSessions);
+
+    expect(handler).toBeDefined();
+    await expect(handler?.()).resolves.toEqual({ sessions: [] });
+    expect(indexingEnabled).toHaveBeenCalledTimes(1);
+  });
 });
 
 async function writeSessionIndex(

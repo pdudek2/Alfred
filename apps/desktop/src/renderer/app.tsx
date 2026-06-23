@@ -1,9 +1,24 @@
-import { ChevronDown, Command, FolderOpen, ListChecks, Pencil, Plus, Search, SquareTerminal, X } from "lucide-react";
+import {
+  ChevronDown,
+  Command,
+  Eye,
+  FolderOpen,
+  ListChecks,
+  Pencil,
+  Plus,
+  RefreshCcw,
+  Search,
+  ShieldCheck,
+  SquareTerminal,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   getDesktopAlfredApi,
   getDesktopLayoutApi,
   getDesktopSessionIndexApi,
+  getDesktopStateApi,
   getDesktopTerminalApi,
   getDesktopWorkspaceApi,
 } from "./desktop-api";
@@ -73,6 +88,12 @@ import { sessionRelaunchSafety } from "./relaunch-safety";
 import { normalizeSessionTitle } from "../shared/session-title";
 import { shortLabelForWorkspace } from "../shared/workspace-label";
 import type {
+  DesktopPrivacySettings,
+  DesktopSaveStatus,
+  DesktopStateClearSavedTerminalDataResult,
+  DesktopStateRevealFileResult,
+} from "../shared/desktop-state-ipc";
+import type {
   AgentKind,
   AlfredRuntimeStatus,
   AlfredStagedSessionPatch,
@@ -98,6 +119,10 @@ type PendingDiscardConfirmation = {
 const DEFAULT_WORKSPACE_ID = "A";
 const DEFAULT_WORKSPACE: Workspace = { id: DEFAULT_WORKSPACE_ID, label: "Alfred", shortLabel: "A" };
 const DEFAULT_WORKSPACES: Workspace[] = [DEFAULT_WORKSPACE];
+const DEFAULT_PRIVACY_SETTINGS: DesktopPrivacySettings = {
+  terminalScrollbackRetention: "redactedTail",
+  externalSessionIndexingEnabled: true,
+};
 
 function tileLayoutRecordsEqual(
   left: Record<string, TileLayout> | undefined,
@@ -140,6 +165,9 @@ export function App() {
   const [composerValue, setComposerValue] = useState<string>("");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState<boolean>(false);
   const [commandQuery, setCommandQuery] = useState<string>("");
+  const [privacyPanelOpen, setPrivacyPanelOpen] = useState<boolean>(false);
+  const [privacySettings, setPrivacySettings] = useState<DesktopPrivacySettings>(DEFAULT_PRIVACY_SETTINGS);
+  const [desktopSaveStatus, setDesktopSaveStatus] = useState<DesktopSaveStatus>({ status: "saved" });
   const [sessionObservatoryOpen, setSessionObservatoryOpen] = useState<boolean>(false);
   const [activeSurface, setActiveSurface] = useState<ActiveSurface>("desk");
   const [externalCodexSessions, setExternalCodexSessions] = useState<ExternalCodexSessionSummary[]>([]);
@@ -223,6 +251,26 @@ export function App() {
   useEffect(() => {
     terminalSessionsRef.current = terminalSessions;
   }, [terminalSessions]);
+
+  useEffect(() => {
+    const desktopStateApi = getDesktopStateApi();
+    if (!desktopStateApi) return;
+    let cancelled = false;
+
+    void desktopStateApi.getPrivacySettings()
+      .then((settings) => {
+        if (!cancelled) setPrivacySettings(settings);
+      })
+      .catch(() => undefined);
+    const unsubscribe = desktopStateApi.onSaveStatus((status) => {
+      if (!cancelled) setDesktopSaveStatus(status);
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
 
   const handleAddManualSession = useCallback(() => {
     setTerminalSessions((sessions) => addManualSession(sessions, activeWorkspace.rootPath ?? "", activeWorkspace.id));
@@ -1245,6 +1293,18 @@ export function App() {
     setCommandPaletteOpen(true);
   }, []);
 
+  const handleOpenPrivacyPanel = useCallback(() => {
+    setReviewQueueOpen(false);
+    setSessionObservatoryOpen(false);
+    setCommandPaletteOpen(false);
+    setCommandQuery("");
+    setPrivacyPanelOpen(true);
+  }, []);
+
+  const handleClosePrivacyPanel = useCallback(() => {
+    setPrivacyPanelOpen(false);
+  }, []);
+
   const handleCloseCommandPalette = useCallback(() => {
     setCommandPaletteOpen(false);
     setCommandQuery("");
@@ -1262,6 +1322,13 @@ export function App() {
   }, []);
 
   const handleRefreshExternalCodexSessions = useCallback(async () => {
+    if (!privacySettings.externalSessionIndexingEnabled) {
+      setExternalCodexSessions([]);
+      setExternalCodexSessionsLoading(false);
+      setExternalCodexSessionsError(null);
+      return;
+    }
+
     const sessionIndexApi = getDesktopSessionIndexApi();
     if (!sessionIndexApi) {
       setExternalCodexSessionsError("External Codex indexing is unavailable in this build.");
@@ -1279,6 +1346,59 @@ export function App() {
     } finally {
       setExternalCodexSessionsLoading(false);
     }
+  }, [privacySettings.externalSessionIndexingEnabled]);
+
+  const handleUpdatePrivacySettings = useCallback(async (nextSettings: DesktopPrivacySettings) => {
+    const desktopStateApi = getDesktopStateApi();
+    setPrivacySettings(nextSettings);
+    if (!nextSettings.externalSessionIndexingEnabled) {
+      setExternalCodexSessions([]);
+      setExternalCodexSessionsLoading(false);
+      setExternalCodexSessionsError(null);
+    }
+
+    if (!desktopStateApi) return;
+    try {
+      const persisted = await desktopStateApi.updatePrivacySettings(nextSettings);
+      setPrivacySettings(persisted);
+    } catch {
+      setDesktopSaveStatus({ status: "saveFailed", message: "Failed to persist desktop state.", failedAt: Date.now() });
+    }
+  }, []);
+
+  const handleClearSavedTerminalData = useCallback(async () => {
+    const desktopStateApi = getDesktopStateApi();
+    if (!desktopStateApi) return { ok: false as const, error: "Desktop state controls are unavailable in this build." };
+
+    const result = await desktopStateApi.clearSavedTerminalData();
+    if (result.ok) {
+      setTerminalSessions((sessions) =>
+        sessions.map((session) => {
+          const {
+            activityEvents: _activityEvents,
+            initialBuffer: _initialBuffer,
+            lastActivityAt: _lastActivityAt,
+            lastOutputAt: _lastOutputAt,
+            ...rest
+          } = session;
+          return rest;
+        }),
+      );
+    }
+    return result;
+  }, []);
+
+  const handleRevealStateFile = useCallback(async () => {
+    const desktopStateApi = getDesktopStateApi();
+    if (!desktopStateApi) return { ok: false as const, error: "Desktop state controls are unavailable in this build." };
+    return desktopStateApi.revealStateFile();
+  }, []);
+
+  const handleRetryStateSave = useCallback(async () => {
+    const desktopStateApi = getDesktopStateApi();
+    if (!desktopStateApi) return;
+    const status = await desktopStateApi.retrySave();
+    setDesktopSaveStatus(status);
   }, []);
 
   const handleOpenManagedSessionFromObservatory = useCallback((workspaceId: string, sessionId: string) => {
@@ -1336,12 +1456,13 @@ export function App() {
 
   useEffect(() => {
     if (activeSurface !== "observatory") return;
+    if (!privacySettings.externalSessionIndexingEnabled) return;
     void handleRefreshExternalCodexSessions();
-  }, [activeSurface, handleRefreshExternalCodexSessions]);
+  }, [activeSurface, handleRefreshExternalCodexSessions, privacySettings.externalSessionIndexingEnabled]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (commandPaletteOpen || sessionObservatoryOpen || reviewQueueOpen) {
+      if (commandPaletteOpen || sessionObservatoryOpen || reviewQueueOpen || privacyPanelOpen) {
         const shortcutPressed = event.metaKey || event.ctrlKey;
         const key = event.key.toLowerCase();
         const appShortcut =
@@ -1433,6 +1554,7 @@ export function App() {
     handleOpenCommandPalette,
     handleOpenSessionTerminal,
     handleSelectWorkspace,
+    privacyPanelOpen,
     reviewQueueOpen,
     sessionObservatoryOpen,
     workspaces,
@@ -1689,6 +1811,19 @@ export function App() {
           </div>
         </div>
 
+        {desktopSaveStatus.status === "saveFailed" && (
+          <div className="desktop-save-banner" role="alert">
+            <div>
+              <strong>State not saved</strong>
+              <span>{desktopSaveStatus.message}</span>
+            </div>
+            <button type="button" onClick={() => void handleRetryStateSave()}>
+              <RefreshCcw size={14} />
+              <span>Retry</span>
+            </button>
+          </div>
+        )}
+
         <div
           className={`workspace-layout surface-${activeSurface} ${alfredExpanded ? "alfred-expanded" : "alfred-compact"} ${
             previewVisible ? "preview-visible" : ""
@@ -1766,6 +1901,7 @@ export function App() {
                 <ObservatorySurface
                   activeWorkspaceId={activeWorkspace.id}
                   externalCodexSessions={externalCodexSessions}
+                  externalSessionIndexingEnabled={privacySettings.externalSessionIndexingEnabled}
                   externalSessionsError={externalCodexSessionsError}
                   loadingExternalSessions={externalCodexSessionsLoading}
                   sessions={terminalSessions}
@@ -1830,7 +1966,7 @@ export function App() {
           blockedReason={composerBlockedReason}
           value={composerValue}
           thinking={isThinking(alfredStatus)}
-          disabled={commandPaletteOpen || sessionObservatoryOpen}
+          disabled={commandPaletteOpen || sessionObservatoryOpen || privacyPanelOpen}
           workspaceName={activeWorkspace.label === "Alfred" ? "this workspace" : activeWorkspace.label}
           onBlockedAction={
             stagedWorkspaceId
@@ -1846,6 +1982,17 @@ export function App() {
             onCancel={handleCancelDiscardCheckout}
             onConfirmDiscard={handleConfirmDiscardCheckout}
             onReviewChanges={handleReviewDiscardCheckout}
+          />
+        )}
+        {privacyPanelOpen && (
+          <PrivacyPanel
+            saveStatus={desktopSaveStatus}
+            settings={privacySettings}
+            onClearSavedTerminalData={handleClearSavedTerminalData}
+            onClose={handleClosePrivacyPanel}
+            onRevealStateFile={handleRevealStateFile}
+            onRetrySave={handleRetryStateSave}
+            onUpdateSettings={handleUpdatePrivacySettings}
           />
         )}
         {commandPaletteOpen && (
@@ -1888,6 +2035,7 @@ export function App() {
             onFocusNextSession={() => handleFocusSessionByDelta(1)}
             onFocusPreviousSession={() => handleFocusSessionByDelta(-1)}
             onOpenReviewQueue={handleOpenReviewQueue}
+            onOpenPrivacyControls={handleOpenPrivacyPanel}
             onReviewAttention={handleReviewAttention}
             onRejectAll={handleRejectAll}
             onRestartSession={handleRestartSession}
@@ -1920,6 +2068,171 @@ export function App() {
         )}
       </section>
     </main>
+  );
+}
+
+function PrivacyPanel({
+  saveStatus,
+  settings,
+  onClearSavedTerminalData,
+  onClose,
+  onRevealStateFile,
+  onRetrySave,
+  onUpdateSettings,
+}: {
+  saveStatus: DesktopSaveStatus;
+  settings: DesktopPrivacySettings;
+  onClearSavedTerminalData: () => Promise<DesktopStateClearSavedTerminalDataResult>;
+  onClose: () => void;
+  onRevealStateFile: () => Promise<DesktopStateRevealFileResult>;
+  onRetrySave: () => Promise<void>;
+  onUpdateSettings: (settings: DesktopPrivacySettings) => Promise<void>;
+}) {
+  const [clearArmed, setClearArmed] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const updateRetention = (terminalScrollbackRetention: DesktopPrivacySettings["terminalScrollbackRetention"]) => {
+    setMessage(null);
+    void onUpdateSettings({ ...settings, terminalScrollbackRetention });
+  };
+
+  const updateExternalIndexing = () => {
+    setMessage(null);
+    void onUpdateSettings({
+      ...settings,
+      externalSessionIndexingEnabled: !settings.externalSessionIndexingEnabled,
+    });
+  };
+
+  const clearSavedTerminalData = async () => {
+    const result = await onClearSavedTerminalData();
+    setClearArmed(false);
+    setMessage(
+      result.ok
+        ? `Cleared saved data for ${result.clearedSessions} session${result.clearedSessions === 1 ? "" : "s"}.`
+        : result.error,
+    );
+  };
+
+  const revealStateFile = async () => {
+    const result = await onRevealStateFile();
+    setMessage(result.ok ? "Local state file revealed." : result.error);
+  };
+
+  return (
+    <div className="review-queue-backdrop" role="presentation" onMouseDown={onClose}>
+      <div
+        className="global-review-panel privacy-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Local Data & Privacy"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") onClose();
+        }}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="global-review-header">
+          <div>
+            <span>Local controls</span>
+            <strong>Local Data & Privacy</strong>
+            <small>Saved terminal data and external Codex indexing</small>
+          </div>
+          <button type="button" className="global-review-close" onClick={onClose} aria-label="Close privacy controls">
+            <X size={15} />
+          </button>
+        </header>
+        <div className="privacy-panel-body">
+          <section className="privacy-control-row">
+            <div>
+              <strong>Terminal scrollback retention</strong>
+              <span>{settings.terminalScrollbackRetention === "off" ? "Saved terminal buffers are disabled." : "Only a redacted 80k tail is saved."}</span>
+            </div>
+            <div className="privacy-segmented" role="group" aria-label="Terminal scrollback retention">
+              <button
+                type="button"
+                aria-pressed={settings.terminalScrollbackRetention === "redactedTail"}
+                onClick={() => updateRetention("redactedTail")}
+              >
+                <ShieldCheck size={14} />
+                <span>Redacted tail</span>
+              </button>
+              <button
+                type="button"
+                aria-pressed={settings.terminalScrollbackRetention === "off"}
+                onClick={() => updateRetention("off")}
+              >
+                <X size={14} />
+                <span>Off</span>
+              </button>
+            </div>
+          </section>
+
+          <section className="privacy-control-row">
+            <div>
+              <strong>External Codex indexing</strong>
+              <span>{settings.externalSessionIndexingEnabled ? "Observatory can index local Codex transcripts." : "Observatory will not scan external Codex transcripts."}</span>
+            </div>
+            <label className="privacy-toggle">
+              <input
+                type="checkbox"
+                checked={settings.externalSessionIndexingEnabled}
+                onChange={updateExternalIndexing}
+              />
+              <span>{settings.externalSessionIndexingEnabled ? "On" : "Off"}</span>
+            </label>
+          </section>
+
+          <section className="privacy-action-row">
+            <div>
+              <strong>Saved transcripts</strong>
+              <span>Clear Alfred's persisted terminal buffers and activity previews.</span>
+            </div>
+            {clearArmed ? (
+              <div className="privacy-confirm-actions">
+                <button type="button" onClick={() => setClearArmed(false)}>
+                  Cancel
+                </button>
+                <button type="button" className="danger" onClick={() => void clearSavedTerminalData()}>
+                  <Trash2 size={14} />
+                  <span>Confirm clear</span>
+                </button>
+              </div>
+            ) : (
+              <button type="button" className="privacy-action-button danger" onClick={() => setClearArmed(true)}>
+                <Trash2 size={14} />
+                <span>Clear saved transcripts</span>
+              </button>
+            )}
+          </section>
+
+          <section className="privacy-action-row">
+            <div>
+              <strong>Local state file</strong>
+              <span>Reveal Alfred's desktop state file in Finder.</span>
+            </div>
+            <button type="button" className="privacy-action-button" onClick={() => void revealStateFile()}>
+              <Eye size={14} />
+              <span>Reveal local state file</span>
+            </button>
+          </section>
+
+          {saveStatus.status === "saveFailed" && (
+            <div className="privacy-panel-status error" role="alert">
+              <span>{saveStatus.message}</span>
+              <button type="button" onClick={() => void onRetrySave()}>
+                <RefreshCcw size={14} />
+                <span>Retry</span>
+              </button>
+            </div>
+          )}
+          {message && (
+            <div className="privacy-panel-status" role="status">
+              {message}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

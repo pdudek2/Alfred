@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_DESKTOP_STATE,
+  DEFAULT_PRIVACY_SETTINGS,
   DESKTOP_STATE_VERSION,
   createPersistedDesktopStateStore,
 } from "./persisted-desktop-state.js";
@@ -157,6 +158,7 @@ describe("persisted-desktop-state", () => {
           ],
         },
       ],
+      privacySettings: DEFAULT_PRIVACY_SETTINGS,
     };
 
     const writer = createPersistedDesktopStateStore({ filePath });
@@ -300,7 +302,134 @@ describe("persisted-desktop-state", () => {
       stagedPlan: null,
       restoredTerminalSessions: [],
       windowState: DEFAULT_DESKTOP_STATE.windowState,
+      privacySettings: DEFAULT_PRIVACY_SETTINGS,
     });
+  });
+
+  it("normalizes invalid privacy settings to defaults", async () => {
+    const filePath = await temporaryStateFile();
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: DESKTOP_STATE_VERSION,
+        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
+        activeWorkspaceId: "A",
+        privacySettings: {
+          terminalScrollbackRetention: "forever",
+          externalSessionIndexingEnabled: "yes",
+        },
+      }),
+      "utf8",
+    );
+    const store = createPersistedDesktopStateStore({ filePath });
+
+    await expect(store.getState()).resolves.toMatchObject({
+      privacySettings: DEFAULT_PRIVACY_SETTINGS,
+    });
+  });
+
+  it("redacts and limits legacy restored terminal data on load", async () => {
+    const filePath = await temporaryStateFile();
+    const retainedTail = `${"b".repeat(79_950)} Authorization: Bearer abc.def.ghi`;
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: DESKTOP_STATE_VERSION,
+        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
+        activeWorkspaceId: "A",
+        privacySettings: DEFAULT_PRIVACY_SETTINGS,
+        restoredTerminalSessions: [
+          {
+            clientId: "manual-secret",
+            title: "Manual /Users/patryk/Desktop/Alfred",
+            source: "manual",
+            cwd: "/Users/patryk/Desktop/Alfred",
+            shell: "/bin/zsh",
+            buffer: `${"a".repeat(20_000)}${retainedTail}`,
+            activityEvents: [
+              {
+                id: "manual-secret-activity-1",
+                kind: "tool",
+                title: "Tool sk-proj-1234567890abcdef",
+                detail: "Read /Users/patryk/.codex/sessions/session.jsonl",
+                payload: {
+                  type: "tool",
+                  name: "Bash",
+                  input: "Authorization: Bearer abc.def.ghi",
+                },
+                at: 123,
+              },
+            ],
+          },
+        ],
+      }),
+      "utf8",
+    );
+    const store = createPersistedDesktopStateStore({ filePath });
+    const state = await store.getState();
+    const session = state.restoredTerminalSessions[0];
+
+    expect(session?.buffer.length).toBeLessThanOrEqual(80_000);
+    expect(session?.buffer).not.toContain("Bearer abc.def.ghi");
+    expect(session?.buffer).toContain("Authorization: [redacted]");
+    expect(session?.title).toBe("Manual [redacted-path:44c8fe0e]");
+    expect(session?.activityEvents?.[0]).toMatchObject({
+      title: "Tool [redacted]",
+      detail: "Read [redacted-path:cbcdbb8b]",
+      payload: { type: "tool", name: "Bash", input: "Authorization: [redacted]" },
+    });
+  });
+
+  it("drops restored terminal buffers and activity when retention is off", async () => {
+    const filePath = await temporaryStateFile();
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: DESKTOP_STATE_VERSION,
+        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
+        activeWorkspaceId: "A",
+        privacySettings: {
+          terminalScrollbackRetention: "off",
+          externalSessionIndexingEnabled: false,
+        },
+        restoredTerminalSessions: [
+          {
+            clientId: "manual-off",
+            title: "Manual",
+            source: "manual",
+            cwd: "/repo",
+            shell: "/bin/zsh",
+            buffer: "secret sk-proj-1234567890abcdef",
+            activityEvents: [
+              {
+                id: "manual-off-activity-1",
+                kind: "warning",
+                title: "Warning",
+                detail: "secret",
+                payload: { type: "warning", message: "secret" },
+                at: 123,
+              },
+            ],
+          },
+        ],
+      }),
+      "utf8",
+    );
+    const store = createPersistedDesktopStateStore({ filePath });
+
+    await expect(store.getState()).resolves.toMatchObject({
+      privacySettings: {
+        terminalScrollbackRetention: "off",
+        externalSessionIndexingEnabled: false,
+      },
+      restoredTerminalSessions: [
+        expect.objectContaining({
+          clientId: "manual-off",
+          buffer: "",
+        }),
+      ],
+    });
+    expect((await store.getState()).restoredTerminalSessions[0]).not.toHaveProperty("activityEvents");
   });
 
   it("falls back safely when persisted JSON is corrupt", async () => {
@@ -343,5 +472,29 @@ describe("persisted-desktop-state", () => {
 
     await expect(store.setState(DEFAULT_DESKTOP_STATE)).rejects.toThrow("Failed to persist desktop state.");
     expect(warnings).toEqual(["Failed to persist desktop state."]);
+    expect(store.getSaveStatus()).toMatchObject({ status: "saveFailed", message: "Failed to persist desktop state." });
+  });
+
+  it("retries the last failed desktop state write", async () => {
+    const directoryPath = await mkdtemp(path.join(os.tmpdir(), "alfred-desktop-state-retry-"));
+    temporaryDirectory = directoryPath;
+    const filePath = path.join(directoryPath, "state", "desktop-state.json");
+    const blockingFilePath = path.dirname(filePath);
+    await writeFile(blockingFilePath, "not a directory", "utf8");
+    const store = createPersistedDesktopStateStore({ filePath });
+    const nextState = {
+      ...DEFAULT_DESKTOP_STATE,
+      workspaces: [{ id: "A", label: "Retried", shortLabel: "R" }],
+    };
+
+    await expect(store.setState(nextState)).rejects.toThrow("Failed to persist desktop state.");
+    await rm(blockingFilePath, { force: true });
+    await expect(store.retrySave()).resolves.toMatchObject({
+      workspaces: [{ id: "A", label: "Retried", shortLabel: "R" }],
+    });
+    expect(store.getSaveStatus()).toEqual({ status: "saved" });
+    await expect(createPersistedDesktopStateStore({ filePath }).getState()).resolves.toMatchObject({
+      workspaces: [{ id: "A", label: "Retried", shortLabel: "R" }],
+    });
   });
 });

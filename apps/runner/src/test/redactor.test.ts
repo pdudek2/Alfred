@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { redactPayload } from "../privacy/redactor.js";
+import { redactPayload } from "@alfred/schema";
 
 describe("redactPayload", () => {
   it("redacts secret keys in standard mode", () => {

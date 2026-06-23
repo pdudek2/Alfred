@@ -20,6 +20,7 @@ import type {
 } from "../shared/terminal-ipc";
 import type { WorkspaceApi, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 import type { ExternalCodexSessionSummary, SessionIndexApi } from "../shared/session-index-ipc";
+import type { DesktopPrivacySettings, DesktopSaveStatus, DesktopStateApi } from "../shared/desktop-state-ipc";
 
 const { terminalConstructorOptions, terminalDisposeCalls } = vi.hoisted(() => ({
   terminalConstructorOptions: [] as unknown[],
@@ -80,6 +81,7 @@ class TestResizeObserver implements ResizeObserver {
 
 type DesktopBridge = {
   alfred: AlfredApi;
+  desktopState?: DesktopStateApi;
   layout: LayoutApi;
   sessionIndex?: SessionIndexApi;
   terminal: TerminalApi;
@@ -113,6 +115,10 @@ function installDesktopBridge(
   },
   restoredTerminalSessions: PersistedTerminalSessionSnapshot[] = [],
   externalCodexSessions: ExternalCodexSessionSummary[] = [],
+  desktopPrivacySettings: DesktopPrivacySettings = {
+    terminalScrollbackRetention: "redactedTail",
+    externalSessionIndexingEnabled: true,
+  },
 ): {
   clearStagedPlan: ReturnType<typeof vi.fn>;
   createTerminal: ReturnType<typeof vi.fn>;
@@ -141,11 +147,18 @@ function installDesktopBridge(
   worktreeDiff: ReturnType<typeof vi.fn>;
   openExternalUrl: ReturnType<typeof vi.fn>;
   listExternalCodexSessions: ReturnType<typeof vi.fn>;
+  clearSavedTerminalData: ReturnType<typeof vi.fn>;
+  getPrivacySettings: ReturnType<typeof vi.fn>;
+  revealStateFile: ReturnType<typeof vi.fn>;
+  retrySave: ReturnType<typeof vi.fn>;
+  updatePrivacySettings: ReturnType<typeof vi.fn>;
   emitData: (event: TerminalDataEvent) => void;
   emitExit: (event: TerminalExitEvent) => void;
+  emitSaveStatus: (status: DesktopSaveStatus) => void;
 } {
   const dataListeners = new Set<(event: TerminalDataEvent) => void>();
   const exitListeners = new Set<(event: TerminalExitEvent) => void>();
+  const saveStatusListeners = new Set<(status: DesktopSaveStatus) => void>();
   const clearStagedPlan = vi.fn().mockResolvedValue({ plan: null });
   const getStagedPlan = vi.fn().mockResolvedValue({ plan: stagedPlan });
   const getRuntimeStatus = vi.fn().mockResolvedValue(runtimeStatus);
@@ -177,6 +190,22 @@ function installDesktopBridge(
       Promise.resolve({ ok: true, url: request.url }),
     );
   const listExternalCodexSessions = vi.fn().mockResolvedValue({ sessions: externalCodexSessions });
+  let currentPrivacySettings = desktopPrivacySettings;
+  const getPrivacySettings = vi.fn().mockImplementation(() => Promise.resolve(currentPrivacySettings));
+  const updatePrivacySettings = vi.fn().mockImplementation((settings: DesktopPrivacySettings) => {
+    currentPrivacySettings = settings;
+    return Promise.resolve(settings);
+  });
+  const clearSavedTerminalData = vi.fn().mockResolvedValue({
+    ok: true,
+    clearedSessions: terminalSessions.length + restoredTerminalSessions.length,
+  });
+  const revealStateFile = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/patryk/Library/Application Support/Alfred/desktop-state.json" });
+  const retrySave = vi.fn().mockResolvedValue({ status: "saved" });
+  const onSaveStatus = vi.fn((callback: (status: DesktopSaveStatus) => void) => {
+    saveStatusListeners.add(callback);
+    return () => saveStatusListeners.delete(callback);
+  });
   const revealPath = vi.fn().mockResolvedValue({ ok: true, resolvedPath: "/Users/patryk/Desktop/Alfred/app.tsx" });
   const createWorkspaceFromFolder = vi.fn().mockImplementation(() =>
     Promise.resolve({
@@ -255,6 +284,14 @@ function installDesktopBridge(
       setStagedPlan,
       updateStagedSession,
     },
+    desktopState: {
+      clearSavedTerminalData,
+      getPrivacySettings,
+      onSaveStatus,
+      retrySave,
+      revealStateFile,
+      updatePrivacySettings,
+    },
     layout: { getLayouts, setWorkspaceLayout, setWorkspaceViewState },
     sessionIndex: { listExternalCodexSessions },
     terminal,
@@ -299,11 +336,19 @@ function installDesktopBridge(
     worktreeDiff,
     openExternalUrl,
     listExternalCodexSessions,
+    clearSavedTerminalData,
+    getPrivacySettings,
+    revealStateFile,
+    retrySave,
+    updatePrivacySettings,
     emitData: (event: TerminalDataEvent) => {
       for (const listener of dataListeners) listener(event);
     },
     emitExit: (event: TerminalExitEvent) => {
       for (const listener of exitListeners) listener(event);
+    },
+    emitSaveStatus: (status: DesktopSaveStatus) => {
+      for (const listener of saveStatusListeners) listener(status);
     },
   };
 }
@@ -365,6 +410,99 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
 
     expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
+  });
+
+  it("opens Local Data & Privacy controls from the command palette", async () => {
+    const user = userEvent.setup();
+    const { clearSavedTerminalData, revealStateFile, updatePrivacySettings } = installDesktopBridge();
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
+
+    const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
+    expect(dialog).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Off" }));
+    await waitFor(() => {
+      expect(updatePrivacySettings).toHaveBeenCalledWith({
+        terminalScrollbackRetention: "off",
+        externalSessionIndexingEnabled: true,
+      });
+    });
+
+    await user.click(within(dialog).getByRole("checkbox", { name: /On/i }));
+    await waitFor(() => {
+      expect(updatePrivacySettings).toHaveBeenCalledWith({
+        terminalScrollbackRetention: "off",
+        externalSessionIndexingEnabled: false,
+      });
+    });
+
+    await user.click(within(dialog).getByRole("button", { name: "Clear saved transcripts" }));
+    await user.click(within(dialog).getByRole("button", { name: "Confirm clear" }));
+    await waitFor(() => {
+      expect(clearSavedTerminalData).toHaveBeenCalledTimes(1);
+    });
+
+    await user.click(within(dialog).getByRole("button", { name: "Reveal local state file" }));
+    expect(revealStateFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not refresh external Codex sessions when indexing is disabled", async () => {
+    const user = userEvent.setup();
+    const { listExternalCodexSessions } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [],
+      [
+        {
+          id: "019edc4b-0000-7000-9000-disabled",
+          title: "Hidden external session",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          createdAt: 100,
+          updatedAt: 200,
+          transcriptPath: "/Users/patryk/.codex/sessions/hidden.jsonl",
+        },
+      ],
+      {
+        terminalScrollbackRetention: "redactedTail",
+        externalSessionIndexingEnabled: false,
+      },
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open Observatory surface" }));
+
+    expect(await screen.findByText("External Codex indexing is off.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Disabled/i })).toBeDisabled();
+    expect(listExternalCodexSessions).not.toHaveBeenCalled();
+  });
+
+  it("shows a state-not-saved warning and retries the failed save", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge();
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    act(() => {
+      bridge.emitSaveStatus({ status: "saveFailed", message: "Failed to persist desktop state.", failedAt: 123 });
+    });
+
+    const alert = screen.getByRole("alert");
+    expect(within(alert).getByText("State not saved")).toBeInTheDocument();
+    await user.click(within(alert).getByRole("button", { name: "Retry" }));
+
+    expect(bridge.retrySave).toHaveBeenCalledTimes(1);
   });
 
   it("keeps command palette input isolated from the composer and global hotkeys", async () => {
