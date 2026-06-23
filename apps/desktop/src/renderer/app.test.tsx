@@ -38,10 +38,16 @@ vi.mock("@xterm/xterm", () => ({
     focus = vi.fn(() => {
       this.element?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
     });
-    loadAddon = vi.fn();
+    loadAddon = vi.fn((addon: { activate?: (terminal: unknown) => void }) => {
+      addon.activate?.(this);
+    });
     onData = vi.fn(() => ({ dispose: vi.fn() }));
     open = vi.fn((element: HTMLElement) => {
       this.element = element;
+    });
+    resize = vi.fn((cols: number, rows: number) => {
+      this.cols = cols;
+      this.rows = rows;
     });
     write = vi.fn();
     writeln = vi.fn();
@@ -55,7 +61,14 @@ vi.mock("@xterm/xterm", () => ({
 
 vi.mock("@xterm/addon-fit", () => ({
   FitAddon: class {
-    fit = vi.fn();
+    terminal: { resize: (cols: number, rows: number) => void } | null = null;
+    activate = vi.fn((terminal: { resize: (cols: number, rows: number) => void }) => {
+      this.terminal = terminal;
+    });
+    fit = vi.fn(() => {
+      this.terminal?.resize(100, 30);
+    });
+    proposeDimensions = vi.fn(() => ({ cols: 100, rows: 30 }));
   },
 }));
 
@@ -121,6 +134,7 @@ function installDesktopBridge(
   setWorkspaceState: ReturnType<typeof vi.fn>;
   setStagedPlan: ReturnType<typeof vi.fn>;
   prepareLaunch: ReturnType<typeof vi.fn>;
+  resizeTerminal: ReturnType<typeof vi.fn>;
   updateStagedSession: ReturnType<typeof vi.fn>;
   writeTerminal: ReturnType<typeof vi.fn>;
   worktreeApply: ReturnType<typeof vi.fn>;
@@ -210,6 +224,7 @@ function installDesktopBridge(
       ...(request.args === undefined ? {} : { args: request.args }),
     });
   });
+  const resizeTerminal = vi.fn();
   const terminal: TerminalApi = {
     create: createTerminal,
     forget: forgetTerminal,
@@ -225,7 +240,7 @@ function installDesktopBridge(
       exitListeners.add(callback);
       return () => exitListeners.delete(callback);
     }),
-    resize: vi.fn(),
+    resize: resizeTerminal,
     write: writeTerminal,
     worktreeApply,
     worktreeDiff,
@@ -271,6 +286,7 @@ function installDesktopBridge(
     resolveStagedPlan,
     setStagedPlan,
     prepareLaunch,
+    resizeTerminal,
     updateStagedSession,
     bindFolderToWorkspace,
     createWorkspaceFromFolder,
@@ -417,6 +433,64 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     expect(terminalConstructorOptions).toHaveLength(constructorCountBeforeSurfaceSwitch);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeSurfaceSwitch);
+  });
+
+  it("does not resize the backend while the xterm host has no measurable layout", async () => {
+    const { createTerminal, resizeTerminal } = installDesktopBridge();
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledTimes(1);
+    });
+    await act(async () => {});
+
+    expect(resizeTerminal).not.toHaveBeenCalled();
+  });
+
+  it("resizes the backend once xterm fit has stable host geometry", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(
+      this: HTMLElement,
+    ) {
+      if (this.classList.contains("xterm-host")) {
+        return {
+          bottom: 360,
+          height: 360,
+          left: 0,
+          right: 640,
+          top: 0,
+          width: 640,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        } as DOMRect;
+      }
+      return {
+        bottom: 0,
+        height: 0,
+        left: 0,
+        right: 0,
+        top: 0,
+        width: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      } as DOMRect;
+    });
+    const { createTerminal, resizeTerminal } = installDesktopBridge();
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() => {
+      expect(resizeTerminal).toHaveBeenCalledWith({ id: "runtime-1", cols: 100, rows: 30 });
+    });
+    expect(resizeTerminal).toHaveBeenCalledTimes(1);
   });
 
   it("resumes an external Codex Observatory row with the selected session id", async () => {
@@ -3246,6 +3320,10 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Alfred status")).not.toHaveClass("compact");
     expect(createTerminal).not.toHaveBeenCalled();
 
+    await userEvent.click(screen.getByRole("button", { name: "Open Review surface" }));
+    expect(screen.getByRole("button", { name: "Resume latest" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Open Desk surface" }));
+
     await userEvent.click(screen.getByRole("button", { name: "Resume latest Codex · session 9" }));
 
     expect(createTerminal).toHaveBeenCalledWith(
@@ -3610,7 +3688,7 @@ describe("App integration", () => {
     const queue = screen.getByRole("dialog", { name: "Review queue" });
     expect(queue).toHaveTextContent("Manual · zsh 9");
     expect(queue).toHaveTextContent("Codex · session 9");
-    await userEvent.click(within(queue).getByRole("button", { name: "Resume Codex · session 9 in Alfred" }));
+    await userEvent.click(within(queue).getByRole("button", { name: "Resume latest Codex · session 9 in Alfred" }));
 
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(

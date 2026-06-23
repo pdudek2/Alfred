@@ -2197,14 +2197,16 @@ body.arranging-pointer {
 .xterm-host {
   overflow: hidden;
   border-radius: 0 0 10px 10px;
-  padding: 12px 14px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 72px),
     #101010;
 }
 
 .xterm-host .xterm {
+  box-sizing: border-box;
+  width: 100%;
   height: 100%;
+  padding: 12px 14px;
   letter-spacing: 0;
 }
 

@@ -97,6 +97,69 @@ describe("ReviewQueuePanel", () => {
     expect(handlers.onClose).not.toHaveBeenCalled();
   });
 
+  it("labels restored Codex fallback resumes as latest", async () => {
+    const user = userEvent.setup();
+    const handlers = renderPanel({
+      id: "A:codex-9",
+      priority: 5,
+      session: {
+        id: "codex-9",
+        title: "Codex · session 9",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        source: "alfred",
+        stage: "live",
+        runtimeStatus: "restored",
+        command: "codex",
+        args: [],
+        agentKind: "codex",
+      },
+      status: { kind: "restored", label: "restored" },
+      detail: "can be resumed",
+      workspaceId: "A",
+      workspaceLabel: "Alfred",
+      workspaceShortLabel: "A",
+    });
+
+    await user.click(screen.getByRole("button", { name: "Resume latest Codex · session 9 in Alfred" }));
+
+    expect(handlers.onContinueRestoredSession).toHaveBeenCalledWith("codex-9");
+    expect(handlers.onFocusItem).toHaveBeenCalledWith("A", "codex-9");
+    expect(handlers.onClose).toHaveBeenCalled();
+  });
+
+  it("keeps exact restored Codex resumes labelled as resume", () => {
+    renderPanel({
+      id: "A:codex-exact",
+      priority: 5,
+      session: {
+        id: "codex-exact",
+        title: "Codex · exact session",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        source: "alfred",
+        stage: "live",
+        runtimeStatus: "restored",
+        command: "codex",
+        args: [],
+        agentKind: "codex",
+        resumeTarget: {
+          agentKind: "codex",
+          sessionId: "019edc4b-99a7-7781-beb2-b3a2e7d7ff1f",
+          source: "codex-session-index",
+        },
+      },
+      status: { kind: "restored", label: "restored" },
+      detail: "can be resumed",
+      workspaceId: "A",
+      workspaceLabel: "Alfred",
+      workspaceShortLabel: "A",
+    });
+
+    expect(screen.getByRole("button", { name: "Resume Codex · exact session in Alfred" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Resume latest Codex · exact session in Alfred" })).not.toBeInTheDocument();
+  });
+
   it("lets recovery items be discarded without relaunching", async () => {
     const user = userEvent.setup();
     const handlers = renderPanel({

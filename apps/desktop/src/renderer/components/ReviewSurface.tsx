@@ -3,6 +3,8 @@ import { isLaunchBlocked } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { formatCommand } from "../command-display";
+import { sessionRelaunchSafety } from "../relaunch-safety";
+import { restoredSessionActionLabel } from "../restored-session-action";
 import type { WorkspaceReviewItem } from "../workspace-attention";
 
 type ReviewSurfaceProps = {
@@ -133,9 +135,11 @@ function ReviewSurfaceItem({
   const checking = item.status.kind === "checking";
   const recoveryAction = item.status.kind === "restored" || item.status.kind === "done" || item.status.kind === "error";
   const stagedAction = item.status.kind === "staged" || item.status.kind === "blocked" || item.status.kind === "checking";
+  const relaunchSafety = recoveryAction ? sessionRelaunchSafety(item.session) : { safe: true };
+  const relaunchNeedsReview = recoveryAction && !relaunchSafety.safe;
   const ageSource = item.session.lastActivityAt ?? item.session.createdAt;
   const ageLabel = sessionAgeLabel(ageSource);
-  const action = reviewSurfaceAction(item.status.kind, armed);
+  const action = reviewSurfaceAction(item, relaunchNeedsReview, armed);
 
   const runAction = () => {
     if (hardBlocked || checking) return;
@@ -226,10 +230,10 @@ function ReviewSurfaceItem({
   );
 }
 
-function reviewSurfaceAction(kind: WorkspaceReviewItem["status"]["kind"], armed: boolean): string {
-  switch (kind) {
+function reviewSurfaceAction(item: WorkspaceReviewItem, unsafe: boolean, armed: boolean): string {
+  switch (item.status.kind) {
     case "restored":
-      return armed ? "Confirm resume" : "Resume";
+      return restoredSessionActionLabel(item.session, unsafe, armed);
     case "done":
       return armed ? "Confirm restart" : "Restart";
     case "error":
