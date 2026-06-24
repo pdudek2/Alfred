@@ -14,6 +14,7 @@ import { managedProjectWorktreeRoot } from "./git-worktree.js";
 
 type WorkspaceIpcOptions = {
   managedWorktreeRootPath?: string;
+  scratchRootPath?: string;
 };
 
 export function registerWorkspaceIpc(store: WorkspaceStore, options: WorkspaceIpcOptions = {}): void {
@@ -73,13 +74,16 @@ export async function allowedWorkspaceRoots(store: WorkspaceStore, options: Work
     return [legacyProjectWorktreeRoot(workspace.rootPath)];
   });
   const managedRoot = options.managedWorktreeRootPath?.trim();
-  if (!managedRoot) return [...workspaceRoots, ...legacyProjectRoots];
+  const baseRoots = [...workspaceRoots, ...legacyProjectRoots];
+  const scratchRoot = options.scratchRootPath?.trim();
+  const withScratchRoot = (roots: string[]) => (scratchRoot ? [...roots, path.resolve(scratchRoot)] : roots);
+  if (!managedRoot) return withScratchRoot(baseRoots);
 
   const managedProjectRoots = state.workspaces.flatMap((workspace) => {
     if (!workspace.rootPath) return [];
     return [managedProjectWorktreeRoot(managedRoot, workspace.rootPath)];
   });
-  return [...workspaceRoots, ...legacyProjectRoots, ...managedProjectRoots];
+  return withScratchRoot([...baseRoots, ...managedProjectRoots]);
 }
 
 function legacyProjectWorktreeRoot(rootPath: string): string {
