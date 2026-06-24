@@ -12,6 +12,7 @@ import {
 import { registerAlfredIpc } from "./alfred-orchestrator.js";
 import { registerLayoutIpc } from "./layout-ipc.js";
 import { registerSessionIndexIpc } from "./session-index-ipc.js";
+import { codexScratchRootPath } from "./codex-scratch.js";
 import { registerDesktopStateIpc } from "./desktop-state-ipc.js";
 import { configureLayoutPersistence } from "./layout-store.js";
 import { createPersistedDesktopStateStore, type PersistedDesktopStateStore } from "./persisted-desktop-state.js";
@@ -111,7 +112,7 @@ app.whenReady().then(async () => {
   });
   const defaultWorkspaceRootPath = resolveDefaultWorkspaceRootPath(app.getAppPath());
   const managedWorktreeRootPath = path.join(app.getPath("userData"), "worktrees");
-  const scratchRootPath = path.join(app.getPath("userData"), "scratch");
+  const scratchRootPath = codexScratchRootPath(app.getPath("documents"));
   const workspaceStore = createWorkspaceStore({
     persistedStateStore: persistedDesktopStateStore,
     defaultRootPath: defaultWorkspaceRootPath,

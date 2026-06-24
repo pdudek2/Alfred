@@ -11,6 +11,7 @@ import { openExternalTerminal } from "./external-terminal.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 import { resolveWorkspacePathForReveal } from "./workspace-path.js";
 import { managedProjectWorktreeRoot } from "./git-worktree.js";
+import { scratchWorkspacePath } from "./codex-scratch.js";
 
 type WorkspaceIpcOptions = {
   managedWorktreeRootPath?: string;
@@ -76,7 +77,13 @@ export async function allowedWorkspaceRoots(store: WorkspaceStore, options: Work
   const managedRoot = options.managedWorktreeRootPath?.trim();
   const baseRoots = [...workspaceRoots, ...legacyProjectRoots];
   const scratchRoot = options.scratchRootPath?.trim();
-  const withScratchRoot = (roots: string[]) => (scratchRoot ? [...roots, path.resolve(scratchRoot)] : roots);
+  const scratchWorkspaceRoots = scratchRoot
+    ? [
+        scratchWorkspacePath(scratchRoot),
+        ...state.workspaces.map((workspace) => scratchWorkspacePath(scratchRoot, workspace.id)),
+      ]
+    : [];
+  const withScratchRoot = (roots: string[]) => [...roots, ...scratchWorkspaceRoots];
   if (!managedRoot) return withScratchRoot(baseRoots);
 
   const managedProjectRoots = state.workspaces.flatMap((workspace) => {

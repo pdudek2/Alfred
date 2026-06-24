@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { openExternalTerminal } from "./external-terminal.js";
+import { scratchWorkspacePath } from "./codex-scratch.js";
 import { managedProjectWorktreeRoot } from "./git-worktree.js";
 import { resolveWorkspacePathForReveal } from "./workspace-path.js";
 import { allowedWorkspaceRoots } from "./workspace-ipc.js";
@@ -56,7 +57,7 @@ describe("workspace IPC allowed roots", () => {
     const workspaceRoot = path.join(temporaryDirectory, "workspace");
     const userDataRoot = path.join(temporaryDirectory, "userData");
     const scratchRoot = path.join(userDataRoot, "scratch");
-    const scratchCwd = path.join(scratchRoot, "workspace-1");
+    const scratchCwd = scratchWorkspacePath(scratchRoot, "workspace-1");
     const scratchFile = path.join(scratchCwd, "notes.txt");
     await fs.mkdir(workspaceRoot, { recursive: true });
     await fs.mkdir(scratchCwd, { recursive: true });
@@ -87,7 +88,8 @@ describe("workspace IPC allowed roots", () => {
         resolvedPath: scratchCwd,
         terminal: "Ghostty",
       });
-      expect(roots).toContain(path.resolve(scratchRoot));
+      expect(roots).toContain(path.resolve(scratchCwd));
+      expect(roots).not.toContain(path.resolve(scratchRoot));
       expect(roots).not.toContain(path.resolve(userDataRoot));
     } finally {
       await fs.rm(temporaryDirectory, { force: true, recursive: true });

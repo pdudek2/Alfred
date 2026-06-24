@@ -14,6 +14,7 @@ import {
   type SessionActivityPayload,
 } from "../shared/session-activity.js";
 import { normalizeAgentCommand } from "../shared/agent-command.js";
+import { scratchWorkspacePath } from "./codex-scratch.js";
 import {
   terminalChannels,
   type PersistedTerminalSessionSnapshot,
@@ -1081,7 +1082,7 @@ function resolveTerminalCwd(cwd: string | undefined, scratchRootPath?: string, w
 
 function defaultScratchCwd(scratchRootPath?: string, workspaceId?: string): string {
   if (scratchRootPath?.trim()) {
-    return path.join(path.resolve(scratchRootPath), safeScratchSegment(workspaceId ?? "default"));
+    return scratchWorkspacePath(scratchRootPath, workspaceId);
   }
 
   const configured = process.env.ALFRED_DESKTOP_WORKSPACE_CWD?.trim();
@@ -1102,10 +1103,6 @@ async function ensureScratchCwdExists(cwd: string, scratchRootPath?: string): Pr
   }
 
   await mkdir(resolvedCwd, { recursive: true });
-}
-
-function safeScratchSegment(value: string): string {
-  return value.trim().replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "default";
 }
 
 function normalizeDimension(value: number, fallback: number): number {
