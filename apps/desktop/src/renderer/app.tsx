@@ -1643,8 +1643,12 @@ export function App() {
       })
       .catch(() => {
         if (!cancelled) {
-          setTerminalSessions([]);
-          workspaceStateHydratedRef.current = true;
+          setDesktopSaveStatus((current) =>
+            current.status === "saveFailed"
+              ? current
+              : { status: "saveFailed", message: "Failed to hydrate desktop state.", failedAt: Date.now() },
+          );
+          workspaceStateHydratedRef.current = false;
         }
       });
 
