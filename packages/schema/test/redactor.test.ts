@@ -182,6 +182,17 @@ describe("redactPayload", () => {
     ).toContain("[redacted]");
   });
 
+  it("redacts multi-token authorization assignment values", () => {
+    expect(redactText("AUTHORIZATION=Bearer abc.def.ghi")).toBe("AUTHORIZATION=[redacted]");
+    expect(redactText("AUTHORIZATION=Basic dXNlcjpwYXNz")).toBe("AUTHORIZATION=[redacted]");
+  });
+
+  it("preserves shell command context around embedded header secrets", () => {
+    expect(redactText("curl -H 'X-Api-Key: abc123def4567890' https://example.test")).toBe(
+      "curl -H 'X-Api-Key: [redacted]' https://example.test",
+    );
+  });
+
   it("keeps only minimal keys in minimal mode", () => {
     expect(
       redactPayload(
