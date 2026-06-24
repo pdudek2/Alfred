@@ -1236,6 +1236,36 @@ describe("App integration", () => {
     });
   });
 
+  it("preserves live sessions and avoids empty workspace saves when hydration fails", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, setWorkspaceState } = installDesktopBridge();
+    let rejectHydration!: (error: Error) => void;
+    const hydrationFailure = new Promise<Awaited<ReturnType<TerminalApi["list"]>>>((_, reject) => {
+      rejectHydration = reject;
+    });
+    window.alfredDesktop!.terminal.list = vi.fn().mockReturnValue(hydrationFailure);
+
+    render(<App />);
+
+    await user.click(
+      within(screen.getByRole("group", { name: "terminal actions" })).getByRole("button", { name: "New terminal" }),
+    );
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "manual-1" }));
+    });
+
+    await act(async () => {
+      rejectHydration(new Error("transient terminal hydration failure"));
+      await hydrationFailure.catch(() => undefined);
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("State not saved");
+    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "Empty workspace" })).not.toBeInTheDocument();
+    expect(setWorkspaceState).not.toHaveBeenCalled();
+  });
+
   it("does not create a duplicate PTY when the shell rerenders", async () => {
     const user = userEvent.setup();
     const { createTerminal } = installDesktopBridge();
