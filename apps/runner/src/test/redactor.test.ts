@@ -259,6 +259,11 @@ describe("redactPayload", () => {
     ).toBe("[redacted]");
   });
 
+  it("redacts quoted multi-word CLI secret argument values", () => {
+    expect(redactText('deploy --password "correct horse battery staple"')).toBe("deploy --password [redacted]");
+    expect(redactText("deploy --token 'abc def'")).toBe("deploy --token [redacted]");
+  });
+
   it("redacts multi-token authorization assignment values", () => {
     expect(redactText("AUTHORIZATION=Bearer abc.def.ghi")).toBe("AUTHORIZATION=[redacted]");
     expect(redactText("AUTHORIZATION=Basic dXNlcjpwYXNz")).toBe("AUTHORIZATION=[redacted]");
