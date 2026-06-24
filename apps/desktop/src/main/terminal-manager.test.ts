@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowserWindow, ipcMain } from "electron";
+import { existsSync } from "node:fs";
+import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -850,25 +852,72 @@ describe("terminal-manager IPC", () => {
   });
 
   it("uses an app-owned scratch root instead of Desktop or Home when cwd is omitted", async () => {
+    const temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "alfred-terminal-scratch-"));
+    const canonicalTemporaryDirectory = await fs.realpath(temporaryDirectory);
+    const scratchRootPath = path.join(temporaryDirectory, "userData", "scratch");
+    const expectedCanonicalCwd = path.join(canonicalTemporaryDirectory, "userData", "scratch", "A");
     const pty = new FakePty();
     const nodePty = fakeNodePty(pty);
     registerTerminalIpc({
+      allowedCwdRoots: async () => [scratchRootPath],
       loadNodePty: async () => nodePty as never,
-      scratchRootPath: "/alfred/userData/scratch",
+      scratchRootPath,
     });
 
-    const created = await invoke<{ cwd: string }>(terminalChannels.create, {
-      cols: 80,
-      rows: 24,
-      workspaceId: "A",
+    try {
+      const created = await invoke<{ cwd: string }>(terminalChannels.create, {
+        cols: 80,
+        rows: 24,
+        workspaceId: "A",
+      });
+
+      expect(created.cwd).toBe(expectedCanonicalCwd);
+      expect(nodePty.spawn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Array),
+        expect.objectContaining({ cwd: expectedCanonicalCwd }),
+      );
+    } finally {
+      await fs.rm(temporaryDirectory, { force: true, recursive: true });
+    }
+  });
+
+  it("creates app-owned scratch cwd before spawning an agent", async () => {
+    const temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "alfred-terminal-scratch-"));
+    const canonicalTemporaryDirectory = await fs.realpath(temporaryDirectory);
+    const scratchRootPath = path.join(temporaryDirectory, "userData", "scratch");
+    const expectedCanonicalCwd = path.join(canonicalTemporaryDirectory, "userData", "scratch", "W13");
+    const pty = new FakePty();
+    const nodePty = {
+      spawn: vi.fn((_command: string, _args: string[], options: { cwd?: string }) => {
+        expect(options.cwd).toBe(expectedCanonicalCwd);
+        expect(existsSync(expectedCanonicalCwd)).toBe(true);
+        return pty;
+      }),
+    };
+    registerTerminalIpc({
+      allowedCwdRoots: async () => [scratchRootPath],
+      loadNodePty: async () => nodePty as never,
+      scratchRootPath,
     });
 
-    expect(created.cwd).toBe("/alfred/userData/scratch/A");
-    expect(nodePty.spawn).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(Array),
-      expect.objectContaining({ cwd: "/alfred/userData/scratch/A" }),
-    );
+    try {
+      await invoke(terminalChannels.create, {
+        agentKind: "codex",
+        command: "codex",
+        cols: 80,
+        rows: 24,
+        workspaceId: "W13",
+      });
+
+      expect(nodePty.spawn).toHaveBeenCalledWith(
+        "codex",
+        [],
+        expect.objectContaining({ cwd: expectedCanonicalCwd }),
+      );
+    } finally {
+      await fs.rm(temporaryDirectory, { force: true, recursive: true });
+    }
   });
 
   it("creates an isolated worktree before spawning an agent session", async () => {
