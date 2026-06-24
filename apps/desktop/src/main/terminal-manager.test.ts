@@ -714,6 +714,48 @@ describe("terminal-manager IPC", () => {
     ).rejects.toThrow("Terminal launch ticket does not match this request.");
   });
 
+  it("accepts launch tickets for symlinked cwd and spawns with the canonical cwd", async () => {
+    const fs = await import("node:fs/promises");
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "alfred-terminal-ticket-cwd-"));
+    const actual = path.join(root, "actual");
+    const link = path.join(root, "link");
+    await fs.mkdir(actual);
+    await fs.symlink(actual, link, "dir");
+    const canonicalLink = await fs.realpath(link);
+    const nodePty = fakeNodePty(new FakePty());
+    registerTerminalIpc({
+      allowedCwdRoots: async () => [root],
+      loadNodePty: async () => nodePty as never,
+      requireLaunchTickets: true,
+    });
+    const request: TerminalCreateRequest = {
+      agentKind: "codex",
+      clientId: "codex-link",
+      command: "codex",
+      cols: 80,
+      cwd: link,
+      rows: 24,
+      source: "manual",
+    };
+
+    try {
+      const prepared = await invoke<{ launchTicketId: string }>(terminalChannels.prepareLaunch, request);
+      const created = await invoke<{ cwd: string }>(terminalChannels.create, {
+        ...request,
+        launchTicketId: prepared.launchTicketId,
+      });
+
+      expect(created.cwd).toBe(canonicalLink);
+      expect(nodePty.spawn).toHaveBeenCalledWith(
+        "codex",
+        [],
+        expect.objectContaining({ cwd: canonicalLink }),
+      );
+    } finally {
+      await fs.rm(root, { force: true, recursive: true });
+    }
+  });
+
   it("allows custom Alfred commands only when the staged plan store approves them", async () => {
     const pty = new FakePty();
     const nodePty = fakeNodePty(pty);

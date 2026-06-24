@@ -63,7 +63,7 @@ describe("external-terminal", () => {
     await expect(
       openExternalTerminal(
         { cwd: temporaryDirectory },
-        { platform: "darwin", env: {}, spawnImpl: spawned as never },
+        { allowedRoots: [temporaryDirectory], platform: "darwin", env: {}, spawnImpl: spawned as never },
       ),
     ).resolves.toEqual({
       ok: true,
@@ -87,7 +87,12 @@ describe("external-terminal", () => {
       ok: false,
       error: "No cwd to open.",
     });
-    await expect(openExternalTerminal({ cwd: path.join(temporaryDirectory, "missing") }, { spawnImpl: spawned as never })).resolves.toEqual({
+    await expect(
+      openExternalTerminal(
+        { cwd: path.join(temporaryDirectory, "missing") },
+        { allowedRoots: [temporaryDirectory], spawnImpl: spawned as never },
+      ),
+    ).resolves.toEqual({
       ok: false,
       error: "Directory does not exist.",
       resolvedPath: path.join(temporaryDirectory, "missing"),
