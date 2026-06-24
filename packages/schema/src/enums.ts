@@ -19,6 +19,16 @@ export const RunStatus = z.enum([
   "unknown",
 ]);
 
+export const RUN_LIFECYCLE_STATUSES = [
+  "running",
+  "waiting",
+  "failed",
+  "cancelled",
+  "completed",
+  "stale",
+  "other",
+] as const;
+
 export const EventType = z.enum([
   "run.started",
   "run.updated",
@@ -39,4 +49,5 @@ export const EventType = z.enum([
 export type AgentSource = z.infer<typeof AgentSource>;
 export type PrivacyMode = z.infer<typeof PrivacyMode>;
 export type RunStatus = z.infer<typeof RunStatus>;
+export type RunLifecycleStatus = (typeof RUN_LIFECYCLE_STATUSES)[number];
 export type EventType = z.infer<typeof EventType>;

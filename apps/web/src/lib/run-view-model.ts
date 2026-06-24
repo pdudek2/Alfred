@@ -1,3 +1,4 @@
+import type { RunLifecycleStatus } from "@alfred/schema";
 import type { RunDetail, RunEventItem, RunListItem } from "./api-client";
 import { formatDateTime, formatDuration } from "./time";
 import { normalizeStatus } from "./status";
@@ -6,7 +7,7 @@ export type RunTab = "all" | "live" | "needs" | "problems" | "done";
 export type TriageTab = RunTab;
 export type RunGrouping = "status" | "project" | "flat";
 export type ActivityKind = "failure" | "waiting" | "tool" | "run" | "other";
-export type RunTriageState = "running" | "waiting" | "failed" | "cancelled" | "completed" | "stale" | "other";
+export type RunTriageState = RunLifecycleStatus;
 
 const STALE_RUN_AFTER_MS = 2 * 60 * 60 * 1000;
 

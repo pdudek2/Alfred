@@ -176,6 +176,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@alfred/schema':
+        specifier: workspace:*
+        version: link:../../packages/schema
       '@vitejs/plugin-react':
         specifier: latest
         version: 6.0.1(vite@8.0.11(@types/node@25.6.0)(esbuild@0.28.0)(tsx@4.21.0))

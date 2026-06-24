@@ -1,5 +1,5 @@
 import { and, desc, eq, gte, sql, type SQL } from "drizzle-orm";
-import type { AgentSource, RunStatus } from "@alfred/schema";
+import type { AgentSource, RunLifecycleStatus, RunStatus } from "@alfred/schema";
 import {
   events,
   projects,
@@ -13,8 +13,6 @@ export type RunsListFilters = {
   status?: RunStatus;
   projectKey?: string;
 };
-
-export type RunLifecycleStatus = "running" | "waiting" | "failed" | "cancelled" | "completed" | "stale" | "other";
 
 const STALE_RUN_AFTER_MS = 2 * 60 * 60 * 1000;
 const OPS_SMOKE_PROJECT_KEY = "ops-smoke";
