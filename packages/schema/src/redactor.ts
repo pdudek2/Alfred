@@ -8,7 +8,7 @@ const SECRET_KEY_PATTERN =
 const SECRET_ASSIGNMENT_PATTERN =
   /\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|PASSPHRASE|API[_-]?KEY|AUTHORIZATION|CREDENTIAL|COOKIE|PRIVATE[_-]?KEY|ACCESS[_-]?TOKEN|REFRESH[_-]?TOKEN|CLIENT[_-]?SECRET|SESSION[_-]?ID|SIGNATURE)[A-Z0-9_]*)(\s*[:=]\s*)("[^"]+"|'[^']+'|(?:Bearer|Basic)\s+[^\s"'`;,]+|[^\s"'`;,]+)/gi;
 const CLI_SECRET_ARG_PATTERN =
-  /\B--(?:token|api-key|apikey|password|secret|client-secret|access-token|refresh-token)(?:=|\s+)("[^"]+"|'[^']+'|[^\s"'`]+)/gi;
+  /(\B--(?:token|api-key|apikey|password|secret|client-secret|access-token|refresh-token)(?:=|\s+))("[^"]+"|'[^']+'|[^\s"'`]+)/gi;
 const QUOTED_HEADER_SECRET_PATTERN =
   /(["'])([^"']*\b(?:authorization|x-api-key|api-key|cookie)\s*:\s*)([^"']+)\1/gi;
 const HEADER_SECRET_PATTERN =
@@ -96,8 +96,8 @@ function redactSecretText(value: string, options: RedactValueOptions = STANDARD_
     .replace(SECRET_ASSIGNMENT_PATTERN, (match, key, separator) =>
       match.includes(REDACTED) ? match : `${key}${separator}${REDACTED}`,
     )
-    .replace(CLI_SECRET_ARG_PATTERN, (match) =>
-      match.includes("=") ? match.replace(/=.*/, `=${REDACTED}`) : match.replace(/\s+\S+$/, ` ${REDACTED}`),
+    .replace(CLI_SECRET_ARG_PATTERN, (match, prefix) =>
+      match.includes(REDACTED) ? match : `${prefix}${REDACTED}`,
     );
   const withoutSecrets = SECRET_TEXT_PATTERNS.reduce(
     (text, pattern) => text.replace(pattern, REDACTED),
