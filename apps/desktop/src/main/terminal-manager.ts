@@ -688,10 +688,6 @@ async function persistTerminalSnapshots(): Promise<void> {
     const restoredTerminalSessions = [...restoredSessionSnapshots.values()].map((session) =>
       preparePersistedSessionForPrivacy(session, current.privacySettings),
     );
-    restoredSessionSnapshots.clear();
-    for (const session of restoredTerminalSessions) {
-      restoredSessionSnapshots.set(session.clientId, clonePersistedSession(session));
-    }
     return {
       ...current,
       restoredTerminalSessions,
