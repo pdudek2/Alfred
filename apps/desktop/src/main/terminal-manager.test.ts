@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowserWindow, ipcMain } from "electron";
+import os from "node:os";
+import path from "node:path";
 import {
   configureTerminalPersistence,
   flushTerminalPersistence,
   getTerminalSessionCount,
   killAllTerminalSessions,
-  registerTerminalIpc,
+  registerTerminalIpc as registerTerminalIpcBase,
   resetTerminalPersistenceForTests,
 } from "./terminal-manager.js";
 import { terminalChannels } from "../shared/terminal-ipc.js";
@@ -83,6 +85,25 @@ function fakeNodePty(pty: FakePty) {
   return {
     spawn: vi.fn(() => pty),
   };
+}
+
+function defaultAllowedCwdRoots(): string[] {
+  return [
+    "/repo",
+    "/tmp/alfred-scratch",
+    "/alfred/userData/scratch",
+    "/.alfred-worktrees",
+    "/alfred/userData/worktrees",
+    path.join(os.homedir(), "Desktop"),
+    os.homedir(),
+  ];
+}
+
+function registerTerminalIpc(options: Parameters<typeof registerTerminalIpcBase>[0] = {}): void {
+  registerTerminalIpcBase({
+    allowedCwdRoots: async () => defaultAllowedCwdRoots(),
+    ...options,
+  });
 }
 
 function senderFor(window: ReturnType<typeof fakeWindow>): object {
@@ -538,6 +559,25 @@ describe("terminal-manager IPC", () => {
     expect(nodePty.spawn).not.toHaveBeenCalled();
   });
 
+  it("rejects terminal cwd when allowed roots are empty", async () => {
+    const nodePty = fakeNodePty(new FakePty());
+    registerTerminalIpc({
+      allowedCwdRoots: async () => [],
+      loadNodePty: async () => nodePty as never,
+    });
+
+    await expect(
+      invoke(terminalChannels.create, {
+        command: "node",
+        cols: 80,
+        cwd: "/private/etc",
+        rows: 24,
+      }),
+    ).rejects.toThrow("Terminal cwd is outside registered workspaces.");
+
+    expect(nodePty.spawn).not.toHaveBeenCalled();
+  });
+
   it("blocks terminal cwd symlinks that resolve outside registered workspaces", async () => {
     const fs = await import("node:fs/promises");
     const os = await import("node:os");
@@ -565,6 +605,38 @@ describe("terminal-manager IPC", () => {
         }),
       ).rejects.toThrow("Terminal cwd is outside registered workspaces.");
       expect(nodePty.spawn).not.toHaveBeenCalled();
+    } finally {
+      await fs.rm(root, { force: true, recursive: true });
+    }
+  });
+
+  it("spawns using the canonical cwd after symlink validation", async () => {
+    const fs = await import("node:fs/promises");
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "alfred-terminal-cwd-"));
+    const actual = path.join(root, "actual");
+    const link = path.join(root, "link");
+    await fs.mkdir(actual);
+    await fs.symlink(actual, link, "dir");
+    const canonicalLink = await fs.realpath(link);
+    const nodePty = fakeNodePty(new FakePty());
+    registerTerminalIpc({
+      allowedCwdRoots: async () => [root],
+      loadNodePty: async () => nodePty as never,
+    });
+
+    try {
+      await invoke(terminalChannels.create, {
+        command: "node",
+        cols: 80,
+        cwd: link,
+        rows: 24,
+      });
+
+      expect(nodePty.spawn).toHaveBeenCalledWith(
+        "node",
+        [],
+        expect.objectContaining({ cwd: canonicalLink }),
+      );
     } finally {
       await fs.rm(root, { force: true, recursive: true });
     }
@@ -672,6 +744,8 @@ describe("terminal-manager IPC", () => {
     const nodePty = fakeNodePty(pty);
     vi.stubEnv("ALFRED_DESKTOP_WORKSPACE_CWD", "/tmp/alfred-scratch");
     registerTerminalIpc({ loadNodePty: async () => nodePty as never });
+    const fs = await import("node:fs/promises");
+    const expectedCwd = path.join(await fs.realpath("/tmp"), "alfred-scratch");
 
     const created = await invoke<{ cwd: string }>(terminalChannels.create, {
       command: "node",
@@ -682,9 +756,9 @@ describe("terminal-manager IPC", () => {
     expect(nodePty.spawn).toHaveBeenCalledWith(
       "node",
       [],
-      expect.objectContaining({ cols: 80, cwd: "/tmp/alfred-scratch", rows: 24 }),
+      expect.objectContaining({ cols: 80, cwd: expectedCwd, rows: 24 }),
     );
-    expect(created.cwd).toBe("/tmp/alfred-scratch");
+    expect(created.cwd).toBe(expectedCwd);
   });
 
   it("uses an app-owned scratch root instead of Desktop or Home when cwd is omitted", async () => {
