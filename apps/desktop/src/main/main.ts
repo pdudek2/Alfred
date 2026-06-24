@@ -111,21 +111,19 @@ app.whenReady().then(async () => {
   });
   const defaultWorkspaceRootPath = resolveDefaultWorkspaceRootPath(app.getAppPath());
   const managedWorktreeRootPath = path.join(app.getPath("userData"), "worktrees");
+  const scratchRootPath = path.join(app.getPath("userData"), "scratch");
   const workspaceStore = createWorkspaceStore({
     persistedStateStore: persistedDesktopStateStore,
     defaultRootPath: defaultWorkspaceRootPath,
   });
   registerTerminalIpc({
-    allowedCwdRoots: async () => [
-      ...(await allowedWorkspaceRoots(workspaceStore, { managedWorktreeRootPath })),
-      path.join(app.getPath("userData"), "scratch"),
-    ],
+    allowedCwdRoots: async () => allowedWorkspaceRoots(workspaceStore, { managedWorktreeRootPath, scratchRootPath }),
     isStagedCommandAllowed: isStagedSessionLaunchAllowed,
     managedWorktreeRootPath,
     requireLaunchTickets: true,
-    scratchRootPath: path.join(app.getPath("userData"), "scratch"),
+    scratchRootPath,
   });
-  registerWorkspaceIpc(workspaceStore, { managedWorktreeRootPath });
+  registerWorkspaceIpc(workspaceStore, { managedWorktreeRootPath, scratchRootPath });
   await createWindow(persistedDesktopStateStore);
 
   app.on("activate", () => {

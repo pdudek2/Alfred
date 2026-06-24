@@ -165,6 +165,22 @@ describe("redactPayload", () => {
     });
   });
 
+  it("redacts GitHub fine-grained personal access tokens in text payloads", () => {
+    expect(redactText("token github_pat_1234567890abcdef_1234567890abcdef")).toBe("token [redacted]");
+    expect(
+      redactPayload(
+        {
+          summary: "pushed github_pat_1234567890abcdef_1234567890abcdef",
+          status: "ok",
+        },
+        "minimal",
+      ),
+    ).toEqual({
+      summary: "pushed [redacted]",
+      status: "ok",
+    });
+  });
+
   it("keeps only minimal keys in minimal mode", () => {
     expect(
       redactPayload(
