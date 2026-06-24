@@ -4,6 +4,7 @@ import {
   FieldReportSchema,
   IngestBatchSchema,
   PrivacyPolicySchema,
+  RUN_LIFECYCLE_STATUSES,
 } from "../src/index";
 import type { IngestBatch, IngestBatchInput } from "../src/index";
 
@@ -129,5 +130,17 @@ describe("schema contracts", () => {
     const parsed = PrivacyPolicySchema.parse({});
     expect(parsed.mode).toBe("standard");
     expect(parsed.denied_artifact_globs).toContain(".env");
+  });
+
+  it("exports the current run lifecycle status vocabulary", () => {
+    expect(RUN_LIFECYCLE_STATUSES).toEqual([
+      "running",
+      "waiting",
+      "failed",
+      "cancelled",
+      "completed",
+      "stale",
+      "other",
+    ]);
   });
 });
