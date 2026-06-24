@@ -156,10 +156,16 @@ app.on("before-quit", (event) => {
   if (!terminalPersistenceFlushedForQuit) {
     event.preventDefault();
     killAllTerminalSessions();
-    void Promise.all([flushTerminalPersistence(), activeWindowStatePersistence?.flush() ?? Promise.resolve()]).finally(() => {
-      terminalPersistenceFlushedForQuit = true;
-      app.quit();
-    });
+    void Promise.all([flushTerminalPersistence(), activeWindowStatePersistence?.flush() ?? Promise.resolve()])
+      .then(() => {
+        terminalPersistenceFlushedForQuit = true;
+        app.quit();
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to flush desktop state before quit.", error);
+        terminalPersistenceFlushedForQuit = true;
+        app.quit();
+      });
     return;
   }
 
