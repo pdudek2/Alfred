@@ -33,6 +33,7 @@ export type SessionTile = {
   command?: string;
   args?: string[];
   resumeTarget?: TerminalResumeTarget;
+  resumeMode?: "exact" | "latest";
   agentKind?: AgentKind;
   safetyNote?: string;
   launchPreflight?: AlfredLaunchPreflight;
@@ -239,6 +240,7 @@ export function hydratePersistedTerminalSessions(snapshots: PersistedTerminalSes
     ...(snapshot.args === undefined ? {} : { args: snapshot.args }),
     ...(snapshot.resumeTarget === undefined ? {} : { resumeTarget: snapshot.resumeTarget }),
     ...(snapshot.agentKind === undefined ? {} : { agentKind: snapshot.agentKind }),
+    ...resumeModeForRestoredAgent(snapshot),
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
     ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
     ...(snapshot.lastOutputAt === undefined ? {} : { lastOutputAt: snapshot.lastOutputAt }),
@@ -273,14 +275,14 @@ export function hydrateStagedPlanSessions(
 
 function resumeLaunchForRestoredAgent(
   session: Pick<SessionTile, "agentKind" | "args" | "command" | "resumeTarget">,
-): Pick<SessionTile, "command" | "args"> {
-  const agentKind = session.agentKind ?? (session.command === "codex" || session.command === "claude" ? session.command : undefined);
+): Pick<SessionTile, "command" | "args" | "resumeMode"> {
+  const agentKind = restoredAgentKind(session);
 
   if (agentKind === "codex") {
     if (session.resumeTarget?.agentKind === "codex") {
-      return { command: "codex", args: ["resume", session.resumeTarget.sessionId] };
+      return { command: "codex", args: ["resume", session.resumeTarget.sessionId], resumeMode: "exact" };
     }
-    return { command: "codex", args: codexResumeArgs(session.args) };
+    return { command: "codex", args: ["resume", "--last"], resumeMode: "latest" };
   }
 
   if (agentKind === "claude") {
@@ -290,12 +292,17 @@ function resumeLaunchForRestoredAgent(
   return {};
 }
 
-function codexResumeArgs(args: string[] | undefined): string[] {
-  if (args?.[0] === "resume" && args[1] && args[1] !== "--last") {
-    return ["resume", args[1]];
-  }
+function resumeModeForRestoredAgent(
+  session: Pick<SessionTile, "agentKind" | "command" | "resumeTarget">,
+): Pick<SessionTile, "resumeMode"> {
+  if (restoredAgentKind(session) !== "codex") return {};
+  return { resumeMode: session.resumeTarget?.agentKind === "codex" ? "exact" : "latest" };
+}
 
-  return ["resume", "--last"];
+function restoredAgentKind(
+  session: Pick<SessionTile, "agentKind" | "command">,
+): AgentKind | undefined {
+  return session.agentKind ?? (session.command === "codex" || session.command === "claude" ? session.command : undefined);
 }
 
 function plannedSessionIsolation(
