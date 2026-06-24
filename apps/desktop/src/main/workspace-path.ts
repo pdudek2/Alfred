@@ -73,13 +73,13 @@ function resolveWorkspacePath(rawPath: string, cwd: string | undefined): string 
 
 export async function isAllowedWorkspacePath(resolvedPath: string, allowedRoots: string[] | undefined): Promise<boolean> {
   const roots = await Promise.all((allowedRoots ?? []).map((root) => canonicalWorkspacePath(root)));
-  if (roots.length === 0) return true;
+  if (roots.length === 0) return false;
 
   const normalizedPath = await canonicalWorkspacePath(resolvedPath);
   return roots.some((root) => normalizedPath === root || normalizedPath.startsWith(`${root}${path.sep}`));
 }
 
-async function canonicalWorkspacePath(value: string): Promise<string> {
+export async function canonicalWorkspacePath(value: string): Promise<string> {
   const resolved = path.resolve(value);
   try {
     return await fs.realpath(resolved);

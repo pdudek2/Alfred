@@ -45,7 +45,7 @@ import {
   type AgentWorktreeResult,
 } from "./git-worktree.js";
 import type { DesktopPrivacySettings, PersistedDesktopStateStore } from "./persisted-desktop-state.js";
-import { isAllowedWorkspacePath } from "./workspace-path.js";
+import { canonicalWorkspacePath, isAllowedWorkspacePath } from "./workspace-path.js";
 
 type PtyProcess = import("node-pty").IPty;
 type NodePtyModule = typeof import("node-pty");
@@ -171,7 +171,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     async (_event, request: TerminalCreateRequest) => {
       const safeRequest = validateTerminalCreateRequest(request);
       await validateTerminalCommandApproval(safeRequest, options.isStagedCommandAllowed);
-      await validateTerminalCwd(safeRequest, options.allowedCwdRoots);
+      await resolveValidatedTerminalCwd(safeRequest, options);
       const launchTicketId = randomUUID();
       const expiresAt = Date.now() + (options.launchTicketTtlMs ?? 2 * 60 * 1000);
       launchTickets.set(launchTicketId, {
@@ -197,7 +197,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       } else {
         await validateTerminalCommandApproval(safeRequest, options.isStagedCommandAllowed);
       }
-      await validateTerminalCwd(safeRequest, options.allowedCwdRoots);
+      const canonicalCwd = await resolveValidatedTerminalCwd(safeRequest, options);
       const launchCwd = await resolveLaunchCwd(
         safeRequest,
         options.prepareAgentWorktree ?? defaultPrepareAgentWorktree,
@@ -205,6 +205,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           ...terminalWorktreeOptions(options),
           ...(options.scratchRootPath === undefined ? {} : { scratchRootPath: options.scratchRootPath }),
         },
+        canonicalCwd,
       );
       const cwd = typeof launchCwd === "string" ? launchCwd : launchCwd.cwd;
       const nodePty = await (options.loadNodePty ?? loadNodePty)();
@@ -954,27 +955,29 @@ function isTrustedAgentLaunch(request: TerminalCreateRequest): boolean {
   return true;
 }
 
-async function validateTerminalCwd(
+async function resolveValidatedTerminalCwd(
   request: TerminalCreateRequest,
-  allowedCwdRoots: TerminalIpcOptions["allowedCwdRoots"],
-): Promise<void> {
-  if (!request.cwd || !allowedCwdRoots) return;
-
-  const resolvedCwd = path.resolve(request.cwd);
-  const roots = await allowedCwdRoots();
-  const allowed = await isAllowedWorkspacePath(resolvedCwd, roots);
+  options: Pick<TerminalIpcOptions, "allowedCwdRoots" | "scratchRootPath">,
+): Promise<string> {
+  const resolvedCwd = resolveTerminalCwd(request.cwd, options.scratchRootPath, request.workspaceId);
+  const roots = options.allowedCwdRoots ? await options.allowedCwdRoots() : [];
+  const canonicalCwd = await canonicalWorkspacePath(resolvedCwd);
+  const allowed = await isAllowedWorkspacePath(canonicalCwd, roots);
 
   if (!allowed) {
     throw new Error("Terminal cwd is outside registered workspaces.");
   }
+
+  return canonicalCwd;
 }
 
 async function resolveLaunchCwd(
   request: TerminalCreateRequest,
   prepareAgentWorktree: typeof defaultPrepareAgentWorktree,
   options: { managedWorktreeRootPath?: string; scratchRootPath?: string } = {},
+  validatedCwd?: string,
 ): Promise<string | AgentWorktreeResult> {
-  const cwd = resolveTerminalCwd(request.cwd, options.scratchRootPath, request.workspaceId);
+  const cwd = validatedCwd ?? resolveTerminalCwd(request.cwd, options.scratchRootPath, request.workspaceId);
 
   if (request.isolation !== "worktree" || !isCodingAgentKind(request.agentKind)) {
     return cwd;
