@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain } from "electron";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { chmod } from "node:fs/promises";
+import { chmod, mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -208,6 +208,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         canonicalCwd,
       );
       const cwd = typeof launchCwd === "string" ? launchCwd : launchCwd.cwd;
+      await ensureScratchCwdExists(cwd, options.scratchRootPath);
       const nodePty = await (options.loadNodePty ?? loadNodePty)();
       const resolved = resolveCommand(safeRequest);
       const id = randomUUID();
@@ -1088,6 +1089,19 @@ function defaultScratchCwd(scratchRootPath?: string, workspaceId?: string): stri
 
   const desktop = path.join(os.homedir(), "Desktop");
   return existsSync(desktop) ? desktop : os.homedir();
+}
+
+async function ensureScratchCwdExists(cwd: string, scratchRootPath?: string): Promise<void> {
+  if (!scratchRootPath?.trim()) return;
+
+  const resolvedScratchRoot = await canonicalWorkspacePath(scratchRootPath);
+  const resolvedCwd = await canonicalWorkspacePath(cwd);
+  const relative = path.relative(resolvedScratchRoot, resolvedCwd);
+  if (resolvedCwd !== resolvedScratchRoot && (relative.startsWith("..") || path.isAbsolute(relative))) {
+    return;
+  }
+
+  await mkdir(resolvedCwd, { recursive: true });
 }
 
 function safeScratchSegment(value: string): string {
