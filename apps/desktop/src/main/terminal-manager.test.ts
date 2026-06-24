@@ -294,6 +294,52 @@ describe("terminal-manager IPC", () => {
     ]);
   });
 
+  it("redacts persisted restored snapshots without redacting the same-process restore cache", async () => {
+    const rawBuffer = "/Users/patryk/project\nsecret=abc123def4567890\n";
+    const rawTitle = "/Users/patryk/project";
+    let state: DesktopStateSnapshot = {
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [
+        {
+          clientId: "manual-sensitive-restore",
+          title: rawTitle,
+          source: "manual",
+          cwd: "/Users/patryk/project",
+          createdAt: 1,
+          shell: "/bin/zsh",
+          buffer: rawBuffer,
+        },
+      ],
+    };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(new FakePty()) as never });
+
+    await invoke<TerminalListResult>(terminalChannels.list);
+    await flushTerminalPersistence();
+
+    const persisted = state.restoredTerminalSessions[0];
+    expect(persisted?.title).toContain("[redacted-path:");
+    expect(persisted?.buffer).toContain("[redacted-path:");
+    expect(persisted?.buffer).toContain("[redacted]");
+    expect(persisted?.buffer).not.toContain("abc123def4567890");
+
+    const listed = await invoke<TerminalListResult>(terminalChannels.list);
+    const restored = listed.restoredSessions[0];
+    expect(restored?.title).toBe(rawTitle);
+    expect(restored?.buffer).toBe(rawBuffer);
+  });
+
   it("drops persisted terminal scrollback and activity when retention is off", async () => {
     let state: DesktopStateSnapshot = {
       ...DEFAULT_DESKTOP_STATE,
