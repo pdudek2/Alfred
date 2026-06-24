@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { redactPayload } from "@alfred/schema";
+import { redactPayload, redactText } from "@alfred/schema";
 
 describe("redactPayload", () => {
   it("redacts secret keys in standard mode", () => {
@@ -228,9 +228,34 @@ describe("redactPayload", () => {
     });
   });
 
-  it("keeps payload unchanged in full mode", () => {
-    const payload = { token: "abc", nested: { password: "p" } };
+  it("redacts secret keyed values in full mode", () => {
+    expect(redactPayload({ api_key: "abc123def4567890", normal: "ok" }, "full")).toEqual({
+      api_key: "[redacted]",
+      normal: "ok",
+    });
+  });
 
-    expect(redactPayload(payload, "full")).toBe(payload);
+  it("redacts hard secret text values in full mode", () => {
+    expect(
+      redactPayload(
+        { summary: "sent xoxb-123456789012-123456789012-abcdefghijklmnopqrstuvwx", command: "kept" },
+        "full",
+      ),
+    ).toEqual({ summary: "sent [redacted]", command: "kept" });
+  });
+
+  it("redacts common shared text secret shapes", () => {
+    expect(redactText("Authorization: Basic dXNlcjpwYXNz")).toBe("Authorization: [redacted]");
+    expect(redactText("deploy --token=abc123def4567890")).toBe("deploy --token=[redacted]");
+    expect(redactText("xoxb-123456789012-123456789012-abcdefghijklmnopqrstuvwx")).toBe("[redacted]");
+    expect(redactText("AKIAIOSFODNN7EXAMPLE")).toBe("[redacted]");
+    expect(redactText("AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")).toBe(
+      "AWS_SECRET_ACCESS_KEY=[redacted]",
+    );
+    expect(
+      redactText(
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+      ),
+    ).toBe("[redacted]");
   });
 });
