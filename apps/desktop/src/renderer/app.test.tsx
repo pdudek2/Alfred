@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
+import { TerminalDesk } from "./components/TerminalDesk";
+import type { SessionTile } from "./session-state";
 import type {
   AlfredApi,
   AlfredPlanResponse,
@@ -35,6 +37,9 @@ vi.mock("@xterm/xterm", () => ({
     options: unknown;
     dispose = vi.fn(() => {
       terminalDisposeCalls.push(this.options);
+      if (this.element) {
+        this.element.textContent = "";
+      }
     });
     focus = vi.fn(() => {
       this.element?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
@@ -50,8 +55,13 @@ vi.mock("@xterm/xterm", () => ({
       this.cols = cols;
       this.rows = rows;
     });
-    write = vi.fn();
-    writeln = vi.fn();
+    write = vi.fn((data: string, callback?: () => void) => {
+      this.element?.append(data);
+      callback?.();
+    });
+    writeln = vi.fn((data = "") => {
+      this.element?.append(`${data}\n`);
+    });
 
     constructor(options: unknown) {
       this.options = options;
@@ -371,6 +381,58 @@ afterEach(() => {
   delete window.alfredDesktop;
 });
 
+function renderTerminalDeskForSessions(sessions: SessionTile[]) {
+  const callbacks = {
+    onBindWorkspace: vi.fn(),
+    onAddAgentSession: vi.fn(),
+    onAddManualSession: vi.fn(),
+    onApplyWorktree: vi.fn(),
+    onCloseSession: vi.fn(),
+    onContinueRestoredSession: vi.fn(),
+    onRestartSession: vi.fn(),
+    onApplyLayoutPreset: vi.fn(),
+    onApplyWorkMode: vi.fn(),
+    onMoveTile: vi.fn(),
+    onRuntimeSessionFailed: vi.fn(),
+    onRuntimeSessionExited: vi.fn(),
+    onRuntimeSessionOutput: vi.fn(),
+    onRuntimeSessionReady: vi.fn(),
+    onRuntimeSessionStarting: vi.fn(() => true),
+    onRuntimeSessionUnavailable: vi.fn(),
+    onRenameSession: vi.fn(),
+    onFocusSession: vi.fn(),
+    onSelectSession: vi.fn(),
+    onApproveTile: vi.fn(),
+    onRejectTile: vi.fn(),
+    onResizeTile: vi.fn(),
+    onReviewWorktree: vi.fn(),
+  };
+  const renderDesk = (nextSessions: SessionTile[]) => (
+    <TerminalDesk
+      arrangeMode={false}
+      armedUnsafeSessionIds={new Set()}
+      layouts={{}}
+      recoverableSessions={[]}
+      relaunchArmedSessionIds={new Set()}
+      selectedSessionId={nextSessions[0]?.id ?? null}
+      sessions={nextSessions}
+      shortcutModifier="Cmd"
+      workMode="desk"
+      worktreeActionPending={{}}
+      workspaceGitBranch="main"
+      workspaceLabel="Alfred"
+      workspaceRootPath="/Users/patryk/Desktop/Alfred"
+      {...callbacks}
+    />
+  );
+
+  return {
+    ...render(renderDesk(sessions)),
+    callbacks,
+    renderDesk,
+  };
+}
+
 describe("App integration", () => {
   it("keeps Alfred shell hierarchy focused on workspace, decisions, and launch actions", async () => {
     installDesktopBridge(undefined, null, [], undefined, undefined, {
@@ -571,6 +633,95 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     expect(terminalConstructorOptions).toHaveLength(constructorCountBeforeSurfaceSwitch);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeSurfaceSwitch);
+  });
+
+  it("preserves live xterm output and instance when terminal title metadata changes", async () => {
+    const bridge = installDesktopBridge();
+    const session: SessionTile = {
+      id: "codex-a",
+      runtimeId: "runtime-a",
+      title: "Codex · session 1",
+      source: "manual",
+      agentKind: "codex",
+      workspaceId: "A",
+      cwd: "/Users/patryk/Desktop/Alfred",
+      command: "codex",
+      args: [],
+      stage: "live",
+      runtimeStatus: "live",
+      initialBuffer: "",
+    };
+    const { rerender, renderDesk } = renderTerminalDeskForSessions([session]);
+
+    const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
+    await waitFor(() => {
+      expect(window.alfredDesktop?.terminal.onData).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      bridge.emitData({ id: "runtime-a", data: "metadata-safe output\n" });
+    });
+
+    expect(tile).toHaveTextContent("metadata-safe output");
+    const disposeCountBeforeRename = terminalDisposeCalls.length;
+
+    rerender(renderDesk([{ ...session, title: "Spec reviewer" }]));
+
+    const renamedTile = await screen.findByRole("article", { name: /Spec reviewer/i });
+    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeRename);
+    expect(renamedTile).toHaveTextContent("metadata-safe output");
+  });
+
+  it("preserves live xterm output and instance when args and resume target metadata change", async () => {
+    const bridge = installDesktopBridge();
+    const session: SessionTile = {
+      id: "codex-resume",
+      runtimeId: "runtime-resume",
+      title: "Codex · resume",
+      source: "manual",
+      agentKind: "codex",
+      workspaceId: "A",
+      cwd: "/Users/patryk/Desktop/Alfred",
+      command: "codex",
+      args: ["resume", "old-session"],
+      resumeTarget: {
+        agentKind: "codex",
+        sessionId: "old-session",
+        source: "external-session-index",
+      },
+      stage: "live",
+      runtimeStatus: "live",
+      initialBuffer: "",
+    };
+    const { rerender, renderDesk } = renderTerminalDeskForSessions([session]);
+
+    const tile = await screen.findByRole("article", { name: /Codex · resume/i });
+    await waitFor(() => {
+      expect(window.alfredDesktop?.terminal.onData).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      bridge.emitData({ id: "runtime-resume", data: "resume output stays\n" });
+    });
+
+    expect(tile).toHaveTextContent("resume output stays");
+    const disposeCountBeforeMetadataUpdate = terminalDisposeCalls.length;
+
+    rerender(renderDesk([
+      {
+        ...session,
+        args: ["resume", "new-session"],
+        resumeTarget: {
+          agentKind: "codex",
+          sessionId: "new-session",
+          source: "external-session-index",
+        },
+      },
+    ]));
+
+    const updatedTile = await screen.findByRole("article", { name: /Codex · resume/i });
+    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeMetadataUpdate);
+    expect(updatedTile).toHaveTextContent("resume output stays");
   });
 
   it("does not resize the backend while the xterm host has no measurable layout", async () => {
