@@ -1236,17 +1236,23 @@ describe("App integration", () => {
     });
   });
 
-  it("preserves live sessions and avoids empty workspace saves when hydration fails", async () => {
+  it("retries renderer hydration without invoking save retry and gates workspace autosave until success", async () => {
     const user = userEvent.setup();
-    const { createTerminal, setWorkspaceState } = installDesktopBridge();
+    const { createTerminal, retrySave, setWorkspaceState } = installDesktopBridge();
     let rejectHydration!: (error: Error) => void;
     const hydrationFailure = new Promise<Awaited<ReturnType<TerminalApi["list"]>>>((_, reject) => {
       rejectHydration = reject;
     });
-    window.alfredDesktop!.terminal.list = vi.fn().mockReturnValue(hydrationFailure);
+    const terminalList = vi.fn()
+      .mockReturnValueOnce(hydrationFailure)
+      .mockResolvedValueOnce({ sessions: [], restoredSessions: [] });
+    window.alfredDesktop!.terminal.list = terminalList;
 
     render(<App />);
 
+    await waitFor(() => {
+      expect(terminalList).toHaveBeenCalledTimes(1);
+    });
     await user.click(
       within(screen.getByRole("group", { name: "terminal actions" })).getByRole("button", { name: "New terminal" }),
     );
@@ -1260,10 +1266,29 @@ describe("App integration", () => {
       await hydrationFailure.catch(() => undefined);
     });
 
-    expect(screen.getByRole("alert")).toHaveTextContent("State not saved");
+    const hydrationAlert = screen.getByRole("alert");
+    expect(hydrationAlert).toHaveTextContent("Workspace not loaded");
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     expect(screen.queryByRole("status", { name: "Empty workspace" })).not.toBeInTheDocument();
     expect(setWorkspaceState).not.toHaveBeenCalled();
+
+    await user.click(within(hydrationAlert).getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => {
+      expect(terminalList).toHaveBeenCalledTimes(2);
+    });
+    expect(retrySave).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.queryByText("Workspace not loaded")).not.toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(setWorkspaceState).toHaveBeenCalledWith({
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
+        ],
+        activeWorkspaceId: "A",
+      });
+    });
   });
 
   it("does not create a duplicate PTY when the shell rerenders", async () => {

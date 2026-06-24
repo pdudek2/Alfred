@@ -108,6 +108,10 @@ import "@xterm/xterm/css/xterm.css";
 
 type Workspace = WorkspaceRailWorkspace;
 type ActiveSurface = "desk" | "review" | "observatory";
+type WorkspaceHydrationStatus =
+  | { status: "loading" }
+  | { status: "ready" }
+  | { status: "failed"; message: string };
 
 type PendingDiscardConfirmation = {
   files: Array<{ path: string; status: string }>;
@@ -170,6 +174,10 @@ export function App() {
   const [desktopSaveStatus, setDesktopSaveStatus] = useState<DesktopSaveStatus>({ status: "saved" });
   const [sessionObservatoryOpen, setSessionObservatoryOpen] = useState<boolean>(false);
   const [activeSurface, setActiveSurface] = useState<ActiveSurface>("desk");
+  const [workspaceHydrationStatus, setWorkspaceHydrationStatus] = useState<WorkspaceHydrationStatus>({
+    status: "loading",
+  });
+  const [workspaceHydrationRetryIndex, setWorkspaceHydrationRetryIndex] = useState<number>(0);
   const [externalCodexSessions, setExternalCodexSessions] = useState<ExternalCodexSessionSummary[]>([]);
   const [externalCodexSessionsError, setExternalCodexSessionsError] = useState<string | null>(null);
   const [externalCodexSessionsLoading, setExternalCodexSessionsLoading] = useState<boolean>(false);
@@ -1401,6 +1409,11 @@ export function App() {
     setDesktopSaveStatus(status);
   }, []);
 
+  const handleRetryWorkspaceHydration = useCallback(() => {
+    setWorkspaceHydrationStatus({ status: "loading" });
+    setWorkspaceHydrationRetryIndex((index) => index + 1);
+  }, []);
+
   const handleOpenManagedSessionFromObservatory = useCallback((workspaceId: string, sessionId: string) => {
     setActiveSurface("desk");
     handleFocusSessionInWorkspace(workspaceId, sessionId);
@@ -1568,10 +1581,15 @@ export function App() {
     const workspaceApi = getDesktopWorkspaceApi();
     let cancelled = false;
 
+    workspaceStateHydratedRef.current = false;
+
     if (!terminalApi) {
       setTerminalSessions([]);
+      setWorkspaceHydrationStatus({ status: "ready" });
       return;
     }
+
+    setWorkspaceHydrationStatus({ status: "loading" });
 
     Promise.all([
       terminalApi.list(),
@@ -1640,22 +1658,22 @@ export function App() {
         setPreviewCandidates(previewCandidatesFromSessions(hydratedSessions));
         setPendingPlan(toSquadPlan({ plan: stagedPlanResult.plan, omittedSessionIds: alreadyLiveStagedIds }));
         workspaceStateHydratedRef.current = true;
+        setWorkspaceHydrationStatus({ status: "ready" });
       })
       .catch(() => {
         if (!cancelled) {
-          setDesktopSaveStatus((current) =>
-            current.status === "saveFailed"
-              ? current
-              : { status: "saveFailed", message: "Failed to hydrate desktop state.", failedAt: Date.now() },
-          );
           workspaceStateHydratedRef.current = false;
+          setWorkspaceHydrationStatus({
+            status: "failed",
+            message: "Failed to hydrate desktop state.",
+          });
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [workspaceHydrationRetryIndex]);
 
   useEffect(() => {
     if (!workspaceStateHydratedRef.current) return;
@@ -1823,6 +1841,19 @@ export function App() {
               <span>{desktopSaveStatus.message}</span>
             </div>
             <button type="button" onClick={() => void handleRetryStateSave()}>
+              <RefreshCcw size={14} />
+              <span>Retry</span>
+            </button>
+          </div>
+        )}
+
+        {workspaceHydrationStatus.status === "failed" && (
+          <div className="desktop-save-banner" role="alert">
+            <div>
+              <strong>Workspace not loaded</strong>
+              <span>{workspaceHydrationStatus.message}</span>
+            </div>
+            <button type="button" onClick={handleRetryWorkspaceHydration}>
               <RefreshCcw size={14} />
               <span>Retry</span>
             </button>
