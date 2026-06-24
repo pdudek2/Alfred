@@ -855,7 +855,7 @@ describe("terminal-manager IPC", () => {
     const temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "alfred-terminal-scratch-"));
     const canonicalTemporaryDirectory = await fs.realpath(temporaryDirectory);
     const scratchRootPath = path.join(temporaryDirectory, "userData", "scratch");
-    const expectedCanonicalCwd = path.join(canonicalTemporaryDirectory, "userData", "scratch", "A");
+    const expectedCanonicalCwd = path.join(canonicalTemporaryDirectory, "userData", "scratch", "alfred-A");
     const pty = new FakePty();
     const nodePty = fakeNodePty(pty);
     registerTerminalIpc({
@@ -886,7 +886,7 @@ describe("terminal-manager IPC", () => {
     const temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "alfred-terminal-scratch-"));
     const canonicalTemporaryDirectory = await fs.realpath(temporaryDirectory);
     const scratchRootPath = path.join(temporaryDirectory, "userData", "scratch");
-    const expectedCanonicalCwd = path.join(canonicalTemporaryDirectory, "userData", "scratch", "W13");
+    const expectedCanonicalCwd = path.join(canonicalTemporaryDirectory, "userData", "scratch", "alfred-W13");
     const pty = new FakePty();
     const nodePty = {
       spawn: vi.fn((_command: string, _args: string[], options: { cwd?: string }) => {
