@@ -341,6 +341,7 @@ export function TerminalDesk({
                 command={session.command}
                 args={session.args}
                 resumeTarget={session.resumeTarget}
+                resumeMode={session.resumeMode}
                 initialBuffer={session.initialBuffer}
                 activityEvents={session.activityEvents}
                 lastOutputAt={session.lastOutputAt}
@@ -583,6 +584,40 @@ function relaunchButtonLabel(action: "relaunch" | "restart", unsafe: boolean, ar
   return action === "relaunch" ? "Review relaunch" : "Review restart";
 }
 
+type RestoredSessionButtonSession = {
+  agentKind?: SessionTile["agentKind"] | undefined;
+  args?: string[] | undefined;
+  command?: string | undefined;
+  resumeMode?: SessionTile["resumeMode"] | undefined;
+  resumeTarget?: SessionTile["resumeTarget"] | undefined;
+};
+
+function restoredSessionButtonLabel(
+  session: RestoredSessionButtonSession,
+  unsafe: boolean,
+  armed: boolean,
+): string {
+  const codexAgent = session.agentKind === "codex" || session.command === "codex";
+  if (!codexAgent) return restoredSessionActionLabel(session, unsafe, armed);
+
+  const conversation = codexResumeModeForLabel(session) === "latest" ? "latest Codex conversation" : "this Codex conversation";
+  if (!unsafe) return `Resume ${conversation}`;
+  return armed ? `Confirm resume ${conversation}` : `Review resume ${conversation}`;
+}
+
+function restoredSessionButtonTitle(session: RestoredSessionButtonSession): string {
+  const codexAgent = session.agentKind === "codex" || session.command === "codex";
+  if (!codexAgent) return restoredSessionActionTitle(session);
+
+  return codexResumeModeForLabel(session) === "latest"
+    ? "Resume latest Codex conversation"
+    : "Resume this Codex conversation";
+}
+
+function codexResumeModeForLabel(session: RestoredSessionButtonSession): "exact" | "latest" {
+  return session.resumeMode ?? (session.resumeTarget?.agentKind === "codex" ? "exact" : "latest");
+}
+
 function terminalHostHasStableGeometry(container: HTMLElement): boolean {
   if (!container.isConnected) return false;
   const rect = container.getBoundingClientRect();
@@ -643,6 +678,7 @@ function ManualTerminalTile({
   command,
   args,
   resumeTarget,
+  resumeMode,
 }: {
   arrangeMode: boolean;
   cwd: string;
@@ -684,6 +720,7 @@ function ManualTerminalTile({
   command?: string | undefined;
   args?: string[] | undefined;
   resumeTarget?: SessionTile["resumeTarget"] | undefined;
+  resumeMode?: SessionTile["resumeMode"] | undefined;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -717,8 +754,9 @@ function ManualTerminalTile({
     ...(command === undefined ? {} : { command }),
   });
   const relaunchNeedsReview = !relaunchSafety.safe;
-  const restoredActionLabel = restoredSessionActionLabel(
-    { agentKind, args, command, resumeTarget },
+  const restoredActionSession = { agentKind, args, command, resumeMode, resumeTarget };
+  const restoredActionLabel = restoredSessionButtonLabel(
+    restoredActionSession,
     relaunchNeedsReview,
     relaunchArmed,
   );
@@ -1133,7 +1171,7 @@ function ManualTerminalTile({
                   onPointerDown={(event) => event.stopPropagation()}
                   title={relaunchNeedsReview
                     ? relaunchSafety.reason
-                    : restoredSessionActionTitle({ agentKind, args, command, resumeTarget })}
+                    : restoredSessionButtonTitle(restoredActionSession)}
                 >
                   {relaunchNeedsReview ? <AlertTriangle size={13} /> : <Play size={13} />}
                   <span>{restoredActionLabel}</span>

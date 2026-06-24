@@ -1424,6 +1424,7 @@ export function App() {
       command: "codex",
       args: ["resume", session.id],
       resumeTarget: { agentKind: "codex", sessionId: session.id, source: "external-session-index" },
+      resumeMode: "exact",
       isolation: "shared",
       createdAt: now,
       activityEvents: [

@@ -3462,7 +3462,7 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Resume latest" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Open Desk surface" }));
 
-    await userEvent.click(screen.getByRole("button", { name: "Resume latest Codex · session 9" }));
+    await userEvent.click(screen.getByRole("button", { name: "Resume latest Codex conversation Codex · session 9" }));
 
     expect(createTerminal).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -3476,6 +3476,69 @@ describe("App integration", () => {
     );
     expect(screen.queryByRole("article", { name: /Manual · zsh 10/i })).not.toBeInTheDocument();
     expect(forgetTerminal).not.toHaveBeenCalled();
+  });
+
+  it("labels known Codex resume targets as this Codex conversation", async () => {
+    installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "codex-exact",
+          title: "Codex · exact session",
+          cwd: "/repo",
+          source: "alfred",
+          agentKind: "codex",
+          command: "codex",
+          args: ["resume", "stale-session-id"],
+          resumeTarget: { agentKind: "codex", sessionId: "codex-session-123", source: "codex-session-index" },
+          shell: "codex",
+          buffer: "saved output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+
+    const tile = await screen.findByRole("article", { name: /Codex · exact session/i });
+    expect(within(tile).getByRole("button", { name: /Resume this Codex conversation/i })).toHaveTextContent(
+      "Resume this Codex conversation",
+    );
+  });
+
+  it("labels restored Codex sessions without resumeTarget as latest fallback", async () => {
+    installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "codex-unknown",
+          title: "Codex · unknown target",
+          cwd: "/repo",
+          source: "alfred",
+          agentKind: "codex",
+          command: "codex",
+          args: ["resume", "unknown-session-id"],
+          shell: "codex",
+          buffer: "saved output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+
+    const tile = await screen.findByRole("article", { name: /Codex · unknown target/i });
+    expect(within(tile).getByRole("button", { name: /Resume latest Codex conversation/i })).toHaveTextContent(
+      "Resume latest Codex conversation",
+    );
   });
 
   it("requires explicit review before relaunching a mutating restored command", async () => {
@@ -3637,7 +3700,7 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("article", { name: /Codex · session 9/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Resume latest Codex · session 9" }));
+    await user.click(screen.getByRole("button", { name: "Resume latest Codex conversation Codex · session 9" }));
 
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
@@ -3684,7 +3747,7 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Codex · shared session/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Discard checkout Codex · shared session" })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Resume latest Codex · shared session" }));
+    await user.click(screen.getByRole("button", { name: "Resume latest Codex conversation Codex · shared session" }));
 
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(

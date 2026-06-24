@@ -25,6 +25,43 @@ import type { AlfredPlanSession } from "../shared/alfred-ipc";
 import type { AlfredStagedPlanSnapshot } from "../shared/alfred-ipc";
 import type { TerminalSessionSnapshot } from "../shared/terminal-ipc";
 
+function restoreSessionWithResumeTarget(sessionId: string) {
+  const restored = hydratePersistedTerminalSessions([
+    {
+      clientId: "alfred-codex",
+      title: "Codex audit",
+      cwd: "/repo",
+      source: "alfred",
+      agentKind: "codex",
+      command: "codex",
+      args: ["resume", "stale-session-id"],
+      resumeTarget: { agentKind: "codex", sessionId, source: "codex-session-index" },
+      shell: "codex",
+      buffer: "saved codex output\n",
+    },
+  ]);
+
+  return relaunchRestoredSession(restored, "alfred-codex")[0]!;
+}
+
+function restoreSessionWithoutResumeTarget() {
+  const restored = hydratePersistedTerminalSessions([
+    {
+      clientId: "alfred-codex",
+      title: "Codex audit",
+      cwd: "/repo",
+      source: "alfred",
+      agentKind: "codex",
+      command: "codex",
+      args: ["resume", "unknown-session-id"],
+      shell: "codex",
+      buffer: "saved codex output\n",
+    },
+  ]);
+
+  return relaunchRestoredSession(restored, "alfred-codex")[0]!;
+}
+
 describe("desktop session state", () => {
   it("starts with one first-class manual terminal session", () => {
     const sessions = createInitialSessions("/Users/patryk/Desktop/Alfred");
@@ -380,6 +417,7 @@ describe("desktop session state", () => {
         agentKind: "codex",
         command: "codex",
         args: ["resume", codexSessionId],
+        resumeTarget: { agentKind: "codex", sessionId: codexSessionId, source: "external-session-index" },
         shell: "codex",
         buffer: "saved external output\n",
       },
@@ -390,8 +428,22 @@ describe("desktop session state", () => {
       runtimeStatus: "starting",
       command: "codex",
       args: ["resume", codexSessionId],
+      resumeTarget: { agentKind: "codex", sessionId: codexSessionId, source: "external-session-index" },
       initialBuffer: "saved external output\n",
     });
+  });
+
+  it("resumes exact Codex target when resumeTarget is present", () => {
+    const restored = restoreSessionWithResumeTarget("codex-session-123");
+    expect(restored.command).toBe("codex");
+    expect(restored.args).toEqual(["resume", "codex-session-123"]);
+  });
+
+  it("marks Codex resume as latest fallback when resumeTarget is missing", () => {
+    const restored = restoreSessionWithoutResumeTarget();
+    expect(restored.command).toBe("codex");
+    expect(restored.args).toEqual(["resume", "--last"]);
+    expect(restored.resumeMode).toBe("latest");
   });
 
   it("uses persisted resumeTarget when relaunching a restored managed Codex session", () => {
