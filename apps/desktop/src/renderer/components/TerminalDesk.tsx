@@ -728,6 +728,10 @@ function ManualTerminalTile({
   const lastResizeRef = useRef<{ id: TerminalSessionId; cols: number; rows: number } | null>(null);
   const sessionIdRef = useRef<TerminalSessionId | null>(null);
   const [status, setStatus] = useState<LocalTerminalStatus>("connecting");
+  const statusRef = useRef<LocalTerminalStatus>("connecting");
+  const fitAndResizeRef = useRef<(() => boolean) | null>(null);
+  const scheduleRepaintRef = useRef<((passes?: number) => void) | null>(null);
+  const writeAndRepaintRef = useRef<((data: string) => void) | null>(null);
   const [resolvedCwd, setResolvedCwd] = useState<string>(cwd);
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState(title);
@@ -781,12 +785,101 @@ function ManualTerminalTile({
       ? "Discard this isolated checkout"
       : "Discard this recovery item"
     : "Close terminal";
+  const runtimeBindingKey = runtimeId
+    ?? (runtimeStatus === "starting" || runtimeStatus === "restored" ? runtimeStatus : "inactive");
+  const runtimeMetadataRef = useRef({
+    cwd,
+    title,
+    source,
+    workspaceId,
+    agentKind,
+    isolation,
+    branchName,
+    baseCwd,
+    existingCheckoutMetadata,
+    launchPreflight,
+    command,
+    args,
+    resumeTarget,
+    initialBuffer,
+    runtimeStatus,
+    restoredTranscript,
+  });
+  const runtimeCallbacksRef = useRef({
+    onRuntimeSessionFailed,
+    onRuntimeSessionExited,
+    onRuntimeSessionOutput,
+    onRuntimeSessionReady,
+    onRuntimeSessionStarting,
+    onRuntimeSessionUnavailable,
+  });
+  const setTileStatus = useCallback((nextStatus: LocalTerminalStatus) => {
+    statusRef.current = nextStatus;
+    setStatus(nextStatus);
+  }, []);
 
   useEffect(() => {
     if (!renaming) {
       setRenameDraft(title);
     }
   }, [renaming, title]);
+
+  useEffect(() => {
+    runtimeMetadataRef.current = {
+      cwd,
+      title,
+      source,
+      workspaceId,
+      agentKind,
+      isolation,
+      branchName,
+      baseCwd,
+      existingCheckoutMetadata,
+      launchPreflight,
+      command,
+      args,
+      resumeTarget,
+      initialBuffer,
+      runtimeStatus,
+      restoredTranscript,
+    };
+    setResolvedCwd(cwd);
+  }, [
+    cwd,
+    title,
+    source,
+    workspaceId,
+    agentKind,
+    isolation,
+    branchName,
+    baseCwd,
+    existingCheckoutMetadata,
+    launchPreflight,
+    command,
+    args,
+    resumeTarget,
+    initialBuffer,
+    runtimeStatus,
+    restoredTranscript,
+  ]);
+
+  useEffect(() => {
+    runtimeCallbacksRef.current = {
+      onRuntimeSessionFailed,
+      onRuntimeSessionExited,
+      onRuntimeSessionOutput,
+      onRuntimeSessionReady,
+      onRuntimeSessionStarting,
+      onRuntimeSessionUnavailable,
+    };
+  }, [
+    onRuntimeSessionFailed,
+    onRuntimeSessionExited,
+    onRuntimeSessionOutput,
+    onRuntimeSessionReady,
+    onRuntimeSessionStarting,
+    onRuntimeSessionUnavailable,
+  ]);
 
   const submitRename = () => {
     const nextTitle = normalizeSessionTitle(renameDraft);
@@ -800,21 +893,18 @@ function ManualTerminalTile({
     const container = containerRef.current;
     const terminalApi = getDesktopTerminalApi();
     let disposed = false;
+    const metadata = runtimeMetadataRef.current;
 
     if (!container) {
       return;
     }
-
-    sessionIdRef.current = runtimeId ?? null;
-    setResolvedCwd(cwd);
-    setStatus("connecting");
 
     const terminal = new Terminal({
       allowProposedApi: false,
       convertEol: true,
       cursorBlink: ghosttyVesperTerminalProfile.cursorBlink,
       cursorStyle: ghosttyVesperTerminalProfile.cursorStyle,
-      disableStdin: restoredTranscript || !terminalApi,
+      disableStdin: metadata.restoredTranscript || !terminalApi,
       fontFamily: ghosttyVesperTerminalProfile.fontFamily,
       fontSize: ghosttyVesperTerminalProfile.fontSize,
       lineHeight: ghosttyVesperTerminalProfile.lineHeight,
@@ -864,69 +954,108 @@ function ManualTerminalTile({
       scheduleRepaint();
     };
     const resizeObserver = new ResizeObserver(() => scheduleRepaint());
+    fitAndResizeRef.current = fitAndResize;
+    scheduleRepaintRef.current = scheduleRepaint;
+    writeAndRepaintRef.current = writeAndRepaint;
 
     resizeObserver.observe(container);
     scheduleRepaint();
 
-    if (restoredTranscript) {
-      setStatus("restored");
-      if (initialBuffer) {
-        writeAndRepaint(initialBuffer);
+    return () => {
+      disposed = true;
+      resizeObserver.disconnect();
+      fitAndResizeRef.current = null;
+      scheduleRepaintRef.current = null;
+      writeAndRepaintRef.current = null;
+      fitAddonRef.current = null;
+      terminalRef.current = null;
+      terminal.dispose();
+    };
+  }, [sessionKey]);
+
+  useEffect(() => {
+    const terminal = terminalRef.current;
+    const terminalApi = getDesktopTerminalApi();
+    const metadata = runtimeMetadataRef.current;
+    const callbacks = runtimeCallbacksRef.current;
+    let disposed = false;
+    const writeAndRepaint = (data: string) => {
+      const writer = writeAndRepaintRef.current;
+      if (writer) {
+        writer(data);
+        return;
+      }
+      terminal?.write(data);
+    };
+    const scheduleRepaint = () => scheduleRepaintRef.current?.();
+    const fitAndResize = () => fitAndResizeRef.current?.() ?? false;
+
+    if (!terminal) {
+      return;
+    }
+
+    sessionIdRef.current = runtimeId ?? null;
+    terminal.options.disableStdin = metadata.restoredTranscript || !terminalApi;
+
+    if (metadata.restoredTranscript) {
+      setTileStatus("restored");
+      if (metadata.initialBuffer) {
+        writeAndRepaint(metadata.initialBuffer);
       }
       return () => {
         disposed = true;
-        resizeObserver.disconnect();
-        terminal.dispose();
       };
     }
 
-    if (!runtimeId && (runtimeStatus === "error" || runtimeStatus === "exited")) {
-      setStatus(runtimeStatus === "exited" ? "exited" : "error");
-      if (initialBuffer) {
-        writeAndRepaint(initialBuffer);
-      } else {
+    if (!runtimeId && (metadata.runtimeStatus === "error" || metadata.runtimeStatus === "exited")) {
+      const previousStatus = statusRef.current;
+      const nextStatus = metadata.runtimeStatus === "exited" ? "exited" : "error";
+      setTileStatus(nextStatus);
+      if (metadata.initialBuffer) {
+        writeAndRepaint(metadata.initialBuffer);
+      } else if (previousStatus !== nextStatus) {
         terminal.writeln(
-          runtimeStatus === "exited"
+          metadata.runtimeStatus === "exited"
             ? "This terminal process has ended."
             : "This terminal failed to start. Use Restart to create a fresh runtime.",
         );
+        scheduleRepaint();
       }
-      scheduleRepaint();
       return () => {
         disposed = true;
-        resizeObserver.disconnect();
-        terminal.dispose();
       };
     }
 
     if (!terminalApi) {
-      if (runtimeStatus !== "unavailable") {
-        onRuntimeSessionUnavailable(sessionKey);
+      if (metadata.runtimeStatus !== "unavailable") {
+        callbacks.onRuntimeSessionUnavailable(sessionKey);
       }
-      setStatus("browser");
-      terminal.writeln("Terminal unavailable outside Electron.");
-      terminal.writeln("Open Alfred Desktop to attach a real local PTY.");
-      terminal.writeln("Dev fallback: pnpm --filter @alfred/desktop dev:electron");
-      scheduleRepaint();
+      const wasBrowser = statusRef.current === "browser";
+      setTileStatus("browser");
+      if (!wasBrowser) {
+        terminal.writeln("Terminal unavailable outside Electron.");
+        terminal.writeln("Open Alfred Desktop to attach a real local PTY.");
+        terminal.writeln("Dev fallback: pnpm --filter @alfred/desktop dev:electron");
+        scheduleRepaint();
+      }
       return () => {
         disposed = true;
-        resizeObserver.disconnect();
-        terminal.dispose();
       };
     }
 
     const removeDataListener = terminalApi.onData((event) => {
       if (event.id === sessionIdRef.current) {
-        terminal.write(event.data);
-        onRuntimeSessionOutput(event.id, event.data);
+        writeAndRepaint(event.data);
+        runtimeCallbacksRef.current.onRuntimeSessionOutput(event.id, event.data);
       }
     });
     const removeExitListener = terminalApi.onExit((event) => {
       if (event.id === sessionIdRef.current) {
-        onRuntimeSessionExited(event.id, event.exitCode);
-        setStatus(event.exitCode === 0 ? "exited" : "error");
+        runtimeCallbacksRef.current.onRuntimeSessionExited(event.id, event.exitCode);
+        setTileStatus(event.exitCode === 0 ? "exited" : "error");
         terminal.writeln("");
         terminal.writeln(`[process exited with code ${event.exitCode}]`);
+        scheduleRepaint();
       }
     });
     const inputDisposable = terminal.onData((data) => {
@@ -936,33 +1065,41 @@ function ManualTerminalTile({
         terminalApi.write({ id: sessionId, data });
       }
     });
+
     if (runtimeId) {
       sessionIdRef.current = runtimeId;
-      setStatus("ready");
-      if (initialBuffer) {
-        writeAndRepaint(initialBuffer);
+      setTileStatus("ready");
+      if (metadata.initialBuffer) {
+        writeAndRepaint(metadata.initialBuffer);
       }
       scheduleRepaint();
 
       return () => {
         disposed = true;
-        resizeObserver.disconnect();
         inputDisposable.dispose();
         removeDataListener();
         removeExitListener();
-        terminal.dispose();
       };
     }
 
-    if (!onRuntimeSessionStarting(sessionKey)) {
-      terminal.writeln("Terminal start is already in progress...");
+    setTileStatus("connecting");
+
+    if (metadata.runtimeStatus !== "starting") {
       return () => {
         disposed = true;
-        resizeObserver.disconnect();
         inputDisposable.dispose();
         removeDataListener();
         removeExitListener();
-        terminal.dispose();
+      };
+    }
+
+    if (!callbacks.onRuntimeSessionStarting(sessionKey)) {
+      terminal.writeln("Terminal start is already in progress...");
+      return () => {
+        disposed = true;
+        inputDisposable.dispose();
+        removeDataListener();
+        removeExitListener();
       };
     }
 
@@ -970,30 +1107,30 @@ function ManualTerminalTile({
       cols: terminal.cols,
       rows: terminal.rows,
       clientId: sessionKey,
-      title,
-      source,
-      workspaceId,
+      title: metadata.title,
+      source: metadata.source,
+      workspaceId: metadata.workspaceId,
     };
-    if (agentKind) baseRequest.agentKind = agentKind;
-    if (cwd) baseRequest.cwd = cwd;
-    if (existingCheckoutMetadata) {
+    if (metadata.agentKind) baseRequest.agentKind = metadata.agentKind;
+    if (metadata.cwd) baseRequest.cwd = metadata.cwd;
+    if (metadata.existingCheckoutMetadata) {
       baseRequest.isolation = "worktree";
-      if (branchName) baseRequest.branchName = branchName;
-      if (baseCwd) baseRequest.baseCwd = baseCwd;
-    } else if (!branchName && launchPreflight?.status === "ready" && launchPreflight.isolation === "worktree") {
+      if (metadata.branchName) baseRequest.branchName = metadata.branchName;
+      if (metadata.baseCwd) baseRequest.baseCwd = metadata.baseCwd;
+    } else if (!metadata.branchName && metadata.launchPreflight?.status === "ready" && metadata.launchPreflight.isolation === "worktree") {
       baseRequest.isolation = "worktree";
-      if (launchPreflight.branchName) baseRequest.branchName = launchPreflight.branchName;
-    } else if (isolation) {
-      baseRequest.isolation = isolation;
+      if (metadata.launchPreflight.branchName) baseRequest.branchName = metadata.launchPreflight.branchName;
+    } else if (metadata.isolation) {
+      baseRequest.isolation = metadata.isolation;
     }
-    if (command) {
-      baseRequest.command = command;
-      baseRequest.args = args ?? [];
+    if (metadata.command) {
+      baseRequest.command = metadata.command;
+      baseRequest.args = metadata.args ?? [];
     }
-    if (resumeTarget) {
-      baseRequest.resumeTarget = resumeTarget;
+    if (metadata.resumeTarget) {
+      baseRequest.resumeTarget = metadata.resumeTarget;
     }
-    const createTerminalSession = command
+    const createTerminalSession = metadata.command
       ? terminalApi.prepareLaunch(baseRequest).then((prepared) =>
           terminalApi.create({ ...baseRequest, launchTicketId: prepared.launchTicketId }),
         )
@@ -1001,7 +1138,7 @@ function ManualTerminalTile({
 
     createTerminalSession
       .then((session) => {
-        onRuntimeSessionReady(sessionKey, session);
+        runtimeCallbacksRef.current.onRuntimeSessionReady(sessionKey, session);
 
         if (disposed) {
           return;
@@ -1009,56 +1146,29 @@ function ManualTerminalTile({
 
         sessionIdRef.current = session.id;
         setResolvedCwd(session.cwd);
-        setStatus("ready");
+        setTileStatus("ready");
         fitAndResize();
       })
       .catch((error: unknown) => {
         const reason = error instanceof Error ? error.message : String(error);
-        onRuntimeSessionFailed(sessionKey, reason);
+        runtimeCallbacksRef.current.onRuntimeSessionFailed(sessionKey, reason);
         if (disposed) {
           return;
         }
 
-        setStatus("error");
+        setTileStatus("error");
         terminal.writeln("Failed to start manual terminal.");
         terminal.writeln(reason);
+        scheduleRepaint();
       });
 
     return () => {
       disposed = true;
-      resizeObserver.disconnect();
       inputDisposable.dispose();
       removeDataListener();
       removeExitListener();
-
-      terminal.dispose();
     };
-  }, [
-    cwd,
-    sessionKey,
-    title,
-    source,
-    workspaceId,
-    agentKind,
-    isolation,
-    branchName,
-    baseCwd,
-    existingCheckoutMetadata,
-    launchPreflight,
-    command,
-    args,
-    resumeTarget,
-    initialBuffer,
-    runtimeId,
-    runtimeStatus,
-    onRuntimeSessionFailed,
-    onRuntimeSessionExited,
-    onRuntimeSessionOutput,
-    onRuntimeSessionReady,
-    onRuntimeSessionStarting,
-    onRuntimeSessionUnavailable,
-    restoredTranscript,
-  ]);
+  }, [runtimeBindingKey, sessionKey, setTileStatus]);
 
   useEffect(() => {
     if (!selected || status !== "ready") return;
