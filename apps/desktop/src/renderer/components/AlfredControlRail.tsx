@@ -425,6 +425,7 @@ function ReviewQueueItem({
   const hardBlocked = isLaunchBlocked(session);
   const checking = session.stagedReviewStatus === "checking";
   const flagged = Boolean(session.safetyNote) && !hardBlocked;
+  const blockedDetail = hardBlocked ? blockedLaunchDetail(session) : null;
   const approveLabel = checking
     ? `Checking edited command from review queue: ${session.title}`
     : flagged
@@ -432,7 +433,7 @@ function ReviewQueueItem({
       ? `Confirm unsafe command from review queue: ${session.title}`
       : `Review unsafe command from review queue: ${session.title}`
     : hardBlocked
-      ? `Launch blocked from review queue: ${session.title}`
+      ? `Review details for blocked launch: ${session.title}`
     : `Launch from review queue: ${session.title}`;
 
   return (
@@ -460,10 +461,10 @@ function ReviewQueueItem({
             <span>Rechecking edited command before launch.</span>
           </div>
         )}
-        {hardBlocked && session.launchPreflight?.status === "blocked" && (
+        {hardBlocked && blockedDetail && (
           <div className="review-safety-note blocked">
             <ShieldAlert size={13} />
-            <span>{session.launchPreflight.reason}</span>
+            <span>Cannot launch yet: {blockedDetail}</span>
           </div>
         )}
         {flagged && session.safetyNote && (
@@ -476,12 +477,18 @@ function ReviewQueueItem({
       <div className="review-item-actions">
         <button
           type="button"
-          className={checking ? "review-item-launch blocked" : hardBlocked ? "review-item-launch blocked" : flagged ? "review-item-launch flagged" : "review-item-launch"}
-          onClick={() => onApprove(session.id)}
-          disabled={checking || hardBlocked}
+          className={checking ? "review-item-launch blocked" : hardBlocked ? "review-item-launch" : flagged ? "review-item-launch flagged" : "review-item-launch"}
+          onClick={() => {
+            if (hardBlocked) {
+              onFocus(session.id);
+              return;
+            }
+            onApprove(session.id);
+          }}
+          disabled={checking}
           aria-label={approveLabel}
         >
-          {checking ? "Checking" : hardBlocked ? "Blocked" : flagged ? (armed ? "Confirm" : "Review") : "Launch"}
+          {checking ? "Checking" : hardBlocked ? "Review details" : flagged ? (armed ? "Confirm" : "Review") : "Launch"}
         </button>
         <button
           type="button"
@@ -494,4 +501,11 @@ function ReviewQueueItem({
       </div>
     </li>
   );
+}
+
+function blockedLaunchDetail(session: Pick<SessionTile, "launchPreflight" | "safetyNote">): string {
+  const safetyNote = session.safetyNote?.trim();
+  if (safetyNote) return safetyNote;
+  if (session.launchPreflight?.status === "blocked") return session.launchPreflight.reason;
+  return "Preflight failed.";
 }
