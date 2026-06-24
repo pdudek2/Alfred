@@ -4365,6 +4365,62 @@ describe("App integration", () => {
     expect(clearStagedPlan).not.toHaveBeenCalled();
   });
 
+  it("explains blocked staged launches with an actionable review control", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge({
+      ok: true,
+      plan: {
+        name: "Blocked launch plan",
+        sessions: [
+          {
+            kind: "shell",
+            title: "Safe build",
+            command: "pnpm",
+            args: ["test"],
+          },
+          {
+            kind: "shell",
+            title: "Risky cleanup",
+            command: "rm",
+            args: ["-rf", "dist"],
+            safetyNote: "rm -rf detected",
+          },
+        ],
+      },
+    });
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText("Alfred prompt"), "stage risky cleanup");
+    await user.click(screen.getByRole("button", { name: "Send prompt to Alfred" }));
+    await screen.findByRole("article", { name: /Staged Safe build/i });
+    await screen.findByRole("article", { name: /Staged Risky cleanup/i });
+
+    const rail = screen.getByRole("region", { name: "Alfred review queue" });
+    const blockedItem = within(rail)
+      .getByRole("button", { name: "Focus staged tile: Risky cleanup" })
+      .closest("li");
+    if (!blockedItem) throw new Error("Expected blocked review queue item");
+
+    expect(blockedItem).toHaveTextContent("Cannot launch yet");
+    expect(blockedItem).toHaveTextContent("rm -rf detected");
+    expect(within(blockedItem).queryByText(/^Blocked$/)).not.toBeInTheDocument();
+
+    const reviewDetails = within(blockedItem).getByRole("button", {
+      name: "Review details for blocked launch: Risky cleanup",
+    });
+    expect(reviewDetails).toBeEnabled();
+    expect(screen.queryByRole("note", { name: "Blocked launch details for Risky cleanup" })).not.toBeInTheDocument();
+
+    await user.click(reviewDetails);
+
+    const deskDetails = await screen.findByRole("note", {
+      name: "Blocked launch details for Risky cleanup",
+    });
+    expect(deskDetails).toHaveTextContent("Cannot launch yet");
+    expect(deskDetails).toHaveTextContent("rm -rf detected");
+  });
+
   it("keeps preflight-blocked staged tiles queued while launching ready tiles", async () => {
     const user = userEvent.setup();
     const { createTerminal, resolveStagedPlan } = installDesktopBridge({

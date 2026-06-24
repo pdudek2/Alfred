@@ -12,7 +12,7 @@ import {
 } from "react";
 import { getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
 import type { LayoutPreset, TileLayout } from "../layout-state";
-import { sessionInstanceKey, type SessionTile } from "../session-state";
+import { isLaunchBlocked, sessionInstanceKey, type SessionTile } from "../session-state";
 import { StagedTilePreview } from "../staged-tile";
 import { terminalSessionDisplayStatus, type LocalTerminalStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
@@ -123,6 +123,8 @@ export function TerminalDesk({
   const visibleSessions = focusSession ? [focusSession] : splitSessions;
   const renderedSessions = focusSession ? sessions : visibleSessions;
   const inspectedSession = focusSession ?? selectedSession ?? visibleSessions[0] ?? null;
+  const blockedStagedSession =
+    inspectedSession?.stage === "staged" && isLaunchBlocked(inspectedSession) ? inspectedSession : null;
   const showSplitEmptyState = workMode === "split" && sessions.length > 0 && visibleSessions.length < 2;
   const gridDensity =
     workMode === "split" ? "split" : visibleSessions.length <= 1 ? "single" : visibleSessions.length === 2 ? "split" : "dense";
@@ -289,6 +291,12 @@ export function TerminalDesk({
               sessions={recoverableSessions}
             />
           )}
+          {blockedStagedSession && (
+            <BlockedStagedLaunchDetails
+              session={blockedStagedSession}
+              onReviewDetails={() => handleFocusSession(blockedStagedSession.id)}
+            />
+          )}
           {focusSession && sessions.length > 1 && (
             <FocusSessionStrip
               activeSessionId={focusSession.id}
@@ -391,6 +399,32 @@ export function TerminalDesk({
           </div>
         </div>
       </div>
+    </section>
+  );
+}
+
+function BlockedStagedLaunchDetails({
+  session,
+  onReviewDetails,
+}: {
+  session: SessionTile;
+  onReviewDetails: () => void;
+}) {
+  const detail = blockedLaunchDetail(session);
+
+  return (
+    <section
+      className="focus-session-strip"
+      role="note"
+      aria-label={`Blocked launch details for ${session.title}`}
+    >
+      <AlertTriangle size={14} aria-hidden="true" />
+      <span>
+        <strong>Cannot launch yet</strong>: {detail}
+      </span>
+      <button type="button" onClick={onReviewDetails}>
+        Review details
+      </button>
     </section>
   );
 }
@@ -576,6 +610,13 @@ function workspaceHomeCopy(rootPath: string | undefined, gitBranch: string | und
   }
 
   return "Start in the scratch desk, or bind a folder for project context.";
+}
+
+function blockedLaunchDetail(session: Pick<SessionTile, "launchPreflight" | "safetyNote">): string {
+  const safetyNote = session.safetyNote?.trim();
+  if (safetyNote) return safetyNote;
+  if (session.launchPreflight?.status === "blocked") return session.launchPreflight.reason;
+  return "Preflight failed.";
 }
 
 function relaunchButtonLabel(action: "relaunch" | "restart", unsafe: boolean, armed: boolean): string {
