@@ -6,10 +6,13 @@ const MINIMAL_KEYS = new Set(["summary", "status", "tool_name", "exit_code"]);
 const SECRET_KEY_PATTERN =
   /(token|secret|password|passwd|passphrase|api[_-]?key|apikey|authorization|bearer|credential|cookie|private[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|session[_-]?id|signature)/i;
 const SECRET_ASSIGNMENT_PATTERN =
-  /\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|PASSPHRASE|API[_-]?KEY|AUTHORIZATION|CREDENTIAL|COOKIE|PRIVATE[_-]?KEY|ACCESS[_-]?TOKEN|REFRESH[_-]?TOKEN|CLIENT[_-]?SECRET|SESSION[_-]?ID|SIGNATURE)[A-Z0-9_]*)\s*[:=]\s*("[^"]+"|'[^']+'|[^\s"'`;,]+)/gi;
+  /\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|PASSPHRASE|API[_-]?KEY|AUTHORIZATION|CREDENTIAL|COOKIE|PRIVATE[_-]?KEY|ACCESS[_-]?TOKEN|REFRESH[_-]?TOKEN|CLIENT[_-]?SECRET|SESSION[_-]?ID|SIGNATURE)[A-Z0-9_]*)(\s*[:=]\s*)("[^"]+"|'[^']+'|(?:Bearer|Basic)\s+[^\s"'`;,]+|[^\s"'`;,]+)/gi;
 const CLI_SECRET_ARG_PATTERN =
   /\B--(?:token|api-key|apikey|password|secret|client-secret|access-token|refresh-token)(?:=|\s+)("[^"]+"|'[^']+'|[^\s"'`]+)/gi;
-const HEADER_SECRET_PATTERN = /\b(?:authorization|x-api-key|api-key|cookie)\s*:\s*("[^"]+"|'[^']+'|[^\r\n]+)/gi;
+const QUOTED_HEADER_SECRET_PATTERN =
+  /(["'])([^"']*\b(?:authorization|x-api-key|api-key|cookie)\s*:\s*)([^"']+)\1/gi;
+const HEADER_SECRET_PATTERN =
+  /\b(authorization|x-api-key|api-key|cookie)(\s*:\s*)((?:Bearer|Basic)\s+[^\s"'`;,]+|[^\s"'`;,]+)/gi;
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g;
 const AWS_ACCESS_KEY_ID_PATTERN = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
 const SLACK_TOKEN_PATTERN = /\bxox[abprs]-[A-Za-z0-9-]{20,}\b/g;
@@ -86,8 +89,13 @@ function redactValue(value: unknown, key?: string, options: RedactValueOptions =
 
 function redactSecretText(value: string, options: RedactValueOptions = STANDARD_REDACTION_OPTIONS): string {
   const withoutStructuredSecrets = value
-    .replace(HEADER_SECRET_PATTERN, (match) => match.replace(/:\s*.*$/, `: ${REDACTED}`))
-    .replace(SECRET_ASSIGNMENT_PATTERN, (match, key) => (match.includes(REDACTED) ? match : `${key}=${REDACTED}`))
+    .replace(QUOTED_HEADER_SECRET_PATTERN, (_match, quote, headerPrefix) => `${quote}${headerPrefix}${REDACTED}${quote}`)
+    .replace(HEADER_SECRET_PATTERN, (match, header, separator) =>
+      match.includes(REDACTED) ? match : `${header}${separator}${REDACTED}`,
+    )
+    .replace(SECRET_ASSIGNMENT_PATTERN, (match, key, separator) =>
+      match.includes(REDACTED) ? match : `${key}${separator}${REDACTED}`,
+    )
     .replace(CLI_SECRET_ARG_PATTERN, (match) =>
       match.includes("=") ? match.replace(/=.*/, `=${REDACTED}`) : match.replace(/\s+\S+$/, ` ${REDACTED}`),
     );
