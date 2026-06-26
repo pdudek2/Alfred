@@ -7708,6 +7708,11 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .workspace-layout.surface-inbox .workspace-navigation-panel,
+  .workspace-layout.surface-history .workspace-navigation-panel {
+    grid-column: 1;
+  }
+
   .workspace-layout.surface-inbox > .workspace-rail:not(.embedded),
   .workspace-layout.surface-history > .workspace-rail:not(.embedded) {
     display: none;
