@@ -596,6 +596,10 @@ describe("App integration", () => {
     await user.click(within(screen.getByTestId("primary-nav-rail")).getByRole("button", { name: /open inbox surface/i }));
     expect(screen.getByTestId("clean-depth-shell")).toHaveClass("surface-inbox");
     expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toHaveClass("embedded");
+    await user.click(within(panel).getByRole("button", { name: /Manual · zsh 1/i }));
+    await waitFor(() => {
+      expect(screen.getByTestId("clean-depth-shell")).toHaveClass("surface-work");
+    });
 
     await user.click(screen.getByRole("button", { name: /open history surface/i }));
     expect(screen.getByTestId("clean-depth-shell")).toHaveClass("surface-history");
@@ -984,11 +988,48 @@ describe("App integration", () => {
     await user.click(within(dispatch).getByRole("button", { name: "Dispatch to Manual · zsh 1" }));
 
     expect(requestPlan).toHaveBeenCalledTimes(1);
+    expect(requestPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dispatchTarget: expect.objectContaining({
+          kind: "session",
+          label: "Manual · zsh 1",
+        }),
+        workspace: expect.objectContaining({
+          sessions: [expect.objectContaining({ title: "Manual · zsh 1" })],
+        }),
+      }),
+    );
     expect(within(dispatch).getByRole("status")).toHaveTextContent("Resolve the current Alfred plan");
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
     expect(dispatch).toHaveAttribute("data-state", "disabled");
+  });
+
+  it("routes Dispatch requests to the selected workspace target", async () => {
+    const user = userEvent.setup();
+    const { requestPlan } = installDesktopBridge();
+
+    render(<App />);
+
+    const dispatch = await screen.findByTestId("dispatch-bar");
+    await user.click(within(dispatch).getByRole("button", { name: "Change dispatch target" }));
+    expect(within(dispatch).getByText("workspace")).toBeInTheDocument();
+    expect(within(dispatch).getByText("Alfred")).toBeInTheDocument();
+
+    await user.type(within(dispatch).getByRole("textbox", { name: "Dispatch instruction" }), "prepare workspace plan");
+    await user.click(within(dispatch).getByRole("button", { name: "Dispatch to Alfred" }));
+
+    expect(requestPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dispatchTarget: { kind: "workspace", id: "A", label: "Alfred" },
+        prompt: "prepare workspace plan",
+        workspace: expect.objectContaining({
+          id: "A",
+          sessions: expect.arrayContaining([expect.objectContaining({ title: "Manual · zsh 1" })]),
+        }),
+      }),
+    );
   });
 
   it("keeps the Context drawer mounted and closed by default with an important-session signal", async () => {

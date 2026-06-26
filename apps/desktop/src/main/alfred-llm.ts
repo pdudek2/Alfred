@@ -9,6 +9,7 @@ import type {
   AlfredPlanSession,
   AlfredWorkspaceContext,
 } from "../shared/alfred-ipc.js";
+import type { DispatchTargetSnapshot } from "../shared/layout-ipc.js";
 import { checkSafety } from "./alfred-safety.js";
 
 export const DEFAULT_MODEL = "anthropic/claude-sonnet-4-6";
@@ -76,6 +77,7 @@ const validatePlan: ValidateFunction = ajv.compile(planSchema);
 
 export type RunLlmPlanInput = {
   apiKey: string;
+  dispatchTarget?: DispatchTargetSnapshot;
   prompt: string;
   workspace?: AlfredWorkspaceContext;
   model?: string;
@@ -84,7 +86,7 @@ export type RunLlmPlanInput = {
 };
 
 export async function runLlmPlan(input: RunLlmPlanInput): Promise<AlfredPlanResponse> {
-  const { apiKey, prompt, workspace, model = DEFAULT_MODEL, timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl } = input;
+  const { apiKey, dispatchTarget, prompt, workspace, model = DEFAULT_MODEL, timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl } = input;
 
   if (!apiKey) {
     return errorResponse("no_api_key", "Set OPENROUTER_API_KEY in .env to use Alfred.");
@@ -92,7 +94,7 @@ export async function runLlmPlan(input: RunLlmPlanInput): Promise<AlfredPlanResp
 
   const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
     { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: userPromptWithWorkspace(prompt, workspace) },
+    { role: "user", content: userPromptWithWorkspace(prompt, workspace, dispatchTarget) },
   ];
 
   // First attempt
@@ -118,8 +120,24 @@ export async function runLlmPlan(input: RunLlmPlanInput): Promise<AlfredPlanResp
   return errorResponse("malformed", "Alfred returned an invalid plan. Try a clearer prompt.");
 }
 
-function userPromptWithWorkspace(prompt: string, workspace: AlfredWorkspaceContext | undefined): string {
-  if (!workspace) return prompt;
+function userPromptWithWorkspace(
+  prompt: string,
+  workspace: AlfredWorkspaceContext | undefined,
+  dispatchTarget: DispatchTargetSnapshot | undefined,
+): string {
+  if (!workspace) {
+    return dispatchTarget
+      ? [
+          "Dispatch target:",
+          `- kind: ${dispatchTarget.kind}`,
+          `- id: ${dispatchTarget.id}`,
+          `- label: ${dispatchTarget.label}`,
+          "",
+          "User request:",
+          prompt,
+        ].join("\n")
+      : prompt;
+  }
   const missionBrief = workspace.missionBrief;
   const hasMissionBrief =
     missionBrief !== undefined &&
@@ -131,6 +149,14 @@ function userPromptWithWorkspace(prompt: string, workspace: AlfredWorkspaceConte
     `- label: ${workspace.label}`,
     workspace.rootPath ? `- cwd: ${workspace.rootPath}` : null,
     workspace.gitBranch ? `- branch: ${workspace.gitBranch}` : null,
+    ...(dispatchTarget
+      ? [
+          "- dispatch target:",
+          `  kind: ${dispatchTarget.kind}`,
+          `  id: ${dispatchTarget.id}`,
+          `  label: ${dispatchTarget.label}`,
+        ]
+      : []),
     ...(hasMissionBrief
       ? [
           "- mission brief:",

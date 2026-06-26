@@ -8245,6 +8245,10 @@ body {
 }
 
 @media (max-width: 980px) {
+  body {
+    min-width: 0;
+  }
+
   .workspace-layout,
   .workspace-layout.alfred-compact,
   .workspace-layout.preview-visible,

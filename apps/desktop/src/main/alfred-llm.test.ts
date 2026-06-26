@@ -259,6 +259,39 @@ Ready.`;
     expect(userMessage).toContain(baseInput.prompt);
   });
 
+  it("includes the Dispatch target in the user message when provided", async () => {
+    const plan = JSON.stringify({
+      sessions: [{ kind: "shell", title: "ok", command: "ls", args: [] }],
+    });
+    const fetchImpl = mockFetchOk(plan);
+
+    await runLlmPlan({
+      ...baseInput,
+      dispatchTarget: { kind: "session", id: "manual-1", label: "Manual · zsh 1" },
+      workspace: {
+        id: "A",
+        label: "Alfred",
+        sessions: [
+          {
+            title: "Manual · zsh 1",
+            kind: "shell",
+            status: "active",
+            command: "zsh",
+          },
+        ],
+      },
+      fetchImpl,
+    });
+
+    const body = JSON.parse(((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as RequestInit).body as string);
+    const userMessage = body.messages.find((message: { role: string }) => message.role === "user").content;
+
+    expect(userMessage).toContain("- dispatch target:");
+    expect(userMessage).toContain("kind: session");
+    expect(userMessage).toContain("id: manual-1");
+    expect(userMessage).toContain("label: Manual · zsh 1");
+  });
+
   it("returns timeout when fetch is aborted", async () => {
     // Simulate AbortController firing: fetchImpl rejects with AbortError.
     const fetchImpl = vi.fn(async () => {

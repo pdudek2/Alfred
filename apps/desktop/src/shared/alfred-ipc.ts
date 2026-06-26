@@ -1,5 +1,6 @@
 // apps/desktop/src/shared/alfred-ipc.ts
 import type { WorkspaceMissionBrief } from "./workspace-ipc.js";
+import type { DispatchTargetSnapshot } from "./layout-ipc.js";
 
 export type AgentKind = "codex" | "claude" | "dev-server" | "shell";
 
@@ -39,6 +40,7 @@ export type AlfredWorkspaceContext = {
 };
 
 export type AlfredPlanRequest = {
+  dispatchTarget?: DispatchTargetSnapshot;
   prompt: string;
   workspace?: AlfredWorkspaceContext;
 };

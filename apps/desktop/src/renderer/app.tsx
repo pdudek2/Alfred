@@ -633,6 +633,7 @@ export function App() {
   }, [activeWorkMode, activeWorkspace.id]);
 
   const handleFocusSession = useCallback((sessionId: string) => {
+    setActiveSurface("work");
     setSelectedSessionIdsByWorkspace((current) => {
       if (current[activeWorkspace.id] === sessionId) return current;
       return {
@@ -735,6 +736,7 @@ export function App() {
       (workModesByWorkspace[workspaceId] ?? "desk") !== "focus" ||
       selectedSessionIdsByWorkspace[workspaceId] !== sessionId;
 
+    setActiveSurface("work");
     if (activeWorkspaceId !== workspaceId) {
       setActiveWorkspaceId(workspaceId);
     }
@@ -1209,7 +1211,7 @@ export function App() {
     setTerminalSessions((sessions) => recordSessionOutputActivity(sessions, runtimeId, data));
   }, []);
 
-  const handleSubmitPrompt = useCallback(async (): Promise<boolean> => {
+  const handleSubmitPrompt = useCallback(async (dispatchTarget: DispatchTargetSnapshot): Promise<boolean> => {
     const prompt = composerValue.trim();
     if (!prompt) return false;
     if (!canRequestPlan(alfredStatus, globalStagedCount)) return false;
@@ -1220,8 +1222,9 @@ export function App() {
     }
     setAlfredStatus(thinking());
     const response = await alfredApi.requestPlan({
+      dispatchTarget,
       prompt,
-      workspace: workspacePlanContext(activeWorkspace, activeSessions),
+      workspace: workspacePlanContext(activeWorkspace, activeSessions, dispatchTarget),
     });
     if (!response.ok) {
       setAlfredStatus(errored(response.error));
@@ -1261,7 +1264,7 @@ export function App() {
   const handleSubmitDispatch = useCallback(() => {
     const target = activeDispatchTarget;
     if (!target) return;
-    void handleSubmitPrompt().then((submitted) => {
+    void handleSubmitPrompt(target).then((submitted) => {
       if (submitted) setLastDispatchDestination(target.label);
     });
   }, [activeDispatchTarget, handleSubmitPrompt]);
@@ -2960,17 +2963,23 @@ function omitWorkspaceRecord<T>(record: Record<string, T>, workspaceId: string):
   return next;
 }
 
-function workspacePlanContext(workspace: Workspace, sessions: SessionTile[]): AlfredWorkspaceContext {
+function workspacePlanContext(
+  workspace: Workspace,
+  sessions: SessionTile[],
+  dispatchTarget?: DispatchTargetSnapshot,
+): AlfredWorkspaceContext {
+  const contextSessions =
+    dispatchTarget?.kind === "session" ? sessions.filter((session) => session.id === dispatchTarget.id) : sessions;
   return {
     id: workspace.id,
     label: workspace.label,
     ...(workspace.rootPath === undefined ? {} : { rootPath: workspace.rootPath }),
     ...(workspace.gitBranch === undefined ? {} : { gitBranch: workspace.gitBranch }),
     ...(workspace.missionBrief === undefined ? {} : { missionBrief: workspace.missionBrief }),
-    ...(sessions.length === 0
+    ...(contextSessions.length === 0
       ? {}
       : {
-          sessions: sessions.slice(0, 8).map((session) => {
+          sessions: contextSessions.slice(0, 8).map((session) => {
             const command = [session.command, ...(session.args ?? [])].filter(Boolean).join(" ");
             return {
               title: session.title,
