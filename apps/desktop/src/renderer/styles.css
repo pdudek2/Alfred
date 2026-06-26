@@ -8246,6 +8246,12 @@ body {
 
 @media (max-width: 980px) {
   .workspace-layout,
+  .workspace-layout.alfred-compact,
+  .workspace-layout.preview-visible,
+  .workspace-layout.alfred-compact.preview-visible,
+  .workspace-layout.alfred-compact:has(.context-column.closed),
+  .workspace-layout.preview-visible:has(.context-column.closed),
+  .workspace-layout.alfred-compact.preview-visible:has(.context-column.closed),
   .workspace-layout:has(.context-column.closed) {
     grid-template-columns: minmax(0, 1fr);
   }
