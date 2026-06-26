@@ -714,24 +714,59 @@ describe("App integration", () => {
 
   it("keeps xterm hosts mounted across Work, Inbox, History, Context, and Focus", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    const bridge = installDesktopBridge();
     render(<App />);
 
-    await screen.findByTestId("xterm-host");
+    const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
     const work = await screen.findByRole("button", { name: /open work surface/i });
     await user.click(work);
     const initialHosts = within(screen.getByTestId("desk-runtime-surface")).getAllByTestId("xterm-host");
     expect(initialHosts.length).toBeGreaterThan(0);
+    const initialHost = initialHosts[0];
+    const disposeCountBeforeTransitions = terminalDisposeCalls.length;
 
     await user.click(screen.getByRole("button", { name: /open inbox surface/i }));
+    expect(initialHost.isConnected).toBe(true);
+    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
     await user.click(screen.getByRole("button", { name: /open history surface/i }));
+    expect(initialHost.isConnected).toBe(true);
+    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
     await user.click(screen.getByRole("button", { name: /open work surface/i }));
+    expect(initialHost.isConnected).toBe(true);
+    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
+
     await user.click(screen.getByRole("button", { name: /open context drawer/i }));
+    expect(screen.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
+    expect(initialHost.isConnected).toBe(true);
+    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
+    await user.click(screen.getByRole("button", { name: "Close Context panel" }));
+    expect(screen.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "true");
+    expect(initialHost.isConnected).toBe(true);
+    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
+
     await user.click(screen.getByRole("button", { name: /^focus$/i }));
+    expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
+    expect(initialHost.isConnected).toBe(true);
+    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
+    await user.click(screen.getByRole("button", { name: "Split" }));
+    expect(screen.getByRole("button", { name: "Split" })).toHaveAttribute("aria-pressed", "true");
+    expect(initialHost.isConnected).toBe(true);
+    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
+    await user.click(screen.getByRole("button", { name: "Grid" }));
+    expect(screen.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "true");
+    expect(initialHost.isConnected).toBe(true);
+    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
+
+    act(() => {
+      bridge.emitData({ id: "runtime-1", data: "keep-alive output\n" });
+    });
+    expect(tile).toHaveTextContent("keep-alive output");
 
     const finalHosts = within(screen.getByTestId("desk-runtime-surface")).getAllByTestId("xterm-host");
     expect(finalHosts).toHaveLength(initialHosts.length);
-    expect(finalHosts[0]).toBe(initialHosts[0]);
+    expect(finalHosts[0]).toBe(initialHost);
+    expect(finalHosts[0]?.isConnected).toBe(true);
+    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
   });
 
   it("collapses a terminal tile without disposing or removing its xterm host", async () => {
