@@ -8256,6 +8256,13 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .workspace-layout > .primary-nav-rail,
+  .workspace-layout > .workspace-navigation-panel,
+  .workspace-layout > .orchestrator-surface,
+  .workspace-layout > .context-column {
+    grid-column: 1;
+  }
+
   .context-drawer.open,
   .context-column {
     grid-column: 1;
