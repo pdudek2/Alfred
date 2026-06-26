@@ -23,7 +23,6 @@ export function ComposerBar({
   lastDispatchDestination,
   value,
   thinking,
-  workspaceName,
   onBlockedAction,
   onCycleDispatchTarget,
   onChange,
@@ -73,18 +72,18 @@ export function ComposerBar({
       <button
         type="button"
         className="dispatch-target-chip"
+        aria-label="Change dispatch target"
         disabled={disabled || thinking}
         onClick={onCycleDispatchTarget}
-        aria-label={`Dispatch target: ${targetLabel}`}
       >
-        <span>{dispatchTarget?.kind === "workspace" ? "Workspace" : "Session"}</span>
-        <strong>{targetLabel}</strong>
+        <span>{dispatchTarget?.kind ?? "Target"}</span>
+        <strong>{dispatchTarget?.label ?? "Choose target"}</strong>
       </button>
       <textarea
         className="composer-input"
         rows={1}
         value={value}
-        placeholder={dispatchTarget ? `Dispatch instruction to ${targetLabel}…` : `Select a target in ${workspaceName}…`}
+        placeholder={dispatchTarget ? `Dispatch instruction to ${dispatchTarget.label}...` : "Choose a target before dispatching..."}
         disabled={composerDisabled}
         aria-label="Dispatch instruction"
         aria-describedby="composer-status"

@@ -28,9 +28,15 @@ describe("ComposerBar", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Dispatch target: Manual · zsh 1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change dispatch target" })).toBeInTheDocument();
+    expect(screen.getByText("session")).toBeInTheDocument();
+    expect(screen.getByText("Manual · zsh 1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Dispatch to Manual · zsh 1" })).toBeDisabled();
     expect(screen.getByRole("status")).toHaveTextContent("Ready to dispatch to Manual · zsh 1.");
+    expect(screen.getByLabelText("Dispatch instruction")).toHaveAttribute(
+      "placeholder",
+      "Dispatch instruction to Manual · zsh 1...",
+    );
   });
 
   it("blocks submit and keeps the draft editable while a plan is staged", async () => {
@@ -131,5 +137,29 @@ describe("ComposerBar", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Dispatch paused while another Alfred panel is active.");
     expect(screen.getByLabelText("Dispatch instruction")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Dispatch to Manual · zsh 1" })).toBeDisabled();
+  });
+
+  it("does not submit when no dispatch target is selected", async () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <ComposerBar
+        blockedReason={undefined}
+        value="run tests"
+        dispatchTarget={null}
+        thinking={false}
+        workspaceName="Alfred"
+        onChange={() => undefined}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await userEvent.keyboard("{Enter}");
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByText(/choose target/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Dispatch instruction")).toHaveAttribute(
+      "placeholder",
+      "Choose a target before dispatching...",
+    );
   });
 });

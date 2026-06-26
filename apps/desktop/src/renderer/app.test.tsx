@@ -968,7 +968,9 @@ describe("App integration", () => {
     expect(dispatch).toHaveAccessibleName("Alfred dispatch");
     expect(screen.queryByRole("form", { name: /alfred composer/i })).not.toBeInTheDocument();
 
-    expect(within(dispatch).getByRole("button", { name: "Dispatch target: Manual · zsh 1" })).toBeInTheDocument();
+    expect(within(dispatch).getByRole("button", { name: "Change dispatch target" })).toBeInTheDocument();
+    expect(within(dispatch).getByText("session")).toBeInTheDocument();
+    expect(within(dispatch).getByText("Manual · zsh 1")).toBeInTheDocument();
     const input = within(dispatch).getByRole("textbox", { name: "Dispatch instruction" });
     await user.type(input, "prepare a review plan");
     await user.click(within(dispatch).getByRole("button", { name: "Dispatch to Manual · zsh 1" }));

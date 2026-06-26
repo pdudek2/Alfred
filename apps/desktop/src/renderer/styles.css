@@ -8071,6 +8071,9 @@ body {
 }
 
 .dispatch-bar {
+  border-top: 1px solid var(--line);
+  background: rgba(5, 11, 9, 0.98);
+  padding: 8px;
   grid-template-columns: 30px minmax(150px, 220px) minmax(0, 1fr) 96px;
   grid-template-rows: 36px 16px;
 }
@@ -8116,6 +8119,8 @@ body {
 
 .dispatch-bar .composer-input {
   grid-column: 3;
+  border-radius: 10px;
+  background: rgba(2, 6, 5, 0.92);
 }
 
 .dispatch-bar .composer-send {
