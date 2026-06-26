@@ -43,6 +43,7 @@ type TerminalDeskProps = {
   relaunchArmedSessionIds: Set<string>;
   selectedSessionId: string | null;
   sessions: SessionTile[];
+  showHeaderControls?: boolean;
   shortcutModifier: string;
   workMode: WorkMode;
   worktreeActionPending: Record<string, WorktreeActionKind | undefined>;
@@ -84,6 +85,7 @@ export function TerminalDesk({
   relaunchArmedSessionIds,
   selectedSessionId,
   sessions,
+  showHeaderControls = true,
   shortcutModifier,
   workMode,
   worktreeActionPending,
@@ -245,19 +247,19 @@ export function TerminalDesk({
         <div className="layout-controls" aria-label="layout controls">
           {arrangeMode && (
             <>
-              <button type="button" onClick={() => onApplyLayoutPreset("focus")}>
+              <button type="button" aria-label="Apply Full preset" onClick={() => onApplyLayoutPreset("focus")}>
                 Full
               </button>
-              <button type="button" onClick={() => onApplyLayoutPreset("two-up")}>
+              <button type="button" aria-label="Apply Split preset" onClick={() => onApplyLayoutPreset("two-up")}>
                 Split
               </button>
-              <button type="button" onClick={() => onApplyLayoutPreset("grid")}>
+              <button type="button" aria-label="Apply Grid preset" onClick={() => onApplyLayoutPreset("grid")}>
                 Grid
               </button>
               <span className="arrange-hint">drag header · resize corner</span>
             </>
           )}
-          {!arrangeMode && sessions.length > 0 && (
+          {showHeaderControls && !arrangeMode && sessions.length > 0 && (
             <div className="work-mode-control" aria-label="work mode">
               <button
                 type="button"

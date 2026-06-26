@@ -5,9 +5,7 @@ import {
   FolderOpen,
   ListChecks,
   Pencil,
-  Plus,
   RefreshCcw,
-  Search,
   ShieldCheck,
   SquareTerminal,
   Trash2,
@@ -33,6 +31,7 @@ import { ReviewQueuePanel } from "./components/ReviewQueuePanel";
 import { ReviewSurface } from "./components/ReviewSurface";
 import { SessionObservatoryPanel } from "./components/SessionObservatoryPanel";
 import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
+import { WorkbenchHeader } from "./components/WorkbenchHeader";
 import { WorkspaceNavigationPanel } from "./components/WorkspaceNavigationPanel";
 import { WorkspacePreviewPanel } from "./components/WorkspacePreviewPanel";
 import type { WorkspaceRailWorkspace } from "./components/WorkspaceRail";
@@ -198,6 +197,7 @@ export function App() {
   const [dispatchTargetsByWorkspace, setDispatchTargetsByWorkspace] = useState<Record<string, DispatchTargetSnapshot>>({});
   const [lastDispatchDestination, setLastDispatchDestination] = useState<string | null>(null);
   const [pendingDiscardConfirmation, setPendingDiscardConfirmation] = useState<PendingDiscardConfirmation | null>(null);
+  const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
   const worktreeActionPendingRef = useRef<Set<string>>(new Set());
@@ -651,11 +651,14 @@ export function App() {
   }, [activeAttention, handleFocusSession]);
 
   const handleOpenReviewQueue = useCallback(() => {
+    if (commandPaletteOpen) {
+      commandPaletteTriggerRef.current?.focus();
+    }
     setCommandPaletteOpen(false);
     setCommandQuery("");
     setSessionObservatoryOpen(false);
     setReviewQueueOpen(true);
-  }, []);
+  }, [commandPaletteOpen]);
 
   const handleCloseReviewQueue = useCallback(() => {
     setReviewQueueOpen(false);
@@ -1856,59 +1859,9 @@ export function App() {
               }}
             />
           </div>
-          <div className="mission-actions" role="group" aria-label="terminal actions" data-testid="workbench-header">
+          <div className="mission-actions" role="group" aria-label="workspace utilities">
             <button
-              className={`context-toggle-button ${activeContextDrawerOpen ? "active" : ""}`}
-              type="button"
-              aria-label={
-                activeContextDrawerOpen
-                  ? "Close Context drawer"
-                  : `Open Context drawer${activeImportantSignalCount > 0 ? `, ${activeImportantSignalCount} important signal${activeImportantSignalCount === 1 ? "" : "s"}` : ""}`
-              }
-              aria-expanded={activeContextDrawerOpen}
-              onClick={handleToggleContextDrawer}
-              title="Context drawer"
-            >
-              <Eye size={15} />
-              <span>Context</span>
-              {activeImportantSignalCount > 0 && <strong>{activeImportantSignalCount}</strong>}
-            </button>
-            {terminalSessions.length > 0 && (
-              <button
-                className="session-observatory-button"
-                type="button"
-                aria-label={`Open session observatory, ${terminalSessions.length} session${terminalSessions.length === 1 ? "" : "s"}`}
-                onClick={handleOpenSessionObservatory}
-                title="Search sessions across workspaces"
-              >
-                <Search size={15} />
-                <span>Sessions</span>
-                <strong>{terminalSessions.length}</strong>
-              </button>
-            )}
-            {reviewQueuePreview && (
-              <button
-                className={`review-queue-button tone-${reviewQueuePreview.status.kind}`}
-                type="button"
-                aria-label={`Open review queue, ${globalReviewItems.length} item${globalReviewItems.length === 1 ? "" : "s"}`}
-                onClick={handleOpenReviewQueue}
-                title={`${reviewQueuePreview.workspaceLabel}: ${reviewQueuePreview.session.title}`}
-              >
-                <ListChecks size={15} />
-                <span>Queue</span>
-                <strong>{globalReviewItems.length}</strong>
-              </button>
-            )}
-            <button
-              className={`arrange-button ${arrangeMode ? "active" : ""}`}
-              type="button"
-              aria-pressed={arrangeMode}
-              onClick={handleToggleArrangeMode}
-              title="Arrange layout"
-            >
-              Arrange
-            </button>
-            <button
+              ref={commandPaletteTriggerRef}
               className="command-palette-button"
               type="button"
               aria-label="Open command palette"
@@ -1917,38 +1870,6 @@ export function App() {
             >
               <Command size={15} />
               <span>{shortcutModifier} K</span>
-            </button>
-            <div className="agent-launch-buttons" aria-label="agent launchers">
-              <button
-                className="agent-launch-button codex"
-                type="button"
-                aria-label="Start Codex"
-                onClick={() => handleAddAgentSession("codex")}
-                title={activeWorkspace.rootPath ? "Start Codex in this workspace" : "Start Codex in a scratch workspace"}
-              >
-                <span className="tool-dot codex" />
-                <span>Codex</span>
-              </button>
-              <button
-                className="agent-launch-button claude"
-                type="button"
-                aria-label="Start Claude"
-                onClick={() => handleAddAgentSession("claude")}
-                title={activeWorkspace.rootPath ? "Start Claude in this workspace" : "Start Claude in a scratch workspace"}
-              >
-                <span className="tool-dot claude" />
-                <span>Claude</span>
-              </button>
-            </div>
-            <button
-              className="new-terminal-button"
-              type="button"
-              aria-label="New terminal"
-              onClick={handleAddManualSession}
-              title={activeWorkspace.rootPath ? "New terminal" : "New terminal in a scratch workspace"}
-            >
-              <Plus size={17} />
-              <span>New terminal</span>
             </button>
           </div>
         </div>
@@ -2010,6 +1931,25 @@ export function App() {
             onSelectWorkspace={handleSelectWorkspace}
           />
           <div className="orchestrator-surface" data-testid="workbench-surface">
+            <WorkbenchHeader
+              activeSurface={activeSurface}
+              activeSessionCount={activeSessions.length}
+              arrangeMode={arrangeMode}
+              contextOpen={activeContextDrawerOpen}
+              contextSignalCount={activeImportantSignalCount}
+              inboxCount={globalReviewItems.length}
+              sessionCount={terminalSessions.length}
+              workMode={activeWorkMode}
+              workspaceLabel={activeWorkspace.label}
+              workspacePathLabel={workspaceDetail(activeWorkspace)}
+              onAddAgentSession={handleAddAgentSession}
+              onAddManualSession={handleAddManualSession}
+              onApplyWorkMode={handleApplyWorkMode}
+              onOpenInbox={() => setActiveSurface("inbox")}
+              onOpenSessionObservatory={handleOpenSessionObservatory}
+              onToggleArrangeMode={handleToggleArrangeMode}
+              onToggleContext={handleToggleContextDrawer}
+            />
             <div
               className={`surface-panel desk-surface-panel ${workSurfaceHidden ? "inactive" : "active"}`}
               data-testid="desk-runtime-surface"
@@ -2054,6 +1994,7 @@ export function App() {
                 onRejectTile={handleRejectTile}
                 onResizeTile={handleResizeTile}
                 onReviewWorktree={handleReviewWorktree}
+                showHeaderControls={false}
                 onToggleCollapseSession={handleToggleCollapseSession}
               />
             </div>
