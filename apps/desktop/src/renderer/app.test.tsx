@@ -476,6 +476,19 @@ describe("App integration", () => {
     expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
   });
 
+  it("renders the clean depth shell regions around the live terminal workbench", async () => {
+    installDesktopBridge();
+    render(<App />);
+
+    expect(await screen.findByTestId("primary-nav-rail")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-navigation-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("workbench-surface")).toBeInTheDocument();
+    expect(screen.getByTestId("workbench-header")).toBeInTheDocument();
+    expect(screen.getByTestId("context-column")).toBeInTheDocument();
+    expect(screen.getByTestId("desk-runtime-surface")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-grid")).toBeInTheDocument();
+  });
+
   it("opens Local Data & Privacy controls from the command palette", async () => {
     const user = userEvent.setup();
     const { clearSavedTerminalData, revealStateFile, updatePrivacySettings } = installDesktopBridge();
@@ -697,6 +710,28 @@ describe("App integration", () => {
     expect(screen.getAllByTestId("xterm-host")).toHaveLength(2);
     expect(screen.getAllByTestId("terminal-tile")).toHaveLength(2);
     expect(document.querySelectorAll(".terminal-tile.focus-hidden [data-testid='xterm-host']")).toHaveLength(1);
+  });
+
+  it("keeps xterm hosts mounted across Work, Inbox, History, Context, and Focus", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+    render(<App />);
+
+    await screen.findByTestId("xterm-host");
+    const work = await screen.findByRole("button", { name: /open work surface/i });
+    await user.click(work);
+    const initialHosts = within(screen.getByTestId("desk-runtime-surface")).getAllByTestId("xterm-host");
+    expect(initialHosts.length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: /open inbox surface/i }));
+    await user.click(screen.getByRole("button", { name: /open history surface/i }));
+    await user.click(screen.getByRole("button", { name: /open work surface/i }));
+    await user.click(screen.getByRole("button", { name: /open context drawer/i }));
+    await user.click(screen.getByRole("button", { name: /^focus$/i }));
+
+    const finalHosts = within(screen.getByTestId("desk-runtime-surface")).getAllByTestId("xterm-host");
+    expect(finalHosts).toHaveLength(initialHosts.length);
+    expect(finalHosts[0]).toBe(initialHosts[0]);
   });
 
   it("collapses a terminal tile without disposing or removing its xterm host", async () => {

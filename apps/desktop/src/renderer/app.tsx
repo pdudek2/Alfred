@@ -1855,7 +1855,7 @@ export function App() {
               }}
             />
           </div>
-          <div className="mission-actions" role="group" aria-label="terminal actions">
+          <div className="mission-actions" role="group" aria-label="terminal actions" data-testid="workbench-header">
             <nav className="surface-nav" aria-label="Workspace surfaces">
               <button
                 type="button"
@@ -2012,15 +2012,20 @@ export function App() {
           className={`workspace-layout surface-${activeSurface} ${alfredExpanded ? "alfred-expanded" : "alfred-compact"} ${
             previewVisible ? "preview-visible" : ""
           }`}
+          data-testid="clean-depth-shell"
         >
-          <WorkspaceRail
-            activeWorkspaceId={activeWorkspace.id}
-            sessions={terminalSessions}
-            workspaces={workspaces}
-            onAddWorkspace={handleAddWorkspace}
-            onSelectWorkspace={handleSelectWorkspace}
-          />
-          <div className="orchestrator-surface">
+          <div className="workspace-navigation-panel" data-testid="workspace-navigation-panel">
+            <div className="primary-nav-rail" data-testid="primary-nav-rail">
+              <WorkspaceRail
+                activeWorkspaceId={activeWorkspace.id}
+                sessions={terminalSessions}
+                workspaces={workspaces}
+                onAddWorkspace={handleAddWorkspace}
+                onSelectWorkspace={handleSelectWorkspace}
+              />
+            </div>
+          </div>
+          <div className="orchestrator-surface" data-testid="workbench-surface">
             <div
               className={`surface-panel desk-surface-panel ${workSurfaceHidden ? "inactive" : "active"}`}
               data-testid="desk-runtime-surface"
@@ -2137,7 +2142,7 @@ export function App() {
               onUpdateStagedSession={handleUpdateStagedSession}
             />
           </div>
-          <div className="alfred-status-dock">
+          <div className="alfred-status-dock" data-testid="context-column">
             <AlfredControlRail
               armedUnsafeSessionIds={armedUnsafeSessionIds}
               status={alfredStatus}

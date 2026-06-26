@@ -650,6 +650,11 @@ button:focus-visible {
     rgba(6, 9, 13, 0.84);
 }
 
+.workspace-navigation-panel,
+.primary-nav-rail {
+  display: contents;
+}
+
 .workspace-layout.alfred-compact {
   grid-template-columns: minmax(194px, 220px) minmax(0, 1fr) minmax(320px, 34vw);
 }
