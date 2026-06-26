@@ -676,6 +676,29 @@ describe("App integration", () => {
     expect(screen.getByTestId("terminal-grid")).toBeInTheDocument();
   });
 
+  it("uses primary-nav-rail utility actions to toggle Context and open Local Data & Privacy", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+    render(<App />);
+
+    const rail = await screen.findByTestId("primary-nav-rail");
+    const railScope = within(rail);
+
+    const contextButton = railScope.getByRole("button", { name: "Open Context drawer" });
+    expect(contextButton).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(contextButton);
+    expect(screen.getByTestId("context-drawer")).toHaveClass("open");
+    expect(railScope.getByRole("button", { name: "Close Context drawer" })).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(railScope.getByRole("button", { name: "Close Context drawer" }));
+    expect(screen.getByTestId("context-drawer")).toHaveClass("closed");
+    expect(railScope.getByRole("button", { name: "Open Context drawer" })).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(railScope.getByRole("button", { name: "Open Local Data & Privacy" }));
+    expect(screen.getByRole("dialog", { name: "Local Data & Privacy" })).toBeInTheDocument();
+  });
+
   it("keeps every xterm host mounted when Focus hides non-selected terminal tiles", async () => {
     installDesktopBridge(
       undefined,
@@ -749,7 +772,7 @@ describe("App integration", () => {
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
 
-    await user.click(screen.getByRole("button", { name: /open context drawer/i }));
+    await user.click(within(screen.getByTestId("workbench-header")).getByRole("button", { name: /open context drawer/i }));
     expect(screen.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
@@ -856,7 +879,9 @@ describe("App integration", () => {
     const drawer = screen.getByTestId("context-drawer");
     expect(drawer).toHaveAttribute("aria-hidden", "true");
 
-    const trigger = screen.getByRole("button", { name: "Open Context drawer, 1 important signal" });
+    const trigger = within(screen.getByTestId("workbench-header")).getByRole("button", {
+      name: "Open Context drawer, 1 important signal",
+    });
     await user.click(trigger);
 
     expect(drawer).toHaveAttribute("aria-hidden", "false");
@@ -1208,7 +1233,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: /Open Context drawer/ }));
+    await user.click(within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open Context drawer/ }));
     const preview = await screen.findByLabelText("Workspace preview");
     expect(within(preview).getAllByText("localhost:5173")).toHaveLength(2);
     expect(within(preview).queryByText("example.com")).not.toBeInTheDocument();
@@ -2107,7 +2132,7 @@ describe("App integration", () => {
 
     expect(screen.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "true");
     expect(tile).toHaveClass("selected");
-    await user.click(screen.getByRole("button", { name: /Open Context drawer/ }));
+    await user.click(within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open Context drawer/ }));
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
 
     await user.dblClick(header);
@@ -3348,7 +3373,7 @@ describe("App integration", () => {
 
     const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
     await user.dblClick(tile.querySelector(".tile-header")!);
-    await user.click(screen.getByRole("button", { name: /Open Context drawer/ }));
+    await user.click(within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open Context drawer/ }));
 
     const pulse = screen.getByRole("region", { name: "Session pulse" });
     expect(pulse).toHaveTextContent("needs you");
@@ -3391,7 +3416,7 @@ describe("App integration", () => {
 
     const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
     await user.dblClick(tile.querySelector(".tile-header")!);
-    await user.click(screen.getByRole("button", { name: /Open Context drawer/ }));
+    await user.click(within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open Context drawer/ }));
     await user.click(
       screen.getByRole("button", { name: "Reveal edited: apps/desktop/src/renderer/app.tsx" }),
     );
@@ -3419,7 +3444,9 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("article", { name: /Manual · alpha/i })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Open Context drawer" }));
+    await userEvent.click(
+      within(screen.getByTestId("workbench-header")).getByRole("button", { name: "Open Context drawer" }),
+    );
     const inspector = screen.getByRole("complementary", { name: "Agent activity" });
     expect(within(inspector).getByText("Manual · alpha")).toBeInTheDocument();
     expect(within(inspector).getByText("Continue outside Alfred")).toBeInTheDocument();
@@ -3447,7 +3474,7 @@ describe("App integration", () => {
 
     const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
     await user.dblClick(tile.querySelector(".tile-header")!);
-    await user.click(screen.getByRole("button", { name: /Open Context drawer/ }));
+    await user.click(within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open Context drawer/ }));
     await user.click(screen.getByRole("button", { name: "Open external terminal for Codex · session 1" }));
 
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
@@ -3687,7 +3714,7 @@ describe("App integration", () => {
 
     expect(screen.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "true");
     expect(stagedTaskB).toHaveClass("selected");
-    await user.click(screen.getByRole("button", { name: /Open Context drawer/ }));
+    await user.click(within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open Context drawer/ }));
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Task B");
 
     await user.dblClick(stagedTaskBHeader);
@@ -3789,7 +3816,7 @@ describe("App integration", () => {
     });
 
     await user.dblClick(stagedTile.querySelector(".tile-header")!);
-    await user.click(screen.getByRole("button", { name: /Open Context drawer/ }));
+    await user.click(within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open Context drawer/ }));
     await user.click(screen.getByRole("button", { name: "Edit command" }));
     fireEvent.change(screen.getByLabelText("Command"), { target: { value: "pnpm" } });
     fireEvent.change(screen.getByLabelText("Arguments"), { target: { value: "test\n--watch" } });

@@ -4,6 +4,7 @@ export type PrimarySurface = "work" | "inbox" | "history";
 
 type PrimaryNavigationRailProps = {
   activeSurface: PrimarySurface;
+  contextOpen: boolean;
   inboxCount: number;
   contextSignalCount: number;
   shortcutModifier: string;
@@ -15,6 +16,7 @@ type PrimaryNavigationRailProps = {
 
 export function PrimaryNavigationRail({
   activeSurface,
+  contextOpen,
   inboxCount,
   contextSignalCount,
   shortcutModifier,
@@ -61,7 +63,12 @@ export function PrimaryNavigationRail({
       <div className="primary-nav-stack primary-nav-bottom">
         <button
           type="button"
-          aria-label={`Toggle Context drawer${contextSignalCount > 0 ? `, ${contextSignalCount} important signals` : ""}`}
+          aria-label={
+            contextOpen
+              ? "Close Context drawer"
+              : `Open Context drawer${contextSignalCount > 0 ? `, ${contextSignalCount} important signal${contextSignalCount === 1 ? "" : "s"}` : ""}`
+          }
+          aria-expanded={contextOpen}
           onClick={onToggleContext}
         >
           <ShieldCheck size={18} />

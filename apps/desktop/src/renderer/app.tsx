@@ -1986,6 +1986,7 @@ export function App() {
         >
           <PrimaryNavigationRail
             activeSurface={activeSurface}
+            contextOpen={activeContextDrawerOpen}
             contextSignalCount={activeImportantSignalCount}
             inboxCount={globalReviewItems.length}
             shortcutModifier={shortcutModifier}
