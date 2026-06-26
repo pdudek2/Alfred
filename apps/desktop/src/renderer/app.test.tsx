@@ -494,6 +494,14 @@ describe("App integration", () => {
     expect(screen.getByTestId("terminal-grid")).toBeInTheDocument();
   });
 
+  it("does not render the old top surface nav as the primary navigation", async () => {
+    installDesktopBridge();
+    render(<App />);
+
+    expect(await screen.findByTestId("primary-nav-rail")).toBeInTheDocument();
+    expect(document.querySelector(".mission-actions .surface-nav")).not.toBeInTheDocument();
+  });
+
   it("keeps Work layout controls in the central workbench header", async () => {
     installDesktopBridge();
     render(<App />);
