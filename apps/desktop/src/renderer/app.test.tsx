@@ -932,7 +932,7 @@ describe("App integration", () => {
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
   });
 
-  it("collapses a terminal tile without disposing or removing its xterm host", async () => {
+  it("separates collapse from destructive close and only shows resize handles in Arrange", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
 
@@ -942,10 +942,16 @@ describe("App integration", () => {
     const host = within(tile).getByTestId("xterm-host");
     const disposeCountBeforeCollapse = terminalDisposeCalls.length;
 
-    await user.click(screen.getByRole("button", { name: "Collapse Manual · zsh 1" }));
+    expect(document.querySelector(".arrange-handle")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Resize /i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^Arrange$/i }));
+    expect(document.querySelector(".arrange-handle")).toBeInTheDocument();
+
+    await user.click(within(tile).getByRole("button", { name: "Collapse Manual · zsh 1" }));
 
     expect(tile).toHaveClass("collapsed");
     expect(host.isConnected).toBe(true);
+    expect(within(tile).getByTestId("xterm-host")).toBe(host);
     expect(within(tile).getByRole("button", { name: "Expand Manual · zsh 1" })).toBeInTheDocument();
     expect(within(tile).getByRole("button", { name: "Close Manual · zsh 1" })).toBeInTheDocument();
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeCollapse);

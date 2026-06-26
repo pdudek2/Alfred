@@ -29,6 +29,9 @@
   --green: #63d18a;
   --coral: #f07f72;
   --violet: #a99cff;
+  --codex-blue: var(--cyan);
+  --claude-amber: var(--brass);
+  --alert-red: var(--coral);
   --accent: var(--accent-primary);
   --focus-border: var(--accent-focus);
   --highlight-soft: rgba(237, 242, 246, 0.055);
@@ -1459,7 +1462,7 @@ button:focus-visible {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(620px, 100%), 1fr));
   grid-auto-rows: minmax(320px, 1fr);
-  gap: 9px;
+  gap: 10px;
   padding: 9px;
   scrollbar-width: thin;
   scrollbar-color: rgba(188, 202, 218, 0.18) transparent;
@@ -1695,15 +1698,11 @@ button:focus-visible {
   min-width: 0;
   min-height: 0;
   border: 1px solid color-mix(in oklab, white 7%, transparent);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
-  background:
-    linear-gradient(180deg, color-mix(in oklab, white 2.4%, transparent), transparent 52px),
-    #050807;
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklab, white 5%, transparent),
-    0 2px 4px -2px rgba(0, 0, 0, 0.32),
-    0 16px 34px -25px rgba(0, 0, 0, 0.86);
+  border-color: color-mix(in oklab, white 9%, transparent);
+  background: rgba(3, 7, 6, 0.98);
+  box-shadow: 0 16px 32px -28px rgba(0, 0, 0, 0.95);
   container: terminal-tile / inline-size;
   display: grid;
   grid-template-rows: 42px 1fr;
@@ -1895,6 +1894,12 @@ body.arranging-pointer {
   background:
     linear-gradient(180deg, color-mix(in oklab, white 1.8%, transparent), transparent),
     #070a0b;
+}
+
+.terminal-tile-header {
+  min-height: 42px;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--line);
 }
 
 .tile-activity {
@@ -2212,6 +2217,27 @@ body.arranging-pointer {
   line-height: 1.2;
 }
 
+.terminal-status-label {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 3px 7px;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 750 10px/1 var(--mono);
+}
+
+.terminal-status-label.tone-codex {
+  color: var(--codex-blue);
+  border-color: color-mix(in oklab, var(--codex-blue) 32%, transparent);
+}
+
+.terminal-status-label.tone-claude {
+  color: var(--claude-amber);
+  border-color: color-mix(in oklab, var(--claude-amber) 32%, transparent);
+}
+
 .tile-age {
   min-width: 34px;
   color: color-mix(in oklab, var(--faint) 80%, transparent);
@@ -2280,7 +2306,7 @@ body.arranging-pointer {
 .terminal-tile:focus-within {
   outline: 1px solid var(--focus-border);
   outline-offset: 2px;
-  border-color: color-mix(in oklab, var(--accent) 68%, transparent);
+  border-color: color-mix(in oklab, var(--accent) 36%, transparent);
   box-shadow:
     inset 0 0 0 1px color-mix(in oklab, var(--accent) 38%, transparent),
     inset 0 1px 0 color-mix(in oklab, white 12%, transparent),
@@ -2288,6 +2314,18 @@ body.arranging-pointer {
     0 0 0 3px color-mix(in oklab, var(--accent) 14%, transparent),
     0 18px 38px -22px color-mix(in oklab, var(--accent) 42%, black 58%),
     0 28px 50px -22px rgba(0, 0, 0, 0.9);
+}
+
+.arrange-handle {
+  width: 22px;
+  height: 18px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  justify-self: end;
+  background:
+    radial-gradient(circle, color-mix(in oklab, var(--accent) 56%, transparent) 1.2px, transparent 1.2px)
+      center / 6px 6px;
+  opacity: 0.9;
 }
 
 .terminal-tile.real-terminal.error .tile-status::before,

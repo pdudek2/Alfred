@@ -804,6 +804,8 @@ function ManualTerminalTile({
     ...(activityEvents === undefined ? {} : { activityEvents }),
   } satisfies Parameters<typeof terminalSessionDisplayStatus>[0];
   const displayStatus = terminalSessionDisplayStatus(displaySession, tileStatus, displayClock);
+  const statusKind = terminalStatusKind({ runtimeStatus }, tileStatus);
+  const statusLabel = terminalStatusLabel({ runtimeStatus }, tileStatus);
   const restartable = displayStatus.kind === "done" || displayStatus.kind === "error";
   const discardableSession = displayStatus.kind === "restored" || restartable;
   const existingCheckoutMetadata = isReusableIsolatedCheckoutMetadata({ isolation, branchName, baseCwd });
@@ -1251,7 +1253,7 @@ function ManualTerminalTile({
       }}
     >
       <header
-        className={`tile-header ${arrangeMode ? "drag-handle" : ""}`}
+        className={`tile-header terminal-tile-header ${arrangeMode ? "drag-handle" : ""}`}
         onClick={!arrangeMode ? onSelectSession : undefined}
         onDoubleClick={!arrangeMode ? onFocusSession : undefined}
         onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
@@ -1319,6 +1321,7 @@ function ManualTerminalTile({
             <small>{latestActivity.detail}</small>
           </div>
         )}
+        {arrangeMode && <span className="arrange-handle" aria-hidden="true" />}
         <div className="tile-actions">
           <div className="tile-action-group tile-status-group">
             {ageLabel && (
@@ -1326,7 +1329,10 @@ function ManualTerminalTile({
                 {ageLabel}
               </span>
             )}
-            <span className={`tile-status status-${displayStatus.kind}`}>{displayStatus.label}</span>
+            <span className={`terminal-status-label tone-${kindMeta.className}`} aria-label={`status ${statusLabel}`}>
+              <span aria-hidden="true">{statusKind === "error" ? "!" : statusKind === "restored" ? "↻" : "✓"}</span>
+              {statusLabel}
+            </span>
           </div>
           {(tileStatus === "restored" || restartable) && (
             <div className="tile-action-group tile-primary-actions">
@@ -1492,6 +1498,39 @@ function activityKindLabel(kind: NonNullable<SessionTile["activityEvents"]>[numb
       return "state";
     case "output":
       return "out";
+  }
+}
+
+function terminalStatusKind(
+  session: Pick<SessionTile, "runtimeStatus">,
+  localStatus: LocalTerminalStatus,
+): string {
+  if (localStatus === "error" || session.runtimeStatus === "error") return "error";
+  if (localStatus === "restored" || session.runtimeStatus === "restored") return "restored";
+  if (localStatus === "connecting" || session.runtimeStatus === "starting") return "starting";
+  if (localStatus === "exited" || session.runtimeStatus === "exited") return "exited";
+  if (localStatus === "browser" || session.runtimeStatus === "unavailable") return "unavailable";
+  return "running";
+}
+
+function terminalStatusLabel(
+  session: Pick<SessionTile, "runtimeStatus">,
+  localStatus: LocalTerminalStatus,
+): string {
+  switch (terminalStatusKind(session, localStatus)) {
+    case "running":
+    case "ready":
+      return "running";
+    case "starting":
+      return "starting";
+    case "restored":
+      return "restored";
+    case "exited":
+      return "exited";
+    case "error":
+      return "needs review";
+    default:
+      return terminalStatusKind(session, localStatus);
   }
 }
 
