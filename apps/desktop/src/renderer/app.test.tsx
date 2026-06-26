@@ -640,7 +640,7 @@ describe("App integration", () => {
     const constructorCountBeforeSurfaceSwitch = terminalConstructorOptions.length;
     const disposeCountBeforeSurfaceSwitch = terminalDisposeCalls.length;
 
-    await user.click(screen.getByRole("button", { name: "Open Inbox surface" }));
+    await user.click(screen.getByRole("button", { name: /Open Inbox surface/i }));
 
     expect(await screen.findByRole("region", { name: "Inbox workspace" })).toBeInTheDocument();
     expect(runtimeSurface).toHaveAttribute("aria-hidden", "true");
@@ -660,6 +660,20 @@ describe("App integration", () => {
     expect(xtermHost.isConnected).toBe(true);
     expect(terminalConstructorOptions).toHaveLength(constructorCountBeforeSurfaceSwitch);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeSurfaceSwitch);
+  });
+
+  it("uses the icon rail as the primary Work Inbox History navigation", async () => {
+    installDesktopBridge();
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /open inbox surface/i }));
+    expect(screen.getByRole("region", { name: /inbox workspace/i })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /open history surface/i }));
+    expect(screen.getByRole("region", { name: /history workspace/i })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /open work surface/i }));
+    expect(screen.getByTestId("terminal-grid")).toBeInTheDocument();
   });
 
   it("keeps every xterm host mounted when Focus hides non-selected terminal tiles", async () => {
@@ -3892,7 +3906,7 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Alfred status")).not.toHaveClass("compact");
     expect(createTerminal).not.toHaveBeenCalled();
 
-    await userEvent.click(screen.getByRole("button", { name: "Open Inbox surface" }));
+    await userEvent.click(screen.getByRole("button", { name: /Open Inbox surface/i }));
     expect(screen.getByRole("button", { name: "Resume latest" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Open Work surface" }));
 

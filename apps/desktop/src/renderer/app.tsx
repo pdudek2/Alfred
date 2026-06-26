@@ -28,6 +28,7 @@ import { AlfredMark } from "./components/AlfredMark";
 import { AgentTimelinePanel } from "./components/AgentTimelinePanel";
 import { CommandPalette } from "./components/CommandPalette";
 import { ObservatorySurface } from "./components/ObservatorySurface";
+import { PrimaryNavigationRail, type PrimarySurface } from "./components/PrimaryNavigationRail";
 import { ReviewQueuePanel } from "./components/ReviewQueuePanel";
 import { ReviewSurface } from "./components/ReviewSurface";
 import { SessionObservatoryPanel } from "./components/SessionObservatoryPanel";
@@ -108,7 +109,6 @@ import type { ExternalCodexSessionSummary } from "../shared/session-index-ipc";
 import "@xterm/xterm/css/xterm.css";
 
 type Workspace = WorkspaceRailWorkspace;
-type ActiveSurface = "work" | "inbox" | "history";
 type WorkspaceHydrationStatus =
   | { status: "loading" }
   | { status: "ready" }
@@ -174,7 +174,7 @@ export function App() {
   const [privacySettings, setPrivacySettings] = useState<DesktopPrivacySettings>(DEFAULT_PRIVACY_SETTINGS);
   const [desktopSaveStatus, setDesktopSaveStatus] = useState<DesktopSaveStatus>({ status: "saved" });
   const [sessionObservatoryOpen, setSessionObservatoryOpen] = useState<boolean>(false);
-  const [activeSurface, setActiveSurface] = useState<ActiveSurface>("work");
+  const [activeSurface, setActiveSurface] = useState<PrimarySurface>("work");
   const [workspaceHydrationStatus, setWorkspaceHydrationStatus] = useState<WorkspaceHydrationStatus>({
     status: "loading",
   });
@@ -1856,36 +1856,6 @@ export function App() {
             />
           </div>
           <div className="mission-actions" role="group" aria-label="terminal actions" data-testid="workbench-header">
-            <nav className="surface-nav" aria-label="Workspace surfaces">
-              <button
-                type="button"
-                className={activeSurface === "work" ? "active" : ""}
-                aria-label="Open Work surface"
-                aria-current={activeSurface === "work" ? "page" : undefined}
-                onClick={() => setActiveSurface("work")}
-              >
-                Work
-              </button>
-              <button
-                type="button"
-                className={activeSurface === "inbox" ? "active" : ""}
-                aria-label="Open Inbox surface"
-                aria-current={activeSurface === "inbox" ? "page" : undefined}
-                onClick={() => setActiveSurface("inbox")}
-              >
-                Inbox
-                {globalReviewItems.length > 0 && <strong>{globalReviewItems.length}</strong>}
-              </button>
-              <button
-                type="button"
-                className={activeSurface === "history" ? "active" : ""}
-                aria-label="Open History surface"
-                aria-current={activeSurface === "history" ? "page" : undefined}
-                onClick={() => setActiveSurface("history")}
-              >
-                History
-              </button>
-            </nav>
             <button
               className={`context-toggle-button ${activeContextDrawerOpen ? "active" : ""}`}
               type="button"
@@ -2014,16 +1984,24 @@ export function App() {
           }`}
           data-testid="clean-depth-shell"
         >
+          <PrimaryNavigationRail
+            activeSurface={activeSurface}
+            contextSignalCount={activeImportantSignalCount}
+            inboxCount={globalReviewItems.length}
+            shortcutModifier={shortcutModifier}
+            onOpenCommandPalette={handleOpenCommandPalette}
+            onOpenPrivacyControls={handleOpenPrivacyPanel}
+            onToggleContext={handleToggleContextDrawer}
+            onSelectSurface={(surface) => setActiveSurface(surface)}
+          />
           <div className="workspace-navigation-panel" data-testid="workspace-navigation-panel">
-            <div className="primary-nav-rail" data-testid="primary-nav-rail">
-              <WorkspaceRail
-                activeWorkspaceId={activeWorkspace.id}
-                sessions={terminalSessions}
-                workspaces={workspaces}
-                onAddWorkspace={handleAddWorkspace}
-                onSelectWorkspace={handleSelectWorkspace}
-              />
-            </div>
+            <WorkspaceRail
+              activeWorkspaceId={activeWorkspace.id}
+              sessions={terminalSessions}
+              workspaces={workspaces}
+              onAddWorkspace={handleAddWorkspace}
+              onSelectWorkspace={handleSelectWorkspace}
+            />
           </div>
           <div className="orchestrator-surface" data-testid="workbench-surface">
             <div

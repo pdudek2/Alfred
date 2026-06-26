@@ -642,7 +642,7 @@ button:focus-visible {
 .workspace-layout {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(194px, 220px) minmax(0, 1fr) 218px;
+  grid-template-columns: 50px minmax(194px, 220px) minmax(0, 1fr) 218px;
   gap: 8px;
   padding: 8px;
   background:
@@ -650,17 +650,89 @@ button:focus-visible {
     rgba(6, 9, 13, 0.84);
 }
 
-.workspace-navigation-panel,
 .primary-nav-rail {
-  display: contents;
+  grid-column: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(5, 11, 9, 0.96);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  justify-items: center;
+  gap: 14px;
+  padding: 10px 7px;
+}
+
+.workspace-navigation-panel {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.primary-nav-brand,
+.primary-nav-rail button {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+}
+
+.primary-nav-brand {
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in oklab, var(--accent) 38%, transparent);
+  background: color-mix(in oklab, var(--accent) 13%, transparent);
+  color: var(--accent-strong);
+  font: 800 13px/1 var(--mono);
+}
+
+.primary-nav-stack {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.primary-nav-bottom {
+  align-content: end;
+}
+
+.primary-nav-rail button {
+  position: relative;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  display: grid;
+  place-items: center;
+}
+
+.primary-nav-rail button.active,
+.primary-nav-rail button:hover,
+.primary-nav-rail button:focus-visible {
+  border-color: color-mix(in oklab, var(--accent) 28%, transparent);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.primary-nav-rail button span {
+  position: absolute;
+  right: -4px;
+  top: -4px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #03110b;
+  display: grid;
+  place-items: center;
+  font: 800 9px/1 var(--mono);
 }
 
 .workspace-layout.alfred-compact {
-  grid-template-columns: minmax(194px, 220px) minmax(0, 1fr) minmax(320px, 34vw);
+  grid-template-columns: 50px minmax(194px, 220px) minmax(0, 1fr) minmax(320px, 34vw);
 }
 
 .workspace-layout.preview-visible {
-  grid-template-columns: minmax(194px, 220px) minmax(0, 1fr) minmax(320px, 34vw);
+  grid-template-columns: 50px minmax(194px, 220px) minmax(0, 1fr) minmax(320px, 34vw);
 }
 
 .side-dock-stack {
@@ -911,15 +983,15 @@ button:focus-visible {
 
 @media (max-width: 1180px) {
   .workspace-layout {
-    grid-template-columns: 58px minmax(0, 1fr) 198px;
+    grid-template-columns: 50px 58px minmax(0, 1fr) 198px;
   }
 
   .workspace-layout.alfred-compact {
-    grid-template-columns: 58px minmax(0, 1fr) minmax(280px, 34vw);
+    grid-template-columns: 50px 58px minmax(0, 1fr) minmax(280px, 34vw);
   }
 
   .workspace-layout.preview-visible {
-    grid-template-columns: 58px minmax(0, 1fr) minmax(280px, 34vw);
+    grid-template-columns: 50px 58px minmax(0, 1fr) minmax(280px, 34vw);
   }
 
   .workspace-rail {
@@ -6655,70 +6727,16 @@ body {
    tokens; emerald is reserved for active/focus/primary moments.
    ============================================================ */
 
-.surface-nav {
-  min-height: 34px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 3px;
-  background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.03), transparent),
-    var(--surface-sunken);
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  box-shadow: inset 0 1px 0 rgba(216, 255, 235, 0.035);
-}
-
-.mission-actions .surface-nav button {
-  min-height: 26px;
-  border: 0;
-  border-radius: 9px;
-  padding: 0 10px;
-  background: transparent;
-  color: var(--text-muted);
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font: 590 12px/1 var(--sans);
-  box-shadow: none;
-}
-
-.mission-actions .surface-nav button:hover,
-.mission-actions .surface-nav button:focus-visible {
-  color: var(--text-primary);
-  background: rgba(216, 255, 235, 0.035);
-  outline: none;
-}
-
-.mission-actions .surface-nav button.active {
-  color: var(--accent-strong);
-  background:
-    linear-gradient(180deg, rgba(58, 211, 127, 0.15), rgba(58, 211, 127, 0.045)),
-    var(--surface-raised);
-  box-shadow:
-    0 0 0 1px rgba(58, 211, 127, 0.20),
-    0 8px 18px -14px var(--accent-halo);
-}
-
-.mission-actions .surface-nav button strong {
-  min-width: 18px;
-  border-radius: 999px;
-  padding: 2px 6px;
-  background: rgba(0, 0, 0, 0.26);
-  color: inherit;
-  font: 700 10px/1 var(--mono);
-}
-
 .workspace-layout.surface-inbox,
 .workspace-layout.surface-history {
-  grid-template-columns: minmax(194px, 220px) minmax(0, 1fr);
+  grid-template-columns: 50px minmax(194px, 220px) minmax(0, 1fr);
 }
 
 .workspace-layout.surface-inbox.preview-visible,
 .workspace-layout.surface-history.preview-visible,
 .workspace-layout.surface-inbox.alfred-compact,
 .workspace-layout.surface-history.alfred-compact {
-  grid-template-columns: minmax(194px, 220px) minmax(0, 1fr);
+  grid-template-columns: 50px minmax(194px, 220px) minmax(0, 1fr);
 }
 
 .workspace-layout.surface-inbox .orchestrator-surface,
@@ -7513,15 +7531,6 @@ body {
 }
 
 @media (max-width: 980px) {
-  .surface-nav {
-    order: 10;
-    width: 100%;
-  }
-
-  .mission-actions .surface-nav button {
-    flex: 1 1 0;
-  }
-
   .workspace-layout.surface-inbox,
   .workspace-layout.surface-history {
     grid-template-columns: minmax(0, 1fr);
@@ -7555,14 +7564,14 @@ body {
 }
 
 .workspace-layout {
-  grid-template-columns: minmax(194px, 220px) minmax(0, 1fr) minmax(248px, 300px);
+  grid-template-columns: 50px minmax(194px, 220px) minmax(0, 1fr) minmax(248px, 300px);
   gap: 10px;
   padding: 10px;
   background: rgba(4, 8, 7, 0.9);
 }
 
 .workspace-layout:has(.context-drawer.closed) {
-  grid-template-columns: minmax(194px, 220px) minmax(0, 1fr) minmax(218px, 260px);
+  grid-template-columns: 50px minmax(194px, 220px) minmax(0, 1fr) minmax(218px, 260px);
 }
 
 .workspace-rail,
