@@ -3123,6 +3123,48 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
   });
 
+  it("restores focus to the visible primary-nav command palette trigger after review queue closes", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(
+      undefined,
+      null,
+      [
+        {
+          id: "runtime-codex",
+          clientId: "codex-a",
+          title: "Codex · review",
+          source: "manual",
+          agentKind: "codex",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "codex",
+          command: "codex",
+          args: [],
+          buffer: "",
+          activityEvents: [
+            { id: "ask-1", kind: "approval", title: "Waiting for approval", detail: "Allow edit?", at: 100 },
+          ],
+          lastActivityAt: 100,
+        },
+      ],
+    );
+
+    render(<App />);
+
+    const rail = await screen.findByTestId("primary-nav-rail");
+    const reviewTrigger = within(rail).getByRole("button", { name: "Open command palette" });
+
+    await user.click(reviewTrigger);
+    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "open review queue{Enter}");
+
+    expect(screen.getByRole("dialog", { name: "Review queue" })).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Review queue" })).not.toBeInTheDocument();
+    expect(reviewTrigger).toHaveFocus();
+  });
+
   it("keeps current decisions visible when recovery is also available", async () => {
     installDesktopBridge(
       undefined,

@@ -1,6 +1,5 @@
 import {
   ChevronDown,
-  Command,
   Eye,
   FolderOpen,
   ListChecks,
@@ -1857,19 +1856,6 @@ export function App() {
               }}
             />
           </div>
-          <div className="mission-actions" role="group" aria-label="workspace utilities">
-            <button
-              ref={commandPaletteTriggerRef}
-              className="command-palette-button"
-              type="button"
-              aria-label="Open command palette"
-              onClick={handleOpenCommandPalette}
-              title="Command palette"
-            >
-              <Command size={15} />
-              <span>{shortcutModifier} K</span>
-            </button>
-          </div>
         </div>
 
         {desktopSaveStatus.status === "saveFailed" && (
@@ -1906,6 +1892,7 @@ export function App() {
         >
           <PrimaryNavigationRail
             activeSurface={activeSurface}
+            commandPaletteTriggerRef={commandPaletteTriggerRef}
             contextOpen={activeContextDrawerOpen}
             contextSignalCount={activeImportantSignalCount}
             inboxCount={globalReviewItems.length}

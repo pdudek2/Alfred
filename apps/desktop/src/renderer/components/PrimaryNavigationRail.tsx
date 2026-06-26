@@ -1,4 +1,5 @@
 import { Clock3, Command, Inbox, ListChecks, ShieldCheck } from "lucide-react";
+import type { Ref } from "react";
 
 export type PrimarySurface = "work" | "inbox" | "history";
 
@@ -8,6 +9,7 @@ type PrimaryNavigationRailProps = {
   inboxCount: number;
   contextSignalCount: number;
   shortcutModifier: string;
+  commandPaletteTriggerRef?: Ref<HTMLButtonElement>;
   onOpenCommandPalette: () => void;
   onOpenPrivacyControls: () => void;
   onToggleContext: () => void;
@@ -20,6 +22,7 @@ export function PrimaryNavigationRail({
   inboxCount,
   contextSignalCount,
   shortcutModifier,
+  commandPaletteTriggerRef,
   onOpenCommandPalette,
   onOpenPrivacyControls,
   onToggleContext,
@@ -75,8 +78,9 @@ export function PrimaryNavigationRail({
           {contextSignalCount > 0 && <span>{contextSignalCount}</span>}
         </button>
         <button
+          ref={commandPaletteTriggerRef}
           type="button"
-          aria-label="Open command palette from navigation rail"
+          aria-label="Open command palette"
           title={`${shortcutModifier} K`}
           onClick={onOpenCommandPalette}
         >

@@ -7898,14 +7898,20 @@ body {
     var(--surface-canvas);
 }
 
-.workspace-layout {
+.workspace-layout,
+.workspace-layout.alfred-compact,
+.workspace-layout.preview-visible,
+.workspace-layout.alfred-compact.preview-visible {
   grid-template-columns: 54px 252px minmax(0, 1fr) minmax(276px, 320px);
   gap: 10px;
   padding: 10px;
   background: rgba(4, 8, 7, 0.94);
 }
 
-.workspace-layout:has(.context-column.closed) {
+.workspace-layout:has(.context-column.closed),
+.workspace-layout.alfred-compact:has(.context-column.closed),
+.workspace-layout.preview-visible:has(.context-column.closed),
+.workspace-layout.alfred-compact.preview-visible:has(.context-column.closed) {
   grid-template-columns: 54px 252px minmax(0, 1fr) minmax(246px, 292px);
 }
 
