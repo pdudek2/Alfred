@@ -35,16 +35,36 @@ export function ReviewSurface({
   const recoveryCount = items.filter((item) =>
     item.status.kind === "restored" || item.status.kind === "done" || item.status.kind === "error",
   ).length;
+  const sections = [
+    {
+      id: "needs-decision",
+      title: "Needs decision",
+      detail: "Launch approvals and edited staged commands.",
+      items: items.filter((item) => inboxSectionForItem(item) === "needs-decision"),
+    },
+    {
+      id: "blocked-safety",
+      title: "Blocked & safety",
+      detail: "Preflight failures, unsafe relaunches and discard gates.",
+      items: items.filter((item) => inboxSectionForItem(item) === "blocked-safety"),
+    },
+    {
+      id: "recovery",
+      title: "Recovery",
+      detail: "Restored, exited and failed sessions that need a restart or discard.",
+      items: items.filter((item) => inboxSectionForItem(item) === "recovery"),
+    },
+  ];
 
   return (
-    <section className="review-surface" aria-label="Review workspace">
+    <section className="review-surface inbox-surface" aria-label="Inbox workspace">
       <header className="review-surface-header">
         <div>
-          <span>Review</span>
-          <strong>Decisions queue</strong>
-          <p>Launch, restart, resume, or discard queued work without turning the live desk into a warning wall.</p>
+          <span>Inbox</span>
+          <strong>Decision inbox</strong>
+          <p>Launch, restart, resume, or discard queued work without turning Work into a warning wall.</p>
         </div>
-        <div className="review-surface-stats" aria-label="Review queue summary">
+        <div className="review-surface-stats" aria-label="Inbox summary">
           <ReviewStat label="staged" value={stagedCount} />
           <ReviewStat label="blocked" value={blockedCount} />
           <ReviewStat label="recovery" value={recoveryCount} />
@@ -57,7 +77,7 @@ export function ReviewSurface({
             <CheckCircle2 size={20} aria-hidden="true" />
             <span>Queue clear</span>
             <strong>No decisions waiting.</strong>
-            <p>New launch gates and recovery prompts will land here while Desk stays focused on active terminals.</p>
+            <p>New launch gates and recovery prompts will land here while Work stays focused on active terminals.</p>
           </div>
           <div className="review-empty-lanes" aria-label="Empty review lanes">
             <div>
@@ -78,25 +98,52 @@ export function ReviewSurface({
           </div>
         </div>
       ) : (
-        <ol className="review-surface-list" aria-label="Review items">
-          {items.map((item) => (
-            <ReviewSurfaceItem
-              armed={armedUnsafeSessionIds.has(item.session.id)}
-              item={item}
-              key={item.id}
-              selected={item.session.id === selectedSessionId}
-              onApproveTile={onApproveTile}
-              onContinueRestoredSession={onContinueRestoredSession}
-              onDiscardSession={onDiscardSession}
-              onFocusItem={onFocusItem}
-              onLaunchItem={onLaunchItem}
-              onRestartSession={onRestartSession}
-            />
+        <div className="inbox-section-stack" aria-label="Inbox sections">
+          {sections.map((section) => (
+            <section className="inbox-section" aria-label={section.title} key={section.id}>
+              <header>
+                <div>
+                  <strong>{section.title}</strong>
+                  <span>{section.detail}</span>
+                </div>
+                <small>{section.items.length}</small>
+              </header>
+              {section.items.length === 0 ? (
+                <p className="inbox-section-empty">Clear.</p>
+              ) : (
+                <ol className="review-surface-list" aria-label={`${section.title} items`}>
+                  {section.items.map((item) => (
+                    <ReviewSurfaceItem
+                      armed={armedUnsafeSessionIds.has(item.session.id)}
+                      item={item}
+                      key={item.id}
+                      selected={item.session.id === selectedSessionId}
+                      onApproveTile={onApproveTile}
+                      onContinueRestoredSession={onContinueRestoredSession}
+                      onDiscardSession={onDiscardSession}
+                      onFocusItem={onFocusItem}
+                      onLaunchItem={onLaunchItem}
+                      onRestartSession={onRestartSession}
+                    />
+                  ))}
+                </ol>
+              )}
+            </section>
           ))}
-        </ol>
+        </div>
       )}
     </section>
   );
+}
+
+function inboxSectionForItem(item: WorkspaceReviewItem): "needs-decision" | "blocked-safety" | "recovery" {
+  if (item.status.kind === "restored" || item.status.kind === "done" || item.status.kind === "error") {
+    return "recovery";
+  }
+  if (item.status.kind === "blocked" || item.session.safetyNote || isLaunchBlocked(item.session)) {
+    return "blocked-safety";
+  }
+  return "needs-decision";
 }
 
 function ReviewStat({ label, value }: { label: string; value: number }) {

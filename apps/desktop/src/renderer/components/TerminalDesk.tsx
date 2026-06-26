@@ -1,6 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { AlertTriangle, Check, Pencil, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronUp, Pencil, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -38,6 +38,7 @@ type TerminalDeskProps = {
   arrangeMode: boolean;
   armedUnsafeSessionIds: Set<string>;
   layouts: Record<string, TileLayout>;
+  collapsedSessionIds: Set<string>;
   recoverableSessions: SessionTile[];
   relaunchArmedSessionIds: Set<string>;
   selectedSessionId: string | null;
@@ -71,12 +72,14 @@ type TerminalDeskProps = {
   onRejectTile: (tileId: string) => void;
   onResizeTile: (tileId: string, deltaColSpan: number, deltaRowSpan: number) => void;
   onReviewWorktree: (sessionId: string) => void;
+  onToggleCollapseSession: (sessionId: string) => void;
 };
 
 export function TerminalDesk({
   arrangeMode,
   armedUnsafeSessionIds,
   layouts,
+  collapsedSessionIds,
   recoverableSessions,
   relaunchArmedSessionIds,
   selectedSessionId,
@@ -110,6 +113,7 @@ export function TerminalDesk({
   onRejectTile,
   onResizeTile,
   onReviewWorktree,
+  onToggleCollapseSession,
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
@@ -233,7 +237,7 @@ export function TerminalDesk({
     <section className={`terminal-stage ${arrangeMode ? "arranging" : ""} mode-${workMode}`} aria-label="terminals">
       <header className="terminal-stage-header">
         <div>
-          <strong>Desk</strong>
+          <strong>Work</strong>
           <span>
             {sessions.length} tile{sessions.length === 1 ? "" : "s"} · {sessions.filter((s) => s.stage === "staged").length} staged
           </span>
@@ -248,7 +252,7 @@ export function TerminalDesk({
                 Split
               </button>
               <button type="button" onClick={() => onApplyLayoutPreset("grid")}>
-                Tiled
+                Grid
               </button>
               <span className="arrange-hint">drag header · resize corner</span>
             </>
@@ -277,7 +281,7 @@ export function TerminalDesk({
                 aria-pressed={workMode === "desk"}
                 onClick={() => onApplyWorkMode("desk")}
               >
-                Desk
+                Grid
               </button>
             </div>
           )}
@@ -312,7 +316,11 @@ export function TerminalDesk({
               onReviewWorktree={onReviewWorktree}
             />
           )}
-          <div className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}`} ref={gridRef}>
+          <div
+            className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}`}
+            data-testid="terminal-grid"
+            ref={gridRef}
+          >
           {sessions.length === 0 && (
             <EmptyWorkspaceState
               onAddAgentSession={onAddAgentSession}
@@ -353,6 +361,7 @@ export function TerminalDesk({
                 initialBuffer={session.initialBuffer}
                 activityEvents={session.activityEvents}
                 lastOutputAt={session.lastOutputAt}
+                collapsed={collapsedSessionIds.has(session.id)}
                 selected={inspectedSession?.id === session.id}
                 onClose={() => onCloseSession(session.id)}
                 onContinueRestoredSession={() => onContinueRestoredSession(session.id)}
@@ -369,6 +378,7 @@ export function TerminalDesk({
                 onRuntimeSessionUnavailable={onRuntimeSessionUnavailable}
                 onOpenExternalTerminal={handleOpenExternalTerminal}
                 onRenameSession={onRenameSession}
+                onToggleCollapse={() => onToggleCollapseSession(session.id)}
               />
             ) : (
               <StagedTilePreview
@@ -495,7 +505,7 @@ function SplitModeEmptyState({
         <strong>Create another terminal to fill this split</strong>
         <p>
           {workspaceLabel} has one visible tile. Create a second terminal for this side, or return to the
-          full desk when you want the whole surface.
+          full grid when you want the whole surface.
         </p>
       </div>
       <div className="split-empty-actions">
@@ -503,7 +513,7 @@ function SplitModeEmptyState({
           New terminal
         </button>
         <button type="button" onClick={() => onApplyWorkMode("desk")}>
-          Back to desk
+          Back to grid
         </button>
       </div>
     </aside>
@@ -693,6 +703,7 @@ function ManualTerminalTile({
   layout,
   preview,
   relaunchArmed,
+  collapsed,
   onClose,
   onContinueRestoredSession,
   onRestartSession,
@@ -708,6 +719,7 @@ function ManualTerminalTile({
   onRuntimeSessionUnavailable,
   onOpenExternalTerminal,
   onRenameSession,
+  onToggleCollapse,
   selected,
   runtimeId,
   runtimeStatus,
@@ -735,6 +747,7 @@ function ManualTerminalTile({
   layout?: TileLayout | undefined;
   preview?: ArrangePreview | undefined;
   relaunchArmed: boolean;
+  collapsed: boolean;
   onClose: () => void;
   onContinueRestoredSession: () => void;
   onRestartSession: () => void;
@@ -750,6 +763,7 @@ function ManualTerminalTile({
   onRuntimeSessionUnavailable: (tileId: string) => void;
   onOpenExternalTerminal: (cwd: string) => Promise<void>;
   onRenameSession: (sessionId: string, title: string) => void;
+  onToggleCollapse: () => void;
   selected: boolean;
   runtimeId?: TerminalSessionId | undefined;
   runtimeStatus?: SessionTile["runtimeStatus"] | undefined;
@@ -1218,7 +1232,8 @@ function ManualTerminalTile({
 
   return (
     <article
-      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${focusHidden ? "focus-hidden" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${focusHidden ? "focus-hidden" : ""} ${collapsed ? "collapsed" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      data-testid="terminal-tile"
       aria-label={latestActivity ? `${title}, ${latestActivity.title}: ${latestActivity.detail}` : title}
       aria-hidden={focusHidden ? "true" : undefined}
       style={gridStyle(layout, preview)}
@@ -1344,6 +1359,16 @@ function ManualTerminalTile({
             </div>
           )}
           <div className="tile-action-group tile-utility-actions">
+            <button
+              type="button"
+              className="collapse-session-button"
+              aria-label={`${collapsed ? "Expand" : "Collapse"} ${title}`}
+              onClick={onToggleCollapse}
+              onPointerDown={(event) => event.stopPropagation()}
+              title={collapsed ? "Expand terminal body" : "Collapse terminal body"}
+            >
+              {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+            </button>
             {externalTerminalCwd && (
               <button
                 type="button"
@@ -1385,7 +1410,7 @@ function ManualTerminalTile({
           </div>
         </div>
       </header>
-      <div className="xterm-host" ref={containerRef} />
+      <div className="xterm-host" data-testid="xterm-host" ref={containerRef} />
       {arrangeMode && (
         <button
           className="tile-resize-handle"
