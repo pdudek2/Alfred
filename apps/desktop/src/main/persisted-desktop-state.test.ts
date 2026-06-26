@@ -248,6 +248,47 @@ describe("persisted-desktop-state", () => {
     });
   });
 
+  it("preserves additive clean-depth workspace view state while legacy snapshots keep default behavior", async () => {
+    const filePath = await temporaryStateFile();
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: DESKTOP_STATE_VERSION,
+        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
+        activeWorkspaceId: "A",
+        viewStateByWorkspace: {
+          A: {
+            workMode: "focus",
+            selectedSessionId: "manual-1",
+            collapsedSessionIds: ["manual-2", "", "manual-2"],
+            contextDrawerOpen: true,
+            dispatchTarget: { kind: "session", id: "manual-1", label: "Manual · zsh 1" },
+          },
+          B: {
+            collapsedSessionIds: "manual-3",
+            contextDrawerOpen: "yes",
+            dispatchTarget: { kind: "workspace", id: "", label: "Broken" },
+          },
+        },
+      }),
+      "utf8",
+    );
+    const store = createPersistedDesktopStateStore({ filePath });
+
+    await expect(store.getState()).resolves.toMatchObject({
+      viewStateByWorkspace: {
+        A: {
+          workMode: "focus",
+          selectedSessionId: "manual-1",
+          collapsedSessionIds: ["manual-2"],
+          contextDrawerOpen: true,
+          dispatchTarget: { kind: "session", id: "manual-1", label: "Manual · zsh 1" },
+        },
+      },
+    });
+    expect((await store.getState()).viewStateByWorkspace.B).toBeUndefined();
+  });
+
   it("normalizes workspace mission briefs", async () => {
     const filePath = await temporaryStateFile();
     await writeFile(
