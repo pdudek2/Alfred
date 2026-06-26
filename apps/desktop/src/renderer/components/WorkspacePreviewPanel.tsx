@@ -4,7 +4,7 @@ import type { PreviewUrlCandidate } from "../preview-state";
 
 type PreviewReachability = "checking" | "online" | "offline";
 
-type WorkspacePreviewPanelProps = {
+export type WorkspacePreviewPanelProps = {
   candidates: PreviewUrlCandidate[];
   refreshKey: number;
   selectedUrl: string | null;

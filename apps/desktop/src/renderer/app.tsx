@@ -21,10 +21,9 @@ import {
   getDesktopWorkspaceApi,
 } from "./desktop-api";
 import { ComposerBar } from "./composer";
-import { AlfredControlRail } from "./components/AlfredControlRail";
 import { AlfredMark } from "./components/AlfredMark";
-import { AgentTimelinePanel } from "./components/AgentTimelinePanel";
 import { CommandPalette } from "./components/CommandPalette";
+import { ContextColumn } from "./components/ContextColumn";
 import { ObservatorySurface } from "./components/ObservatorySurface";
 import { PrimaryNavigationRail, type PrimarySurface } from "./components/PrimaryNavigationRail";
 import { ReviewQueuePanel } from "./components/ReviewQueuePanel";
@@ -33,7 +32,6 @@ import { SessionObservatoryPanel } from "./components/SessionObservatoryPanel";
 import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
 import { WorkbenchHeader } from "./components/WorkbenchHeader";
 import { WorkspaceNavigationPanel } from "./components/WorkspaceNavigationPanel";
-import { WorkspacePreviewPanel } from "./components/WorkspacePreviewPanel";
 import type { WorkspaceRailWorkspace } from "./components/WorkspaceRail";
 import {
   applyLayoutPreset,
@@ -2032,63 +2030,49 @@ export function App() {
               </div>
             )}
           </div>
-          <div
-            className={`side-dock-stack context-drawer ${activeContextDrawerOpen ? "open" : "closed"}`}
-            data-testid="context-drawer"
-            aria-hidden={activeContextDrawerOpen ? "false" : "true"}
-            inert={!activeContextDrawerOpen || undefined}
-          >
-            <header className="context-drawer-header">
-              <div>
-                <span>Context</span>
-                <strong>{activeInspectedSession?.title ?? activeWorkspace.label}</strong>
-              </div>
-              <button type="button" onClick={handleCloseContextDrawer} aria-label="Close Context panel">
-                <X size={15} />
-              </button>
-            </header>
-            {previewVisible && (
-              <WorkspacePreviewPanel
-                candidates={activePreviewCandidates}
-                refreshKey={activePreviewRefreshKey}
-                selectedUrl={activeSelectedPreviewUrl}
-                workspaceLabel={activeWorkspace.label}
-                onCopyUrl={handleCopyPreviewUrl}
-                onOpenExternal={handleOpenPreviewExternal}
-                onRefresh={handleRefreshPreview}
-                onSelectUrl={handleSelectPreviewUrl}
-              />
-            )}
-            <AgentTimelinePanel
-              session={activeInspectedSession}
-              onCopyActivityText={handleCopyActivityText}
-              onOpenExternalTerminal={handleOpenExternalTerminalForCwd}
-              onRevealActivityFile={handleRevealActivityFile}
-              onUpdateStagedSession={handleUpdateStagedSession}
-            />
-          </div>
-          <div className="alfred-status-dock" data-testid="context-column">
-            <AlfredControlRail
-              armedUnsafeSessionIds={armedUnsafeSessionIds}
-              status={alfredStatus}
-              activeDecisionItems={activeDecisionItems}
-              missionBrief={activeWorkspace.missionBrief}
-              pendingPlan={activePendingPlan}
-              recoverableSessions={activeRecoverableSessions}
-              selectedSessionId={activeSelectedSessionId}
-              stagedSessions={activeStagedSessions}
-              stagedCount={stagedCount}
-              blockedStagedCount={blockedStagedCount}
-              unsafeStagedCount={unsafeStagedCount}
-              liveAlfredCount={liveAlfredCount}
-              onApproveAll={handleApproveAll}
-              onApproveTile={handleApproveTile}
-              onDismissError={handleDismissError}
-              onFocusSession={handleFocusSession}
-              onRejectAll={handleRejectAll}
-              onRejectTile={handleRejectTile}
-            />
-          </div>
+          <ContextColumn
+            contextOpen={activeContextDrawerOpen}
+            inspectedTitle={activeInspectedSession?.title ?? activeWorkspace.label}
+            previewVisible={previewVisible}
+            onCloseContext={handleCloseContextDrawer}
+            previewProps={{
+              candidates: activePreviewCandidates,
+              refreshKey: activePreviewRefreshKey,
+              selectedUrl: activeSelectedPreviewUrl,
+              workspaceLabel: activeWorkspace.label,
+              onCopyUrl: handleCopyPreviewUrl,
+              onOpenExternal: handleOpenPreviewExternal,
+              onRefresh: handleRefreshPreview,
+              onSelectUrl: handleSelectPreviewUrl,
+            }}
+            timelineProps={{
+              session: activeInspectedSession,
+              onCopyActivityText: handleCopyActivityText,
+              onOpenExternalTerminal: handleOpenExternalTerminalForCwd,
+              onRevealActivityFile: handleRevealActivityFile,
+              onUpdateStagedSession: handleUpdateStagedSession,
+            }}
+            railProps={{
+              armedUnsafeSessionIds,
+              status: alfredStatus,
+              activeDecisionItems,
+              missionBrief: activeWorkspace.missionBrief,
+              pendingPlan: activePendingPlan,
+              recoverableSessions: activeRecoverableSessions,
+              selectedSessionId: activeSelectedSessionId,
+              stagedSessions: activeStagedSessions,
+              stagedCount,
+              blockedStagedCount,
+              unsafeStagedCount,
+              liveAlfredCount,
+              onApproveAll: handleApproveAll,
+              onApproveTile: handleApproveTile,
+              onDismissError: handleDismissError,
+              onFocusSession: handleFocusSession,
+              onRejectAll: handleRejectAll,
+              onRejectTile: handleRejectTile,
+            }}
+          />
         </div>
         <ComposerBar
           blockedActionLabel={

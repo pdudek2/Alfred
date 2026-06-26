@@ -804,6 +804,23 @@ describe("App integration", () => {
     expect(screen.getByRole("dialog", { name: "Local Data & Privacy" })).toBeInTheDocument();
   });
 
+  it("uses context as a summoned right column without removing the workbench", async () => {
+    installDesktopBridge();
+    render(<App />);
+
+    const workbench = await screen.findByTestId("workbench-surface");
+    const header = screen.getByTestId("workbench-header");
+    expect(screen.getByTestId("context-column")).toHaveClass("closed");
+
+    await userEvent.click(within(header).getByRole("button", { name: /open context drawer/i }));
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
+    expect(workbench).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /close context panel/i }));
+    expect(screen.getByTestId("context-column")).toHaveClass("closed");
+    expect(workbench).toBeInTheDocument();
+  });
+
   it("keeps every xterm host mounted when Focus hides non-selected terminal tiles", async () => {
     installDesktopBridge(
       undefined,
@@ -999,6 +1016,40 @@ describe("App integration", () => {
     await user.click(within(drawer).getByRole("button", { name: "Close Context panel" }));
     expect(drawer).toHaveAttribute("aria-hidden", "true");
     expect(drawer.querySelector('[aria-label="Agent activity"]')).toBeInstanceOf(HTMLElement);
+  });
+
+  it("preserves staged command edits across closing and reopening the context column", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge({
+      ok: true,
+      plan: {
+        name: "Editable plan",
+        sessions: [{ kind: "shell", title: "Run old command", command: "echo", args: ["old"] }],
+      },
+    });
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText("Dispatch instruction"), "stage editable shell");
+    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    const stagedTile = await screen.findByRole("article", { name: /Staged Run old command/i });
+
+    await user.dblClick(stagedTile.querySelector(".tile-header")!);
+    await user.click(within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open Context drawer/ }));
+    await user.click(screen.getByRole("button", { name: "Edit command" }));
+
+    fireEvent.change(screen.getByLabelText("Command"), { target: { value: "pnpm" } });
+    fireEvent.change(screen.getByLabelText("Arguments"), { target: { value: "test\n--watch" } });
+    fireEvent.change(screen.getByLabelText("Working directory"), { target: { value: "apps/desktop" } });
+
+    await user.click(screen.getByRole("button", { name: "Close Context panel" }));
+    expect(screen.getByTestId("context-column")).toHaveClass("closed");
+
+    await user.click(within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open Context drawer/ }));
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
+    expect(screen.getByLabelText("Command")).toHaveValue("pnpm");
+    expect(screen.getByLabelText("Arguments")).toHaveValue("test\n--watch");
+    expect(screen.getByLabelText("Working directory")).toHaveValue("apps/desktop");
   });
 
   it("preserves live xterm output and instance when terminal title metadata changes", async () => {
