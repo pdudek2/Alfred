@@ -2,7 +2,7 @@
 
 Status: DONE
 
-Commit: PENDING
+Commit: 55dcf1b
 
 UI path changed:
 - Desktop renderer workbench right column (`apps/desktop/src/renderer/app.tsx`)
