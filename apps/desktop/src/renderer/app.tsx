@@ -33,8 +33,9 @@ import { ReviewQueuePanel } from "./components/ReviewQueuePanel";
 import { ReviewSurface } from "./components/ReviewSurface";
 import { SessionObservatoryPanel } from "./components/SessionObservatoryPanel";
 import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
+import { WorkspaceNavigationPanel } from "./components/WorkspaceNavigationPanel";
 import { WorkspacePreviewPanel } from "./components/WorkspacePreviewPanel";
-import { WorkspaceRail, type WorkspaceRailWorkspace } from "./components/WorkspaceRail";
+import type { WorkspaceRailWorkspace } from "./components/WorkspaceRail";
 import {
   applyLayoutPreset,
   ensureTileLayouts,
@@ -1995,15 +1996,18 @@ export function App() {
             onToggleContext={handleToggleContextDrawer}
             onSelectSurface={(surface) => setActiveSurface(surface)}
           />
-          <div className="workspace-navigation-panel" data-testid="workspace-navigation-panel">
-            <WorkspaceRail
-              activeWorkspaceId={activeWorkspace.id}
-              sessions={terminalSessions}
-              workspaces={workspaces}
-              onAddWorkspace={handleAddWorkspace}
-              onSelectWorkspace={handleSelectWorkspace}
-            />
-          </div>
+          <WorkspaceNavigationPanel
+            activeSessions={activeSessions}
+            activeWorkspace={activeWorkspace}
+            activeWorkspaceId={activeWorkspace.id}
+            inboxCount={globalReviewItems.length}
+            sessions={terminalSessions}
+            workspaces={workspaces}
+            onAddWorkspace={handleAddWorkspace}
+            onFocusSession={handleFocusSession}
+            onOpenInbox={() => setActiveSurface("inbox")}
+            onSelectWorkspace={handleSelectWorkspace}
+          />
           <div className="orchestrator-surface" data-testid="workbench-surface">
             <div
               className={`surface-panel desk-surface-panel ${workSurfaceHidden ? "inactive" : "active"}`}

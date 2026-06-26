@@ -489,6 +489,18 @@ describe("App integration", () => {
     expect(screen.getByTestId("terminal-grid")).toBeInTheDocument();
   });
 
+  it("places current functionality inside the workspace navigation panel", async () => {
+    installDesktopBridge();
+    render(<App />);
+
+    const panel = await screen.findByTestId("workspace-navigation-panel");
+    expect(within(panel).getByText("Active terminals")).toBeInTheDocument();
+    expect(within(panel).getByText("Inbox")).toBeInTheDocument();
+    expect(within(panel).getByText("Free chats")).toBeInTheDocument();
+    expect(within(panel).getByText("Workspaces")).toBeInTheDocument();
+    expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toBeInTheDocument();
+  });
+
   it("opens Local Data & Privacy controls from the command palette", async () => {
     const user = userEvent.setup();
     const { clearSavedTerminalData, revealStateFile, updatePrivacySettings } = installDesktopBridge();
@@ -760,6 +772,10 @@ describe("App integration", () => {
     const initialHosts = within(screen.getByTestId("desk-runtime-surface")).getAllByTestId("xterm-host");
     expect(initialHosts.length).toBeGreaterThan(0);
     const initialHost = initialHosts[0];
+    expect(initialHost).toBeDefined();
+    if (!initialHost) {
+      throw new Error("Expected at least one xterm host in the desk runtime surface.");
+    }
     const disposeCountBeforeTransitions = terminalDisposeCalls.length;
 
     await user.click(screen.getByRole("button", { name: /open inbox surface/i }));
