@@ -804,8 +804,11 @@ function ManualTerminalTile({
     ...(activityEvents === undefined ? {} : { activityEvents }),
   } satisfies Parameters<typeof terminalSessionDisplayStatus>[0];
   const displayStatus = terminalSessionDisplayStatus(displaySession, tileStatus, displayClock);
-  const statusKind = terminalStatusKind({ runtimeStatus }, tileStatus);
-  const statusLabel = terminalStatusLabel({ runtimeStatus }, tileStatus);
+  const statusSession = {
+    ...(runtimeStatus === undefined ? {} : { runtimeStatus }),
+  } satisfies Pick<SessionTile, "runtimeStatus">;
+  const statusKind = terminalStatusKind(statusSession, tileStatus);
+  const statusLabel = terminalStatusLabel(statusSession, tileStatus);
   const restartable = displayStatus.kind === "done" || displayStatus.kind === "error";
   const discardableSession = displayStatus.kind === "restored" || restartable;
   const existingCheckoutMetadata = isReusableIsolatedCheckoutMetadata({ isolation, branchName, baseCwd });
