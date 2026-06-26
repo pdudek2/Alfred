@@ -13,6 +13,7 @@ type WorkspaceNavigationPanelProps = {
   workspaces: WorkspaceRailWorkspace[];
   onAddWorkspace: () => void;
   onFocusSession: (sessionId: string) => void;
+  onFocusSessionInWorkspace: (workspaceId: string, sessionId: string) => void;
   onOpenInbox: () => void;
   onSelectWorkspace: (workspaceId: string) => void;
 };
@@ -26,6 +27,7 @@ export function WorkspaceNavigationPanel({
   workspaces,
   onAddWorkspace,
   onFocusSession,
+  onFocusSessionInWorkspace,
   onOpenInbox,
   onSelectWorkspace,
 }: WorkspaceNavigationPanelProps) {
@@ -100,7 +102,12 @@ export function WorkspaceNavigationPanel({
               <p className="workspace-nav-empty">No scratch chats yet.</p>
             ) : (
               freeChats.map((session) => (
-                <button key={session.id} type="button" className="workspace-nav-row" onClick={() => onFocusSession(session.id)}>
+                <button
+                  key={session.id}
+                  type="button"
+                  className="workspace-nav-row"
+                  onClick={() => onFocusSessionInWorkspace(session.workspaceId, session.id)}
+                >
                   <span className="workspace-nav-mark">FC</span>
                   <span>
                     <strong>{session.title}</strong>

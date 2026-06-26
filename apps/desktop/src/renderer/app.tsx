@@ -2005,6 +2005,7 @@ export function App() {
             workspaces={workspaces}
             onAddWorkspace={handleAddWorkspace}
             onFocusSession={handleFocusSession}
+            onFocusSessionInWorkspace={handleFocusSessionInWorkspace}
             onOpenInbox={() => setActiveSurface("inbox")}
             onSelectWorkspace={handleSelectWorkspace}
           />

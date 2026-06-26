@@ -501,6 +501,83 @@ describe("App integration", () => {
     expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toBeInTheDocument();
   });
 
+  it("opens a free chat in its own workspace from the workspace navigation panel", async () => {
+    const user = userEvent.setup();
+    const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge(
+      undefined,
+      null,
+      [
+        {
+          id: "runtime-manual",
+          clientId: "manual-a",
+          title: "Manual · zsh 1",
+          source: "manual",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "/bin/zsh",
+          buffer: "",
+        },
+        {
+          id: "runtime-scratch",
+          clientId: "scratch-client",
+          title: "Scratch API worker",
+          source: "manual",
+          workspaceId: "CLIENT",
+          cwd: "/Users/patryk/Documents/Codex/scratch-api-worker",
+          shell: "/bin/zsh",
+          buffer: "",
+        },
+      ],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+
+    const panel = await screen.findByTestId("workspace-navigation-panel");
+    await user.click(within(panel).getByRole("button", { name: /Scratch API worker/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /ClientApp workspace/i })).toHaveAttribute("aria-selected", "true");
+    });
+    expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Scratch API worker");
+    expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
+      workspaceId: "CLIENT",
+      viewState: { workMode: "focus", selectedSessionId: "scratch-client" },
+    });
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+      workspaceId: "CLIENT",
+      layouts: expect.objectContaining({
+        "scratch-client": expect.objectContaining({ col: 1, colSpan: 12 }),
+      }),
+    });
+  });
+
+  it("keeps the embedded workspace rail mounted in the navigation panel across surface switches", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+    render(<App />);
+
+    const panel = await screen.findByTestId("workspace-navigation-panel");
+    expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toHaveClass("embedded");
+
+    await user.click(screen.getByRole("button", { name: /open inbox surface/i }));
+    expect(screen.getByTestId("clean-depth-shell")).toHaveClass("surface-inbox");
+    expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toHaveClass("embedded");
+
+    await user.click(screen.getByRole("button", { name: /open history surface/i }));
+    expect(screen.getByTestId("clean-depth-shell")).toHaveClass("surface-history");
+    expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toHaveClass("embedded");
+  });
+
   it("opens Local Data & Privacy controls from the command palette", async () => {
     const user = userEvent.setup();
     const { clearSavedTerminalData, revealStateFile, updatePrivacySettings } = installDesktopBridge();
