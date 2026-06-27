@@ -8661,3 +8661,499 @@ body {
     grid-column: 1;
   }
 }
+
+/* ============================================================
+   ALFRED PROTOTYPE CLEAN v5
+   Match the clean-depth prototype more closely: fewer permanent
+   columns, quieter empty states, flat material surfaces.
+   ============================================================ */
+
+:root,
+.agent-space-shell {
+  --proto-bg: #020706;
+  --proto-panel: #06100c;
+  --proto-panel-soft: #08140f;
+  --proto-panel-muted: #0a1511;
+  --proto-control: #09140f;
+  --proto-control-hover: #0d1b14;
+  --proto-line: rgba(216, 255, 235, 0.085);
+  --proto-line-strong: rgba(216, 255, 235, 0.16);
+  --proto-radius: 8px;
+  --proto-radius-lg: 10px;
+}
+
+.agent-space-shell {
+  background: var(--proto-bg);
+}
+
+.workspace-layout,
+.workspace-layout.alfred-compact,
+.workspace-layout.preview-visible,
+.workspace-layout.alfred-compact.preview-visible,
+.workspace-layout:has(.context-column.closed),
+.workspace-layout.alfred-compact:has(.context-column.closed),
+.workspace-layout.preview-visible:has(.context-column.closed),
+.workspace-layout.alfred-compact.preview-visible:has(.context-column.closed),
+.workspace-layout.surface-inbox,
+.workspace-layout.surface-history,
+.workspace-layout.surface-inbox.preview-visible,
+.workspace-layout.surface-history.preview-visible,
+.workspace-layout.surface-inbox.alfred-compact,
+.workspace-layout.surface-history.alfred-compact {
+  position: relative;
+  grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px;
+  background: var(--proto-bg);
+}
+
+.primary-nav-rail,
+.workspace-navigation-panel,
+.workbench-header,
+.terminal-stage,
+.review-surface,
+.observatory-surface,
+.workspace-rail,
+.alfred-dock,
+.dispatch-bar,
+.workspace-popover {
+  border-color: var(--proto-line);
+  border-radius: var(--proto-radius-lg);
+  background: var(--proto-panel);
+  background-image: none;
+  box-shadow: none;
+}
+
+.orchestrator-surface {
+  gap: 8px;
+}
+
+.workspace-navigation-panel {
+  padding: 8px;
+}
+
+.workspace-nav-scroll,
+.terminal-stage-body,
+.review-surface-list,
+.observatory-surface,
+.observatory-projects,
+.observatory-session-list,
+.context-drawer,
+.agent-timeline-panel {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(216, 255, 235, 0.18) transparent;
+}
+
+.workspace-nav-scroll::-webkit-scrollbar,
+.terminal-stage-body::-webkit-scrollbar,
+.review-surface-list::-webkit-scrollbar,
+.observatory-surface::-webkit-scrollbar,
+.observatory-projects::-webkit-scrollbar,
+.observatory-session-list::-webkit-scrollbar,
+.context-drawer::-webkit-scrollbar,
+.agent-timeline-panel::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.workspace-nav-scroll::-webkit-scrollbar-track,
+.terminal-stage-body::-webkit-scrollbar-track,
+.review-surface-list::-webkit-scrollbar-track,
+.observatory-surface::-webkit-scrollbar-track,
+.observatory-projects::-webkit-scrollbar-track,
+.observatory-session-list::-webkit-scrollbar-track,
+.context-drawer::-webkit-scrollbar-track,
+.agent-timeline-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.workspace-nav-scroll::-webkit-scrollbar-thumb,
+.terminal-stage-body::-webkit-scrollbar-thumb,
+.review-surface-list::-webkit-scrollbar-thumb,
+.observatory-surface::-webkit-scrollbar-thumb,
+.observatory-projects::-webkit-scrollbar-thumb,
+.observatory-session-list::-webkit-scrollbar-thumb,
+.context-drawer::-webkit-scrollbar-thumb,
+.agent-timeline-panel::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(216, 255, 235, 0.16);
+}
+
+.workspace-nav-row,
+.workspace-button {
+  border-radius: var(--proto-radius);
+}
+
+.workspace-nav-row,
+.workspace-button:not(.active) {
+  background: transparent;
+}
+
+.workspace-nav-row:hover,
+.workspace-nav-row:focus-visible,
+.workspace-button:hover,
+.workspace-button:focus-visible {
+  background: var(--proto-control);
+}
+
+.workspace-button.active,
+.workspace-button.active:hover {
+  border-color: rgba(58, 211, 127, 0.28);
+  background: rgba(58, 211, 127, 0.09);
+}
+
+.workbench-header {
+  align-items: center;
+  padding: 10px 12px;
+}
+
+.workbench-title-block {
+  gap: 3px;
+}
+
+.workbench-crumbs {
+  font-size: 9px;
+  letter-spacing: 0.11em;
+}
+
+.workbench-title-line h1 {
+  font-size: 17px;
+  line-height: 1.12;
+}
+
+.workbench-title-block p {
+  font-size: 11px;
+}
+
+.workbench-actions {
+  gap: 5px;
+}
+
+.workbench-tool-group {
+  height: 32px;
+  border-radius: var(--proto-radius);
+}
+
+.workbench-actions button,
+.context-toggle-button,
+.layout-controls button,
+.work-mode-control button,
+.agent-handoff-buttons button,
+.workspace-preview-actions button,
+.review-surface-primary,
+.review-surface-discard,
+.observatory-surface-header button,
+.observatory-detail-card button {
+  height: 32px;
+  min-height: 32px;
+  border-color: var(--proto-line);
+  border-radius: var(--proto-radius);
+  padding: 0 10px;
+  background: var(--proto-control);
+  background-image: none;
+  box-shadow: none;
+  font-size: 12px;
+}
+
+.workbench-tool-group button {
+  height: 26px;
+  min-height: 26px;
+  padding: 0 10px;
+}
+
+.workbench-primary-action,
+.mission-actions .new-terminal-button {
+  height: 32px;
+  min-height: 32px;
+  background: #35d47f !important;
+  box-shadow: none !important;
+}
+
+.terminal-stage-header {
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
+.terminal-stage-header strong {
+  font-size: 15px;
+}
+
+.terminal-tile {
+  border-color: var(--proto-line);
+  border-radius: var(--proto-radius-lg);
+  background: #050807;
+}
+
+.terminal-tile.selected,
+.terminal-tile:focus-within {
+  border-color: rgba(58, 211, 127, 0.34);
+}
+
+.terminal-tile-header {
+  min-height: 39px;
+  padding: 5px 8px;
+  background: var(--proto-panel-soft);
+}
+
+.terminal-tile .terminal-host,
+.terminal-tile .xterm-host {
+  background: #080909;
+}
+
+.review-surface,
+.observatory-surface {
+  overflow: hidden;
+}
+
+.review-surface-header,
+.observatory-surface-header {
+  padding: 16px 18px;
+  gap: 14px;
+}
+
+.review-surface-header strong,
+.observatory-surface-header strong {
+  margin-top: 5px;
+  font-size: 22px;
+}
+
+.review-surface-header p,
+.observatory-surface-header p {
+  margin-top: 7px;
+  font-size: 13px;
+}
+
+.review-surface-stats {
+  gap: 6px;
+}
+
+.review-surface-stats div {
+  min-width: 72px;
+  border-color: var(--proto-line);
+  border-radius: var(--proto-radius);
+  padding: 9px 10px;
+  background: var(--proto-control);
+}
+
+.review-surface-stats strong {
+  font-size: 19px;
+}
+
+.review-surface-empty {
+  align-self: start;
+  min-height: 0;
+  margin: 18px;
+  border: 1px solid var(--proto-line);
+  border-radius: var(--proto-radius-lg);
+  padding: 18px;
+  background: var(--proto-panel-soft);
+  background-image: none;
+  box-shadow: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  place-items: stretch;
+  gap: 18px;
+  text-align: left;
+}
+
+.review-empty-lead {
+  max-width: none;
+  justify-items: start;
+  align-content: start;
+  gap: 6px;
+}
+
+.review-empty-lead svg {
+  filter: none;
+}
+
+.review-surface-empty strong {
+  font-size: 16px;
+}
+
+.review-surface-empty p {
+  max-width: 520px;
+  font-size: 12px;
+}
+
+.review-empty-lanes {
+  width: auto;
+  min-width: min(330px, 38vw);
+  margin-top: 0;
+  align-self: center;
+  gap: 6px;
+}
+
+.review-empty-lanes div {
+  border-color: var(--proto-line);
+  border-radius: var(--proto-radius);
+  padding: 9px 10px;
+  background: var(--proto-control);
+  justify-items: start;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.review-empty-lanes span {
+  letter-spacing: 0.06em;
+}
+
+.review-empty-lanes strong {
+  font-size: 16px;
+}
+
+.inbox-section,
+.review-surface-item,
+.observatory-session-row,
+.observatory-detail-card,
+.session-observatory-main {
+  border-color: var(--proto-line);
+  border-radius: var(--proto-radius-lg);
+  background: var(--proto-panel-soft);
+  box-shadow: none;
+}
+
+.agent-panel-section,
+.agent-panel-section.agent-session-summary,
+.agent-session-pulse,
+.review-context-summary {
+  border-color: var(--proto-line);
+  border-radius: var(--proto-radius-lg);
+  background: var(--proto-panel-soft);
+}
+
+.agent-panel-section.agent-session-summary {
+  border-color: var(--proto-line-strong);
+  background: var(--proto-panel-soft);
+}
+
+.context-column {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  bottom: 58px;
+  z-index: 35;
+  grid-column: auto;
+  width: min(360px, calc(100% - 32px));
+  min-width: 0;
+  min-height: 0;
+  display: block;
+  pointer-events: none;
+}
+
+.context-column.closed {
+  display: none;
+}
+
+.context-column.open {
+  pointer-events: auto;
+}
+
+.context-column .context-compact-status {
+  display: none;
+}
+
+.context-drawer {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  border-color: var(--proto-line-strong);
+  border-radius: var(--proto-radius-lg);
+  background: var(--proto-panel);
+  background-image: none;
+  box-shadow: 0 24px 58px -38px rgba(0, 0, 0, 0.92);
+}
+
+.context-drawer.open {
+  display: flex;
+}
+
+.context-drawer-header {
+  min-height: 44px;
+  padding: 8px 10px;
+  background: var(--proto-panel);
+}
+
+.context-drawer .workspace-preview-panel,
+.context-drawer .agent-timeline-panel {
+  background: transparent;
+}
+
+.context-drawer .agent-timeline-panel {
+  overflow: auto;
+}
+
+.agent-section-heading,
+.agent-detail-list,
+.agent-handoff-buttons,
+.agent-timeline-list {
+  padding-right: 0;
+}
+
+.dispatch-bar {
+  border-top-color: var(--proto-line);
+  background: #050b08;
+}
+
+.dispatch-target-chip,
+.dispatch-bar .composer-input,
+.composer-send {
+  border-color: var(--proto-line);
+  border-radius: var(--proto-radius);
+  background: var(--proto-control);
+}
+
+@media (max-width: 1120px) {
+  .workspace-layout,
+  .workspace-layout.alfred-compact,
+  .workspace-layout.preview-visible,
+  .workspace-layout.alfred-compact.preview-visible,
+  .workspace-layout:has(.context-column.closed),
+  .workspace-layout.alfred-compact:has(.context-column.closed),
+  .workspace-layout.preview-visible:has(.context-column.closed),
+  .workspace-layout.alfred-compact.preview-visible:has(.context-column.closed),
+  .workspace-layout.surface-inbox,
+  .workspace-layout.surface-history,
+  .workspace-layout.surface-inbox.preview-visible,
+  .workspace-layout.surface-history.preview-visible,
+  .workspace-layout.surface-inbox.alfred-compact,
+  .workspace-layout.surface-history.alfred-compact {
+    grid-template-columns: 44px minmax(180px, 212px) minmax(0, 1fr);
+  }
+
+  .review-surface-empty {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .review-empty-lanes {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 980px) {
+  .workspace-layout,
+  .workspace-layout.alfred-compact,
+  .workspace-layout.preview-visible,
+  .workspace-layout.alfred-compact.preview-visible,
+  .workspace-layout:has(.context-column.closed),
+  .workspace-layout.alfred-compact:has(.context-column.closed),
+  .workspace-layout.preview-visible:has(.context-column.closed),
+  .workspace-layout.alfred-compact.preview-visible:has(.context-column.closed),
+  .workspace-layout.surface-inbox,
+  .workspace-layout.surface-history,
+  .workspace-layout.surface-inbox.preview-visible,
+  .workspace-layout.surface-history.preview-visible,
+  .workspace-layout.surface-inbox.alfred-compact,
+  .workspace-layout.surface-history.alfred-compact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workspace-layout > .primary-nav-rail,
+  .workspace-layout > .workspace-navigation-panel,
+  .workspace-layout > .orchestrator-surface,
+  .workspace-layout > .context-column {
+    grid-column: 1;
+  }
+}

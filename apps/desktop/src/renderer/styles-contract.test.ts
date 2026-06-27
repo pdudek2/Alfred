@@ -19,6 +19,13 @@ if (flatStylesStart < 0) {
 }
 
 const flatStyles = styles.slice(flatStylesStart);
+const prototypeStylesStart = styles.indexOf("ALFRED PROTOTYPE CLEAN v5");
+
+if (prototypeStylesStart < 0) {
+  throw new Error("Unable to locate PROTOTYPE CLEAN v5 styles");
+}
+
+const prototypeStyles = styles.slice(prototypeStylesStart);
 
 function blockFor(selector: string): string {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -66,5 +73,33 @@ describe("renderer CSS contracts", () => {
     expect(flatStyles).toContain(".terminal-tile");
     expect(flatStyles).toContain("background-image: none");
     expect(flatStyles).toContain(".workspace-button.active");
+  });
+
+  it("keeps the clean-depth shell close to the prototype layout", () => {
+    expect(prototypeStyles).toContain("grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr)");
+    expect(prototypeStyles).toContain(".context-column {");
+    expect(prototypeStyles).toContain("position: absolute");
+    expect(prototypeStyles).toContain("width: min(360px, calc(100% - 32px))");
+    expect(prototypeStyles).toContain(".context-column.closed");
+    expect(prototypeStyles).toContain("display: none");
+  });
+
+  it("keeps the Inbox empty state compact instead of a stretched dashboard card", () => {
+    const emptyLanes = blockFor(".review-empty-lanes div");
+
+    expect(prototypeStyles).toContain(".review-surface-empty {");
+    expect(prototypeStyles).toContain("align-self: start");
+    expect(prototypeStyles).toContain("min-height: 0");
+    expect(prototypeStyles).toContain("grid-template-columns: minmax(0, 1fr) auto");
+    expect(prototypeStyles).toContain("background-image: none");
+    expect(emptyLanes).toContain("grid-template-columns: auto minmax(0, 1fr) auto");
+  });
+
+  it("styles workspace scrollbars so native white rails do not dominate the shell", () => {
+    expect(prototypeStyles).toContain(".workspace-nav-scroll,");
+    expect(prototypeStyles).toContain("scrollbar-width: thin");
+    expect(prototypeStyles).toContain("scrollbar-color: rgba(216, 255, 235, 0.18) transparent");
+    expect(prototypeStyles).toContain(".workspace-nav-scroll::-webkit-scrollbar-thumb");
+    expect(prototypeStyles).toContain("background: rgba(216, 255, 235, 0.16)");
   });
 });
