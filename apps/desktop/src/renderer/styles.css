@@ -8101,6 +8101,29 @@ body {
   min-height: 0;
 }
 
+.terminal-stage.arranging .terminal-stage-body {
+  overflow: hidden;
+}
+
+.terminal-stage.arranging .terminal-grid-column {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--accent) 24%, transparent) transparent;
+}
+
+.terminal-stage.arranging .terminal-grid {
+  --arrange-bottom-safe-zone: 96px;
+  align-content: start;
+  flex: 0 0 auto;
+  min-height: 100%;
+  padding-bottom: var(--arrange-bottom-safe-zone);
+  scroll-padding-bottom: var(--arrange-bottom-safe-zone);
+}
+
 .context-compact-status {
   min-width: 0;
   min-height: 0;
@@ -8228,20 +8251,40 @@ body {
   min-height: 40px;
   border-bottom: 1px solid var(--line);
   padding: 9px 11px;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 10px;
 }
 
+.inbox-section > header div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
 .inbox-section > header strong {
+  min-width: 0;
   color: var(--text-primary);
   font: 650 12px/1.2 var(--sans);
 }
 
 .inbox-section > header span {
+  min-width: 0;
   color: var(--text-muted);
-  font: 700 10px/1 var(--mono);
+  font: 600 10px/1.35 var(--mono);
+}
+
+.inbox-section > header small {
+  color: var(--text-secondary);
+  font: 650 12px/1.2 var(--mono);
+}
+
+.inbox-section-empty {
+  margin: 0;
+  padding: 14px 12px;
+  color: var(--text-muted);
+  font: 500 13px/1.4 var(--sans);
 }
 
 @media (max-width: 980px) {
