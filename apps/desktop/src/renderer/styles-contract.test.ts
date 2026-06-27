@@ -12,11 +12,18 @@ if (!stylesPath) {
 }
 
 const styles = readFileSync(stylesPath, "utf8");
+const flatStylesStart = styles.indexOf("ALFRED CLEAN FLAT v4");
+
+if (flatStylesStart < 0) {
+  throw new Error("Unable to locate CLEAN FLAT v4 styles");
+}
+
+const flatStyles = styles.slice(flatStylesStart);
 
 function blockFor(selector: string): string {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = styles.match(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`, "m"));
-  return match?.groups?.body ?? "";
+  const matches = [...styles.matchAll(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`, "gm"))];
+  return matches.at(-1)?.groups?.body ?? "";
 }
 
 describe("renderer CSS contracts", () => {
@@ -41,5 +48,23 @@ describe("renderer CSS contracts", () => {
     expect(inboxHeaderCopy).toContain("display: grid");
     expect(inboxHeaderCopy).toContain("gap: 4px");
     expect(emptyCopy).toContain("font: 500 13px/1.4 var(--sans)");
+  });
+
+  it("keeps the clean flat workbench controls proportional", () => {
+    expect(flatStyles).toContain(".workbench-actions button,");
+    expect(flatStyles).toContain("height: var(--flat-control-height)");
+    expect(flatStyles).toContain("background: var(--flat-control)");
+    expect(flatStyles).toContain(".workbench-tool-group");
+    expect(flatStyles).toContain("padding: 2px");
+    expect(flatStyles).toContain(".workbench-primary-action");
+    expect(flatStyles).toContain("background-image: none !important");
+  });
+
+  it("keeps legacy gradients out of the main clean flat surfaces", () => {
+    expect(flatStyles).toContain(".workspace-popover");
+    expect(flatStyles).toContain("background: var(--flat-panel-2)");
+    expect(flatStyles).toContain(".terminal-tile");
+    expect(flatStyles).toContain("background-image: none");
+    expect(flatStyles).toContain(".workspace-button.active");
   });
 });
