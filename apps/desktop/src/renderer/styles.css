@@ -9157,3 +9157,276 @@ body {
     grid-column: 1;
   }
 }
+
+/* ============================================================
+   ALFRED PROTOTYPE POLISH v6
+   Fix overlap/scroll regressions after v5 and flatten leftover
+   glass gradients in session surfaces.
+   ============================================================ */
+
+.desktop-frame {
+  grid-template-rows: 52px minmax(0, 1fr) 58px;
+  background: var(--proto-bg);
+}
+
+.desktop-frame.mac-frame .mission-bar {
+  padding-left: 88px;
+}
+
+.mission-bar {
+  position: static;
+  height: 52px;
+  min-height: 52px;
+  border-bottom: 1px solid var(--proto-line);
+  padding: 0 12px;
+  background: var(--proto-bg);
+  background-image: none;
+  box-shadow: none;
+}
+
+.mission-bar .mission-name {
+  position: static;
+  left: auto;
+  top: auto;
+  z-index: auto;
+  max-width: min(420px, 48vw);
+}
+
+.mission-name {
+  gap: 10px;
+}
+
+.mission-bar .mission-actions {
+  display: none;
+}
+
+.workspace-title-trigger {
+  max-width: min(360px, 38vw);
+  min-height: 34px;
+  border-color: var(--proto-line);
+  border-radius: var(--proto-radius);
+  background: var(--proto-panel-soft);
+  background-image: none;
+  box-shadow: none;
+}
+
+.workspace-title-trigger:hover,
+.workspace-title-trigger:focus-visible,
+.workspace-title-trigger[aria-expanded="true"] {
+  border-color: var(--proto-line-strong);
+  background: var(--proto-control-hover);
+  background-image: none;
+  box-shadow: none;
+}
+
+.workspace-title-main strong {
+  font-size: 13px;
+}
+
+.workspace-title-main span {
+  font-size: 11px;
+}
+
+.workspace-nav-row,
+.terminal-tile,
+.terminal-tile-header,
+.terminal-status-label,
+.tile-actions button,
+.recovery-banner {
+  background-image: none;
+  box-shadow: none;
+}
+
+.recovery-workspace-strip p {
+  gap: 4px;
+}
+
+.context-column {
+  top: 8px;
+  right: 8px;
+  bottom: 66px;
+  width: min(360px, calc(100% - 32px));
+}
+
+.context-drawer {
+  display: block;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.context-drawer.open {
+  display: block;
+}
+
+.context-drawer .workspace-preview-panel,
+.context-drawer .agent-timeline-panel {
+  width: 100%;
+  min-width: 0;
+  min-height: auto;
+  max-height: none;
+  border: 0;
+  display: block;
+  flex: none;
+  overflow: visible;
+  animation: none;
+}
+
+.context-drawer .agent-timeline-body {
+  overflow: visible;
+}
+
+.context-drawer .agent-panel-section,
+.context-drawer .agent-panel-section.agent-session-summary,
+.context-drawer .agent-session-pulse {
+  background: var(--proto-panel-soft);
+  background-image: none;
+  box-shadow: none;
+}
+
+.session-observatory-backdrop {
+  padding: 52px 44px 44px;
+  background: rgba(0, 0, 0, 0.74);
+  background-image: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.session-observatory-panel {
+  width: min(1040px, calc(100vw - 88px));
+  max-height: calc(100vh - 96px);
+  border-color: var(--proto-line-strong);
+  border-radius: var(--proto-radius-lg);
+  background: var(--proto-panel);
+  background-image: none;
+  box-shadow: none;
+}
+
+.session-observatory-header {
+  padding: 18px 22px 16px;
+}
+
+.session-observatory-header strong {
+  margin-top: 6px;
+  font-size: 24px;
+}
+
+.session-observatory-close,
+.session-observatory-search,
+.session-observatory-stat,
+.session-observatory-main,
+.session-observatory-kind,
+.session-observatory-empty {
+  background: var(--proto-control);
+  background-image: none;
+  box-shadow: none;
+}
+
+.session-observatory-close {
+  width: 34px;
+  height: 34px;
+  border-color: var(--proto-line);
+  border-radius: var(--proto-radius);
+}
+
+.session-observatory-close:hover,
+.session-observatory-close:focus-visible,
+.session-observatory-search:focus-within,
+.session-observatory-main:hover,
+.session-observatory-main:focus-visible {
+  border-color: var(--proto-line-strong);
+  background: var(--proto-control-hover);
+  background-image: none;
+  box-shadow: none;
+  transform: none;
+}
+
+.session-observatory-search {
+  min-height: 44px;
+  margin: 14px 22px 0;
+  border-color: var(--proto-line);
+  border-radius: var(--proto-radius-lg);
+  padding: 0 12px;
+}
+
+.session-observatory-search input {
+  font-size: 14px;
+}
+
+.session-observatory-stats {
+  padding: 14px 22px 16px;
+  gap: 8px;
+}
+
+.session-observatory-stat {
+  min-height: 58px;
+  border-color: var(--proto-line);
+  border-radius: var(--proto-radius-lg);
+  padding: 10px 12px;
+}
+
+.session-observatory-stat strong {
+  font-size: 22px;
+}
+
+.session-observatory-stat span {
+  margin-top: 5px;
+  letter-spacing: 0.10em;
+}
+
+.session-observatory-stat.tone-active,
+.session-observatory-stat.tone-recovery,
+.session-observatory-stat.tone-review {
+  background: var(--proto-control);
+  background-image: none;
+}
+
+.session-observatory-list {
+  padding: 0 22px 22px;
+  gap: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(216, 255, 235, 0.18) transparent;
+}
+
+.session-observatory-list::-webkit-scrollbar {
+  width: 7px;
+}
+
+.session-observatory-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(216, 255, 235, 0.16);
+}
+
+.session-observatory-main {
+  min-height: 58px;
+  border-color: var(--proto-line);
+  border-radius: var(--proto-radius-lg);
+  padding: 10px 12px;
+  gap: 12px;
+}
+
+.session-observatory-kind {
+  min-width: 42px;
+  min-height: 30px;
+  border-color: var(--proto-line);
+  border-radius: var(--proto-radius);
+}
+
+.session-observatory-meta span {
+  background: var(--proto-panel-soft);
+  background-image: none;
+}
+
+@media (max-width: 980px) {
+  .desktop-frame {
+    grid-template-rows: 52px minmax(0, 1fr) 58px;
+  }
+
+  .mission-bar .mission-name {
+    max-width: min(360px, calc(100vw - 112px));
+  }
+
+  .workspace-title-trigger {
+    max-width: min(320px, calc(100vw - 128px));
+  }
+}

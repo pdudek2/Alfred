@@ -26,6 +26,8 @@ if (prototypeStylesStart < 0) {
 }
 
 const prototypeStyles = styles.slice(prototypeStylesStart);
+const polishStylesStart = styles.indexOf("ALFRED PROTOTYPE POLISH v6");
+const polishStyles = polishStylesStart >= 0 ? styles.slice(polishStylesStart) : "";
 
 function blockFor(selector: string): string {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -101,5 +103,43 @@ describe("renderer CSS contracts", () => {
     expect(prototypeStyles).toContain("scrollbar-color: rgba(216, 255, 235, 0.18) transparent");
     expect(prototypeStyles).toContain(".workspace-nav-scroll::-webkit-scrollbar-thumb");
     expect(prototypeStyles).toContain("background: rgba(216, 255, 235, 0.16)");
+  });
+
+  it("keeps the workspace title in the normal top row so it cannot overlap the workbench", () => {
+    const frame = blockFor(".desktop-frame");
+    const missionBar = blockFor(".mission-bar");
+
+    expect(frame).toContain("grid-template-rows: 52px minmax(0, 1fr) 58px");
+    expect(missionBar).toContain("position: static");
+    expect(missionBar).toContain("height: 52px");
+    expect(polishStyles).toContain(".mission-bar .mission-name {");
+    expect(polishStyles).toContain("position: static");
+    expect(polishStyles).toContain("max-width: min(420px, 48vw)");
+  });
+
+  it("makes the context drawer itself scrollable instead of clipping the lower timeline", () => {
+    const contextColumn = blockFor(".context-column");
+    const contextDrawer = blockFor(".context-drawer");
+    const timelinePanel = blockFor(".context-drawer .agent-timeline-panel");
+
+    expect(contextColumn).toContain("bottom: 66px");
+    expect(contextDrawer).toContain("overflow-y: auto");
+    expect(contextDrawer).toContain("overscroll-behavior: contain");
+    expect(timelinePanel).toContain("overflow: visible");
+  });
+
+  it("removes old glass gradients from the Sessions modal", () => {
+    expect(polishStyles).toContain(".session-observatory-backdrop");
+    expect(polishStyles).toContain("backdrop-filter: none");
+    expect(polishStyles).toContain(".session-observatory-panel");
+    expect(polishStyles).toContain("background-image: none");
+    expect(polishStyles).toContain(".session-observatory-stat");
+    expect(polishStyles).toContain(".session-observatory-main");
+  });
+
+  it("keeps recovery strip text from visually colliding", () => {
+    const recoveryCopy = blockFor(".recovery-workspace-strip p");
+
+    expect(recoveryCopy).toContain("gap: 4px");
   });
 });
