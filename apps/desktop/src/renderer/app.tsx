@@ -2885,7 +2885,7 @@ function dispatchTargetsForWorkspace(
   sessions: SessionTile[],
   selectedSession: SessionTile | null,
 ): DispatchTargetSnapshot[] {
-  const targets: DispatchTargetSnapshot[] = [];
+  const targets: DispatchTargetSnapshot[] = [{ kind: "workspace", id: workspace.id, label: workspace.label }];
   if (selectedSession) {
     targets.push({ kind: "session", id: selectedSession.id, label: selectedSession.title });
   }
@@ -2893,7 +2893,6 @@ function dispatchTargetsForWorkspace(
     if (session.id === selectedSession?.id) continue;
     targets.push({ kind: "session", id: session.id, label: session.title });
   }
-  targets.push({ kind: "workspace", id: workspace.id, label: workspace.label });
   return targets;
 }
 

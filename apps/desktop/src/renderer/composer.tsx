@@ -33,17 +33,18 @@ export function ComposerBar({
   const canSubmit = !composerDisabled && !blocked && value.trim().length > 0;
   const state = thinking ? "busy" : composerDisabled ? "disabled" : blocked ? "blocked" : "ready";
   const targetLabel = dispatchTarget?.label ?? "Select a target";
+  const targetKindLabel = dispatchTarget?.kind === "session" ? "session context" : "workspace scope";
   const status = thinking
-    ? `Dispatching to ${targetLabel}.`
+    ? `Preparing work for ${targetLabel}.`
     : disabled
       ? "Dispatch paused while another Alfred panel is active."
       : !dispatchTarget
-        ? "Select a dispatch target before sending."
+        ? "Select a planning scope before sending."
         : blocked
           ? blockedReason
           : lastDispatchDestination
-            ? `Dispatched to ${lastDispatchDestination}.`
-            : `Ready to dispatch to ${targetLabel}.`;
+            ? `Prepared work for ${lastDispatchDestination}.`
+            : `Ready to prepare work for ${targetLabel}.`;
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -72,18 +73,18 @@ export function ComposerBar({
       <button
         type="button"
         className="dispatch-target-chip"
-        aria-label="Change dispatch target"
+        aria-label="Change planning scope"
         disabled={disabled || thinking}
         onClick={onCycleDispatchTarget}
       >
-        <span>{dispatchTarget?.kind ?? "Target"}</span>
+        <span>{dispatchTarget ? targetKindLabel : "Scope"}</span>
         <strong>{dispatchTarget?.label ?? "Choose target"}</strong>
       </button>
       <textarea
         className="composer-input"
         rows={1}
         value={value}
-        placeholder={dispatchTarget ? `Dispatch instruction to ${dispatchTarget.label}...` : "Choose a target before dispatching..."}
+        placeholder={dispatchTarget ? `Ask Alfred to prepare work for ${dispatchTarget.label}...` : "Choose a planning scope first..."}
         disabled={composerDisabled}
         aria-label="Dispatch instruction"
         aria-describedby="composer-status"
@@ -95,9 +96,9 @@ export function ComposerBar({
         className="composer-send"
         disabled={!canSubmit}
         onClick={onSubmit}
-        aria-label={`Dispatch to ${targetLabel}`}
+        aria-label={`Prepare work for ${targetLabel}`}
       >
-        {thinking ? "Dispatching…" : "Send"}
+        {thinking ? "Preparing..." : "Prepare"}
       </button>
       <div className="composer-status-row">
         <span className="composer-status-indicator" aria-hidden="true" />
