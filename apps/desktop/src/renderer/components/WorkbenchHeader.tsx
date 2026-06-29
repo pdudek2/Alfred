@@ -46,10 +46,10 @@ export function WorkbenchHeader({
   const surfaceCrumb = activeSurface === "work" ? "Work" : activeSurface === "inbox" ? "Inbox" : "History";
   const headline =
     activeSurface === "work"
-      ? "Alfred orchestrates multiple live terminals"
+      ? "Terminal grid"
       : activeSurface === "inbox"
-        ? "Inbox collects decisions and recovery"
-        : "History keeps sessions and external Codex";
+        ? "Decision inbox"
+        : "Sessions and project memory";
   const liveLabel = `${activeSessionCount} live`;
   const contextLabel = contextOpen
     ? "Close Context drawer"

@@ -11,7 +11,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
-import type { LayoutPreset, TileLayout } from "../layout-state";
+import type { TileLayout } from "../layout-state";
 import { isLaunchBlocked, sessionInstanceKey, type SessionTile } from "../session-state";
 import { StagedTilePreview } from "../staged-tile";
 import { terminalSessionDisplayStatus, type LocalTerminalStatus } from "../session-status";
@@ -57,7 +57,6 @@ type TerminalDeskProps = {
   onCloseSession: (sessionId: string) => void;
   onContinueRestoredSession: (sessionId: string) => void;
   onRestartSession: (sessionId: string) => void;
-  onApplyLayoutPreset: (preset: LayoutPreset) => void;
   onApplyWorkMode: (mode: WorkMode) => void;
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
@@ -99,7 +98,6 @@ export function TerminalDesk({
   onCloseSession,
   onContinueRestoredSession,
   onRestartSession,
-  onApplyLayoutPreset,
   onApplyWorkMode,
   onMoveTile,
   onRuntimeSessionFailed,
@@ -247,15 +245,7 @@ export function TerminalDesk({
         <div className="layout-controls" aria-label="layout controls">
           {arrangeMode && (
             <>
-              <button type="button" aria-label="Apply Full preset" onClick={() => onApplyLayoutPreset("focus")}>
-                Full
-              </button>
-              <button type="button" aria-label="Apply Split preset" onClick={() => onApplyLayoutPreset("two-up")}>
-                Split
-              </button>
-              <button type="button" aria-label="Apply Grid preset" onClick={() => onApplyLayoutPreset("grid")}>
-                Grid
-              </button>
+              <span className="arrange-mode-label">Arrange mode</span>
               <span className="arrange-hint">drag header · resize corner</span>
             </>
           )}

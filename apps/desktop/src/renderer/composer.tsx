@@ -33,9 +33,10 @@ export function ComposerBar({
   const canSubmit = !composerDisabled && !blocked && value.trim().length > 0;
   const state = thinking ? "busy" : composerDisabled ? "disabled" : blocked ? "blocked" : "ready";
   const targetLabel = dispatchTarget?.label ?? "Select a target";
-  const targetKindLabel = dispatchTarget?.kind === "session" ? "session context" : "workspace scope";
+  const targetKindLabel = dispatchTarget?.kind === "session" ? "session" : "workspace";
+  const targetPreposition = dispatchTarget?.kind === "session" ? "with" : "in";
   const status = thinking
-    ? `Preparing work for ${targetLabel}.`
+    ? `Preparing work ${targetPreposition} ${targetLabel}.`
     : disabled
       ? "Dispatch paused while another Alfred panel is active."
       : !dispatchTarget
@@ -44,7 +45,7 @@ export function ComposerBar({
           ? blockedReason
           : lastDispatchDestination
             ? `Prepared work for ${lastDispatchDestination}.`
-            : `Ready to prepare work for ${targetLabel}.`;
+            : `Ready to prepare work ${targetPreposition} ${targetLabel}.`;
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -84,7 +85,7 @@ export function ComposerBar({
         className="composer-input"
         rows={1}
         value={value}
-        placeholder={dispatchTarget ? `Ask Alfred to prepare work for ${dispatchTarget.label}...` : "Choose a planning scope first..."}
+        placeholder={dispatchTarget ? `Prepare work ${targetPreposition} ${dispatchTarget.label}...` : "Choose a planning scope first..."}
         disabled={composerDisabled}
         aria-label="Dispatch instruction"
         aria-describedby="composer-status"
@@ -96,7 +97,7 @@ export function ComposerBar({
         className="composer-send"
         disabled={!canSubmit}
         onClick={onSubmit}
-        aria-label={`Prepare work for ${targetLabel}`}
+        aria-label={`Prepare work ${targetPreposition} ${targetLabel}`}
       >
         {thinking ? "Preparing..." : "Prepare"}
       </button>
