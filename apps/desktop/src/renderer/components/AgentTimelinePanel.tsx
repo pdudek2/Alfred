@@ -7,7 +7,7 @@ import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { shortenWorktreeLabel } from "../path-display";
 
-type AgentTimelinePanelProps = {
+export type AgentTimelinePanelProps = {
   onCopyActivityText?: (value: string) => Promise<void> | void;
   onOpenExternalTerminal?: (cwd: string) => Promise<void> | void;
   onRevealActivityFile?: (filePath: string, cwd: string) => Promise<void> | void;

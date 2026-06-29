@@ -77,7 +77,7 @@ describe("ObservatorySurface", () => {
     expect(onResumeExternalCodexSession).toHaveBeenCalledWith(externalSessions[0]);
 
     await user.click(screen.getByRole("button", { name: /Managed code audit/i }));
-    await user.click(within(detail).getByRole("button", { name: "Open in Desk" }));
+    await user.click(within(detail).getByRole("button", { name: "Open in Work" }));
     expect(onOpenManagedSession).toHaveBeenCalledWith("A", "codex-1");
   });
 
@@ -105,7 +105,7 @@ describe("ObservatorySurface", () => {
     expect(within(sessionList).queryByText("Managed code audit")).not.toBeInTheDocument();
     expect(within(sessionList).getByText("Codex App redesign thread")).toBeInTheDocument();
 
-    await user.type(screen.getByRole("textbox", { name: "Search Observatory sessions" }), "not-found");
+    await user.type(screen.getByRole("textbox", { name: "Search History sessions" }), "not-found");
     expect(screen.getByText("No sessions match.")).toBeInTheDocument();
     expect(screen.queryByText("/Users/patryk/.codex/sessions/hidden.jsonl")).not.toBeInTheDocument();
   });

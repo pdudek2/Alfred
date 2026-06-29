@@ -91,10 +91,10 @@ export function ObservatorySurface({
   const activeWorkspace = workspaceById.get(activeWorkspaceId);
 
   return (
-    <section className="observatory-surface" aria-label="Observatory workspace">
+    <section className="observatory-surface history-surface" aria-label="History workspace">
       <header className="observatory-surface-header">
         <div>
-          <span>Observatory</span>
+          <span>History</span>
           <strong>Sessions and project memory</strong>
           <p>Browse Alfred-managed terminals and external Codex sessions. External sessions are read-only until resumed.</p>
         </div>
@@ -112,7 +112,7 @@ export function ObservatorySurface({
         <Search size={15} />
         <input
           value={query}
-          aria-label="Search Observatory sessions"
+          aria-label="Search History sessions"
           placeholder="Search project, title, cwd, model..."
           onChange={(event) => setQuery(event.target.value)}
         />
@@ -303,7 +303,7 @@ function ObservatoryDetail({
       {row.source === "managed-alfred" ? (
         <button type="button" onClick={() => onOpenManagedSession(row.workspaceId, row.session.id)}>
           <ExternalLink size={15} />
-          <span>Open in Desk</span>
+          <span>Open in Work</span>
         </button>
       ) : (
         <button

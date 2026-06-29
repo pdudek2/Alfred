@@ -4,11 +4,14 @@ type ComposerBarProps = {
   blockedActionLabel?: string | undefined;
   blockedReason: string | undefined;
   disabled?: boolean;
+  dispatchTarget: { id: string; kind: "session" | "workspace"; label: string } | null;
+  lastDispatchDestination?: string | null | undefined;
   value: string;
   thinking: boolean;
   workspaceName: string;
   onChange: (value: string) => void;
   onBlockedAction?: (() => void) | undefined;
+  onCycleDispatchTarget?: (() => void) | undefined;
   onSubmit: () => void;
 };
 
@@ -16,24 +19,31 @@ export function ComposerBar({
   blockedActionLabel,
   blockedReason,
   disabled = false,
+  dispatchTarget,
+  lastDispatchDestination,
   value,
   thinking,
-  workspaceName,
   onBlockedAction,
+  onCycleDispatchTarget,
   onChange,
   onSubmit,
 }: ComposerBarProps) {
   const blocked = blockedReason !== undefined;
-  const composerDisabled = disabled || thinking;
+  const composerDisabled = disabled || thinking || !dispatchTarget;
   const canSubmit = !composerDisabled && !blocked && value.trim().length > 0;
-  const state = thinking ? "busy" : blocked ? "blocked" : disabled ? "disabled" : "ready";
+  const state = thinking ? "busy" : composerDisabled ? "disabled" : blocked ? "blocked" : "ready";
+  const targetLabel = dispatchTarget?.label ?? "Select a target";
   const status = thinking
-    ? "Alfred is preparing a launch plan."
-    : blocked
-      ? blockedReason
-      : disabled
-        ? "Composer paused."
-      : `Ready in ${workspaceName}.`;
+    ? `Dispatching to ${targetLabel}.`
+    : disabled
+      ? "Dispatch paused while another Alfred panel is active."
+      : !dispatchTarget
+        ? "Select a dispatch target before sending."
+        : blocked
+          ? blockedReason
+          : lastDispatchDestination
+            ? `Dispatched to ${lastDispatchDestination}.`
+            : `Ready to dispatch to ${targetLabel}.`;
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -51,15 +61,31 @@ export function ComposerBar({
   );
 
   return (
-    <div className="composer-bar" role="form" aria-label="Alfred composer" data-state={state}>
+    <div
+      className="composer-bar dispatch-bar"
+      role="form"
+      aria-label="Alfred dispatch"
+      data-state={state}
+      data-testid="dispatch-bar"
+    >
       <div className="alfred-mark" aria-hidden="true">A</div>
+      <button
+        type="button"
+        className="dispatch-target-chip"
+        aria-label="Change dispatch target"
+        disabled={disabled || thinking}
+        onClick={onCycleDispatchTarget}
+      >
+        <span>{dispatchTarget?.kind ?? "Target"}</span>
+        <strong>{dispatchTarget?.label ?? "Choose target"}</strong>
+      </button>
       <textarea
         className="composer-input"
         rows={1}
         value={value}
-        placeholder={`Ask Alfred to prepare ${workspaceName}…`}
+        placeholder={dispatchTarget ? `Dispatch instruction to ${dispatchTarget.label}...` : "Choose a target before dispatching..."}
         disabled={composerDisabled}
-        aria-label="Alfred prompt"
+        aria-label="Dispatch instruction"
         aria-describedby="composer-status"
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
@@ -69,9 +95,9 @@ export function ComposerBar({
         className="composer-send"
         disabled={!canSubmit}
         onClick={onSubmit}
-        aria-label="Send prompt to Alfred"
+        aria-label={`Dispatch to ${targetLabel}`}
       >
-        {thinking ? "Thinking…" : "Send"}
+        {thinking ? "Dispatching…" : "Send"}
       </button>
       <div className="composer-status-row">
         <span className="composer-status-indicator" aria-hidden="true" />

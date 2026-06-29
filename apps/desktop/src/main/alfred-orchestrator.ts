@@ -71,6 +71,7 @@ export function registerAlfredIpc(): void {
         const model = process.env.ALFRED_LLM_MODEL ?? DEFAULT_MODEL;
         const response = await runLlmPlan({
           apiKey,
+          ...(request.dispatchTarget === undefined ? {} : { dispatchTarget: request.dispatchTarget }),
           prompt: request.prompt,
           ...(request.workspace === undefined ? {} : { workspace: request.workspace }),
           model,

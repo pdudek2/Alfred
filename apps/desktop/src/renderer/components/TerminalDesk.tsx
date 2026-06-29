@@ -1,6 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { AlertTriangle, Check, Pencil, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronUp, Pencil, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -38,10 +38,12 @@ type TerminalDeskProps = {
   arrangeMode: boolean;
   armedUnsafeSessionIds: Set<string>;
   layouts: Record<string, TileLayout>;
+  collapsedSessionIds: Set<string>;
   recoverableSessions: SessionTile[];
   relaunchArmedSessionIds: Set<string>;
   selectedSessionId: string | null;
   sessions: SessionTile[];
+  showHeaderControls?: boolean;
   shortcutModifier: string;
   workMode: WorkMode;
   worktreeActionPending: Record<string, WorktreeActionKind | undefined>;
@@ -71,16 +73,19 @@ type TerminalDeskProps = {
   onRejectTile: (tileId: string) => void;
   onResizeTile: (tileId: string, deltaColSpan: number, deltaRowSpan: number) => void;
   onReviewWorktree: (sessionId: string) => void;
+  onToggleCollapseSession: (sessionId: string) => void;
 };
 
 export function TerminalDesk({
   arrangeMode,
   armedUnsafeSessionIds,
   layouts,
+  collapsedSessionIds,
   recoverableSessions,
   relaunchArmedSessionIds,
   selectedSessionId,
   sessions,
+  showHeaderControls = true,
   shortcutModifier,
   workMode,
   worktreeActionPending,
@@ -110,6 +115,7 @@ export function TerminalDesk({
   onRejectTile,
   onResizeTile,
   onReviewWorktree,
+  onToggleCollapseSession,
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
@@ -233,7 +239,7 @@ export function TerminalDesk({
     <section className={`terminal-stage ${arrangeMode ? "arranging" : ""} mode-${workMode}`} aria-label="terminals">
       <header className="terminal-stage-header">
         <div>
-          <strong>Desk</strong>
+          <strong>Work</strong>
           <span>
             {sessions.length} tile{sessions.length === 1 ? "" : "s"} · {sessions.filter((s) => s.stage === "staged").length} staged
           </span>
@@ -241,19 +247,19 @@ export function TerminalDesk({
         <div className="layout-controls" aria-label="layout controls">
           {arrangeMode && (
             <>
-              <button type="button" onClick={() => onApplyLayoutPreset("focus")}>
+              <button type="button" aria-label="Apply Full preset" onClick={() => onApplyLayoutPreset("focus")}>
                 Full
               </button>
-              <button type="button" onClick={() => onApplyLayoutPreset("two-up")}>
+              <button type="button" aria-label="Apply Split preset" onClick={() => onApplyLayoutPreset("two-up")}>
                 Split
               </button>
-              <button type="button" onClick={() => onApplyLayoutPreset("grid")}>
-                Tiled
+              <button type="button" aria-label="Apply Grid preset" onClick={() => onApplyLayoutPreset("grid")}>
+                Grid
               </button>
               <span className="arrange-hint">drag header · resize corner</span>
             </>
           )}
-          {!arrangeMode && sessions.length > 0 && (
+          {showHeaderControls && !arrangeMode && sessions.length > 0 && (
             <div className="work-mode-control" aria-label="work mode">
               <button
                 type="button"
@@ -277,7 +283,7 @@ export function TerminalDesk({
                 aria-pressed={workMode === "desk"}
                 onClick={() => onApplyWorkMode("desk")}
               >
-                Desk
+                Grid
               </button>
             </div>
           )}
@@ -312,7 +318,11 @@ export function TerminalDesk({
               onReviewWorktree={onReviewWorktree}
             />
           )}
-          <div className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}`} ref={gridRef}>
+          <div
+            className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}`}
+            data-testid="terminal-grid"
+            ref={gridRef}
+          >
           {sessions.length === 0 && (
             <EmptyWorkspaceState
               onAddAgentSession={onAddAgentSession}
@@ -353,6 +363,7 @@ export function TerminalDesk({
                 initialBuffer={session.initialBuffer}
                 activityEvents={session.activityEvents}
                 lastOutputAt={session.lastOutputAt}
+                collapsed={collapsedSessionIds.has(session.id)}
                 selected={inspectedSession?.id === session.id}
                 onClose={() => onCloseSession(session.id)}
                 onContinueRestoredSession={() => onContinueRestoredSession(session.id)}
@@ -369,6 +380,7 @@ export function TerminalDesk({
                 onRuntimeSessionUnavailable={onRuntimeSessionUnavailable}
                 onOpenExternalTerminal={handleOpenExternalTerminal}
                 onRenameSession={onRenameSession}
+                onToggleCollapse={() => onToggleCollapseSession(session.id)}
               />
             ) : (
               <StagedTilePreview
@@ -495,7 +507,7 @@ function SplitModeEmptyState({
         <strong>Create another terminal to fill this split</strong>
         <p>
           {workspaceLabel} has one visible tile. Create a second terminal for this side, or return to the
-          full desk when you want the whole surface.
+          full grid when you want the whole surface.
         </p>
       </div>
       <div className="split-empty-actions">
@@ -503,7 +515,7 @@ function SplitModeEmptyState({
           New terminal
         </button>
         <button type="button" onClick={() => onApplyWorkMode("desk")}>
-          Back to desk
+          Back to grid
         </button>
       </div>
     </aside>
@@ -693,6 +705,7 @@ function ManualTerminalTile({
   layout,
   preview,
   relaunchArmed,
+  collapsed,
   onClose,
   onContinueRestoredSession,
   onRestartSession,
@@ -708,6 +721,7 @@ function ManualTerminalTile({
   onRuntimeSessionUnavailable,
   onOpenExternalTerminal,
   onRenameSession,
+  onToggleCollapse,
   selected,
   runtimeId,
   runtimeStatus,
@@ -735,6 +749,7 @@ function ManualTerminalTile({
   layout?: TileLayout | undefined;
   preview?: ArrangePreview | undefined;
   relaunchArmed: boolean;
+  collapsed: boolean;
   onClose: () => void;
   onContinueRestoredSession: () => void;
   onRestartSession: () => void;
@@ -750,6 +765,7 @@ function ManualTerminalTile({
   onRuntimeSessionUnavailable: (tileId: string) => void;
   onOpenExternalTerminal: (cwd: string) => Promise<void>;
   onRenameSession: (sessionId: string, title: string) => void;
+  onToggleCollapse: () => void;
   selected: boolean;
   runtimeId?: TerminalSessionId | undefined;
   runtimeStatus?: SessionTile["runtimeStatus"] | undefined;
@@ -788,6 +804,11 @@ function ManualTerminalTile({
     ...(activityEvents === undefined ? {} : { activityEvents }),
   } satisfies Parameters<typeof terminalSessionDisplayStatus>[0];
   const displayStatus = terminalSessionDisplayStatus(displaySession, tileStatus, displayClock);
+  const statusSession = {
+    ...(runtimeStatus === undefined ? {} : { runtimeStatus }),
+  } satisfies Pick<SessionTile, "runtimeStatus">;
+  const statusKind = terminalStatusKind(statusSession, tileStatus);
+  const statusLabel = terminalStatusLabel(statusSession, tileStatus);
   const restartable = displayStatus.kind === "done" || displayStatus.kind === "error";
   const discardableSession = displayStatus.kind === "restored" || restartable;
   const existingCheckoutMetadata = isReusableIsolatedCheckoutMetadata({ isolation, branchName, baseCwd });
@@ -1218,7 +1239,8 @@ function ManualTerminalTile({
 
   return (
     <article
-      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${focusHidden ? "focus-hidden" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${focusHidden ? "focus-hidden" : ""} ${collapsed ? "collapsed" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      data-testid="terminal-tile"
       aria-label={latestActivity ? `${title}, ${latestActivity.title}: ${latestActivity.detail}` : title}
       aria-hidden={focusHidden ? "true" : undefined}
       style={gridStyle(layout, preview)}
@@ -1234,7 +1256,7 @@ function ManualTerminalTile({
       }}
     >
       <header
-        className={`tile-header ${arrangeMode ? "drag-handle" : ""}`}
+        className={`tile-header terminal-tile-header ${arrangeMode ? "drag-handle" : ""}`}
         onClick={!arrangeMode ? onSelectSession : undefined}
         onDoubleClick={!arrangeMode ? onFocusSession : undefined}
         onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
@@ -1302,6 +1324,7 @@ function ManualTerminalTile({
             <small>{latestActivity.detail}</small>
           </div>
         )}
+        {arrangeMode && <span className="arrange-handle" aria-hidden="true" />}
         <div className="tile-actions">
           <div className="tile-action-group tile-status-group">
             {ageLabel && (
@@ -1309,7 +1332,10 @@ function ManualTerminalTile({
                 {ageLabel}
               </span>
             )}
-            <span className={`tile-status status-${displayStatus.kind}`}>{displayStatus.label}</span>
+            <span className={`terminal-status-label tone-${kindMeta.className}`} aria-label={`status ${statusLabel}`}>
+              <span aria-hidden="true">{statusKind === "error" ? "!" : statusKind === "restored" ? "↻" : "✓"}</span>
+              {statusLabel}
+            </span>
           </div>
           {(tileStatus === "restored" || restartable) && (
             <div className="tile-action-group tile-primary-actions">
@@ -1344,6 +1370,16 @@ function ManualTerminalTile({
             </div>
           )}
           <div className="tile-action-group tile-utility-actions">
+            <button
+              type="button"
+              className="collapse-session-button"
+              aria-label={`${collapsed ? "Expand" : "Collapse"} ${title}`}
+              onClick={onToggleCollapse}
+              onPointerDown={(event) => event.stopPropagation()}
+              title={collapsed ? "Expand terminal body" : "Collapse terminal body"}
+            >
+              {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+            </button>
             {externalTerminalCwd && (
               <button
                 type="button"
@@ -1385,7 +1421,7 @@ function ManualTerminalTile({
           </div>
         </div>
       </header>
-      <div className="xterm-host" ref={containerRef} />
+      <div className="xterm-host" data-testid="xterm-host" ref={containerRef} />
       {arrangeMode && (
         <button
           className="tile-resize-handle"
@@ -1465,6 +1501,39 @@ function activityKindLabel(kind: NonNullable<SessionTile["activityEvents"]>[numb
       return "state";
     case "output":
       return "out";
+  }
+}
+
+function terminalStatusKind(
+  session: Pick<SessionTile, "runtimeStatus">,
+  localStatus: LocalTerminalStatus,
+): string {
+  if (localStatus === "error" || session.runtimeStatus === "error") return "error";
+  if (localStatus === "restored" || session.runtimeStatus === "restored") return "restored";
+  if (localStatus === "connecting" || session.runtimeStatus === "starting") return "starting";
+  if (localStatus === "exited" || session.runtimeStatus === "exited") return "exited";
+  if (localStatus === "browser" || session.runtimeStatus === "unavailable") return "unavailable";
+  return "running";
+}
+
+function terminalStatusLabel(
+  session: Pick<SessionTile, "runtimeStatus">,
+  localStatus: LocalTerminalStatus,
+): string {
+  switch (terminalStatusKind(session, localStatus)) {
+    case "running":
+    case "ready":
+      return "running";
+    case "starting":
+      return "starting";
+    case "restored":
+      return "restored";
+    case "exited":
+      return "exited";
+    case "error":
+      return "needs review";
+    default:
+      return terminalStatusKind(session, localStatus);
   }
 }
 

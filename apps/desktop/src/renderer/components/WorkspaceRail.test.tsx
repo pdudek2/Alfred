@@ -120,4 +120,23 @@ describe("WorkspaceRail", () => {
     await user.keyboard("{Home}");
     expect(onSelectWorkspace).toHaveBeenLastCalledWith("A");
   });
+
+  it("keeps workspace tablist behavior in embedded mode", () => {
+    render(
+      <WorkspaceRail
+        activeWorkspaceId="A"
+        embedded
+        sessions={[]}
+        workspaces={[
+          { id: "A", label: "Alfred", shortLabel: "A" },
+          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI" },
+        ]}
+        onAddWorkspace={vi.fn()}
+        onSelectWorkspace={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("tablist", { name: "workspaces" })).toHaveClass("embedded");
+    expect(screen.getByRole("button", { name: "Add workspace" })).toBeInTheDocument();
+  });
 });

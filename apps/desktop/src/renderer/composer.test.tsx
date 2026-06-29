@@ -9,13 +9,16 @@ afterEach(() => {
 });
 
 describe("ComposerBar", () => {
-  it("keeps send disabled until the composer has text and no blocking reason", () => {
+  const dispatchTarget = { kind: "session" as const, id: "manual-1", label: "Manual · zsh 1" };
+
+  it("keeps send disabled until the dispatch has text and no blocking reason", () => {
     const onChange = vi.fn();
     const onSubmit = vi.fn();
 
     render(
       <ComposerBar
         blockedReason={undefined}
+        dispatchTarget={dispatchTarget}
         value=""
         thinking={false}
         disabled={false}
@@ -25,8 +28,15 @@ describe("ComposerBar", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Send prompt to Alfred" })).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Ready in Alfred.");
+    expect(screen.getByRole("button", { name: "Change dispatch target" })).toBeInTheDocument();
+    expect(screen.getByText("session")).toBeInTheDocument();
+    expect(screen.getByText("Manual · zsh 1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dispatch to Manual · zsh 1" })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Ready to dispatch to Manual · zsh 1.");
+    expect(screen.getByLabelText("Dispatch instruction")).toHaveAttribute(
+      "placeholder",
+      "Dispatch instruction to Manual · zsh 1...",
+    );
   });
 
   it("blocks submit and keeps the draft editable while a plan is staged", async () => {
@@ -37,6 +47,7 @@ describe("ComposerBar", () => {
     render(
       <ComposerBar
         blockedReason="Resolve the current Alfred plan before asking for another."
+        dispatchTarget={dispatchTarget}
         thinking={false}
         value="prepare tests"
         workspaceName="Alfred"
@@ -45,10 +56,10 @@ describe("ComposerBar", () => {
       />,
     );
 
-    const input = screen.getByLabelText("Alfred prompt");
+    const input = screen.getByLabelText("Dispatch instruction");
     expect(input).toBeEnabled();
     expect(screen.getByRole("status")).toHaveTextContent("Resolve the current Alfred plan");
-    const sendButton = screen.getByRole("button", { name: "Send prompt to Alfred" });
+    const sendButton = screen.getByRole("button", { name: "Dispatch to Manual · zsh 1" });
     expect(sendButton).toBeDisabled();
 
     await user.click(sendButton);
@@ -69,6 +80,7 @@ describe("ComposerBar", () => {
     render(
       <ComposerBar
         blockedReason={undefined}
+        dispatchTarget={dispatchTarget}
         thinking={false}
         value="prepare dev servers"
         workspaceName="Alfred"
@@ -77,7 +89,7 @@ describe("ComposerBar", () => {
       />,
     );
 
-    await user.click(screen.getByLabelText("Alfred prompt"));
+    await user.click(screen.getByLabelText("Dispatch instruction"));
     await user.keyboard("{Meta>}{Enter}{/Meta}");
 
     expect(onSubmit).toHaveBeenCalledOnce();
@@ -91,6 +103,7 @@ describe("ComposerBar", () => {
       <ComposerBar
         blockedActionLabel="Open ClientApp"
         blockedReason="Review staged items in ClientApp workspace first."
+        dispatchTarget={dispatchTarget}
         thinking={false}
         value="prepare dev servers"
         workspaceName="Alfred"
@@ -110,6 +123,7 @@ describe("ComposerBar", () => {
     render(
       <ComposerBar
         blockedReason={undefined}
+        dispatchTarget={dispatchTarget}
         thinking={false}
         disabled
         value=""
@@ -119,9 +133,33 @@ describe("ComposerBar", () => {
       />,
     );
 
-    expect(screen.getByRole("form", { name: "Alfred composer" })).toHaveAttribute("data-state", "disabled");
-    expect(screen.getByRole("status")).toHaveTextContent("Composer paused.");
-    expect(screen.getByLabelText("Alfred prompt")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Send prompt to Alfred" })).toBeDisabled();
+    expect(screen.getByRole("form", { name: "Alfred dispatch" })).toHaveAttribute("data-state", "disabled");
+    expect(screen.getByRole("status")).toHaveTextContent("Dispatch paused while another Alfred panel is active.");
+    expect(screen.getByLabelText("Dispatch instruction")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Dispatch to Manual · zsh 1" })).toBeDisabled();
+  });
+
+  it("does not submit when no dispatch target is selected", async () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <ComposerBar
+        blockedReason={undefined}
+        value="run tests"
+        dispatchTarget={null}
+        thinking={false}
+        workspaceName="Alfred"
+        onChange={() => undefined}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await userEvent.keyboard("{Enter}");
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByText(/choose target/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Dispatch instruction")).toHaveAttribute(
+      "placeholder",
+      "Choose a target before dispatching...",
+    );
   });
 });
