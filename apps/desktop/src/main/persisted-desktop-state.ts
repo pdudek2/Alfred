@@ -3,7 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { redactText, redactUnknown } from "@alfred/schema";
 import type { AlfredStagedPlanSnapshot, AgentKind } from "../shared/alfred-ipc.js";
-import type { TileLayout, WorkspaceViewState, WorkMode } from "../shared/layout-ipc.js";
+import type { DispatchTargetSnapshot, TileLayout, WorkspaceViewState, WorkMode } from "../shared/layout-ipc.js";
 import type {
   SessionActivityEvent,
   SessionActivityEventKind,
@@ -369,14 +369,22 @@ function normalizeViewStateByWorkspace(value: unknown): Record<string, Workspace
   const viewStateByWorkspace: Record<string, WorkspaceViewState> = {};
   for (const [workspaceId, rawViewState] of Object.entries(value)) {
     if (!workspaceId.trim() || !isRecord(rawViewState)) continue;
+    const collapsedSessionIds = normalizeStringList(rawViewState.collapsedSessionIds);
+    const contextDrawerOpen = typeof rawViewState.contextDrawerOpen === "boolean" ? rawViewState.contextDrawerOpen : undefined;
+    const dispatchTarget = normalizeDispatchTarget(rawViewState.dispatchTarget);
     const workMode = normalizeWorkMode(rawViewState.workMode);
     const selectedSessionId =
       typeof rawViewState.selectedSessionId === "string" && rawViewState.selectedSessionId.trim()
         ? rawViewState.selectedSessionId.trim()
         : undefined;
 
-    if (!workMode && !selectedSessionId) continue;
+    if (!collapsedSessionIds.length && contextDrawerOpen === undefined && !dispatchTarget && !workMode && !selectedSessionId) {
+      continue;
+    }
     viewStateByWorkspace[workspaceId] = {
+      ...(collapsedSessionIds.length === 0 ? {} : { collapsedSessionIds }),
+      ...(contextDrawerOpen === undefined ? {} : { contextDrawerOpen }),
+      ...(dispatchTarget === undefined ? {} : { dispatchTarget }),
       ...(workMode === undefined ? {} : { workMode }),
       ...(selectedSessionId === undefined ? {} : { selectedSessionId }),
     };
@@ -387,6 +395,29 @@ function normalizeViewStateByWorkspace(value: unknown): Record<string, Workspace
 
 function normalizeWorkMode(value: unknown): WorkMode | undefined {
   return value === "desk" || value === "focus" || value === "split" ? value : undefined;
+}
+
+function normalizeDispatchTarget(value: unknown): DispatchTargetSnapshot | undefined {
+  if (!isRecord(value)) return undefined;
+  const kind = value.kind === "session" || value.kind === "workspace" ? value.kind : undefined;
+  const id = typeof value.id === "string" ? value.id.trim() : "";
+  const label = typeof value.label === "string" ? value.label.trim() : "";
+  if (!kind || !id || !label) return undefined;
+  return { kind, id, label };
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const trimmed = item.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+  return normalized;
 }
 
 function normalizeStagedPlan(value: unknown): AlfredStagedPlanSnapshot | null {

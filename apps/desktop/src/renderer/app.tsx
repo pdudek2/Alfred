@@ -1,13 +1,10 @@
 import {
   ChevronDown,
-  Command,
   Eye,
   FolderOpen,
   ListChecks,
   Pencil,
-  Plus,
   RefreshCcw,
-  Search,
   ShieldCheck,
   SquareTerminal,
   Trash2,
@@ -23,17 +20,18 @@ import {
   getDesktopWorkspaceApi,
 } from "./desktop-api";
 import { ComposerBar } from "./composer";
-import { AlfredControlRail } from "./components/AlfredControlRail";
 import { AlfredMark } from "./components/AlfredMark";
-import { AgentTimelinePanel } from "./components/AgentTimelinePanel";
 import { CommandPalette } from "./components/CommandPalette";
+import { ContextColumn } from "./components/ContextColumn";
 import { ObservatorySurface } from "./components/ObservatorySurface";
+import { PrimaryNavigationRail, type PrimarySurface } from "./components/PrimaryNavigationRail";
 import { ReviewQueuePanel } from "./components/ReviewQueuePanel";
 import { ReviewSurface } from "./components/ReviewSurface";
 import { SessionObservatoryPanel } from "./components/SessionObservatoryPanel";
 import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
-import { WorkspacePreviewPanel } from "./components/WorkspacePreviewPanel";
-import { WorkspaceRail, type WorkspaceRailWorkspace } from "./components/WorkspaceRail";
+import { WorkbenchHeader } from "./components/WorkbenchHeader";
+import { WorkspaceNavigationPanel } from "./components/WorkspaceNavigationPanel";
+import type { WorkspaceRailWorkspace } from "./components/WorkspaceRail";
 import {
   applyLayoutPreset,
   ensureTileLayouts,
@@ -102,12 +100,12 @@ import type {
   AlfredWorkspaceContext,
 } from "../shared/alfred-ipc";
 import type { TerminalCreateResult, TerminalSessionIsolation } from "../shared/terminal-ipc";
+import type { DispatchTargetSnapshot, WorkspaceViewState } from "../shared/layout-ipc";
 import type { WorkspaceMissionBrief, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 import type { ExternalCodexSessionSummary } from "../shared/session-index-ipc";
 import "@xterm/xterm/css/xterm.css";
 
 type Workspace = WorkspaceRailWorkspace;
-type ActiveSurface = "desk" | "review" | "observatory";
 type WorkspaceHydrationStatus =
   | { status: "loading" }
   | { status: "ready" }
@@ -173,7 +171,7 @@ export function App() {
   const [privacySettings, setPrivacySettings] = useState<DesktopPrivacySettings>(DEFAULT_PRIVACY_SETTINGS);
   const [desktopSaveStatus, setDesktopSaveStatus] = useState<DesktopSaveStatus>({ status: "saved" });
   const [sessionObservatoryOpen, setSessionObservatoryOpen] = useState<boolean>(false);
-  const [activeSurface, setActiveSurface] = useState<ActiveSurface>("desk");
+  const [activeSurface, setActiveSurface] = useState<PrimarySurface>("work");
   const [workspaceHydrationStatus, setWorkspaceHydrationStatus] = useState<WorkspaceHydrationStatus>({
     status: "loading",
   });
@@ -191,7 +189,12 @@ export function App() {
   const [selectedPreviewUrlsByWorkspace, setSelectedPreviewUrlsByWorkspace] = useState<Record<string, string>>({});
   const [previewRefreshKeysByWorkspace, setPreviewRefreshKeysByWorkspace] = useState<Record<string, number>>({});
   const [worktreeActionPending, setWorktreeActionPending] = useState<Record<string, WorktreeActionKind | undefined>>({});
+  const [collapsedSessionIdsByWorkspace, setCollapsedSessionIdsByWorkspace] = useState<Record<string, string[]>>({});
+  const [contextDrawerOpenByWorkspace, setContextDrawerOpenByWorkspace] = useState<Record<string, boolean>>({});
+  const [dispatchTargetsByWorkspace, setDispatchTargetsByWorkspace] = useState<Record<string, DispatchTargetSnapshot>>({});
+  const [lastDispatchDestination, setLastDispatchDestination] = useState<string | null>(null);
   const [pendingDiscardConfirmation, setPendingDiscardConfirmation] = useState<PendingDiscardConfirmation | null>(null);
+  const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
   const worktreeActionPendingRef = useRef<Set<string>>(new Set());
@@ -217,6 +220,15 @@ export function App() {
       : activeSessions[0] ?? null;
   const activeSelectedSession =
     activeSessions.find((session) => session.id === activeSelectedSessionId) ?? activeSessions[0] ?? null;
+  const activeCollapsedSessionIds = new Set(collapsedSessionIdsByWorkspace[activeWorkspace.id] ?? []);
+  const activeContextDrawerOpen = contextDrawerOpenByWorkspace[activeWorkspace.id] ?? false;
+  const activeDispatchTargets = dispatchTargetsForWorkspace(activeWorkspace, activeSessions, activeSelectedSession);
+  const savedDispatchTarget = dispatchTargetsByWorkspace[activeWorkspace.id];
+  const activeDispatchTarget =
+    activeDispatchTargets.find((target) => dispatchTargetsEqual(target, savedDispatchTarget)) ??
+    activeDispatchTargets[0] ??
+    null;
+  const activeImportantSignalCount = importantContextSignalCount(activeInspectedSession);
   const activePendingPlan = pendingPlan?.workspaceId === activeWorkspace.id ? pendingPlan : null;
   const canCloseActiveWorkspace =
     activeWorkspace.id !== DEFAULT_WORKSPACE_ID && workspaces.length > 1 && activeSessions.length === 0;
@@ -348,6 +360,9 @@ export function App() {
     setTileLayoutsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setWorkModesByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setSelectedSessionIdsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
+    setCollapsedSessionIdsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
+    setContextDrawerOpenByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
+    setDispatchTargetsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setSelectedPreviewUrlsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setPreviewRefreshKeysByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setPreviewCandidates((current) => current.filter((candidate) => candidate.workspaceId !== activeWorkspace.id));
@@ -360,6 +375,81 @@ export function App() {
   const handleToggleArrangeMode = useCallback(() => {
     setArrangeMode((enabled) => !enabled);
   }, []);
+
+  const persistActiveWorkspaceViewState = useCallback((patch: WorkspaceViewState = {}) => {
+    const layoutApi = getDesktopLayoutApi();
+    const collapsedSessionIds = collapsedSessionIdsByWorkspace[activeWorkspace.id] ?? [];
+    const contextDrawerOpen = contextDrawerOpenByWorkspace[activeWorkspace.id] ?? false;
+    const dispatchTarget = dispatchTargetsByWorkspace[activeWorkspace.id];
+    void layoutApi?.setWorkspaceViewState({
+      workspaceId: activeWorkspace.id,
+      viewState: {
+        workMode: activeWorkMode,
+        ...(activeSelectedSessionId === null ? {} : { selectedSessionId: activeSelectedSessionId }),
+        ...(collapsedSessionIds.length === 0 ? {} : { collapsedSessionIds }),
+        contextDrawerOpen,
+        ...(dispatchTarget === undefined ? {} : { dispatchTarget }),
+        ...patch,
+      },
+    });
+  }, [
+    activeSelectedSessionId,
+    activeWorkMode,
+    activeWorkspace.id,
+    collapsedSessionIdsByWorkspace,
+    contextDrawerOpenByWorkspace,
+    dispatchTargetsByWorkspace,
+  ]);
+
+  const handleToggleContextDrawer = useCallback(() => {
+    setContextDrawerOpenByWorkspace((current) => {
+      const nextOpen = !(current[activeWorkspace.id] ?? false);
+      persistActiveWorkspaceViewState({ contextDrawerOpen: nextOpen });
+      return {
+        ...current,
+        [activeWorkspace.id]: nextOpen,
+      };
+    });
+  }, [activeWorkspace.id, persistActiveWorkspaceViewState]);
+
+  const handleCloseContextDrawer = useCallback(() => {
+    setContextDrawerOpenByWorkspace((current) => {
+      if (current[activeWorkspace.id] === false) return current;
+      persistActiveWorkspaceViewState({ contextDrawerOpen: false });
+      return {
+        ...current,
+        [activeWorkspace.id]: false,
+      };
+    });
+  }, [activeWorkspace.id, persistActiveWorkspaceViewState]);
+
+  const handleToggleCollapseSession = useCallback((sessionId: string) => {
+    setCollapsedSessionIdsByWorkspace((current) => {
+      const existing = current[activeWorkspace.id] ?? [];
+      const nextCollapsed = existing.includes(sessionId)
+        ? existing.filter((id) => id !== sessionId)
+        : [...existing, sessionId];
+      persistActiveWorkspaceViewState({
+        collapsedSessionIds: nextCollapsed,
+      });
+      return {
+        ...current,
+        [activeWorkspace.id]: nextCollapsed,
+      };
+    });
+  }, [activeWorkspace.id, persistActiveWorkspaceViewState]);
+
+  const handleCycleDispatchTarget = useCallback(() => {
+    if (activeDispatchTargets.length === 0) return;
+    const currentIndex = activeDispatchTargets.findIndex((target) => dispatchTargetsEqual(target, activeDispatchTarget));
+    const nextTarget = activeDispatchTargets[(currentIndex + 1) % activeDispatchTargets.length] ?? activeDispatchTargets[0];
+    if (!nextTarget) return;
+    setDispatchTargetsByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: nextTarget,
+    }));
+    persistActiveWorkspaceViewState({ dispatchTarget: nextTarget });
+  }, [activeDispatchTarget, activeDispatchTargets, activeWorkspace.id, persistActiveWorkspaceViewState]);
 
   const handleBeginRenameActiveWorkspace = useCallback(() => {
     setWorkspaceRenameDraft(activeWorkspace.label);
@@ -543,6 +633,7 @@ export function App() {
   }, [activeWorkMode, activeWorkspace.id]);
 
   const handleFocusSession = useCallback((sessionId: string) => {
+    setActiveSurface("work");
     setSelectedSessionIdsByWorkspace((current) => {
       if (current[activeWorkspace.id] === sessionId) return current;
       return {
@@ -558,11 +649,14 @@ export function App() {
   }, [activeAttention, handleFocusSession]);
 
   const handleOpenReviewQueue = useCallback(() => {
+    if (commandPaletteOpen) {
+      commandPaletteTriggerRef.current?.focus();
+    }
     setCommandPaletteOpen(false);
     setCommandQuery("");
     setSessionObservatoryOpen(false);
     setReviewQueueOpen(true);
-  }, []);
+  }, [commandPaletteOpen]);
 
   const handleCloseReviewQueue = useCallback(() => {
     setReviewQueueOpen(false);
@@ -642,6 +736,7 @@ export function App() {
       (workModesByWorkspace[workspaceId] ?? "desk") !== "focus" ||
       selectedSessionIdsByWorkspace[workspaceId] !== sessionId;
 
+    setActiveSurface("work");
     if (activeWorkspaceId !== workspaceId) {
       setActiveWorkspaceId(workspaceId);
     }
@@ -972,9 +1067,19 @@ export function App() {
   }, [beginWorktreeAction, finishWorktreeAction, isCurrentSessionInstance]);
 
   const handleCloseSelectedSession = useCallback(() => {
-    if (!activeSelectedSession) return;
-    handleCloseSession(activeSelectedSession.id);
-  }, [activeSelectedSession, handleCloseSession]);
+    const selectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id];
+    const currentWorkspaceSessions = terminalSessionsRef.current.filter(
+      (session) => session.workspaceId === activeWorkspace.id,
+    );
+    const session =
+      (selectedSessionId
+        ? currentWorkspaceSessions.find((item) => item.id === selectedSessionId)
+        : null) ??
+      currentWorkspaceSessions[0] ??
+      activeSelectedSession;
+    if (!session) return;
+    handleCloseSession(session.id);
+  }, [activeSelectedSession, activeWorkspace.id, handleCloseSession, selectedSessionIdsByWorkspace]);
 
   const handleCloseRecoverableSessions = useCallback(() => {
     for (const session of activeRecoverableSessions) {
@@ -1106,23 +1211,24 @@ export function App() {
     setTerminalSessions((sessions) => recordSessionOutputActivity(sessions, runtimeId, data));
   }, []);
 
-  const handleSubmitPrompt = useCallback(async () => {
+  const handleSubmitPrompt = useCallback(async (dispatchTarget: DispatchTargetSnapshot): Promise<boolean> => {
     const prompt = composerValue.trim();
-    if (!prompt) return;
-    if (!canRequestPlan(alfredStatus, globalStagedCount)) return;
+    if (!prompt) return false;
+    if (!canRequestPlan(alfredStatus, globalStagedCount)) return false;
     const alfredApi = getDesktopAlfredApi();
     if (!alfredApi) {
       setAlfredStatus(errored({ code: "network", message: "Alfred runtime is unavailable. Open the desktop app." }));
-      return;
+      return false;
     }
     setAlfredStatus(thinking());
     const response = await alfredApi.requestPlan({
+      dispatchTarget,
       prompt,
-      workspace: workspacePlanContext(activeWorkspace, activeSessions),
+      workspace: workspacePlanContext(activeWorkspace, activeSessions, dispatchTarget),
     });
     if (!response.ok) {
       setAlfredStatus(errored(response.error));
-      return;
+      return false;
     }
     setAlfredStatus(idle());
     setComposerValue("");
@@ -1152,7 +1258,16 @@ export function App() {
       }
       return after;
     });
+    return true;
   }, [activeSessions, activeWorkspace, alfredStatus, composerValue, globalStagedCount]);
+
+  const handleSubmitDispatch = useCallback(() => {
+    const target = activeDispatchTarget;
+    if (!target) return;
+    void handleSubmitPrompt(target).then((submitted) => {
+      if (submitted) setLastDispatchDestination(target.label);
+    });
+  }, [activeDispatchTarget, handleSubmitPrompt]);
 
   const handleApproveTile = useCallback((tileId: string) => {
     const tile = terminalSessions.find((session) => session.id === tileId);
@@ -1415,7 +1530,7 @@ export function App() {
   }, []);
 
   const handleOpenManagedSessionFromObservatory = useCallback((workspaceId: string, sessionId: string) => {
-    setActiveSurface("desk");
+    setActiveSurface("work");
     handleFocusSessionInWorkspace(workspaceId, sessionId);
   }, [handleFocusSessionInWorkspace]);
 
@@ -1453,7 +1568,7 @@ export function App() {
     };
 
     setActiveWorkspaceId(targetWorkspace.id);
-    setActiveSurface("desk");
+    setActiveSurface("work");
     setSelectedSessionIdsByWorkspace((current) => ({ ...current, [targetWorkspace.id]: tile.id }));
     setTerminalSessions((sessions) => [...sessions, tile]);
     void workspaceApi?.setWorkspaceState({ workspaces, activeWorkspaceId: targetWorkspace.id });
@@ -1469,7 +1584,7 @@ export function App() {
   }, [activeWorkspace.id]);
 
   useEffect(() => {
-    if (activeSurface !== "observatory") return;
+    if (activeSurface !== "history") return;
     if (!privacySettings.externalSessionIndexingEnabled) return;
     void handleRefreshExternalCodexSessions();
   }, [activeSurface, handleRefreshExternalCodexSessions, privacySettings.externalSessionIndexingEnabled]);
@@ -1618,6 +1733,27 @@ export function App() {
             ),
           ),
         );
+        setCollapsedSessionIdsByWorkspace(
+          Object.fromEntries(
+            Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
+              viewState.collapsedSessionIds?.length ? [[workspaceId, viewState.collapsedSessionIds]] : [],
+            ),
+          ),
+        );
+        setContextDrawerOpenByWorkspace(
+          Object.fromEntries(
+            Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
+              viewState.contextDrawerOpen === undefined ? [] : [[workspaceId, viewState.contextDrawerOpen]],
+            ),
+          ),
+        );
+        setDispatchTargetsByWorkspace(
+          Object.fromEntries(
+            Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
+              viewState.dispatchTarget ? [[workspaceId, viewState.dispatchTarget]] : [],
+            ),
+          ),
+        );
         if (workspaceStateResult) {
           setWorkspaces(workspaceStateResult.workspaces);
           setActiveWorkspaceId(workspaceStateResult.activeWorkspaceId);
@@ -1687,7 +1823,7 @@ export function App() {
     void workspaceApi.setWorkspaceState(snapshot);
   }, [activeWorkspaceId, workspaces]);
 
-  const deskSurfaceHidden = activeSurface !== "desk";
+  const workSurfaceHidden = activeSurface !== "work";
 
   return (
     <main className="agent-space-shell">
@@ -1723,115 +1859,6 @@ export function App() {
               }}
             />
           </div>
-          <div className="mission-actions" role="group" aria-label="terminal actions">
-            <nav className="surface-nav" aria-label="Workspace surfaces">
-              <button
-                type="button"
-                className={activeSurface === "desk" ? "active" : ""}
-                aria-label="Open Desk surface"
-                aria-current={activeSurface === "desk" ? "page" : undefined}
-                onClick={() => setActiveSurface("desk")}
-              >
-                Desk
-              </button>
-              <button
-                type="button"
-                className={activeSurface === "review" ? "active" : ""}
-                aria-label="Open Review surface"
-                aria-current={activeSurface === "review" ? "page" : undefined}
-                onClick={() => setActiveSurface("review")}
-              >
-                Review
-                {globalReviewItems.length > 0 && <strong>{globalReviewItems.length}</strong>}
-              </button>
-              <button
-                type="button"
-                className={activeSurface === "observatory" ? "active" : ""}
-                aria-label="Open Observatory surface"
-                aria-current={activeSurface === "observatory" ? "page" : undefined}
-                onClick={() => setActiveSurface("observatory")}
-              >
-                Observatory
-              </button>
-            </nav>
-            {terminalSessions.length > 0 && (
-              <button
-                className="session-observatory-button"
-                type="button"
-                aria-label={`Open session observatory, ${terminalSessions.length} session${terminalSessions.length === 1 ? "" : "s"}`}
-                onClick={handleOpenSessionObservatory}
-                title="Search sessions across workspaces"
-              >
-                <Search size={15} />
-                <span>Sessions</span>
-                <strong>{terminalSessions.length}</strong>
-              </button>
-            )}
-            {reviewQueuePreview && (
-              <button
-                className={`review-queue-button tone-${reviewQueuePreview.status.kind}`}
-                type="button"
-                aria-label={`Open review queue, ${globalReviewItems.length} item${globalReviewItems.length === 1 ? "" : "s"}`}
-                onClick={handleOpenReviewQueue}
-                title={`${reviewQueuePreview.workspaceLabel}: ${reviewQueuePreview.session.title}`}
-              >
-                <ListChecks size={15} />
-                <span>Queue</span>
-                <strong>{globalReviewItems.length}</strong>
-              </button>
-            )}
-            <button
-              className={`arrange-button ${arrangeMode ? "active" : ""}`}
-              type="button"
-              aria-pressed={arrangeMode}
-              onClick={handleToggleArrangeMode}
-              title="Arrange layout"
-            >
-              Arrange
-            </button>
-            <button
-              className="command-palette-button"
-              type="button"
-              aria-label="Open command palette"
-              onClick={handleOpenCommandPalette}
-              title="Command palette"
-            >
-              <Command size={15} />
-              <span>{shortcutModifier} K</span>
-            </button>
-            <div className="agent-launch-buttons" aria-label="agent launchers">
-              <button
-                className="agent-launch-button codex"
-                type="button"
-                aria-label="Start Codex"
-                onClick={() => handleAddAgentSession("codex")}
-                title={activeWorkspace.rootPath ? "Start Codex in this workspace" : "Start Codex in a scratch workspace"}
-              >
-                <span className="tool-dot codex" />
-                <span>Codex</span>
-              </button>
-              <button
-                className="agent-launch-button claude"
-                type="button"
-                aria-label="Start Claude"
-                onClick={() => handleAddAgentSession("claude")}
-                title={activeWorkspace.rootPath ? "Start Claude in this workspace" : "Start Claude in a scratch workspace"}
-              >
-                <span className="tool-dot claude" />
-                <span>Claude</span>
-              </button>
-            </div>
-            <button
-              className="new-terminal-button"
-              type="button"
-              aria-label="New terminal"
-              onClick={handleAddManualSession}
-              title={activeWorkspace.rootPath ? "New terminal" : "New terminal in a scratch workspace"}
-            >
-              <Plus size={17} />
-              <span>New terminal</span>
-            </button>
-          </div>
         </div>
 
         {desktopSaveStatus.status === "saveFailed" && (
@@ -1864,23 +1891,63 @@ export function App() {
           className={`workspace-layout surface-${activeSurface} ${alfredExpanded ? "alfred-expanded" : "alfred-compact"} ${
             previewVisible ? "preview-visible" : ""
           }`}
+          data-testid="clean-depth-shell"
         >
-          <WorkspaceRail
+          <PrimaryNavigationRail
+            activeSurface={activeSurface}
+            commandPaletteTriggerRef={commandPaletteTriggerRef}
+            contextOpen={activeContextDrawerOpen}
+            contextSignalCount={activeImportantSignalCount}
+            inboxCount={globalReviewItems.length}
+            shortcutModifier={shortcutModifier}
+            onOpenCommandPalette={handleOpenCommandPalette}
+            onOpenPrivacyControls={handleOpenPrivacyPanel}
+            onToggleContext={handleToggleContextDrawer}
+            onSelectSurface={(surface) => setActiveSurface(surface)}
+          />
+          <WorkspaceNavigationPanel
+            activeSessions={activeSessions}
+            activeWorkspace={activeWorkspace}
             activeWorkspaceId={activeWorkspace.id}
+            inboxCount={globalReviewItems.length}
             sessions={terminalSessions}
             workspaces={workspaces}
             onAddWorkspace={handleAddWorkspace}
+            onFocusSession={handleFocusSession}
+            onFocusSessionInWorkspace={handleFocusSessionInWorkspace}
+            onOpenInbox={() => setActiveSurface("inbox")}
             onSelectWorkspace={handleSelectWorkspace}
           />
-          <div className="orchestrator-surface">
+          <div className="orchestrator-surface" data-testid="workbench-surface">
+            <WorkbenchHeader
+              activeSurface={activeSurface}
+              activeSessionCount={activeSessions.length}
+              arrangeMode={arrangeMode}
+              contextOpen={activeContextDrawerOpen}
+              contextSignalCount={activeImportantSignalCount}
+              inboxCount={globalReviewItems.length}
+              sessionCount={terminalSessions.length}
+              workMode={activeWorkMode}
+              workspaceLabel={activeWorkspace.label}
+              workspacePathLabel={workspaceDetail(activeWorkspace)}
+              onAddAgentSession={handleAddAgentSession}
+              onAddManualSession={handleAddManualSession}
+              onApplyWorkMode={handleApplyWorkMode}
+              onOpenInbox={() => setActiveSurface("inbox")}
+              onOpenSessionObservatory={handleOpenSessionObservatory}
+              onToggleArrangeMode={handleToggleArrangeMode}
+              onToggleContext={handleToggleContextDrawer}
+            />
             <div
-              className={`surface-panel desk-surface-panel ${deskSurfaceHidden ? "inactive" : "active"}`}
-              aria-hidden={deskSurfaceHidden || undefined}
-              inert={deskSurfaceHidden || undefined}
+              className={`surface-panel desk-surface-panel ${workSurfaceHidden ? "inactive" : "active"}`}
+              data-testid="desk-runtime-surface"
+              aria-hidden={workSurfaceHidden ? "true" : undefined}
+              inert={workSurfaceHidden || undefined}
             >
               <TerminalDesk
                 arrangeMode={arrangeMode}
                 armedUnsafeSessionIds={armedUnsafeSessionIds}
+                collapsedSessionIds={activeCollapsedSessionIds}
                 layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
                 recoverableSessions={activeRecoverableSessions}
                 selectedSessionId={activeSelectedSessionId}
@@ -1915,9 +1982,11 @@ export function App() {
                 onRejectTile={handleRejectTile}
                 onResizeTile={handleResizeTile}
                 onReviewWorktree={handleReviewWorktree}
+                showHeaderControls={false}
+                onToggleCollapseSession={handleToggleCollapseSession}
               />
             </div>
-            {activeSurface === "review" && (
+            {activeSurface === "inbox" && (
               <div className="surface-panel active">
                 <ReviewSurface
                   armedUnsafeSessionIds={armedUnsafeSessionIds}
@@ -1932,7 +2001,7 @@ export function App() {
                 />
               </div>
             )}
-            {activeSurface === "observatory" && (
+            {activeSurface === "history" && (
               <div className="surface-panel active">
                 <ObservatorySurface
                   activeWorkspaceId={activeWorkspace.id}
@@ -1951,47 +2020,49 @@ export function App() {
               </div>
             )}
           </div>
-          {activeSurface === "desk" && <div className="side-dock-stack">
-            {previewVisible && (
-              <WorkspacePreviewPanel
-                candidates={activePreviewCandidates}
-                refreshKey={activePreviewRefreshKey}
-                selectedUrl={activeSelectedPreviewUrl}
-                workspaceLabel={activeWorkspace.label}
-                onCopyUrl={handleCopyPreviewUrl}
-                onOpenExternal={handleOpenPreviewExternal}
-                onRefresh={handleRefreshPreview}
-                onSelectUrl={handleSelectPreviewUrl}
-              />
-            )}
-            <AgentTimelinePanel
-              session={activeInspectedSession}
-              onCopyActivityText={handleCopyActivityText}
-              onOpenExternalTerminal={handleOpenExternalTerminalForCwd}
-              onRevealActivityFile={handleRevealActivityFile}
-              onUpdateStagedSession={handleUpdateStagedSession}
-            />
-            <AlfredControlRail
-              armedUnsafeSessionIds={armedUnsafeSessionIds}
-              status={alfredStatus}
-              activeDecisionItems={activeDecisionItems}
-              missionBrief={activeWorkspace.missionBrief}
-              pendingPlan={activePendingPlan}
-              recoverableSessions={activeRecoverableSessions}
-              selectedSessionId={activeSelectedSessionId}
-              stagedSessions={activeStagedSessions}
-              stagedCount={stagedCount}
-              blockedStagedCount={blockedStagedCount}
-              unsafeStagedCount={unsafeStagedCount}
-              liveAlfredCount={liveAlfredCount}
-              onApproveAll={handleApproveAll}
-              onApproveTile={handleApproveTile}
-              onDismissError={handleDismissError}
-              onFocusSession={handleFocusSession}
-              onRejectAll={handleRejectAll}
-              onRejectTile={handleRejectTile}
-            />
-          </div>}
+          <ContextColumn
+            contextOpen={activeContextDrawerOpen}
+            inspectedTitle={activeInspectedSession?.title ?? activeWorkspace.label}
+            previewVisible={previewVisible}
+            onCloseContext={handleCloseContextDrawer}
+            previewProps={{
+              candidates: activePreviewCandidates,
+              refreshKey: activePreviewRefreshKey,
+              selectedUrl: activeSelectedPreviewUrl,
+              workspaceLabel: activeWorkspace.label,
+              onCopyUrl: handleCopyPreviewUrl,
+              onOpenExternal: handleOpenPreviewExternal,
+              onRefresh: handleRefreshPreview,
+              onSelectUrl: handleSelectPreviewUrl,
+            }}
+            timelineProps={{
+              session: activeInspectedSession,
+              onCopyActivityText: handleCopyActivityText,
+              onOpenExternalTerminal: handleOpenExternalTerminalForCwd,
+              onRevealActivityFile: handleRevealActivityFile,
+              onUpdateStagedSession: handleUpdateStagedSession,
+            }}
+            railProps={{
+              armedUnsafeSessionIds,
+              status: alfredStatus,
+              activeDecisionItems,
+              missionBrief: activeWorkspace.missionBrief,
+              pendingPlan: activePendingPlan,
+              recoverableSessions: activeRecoverableSessions,
+              selectedSessionId: activeSelectedSessionId,
+              stagedSessions: activeStagedSessions,
+              stagedCount,
+              blockedStagedCount,
+              unsafeStagedCount,
+              liveAlfredCount,
+              onApproveAll: handleApproveAll,
+              onApproveTile: handleApproveTile,
+              onDismissError: handleDismissError,
+              onFocusSession: handleFocusSession,
+              onRejectAll: handleRejectAll,
+              onRejectTile: handleRejectTile,
+            }}
+          />
         </div>
         <ComposerBar
           blockedActionLabel={
@@ -2000,6 +2071,8 @@ export function App() {
               : undefined
           }
           blockedReason={composerBlockedReason}
+          dispatchTarget={activeDispatchTarget}
+          lastDispatchDestination={lastDispatchDestination}
           value={composerValue}
           thinking={isThinking(alfredStatus)}
           disabled={commandPaletteOpen || sessionObservatoryOpen || privacyPanelOpen}
@@ -2009,8 +2082,9 @@ export function App() {
               ? () => handleSelectWorkspace(stagedWorkspaceId)
               : undefined
           }
+          onCycleDispatchTarget={handleCycleDispatchTarget}
           onChange={setComposerValue}
-          onSubmit={handleSubmitPrompt}
+          onSubmit={handleSubmitDispatch}
         />
         {pendingDiscardConfirmation && (
           <DiscardCheckoutDialog
@@ -2806,6 +2880,44 @@ function workspaceRootPath(state: WorkspaceStateSnapshot | null, workspaceId: st
   return state?.workspaces.find((workspace) => workspace.id === workspaceId)?.rootPath ?? "";
 }
 
+function dispatchTargetsForWorkspace(
+  workspace: Workspace,
+  sessions: SessionTile[],
+  selectedSession: SessionTile | null,
+): DispatchTargetSnapshot[] {
+  const targets: DispatchTargetSnapshot[] = [];
+  if (selectedSession) {
+    targets.push({ kind: "session", id: selectedSession.id, label: selectedSession.title });
+  }
+  for (const session of sessions) {
+    if (session.id === selectedSession?.id) continue;
+    targets.push({ kind: "session", id: session.id, label: session.title });
+  }
+  targets.push({ kind: "workspace", id: workspace.id, label: workspace.label });
+  return targets;
+}
+
+function dispatchTargetsEqual(
+  left: DispatchTargetSnapshot | null | undefined,
+  right: DispatchTargetSnapshot | null | undefined,
+): boolean {
+  return Boolean(left && right && left.kind === right.kind && left.id === right.id);
+}
+
+function importantContextSignalCount(session: SessionTile | null): number {
+  if (!session) return 0;
+  let count = 0;
+  if (session.stage === "staged") count += 1;
+  if (session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error") {
+    count += 1;
+  }
+  if (session.safetyNote || isLaunchBlocked(session)) count += 1;
+  if (session.activityEvents?.some((event) => event.kind === "error" || event.kind === "warning" || event.kind === "approval")) {
+    count += 1;
+  }
+  return Math.min(count, 9);
+}
+
 function createScratchWorkspaceState(workspaces: Workspace[]): WorkspaceStateSnapshot {
   const usedIds = new Set(workspaces.map((workspace) => workspace.id));
   let index = workspaces.length + 1;
@@ -2851,17 +2963,23 @@ function omitWorkspaceRecord<T>(record: Record<string, T>, workspaceId: string):
   return next;
 }
 
-function workspacePlanContext(workspace: Workspace, sessions: SessionTile[]): AlfredWorkspaceContext {
+function workspacePlanContext(
+  workspace: Workspace,
+  sessions: SessionTile[],
+  dispatchTarget?: DispatchTargetSnapshot,
+): AlfredWorkspaceContext {
+  const contextSessions =
+    dispatchTarget?.kind === "session" ? sessions.filter((session) => session.id === dispatchTarget.id) : sessions;
   return {
     id: workspace.id,
     label: workspace.label,
     ...(workspace.rootPath === undefined ? {} : { rootPath: workspace.rootPath }),
     ...(workspace.gitBranch === undefined ? {} : { gitBranch: workspace.gitBranch }),
     ...(workspace.missionBrief === undefined ? {} : { missionBrief: workspace.missionBrief }),
-    ...(sessions.length === 0
+    ...(contextSessions.length === 0
       ? {}
       : {
-          sessions: sessions.slice(0, 8).map((session) => {
+          sessions: contextSessions.slice(0, 8).map((session) => {
             const command = [session.command, ...(session.args ?? [])].filter(Boolean).join(" ");
             return {
               title: session.title,

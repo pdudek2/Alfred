@@ -63,7 +63,10 @@ export async function setWorkspaceViewStateSnapshot(
       ...current,
       viewStateByWorkspace: {
         ...current.viewStateByWorkspace,
-        [request.workspaceId]: cloneViewState(request.viewState),
+        [request.workspaceId]: cloneViewState({
+          ...current.viewStateByWorkspace[request.workspaceId],
+          ...request.viewState,
+        }),
       },
     }));
     return {
@@ -72,7 +75,10 @@ export async function setWorkspaceViewStateSnapshot(
     };
   }
 
-  viewStateByWorkspace.set(request.workspaceId, cloneViewState(request.viewState));
+  viewStateByWorkspace.set(request.workspaceId, cloneViewState({
+    ...viewStateByWorkspace.get(request.workspaceId),
+    ...request.viewState,
+  }));
   return getLayoutsSnapshot();
 }
 

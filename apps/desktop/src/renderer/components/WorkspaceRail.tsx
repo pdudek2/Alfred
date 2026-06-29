@@ -15,6 +15,7 @@ export type WorkspaceRailWorkspace = {
 
 type WorkspaceRailProps = {
   activeWorkspaceId: string;
+  embedded?: boolean;
   sessions: SessionTile[];
   workspaces: WorkspaceRailWorkspace[];
   onAddWorkspace: () => void;
@@ -23,6 +24,7 @@ type WorkspaceRailProps = {
 
 export function WorkspaceRail({
   activeWorkspaceId,
+  embedded = false,
   sessions,
   workspaces,
   onAddWorkspace,
@@ -38,7 +40,7 @@ export function WorkspaceRail({
   }
 
   return (
-    <nav className="workspace-rail" aria-label="workspaces" aria-orientation="vertical" role="tablist">
+    <nav className={`workspace-rail ${embedded ? "embedded" : ""}`} aria-label="workspaces" aria-orientation="vertical" role="tablist">
       {workspaces.map((workspace) => {
         const active = workspace.id === activeWorkspaceId;
         const counts = countsByWorkspace.get(workspace.id) ?? emptyCounts();

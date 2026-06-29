@@ -68,6 +68,7 @@ export function StagedTilePreview({
   return (
     <article
       className={`terminal-tile staged kind-${kindMeta.className} ${selected ? "selected" : ""} ${focusHidden ? "focus-hidden" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      data-testid="terminal-tile"
       aria-label={`Staged ${tile.title}`}
       aria-hidden={focusHidden ? "true" : undefined}
       style={gridStyle(layout, preview)}

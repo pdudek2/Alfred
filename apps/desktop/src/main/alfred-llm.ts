@@ -9,6 +9,7 @@ import type {
   AlfredPlanSession,
   AlfredWorkspaceContext,
 } from "../shared/alfred-ipc.js";
+import type { DispatchTargetSnapshot } from "../shared/layout-ipc.js";
 import { checkSafety } from "./alfred-safety.js";
 
 export const DEFAULT_MODEL = "anthropic/claude-sonnet-4-6";
@@ -36,6 +37,14 @@ Each session has: kind, title, cwd, command, args.
 - For claude prompts, use command "claude" with the prompt as a positional
   arg for interactive sessions. Use "--print" only for intentionally
   non-interactive one-shot output. Never use "--prompt".
+- The positional arg is the first user message sent TO the coding agent. It
+  must be an assignment or role brief for that agent, never Alfred speaking to
+  Patryk. Do not write first-person readiness text such as "I'm ready to help",
+  "Jestem gotowy do pomocy", or "Tell me what you want to do".
+- When the user asks for standby/helper coding agents, give each agent a clear
+  role brief, e.g. "You are Codex Assistant #1 for this workspace. Patryk asked
+  Alfred to prepare helper agents for: ... Inspect context and wait for the next
+  concrete instruction. Do not edit files yet."
 
 Title is a short human label (max 60 chars).
 cwd is optional; if absent, current workspace cwd is used.
@@ -76,6 +85,7 @@ const validatePlan: ValidateFunction = ajv.compile(planSchema);
 
 export type RunLlmPlanInput = {
   apiKey: string;
+  dispatchTarget?: DispatchTargetSnapshot;
   prompt: string;
   workspace?: AlfredWorkspaceContext;
   model?: string;
@@ -84,7 +94,7 @@ export type RunLlmPlanInput = {
 };
 
 export async function runLlmPlan(input: RunLlmPlanInput): Promise<AlfredPlanResponse> {
-  const { apiKey, prompt, workspace, model = DEFAULT_MODEL, timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl } = input;
+  const { apiKey, dispatchTarget, prompt, workspace, model = DEFAULT_MODEL, timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl } = input;
 
   if (!apiKey) {
     return errorResponse("no_api_key", "Set OPENROUTER_API_KEY in .env to use Alfred.");
@@ -92,14 +102,14 @@ export async function runLlmPlan(input: RunLlmPlanInput): Promise<AlfredPlanResp
 
   const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
     { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: userPromptWithWorkspace(prompt, workspace) },
+    { role: "user", content: userPromptWithWorkspace(prompt, workspace, dispatchTarget) },
   ];
 
   // First attempt
   const first = await callOpenRouter({ apiKey, model, messages, timeoutMs, fetchImpl });
   if (!first.ok) return first;
   const firstParsed = parseAndValidate(first.content);
-  if (firstParsed.ok) return success(firstParsed.plan);
+  if (firstParsed.ok) return success(firstParsed.plan, prompt, workspace);
 
   // Retry once on malformed/schema with the bad reply attached as assistant turn
   const retryMessages = [
@@ -113,13 +123,29 @@ export async function runLlmPlan(input: RunLlmPlanInput): Promise<AlfredPlanResp
   const second = await callOpenRouter({ apiKey, model, messages: retryMessages, timeoutMs, fetchImpl });
   if (!second.ok) return second;
   const secondParsed = parseAndValidate(second.content);
-  if (secondParsed.ok) return success(secondParsed.plan);
+  if (secondParsed.ok) return success(secondParsed.plan, prompt, workspace);
 
   return errorResponse("malformed", "Alfred returned an invalid plan. Try a clearer prompt.");
 }
 
-function userPromptWithWorkspace(prompt: string, workspace: AlfredWorkspaceContext | undefined): string {
-  if (!workspace) return prompt;
+function userPromptWithWorkspace(
+  prompt: string,
+  workspace: AlfredWorkspaceContext | undefined,
+  dispatchTarget: DispatchTargetSnapshot | undefined,
+): string {
+  if (!workspace) {
+    return dispatchTarget
+      ? [
+          "Dispatch target:",
+          `- kind: ${dispatchTarget.kind}`,
+          `- id: ${dispatchTarget.id}`,
+          `- label: ${dispatchTarget.label}`,
+          "",
+          "User request:",
+          prompt,
+        ].join("\n")
+      : prompt;
+  }
   const missionBrief = workspace.missionBrief;
   const hasMissionBrief =
     missionBrief !== undefined &&
@@ -131,6 +157,14 @@ function userPromptWithWorkspace(prompt: string, workspace: AlfredWorkspaceConte
     `- label: ${workspace.label}`,
     workspace.rootPath ? `- cwd: ${workspace.rootPath}` : null,
     workspace.gitBranch ? `- branch: ${workspace.gitBranch}` : null,
+    ...(dispatchTarget
+      ? [
+          "- dispatch target:",
+          `  kind: ${dispatchTarget.kind}`,
+          `  id: ${dispatchTarget.id}`,
+          `  label: ${dispatchTarget.label}`,
+        ]
+      : []),
     ...(hasMissionBrief
       ? [
           "- mission brief:",
@@ -244,14 +278,71 @@ function jsonCandidate(content: string): string {
   return trimmed;
 }
 
-function success(plan: AlfredPlan): AlfredPlanResponse {
-  const annotated: AlfredPlanSession[] = plan.sessions.map((s) => {
-    const result = checkSafety(s.command, s.args);
-    return result.unsafe ? { ...s, safetyNote: result.reason } : s;
+function success(plan: AlfredPlan, prompt: string, workspace: AlfredWorkspaceContext | undefined): AlfredPlanResponse {
+  const annotated: AlfredPlanSession[] = plan.sessions.map((s, index) => {
+    const normalized = normalizeCodingAgentPrompt(s, index, prompt, workspace);
+    const result = checkSafety(normalized.command, normalized.args);
+    return result.unsafe ? { ...normalized, safetyNote: result.reason } : normalized;
   });
   return { ok: true, plan: { ...plan, sessions: annotated } };
 }
 
 function errorResponse(code: AlfredError["code"], message: string): AlfredPlanResponse & { ok: false } {
   return { ok: false, error: { code, message } };
+}
+
+const SPOKEN_AS_ALFRED_PATTERNS = [
+  /\bjestem gotow(?:y|a)\b/i,
+  /\bgotow(?:y|a) do pomocy\b/i,
+  /\bopisz co chcesz\b/i,
+  /\bco chcesz zrobi(?:ć|c)\b/i,
+  /\bi(?:'| a)?m ready\b/i,
+  /\bi am ready\b/i,
+  /\bready to help\b/i,
+  /\btell me what you (?:want|need)\b/i,
+  /\bwhat would you like\b/i,
+] as const;
+
+function normalizeCodingAgentPrompt(
+  session: AlfredPlanSession,
+  index: number,
+  prompt: string,
+  workspace: AlfredWorkspaceContext | undefined,
+): AlfredPlanSession {
+  if (session.kind !== "codex" && session.kind !== "claude") return session;
+  const positionalPrompt = session.args.join(" ").trim();
+  if (!looksLikeAlfredSpeakingToUser(positionalPrompt)) return session;
+
+  return {
+    ...session,
+    args: [codingAgentRoleBrief(session, index, prompt, workspace)],
+  };
+}
+
+function looksLikeAlfredSpeakingToUser(value: string): boolean {
+  return Boolean(value) && SPOKEN_AS_ALFRED_PATTERNS.some((pattern) => pattern.test(value));
+}
+
+function codingAgentRoleBrief(
+  session: AlfredPlanSession,
+  index: number,
+  prompt: string,
+  workspace: AlfredWorkspaceContext | undefined,
+): string {
+  const title = session.title.trim() || `${agentKindLabel(session.kind)} Assistant #${index + 1}`;
+  const workspaceLabel = workspace?.label?.trim() || "this workspace";
+  const details = [
+    `You are ${title} for the ${workspaceLabel} workspace.`,
+    `Patryk asked Alfred to prepare this agent session for: "${prompt.trim()}".`,
+    workspace?.rootPath ? `Workspace cwd: ${workspace.rootPath}.` : null,
+    workspace?.gitBranch ? `Current branch: ${workspace.gitBranch}.` : null,
+    "Treat this as your assignment brief, not as text from you to Patryk.",
+    "Inspect the project context if useful, then wait for Patryk's next concrete instruction.",
+    "Do not edit files or run destructive commands until Patryk asks for a specific task.",
+  ];
+  return details.filter((item): item is string => item !== null).join(" ");
+}
+
+function agentKindLabel(kind: AlfredPlanSession["kind"]): string {
+  return kind === "claude" ? "Claude" : kind === "codex" ? "Codex" : "Agent";
 }

@@ -164,6 +164,48 @@ Ready.`;
     }
   });
 
+  it("repairs coding-agent prompts that speak as Alfred instead of instructing the agent", async () => {
+    const prompt = "przygotuj dwie sesje codexa do asystowania mi";
+    const plan = JSON.stringify({
+      name: "Squad",
+      sessions: [
+        {
+          kind: "codex",
+          title: "Codex Assistant #1",
+          command: "codex",
+          args: ["Jestem gotowy do pomocy! Opisz co chcesz zrobić w projekcie CodexPulse."],
+        },
+        {
+          kind: "codex",
+          title: "Codex Assistant #2",
+          command: "codex",
+          args: ["Jestem gotowy do pomocy! Opisz co chcesz zrobić w projekcie CodexPulse."],
+        },
+      ],
+    });
+    const fetchImpl = mockFetchOk(plan);
+
+    const result = await runLlmPlan({
+      ...baseInput,
+      prompt,
+      workspace: {
+        id: "COD",
+        label: "CodexPulse",
+        rootPath: "/Users/patryk/Desktop/CodexPulse",
+        gitBranch: "main",
+      },
+      fetchImpl,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.plan.sessions[0]?.args[0]).toContain("You are Codex Assistant #1");
+      expect(result.plan.sessions[0]?.args[0]).toContain(prompt);
+      expect(result.plan.sessions[0]?.args[0]).not.toContain("Jestem gotowy do pomocy");
+      expect(result.plan.sessions[1]?.args[0]).toContain("You are Codex Assistant #2");
+    }
+  });
+
   it("returns malformed when retry also fails schema", async () => {
     const bad = JSON.stringify({ sessions: [{ kind: "wrong" }] });
     const fetchImpl = mockFetchSequence([
@@ -257,6 +299,39 @@ Ready.`;
     expect(userMessage).toContain("- existing sessions:");
     expect(userMessage).toContain("Codex · api (codex, active, /Users/patryk/Desktop/ClientApp, cmd=codex)");
     expect(userMessage).toContain(baseInput.prompt);
+  });
+
+  it("includes the Dispatch target in the user message when provided", async () => {
+    const plan = JSON.stringify({
+      sessions: [{ kind: "shell", title: "ok", command: "ls", args: [] }],
+    });
+    const fetchImpl = mockFetchOk(plan);
+
+    await runLlmPlan({
+      ...baseInput,
+      dispatchTarget: { kind: "session", id: "manual-1", label: "Manual · zsh 1" },
+      workspace: {
+        id: "A",
+        label: "Alfred",
+        sessions: [
+          {
+            title: "Manual · zsh 1",
+            kind: "shell",
+            status: "active",
+            command: "zsh",
+          },
+        ],
+      },
+      fetchImpl,
+    });
+
+    const body = JSON.parse(((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as RequestInit).body as string);
+    const userMessage = body.messages.find((message: { role: string }) => message.role === "user").content;
+
+    expect(userMessage).toContain("- dispatch target:");
+    expect(userMessage).toContain("kind: session");
+    expect(userMessage).toContain("id: manual-1");
+    expect(userMessage).toContain("label: Manual · zsh 1");
   });
 
   it("returns timeout when fetch is aborted", async () => {

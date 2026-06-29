@@ -8,7 +8,16 @@ export type TileLayout = {
 
 export type WorkMode = "desk" | "focus" | "split";
 
+export type DispatchTargetSnapshot = {
+  kind: "session" | "workspace";
+  id: string;
+  label: string;
+};
+
 export type WorkspaceViewState = {
+  collapsedSessionIds?: string[];
+  contextDrawerOpen?: boolean;
+  dispatchTarget?: DispatchTargetSnapshot;
   workMode?: WorkMode;
   selectedSessionId?: string;
 };

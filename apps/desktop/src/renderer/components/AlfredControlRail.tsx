@@ -9,7 +9,7 @@ import { shortenPath } from "../path-display";
 import { formatCommand } from "../command-display";
 import { recoveryCounts, recoveryStatusLabel } from "../recovery-display";
 
-type AlfredControlRailProps = {
+export type AlfredControlRailProps = {
   armedUnsafeSessionIds: Set<string>;
   status: AlfredStatus;
   activeDecisionItems: WorkspaceReviewItem[];
