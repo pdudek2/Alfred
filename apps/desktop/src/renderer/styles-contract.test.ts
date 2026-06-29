@@ -30,6 +30,8 @@ const polishStylesStart = styles.indexOf("ALFRED PROTOTYPE POLISH v6");
 const polishStyles = polishStylesStart >= 0 ? styles.slice(polishStylesStart) : "";
 const materialStylesStart = styles.indexOf("ALFRED CLEAN MATERIAL v7");
 const materialStyles = materialStylesStart >= 0 ? styles.slice(materialStylesStart) : "";
+const readabilityStylesStart = styles.indexOf("ALFRED CLEAN READABILITY v8");
+const readabilityStyles = readabilityStylesStart >= 0 ? styles.slice(readabilityStylesStart) : "";
 
 function blockFor(selector: string): string {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -170,5 +172,18 @@ describe("renderer CSS contracts", () => {
     expect(overlayBackdrop).toContain("background-image: none");
     expect(materialStyles).toContain(".command-palette,");
     expect(materialStyles).toContain("box-shadow: none");
+  });
+
+  it("keeps the Work chrome quiet and command-like", () => {
+    const tileUtilities = blockFor(".tile-utility-actions,\n.tile-danger-actions");
+    const dispatchBar = blockFor(".dispatch-bar");
+    const dispatchChip = blockFor(".dispatch-target-chip,\n.dispatch-bar .composer-input,\n.dispatch-bar .composer-send");
+
+    expect(readabilityStyles).toContain("ALFRED CLEAN READABILITY v8");
+    expect(readabilityStyles).toContain(".arrange-mode-label");
+    expect(tileUtilities).toContain("opacity: 0");
+    expect(tileUtilities).toContain("pointer-events: none");
+    expect(dispatchBar).toContain("grid-template-rows: 32px 14px");
+    expect(dispatchChip).toContain("background-image: none");
   });
 });

@@ -9630,3 +9630,222 @@ body {
     width: min(340px, calc(100% - 16px));
   }
 }
+
+/* ============================================================
+   ALFRED CLEAN READABILITY v8
+   Small workbench pass: less hero copy, quieter tile chrome,
+   one source of truth for layout controls, command-like dispatch.
+   ============================================================ */
+
+.workbench-header {
+  padding: 9px 12px;
+  align-items: center;
+}
+
+.workbench-title-block {
+  gap: 2px;
+}
+
+.workbench-title-line {
+  gap: 8px;
+}
+
+.workbench-title-line h1 {
+  font-size: 16px;
+  font-weight: 720;
+  letter-spacing: 0;
+}
+
+.workbench-title-line span {
+  min-height: 18px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 10px;
+}
+
+.workbench-actions {
+  align-items: center;
+  gap: 5px;
+}
+
+.workbench-tool-group,
+.workbench-actions button,
+.context-toggle-button,
+.layout-controls button,
+.work-mode-control button {
+  height: 30px;
+  min-height: 30px;
+}
+
+.workbench-tool-group {
+  padding: 2px;
+  border-radius: 8px;
+}
+
+.workbench-tool-group button {
+  height: 24px;
+  min-height: 24px;
+  border-radius: 6px;
+  padding: 0 9px;
+}
+
+.workbench-actions button,
+.context-toggle-button,
+.layout-controls button,
+.work-mode-control button {
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.workbench-primary-action {
+  padding: 0 12px !important;
+}
+
+.terminal-stage-header {
+  min-height: 34px;
+  padding: 6px 9px;
+}
+
+.terminal-stage-header strong {
+  font-size: 14px;
+}
+
+.terminal-stage-header span {
+  font-size: 11px;
+}
+
+.terminal-stage.arranging .layout-controls {
+  gap: 6px;
+}
+
+.arrange-mode-label {
+  min-height: 24px;
+  border: 1px solid var(--proto-line);
+  border-radius: 7px;
+  padding: 0 9px;
+  background: var(--proto-control);
+  color: var(--text-primary);
+  font: 650 11px/24px var(--mono);
+}
+
+.arrange-hint {
+  min-height: 24px;
+  border: 1px solid var(--proto-line);
+  border-radius: 7px;
+  padding: 0 9px;
+  background: transparent;
+  color: var(--text-muted);
+  font: 600 10px/24px var(--mono);
+}
+
+.terminal-tile-header {
+  min-height: 36px;
+  padding: 5px 7px;
+}
+
+.terminal-tile-header .tile-title {
+  min-width: 0;
+}
+
+.terminal-tile-header .tile-title b {
+  font-size: 13px;
+}
+
+.terminal-tile-header .tile-title small {
+  font-size: 10px;
+}
+
+.tile-actions {
+  gap: 5px;
+}
+
+.tile-action-group {
+  gap: 4px;
+}
+
+.tile-utility-actions,
+.tile-danger-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.terminal-tile:hover .tile-utility-actions,
+.terminal-tile:hover .tile-danger-actions,
+.terminal-tile:focus-within .tile-utility-actions,
+.terminal-tile:focus-within .tile-danger-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tile-actions button {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 7px;
+}
+
+.terminal-status-label {
+  min-height: 22px;
+  padding: 0 7px;
+  border-radius: 7px;
+  font-size: 10px;
+}
+
+.dispatch-bar {
+  grid-template-columns: 30px minmax(132px, 190px) minmax(0, 1fr) 84px;
+  grid-template-rows: 32px 14px;
+  gap: 5px 8px;
+  padding: 6px 8px;
+  background: var(--proto-bg);
+  background-image: none;
+}
+
+.dispatch-target-chip,
+.dispatch-bar .composer-input,
+.dispatch-bar .composer-send {
+  height: 32px;
+  min-height: 32px;
+  border-radius: 8px;
+  background: var(--proto-control);
+  background-image: none;
+  box-shadow: none;
+}
+
+.dispatch-target-chip {
+  gap: 7px;
+  padding: 0 9px;
+}
+
+.dispatch-target-chip span {
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+}
+
+.dispatch-target-chip strong {
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.dispatch-bar .composer-input {
+  padding: 0 11px;
+  font-size: 12px;
+}
+
+.dispatch-bar .composer-send {
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.dispatch-bar .composer-status-row {
+  opacity: 0.68;
+  font-size: 10px;
+}
+
+.dispatch-bar .composer-status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}

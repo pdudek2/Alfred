@@ -1965,7 +1965,6 @@ export function App() {
                 onCloseSession={handleCloseSession}
                 onContinueRestoredSession={handleContinueRestoredSession}
                 onRestartSession={handleRestartSession}
-                onApplyLayoutPreset={handleApplyLayoutPreset}
                 onApplyWorkMode={handleApplyWorkMode}
                 onMoveTile={handleMoveTile}
                 onRuntimeSessionFailed={handleRuntimeSessionFailed}

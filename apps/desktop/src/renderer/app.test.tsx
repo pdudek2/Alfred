@@ -390,7 +390,6 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     onCloseSession: vi.fn(),
     onContinueRestoredSession: vi.fn(),
     onRestartSession: vi.fn(),
-    onApplyLayoutPreset: vi.fn(),
     onApplyWorkMode: vi.fn(),
     onMoveTile: vi.fn(),
     onRuntimeSessionFailed: vi.fn(),
@@ -969,7 +968,7 @@ describe("App integration", () => {
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeCollapse);
   });
 
-  it("uses a Dispatch bar with explicit workspace scope instead of a workspace chat composer", async () => {
+  it("uses a Dispatch bar with explicit workspace planning instead of a workspace chat composer", async () => {
     const user = userEvent.setup();
     const { requestPlan } = installDesktopBridge();
 
@@ -981,11 +980,11 @@ describe("App integration", () => {
     expect(screen.queryByRole("form", { name: /alfred composer/i })).not.toBeInTheDocument();
 
     expect(within(dispatch).getByRole("button", { name: "Change planning scope" })).toBeInTheDocument();
-    expect(within(dispatch).getByText("workspace scope")).toBeInTheDocument();
+    expect(within(dispatch).getByText("workspace")).toBeInTheDocument();
     expect(within(dispatch).getByText("Alfred")).toBeInTheDocument();
     const input = within(dispatch).getByRole("textbox", { name: "Dispatch instruction" });
     await user.type(input, "prepare a review plan");
-    await user.click(within(dispatch).getByRole("button", { name: "Prepare work for Alfred" }));
+    await user.click(within(dispatch).getByRole("button", { name: "Prepare work in Alfred" }));
 
     expect(requestPlan).toHaveBeenCalledTimes(1);
     expect(requestPlan).toHaveBeenCalledWith(
@@ -1006,7 +1005,7 @@ describe("App integration", () => {
     expect(dispatch).toHaveAttribute("data-state", "disabled");
   });
 
-  it("can narrow Dispatch requests to the selected session context", async () => {
+  it("can narrow Dispatch requests to the selected session", async () => {
     const user = userEvent.setup();
     const { requestPlan } = installDesktopBridge();
 
@@ -1014,11 +1013,11 @@ describe("App integration", () => {
 
     const dispatch = await screen.findByTestId("dispatch-bar");
     await user.click(within(dispatch).getByRole("button", { name: "Change planning scope" }));
-    expect(within(dispatch).getByText("session context")).toBeInTheDocument();
+    expect(within(dispatch).getByText("session")).toBeInTheDocument();
     expect(within(dispatch).getByText("Manual · zsh 1")).toBeInTheDocument();
 
     await user.type(within(dispatch).getByRole("textbox", { name: "Dispatch instruction" }), "prepare session plan");
-    await user.click(within(dispatch).getByRole("button", { name: "Prepare work for Manual · zsh 1" }));
+    await user.click(within(dispatch).getByRole("button", { name: "Prepare work with Manual · zsh 1" }));
 
     expect(requestPlan).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1088,7 +1087,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage editable shell");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
     const stagedTile = await screen.findByRole("article", { name: /Staged Run old command/i });
 
     await user.dblClick(stagedTile.querySelector(".tile-header")!);
@@ -1536,7 +1535,7 @@ describe("App integration", () => {
     await user.keyboard("{Escape}");
 
     await user.type(screen.getByRole("textbox", { name: "Dispatch instruction" }), "prepare codex");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
     await waitFor(() => expect(requestPlan).toHaveBeenCalledOnce());
     expect(requestPlan).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1736,7 +1735,7 @@ describe("App integration", () => {
     expect(screen.getByRole("region", { name: "Workspace mission brief" })).toHaveTextContent("Ship launcher v0 calmly");
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "prepare the next slice");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
     expect(requestPlan).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1805,7 +1804,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("region", { name: "Workspace mission brief" })).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "prepare cleanly");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
     const lastRequest = requestPlan.mock.calls.at(-1)?.[0];
     expect(lastRequest?.workspace).not.toHaveProperty("missionBrief");
@@ -1957,30 +1956,23 @@ describe("App integration", () => {
     expect(createTerminal).toHaveBeenCalledTimes(1);
   });
 
-  it("enables arrange mode with layout presets without per-tile debug controls", async () => {
+  it("enables arrange mode without duplicating the Work layout controls", async () => {
     const user = userEvent.setup();
-    const { setWorkspaceLayout } = installDesktopBridge();
+    installDesktopBridge();
 
     render(<App />);
 
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Arrange" }));
 
-    expect(screen.getByRole("button", { name: "Apply Full preset" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Apply Grid preset" })).toBeInTheDocument();
+    expect(screen.getByText("Arrange mode")).toBeInTheDocument();
+    expect(screen.getByText("drag header · resize corner")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Apply Full preset" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Apply Split preset" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Apply Grid preset" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Move right" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Widen" })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Apply Full preset" }));
-
-    const tile = screen.getByRole("article", { name: /Manual · zsh 1/i });
-    expect(tile).toHaveStyle({ gridColumn: "1 / span 12" });
-    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
-      workspaceId: "A",
-      layouts: expect.objectContaining({
-        "manual-1": expect.objectContaining({ col: 1, colSpan: 12 }),
-      }),
-    });
+    expect(screen.getByRole("button", { name: "Resize Manual · zsh 1" })).toBeInTheDocument();
   });
 
   it("switches desk work modes without entering arrange mode", async () => {
@@ -3419,7 +3411,7 @@ describe("App integration", () => {
     expect(screen.queryByText("no asks")).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "prepare agents");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
     expect(await screen.findByRole("article", { name: /Staged Task A/i })).toBeInTheDocument();
     expect(document.querySelector(".workspace-layout")).toHaveClass("alfred-expanded");
@@ -3912,7 +3904,7 @@ describe("App integration", () => {
     await screen.findByText("Set OPENROUTER_API_KEY in repo .env to use Alfred.");
     await user.type(screen.getByLabelText("Dispatch instruction"), "prepare agents");
 
-    expect(screen.getByRole("button", { name: /Prepare work for / })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Prepare work (?:in|with) / })).toBeDisabled();
     expect(requestPlan).not.toHaveBeenCalled();
   });
 
@@ -3923,7 +3915,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "prepare agents");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
     await screen.findByRole("article", { name: /Staged Task A/i });
     expect(requestPlan).toHaveBeenCalledWith(
@@ -3945,7 +3937,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "launch first plan");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
     expect(requestPlan).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -4014,7 +4006,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage isolated codex");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
     await waitFor(() => {
       expect(setStagedPlan).toHaveBeenCalledWith(
@@ -4047,7 +4039,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage editable shell");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
     const stagedTile = await screen.findByRole("article", { name: /Staged Run old command/i });
 
     await waitFor(() => {
@@ -4768,7 +4760,7 @@ describe("App integration", () => {
     render(<App />);
 
     const composer = screen.getByLabelText("Dispatch instruction");
-    const send = screen.getByRole("button", { name: /Prepare work for / });
+    const send = screen.getByRole("button", { name: /Prepare work (?:in|with) / });
 
     await user.type(composer, "first");
     await user.click(send);
@@ -4789,7 +4781,7 @@ describe("App integration", () => {
     render(<App />);
 
     const composer = screen.getByLabelText("Dispatch instruction");
-    const send = screen.getByRole("button", { name: /Prepare work for / });
+    const send = screen.getByRole("button", { name: /Prepare work (?:in|with) / });
 
     expect(send).toBeDisabled();
     await user.type(composer, "   ");
@@ -4808,7 +4800,7 @@ describe("App integration", () => {
     render(<App />);
 
     const composer = screen.getByLabelText("Dispatch instruction");
-    const send = screen.getByRole("button", { name: /Prepare work for / });
+    const send = screen.getByRole("button", { name: /Prepare work (?:in|with) / });
 
     await user.type(composer, "first");
     await user.click(send);
@@ -4829,7 +4821,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "start one");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
     await screen.findByRole("article", { name: /Staged Task A/i });
 
     await user.click(screen.getByRole("button", { name: "Launch Task A" }));
@@ -4866,7 +4858,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage mixed launch");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
     expect(await screen.findByRole("article", { name: /Staged Safe task/i })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
@@ -4910,7 +4902,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage risky cleanup");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
     await screen.findByRole("article", { name: /Staged Safe build/i });
     await screen.findByRole("article", { name: /Staged Risky cleanup/i });
 
@@ -4977,7 +4969,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage preflight");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
     expect(await screen.findByRole("article", { name: /Staged Safe task/i })).toHaveTextContent("normal workspace");
     const blocked = screen.getByRole("article", { name: /Staged Blocked Codex/i });
@@ -5025,7 +5017,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage codex");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
     await screen.findByText("isolated checkout: alfred-codex-preflight");
 
     await user.click(screen.getByRole("button", { name: "Launch Codex task" }));
@@ -5101,7 +5093,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage codex");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
     const tile = await screen.findByRole("article", { name: /Staged Codex task/i });
     await screen.findByText("isolated checkout: alfred-codex-preflight");
 
@@ -5179,7 +5171,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage mixed launch");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
     await screen.findByRole("article", { name: /Staged Safe task/i });
 
     await user.click(screen.getByRole("button", { name: "Launch queue" }));
@@ -5213,7 +5205,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage risky cleanup");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
     await screen.findByRole("article", { name: /Staged Risky task/i });
 
     expect(screen.getByRole("button", { name: "Launch blocked: Risky task" })).toBeDisabled();
@@ -5232,7 +5224,7 @@ describe("App integration", () => {
 
     const composer = screen.getByLabelText("Dispatch instruction");
     await user.type(composer, "retry this plan");
-    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("OpenRouter is unreachable.");
     expect(composer).toHaveValue("retry this plan");
