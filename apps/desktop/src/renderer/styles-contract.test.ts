@@ -28,11 +28,18 @@ if (prototypeStylesStart < 0) {
 const prototypeStyles = styles.slice(prototypeStylesStart);
 const polishStylesStart = styles.indexOf("ALFRED PROTOTYPE POLISH v6");
 const polishStyles = polishStylesStart >= 0 ? styles.slice(polishStylesStart) : "";
+const materialStylesStart = styles.indexOf("ALFRED CLEAN MATERIAL v7");
+const materialStyles = materialStylesStart >= 0 ? styles.slice(materialStylesStart) : "";
 
 function blockFor(selector: string): string {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matches = [...styles.matchAll(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`, "gm"))];
   return matches.at(-1)?.groups?.body ?? "";
+}
+
+function firstBlockFor(source: string, selector: string): string {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return source.match(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`, "m"))?.groups?.body ?? "";
 }
 
 describe("renderer CSS contracts", () => {
@@ -44,7 +51,7 @@ describe("renderer CSS contracts", () => {
     expect(arrangeCanvas).toContain("scrollbar-gutter: stable");
     expect(arrangingGrid).toContain("--arrange-bottom-safe-zone");
     expect(arrangingGrid).toContain("flex: 0 0 auto");
-    expect(arrangingGrid).toContain("min-height: 100%");
+    expect(arrangingGrid).toContain("min-height: calc(100% + var(--arrange-bottom-safe-zone))");
     expect(arrangingGrid).toContain("padding-bottom: var(--arrange-bottom-safe-zone)");
   });
 
@@ -80,8 +87,10 @@ describe("renderer CSS contracts", () => {
   it("keeps the clean-depth shell close to the prototype layout", () => {
     expect(prototypeStyles).toContain("grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr)");
     expect(prototypeStyles).toContain(".context-column {");
-    expect(prototypeStyles).toContain("position: absolute");
-    expect(prototypeStyles).toContain("width: min(360px, calc(100% - 32px))");
+    expect(materialStyles).toContain(".workspace-layout:has(.context-column.open)");
+    expect(materialStyles).toContain("grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr) minmax(304px, 340px)");
+    expect(materialStyles).toContain(".workspace-layout > .context-column.open");
+    expect(materialStyles).toContain("position: static");
     expect(prototypeStyles).toContain(".context-column.closed");
     expect(prototypeStyles).toContain("display: none");
   });
@@ -118,14 +127,14 @@ describe("renderer CSS contracts", () => {
   });
 
   it("makes the context drawer itself scrollable instead of clipping the lower timeline", () => {
-    const contextColumn = blockFor(".context-column");
+    const contextColumn = firstBlockFor(materialStyles, ".workspace-layout > .context-column.open");
     const contextDrawer = blockFor(".context-drawer");
     const timelinePanel = blockFor(".context-drawer .agent-timeline-panel");
 
-    expect(contextColumn).toContain("bottom: 66px");
-    expect(contextDrawer).toContain("overflow-y: auto");
-    expect(contextDrawer).toContain("overscroll-behavior: contain");
-    expect(timelinePanel).toContain("overflow: visible");
+    expect(contextColumn).toContain("display: flex");
+    expect(contextDrawer).toContain("overflow: hidden");
+    expect(contextDrawer).toContain("flex-direction: column");
+    expect(timelinePanel).toContain("overflow: auto");
   });
 
   it("removes old glass gradients from the Sessions modal", () => {
@@ -141,5 +150,25 @@ describe("renderer CSS contracts", () => {
     const recoveryCopy = blockFor(".recovery-workspace-strip p");
 
     expect(recoveryCopy).toContain("gap: 4px");
+  });
+
+  it("keeps Arrange mode reachable at the bottom edge", () => {
+    const arrangingGrid = blockFor(".terminal-stage.arranging .terminal-grid");
+    const resizeHandle = blockFor(".tile-resize-handle");
+
+    expect(arrangingGrid).toContain("--arrange-bottom-safe-zone: 156px");
+    expect(arrangingGrid).toContain("min-height: calc(100% + var(--arrange-bottom-safe-zone))");
+    expect(resizeHandle).toContain("width: 32px");
+    expect(resizeHandle).toContain("background-image: none");
+  });
+
+  it("keeps overlay surfaces flat instead of glassy", () => {
+    const overlayBackdrop = blockFor(".review-queue-backdrop,\n.command-palette-backdrop,\n.session-observatory-backdrop");
+
+    expect(materialStyles).toContain("ALFRED CLEAN MATERIAL v7");
+    expect(overlayBackdrop).toContain("backdrop-filter: none");
+    expect(overlayBackdrop).toContain("background-image: none");
+    expect(materialStyles).toContain(".command-palette,");
+    expect(materialStyles).toContain("box-shadow: none");
   });
 });

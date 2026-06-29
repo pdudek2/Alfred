@@ -969,7 +969,7 @@ describe("App integration", () => {
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeCollapse);
   });
 
-  it("uses a Dispatch bar with an explicit target instead of a workspace chat composer", async () => {
+  it("uses a Dispatch bar with explicit workspace scope instead of a workspace chat composer", async () => {
     const user = userEvent.setup();
     const { requestPlan } = installDesktopBridge();
 
@@ -980,22 +980,22 @@ describe("App integration", () => {
     expect(dispatch).toHaveAccessibleName("Alfred dispatch");
     expect(screen.queryByRole("form", { name: /alfred composer/i })).not.toBeInTheDocument();
 
-    expect(within(dispatch).getByRole("button", { name: "Change dispatch target" })).toBeInTheDocument();
-    expect(within(dispatch).getByText("session")).toBeInTheDocument();
-    expect(within(dispatch).getByText("Manual · zsh 1")).toBeInTheDocument();
+    expect(within(dispatch).getByRole("button", { name: "Change planning scope" })).toBeInTheDocument();
+    expect(within(dispatch).getByText("workspace scope")).toBeInTheDocument();
+    expect(within(dispatch).getByText("Alfred")).toBeInTheDocument();
     const input = within(dispatch).getByRole("textbox", { name: "Dispatch instruction" });
     await user.type(input, "prepare a review plan");
-    await user.click(within(dispatch).getByRole("button", { name: "Dispatch to Manual · zsh 1" }));
+    await user.click(within(dispatch).getByRole("button", { name: "Prepare work for Alfred" }));
 
     expect(requestPlan).toHaveBeenCalledTimes(1);
     expect(requestPlan).toHaveBeenCalledWith(
       expect.objectContaining({
         dispatchTarget: expect.objectContaining({
-          kind: "session",
-          label: "Manual · zsh 1",
+          kind: "workspace",
+          label: "Alfred",
         }),
         workspace: expect.objectContaining({
-          sessions: [expect.objectContaining({ title: "Manual · zsh 1" })],
+          sessions: expect.arrayContaining([expect.objectContaining({ title: "Manual · zsh 1" })]),
         }),
       }),
     );
@@ -1006,27 +1006,27 @@ describe("App integration", () => {
     expect(dispatch).toHaveAttribute("data-state", "disabled");
   });
 
-  it("routes Dispatch requests to the selected workspace target", async () => {
+  it("can narrow Dispatch requests to the selected session context", async () => {
     const user = userEvent.setup();
     const { requestPlan } = installDesktopBridge();
 
     render(<App />);
 
     const dispatch = await screen.findByTestId("dispatch-bar");
-    await user.click(within(dispatch).getByRole("button", { name: "Change dispatch target" }));
-    expect(within(dispatch).getByText("workspace")).toBeInTheDocument();
-    expect(within(dispatch).getByText("Alfred")).toBeInTheDocument();
+    await user.click(within(dispatch).getByRole("button", { name: "Change planning scope" }));
+    expect(within(dispatch).getByText("session context")).toBeInTheDocument();
+    expect(within(dispatch).getByText("Manual · zsh 1")).toBeInTheDocument();
 
-    await user.type(within(dispatch).getByRole("textbox", { name: "Dispatch instruction" }), "prepare workspace plan");
-    await user.click(within(dispatch).getByRole("button", { name: "Dispatch to Alfred" }));
+    await user.type(within(dispatch).getByRole("textbox", { name: "Dispatch instruction" }), "prepare session plan");
+    await user.click(within(dispatch).getByRole("button", { name: "Prepare work for Manual · zsh 1" }));
 
     expect(requestPlan).toHaveBeenCalledWith(
       expect.objectContaining({
-        dispatchTarget: { kind: "workspace", id: "A", label: "Alfred" },
-        prompt: "prepare workspace plan",
+        dispatchTarget: expect.objectContaining({ kind: "session", label: "Manual · zsh 1" }),
+        prompt: "prepare session plan",
         workspace: expect.objectContaining({
           id: "A",
-          sessions: expect.arrayContaining([expect.objectContaining({ title: "Manual · zsh 1" })]),
+          sessions: [expect.objectContaining({ title: "Manual · zsh 1" })],
         }),
       }),
     );
@@ -1088,7 +1088,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage editable shell");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
     const stagedTile = await screen.findByRole("article", { name: /Staged Run old command/i });
 
     await user.dblClick(stagedTile.querySelector(".tile-header")!);
@@ -1536,7 +1536,7 @@ describe("App integration", () => {
     await user.keyboard("{Escape}");
 
     await user.type(screen.getByRole("textbox", { name: "Dispatch instruction" }), "prepare codex");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
     await waitFor(() => expect(requestPlan).toHaveBeenCalledOnce());
     expect(requestPlan).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1736,7 +1736,7 @@ describe("App integration", () => {
     expect(screen.getByRole("region", { name: "Workspace mission brief" })).toHaveTextContent("Ship launcher v0 calmly");
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "prepare the next slice");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
 
     expect(requestPlan).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1805,7 +1805,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("region", { name: "Workspace mission brief" })).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "prepare cleanly");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
 
     const lastRequest = requestPlan.mock.calls.at(-1)?.[0];
     expect(lastRequest?.workspace).not.toHaveProperty("missionBrief");
@@ -3419,7 +3419,7 @@ describe("App integration", () => {
     expect(screen.queryByText("no asks")).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "prepare agents");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
 
     expect(await screen.findByRole("article", { name: /Staged Task A/i })).toBeInTheDocument();
     expect(document.querySelector(".workspace-layout")).toHaveClass("alfred-expanded");
@@ -3912,7 +3912,7 @@ describe("App integration", () => {
     await screen.findByText("Set OPENROUTER_API_KEY in repo .env to use Alfred.");
     await user.type(screen.getByLabelText("Dispatch instruction"), "prepare agents");
 
-    expect(screen.getByRole("button", { name: /Dispatch to / })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Prepare work for / })).toBeDisabled();
     expect(requestPlan).not.toHaveBeenCalled();
   });
 
@@ -3923,7 +3923,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "prepare agents");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
 
     await screen.findByRole("article", { name: /Staged Task A/i });
     expect(requestPlan).toHaveBeenCalledWith(
@@ -3945,7 +3945,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "launch first plan");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
 
     expect(requestPlan).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -4014,7 +4014,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage isolated codex");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
 
     await waitFor(() => {
       expect(setStagedPlan).toHaveBeenCalledWith(
@@ -4047,7 +4047,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage editable shell");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
     const stagedTile = await screen.findByRole("article", { name: /Staged Run old command/i });
 
     await waitFor(() => {
@@ -4768,7 +4768,7 @@ describe("App integration", () => {
     render(<App />);
 
     const composer = screen.getByLabelText("Dispatch instruction");
-    const send = screen.getByRole("button", { name: /Dispatch to / });
+    const send = screen.getByRole("button", { name: /Prepare work for / });
 
     await user.type(composer, "first");
     await user.click(send);
@@ -4789,7 +4789,7 @@ describe("App integration", () => {
     render(<App />);
 
     const composer = screen.getByLabelText("Dispatch instruction");
-    const send = screen.getByRole("button", { name: /Dispatch to / });
+    const send = screen.getByRole("button", { name: /Prepare work for / });
 
     expect(send).toBeDisabled();
     await user.type(composer, "   ");
@@ -4808,7 +4808,7 @@ describe("App integration", () => {
     render(<App />);
 
     const composer = screen.getByLabelText("Dispatch instruction");
-    const send = screen.getByRole("button", { name: /Dispatch to / });
+    const send = screen.getByRole("button", { name: /Prepare work for / });
 
     await user.type(composer, "first");
     await user.click(send);
@@ -4829,7 +4829,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "start one");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
     await screen.findByRole("article", { name: /Staged Task A/i });
 
     await user.click(screen.getByRole("button", { name: "Launch Task A" }));
@@ -4866,7 +4866,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage mixed launch");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
 
     expect(await screen.findByRole("article", { name: /Staged Safe task/i })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
@@ -4910,7 +4910,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage risky cleanup");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
     await screen.findByRole("article", { name: /Staged Safe build/i });
     await screen.findByRole("article", { name: /Staged Risky cleanup/i });
 
@@ -4977,7 +4977,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage preflight");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
 
     expect(await screen.findByRole("article", { name: /Staged Safe task/i })).toHaveTextContent("normal workspace");
     const blocked = screen.getByRole("article", { name: /Staged Blocked Codex/i });
@@ -5025,7 +5025,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage codex");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
     await screen.findByText("isolated checkout: alfred-codex-preflight");
 
     await user.click(screen.getByRole("button", { name: "Launch Codex task" }));
@@ -5101,7 +5101,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage codex");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
     const tile = await screen.findByRole("article", { name: /Staged Codex task/i });
     await screen.findByText("isolated checkout: alfred-codex-preflight");
 
@@ -5179,7 +5179,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage mixed launch");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
     await screen.findByRole("article", { name: /Staged Safe task/i });
 
     await user.click(screen.getByRole("button", { name: "Launch queue" }));
@@ -5213,7 +5213,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage risky cleanup");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
     await screen.findByRole("article", { name: /Staged Risky task/i });
 
     expect(screen.getByRole("button", { name: "Launch blocked: Risky task" })).toBeDisabled();
@@ -5232,7 +5232,7 @@ describe("App integration", () => {
 
     const composer = screen.getByLabelText("Dispatch instruction");
     await user.type(composer, "retry this plan");
-    await user.click(screen.getByRole("button", { name: /Dispatch to / }));
+    await user.click(screen.getByRole("button", { name: /Prepare work for / }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("OpenRouter is unreachable.");
     expect(composer).toHaveValue("retry this plan");

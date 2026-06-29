@@ -9430,3 +9430,203 @@ body {
     max-width: min(320px, calc(100vw - 128px));
   }
 }
+
+/* ============================================================
+   ALFRED CLEAN MATERIAL v7
+   Desktop containment pass: context owns a column when open,
+   Arrange has a real bottom safe zone, overlays stay flat.
+   ============================================================ */
+
+.agent-space-shell,
+body {
+  background: var(--proto-bg);
+  background-image: none;
+}
+
+.workspace-layout:has(.context-column.open),
+.workspace-layout.alfred-compact:has(.context-column.open),
+.workspace-layout.preview-visible:has(.context-column.open),
+.workspace-layout.alfred-compact.preview-visible:has(.context-column.open),
+.workspace-layout.surface-inbox:has(.context-column.open),
+.workspace-layout.surface-history:has(.context-column.open) {
+  grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr) minmax(304px, 340px);
+}
+
+.workspace-layout > .context-column.open {
+  position: static;
+  inset: auto;
+  grid-column: 4;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  display: flex;
+  pointer-events: auto;
+}
+
+.workspace-layout > .context-column.closed {
+  display: none;
+}
+
+.context-drawer {
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.context-drawer.open {
+  display: flex;
+}
+
+.context-drawer .workspace-preview-panel {
+  flex: 0 0 auto;
+  max-height: 32%;
+  overflow: auto;
+}
+
+.context-drawer .agent-timeline-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.context-drawer .agent-timeline-body {
+  overflow: visible;
+}
+
+.terminal-stage.arranging .terminal-stage-body {
+  overflow: hidden;
+}
+
+.terminal-stage.arranging .terminal-grid-column {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-bottom: 18px;
+  scrollbar-gutter: stable;
+}
+
+.terminal-stage.arranging .terminal-grid {
+  --arrange-bottom-safe-zone: 156px;
+  flex: 0 0 auto;
+  min-height: calc(100% + var(--arrange-bottom-safe-zone));
+  padding-bottom: var(--arrange-bottom-safe-zone);
+  scroll-padding-bottom: var(--arrange-bottom-safe-zone);
+}
+
+.terminal-stage.arranging .terminal-tile {
+  scroll-margin-bottom: var(--arrange-bottom-safe-zone);
+}
+
+.tile-resize-handle {
+  right: 8px;
+  bottom: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--proto-control);
+  background-image: none;
+  box-shadow: none;
+}
+
+.tile-resize-handle::before {
+  right: 7px;
+  bottom: 7px;
+  width: 13px;
+  height: 13px;
+  box-shadow: none;
+}
+
+.workspace-title-menu {
+  z-index: 70;
+}
+
+.workspace-popover {
+  z-index: 90;
+  background: var(--proto-panel);
+  background-image: none;
+  box-shadow: 0 18px 44px -36px rgba(0, 0, 0, 0.95);
+}
+
+.review-queue-backdrop,
+.command-palette-backdrop,
+.session-observatory-backdrop {
+  background: rgba(0, 0, 0, 0.72);
+  background-image: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.command-palette,
+.global-review-panel,
+.privacy-panel,
+.session-observatory-panel {
+  background: var(--proto-panel);
+  background-image: none;
+  box-shadow: none;
+}
+
+.primary-nav-rail button.active,
+.primary-nav-rail button:hover,
+.primary-nav-rail button:focus-visible,
+.workspace-nav-row,
+.workspace-button,
+.workspace-button.active,
+.workspace-nav-mark,
+.terminal-status-label,
+.tile-actions button,
+.agent-session-pulse,
+.review-surface-item,
+.observatory-session-row,
+.observatory-detail-card {
+  background-image: none;
+  box-shadow: none;
+}
+
+.workbench-actions button,
+.workbench-tool-group button,
+.context-toggle-button {
+  min-width: 0;
+  height: 32px;
+  min-height: 32px;
+  line-height: 1;
+}
+
+.workbench-tool-group {
+  display: inline-flex;
+  align-items: center;
+}
+
+.dispatch-target-chip span {
+  min-width: max-content;
+}
+
+.dispatch-bar .composer-send {
+  font-weight: 650;
+}
+
+@media (max-width: 1180px) {
+  .workspace-layout:has(.context-column.open),
+  .workspace-layout.alfred-compact:has(.context-column.open),
+  .workspace-layout.preview-visible:has(.context-column.open),
+  .workspace-layout.alfred-compact.preview-visible:has(.context-column.open),
+  .workspace-layout.surface-inbox:has(.context-column.open),
+  .workspace-layout.surface-history:has(.context-column.open) {
+    grid-template-columns: 44px minmax(176px, 210px) minmax(0, 1fr) minmax(286px, 316px);
+  }
+}
+
+@media (max-width: 980px) {
+  .workspace-layout > .context-column.open {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    bottom: 66px;
+    grid-column: auto;
+    width: min(340px, calc(100% - 16px));
+  }
+}
