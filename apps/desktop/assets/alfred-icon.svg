@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Alfred">
+  <!-- K1b3: real comet tail, balanced star, tidied starfield -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0E131B"/><stop offset="0.55" stop-color="#080B11"/><stop offset="1" stop-color="#05070A"/>
+    </linearGradient>
+    <linearGradient id="hi" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EEF3F7" stop-opacity="0.10"/><stop offset="0.32" stop-color="#EEF3F7" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="neb" cx="0.4" cy="0.42"><stop offset="0" stop-color="#7C8CFF" stop-opacity="0.12"/><stop offset="1" stop-color="#7C8CFF" stop-opacity="0"/></radialGradient>
+    <radialGradient id="glow"><stop offset="0" stop-color="#EAF1FF" stop-opacity="0.30"/><stop offset="1" stop-color="#EAF1FF" stop-opacity="0"/></radialGradient>
+    <radialGradient id="core"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/><stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.35"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+    <linearGradient id="starG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#CBD6E6"/>
+    </linearGradient>
+    <radialGradient id="cyGlow"><stop offset="0" stop-color="#6FD8E6" stop-opacity="0.5"/><stop offset="1" stop-color="#6FD8E6" stop-opacity="0"/></radialGradient>
+    <linearGradient id="cometG" gradientUnits="userSpaceOnUse" x1="398" y1="606" x2="248" y2="548">
+      <stop offset="0" stop-color="#6FD8E6" stop-opacity="0.85"/><stop offset="1" stop-color="#6FD8E6" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="56" y="56" width="912" height="912" rx="228" fill="url(#tile)"/>
+  <rect x="56" y="56" width="912" height="912" rx="228" fill="url(#hi)"/>
+  <circle cx="420" cy="430" r="360" fill="url(#neb)"/>
+  <circle cx="512" cy="510" r="250" fill="url(#glow)"/>
+  <circle cx="336" cy="360" r="5" fill="#C6D0DA" fill-opacity="0.5"/>
+  <circle cx="724" cy="652" r="5" fill="#C6D0DA" fill-opacity="0.45"/>
+  <circle cx="452" cy="292" r="3" fill="#C6D0DA" fill-opacity="0.35"/>
+  <path d="M690 286 L697 301 L712 308 L697 315 L690 330 L683 315 L668 308 L683 301 Z" fill="#EEF3F7" fill-opacity="0.75"/>
+  <path d="M744 418 A 250 104 -22 0 1 280 606" fill="none" stroke="#828E9B" stroke-width="28"/>
+  <path d="M512 333 L556 463 L662 505 L556 547 L512 688 L468 547 L362 505 L468 463 Z" fill="#F2F7FB" stroke="#EEF3F7" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M512 333 L556 463 L662 505 L556 547 L512 688 L512 510 Z" fill="#A6B3C1" fill-opacity="0.88"/>
+  <path d="M512 333 L468 463 L362 505 L468 547 L512 688 L512 510 Z" fill="#FFFFFF" fill-opacity="0.16"/>
+  <line x1="512" y1="346" x2="512" y2="676" stroke="#FFFFFF" stroke-width="6" stroke-opacity="0.5" stroke-linecap="round"/>
+  <circle cx="512" cy="505" r="44" fill="url(#core)"/>
+  <path d="M744 418 A 250 104 -22 0 0 280 606" fill="none" stroke="#CAD4DE" stroke-width="28"/>
+  <path d="M744 418 A 250 104 -22 0 0 280 606" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-opacity="0.4"/>
+  <circle cx="372" cy="628" r="46" fill="url(#cyGlow)"/>
+  <path d="M372 594 L383 617 L406 628 L383 639 L372 662 L361 639 L338 628 L361 617 Z" fill="#6FD8E6"/>
+  <circle cx="367" cy="623" r="6" fill="#EAFBFF"/>
+</svg>
