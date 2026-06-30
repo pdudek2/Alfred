@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, type MessageBoxSyncOptions } from "electron
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { config as loadDotenv } from "dotenv";
+import { resolveDesktopAppIconPath } from "./app-icon.js";
 import {
   configureTerminalPersistence,
   flushTerminalPersistence,
@@ -51,12 +52,14 @@ registerLayoutIpc();
 
 async function createWindow(persistedDesktopStateStore: PersistedDesktopStateStore): Promise<void> {
   const persistedWindowState = (await persistedDesktopStateStore.getState()).windowState;
+  const appIconPath = resolveDesktopAppIconPath(app.getAppPath());
   const window = new BrowserWindow({
     ...windowOptionsFromState(persistedWindowState),
     minWidth: 1120,
     minHeight: 720,
     title: "Alfred Agent Space",
     backgroundColor: "#050607",
+    ...(appIconPath ? { icon: appIconPath } : {}),
     show: false,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     webPreferences: {
@@ -99,6 +102,11 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
 }
 
 app.whenReady().then(async () => {
+  const appIconPath = resolveDesktopAppIconPath(app.getAppPath());
+  if (process.platform === "darwin" && appIconPath) {
+    app.dock?.setIcon(appIconPath);
+  }
+
   const persistedDesktopStateStore = createPersistedDesktopStateStore({ userDataPath: app.getPath("userData") });
   desktopStateStore = persistedDesktopStateStore;
 
