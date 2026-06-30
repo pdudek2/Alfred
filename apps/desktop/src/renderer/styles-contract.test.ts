@@ -111,9 +111,9 @@ describe("renderer CSS contracts", () => {
   it("styles workspace scrollbars so native white rails do not dominate the shell", () => {
     expect(prototypeStyles).toContain(".workspace-nav-scroll,");
     expect(prototypeStyles).toContain("scrollbar-width: thin");
-    expect(prototypeStyles).toContain("scrollbar-color: rgba(216, 255, 235, 0.18) transparent");
+    expect(prototypeStyles).toContain("scrollbar-color: rgba(255, 255, 255, 0.18) transparent");
     expect(prototypeStyles).toContain(".workspace-nav-scroll::-webkit-scrollbar-thumb");
-    expect(prototypeStyles).toContain("background: rgba(216, 255, 235, 0.16)");
+    expect(prototypeStyles).toContain("background: rgba(255, 255, 255, 0.16)");
   });
 
   it("keeps the workspace title in the normal top row so it cannot overlap the workbench", () => {

@@ -767,7 +767,7 @@ button:focus-visible {
   border: 1px solid transparent;
   border-radius: 10px;
   padding: 8px;
-  background: rgba(216, 255, 235, 0.025);
+  background: rgba(255, 255, 255, 0.025);
   color: var(--text-secondary);
   cursor: pointer;
   display: grid;
@@ -990,7 +990,7 @@ button:focus-visible {
   border: 1px solid var(--line);
   border-radius: 9px;
   padding: 0 10px;
-  background: rgba(216, 255, 235, 0.025);
+  background: rgba(255, 255, 255, 0.025);
   color: var(--text-secondary);
   display: inline-flex;
   align-items: center;
@@ -1022,7 +1022,7 @@ button:focus-visible {
 .workbench-actions button:focus-visible {
   border-color: color-mix(in oklab, var(--accent) 30%, transparent);
   color: var(--text-primary);
-  background: rgba(216, 255, 235, 0.04);
+  background: rgba(255, 255, 255, 0.04);
   outline: none;
 }
 
@@ -1187,9 +1187,9 @@ button:focus-visible {
 }
 
 .workspace-priority-chip.tone-active {
-  border-color: color-mix(in oklab, var(--green) 26%, transparent);
-  background: color-mix(in oklab, var(--green) 8%, transparent);
-  color: #c3e3cc;
+  border-color: color-mix(in oklab, var(--accent) 26%, transparent);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  color: var(--accent-strong);
 }
 
 .workspace-priority-chip.tone-empty {
@@ -1846,7 +1846,7 @@ body.arranging-pointer {
 
 .terminal-tile.kind-manual {
   background:
-    linear-gradient(180deg, rgba(120, 217, 145, 0.018), transparent 44px),
+    linear-gradient(180deg, rgba(238, 243, 247, 0.014), transparent 44px),
     var(--terminal);
 }
 
@@ -2051,9 +2051,9 @@ body.arranging-pointer {
 }
 
 .tile-kind-mark.manual {
-  border-color: rgba(120, 217, 145, 0.2);
-  background: rgba(120, 217, 145, 0.05);
-  color: #a6e7b1;
+  border-color: var(--line);
+  background: rgba(238, 243, 247, 0.035);
+  color: var(--text-secondary);
 }
 
 .tile-kind-mark.codex {
@@ -2263,7 +2263,7 @@ body.arranging-pointer {
 .terminal-tile.real-terminal.browser .tile-status    { color: var(--passive); }
 .terminal-tile.real-terminal.restored .tile-status   { color: var(--muted); }
 
-.terminal-tile.real-terminal .tile-status.status-active  { color: color-mix(in oklab, var(--green) 82%, white 4%); }
+.terminal-tile.real-terminal .tile-status.status-active  { color: var(--accent-strong); }
 .terminal-tile.real-terminal .tile-status.status-idle    { color: var(--muted); }
 .terminal-tile.real-terminal .tile-status.status-waiting { color: var(--brass); }
 .terminal-tile.real-terminal .tile-status.status-done    { color: var(--muted); }
@@ -3538,7 +3538,7 @@ body.arranging-pointer {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 12px;
-  background: rgba(216, 255, 235, 0.026);
+  background: rgba(255, 255, 255, 0.026);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -3639,7 +3639,7 @@ body.arranging-pointer {
   border: 1px solid color-mix(in oklab, var(--accent) 30%, transparent);
   border-radius: 9px;
   padding: 9px 10px;
-  background: rgba(216, 255, 235, 0.035);
+  background: rgba(255, 255, 255, 0.035);
   color: var(--text-secondary);
   font: 12px/1.35 var(--sans);
 }
@@ -3718,7 +3718,7 @@ body.arranging-pointer {
   border: 1px solid var(--line);
   border-radius: 9px;
   padding: 8px 9px;
-  background: rgba(216, 255, 235, 0.026);
+  background: rgba(255, 255, 255, 0.026);
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr);
   gap: 8px;
@@ -3770,9 +3770,9 @@ body.arranging-pointer {
 }
 
 .discard-checkout-primary {
-  border-color: rgba(58, 211, 127, 0.36) !important;
+  border-color: rgba(83, 199, 216, 0.36) !important;
   color: var(--accent-strong) !important;
-  background: rgba(58, 211, 127, 0.08) !important;
+  background: rgba(83, 199, 216, 0.08) !important;
 }
 
 .discard-checkout-danger {
@@ -4012,8 +4012,8 @@ body.arranging-pointer {
 
 .global-review-action.action-restored,
 .global-review-action.action-done {
-  border-color: rgba(120, 217, 145, 0.32);
-  background: rgba(120, 217, 145, 0.07);
+  border-color: color-mix(in oklab, var(--green) 34%, transparent);
+  background: color-mix(in oklab, var(--green) 8%, transparent);
   color: #bff2c8;
 }
 
@@ -4618,7 +4618,7 @@ body.arranging-pointer {
 }
 
 .review-kind.dev-server {
-  border-color: rgba(120, 217, 145, 0.32);
+  border-color: color-mix(in oklab, var(--green) 34%, transparent);
   color: var(--green);
 }
 
@@ -4995,7 +4995,7 @@ body.arranging-pointer {
   box-shadow: 0 0 8px currentColor;
 }
 
-.agent-status-pill.status-active { color: var(--green); }
+.agent-status-pill.status-active { color: var(--cyan); }
 .agent-status-pill.status-waiting,
 .agent-status-pill.status-blocked { color: var(--brass); }
 .agent-status-pill.status-error { color: var(--coral); }
@@ -5355,7 +5355,7 @@ body.arranging-pointer {
 .agent-session-pulse.tone-issue { color: var(--coral); }
 .agent-session-pulse.tone-recovery { color: var(--violet); }
 .agent-session-pulse.tone-signal { color: var(--accent); }
-.agent-session-pulse.tone-work { color: var(--green); }
+.agent-session-pulse.tone-work { color: var(--accent); }
 
 .agent-activity-digest {
   margin: 12px 0 0;
@@ -5396,7 +5396,7 @@ body.arranging-pointer {
 
 .agent-activity-digest .tone-ask { color: var(--brass); }
 .agent-activity-digest .tone-issue { color: var(--coral); }
-.agent-activity-digest .tone-plan { color: var(--green); }
+.agent-activity-digest .tone-plan { color: var(--accent); }
 .agent-activity-digest .tone-work { color: var(--accent); }
 
 .agent-timeline-section {
@@ -5426,8 +5426,8 @@ body.arranging-pointer {
   height: 8px;
   margin-top: 5px;
   border-radius: 999px;
-  background: var(--green);
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--green) 12%, transparent);
+  background: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 12%, transparent);
 }
 
 .agent-activity-list li.warning > span {
@@ -5451,8 +5451,8 @@ body.arranging-pointer {
 }
 
 .agent-activity-list li.command > span {
-  background: var(--green);
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--green) 12%, transparent);
+  background: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 12%, transparent);
 }
 
 .agent-activity-list li.file > span {
@@ -5560,11 +5560,11 @@ body.arranging-pointer {
 }
 
 /* ============================================================
-   ALFRED DEPTH v2 — dark + emerald + real elevation
+   ALFRED DEPTH v2 — graphite + cyan + real elevation
    Appended override layer. Source-order wins at equal specificity.
-   Reference language: ClauseOS / FlowTune (dark, layered, emerald,
-   ambient glow). This is NOT a recolor: it restores the depth Codex
-   stripped (net -7 box-shadows) and flips the accent system whole.
+   Reference language: dark, layered graphite with cyan active markers.
+   This is NOT a recolor: it restores the depth Codex stripped
+   (net -7 box-shadows) and keeps the accent system explicit.
    Remove this whole block to revert direction.
    ============================================================ */
 
@@ -5575,38 +5575,38 @@ body.arranging-pointer {
    specificity means these win on the shell element. */
 :root,
 .agent-space-shell {
-  /* surfaces: near-black with a green undertone, clearly layered */
-  --surface-canvas: #070b09;
-  --surface-panel: #0d1411;
-  --surface-raised: #15201a;
-  --surface-sunken: #050806;
-  --panel-soft: #111b16;
-  --glass: rgba(11, 18, 14, 0.86);
+  /* surfaces: graphite, clearly layered */
+  --surface-canvas: #06080b;
+  --surface-panel: #0b0f14;
+  --surface-raised: #10161d;
+  --surface-sunken: #040608;
+  --panel-soft: #141a22;
+  --glass: rgba(11, 15, 20, 0.92);
 
   /* text hierarchy */
-  --text-primary: #eef5f0;
-  --text-secondary: #b9c8bf;
-  --text-muted: #82938a;
-  --faint: #5d6c63;
-  --passive: #55645b;
+  --text-primary: #eef3f7;
+  --text-secondary: #c6d0da;
+  --text-muted: #94a0ad;
+  --faint: #8290a0;
+  --passive: #657180;
 
-  /* one accent system: emerald, with a real halo */
-  --accent-primary: #3ad37f;
+  /* accent roles: cyan for active target, green reserved for success/primary */
+  --accent-primary: #53c7d8;
   --accent: var(--accent-primary);
   --cyan: var(--accent-primary);
-  --green: #4fe08f;
-  --accent-press: #2bbf70;
-  --accent-soft: rgba(58, 211, 127, 0.13);
-  --accent-strong: #5fe39a;
-  --accent-halo: rgba(58, 211, 127, 0.42);
-  --on-accent: #04160c;
+  --green: #63d18a;
+  --accent-press: #3daebe;
+  --accent-soft: rgba(83, 199, 216, 0.13);
+  --accent-strong: #6fd8e6;
+  --accent-halo: rgba(83, 199, 216, 0.34);
+  --on-accent: #04141a;
 
-  /* green-tinted hairlines */
-  --border-subtle: rgba(120, 210, 160, 0.10);
-  --border-strong: rgba(120, 210, 160, 0.18);
+  /* neutral hairlines */
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.12);
   --line: var(--border-subtle);
   --line-strong: var(--border-strong);
-  --highlight-soft: rgba(216, 255, 235, 0.05);
+  --highlight-soft: rgba(255, 255, 255, 0.05);
 
   /* a true depth scale (Codex deleted these) */
   --shadow-soft: 0 16px 34px -24px rgba(0, 0, 0, 0.82);
@@ -5614,33 +5614,25 @@ body.arranging-pointer {
     0 34px 72px -30px rgba(0, 0, 0, 0.78),
     0 2px 10px -4px rgba(0, 0, 0, 0.6);
   --depth-card:
-    0 1px 0 rgba(216, 255, 235, 0.045) inset,
+    0 1px 0 rgba(255, 255, 255, 0.045) inset,
     0 18px 38px -26px rgba(0, 0, 0, 0.85);
   --depth-raised:
-    0 1px 0 rgba(216, 255, 235, 0.06) inset,
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
     0 26px 56px -28px rgba(0, 0, 0, 0.8),
     0 2px 8px -3px rgba(0, 0, 0, 0.55);
 }
 
-/* canvas: strong emerald ambient glow bleeding from corners (FlowTune signature) */
+/* canvas: graphite substrate, not ambient glow */
 body {
-  background:
-    radial-gradient(1200px 760px at 6% -8%, rgba(58, 211, 127, 0.14), transparent 58%),
-    radial-gradient(1000px 720px at 100% 112%, rgba(58, 211, 127, 0.10), transparent 60%),
-    radial-gradient(720px 540px at 96% 2%, rgba(58, 211, 127, 0.05), transparent 64%),
-    linear-gradient(180deg, rgba(216, 255, 235, 0.014), transparent 260px),
-    var(--surface-canvas);
+  background: var(--surface-canvas);
 }
 
-/* --- Mission bar: floating lit header --- */
+/* --- Mission bar: flat graphite header --- */
 .mission-bar {
   border-bottom: 1px solid var(--line-strong);
-  background:
-    radial-gradient(620px 130px at 18% -40%, rgba(58, 211, 127, 0.10), transparent 70%),
-    linear-gradient(180deg, rgba(216, 255, 235, 0.04), transparent 70%),
-    var(--surface-panel);
+  background: var(--surface-panel);
   box-shadow:
-    0 1px 0 rgba(216, 255, 235, 0.05) inset,
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
     0 18px 40px -34px rgba(0, 0, 0, 0.9);
 }
 
@@ -5650,9 +5642,7 @@ body {
 
 /* --- Workspace rail: raised navigation card --- */
 .workspace-rail {
-  background:
-    radial-gradient(420px 320px at 30% 0%, rgba(58, 211, 127, 0.05), transparent 70%),
-    var(--surface-panel);
+  background: var(--surface-panel);
   border: 1px solid var(--line);
   box-shadow: var(--depth-card);
 }
@@ -5663,18 +5653,18 @@ body {
 }
 
 .workspace-button:hover {
-  background: rgba(216, 255, 235, 0.035);
+  background: rgba(255, 255, 255, 0.035);
   border-color: var(--border-subtle);
 }
 
 .workspace-button.active {
   background:
-    linear-gradient(180deg, rgba(58, 211, 127, 0.12), rgba(58, 211, 127, 0.04)),
+    linear-gradient(180deg, rgba(83, 199, 216, 0.09), rgba(83, 199, 216, 0.03)),
     var(--surface-raised);
-  border-color: rgba(58, 211, 127, 0.32);
+  border-color: rgba(83, 199, 216, 0.32);
   box-shadow:
-    0 0 0 1px rgba(58, 211, 127, 0.22),
-    0 14px 30px -20px var(--accent-halo);
+    0 0 0 1px rgba(83, 199, 216, 0.22),
+    var(--depth-card);
 }
 
 .workspace-button.active .workspace-monogram,
@@ -5685,7 +5675,7 @@ body {
 .workspace-button.active .workspace-monogram {
   background: linear-gradient(180deg, var(--accent-strong), var(--accent-press));
   color: var(--on-accent);
-  box-shadow: 0 6px 16px -8px var(--accent-halo);
+  box-shadow: none;
 }
 
 .workspace-button:focus-visible {
@@ -5695,9 +5685,7 @@ body {
 
 /* --- Terminal stage: the desk plate --- */
 .terminal-stage {
-  background:
-    radial-gradient(700px 400px at 50% -10%, rgba(58, 211, 127, 0.035), transparent 70%),
-    var(--surface-canvas);
+  background: var(--surface-canvas);
 }
 
 /* --- Terminal tile: raised workbench panel (xterm stays darkest) --- */
@@ -5715,10 +5703,10 @@ body {
 .terminal-tile.selected,
 .terminal-tile:focus-visible {
   outline: none;
-  border-color: rgba(58, 211, 127, 0.34);
+  border-color: rgba(83, 199, 216, 0.34);
   box-shadow:
-    0 0 0 1px rgba(58, 211, 127, 0.3),
-    0 0 0 4px rgba(58, 211, 127, 0.12),
+    0 0 0 1px rgba(83, 199, 216, 0.3),
+    0 0 0 4px rgba(83, 199, 216, 0.12),
     var(--depth-raised);
 }
 
@@ -5727,54 +5715,50 @@ body {
   background: var(--surface-sunken);
 }
 
-/* --- Primary CTA: emerald --- */
+/* --- Primary CTA: success green only --- */
 .mission-actions .new-terminal-button {
-  background: linear-gradient(180deg, var(--accent-strong), var(--accent-press));
-  border: 1px solid rgba(58, 211, 127, 0.5);
-  color: var(--on-accent);
+  background: var(--green);
+  border: 1px solid color-mix(in oklab, var(--green) 70%, white 10%);
+  color: #04120a;
   font-weight: 600;
   box-shadow:
-    0 1px 0 rgba(216, 255, 235, 0.25) inset,
-    0 10px 24px -12px var(--accent-halo);
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 10px 24px -16px rgba(0, 0, 0, 0.72);
 }
 
 .mission-actions .new-terminal-button:hover,
 .mission-actions .new-terminal-button:focus-visible {
-  background: linear-gradient(180deg, #74e9a9, var(--accent-primary));
+  background: color-mix(in oklab, var(--green) 92%, white 8%);
   box-shadow:
-    0 1px 0 rgba(216, 255, 235, 0.3) inset,
-    0 14px 30px -12px var(--accent-halo);
+    0 1px 0 rgba(255, 255, 255, 0.26) inset,
+    0 12px 26px -16px rgba(0, 0, 0, 0.72);
 }
 
 /* --- Side dock: raised evidence cards --- */
 .alfred-dock,
 .agent-timeline-panel,
 .workspace-preview-panel {
-  background:
-    radial-gradient(360px 240px at 80% 0%, rgba(58, 211, 127, 0.04), transparent 70%),
-    var(--surface-panel);
+  background: var(--surface-panel);
   border: 1px solid var(--line);
   box-shadow: var(--depth-card);
 }
 
 /* --- Composer: elevated command bar --- */
 .composer-bar {
-  background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.03), transparent 60%),
-    var(--surface-panel);
+  background: var(--surface-panel);
   border-top: 1px solid var(--line-strong);
   box-shadow:
-    0 1px 0 rgba(216, 255, 235, 0.045) inset,
+    0 1px 0 rgba(255, 255, 255, 0.045) inset,
     0 -16px 36px -32px rgba(0, 0, 0, 0.9);
 }
 
 .composer-input:focus-visible {
-  box-shadow: 0 0 0 1px var(--accent-halo), 0 0 0 4px rgba(58, 211, 127, 0.12);
+  box-shadow: 0 0 0 1px var(--accent-halo), 0 0 0 4px rgba(83, 199, 216, 0.12);
 }
 
 .composer-send {
-  background: linear-gradient(180deg, var(--accent-strong), var(--accent-press));
-  color: var(--on-accent);
+  background: var(--green);
+  color: #04120a;
   font-weight: 600;
 }
 
@@ -5812,16 +5796,14 @@ body {
 
 /* Lead block: the one prominent surface — session context. */
 .agent-panel-section.agent-session-summary {
-  background:
-    linear-gradient(180deg, rgba(58, 211, 127, 0.07), transparent 72%),
-    var(--surface-raised);
-  border: 1px solid rgba(58, 211, 127, 0.16);
+  background: var(--surface-raised);
+  border: 1px solid var(--line-strong);
   border-radius: 14px;
   box-shadow: var(--depth-card);
   padding: 16px;
 }
 
-/* Key signal keeps a faint emerald edge — it answers "what happened". */
+/* Key signal keeps a quiet active edge — it answers "what happened". */
 .agent-panel-section.agent-key-signal {
   border-top: 1px solid var(--line-strong);
 }
@@ -5832,7 +5814,7 @@ body {
 
 /* Handoff actions read as a quiet utility row, not a primary panel. */
 .agent-handoff-buttons button {
-  background: rgba(216, 255, 235, 0.035);
+  background: rgba(255, 255, 255, 0.035);
   border: 1px solid var(--line);
   color: var(--text-secondary);
 }
@@ -5860,7 +5842,7 @@ body {
   color: var(--text-muted);
 }
 
-/* Secondary actions step back so the emerald CTA leads the eye. */
+/* Secondary actions step back so the primary CTA leads the eye. */
 .mission-actions .arrange-button,
 .mission-actions .command-palette-button {
   background: transparent;
@@ -5875,7 +5857,7 @@ body {
 .mission-actions .arrange-button.active {
   border-color: var(--border-strong);
   color: var(--text-primary);
-  background: rgba(216, 255, 235, 0.035);
+  background: rgba(255, 255, 255, 0.035);
 }
 
 /* --- Workspace rail: active dominant, empties quiet --- */
@@ -5899,7 +5881,7 @@ body {
   opacity: 0.72;
 }
 
-/* --- Desk: segmented work-mode control, emerald active --- */
+/* --- Desk: segmented work-mode control, cyan active --- */
 .work-mode-control {
   background: var(--surface-sunken);
   border: 1px solid var(--line);
@@ -5922,11 +5904,11 @@ body {
 .work-mode-control button.active,
 .work-mode-control button[aria-pressed="true"] {
   background:
-    linear-gradient(180deg, rgba(58, 211, 127, 0.16), rgba(58, 211, 127, 0.05)),
+    linear-gradient(180deg, rgba(83, 199, 216, 0.16), rgba(83, 199, 216, 0.05)),
     var(--surface-raised);
   color: var(--accent-strong);
   box-shadow:
-    0 0 0 1px rgba(58, 211, 127, 0.22),
+    0 0 0 1px rgba(83, 199, 216, 0.22),
     0 6px 14px -10px var(--accent-halo);
 }
 
@@ -5940,16 +5922,16 @@ body {
   color: var(--text-muted);
 }
 
-/* --- Terminal tile actions: emerald primary, quiet danger --- */
+/* --- Terminal tile actions: cyan active, quiet danger --- */
 .tile-primary-actions button {
-  border-color: rgba(58, 211, 127, 0.42);
+  border-color: rgba(83, 199, 216, 0.42);
   color: var(--accent-strong);
 }
 
 .tile-primary-actions button:hover,
 .tile-primary-actions button:focus-visible {
   background: var(--accent-soft);
-  border-color: rgba(58, 211, 127, 0.6);
+  border-color: rgba(83, 199, 216, 0.6);
 }
 
 .tile-danger-actions button {
@@ -5964,7 +5946,7 @@ body {
   border-color: var(--line);
 }
 
-/* --- Command palette: raised glass modal, emerald active row --- */
+/* --- Command palette: raised modal, cyan active row --- */
 .command-palette-backdrop {
   background: rgba(3, 6, 5, 0.6);
   backdrop-filter: blur(6px);
@@ -5972,7 +5954,7 @@ body {
 
 .command-palette {
   background:
-    radial-gradient(520px 200px at 50% -12%, rgba(58, 211, 127, 0.07), transparent 70%),
+    radial-gradient(520px 200px at 50% -12%, rgba(83, 199, 216, 0.07), transparent 70%),
     var(--surface-panel);
   border: 1px solid var(--border-strong);
   border-radius: 16px;
@@ -5993,21 +5975,18 @@ body {
 
 /* ============================================================
    ALFRED DEPTH v2 — composition pass
-   Float the working panels on the glowing canvas: transparent
+   Float the working panels on the graphite canvas: transparent
    shell containers + generous gaps + softer radius + more air.
    Top bar and composer stay full-bleed (macOS window controls).
    ============================================================ */
 
-/* Glowing substrate the floating panels sit on. */
+/* Graphite substrate the floating panels sit on. */
 .agent-space-shell {
   padding: 10px;
-  background:
-    radial-gradient(1100px 760px at 4% -6%, rgba(58, 211, 127, 0.09), transparent 58%),
-    radial-gradient(960px 720px at 100% 108%, rgba(58, 211, 127, 0.055), transparent 62%),
-    var(--surface-canvas);
+  background: var(--surface-canvas);
 }
 
-/* Frame + layout go transparent so the glow shows between the panels. */
+/* Frame + layout go transparent so the graphite canvas shows between panels. */
 .desktop-frame {
   background: transparent;
   border-color: var(--border-subtle);
@@ -6045,7 +6024,7 @@ body {
 
 /* ============================================================
    ALFRED DEPTH v2 — hierarchy polish pass
-   Keep the locked dark-emerald language, but make the remaining
+   Keep the locked dark graphite language, but make the remaining
    dense UI read as product surfaces instead of equal-weight text.
    ============================================================ */
 
@@ -6136,8 +6115,8 @@ body {
 }
 
 .review-context-item.tone-recovery {
-  background: rgba(58, 211, 127, 0.035);
-  border-color: rgba(58, 211, 127, 0.08);
+  background: rgba(83, 199, 216, 0.035);
+  border-color: rgba(83, 199, 216, 0.08);
 }
 
 .review-context-item strong {
@@ -6155,13 +6134,10 @@ body {
 /* Recovery is the one visible recovery lead, but still a lifted ribbon. */
 .recovery-workspace-strip {
   min-height: 38px;
-  border: 1px solid rgba(58, 211, 127, 0.14);
+  border: 1px solid var(--line);
   border-radius: 14px;
   padding: 0 14px;
-  background:
-    radial-gradient(420px 120px at 12% 0%, rgba(58, 211, 127, 0.09), transparent 70%),
-    linear-gradient(180deg, rgba(216, 255, 235, 0.035), rgba(216, 255, 235, 0.01)),
-    var(--surface-panel);
+  background: var(--surface-panel);
   box-shadow: var(--depth-card);
 }
 
@@ -6193,10 +6169,7 @@ body {
   border: 1px solid var(--border-strong);
   border-radius: 18px;
   padding: 10px;
-  background:
-    radial-gradient(420px 210px at 12% -16%, rgba(58, 211, 127, 0.12), transparent 72%),
-    linear-gradient(180deg, rgba(216, 255, 235, 0.045), transparent 130px),
-    color-mix(in oklab, var(--surface-panel) 94%, black 6%);
+  background: color-mix(in oklab, var(--surface-panel) 94%, black 6%);
   box-shadow: var(--depth-raised), var(--shadow-panel);
 }
 
@@ -6218,9 +6191,9 @@ body {
 
 .workspace-popover button:hover,
 .workspace-popover button:focus-visible {
-  border-color: rgba(58, 211, 127, 0.28);
+  border-color: rgba(83, 199, 216, 0.28);
   background:
-    linear-gradient(180deg, rgba(58, 211, 127, 0.105), rgba(58, 211, 127, 0.035)),
+    linear-gradient(180deg, rgba(83, 199, 216, 0.105), rgba(83, 199, 216, 0.035)),
     var(--surface-raised);
   box-shadow: var(--depth-card);
 }
@@ -6251,7 +6224,7 @@ body {
   border-radius: 14px;
   padding: 12px;
   background:
-    linear-gradient(180deg, rgba(58, 211, 127, 0.055), transparent 90px),
+    linear-gradient(180deg, rgba(83, 199, 216, 0.055), transparent 90px),
     var(--surface-raised);
   box-shadow: var(--depth-card);
 }
@@ -6277,10 +6250,10 @@ body {
 .agent-staged-edit-form input:focus-visible,
 .agent-staged-edit-form textarea:focus-visible {
   outline: none;
-  border-color: rgba(58, 211, 127, 0.42);
+  border-color: rgba(83, 199, 216, 0.42);
   box-shadow:
-    0 0 0 1px rgba(58, 211, 127, 0.28),
-    0 0 0 4px rgba(58, 211, 127, 0.11);
+    0 0 0 1px rgba(83, 199, 216, 0.28),
+    0 0 0 4px rgba(83, 199, 216, 0.11);
 }
 
 .workspace-rename-form > div button,
@@ -6288,14 +6261,14 @@ body {
   border-radius: 10px;
 }
 
-/* Staged command editor: emerald review surface instead of brass warning card. */
+/* Staged command editor: active review surface instead of brass warning card. */
 .agent-staged-editor,
 .agent-staged-edit-form {
-  border: 1px solid rgba(58, 211, 127, 0.16);
+  border: 1px solid rgba(83, 199, 216, 0.16);
   border-radius: 16px;
   background:
-    radial-gradient(380px 180px at 15% -12%, rgba(58, 211, 127, 0.12), transparent 72%),
-    linear-gradient(180deg, rgba(216, 255, 235, 0.035), transparent 110px),
+    radial-gradient(380px 180px at 15% -12%, rgba(83, 199, 216, 0.12), transparent 72%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 110px),
     var(--surface-raised);
   box-shadow: var(--depth-card);
 }
@@ -6341,9 +6314,9 @@ body {
 
 .agent-staged-editor button,
 .agent-staged-edit-actions button[type="submit"] {
-  border-color: rgba(58, 211, 127, 0.38);
+  border-color: rgba(83, 199, 216, 0.38);
   background:
-    linear-gradient(180deg, rgba(58, 211, 127, 0.14), rgba(58, 211, 127, 0.055)),
+    linear-gradient(180deg, rgba(83, 199, 216, 0.14), rgba(83, 199, 216, 0.055)),
     var(--surface-panel);
   color: var(--accent-strong);
   box-shadow: 0 10px 20px -18px var(--accent-halo);
@@ -6364,7 +6337,7 @@ body {
 }
 
 .agent-staged-edit-actions button[type="button"] {
-  background: rgba(216, 255, 235, 0.035);
+  background: rgba(255, 255, 255, 0.035);
   border-color: var(--line);
   color: var(--text-secondary);
 }
@@ -6374,11 +6347,11 @@ body {
   min-height: 23px;
   border-radius: 999px;
   background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.035), rgba(216, 255, 235, 0.01)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
     var(--surface-sunken);
   border-color: var(--line);
   color: var(--text-muted);
-  box-shadow: inset 0 1px 0 rgba(216, 255, 235, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .workspace-priority-chip.tone-waiting,
@@ -6399,9 +6372,9 @@ body {
 }
 
 .workspace-priority-chip.tone-active {
-  border-color: rgba(58, 211, 127, 0.34);
+  border-color: rgba(83, 199, 216, 0.34);
   background:
-    linear-gradient(180deg, rgba(58, 211, 127, 0.14), rgba(58, 211, 127, 0.035)),
+    linear-gradient(180deg, rgba(83, 199, 216, 0.14), rgba(83, 199, 216, 0.035)),
     var(--surface-sunken);
   color: var(--tone-active);
 }
@@ -6414,24 +6387,24 @@ body {
 
 .workspace-rail {
   background:
-    radial-gradient(360px 300px at 18% 0%, rgba(58, 211, 127, 0.035), transparent 72%),
+    radial-gradient(360px 300px at 18% 0%, rgba(83, 199, 216, 0.035), transparent 72%),
     color-mix(in oklab, var(--surface-panel) 88%, black 12%);
 }
 
 .workspace-button.active {
   background:
-    linear-gradient(180deg, rgba(58, 211, 127, 0.075), rgba(58, 211, 127, 0.025)),
+    linear-gradient(180deg, rgba(83, 199, 216, 0.075), rgba(83, 199, 216, 0.025)),
     color-mix(in oklab, var(--surface-raised) 86%, black 14%);
-  border-color: rgba(58, 211, 127, 0.24);
+  border-color: rgba(83, 199, 216, 0.24);
   box-shadow:
-    0 0 0 1px rgba(58, 211, 127, 0.13),
+    0 0 0 1px rgba(83, 199, 216, 0.13),
     0 14px 26px -24px var(--accent-halo);
 }
 
 .workspace-button.active .workspace-monogram {
   background:
-    linear-gradient(180deg, rgba(95, 227, 154, 0.94), rgba(43, 191, 112, 0.9));
-  box-shadow: 0 8px 18px -14px var(--accent-halo);
+    linear-gradient(180deg, rgba(111, 216, 230, 0.94), rgba(61, 174, 190, 0.9));
+  box-shadow: none;
 }
 
 .workspace-priority-chip {
@@ -6445,16 +6418,16 @@ body {
 
 .terminal-grid.laid-out {
   background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.01), transparent 120px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.01), transparent 120px),
     rgba(1, 4, 3, 0.62);
 }
 
 .terminal-tile.selected,
 .terminal-tile:focus-visible {
-  border-color: rgba(58, 211, 127, 0.27);
+  border-color: rgba(83, 199, 216, 0.27);
   box-shadow:
-    0 0 0 1px rgba(58, 211, 127, 0.24),
-    0 0 0 3px rgba(58, 211, 127, 0.08),
+    0 0 0 1px rgba(83, 199, 216, 0.24),
+    0 0 0 3px rgba(83, 199, 216, 0.08),
     var(--depth-raised);
 }
 
@@ -6465,9 +6438,9 @@ body {
   border-radius: 16px;
   padding: 26px 30px;
   background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.018), transparent 120px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 120px),
     rgba(1, 4, 3, 0.3);
-  box-shadow: inset 0 1px 0 rgba(216, 255, 235, 0.025);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
 .split-empty-state span {
@@ -6489,14 +6462,14 @@ body {
 
 .split-empty-state button {
   font-family: var(--sans);
-  background: rgba(216, 255, 235, 0.026);
+  background: rgba(255, 255, 255, 0.026);
   border-color: var(--border-subtle);
   color: var(--text-secondary);
 }
 
 .agent-timeline-panel {
   background:
-    radial-gradient(280px 210px at 75% 0%, rgba(58, 211, 127, 0.03), transparent 72%),
+    radial-gradient(280px 210px at 75% 0%, rgba(83, 199, 216, 0.03), transparent 72%),
     color-mix(in oklab, var(--surface-panel) 88%, black 12%);
 }
 
@@ -6511,11 +6484,11 @@ body {
 
 .agent-panel-section.agent-session-summary {
   background:
-    linear-gradient(180deg, rgba(58, 211, 127, 0.045), transparent 76%),
+    linear-gradient(180deg, rgba(83, 199, 216, 0.045), transparent 76%),
     color-mix(in oklab, var(--surface-raised) 82%, black 18%);
-  border-color: rgba(58, 211, 127, 0.12);
+  border-color: rgba(83, 199, 216, 0.12);
   box-shadow:
-    inset 0 1px 0 rgba(216, 255, 235, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
     0 14px 30px -26px rgba(0, 0, 0, 0.78);
   padding: 13px;
 }
@@ -6571,12 +6544,12 @@ body {
 
 .recovery-workspace-strip {
   min-height: 34px;
-  border-color: rgba(58, 211, 127, 0.1);
+  border-color: rgba(83, 199, 216, 0.1);
   background:
-    linear-gradient(180deg, rgba(58, 211, 127, 0.045), rgba(58, 211, 127, 0.018)),
+    linear-gradient(180deg, rgba(83, 199, 216, 0.045), rgba(83, 199, 216, 0.018)),
     color-mix(in oklab, var(--surface-panel) 86%, black 14%);
   box-shadow:
-    inset 0 1px 0 rgba(216, 255, 235, 0.035),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
     0 14px 28px -28px rgba(0, 0, 0, 0.8);
 }
 
@@ -6594,25 +6567,25 @@ body {
   min-width: 108px;
   padding: 0 10px;
   gap: 8px;
-  border-color: rgba(58, 211, 127, 0.16);
+  border-color: rgba(83, 199, 216, 0.16);
   background:
-    linear-gradient(180deg, rgba(58, 211, 127, 0.065), rgba(58, 211, 127, 0.022)),
+    linear-gradient(180deg, rgba(83, 199, 216, 0.065), rgba(83, 199, 216, 0.022)),
     color-mix(in oklab, var(--surface-raised) 82%, black 18%);
   color: var(--text-secondary);
   box-shadow:
-    inset 0 1px 0 rgba(216, 255, 235, 0.045),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
     0 12px 24px -22px var(--accent-halo);
 }
 
 .mission-actions .session-observatory-button:hover,
 .mission-actions .session-observatory-button:focus-visible {
-  border-color: rgba(58, 211, 127, 0.3);
+  border-color: rgba(83, 199, 216, 0.3);
   background:
-    linear-gradient(180deg, rgba(58, 211, 127, 0.11), rgba(58, 211, 127, 0.035)),
+    linear-gradient(180deg, rgba(83, 199, 216, 0.11), rgba(83, 199, 216, 0.035)),
     color-mix(in oklab, var(--surface-raised) 88%, black 12%);
   color: var(--text-primary);
   box-shadow:
-    0 0 0 1px rgba(58, 211, 127, 0.11),
+    0 0 0 1px rgba(83, 199, 216, 0.11),
     0 16px 30px -24px var(--accent-halo);
 }
 
@@ -6625,7 +6598,7 @@ body {
 .mission-actions .session-observatory-button strong {
   min-width: 20px;
   min-height: 20px;
-  border: 1px solid rgba(58, 211, 127, 0.16);
+  border: 1px solid rgba(83, 199, 216, 0.16);
   border-radius: 999px;
   padding: 0 6px;
   background: rgba(3, 10, 6, 0.44);
@@ -6642,8 +6615,8 @@ body {
   z-index: 42;
   padding: 8vh 48px 48px;
   background:
-    radial-gradient(820px 520px at 18% 0%, rgba(58, 211, 127, 0.09), transparent 66%),
-    radial-gradient(760px 460px at 90% 96%, rgba(58, 211, 127, 0.045), transparent 68%),
+    radial-gradient(820px 520px at 18% 0%, rgba(83, 199, 216, 0.09), transparent 66%),
+    radial-gradient(760px 460px at 90% 96%, rgba(83, 199, 216, 0.045), transparent 68%),
     rgba(0, 0, 0, 0.68);
   display: grid;
   place-items: start center;
@@ -6658,13 +6631,13 @@ body {
   border-radius: 22px;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.055), transparent 140px),
-    radial-gradient(620px 300px at 12% -12%, rgba(58, 211, 127, 0.115), transparent 72%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), transparent 140px),
+    radial-gradient(620px 300px at 12% -12%, rgba(83, 199, 216, 0.115), transparent 72%),
     color-mix(in oklab, var(--surface-panel) 90%, black 10%);
   box-shadow:
     var(--depth-raised),
     var(--shadow-panel),
-    0 0 0 1px rgba(58, 211, 127, 0.055);
+    0 0 0 1px rgba(83, 199, 216, 0.055);
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);
 }
@@ -6714,7 +6687,7 @@ body {
   border: 1px solid var(--line-strong);
   border-radius: 12px;
   background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.045), transparent),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
     var(--surface-raised);
   color: var(--text-secondary);
   display: inline-grid;
@@ -6725,29 +6698,29 @@ body {
 
 .session-observatory-close:hover,
 .session-observatory-close:focus-visible {
-  border-color: rgba(58, 211, 127, 0.34);
+  border-color: rgba(83, 199, 216, 0.34);
   color: var(--text-primary);
   outline: none;
   box-shadow:
-    0 0 0 3px rgba(58, 211, 127, 0.10),
+    0 0 0 3px rgba(83, 199, 216, 0.10),
     var(--depth-card);
 }
 
 .session-observatory-search {
   min-height: 52px;
   margin: 18px 24px 0;
-  border: 1px solid rgba(58, 211, 127, 0.18);
+  border: 1px solid rgba(83, 199, 216, 0.18);
   border-radius: 16px;
   padding: 0 16px;
   background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.035), transparent),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
     var(--surface-sunken);
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);
   gap: 12px;
   align-items: center;
   box-shadow:
-    inset 0 1px 0 rgba(216, 255, 235, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
     0 18px 36px -30px rgba(0, 0, 0, 0.86);
 }
 
@@ -6770,10 +6743,10 @@ body {
 }
 
 .session-observatory-search:focus-within {
-  border-color: rgba(58, 211, 127, 0.42);
+  border-color: rgba(83, 199, 216, 0.42);
   box-shadow:
-    0 0 0 3px rgba(58, 211, 127, 0.09),
-    inset 0 1px 0 rgba(216, 255, 235, 0.055),
+    0 0 0 3px rgba(83, 199, 216, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
     0 20px 42px -30px var(--accent-halo);
 }
 
@@ -6791,7 +6764,7 @@ body {
   border-radius: 16px;
   padding: 13px 14px;
   background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.035), transparent 80%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 80%),
     color-mix(in oklab, var(--surface-raised) 76%, black 24%);
   box-shadow: var(--depth-card);
 }
@@ -6816,9 +6789,9 @@ body {
 
 .session-observatory-stat.tone-active,
 .session-observatory-stat.tone-recovery {
-  border-color: rgba(58, 211, 127, 0.18);
+  border-color: rgba(83, 199, 216, 0.18);
   background:
-    linear-gradient(180deg, rgba(58, 211, 127, 0.085), transparent 82%),
+    linear-gradient(180deg, rgba(83, 199, 216, 0.085), transparent 82%),
     color-mix(in oklab, var(--surface-raised) 80%, black 20%);
 }
 
@@ -6856,7 +6829,7 @@ body {
   border-radius: 16px;
   padding: 12px 13px;
   background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.028), transparent 90%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.028), transparent 90%),
     rgba(2, 8, 5, 0.56);
   color: var(--text-secondary);
   display: grid;
@@ -6865,7 +6838,7 @@ body {
   align-items: center;
   text-align: left;
   cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(216, 255, 235, 0.028);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.028);
   transition:
     border-color 160ms ease,
     background 160ms ease,
@@ -6875,12 +6848,12 @@ body {
 
 .session-observatory-main:hover,
 .session-observatory-main:focus-visible {
-  border-color: rgba(58, 211, 127, 0.32);
+  border-color: rgba(83, 199, 216, 0.32);
   background:
-    linear-gradient(180deg, rgba(58, 211, 127, 0.07), transparent 92%),
+    linear-gradient(180deg, rgba(83, 199, 216, 0.07), transparent 92%),
     color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   box-shadow:
-    0 0 0 1px rgba(58, 211, 127, 0.08),
+    0 0 0 1px rgba(83, 199, 216, 0.08),
     var(--depth-card);
   outline: none;
   transform: translateY(-1px);
@@ -6889,17 +6862,17 @@ body {
 .session-observatory-kind {
   min-width: 50px;
   min-height: 34px;
-  border: 1px solid rgba(58, 211, 127, 0.18);
+  border: 1px solid rgba(83, 199, 216, 0.18);
   border-radius: 11px;
   background:
-    linear-gradient(180deg, rgba(58, 211, 127, 0.095), rgba(58, 211, 127, 0.025)),
+    linear-gradient(180deg, rgba(83, 199, 216, 0.095), rgba(83, 199, 216, 0.025)),
     var(--surface-sunken);
   color: var(--accent-strong);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  box-shadow: inset 0 1px 0 rgba(216, 255, 235, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .session-observatory-kind.claude {
@@ -6966,14 +6939,14 @@ body {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 4px 8px;
-  background: rgba(216, 255, 235, 0.026);
+  background: rgba(255, 255, 255, 0.026);
   color: var(--text-secondary);
   font-size: 11px;
 }
 
 .session-observatory-row.status-active .session-observatory-meta span,
 .session-observatory-row.status-starting .session-observatory-meta span {
-  border-color: rgba(58, 211, 127, 0.28);
+  border-color: rgba(83, 199, 216, 0.28);
   color: var(--accent-strong);
 }
 
@@ -6996,7 +6969,7 @@ body {
   border: 1px dashed rgba(120, 210, 160, 0.18);
   border-radius: 18px;
   background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.02), transparent 120px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 120px),
     rgba(1, 4, 3, 0.36);
   color: var(--text-muted);
   display: grid;
@@ -7054,7 +7027,7 @@ body {
    Navigation + Observatory v1
    Three work surfaces: Desk keeps xterm live work, Review owns
    decisions, Observatory owns search/history. Uses ALFRED DEPTH v2
-   tokens; emerald is reserved for active/focus/primary moments.
+   tokens; cyan is reserved for active/focus moments.
    ============================================================ */
 
 .workspace-layout.surface-inbox,
@@ -7083,8 +7056,8 @@ body {
   border: 1px solid var(--line);
   border-radius: 18px;
   background:
-    radial-gradient(720px 420px at 6% 0%, rgba(58, 211, 127, 0.055), transparent 70%),
-    linear-gradient(180deg, rgba(216, 255, 235, 0.028), transparent 220px),
+    radial-gradient(720px 420px at 6% 0%, rgba(83, 199, 216, 0.055), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.028), transparent 220px),
     var(--surface-panel);
   box-shadow: var(--depth-card);
   overflow: hidden;
@@ -7181,7 +7154,7 @@ body {
   border-radius: 16px;
   padding: 12px;
   background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.032), transparent 80%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.032), transparent 80%),
     color-mix(in oklab, var(--surface-raised) 76%, black 24%);
   box-shadow: var(--depth-card);
   display: grid;
@@ -7195,8 +7168,8 @@ body {
 }
 
 .review-surface-item.selected {
-  border-color: rgba(58, 211, 127, 0.32);
-  box-shadow: var(--depth-card), 0 0 0 1px rgba(58, 211, 127, 0.08);
+  border-color: rgba(83, 199, 216, 0.32);
+  box-shadow: var(--depth-card), 0 0 0 1px rgba(83, 199, 216, 0.08);
 }
 
 .review-surface-item-main {
@@ -7222,9 +7195,9 @@ body {
 .review-surface-workspace {
   width: 42px;
   height: 36px;
-  border: 1px solid rgba(58, 211, 127, 0.20);
+  border: 1px solid rgba(83, 199, 216, 0.20);
   border-radius: 12px;
-  background: rgba(58, 211, 127, 0.06);
+  background: rgba(83, 199, 216, 0.06);
   color: var(--accent-strong);
   display: inline-grid;
   place-items: center;
@@ -7327,8 +7300,8 @@ body {
 }
 
 .review-surface-primary {
-  border-color: rgba(58, 211, 127, 0.36);
-  background: rgba(58, 211, 127, 0.08);
+  border-color: rgba(83, 199, 216, 0.36);
+  background: rgba(83, 199, 216, 0.08);
   color: var(--accent-strong);
 }
 
@@ -7338,10 +7311,10 @@ body {
 .observatory-detail-card button:focus-visible,
 .observatory-surface-header button:hover,
 .observatory-surface-header button:focus-visible {
-  border-color: rgba(58, 211, 127, 0.42);
+  border-color: rgba(83, 199, 216, 0.42);
   color: var(--text-primary);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(58, 211, 127, 0.08);
+  box-shadow: 0 0 0 3px rgba(83, 199, 216, 0.08);
 }
 
 .review-surface-discard {
@@ -7377,11 +7350,11 @@ body {
 
 .review-surface-empty {
   border-style: solid;
-  border-color: rgba(58, 211, 127, 0.12);
+  border-color: rgba(83, 199, 216, 0.12);
   padding: 28px;
   background:
-    radial-gradient(420px 230px at 50% 0%, rgba(58, 211, 127, 0.08), transparent 72%),
-    linear-gradient(180deg, rgba(216, 255, 235, 0.026), transparent 160px),
+    radial-gradient(420px 230px at 50% 0%, rgba(83, 199, 216, 0.08), transparent 72%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.026), transparent 160px),
     rgba(0, 0, 0, 0.16);
   place-items: center;
 }
@@ -7395,7 +7368,7 @@ body {
 
 .review-empty-lead svg {
   color: var(--accent-strong);
-  filter: drop-shadow(0 0 12px rgba(58, 211, 127, 0.24));
+  filter: drop-shadow(0 0 12px rgba(83, 199, 216, 0.24));
 }
 
 .review-surface-empty strong,
@@ -7423,7 +7396,7 @@ body {
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 12px;
-  background: rgba(216, 255, 235, 0.026);
+  background: rgba(255, 255, 255, 0.026);
   display: grid;
   justify-items: center;
   gap: 7px;
@@ -7489,8 +7462,8 @@ body {
 }
 
 .observatory-search:focus-within {
-  border-color: rgba(58, 211, 127, 0.34);
-  box-shadow: 0 0 0 3px rgba(58, 211, 127, 0.08);
+  border-color: rgba(83, 199, 216, 0.34);
+  box-shadow: 0 0 0 3px rgba(83, 199, 216, 0.08);
 }
 
 .observatory-refresh-status {
@@ -7528,7 +7501,7 @@ body {
   border: 1px solid var(--line);
   border-radius: 16px;
   background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.024), transparent 92px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.024), transparent 92px),
     color-mix(in oklab, var(--surface-raised) 74%, black 26%);
   box-shadow: var(--depth-card);
   overflow: hidden;
@@ -7542,7 +7515,7 @@ body {
 
 .observatory-projects {
   scrollbar-width: thin;
-  scrollbar-color: rgba(58, 211, 127, 0.28) transparent;
+  scrollbar-color: rgba(83, 199, 216, 0.28) transparent;
 }
 
 .observatory-projects::-webkit-scrollbar {
@@ -7556,7 +7529,7 @@ body {
 .observatory-projects::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: rgba(58, 211, 127, 0.24);
+  background: rgba(83, 199, 216, 0.24);
   background-clip: padding-box;
 }
 
@@ -7593,17 +7566,17 @@ body {
 .observatory-project:hover,
 .observatory-project:focus-visible {
   border-color: var(--line);
-  background: rgba(216, 255, 235, 0.026);
+  background: rgba(255, 255, 255, 0.026);
   outline: none;
 }
 
 .observatory-project.active {
-  border-color: rgba(58, 211, 127, 0.24);
-  background: rgba(58, 211, 127, 0.07);
+  border-color: rgba(83, 199, 216, 0.24);
+  background: rgba(83, 199, 216, 0.07);
 }
 
 .observatory-project.current:not(.active) {
-  box-shadow: inset 2px 0 0 rgba(58, 211, 127, 0.24);
+  box-shadow: inset 2px 0 0 rgba(83, 199, 216, 0.24);
 }
 
 .observatory-project-marker {
@@ -7611,15 +7584,15 @@ body {
   height: 28px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: rgba(216, 255, 235, 0.028);
+  background: rgba(255, 255, 255, 0.028);
   color: var(--text-muted);
   display: inline-grid;
   place-items: center;
 }
 
 .observatory-project.active .observatory-project-marker {
-  border-color: rgba(58, 211, 127, 0.28);
-  background: rgba(58, 211, 127, 0.09);
+  border-color: rgba(83, 199, 216, 0.28);
+  background: rgba(83, 199, 216, 0.09);
   color: var(--accent-strong);
 }
 
@@ -7652,7 +7625,7 @@ body {
   height: 24px;
   border-radius: 999px;
   padding: 0 7px;
-  background: rgba(216, 255, 235, 0.045);
+  background: rgba(255, 255, 255, 0.045);
   color: var(--text-secondary);
   display: inline-grid;
   place-items: center;
@@ -7660,7 +7633,7 @@ body {
 }
 
 .observatory-project.active .observatory-project-count {
-  background: rgba(58, 211, 127, 0.14);
+  background: rgba(83, 199, 216, 0.14);
   color: var(--accent-strong);
 }
 
@@ -7712,8 +7685,8 @@ body {
 .observatory-session-row:hover,
 .observatory-session-row:focus-visible,
 .observatory-session-row.selected {
-  border-color: rgba(58, 211, 127, 0.28);
-  background: rgba(58, 211, 127, 0.055);
+  border-color: rgba(83, 199, 216, 0.28);
+  background: rgba(83, 199, 216, 0.055);
   outline: none;
 }
 
@@ -7780,9 +7753,9 @@ body {
   border-radius: 16px;
   padding: 16px;
   background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.036), transparent 120px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.036), transparent 120px),
     var(--surface-sunken);
-  box-shadow: inset 0 1px 0 rgba(216, 255, 235, 0.035);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
 
 .observatory-detail-card.source-external-codex {
@@ -7894,7 +7867,7 @@ body {
 
 .agent-space-shell {
   background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.018), transparent 180px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 180px),
     var(--surface-canvas);
 }
 
@@ -7947,7 +7920,7 @@ body {
 .observatory-detail-card,
 .observatory-session-row {
   border-radius: 10px;
-  background-image: linear-gradient(180deg, rgba(216, 255, 235, 0.018), transparent 108px);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 108px);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
@@ -7957,7 +7930,7 @@ body {
 .agent-timeline-panel,
 .workspace-preview-panel {
   box-shadow:
-    inset 0 1px 0 rgba(216, 255, 235, 0.035),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
     0 16px 34px -30px rgba(0, 0, 0, 0.9);
 }
 
@@ -7980,7 +7953,7 @@ body {
   border-radius: 9px;
   padding: 0 10px;
   background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.03), rgba(216, 255, 235, 0.01)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
     rgba(9, 15, 13, 0.86);
   color: var(--text-secondary);
   display: inline-flex;
@@ -8015,10 +7988,10 @@ body {
   border: 1px solid var(--line);
   border-radius: 10px;
   background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.022), transparent 120px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.022), transparent 120px),
     rgba(7, 12, 10, 0.96);
   box-shadow:
-    inset 0 1px 0 rgba(216, 255, 235, 0.035),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
     0 16px 34px -28px rgba(0, 0, 0, 0.86);
 }
 
@@ -8067,7 +8040,7 @@ body {
   height: 30px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(216, 255, 235, 0.02);
+  background: rgba(255, 255, 255, 0.02);
   color: var(--text-muted);
   display: inline-grid;
   place-items: center;
@@ -8149,7 +8122,7 @@ body {
   border-radius: 8px;
   padding: 0 10px;
   background:
-    linear-gradient(180deg, rgba(216, 255, 235, 0.03), rgba(216, 255, 235, 0.01)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
     rgba(3, 8, 7, 0.86);
   color: var(--text-secondary);
   display: grid;
@@ -8300,9 +8273,9 @@ body {
   --flat-canvas: #050907;
   --flat-control: #0b1612;
   --flat-control-hover: #0f1d17;
-  --flat-selected: rgba(58, 211, 127, 0.095);
-  --flat-border: rgba(216, 255, 235, 0.09);
-  --flat-border-strong: rgba(216, 255, 235, 0.16);
+  --flat-selected: rgba(83, 199, 216, 0.095);
+  --flat-border: rgba(255, 255, 255, 0.09);
+  --flat-border-strong: rgba(255, 255, 255, 0.16);
   --flat-control-height: 34px;
   --flat-radius: 9px;
 }
@@ -8441,7 +8414,7 @@ body {
 .mission-actions .new-terminal-button {
   height: var(--flat-control-height);
   min-height: var(--flat-control-height);
-  border-color: rgba(58, 211, 127, 0.22) !important;
+  border-color: rgba(83, 199, 216, 0.22) !important;
   background: #37d884 !important;
   background-image: none !important;
   box-shadow: none !important;
@@ -8455,7 +8428,7 @@ body {
   min-height: 18px;
   border: 0;
   border-radius: 6px;
-  background: rgba(216, 255, 235, 0.065);
+  background: rgba(255, 255, 255, 0.065);
   color: var(--text-secondary);
   font-size: 10px;
 }
@@ -8676,8 +8649,8 @@ body {
   --proto-panel-muted: #0a1511;
   --proto-control: #09140f;
   --proto-control-hover: #0d1b14;
-  --proto-line: rgba(216, 255, 235, 0.085);
-  --proto-line-strong: rgba(216, 255, 235, 0.16);
+  --proto-line: rgba(255, 255, 255, 0.085);
+  --proto-line-strong: rgba(255, 255, 255, 0.16);
   --proto-radius: 8px;
   --proto-radius-lg: 10px;
 }
@@ -8741,7 +8714,7 @@ body {
 .context-drawer,
 .agent-timeline-panel {
   scrollbar-width: thin;
-  scrollbar-color: rgba(216, 255, 235, 0.18) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
 .workspace-nav-scroll::-webkit-scrollbar,
@@ -8776,7 +8749,7 @@ body {
 .context-drawer::-webkit-scrollbar-thumb,
 .agent-timeline-panel::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(216, 255, 235, 0.16);
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .workspace-nav-row,
@@ -8798,8 +8771,8 @@ body {
 
 .workspace-button.active,
 .workspace-button.active:hover {
-  border-color: rgba(58, 211, 127, 0.28);
-  background: rgba(58, 211, 127, 0.09);
+  border-color: rgba(83, 199, 216, 0.28);
+  background: rgba(83, 199, 216, 0.09);
 }
 
 .workbench-header {
@@ -8886,7 +8859,7 @@ body {
 
 .terminal-tile.selected,
 .terminal-tile:focus-within {
-  border-color: rgba(58, 211, 127, 0.34);
+  border-color: rgba(83, 199, 216, 0.34);
 }
 
 .terminal-tile-header {
@@ -9385,7 +9358,7 @@ body {
   padding: 0 22px 22px;
   gap: 8px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(216, 255, 235, 0.18) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
 .session-observatory-list::-webkit-scrollbar {
@@ -9394,7 +9367,7 @@ body {
 
 .session-observatory-list::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(216, 255, 235, 0.16);
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .session-observatory-main {
