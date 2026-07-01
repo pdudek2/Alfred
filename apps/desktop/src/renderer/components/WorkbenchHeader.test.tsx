@@ -45,4 +45,13 @@ describe("WorkbenchHeader", () => {
     expect(within(panels).getByRole("button", { name: /4 items/i })).toBeInTheDocument();
     expect(panels.querySelectorAll(".quiet-count-dot, .quiet-count-mark").length).toBeGreaterThan(0);
   });
+
+  it("keeps exact context count in the accessible label when the drawer is open", () => {
+    render(<WorkbenchHeader {...baseProps} contextOpen />);
+
+    expect(screen.getByRole("button", { name: "Close Context drawer, 3 important signals" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
 });

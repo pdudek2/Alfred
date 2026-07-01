@@ -51,9 +51,9 @@ export function WorkbenchHeader({
         ? "Decision inbox"
         : "Sessions and project memory";
   const liveLabel = `${activeSessionCount} live`;
-  const contextLabel = contextOpen
-    ? "Close Context drawer"
-    : `Open Context drawer${contextSignalCount > 0 ? `, ${contextSignalCount} important signal${contextSignalCount === 1 ? "" : "s"}` : ""}`;
+  const contextSignalLabel =
+    contextSignalCount > 0 ? `, ${contextSignalCount} important signal${contextSignalCount === 1 ? "" : "s"}` : "";
+  const contextLabel = `${contextOpen ? "Close" : "Open"} Context drawer${contextSignalLabel}`;
   const sessionsLabel = `Open session observatory, ${sessionCount} session${sessionCount === 1 ? "" : "s"}`;
   const inboxLabel = `Open Inbox surface${inboxCount > 0 ? `, ${inboxCount} item${inboxCount === 1 ? "" : "s"}` : ""}`;
 
