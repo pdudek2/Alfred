@@ -1253,9 +1253,8 @@ function ManualTerminalTile({
       >
         <div className="tile-title">
           <span className={`tool-dot ${kindMeta.className}`} />
-          <span className={`tile-kind-mark ${kindMeta.className}`} title={kindMeta.label}>
-            <TileKindIcon kind={kind} />
-            <span>{kindMeta.shortLabel}</span>
+          <span className={`tile-kind-mark ${kindMeta.className}`} title={kindMeta.label} aria-label={kindMeta.label}>
+            <TileKindIcon kind={kind} size={14} />
           </span>
           <div>
             {renaming ? (

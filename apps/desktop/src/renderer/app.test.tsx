@@ -4189,9 +4189,17 @@ describe("App integration", () => {
     render(<App />);
 
     const restored = await screen.findByRole("article", { name: /Codex · session 9/i });
+    const kindMark = restored.querySelector(".tile-kind-mark");
+    expect(kindMark).toHaveAccessibleName("Codex");
+    expect(kindMark).not.toHaveTextContent("Cx");
     await waitFor(() => {
       expect(restored).toHaveTextContent("restored");
     });
+    const resumeButton = within(restored).getByRole("button", {
+      name: "Resume latest Codex conversation Codex · session 9",
+    });
+    expect(resumeButton).toBeVisible();
+    expect(within(restored).getByTestId("xterm-host")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Review and recovery context" })).toHaveTextContent("Codex · session 9");
     expect(screen.getByLabelText("Alfred status")).not.toHaveClass("compact");
     expect(createTerminal).not.toHaveBeenCalled();
@@ -4200,7 +4208,7 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Resume latest" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Open Work surface" }));
 
-    await userEvent.click(screen.getByRole("button", { name: "Resume latest Codex conversation Codex · session 9" }));
+    await userEvent.click(resumeButton);
 
     expect(createTerminal).toHaveBeenCalledWith(
       expect.objectContaining({

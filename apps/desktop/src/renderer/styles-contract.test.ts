@@ -187,11 +187,21 @@ describe("renderer CSS contracts", () => {
 
   it("keeps terminal tile chrome secondary to the xterm body", () => {
     const header = blockFor(".terminal-tile-header");
+    const kindMark = blockFor(".tile-kind-mark");
+    const kindMarkText = blockFor(".tile-kind-mark span");
+    const primaryActions = blockFor(".tile-primary-actions");
     const utilities = blockFor(".tile-utility-actions,\n.tile-danger-actions");
+    const readyToolDot = blockFor(".terminal-tile.ready .tool-dot");
 
     expect(header).toContain("min-height");
     expect(header).not.toContain("linear-gradient");
+    expect(kindMark).toContain("width: 24px");
+    expect(kindMarkText).toContain("display: none");
+    expect(primaryActions).toContain("opacity: 1");
+    expect(primaryActions).toContain("pointer-events: auto");
     expect(utilities).toContain("opacity: 0");
+    expect(utilities).toContain("pointer-events: none");
+    expect(readyToolDot).not.toContain("var(--green)");
   });
 
   it("keeps starting session glyphs active instead of muted", () => {

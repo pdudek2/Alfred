@@ -9799,6 +9799,33 @@ body {
   font-size: 10px;
 }
 
+.tool-dot {
+  width: 5px;
+  height: 5px;
+  opacity: 0.42;
+}
+
+.terminal-tile.ready .tool-dot {
+  background: var(--faint);
+}
+
+.terminal-tile.selected .tool-dot,
+.terminal-tile.session-waiting .tool-dot,
+.terminal-tile.error .tool-dot {
+  opacity: 0.68;
+}
+
+.tile-kind-mark {
+  width: 24px;
+  min-width: 24px;
+  min-height: 22px;
+  gap: 0;
+}
+
+.tile-kind-mark span {
+  display: none;
+}
+
 .tile-actions {
   gap: 5px;
 }
@@ -9812,6 +9839,11 @@ body {
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease;
+}
+
+.tile-primary-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .terminal-tile:hover .tile-utility-actions,
@@ -9828,6 +9860,12 @@ body {
   min-width: 28px;
   min-height: 28px;
   border-radius: 7px;
+}
+
+.tile-primary-actions .continue-button {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
 }
 
 .terminal-status-label {
