@@ -78,6 +78,14 @@ describe("renderer CSS contracts", () => {
     expect(flatStyles).toContain("background-image: none !important");
   });
 
+  it("keeps header counts quiet instead of rendering badge bubbles", () => {
+    const panelGroup = blockFor(".workbench-panel-group button strong");
+    const quietDot = blockFor(".quiet-count-dot,\n.quiet-count-mark");
+
+    expect(panelGroup).toContain("display: none");
+    expect(quietDot).toContain("border-radius: 999px");
+  });
+
   it("keeps legacy gradients out of the main clean flat surfaces", () => {
     expect(flatStyles).toContain(".workspace-popover");
     expect(flatStyles).toContain("background: var(--flat-panel-2)");

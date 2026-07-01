@@ -75,7 +75,7 @@ export function WorkbenchHeader({
       </div>
       <div className="workbench-actions" role="group" aria-label="terminal actions">
         {activeSurface === "work" && (
-          <div className="workbench-tool-group" aria-label="Layout mode">
+          <div className="workbench-tool-group workbench-layout-group" role="group" aria-label="Layout mode">
             <button type="button" aria-pressed={workMode === "focus"} onClick={() => onApplyWorkMode("focus")}>
               Focus
             </button>
@@ -90,37 +90,41 @@ export function WorkbenchHeader({
             </button>
           </div>
         )}
-        <button
-          type="button"
-          className={contextOpen ? "active" : ""}
-          aria-label={contextLabel}
-          aria-expanded={contextOpen}
-          onClick={onToggleContext}
-        >
-          <Eye size={15} />
-          <span>Context</span>
-          {contextSignalCount > 0 && <strong>{contextSignalCount}</strong>}
-        </button>
-        <button type="button" aria-label={sessionsLabel} onClick={onOpenSessionObservatory}>
-          <Search size={15} />
-          <span>Sessions</span>
-          {sessionCount > 0 && <strong>{sessionCount}</strong>}
-        </button>
-        <button type="button" aria-label={inboxLabel} onClick={onOpenInbox}>
-          <ListChecks size={15} />
-          <span>Inbox</span>
-          {inboxCount > 0 && <strong>{inboxCount}</strong>}
-        </button>
-        <button type="button" aria-label="Start Codex" onClick={() => onAddAgentSession("codex")}>
-          Codex
-        </button>
-        <button type="button" aria-label="Start Claude" onClick={() => onAddAgentSession("claude")}>
-          Claude
-        </button>
-        <button type="button" className="workbench-primary-action" aria-label="New terminal" onClick={onAddManualSession}>
-          <Plus size={16} />
-          <span>New terminal</span>
-        </button>
+        <div className="workbench-tool-group workbench-panel-group" role="group" aria-label="Panels">
+          <button
+            type="button"
+            className={contextOpen ? "active" : ""}
+            aria-label={contextLabel}
+            aria-expanded={contextOpen}
+            onClick={onToggleContext}
+          >
+            <Eye size={15} />
+            <span>Context</span>
+            {contextSignalCount > 0 && <span className="quiet-count-dot" aria-hidden="true" />}
+          </button>
+          <button type="button" aria-label={sessionsLabel} onClick={onOpenSessionObservatory}>
+            <Search size={15} />
+            <span>Sessions</span>
+            {sessionCount > 0 && <span className="quiet-count-mark" aria-hidden="true" />}
+          </button>
+          <button type="button" aria-label={inboxLabel} onClick={onOpenInbox}>
+            <ListChecks size={15} />
+            <span>Inbox</span>
+            {inboxCount > 0 && <span className="quiet-count-dot attention" aria-hidden="true" />}
+          </button>
+        </div>
+        <div className="workbench-tool-group workbench-launch-group" role="group" aria-label="Launch">
+          <button type="button" aria-label="Start Codex" onClick={() => onAddAgentSession("codex")}>
+            Codex
+          </button>
+          <button type="button" aria-label="Start Claude" onClick={() => onAddAgentSession("claude")}>
+            Claude
+          </button>
+          <button type="button" className="workbench-primary-action" aria-label="New terminal" onClick={onAddManualSession}>
+            <Plus size={16} />
+            <span>New terminal</span>
+          </button>
+        </div>
       </div>
     </header>
   );
