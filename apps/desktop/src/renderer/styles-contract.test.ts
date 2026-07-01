@@ -219,6 +219,9 @@ describe("renderer CSS contracts", () => {
     const primaryAction = blockFor(".workbench-primary-action,\n.mission-actions .new-terminal-button,\n.terminal-empty-primary-action");
     const readyDispatch = blockFor(".dispatch-bar[data-state=\"ready\"] .composer-send:enabled");
     const commandActivity = blockFor(".agent-activity-object.type-command,\n.agent-activity-object.type-file");
+    const activeControlHover = blockFor(".workbench-tool-group button[aria-pressed=\"true\"]:hover,\n.workbench-tool-group button[aria-pressed=\"true\"]:focus-visible,\n.workbench-tool-group button.active:hover,\n.workbench-tool-group button.active:focus-visible,\n.context-toggle-button.active:hover,\n.context-toggle-button.active:focus-visible");
+    const codexHover = blockFor(".workbench-launch-group button[aria-label=\"Start Codex\"]:hover,\n.workbench-launch-group button[aria-label=\"Start Codex\"]:focus-visible");
+    const claudeHover = blockFor(".workbench-launch-group button[aria-label=\"Start Claude\"]:hover,\n.workbench-launch-group button[aria-label=\"Start Claude\"]:focus-visible");
 
     expect(colorRoleStyles).toContain("--role-active: var(--cyan)");
     expect(colorRoleStyles).toContain("--role-success: #63d18a");
@@ -230,6 +233,10 @@ describe("renderer CSS contracts", () => {
     expect(readyDispatch).toContain("var(--role-active)");
     expect(readyDispatch).not.toContain("var(--role-success)");
     expect(commandActivity).toContain("var(--role-active)");
+    expect(activeControlHover).toContain("var(--role-active)");
+    expect(activeControlHover).toContain("var(--accent-strong)");
+    expect(codexHover).toContain("var(--codex-blue)");
+    expect(claudeHover).toContain("var(--claude-amber)");
   });
 
   it("keeps starting session glyphs active instead of muted", () => {

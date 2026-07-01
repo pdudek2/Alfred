@@ -10080,6 +10080,29 @@ body {
   border-color: color-mix(in oklab, var(--claude-amber) 20%, var(--line));
 }
 
+.workbench-tool-group button[aria-pressed="true"]:hover,
+.workbench-tool-group button[aria-pressed="true"]:focus-visible,
+.workbench-tool-group button.active:hover,
+.workbench-tool-group button.active:focus-visible,
+.context-toggle-button.active:hover,
+.context-toggle-button.active:focus-visible {
+  border-color: color-mix(in oklab, var(--role-active) 38%, var(--line));
+  background: color-mix(in oklab, var(--role-active) 10%, var(--surface-sunken));
+  color: var(--accent-strong);
+}
+
+.workbench-launch-group button[aria-label="Start Codex"]:hover,
+.workbench-launch-group button[aria-label="Start Codex"]:focus-visible {
+  color: var(--codex-blue);
+  border-color: color-mix(in oklab, var(--codex-blue) 32%, var(--line));
+}
+
+.workbench-launch-group button[aria-label="Start Claude"]:hover,
+.workbench-launch-group button[aria-label="Start Claude"]:focus-visible {
+  color: var(--claude-amber);
+  border-color: color-mix(in oklab, var(--claude-amber) 32%, var(--line));
+}
+
 .workbench-primary-action,
 .mission-actions .new-terminal-button,
 .terminal-empty-primary-action {
