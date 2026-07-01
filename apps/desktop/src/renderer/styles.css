@@ -9799,7 +9799,7 @@ body {
   font-size: 10px;
 }
 
-.tool-dot {
+.terminal-tile.real-terminal .tool-dot {
   width: 5px;
   height: 5px;
   opacity: 0.42;
@@ -9815,14 +9815,14 @@ body {
   opacity: 0.68;
 }
 
-.tile-kind-mark {
+.terminal-tile.real-terminal .tile-kind-mark {
   width: 24px;
   min-width: 24px;
   min-height: 22px;
   gap: 0;
 }
 
-.tile-kind-mark span {
+.terminal-tile.real-terminal .tile-kind-mark span {
   display: none;
 }
 

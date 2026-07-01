@@ -983,6 +983,24 @@ describe("App integration", () => {
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeCollapse);
   });
 
+  it("keeps quiet terminal utility actions reachable by keyboard focus", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+
+    render(<App />);
+
+    const tile = await screen.findByTestId("terminal-tile");
+    const collapseButton = within(tile).getByRole("button", { name: "Collapse Manual · zsh 1" });
+
+    tile.focus();
+    expect(tile).toHaveFocus();
+
+    await user.tab();
+
+    expect(collapseButton).toHaveFocus();
+    expect(tile).toContainElement(document.activeElement as HTMLElement);
+  });
+
   it("uses a Dispatch bar with explicit workspace planning instead of a workspace chat composer", async () => {
     const user = userEvent.setup();
     const { requestPlan } = installDesktopBridge();
