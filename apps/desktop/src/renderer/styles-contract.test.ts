@@ -191,7 +191,9 @@ describe("renderer CSS contracts", () => {
     const kindMarkText = blockFor(".tile-kind-mark span");
     const primaryActions = blockFor(".tile-primary-actions");
     const utilities = blockFor(".tile-utility-actions,\n.tile-danger-actions");
-    const readyToolDot = blockFor(".terminal-tile.ready .tool-dot");
+    const readyToolDot = blockFor(".terminal-tile.real-terminal.ready .tool-dot");
+    const selectedToolDotRule = ruleForSelectorContaining(".terminal-tile.real-terminal.selected .tool-dot");
+    const terminalChromeLayer = styles.slice(styles.indexOf(".terminal-tile.real-terminal .tool-dot"));
 
     expect(header).toContain("min-height");
     expect(header).not.toContain("linear-gradient");
@@ -202,6 +204,10 @@ describe("renderer CSS contracts", () => {
     expect(utilities).toContain("opacity: 0");
     expect(utilities).toContain("pointer-events: none");
     expect(readyToolDot).not.toContain("var(--green)");
+    expect(selectedToolDotRule.selectors).toContain(".terminal-tile.real-terminal.selected .tool-dot");
+    expect(selectedToolDotRule.selectors).toContain(".terminal-tile.real-terminal.session-waiting .tool-dot");
+    expect(selectedToolDotRule.selectors).toContain(".terminal-tile.real-terminal.error .tool-dot");
+    expect(terminalChromeLayer).not.toMatch(/\.terminal-tile\.selected\s+\.tool-dot/);
   });
 
   it("keeps starting session glyphs active instead of muted", () => {

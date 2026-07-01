@@ -9897,13 +9897,13 @@ body {
   opacity: 0.42;
 }
 
-.terminal-tile.ready .tool-dot {
+.terminal-tile.real-terminal.ready .tool-dot {
   background: var(--faint);
 }
 
-.terminal-tile.selected .tool-dot,
-.terminal-tile.session-waiting .tool-dot,
-.terminal-tile.error .tool-dot {
+.terminal-tile.real-terminal.selected .tool-dot,
+.terminal-tile.real-terminal.session-waiting .tool-dot,
+.terminal-tile.real-terminal.error .tool-dot {
   opacity: 0.68;
 }
 
