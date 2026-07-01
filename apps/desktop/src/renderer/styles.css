@@ -2280,14 +2280,14 @@ body.arranging-pointer {
 .session-status-glyph.status-active { color: var(--cyan); }
 .session-status-glyph.status-waiting,
 .session-status-glyph.status-checking,
+.session-status-glyph.status-starting,
 .session-status-glyph.status-runtime { color: var(--brass); }
 .session-status-glyph.status-blocked,
 .session-status-glyph.status-error { color: var(--coral); }
 .session-status-glyph.status-restored,
 .session-status-glyph.status-done,
 .session-status-glyph.status-idle,
-.session-status-glyph.status-staged,
-.session-status-glyph.status-starting { color: var(--muted); }
+.session-status-glyph.status-staged { color: var(--muted); }
 
 .tile-age {
   min-width: 34px;

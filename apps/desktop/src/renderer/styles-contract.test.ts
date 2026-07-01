@@ -44,6 +44,19 @@ function firstBlockFor(source: string, selector: string): string {
   return source.match(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`, "m"))?.groups?.body ?? "";
 }
 
+function ruleForSelectorContaining(selector: string): { selectors: string; body: string } {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matches = [
+    ...styles.matchAll(new RegExp(`(?<selectors>[^{}]*${escapedSelector}[^{}]*)\\{(?<body>[^}]*)\\}`, "gm")),
+  ];
+  const match = matches.at(-1);
+
+  return {
+    selectors: match?.groups?.selectors ?? "",
+    body: match?.groups?.body ?? "",
+  };
+}
+
 describe("renderer CSS contracts", () => {
   it("keeps Arrange mode scrollable with room for the bottom resize handle", () => {
     const arrangeCanvas = blockFor(".terminal-stage.arranging .terminal-grid-column");
@@ -179,6 +192,19 @@ describe("renderer CSS contracts", () => {
     expect(header).toContain("min-height");
     expect(header).not.toContain("linear-gradient");
     expect(utilities).toContain("opacity: 0");
+  });
+
+  it("keeps starting session glyphs active instead of muted", () => {
+    const startingGlyphRule = ruleForSelectorContaining(".session-status-glyph.status-starting");
+    const stagedGlyphRule = ruleForSelectorContaining(".session-status-glyph.status-staged");
+
+    expect(startingGlyphRule.selectors).toContain(".session-status-glyph.status-waiting");
+    expect(startingGlyphRule.selectors).toContain(".session-status-glyph.status-checking");
+    expect(startingGlyphRule.selectors).toContain(".session-status-glyph.status-runtime");
+    expect(startingGlyphRule.body).toContain("color: var(--brass)");
+    expect(startingGlyphRule.body).not.toContain("var(--muted)");
+    expect(stagedGlyphRule.body).toContain("color: var(--muted)");
+    expect(stagedGlyphRule.selectors).not.toContain(".session-status-glyph.status-starting");
   });
 
   it("keeps overlay surfaces flat instead of glassy", () => {
