@@ -6,6 +6,7 @@ import { terminalSessionDisplayStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { shortenWorktreeLabel } from "../path-display";
+import { SessionStatusGlyph } from "./SessionStatusGlyph";
 
 export type AgentTimelinePanelProps = {
   onCopyActivityText?: (value: string) => Promise<void> | void;
@@ -219,7 +220,10 @@ export function AgentTimelinePanel({
     <aside className="agent-timeline-panel" aria-label="Agent activity">
       <header className="agent-timeline-header">
         <strong>{session.title}</strong>
-        <span className={`agent-status-pill status-${displayStatus.kind}`}>{displayStatus.label}</span>
+        <span className={`agent-status-pill status-${displayStatus.kind}`}>
+          <SessionStatusGlyph kind={displayStatus.kind} label={displayStatus.label} />
+          <span className="agent-status-text">{displayStatus.label}</span>
+        </span>
       </header>
       <div className="agent-timeline-body">
         {canEditStagedSession && !editMode && (

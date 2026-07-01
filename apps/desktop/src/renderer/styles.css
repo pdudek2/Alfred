@@ -2263,6 +2263,32 @@ body.arranging-pointer {
   border-color: color-mix(in oklab, var(--claude-amber) 32%, transparent);
 }
 
+.terminal-status-text {
+  line-height: 1;
+}
+
+.session-status-glyph {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.session-status-glyph.status-active { color: var(--cyan); }
+.session-status-glyph.status-waiting,
+.session-status-glyph.status-checking,
+.session-status-glyph.status-runtime { color: var(--brass); }
+.session-status-glyph.status-blocked,
+.session-status-glyph.status-error { color: var(--coral); }
+.session-status-glyph.status-restored,
+.session-status-glyph.status-done,
+.session-status-glyph.status-idle,
+.session-status-glyph.status-staged,
+.session-status-glyph.status-starting { color: var(--muted); }
+
 .tile-age {
   min-width: 34px;
   color: color-mix(in oklab, var(--faint) 80%, transparent);
@@ -5011,21 +5037,16 @@ body.arranging-pointer {
   color: var(--muted);
 }
 
-.agent-status-pill::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: currentColor;
-  box-shadow: 0 0 8px currentColor;
+.agent-status-pill .agent-status-text {
+  color: inherit;
 }
 
 .agent-status-pill.status-active { color: var(--cyan); }
 .agent-status-pill.status-waiting,
-.agent-status-pill.status-blocked { color: var(--brass); }
-.agent-status-pill.status-error { color: var(--coral); }
 .agent-status-pill.status-checking,
-.agent-status-pill.status-runtime { color: var(--cyan); }
+.agent-status-pill.status-runtime { color: var(--brass); }
+.agent-status-pill.status-blocked,
+.agent-status-pill.status-error { color: var(--coral); }
 
 .agent-timeline-body {
   flex: 1 1 auto;

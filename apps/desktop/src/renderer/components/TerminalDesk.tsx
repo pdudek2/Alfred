@@ -27,6 +27,7 @@ import { sessionRelaunchSafety } from "../relaunch-safety";
 import { restoredSessionActionLabel, restoredSessionActionTitle } from "../restored-session-action";
 import { normalizeSessionTitle } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
+import { SessionStatusGlyph } from "./SessionStatusGlyph";
 
 const ARRANGE_GRID_ROW_HEIGHT = 84;
 const MIN_TERMINAL_FIT_HEIGHT = 48;
@@ -797,7 +798,6 @@ function ManualTerminalTile({
   const statusSession = {
     ...(runtimeStatus === undefined ? {} : { runtimeStatus }),
   } satisfies Pick<SessionTile, "runtimeStatus">;
-  const statusKind = terminalStatusKind(statusSession, tileStatus);
   const statusLabel = terminalStatusLabel(statusSession, tileStatus);
   const restartable = displayStatus.kind === "done" || displayStatus.kind === "error";
   const discardableSession = displayStatus.kind === "restored" || restartable;
@@ -1323,8 +1323,8 @@ function ManualTerminalTile({
               </span>
             )}
             <span className={`terminal-status-label tone-${kindMeta.className}`} aria-label={`status ${statusLabel}`}>
-              <span aria-hidden="true">{statusKind === "error" ? "!" : statusKind === "restored" ? "↻" : "✓"}</span>
-              {statusLabel}
+              <SessionStatusGlyph kind={displayStatus.kind} label={statusLabel} />
+              <span className="terminal-status-text">{statusLabel}</span>
             </span>
           </div>
           {(tileStatus === "restored" || restartable) && (
