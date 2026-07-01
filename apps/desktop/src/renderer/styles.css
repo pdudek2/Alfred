@@ -5056,6 +5056,60 @@ body.arranging-pointer {
   scrollbar-color: color-mix(in oklab, white 12%, transparent) transparent;
 }
 
+.agent-context-zone {
+  display: grid;
+  gap: 10px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.agent-context-zone:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.agent-context-zone > .agent-panel-section,
+.agent-context-zone > .agent-staged-editor,
+.agent-context-zone > .agent-staged-edit-form {
+  margin: 0;
+}
+
+.agent-context-zone-heading {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.agent-context-zone-heading span,
+.agent-context-zone-heading strong {
+  display: block;
+  min-width: 0;
+}
+
+.agent-context-zone-heading span {
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+
+.agent-context-zone-heading strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.agent-context-identity .agent-session-summary {
+  background: var(--surface-raised);
+  border-color: var(--line-strong);
+}
+
+.agent-context-more {
+  color: var(--muted);
+}
+
 .agent-timeline-empty {
   color: var(--muted);
   font-size: 12px;
@@ -5849,7 +5903,7 @@ body {
   padding: 16px;
 }
 
-/* Key signal keeps a quiet active edge — it answers "what happened". */
+/* Latest signal keeps a quiet active edge — it answers "what happened". */
 .agent-panel-section.agent-key-signal {
   border-top: 1px solid var(--line-strong);
 }
@@ -6523,6 +6577,39 @@ body {
   padding: 12px 14px 14px;
 }
 
+.agent-timeline-body .agent-context-zone {
+  gap: 9px;
+  padding: 13px 0;
+  border-top-color: var(--line);
+}
+
+.agent-timeline-body .agent-context-zone:first-child {
+  padding-top: 0;
+}
+
+.agent-timeline-body .agent-context-zone > .agent-panel-section,
+.agent-timeline-body .agent-context-zone > .agent-staged-editor,
+.agent-timeline-body .agent-context-zone > .agent-staged-edit-form {
+  margin-bottom: 0;
+}
+
+.agent-context-zone-heading span {
+  color: color-mix(in oklab, var(--text-muted) 82%, transparent);
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.agent-context-zone-heading strong {
+  color: var(--text-primary);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
 .agent-timeline-body .agent-panel-section {
   margin-bottom: 10px;
   padding: 12px 2px;
@@ -6537,6 +6624,11 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
     0 14px 30px -26px rgba(0, 0, 0, 0.78);
   padding: 13px;
+}
+
+.agent-timeline-body .agent-context-identity .agent-session-summary {
+  background: var(--surface-raised);
+  border-color: var(--line-strong);
 }
 
 .agent-session-summary .agent-section-heading {
@@ -6568,7 +6660,7 @@ body {
 }
 
 .agent-panel-section.agent-key-signal {
-  border-top-color: rgba(120, 210, 160, 0.12);
+  border-top-color: var(--line-strong);
 }
 
 .agent-timeline-section .agent-section-heading {
