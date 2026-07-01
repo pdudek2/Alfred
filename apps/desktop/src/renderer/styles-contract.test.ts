@@ -32,6 +32,8 @@ const materialStylesStart = styles.indexOf("ALFRED CLEAN MATERIAL v7");
 const materialStyles = materialStylesStart >= 0 ? styles.slice(materialStylesStart) : "";
 const readabilityStylesStart = styles.indexOf("ALFRED CLEAN READABILITY v8");
 const readabilityStyles = readabilityStylesStart >= 0 ? styles.slice(readabilityStylesStart) : "";
+const colorRoleStylesStart = styles.indexOf("ALFRED TERMINAL-FIRST COLOR ROLES v9");
+const colorRoleStyles = colorRoleStylesStart >= 0 ? styles.slice(colorRoleStylesStart) : "";
 
 function blockFor(selector: string): string {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -208,6 +210,26 @@ describe("renderer CSS contracts", () => {
     expect(selectedToolDotRule.selectors).toContain(".terminal-tile.real-terminal.session-waiting .tool-dot");
     expect(selectedToolDotRule.selectors).toContain(".terminal-tile.real-terminal.error .tool-dot");
     expect(terminalChromeLayer).not.toMatch(/\.terminal-tile\.selected\s+\.tool-dot/);
+  });
+
+  it("keeps terminal-first color roles explicit and non-generic", () => {
+    const manualDot = blockFor(".terminal-tile.real-terminal .tool-dot.manual,\n.terminal-tile.real-terminal .tool-dot.shell,\n.focus-session-strip .tool-dot.manual,\n.focus-session-strip .tool-dot.shell");
+    const codexDot = blockFor(".terminal-tile.real-terminal .tool-dot.codex,\n.focus-session-strip .tool-dot.codex");
+    const claudeDot = blockFor(".terminal-tile.real-terminal .tool-dot.claude,\n.focus-session-strip .tool-dot.claude");
+    const primaryAction = blockFor(".workbench-primary-action,\n.mission-actions .new-terminal-button,\n.terminal-empty-primary-action");
+    const readyDispatch = blockFor(".dispatch-bar[data-state=\"ready\"] .composer-send:enabled");
+    const commandActivity = blockFor(".agent-activity-object.type-command,\n.agent-activity-object.type-file");
+
+    expect(colorRoleStyles).toContain("--role-active: var(--cyan)");
+    expect(colorRoleStyles).toContain("--role-success: #63d18a");
+    expect(manualDot).toContain("var(--role-neutral-marker)");
+    expect(manualDot).not.toContain("var(--green)");
+    expect(codexDot).toContain("var(--codex-blue)");
+    expect(claudeDot).toContain("var(--claude-amber)");
+    expect(primaryAction).toContain("background-image: none !important");
+    expect(readyDispatch).toContain("var(--role-active)");
+    expect(readyDispatch).not.toContain("var(--role-success)");
+    expect(commandActivity).toContain("var(--role-active)");
   });
 
   it("keeps starting session glyphs active instead of muted", () => {

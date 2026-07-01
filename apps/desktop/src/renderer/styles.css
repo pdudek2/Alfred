@@ -10023,3 +10023,144 @@ body {
   height: 10px;
   border-radius: 3px;
 }
+
+/* ============================================================
+   ALFRED TERMINAL-FIRST COLOR ROLES v9
+   Final restraint layer: graphite controls, cyan active targets,
+   amber attention, green only for creation/success.
+   ============================================================ */
+
+:root,
+.agent-space-shell {
+  --role-active: var(--cyan);
+  --role-attention: var(--brass);
+  --role-success: #63d18a;
+  --role-neutral-marker: #8d98a5;
+  --role-control: color-mix(in oklab, var(--surface-raised) 76%, black 24%);
+  --role-control-hover: color-mix(in oklab, var(--surface-raised) 88%, black 12%);
+}
+
+.workbench-tool-group,
+.workbench-actions button,
+.context-toggle-button {
+  background: var(--role-control);
+  background-image: none;
+  border-color: var(--line);
+  color: var(--text-secondary);
+  box-shadow: none;
+}
+
+.workbench-tool-group button[aria-pressed="true"],
+.workbench-tool-group button.active,
+.context-toggle-button.active {
+  border-color: color-mix(in oklab, var(--role-active) 34%, var(--line));
+  background: color-mix(in oklab, var(--role-active) 8%, var(--surface-sunken));
+  color: var(--accent-strong);
+}
+
+.workbench-tool-group button:hover,
+.workbench-tool-group button:focus-visible,
+.workbench-actions button:hover,
+.workbench-actions button:focus-visible,
+.context-toggle-button:hover,
+.context-toggle-button:focus-visible {
+  border-color: color-mix(in oklab, var(--role-active) 24%, var(--line));
+  background: var(--role-control-hover);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+.workbench-launch-group button[aria-label="Start Codex"] {
+  color: var(--codex-blue);
+  border-color: color-mix(in oklab, var(--codex-blue) 20%, var(--line));
+}
+
+.workbench-launch-group button[aria-label="Start Claude"] {
+  color: var(--claude-amber);
+  border-color: color-mix(in oklab, var(--claude-amber) 20%, var(--line));
+}
+
+.workbench-primary-action,
+.mission-actions .new-terminal-button,
+.terminal-empty-primary-action {
+  background: color-mix(in oklab, var(--role-success) 22%, var(--surface-raised));
+  background-image: none !important;
+  border-color: color-mix(in oklab, var(--role-success) 40%, var(--line));
+  color: color-mix(in oklab, var(--role-success) 82%, white 12%);
+  box-shadow: none;
+}
+
+.workbench-primary-action:hover,
+.workbench-primary-action:focus-visible,
+.mission-actions .new-terminal-button:hover,
+.mission-actions .new-terminal-button:focus-visible,
+.terminal-empty-primary-action:hover,
+.terminal-empty-primary-action:focus-visible {
+  background: color-mix(in oklab, var(--role-success) 28%, var(--surface-raised));
+  border-color: color-mix(in oklab, var(--role-success) 50%, var(--line));
+  color: color-mix(in oklab, var(--role-success) 90%, white 10%);
+  box-shadow: none;
+}
+
+.terminal-tile.real-terminal .tool-dot.manual,
+.terminal-tile.real-terminal .tool-dot.shell,
+.focus-session-strip .tool-dot.manual,
+.focus-session-strip .tool-dot.shell {
+  background: var(--role-neutral-marker);
+}
+
+.terminal-tile.real-terminal .tool-dot.codex,
+.focus-session-strip .tool-dot.codex {
+  background: var(--codex-blue);
+}
+
+.terminal-tile.real-terminal .tool-dot.claude,
+.focus-session-strip .tool-dot.claude {
+  background: var(--claude-amber);
+}
+
+.terminal-tile.real-terminal .tool-dot.dev-server,
+.focus-session-strip .tool-dot.dev-server {
+  background: var(--role-attention);
+}
+
+.terminal-status-label.tone-manual,
+.terminal-status-label.tone-shell {
+  border-color: var(--line);
+  color: var(--text-muted);
+}
+
+.terminal-status-label.tone-codex {
+  border-color: color-mix(in oklab, var(--codex-blue) 28%, transparent);
+  color: var(--codex-blue);
+}
+
+.terminal-status-label.tone-claude {
+  border-color: color-mix(in oklab, var(--claude-amber) 28%, transparent);
+  color: var(--claude-amber);
+}
+
+.agent-activity-object.type-command,
+.agent-activity-object.type-file {
+  color: var(--role-active);
+}
+
+.dispatch-bar .composer-send {
+  background: var(--role-control);
+  background-image: none;
+  border-color: var(--line);
+  color: var(--text-secondary);
+  box-shadow: none;
+}
+
+.dispatch-bar[data-state="ready"] .composer-send:enabled {
+  background: color-mix(in oklab, var(--role-active) 14%, var(--surface-raised));
+  border-color: color-mix(in oklab, var(--role-active) 36%, var(--line));
+  color: var(--accent-strong);
+}
+
+.dispatch-bar[data-state="busy"] .composer-send:enabled {
+  background: color-mix(in oklab, var(--role-attention) 14%, var(--surface-raised));
+  border-color: color-mix(in oklab, var(--role-attention) 36%, var(--line));
+  color: color-mix(in oklab, var(--role-attention) 86%, white 8%);
+}
