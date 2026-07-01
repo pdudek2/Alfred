@@ -778,6 +778,21 @@ describe("App integration", () => {
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeSurfaceSwitch);
   });
 
+  it("keeps terminal hosts mounted while terminal chrome changes surfaces", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+    render(<App />);
+
+    const firstHost = await screen.findByTestId("xterm-host");
+    const primaryNav = screen.getByTestId("primary-nav-rail");
+
+    await user.click(within(primaryNav).getByRole("button", { name: /open inbox surface/i }));
+    await user.click(screen.getByRole("button", { name: /open session observatory/i }));
+    await user.click(within(primaryNav).getByRole("button", { name: /open work surface/i }));
+
+    expect(screen.getByTestId("xterm-host")).toBe(firstHost);
+  });
+
   it("uses the icon rail as the primary Work Inbox History navigation", async () => {
     installDesktopBridge();
     render(<App />);

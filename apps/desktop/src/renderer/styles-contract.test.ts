@@ -164,6 +164,15 @@ describe("renderer CSS contracts", () => {
     expect(resizeHandle).toContain("background-image: none");
   });
 
+  it("keeps terminal tile chrome secondary to the xterm body", () => {
+    const header = blockFor(".terminal-tile-header");
+    const utilities = blockFor(".tile-utility-actions,\n.tile-danger-actions");
+
+    expect(header).toContain("min-height");
+    expect(header).not.toContain("linear-gradient");
+    expect(utilities).toContain("opacity: 0");
+  });
+
   it("keeps overlay surfaces flat instead of glassy", () => {
     const overlayBackdrop = blockFor(".review-queue-backdrop,\n.command-palette-backdrop,\n.session-observatory-backdrop");
 
