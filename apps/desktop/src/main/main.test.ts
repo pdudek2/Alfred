@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => {
     getAppPath: vi.fn(() => "/Users/patryk/Desktop/Alfred/apps/desktop"),
     getPath: vi.fn(() => "/tmp/alfred-user-data"),
     on: vi.fn(),
+    requestSingleInstanceLock: vi.fn(() => true),
+    exit: vi.fn(),
     quit: vi.fn(),
     whenReady: vi.fn(() => new Promise<void>(() => {})),
   };
@@ -24,10 +26,13 @@ const mocks = vi.hoisted(() => {
     attachWindowStatePersistence: vi.fn(() => ({ flush: vi.fn(async () => {}) })),
     BrowserWindow: Object.assign(
       vi.fn(() => ({
+        focus: vi.fn(),
+        isMinimized: vi.fn(() => false),
         loadFile: vi.fn(async () => {}),
         loadURL: vi.fn(async () => {}),
         on: vi.fn(),
         once: vi.fn(),
+        restore: vi.fn(),
         show: vi.fn(),
         webContents: { openDevTools: vi.fn() },
       })),
@@ -171,6 +176,37 @@ describe("main quit persistence", () => {
     } finally {
       consoleError.mockRestore();
     }
+  });
+
+  it("exits immediately when another Alfred instance owns the desktop profile", async () => {
+    mocks.app.requestSingleInstanceLock.mockReturnValueOnce(false);
+
+    await import("./main.js");
+
+    expect(mocks.app.exit).toHaveBeenCalledWith(0);
+    expect(mocks.registerAlfredIpc).not.toHaveBeenCalled();
+    expect(mocks.registerLayoutIpc).not.toHaveBeenCalled();
+    expect(mocks.app.whenReady).not.toHaveBeenCalled();
+  });
+
+  it("focuses the existing window on second instance", async () => {
+    const existingWindow = {
+      isMinimized: vi.fn(() => true),
+      restore: vi.fn(),
+      focus: vi.fn(),
+    };
+    mocks.BrowserWindow.getAllWindows.mockReturnValueOnce([
+      existingWindow as unknown as InstanceType<typeof mocks.BrowserWindow>,
+    ]);
+
+    await import("./main.js");
+    const handler = mocks.appEventHandlers.get("second-instance");
+    expect(handler).toBeDefined();
+
+    handler?.();
+
+    expect(existingWindow.restore).toHaveBeenCalledTimes(1);
+    expect(existingWindow.focus).toHaveBeenCalledTimes(1);
   });
 });
 
