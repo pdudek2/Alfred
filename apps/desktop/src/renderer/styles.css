@@ -1414,40 +1414,6 @@ button:focus-visible {
   gap: 6px;
 }
 
-.work-mode-control {
-  min-height: 32px;
-  border: 1px solid rgba(188, 202, 218, 0.12);
-  border-radius: 7px;
-  padding: 2px;
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.045), rgba(238, 243, 247, 0.018));
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.work-mode-control button {
-  min-height: 26px;
-  border-color: transparent;
-  border-radius: 6px;
-  padding: 0 8px;
-  background: transparent;
-  color: var(--faint);
-}
-
-.work-mode-control button:hover,
-.work-mode-control button:focus-visible {
-  color: var(--ink-soft);
-}
-
-.work-mode-control button.active,
-.work-mode-control button[aria-pressed="true"] {
-  border-color: color-mix(in oklab, var(--accent) 28%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--accent) 13%, transparent), color-mix(in oklab, var(--accent) 4.5%, transparent));
-  color: #cff3f6;
-}
-
 .arrange-hint {
   min-height: 26px;
   border: 1px solid color-mix(in oklab, var(--accent) 14%, transparent);
@@ -1459,25 +1425,6 @@ button:focus-visible {
   align-items: center;
   font-family: var(--mono);
   font-size: 11px;
-}
-
-.layout-controls button {
-  min-height: 26px;
-  border: 1px solid rgba(188, 202, 218, 0.13);
-  border-radius: 6px;
-  padding: 0 8px;
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.055), rgba(238, 243, 247, 0.022));
-  color: var(--ink-soft);
-  font-family: var(--mono);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.layout-controls button:hover,
-.layout-controls button:focus-visible {
-  border-color: color-mix(in oklab, var(--accent) 34%, transparent);
-  color: #cff3f6;
 }
 
 .terminal-stage-header kbd {
@@ -1942,9 +1889,12 @@ body.arranging-pointer {
 }
 
 .terminal-tile-header {
-  min-height: 42px;
-  padding: 7px 8px;
+  min-height: 36px;
+  padding: 5px 7px;
   border-bottom: 1px solid var(--line);
+  background: var(--proto-panel-soft);
+  background-image: none;
+  box-shadow: none;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -6004,37 +5954,6 @@ body {
   opacity: 0.72;
 }
 
-/* --- Desk: segmented work-mode control, cyan active --- */
-.work-mode-control {
-  background: var(--surface-sunken);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 3px;
-}
-
-.work-mode-control button {
-  background: transparent;
-  border: 0;
-  color: var(--text-muted);
-  border-radius: 7px;
-}
-
-.work-mode-control button:hover,
-.work-mode-control button:focus-visible {
-  color: var(--text-primary);
-}
-
-.work-mode-control button.active,
-.work-mode-control button[aria-pressed="true"] {
-  background:
-    linear-gradient(180deg, rgba(83, 199, 216, 0.16), rgba(83, 199, 216, 0.05)),
-    var(--surface-raised);
-  color: var(--accent-strong);
-  box-shadow:
-    0 0 0 1px rgba(83, 199, 216, 0.22),
-    0 6px 14px -10px var(--accent-halo);
-}
-
 /* --- Recovery: one quiet line, not a competing panel --- */
 .recovery-workspace-strip {
   background: transparent;
@@ -8454,8 +8373,6 @@ body {
 
 .workbench-actions button,
 .context-toggle-button,
-.layout-controls button,
-.work-mode-control button,
 .agent-handoff-buttons button,
 .workspace-preview-actions button,
 .review-surface-primary,
@@ -8490,12 +8407,6 @@ body {
 .context-toggle-button:hover,
 .context-toggle-button:focus-visible,
 .context-toggle-button.active,
-.layout-controls button:hover,
-.layout-controls button:focus-visible,
-.work-mode-control button:hover,
-.work-mode-control button:focus-visible,
-.work-mode-control button.active,
-.work-mode-control button[aria-pressed="true"],
 .agent-handoff-buttons button:hover,
 .agent-handoff-buttons button:focus-visible,
 .workspace-preview-actions button:hover,
@@ -8507,9 +8418,7 @@ body {
 }
 
 .workbench-actions button[aria-pressed="true"],
-.workbench-actions button.active,
-.work-mode-control button.active,
-.work-mode-control button[aria-pressed="true"] {
+.workbench-actions button.active {
   background: var(--flat-selected);
   color: var(--text-primary);
 }
@@ -8627,7 +8536,6 @@ body {
 }
 
 .terminal-stage-header,
-.terminal-tile-header,
 .context-drawer-header {
   background: var(--flat-panel-2);
   background-image: none;
@@ -8913,8 +8821,6 @@ body {
 
 .workbench-actions button,
 .context-toggle-button,
-.layout-controls button,
-.work-mode-control button,
 .agent-handoff-buttons button,
 .workspace-preview-actions button,
 .review-surface-primary,
@@ -8964,12 +8870,6 @@ body {
 .terminal-tile.selected,
 .terminal-tile:focus-within {
   border-color: rgba(83, 199, 216, 0.34);
-}
-
-.terminal-tile-header {
-  min-height: 39px;
-  padding: 5px 8px;
-  background: var(--proto-panel-soft);
 }
 
 .terminal-tile .terminal-host,
@@ -9306,7 +9206,6 @@ body {
 
 .workspace-nav-row,
 .terminal-tile,
-.terminal-tile-header,
 .terminal-status-label,
 .tile-actions button,
 .recovery-banner {
@@ -9713,9 +9612,7 @@ body {
 
 .workbench-tool-group,
 .workbench-actions button,
-.context-toggle-button,
-.layout-controls button,
-.work-mode-control button {
+.context-toggle-button {
   height: 30px;
   min-height: 30px;
 }
@@ -9738,9 +9635,7 @@ body {
 }
 
 .workbench-actions button,
-.context-toggle-button,
-.layout-controls button,
-.work-mode-control button {
+.context-toggle-button {
   padding: 0 9px;
   font-size: 12px;
 }
@@ -9812,11 +9707,6 @@ body {
   background: transparent;
   color: var(--text-muted);
   font: 600 10px/24px var(--mono);
-}
-
-.terminal-tile-header {
-  min-height: 36px;
-  padding: 5px 7px;
 }
 
 .terminal-tile-header .tile-title {

@@ -170,7 +170,7 @@ describe("renderer CSS contracts", () => {
     expect(polishStyles).toContain("backdrop-filter: none");
     expect(polishStyles).toContain(".session-observatory-panel");
     expect(polishStyles).toContain("background-image: none");
-    expect(polishStyles).toContain(".session-observatory-stat");
+    expect(polishStyles).toContain(".session-observatory-empty");
     expect(polishStyles).toContain(".session-observatory-main");
   });
 
@@ -300,5 +300,7 @@ describe("renderer CSS contracts", () => {
     expect(tileUtilities).toContain("pointer-events: none");
     expect(dispatchBar).toContain("grid-template-rows: 32px 14px");
     expect(dispatchChip).toContain("background-image: none");
+    expect(styles).not.toContain(".work-mode-control");
+    expect(styles).not.toContain(".layout-controls button");
   });
 });
