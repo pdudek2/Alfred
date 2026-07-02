@@ -14,6 +14,7 @@ import {
 } from "./terminal-manager.js";
 import { terminalChannels } from "../shared/terminal-ipc.js";
 import type { TerminalCreateRequest, TerminalListResult } from "../shared/terminal-ipc.js";
+import type { TerminalSnapshotResult } from "../shared/terminal-ipc.js";
 import type { AgentWorktreeCleanupRequest } from "./git-worktree.js";
 import { DEFAULT_DESKTOP_STATE, type DesktopStateSnapshot, type PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 
@@ -1685,6 +1686,53 @@ describe("terminal-manager IPC", () => {
     expect(pty.resized).toEqual([{ cols: 100, rows: 32 }]);
     expect(pty.killed).toBe(true);
     expect(getTerminalSessionCount()).toBe(0);
+  });
+
+  it("returns a fresh owned terminal snapshot for renderer reattach", async () => {
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+
+    const created = await invoke<{ id: string }>(terminalChannels.create, {
+      clientId: "manual-snapshot",
+      cwd: "/repo",
+      cols: 80,
+      rows: 24,
+      command: "zsh",
+    });
+
+    pty.onDataHandler?.("fresh output after unmount\n");
+
+    const snapshot = await invoke<TerminalSnapshotResult>(terminalChannels.snapshot, { id: created.id });
+
+    expect(snapshot?.id).toBe(created.id);
+    expect(snapshot?.buffer).toBe("fresh output after unmount\n");
+    expect(snapshot?.clientId).toBe("manual-snapshot");
+  });
+
+  it("does not return snapshots to a window that does not own the terminal", async () => {
+    const ownerWindow = fakeWindow(1);
+    const otherWindow = fakeWindow(999);
+    liveWindows = [ownerWindow, otherWindow];
+    const ownerSender = senderFor(ownerWindow);
+    const otherSender = senderFor(otherWindow);
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+
+    const created = await invoke<{ id: string }>(
+      terminalChannels.create,
+      {
+        clientId: "manual-owned",
+        cwd: "/repo",
+        cols: 80,
+        rows: 24,
+        command: "zsh",
+      },
+      ownerSender,
+    );
+
+    const snapshot = await invoke<TerminalSnapshotResult>(terminalChannels.snapshot, { id: created.id }, otherSender);
+
+    expect(snapshot).toBeNull();
   });
 
   it("rejects terminal operations from a different live window", async () => {
