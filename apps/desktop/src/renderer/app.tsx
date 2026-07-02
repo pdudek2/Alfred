@@ -1242,6 +1242,22 @@ export function App() {
     );
   }, []);
 
+  const handleRuntimeSessionReplayBuffer = useCallback(
+    (sessionId: string, runtimeId: TerminalCreateResult["id"], buffer: string) => {
+      setTerminalSessions((sessions) =>
+        sessions.map((session) =>
+          session.id === sessionId || session.runtimeId === runtimeId
+            ? {
+                ...session,
+                initialBuffer: buffer,
+              }
+            : session,
+        ),
+      );
+    },
+    [],
+  );
+
   const handleSubmitPrompt = useCallback(async (dispatchTarget: DispatchTargetSnapshot): Promise<boolean> => {
     const prompt = composerValue.trim();
     if (!prompt) return false;
@@ -2001,6 +2017,7 @@ export function App() {
                 onRuntimeSessionFailed={handleRuntimeSessionFailed}
                 onRuntimeSessionExited={handleRuntimeSessionExited}
                 onRuntimeSessionOutput={handleRuntimeSessionOutput}
+                onRuntimeSessionReplayBuffer={handleRuntimeSessionReplayBuffer}
                 onRuntimeSessionSnapshot={handleRuntimeSessionSnapshot}
                 onRuntimeSessionReady={handleRuntimeSessionReady}
                 onRuntimeSessionStarting={handleRuntimeSessionStarting}
@@ -2933,6 +2950,28 @@ function maxDefinedTimestamp(...values: Array<number | undefined>): number | und
   return definedValues.length > 0 ? Math.max(...definedValues) : undefined;
 }
 
+function mergeSessionInitialBuffer(
+  currentBuffer: string | undefined,
+  incomingBuffer: string | undefined,
+): string | undefined {
+  if (currentBuffer === undefined) return incomingBuffer;
+  if (incomingBuffer === undefined) return currentBuffer;
+  if (currentBuffer === incomingBuffer) return incomingBuffer;
+  if (incomingBuffer.includes(currentBuffer)) return incomingBuffer;
+  if (currentBuffer.includes(incomingBuffer)) return currentBuffer;
+  if (incomingBuffer.endsWith(currentBuffer)) return incomingBuffer;
+  if (currentBuffer.endsWith(incomingBuffer)) return currentBuffer;
+
+  const maxOverlap = Math.min(currentBuffer.length, incomingBuffer.length);
+  for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
+    if (currentBuffer.endsWith(incomingBuffer.slice(0, overlap))) {
+      return `${currentBuffer}${incomingBuffer.slice(overlap)}`;
+    }
+  }
+
+  return incomingBuffer.length >= currentBuffer.length ? incomingBuffer : currentBuffer;
+}
+
 function workspaceRootPath(state: WorkspaceStateSnapshot | null, workspaceId: string): string {
   return state?.workspaces.find((workspace) => workspace.id === workspaceId)?.rootPath ?? "";
 }
@@ -3057,7 +3096,27 @@ function workspaceDetail(workspace: Workspace): string {
 function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[]): SessionTile[] {
   const liveById = new Map(liveSessions.map((session) => [session.id, session]));
   const existingIds = new Set(sessions.map((session) => session.id));
-  const merged = sessions.map((session) => liveById.get(session.id) ?? session);
+  const merged = sessions.map((session) => {
+    const liveSession = liveById.get(session.id);
+    if (!liveSession) return session;
+
+    const mergedInitialBuffer = mergeSessionInitialBuffer(session.initialBuffer, liveSession.initialBuffer);
+    const mergedActivityEvents = mergeSnapshotActivityEvents(session.activityEvents, liveSession.activityEvents);
+    const mergedLastActivityAt = maxDefinedTimestamp(
+      session.lastActivityAt,
+      liveSession.lastActivityAt,
+      mergedActivityEvents?.at(-1)?.at,
+    );
+    const mergedLastOutputAt = maxDefinedTimestamp(session.lastOutputAt, liveSession.lastOutputAt);
+
+    return {
+      ...liveSession,
+      ...(mergedInitialBuffer === undefined ? {} : { initialBuffer: mergedInitialBuffer }),
+      ...(mergedActivityEvents === undefined ? {} : { activityEvents: mergedActivityEvents }),
+      ...(mergedLastActivityAt === undefined ? {} : { lastActivityAt: mergedLastActivityAt }),
+      ...(mergedLastOutputAt === undefined ? {} : { lastOutputAt: mergedLastOutputAt }),
+    };
+  });
   const additions = liveSessions.filter((session) => !existingIds.has(session.id));
 
   return [...merged, ...additions];

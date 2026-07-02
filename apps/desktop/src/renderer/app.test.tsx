@@ -442,6 +442,7 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     onRuntimeSessionFailed: vi.fn(),
     onRuntimeSessionExited: vi.fn(),
     onRuntimeSessionOutput: vi.fn(),
+    onRuntimeSessionReplayBuffer: vi.fn(),
     onRuntimeSessionSnapshot: vi.fn(),
     onRuntimeSessionReady: vi.fn(),
     onRuntimeSessionStarting: vi.fn(() => true),
@@ -1401,6 +1402,164 @@ describe("App integration", () => {
     expect(within(reattachedTile).getByText("Ran command")).toBeInTheDocument();
     expect(within(reattachedTile).getByText("ran pnpm test")).toBeInTheDocument();
     expect(within(reattachedTile).queryByText("Warning reported")).not.toBeInTheDocument();
+  });
+
+  it("replays fresh main-process buffer after null snapshot fallback on a second reattach", async () => {
+    const user = userEvent.setup();
+    const alfredSession = liveSnapshot("alfred", {
+      id: "runtime-alfred",
+      workspaceId: "A",
+      buffer: "before switch\n",
+    });
+    const clientSession = liveSnapshot("client", {
+      id: "runtime-client",
+      workspaceId: "CLIENT",
+      cwd: "/Users/patryk/Desktop/ClientApp",
+    });
+    const { emitData, snapshotTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [alfredSession, clientSession],
+      undefined,
+      { layoutsByWorkspace: {}, viewStateByWorkspace: {} },
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+    expect(await screen.findByRole("article", { name: /Codex · alfred/i })).toHaveTextContent("before switch");
+
+    const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
+    let delayAlfredReattachSnapshot = true;
+    snapshotTerminal.mockImplementation(async (request: { id: string }) => {
+      if (request.id === "runtime-alfred" && delayAlfredReattachSnapshot) {
+        delayAlfredReattachSnapshot = false;
+        return delayedSnapshot.promise;
+      }
+
+      return request.id === "runtime-alfred"
+        ? null
+        : [alfredSession, clientSession].find((session) => session.id === request.id) ?? null;
+    });
+
+    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
+    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
+
+    await waitFor(() => {
+      expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
+    });
+
+    act(() => {
+      emitData({ id: "runtime-alfred", data: "ran pnpm test\n" });
+    });
+
+    await act(async () => {
+      delayedSnapshot.resolve(null);
+      await delayedSnapshot.promise;
+    });
+
+    const firstReattachTile = await screen.findByRole("article", { name: /Codex · alfred/i });
+    await waitFor(() => {
+      const hostText = within(firstReattachTile).getByTestId("xterm-host").textContent ?? "";
+      expect(hostText).toContain("before switch\nran pnpm test\n");
+      expect(hostText.match(/ran pnpm test/g)).toHaveLength(1);
+    });
+
+    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
+    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
+
+    const secondReattachTile = await screen.findByRole("article", { name: /Codex · alfred/i });
+    await waitFor(() => {
+      const hostText = within(secondReattachTile).getByTestId("xterm-host").textContent ?? "";
+      expect(hostText).toContain("before switch\nran pnpm test\n");
+      expect(hostText.match(/ran pnpm test/g)).toHaveLength(1);
+    });
+  });
+
+  it("replays fresh main-process buffer after rejected snapshot fallback on a second reattach", async () => {
+    const user = userEvent.setup();
+    const alfredSession = liveSnapshot("alfred", {
+      id: "runtime-alfred",
+      workspaceId: "A",
+      buffer: "before switch\n",
+    });
+    const clientSession = liveSnapshot("client", {
+      id: "runtime-client",
+      workspaceId: "CLIENT",
+      cwd: "/Users/patryk/Desktop/ClientApp",
+    });
+    const { emitData, snapshotTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [alfredSession, clientSession],
+      undefined,
+      { layoutsByWorkspace: {}, viewStateByWorkspace: {} },
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+    expect(await screen.findByRole("article", { name: /Codex · alfred/i })).toHaveTextContent("before switch");
+
+    const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
+    let delayAlfredReattachSnapshot = true;
+    snapshotTerminal.mockImplementation(async (request: { id: string }) => {
+      if (request.id === "runtime-alfred" && delayAlfredReattachSnapshot) {
+        delayAlfredReattachSnapshot = false;
+        return delayedSnapshot.promise;
+      }
+
+      return request.id === "runtime-alfred"
+        ? null
+        : [alfredSession, clientSession].find((session) => session.id === request.id) ?? null;
+    });
+
+    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
+    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
+
+    await waitFor(() => {
+      expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
+    });
+
+    act(() => {
+      emitData({ id: "runtime-alfred", data: "ran pnpm lint\n" });
+    });
+
+    await act(async () => {
+      delayedSnapshot.reject(new Error("snapshot failed"));
+      try {
+        await delayedSnapshot.promise;
+      } catch {
+        // expected in this regression path
+      }
+    });
+
+    const firstReattachTile = await screen.findByRole("article", { name: /Codex · alfred/i });
+    await waitFor(() => {
+      const hostText = within(firstReattachTile).getByTestId("xterm-host").textContent ?? "";
+      expect(hostText).toContain("before switch\nran pnpm lint\n");
+      expect(hostText.match(/ran pnpm lint/g)).toHaveLength(1);
+    });
+
+    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
+    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
+
+    const secondReattachTile = await screen.findByRole("article", { name: /Codex · alfred/i });
+    await waitFor(() => {
+      const hostText = within(secondReattachTile).getByTestId("xterm-host").textContent ?? "";
+      expect(hostText).toContain("before switch\nran pnpm lint\n");
+      expect(hostText.match(/ran pnpm lint/g)).toHaveLength(1);
+    });
   });
 
   it("preserves live xterm output and instance when args and resume target metadata change", async () => {

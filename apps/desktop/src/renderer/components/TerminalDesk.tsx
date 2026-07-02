@@ -64,6 +64,7 @@ type TerminalDeskProps = {
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
   onRuntimeSessionExited: (runtimeId: TerminalSessionId, exitCode: number) => void;
   onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
+  onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
   onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
@@ -106,6 +107,7 @@ export function TerminalDesk({
   onRuntimeSessionFailed,
   onRuntimeSessionExited,
   onRuntimeSessionOutput,
+  onRuntimeSessionReplayBuffer,
   onRuntimeSessionSnapshot,
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
@@ -373,6 +375,7 @@ export function TerminalDesk({
                 onRuntimeSessionFailed={onRuntimeSessionFailed}
                 onRuntimeSessionExited={onRuntimeSessionExited}
                 onRuntimeSessionOutput={onRuntimeSessionOutput}
+                onRuntimeSessionReplayBuffer={onRuntimeSessionReplayBuffer}
                 onRuntimeSessionSnapshot={onRuntimeSessionSnapshot}
                 onRuntimeSessionReady={onRuntimeSessionReady}
                 onRuntimeSessionStarting={onRuntimeSessionStarting}
@@ -715,6 +718,7 @@ function ManualTerminalTile({
   onRuntimeSessionFailed,
   onRuntimeSessionExited,
   onRuntimeSessionOutput,
+  onRuntimeSessionReplayBuffer,
   onRuntimeSessionSnapshot,
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
@@ -760,6 +764,7 @@ function ManualTerminalTile({
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
   onRuntimeSessionExited: (runtimeId: TerminalSessionId, exitCode: number) => void;
   onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
+  onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
   onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
@@ -871,6 +876,7 @@ function ManualTerminalTile({
     onRuntimeSessionFailed,
     onRuntimeSessionExited,
     onRuntimeSessionOutput,
+    onRuntimeSessionReplayBuffer,
     onRuntimeSessionSnapshot,
     onRuntimeSessionReady,
     onRuntimeSessionStarting,
@@ -931,6 +937,7 @@ function ManualTerminalTile({
       onRuntimeSessionFailed,
       onRuntimeSessionExited,
       onRuntimeSessionOutput,
+      onRuntimeSessionReplayBuffer,
       onRuntimeSessionSnapshot,
       onRuntimeSessionReady,
       onRuntimeSessionStarting,
@@ -940,6 +947,7 @@ function ManualTerminalTile({
     onRuntimeSessionFailed,
     onRuntimeSessionExited,
     onRuntimeSessionOutput,
+    onRuntimeSessionReplayBuffer,
     onRuntimeSessionSnapshot,
     onRuntimeSessionReady,
     onRuntimeSessionStarting,
@@ -1149,6 +1157,7 @@ function ManualTerminalTile({
           if (!snapshot) {
             const fallbackBuffer = mergeTerminalReplayBuffer(metadata.initialBuffer, snapshotHandshakeOutput);
             if (fallbackBuffer) {
+              runtimeCallbacksRef.current.onRuntimeSessionReplayBuffer(sessionKey, runtimeId, fallbackBuffer);
               writeAndRepaint(fallbackBuffer);
             }
             return;
@@ -1165,6 +1174,7 @@ function ManualTerminalTile({
           if (!disposed) {
             const fallbackBuffer = mergeTerminalReplayBuffer(metadata.initialBuffer, snapshotHandshakeOutput);
             if (fallbackBuffer) {
+              runtimeCallbacksRef.current.onRuntimeSessionReplayBuffer(sessionKey, runtimeId, fallbackBuffer);
               writeAndRepaint(fallbackBuffer);
             }
           }
