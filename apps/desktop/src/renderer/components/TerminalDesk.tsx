@@ -28,6 +28,7 @@ import { restoredSessionActionLabel, restoredSessionActionTitle } from "../resto
 import { normalizeSessionTitle } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
+import type { TerminalSessionSnapshot } from "../../shared/terminal-ipc";
 
 const ARRANGE_GRID_ROW_HEIGHT = 84;
 const MIN_TERMINAL_FIT_HEIGHT = 48;
@@ -63,6 +64,7 @@ type TerminalDeskProps = {
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
   onRuntimeSessionExited: (runtimeId: TerminalSessionId, exitCode: number) => void;
   onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
+  onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
   onRuntimeSessionUnavailable: (tileId: string) => void;
@@ -104,6 +106,7 @@ export function TerminalDesk({
   onRuntimeSessionFailed,
   onRuntimeSessionExited,
   onRuntimeSessionOutput,
+  onRuntimeSessionSnapshot,
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
   onRuntimeSessionUnavailable,
@@ -370,6 +373,7 @@ export function TerminalDesk({
                 onRuntimeSessionFailed={onRuntimeSessionFailed}
                 onRuntimeSessionExited={onRuntimeSessionExited}
                 onRuntimeSessionOutput={onRuntimeSessionOutput}
+                onRuntimeSessionSnapshot={onRuntimeSessionSnapshot}
                 onRuntimeSessionReady={onRuntimeSessionReady}
                 onRuntimeSessionStarting={onRuntimeSessionStarting}
                 onRuntimeSessionUnavailable={onRuntimeSessionUnavailable}
@@ -711,6 +715,7 @@ function ManualTerminalTile({
   onRuntimeSessionFailed,
   onRuntimeSessionExited,
   onRuntimeSessionOutput,
+  onRuntimeSessionSnapshot,
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
   onRuntimeSessionUnavailable,
@@ -755,6 +760,7 @@ function ManualTerminalTile({
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
   onRuntimeSessionExited: (runtimeId: TerminalSessionId, exitCode: number) => void;
   onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
+  onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
   onRuntimeSessionUnavailable: (tileId: string) => void;
@@ -865,6 +871,7 @@ function ManualTerminalTile({
     onRuntimeSessionFailed,
     onRuntimeSessionExited,
     onRuntimeSessionOutput,
+    onRuntimeSessionSnapshot,
     onRuntimeSessionReady,
     onRuntimeSessionStarting,
     onRuntimeSessionUnavailable,
@@ -924,6 +931,7 @@ function ManualTerminalTile({
       onRuntimeSessionFailed,
       onRuntimeSessionExited,
       onRuntimeSessionOutput,
+      onRuntimeSessionSnapshot,
       onRuntimeSessionReady,
       onRuntimeSessionStarting,
       onRuntimeSessionUnavailable,
@@ -932,6 +940,7 @@ function ManualTerminalTile({
     onRuntimeSessionFailed,
     onRuntimeSessionExited,
     onRuntimeSessionOutput,
+    onRuntimeSessionSnapshot,
     onRuntimeSessionReady,
     onRuntimeSessionStarting,
     onRuntimeSessionUnavailable,
@@ -1125,9 +1134,27 @@ function ManualTerminalTile({
     if (runtimeId) {
       sessionIdRef.current = runtimeId;
       setTileStatus("ready");
-      if (metadata.initialBuffer) {
-        writeAndRepaint(metadata.initialBuffer);
-      }
+      void terminalApi
+        .snapshot({ id: runtimeId })
+        .then((snapshot) => {
+          if (disposed) return;
+          if (!snapshot) {
+            if (metadata.initialBuffer) {
+              writeAndRepaint(metadata.initialBuffer);
+            }
+            return;
+          }
+
+          runtimeCallbacksRef.current.onRuntimeSessionSnapshot(sessionKey, snapshot);
+          if (snapshot.buffer) {
+            writeAndRepaint(snapshot.buffer);
+          }
+        })
+        .catch(() => {
+          if (!disposed && metadata.initialBuffer) {
+            writeAndRepaint(metadata.initialBuffer);
+          }
+        });
       scheduleRepaint();
 
       return () => {

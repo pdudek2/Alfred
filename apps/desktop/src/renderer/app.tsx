@@ -99,7 +99,11 @@ import type {
   AlfredStagedSession,
   AlfredWorkspaceContext,
 } from "../shared/alfred-ipc";
-import type { TerminalCreateResult, TerminalSessionIsolation } from "../shared/terminal-ipc";
+import type {
+  TerminalCreateResult,
+  TerminalSessionIsolation,
+  TerminalSessionSnapshot,
+} from "../shared/terminal-ipc";
 import type { DispatchTargetSnapshot, WorkspaceViewState } from "../shared/layout-ipc";
 import type { WorkspaceMissionBrief, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 import type { ExternalCodexSessionSummary } from "../shared/session-index-ipc";
@@ -1211,6 +1215,22 @@ export function App() {
     setTerminalSessions((sessions) => recordSessionOutputActivity(sessions, runtimeId, data));
   }, []);
 
+  const handleRuntimeSessionSnapshot = useCallback((sessionId: string, snapshot: TerminalSessionSnapshot) => {
+    setTerminalSessions((sessions) =>
+      sessions.map((session) =>
+        session.id === sessionId || session.runtimeId === snapshot.id
+          ? {
+              ...session,
+              initialBuffer: snapshot.buffer,
+              ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
+              ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
+              ...(snapshot.lastOutputAt === undefined ? {} : { lastOutputAt: snapshot.lastOutputAt }),
+            }
+          : session,
+      ),
+    );
+  }, []);
+
   const handleSubmitPrompt = useCallback(async (dispatchTarget: DispatchTargetSnapshot): Promise<boolean> => {
     const prompt = composerValue.trim();
     if (!prompt) return false;
@@ -1970,6 +1990,7 @@ export function App() {
                 onRuntimeSessionFailed={handleRuntimeSessionFailed}
                 onRuntimeSessionExited={handleRuntimeSessionExited}
                 onRuntimeSessionOutput={handleRuntimeSessionOutput}
+                onRuntimeSessionSnapshot={handleRuntimeSessionSnapshot}
                 onRuntimeSessionReady={handleRuntimeSessionReady}
                 onRuntimeSessionStarting={handleRuntimeSessionStarting}
                 onRuntimeSessionUnavailable={handleRuntimeSessionUnavailable}

@@ -165,7 +165,9 @@ function installDesktopBridge(
   getPrivacySettings: ReturnType<typeof vi.fn>;
   revealStateFile: ReturnType<typeof vi.fn>;
   retrySave: ReturnType<typeof vi.fn>;
+  snapshotTerminal: ReturnType<typeof vi.fn>;
   updatePrivacySettings: ReturnType<typeof vi.fn>;
+  setTerminalSnapshots: (next: TerminalSessionSnapshot[]) => void;
   emitData: (event: TerminalDataEvent) => void;
   emitExit: (event: TerminalExitEvent) => void;
   emitSaveStatus: (status: DesktopSaveStatus) => void;
@@ -244,6 +246,7 @@ function installDesktopBridge(
       { path: "notes/review.md", status: "??" },
     ],
   });
+  let terminalSnapshots = [...terminalSessions];
   const createTerminal = vi.fn().mockImplementation((request: Parameters<TerminalApi["create"]>[0]) => {
     const baseCwd = request.cwd ?? "/tmp";
     const branchName =
@@ -268,6 +271,10 @@ function installDesktopBridge(
     });
   });
   const resizeTerminal = vi.fn();
+  const snapshotTerminal = vi.fn(async (request: { id: string }) => {
+    const session = terminalSnapshots.find((candidate) => candidate.id === request.id);
+    return session ?? null;
+  });
   const terminal: TerminalApi = {
     create: createTerminal,
     forget: forgetTerminal,
@@ -275,6 +282,7 @@ function installDesktopBridge(
     list: vi.fn().mockResolvedValue({ sessions: terminalSessions, restoredSessions: restoredTerminalSessions }),
     prepareLaunch,
     rename: renameTerminal,
+    snapshot: snapshotTerminal,
     onData: vi.fn((callback: (event: TerminalDataEvent) => void) => {
       dataListeners.add(callback);
       return () => dataListeners.delete(callback);
@@ -354,7 +362,11 @@ function installDesktopBridge(
     getPrivacySettings,
     revealStateFile,
     retrySave,
+    snapshotTerminal,
     updatePrivacySettings,
+    setTerminalSnapshots: (next: TerminalSessionSnapshot[]) => {
+      terminalSnapshots = next;
+    },
     emitData: (event: TerminalDataEvent) => {
       for (const listener of dataListeners) listener(event);
     },
@@ -372,8 +384,8 @@ function liveSnapshot(
   overrides: Partial<TerminalSessionSnapshot> = {},
 ): TerminalSessionSnapshot {
   return {
-    id: `session-${suffix}`,
-    runtimeId: `runtime-${suffix}`,
+    id: `runtime-${suffix}`,
+    clientId: `session-${suffix}`,
     title: `Codex · ${suffix}`,
     source: "manual",
     agentKind: "codex",
@@ -420,6 +432,7 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     onRuntimeSessionFailed: vi.fn(),
     onRuntimeSessionExited: vi.fn(),
     onRuntimeSessionOutput: vi.fn(),
+    onRuntimeSessionSnapshot: vi.fn(),
     onRuntimeSessionReady: vi.fn(),
     onRuntimeSessionStarting: vi.fn(() => true),
     onRuntimeSessionUnavailable: vi.fn(),
@@ -1239,6 +1252,48 @@ describe("App integration", () => {
     const renamedTile = await screen.findByRole("article", { name: /Spec reviewer/i });
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeRename);
     expect(renamedTile).toHaveTextContent("metadata-safe output");
+  });
+
+  it("replays fresh main-process buffer when returning to a workspace with a live runtime", async () => {
+    const user = userEvent.setup();
+    const alfredSession = liveSnapshot("alfred", {
+      id: "runtime-alfred",
+      workspaceId: "A",
+      buffer: "before switch\n",
+    });
+    const clientSession = liveSnapshot("client", {
+      id: "runtime-client",
+      workspaceId: "CLIENT",
+      cwd: "/Users/patryk/Desktop/ClientApp",
+    });
+    const { setTerminalSnapshots, snapshotTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [alfredSession, clientSession],
+      undefined,
+      { layoutsByWorkspace: {}, viewStateByWorkspace: {} },
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+    expect(await screen.findByRole("article", { name: /Codex · alfred/i })).toHaveTextContent("before switch");
+
+    setTerminalSnapshots([
+      { ...alfredSession, buffer: "before switch\nafter switch\n" },
+      clientSession,
+    ]);
+
+    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
+    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
+
+    expect(await screen.findByRole("article", { name: /Codex · alfred/i })).toHaveTextContent("after switch");
+    expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
   });
 
   it("preserves live xterm output and instance when args and resume target metadata change", async () => {
