@@ -1054,6 +1054,8 @@ function ManualTerminalTile({
     };
     const scheduleRepaint = () => scheduleRepaintRef.current?.();
     const fitAndResize = () => fitAndResizeRef.current?.() ?? false;
+    let snapshotHandshakePending = false;
+    let snapshotHandshakeOutput = "";
 
     if (!terminal) {
       return;
@@ -1110,7 +1112,11 @@ function ManualTerminalTile({
 
     const removeDataListener = terminalApi.onData((event) => {
       if (event.id === sessionIdRef.current) {
-        writeAndRepaint(event.data);
+        if (snapshotHandshakePending) {
+          snapshotHandshakeOutput += event.data;
+        } else {
+          writeAndRepaint(event.data);
+        }
         runtimeCallbacksRef.current.onRuntimeSessionOutput(event.id, event.data);
       }
     });
@@ -1134,25 +1140,33 @@ function ManualTerminalTile({
     if (runtimeId) {
       sessionIdRef.current = runtimeId;
       setTileStatus("ready");
+      snapshotHandshakePending = true;
       void terminalApi
         .snapshot({ id: runtimeId })
         .then((snapshot) => {
           if (disposed) return;
+          snapshotHandshakePending = false;
           if (!snapshot) {
-            if (metadata.initialBuffer) {
-              writeAndRepaint(metadata.initialBuffer);
+            const fallbackBuffer = mergeTerminalReplayBuffer(metadata.initialBuffer, snapshotHandshakeOutput);
+            if (fallbackBuffer) {
+              writeAndRepaint(fallbackBuffer);
             }
             return;
           }
 
-          runtimeCallbacksRef.current.onRuntimeSessionSnapshot(sessionKey, snapshot);
-          if (snapshot.buffer) {
-            writeAndRepaint(snapshot.buffer);
+          const replayBuffer = mergeTerminalReplayBuffer(snapshot.buffer, snapshotHandshakeOutput);
+          runtimeCallbacksRef.current.onRuntimeSessionSnapshot(sessionKey, { ...snapshot, buffer: replayBuffer });
+          if (replayBuffer) {
+            writeAndRepaint(replayBuffer);
           }
         })
         .catch(() => {
-          if (!disposed && metadata.initialBuffer) {
-            writeAndRepaint(metadata.initialBuffer);
+          snapshotHandshakePending = false;
+          if (!disposed) {
+            const fallbackBuffer = mergeTerminalReplayBuffer(metadata.initialBuffer, snapshotHandshakeOutput);
+            if (fallbackBuffer) {
+              writeAndRepaint(fallbackBuffer);
+            }
           }
         });
       scheduleRepaint();
@@ -1458,6 +1472,22 @@ function latestVisibleActivity(events: SessionTile["activityEvents"] | undefined
   const latest = events?.at(-1);
   if (!latest || latest.kind === "lifecycle" || latest.kind === "output") return null;
   return latest;
+}
+
+function mergeTerminalReplayBuffer(baseBuffer: string | undefined, pendingOutput: string): string {
+  const stableBaseBuffer = baseBuffer ?? "";
+  if (!pendingOutput) return stableBaseBuffer;
+  if (!stableBaseBuffer) return pendingOutput;
+  if (stableBaseBuffer.endsWith(pendingOutput)) return stableBaseBuffer;
+
+  const maxOverlap = Math.min(stableBaseBuffer.length, pendingOutput.length);
+  for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
+    if (stableBaseBuffer.endsWith(pendingOutput.slice(0, overlap))) {
+      return `${stableBaseBuffer}${pendingOutput.slice(overlap)}`;
+    }
+  }
+
+  return `${stableBaseBuffer}${pendingOutput}`;
 }
 
 function isIsolatedCheckout({

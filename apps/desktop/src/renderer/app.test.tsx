@@ -400,6 +400,16 @@ function liveSnapshot(
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 beforeEach(() => {
   terminalConstructorOptions.length = 0;
   terminalDisposeCalls.length = 0;
@@ -1282,7 +1292,10 @@ describe("App integration", () => {
     );
 
     render(<App />);
-    expect(await screen.findByRole("article", { name: /Codex · alfred/i })).toHaveTextContent("before switch");
+    const initialTile = await screen.findByRole("article", { name: /Codex · alfred/i });
+    await waitFor(() => {
+      expect(initialTile).toHaveTextContent("before switch");
+    });
 
     setTerminalSnapshots([
       { ...alfredSession, buffer: "before switch\nafter switch\n" },
@@ -1294,6 +1307,100 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("article", { name: /Codex · alfred/i })).toHaveTextContent("after switch");
     expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
+  });
+
+  it("replays fresh main-process buffer without duplicating handshake output on live runtime reattach", async () => {
+    const user = userEvent.setup();
+    const alfredSession = liveSnapshot("alfred", {
+      id: "runtime-alfred",
+      workspaceId: "A",
+      buffer: "before switch\n",
+      activityEvents: [
+        {
+          id: "snapshot-start",
+          kind: "lifecycle",
+          title: "Session attached",
+          detail: "attached before switch",
+          at: 5,
+        },
+      ],
+      lastActivityAt: 5,
+      lastOutputAt: 5,
+    });
+    const clientSession = liveSnapshot("client", {
+      id: "runtime-client",
+      workspaceId: "CLIENT",
+      cwd: "/Users/patryk/Desktop/ClientApp",
+    });
+    const { emitData, snapshotTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [alfredSession, clientSession],
+      undefined,
+      { layoutsByWorkspace: {}, viewStateByWorkspace: {} },
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+    expect(await screen.findByRole("article", { name: /Codex · alfred/i })).toHaveTextContent("before switch");
+
+    const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
+    let delayAlfredReattachSnapshot = true;
+    snapshotTerminal.mockImplementation(async (request: { id: string }) => {
+      if (request.id === "runtime-alfred" && delayAlfredReattachSnapshot) {
+        delayAlfredReattachSnapshot = false;
+        return delayedSnapshot.promise;
+      }
+
+      return [alfredSession, clientSession].find((session) => session.id === request.id) ?? null;
+    });
+
+    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
+    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
+
+    await waitFor(() => {
+      expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
+    });
+
+    const reattachedTile = await screen.findByRole("article", { name: /Codex · alfred/i });
+    act(() => {
+      emitData({ id: "runtime-alfred", data: "ran pnpm test\n" });
+    });
+
+    await act(async () => {
+      delayedSnapshot.resolve({
+        ...alfredSession,
+        buffer: "before switch\nran pnpm test\n",
+        activityEvents: [
+          {
+            id: "snapshot-warning",
+            kind: "warning",
+            title: "Warning reported",
+            detail: "warning: older snapshot",
+            at: 10,
+            payload: { type: "warning", message: "warning: older snapshot" },
+          },
+        ],
+        lastActivityAt: 10,
+        lastOutputAt: 10,
+      });
+      await delayedSnapshot.promise;
+    });
+
+    await waitFor(() => {
+      const hostText = within(reattachedTile).getByTestId("xterm-host").textContent ?? "";
+      expect(hostText).toContain("before switch\nran pnpm test\n");
+      expect(hostText.match(/ran pnpm test/g)).toHaveLength(1);
+    });
+    expect(within(reattachedTile).getByText("Ran command")).toBeInTheDocument();
+    expect(within(reattachedTile).getByText("ran pnpm test")).toBeInTheDocument();
+    expect(within(reattachedTile).queryByText("Warning reported")).not.toBeInTheDocument();
   });
 
   it("preserves live xterm output and instance when args and resume target metadata change", async () => {

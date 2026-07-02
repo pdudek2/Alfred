@@ -73,6 +73,7 @@ import {
   renameSession,
   restartSession,
   sessionInstanceKey,
+  type SessionActivityEvent,
   type SessionTile,
 } from "./session-state";
 import { terminalSessionDisplayStatus } from "./session-status";
@@ -1217,17 +1218,27 @@ export function App() {
 
   const handleRuntimeSessionSnapshot = useCallback((sessionId: string, snapshot: TerminalSessionSnapshot) => {
     setTerminalSessions((sessions) =>
-      sessions.map((session) =>
-        session.id === sessionId || session.runtimeId === snapshot.id
-          ? {
-              ...session,
-              initialBuffer: snapshot.buffer,
-              ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
-              ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
-              ...(snapshot.lastOutputAt === undefined ? {} : { lastOutputAt: snapshot.lastOutputAt }),
-            }
-          : session,
-      ),
+      sessions.map((session) => {
+        if (session.id !== sessionId && session.runtimeId !== snapshot.id) {
+          return session;
+        }
+
+        const mergedActivityEvents = mergeSnapshotActivityEvents(session.activityEvents, snapshot.activityEvents);
+        const mergedLastActivityAt = maxDefinedTimestamp(
+          session.lastActivityAt,
+          snapshot.lastActivityAt,
+          mergedActivityEvents?.at(-1)?.at,
+        );
+        const mergedLastOutputAt = maxDefinedTimestamp(session.lastOutputAt, snapshot.lastOutputAt);
+
+        return {
+          ...session,
+          initialBuffer: snapshot.buffer,
+          ...(mergedActivityEvents === undefined ? {} : { activityEvents: mergedActivityEvents }),
+          ...(mergedLastActivityAt === undefined ? {} : { lastActivityAt: mergedLastActivityAt }),
+          ...(mergedLastOutputAt === undefined ? {} : { lastOutputAt: mergedLastOutputAt }),
+        };
+      }),
     );
   }, []);
 
@@ -2894,6 +2905,32 @@ function previewCandidatesFromSessions(sessions: SessionTile[]): PreviewUrlCandi
       ...(seenAt === undefined ? {} : { seenAt }),
     });
   }, []);
+}
+
+function mergeSnapshotActivityEvents(
+  currentEvents: SessionActivityEvent[] | undefined,
+  snapshotEvents: SessionActivityEvent[] | undefined,
+): SessionActivityEvent[] | undefined {
+  if (snapshotEvents === undefined) return currentEvents;
+  if (currentEvents === undefined) return snapshotEvents;
+
+  const mergedByKey = new Map<string, SessionActivityEvent>();
+  for (const event of [...snapshotEvents, ...currentEvents]) {
+    const key = event.id || `${event.kind}:${event.title}:${event.detail}:${event.at}`;
+    const previous = mergedByKey.get(key);
+    if (!previous || previous.at <= event.at) {
+      mergedByKey.set(key, event);
+    }
+  }
+
+  return Array.from(mergedByKey.values())
+    .sort((left, right) => left.at - right.at)
+    .slice(-40);
+}
+
+function maxDefinedTimestamp(...values: Array<number | undefined>): number | undefined {
+  const definedValues = values.filter((value): value is number => value !== undefined);
+  return definedValues.length > 0 ? Math.max(...definedValues) : undefined;
 }
 
 function workspaceRootPath(state: WorkspaceStateSnapshot | null, workspaceId: string): string {
