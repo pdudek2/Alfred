@@ -139,6 +139,7 @@ export function TerminalDesk({
   const showSplitEmptyState = workMode === "split" && sessions.length > 0 && visibleSessions.length < 2;
   const gridDensity =
     workMode === "split" ? "split" : visibleSessions.length <= 1 ? "single" : visibleSessions.length === 2 ? "split" : "dense";
+  const showLayoutControls = arrangeMode || (showHeaderControls && sessions.length > 0);
 
   useEffect(() => {
     if (workMode !== "focus") return;
@@ -243,49 +244,47 @@ export function TerminalDesk({
   return (
     <section className={`terminal-stage ${arrangeMode ? "arranging" : ""} mode-${workMode}`} aria-label="terminals">
       <header className="terminal-stage-header">
-        <div>
-          <strong>Work</strong>
-          <span>
-            {sessions.length} tile{sessions.length === 1 ? "" : "s"} · {sessions.filter((s) => s.stage === "staged").length} staged
-          </span>
+        <div className="terminal-stage-utility" aria-label="Terminal grid controls">
+          <span>{shortcutModifier} T</span>
         </div>
-        <div className="layout-controls" aria-label="layout controls">
-          {arrangeMode && (
-            <>
-              <span className="arrange-mode-label">Arrange mode</span>
-              <span className="arrange-hint">drag header · resize corner</span>
-            </>
-          )}
-          {showHeaderControls && !arrangeMode && sessions.length > 0 && (
-            <div className="work-mode-control" aria-label="work mode">
-              <button
-                type="button"
-                className={workMode === "focus" ? "active" : ""}
-                aria-pressed={workMode === "focus"}
-                onClick={() => onApplyWorkMode("focus")}
-              >
-                Focus
-              </button>
-              <button
-                type="button"
-                className={workMode === "split" ? "active" : ""}
-                aria-pressed={workMode === "split"}
-                onClick={() => onApplyWorkMode("split")}
-              >
-                Split
-              </button>
-              <button
-                type="button"
-                className={workMode === "desk" ? "active" : ""}
-                aria-pressed={workMode === "desk"}
-                onClick={() => onApplyWorkMode("desk")}
-              >
-                Grid
-              </button>
-            </div>
-          )}
-          <kbd>{shortcutModifier} T</kbd>
-        </div>
+        {showLayoutControls ? (
+          <div className="layout-controls" aria-label="layout controls">
+            {arrangeMode && (
+              <>
+                <span className="arrange-mode-label">Arrange mode</span>
+                <span className="arrange-hint">drag header · resize corner</span>
+              </>
+            )}
+            {showHeaderControls && !arrangeMode && sessions.length > 0 && (
+              <div className="work-mode-control" aria-label="work mode">
+                <button
+                  type="button"
+                  className={workMode === "focus" ? "active" : ""}
+                  aria-pressed={workMode === "focus"}
+                  onClick={() => onApplyWorkMode("focus")}
+                >
+                  Focus
+                </button>
+                <button
+                  type="button"
+                  className={workMode === "split" ? "active" : ""}
+                  aria-pressed={workMode === "split"}
+                  onClick={() => onApplyWorkMode("split")}
+                >
+                  Split
+                </button>
+                <button
+                  type="button"
+                  className={workMode === "desk" ? "active" : ""}
+                  aria-pressed={workMode === "desk"}
+                  onClick={() => onApplyWorkMode("desk")}
+                >
+                  Grid
+                </button>
+              </div>
+            )}
+          </div>
+        ) : null}
       </header>
       <div className="terminal-stage-body">
         <div className="terminal-grid-column">

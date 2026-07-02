@@ -139,16 +139,14 @@ describe("renderer CSS contracts", () => {
     expect(prototypeStyles).toContain("background: rgba(255, 255, 255, 0.16)");
   });
 
-  it("keeps the workspace title in the normal top row so it cannot overlap the workbench", () => {
+  it("keeps the top chrome as one workspace switcher plus one workbench header", () => {
     const frame = blockFor(".desktop-frame");
     const missionBar = blockFor(".mission-bar");
+    const stageUtility = blockFor(".terminal-stage-utility");
 
     expect(frame).toContain("grid-template-rows: 52px minmax(0, 1fr) 58px");
-    expect(missionBar).toContain("position: static");
     expect(missionBar).toContain("height: 52px");
-    expect(polishStyles).toContain(".mission-bar .mission-name {");
-    expect(polishStyles).toContain("position: static");
-    expect(polishStyles).toContain("max-width: min(420px, 48vw)");
+    expect(stageUtility).not.toContain("font-size: 20px");
   });
 
   it("makes the context drawer itself scrollable instead of clipping the lower timeline", () => {

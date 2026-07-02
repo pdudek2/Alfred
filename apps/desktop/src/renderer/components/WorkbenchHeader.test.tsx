@@ -46,6 +46,15 @@ describe("WorkbenchHeader", () => {
     expect(panels.querySelectorAll(".quiet-count-dot, .quiet-count-mark").length).toBeGreaterThan(0);
   });
 
+  it("keeps the breadcrumb scoped to surface and workspace without repeating the title", () => {
+    render(<WorkbenchHeader {...baseProps} />);
+
+    const crumbs = screen.getByTestId("workbench-header").querySelector(".workbench-crumbs");
+
+    expect(crumbs).toHaveTextContent("Work/CodexPulse");
+    expect(crumbs?.textContent).not.toContain("Terminal grid");
+  });
+
   it("keeps exact context count in the accessible label when the drawer is open", () => {
     render(<WorkbenchHeader {...baseProps} contextOpen />);
 

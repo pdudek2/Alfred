@@ -1007,6 +1007,17 @@ describe("App integration", () => {
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
   });
 
+  it("does not repeat workspace tile counts across mission and Work headers", async () => {
+    installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
+
+    render(<App />);
+
+    expect(await screen.findByTestId("workbench-header")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Workspace menu for Alfred/i })).not.toHaveTextContent(/2 tiles/);
+    expect(screen.getByTestId("workbench-header")).toHaveTextContent("2 live");
+    expect(screen.queryByText(/2 tiles · 0 staged/i)).not.toBeInTheDocument();
+  });
+
   it("keeps non-visible Split terminals mounted and replayable when returning to Grid", async () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge(undefined, null, [

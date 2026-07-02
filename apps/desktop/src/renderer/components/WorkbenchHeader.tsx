@@ -42,7 +42,6 @@ export function WorkbenchHeader({
   onToggleArrangeMode,
   onToggleContext,
 }: WorkbenchHeaderProps) {
-  const surfaceLabel = activeSurface === "work" ? "Terminal grid" : activeSurface === "inbox" ? "Inbox" : "History";
   const surfaceCrumb = activeSurface === "work" ? "Work" : activeSurface === "inbox" ? "Inbox" : "History";
   const headline =
     activeSurface === "work"
@@ -64,8 +63,6 @@ export function WorkbenchHeader({
           <span>{surfaceCrumb}</span>
           <span>/</span>
           <span>{workspaceLabel}</span>
-          <span>/</span>
-          <span>{surfaceLabel}</span>
         </div>
         <div className="workbench-title-line">
           <h1>{headline}</h1>

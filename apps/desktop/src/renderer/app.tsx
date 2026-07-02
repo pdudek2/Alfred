@@ -80,7 +80,6 @@ import { terminalSessionDisplayStatus } from "./session-status";
 import { recordPreviewUrlsFromText, type PreviewUrlCandidate } from "./preview-state";
 import type { WorkMode } from "./terminal-desk-types";
 import { workspaceAttention, workspaceReviewQueue, type WorkspaceReviewItem } from "./workspace-attention";
-import { workspaceSessionSummary } from "./workspace-session-summary";
 import { shortenPath } from "./path-display";
 import { findWorkspaceForCwd } from "./workspace-path-matching";
 import { sessionRelaunchSafety } from "./relaunch-safety";
@@ -1882,7 +1881,7 @@ export function App() {
           <div className="mission-name" role="group" aria-label="Workspace context">
             <AlfredMark label={activeWorkspace.shortLabel} />
             <WorkspaceTitleMenu
-              detail={`${activeSessions.length} tile${activeSessions.length === 1 ? "" : "s"} · ${workspaceSessionSummary(activeSessions)} · ${workspaceDetail(activeWorkspace)}`}
+              detail={workspaceDetail(activeWorkspace)}
               menuOpen={workspaceMenuOpen}
               missionBrief={activeWorkspace.missionBrief}
               renameDraft={workspaceRenameDraft}

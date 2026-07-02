@@ -9846,12 +9846,21 @@ body {
   padding: 6px 9px;
 }
 
-.terminal-stage-header strong {
-  font-size: 14px;
+.terminal-stage-utility {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
 }
 
-.terminal-stage-header span {
-  font-size: 11px;
+.terminal-stage-utility span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font: 600 10px/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .terminal-stage.arranging .layout-controls {
