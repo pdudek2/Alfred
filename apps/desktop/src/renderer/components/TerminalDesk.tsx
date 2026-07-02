@@ -9,6 +9,7 @@ import {
   type CSSProperties,
   type FocusEvent as ReactFocusEvent,
   type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
 } from "react";
 import { getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
 import type { TileLayout } from "../layout-state";
@@ -27,6 +28,8 @@ import { sessionRelaunchSafety } from "../relaunch-safety";
 import { restoredSessionActionLabel, restoredSessionActionTitle } from "../restored-session-action";
 import { normalizeSessionTitle } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
+import { SessionStatusGlyph } from "./SessionStatusGlyph";
+import type { TerminalSessionSnapshot } from "../../shared/terminal-ipc";
 
 const ARRANGE_GRID_ROW_HEIGHT = 84;
 const MIN_TERMINAL_FIT_HEIGHT = 48;
@@ -62,6 +65,8 @@ type TerminalDeskProps = {
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
   onRuntimeSessionExited: (runtimeId: TerminalSessionId, exitCode: number) => void;
   onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
+  onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
+  onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
   onRuntimeSessionUnavailable: (tileId: string) => void;
@@ -103,6 +108,8 @@ export function TerminalDesk({
   onRuntimeSessionFailed,
   onRuntimeSessionExited,
   onRuntimeSessionOutput,
+  onRuntimeSessionReplayBuffer,
+  onRuntimeSessionSnapshot,
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
   onRuntimeSessionUnavailable,
@@ -125,13 +132,15 @@ export function TerminalDesk({
     ? splitSessionsForDesk(sessions, selectedSessionId, layouts)
     : sessions;
   const visibleSessions = focusSession ? [focusSession] : splitSessions;
-  const renderedSessions = focusSession ? sessions : visibleSessions;
+  const renderedSessions = focusSession || workMode === "split" ? sessions : visibleSessions;
+  const visibleSessionIds = new Set(visibleSessions.map((session) => session.id));
   const inspectedSession = focusSession ?? selectedSession ?? visibleSessions[0] ?? null;
   const blockedStagedSession =
     inspectedSession?.stage === "staged" && isLaunchBlocked(inspectedSession) ? inspectedSession : null;
   const showSplitEmptyState = workMode === "split" && sessions.length > 0 && visibleSessions.length < 2;
   const gridDensity =
     workMode === "split" ? "split" : visibleSessions.length <= 1 ? "single" : visibleSessions.length === 2 ? "split" : "dense";
+  const showLayoutControls = arrangeMode || (showHeaderControls && sessions.length > 0);
 
   useEffect(() => {
     if (workMode !== "focus") return;
@@ -165,6 +174,32 @@ export function TerminalDesk({
     if (!result?.ok) {
       throw new Error(result?.error ?? "Workspace runtime is unavailable.");
     }
+  }, []);
+  const handleGridWheelCapture = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
+    if (event.deltaY === 0) return;
+    const column = event.currentTarget;
+    if (column.scrollHeight <= column.clientHeight) return;
+
+    const target = event.target instanceof Element ? event.target : null;
+    const xtermHost = target?.closest(".xterm-host");
+    const viewport = xtermHost?.querySelector(".xterm-viewport");
+    if (!(viewport instanceof HTMLElement)) return;
+
+    const direction = Math.sign(event.deltaY);
+    const terminalCanScroll =
+      direction > 0
+        ? viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight - 1
+        : viewport.scrollTop > 1;
+    if (terminalCanScroll) return;
+
+    const columnCanScroll =
+      direction > 0
+        ? column.scrollTop + column.clientHeight < column.scrollHeight - 1
+        : column.scrollTop > 1;
+    if (!columnCanScroll) return;
+
+    column.scrollTop += event.deltaY;
+    event.preventDefault();
   }, []);
   const startPointerArrange = useCallback(
     (tileId: string, mode: ArrangePointerMode, event: ReactPointerEvent<HTMLElement>) => {
@@ -236,52 +271,50 @@ export function TerminalDesk({
   return (
     <section className={`terminal-stage ${arrangeMode ? "arranging" : ""} mode-${workMode}`} aria-label="terminals">
       <header className="terminal-stage-header">
-        <div>
-          <strong>Work</strong>
-          <span>
-            {sessions.length} tile{sessions.length === 1 ? "" : "s"} · {sessions.filter((s) => s.stage === "staged").length} staged
-          </span>
+        <div className="terminal-stage-utility" aria-label="Terminal grid controls">
+          <span>{shortcutModifier} T</span>
         </div>
-        <div className="layout-controls" aria-label="layout controls">
-          {arrangeMode && (
-            <>
-              <span className="arrange-mode-label">Arrange mode</span>
-              <span className="arrange-hint">drag header · resize corner</span>
-            </>
-          )}
-          {showHeaderControls && !arrangeMode && sessions.length > 0 && (
-            <div className="work-mode-control" aria-label="work mode">
-              <button
-                type="button"
-                className={workMode === "focus" ? "active" : ""}
-                aria-pressed={workMode === "focus"}
-                onClick={() => onApplyWorkMode("focus")}
-              >
-                Focus
-              </button>
-              <button
-                type="button"
-                className={workMode === "split" ? "active" : ""}
-                aria-pressed={workMode === "split"}
-                onClick={() => onApplyWorkMode("split")}
-              >
-                Split
-              </button>
-              <button
-                type="button"
-                className={workMode === "desk" ? "active" : ""}
-                aria-pressed={workMode === "desk"}
-                onClick={() => onApplyWorkMode("desk")}
-              >
-                Grid
-              </button>
-            </div>
-          )}
-          <kbd>{shortcutModifier} T</kbd>
-        </div>
+        {showLayoutControls ? (
+          <div className="layout-controls" aria-label="layout controls">
+            {arrangeMode && (
+              <>
+                <span className="arrange-mode-label">Arrange mode</span>
+                <span className="arrange-hint">drag header · resize corner</span>
+              </>
+            )}
+            {showHeaderControls && !arrangeMode && sessions.length > 0 && (
+              <div className="work-mode-control" aria-label="work mode">
+                <button
+                  type="button"
+                  className={workMode === "focus" ? "active" : ""}
+                  aria-pressed={workMode === "focus"}
+                  onClick={() => onApplyWorkMode("focus")}
+                >
+                  Focus
+                </button>
+                <button
+                  type="button"
+                  className={workMode === "split" ? "active" : ""}
+                  aria-pressed={workMode === "split"}
+                  onClick={() => onApplyWorkMode("split")}
+                >
+                  Split
+                </button>
+                <button
+                  type="button"
+                  className={workMode === "desk" ? "active" : ""}
+                  aria-pressed={workMode === "desk"}
+                  onClick={() => onApplyWorkMode("desk")}
+                >
+                  Grid
+                </button>
+              </div>
+            )}
+          </div>
+        ) : null}
       </header>
       <div className="terminal-stage-body">
-        <div className="terminal-grid-column">
+        <div className="terminal-grid-column" onWheelCapture={handleGridWheelCapture}>
           {recoverableSessions.length > 0 && (
             <RecoveryWorkspaceStrip
               sessions={recoverableSessions}
@@ -324,7 +357,10 @@ export function TerminalDesk({
             />
           )}
           {renderedSessions.map((session) => {
-            const focusHidden = Boolean(focusSession && session.id !== focusSession.id);
+            const layoutHidden = Boolean(
+              (focusSession && session.id !== focusSession.id) ||
+                (workMode === "split" && !visibleSessionIds.has(session.id)),
+            );
             return session.stage === "live" ? (
               <ManualTerminalTile
                 arrangeMode={arrangeMode}
@@ -339,7 +375,7 @@ export function TerminalDesk({
                 relaunchArmed={relaunchArmedSessionIds.has(session.id)}
                 workspaceId={session.workspaceId}
                 title={session.title}
-                focusHidden={focusHidden}
+                layoutHidden={layoutHidden}
                 source={session.source}
                 agentKind={session.agentKind}
                 isolation={session.isolation}
@@ -365,6 +401,8 @@ export function TerminalDesk({
                 onRuntimeSessionFailed={onRuntimeSessionFailed}
                 onRuntimeSessionExited={onRuntimeSessionExited}
                 onRuntimeSessionOutput={onRuntimeSessionOutput}
+                onRuntimeSessionReplayBuffer={onRuntimeSessionReplayBuffer}
+                onRuntimeSessionSnapshot={onRuntimeSessionSnapshot}
                 onRuntimeSessionReady={onRuntimeSessionReady}
                 onRuntimeSessionStarting={onRuntimeSessionStarting}
                 onRuntimeSessionUnavailable={onRuntimeSessionUnavailable}
@@ -375,7 +413,7 @@ export function TerminalDesk({
             ) : (
               <StagedTilePreview
                 armed={armedUnsafeSessionIds.has(session.id)}
-                focusHidden={focusHidden}
+                focusHidden={layoutHidden}
                 key={session.id}
                 layout={layouts[session.id]}
                 preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
@@ -706,6 +744,8 @@ function ManualTerminalTile({
   onRuntimeSessionFailed,
   onRuntimeSessionExited,
   onRuntimeSessionOutput,
+  onRuntimeSessionReplayBuffer,
+  onRuntimeSessionSnapshot,
   onRuntimeSessionReady,
   onRuntimeSessionStarting,
   onRuntimeSessionUnavailable,
@@ -719,7 +759,7 @@ function ManualTerminalTile({
   source,
   workspaceId,
   title,
-  focusHidden = false,
+  layoutHidden = false,
   command,
   args,
   resumeTarget,
@@ -750,6 +790,8 @@ function ManualTerminalTile({
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
   onRuntimeSessionExited: (runtimeId: TerminalSessionId, exitCode: number) => void;
   onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
+  onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
+  onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
   onRuntimeSessionUnavailable: (tileId: string) => void;
@@ -763,7 +805,7 @@ function ManualTerminalTile({
   source: SessionTile["source"];
   workspaceId: string;
   title: string;
-  focusHidden?: boolean;
+  layoutHidden?: boolean;
   command?: string | undefined;
   args?: string[] | undefined;
   resumeTarget?: SessionTile["resumeTarget"] | undefined;
@@ -797,7 +839,6 @@ function ManualTerminalTile({
   const statusSession = {
     ...(runtimeStatus === undefined ? {} : { runtimeStatus }),
   } satisfies Pick<SessionTile, "runtimeStatus">;
-  const statusKind = terminalStatusKind(statusSession, tileStatus);
   const statusLabel = terminalStatusLabel(statusSession, tileStatus);
   const restartable = displayStatus.kind === "done" || displayStatus.kind === "error";
   const discardableSession = displayStatus.kind === "restored" || restartable;
@@ -861,6 +902,8 @@ function ManualTerminalTile({
     onRuntimeSessionFailed,
     onRuntimeSessionExited,
     onRuntimeSessionOutput,
+    onRuntimeSessionReplayBuffer,
+    onRuntimeSessionSnapshot,
     onRuntimeSessionReady,
     onRuntimeSessionStarting,
     onRuntimeSessionUnavailable,
@@ -920,6 +963,8 @@ function ManualTerminalTile({
       onRuntimeSessionFailed,
       onRuntimeSessionExited,
       onRuntimeSessionOutput,
+      onRuntimeSessionReplayBuffer,
+      onRuntimeSessionSnapshot,
       onRuntimeSessionReady,
       onRuntimeSessionStarting,
       onRuntimeSessionUnavailable,
@@ -928,6 +973,8 @@ function ManualTerminalTile({
     onRuntimeSessionFailed,
     onRuntimeSessionExited,
     onRuntimeSessionOutput,
+    onRuntimeSessionReplayBuffer,
+    onRuntimeSessionSnapshot,
     onRuntimeSessionReady,
     onRuntimeSessionStarting,
     onRuntimeSessionUnavailable,
@@ -1041,6 +1088,8 @@ function ManualTerminalTile({
     };
     const scheduleRepaint = () => scheduleRepaintRef.current?.();
     const fitAndResize = () => fitAndResizeRef.current?.() ?? false;
+    let snapshotHandshakePending = false;
+    let snapshotHandshakeOutput = "";
 
     if (!terminal) {
       return;
@@ -1097,7 +1146,11 @@ function ManualTerminalTile({
 
     const removeDataListener = terminalApi.onData((event) => {
       if (event.id === sessionIdRef.current) {
-        writeAndRepaint(event.data);
+        if (snapshotHandshakePending) {
+          snapshotHandshakeOutput += event.data;
+        } else {
+          writeAndRepaint(event.data);
+        }
         runtimeCallbacksRef.current.onRuntimeSessionOutput(event.id, event.data);
       }
     });
@@ -1121,9 +1174,37 @@ function ManualTerminalTile({
     if (runtimeId) {
       sessionIdRef.current = runtimeId;
       setTileStatus("ready");
-      if (metadata.initialBuffer) {
-        writeAndRepaint(metadata.initialBuffer);
-      }
+      snapshotHandshakePending = true;
+      void terminalApi
+        .snapshot({ id: runtimeId })
+        .then((snapshot) => {
+          if (disposed) return;
+          snapshotHandshakePending = false;
+          if (!snapshot) {
+            const fallbackBuffer = mergeTerminalReplayBuffer(metadata.initialBuffer, snapshotHandshakeOutput);
+            if (fallbackBuffer) {
+              runtimeCallbacksRef.current.onRuntimeSessionReplayBuffer(sessionKey, runtimeId, fallbackBuffer);
+              writeAndRepaint(fallbackBuffer);
+            }
+            return;
+          }
+
+          const replayBuffer = mergeTerminalReplayBuffer(snapshot.buffer, snapshotHandshakeOutput);
+          runtimeCallbacksRef.current.onRuntimeSessionSnapshot(sessionKey, { ...snapshot, buffer: replayBuffer });
+          if (replayBuffer) {
+            writeAndRepaint(replayBuffer);
+          }
+        })
+        .catch(() => {
+          snapshotHandshakePending = false;
+          if (!disposed) {
+            const fallbackBuffer = mergeTerminalReplayBuffer(metadata.initialBuffer, snapshotHandshakeOutput);
+            if (fallbackBuffer) {
+              runtimeCallbacksRef.current.onRuntimeSessionReplayBuffer(sessionKey, runtimeId, fallbackBuffer);
+              writeAndRepaint(fallbackBuffer);
+            }
+          }
+        });
       scheduleRepaint();
 
       return () => {
@@ -1229,12 +1310,12 @@ function ManualTerminalTile({
 
   return (
     <article
-      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${focusHidden ? "focus-hidden" : ""} ${collapsed ? "collapsed" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${layoutHidden ? "focus-hidden" : ""} ${collapsed ? "collapsed" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
       data-testid="terminal-tile"
       aria-label={latestActivity ? `${title}, ${latestActivity.title}: ${latestActivity.detail}` : title}
-      aria-hidden={focusHidden ? "true" : undefined}
+      aria-hidden={layoutHidden ? "true" : undefined}
       style={gridStyle(layout, preview)}
-      tabIndex={focusHidden ? -1 : 0}
+      tabIndex={layoutHidden ? -1 : 0}
       onFocus={(event) => {
         if (focusEnteredTile(event)) onSelectSession();
       }}
@@ -1253,9 +1334,8 @@ function ManualTerminalTile({
       >
         <div className="tile-title">
           <span className={`tool-dot ${kindMeta.className}`} />
-          <span className={`tile-kind-mark ${kindMeta.className}`} title={kindMeta.label}>
-            <TileKindIcon kind={kind} />
-            <span>{kindMeta.shortLabel}</span>
+          <span className={`tile-kind-mark ${kindMeta.className}`} title={kindMeta.label} aria-label={kindMeta.label}>
+            <TileKindIcon kind={kind} size={14} />
           </span>
           <div>
             {renaming ? (
@@ -1323,8 +1403,8 @@ function ManualTerminalTile({
               </span>
             )}
             <span className={`terminal-status-label tone-${kindMeta.className}`} aria-label={`status ${statusLabel}`}>
-              <span aria-hidden="true">{statusKind === "error" ? "!" : statusKind === "restored" ? "↻" : "✓"}</span>
-              {statusLabel}
+              <SessionStatusGlyph kind={displayStatus.kind} label={statusLabel} />
+              <span className="terminal-status-text">{statusLabel}</span>
             </span>
           </div>
           {(tileStatus === "restored" || restartable) && (
@@ -1428,6 +1508,22 @@ function latestVisibleActivity(events: SessionTile["activityEvents"] | undefined
   const latest = events?.at(-1);
   if (!latest || latest.kind === "lifecycle" || latest.kind === "output") return null;
   return latest;
+}
+
+function mergeTerminalReplayBuffer(baseBuffer: string | undefined, pendingOutput: string): string {
+  const stableBaseBuffer = baseBuffer ?? "";
+  if (!pendingOutput) return stableBaseBuffer;
+  if (!stableBaseBuffer) return pendingOutput;
+  if (stableBaseBuffer.endsWith(pendingOutput)) return stableBaseBuffer;
+
+  const maxOverlap = Math.min(stableBaseBuffer.length, pendingOutput.length);
+  for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
+    if (stableBaseBuffer.endsWith(pendingOutput.slice(0, overlap))) {
+      return `${stableBaseBuffer}${pendingOutput.slice(overlap)}`;
+    }
+  }
+
+  return `${stableBaseBuffer}${pendingOutput}`;
 }
 
 function isIsolatedCheckout({

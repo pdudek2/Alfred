@@ -29,6 +29,8 @@ import {
   type TerminalSessionSnapshot,
   type TerminalSessionId,
   type TerminalSessionSource,
+  type TerminalSnapshotRequest,
+  type TerminalSnapshotResult,
   type TerminalWriteRequest,
   type TerminalWorktreeApplyRequest,
   type TerminalWorktreeApplyResult,
@@ -166,6 +168,14 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       ),
     };
   });
+
+  ipcMain.handle(
+    terminalChannels.snapshot,
+    async (event, request: TerminalSnapshotRequest): Promise<TerminalSnapshotResult> => {
+      const session = getOwnedSession(event.sender, request.id);
+      return session ? toSnapshot(session) : null;
+    },
+  );
 
   ipcMain.handle(
     terminalChannels.prepareLaunch,

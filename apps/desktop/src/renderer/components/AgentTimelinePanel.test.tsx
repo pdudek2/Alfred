@@ -38,6 +38,25 @@ describe("AgentTimelinePanel", () => {
     expect(screen.getByText("Session attached")).toBeInTheDocument();
   });
 
+  it("organizes selected session context into session, attention, and more zones", () => {
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — feature",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/repo/alfred",
+      source: "alfred",
+      command: "codex",
+      runtimeId: "runtime-1",
+    };
+
+    render(<AgentTimelinePanel session={session} />);
+
+    expect(screen.getByRole("region", { name: "Session identity" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Needs attention" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "More details" })).toBeInTheDocument();
+  });
+
   it("offers session handoff actions for cwd and command", async () => {
     const user = userEvent.setup();
     const onCopyActivityText = vi.fn();
@@ -190,7 +209,7 @@ describe("AgentTimelinePanel", () => {
 
     const { container } = render(<AgentTimelinePanel session={session} />);
 
-    const timeline = within(container).getByRole("region", { name: "Activity timeline" });
+    const timeline = within(container).getByRole("region", { name: "Recent activity" });
     expect(within(timeline).getByText("Progress reported")).toBeInTheDocument();
     expect(within(timeline).getByText("✓ tests passed")).toBeInTheDocument();
     expect(screen.getByText("1 command · 1 signal")).toBeInTheDocument();
@@ -216,9 +235,9 @@ describe("AgentTimelinePanel", () => {
     };
 
     const { container } = render(<AgentTimelinePanel session={session} />);
-    const timeline = within(container).getByRole("region", { name: "Activity timeline" });
+    const timeline = within(container).getByRole("region", { name: "Recent activity" });
 
-    expect(within(timeline).getByText("4-event preview")).toBeInTheDocument();
+    expect(within(timeline).getByText("Recent activity")).toBeInTheDocument();
     expect(within(timeline).getByText("Latest command")).toBeInTheDocument();
     expect(within(timeline).queryByText("Oldest command")).not.toBeInTheDocument();
     expect(within(timeline).getByText("1 older event hidden; debug noise stays out.")).toBeInTheDocument();
@@ -565,6 +584,46 @@ describe("AgentTimelinePanel", () => {
       args: ["test", "--watch"],
       cwd: "apps/desktop",
     });
+  });
+
+  it("keeps staged command edit state inside the context hierarchy", async () => {
+    const user = userEvent.setup();
+    const onUpdateStagedSession = vi.fn();
+    const stagedSession: SessionTile = {
+      id: "s2",
+      title: "resume agent",
+      workspaceId: "w1",
+      stage: "staged",
+      cwd: "/repo",
+      source: "alfred",
+      agentKind: "shell",
+      command: "codex",
+      args: ["resume", "old"],
+    };
+
+    const { rerender } = render(
+      <div data-context-open="true">
+        <AgentTimelinePanel session={stagedSession} onUpdateStagedSession={onUpdateStagedSession} />
+      </div>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /edit command/i }));
+    await user.clear(screen.getByLabelText("Command"));
+    await user.type(screen.getByLabelText("Command"), "codex resume abc");
+
+    rerender(
+      <div data-context-open="false" inert>
+        <AgentTimelinePanel session={stagedSession} onUpdateStagedSession={onUpdateStagedSession} />
+      </div>,
+    );
+    rerender(
+      <div data-context-open="true">
+        <AgentTimelinePanel session={stagedSession} onUpdateStagedSession={onUpdateStagedSession} />
+      </div>,
+    );
+
+    expect(screen.getByLabelText("Command")).toHaveValue("codex resume abc");
+    expect(screen.getByRole("region", { name: "Needs attention" })).toBeInTheDocument();
   });
 
   it("keeps coding-agent staged sessions read-only until launch defaults are wired", () => {

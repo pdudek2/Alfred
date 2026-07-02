@@ -47,9 +47,6 @@ let activeWindowStatePersistence: WindowStatePersistenceHandle | null = null;
 // terminal-manager.ts:defaultTerminalCwd().
 loadDotenv({ path: path.resolve(app.getAppPath(), "../..", ".env") });
 
-registerAlfredIpc();
-registerLayoutIpc();
-
 async function createWindow(persistedDesktopStateStore: PersistedDesktopStateStore): Promise<void> {
   const persistedWindowState = (await persistedDesktopStateStore.getState()).windowState;
   const appIconPath = resolveDesktopAppIconPath(app.getAppPath());
@@ -101,83 +98,105 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
   await window.loadFile(path.join(__dirname, "../renderer/index.html"));
 }
 
-app.whenReady().then(async () => {
-  const appIconPath = resolveDesktopAppIconPath(app.getAppPath());
-  if (process.platform === "darwin" && appIconPath) {
-    app.dock?.setIcon(appIconPath);
-  }
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
-  const persistedDesktopStateStore = createPersistedDesktopStateStore({ userDataPath: app.getPath("userData") });
-  desktopStateStore = persistedDesktopStateStore;
+if (!hasSingleInstanceLock) {
+  app.exit(0);
+} else {
+  registerAlfredIpc();
+  registerLayoutIpc();
 
-  configureLayoutPersistence(persistedDesktopStateStore);
-  configureStagedPlanPersistence(persistedDesktopStateStore);
-  configureTerminalPersistence(persistedDesktopStateStore);
-  registerDesktopStateIpc(persistedDesktopStateStore);
-  registerSessionIndexIpc({
-    isExternalSessionIndexingEnabled: async () =>
-      (await persistedDesktopStateStore.getState()).privacySettings.externalSessionIndexingEnabled,
-  });
-  const defaultWorkspaceRootPath = resolveDefaultWorkspaceRootPath(app.getAppPath());
-  const managedWorktreeRootPath = path.join(app.getPath("userData"), "worktrees");
-  const scratchRootPath = codexScratchRootPath(app.getPath("documents"));
-  const workspaceStore = createWorkspaceStore({
-    persistedStateStore: persistedDesktopStateStore,
-    defaultRootPath: defaultWorkspaceRootPath,
-  });
-  registerTerminalIpc({
-    allowedCwdRoots: async () => allowedWorkspaceRoots(workspaceStore, { managedWorktreeRootPath, scratchRootPath }),
-    isStagedCommandAllowed: isStagedSessionLaunchAllowed,
-    managedWorktreeRootPath,
-    requireLaunchTickets: true,
-    scratchRootPath,
-  });
-  registerWorkspaceIpc(workspaceStore, { managedWorktreeRootPath, scratchRootPath });
-  await createWindow(persistedDesktopStateStore);
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      void createWindow(persistedDesktopStateStore);
-    }
-  });
-});
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
-
-app.on("before-quit", (event) => {
-  if (!terminalQuitConfirmed && shouldConfirmTerminalQuit(getTerminalSessionCount())) {
-    if (!confirmTerminalQuit()) {
-      event.preventDefault();
-      if (BrowserWindow.getAllWindows().length === 0 && desktopStateStore) {
-        void createWindow(desktopStateStore);
-      }
+  app.on("second-instance", () => {
+    const [window] = BrowserWindow.getAllWindows();
+    if (!window) {
       return;
     }
-    terminalQuitConfirmed = true;
-  }
 
-  if (!terminalPersistenceFlushedForQuit) {
-    event.preventDefault();
+    if (window.isMinimized()) {
+      window.restore();
+    }
+
+    window.focus();
+  });
+
+  app.whenReady().then(async () => {
+    const appIconPath = resolveDesktopAppIconPath(app.getAppPath());
+    if (process.platform === "darwin" && appIconPath) {
+      app.dock?.setIcon(appIconPath);
+    }
+
+    const persistedDesktopStateStore = createPersistedDesktopStateStore({ userDataPath: app.getPath("userData") });
+    desktopStateStore = persistedDesktopStateStore;
+
+    configureLayoutPersistence(persistedDesktopStateStore);
+    configureStagedPlanPersistence(persistedDesktopStateStore);
+    configureTerminalPersistence(persistedDesktopStateStore);
+    registerDesktopStateIpc(persistedDesktopStateStore);
+    registerSessionIndexIpc({
+      isExternalSessionIndexingEnabled: async () =>
+        (await persistedDesktopStateStore.getState()).privacySettings.externalSessionIndexingEnabled,
+    });
+    const defaultWorkspaceRootPath = resolveDefaultWorkspaceRootPath(app.getAppPath());
+    const managedWorktreeRootPath = path.join(app.getPath("userData"), "worktrees");
+    const scratchRootPath = codexScratchRootPath(app.getPath("documents"));
+    const workspaceStore = createWorkspaceStore({
+      persistedStateStore: persistedDesktopStateStore,
+      defaultRootPath: defaultWorkspaceRootPath,
+    });
+    registerTerminalIpc({
+      allowedCwdRoots: async () => allowedWorkspaceRoots(workspaceStore, { managedWorktreeRootPath, scratchRootPath }),
+      isStagedCommandAllowed: isStagedSessionLaunchAllowed,
+      managedWorktreeRootPath,
+      requireLaunchTickets: true,
+      scratchRootPath,
+    });
+    registerWorkspaceIpc(workspaceStore, { managedWorktreeRootPath, scratchRootPath });
+    await createWindow(persistedDesktopStateStore);
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        void createWindow(persistedDesktopStateStore);
+      }
+    });
+  });
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+      app.quit();
+    }
+  });
+
+  app.on("before-quit", (event) => {
+    if (!terminalQuitConfirmed && shouldConfirmTerminalQuit(getTerminalSessionCount())) {
+      if (!confirmTerminalQuit()) {
+        event.preventDefault();
+        if (BrowserWindow.getAllWindows().length === 0 && desktopStateStore) {
+          void createWindow(desktopStateStore);
+        }
+        return;
+      }
+      terminalQuitConfirmed = true;
+    }
+
+    if (!terminalPersistenceFlushedForQuit) {
+      event.preventDefault();
+      killAllTerminalSessions();
+      void Promise.all([flushTerminalPersistence(), activeWindowStatePersistence?.flush() ?? Promise.resolve()])
+        .then(() => {
+          terminalPersistenceFlushedForQuit = true;
+          app.quit();
+        })
+        .catch((error: unknown) => {
+          console.error("Failed to flush desktop state before quit.", error);
+          terminalPersistenceFlushedForQuit = true;
+          app.quit();
+        });
+      return;
+    }
+
     killAllTerminalSessions();
-    void Promise.all([flushTerminalPersistence(), activeWindowStatePersistence?.flush() ?? Promise.resolve()])
-      .then(() => {
-        terminalPersistenceFlushedForQuit = true;
-        app.quit();
-      })
-      .catch((error: unknown) => {
-        console.error("Failed to flush desktop state before quit.", error);
-        terminalPersistenceFlushedForQuit = true;
-        app.quit();
-      });
-    return;
-  }
-
-  killAllTerminalSessions();
-});
+  });
+}
 
 function confirmTerminalQuit(parentWindow?: BrowserWindow): boolean {
   const activeSessionCount = getTerminalSessionCount();

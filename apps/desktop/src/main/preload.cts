@@ -9,6 +9,7 @@ import type { WorkspaceApi } from "../shared/workspace-ipc.js";
 
 const terminalChannels = {
   list: "alfred:terminal:list",
+  snapshot: "alfred:terminal:snapshot",
   prepareLaunch: "alfred:terminal:prepare-launch",
   create: "alfred:terminal:create",
   write: "alfred:terminal:write",
@@ -63,6 +64,7 @@ const desktopStateChannels = {
 
 const terminal: TerminalApi = {
   list: () => ipcRenderer.invoke(terminalChannels.list) as ReturnType<TerminalApi["list"]>,
+  snapshot: (request) => ipcRenderer.invoke(terminalChannels.snapshot, request) as ReturnType<TerminalApi["snapshot"]>,
   prepareLaunch: (request) =>
     ipcRenderer.invoke(terminalChannels.prepareLaunch, request) as ReturnType<TerminalApi["prepareLaunch"]>,
   create: (request) => ipcRenderer.invoke(terminalChannels.create, request) as ReturnType<TerminalApi["create"]>,
