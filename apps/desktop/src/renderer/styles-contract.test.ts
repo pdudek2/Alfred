@@ -220,7 +220,9 @@ describe("renderer CSS contracts", () => {
     const primaryAction = blockFor(".tile-primary-actions .continue-button");
     const primaryActionText = blockFor(".tile-primary-actions .continue-button span");
     const statusText = blockFor(".terminal-status-text");
+    const constrainedChrome = blockFor(".tile-age,\n  .terminal-status-text,\n  .tile-primary-actions .continue-button span");
 
+    expect(/\.terminal-tile-header\s*\{[^}]*display:\s*flex;/.test(styles)).toBe(true);
     expect(title).toContain("flex: 1 1 auto");
     expect(title).toContain("min-width: 140px");
     expect(titleText).toContain("min-width: 0");
@@ -231,6 +233,7 @@ describe("renderer CSS contracts", () => {
     expect(primaryAction).toContain("max-width");
     expect(primaryActionText).toContain("overflow: hidden");
     expect(statusText).toContain("max-width");
+    expect(constrainedChrome).toContain("display: none");
   });
 
   it("keeps terminal-first color roles explicit and non-generic", () => {
