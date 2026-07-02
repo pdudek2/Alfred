@@ -1103,6 +1103,84 @@ describe("App integration", () => {
     expect(terminalDisposeCalls).toHaveLength(disposeCount);
   });
 
+  it("lets terminal-grid wheel gestures reach lower tiles after xterm history reaches an edge", async () => {
+    const sessions: SessionTile[] = [
+      {
+        id: "codex-one",
+        runtimeId: "runtime-one",
+        title: "Codex · session 1",
+        source: "manual",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        command: "codex",
+        args: [],
+        stage: "live",
+        runtimeStatus: "live",
+        initialBuffer: "",
+      },
+      {
+        id: "codex-two",
+        runtimeId: "runtime-two",
+        title: "Codex · session 2",
+        source: "manual",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        command: "codex",
+        args: [],
+        stage: "live",
+        runtimeStatus: "live",
+        initialBuffer: "",
+      },
+      {
+        id: "codex-three",
+        runtimeId: "runtime-three",
+        title: "Codex · session 3",
+        source: "manual",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        command: "codex",
+        args: [],
+        stage: "live",
+        runtimeStatus: "live",
+        initialBuffer: "",
+      },
+    ];
+    renderTerminalDeskForSessions(sessions);
+
+    const column = document.querySelector(".terminal-grid-column");
+    const host = within(await screen.findByRole("article", { name: /Codex · session 1/i })).getByTestId("xterm-host");
+    if (!(column instanceof HTMLElement)) {
+      throw new Error("Expected terminal grid column to be mounted.");
+    }
+    if (!(host instanceof HTMLElement)) {
+      throw new Error("Expected xterm host to be mounted.");
+    }
+
+    host.innerHTML = '<div class="xterm"><div class="xterm-viewport"></div><div class="xterm-screen"></div></div>';
+    const viewport = host.querySelector(".xterm-viewport");
+    const screenElement = host.querySelector(".xterm-screen");
+    if (!(viewport instanceof HTMLElement) || !(screenElement instanceof HTMLElement)) {
+      throw new Error("Expected synthetic xterm viewport and screen.");
+    }
+
+    Object.defineProperty(column, "clientHeight", { configurable: true, value: 500 });
+    Object.defineProperty(column, "scrollHeight", { configurable: true, value: 1200 });
+    Object.defineProperty(viewport, "clientHeight", { configurable: true, value: 300 });
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 900 });
+
+    column.scrollTop = 0;
+    viewport.scrollTop = 100;
+    fireEvent.wheel(screenElement, { deltaY: 120 });
+    expect(column.scrollTop).toBe(0);
+
+    viewport.scrollTop = 600;
+    fireEvent.wheel(screenElement, { deltaY: 120 });
+    expect(column.scrollTop).toBe(120);
+  });
+
   it("separates collapse from destructive close and only shows resize handles in Arrange", async () => {
     const user = userEvent.setup();
     installDesktopBridge();

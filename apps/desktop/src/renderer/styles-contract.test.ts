@@ -46,6 +46,13 @@ function firstBlockFor(source: string, selector: string): string {
   return source.match(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`, "m"))?.groups?.body ?? "";
 }
 
+function exactBlockFor(selector: string): string {
+  const matches = [...styles.matchAll(/(?<selectors>[^{}]+)\{(?<body>[^{}]*)\}/gm)].filter((match) =>
+    (match.groups?.selectors ?? "").split(",").some((candidate) => candidate.trim() === selector),
+  );
+  return matches.at(-1)?.groups?.body ?? "";
+}
+
 function ruleForSelectorContaining(selector: string): { selectors: string; body: string } {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matches = [
@@ -70,6 +77,29 @@ describe("renderer CSS contracts", () => {
     expect(arrangingGrid).toContain("flex: 0 0 auto");
     expect(arrangingGrid).toContain("min-height: calc(100% + var(--arrange-bottom-safe-zone))");
     expect(arrangingGrid).toContain("padding-bottom: var(--arrange-bottom-safe-zone)");
+  });
+
+  it("keeps normal Grid scrollable when terminal tiles overflow the viewport", () => {
+    const activeDeskSurface = exactBlockFor(".desk-surface-panel.active");
+    const stage = exactBlockFor(".surface-panel > .terminal-stage");
+    const gridColumn = exactBlockFor(".terminal-grid-column");
+    const laidOutGrid = exactBlockFor(".terminal-grid.laid-out");
+    const laidOutTile = exactBlockFor(".terminal-grid.laid-out .terminal-tile");
+
+    expect(activeDeskSurface).toContain("overflow: hidden");
+    expect(stage).toContain("height: 100%");
+    expect(stage).toContain("max-height: 100%");
+    expect(gridColumn).toContain("height: 100%");
+    expect(gridColumn).toContain("max-height: 100%");
+    expect(gridColumn).toContain("overflow-y: auto");
+    expect(gridColumn).toContain("overscroll-behavior: contain");
+    expect(gridColumn).toContain("scrollbar-gutter: stable");
+    expect(gridColumn).toContain("scrollbar-width: thin");
+    expect(gridColumn).toContain("scrollbar-color:");
+    expect(laidOutGrid).toContain("--grid-bottom-safe-zone");
+    expect(laidOutGrid).toContain("flex: 0 0 auto");
+    expect(laidOutGrid).toContain("padding-bottom: var(--grid-bottom-safe-zone)");
+    expect(laidOutTile).toContain("scroll-margin-bottom: var(--grid-bottom-safe-zone)");
   });
 
   it("keeps Inbox section titles separated from explanatory copy", () => {

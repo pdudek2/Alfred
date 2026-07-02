@@ -9,6 +9,7 @@ import {
   type CSSProperties,
   type FocusEvent as ReactFocusEvent,
   type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
 } from "react";
 import { getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
 import type { TileLayout } from "../layout-state";
@@ -174,6 +175,32 @@ export function TerminalDesk({
       throw new Error(result?.error ?? "Workspace runtime is unavailable.");
     }
   }, []);
+  const handleGridWheelCapture = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
+    if (event.deltaY === 0) return;
+    const column = event.currentTarget;
+    if (column.scrollHeight <= column.clientHeight) return;
+
+    const target = event.target instanceof Element ? event.target : null;
+    const xtermHost = target?.closest(".xterm-host");
+    const viewport = xtermHost?.querySelector(".xterm-viewport");
+    if (!(viewport instanceof HTMLElement)) return;
+
+    const direction = Math.sign(event.deltaY);
+    const terminalCanScroll =
+      direction > 0
+        ? viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight - 1
+        : viewport.scrollTop > 1;
+    if (terminalCanScroll) return;
+
+    const columnCanScroll =
+      direction > 0
+        ? column.scrollTop + column.clientHeight < column.scrollHeight - 1
+        : column.scrollTop > 1;
+    if (!columnCanScroll) return;
+
+    column.scrollTop += event.deltaY;
+    event.preventDefault();
+  }, []);
   const startPointerArrange = useCallback(
     (tileId: string, mode: ArrangePointerMode, event: ReactPointerEvent<HTMLElement>) => {
       if (!arrangeMode) return;
@@ -287,7 +314,7 @@ export function TerminalDesk({
         ) : null}
       </header>
       <div className="terminal-stage-body">
-        <div className="terminal-grid-column">
+        <div className="terminal-grid-column" onWheelCapture={handleGridWheelCapture}>
           {recoverableSessions.length > 0 && (
             <RecoveryWorkspaceStrip
               sessions={recoverableSessions}

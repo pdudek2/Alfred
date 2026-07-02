@@ -10084,3 +10084,89 @@ body {
   border-color: color-mix(in oklab, var(--role-attention) 36%, var(--line));
   color: color-mix(in oklab, var(--role-attention) 86%, white 8%);
 }
+
+/*
+ * ALFRED TERMINAL GRID SCROLL v10
+ * Keep the xterm viewport scroll independent from the workbench tile scroll.
+ */
+.terminal-stage-body {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.desk-surface-panel.active {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.surface-panel > .terminal-stage {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+}
+
+.terminal-grid-column {
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--role-active) 42%, transparent) transparent;
+  padding-bottom: 10px;
+}
+
+.terminal-grid-column::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.terminal-grid-column::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.terminal-grid-column::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--role-active) 38%, transparent);
+  background-clip: padding-box;
+}
+
+.terminal-grid.laid-out {
+  --grid-bottom-safe-zone: 76px;
+  flex: 0 0 auto;
+  align-content: start;
+  min-height: 100%;
+  padding-bottom: var(--grid-bottom-safe-zone);
+  scroll-padding-bottom: var(--grid-bottom-safe-zone);
+}
+
+.terminal-grid.laid-out .terminal-tile {
+  scroll-margin-bottom: var(--grid-bottom-safe-zone);
+}
+
+.terminal-stage.arranging .terminal-grid-column {
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding-bottom: 18px;
+}
+
+.terminal-stage.arranging .terminal-grid {
+  --arrange-bottom-safe-zone: 156px;
+  flex: 0 0 auto;
+  min-height: calc(100% + var(--arrange-bottom-safe-zone));
+  padding-bottom: var(--arrange-bottom-safe-zone);
+  scroll-padding-bottom: var(--arrange-bottom-safe-zone);
+}
+
+.terminal-stage.arranging .terminal-tile {
+  scroll-margin-bottom: var(--arrange-bottom-safe-zone);
+}
