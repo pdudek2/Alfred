@@ -996,7 +996,13 @@ describe("App integration", () => {
 
     expect(screen.getAllByTestId("xterm-host")).toHaveLength(3);
     const hiddenSplitTile = document.querySelector("article[aria-label='Codex · three']");
+    expect(hiddenSplitTile).toHaveClass("focus-hidden");
     expect(hiddenSplitTile).toHaveAttribute("aria-hidden", "true");
+    if (!(hiddenSplitTile instanceof HTMLElement)) {
+      throw new Error("Expected hidden split tile to be present.");
+    }
+    expect(hiddenSplitTile.matches(".terminal-stage.mode-split .terminal-tile.focus-hidden")).toBe(true);
+    expect(within(hiddenSplitTile).getByTestId("xterm-host").isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCount);
 
     act(() => {

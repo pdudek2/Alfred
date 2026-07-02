@@ -1759,7 +1759,8 @@ button:focus-visible {
   color: var(--muted);
 }
 
-.terminal-stage.mode-focus .terminal-tile.focus-hidden {
+.terminal-stage.mode-focus .terminal-tile.focus-hidden,
+.terminal-stage.mode-split .terminal-tile.focus-hidden {
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
