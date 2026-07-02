@@ -568,9 +568,17 @@ describe("App integration", () => {
     const panel = await screen.findByTestId("workspace-navigation-panel");
     expect(within(panel).getByText("Active terminals")).toBeInTheDocument();
     expect(within(panel).getByText("Inbox")).toBeInTheDocument();
-    expect(within(panel).getByText("Free chats")).toBeInTheDocument();
     expect(within(panel).getByText("Workspaces")).toBeInTheDocument();
     expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toBeInTheDocument();
+  });
+
+  it("does not render an empty Free Chats section when there are no scratch chats", async () => {
+    installDesktopBridge();
+    render(<App />);
+
+    expect(await screen.findByLabelText("Runs and workspaces")).toBeInTheDocument();
+    expect(screen.queryByText("Free chats")).not.toBeInTheDocument();
+    expect(screen.queryByText("No scratch chats yet.")).not.toBeInTheDocument();
   });
 
   it("opens a free chat in its own workspace from the workspace navigation panel", async () => {
@@ -631,6 +639,24 @@ describe("App integration", () => {
         "scratch-client": expect.objectContaining({ col: 1, colSpan: 12 }),
       }),
     });
+  });
+
+  it("collapses long empty workspace lists while keeping search available", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [], undefined, undefined, {
+      workspaces: Array.from({ length: 14 }, (_, index) => ({
+        id: `W${index + 1}`,
+        label: `Workspace ${index + 1}`,
+        shortLabel: `W${index + 1}`,
+      })),
+      activeWorkspaceId: "W1",
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: /Show .* more empty workspaces/i })).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Search sessions, chats, files"), "Workspace 14");
+    expect(screen.getByRole("tab", { name: /Workspace 14 workspace/i })).toBeInTheDocument();
   });
 
   it("keeps the embedded workspace rail mounted in the navigation panel across surface switches", async () => {

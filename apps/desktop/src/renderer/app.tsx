@@ -5,6 +5,7 @@ import {
   ListChecks,
   Pencil,
   RefreshCcw,
+  Search,
   ShieldCheck,
   SquareTerminal,
   Trash2,
@@ -30,8 +31,7 @@ import { ReviewSurface } from "./components/ReviewSurface";
 import { SessionObservatoryPanel } from "./components/SessionObservatoryPanel";
 import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
 import { WorkbenchHeader } from "./components/WorkbenchHeader";
-import { WorkspaceNavigationPanel } from "./components/WorkspaceNavigationPanel";
-import type { WorkspaceRailWorkspace } from "./components/WorkspaceRail";
+import { WorkspaceRail, type WorkspaceRailWorkspace } from "./components/WorkspaceRail";
 import {
   applyLayoutPreset,
   ensureTileLayouts,
@@ -77,6 +77,7 @@ import {
   type SessionTile,
 } from "./session-state";
 import { terminalSessionDisplayStatus } from "./session-status";
+import { sessionTileKind, tileKindMeta } from "./tile-kind";
 import { recordPreviewUrlsFromText, type PreviewUrlCandidate } from "./preview-state";
 import type { WorkMode } from "./terminal-desk-types";
 import { workspaceAttention, workspaceReviewQueue, type WorkspaceReviewItem } from "./workspace-attention";
@@ -125,6 +126,9 @@ type PendingDiscardConfirmation = {
 const DEFAULT_WORKSPACE_ID = "A";
 const DEFAULT_WORKSPACE: Workspace = { id: DEFAULT_WORKSPACE_ID, label: "Alfred", shortLabel: "A" };
 const DEFAULT_WORKSPACES: Workspace[] = [DEFAULT_WORKSPACE];
+const MAX_VISIBLE_EMPTY_NAV_WORKSPACES = 8;
+const MAX_VISIBLE_ACTIVE_NAV_SESSIONS = 5;
+const MAX_VISIBLE_FREE_CHAT_SESSIONS = 3;
 const DEFAULT_PRIVACY_SETTINGS: DesktopPrivacySettings = {
   terminalScrollbackRetention: "redactedTail",
   externalSessionIndexingEnabled: true,
@@ -1951,7 +1955,7 @@ export function App() {
             onToggleContext={handleToggleContextDrawer}
             onSelectSurface={(surface) => setActiveSurface(surface)}
           />
-          <WorkspaceNavigationPanel
+          <QuietWorkspaceNavigationPanel
             activeSessions={activeSessions}
             activeWorkspace={activeWorkspace}
             activeWorkspaceId={activeWorkspace.id}
@@ -2225,6 +2229,160 @@ export function App() {
         )}
       </section>
     </main>
+  );
+}
+
+type QuietWorkspaceNavigationPanelProps = {
+  activeWorkspace: WorkspaceRailWorkspace;
+  activeWorkspaceId: string;
+  activeSessions: SessionTile[];
+  inboxCount: number;
+  sessions: SessionTile[];
+  workspaces: WorkspaceRailWorkspace[];
+  onAddWorkspace: () => void;
+  onFocusSession: (sessionId: string) => void;
+  onFocusSessionInWorkspace: (workspaceId: string, sessionId: string) => void;
+  onOpenInbox: () => void;
+  onSelectWorkspace: (workspaceId: string) => void;
+};
+
+function QuietWorkspaceNavigationPanel({
+  activeWorkspace,
+  activeWorkspaceId,
+  activeSessions,
+  inboxCount,
+  sessions,
+  workspaces,
+  onAddWorkspace,
+  onFocusSession,
+  onFocusSessionInWorkspace,
+  onOpenInbox,
+  onSelectWorkspace,
+}: QuietWorkspaceNavigationPanelProps) {
+  const [navigationQuery, setNavigationQuery] = useState("");
+  const [showAllEmptyWorkspaces, setShowAllEmptyWorkspaces] = useState(false);
+  const freeChats = sessions
+    .filter((session) => session.workspaceId !== activeWorkspaceId && isFreeChatSession(session))
+    .slice(0, MAX_VISIBLE_FREE_CHAT_SESSIONS);
+  const { hiddenEmptyWorkspaceCount, visibleWorkspaces } = visibleNavigationWorkspaces(
+    workspaces,
+    sessions,
+    activeWorkspaceId,
+    navigationQuery,
+    showAllEmptyWorkspaces,
+  );
+
+  return (
+    <aside className="workspace-navigation-panel" data-testid="workspace-navigation-panel" aria-label="Runs and workspaces">
+      <header className="workspace-nav-head">
+        <span className="workspace-nav-avatar">{activeWorkspace.shortLabel}</span>
+        <div>
+          <strong>{activeWorkspace.label}</strong>
+          <span>
+            {activeSessions.length} terminals · {activeWorkspace.gitBranch ?? "local"} ·{" "}
+            {activeWorkspace.rootPath ? activeWorkspace.rootPath.replace(/^.*\/Desktop\//, "~/Desktop/") : "scratch desk"}
+          </span>
+        </div>
+      </header>
+      <label className="workspace-nav-search">
+        <Search size={14} />
+        <input
+          aria-label="Search sessions, chats, files"
+          placeholder="Search sessions, chats, files"
+          value={navigationQuery}
+          onChange={(event) => setNavigationQuery(event.target.value)}
+        />
+      </label>
+      <div className="workspace-nav-scroll">
+        <section className="workspace-nav-section">
+          <header>
+            <span>Active terminals</span>
+            <strong>{activeSessions.length}</strong>
+          </header>
+          <div className="workspace-nav-list">
+            {activeSessions.length === 0 ? (
+              <p className="workspace-nav-empty">No active terminals in this workspace.</p>
+            ) : (
+              activeSessions.slice(0, MAX_VISIBLE_ACTIVE_NAV_SESSIONS).map((session) => {
+                const status = terminalSessionDisplayStatus(session);
+                const kindMeta = tileKindMeta(sessionTileKind(session));
+                return (
+                  <button key={session.id} type="button" className="workspace-nav-row" onClick={() => onFocusSession(session.id)}>
+                    <span className={`workspace-nav-mark ${kindMeta.className}`}>{kindMeta.shortLabel}</span>
+                    <span>
+                      <strong>{session.title}</strong>
+                      <small>{status.label} · {session.cwd.replace(/^.*\/Desktop\//, "~/Desktop/")}</small>
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </section>
+        <section className="workspace-nav-section">
+          <header>
+            <span>Inbox</span>
+            <strong>{inboxCount}</strong>
+          </header>
+          <div className="workspace-nav-list">
+            <button type="button" className="workspace-nav-row" onClick={onOpenInbox}>
+              <span className="workspace-nav-mark alert">!</span>
+              <span>
+                <strong>Needs review</strong>
+                <small>{inboxCount} decisions, blocked runs, recovery</small>
+              </span>
+            </button>
+          </div>
+        </section>
+        {freeChats.length > 0 && (
+          <section className="workspace-nav-section">
+            <header>
+              <span>Free chats</span>
+              <strong>{freeChats.length}</strong>
+            </header>
+            <div className="workspace-nav-list">
+              {freeChats.map((session) => (
+                <button
+                  key={session.id}
+                  type="button"
+                  className="workspace-nav-row"
+                  onClick={() => onFocusSessionInWorkspace(session.workspaceId, session.id)}
+                >
+                  <span className="workspace-nav-mark">FC</span>
+                  <span>
+                    <strong>{session.title}</strong>
+                    <small>{session.cwd.replace(/^.*\/Documents\/Codex\//, "~/Documents/Codex/")}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+        <section className="workspace-nav-section workspace-nav-workspaces">
+          <header>
+            <span>Workspaces</span>
+            <strong>{workspaces.length}</strong>
+          </header>
+          <WorkspaceRail
+            activeWorkspaceId={activeWorkspaceId}
+            embedded
+            sessions={sessions}
+            workspaces={visibleWorkspaces}
+            onAddWorkspace={onAddWorkspace}
+            onSelectWorkspace={onSelectWorkspace}
+          />
+          {navigationQuery.trim().length === 0 && hiddenEmptyWorkspaceCount > 0 && !showAllEmptyWorkspaces && (
+            <button
+              type="button"
+              className="workspace-nav-more-button"
+              onClick={() => setShowAllEmptyWorkspaces(true)}
+            >
+              Show {hiddenEmptyWorkspaceCount} more empty workspaces
+            </button>
+          )}
+        </section>
+      </div>
+    </aside>
   );
 }
 
@@ -2969,6 +3127,82 @@ function mergeSessionInitialBuffer(
   }
 
   return incomingBuffer.length >= currentBuffer.length ? incomingBuffer : currentBuffer;
+}
+
+function isFreeChatSession(session: SessionTile): boolean {
+  return session.stage === "live" && session.cwd.includes("/Documents/Codex/");
+}
+
+function visibleNavigationWorkspaces(
+  workspaces: WorkspaceRailWorkspace[],
+  sessions: SessionTile[],
+  activeWorkspaceId: string,
+  query: string,
+  showAllEmptyWorkspaces: boolean,
+): { hiddenEmptyWorkspaceCount: number; visibleWorkspaces: WorkspaceRailWorkspace[] } {
+  const normalizedQuery = normalizeNavigationQuery(query);
+  const workspaceIdsWithSessions = new Set(sessions.map((session) => session.workspaceId));
+  const sessionsByWorkspaceId = new Map<string, SessionTile[]>();
+  for (const session of sessions) {
+    const existing = sessionsByWorkspaceId.get(session.workspaceId);
+    if (existing) {
+      existing.push(session);
+      continue;
+    }
+    sessionsByWorkspaceId.set(session.workspaceId, [session]);
+  }
+
+  const visibleWorkspaces: WorkspaceRailWorkspace[] = [];
+  let hiddenEmptyWorkspaceCount = 0;
+  let visibleEmptyWorkspaceCount = 0;
+
+  for (const workspace of workspaces) {
+    const isActiveWorkspace = workspace.id === activeWorkspaceId;
+    const hasSessions = workspaceIdsWithSessions.has(workspace.id);
+    const isEmptyWorkspace = !isActiveWorkspace && !hasSessions;
+
+    if (!isEmptyWorkspace) {
+      visibleWorkspaces.push(workspace);
+      continue;
+    }
+
+    if (normalizedQuery.length > 0) {
+      if (workspaceMatchesNavigationQuery(workspace, sessionsByWorkspaceId.get(workspace.id) ?? [], normalizedQuery)) {
+        visibleWorkspaces.push(workspace);
+      }
+      continue;
+    }
+
+    if (showAllEmptyWorkspaces || visibleEmptyWorkspaceCount < MAX_VISIBLE_EMPTY_NAV_WORKSPACES) {
+      visibleEmptyWorkspaceCount += 1;
+      visibleWorkspaces.push(workspace);
+      continue;
+    }
+
+    hiddenEmptyWorkspaceCount += 1;
+  }
+
+  return { hiddenEmptyWorkspaceCount, visibleWorkspaces };
+}
+
+function workspaceMatchesNavigationQuery(
+  workspace: WorkspaceRailWorkspace,
+  sessions: SessionTile[],
+  normalizedQuery: string,
+): boolean {
+  if (normalizedQuery.length === 0) return true;
+
+  return [
+    workspace.label,
+    workspace.shortLabel,
+    workspace.rootPath,
+    workspace.gitBranch,
+    ...sessions.flatMap((session) => [session.title, session.cwd]),
+  ].some((value) => normalizeNavigationQuery(value).includes(normalizedQuery));
+}
+
+function normalizeNavigationQuery(value: string | undefined): string {
+  return value?.trim().toLocaleLowerCase() ?? "";
 }
 
 function workspaceRootPath(state: WorkspaceStateSnapshot | null, workspaceId: string): string {
