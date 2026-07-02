@@ -80,8 +80,8 @@ describe("SessionObservatoryPanel", () => {
       />,
     );
 
-    expect(screen.getByRole("dialog", { name: "Session observatory" })).toBeInTheDocument();
-    expect(screen.getByText("3 tracked across 2 workspaces")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Session quick switch" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Session quick switch results")).toBeInTheDocument();
     expect(screen.getByText("Code audit")).toBeInTheDocument();
     expect(screen.getByText("Frontend review")).toBeInTheDocument();
 

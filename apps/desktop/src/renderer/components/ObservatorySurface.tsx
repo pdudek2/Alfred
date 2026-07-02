@@ -96,6 +96,7 @@ export function ObservatorySurface({
         <div>
           <span>History</span>
           <strong>Sessions and project memory</strong>
+          <p>History is the full browser for Alfred-managed sessions and external Codex transcripts.</p>
           <p>Browse Alfred-managed terminals and external Codex sessions. External sessions are read-only until resumed.</p>
         </div>
         <button

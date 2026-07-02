@@ -836,7 +836,7 @@ describe("App integration", () => {
     const primaryNav = screen.getByTestId("primary-nav-rail");
 
     await user.click(within(primaryNav).getByRole("button", { name: /open inbox surface/i }));
-    await user.click(screen.getByRole("button", { name: /open session observatory/i }));
+    await user.click(screen.getByRole("button", { name: /open session quick switch/i }));
     await user.click(within(primaryNav).getByRole("button", { name: /open work surface/i }));
 
     expect(screen.getByTestId("xterm-host")).toBe(firstHost);
@@ -1838,7 +1838,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("dialog", { name: "Review queue" })).not.toBeInTheDocument();
   });
 
-  it("switches from session observatory to command palette with the global shortcut", async () => {
+  it("switches from session quick switch to command palette with the global shortcut", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [], undefined, undefined, undefined, [
       {
@@ -1853,13 +1853,29 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: "Open session observatory, 1 session" }));
-    expect(screen.getByRole("dialog", { name: "Session observatory" })).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Open session quick switch, 1 session" }));
+    expect(screen.getByRole("dialog", { name: "Session quick switch" })).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "k", code: "KeyK", metaKey: true });
 
     expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: "Session observatory" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Session quick switch" })).not.toBeInTheDocument();
+  });
+
+  it("treats History as the full session browser and Sessions as quick switch", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
+
+    render(<App />);
+
+    await user.click(within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open session quick switch/i }));
+
+    const quickSwitch = await screen.findByRole("dialog", { name: "Session quick switch" });
+    expect(quickSwitch).toBeInTheDocument();
+    expect(quickSwitch).not.toHaveTextContent("Sessions and project memory");
+
+    await user.click(screen.getByRole("button", { name: "Open History surface" }));
+    expect(await screen.findByRole("region", { name: "History workspace" })).toBeInTheDocument();
   });
 
   it("surfaces detected localhost URLs in the workspace preview dock", async () => {
