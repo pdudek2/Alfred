@@ -9979,6 +9979,11 @@ body {
   overflow: hidden;
 }
 
+.terminal-tile-header .tile-title:has(.session-rename-form) {
+  overflow: visible;
+  min-width: max-content;
+}
+
 .terminal-tile-header .tile-title > div {
   min-width: 0;
 }
