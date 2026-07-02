@@ -49,7 +49,7 @@ export function WorkbenchHeader({
       : activeSurface === "inbox"
         ? "Decision inbox"
         : "Sessions and project memory";
-  const liveLabel = `${activeSessionCount} live`;
+  const sessionCountLabel = `${activeSessionCount} session${activeSessionCount === 1 ? "" : "s"}`;
   const contextSignalLabel =
     contextSignalCount > 0 ? `, ${contextSignalCount} important signal${contextSignalCount === 1 ? "" : "s"}` : "";
   const contextLabel = `${contextOpen ? "Close" : "Open"} Context drawer${contextSignalLabel}`;
@@ -66,7 +66,7 @@ export function WorkbenchHeader({
         </div>
         <div className="workbench-title-line">
           <h1>{headline}</h1>
-          <span>{liveLabel}</span>
+          <span>{sessionCountLabel}</span>
         </div>
         <p>{workspacePathLabel}</p>
       </div>
