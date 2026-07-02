@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
 import { TerminalDesk } from "./components/TerminalDesk";
 import type { SessionTile } from "./session-state";
+import { alfredGraphiteTerminalProfile } from "./terminal-visual-profile";
 import type {
   AlfredApi,
   AlfredPlanResponse,
@@ -871,14 +872,24 @@ describe("App integration", () => {
   it("uses the icon rail as the primary Work Inbox History navigation", async () => {
     installDesktopBridge();
     render(<App />);
+    const rail = await screen.findByTestId("primary-nav-rail");
+    const railScope = within(rail);
+    const workButton = railScope.getByRole("button", { name: /open work surface/i });
+    const inboxButton = railScope.getByRole("button", { name: /open inbox surface/i });
+    const historyButton = railScope.getByRole("button", { name: /open history surface/i });
 
-    await userEvent.click(await within(screen.getByTestId("primary-nav-rail")).findByRole("button", { name: /open inbox surface/i }));
+    expect(workButton).toHaveAttribute("title", "Work");
+    expect(inboxButton).toHaveAttribute("title", "Inbox");
+    expect(historyButton).toHaveAttribute("title", "History");
+    expect(workButton.querySelector("svg.lucide-layout-grid")).toBeInTheDocument();
+
+    await userEvent.click(inboxButton);
     expect(screen.getByRole("region", { name: /inbox workspace/i })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /open history surface/i }));
+    await userEvent.click(historyButton);
     expect(screen.getByRole("region", { name: /history workspace/i })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /open work surface/i }));
+    await userEvent.click(workButton);
     expect(screen.getByTestId("terminal-grid")).toBeInTheDocument();
   });
 
@@ -889,8 +900,16 @@ describe("App integration", () => {
 
     const rail = await screen.findByTestId("primary-nav-rail");
     const railScope = within(rail);
+    const expectedShortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
 
     const contextButton = railScope.getByRole("button", { name: "Open Context drawer" });
+    const commandButton = railScope.getByRole("button", { name: "Open command palette" });
+    const privacyButton = railScope.getByRole("button", { name: "Open Local Data & Privacy" });
+
+    expect(contextButton).toHaveAttribute("title", "Context");
+    expect(commandButton).toHaveAttribute("title", `${expectedShortcutModifier} K`);
+    expect(privacyButton).toHaveAttribute("title", "Local Data & Privacy");
+    expect(contextButton.querySelector("svg.lucide-panel-right")).toBeInTheDocument();
     expect(contextButton).toHaveAttribute("aria-expanded", "false");
 
     await user.click(contextButton);
@@ -901,7 +920,7 @@ describe("App integration", () => {
     expect(screen.getByTestId("context-drawer")).toHaveClass("closed");
     expect(railScope.getByRole("button", { name: "Open Context drawer" })).toHaveAttribute("aria-expanded", "false");
 
-    await user.click(railScope.getByRole("button", { name: "Open Local Data & Privacy" }));
+    await user.click(privacyButton);
     expect(screen.getByRole("dialog", { name: "Local Data & Privacy" })).toBeInTheDocument();
   });
 
@@ -2741,16 +2760,16 @@ describe("App integration", () => {
     expect(terminalConstructorOptions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          cursorBlink: true,
-          cursorStyle: "bar",
+          cursorBlink: alfredGraphiteTerminalProfile.cursorBlink,
+          cursorStyle: alfredGraphiteTerminalProfile.cursorStyle,
           fontFamily: expect.stringContaining("Geist Mono"),
-          fontSize: 13,
-          lineHeight: 1.32,
+          fontSize: alfredGraphiteTerminalProfile.fontSize,
+          lineHeight: alfredGraphiteTerminalProfile.lineHeight,
           theme: expect.objectContaining({
-            background: "#101010",
-            cursor: "#b9aeda",
-            selectionBackground: "#3a2a38",
-            selectionForeground: "#ffffff",
+            background: alfredGraphiteTerminalProfile.theme.background,
+            cursor: alfredGraphiteTerminalProfile.theme.cursor,
+            selectionBackground: alfredGraphiteTerminalProfile.theme.selectionBackground,
+            selectionForeground: alfredGraphiteTerminalProfile.theme.selectionForeground,
           }),
         }),
       ]),

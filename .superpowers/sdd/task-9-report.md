@@ -3,6 +3,7 @@
 ## Changed UI path and touched files
 
 - UI path: desktop renderer primary navigation rail and embedded xterm visual profile
+- Touched: `apps/desktop/src/renderer/app.test.tsx`
 - Touched: `apps/desktop/src/renderer/components/PrimaryNavigationRail.tsx`
 - Touched: `apps/desktop/src/renderer/terminal-visual-profile.ts`
 - Touched: `apps/desktop/src/renderer/terminal-visual-profile.test.ts`
@@ -17,18 +18,21 @@
   - Cmd+K uses `Command`
   - Local Data & Privacy uses `ShieldCheck`
 - Added `title` tooltips to all primary rail icon buttons without changing existing accessible names.
+- Follow-up test coverage now verifies rail `title` attributes and concrete lucide glyph output for the updated Alfred icon semantics.
 - Introduced `alfredGraphiteTerminalProfile` and kept `ghosttyVesperTerminalProfile` as a backward-compatible alias.
 - Retuned terminal theme accents away from the old Vesper green/purple emphasis to Alfred graphite/cyan:
   - background `#0a0e12`
   - cursor `#6ee7ff`
   - cursorAccent `#0a0e12`
   - selectionBackground `#12313a`
+- App integration coverage now verifies embedded xterm construction against `alfredGraphiteTerminalProfile` instead of duplicating stale Vesper literals.
 
 ## Validation performed
 
 - `cd /Users/patryk/Desktop/Alfred/apps/desktop && node_modules/.bin/vitest run src/renderer/terminal-visual-profile.test.ts`
 - `cd /Users/patryk/Desktop/Alfred/apps/desktop && node_modules/.bin/vitest run src/renderer/app.test.tsx -t "uses the icon rail"`
 - `cd /Users/patryk/Desktop/Alfred/apps/desktop && node_modules/.bin/vitest run src/renderer/app.test.tsx -t "primary-nav-rail utility actions"`
+- `cd /Users/patryk/Desktop/Alfred/apps/desktop && node_modules/.bin/vitest run src/renderer/app.test.tsx -t "creates embedded terminals with the Ghostty Vesper visual profile"`
 
 ## Residual risk
 
