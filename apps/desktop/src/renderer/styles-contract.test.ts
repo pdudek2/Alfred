@@ -212,6 +212,27 @@ describe("renderer CSS contracts", () => {
     expect(terminalChromeLayer).not.toMatch(/\.terminal-tile\.selected\s+\.tool-dot/);
   });
 
+  it("keeps terminal tile titles readable before action chrome under constrained width", () => {
+    const title = blockFor(".terminal-tile-header .tile-title");
+    const titleText = blockFor(".terminal-tile-header .tile-title > div");
+    const titleLabel = blockFor(".terminal-tile-header .tile-title b");
+    const actions = blockFor(".terminal-tile-header .tile-actions");
+    const primaryAction = blockFor(".tile-primary-actions .continue-button");
+    const primaryActionText = blockFor(".tile-primary-actions .continue-button span");
+    const statusText = blockFor(".terminal-status-text");
+
+    expect(title).toContain("flex: 1 1 auto");
+    expect(title).toContain("min-width: 140px");
+    expect(titleText).toContain("min-width: 0");
+    expect(titleLabel).toContain("overflow: hidden");
+    expect(titleLabel).toContain("text-overflow: ellipsis");
+    expect(actions).toContain("flex: 0 1 auto");
+    expect(actions).toContain("min-width: 0");
+    expect(primaryAction).toContain("max-width");
+    expect(primaryActionText).toContain("overflow: hidden");
+    expect(statusText).toContain("max-width");
+  });
+
   it("keeps terminal-first color roles explicit and non-generic", () => {
     const manualDot = blockFor(".terminal-tile.real-terminal .tool-dot.manual,\n.terminal-tile.real-terminal .tool-dot.shell,\n.focus-session-strip .tool-dot.manual,\n.focus-session-strip .tool-dot.shell");
     const codexDot = blockFor(".terminal-tile.real-terminal .tool-dot.codex,\n.focus-session-strip .tool-dot.codex");

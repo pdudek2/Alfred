@@ -9885,6 +9885,9 @@ body {
 
 .terminal-tile-header .tile-title b {
   font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .terminal-tile-header .tile-title small {
@@ -9965,6 +9968,61 @@ body {
   padding: 0 7px;
   border-radius: 7px;
   font-size: 10px;
+}
+
+.terminal-tile-header .tile-title {
+  flex: 1 1 auto;
+  min-width: 140px;
+  overflow: hidden;
+}
+
+.terminal-tile-header .tile-title > div {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.terminal-tile-header .tile-title b,
+.terminal-tile-header .tile-title small,
+.terminal-tile-header .session-location-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-tile-header .tile-actions {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tile-primary-actions .continue-button {
+  max-width: 124px;
+}
+
+.tile-primary-actions .continue-button span,
+.terminal-status-text {
+  max-width: 86px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container terminal-tile (max-width: 520px) {
+  .tile-age,
+  .terminal-status-text,
+  .tile-primary-actions .continue-button span {
+    display: none;
+    max-width: 86px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .terminal-tile-header .tile-title {
+    flex: 1 1 auto;
+    min-width: 140px;
+    min-width: 120px;
+  }
 }
 
 .dispatch-bar {
