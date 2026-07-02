@@ -16,6 +16,12 @@
 - `node_modules/.bin/vitest run src/renderer/app.test.tsx -t "enables arrange mode without duplicating the Work layout controls"`
 - `node_modules/.bin/vitest run src/renderer/app.test.tsx -t "keeps xterm hosts mounted across Work, Inbox, History, Context, and Focus"`
 
+## Follow-up
+
+- Restored the CSS contract coverage for the static, non-overlapping mission bar and bounded workspace title width in `.mission-bar .mission-name`.
+- Moved the shortcut typography assertion to `.terminal-stage-utility span`, which is where the visible `Cmd/Ctrl T` affordance is actually styled.
+- Strengthened the app regression test to assert the stage-header shortcut affordance still renders while the duplicated tile/staged copy stays removed.
+
 ## Concerns
 
 - Validation covered the renderer tests nearest to this header flow, but not a full desktop build.

@@ -1012,9 +1012,11 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByTestId("workbench-header")).toBeInTheDocument();
+    const workbenchHeader = await screen.findByTestId("workbench-header");
+
     expect(screen.getByRole("button", { name: /Workspace menu for Alfred/i })).not.toHaveTextContent(/2 tiles/);
-    expect(screen.getByTestId("workbench-header")).toHaveTextContent("2 live");
+    expect(workbenchHeader).toHaveTextContent("2 live");
+    expect(screen.getByLabelText("Terminal grid controls")).toHaveTextContent(/^(Cmd|Ctrl) T$/);
     expect(screen.queryByText(/2 tiles · 0 staged/i)).not.toBeInTheDocument();
   });
 
