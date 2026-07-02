@@ -201,6 +201,7 @@ describe("renderer CSS contracts", () => {
     const terminalChromeLayer = styles.slice(styles.indexOf(".terminal-tile.real-terminal .tool-dot"));
 
     expect(header).toContain("min-height");
+    expect(header).toContain("background: var(--proto-panel-soft)");
     expect(header).not.toContain("linear-gradient");
     expect(kindMark).toContain("width: 24px");
     expect(kindMarkText).toContain("display: none");
