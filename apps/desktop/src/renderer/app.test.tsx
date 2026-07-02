@@ -363,6 +363,27 @@ function installDesktopBridge(
   };
 }
 
+function liveSnapshot(
+  suffix: string,
+  overrides: Partial<TerminalSessionSnapshot> = {},
+): TerminalSessionSnapshot {
+  return {
+    id: `session-${suffix}`,
+    runtimeId: `runtime-${suffix}`,
+    title: `Codex · ${suffix}`,
+    source: "manual",
+    agentKind: "codex",
+    workspaceId: "A",
+    cwd: "/Users/patryk/Desktop/Alfred",
+    createdAt: Date.now(),
+    shell: "/bin/zsh",
+    command: "codex",
+    args: [],
+    buffer: "",
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   terminalConstructorOptions.length = 0;
   terminalDisposeCalls.length = 0;
@@ -956,6 +977,35 @@ describe("App integration", () => {
     expect(finalHosts[0]).toBe(initialHost);
     expect(finalHosts[0]?.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
+  });
+
+  it("keeps non-visible Split terminals mounted and replayable when returning to Grid", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge(undefined, null, [
+      liveSnapshot("one", { id: "runtime-one", title: "Codex · one" }),
+      liveSnapshot("two", { id: "runtime-two", title: "Codex · two" }),
+      liveSnapshot("three", { id: "runtime-three", title: "Codex · three" }),
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Codex · one/i })).toBeInTheDocument();
+    const disposeCount = terminalDisposeCalls.length;
+
+    await user.click(screen.getByRole("button", { name: "Split" }));
+
+    expect(screen.getAllByTestId("xterm-host")).toHaveLength(3);
+    const hiddenSplitTile = document.querySelector("article[aria-label='Codex · three']");
+    expect(hiddenSplitTile).toHaveAttribute("aria-hidden", "true");
+    expect(terminalDisposeCalls).toHaveLength(disposeCount);
+
+    act(() => {
+      bridge.emitData({ id: "runtime-three", data: "hidden split output\n" });
+    });
+
+    await user.click(screen.getByRole("button", { name: "Grid" }));
+    expect(document.querySelector("article[aria-label='Codex · three']")).toHaveTextContent("hidden split output");
+    expect(terminalDisposeCalls).toHaveLength(disposeCount);
   });
 
   it("separates collapse from destructive close and only shows resize handles in Arrange", async () => {

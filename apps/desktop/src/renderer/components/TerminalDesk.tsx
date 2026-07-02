@@ -126,7 +126,8 @@ export function TerminalDesk({
     ? splitSessionsForDesk(sessions, selectedSessionId, layouts)
     : sessions;
   const visibleSessions = focusSession ? [focusSession] : splitSessions;
-  const renderedSessions = focusSession ? sessions : visibleSessions;
+  const renderedSessions = focusSession || workMode === "split" ? sessions : visibleSessions;
+  const visibleSessionIds = new Set(visibleSessions.map((session) => session.id));
   const inspectedSession = focusSession ?? selectedSession ?? visibleSessions[0] ?? null;
   const blockedStagedSession =
     inspectedSession?.stage === "staged" && isLaunchBlocked(inspectedSession) ? inspectedSession : null;
@@ -325,7 +326,10 @@ export function TerminalDesk({
             />
           )}
           {renderedSessions.map((session) => {
-            const focusHidden = Boolean(focusSession && session.id !== focusSession.id);
+            const layoutHidden = Boolean(
+              (focusSession && session.id !== focusSession.id) ||
+                (workMode === "split" && !visibleSessionIds.has(session.id)),
+            );
             return session.stage === "live" ? (
               <ManualTerminalTile
                 arrangeMode={arrangeMode}
@@ -340,7 +344,7 @@ export function TerminalDesk({
                 relaunchArmed={relaunchArmedSessionIds.has(session.id)}
                 workspaceId={session.workspaceId}
                 title={session.title}
-                focusHidden={focusHidden}
+                layoutHidden={layoutHidden}
                 source={session.source}
                 agentKind={session.agentKind}
                 isolation={session.isolation}
@@ -376,7 +380,7 @@ export function TerminalDesk({
             ) : (
               <StagedTilePreview
                 armed={armedUnsafeSessionIds.has(session.id)}
-                focusHidden={focusHidden}
+                focusHidden={layoutHidden}
                 key={session.id}
                 layout={layouts[session.id]}
                 preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
@@ -720,7 +724,7 @@ function ManualTerminalTile({
   source,
   workspaceId,
   title,
-  focusHidden = false,
+  layoutHidden = false,
   command,
   args,
   resumeTarget,
@@ -764,7 +768,7 @@ function ManualTerminalTile({
   source: SessionTile["source"];
   workspaceId: string;
   title: string;
-  focusHidden?: boolean;
+  layoutHidden?: boolean;
   command?: string | undefined;
   args?: string[] | undefined;
   resumeTarget?: SessionTile["resumeTarget"] | undefined;
@@ -1229,12 +1233,12 @@ function ManualTerminalTile({
 
   return (
     <article
-      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${focusHidden ? "focus-hidden" : ""} ${collapsed ? "collapsed" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${layoutHidden ? "focus-hidden" : ""} ${collapsed ? "collapsed" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
       data-testid="terminal-tile"
       aria-label={latestActivity ? `${title}, ${latestActivity.title}: ${latestActivity.detail}` : title}
-      aria-hidden={focusHidden ? "true" : undefined}
+      aria-hidden={layoutHidden ? "true" : undefined}
       style={gridStyle(layout, preview)}
-      tabIndex={focusHidden ? -1 : 0}
+      tabIndex={layoutHidden ? -1 : 0}
       onFocus={(event) => {
         if (focusEnteredTile(event)) onSelectSession();
       }}
