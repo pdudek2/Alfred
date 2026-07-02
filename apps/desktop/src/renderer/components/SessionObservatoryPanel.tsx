@@ -31,7 +31,6 @@ export function SessionObservatoryPanel({
     () => new Map(workspaces.map((workspace) => [workspace.id, workspace])),
     [workspaces],
   );
-  const stats = useMemo(() => sessionObservatoryStats(sessions), [sessions]);
   const normalizedQuery = query.trim().toLowerCase();
   const rows = useMemo(
     () =>
@@ -70,22 +69,22 @@ export function SessionObservatoryPanel({
         className="session-observatory-panel"
         role="dialog"
         aria-modal="true"
-        aria-label="Session observatory"
+        aria-label="Session quick switch"
         onKeyDown={handleKeyDown}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="session-observatory-header">
           <div>
-            <span>Observatory</span>
-            <strong>Sessions</strong>
-            <small>{sessions.length} tracked across {stats.workspaceCount} workspace{stats.workspaceCount === 1 ? "" : "s"}</small>
+            <span>Quick switch</span>
+            <strong>Session quick switch</strong>
+            <small>Jump to a live or saved session</small>
           </div>
           <button
             ref={closeButtonRef}
             type="button"
             className="session-observatory-close"
             onClick={onClose}
-            aria-label="Close session observatory"
+            aria-label="Close session quick switch"
           >
             <X size={15} />
           </button>
@@ -102,20 +101,13 @@ export function SessionObservatoryPanel({
           />
         </div>
 
-        <div className="session-observatory-stats" aria-label="Session totals">
-          <StatCard label="active" value={stats.active} tone="active" />
-          <StatCard label="recoverable" value={stats.recoverable} tone="recovery" />
-          <StatCard label="review" value={stats.review} tone="review" />
-          <StatCard label="projects" value={stats.workspaceCount} tone="quiet" />
-        </div>
-
         {rows.length === 0 ? (
           <div className="session-observatory-empty" role="status">
             <span>No matching sessions</span>
             <strong>Try a workspace name, agent, branch, or path.</strong>
           </div>
         ) : (
-          <ol className="session-observatory-list" aria-label="Sessions">
+          <ul className="session-observatory-list" aria-label="Session quick switch results">
             {rows.map((row) => (
               <li className={`session-observatory-row status-${row.status.kind}`} key={row.key}>
                 <button
@@ -141,18 +133,9 @@ export function SessionObservatoryPanel({
                 </button>
               </li>
             ))}
-          </ol>
+          </ul>
         )}
       </div>
-    </div>
-  );
-}
-
-function StatCard({ label, tone, value }: { label: string; tone: string; value: number }) {
-  return (
-    <div className={`session-observatory-stat tone-${tone}`}>
-      <strong>{value}</strong>
-      <span>{label}</span>
     </div>
   );
 }
@@ -244,22 +227,6 @@ function statusRank(kind: ReturnType<typeof terminalSessionDisplayStatus>["kind"
     case "runtime":
       return 5;
   }
-}
-
-function sessionObservatoryStats(sessions: SessionTile[]) {
-  const workspaceCount = new Set(sessions.map((session) => session.workspaceId)).size;
-  return sessions.reduce(
-    (stats, session) => {
-      const status = terminalSessionDisplayStatus(session);
-      if (status.kind === "active" || status.kind === "starting") stats.active += 1;
-      if (status.kind === "restored" || status.kind === "done" || status.kind === "error") stats.recoverable += 1;
-      if (status.kind === "waiting" || status.kind === "blocked" || status.kind === "staged" || status.kind === "checking") {
-        stats.review += 1;
-      }
-      return stats;
-    },
-    { active: 0, recoverable: 0, review: 0, workspaceCount },
-  );
 }
 
 function trapDialogFocus(event: KeyboardEvent<HTMLDivElement>, root: HTMLElement | null): void {

@@ -9,7 +9,7 @@ export type TerminalVisualProfile = {
   theme: ITheme;
 };
 
-export const ghosttyVesperTerminalProfile: TerminalVisualProfile = {
+export const alfredGraphiteTerminalProfile: TerminalVisualProfile = {
   cursorBlink: true,
   cursorStyle: "bar",
   fontFamily:
@@ -17,11 +17,11 @@ export const ghosttyVesperTerminalProfile: TerminalVisualProfile = {
   fontSize: 13,
   lineHeight: 1.32,
   theme: {
-    background: "#101010",
+    background: "#0a0e12",
     foreground: "#ffffff",
-    cursor: "#b9aeda",
-    cursorAccent: "#101010",
-    selectionBackground: "#3a2a38",
+    cursor: "#6ee7ff",
+    cursorAccent: "#0a0e12",
+    selectionBackground: "#12313a",
     selectionForeground: "#ffffff",
     black: "#101010",
     blue: "#6699ff",
@@ -41,3 +41,5 @@ export const ghosttyVesperTerminalProfile: TerminalVisualProfile = {
     yellow: "#f3d779",
   },
 };
+
+export const ghosttyVesperTerminalProfile = alfredGraphiteTerminalProfile;

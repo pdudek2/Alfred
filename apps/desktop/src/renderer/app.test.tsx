@@ -1,4 +1,6 @@
 import "@testing-library/jest-dom/vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
@@ -6,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
 import { TerminalDesk } from "./components/TerminalDesk";
 import type { SessionTile } from "./session-state";
+import { alfredGraphiteTerminalProfile } from "./terminal-visual-profile";
 import type {
   AlfredApi,
   AlfredPlanResponse,
@@ -28,6 +31,8 @@ const { terminalConstructorOptions, terminalDisposeCalls } = vi.hoisted(() => ({
   terminalConstructorOptions: [] as unknown[],
   terminalDisposeCalls: [] as unknown[],
 }));
+
+const rendererStyles = readFileSync(resolve(process.cwd(), "src/renderer/styles.css"), "utf8");
 
 vi.mock("@xterm/xterm", () => ({
   Terminal: class {
@@ -161,7 +166,9 @@ function installDesktopBridge(
   getPrivacySettings: ReturnType<typeof vi.fn>;
   revealStateFile: ReturnType<typeof vi.fn>;
   retrySave: ReturnType<typeof vi.fn>;
+  snapshotTerminal: ReturnType<typeof vi.fn>;
   updatePrivacySettings: ReturnType<typeof vi.fn>;
+  setTerminalSnapshots: (next: TerminalSessionSnapshot[]) => void;
   emitData: (event: TerminalDataEvent) => void;
   emitExit: (event: TerminalExitEvent) => void;
   emitSaveStatus: (status: DesktopSaveStatus) => void;
@@ -240,6 +247,7 @@ function installDesktopBridge(
       { path: "notes/review.md", status: "??" },
     ],
   });
+  let terminalSnapshots = [...terminalSessions];
   const createTerminal = vi.fn().mockImplementation((request: Parameters<TerminalApi["create"]>[0]) => {
     const baseCwd = request.cwd ?? "/tmp";
     const branchName =
@@ -264,6 +272,10 @@ function installDesktopBridge(
     });
   });
   const resizeTerminal = vi.fn();
+  const snapshotTerminal = vi.fn(async (request: { id: string }) => {
+    const session = terminalSnapshots.find((candidate) => candidate.id === request.id);
+    return session ?? null;
+  });
   const terminal: TerminalApi = {
     create: createTerminal,
     forget: forgetTerminal,
@@ -271,6 +283,7 @@ function installDesktopBridge(
     list: vi.fn().mockResolvedValue({ sessions: terminalSessions, restoredSessions: restoredTerminalSessions }),
     prepareLaunch,
     rename: renameTerminal,
+    snapshot: snapshotTerminal,
     onData: vi.fn((callback: (event: TerminalDataEvent) => void) => {
       dataListeners.add(callback);
       return () => dataListeners.delete(callback);
@@ -350,7 +363,11 @@ function installDesktopBridge(
     getPrivacySettings,
     revealStateFile,
     retrySave,
+    snapshotTerminal,
     updatePrivacySettings,
+    setTerminalSnapshots: (next: TerminalSessionSnapshot[]) => {
+      terminalSnapshots = next;
+    },
     emitData: (event: TerminalDataEvent) => {
       for (const listener of dataListeners) listener(event);
     },
@@ -361,6 +378,37 @@ function installDesktopBridge(
       for (const listener of saveStatusListeners) listener(status);
     },
   };
+}
+
+function liveSnapshot(
+  suffix: string,
+  overrides: Partial<TerminalSessionSnapshot> = {},
+): TerminalSessionSnapshot {
+  return {
+    id: `runtime-${suffix}`,
+    clientId: `session-${suffix}`,
+    title: `Codex · ${suffix}`,
+    source: "manual",
+    agentKind: "codex",
+    workspaceId: "A",
+    cwd: "/Users/patryk/Desktop/Alfred",
+    createdAt: Date.now(),
+    shell: "/bin/zsh",
+    command: "codex",
+    args: [],
+    buffer: "",
+    ...overrides,
+  };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 beforeEach(() => {
@@ -395,6 +443,8 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     onRuntimeSessionFailed: vi.fn(),
     onRuntimeSessionExited: vi.fn(),
     onRuntimeSessionOutput: vi.fn(),
+    onRuntimeSessionReplayBuffer: vi.fn(),
+    onRuntimeSessionSnapshot: vi.fn(),
     onRuntimeSessionReady: vi.fn(),
     onRuntimeSessionStarting: vi.fn(() => true),
     onRuntimeSessionUnavailable: vi.fn(),
@@ -519,9 +569,17 @@ describe("App integration", () => {
     const panel = await screen.findByTestId("workspace-navigation-panel");
     expect(within(panel).getByText("Active terminals")).toBeInTheDocument();
     expect(within(panel).getByText("Inbox")).toBeInTheDocument();
-    expect(within(panel).getByText("Free chats")).toBeInTheDocument();
     expect(within(panel).getByText("Workspaces")).toBeInTheDocument();
     expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toBeInTheDocument();
+  });
+
+  it("does not render an empty Free Chats section when there are no scratch chats", async () => {
+    installDesktopBridge();
+    render(<App />);
+
+    expect(await screen.findByLabelText("Runs and workspaces")).toBeInTheDocument();
+    expect(screen.queryByText("Free chats")).not.toBeInTheDocument();
+    expect(screen.queryByText("No scratch chats yet.")).not.toBeInTheDocument();
   });
 
   it("opens a free chat in its own workspace from the workspace navigation panel", async () => {
@@ -582,6 +640,24 @@ describe("App integration", () => {
         "scratch-client": expect.objectContaining({ col: 1, colSpan: 12 }),
       }),
     });
+  });
+
+  it("collapses long empty workspace lists while keeping search available", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [], undefined, undefined, {
+      workspaces: Array.from({ length: 14 }, (_, index) => ({
+        id: `W${index + 1}`,
+        label: `Workspace ${index + 1}`,
+        shortLabel: `W${index + 1}`,
+      })),
+      activeWorkspaceId: "W1",
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: /Show .* more empty workspaces/i })).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Search sessions, chats, files"), "Workspace 14");
+    expect(screen.getByRole("tab", { name: /Workspace 14 workspace/i })).toBeInTheDocument();
   });
 
   it("keeps the embedded workspace rail mounted in the navigation panel across surface switches", async () => {
@@ -778,17 +854,42 @@ describe("App integration", () => {
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeSurfaceSwitch);
   });
 
-  it("uses the icon rail as the primary Work Inbox History navigation", async () => {
+  it("keeps terminal hosts mounted while terminal chrome changes surfaces", async () => {
+    const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
 
-    await userEvent.click(await within(screen.getByTestId("primary-nav-rail")).findByRole("button", { name: /open inbox surface/i }));
+    const firstHost = await screen.findByTestId("xterm-host");
+    const primaryNav = screen.getByTestId("primary-nav-rail");
+
+    await user.click(within(primaryNav).getByRole("button", { name: /open inbox surface/i }));
+    await user.click(screen.getByRole("button", { name: /open session quick switch/i }));
+    await user.click(within(primaryNav).getByRole("button", { name: /open work surface/i }));
+
+    expect(screen.getByTestId("xterm-host")).toBe(firstHost);
+  });
+
+  it("uses the icon rail as the primary Work Inbox History navigation", async () => {
+    installDesktopBridge();
+    render(<App />);
+    const rail = await screen.findByTestId("primary-nav-rail");
+    const railScope = within(rail);
+    const workButton = railScope.getByRole("button", { name: /open work surface/i });
+    const inboxButton = railScope.getByRole("button", { name: /open inbox surface/i });
+    const historyButton = railScope.getByRole("button", { name: /open history surface/i });
+
+    expect(workButton).toHaveAttribute("title", "Work");
+    expect(inboxButton).toHaveAttribute("title", "Inbox");
+    expect(historyButton).toHaveAttribute("title", "History");
+    expect(workButton.querySelector("svg.lucide-layout-grid")).toBeInTheDocument();
+
+    await userEvent.click(inboxButton);
     expect(screen.getByRole("region", { name: /inbox workspace/i })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /open history surface/i }));
+    await userEvent.click(historyButton);
     expect(screen.getByRole("region", { name: /history workspace/i })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /open work surface/i }));
+    await userEvent.click(workButton);
     expect(screen.getByTestId("terminal-grid")).toBeInTheDocument();
   });
 
@@ -799,8 +900,16 @@ describe("App integration", () => {
 
     const rail = await screen.findByTestId("primary-nav-rail");
     const railScope = within(rail);
+    const expectedShortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
 
     const contextButton = railScope.getByRole("button", { name: "Open Context drawer" });
+    const commandButton = railScope.getByRole("button", { name: "Open command palette" });
+    const privacyButton = railScope.getByRole("button", { name: "Open Local Data & Privacy" });
+
+    expect(contextButton).toHaveAttribute("title", "Context");
+    expect(commandButton).toHaveAttribute("title", `${expectedShortcutModifier} K`);
+    expect(privacyButton).toHaveAttribute("title", "Local Data & Privacy");
+    expect(contextButton.querySelector("svg.lucide-panel-right")).toBeInTheDocument();
     expect(contextButton).toHaveAttribute("aria-expanded", "false");
 
     await user.click(contextButton);
@@ -811,7 +920,7 @@ describe("App integration", () => {
     expect(screen.getByTestId("context-drawer")).toHaveClass("closed");
     expect(railScope.getByRole("button", { name: "Open Context drawer" })).toHaveAttribute("aria-expanded", "false");
 
-    await user.click(railScope.getByRole("button", { name: "Open Local Data & Privacy" }));
+    await user.click(privacyButton);
     expect(screen.getByRole("dialog", { name: "Local Data & Privacy" })).toBeInTheDocument();
   });
 
@@ -943,6 +1052,135 @@ describe("App integration", () => {
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
   });
 
+  it("does not repeat workspace tile counts across mission and Work headers", async () => {
+    installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
+
+    render(<App />);
+
+    const workbenchHeader = await screen.findByTestId("workbench-header");
+
+    expect(screen.getByRole("button", { name: /Workspace menu for Alfred/i })).not.toHaveTextContent(/2 tiles/);
+    expect(workbenchHeader).toHaveTextContent("2 sessions");
+    expect(screen.getByLabelText("Terminal grid controls")).toHaveTextContent(/^(Cmd|Ctrl) T$/);
+    expect(screen.queryByText(/2 tiles · 0 staged/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps non-visible Split terminals mounted and replayable when returning to Grid", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge(undefined, null, [
+      liveSnapshot("one", { id: "runtime-one", title: "Codex · one" }),
+      liveSnapshot("two", { id: "runtime-two", title: "Codex · two" }),
+      liveSnapshot("three", { id: "runtime-three", title: "Codex · three" }),
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Codex · one/i })).toBeInTheDocument();
+    const disposeCount = terminalDisposeCalls.length;
+
+    await user.click(screen.getByRole("button", { name: "Split" }));
+
+    expect(screen.getAllByTestId("xterm-host")).toHaveLength(3);
+    const hiddenSplitTile = document.querySelector("article[aria-label='Codex · three']");
+    expect(hiddenSplitTile).toHaveClass("focus-hidden");
+    expect(hiddenSplitTile).toHaveAttribute("aria-hidden", "true");
+    if (!(hiddenSplitTile instanceof HTMLElement)) {
+      throw new Error("Expected hidden split tile to be present.");
+    }
+    expect(rendererStyles).toMatch(
+      /\.terminal-stage\.mode-focus \.terminal-tile\.focus-hidden,\s*\.terminal-stage\.mode-split \.terminal-tile\.focus-hidden\s*\{[^}]*visibility:\s*hidden;[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;[^}]*\}/s,
+    );
+    expect(hiddenSplitTile.matches(".terminal-stage.mode-split .terminal-tile.focus-hidden")).toBe(true);
+    expect(within(hiddenSplitTile).getByTestId("xterm-host").isConnected).toBe(true);
+    expect(terminalDisposeCalls).toHaveLength(disposeCount);
+
+    act(() => {
+      bridge.emitData({ id: "runtime-three", data: "hidden split output\n" });
+    });
+
+    await user.click(screen.getByRole("button", { name: "Grid" }));
+    expect(document.querySelector("article[aria-label='Codex · three']")).toHaveTextContent("hidden split output");
+    expect(terminalDisposeCalls).toHaveLength(disposeCount);
+  });
+
+  it("lets terminal-grid wheel gestures reach lower tiles after xterm history reaches an edge", async () => {
+    const sessions: SessionTile[] = [
+      {
+        id: "codex-one",
+        runtimeId: "runtime-one",
+        title: "Codex · session 1",
+        source: "manual",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        command: "codex",
+        args: [],
+        stage: "live",
+        runtimeStatus: "live",
+        initialBuffer: "",
+      },
+      {
+        id: "codex-two",
+        runtimeId: "runtime-two",
+        title: "Codex · session 2",
+        source: "manual",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        command: "codex",
+        args: [],
+        stage: "live",
+        runtimeStatus: "live",
+        initialBuffer: "",
+      },
+      {
+        id: "codex-three",
+        runtimeId: "runtime-three",
+        title: "Codex · session 3",
+        source: "manual",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        command: "codex",
+        args: [],
+        stage: "live",
+        runtimeStatus: "live",
+        initialBuffer: "",
+      },
+    ];
+    renderTerminalDeskForSessions(sessions);
+
+    const column = document.querySelector(".terminal-grid-column");
+    const host = within(await screen.findByRole("article", { name: /Codex · session 1/i })).getByTestId("xterm-host");
+    if (!(column instanceof HTMLElement)) {
+      throw new Error("Expected terminal grid column to be mounted.");
+    }
+    if (!(host instanceof HTMLElement)) {
+      throw new Error("Expected xterm host to be mounted.");
+    }
+
+    host.innerHTML = '<div class="xterm"><div class="xterm-viewport"></div><div class="xterm-screen"></div></div>';
+    const viewport = host.querySelector(".xterm-viewport");
+    const screenElement = host.querySelector(".xterm-screen");
+    if (!(viewport instanceof HTMLElement) || !(screenElement instanceof HTMLElement)) {
+      throw new Error("Expected synthetic xterm viewport and screen.");
+    }
+
+    Object.defineProperty(column, "clientHeight", { configurable: true, value: 500 });
+    Object.defineProperty(column, "scrollHeight", { configurable: true, value: 1200 });
+    Object.defineProperty(viewport, "clientHeight", { configurable: true, value: 300 });
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 900 });
+
+    column.scrollTop = 0;
+    viewport.scrollTop = 100;
+    fireEvent.wheel(screenElement, { deltaY: 120 });
+    expect(column.scrollTop).toBe(0);
+
+    viewport.scrollTop = 600;
+    fireEvent.wheel(screenElement, { deltaY: 120 });
+    expect(column.scrollTop).toBe(120);
+  });
+
   it("separates collapse from destructive close and only shows resize handles in Arrange", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
@@ -966,6 +1204,24 @@ describe("App integration", () => {
     expect(within(tile).getByRole("button", { name: "Expand Manual · zsh 1" })).toBeInTheDocument();
     expect(within(tile).getByRole("button", { name: "Close Manual · zsh 1" })).toBeInTheDocument();
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeCollapse);
+  });
+
+  it("keeps quiet terminal utility actions reachable by keyboard focus", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+
+    render(<App />);
+
+    const tile = await screen.findByTestId("terminal-tile");
+    const collapseButton = within(tile).getByRole("button", { name: "Collapse Manual · zsh 1" });
+
+    tile.focus();
+    expect(tile).toHaveFocus();
+
+    await user.tab();
+
+    expect(collapseButton).toHaveFocus();
+    expect(tile).toContainElement(document.activeElement as HTMLElement);
   });
 
   it("uses a Dispatch bar with explicit workspace planning instead of a workspace chat composer", async () => {
@@ -1143,6 +1399,303 @@ describe("App integration", () => {
     const renamedTile = await screen.findByRole("article", { name: /Spec reviewer/i });
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeRename);
     expect(renamedTile).toHaveTextContent("metadata-safe output");
+  });
+
+  it("replays fresh main-process buffer when returning to a workspace with a live runtime", async () => {
+    const user = userEvent.setup();
+    const alfredSession = liveSnapshot("alfred", {
+      id: "runtime-alfred",
+      workspaceId: "A",
+      buffer: "before switch\n",
+    });
+    const clientSession = liveSnapshot("client", {
+      id: "runtime-client",
+      workspaceId: "CLIENT",
+      cwd: "/Users/patryk/Desktop/ClientApp",
+    });
+    const { setTerminalSnapshots, snapshotTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [alfredSession, clientSession],
+      undefined,
+      { layoutsByWorkspace: {}, viewStateByWorkspace: {} },
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+    const initialTile = await screen.findByRole("article", { name: /Codex · alfred/i });
+    await waitFor(() => {
+      expect(initialTile).toHaveTextContent("before switch");
+    });
+
+    setTerminalSnapshots([
+      { ...alfredSession, buffer: "before switch\nafter switch\n" },
+      clientSession,
+    ]);
+
+    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
+    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
+
+    expect(await screen.findByRole("article", { name: /Codex · alfred/i })).toHaveTextContent("after switch");
+    expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
+  });
+
+  it("replays fresh main-process buffer without duplicating handshake output on live runtime reattach", async () => {
+    const user = userEvent.setup();
+    const alfredSession = liveSnapshot("alfred", {
+      id: "runtime-alfred",
+      workspaceId: "A",
+      buffer: "before switch\n",
+      activityEvents: [
+        {
+          id: "snapshot-start",
+          kind: "lifecycle",
+          title: "Session attached",
+          detail: "attached before switch",
+          at: 5,
+        },
+      ],
+      lastActivityAt: 5,
+      lastOutputAt: 5,
+    });
+    const clientSession = liveSnapshot("client", {
+      id: "runtime-client",
+      workspaceId: "CLIENT",
+      cwd: "/Users/patryk/Desktop/ClientApp",
+    });
+    const { emitData, snapshotTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [alfredSession, clientSession],
+      undefined,
+      { layoutsByWorkspace: {}, viewStateByWorkspace: {} },
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+    expect(await screen.findByRole("article", { name: /Codex · alfred/i })).toHaveTextContent("before switch");
+
+    const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
+    let delayAlfredReattachSnapshot = true;
+    snapshotTerminal.mockImplementation(async (request: { id: string }) => {
+      if (request.id === "runtime-alfred" && delayAlfredReattachSnapshot) {
+        delayAlfredReattachSnapshot = false;
+        return delayedSnapshot.promise;
+      }
+
+      return [alfredSession, clientSession].find((session) => session.id === request.id) ?? null;
+    });
+
+    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
+    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
+
+    await waitFor(() => {
+      expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
+    });
+
+    const reattachedTile = await screen.findByRole("article", { name: /Codex · alfred/i });
+    act(() => {
+      emitData({ id: "runtime-alfred", data: "ran pnpm test\n" });
+    });
+
+    await act(async () => {
+      delayedSnapshot.resolve({
+        ...alfredSession,
+        buffer: "before switch\nran pnpm test\n",
+        activityEvents: [
+          {
+            id: "snapshot-warning",
+            kind: "warning",
+            title: "Warning reported",
+            detail: "warning: older snapshot",
+            at: 10,
+            payload: { type: "warning", message: "warning: older snapshot" },
+          },
+        ],
+        lastActivityAt: 10,
+        lastOutputAt: 10,
+      });
+      await delayedSnapshot.promise;
+    });
+
+    await waitFor(() => {
+      const hostText = within(reattachedTile).getByTestId("xterm-host").textContent ?? "";
+      expect(hostText).toContain("before switch\nran pnpm test\n");
+      expect(hostText.match(/ran pnpm test/g)).toHaveLength(1);
+    });
+    expect(within(reattachedTile).getByText("Ran command")).toBeInTheDocument();
+    expect(within(reattachedTile).getByText("ran pnpm test")).toBeInTheDocument();
+    expect(within(reattachedTile).queryByText("Warning reported")).not.toBeInTheDocument();
+  });
+
+  it("replays fresh main-process buffer after null snapshot fallback on a second reattach", async () => {
+    const user = userEvent.setup();
+    const alfredSession = liveSnapshot("alfred", {
+      id: "runtime-alfred",
+      workspaceId: "A",
+      buffer: "before switch\n",
+    });
+    const clientSession = liveSnapshot("client", {
+      id: "runtime-client",
+      workspaceId: "CLIENT",
+      cwd: "/Users/patryk/Desktop/ClientApp",
+    });
+    const { emitData, snapshotTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [alfredSession, clientSession],
+      undefined,
+      { layoutsByWorkspace: {}, viewStateByWorkspace: {} },
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+    expect(await screen.findByRole("article", { name: /Codex · alfred/i })).toHaveTextContent("before switch");
+
+    const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
+    let delayAlfredReattachSnapshot = true;
+    snapshotTerminal.mockImplementation(async (request: { id: string }) => {
+      if (request.id === "runtime-alfred" && delayAlfredReattachSnapshot) {
+        delayAlfredReattachSnapshot = false;
+        return delayedSnapshot.promise;
+      }
+
+      return request.id === "runtime-alfred"
+        ? null
+        : [alfredSession, clientSession].find((session) => session.id === request.id) ?? null;
+    });
+
+    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
+    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
+
+    await waitFor(() => {
+      expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
+    });
+
+    act(() => {
+      emitData({ id: "runtime-alfred", data: "ran pnpm test\n" });
+    });
+
+    await act(async () => {
+      delayedSnapshot.resolve(null);
+      await delayedSnapshot.promise;
+    });
+
+    const firstReattachTile = await screen.findByRole("article", { name: /Codex · alfred/i });
+    await waitFor(() => {
+      const hostText = within(firstReattachTile).getByTestId("xterm-host").textContent ?? "";
+      expect(hostText).toContain("before switch\nran pnpm test\n");
+      expect(hostText.match(/ran pnpm test/g)).toHaveLength(1);
+    });
+
+    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
+    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
+
+    const secondReattachTile = await screen.findByRole("article", { name: /Codex · alfred/i });
+    await waitFor(() => {
+      const hostText = within(secondReattachTile).getByTestId("xterm-host").textContent ?? "";
+      expect(hostText).toContain("before switch\nran pnpm test\n");
+      expect(hostText.match(/ran pnpm test/g)).toHaveLength(1);
+    });
+  });
+
+  it("replays fresh main-process buffer after rejected snapshot fallback on a second reattach", async () => {
+    const user = userEvent.setup();
+    const alfredSession = liveSnapshot("alfred", {
+      id: "runtime-alfred",
+      workspaceId: "A",
+      buffer: "before switch\n",
+    });
+    const clientSession = liveSnapshot("client", {
+      id: "runtime-client",
+      workspaceId: "CLIENT",
+      cwd: "/Users/patryk/Desktop/ClientApp",
+    });
+    const { emitData, snapshotTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [alfredSession, clientSession],
+      undefined,
+      { layoutsByWorkspace: {}, viewStateByWorkspace: {} },
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+    expect(await screen.findByRole("article", { name: /Codex · alfred/i })).toHaveTextContent("before switch");
+
+    const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
+    let delayAlfredReattachSnapshot = true;
+    snapshotTerminal.mockImplementation(async (request: { id: string }) => {
+      if (request.id === "runtime-alfred" && delayAlfredReattachSnapshot) {
+        delayAlfredReattachSnapshot = false;
+        return delayedSnapshot.promise;
+      }
+
+      return request.id === "runtime-alfred"
+        ? null
+        : [alfredSession, clientSession].find((session) => session.id === request.id) ?? null;
+    });
+
+    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
+    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
+
+    await waitFor(() => {
+      expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
+    });
+
+    act(() => {
+      emitData({ id: "runtime-alfred", data: "ran pnpm lint\n" });
+    });
+
+    await act(async () => {
+      delayedSnapshot.reject(new Error("snapshot failed"));
+      try {
+        await delayedSnapshot.promise;
+      } catch {
+        // expected in this regression path
+      }
+    });
+
+    const firstReattachTile = await screen.findByRole("article", { name: /Codex · alfred/i });
+    await waitFor(() => {
+      const hostText = within(firstReattachTile).getByTestId("xterm-host").textContent ?? "";
+      expect(hostText).toContain("before switch\nran pnpm lint\n");
+      expect(hostText.match(/ran pnpm lint/g)).toHaveLength(1);
+    });
+
+    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
+    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
+
+    const secondReattachTile = await screen.findByRole("article", { name: /Codex · alfred/i });
+    await waitFor(() => {
+      const hostText = within(secondReattachTile).getByTestId("xterm-host").textContent ?? "";
+      expect(hostText).toContain("before switch\nran pnpm lint\n");
+      expect(hostText.match(/ran pnpm lint/g)).toHaveLength(1);
+    });
   });
 
   it("preserves live xterm output and instance when args and resume target metadata change", async () => {
@@ -1408,7 +1961,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("dialog", { name: "Review queue" })).not.toBeInTheDocument();
   });
 
-  it("switches from session observatory to command palette with the global shortcut", async () => {
+  it("switches from session quick switch to command palette with the global shortcut", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [], undefined, undefined, undefined, [
       {
@@ -1423,13 +1976,29 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: "Open session observatory, 1 session" }));
-    expect(screen.getByRole("dialog", { name: "Session observatory" })).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Open session quick switch, 1 session" }));
+    expect(screen.getByRole("dialog", { name: "Session quick switch" })).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "k", code: "KeyK", metaKey: true });
 
     expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: "Session observatory" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Session quick switch" })).not.toBeInTheDocument();
+  });
+
+  it("treats History as the full session browser and Sessions as quick switch", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
+
+    render(<App />);
+
+    await user.click(within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open session quick switch/i }));
+
+    const quickSwitch = await screen.findByRole("dialog", { name: "Session quick switch" });
+    expect(quickSwitch).toBeInTheDocument();
+    expect(quickSwitch).not.toHaveTextContent("Sessions and project memory");
+
+    await user.click(screen.getByRole("button", { name: "Open History surface" }));
+    expect(await screen.findByRole("region", { name: "History workspace" })).toBeInTheDocument();
   });
 
   it("surfaces detected localhost URLs in the workspace preview dock", async () => {
@@ -2269,16 +2838,16 @@ describe("App integration", () => {
     expect(terminalConstructorOptions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          cursorBlink: true,
-          cursorStyle: "bar",
+          cursorBlink: alfredGraphiteTerminalProfile.cursorBlink,
+          cursorStyle: alfredGraphiteTerminalProfile.cursorStyle,
           fontFamily: expect.stringContaining("Geist Mono"),
-          fontSize: 13,
-          lineHeight: 1.32,
+          fontSize: alfredGraphiteTerminalProfile.fontSize,
+          lineHeight: alfredGraphiteTerminalProfile.lineHeight,
           theme: expect.objectContaining({
-            background: "#101010",
-            cursor: "#b9aeda",
-            selectionBackground: "#3a2a38",
-            selectionForeground: "#ffffff",
+            background: alfredGraphiteTerminalProfile.theme.background,
+            cursor: alfredGraphiteTerminalProfile.theme.cursor,
+            selectionBackground: alfredGraphiteTerminalProfile.theme.selectionBackground,
+            selectionForeground: alfredGraphiteTerminalProfile.theme.selectionForeground,
           }),
         }),
       ]),
@@ -4174,9 +4743,17 @@ describe("App integration", () => {
     render(<App />);
 
     const restored = await screen.findByRole("article", { name: /Codex · session 9/i });
+    const kindMark = restored.querySelector(".tile-kind-mark");
+    expect(kindMark).toHaveAccessibleName("Codex");
+    expect(kindMark).not.toHaveTextContent("Cx");
     await waitFor(() => {
       expect(restored).toHaveTextContent("restored");
     });
+    const resumeButton = within(restored).getByRole("button", {
+      name: "Resume latest Codex conversation Codex · session 9",
+    });
+    expect(resumeButton).toBeVisible();
+    expect(within(restored).getByTestId("xterm-host")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Review and recovery context" })).toHaveTextContent("Codex · session 9");
     expect(screen.getByLabelText("Alfred status")).not.toHaveClass("compact");
     expect(createTerminal).not.toHaveBeenCalled();
@@ -4185,7 +4762,7 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Resume latest" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Open Work surface" }));
 
-    await userEvent.click(screen.getByRole("button", { name: "Resume latest Codex conversation Codex · session 9" }));
+    await userEvent.click(resumeButton);
 
     expect(createTerminal).toHaveBeenCalledWith(
       expect.objectContaining({

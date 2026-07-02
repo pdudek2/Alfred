@@ -5,6 +5,7 @@ import {
   ListChecks,
   Pencil,
   RefreshCcw,
+  Search,
   ShieldCheck,
   SquareTerminal,
   Trash2,
@@ -30,8 +31,7 @@ import { ReviewSurface } from "./components/ReviewSurface";
 import { SessionObservatoryPanel } from "./components/SessionObservatoryPanel";
 import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
 import { WorkbenchHeader } from "./components/WorkbenchHeader";
-import { WorkspaceNavigationPanel } from "./components/WorkspaceNavigationPanel";
-import type { WorkspaceRailWorkspace } from "./components/WorkspaceRail";
+import { WorkspaceRail, type WorkspaceRailWorkspace } from "./components/WorkspaceRail";
 import {
   applyLayoutPreset,
   ensureTileLayouts,
@@ -73,13 +73,14 @@ import {
   renameSession,
   restartSession,
   sessionInstanceKey,
+  type SessionActivityEvent,
   type SessionTile,
 } from "./session-state";
 import { terminalSessionDisplayStatus } from "./session-status";
+import { sessionTileKind, tileKindMeta } from "./tile-kind";
 import { recordPreviewUrlsFromText, type PreviewUrlCandidate } from "./preview-state";
 import type { WorkMode } from "./terminal-desk-types";
 import { workspaceAttention, workspaceReviewQueue, type WorkspaceReviewItem } from "./workspace-attention";
-import { workspaceSessionSummary } from "./workspace-session-summary";
 import { shortenPath } from "./path-display";
 import { findWorkspaceForCwd } from "./workspace-path-matching";
 import { sessionRelaunchSafety } from "./relaunch-safety";
@@ -99,7 +100,11 @@ import type {
   AlfredStagedSession,
   AlfredWorkspaceContext,
 } from "../shared/alfred-ipc";
-import type { TerminalCreateResult, TerminalSessionIsolation } from "../shared/terminal-ipc";
+import type {
+  TerminalCreateResult,
+  TerminalSessionIsolation,
+  TerminalSessionSnapshot,
+} from "../shared/terminal-ipc";
 import type { DispatchTargetSnapshot, WorkspaceViewState } from "../shared/layout-ipc";
 import type { WorkspaceMissionBrief, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 import type { ExternalCodexSessionSummary } from "../shared/session-index-ipc";
@@ -121,6 +126,9 @@ type PendingDiscardConfirmation = {
 const DEFAULT_WORKSPACE_ID = "A";
 const DEFAULT_WORKSPACE: Workspace = { id: DEFAULT_WORKSPACE_ID, label: "Alfred", shortLabel: "A" };
 const DEFAULT_WORKSPACES: Workspace[] = [DEFAULT_WORKSPACE];
+const MAX_VISIBLE_EMPTY_NAV_WORKSPACES = 8;
+const MAX_VISIBLE_ACTIVE_NAV_SESSIONS = 5;
+const MAX_VISIBLE_FREE_CHAT_SESSIONS = 3;
 const DEFAULT_PRIVACY_SETTINGS: DesktopPrivacySettings = {
   terminalScrollbackRetention: "redactedTail",
   externalSessionIndexingEnabled: true,
@@ -1211,6 +1219,48 @@ export function App() {
     setTerminalSessions((sessions) => recordSessionOutputActivity(sessions, runtimeId, data));
   }, []);
 
+  const handleRuntimeSessionSnapshot = useCallback((sessionId: string, snapshot: TerminalSessionSnapshot) => {
+    setTerminalSessions((sessions) =>
+      sessions.map((session) => {
+        if (session.id !== sessionId && session.runtimeId !== snapshot.id) {
+          return session;
+        }
+
+        const mergedActivityEvents = mergeSnapshotActivityEvents(session.activityEvents, snapshot.activityEvents);
+        const mergedLastActivityAt = maxDefinedTimestamp(
+          session.lastActivityAt,
+          snapshot.lastActivityAt,
+          mergedActivityEvents?.at(-1)?.at,
+        );
+        const mergedLastOutputAt = maxDefinedTimestamp(session.lastOutputAt, snapshot.lastOutputAt);
+
+        return {
+          ...session,
+          initialBuffer: snapshot.buffer,
+          ...(mergedActivityEvents === undefined ? {} : { activityEvents: mergedActivityEvents }),
+          ...(mergedLastActivityAt === undefined ? {} : { lastActivityAt: mergedLastActivityAt }),
+          ...(mergedLastOutputAt === undefined ? {} : { lastOutputAt: mergedLastOutputAt }),
+        };
+      }),
+    );
+  }, []);
+
+  const handleRuntimeSessionReplayBuffer = useCallback(
+    (sessionId: string, runtimeId: TerminalCreateResult["id"], buffer: string) => {
+      setTerminalSessions((sessions) =>
+        sessions.map((session) =>
+          session.id === sessionId || session.runtimeId === runtimeId
+            ? {
+                ...session,
+                initialBuffer: buffer,
+              }
+            : session,
+        ),
+      );
+    },
+    [],
+  );
+
   const handleSubmitPrompt = useCallback(async (dispatchTarget: DispatchTargetSnapshot): Promise<boolean> => {
     const prompt = composerValue.trim();
     if (!prompt) return false;
@@ -1835,7 +1885,7 @@ export function App() {
           <div className="mission-name" role="group" aria-label="Workspace context">
             <AlfredMark label={activeWorkspace.shortLabel} />
             <WorkspaceTitleMenu
-              detail={`${activeSessions.length} tile${activeSessions.length === 1 ? "" : "s"} · ${workspaceSessionSummary(activeSessions)} · ${workspaceDetail(activeWorkspace)}`}
+              detail={workspaceDetail(activeWorkspace)}
               menuOpen={workspaceMenuOpen}
               missionBrief={activeWorkspace.missionBrief}
               renameDraft={workspaceRenameDraft}
@@ -1905,7 +1955,7 @@ export function App() {
             onToggleContext={handleToggleContextDrawer}
             onSelectSurface={(surface) => setActiveSurface(surface)}
           />
-          <WorkspaceNavigationPanel
+          <QuietWorkspaceNavigationPanel
             activeSessions={activeSessions}
             activeWorkspace={activeWorkspace}
             activeWorkspaceId={activeWorkspace.id}
@@ -1970,6 +2020,8 @@ export function App() {
                 onRuntimeSessionFailed={handleRuntimeSessionFailed}
                 onRuntimeSessionExited={handleRuntimeSessionExited}
                 onRuntimeSessionOutput={handleRuntimeSessionOutput}
+                onRuntimeSessionReplayBuffer={handleRuntimeSessionReplayBuffer}
+                onRuntimeSessionSnapshot={handleRuntimeSessionSnapshot}
                 onRuntimeSessionReady={handleRuntimeSessionReady}
                 onRuntimeSessionStarting={handleRuntimeSessionStarting}
                 onRuntimeSessionUnavailable={handleRuntimeSessionUnavailable}
@@ -2177,6 +2229,160 @@ export function App() {
         )}
       </section>
     </main>
+  );
+}
+
+type QuietWorkspaceNavigationPanelProps = {
+  activeWorkspace: WorkspaceRailWorkspace;
+  activeWorkspaceId: string;
+  activeSessions: SessionTile[];
+  inboxCount: number;
+  sessions: SessionTile[];
+  workspaces: WorkspaceRailWorkspace[];
+  onAddWorkspace: () => void;
+  onFocusSession: (sessionId: string) => void;
+  onFocusSessionInWorkspace: (workspaceId: string, sessionId: string) => void;
+  onOpenInbox: () => void;
+  onSelectWorkspace: (workspaceId: string) => void;
+};
+
+function QuietWorkspaceNavigationPanel({
+  activeWorkspace,
+  activeWorkspaceId,
+  activeSessions,
+  inboxCount,
+  sessions,
+  workspaces,
+  onAddWorkspace,
+  onFocusSession,
+  onFocusSessionInWorkspace,
+  onOpenInbox,
+  onSelectWorkspace,
+}: QuietWorkspaceNavigationPanelProps) {
+  const [navigationQuery, setNavigationQuery] = useState("");
+  const [showAllEmptyWorkspaces, setShowAllEmptyWorkspaces] = useState(false);
+  const freeChats = sessions
+    .filter((session) => session.workspaceId !== activeWorkspaceId && isFreeChatSession(session))
+    .slice(0, MAX_VISIBLE_FREE_CHAT_SESSIONS);
+  const { hiddenEmptyWorkspaceCount, visibleWorkspaces } = visibleNavigationWorkspaces(
+    workspaces,
+    sessions,
+    activeWorkspaceId,
+    navigationQuery,
+    showAllEmptyWorkspaces,
+  );
+
+  return (
+    <aside className="workspace-navigation-panel" data-testid="workspace-navigation-panel" aria-label="Runs and workspaces">
+      <header className="workspace-nav-head">
+        <span className="workspace-nav-avatar">{activeWorkspace.shortLabel}</span>
+        <div>
+          <strong>{activeWorkspace.label}</strong>
+          <span>
+            {activeSessions.length} terminals · {activeWorkspace.gitBranch ?? "local"} ·{" "}
+            {activeWorkspace.rootPath ? activeWorkspace.rootPath.replace(/^.*\/Desktop\//, "~/Desktop/") : "scratch desk"}
+          </span>
+        </div>
+      </header>
+      <label className="workspace-nav-search">
+        <Search size={14} />
+        <input
+          aria-label="Search sessions, chats, files"
+          placeholder="Search sessions, chats, files"
+          value={navigationQuery}
+          onChange={(event) => setNavigationQuery(event.target.value)}
+        />
+      </label>
+      <div className="workspace-nav-scroll">
+        <section className="workspace-nav-section">
+          <header>
+            <span>Active terminals</span>
+            <strong>{activeSessions.length}</strong>
+          </header>
+          <div className="workspace-nav-list">
+            {activeSessions.length === 0 ? (
+              <p className="workspace-nav-empty">No active terminals in this workspace.</p>
+            ) : (
+              activeSessions.slice(0, MAX_VISIBLE_ACTIVE_NAV_SESSIONS).map((session) => {
+                const status = terminalSessionDisplayStatus(session);
+                const kindMeta = tileKindMeta(sessionTileKind(session));
+                return (
+                  <button key={session.id} type="button" className="workspace-nav-row" onClick={() => onFocusSession(session.id)}>
+                    <span className={`workspace-nav-mark ${kindMeta.className}`}>{kindMeta.shortLabel}</span>
+                    <span>
+                      <strong>{session.title}</strong>
+                      <small>{status.label} · {session.cwd.replace(/^.*\/Desktop\//, "~/Desktop/")}</small>
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </section>
+        <section className="workspace-nav-section">
+          <header>
+            <span>Inbox</span>
+            <strong>{inboxCount}</strong>
+          </header>
+          <div className="workspace-nav-list">
+            <button type="button" className="workspace-nav-row" onClick={onOpenInbox}>
+              <span className="workspace-nav-mark alert">!</span>
+              <span>
+                <strong>Needs review</strong>
+                <small>{inboxCount} decisions, blocked runs, recovery</small>
+              </span>
+            </button>
+          </div>
+        </section>
+        {freeChats.length > 0 && (
+          <section className="workspace-nav-section">
+            <header>
+              <span>Free chats</span>
+              <strong>{freeChats.length}</strong>
+            </header>
+            <div className="workspace-nav-list">
+              {freeChats.map((session) => (
+                <button
+                  key={session.id}
+                  type="button"
+                  className="workspace-nav-row"
+                  onClick={() => onFocusSessionInWorkspace(session.workspaceId, session.id)}
+                >
+                  <span className="workspace-nav-mark">FC</span>
+                  <span>
+                    <strong>{session.title}</strong>
+                    <small>{session.cwd.replace(/^.*\/Documents\/Codex\//, "~/Documents/Codex/")}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+        <section className="workspace-nav-section workspace-nav-workspaces">
+          <header>
+            <span>Workspaces</span>
+            <strong>{workspaces.length}</strong>
+          </header>
+          <WorkspaceRail
+            activeWorkspaceId={activeWorkspaceId}
+            embedded
+            sessions={sessions}
+            workspaces={visibleWorkspaces}
+            onAddWorkspace={onAddWorkspace}
+            onSelectWorkspace={onSelectWorkspace}
+          />
+          {navigationQuery.trim().length === 0 && hiddenEmptyWorkspaceCount > 0 && !showAllEmptyWorkspaces && (
+            <button
+              type="button"
+              className="workspace-nav-more-button"
+              onClick={() => setShowAllEmptyWorkspaces(true)}
+            >
+              Show {hiddenEmptyWorkspaceCount} more empty workspaces
+            </button>
+          )}
+        </section>
+      </div>
+    </aside>
   );
 }
 
@@ -2875,6 +3081,130 @@ function previewCandidatesFromSessions(sessions: SessionTile[]): PreviewUrlCandi
   }, []);
 }
 
+function mergeSnapshotActivityEvents(
+  currentEvents: SessionActivityEvent[] | undefined,
+  snapshotEvents: SessionActivityEvent[] | undefined,
+): SessionActivityEvent[] | undefined {
+  if (snapshotEvents === undefined) return currentEvents;
+  if (currentEvents === undefined) return snapshotEvents;
+
+  const mergedByKey = new Map<string, SessionActivityEvent>();
+  for (const event of [...snapshotEvents, ...currentEvents]) {
+    const key = event.id || `${event.kind}:${event.title}:${event.detail}:${event.at}`;
+    const previous = mergedByKey.get(key);
+    if (!previous || previous.at <= event.at) {
+      mergedByKey.set(key, event);
+    }
+  }
+
+  return Array.from(mergedByKey.values())
+    .sort((left, right) => left.at - right.at)
+    .slice(-40);
+}
+
+function maxDefinedTimestamp(...values: Array<number | undefined>): number | undefined {
+  const definedValues = values.filter((value): value is number => value !== undefined);
+  return definedValues.length > 0 ? Math.max(...definedValues) : undefined;
+}
+
+function mergeSessionInitialBuffer(
+  currentBuffer: string | undefined,
+  incomingBuffer: string | undefined,
+): string | undefined {
+  if (currentBuffer === undefined) return incomingBuffer;
+  if (incomingBuffer === undefined) return currentBuffer;
+  if (currentBuffer === incomingBuffer) return incomingBuffer;
+  if (incomingBuffer.includes(currentBuffer)) return incomingBuffer;
+  if (currentBuffer.includes(incomingBuffer)) return currentBuffer;
+  if (incomingBuffer.endsWith(currentBuffer)) return incomingBuffer;
+  if (currentBuffer.endsWith(incomingBuffer)) return currentBuffer;
+
+  const maxOverlap = Math.min(currentBuffer.length, incomingBuffer.length);
+  for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
+    if (currentBuffer.endsWith(incomingBuffer.slice(0, overlap))) {
+      return `${currentBuffer}${incomingBuffer.slice(overlap)}`;
+    }
+  }
+
+  return incomingBuffer.length >= currentBuffer.length ? incomingBuffer : currentBuffer;
+}
+
+function isFreeChatSession(session: SessionTile): boolean {
+  return session.stage === "live" && session.cwd.includes("/Documents/Codex/");
+}
+
+function visibleNavigationWorkspaces(
+  workspaces: WorkspaceRailWorkspace[],
+  sessions: SessionTile[],
+  activeWorkspaceId: string,
+  query: string,
+  showAllEmptyWorkspaces: boolean,
+): { hiddenEmptyWorkspaceCount: number; visibleWorkspaces: WorkspaceRailWorkspace[] } {
+  const normalizedQuery = normalizeNavigationQuery(query);
+  const workspaceIdsWithSessions = new Set(sessions.map((session) => session.workspaceId));
+  const sessionsByWorkspaceId = new Map<string, SessionTile[]>();
+  for (const session of sessions) {
+    const existing = sessionsByWorkspaceId.get(session.workspaceId);
+    if (existing) {
+      existing.push(session);
+      continue;
+    }
+    sessionsByWorkspaceId.set(session.workspaceId, [session]);
+  }
+
+  const visibleWorkspaces: WorkspaceRailWorkspace[] = [];
+  let hiddenEmptyWorkspaceCount = 0;
+  let visibleEmptyWorkspaceCount = 0;
+
+  for (const workspace of workspaces) {
+    const isActiveWorkspace = workspace.id === activeWorkspaceId;
+    const hasSessions = workspaceIdsWithSessions.has(workspace.id);
+    const isEmptyWorkspace = !isActiveWorkspace && !hasSessions;
+
+    if (!isEmptyWorkspace) {
+      visibleWorkspaces.push(workspace);
+      continue;
+    }
+
+    if (normalizedQuery.length > 0) {
+      if (workspaceMatchesNavigationQuery(workspace, sessionsByWorkspaceId.get(workspace.id) ?? [], normalizedQuery)) {
+        visibleWorkspaces.push(workspace);
+      }
+      continue;
+    }
+
+    if (showAllEmptyWorkspaces || visibleEmptyWorkspaceCount < MAX_VISIBLE_EMPTY_NAV_WORKSPACES) {
+      visibleEmptyWorkspaceCount += 1;
+      visibleWorkspaces.push(workspace);
+      continue;
+    }
+
+    hiddenEmptyWorkspaceCount += 1;
+  }
+
+  return { hiddenEmptyWorkspaceCount, visibleWorkspaces };
+}
+
+function workspaceMatchesNavigationQuery(
+  workspace: WorkspaceRailWorkspace,
+  sessions: SessionTile[],
+  normalizedQuery: string,
+): boolean {
+  if (normalizedQuery.length === 0) return true;
+
+  return [
+    workspace.label,
+    workspace.shortLabel,
+    workspace.rootPath,
+    workspace.gitBranch,
+    ...sessions.flatMap((session) => [session.title, session.cwd]),
+  ].some((value) => normalizeNavigationQuery(value).includes(normalizedQuery));
+}
+
+function normalizeNavigationQuery(value: string | undefined): string {
+  return value?.trim().toLocaleLowerCase() ?? "";
+}
+
 function workspaceRootPath(state: WorkspaceStateSnapshot | null, workspaceId: string): string {
   return state?.workspaces.find((workspace) => workspace.id === workspaceId)?.rootPath ?? "";
 }
@@ -2999,7 +3329,27 @@ function workspaceDetail(workspace: Workspace): string {
 function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[]): SessionTile[] {
   const liveById = new Map(liveSessions.map((session) => [session.id, session]));
   const existingIds = new Set(sessions.map((session) => session.id));
-  const merged = sessions.map((session) => liveById.get(session.id) ?? session);
+  const merged = sessions.map((session) => {
+    const liveSession = liveById.get(session.id);
+    if (!liveSession) return session;
+
+    const mergedInitialBuffer = mergeSessionInitialBuffer(session.initialBuffer, liveSession.initialBuffer);
+    const mergedActivityEvents = mergeSnapshotActivityEvents(session.activityEvents, liveSession.activityEvents);
+    const mergedLastActivityAt = maxDefinedTimestamp(
+      session.lastActivityAt,
+      liveSession.lastActivityAt,
+      mergedActivityEvents?.at(-1)?.at,
+    );
+    const mergedLastOutputAt = maxDefinedTimestamp(session.lastOutputAt, liveSession.lastOutputAt);
+
+    return {
+      ...liveSession,
+      ...(mergedInitialBuffer === undefined ? {} : { initialBuffer: mergedInitialBuffer }),
+      ...(mergedActivityEvents === undefined ? {} : { activityEvents: mergedActivityEvents }),
+      ...(mergedLastActivityAt === undefined ? {} : { lastActivityAt: mergedLastActivityAt }),
+      ...(mergedLastOutputAt === undefined ? {} : { lastOutputAt: mergedLastOutputAt }),
+    };
+  });
   const additions = liveSessions.filter((session) => !existingIds.has(session.id));
 
   return [...merged, ...additions];
