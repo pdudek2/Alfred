@@ -142,13 +142,14 @@ describe("renderer CSS contracts", () => {
   it("keeps the top chrome as one workspace switcher plus one workbench header", () => {
     const frame = blockFor(".desktop-frame");
     const missionBar = blockFor(".mission-bar");
-    const missionName = blockFor(".mission-bar .mission-name");
+    const missionNameBase = firstBlockFor(polishStyles, ".mission-bar .mission-name");
     const stageUtilityText = blockFor(".terminal-stage-utility span");
 
     expect(frame).toContain("grid-template-rows: 52px minmax(0, 1fr) 58px");
     expect(missionBar).toContain("position: static");
     expect(missionBar).toContain("height: 52px");
-    expect(missionName).toContain("max-width: min(360px, calc(100vw - 112px))");
+    expect(missionNameBase).toContain("position: static");
+    expect(missionNameBase).toContain("max-width: min(420px, 48vw)");
     expect(stageUtilityText).toContain("font: 600 10px/1 var(--mono)");
     expect(stageUtilityText).toContain("text-transform: uppercase");
   });

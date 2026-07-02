@@ -21,6 +21,7 @@
 - Restored the CSS contract coverage for the static, non-overlapping mission bar and bounded workspace title width in `.mission-bar .mission-name`.
 - Moved the shortcut typography assertion to `.terminal-stage-utility span`, which is where the visible `Cmd/Ctrl T` affordance is actually styled.
 - Strengthened the app regression test to assert the stage-header shortcut affordance still renders while the duplicated tile/staged copy stays removed.
+- Tightened the mission-name contract to read the base `.mission-bar .mission-name` rule from `polishStyles`, avoiding false positives from the later mobile override block.
 
 ## Concerns
 
