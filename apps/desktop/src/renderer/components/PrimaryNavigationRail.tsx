@@ -1,4 +1,4 @@
-import { Clock3, Command, Inbox, ListChecks, ShieldCheck } from "lucide-react";
+import { Clock3, Command, Inbox, LayoutGrid, PanelRight, ShieldCheck } from "lucide-react";
 import type { Ref } from "react";
 
 export type PrimarySurface = "work" | "inbox" | "history";
@@ -39,15 +39,17 @@ export function PrimaryNavigationRail({
           className={activeSurface === "work" ? "active" : ""}
           aria-label="Open Work surface"
           aria-current={activeSurface === "work" ? "page" : undefined}
+          title="Work"
           onClick={() => onSelectSurface("work")}
         >
-          <ListChecks size={18} />
+          <LayoutGrid size={18} />
         </button>
         <button
           type="button"
           className={activeSurface === "inbox" ? "active" : ""}
           aria-label={`Open Inbox surface${inboxCount > 0 ? `, ${inboxCount} items` : ""}`}
           aria-current={activeSurface === "inbox" ? "page" : undefined}
+          title="Inbox"
           onClick={() => onSelectSurface("inbox")}
         >
           <Inbox size={18} />
@@ -58,6 +60,7 @@ export function PrimaryNavigationRail({
           className={activeSurface === "history" ? "active" : ""}
           aria-label="Open History surface"
           aria-current={activeSurface === "history" ? "page" : undefined}
+          title="History"
           onClick={() => onSelectSurface("history")}
         >
           <Clock3 size={18} />
@@ -72,9 +75,10 @@ export function PrimaryNavigationRail({
               : `Open Context drawer${contextSignalCount > 0 ? `, ${contextSignalCount} important signal${contextSignalCount === 1 ? "" : "s"}` : ""}`
           }
           aria-expanded={contextOpen}
+          title="Context"
           onClick={onToggleContext}
         >
-          <ShieldCheck size={18} />
+          <PanelRight size={18} />
           {contextSignalCount > 0 && <span>{contextSignalCount}</span>}
         </button>
         <button
@@ -86,7 +90,12 @@ export function PrimaryNavigationRail({
         >
           <Command size={18} />
         </button>
-        <button type="button" aria-label="Open Local Data & Privacy" onClick={onOpenPrivacyControls}>
+        <button
+          type="button"
+          aria-label="Open Local Data & Privacy"
+          title="Local Data & Privacy"
+          onClick={onOpenPrivacyControls}
+        >
           <ShieldCheck size={18} />
         </button>
       </div>
