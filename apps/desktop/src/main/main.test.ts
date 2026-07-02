@@ -187,6 +187,10 @@ describe("main quit persistence", () => {
     expect(mocks.registerAlfredIpc).not.toHaveBeenCalled();
     expect(mocks.registerLayoutIpc).not.toHaveBeenCalled();
     expect(mocks.app.whenReady).not.toHaveBeenCalled();
+    expect(mocks.appEventHandlers.size).toBe(0);
+    expect(mocks.appEventHandlers.has("second-instance")).toBe(false);
+    expect(mocks.appEventHandlers.has("window-all-closed")).toBe(false);
+    expect(mocks.appEventHandlers.has("before-quit")).toBe(false);
   });
 
   it("focuses the existing window on second instance", async () => {
@@ -207,6 +211,17 @@ describe("main quit persistence", () => {
 
     expect(existingWindow.restore).toHaveBeenCalledTimes(1);
     expect(existingWindow.focus).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores second instance when no window exists yet", async () => {
+    mocks.BrowserWindow.getAllWindows.mockReturnValueOnce([]);
+
+    await import("./main.js");
+    const handler = mocks.appEventHandlers.get("second-instance");
+    expect(handler).toBeDefined();
+
+    expect(() => handler?.()).not.toThrow();
+    expect(mocks.BrowserWindow.getAllWindows).toHaveBeenCalledTimes(1);
   });
 });
 
