@@ -167,6 +167,21 @@ describe("renderer CSS contracts", () => {
     expect(quietDot).toContain("border-radius: 999px");
   });
 
+  it("keeps quick switch as a compact flat switcher, not a heavy glass modal", () => {
+    const backdrop = blockFor(".session-observatory-backdrop");
+    const panel = blockFor(".session-observatory-panel");
+    const header = blockFor(".session-observatory-header");
+    const list = blockFor(".session-observatory-list");
+
+    expect(backdrop).toContain("background: rgba(0, 0, 0, 0.54)");
+    expect(backdrop).toContain("backdrop-filter: none");
+    expect(panel).toContain("width: min(760px, calc(100vw - 88px))");
+    expect(panel).toContain("max-height: min(560px, calc(100vh - 96px))");
+    expect(panel).toContain("background-image: none");
+    expect(header).toContain("padding: 14px 18px 12px");
+    expect(list).toContain("padding: 10px 18px 18px");
+  });
+
   it("keeps legacy gradients out of the main clean flat surfaces", () => {
     expect(flatStyles).toContain(".workspace-popover");
     expect(flatStyles).toContain("background: var(--flat-panel-2)");

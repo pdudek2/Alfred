@@ -7278,6 +7278,44 @@ body {
   gap: 5px;
 }
 
+.review-surface-command.is-disclosure {
+  padding: 0;
+  background: transparent;
+}
+
+.review-surface-command summary {
+  min-height: 30px;
+  padding: 8px 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.review-surface-command summary::-webkit-details-marker {
+  display: none;
+}
+
+.review-surface-command summary::after {
+  content: "+";
+  color: var(--text-muted);
+  font: 650 12px/1 var(--mono);
+}
+
+.review-surface-command[open] summary::after {
+  content: "-";
+}
+
+.review-surface-command.is-disclosure code {
+  display: none;
+  padding: 0 10px 10px;
+}
+
+.review-surface-command.is-disclosure[open] code {
+  display: block;
+}
+
 .review-surface-command span {
   color: var(--text-muted);
   font: 650 10px/1.2 var(--sans);
@@ -8235,6 +8273,14 @@ body {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: rgba(3, 8, 7, 0.52);
+}
+
+.inbox-section.is-empty {
+  background: transparent;
+}
+
+.inbox-section.is-empty > header {
+  border-bottom: 0;
 }
 
 .inbox-section > header {
@@ -9252,15 +9298,15 @@ body {
 
 .session-observatory-backdrop {
   padding: 52px 44px 44px;
-  background: rgba(0, 0, 0, 0.74);
+  background: rgba(0, 0, 0, 0.54);
   background-image: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
 .session-observatory-panel {
-  width: min(1040px, calc(100vw - 88px));
-  max-height: calc(100vh - 96px);
+  width: min(760px, calc(100vw - 88px));
+  max-height: min(560px, calc(100vh - 96px));
   border-color: var(--proto-line-strong);
   border-radius: var(--proto-radius-lg);
   background: var(--proto-panel);
@@ -9269,7 +9315,7 @@ body {
 }
 
 .session-observatory-header {
-  padding: 18px 22px 16px;
+  padding: 14px 18px 12px;
 }
 
 .session-observatory-close,
@@ -9302,7 +9348,7 @@ body {
 
 .session-observatory-search {
   min-height: 44px;
-  margin: 14px 22px 0;
+  margin: 10px 18px 0;
   border-color: var(--proto-line);
   border-radius: var(--proto-radius-lg);
   padding: 0 12px;
@@ -9313,7 +9359,7 @@ body {
 }
 
 .session-observatory-list {
-  padding: 14px 22px 22px;
+  padding: 10px 18px 18px;
   gap: 8px;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
@@ -9496,6 +9542,21 @@ body {
 .global-review-panel,
 .privacy-panel,
 .session-observatory-panel {
+  background: var(--proto-panel);
+  background-image: none;
+  box-shadow: none;
+}
+
+.session-observatory-backdrop {
+  background: rgba(0, 0, 0, 0.54);
+  background-image: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.session-observatory-panel {
+  width: min(760px, calc(100vw - 88px));
+  max-height: min(560px, calc(100vh - 96px));
   background: var(--proto-panel);
   background-image: none;
   box-shadow: none;
