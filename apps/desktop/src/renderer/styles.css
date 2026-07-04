@@ -20,7 +20,7 @@
   --ink-soft: var(--text-secondary);
   --muted: var(--text-muted);
   --faint: #8290a0;
-  --passive: #657180;
+  --passive: #8290a0;
   --line: var(--border-subtle);
   --line-strong: var(--border-strong);
   --glass: rgba(11, 15, 20, 0.92);
@@ -1068,12 +1068,6 @@ button:focus-visible {
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.04);
   outline: none;
-}
-
-.workbench-primary-action {
-  background: var(--accent) !important;
-  color: #03110b !important;
-  border-color: transparent !important;
 }
 
 .surface-panel.inactive {
@@ -5661,7 +5655,7 @@ body.arranging-pointer {
   --text-secondary: #c6d0da;
   --text-muted: #94a0ad;
   --faint: #8290a0;
-  --passive: #657180;
+  --passive: #8290a0;
 
   /* accent roles: cyan for active target, green reserved for success/primary */
   --accent-primary: #53c7d8;
@@ -8427,8 +8421,8 @@ body {
 .mission-actions .new-terminal-button {
   height: var(--flat-control-height);
   min-height: var(--flat-control-height);
-  background-image: none !important;
-  box-shadow: none !important;
+  background-image: none;
+  box-shadow: none;
 }
 
 .workbench-actions button strong,
@@ -8845,7 +8839,7 @@ body {
 .mission-actions .new-terminal-button {
   height: 32px;
   min-height: 32px;
-  box-shadow: none !important;
+  box-shadow: none;
 }
 
 .terminal-stage-header {
@@ -9574,6 +9568,13 @@ body {
    one source of truth for layout controls, command-like dispatch.
    ============================================================ */
 
+:root,
+.agent-space-shell {
+  --workbench-control-height: 32px;
+  --workbench-segment-height: calc(var(--workbench-control-height) - 6px);
+  --workbench-control-radius: 8px;
+}
+
 .workbench-header {
   padding: 9px 12px;
   align-items: center;
@@ -9609,8 +9610,8 @@ body {
 .workbench-tool-group,
 .workbench-actions button,
 .context-toggle-button {
-  height: 30px;
-  min-height: 30px;
+  height: var(--workbench-control-height);
+  min-height: var(--workbench-control-height);
 }
 
 .workbench-tool-group {
@@ -9624,9 +9625,9 @@ body {
 }
 
 .workbench-tool-group button {
-  height: 24px;
-  min-height: 24px;
-  border-radius: 6px;
+  height: var(--workbench-segment-height);
+  min-height: var(--workbench-segment-height);
+  border-radius: var(--workbench-control-radius);
   padding: 0 9px;
 }
 
@@ -9637,7 +9638,7 @@ body {
 }
 
 .workbench-primary-action {
-  padding: 0 12px !important;
+  padding: 0 12px;
 }
 
 .workbench-panel-group button strong {
@@ -10000,7 +10001,7 @@ body {
 .mission-actions .new-terminal-button,
 .terminal-empty-primary-action {
   background: color-mix(in oklab, var(--role-success) 22%, var(--surface-raised));
-  background-image: none !important;
+  background-image: none;
   border-color: color-mix(in oklab, var(--role-success) 40%, var(--line));
   color: color-mix(in oklab, var(--role-success) 82%, white 12%);
   box-shadow: none;

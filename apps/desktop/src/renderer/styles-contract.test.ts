@@ -66,6 +66,42 @@ function ruleForSelectorContaining(selector: string): { selectors: string; body:
   };
 }
 
+function rulesForSelectorContaining(selector: string): Array<{ selectors: string; body: string }> {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return [...styles.matchAll(new RegExp(`(?<selectors>[^{}]*${escapedSelector}[^{}]*)\\{(?<body>[^}]*)\\}`, "gm"))].map(
+    (match) => ({
+      selectors: match.groups?.selectors ?? "",
+      body: match.groups?.body ?? "",
+    }),
+  );
+}
+
+function rootToken(name: string): string {
+  const match = styles.match(new RegExp(`${name}:\\s*(#[0-9a-f]{6})`, "i"));
+  return match?.[1] ?? "";
+}
+
+function relativeLuminance(hex: string): number {
+  const channels = hex
+    .replace("#", "")
+    .match(/../g)
+    ?.map((pair) => parseInt(pair, 16) / 255)
+    .map((channel) => (channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
+
+  if (!channels || channels.length !== 3) {
+    throw new Error(`Expected six-digit hex color, received ${hex}`);
+  }
+
+  const [red, green, blue] = channels as [number, number, number];
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+function contrastRatio(foreground: string, background: string): number {
+  const lighter = Math.max(relativeLuminance(foreground), relativeLuminance(background));
+  const darker = Math.min(relativeLuminance(foreground), relativeLuminance(background));
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 describe("renderer CSS contracts", () => {
   it("keeps Arrange mode scrollable with room for the bottom resize handle", () => {
     const arrangeCanvas = blockFor(".terminal-stage.arranging .terminal-grid-column");
@@ -120,7 +156,7 @@ describe("renderer CSS contracts", () => {
     expect(flatStyles).toContain(".workbench-tool-group");
     expect(flatStyles).toContain("padding: 2px");
     expect(flatStyles).toContain(".workbench-primary-action");
-    expect(flatStyles).toContain("background-image: none !important");
+    expect(flatStyles).toContain("background-image: none");
   });
 
   it("keeps header counts quiet instead of rendering badge bubbles", () => {
@@ -287,7 +323,7 @@ describe("renderer CSS contracts", () => {
     expect(manualDot).not.toContain("var(--green)");
     expect(codexDot).toContain("var(--codex-blue)");
     expect(claudeDot).toContain("var(--claude-amber)");
-    expect(primaryAction).toContain("background-image: none !important");
+    expect(primaryAction).toContain("background-image: none");
     expect(readyDispatch).toContain("var(--role-active)");
     expect(readyDispatch).not.toContain("var(--role-success)");
     expect(commandActivity).toContain("var(--role-active)");
@@ -300,6 +336,19 @@ describe("renderer CSS contracts", () => {
   it("keeps legacy neon success greens from winning the primary action cascade", () => {
     expect(styles).not.toMatch(/background:\s*#(?:35d47f|37d884)\s*!important/i);
     expect(styles).not.toMatch(/#(?:35d47f|37d884)/i);
+  });
+
+  it("keeps primary actions tokenized without important overrides fighting the cascade", () => {
+    const importantPrimaryRules = rulesForSelectorContaining(".workbench-primary-action")
+      .filter(({ body }) => /(background|border-color|box-shadow|color|padding):[^;]+!important/i.test(body))
+      .map(({ selectors }) => selectors.trim());
+    const finalPrimaryAction = blockFor(
+      ".workbench-primary-action,\n.mission-actions .new-terminal-button,\n.terminal-empty-primary-action",
+    );
+
+    expect(importantPrimaryRules).toEqual([]);
+    expect(finalPrimaryAction).toContain("var(--role-success)");
+    expect(finalPrimaryAction).not.toMatch(/(background|border-color|box-shadow|color|padding):[^;]+!important/i);
   });
 
   it("keeps starting session glyphs active instead of muted", () => {
@@ -338,5 +387,25 @@ describe("renderer CSS contracts", () => {
     expect(dispatchChip).toContain("background-image: none");
     expect(styles).not.toContain(".work-mode-control");
     expect(styles).not.toContain(".layout-controls button");
+  });
+
+  it("keeps workbench controls on shared sizing tokens instead of ad-hoc px heights", () => {
+    const workbenchControlSizing = firstBlockFor(
+      readabilityStyles,
+      ".workbench-tool-group,\n.workbench-actions button,\n.context-toggle-button",
+    );
+    const workbenchSegmentSizing = firstBlockFor(readabilityStyles, ".workbench-tool-group button");
+
+    expect(readabilityStyles).toContain("--workbench-control-height: 32px");
+    expect(readabilityStyles).toContain("--workbench-segment-height: calc(var(--workbench-control-height) - 6px)");
+    expect(workbenchControlSizing).toContain("height: var(--workbench-control-height)");
+    expect(workbenchControlSizing).toContain("min-height: var(--workbench-control-height)");
+    expect(workbenchSegmentSizing).toContain("height: var(--workbench-segment-height)");
+    expect(workbenchSegmentSizing).toContain("min-height: var(--workbench-segment-height)");
+    expect(readabilityStyles).not.toMatch(/\.workbench-tool-group button\s*\{[^}]*height:\s*(?:24|30|32)px/s);
+  });
+
+  it("keeps passive chrome text readable against the dark panel surface", () => {
+    expect(contrastRatio(rootToken("--passive"), rootToken("--surface-panel"))).toBeGreaterThanOrEqual(4.5);
   });
 });
