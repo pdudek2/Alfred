@@ -297,6 +297,11 @@ describe("renderer CSS contracts", () => {
     expect(claudeHover).toContain("var(--claude-amber)");
   });
 
+  it("keeps legacy neon success greens from winning the primary action cascade", () => {
+    expect(styles).not.toMatch(/background:\s*#(?:35d47f|37d884)\s*!important/i);
+    expect(styles).not.toMatch(/#(?:35d47f|37d884)/i);
+  });
+
   it("keeps starting session glyphs active instead of muted", () => {
     const startingGlyphRule = ruleForSelectorContaining(".session-status-glyph.status-starting");
     const stagedGlyphRule = ruleForSelectorContaining(".session-status-glyph.status-staged");

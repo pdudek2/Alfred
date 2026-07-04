@@ -8427,11 +8427,8 @@ body {
 .mission-actions .new-terminal-button {
   height: var(--flat-control-height);
   min-height: var(--flat-control-height);
-  border-color: rgba(83, 199, 216, 0.22) !important;
-  background: #37d884 !important;
   background-image: none !important;
   box-shadow: none !important;
-  color: #02110a !important;
 }
 
 .workbench-actions button strong,
@@ -8517,7 +8514,7 @@ body {
 }
 
 .workspace-button.active .workspace-monogram {
-  background: #37d884;
+  background: var(--role-active, var(--accent));
   background-image: none;
   box-shadow: none;
 }
@@ -8848,7 +8845,6 @@ body {
 .mission-actions .new-terminal-button {
   height: 32px;
   min-height: 32px;
-  background: #35d47f !important;
   box-shadow: none !important;
 }
 
