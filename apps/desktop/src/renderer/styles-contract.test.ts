@@ -149,6 +149,19 @@ describe("renderer CSS contracts", () => {
     expect(emptyCopy).toContain("font: 500 13px/1.4 var(--sans)");
   });
 
+  it("keeps empty Inbox lanes compact instead of stretching across the workspace", () => {
+    const inboxStack = blockFor(".inbox-section-stack");
+    const emptySection = blockFor(".inbox-section.is-empty");
+    const emptyHeader = blockFor(".inbox-section.is-empty > header");
+
+    expect(inboxStack).toContain("align-content: start");
+    expect(inboxStack).toContain("align-items: start");
+    expect(inboxStack).toContain("grid-auto-rows: max-content");
+    expect(emptySection).toContain("align-self: start");
+    expect(emptyHeader).toContain("min-height: 32px");
+    expect(emptyHeader).toContain("padding: 7px 10px");
+  });
+
   it("keeps the clean flat workbench controls proportional", () => {
     expect(flatStyles).toContain(".workbench-actions button,");
     expect(flatStyles).toContain("height: var(--flat-control-height)");

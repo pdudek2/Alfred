@@ -8265,6 +8265,9 @@ body {
 
 .inbox-section-stack {
   display: grid;
+  align-content: start;
+  align-items: start;
+  grid-auto-rows: max-content;
   gap: 12px;
 }
 
@@ -8276,11 +8279,14 @@ body {
 }
 
 .inbox-section.is-empty {
+  align-self: start;
   background: transparent;
 }
 
 .inbox-section.is-empty > header {
+  min-height: 32px;
   border-bottom: 0;
+  padding: 7px 10px;
 }
 
 .inbox-section > header {
