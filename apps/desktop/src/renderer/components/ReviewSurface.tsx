@@ -99,37 +99,44 @@ export function ReviewSurface({
         </div>
       ) : (
         <div className="inbox-section-stack" aria-label="Inbox sections">
-          {sections.map((section) => (
-            <section className="inbox-section" aria-label={section.title} key={section.id}>
-              <header>
-                <div>
-                  <strong>{section.title}</strong>
-                  <span>{section.detail}</span>
-                </div>
-                <small>{section.items.length}</small>
-              </header>
-              {section.items.length === 0 ? (
-                <p className="inbox-section-empty">Clear.</p>
-              ) : (
-                <ol className="review-surface-list" aria-label={`${section.title} items`}>
-                  {section.items.map((item) => (
-                    <ReviewSurfaceItem
-                      armed={armedUnsafeSessionIds.has(item.session.id)}
-                      item={item}
-                      key={item.id}
-                      selected={item.session.id === selectedSessionId}
-                      onApproveTile={onApproveTile}
-                      onContinueRestoredSession={onContinueRestoredSession}
-                      onDiscardSession={onDiscardSession}
-                      onFocusItem={onFocusItem}
-                      onLaunchItem={onLaunchItem}
-                      onRestartSession={onRestartSession}
-                    />
-                  ))}
-                </ol>
-              )}
-            </section>
-          ))}
+          {sections.map((section) => {
+            const populated = section.items.length > 0;
+
+            return (
+              <section
+                className={`inbox-section ${populated ? "is-populated" : "is-empty"}`}
+                data-state={populated ? "populated" : "empty"}
+                aria-label={section.title}
+                key={section.id}
+              >
+                <header>
+                  <div>
+                    <strong>{section.title}</strong>
+                    <span>{section.detail}</span>
+                  </div>
+                  <small>{section.items.length}</small>
+                </header>
+                {populated && (
+                  <ol className="review-surface-list" aria-label={`${section.title} items`}>
+                    {section.items.map((item) => (
+                      <ReviewSurfaceItem
+                        armed={armedUnsafeSessionIds.has(item.session.id)}
+                        item={item}
+                        key={item.id}
+                        selected={item.session.id === selectedSessionId}
+                        onApproveTile={onApproveTile}
+                        onContinueRestoredSession={onContinueRestoredSession}
+                        onDiscardSession={onDiscardSession}
+                        onFocusItem={onFocusItem}
+                        onLaunchItem={onLaunchItem}
+                        onRestartSession={onRestartSession}
+                      />
+                    ))}
+                  </ol>
+                )}
+              </section>
+            );
+          })}
         </div>
       )}
     </section>
@@ -245,11 +252,20 @@ function ReviewSurfaceItem({
         </div>
       )}
 
-      {(stagedAction || recoveryAction) && (
+      {stagedAction && (
         <div className="review-surface-command">
-          <span>{recoveryAction ? "restart command" : "launch command"}</span>
+          <span>Launch command</span>
           <code>{command}</code>
         </div>
+      )}
+
+      {recoveryAction && (
+        <details className="review-surface-command is-disclosure">
+          <summary>
+            <span>Restart command</span>
+          </summary>
+          <code>{command}</code>
+        </details>
       )}
 
       <div className="review-surface-actions">
