@@ -4123,6 +4123,33 @@ describe("App integration", () => {
     });
   });
 
+  it("announces terminal status changes through one central live region", async () => {
+    const { emitExit } = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "manual-a",
+        title: "Manual · zsh 9",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 9/i })).toBeInTheDocument();
+    expect(screen.getAllByTestId("session-status-announcer")).toHaveLength(1);
+    expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("");
+
+    emitExit({ id: "runtime-a", exitCode: 1 });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("Manual · zsh 9 is now error.");
+    });
+  });
+
   it("surfaces the latest important activity on the terminal tile", async () => {
     installDesktopBridge(undefined, null, [
       {

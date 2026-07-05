@@ -169,6 +169,7 @@ export function App() {
   });
   const [tileLayoutsByWorkspace, setTileLayoutsByWorkspace] = useState<Record<string, Record<string, TileLayout>>>({});
   const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>([]);
+  const [sessionStatusAnnouncement, setSessionStatusAnnouncement] = useState<string>("");
   const [selectedSessionIdsByWorkspace, setSelectedSessionIdsByWorkspace] = useState<Record<string, string>>({});
   const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
   const [pendingPlan, setPendingPlan] = useState<SquadPlan | null>(null);
@@ -206,6 +207,8 @@ export function App() {
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
   const worktreeActionPendingRef = useRef<Set<string>>(new Set());
   const terminalSessionsRef = useRef<SessionTile[]>([]);
+  const announcedSessionStatusesRef = useRef<Map<string, string>>(new Map());
+  const sessionStatusAnnouncementsReadyRef = useRef<boolean>(false);
   const workspaceStateHydratedRef = useRef<boolean>(false);
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? DEFAULT_WORKSPACE;
@@ -277,6 +280,32 @@ export function App() {
 
   useEffect(() => {
     terminalSessionsRef.current = terminalSessions;
+  }, [terminalSessions]);
+
+  useEffect(() => {
+    const previousStatuses = announcedSessionStatusesRef.current;
+    const nextStatuses = new Map<string, string>();
+    let nextAnnouncement: string | null = null;
+
+    for (const session of terminalSessions) {
+      const status = accessibleSessionStatusLabel(session);
+      nextStatuses.set(session.id, status);
+      const previousStatus = previousStatuses.get(session.id);
+      if (previousStatus && previousStatus !== status) {
+        nextAnnouncement = `${session.title} is now ${status}.`;
+      }
+    }
+
+    announcedSessionStatusesRef.current = nextStatuses;
+
+    if (!sessionStatusAnnouncementsReadyRef.current) {
+      sessionStatusAnnouncementsReadyRef.current = true;
+      return;
+    }
+
+    if (nextAnnouncement) {
+      setSessionStatusAnnouncement(nextAnnouncement);
+    }
   }, [terminalSessions]);
 
   useEffect(() => {
@@ -1876,6 +1905,14 @@ export function App() {
 
   return (
     <main className="agent-space-shell">
+      <div
+        className="visually-hidden"
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="session-status-announcer"
+      >
+        {sessionStatusAnnouncement}
+      </div>
       <section
         className={`desktop-frame ${shortcutModifier === "Cmd" ? "mac-frame" : ""}`}
         aria-label="Alfred Agent Space desktop shell"
@@ -3127,6 +3164,30 @@ function mergeSessionInitialBuffer(
 
 function isFreeChatSession(session: SessionTile): boolean {
   return session.stage === "live" && session.cwd.includes("/Documents/Codex/");
+}
+
+function accessibleSessionStatusLabel(session: SessionTile): string {
+  if (session.stage === "staged") {
+    if (session.stagedReviewStatus === "checking") return "checking";
+    return isLaunchBlocked(session) ? "blocked" : "ready";
+  }
+
+  switch (session.runtimeStatus) {
+    case "starting":
+      return "starting";
+    case "live":
+      return "running";
+    case "exited":
+      return "done";
+    case "error":
+      return "error";
+    case "restored":
+      return "restored";
+    case "unavailable":
+      return "unavailable";
+    default:
+      return terminalSessionDisplayStatus(session).label;
+  }
 }
 
 function visibleNavigationWorkspaces(
