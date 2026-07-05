@@ -172,7 +172,6 @@ export function App() {
   const [selectedSessionIdsByWorkspace, setSelectedSessionIdsByWorkspace] = useState<Record<string, string>>({});
   const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
   const [pendingPlan, setPendingPlan] = useState<SquadPlan | null>(null);
-  const [composerValue, setComposerValue] = useState<string>("");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState<boolean>(false);
   const [commandQuery, setCommandQuery] = useState<string>("");
   const [privacyPanelOpen, setPrivacyPanelOpen] = useState<boolean>(false);
@@ -1261,8 +1260,8 @@ export function App() {
     [],
   );
 
-  const handleSubmitPrompt = useCallback(async (dispatchTarget: DispatchTargetSnapshot): Promise<boolean> => {
-    const prompt = composerValue.trim();
+  const handleSubmitPrompt = useCallback(async (dispatchTarget: DispatchTargetSnapshot, draft: string): Promise<boolean> => {
+    const prompt = draft.trim();
     if (!prompt) return false;
     if (!canRequestPlan(alfredStatus, globalStagedCount)) return false;
     const alfredApi = getDesktopAlfredApi();
@@ -1281,7 +1280,6 @@ export function App() {
       return false;
     }
     setAlfredStatus(idle());
-    setComposerValue("");
     setTerminalSessions((sessions) => {
       const before = sessions;
       const after = addStagedSessions(before, response.plan.sessions, activeWorkspace.rootPath ?? "", activeWorkspace.id);
@@ -1309,13 +1307,14 @@ export function App() {
       return after;
     });
     return true;
-  }, [activeSessions, activeWorkspace, alfredStatus, composerValue, globalStagedCount]);
+  }, [activeSessions, activeWorkspace, alfredStatus, globalStagedCount]);
 
-  const handleSubmitDispatch = useCallback(() => {
+  const handleSubmitDispatch = useCallback((draft: string) => {
     const target = activeDispatchTarget;
-    if (!target) return;
-    void handleSubmitPrompt(target).then((submitted) => {
+    if (!target) return false;
+    return handleSubmitPrompt(target, draft).then((submitted) => {
       if (submitted) setLastDispatchDestination(target.label);
+      return submitted;
     });
   }, [activeDispatchTarget, handleSubmitPrompt]);
 
@@ -2124,17 +2123,14 @@ export function App() {
           blockedReason={composerBlockedReason}
           dispatchTarget={activeDispatchTarget}
           lastDispatchDestination={lastDispatchDestination}
-          value={composerValue}
           thinking={isThinking(alfredStatus)}
           disabled={commandPaletteOpen || sessionObservatoryOpen || privacyPanelOpen}
-          workspaceName={activeWorkspace.label === "Alfred" ? "this workspace" : activeWorkspace.label}
           onBlockedAction={
             stagedWorkspaceId
               ? () => handleSelectWorkspace(stagedWorkspaceId)
               : undefined
           }
           onCycleDispatchTarget={handleCycleDispatchTarget}
-          onChange={setComposerValue}
           onSubmit={handleSubmitDispatch}
         />
         {pendingDiscardConfirmation && (

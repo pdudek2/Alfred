@@ -436,4 +436,9 @@ describe("renderer CSS contracts", () => {
   it("keeps passive chrome text readable against the dark panel surface", () => {
     expect(contrastRatio(rootToken("--passive"), rootToken("--surface-panel"))).toBeGreaterThanOrEqual(4.5);
   });
+
+  it("keeps chrome microcopy on a readable type floor", () => {
+    expect(styles).toContain("--type-micro: 10px");
+    expect(styles).not.toMatch(/font-size:\s*(?:8\.5|9)px/);
+  });
 });
