@@ -19,14 +19,14 @@ if (flatStylesStart < 0) {
 }
 
 const flatStyles = styles.slice(flatStylesStart);
-const prototypeStylesStart = styles.indexOf("ALFRED PROTOTYPE CLEAN v5");
+const workbenchStylesStart = styles.indexOf("ALFRED WORKBENCH CLEAN v5");
 
-if (prototypeStylesStart < 0) {
-  throw new Error("Unable to locate PROTOTYPE CLEAN v5 styles");
+if (workbenchStylesStart < 0) {
+  throw new Error("Unable to locate WORKBENCH CLEAN v5 styles");
 }
 
-const prototypeStyles = styles.slice(prototypeStylesStart);
-const polishStylesStart = styles.indexOf("ALFRED PROTOTYPE POLISH v6");
+const workbenchStyles = styles.slice(workbenchStylesStart);
+const polishStylesStart = styles.indexOf("ALFRED WORKBENCH POLISH v6");
 const polishStyles = polishStylesStart >= 0 ? styles.slice(polishStylesStart) : "";
 const materialStylesStart = styles.indexOf("ALFRED CLEAN MATERIAL v7");
 const materialStyles = materialStylesStart >= 0 ? styles.slice(materialStylesStart) : "";
@@ -203,34 +203,34 @@ describe("renderer CSS contracts", () => {
     expect(flatStyles).toContain(".workspace-button.active");
   });
 
-  it("keeps the clean-depth shell close to the prototype layout", () => {
-    expect(prototypeStyles).toContain("grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr)");
-    expect(prototypeStyles).toContain(".context-column {");
+  it("keeps the workbench shell close to the current layout", () => {
+    expect(workbenchStyles).toContain("grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr)");
+    expect(workbenchStyles).toContain(".context-column {");
     expect(materialStyles).toContain(".workspace-layout:has(.context-column.open)");
     expect(materialStyles).toContain("grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr) minmax(304px, 340px)");
     expect(materialStyles).toContain(".workspace-layout > .context-column.open");
     expect(materialStyles).toContain("position: static");
-    expect(prototypeStyles).toContain(".context-column.closed");
-    expect(prototypeStyles).toContain("display: none");
+    expect(workbenchStyles).toContain(".context-column.closed");
+    expect(workbenchStyles).toContain("display: none");
   });
 
   it("keeps the Inbox empty state compact instead of a stretched dashboard card", () => {
     const emptyLanes = blockFor(".review-empty-lanes div");
 
-    expect(prototypeStyles).toContain(".review-surface-empty {");
-    expect(prototypeStyles).toContain("align-self: start");
-    expect(prototypeStyles).toContain("min-height: 0");
-    expect(prototypeStyles).toContain("grid-template-columns: minmax(0, 1fr) auto");
-    expect(prototypeStyles).toContain("background-image: none");
+    expect(workbenchStyles).toContain(".review-surface-empty {");
+    expect(workbenchStyles).toContain("align-self: start");
+    expect(workbenchStyles).toContain("min-height: 0");
+    expect(workbenchStyles).toContain("grid-template-columns: minmax(0, 1fr) auto");
+    expect(workbenchStyles).toContain("background-image: none");
     expect(emptyLanes).toContain("grid-template-columns: auto minmax(0, 1fr) auto");
   });
 
   it("styles workspace scrollbars so native white rails do not dominate the shell", () => {
-    expect(prototypeStyles).toContain(".workspace-nav-scroll,");
-    expect(prototypeStyles).toContain("scrollbar-width: thin");
-    expect(prototypeStyles).toContain("scrollbar-color: rgba(255, 255, 255, 0.18) transparent");
-    expect(prototypeStyles).toContain(".workspace-nav-scroll::-webkit-scrollbar-thumb");
-    expect(prototypeStyles).toContain("background: rgba(255, 255, 255, 0.16)");
+    expect(workbenchStyles).toContain(".workspace-nav-scroll,");
+    expect(workbenchStyles).toContain("scrollbar-width: thin");
+    expect(workbenchStyles).toContain("scrollbar-color: rgba(255, 255, 255, 0.18) transparent");
+    expect(workbenchStyles).toContain(".workspace-nav-scroll::-webkit-scrollbar-thumb");
+    expect(workbenchStyles).toContain("background: rgba(255, 255, 255, 0.16)");
   });
 
   it("keeps the top chrome as one workspace switcher plus one workbench header", () => {

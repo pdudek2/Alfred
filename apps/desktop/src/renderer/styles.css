@@ -8692,8 +8692,8 @@ body {
 }
 
 /* ============================================================
-   ALFRED PROTOTYPE CLEAN v5
-   Match the clean-depth prototype more closely: fewer permanent
+   ALFRED WORKBENCH CLEAN v5
+   Match the current workbench direction more closely: fewer permanent
    columns, quieter empty states, flat material surfaces.
    ============================================================ */
 
@@ -9179,7 +9179,7 @@ body {
 }
 
 /* ============================================================
-   ALFRED PROTOTYPE POLISH v6
+   ALFRED WORKBENCH POLISH v6
    Fix overlap/scroll regressions after v5 and flatten leftover
    glass gradients in session surfaces.
    ============================================================ */

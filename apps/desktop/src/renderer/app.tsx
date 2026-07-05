@@ -1940,7 +1940,7 @@ export function App() {
           className={`workspace-layout surface-${activeSurface} ${alfredExpanded ? "alfred-expanded" : "alfred-compact"} ${
             previewVisible ? "preview-visible" : ""
           }`}
-          data-testid="clean-depth-shell"
+          data-testid="workbench-shell"
         >
           <PrimaryNavigationRail
             activeSurface={activeSurface}
