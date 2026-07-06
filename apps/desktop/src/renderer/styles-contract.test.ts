@@ -364,7 +364,9 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps terminal tile chrome secondary to the xterm body", () => {
+    const tile = blockForContaining(".terminal-tile", "box-shadow: none");
     const header = blockFor(".terminal-tile-header");
+    const xtermHost = exactBlockFor(".xterm-host");
     const kindMark = blockFor(".tile-kind-mark");
     const kindMarkText = blockFor(".tile-kind-mark span");
     const primaryActions = blockFor(".tile-primary-actions");
@@ -373,9 +375,12 @@ describe("renderer CSS contracts", () => {
     const selectedToolDotRule = ruleForSelectorContaining(".terminal-tile.real-terminal.selected .tool-dot");
     const terminalChromeLayer = styles.slice(styles.indexOf(".terminal-tile.real-terminal .tool-dot"));
 
+    expect(tile).toContain("background: var(--surface-panel)");
+    expect(tile).toContain("box-shadow: none");
     expect(header).toContain("min-height");
     expect(header).toContain("background: var(--surface-raised)");
     expect(header).not.toContain("linear-gradient");
+    expect(xtermHost).toContain("background: var(--surface-terminal)");
     expect(kindMark).toContain("width: 24px");
     expect(kindMarkText).toContain("display: none");
     expect(primaryActions).toContain("opacity: 1");
