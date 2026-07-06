@@ -545,4 +545,26 @@ describe("renderer CSS contracts", () => {
     expect(pulseBody).toContain("color: var(--text-muted)");
     expect(handoffButton).toContain("background: color-mix(in oklab, var(--surface-raised) 72%, black 28%)");
   });
+
+  it("keeps sidebar radar hierarchy quiet but readable", () => {
+    const navPanel = blockFor(".workspace-navigation-panel");
+    const navSectionHeader = blockFor(".workspace-nav-section > header");
+    const navRow = blockFor(".workspace-nav-row");
+    const navRowTitle = blockFor(".workspace-nav-row strong");
+    const navRowMeta = blockFor(".workspace-nav-row small");
+    const inactiveWorkspaceTitle = blockFor(".workspace-button:not(.active) .workspace-button-details strong");
+    const inactiveWorkspaceMeta = blockFor(".workspace-button:not(.active) .workspace-button-details span");
+    const activeWorkspace = blockFor(".workspace-button.active");
+
+    expect(navPanel).toContain("background: var(--surface-panel)");
+    expect(navSectionHeader).toContain("color: var(--text-faint)");
+    expect(navRow).toContain("background: transparent");
+    expect(navRowTitle).toContain("color: var(--text-secondary)");
+    expect(navRowMeta).toContain("color: var(--text-faint)");
+    expect(inactiveWorkspaceTitle).toContain("color: var(--text-muted)");
+    expect(inactiveWorkspaceMeta).toContain("color: var(--text-faint)");
+    expect(activeWorkspace).toContain("background: color-mix(in oklab, var(--signal-focus) 7%, var(--surface-raised))");
+    expect(activeWorkspace).not.toContain("linear-gradient");
+    expect(activeWorkspace).toContain("box-shadow: none");
+  });
 });
