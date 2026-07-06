@@ -527,4 +527,22 @@ describe("renderer CSS contracts", () => {
     expect(styles).toContain("--type-micro: 10px");
     expect(styles).not.toMatch(/font-size:\s*(?:8\.5|9)px/);
   });
+
+  it("keeps Context hierarchy quiet except selected session and key signal", () => {
+    const drawer = blockForContaining(".context-drawer", "background: var(--surface-panel)");
+    const identity = blockForContaining(".agent-context-zone.agent-context-identity", "color: var(--text-muted)");
+    const moreDetails = blockForContaining(".agent-context-zone.agent-context-more", "color: var(--text-faint)");
+    const activityList = blockForContaining(".agent-activity-list", "color: var(--text-faint)");
+    const pulseTitle = blockFor(".agent-session-pulse strong");
+    const pulseBody = blockFor(".agent-session-pulse p");
+    const handoffButton = blockFor(".agent-handoff-buttons button");
+
+    expect(drawer).toContain("background: var(--surface-panel)");
+    expect(identity).toContain("color: var(--text-muted)");
+    expect(moreDetails).toContain("color: var(--text-faint)");
+    expect(activityList).toContain("color: var(--text-faint)");
+    expect(pulseTitle).toContain("color: var(--text-primary)");
+    expect(pulseBody).toContain("color: var(--text-muted)");
+    expect(handoffButton).toContain("background: color-mix(in oklab, var(--surface-raised) 72%, black 28%)");
+  });
 });
