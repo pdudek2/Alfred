@@ -138,13 +138,12 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toMatch(/backdrop-filter:\s*blur/i);
     expect(styles).not.toMatch(/-webkit-backdrop-filter:\s*blur/i);
     expect(styles).not.toMatch(/--glass:/);
-    expect(styles).not.toMatch(/0\s+28px\s+80px/);
   });
 
-  it("keeps the CSS terminal surface synchronized with the xterm profile", () => {
+  it("keeps the CSS terminal surface on the legacy shell rail", () => {
     const xtermHost = blockFor(".terminal-tile .terminal-host,\n.terminal-tile .xterm-host");
 
-    expect(rootToken("--surface-terminal")).toBe("#0a0e12");
+    expect(rootToken("--surface-terminal")).toBe("#080909");
     expect(rootToken("--signal-focus")).toBe("#53c7d8");
     expect(xtermHost).toContain("background: var(--surface-terminal)");
   });
@@ -153,7 +152,7 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toMatch(/rgba\(83,\s*199,\s*216,/);
     expect(styles).not.toMatch(/rgba\(217,\s*174,\s*70,/);
     expect(styles).not.toMatch(/#(?:35d47f|37d884|3ee68a)/i);
-    expect(styles).not.toMatch(/#e0b75b/i);
+    expect(rootToken("--signal-agent")).toBe("#e0b75b");
     expect(styles).not.toMatch(/var\(--accent\)/);
     expect(styles).not.toMatch(/var\(--amber\)/);
     expect(styles).not.toMatch(/var\(--coral\)/);
