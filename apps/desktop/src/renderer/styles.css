@@ -8827,7 +8827,8 @@ body {
 .terminal-tile {
   border-color: var(--border);
   border-radius: var(--radius-panel);
-  background: #050807;
+  background: var(--surface-panel);
+  box-shadow: none;
 }
 
 .terminal-tile.selected,
