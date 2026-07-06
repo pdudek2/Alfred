@@ -1,46 +1,79 @@
 :root {
-  --surface-canvas: #06080b;
-  --surface-panel: #0b0f14;
-  --surface-raised: #10161d;
-  --surface-sunken: #040608;
+  --surface-terminal: #0a0e12;
+  --surface-canvas: #05080b;
+  --surface-panel: #0b1114;
+  --surface-raised: #10171b;
+
   --text-primary: #eef3f7;
-  --text-secondary: #c6d0da;
-  --text-muted: #94a0ad;
-  --accent-primary: #53c7d8;
-  --accent-focus: color-mix(in oklab, var(--accent-primary) 74%, white 16%);
-  --border-subtle: rgba(188, 202, 218, 0.14);
-  --border-strong: rgba(198, 213, 231, 0.22);
-  --shadow-panel: 0 28px 80px rgba(0, 0, 0, 0.5);
+  --text-muted: #9aa7b2;
+  --text-faint: #7f8b94;
+
+  --border: rgba(188, 205, 218, 0.12);
+  --border-focus: rgba(83, 199, 216, 0.46);
+
+  --signal-focus: #53c7d8;
+  --signal-focus-strong: color-mix(in oklab, var(--signal-focus) 78%, white 12%);
+  --signal-focus-soft: color-mix(in oklab, var(--signal-focus) 10%, transparent);
+  --signal-agent: #d8a84f;
+  --signal-agent-soft: color-mix(in oklab, var(--signal-agent) 12%, transparent);
+  --signal-danger: #ef7467;
+  --signal-danger-soft: color-mix(in oklab, var(--signal-danger) 12%, transparent);
+  --signal-success: #62d693;
+  --signal-success-soft: color-mix(in oklab, var(--signal-success) 10%, transparent);
+
+  --radius-control: 8px;
+  --radius-panel: 12px;
+  --control-height: 32px;
+  --type-micro: 10px;
+
+  --shadow-panel: 0 18px 42px rgba(0, 0, 0, 0.32);
+
+  /* Transitional aliases. Remove only after all callsites use role tokens. */
+  --surface-sunken: var(--surface-terminal);
   --night: var(--surface-canvas);
   --panel: var(--surface-panel);
   --panel-raised: var(--surface-raised);
-  --panel-soft: #141a22;
-  --terminal: var(--surface-sunken);
+  --panel-soft: var(--surface-panel);
+  --terminal: var(--surface-terminal);
   --ink: var(--text-primary);
-  --ink-soft: var(--text-secondary);
+  --ink-soft: var(--text-muted);
   --muted: var(--text-muted);
-  --faint: #8290a0;
-  --passive: #8290a0;
-  --line: var(--border-subtle);
-  --line-strong: var(--border-strong);
-  --glass: rgba(11, 15, 20, 0.92);
-  --brass: #e0b75b;
-  --cyan: #53c7d8;
-  --green: #63d18a;
-  --coral: #f07f72;
+  --faint: var(--text-faint);
+  --passive: var(--text-faint);
+  --line: var(--border);
+  --line-strong: color-mix(in oklab, var(--border) 68%, white 8%);
+  --accent: var(--signal-focus);
+  --accent-primary: var(--signal-focus);
+  --accent-focus: var(--signal-focus-strong);
+  --accent-soft: var(--signal-focus-soft);
+  --accent-strong: var(--signal-focus-strong);
+  --cyan: var(--signal-focus);
+  --brass: var(--signal-agent);
+  --amber: var(--signal-agent);
+  --coral: var(--signal-danger);
+  --green: var(--signal-success);
   --violet: #a99cff;
-  --codex-blue: var(--cyan);
-  --claude-amber: var(--brass);
-  --alert-red: var(--coral);
-  --accent: var(--accent-primary);
-  --focus-border: var(--accent-focus);
+  --codex-blue: var(--signal-focus);
+  --claude-amber: var(--signal-agent);
+  --alert-red: var(--signal-danger);
+  --focus-border: var(--border-focus);
   --highlight-soft: rgba(237, 242, 246, 0.055);
   --shadow-soft: 0 14px 30px -22px rgba(0, 0, 0, 0.72);
-  --accent-soft: color-mix(in oklab, var(--accent) 20%, transparent);
-  --accent-strong: color-mix(in oklab, var(--accent) 70%, white 8%);
+  --accent-press: color-mix(in oklab, var(--signal-focus) 68%, black 12%);
+  --accent-halo: color-mix(in oklab, var(--signal-focus) 34%, transparent);
+  --on-accent: #04141a;
+  --depth-card:
+    0 1px 0 rgba(255, 255, 255, 0.045) inset,
+    0 18px 38px -26px rgba(0, 0, 0, 0.85);
+  --depth-raised:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 26px 56px -28px rgba(0, 0, 0, 0.8),
+    0 2px 8px -3px rgba(0, 0, 0, 0.55);
+  --text-secondary: var(--text-muted);
+  --border-subtle: var(--border);
+  --border-strong: var(--line-strong);
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --type-micro: 10px;
   color: var(--ink);
   background: var(--night);
   font-family: var(--sans);
@@ -161,18 +194,6 @@ button:focus-visible {
   min-height: 100vh;
   padding: 8px;
   display: block;
-  --surface-canvas: #07090c;
-  --surface-panel: #0d1116;
-  --surface-raised: #121821;
-  --surface-sunken: #05070a;
-  --text-primary: #edf2f6;
-  --text-secondary: #c9d2db;
-  --text-muted: #9da8b4;
-  --panel-soft: #18202a;
-  --faint: #8996a5;
-  --border-subtle: rgba(176, 188, 201, 0.12);
-  --border-strong: rgba(191, 203, 218, 0.2);
-  --glass: rgba(12, 16, 21, 0.94);
   background:
     radial-gradient(circle at 16% 0%, color-mix(in oklab, var(--accent) 3.5%, transparent), transparent 34%),
     linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 180px),
@@ -205,7 +226,7 @@ button:focus-visible {
   background:
     linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 100%),
     linear-gradient(90deg, color-mix(in oklab, var(--accent) 4%, transparent), transparent 34%),
-    var(--glass);
+    var(--surface-panel);
   -webkit-app-region: drag;
   user-select: none;
 }
@@ -1887,7 +1908,7 @@ body.arranging-pointer {
   min-height: 36px;
   padding: 5px 7px;
   border-bottom: 1px solid var(--line);
-  background: var(--proto-panel-soft);
+  background: var(--surface-raised);
   background-image: none;
   box-shadow: none;
   display: flex;
@@ -2885,7 +2906,7 @@ body.arranging-pointer {
   padding: 12px;
   background:
     linear-gradient(180deg, rgba(224, 183, 91, 0.026), transparent 62px),
-    var(--glass);
+    var(--surface-panel);
   box-shadow: inset 0 1px 0 rgba(238, 243, 247, 0.045);
   color: var(--muted);
   display: grid;
@@ -3449,8 +3470,8 @@ body.arranging-pointer {
   display: grid;
   place-items: start center;
   padding-top: 14vh;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .review-queue-backdrop {
@@ -4945,8 +4966,8 @@ body.arranging-pointer {
     linear-gradient(180deg, color-mix(in oklab, white 4%, transparent), transparent 120px),
     linear-gradient(90deg, color-mix(in oklab, var(--accent) 2%, transparent), transparent 28%),
     rgba(12, 17, 23, 0.74);
-  backdrop-filter: blur(18px) saturate(135%);
-  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow:
     inset 0 1px 0 color-mix(in oklab, white 8%, transparent),
     0 24px 56px -28px rgba(0, 0, 0, 0.76);
@@ -5627,68 +5648,7 @@ body.arranging-pointer {
   font-size: 10px;
 }
 
-/* ============================================================
-   ALFRED DEPTH v2 — graphite + cyan + real elevation
-   Appended override layer. Source-order wins at equal specificity.
-   Reference language: dark, layered graphite with cyan active markers.
-   This is NOT a recolor: it restores the depth Codex stripped
-   (net -7 box-shadows) and keeps the accent system explicit.
-   Remove this whole block to revert direction.
-   ============================================================ */
-
-/* Target BOTH :root and .agent-space-shell — the shell re-declares these tokens
-   locally (line ~160), and custom properties resolve from the nearest ancestor,
-   so a :root-only override never reaches inside the shell. This is why earlier
-   surface/border/text changes did not show. Later source order + equal
-   specificity means these win on the shell element. */
-:root,
-.agent-space-shell {
-  /* surfaces: graphite, clearly layered */
-  --surface-canvas: #06080b;
-  --surface-panel: #0b0f14;
-  --surface-raised: #10161d;
-  --surface-sunken: #040608;
-  --panel-soft: #141a22;
-  --glass: rgba(11, 15, 20, 0.92);
-
-  /* text hierarchy */
-  --text-primary: #eef3f7;
-  --text-secondary: #c6d0da;
-  --text-muted: #94a0ad;
-  --faint: #8290a0;
-  --passive: #8290a0;
-
-  /* accent roles: cyan for active target, green reserved for success/primary */
-  --accent-primary: #53c7d8;
-  --accent: var(--accent-primary);
-  --cyan: var(--accent-primary);
-  --green: #63d18a;
-  --accent-press: #3daebe;
-  --accent-soft: rgba(83, 199, 216, 0.13);
-  --accent-strong: #6fd8e6;
-  --accent-halo: rgba(83, 199, 216, 0.34);
-  --on-accent: #04141a;
-
-  /* neutral hairlines */
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-strong: rgba(255, 255, 255, 0.12);
-  --line: var(--border-subtle);
-  --line-strong: var(--border-strong);
-  --highlight-soft: rgba(255, 255, 255, 0.05);
-
-  /* a true depth scale (Codex deleted these) */
-  --shadow-soft: 0 16px 34px -24px rgba(0, 0, 0, 0.82);
-  --shadow-panel:
-    0 34px 72px -30px rgba(0, 0, 0, 0.78),
-    0 2px 10px -4px rgba(0, 0, 0, 0.6);
-  --depth-card:
-    0 1px 0 rgba(255, 255, 255, 0.045) inset,
-    0 18px 38px -26px rgba(0, 0, 0, 0.85);
-  --depth-raised:
-    0 1px 0 rgba(255, 255, 255, 0.06) inset,
-    0 26px 56px -28px rgba(0, 0, 0, 0.8),
-    0 2px 8px -3px rgba(0, 0, 0, 0.55);
-}
+/* Depth layer: source-order component rules below now consume the canonical tactical tokens from :root. */
 
 /* canvas: graphite substrate, not ambient glow */
 body {
@@ -5986,7 +5946,8 @@ body {
 /* --- Command palette: raised modal, cyan active row --- */
 .command-palette-backdrop {
   background: rgba(3, 6, 5, 0.6);
-  backdrop-filter: blur(6px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .command-palette {
@@ -6695,8 +6656,8 @@ body {
     rgba(0, 0, 0, 0.68);
   display: grid;
   place-items: start center;
-  backdrop-filter: blur(14px) saturate(132%);
-  -webkit-backdrop-filter: blur(14px) saturate(132%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .session-observatory-panel {
@@ -8330,35 +8291,15 @@ body {
   font: 500 13px/1.4 var(--sans);
 }
 
-/* ============================================================
-   ALFRED CLEAN FLAT v4
-   Quiet material pass: flat panels, consistent controls, lower glow.
-   ============================================================ */
-
-:root,
 .agent-space-shell {
-  --flat-app-bg: #040806;
-  --flat-panel: #07110e;
-  --flat-panel-2: #0a1511;
-  --flat-canvas: #050907;
-  --flat-control: #0b1612;
-  --flat-control-hover: #0f1d17;
-  --flat-selected: rgba(83, 199, 216, 0.095);
-  --flat-border: rgba(255, 255, 255, 0.09);
-  --flat-border-strong: rgba(255, 255, 255, 0.16);
-  --flat-control-height: 34px;
-  --flat-radius: 9px;
-}
-
-.agent-space-shell {
-  background: var(--flat-app-bg);
+  background: var(--surface-canvas);
 }
 
 .workspace-layout,
 .workspace-layout.alfred-compact,
 .workspace-layout.preview-visible,
 .workspace-layout.alfred-compact.preview-visible {
-  background: var(--flat-app-bg);
+  background: var(--surface-canvas);
 }
 
 .primary-nav-rail,
@@ -8374,8 +8315,8 @@ body {
 .observatory-surface,
 .workspace-preview-panel,
 .agent-timeline-panel {
-  border-color: var(--flat-border);
-  background: var(--flat-panel);
+  border-color: var(--border);
+  background: var(--surface-panel);
   background-image: none;
   box-shadow: none;
 }
@@ -8400,7 +8341,7 @@ body {
   border-color: color-mix(in oklab, var(--accent) 24%, transparent);
   border-radius: 7px;
   padding: 0 7px;
-  background: var(--flat-control);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   display: inline-flex;
   align-items: center;
 }
@@ -8410,11 +8351,11 @@ body {
 }
 
 .workbench-tool-group {
-  height: var(--flat-control-height);
-  border: 1px solid var(--flat-border);
-  border-radius: var(--flat-radius);
+  height: var(--control-height);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
   padding: 2px;
-  background: var(--flat-control);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   gap: 2px;
 }
 
@@ -8426,12 +8367,12 @@ body {
 .review-surface-discard,
 .observatory-surface-header button,
 .observatory-detail-card button {
-  height: var(--flat-control-height);
-  min-height: var(--flat-control-height);
-  border-color: var(--flat-border);
-  border-radius: var(--flat-radius);
+  height: var(--control-height);
+  min-height: var(--control-height);
+  border-color: var(--border);
+  border-radius: var(--radius-control);
   padding: 0 11px;
-  background: var(--flat-control);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   background-image: none;
   box-shadow: none;
   color: var(--text-secondary);
@@ -8439,8 +8380,8 @@ body {
 }
 
 .workbench-tool-group button {
-  height: 28px;
-  min-height: 28px;
+  height: calc(var(--control-height) - 4px);
+  min-height: calc(var(--control-height) - 4px);
   border-color: transparent;
   border-radius: 7px;
   background: transparent;
@@ -8458,22 +8399,22 @@ body {
 .agent-handoff-buttons button:focus-visible,
 .workspace-preview-actions button:hover,
 .workspace-preview-actions button:focus-visible {
-  border-color: var(--flat-border-strong);
-  background: var(--flat-control-hover);
+  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
+  background: color-mix(in oklab, var(--surface-raised) 88%, black 12%);
   box-shadow: none;
   color: var(--text-primary);
 }
 
 .workbench-actions button[aria-pressed="true"],
 .workbench-actions button.active {
-  background: var(--flat-selected);
+  background: var(--signal-focus-soft);
   color: var(--text-primary);
 }
 
 .workbench-primary-action,
 .mission-actions .new-terminal-button {
-  height: var(--flat-control-height);
-  min-height: var(--flat-control-height);
+  height: var(--control-height);
+  min-height: var(--control-height);
   background-image: none;
   box-shadow: none;
 }
@@ -8492,9 +8433,9 @@ body {
 
 .workspace-title-trigger {
   min-height: 36px;
-  border-color: var(--flat-border);
+  border-color: var(--border);
   border-radius: 10px;
-  background: var(--flat-panel-2);
+  background: var(--surface-raised);
   background-image: none;
   box-shadow: none;
 }
@@ -8502,17 +8443,17 @@ body {
 .workspace-title-trigger:hover,
 .workspace-title-trigger:focus-visible,
 .workspace-title-trigger[aria-expanded="true"] {
-  border-color: var(--flat-border-strong);
-  background: var(--flat-control-hover);
+  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
+  background: color-mix(in oklab, var(--surface-raised) 88%, black 12%);
   box-shadow: none;
 }
 
 .workspace-popover {
   width: min(390px, 82vw);
-  border-color: var(--flat-border-strong);
+  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
   border-radius: 12px;
   padding: 8px;
-  background: var(--flat-panel-2);
+  background: var(--surface-raised);
   box-shadow: 0 18px 44px -36px rgba(0, 0, 0, 0.95);
 }
 
@@ -8527,14 +8468,14 @@ body {
 
 .workspace-popover button:hover,
 .workspace-popover button:focus-visible {
-  border-color: var(--flat-border);
-  background: var(--flat-control);
+  border-color: var(--border);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   background-image: none;
   box-shadow: none;
 }
 
 .workspace-popover hr {
-  background: var(--flat-border);
+  background: var(--border);
 }
 
 .workspace-button,
@@ -8547,7 +8488,7 @@ body {
 .workspace-button:hover,
 .workspace-nav-row:hover,
 .workspace-nav-row:focus-visible {
-  background: var(--flat-control);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   background-image: none;
   box-shadow: none;
 }
@@ -8555,7 +8496,7 @@ body {
 .workspace-button.active,
 .workspace-button.active:hover {
   border-color: color-mix(in oklab, var(--accent) 30%, transparent);
-  background: var(--flat-selected);
+  background: var(--signal-focus-soft);
   background-image: none;
   box-shadow: none;
 }
@@ -8568,7 +8509,7 @@ body {
 
 .terminal-grid.laid-out,
 .terminal-grid.laid-out.single {
-  background: var(--flat-canvas);
+  background: var(--surface-terminal);
   background-image: none;
 }
 
@@ -8576,18 +8517,18 @@ body {
   background:
     linear-gradient(color-mix(in oklab, var(--accent) 5%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in oklab, var(--accent) 5%, transparent) 1px, transparent 1px),
-    var(--flat-canvas);
+    var(--surface-terminal);
 }
 
 .terminal-stage-header,
 .context-drawer-header {
-  background: var(--flat-panel-2);
+  background: var(--surface-raised);
   background-image: none;
 }
 
 .terminal-tile {
-  border-color: var(--flat-border);
-  background: var(--flat-panel);
+  border-color: var(--border);
+  background: var(--surface-panel);
   background-image: none;
   box-shadow: none;
 }
@@ -8596,7 +8537,7 @@ body {
 .terminal-tile.selected,
 .terminal-tile:focus-visible,
 .terminal-tile:focus-within {
-  border-color: color-mix(in oklab, var(--accent) 24%, var(--flat-border));
+  border-color: color-mix(in oklab, var(--accent) 24%, var(--border));
   box-shadow: none;
 }
 
@@ -8607,7 +8548,7 @@ body {
 .terminal-tile.kind-dev-server,
 .terminal-tile.real-terminal.browser,
 .terminal-tile.staged {
-  background: var(--flat-panel);
+  background: var(--surface-panel);
   background-image: none;
   box-shadow: none;
 }
@@ -8618,7 +8559,7 @@ body {
 
 .terminal-status-label,
 .tile-actions button {
-  background: var(--flat-control);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   background-image: none;
   box-shadow: none;
 }
@@ -8645,19 +8586,19 @@ body {
 .observatory-detail-card,
 .session-observatory-main,
 .inbox-section {
-  background: var(--flat-panel-2);
+  background: var(--surface-raised);
   background-image: none;
   box-shadow: none;
 }
 
 .agent-panel-section.agent-session-summary {
-  border-color: color-mix(in oklab, var(--accent) 18%, var(--flat-border));
+  border-color: color-mix(in oklab, var(--accent) 18%, var(--border));
 }
 
 .dispatch-target-chip,
 .dispatch-bar .composer-input,
 .composer-send {
-  background: var(--flat-control);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   background-image: none;
   box-shadow: none;
 }
@@ -8691,28 +8632,8 @@ body {
   }
 }
 
-/* ============================================================
-   ALFRED WORKBENCH CLEAN v5
-   Match the current workbench direction more closely: fewer permanent
-   columns, quieter empty states, flat material surfaces.
-   ============================================================ */
-
-:root,
 .agent-space-shell {
-  --proto-bg: #020706;
-  --proto-panel: #06100c;
-  --proto-panel-soft: #08140f;
-  --proto-panel-muted: #0a1511;
-  --proto-control: #09140f;
-  --proto-control-hover: #0d1b14;
-  --proto-line: rgba(255, 255, 255, 0.085);
-  --proto-line-strong: rgba(255, 255, 255, 0.16);
-  --proto-radius: 8px;
-  --proto-radius-lg: 10px;
-}
-
-.agent-space-shell {
-  background: var(--proto-bg);
+  background: var(--surface-canvas);
 }
 
 .workspace-layout,
@@ -8733,7 +8654,7 @@ body {
   grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr);
   gap: 8px;
   padding: 8px;
-  background: var(--proto-bg);
+  background: var(--surface-canvas);
 }
 
 .primary-nav-rail,
@@ -8746,9 +8667,9 @@ body {
 .alfred-dock,
 .dispatch-bar,
 .workspace-popover {
-  border-color: var(--proto-line);
-  border-radius: var(--proto-radius-lg);
-  background: var(--proto-panel);
+  border-color: var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface-panel);
   background-image: none;
   box-shadow: none;
 }
@@ -8810,7 +8731,7 @@ body {
 
 .workspace-nav-row,
 .workspace-button {
-  border-radius: var(--proto-radius);
+  border-radius: var(--radius-control);
 }
 
 .workspace-nav-row,
@@ -8822,7 +8743,7 @@ body {
 .workspace-nav-row:focus-visible,
 .workspace-button:hover,
 .workspace-button:focus-visible {
-  background: var(--proto-control);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
 }
 
 .workspace-button.active,
@@ -8859,8 +8780,8 @@ body {
 }
 
 .workbench-tool-group {
-  height: 32px;
-  border-radius: var(--proto-radius);
+  height: var(--control-height);
+  border-radius: var(--radius-control);
 }
 
 .workbench-actions button,
@@ -8871,27 +8792,27 @@ body {
 .review-surface-discard,
 .observatory-surface-header button,
 .observatory-detail-card button {
-  height: 32px;
-  min-height: 32px;
-  border-color: var(--proto-line);
-  border-radius: var(--proto-radius);
+  height: var(--control-height);
+  min-height: var(--control-height);
+  border-color: var(--border);
+  border-radius: var(--radius-control);
   padding: 0 10px;
-  background: var(--proto-control);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   background-image: none;
   box-shadow: none;
   font-size: 12px;
 }
 
 .workbench-tool-group button {
-  height: 26px;
-  min-height: 26px;
+  height: calc(var(--control-height) - 6px);
+  min-height: calc(var(--control-height) - 6px);
   padding: 0 10px;
 }
 
 .workbench-primary-action,
 .mission-actions .new-terminal-button {
-  height: 32px;
-  min-height: 32px;
+  height: var(--control-height);
+  min-height: var(--control-height);
   box-shadow: none;
 }
 
@@ -8905,8 +8826,8 @@ body {
 }
 
 .terminal-tile {
-  border-color: var(--proto-line);
-  border-radius: var(--proto-radius-lg);
+  border-color: var(--border);
+  border-radius: var(--radius-panel);
   background: #050807;
 }
 
@@ -8949,10 +8870,10 @@ body {
 
 .review-surface-stats div {
   min-width: 72px;
-  border-color: var(--proto-line);
-  border-radius: var(--proto-radius);
+  border-color: var(--border);
+  border-radius: var(--radius-control);
   padding: 9px 10px;
-  background: var(--proto-control);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
 }
 
 .review-surface-stats strong {
@@ -8963,10 +8884,10 @@ body {
   align-self: start;
   min-height: 0;
   margin: 18px;
-  border: 1px solid var(--proto-line);
-  border-radius: var(--proto-radius-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
   padding: 18px;
-  background: var(--proto-panel-soft);
+  background: var(--surface-raised);
   background-image: none;
   box-shadow: none;
   display: grid;
@@ -9005,10 +8926,10 @@ body {
 }
 
 .review-empty-lanes div {
-  border-color: var(--proto-line);
-  border-radius: var(--proto-radius);
+  border-color: var(--border);
+  border-radius: var(--radius-control);
   padding: 9px 10px;
-  background: var(--proto-control);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   justify-items: start;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -9028,9 +8949,9 @@ body {
 .observatory-session-row,
 .observatory-detail-card,
 .session-observatory-main {
-  border-color: var(--proto-line);
-  border-radius: var(--proto-radius-lg);
-  background: var(--proto-panel-soft);
+  border-color: var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface-raised);
   box-shadow: none;
 }
 
@@ -9038,14 +8959,14 @@ body {
 .agent-panel-section.agent-session-summary,
 .agent-session-pulse,
 .review-context-summary {
-  border-color: var(--proto-line);
-  border-radius: var(--proto-radius-lg);
-  background: var(--proto-panel-soft);
+  border-color: var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface-raised);
 }
 
 .agent-panel-section.agent-session-summary {
-  border-color: var(--proto-line-strong);
-  background: var(--proto-panel-soft);
+  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
+  background: var(--surface-raised);
 }
 
 .context-column {
@@ -9078,9 +8999,9 @@ body {
   width: 100%;
   height: 100%;
   max-height: 100%;
-  border-color: var(--proto-line-strong);
-  border-radius: var(--proto-radius-lg);
-  background: var(--proto-panel);
+  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
+  border-radius: var(--radius-panel);
+  background: var(--surface-panel);
   background-image: none;
   box-shadow: 0 24px 58px -38px rgba(0, 0, 0, 0.92);
 }
@@ -9092,7 +9013,7 @@ body {
 .context-drawer-header {
   min-height: 44px;
   padding: 8px 10px;
-  background: var(--proto-panel);
+  background: var(--surface-panel);
 }
 
 .context-drawer .workspace-preview-panel,
@@ -9112,16 +9033,16 @@ body {
 }
 
 .dispatch-bar {
-  border-top-color: var(--proto-line);
+  border-top-color: var(--border);
   background: #050b08;
 }
 
 .dispatch-target-chip,
 .dispatch-bar .composer-input,
 .composer-send {
-  border-color: var(--proto-line);
-  border-radius: var(--proto-radius);
-  background: var(--proto-control);
+  border-color: var(--border);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
 }
 
 @media (max-width: 1120px) {
@@ -9178,15 +9099,11 @@ body {
   }
 }
 
-/* ============================================================
-   ALFRED WORKBENCH POLISH v6
-   Fix overlap/scroll regressions after v5 and flatten leftover
-   glass gradients in session surfaces.
-   ============================================================ */
+/* Workbench polish layer. */
 
 .desktop-frame {
   grid-template-rows: 52px minmax(0, 1fr) 58px;
-  background: var(--proto-bg);
+  background: var(--surface-canvas);
 }
 
 .desktop-frame.mac-frame .mission-bar {
@@ -9197,9 +9114,9 @@ body {
   position: static;
   height: 52px;
   min-height: 52px;
-  border-bottom: 1px solid var(--proto-line);
+  border-bottom: 1px solid var(--border);
   padding: 0 12px;
-  background: var(--proto-bg);
+  background: var(--surface-canvas);
   background-image: none;
   box-shadow: none;
 }
@@ -9223,9 +9140,9 @@ body {
 .workspace-title-trigger {
   max-width: min(360px, 38vw);
   min-height: 34px;
-  border-color: var(--proto-line);
-  border-radius: var(--proto-radius);
-  background: var(--proto-panel-soft);
+  border-color: var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
   background-image: none;
   box-shadow: none;
 }
@@ -9233,8 +9150,8 @@ body {
 .workspace-title-trigger:hover,
 .workspace-title-trigger:focus-visible,
 .workspace-title-trigger[aria-expanded="true"] {
-  border-color: var(--proto-line-strong);
-  background: var(--proto-control-hover);
+  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
+  background: color-mix(in oklab, var(--surface-raised) 88%, black 12%);
   background-image: none;
   box-shadow: none;
 }
@@ -9298,7 +9215,7 @@ body {
 .context-drawer .agent-panel-section,
 .context-drawer .agent-panel-section.agent-session-summary,
 .context-drawer .agent-session-pulse {
-  background: var(--proto-panel-soft);
+  background: var(--surface-raised);
   background-image: none;
   box-shadow: none;
 }
@@ -9314,9 +9231,9 @@ body {
 .session-observatory-panel {
   width: min(760px, calc(100vw - 88px));
   max-height: min(560px, calc(100vh - 96px));
-  border-color: var(--proto-line-strong);
-  border-radius: var(--proto-radius-lg);
-  background: var(--proto-panel);
+  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
+  border-radius: var(--radius-panel);
+  background: var(--surface-panel);
   background-image: none;
   box-shadow: none;
 }
@@ -9329,7 +9246,7 @@ body {
 .session-observatory-search,
 .session-observatory-main,
 .session-observatory-empty {
-  background: var(--proto-control);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   background-image: none;
   box-shadow: none;
 }
@@ -9337,8 +9254,8 @@ body {
 .session-observatory-close {
   width: 34px;
   height: 34px;
-  border-color: var(--proto-line);
-  border-radius: var(--proto-radius);
+  border-color: var(--border);
+  border-radius: var(--radius-control);
 }
 
 .session-observatory-close:hover,
@@ -9346,8 +9263,8 @@ body {
 .session-observatory-search:focus-within,
 .session-observatory-main:hover,
 .session-observatory-main:focus-visible {
-  border-color: var(--proto-line-strong);
-  background: var(--proto-control-hover);
+  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
+  background: color-mix(in oklab, var(--surface-raised) 88%, black 12%);
   background-image: none;
   box-shadow: none;
   transform: none;
@@ -9356,8 +9273,8 @@ body {
 .session-observatory-search {
   min-height: 44px;
   margin: 10px 18px 0;
-  border-color: var(--proto-line);
-  border-radius: var(--proto-radius-lg);
+  border-color: var(--border);
+  border-radius: var(--radius-panel);
   padding: 0 12px;
 }
 
@@ -9383,8 +9300,8 @@ body {
 
 .session-observatory-main {
   min-height: 58px;
-  border-color: var(--proto-line);
-  border-radius: var(--proto-radius-lg);
+  border-color: var(--border);
+  border-radius: var(--radius-panel);
   padding: 10px 12px;
   gap: 12px;
 }
@@ -9392,12 +9309,12 @@ body {
 .session-observatory-kind {
   min-width: 42px;
   min-height: 30px;
-  border-color: var(--proto-line);
-  border-radius: var(--proto-radius);
+  border-color: var(--border);
+  border-radius: var(--radius-control);
 }
 
 .session-observatory-meta span {
-  background: var(--proto-panel-soft);
+  background: var(--surface-raised);
   background-image: none;
 }
 
@@ -9415,15 +9332,11 @@ body {
   }
 }
 
-/* ============================================================
-   ALFRED CLEAN MATERIAL v7
-   Desktop containment pass: context owns a column when open,
-   Arrange has a real bottom safe zone, overlays stay flat.
-   ============================================================ */
+/* Clean material containment layer. */
 
 .agent-space-shell,
 body {
-  background: var(--proto-bg);
+  background: var(--surface-canvas);
   background-image: none;
 }
 
@@ -9512,7 +9425,7 @@ body {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: var(--proto-control);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   background-image: none;
   box-shadow: none;
 }
@@ -9531,7 +9444,7 @@ body {
 
 .workspace-popover {
   z-index: 90;
-  background: var(--proto-panel);
+  background: var(--surface-panel);
   background-image: none;
   box-shadow: 0 18px 44px -36px rgba(0, 0, 0, 0.95);
 }
@@ -9549,7 +9462,7 @@ body {
 .global-review-panel,
 .privacy-panel,
 .session-observatory-panel {
-  background: var(--proto-panel);
+  background: var(--surface-panel);
   background-image: none;
   box-shadow: none;
 }
@@ -9564,7 +9477,7 @@ body {
 .session-observatory-panel {
   width: min(760px, calc(100vw - 88px));
   max-height: min(560px, calc(100vh - 96px));
-  background: var(--proto-panel);
+  background: var(--surface-panel);
   background-image: none;
   box-shadow: none;
 }
@@ -9630,11 +9543,7 @@ body {
   }
 }
 
-/* ============================================================
-   ALFRED CLEAN READABILITY v8
-   Small workbench pass: less hero copy, quieter tile chrome,
-   one source of truth for layout controls, command-like dispatch.
-   ============================================================ */
+/* Terminal-first readability layer. */
 
 :root,
 .agent-space-shell {
@@ -9756,17 +9665,17 @@ body {
 
 .arrange-mode-label {
   min-height: 24px;
-  border: 1px solid var(--proto-line);
+  border: 1px solid var(--border);
   border-radius: 7px;
   padding: 0 9px;
-  background: var(--proto-control);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   color: var(--text-primary);
   font: 650 11px/24px var(--mono);
 }
 
 .arrange-hint {
   min-height: 24px;
-  border: 1px solid var(--proto-line);
+  border: 1px solid var(--border);
   border-radius: 7px;
   padding: 0 9px;
   background: transparent;
@@ -9934,7 +9843,7 @@ body {
   grid-template-rows: 32px 14px;
   gap: 5px 8px;
   padding: 6px 8px;
-  background: var(--proto-bg);
+  background: var(--surface-canvas);
   background-image: none;
 }
 
@@ -9944,7 +9853,7 @@ body {
   height: 32px;
   min-height: 32px;
   border-radius: 8px;
-  background: var(--proto-control);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   background-image: none;
   box-shadow: none;
 }
@@ -9986,11 +9895,7 @@ body {
   border-radius: 3px;
 }
 
-/* ============================================================
-   ALFRED TERMINAL-FIRST COLOR ROLES v9
-   Final restraint layer: graphite controls, cyan active targets,
-   amber attention, green only for creation/success.
-   ============================================================ */
+/* Terminal-first color role layer. */
 
 :root,
 .agent-space-shell {
