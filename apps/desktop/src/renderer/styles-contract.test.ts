@@ -567,4 +567,25 @@ describe("renderer CSS contracts", () => {
     expect(activeWorkspace).not.toContain("linear-gradient");
     expect(activeWorkspace).toContain("box-shadow: none");
   });
+
+  it("keeps overlays opaque and tactical instead of glassy", () => {
+    const primaryOverlayBackdrop = blockFor(".review-queue-backdrop,\n.command-palette-backdrop");
+    const quickSwitchBackdrop = blockFor(".session-observatory-backdrop");
+    const overlayPanels = blockFor(".command-palette,\n.global-review-panel,\n.privacy-panel,\n.session-observatory-panel");
+    const activePaletteRow = blockFor(
+      ".command-palette-list button:hover,\n.command-palette-list button:focus-visible,\n.command-palette-list button.active",
+    );
+
+    expect(primaryOverlayBackdrop).toContain("background: rgba(0, 0, 0, 0.66)");
+    expect(primaryOverlayBackdrop).toContain("background-image: none");
+    expect(primaryOverlayBackdrop).toContain("backdrop-filter: none");
+    expect(primaryOverlayBackdrop).toContain("-webkit-backdrop-filter: none");
+    expect(quickSwitchBackdrop).toContain("background: rgba(0, 0, 0, 0.54)");
+    expect(quickSwitchBackdrop).toContain("backdrop-filter: none");
+    expect(overlayPanels).toContain("background: var(--surface-panel)");
+    expect(overlayPanels).toContain("background-image: none");
+    expect(overlayPanels).toContain("border: 1px solid var(--border)");
+    expect(overlayPanels).toContain("box-shadow: var(--shadow-panel)");
+    expect(activePaletteRow).not.toContain("linear-gradient");
+  });
 });
