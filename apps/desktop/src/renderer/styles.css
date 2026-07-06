@@ -10055,6 +10055,77 @@ body {
   color: color-mix(in oklab, var(--role-attention) 86%, white 8%);
 }
 
+.context-drawer {
+  background: var(--surface-panel);
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.agent-context-zone.agent-context-identity {
+  color: var(--text-muted);
+}
+
+.context-drawer-header strong,
+.agent-timeline-header strong,
+.agent-context-zone-heading strong,
+.agent-section-heading strong,
+.agent-session-pulse strong {
+  color: var(--text-primary);
+}
+
+.agent-panel-section.agent-session-summary {
+  color: var(--text-muted);
+}
+
+.agent-context-zone.agent-context-more {
+  color: var(--text-faint);
+}
+
+.agent-timeline-section,
+.agent-activity-list {
+  color: var(--text-faint);
+}
+
+.agent-context-zone.agent-context-more .agent-section-heading strong,
+.agent-timeline-section .agent-section-heading strong {
+  color: var(--text-muted);
+}
+
+.agent-context-zone.agent-context-more .agent-section-heading p,
+.agent-activity-list p,
+.agent-activity-list time {
+  color: var(--text-faint);
+}
+
+.agent-session-pulse {
+  background: color-mix(in oklab, var(--surface-raised) 84%, black 16%);
+  background-image: none;
+  box-shadow: none;
+}
+
+.agent-session-pulse p {
+  color: var(--text-muted);
+}
+
+.agent-session-pulse time {
+  color: var(--text-faint);
+}
+
+.agent-handoff-buttons button {
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  background-image: none;
+  border-color: var(--border);
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+.agent-handoff-buttons button:hover,
+.agent-handoff-buttons button:focus-visible {
+  border-color: var(--border-focus);
+  background: color-mix(in oklab, var(--surface-raised) 88%, black 12%);
+  color: var(--text-primary);
+}
+
 /*
  * ALFRED TERMINAL GRID SCROLL v10
  * Keep the xterm viewport scroll independent from the workbench tile scroll.
