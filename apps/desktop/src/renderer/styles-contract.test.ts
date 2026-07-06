@@ -149,6 +149,17 @@ describe("renderer CSS contracts", () => {
     expect(xtermHost).toContain("background: var(--surface-terminal)");
   });
 
+  it("routes operational colors through signal tokens", () => {
+    expect(styles).not.toMatch(/rgba\(83,\s*199,\s*216,/);
+    expect(styles).not.toMatch(/rgba\(217,\s*174,\s*70,/);
+    expect(styles).not.toMatch(/#(?:35d47f|37d884|3ee68a)/i);
+    expect(styles).not.toMatch(/#e0b75b/i);
+    expect(styles).not.toMatch(/var\(--accent\)/);
+    expect(styles).not.toMatch(/var\(--amber\)/);
+    expect(styles).not.toMatch(/var\(--coral\)/);
+    expect(styles).not.toMatch(/var\(--green\)/);
+  });
+
   it("keeps Arrange mode scrollable with room for the bottom resize handle", () => {
     const arrangeCanvas = blockFor(".terminal-stage.arranging .terminal-grid-column");
     const arrangingGrid = blockFor(".terminal-stage.arranging .terminal-grid");
@@ -413,8 +424,8 @@ describe("renderer CSS contracts", () => {
     const codexHover = blockFor(".workbench-launch-group button[aria-label=\"Start Codex\"]:hover,\n.workbench-launch-group button[aria-label=\"Start Codex\"]:focus-visible");
     const claudeHover = blockFor(".workbench-launch-group button[aria-label=\"Start Claude\"]:hover,\n.workbench-launch-group button[aria-label=\"Start Claude\"]:focus-visible");
 
-    expect(styles).toContain("--role-active: var(--cyan)");
-    expect(styles).toContain("--role-success: #63d18a");
+    expect(styles).toContain("--role-active: var(--signal-focus)");
+    expect(styles).toContain("--role-success: var(--signal-success)");
     expect(manualDot).toContain("var(--role-neutral-marker)");
     expect(manualDot).not.toContain("var(--green)");
     expect(codexDot).toContain("var(--codex-blue)");
@@ -424,7 +435,7 @@ describe("renderer CSS contracts", () => {
     expect(readyDispatch).not.toContain("var(--role-success)");
     expect(commandActivity).toContain("var(--role-active)");
     expect(activeControlHover).toContain("var(--role-active)");
-    expect(activeControlHover).toContain("var(--accent-strong)");
+    expect(activeControlHover).toContain("var(--signal-focus-strong)");
     expect(codexHover).toContain("var(--codex-blue)");
     expect(claudeHover).toContain("var(--claude-amber)");
   });
@@ -443,7 +454,7 @@ describe("renderer CSS contracts", () => {
     );
 
     expect(importantPrimaryRules).toEqual([]);
-    expect(finalPrimaryAction).toContain("var(--role-success)");
+    expect(finalPrimaryAction).toContain("var(--border-focus)");
     expect(finalPrimaryAction).not.toMatch(/(background|border-color|box-shadow|color|padding):[^;]+!important/i);
   });
 

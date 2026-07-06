@@ -9,7 +9,7 @@
   --text-faint: #7f8b94;
 
   --border: rgba(188, 205, 218, 0.12);
-  --border-focus: rgba(83, 199, 216, 0.46);
+  --border-focus: color-mix(in oklab, var(--signal-focus) 46%, transparent);
 
   --signal-focus: #53c7d8;
   --signal-focus-strong: color-mix(in oklab, var(--signal-focus) 78%, white 12%);
@@ -92,7 +92,7 @@ body {
   min-height: 100vh;
   overflow: hidden;
   background:
-    radial-gradient(ellipse 840px 560px at 18% 0%, color-mix(in oklab, var(--accent) 4%, transparent), transparent 72%),
+    radial-gradient(ellipse 840px 560px at 18% 0%, color-mix(in oklab, var(--signal-focus) 4%, transparent), transparent 72%),
     linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 220px),
     linear-gradient(90deg, rgba(188, 202, 218, 0.018) 1px, transparent 1px),
     linear-gradient(180deg, rgba(188, 202, 218, 0.014) 1px, transparent 1px),
@@ -134,11 +134,11 @@ button:focus-visible {
 
 .renderer-crash-card {
   width: min(560px, 100%);
-  border: 1px solid color-mix(in oklab, var(--coral) 35%, transparent);
+  border: 1px solid color-mix(in oklab, var(--signal-danger) 35%, transparent);
   border-radius: 10px;
   padding: 22px;
   background:
-    linear-gradient(180deg, color-mix(in oklab, var(--coral) 8%, transparent), transparent 120px),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-danger) 8%, transparent), transparent 120px),
     rgba(8, 11, 15, 0.96);
   box-shadow:
     inset 0 1px 0 color-mix(in oklab, white 7%, transparent),
@@ -146,7 +146,7 @@ button:focus-visible {
 }
 
 .renderer-crash-card span {
-  color: var(--coral);
+  color: var(--signal-danger);
   display: block;
   font-family: var(--mono);
   font-size: 11px;
@@ -181,10 +181,10 @@ button:focus-visible {
 
 .renderer-crash-card button {
   min-height: 34px;
-  border: 1px solid color-mix(in oklab, var(--accent) 34%, transparent);
+  border: 1px solid color-mix(in oklab, var(--signal-focus) 34%, transparent);
   border-radius: 7px;
   padding: 0 12px;
-  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 8%, transparent);
   color: #cff3f6;
   cursor: pointer;
 }
@@ -195,9 +195,9 @@ button:focus-visible {
   padding: 8px;
   display: block;
   background:
-    radial-gradient(circle at 16% 0%, color-mix(in oklab, var(--accent) 3.5%, transparent), transparent 34%),
+    radial-gradient(circle at 16% 0%, color-mix(in oklab, var(--signal-focus) 3.5%, transparent), transparent 34%),
     linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 180px),
-    linear-gradient(90deg, rgba(201, 163, 93, 0.025), transparent 28%, transparent 72%, color-mix(in oklab, var(--accent) 2%, transparent)),
+    linear-gradient(90deg, rgba(201, 163, 93, 0.025), transparent 28%, transparent 72%, color-mix(in oklab, var(--signal-focus) 2%, transparent)),
     var(--night);
 }
 
@@ -225,7 +225,7 @@ button:focus-visible {
   padding: 0 14px;
   background:
     linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 100%),
-    linear-gradient(90deg, color-mix(in oklab, var(--accent) 4%, transparent), transparent 34%),
+    linear-gradient(90deg, color-mix(in oklab, var(--signal-focus) 4%, transparent), transparent 34%),
     var(--surface-panel);
   -webkit-app-region: drag;
   user-select: none;
@@ -278,7 +278,7 @@ button:focus-visible {
 .workspace-title-trigger:hover,
 .workspace-title-trigger:focus-visible,
 .workspace-title-trigger[aria-expanded="true"] {
-  border-color: color-mix(in oklab, var(--accent) 24%, var(--line));
+  border-color: color-mix(in oklab, var(--signal-focus) 24%, var(--line));
   background:
     linear-gradient(180deg, rgba(238, 243, 247, 0.028), transparent 72%),
     color-mix(in oklab, var(--panel-soft) 88%, transparent);
@@ -300,7 +300,7 @@ button:focus-visible {
 }
 
 .workspace-title-trigger[aria-expanded="true"] svg {
-  color: var(--accent);
+  color: var(--signal-focus);
   transform: rotate(180deg);
 }
 
@@ -363,8 +363,8 @@ button:focus-visible {
 
 .workspace-popover button:hover,
 .workspace-popover button:focus-visible {
-  border-color: color-mix(in oklab, var(--accent) 18%, var(--line));
-  background: color-mix(in oklab, var(--accent) 6%, var(--panel-soft));
+  border-color: color-mix(in oklab, var(--signal-focus) 18%, var(--line));
+  background: color-mix(in oklab, var(--signal-focus) 6%, var(--panel-soft));
   color: var(--ink);
 }
 
@@ -374,7 +374,7 @@ button:focus-visible {
 }
 
 .workspace-popover button svg {
-  color: var(--accent);
+  color: var(--signal-focus);
 }
 
 .workspace-popover button strong,
@@ -454,7 +454,7 @@ button:focus-visible {
 
 .workspace-rename-form input:focus,
 .workspace-mission-form textarea:focus {
-  outline: 2px solid color-mix(in oklab, var(--accent) 72%, white 8%);
+  outline: 2px solid color-mix(in oklab, var(--signal-focus) 72%, white 8%);
   outline-offset: 2px;
 }
 
@@ -481,7 +481,7 @@ button:focus-visible {
 }
 
 .workspace-mission-actions button.danger {
-  color: var(--coral);
+  color: var(--signal-danger);
 }
 
 .alfred-mark {
@@ -562,20 +562,20 @@ button:focus-visible {
   width: auto;
   min-width: 132px;
   padding: 0 13px;
-  border-color: color-mix(in oklab, var(--accent) 32%, var(--line));
+  border-color: color-mix(in oklab, var(--signal-focus) 32%, var(--line));
   background:
-    linear-gradient(180deg, color-mix(in oklab, var(--accent) 14%, transparent), color-mix(in oklab, var(--accent) 6%, transparent)),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 14%, transparent), color-mix(in oklab, var(--signal-focus) 6%, transparent)),
     color-mix(in oklab, var(--panel-raised) 92%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(238, 243, 247, 0.06),
-    0 10px 20px -18px color-mix(in oklab, var(--accent) 44%, black 56%);
+    0 10px 20px -18px color-mix(in oklab, var(--signal-focus) 44%, black 56%);
   color: #dcefed;
 }
 
 .mission-actions .arrange-button.active {
-  border-color: rgba(217, 174, 70, 0.5);
+  border-color: color-mix(in oklab, var(--signal-agent) 50%, transparent);
   background:
-    linear-gradient(180deg, rgba(217, 174, 70, 0.16), rgba(217, 174, 70, 0.07));
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-agent) 16%, transparent), color-mix(in oklab, var(--signal-agent) 7%, transparent));
   color: #f5e6b8;
 }
 
@@ -593,9 +593,9 @@ button:focus-visible {
 }
 
 .mission-actions .review-queue-button.tone-error {
-  border-color: color-mix(in oklab, var(--coral) 42%, transparent);
+  border-color: color-mix(in oklab, var(--signal-danger) 42%, transparent);
   background:
-    linear-gradient(180deg, color-mix(in oklab, var(--coral) 13%, transparent), color-mix(in oklab, var(--coral) 5%, transparent));
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-danger) 13%, transparent), color-mix(in oklab, var(--signal-danger) 5%, transparent));
   color: #ffd4cc;
 }
 
@@ -714,7 +714,7 @@ button:focus-visible {
   border-radius: 10px;
   display: grid;
   place-items: center;
-  background: var(--accent);
+  background: var(--signal-focus);
   color: #03110b;
   font: 800 12px/1 var(--mono);
 }
@@ -797,7 +797,7 @@ button:focus-visible {
 
 .workspace-nav-more-button:hover,
 .workspace-nav-more-button:focus-visible {
-  border-color: color-mix(in oklab, var(--accent) 28%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   outline: none;
@@ -819,7 +819,7 @@ button:focus-visible {
 
 .workspace-nav-row:hover,
 .workspace-nav-row:focus-visible {
-  border-color: color-mix(in oklab, var(--accent) 24%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 24%, transparent);
   color: var(--text-primary);
   outline: none;
 }
@@ -860,9 +860,9 @@ button:focus-visible {
 .primary-nav-brand {
   display: grid;
   place-items: center;
-  border: 1px solid color-mix(in oklab, var(--accent) 38%, transparent);
-  background: color-mix(in oklab, var(--accent) 13%, transparent);
-  color: var(--accent-strong);
+  border: 1px solid color-mix(in oklab, var(--signal-focus) 38%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 13%, transparent);
+  color: var(--signal-focus-strong);
   font: 800 13px/1 var(--mono);
 }
 
@@ -888,8 +888,8 @@ button:focus-visible {
 .primary-nav-rail button.active,
 .primary-nav-rail button:hover,
 .primary-nav-rail button:focus-visible {
-  border-color: color-mix(in oklab, var(--accent) 28%, transparent);
-  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 10%, transparent);
   color: var(--text-primary);
   outline: none;
 }
@@ -901,7 +901,7 @@ button:focus-visible {
   min-width: 16px;
   height: 16px;
   border-radius: 6px;
-  background: var(--accent);
+  background: var(--signal-focus);
   color: #03110b;
   display: grid;
   place-items: center;
@@ -1000,10 +1000,10 @@ button:focus-visible {
 }
 
 .workbench-title-line span {
-  border: 1px solid color-mix(in oklab, var(--accent) 30%, transparent);
+  border: 1px solid color-mix(in oklab, var(--signal-focus) 30%, transparent);
   border-radius: 8px;
   padding: 3px 7px;
-  color: var(--accent-strong);
+  color: var(--signal-focus-strong);
   font: 800 10px/1 var(--mono);
 }
 
@@ -1086,7 +1086,7 @@ button:focus-visible {
 .workbench-actions button.active,
 .workbench-actions button:hover,
 .workbench-actions button:focus-visible {
-  border-color: color-mix(in oklab, var(--accent) 30%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 30%, transparent);
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.04);
   outline: none;
@@ -1164,8 +1164,8 @@ button:focus-visible {
 .workspace-button:focus-visible {
   outline: none;
   box-shadow:
-    inset 0 0 0 2px color-mix(in oklab, var(--accent) 84%, var(--ink) 16%),
-    inset 2px 0 0 color-mix(in oklab, var(--accent) 76%, transparent);
+    inset 0 0 0 2px color-mix(in oklab, var(--signal-focus) 84%, var(--ink) 16%),
+    inset 2px 0 0 color-mix(in oklab, var(--signal-focus) 76%, transparent);
 }
 
 .workspace-monogram {
@@ -1241,15 +1241,15 @@ button:focus-visible {
 }
 
 .workspace-priority-chip.tone-error {
-  border-color: color-mix(in oklab, var(--coral) 40%, transparent);
-  background: color-mix(in oklab, var(--coral) 12%, transparent);
+  border-color: color-mix(in oklab, var(--signal-danger) 40%, transparent);
+  background: color-mix(in oklab, var(--signal-danger) 12%, transparent);
   color: #f2c3bd;
 }
 
 .workspace-priority-chip.tone-active {
-  border-color: color-mix(in oklab, var(--accent) 26%, transparent);
-  background: color-mix(in oklab, var(--accent) 8%, transparent);
-  color: var(--accent-strong);
+  border-color: color-mix(in oklab, var(--signal-focus) 26%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 8%, transparent);
+  color: var(--signal-focus-strong);
 }
 
 .workspace-priority-chip.tone-empty {
@@ -1258,19 +1258,19 @@ button:focus-visible {
 
 .workspace-button.active {
   background:
-    linear-gradient(180deg, color-mix(in oklab, var(--accent) 8%, transparent), transparent 100%),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 8%, transparent), transparent 100%),
     color-mix(in oklab, var(--panel-soft) 88%, transparent);
-  border-color: color-mix(in oklab, var(--accent) 26%, var(--line));
+  border-color: color-mix(in oklab, var(--signal-focus) 26%, var(--line));
   color: var(--ink);
   box-shadow:
-    inset 2px 0 0 color-mix(in oklab, var(--accent) 76%, transparent),
+    inset 2px 0 0 color-mix(in oklab, var(--signal-focus) 76%, transparent),
     inset 0 1px 0 rgba(238, 243, 247, 0.03),
-    0 14px 26px -24px color-mix(in oklab, var(--accent) 30%, black 70%);
+    0 14px 26px -24px color-mix(in oklab, var(--signal-focus) 30%, black 70%);
 }
 
 .workspace-button.active .workspace-monogram {
-  border-color: color-mix(in oklab, var(--accent) 34%, transparent);
-  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 10%, transparent);
   color: #d8efec;
 }
 
@@ -1432,10 +1432,10 @@ button:focus-visible {
 
 .arrange-hint {
   min-height: 26px;
-  border: 1px solid color-mix(in oklab, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--signal-focus) 14%, transparent);
   border-radius: 6px;
   padding: 0 9px;
-  background: color-mix(in oklab, var(--accent) 3.5%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 3.5%, transparent);
   color: #9fdde3;
   display: inline-flex;
   align-items: center;
@@ -1483,8 +1483,8 @@ button:focus-visible {
 
 .terminal-grid.arranging {
   background:
-    linear-gradient(color-mix(in oklab, var(--accent) 9%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklab, var(--accent) 9%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in oklab, var(--signal-focus) 9%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--signal-focus) 9%, transparent) 1px, transparent 1px),
     rgba(3, 5, 8, 0.76);
   background-size: calc((100% - 88px) / 12) 84px, calc((100% - 88px) / 12) 84px, auto;
 }
@@ -1510,7 +1510,7 @@ button:focus-visible {
   border: 1px solid rgba(188, 202, 218, 0.12);
   border-radius: 10px;
   background:
-    linear-gradient(135deg, rgba(83, 199, 216, 0.045), transparent 34%),
+    linear-gradient(135deg, color-mix(in oklab, var(--signal-focus) 4.5%, transparent), transparent 34%),
     linear-gradient(180deg, rgba(238, 243, 247, 0.026), rgba(238, 243, 247, 0.01)),
     rgba(6, 8, 10, 0.84);
   box-shadow: inset 0 1px 0 rgba(238, 243, 247, 0.045);
@@ -1522,7 +1522,7 @@ button:focus-visible {
 }
 
 .terminal-empty-state span {
-  color: var(--accent);
+  color: var(--signal-focus);
   display: block;
   font-family: var(--mono);
   font-size: 11px;
@@ -1696,7 +1696,7 @@ button:focus-visible {
 
 .split-empty-state button:hover,
 .split-empty-state button:focus-visible {
-  border-color: color-mix(in oklab, var(--accent) 34%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
   color: #cff3f6;
 }
 
@@ -1763,19 +1763,19 @@ button:focus-visible {
 
 .terminal-tile.arranging.is-dragging {
   opacity: 0.88;
-  border-color: color-mix(in oklab, var(--accent) 62%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 62%, transparent);
   box-shadow:
     0 18px 46px rgba(0, 0, 0, 0.38),
-    0 0 0 1px color-mix(in oklab, var(--accent) 20%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--signal-focus) 20%, transparent),
     inset 0 1px 0 rgba(238, 243, 247, 0.06);
   pointer-events: none;
 }
 
 .terminal-tile.arranging.is-resizing {
-  border-color: rgba(217, 174, 70, 0.56);
+  border-color: color-mix(in oklab, var(--signal-agent) 56%, transparent);
   box-shadow:
     0 12px 30px rgba(0, 0, 0, 0.28),
-    0 0 0 1px rgba(217, 174, 70, 0.18),
+    0 0 0 1px color-mix(in oklab, var(--signal-agent) 18%, transparent),
     inset 0 1px 0 rgba(238, 243, 247, 0.06);
 }
 
@@ -1783,9 +1783,9 @@ button:focus-visible {
   content: "";
   position: absolute;
   inset: 0 calc(-1 * max(var(--arrange-x, 0px), 0px)) calc(-1 * max(var(--arrange-y, 0px), 0px)) 0;
-  border: 1px dashed rgba(217, 174, 70, 0.5);
+  border: 1px dashed color-mix(in oklab, var(--signal-agent) 50%, transparent);
   border-radius: 8px;
-  background: rgba(217, 174, 70, 0.045);
+  background: color-mix(in oklab, var(--signal-agent) 4.5%, transparent);
   pointer-events: none;
   z-index: 4;
 }
@@ -1806,10 +1806,10 @@ button:focus-visible {
   bottom: 10px;
   width: 40px;
   height: 40px;
-  border: 1px solid color-mix(in oklab, var(--accent) 58%, transparent);
+  border: 1px solid color-mix(in oklab, var(--signal-focus) 58%, transparent);
   border-radius: 10px;
   background:
-    linear-gradient(135deg, transparent 0 42%, color-mix(in oklab, var(--accent) 72%, transparent) 42% 48%, transparent 48% 62%, color-mix(in oklab, var(--accent) 72%, transparent) 62% 68%, transparent 68%),
+    linear-gradient(135deg, transparent 0 42%, color-mix(in oklab, var(--signal-focus) 72%, transparent) 42% 48%, transparent 48% 62%, color-mix(in oklab, var(--signal-focus) 72%, transparent) 62% 68%, transparent 68%),
     rgba(3, 4, 4, 0.82);
   box-shadow:
     0 0 0 1px rgba(3, 4, 4, 0.78),
@@ -1827,15 +1827,15 @@ button:focus-visible {
   bottom: 8px;
   width: 17px;
   height: 17px;
-  border-right: 2px solid color-mix(in oklab, var(--accent) 72%, white 8%);
-  border-bottom: 2px solid color-mix(in oklab, var(--accent) 72%, white 8%);
-  box-shadow: 5px 5px 0 -3px color-mix(in oklab, var(--accent) 62%, transparent);
+  border-right: 2px solid color-mix(in oklab, var(--signal-focus) 72%, white 8%);
+  border-bottom: 2px solid color-mix(in oklab, var(--signal-focus) 72%, white 8%);
+  box-shadow: 5px 5px 0 -3px color-mix(in oklab, var(--signal-focus) 62%, transparent);
 }
 
 .tile-resize-handle:hover {
-  border-color: color-mix(in oklab, var(--accent) 72%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 72%, transparent);
   background:
-    linear-gradient(135deg, transparent 0 42%, color-mix(in oklab, var(--accent) 78%, transparent) 42% 48%, transparent 48% 62%, color-mix(in oklab, var(--accent) 78%, transparent) 62% 68%, transparent 68%),
+    linear-gradient(135deg, transparent 0 42%, color-mix(in oklab, var(--signal-focus) 78%, transparent) 42% 48%, transparent 48% 62%, color-mix(in oklab, var(--signal-focus) 78%, transparent) 62% 68%, transparent 68%),
     rgba(12, 22, 23, 0.96);
 }
 
@@ -1849,7 +1849,7 @@ body.arranging-pointer {
 }
 
 .terminal-tile.real-terminal.ready {
-  border-color: color-mix(in oklab, var(--green) 16%, transparent);
+  border-color: color-mix(in oklab, var(--signal-success) 16%, transparent);
 }
 
 .terminal-tile.kind-manual {
@@ -1873,9 +1873,9 @@ body.arranging-pointer {
 }
 
 .terminal-tile.kind-dev-server {
-  border-color: rgba(217, 174, 70, 0.16);
+  border-color: color-mix(in oklab, var(--signal-agent) 16%, transparent);
   background:
-    linear-gradient(180deg, rgba(217, 174, 70, 0.024), transparent 44px),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-agent) 2.4%, transparent), transparent 44px),
     var(--terminal);
 }
 
@@ -1977,8 +1977,8 @@ body.arranging-pointer {
 }
 
 .tile-activity.activity-error {
-  border-color: color-mix(in oklab, var(--coral) 34%, transparent);
-  color: var(--coral);
+  border-color: color-mix(in oklab, var(--signal-danger) 34%, transparent);
+  color: var(--signal-danger);
 }
 
 .tile-activity.activity-warning {
@@ -1987,14 +1987,14 @@ body.arranging-pointer {
 }
 
 .tile-activity.activity-command {
-  border-color: color-mix(in oklab, var(--green) 22%, transparent);
-  color: var(--green);
+  border-color: color-mix(in oklab, var(--signal-success) 22%, transparent);
+  color: var(--signal-success);
 }
 
 .tile-activity.activity-file,
 .tile-activity.activity-tool {
-  border-color: color-mix(in oklab, var(--accent) 24%, transparent);
-  color: var(--accent);
+  border-color: color-mix(in oklab, var(--signal-focus) 24%, transparent);
+  color: var(--signal-focus);
 }
 
 .tile-title {
@@ -2021,7 +2021,7 @@ body.arranging-pointer {
 }
 
 .terminal-tile.ready .tool-dot {
-  background: var(--green);
+  background: var(--signal-success);
 }
 
 .terminal-tile.selected .tool-dot,
@@ -2031,7 +2031,7 @@ body.arranging-pointer {
   box-shadow: 0 0 10px color-mix(in oklab, currentColor 24%, transparent);
 }
 
-.tool-dot.manual { background: var(--green); }
+.tool-dot.manual { background: var(--signal-success); }
 .tool-dot.codex { background: var(--cyan); }
 .tool-dot.claude { background: var(--violet); }
 .tool-dot.dev-server { background: var(--brass); }
@@ -2083,8 +2083,8 @@ body.arranging-pointer {
 }
 
 .tile-kind-mark.dev-server {
-  border-color: rgba(217, 174, 70, 0.24);
-  background: rgba(217, 174, 70, 0.055);
+  border-color: color-mix(in oklab, var(--signal-agent) 24%, transparent);
+  background: color-mix(in oklab, var(--signal-agent) 5.5%, transparent);
   color: #f5d67f;
 }
 
@@ -2272,7 +2272,7 @@ body.arranging-pointer {
 .session-status-glyph.status-starting,
 .session-status-glyph.status-runtime { color: var(--brass); }
 .session-status-glyph.status-blocked,
-.session-status-glyph.status-error { color: var(--coral); }
+.session-status-glyph.status-error { color: var(--signal-danger); }
 .session-status-glyph.status-restored,
 .session-status-glyph.status-done,
 .session-status-glyph.status-idle,
@@ -2297,17 +2297,17 @@ body.arranging-pointer {
 }
 
 .terminal-tile.real-terminal.connecting .tile-status { color: var(--brass); }
-.terminal-tile.real-terminal.ready .tile-status      { color: color-mix(in oklab, var(--green) 72%, var(--muted)); }
+.terminal-tile.real-terminal.ready .tile-status      { color: color-mix(in oklab, var(--signal-success) 72%, var(--muted)); }
 .terminal-tile.real-terminal.exited .tile-status     { color: var(--muted); }
-.terminal-tile.real-terminal.error .tile-status      { color: var(--coral); }
+.terminal-tile.real-terminal.error .tile-status      { color: var(--signal-danger); }
 .terminal-tile.real-terminal.browser .tile-status    { color: var(--passive); }
 .terminal-tile.real-terminal.restored .tile-status   { color: var(--muted); }
 
-.terminal-tile.real-terminal .tile-status.status-active  { color: var(--accent-strong); }
+.terminal-tile.real-terminal .tile-status.status-active  { color: var(--signal-focus-strong); }
 .terminal-tile.real-terminal .tile-status.status-idle    { color: var(--muted); }
 .terminal-tile.real-terminal .tile-status.status-waiting { color: var(--brass); }
 .terminal-tile.real-terminal .tile-status.status-done    { color: var(--muted); }
-.terminal-tile.real-terminal .tile-status.status-error   { color: var(--coral); }
+.terminal-tile.real-terminal .tile-status.status-error   { color: var(--signal-danger); }
 .terminal-tile.real-terminal .tile-status.status-runtime { color: var(--passive); }
 .terminal-tile.real-terminal .tile-status.status-restored { color: var(--muted); }
 .terminal-tile.staged .tile-status.status-blocked { color: var(--brass); }
@@ -2318,7 +2318,7 @@ body.arranging-pointer {
 }
 
 .terminal-tile.real-terminal.session-active {
-  border-color: color-mix(in oklab, var(--green) 18%, transparent);
+  border-color: color-mix(in oklab, var(--signal-success) 18%, transparent);
 }
 
 .terminal-tile.real-terminal.session-waiting {
@@ -2346,13 +2346,13 @@ body.arranging-pointer {
 .terminal-tile:focus-within {
   outline: 1px solid var(--focus-border);
   outline-offset: 2px;
-  border-color: color-mix(in oklab, var(--accent) 36%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 36%, transparent);
   box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--accent) 38%, transparent),
+    inset 0 0 0 1px color-mix(in oklab, var(--signal-focus) 38%, transparent),
     inset 0 1px 0 color-mix(in oklab, white 12%, transparent),
     0 0 0 1px rgba(3, 4, 4, 0.88),
-    0 0 0 3px color-mix(in oklab, var(--accent) 14%, transparent),
-    0 18px 38px -22px color-mix(in oklab, var(--accent) 42%, black 58%),
+    0 0 0 3px color-mix(in oklab, var(--signal-focus) 14%, transparent),
+    0 18px 38px -22px color-mix(in oklab, var(--signal-focus) 42%, black 58%),
     0 28px 50px -22px rgba(0, 0, 0, 0.9);
 }
 
@@ -2363,7 +2363,7 @@ body.arranging-pointer {
   border-radius: 6px;
   justify-self: end;
   background:
-    radial-gradient(circle, color-mix(in oklab, var(--accent) 56%, transparent) 1.2px, transparent 1.2px)
+    radial-gradient(circle, color-mix(in oklab, var(--signal-focus) 56%, transparent) 1.2px, transparent 1.2px)
       center / 6px 6px;
   opacity: 0.9;
 }
@@ -2566,27 +2566,27 @@ body.arranging-pointer {
   gap: 6px;
   padding: 0 10px;
   color: #f5e6b8;
-  border-color: rgba(217, 174, 70, 0.34);
-  background: rgba(217, 174, 70, 0.07);
+  border-color: color-mix(in oklab, var(--signal-agent) 34%, transparent);
+  background: color-mix(in oklab, var(--signal-agent) 7%, transparent);
 }
 
 .tile-primary-actions .continue-button:not(.unsafe) {
-  border-color: color-mix(in oklab, var(--accent) 40%, transparent);
-  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 40%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 10%, transparent);
   color: #d8fbff;
 }
 
 .tile-primary-actions .continue-button:not(.unsafe):hover,
 .tile-primary-actions .continue-button:not(.unsafe):focus-visible {
-  border-color: color-mix(in oklab, var(--accent) 56%, transparent);
-  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 56%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 14%, transparent);
   color: #effeff;
 }
 
 .tile-actions .continue-button:hover,
 .tile-actions .continue-button:focus-visible {
-  border-color: rgba(217, 174, 70, 0.5);
-  background: rgba(217, 174, 70, 0.1);
+  border-color: color-mix(in oklab, var(--signal-agent) 50%, transparent);
+  background: color-mix(in oklab, var(--signal-agent) 10%, transparent);
   color: #fff1bf;
 }
 
@@ -2618,7 +2618,7 @@ body.arranging-pointer {
   padding: 0 7px;
   border-color: transparent;
   background: transparent;
-  color: color-mix(in oklab, var(--coral) 54%, var(--muted));
+  color: color-mix(in oklab, var(--signal-danger) 54%, var(--muted));
   opacity: 0.72;
 }
 
@@ -2674,10 +2674,10 @@ body.arranging-pointer {
   min-width: 0;
   min-height: 300px;
   max-height: min(52vh, 520px);
-  border: 1px solid color-mix(in oklab, var(--accent) 18%, var(--line));
+  border: 1px solid color-mix(in oklab, var(--signal-focus) 18%, var(--line));
   border-radius: 10px;
   background:
-    linear-gradient(180deg, color-mix(in oklab, var(--accent) 5%, transparent), transparent 92px),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 5%, transparent), transparent 92px),
     rgba(7, 10, 13, 0.78);
   box-shadow:
     inset 0 1px 0 color-mix(in oklab, white 7%, transparent),
@@ -2711,7 +2711,7 @@ body.arranging-pointer {
 }
 
 .workspace-preview-header span {
-  color: var(--accent);
+  color: var(--signal-focus);
   font-family: var(--mono);
   font-size: 10px;
   text-transform: uppercase;
@@ -2744,8 +2744,8 @@ body.arranging-pointer {
 
 .workspace-preview-actions button:hover,
 .workspace-preview-actions button:focus-visible {
-  border-color: color-mix(in oklab, var(--accent) 34%, transparent);
-  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 10%, transparent);
   color: var(--ink);
 }
 
@@ -2772,8 +2772,8 @@ body.arranging-pointer {
 }
 
 .workspace-preview-selector button.active {
-  border-color: color-mix(in oklab, var(--accent) 40%, transparent);
-  background: color-mix(in oklab, var(--accent) 11%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 40%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 11%, transparent);
   color: var(--ink-soft);
 }
 
@@ -2878,7 +2878,7 @@ body.arranging-pointer {
 }
 
 .workspace-preview-empty span {
-  color: var(--accent);
+  color: var(--signal-focus);
   font-family: var(--mono);
   font-size: 10px;
   text-transform: uppercase;
@@ -3008,23 +3008,23 @@ body.arranging-pointer {
 }
 
 .alfred-sigil.state-active {
-  --sigil-color: var(--accent);
-  --sigil-glow: color-mix(in oklab, var(--accent) 42%, transparent);
+  --sigil-color: var(--signal-focus);
+  --sigil-glow: color-mix(in oklab, var(--signal-focus) 42%, transparent);
 }
 
 .alfred-sigil.state-ask {
   --sigil-color: var(--brass);
-  --sigil-glow: rgba(217, 174, 70, 0.42);
+  --sigil-glow: color-mix(in oklab, var(--signal-agent) 42%, transparent);
 }
 
 .alfred-sigil.state-error {
-  --sigil-color: var(--coral);
+  --sigil-color: var(--signal-danger);
   --sigil-glow: rgba(239, 129, 115, 0.48);
 }
 
 .alfred-sigil.state-recovery {
   --sigil-color: var(--brass);
-  --sigil-glow: rgba(217, 174, 70, 0.32);
+  --sigil-glow: color-mix(in oklab, var(--signal-agent) 32%, transparent);
 }
 
 .alfred-sigil.state-ask i,
@@ -3221,13 +3221,13 @@ body.arranging-pointer {
 
 .composer-bar[data-state="busy"] {
   background:
-    linear-gradient(180deg, rgba(83, 199, 216, 0.04), transparent 28px),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 4%, transparent), transparent 28px),
     rgba(8, 11, 15, 0.94);
 }
 
 .composer-bar[data-state="blocked"] {
   background:
-    linear-gradient(180deg, rgba(217, 174, 70, 0.04), transparent 28px),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-agent) 4%, transparent), transparent 28px),
     rgba(8, 11, 15, 0.94);
 }
 
@@ -3276,11 +3276,11 @@ body.arranging-pointer {
 .composer-input:focus-visible {
   border-color: var(--focus-border);
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.16), color-mix(in oklab, var(--accent) 5%, transparent)),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.16), color-mix(in oklab, var(--signal-focus) 5%, transparent)),
     rgba(5, 9, 12, 0.94);
   box-shadow:
     inset 0 1px 0 rgba(238, 243, 247, 0.03),
-    0 0 0 1px color-mix(in oklab, var(--accent) 12%, transparent);
+    0 0 0 1px color-mix(in oklab, var(--signal-focus) 12%, transparent);
 }
 
 .composer-input:disabled {
@@ -3332,20 +3332,20 @@ body.arranging-pointer {
 }
 
 .composer-bar[data-state="ready"] .composer-send:enabled {
-  border-color: rgba(83, 199, 216, 0.22);
+  border-color: color-mix(in oklab, var(--signal-focus) 22%, transparent);
   background:
-    linear-gradient(180deg, rgba(83, 199, 216, 0.08), rgba(83, 199, 216, 0.03)),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 8%, transparent), color-mix(in oklab, var(--signal-focus) 3%, transparent)),
     rgba(238, 243, 247, 0.018);
   color: #d4f4f7;
 }
 
 .composer-bar[data-state="busy"] .composer-send:enabled {
-  border-color: rgba(83, 199, 216, 0.28);
+  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
   color: #d4f4f7;
 }
 
 .composer-bar[data-state="blocked"] .composer-send:enabled {
-  border-color: rgba(217, 174, 70, 0.28);
+  border-color: color-mix(in oklab, var(--signal-agent) 28%, transparent);
   color: #eadbb1;
 }
 
@@ -3367,11 +3367,11 @@ body.arranging-pointer {
 }
 
 .composer-bar[data-state="ready"] .composer-status-indicator {
-  background: color-mix(in oklab, var(--accent) 70%, var(--muted));
+  background: color-mix(in oklab, var(--signal-focus) 70%, var(--muted));
 }
 
 .composer-bar[data-state="busy"] .composer-status-indicator {
-  background: color-mix(in oklab, var(--cyan) 78%, var(--accent));
+  background: color-mix(in oklab, var(--cyan) 78%, var(--signal-focus));
 }
 
 .composer-bar[data-state="blocked"] .composer-status-indicator {
@@ -3549,7 +3549,7 @@ body.arranging-pointer {
 
 .global-review-close:hover,
 .global-review-close:focus-visible {
-  border-color: color-mix(in oklab, var(--accent) 34%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
   color: #cff3f6;
 }
 
@@ -3630,8 +3630,8 @@ body.arranging-pointer {
 }
 
 .privacy-segmented button[aria-pressed="true"] {
-  border-color: color-mix(in oklab, var(--accent) 36%, transparent);
-  background: color-mix(in oklab, var(--accent) 13%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 36%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 13%, transparent);
   color: var(--ink);
 }
 
@@ -3643,8 +3643,8 @@ body.arranging-pointer {
 
 .privacy-action-button.danger,
 .privacy-confirm-actions .danger {
-  border-color: color-mix(in oklab, var(--coral) 38%, transparent);
-  color: color-mix(in oklab, var(--coral) 82%, white 12%);
+  border-color: color-mix(in oklab, var(--signal-danger) 38%, transparent);
+  color: color-mix(in oklab, var(--signal-danger) 82%, white 12%);
 }
 
 .privacy-confirm-actions {
@@ -3671,11 +3671,11 @@ body.arranging-pointer {
 }
 
 .privacy-toggle input {
-  accent-color: var(--accent);
+  accent-color: var(--signal-focus);
 }
 
 .privacy-panel-status {
-  border: 1px solid color-mix(in oklab, var(--accent) 30%, transparent);
+  border: 1px solid color-mix(in oklab, var(--signal-focus) 30%, transparent);
   border-radius: 9px;
   padding: 9px 10px;
   background: rgba(255, 255, 255, 0.035);
@@ -3809,15 +3809,15 @@ body.arranging-pointer {
 }
 
 .discard-checkout-primary {
-  border-color: rgba(83, 199, 216, 0.36) !important;
-  color: var(--accent-strong) !important;
-  background: rgba(83, 199, 216, 0.08) !important;
+  border-color: color-mix(in oklab, var(--signal-focus) 36%, transparent) !important;
+  color: var(--signal-focus-strong) !important;
+  background: color-mix(in oklab, var(--signal-focus) 8%, transparent) !important;
 }
 
 .discard-checkout-danger {
-  border-color: color-mix(in oklab, var(--coral) 38%, transparent) !important;
-  color: color-mix(in oklab, var(--coral) 82%, white 8%) !important;
-  background: color-mix(in oklab, var(--coral) 9%, transparent) !important;
+  border-color: color-mix(in oklab, var(--signal-danger) 38%, transparent) !important;
+  color: color-mix(in oklab, var(--signal-danger) 82%, white 8%) !important;
+  background: color-mix(in oklab, var(--signal-danger) 9%, transparent) !important;
 }
 
 .global-review-list {
@@ -3856,7 +3856,7 @@ body.arranging-pointer {
 .global-review-item.tone-waiting,
 .global-review-item.tone-blocked,
 .global-review-item.tone-staged {
-  border-color: rgba(217, 174, 70, 0.24);
+  border-color: color-mix(in oklab, var(--signal-agent) 24%, transparent);
 }
 
 .global-review-item.tone-checking {
@@ -3864,8 +3864,8 @@ body.arranging-pointer {
 }
 
 .global-review-item.selected {
-  border-color: rgba(83, 199, 216, 0.44);
-  box-shadow: inset 0 0 0 1px rgba(83, 199, 216, 0.1);
+  border-color: color-mix(in oklab, var(--signal-focus) 44%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--signal-focus) 10%, transparent);
 }
 
 .global-review-item-main {
@@ -3891,9 +3891,9 @@ body.arranging-pointer {
 .global-review-workspace {
   width: 34px;
   height: 30px;
-  border: 1px solid rgba(83, 199, 216, 0.28);
+  border: 1px solid color-mix(in oklab, var(--signal-focus) 28%, transparent);
   border-radius: 8px;
-  background: rgba(83, 199, 216, 0.06);
+  background: color-mix(in oklab, var(--signal-focus) 6%, transparent);
   color: #b8f3f8;
   display: inline-flex;
   align-items: center;
@@ -4013,10 +4013,10 @@ body.arranging-pointer {
 .global-review-discard {
   min-width: 106px;
   min-height: 32px;
-  border: 1px solid rgba(217, 174, 70, 0.42);
+  border: 1px solid color-mix(in oklab, var(--signal-agent) 42%, transparent);
   border-radius: 8px;
   padding: 0 10px;
-  background: rgba(217, 174, 70, 0.08);
+  background: color-mix(in oklab, var(--signal-agent) 8%, transparent);
   color: #f5e6b8;
   display: inline-flex;
   align-items: center;
@@ -4032,7 +4032,7 @@ body.arranging-pointer {
   border-color: transparent;
   padding-inline: 6px;
   background: transparent;
-  color: color-mix(in oklab, var(--coral) 68%, var(--muted));
+  color: color-mix(in oklab, var(--signal-danger) 68%, var(--muted));
   justify-self: start;
 }
 
@@ -4051,8 +4051,8 @@ body.arranging-pointer {
 
 .global-review-action.action-restored,
 .global-review-action.action-done {
-  border-color: color-mix(in oklab, var(--green) 34%, transparent);
-  background: color-mix(in oklab, var(--green) 8%, transparent);
+  border-color: color-mix(in oklab, var(--signal-success) 34%, transparent);
+  background: color-mix(in oklab, var(--signal-success) 8%, transparent);
   color: #bff2c8;
 }
 
@@ -4194,9 +4194,9 @@ body.arranging-pointer {
 .command-palette-list button:hover,
 .command-palette-list button:focus-visible,
 .command-palette-list button.active {
-  border-color: color-mix(in oklab, var(--accent) 34%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
   background:
-    linear-gradient(90deg, color-mix(in oklab, var(--accent) 7%, transparent), transparent 56%),
+    linear-gradient(90deg, color-mix(in oklab, var(--signal-focus) 7%, transparent), transparent 56%),
     rgba(238, 243, 247, 0.035);
 }
 
@@ -4225,14 +4225,14 @@ body.arranging-pointer {
 
 /* Staged tile (Alfred-proposed, awaiting approval) */
 .terminal-tile.staged {
-  border: 1px solid rgba(217, 174, 70, 0.32);
+  border: 1px solid color-mix(in oklab, var(--signal-agent) 32%, transparent);
   background:
-    linear-gradient(180deg, rgba(217, 174, 70, 0.055), transparent 72px),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-agent) 5.5%, transparent), transparent 72px),
     rgba(8, 10, 13, 0.88);
   box-shadow:
     0 20px 54px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(238, 243, 247, 0.045),
-    inset 0 0 0 1px rgba(217, 174, 70, 0.055);
+    inset 0 0 0 1px color-mix(in oklab, var(--signal-agent) 5.5%, transparent);
 }
 
 .terminal-tile.staged::before {
@@ -4240,18 +4240,18 @@ body.arranging-pointer {
   position: absolute;
   inset: 42px auto 42px 0;
   width: 2px;
-  background: rgba(217, 174, 70, 0.62);
-  box-shadow: 0 0 18px rgba(217, 174, 70, 0.22);
+  background: color-mix(in oklab, var(--signal-agent) 62%, transparent);
+  box-shadow: 0 0 18px color-mix(in oklab, var(--signal-agent) 22%, transparent);
 }
 
 .terminal-tile.staged .tool-dot.codex { background: var(--cyan); }
 .terminal-tile.staged .tool-dot.claude { background: var(--violet); }
-.terminal-tile.staged .tool-dot.dev-server { background: var(--green); }
+.terminal-tile.staged .tool-dot.dev-server { background: var(--signal-success); }
 .terminal-tile.staged .tool-dot.shell { background: var(--ink-soft); }
 
 .terminal-tile.staged.kind-codex::before { background: rgba(86, 200, 213, 0.72); }
 .terminal-tile.staged.kind-claude::before { background: rgba(169, 156, 255, 0.72); }
-.terminal-tile.staged.kind-dev-server::before { background: rgba(217, 174, 70, 0.72); }
+.terminal-tile.staged.kind-dev-server::before { background: color-mix(in oklab, var(--signal-agent) 72%, transparent); }
 .terminal-tile.staged.kind-shell::before { background: rgba(188, 202, 218, 0.46); }
 
 .staged-body {
@@ -4286,11 +4286,11 @@ body.arranging-pointer {
 
 .staged-isolation {
   justify-self: start;
-  border: 1px solid color-mix(in oklab, var(--accent) 22%, transparent);
+  border: 1px solid color-mix(in oklab, var(--signal-focus) 22%, transparent);
   border-radius: 999px;
   padding: 3px 8px;
-  background: color-mix(in oklab, var(--accent) 6%, transparent);
-  color: color-mix(in oklab, var(--accent) 68%, white 16%);
+  background: color-mix(in oklab, var(--signal-focus) 6%, transparent);
+  color: color-mix(in oklab, var(--signal-focus) 68%, white 16%);
   font-size: 11px;
 }
 
@@ -4305,13 +4305,13 @@ body.arranging-pointer {
   border-radius: 999px;
   padding: 3px 9px;
   background: rgba(239, 129, 115, 0.1);
-  color: var(--coral);
+  color: var(--signal-danger);
   font-size: 11px;
 }
 
 .staged-safety-chip.blocked {
-  border-color: rgba(217, 174, 70, 0.48);
-  background: rgba(217, 174, 70, 0.1);
+  border-color: color-mix(in oklab, var(--signal-agent) 48%, transparent);
+  background: color-mix(in oklab, var(--signal-agent) 10%, transparent);
   color: #f5d67f;
 }
 
@@ -4324,10 +4324,10 @@ body.arranging-pointer {
 .staged-edited-chip {
   align-self: start;
   justify-self: start;
-  border: 1px solid rgba(83, 199, 216, 0.34);
+  border: 1px solid color-mix(in oklab, var(--signal-focus) 34%, transparent);
   border-radius: 999px;
   padding: 3px 9px;
-  background: rgba(83, 199, 216, 0.08);
+  background: color-mix(in oklab, var(--signal-focus) 8%, transparent);
   color: #9be7ef;
   font-size: 11px;
 }
@@ -4342,10 +4342,10 @@ body.arranging-pointer {
 .staged-actions .approve-button {
   flex: 1;
   min-height: 34px;
-  border: 1px solid rgba(217, 174, 70, 0.5);
+  border: 1px solid color-mix(in oklab, var(--signal-agent) 50%, transparent);
   border-radius: 7px;
   background:
-    linear-gradient(180deg, rgba(217, 174, 70, 0.2), rgba(217, 174, 70, 0.08));
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-agent) 20%, transparent), color-mix(in oklab, var(--signal-agent) 8%, transparent));
   color: #f5e6b8;
   font-family: var(--mono);
   font-size: 12px;
@@ -4387,7 +4387,7 @@ body.arranging-pointer {
 .staged-actions .reject-button:hover,
 .staged-actions .reject-button:focus-visible {
   border-color: rgba(239, 129, 115, 0.42);
-  color: var(--coral);
+  color: var(--signal-danger);
 }
 
 /* Alfred dock variants */
@@ -4421,20 +4421,20 @@ body.arranging-pointer {
   border-radius: 7px;
   padding: 8px;
   background: rgba(239, 129, 115, 0.055);
-  color: var(--coral);
+  color: var(--signal-danger);
   font-size: 11px;
   line-height: 1.4;
 }
 
 .alfred-dock-plan .plan-safety-note.blocked {
-  border-color: rgba(217, 174, 70, 0.38);
-  background: rgba(217, 174, 70, 0.065);
+  border-color: color-mix(in oklab, var(--signal-agent) 38%, transparent);
+  background: color-mix(in oklab, var(--signal-agent) 6.5%, transparent);
   color: #f5d67f;
 }
 
 .alfred-dock-plan .plan-safety-note.checking {
-  border-color: rgba(83, 199, 216, 0.32);
-  background: rgba(83, 199, 216, 0.06);
+  border-color: color-mix(in oklab, var(--signal-focus) 32%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 6%, transparent);
   color: #9be7ef;
 }
 
@@ -4502,10 +4502,10 @@ body.arranging-pointer {
 
 .review-launch {
   min-width: 0;
-  border: 1px solid rgba(217, 174, 70, 0.48);
+  border: 1px solid color-mix(in oklab, var(--signal-agent) 48%, transparent);
   padding: 0 10px;
   background:
-    linear-gradient(180deg, rgba(217, 174, 70, 0.18), rgba(217, 174, 70, 0.075));
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-agent) 18%, transparent), color-mix(in oklab, var(--signal-agent) 7.5%, transparent));
   color: #f5e6b8;
   display: inline-flex;
   align-items: center;
@@ -4537,7 +4537,7 @@ body.arranging-pointer {
 .review-item-reject:hover,
 .review-item-reject:focus-visible {
   border-color: rgba(239, 129, 115, 0.38);
-  color: var(--coral);
+  color: var(--signal-danger);
 }
 
 .review-queue ol {
@@ -4573,9 +4573,9 @@ body.arranging-pointer {
 }
 
 .review-queue-item.blocked {
-  border-color: rgba(217, 174, 70, 0.3);
+  border-color: color-mix(in oklab, var(--signal-agent) 30%, transparent);
   background:
-    linear-gradient(180deg, rgba(217, 174, 70, 0.07), transparent 56px),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-agent) 7%, transparent), transparent 56px),
     rgba(8, 6, 3, 0.58);
 }
 
@@ -4592,10 +4592,10 @@ body.arranging-pointer {
 }
 
 .review-queue-item.selected {
-  border-color: rgba(83, 199, 216, 0.44);
+  border-color: color-mix(in oklab, var(--signal-focus) 44%, transparent);
   box-shadow:
-    inset 0 0 0 1px rgba(83, 199, 216, 0.12),
-    0 0 0 1px rgba(83, 199, 216, 0.08);
+    inset 0 0 0 1px color-mix(in oklab, var(--signal-focus) 12%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--signal-focus) 8%, transparent);
 }
 
 .review-item-focus {
@@ -4647,7 +4647,7 @@ body.arranging-pointer {
 }
 
 .review-kind.codex {
-  border-color: rgba(83, 199, 216, 0.35);
+  border-color: color-mix(in oklab, var(--signal-focus) 35%, transparent);
   color: var(--cyan);
 }
 
@@ -4657,8 +4657,8 @@ body.arranging-pointer {
 }
 
 .review-kind.dev-server {
-  border-color: color-mix(in oklab, var(--green) 34%, transparent);
-  color: var(--green);
+  border-color: color-mix(in oklab, var(--signal-success) 34%, transparent);
+  color: var(--signal-success);
 }
 
 .review-item-head strong,
@@ -4712,8 +4712,8 @@ body.arranging-pointer {
 }
 
 .review-safety-note.blocked {
-  border-color: rgba(217, 174, 70, 0.3);
-  background: rgba(217, 174, 70, 0.06);
+  border-color: color-mix(in oklab, var(--signal-agent) 30%, transparent);
+  background: color-mix(in oklab, var(--signal-agent) 6%, transparent);
   color: #f5e6b8;
 }
 
@@ -4748,8 +4748,8 @@ body.arranging-pointer {
 }
 
 .review-item-launch {
-  border: 1px solid rgba(217, 174, 70, 0.42);
-  background: rgba(217, 174, 70, 0.08);
+  border: 1px solid color-mix(in oklab, var(--signal-agent) 42%, transparent);
+  background: color-mix(in oklab, var(--signal-agent) 8%, transparent);
   color: #f5e6b8;
 }
 
@@ -4762,8 +4762,8 @@ body.arranging-pointer {
 .review-item-launch.blocked {
   cursor: not-allowed;
   opacity: 0.55;
-  border-color: rgba(217, 174, 70, 0.22);
-  background: rgba(217, 174, 70, 0.04);
+  border-color: color-mix(in oklab, var(--signal-agent) 22%, transparent);
+  background: color-mix(in oklab, var(--signal-agent) 4%, transparent);
   color: #d7c18b;
 }
 
@@ -4793,7 +4793,7 @@ body.arranging-pointer {
   border-radius: 8px;
   padding: 10px;
   background: rgba(239, 129, 115, 0.06);
-  color: var(--coral);
+  color: var(--signal-danger);
   font-size: 12px;
 }
 
@@ -4803,7 +4803,7 @@ body.arranging-pointer {
   border-radius: 6px;
   padding: 2px 8px;
   background: transparent;
-  color: var(--coral);
+  color: var(--signal-danger);
   font-family: var(--mono);
   font-size: 11px;
   cursor: pointer;
@@ -4940,19 +4940,19 @@ body.arranging-pointer {
 
 .focus-session-strip button.active,
 .focus-session-strip button[aria-pressed="true"] {
-  border-color: color-mix(in oklab, var(--accent) 22%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 22%, transparent);
   background:
-    linear-gradient(180deg, color-mix(in oklab, var(--accent) 13%, transparent), transparent),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 13%, transparent), transparent),
     color-mix(in oklab, white 5%, transparent);
   color: var(--ink);
   box-shadow:
     inset 0 1px 0 color-mix(in oklab, white 10%, transparent),
-    0 8px 20px -18px color-mix(in oklab, var(--accent) 60%, transparent);
+    0 8px 20px -18px color-mix(in oklab, var(--signal-focus) 60%, transparent);
 }
 
 .focus-session-strip button:hover,
 .focus-session-strip button:focus-visible {
-  border-color: color-mix(in oklab, var(--accent) 28%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
   color: var(--ink-soft);
 }
 
@@ -4963,7 +4963,7 @@ body.arranging-pointer {
   border: 1px solid color-mix(in oklab, white 9%, transparent);
   background:
     linear-gradient(180deg, color-mix(in oklab, white 4%, transparent), transparent 120px),
-    linear-gradient(90deg, color-mix(in oklab, var(--accent) 2%, transparent), transparent 28%),
+    linear-gradient(90deg, color-mix(in oklab, var(--signal-focus) 2%, transparent), transparent 28%),
     rgba(12, 17, 23, 0.74);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -5034,7 +5034,7 @@ body.arranging-pointer {
 .agent-status-pill.status-checking,
 .agent-status-pill.status-runtime { color: var(--brass); }
 .agent-status-pill.status-blocked,
-.agent-status-pill.status-error { color: var(--coral); }
+.agent-status-pill.status-error { color: var(--signal-danger); }
 
 .agent-timeline-body {
   flex: 1 1 auto;
@@ -5287,7 +5287,7 @@ body.arranging-pointer {
 
 .agent-staged-edit-form p[role="alert"] {
   margin: 0;
-  color: var(--coral);
+  color: var(--signal-danger);
   font-size: 11px;
   line-height: 1.4;
 }
@@ -5368,8 +5368,8 @@ body.arranging-pointer {
 
 .agent-handoff-buttons button:hover,
 .agent-handoff-buttons button:focus-visible {
-  border-color: color-mix(in oklab, var(--accent) 28%, transparent);
-  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 8%, transparent);
   color: var(--ink);
 }
 
@@ -5399,7 +5399,7 @@ body.arranging-pointer {
   background:
     linear-gradient(135deg, color-mix(in oklab, currentColor 7%, transparent), transparent 56%),
     color-mix(in oklab, white 2.6%, transparent);
-  color: var(--accent);
+  color: var(--signal-focus);
   box-shadow: inset 0 1px 0 color-mix(in oklab, white 6%, transparent);
 }
 
@@ -5440,10 +5440,10 @@ body.arranging-pointer {
 }
 
 .agent-session-pulse.tone-ask { color: var(--brass); }
-.agent-session-pulse.tone-issue { color: var(--coral); }
+.agent-session-pulse.tone-issue { color: var(--signal-danger); }
 .agent-session-pulse.tone-recovery { color: var(--violet); }
-.agent-session-pulse.tone-signal { color: var(--accent); }
-.agent-session-pulse.tone-work { color: var(--accent); }
+.agent-session-pulse.tone-signal { color: var(--signal-focus); }
+.agent-session-pulse.tone-work { color: var(--signal-focus); }
 
 .agent-activity-digest {
   margin: 12px 0 0;
@@ -5460,7 +5460,7 @@ body.arranging-pointer {
   background:
     linear-gradient(180deg, color-mix(in oklab, currentColor 7%, transparent), transparent),
     color-mix(in oklab, white 3.2%, transparent);
-  color: var(--accent);
+  color: var(--signal-focus);
   box-shadow: inset 0 1px 0 color-mix(in oklab, white 7%, transparent);
 }
 
@@ -5483,9 +5483,9 @@ body.arranging-pointer {
 }
 
 .agent-activity-digest .tone-ask { color: var(--brass); }
-.agent-activity-digest .tone-issue { color: var(--coral); }
-.agent-activity-digest .tone-plan { color: var(--accent); }
-.agent-activity-digest .tone-work { color: var(--accent); }
+.agent-activity-digest .tone-issue { color: var(--signal-danger); }
+.agent-activity-digest .tone-plan { color: var(--signal-focus); }
+.agent-activity-digest .tone-work { color: var(--signal-focus); }
 
 .agent-timeline-section {
   padding-bottom: 12px;
@@ -5514,8 +5514,8 @@ body.arranging-pointer {
   height: 8px;
   margin-top: 5px;
   border-radius: 999px;
-  background: var(--accent);
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 12%, transparent);
+  background: var(--signal-focus);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--signal-focus) 12%, transparent);
 }
 
 .agent-activity-list li.warning > span {
@@ -5524,8 +5524,8 @@ body.arranging-pointer {
 }
 
 .agent-activity-list li.error > span {
-  background: var(--coral);
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--coral) 14%, transparent);
+  background: var(--signal-danger);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--signal-danger) 14%, transparent);
 }
 
 .agent-activity-list li.approval > span {
@@ -5534,18 +5534,18 @@ body.arranging-pointer {
 }
 
 .agent-activity-list li.output > span {
-  background: var(--accent);
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 12%, transparent);
+  background: var(--signal-focus);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--signal-focus) 12%, transparent);
 }
 
 .agent-activity-list li.command > span {
-  background: var(--accent);
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 12%, transparent);
+  background: var(--signal-focus);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--signal-focus) 12%, transparent);
 }
 
 .agent-activity-list li.file > span {
-  background: var(--accent);
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 12%, transparent);
+  background: var(--signal-focus);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--signal-focus) 12%, transparent);
 }
 
 .agent-activity-list li.plan > span {
@@ -5583,7 +5583,7 @@ body.arranging-pointer {
   border-radius: 8px;
   padding: 6px 8px;
   background: color-mix(in oklab, currentColor 6%, transparent);
-  color: var(--accent);
+  color: var(--signal-focus);
 }
 
 .agent-activity-object span {
@@ -5628,11 +5628,11 @@ body.arranging-pointer {
 
 .agent-activity-object.type-command,
 .agent-activity-object.type-file {
-  color: var(--green);
+  color: var(--signal-success);
 }
 
 .agent-activity-object.type-error {
-  color: var(--coral);
+  color: var(--signal-danger);
 }
 
 .agent-activity-object.type-warning {
@@ -5664,7 +5664,7 @@ body {
 }
 
 .alfred-mark {
-  box-shadow: 0 0 0 1px var(--border-strong), 0 8px 18px -10px var(--accent-halo);
+  box-shadow: 0 0 0 1px var(--border-strong), 0 8px 18px -10px color-mix(in oklab, var(--signal-focus) 16%, transparent);
 }
 
 /* --- Workspace rail: raised navigation card --- */
@@ -5686,11 +5686,11 @@ body {
 
 .workspace-button.active {
   background:
-    linear-gradient(180deg, rgba(83, 199, 216, 0.09), rgba(83, 199, 216, 0.03)),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 9%, transparent), color-mix(in oklab, var(--signal-focus) 3%, transparent)),
     var(--surface-raised);
-  border-color: rgba(83, 199, 216, 0.32);
+  border-color: color-mix(in oklab, var(--signal-focus) 32%, transparent);
   box-shadow:
-    0 0 0 1px rgba(83, 199, 216, 0.22),
+    0 0 0 1px color-mix(in oklab, var(--signal-focus) 22%, transparent),
     var(--depth-card);
 }
 
@@ -5700,14 +5700,14 @@ body {
 }
 
 .workspace-button.active .workspace-monogram {
-  background: linear-gradient(180deg, var(--accent-strong), var(--accent-press));
+  background: linear-gradient(180deg, var(--signal-focus-strong), var(--accent-press));
   color: var(--on-accent);
   box-shadow: none;
 }
 
 .workspace-button:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--surface-canvas), 0 0 0 4px var(--accent-halo);
+  box-shadow: 0 0 0 2px var(--surface-canvas), 0 0 0 4px color-mix(in oklab, var(--signal-focus) 16%, transparent);
 }
 
 /* --- Terminal stage: the desk plate --- */
@@ -5730,10 +5730,10 @@ body {
 .terminal-tile.selected,
 .terminal-tile:focus-visible {
   outline: none;
-  border-color: rgba(83, 199, 216, 0.34);
+  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
   box-shadow:
-    0 0 0 1px rgba(83, 199, 216, 0.3),
-    0 0 0 4px rgba(83, 199, 216, 0.12),
+    0 0 0 1px color-mix(in oklab, var(--signal-focus) 30%, transparent),
+    0 0 0 4px color-mix(in oklab, var(--signal-focus) 12%, transparent),
     var(--depth-raised);
 }
 
@@ -5744,8 +5744,8 @@ body {
 
 /* --- Primary CTA: success green only --- */
 .mission-actions .new-terminal-button {
-  background: var(--green);
-  border: 1px solid color-mix(in oklab, var(--green) 70%, white 10%);
+  background: var(--signal-success);
+  border: 1px solid color-mix(in oklab, var(--signal-success) 70%, white 10%);
   color: #04120a;
   font-weight: 600;
   box-shadow:
@@ -5755,7 +5755,7 @@ body {
 
 .mission-actions .new-terminal-button:hover,
 .mission-actions .new-terminal-button:focus-visible {
-  background: color-mix(in oklab, var(--green) 92%, white 8%);
+  background: color-mix(in oklab, var(--signal-success) 92%, white 8%);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.26) inset,
     0 12px 26px -16px rgba(0, 0, 0, 0.72);
@@ -5780,11 +5780,11 @@ body {
 }
 
 .composer-input:focus-visible {
-  box-shadow: 0 0 0 1px var(--accent-halo), 0 0 0 4px rgba(83, 199, 216, 0.12);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--signal-focus) 16%, transparent), 0 0 0 4px color-mix(in oklab, var(--signal-focus) 12%, transparent);
 }
 
 .composer-send {
-  background: var(--green);
+  background: var(--signal-success);
   color: #04120a;
   font-weight: 600;
 }
@@ -5836,7 +5836,7 @@ body {
 }
 
 .agent-panel-section.agent-key-signal .agent-section-heading > span {
-  color: var(--accent);
+  color: var(--signal-focus);
 }
 
 /* Handoff actions read as a quiet utility row, not a primary panel. */
@@ -5920,14 +5920,14 @@ body {
 
 /* --- Terminal tile actions: cyan active, quiet danger --- */
 .tile-primary-actions button {
-  border-color: rgba(83, 199, 216, 0.42);
-  color: var(--accent-strong);
+  border-color: color-mix(in oklab, var(--signal-focus) 42%, transparent);
+  color: var(--signal-focus-strong);
 }
 
 .tile-primary-actions button:hover,
 .tile-primary-actions button:focus-visible {
-  background: var(--accent-soft);
-  border-color: rgba(83, 199, 216, 0.6);
+  background: var(--signal-focus-soft);
+  border-color: color-mix(in oklab, var(--signal-focus) 60%, transparent);
 }
 
 .tile-danger-actions button {
@@ -5938,7 +5938,7 @@ body {
 
 .tile-danger-actions button:hover,
 .tile-danger-actions button:focus-visible {
-  color: var(--coral);
+  color: var(--signal-danger);
   border-color: var(--line);
 }
 
@@ -5951,7 +5951,7 @@ body {
 
 .command-palette {
   background:
-    radial-gradient(520px 200px at 50% -12%, rgba(83, 199, 216, 0.07), transparent 70%),
+    radial-gradient(520px 200px at 50% -12%, color-mix(in oklab, var(--signal-focus) 7%, transparent), transparent 70%),
     var(--surface-panel);
   border: 1px solid var(--border-strong);
   border-radius: 16px;
@@ -5959,15 +5959,15 @@ body {
 }
 
 .command-palette-search input:focus-visible {
-  box-shadow: 0 0 0 1px var(--accent-halo);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--signal-focus) 16%, transparent);
 }
 
 .command-palette-list button.active,
 .command-palette-list button:hover,
 .command-palette-list button:focus-visible {
-  background: var(--accent-soft);
+  background: var(--signal-focus-soft);
   color: var(--text-primary);
-  box-shadow: inset 2px 0 0 var(--accent);
+  box-shadow: inset 2px 0 0 var(--signal-focus);
 }
 
 /* ============================================================
@@ -6032,7 +6032,7 @@ body {
   --type-ui: 12px;
   --tone-waiting: #d8c078;
   --tone-error: #ee8f83;
-  --tone-active: var(--accent-strong);
+  --tone-active: var(--signal-focus-strong);
 }
 
 /* Region titles: sans for chrome, mono only where data/terminal content needs it. */
@@ -6112,8 +6112,8 @@ body {
 }
 
 .review-context-item.tone-recovery {
-  background: rgba(83, 199, 216, 0.035);
-  border-color: rgba(83, 199, 216, 0.08);
+  background: color-mix(in oklab, var(--signal-focus) 3.5%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 8%, transparent);
 }
 
 .review-context-item strong {
@@ -6139,7 +6139,7 @@ body {
 }
 
 .recovery-workspace-strip > span {
-  color: var(--accent-strong);
+  color: var(--signal-focus-strong);
   font-family: var(--sans);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -6172,7 +6172,7 @@ body {
 
 .workspace-popover::before {
   padding: 8px 9px 10px;
-  color: var(--accent-strong);
+  color: var(--signal-focus-strong);
   font-family: var(--sans);
   font-size: 10px;
   font-weight: 650;
@@ -6188,9 +6188,9 @@ body {
 
 .workspace-popover button:hover,
 .workspace-popover button:focus-visible {
-  border-color: rgba(83, 199, 216, 0.28);
+  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
   background:
-    linear-gradient(180deg, rgba(83, 199, 216, 0.105), rgba(83, 199, 216, 0.035)),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 10.5%, transparent), color-mix(in oklab, var(--signal-focus) 3.5%, transparent)),
     var(--surface-raised);
   box-shadow: var(--depth-card);
 }
@@ -6221,7 +6221,7 @@ body {
   border-radius: 14px;
   padding: 12px;
   background:
-    linear-gradient(180deg, rgba(83, 199, 216, 0.055), transparent 90px),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 5.5%, transparent), transparent 90px),
     var(--surface-raised);
   box-shadow: var(--depth-card);
 }
@@ -6247,10 +6247,10 @@ body {
 .agent-staged-edit-form input:focus-visible,
 .agent-staged-edit-form textarea:focus-visible {
   outline: none;
-  border-color: rgba(83, 199, 216, 0.42);
+  border-color: color-mix(in oklab, var(--signal-focus) 42%, transparent);
   box-shadow:
-    0 0 0 1px rgba(83, 199, 216, 0.28),
-    0 0 0 4px rgba(83, 199, 216, 0.11);
+    0 0 0 1px color-mix(in oklab, var(--signal-focus) 28%, transparent),
+    0 0 0 4px color-mix(in oklab, var(--signal-focus) 11%, transparent);
 }
 
 .workspace-rename-form > div button,
@@ -6261,10 +6261,10 @@ body {
 /* Staged command editor: active review surface instead of brass warning card. */
 .agent-staged-editor,
 .agent-staged-edit-form {
-  border: 1px solid rgba(83, 199, 216, 0.16);
+  border: 1px solid color-mix(in oklab, var(--signal-focus) 16%, transparent);
   border-radius: 16px;
   background:
-    radial-gradient(380px 180px at 15% -12%, rgba(83, 199, 216, 0.12), transparent 72%),
+    radial-gradient(380px 180px at 15% -12%, color-mix(in oklab, var(--signal-focus) 12%, transparent), transparent 72%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 110px),
     var(--surface-raised);
   box-shadow: var(--depth-card);
@@ -6284,7 +6284,7 @@ body {
 .agent-staged-editor-copy span,
 .agent-staged-edit-heading span,
 .agent-staged-edit-form label span {
-  color: var(--accent-strong);
+  color: var(--signal-focus-strong);
   font-family: var(--sans);
   font-size: 10px;
   font-weight: 650;
@@ -6311,12 +6311,12 @@ body {
 
 .agent-staged-editor button,
 .agent-staged-edit-actions button[type="submit"] {
-  border-color: rgba(83, 199, 216, 0.38);
+  border-color: color-mix(in oklab, var(--signal-focus) 38%, transparent);
   background:
-    linear-gradient(180deg, rgba(83, 199, 216, 0.14), rgba(83, 199, 216, 0.055)),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 14%, transparent), color-mix(in oklab, var(--signal-focus) 5.5%, transparent)),
     var(--surface-panel);
-  color: var(--accent-strong);
-  box-shadow: 0 10px 20px -18px var(--accent-halo);
+  color: var(--signal-focus-strong);
+  box-shadow: 0 10px 20px -18px color-mix(in oklab, var(--signal-focus) 16%, transparent);
 }
 
 .agent-staged-edit-form {
@@ -6369,9 +6369,9 @@ body {
 }
 
 .workspace-priority-chip.tone-active {
-  border-color: rgba(83, 199, 216, 0.34);
+  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
   background:
-    linear-gradient(180deg, rgba(83, 199, 216, 0.14), rgba(83, 199, 216, 0.035)),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 14%, transparent), color-mix(in oklab, var(--signal-focus) 3.5%, transparent)),
     var(--surface-sunken);
   color: var(--tone-active);
 }
@@ -6384,18 +6384,18 @@ body {
 
 .workspace-rail {
   background:
-    radial-gradient(360px 300px at 18% 0%, rgba(83, 199, 216, 0.035), transparent 72%),
+    radial-gradient(360px 300px at 18% 0%, color-mix(in oklab, var(--signal-focus) 3.5%, transparent), transparent 72%),
     color-mix(in oklab, var(--surface-panel) 88%, black 12%);
 }
 
 .workspace-button.active {
   background:
-    linear-gradient(180deg, rgba(83, 199, 216, 0.075), rgba(83, 199, 216, 0.025)),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 7.5%, transparent), color-mix(in oklab, var(--signal-focus) 2.5%, transparent)),
     color-mix(in oklab, var(--surface-raised) 86%, black 14%);
-  border-color: rgba(83, 199, 216, 0.24);
+  border-color: color-mix(in oklab, var(--signal-focus) 24%, transparent);
   box-shadow:
-    0 0 0 1px rgba(83, 199, 216, 0.13),
-    0 14px 26px -24px var(--accent-halo);
+    0 0 0 1px color-mix(in oklab, var(--signal-focus) 13%, transparent),
+    0 14px 26px -24px color-mix(in oklab, var(--signal-focus) 16%, transparent);
 }
 
 .workspace-button.active .workspace-monogram {
@@ -6421,10 +6421,10 @@ body {
 
 .terminal-tile.selected,
 .terminal-tile:focus-visible {
-  border-color: rgba(83, 199, 216, 0.27);
+  border-color: color-mix(in oklab, var(--signal-focus) 27%, transparent);
   box-shadow:
-    0 0 0 1px rgba(83, 199, 216, 0.24),
-    0 0 0 3px rgba(83, 199, 216, 0.08),
+    0 0 0 1px color-mix(in oklab, var(--signal-focus) 24%, transparent),
+    0 0 0 3px color-mix(in oklab, var(--signal-focus) 8%, transparent),
     var(--depth-raised);
 }
 
@@ -6466,7 +6466,7 @@ body {
 
 .agent-timeline-panel {
   background:
-    radial-gradient(280px 210px at 75% 0%, rgba(83, 199, 216, 0.03), transparent 72%),
+    radial-gradient(280px 210px at 75% 0%, color-mix(in oklab, var(--signal-focus) 3%, transparent), transparent 72%),
     color-mix(in oklab, var(--surface-panel) 88%, black 12%);
 }
 
@@ -6514,9 +6514,9 @@ body {
 
 .agent-panel-section.agent-session-summary {
   background:
-    linear-gradient(180deg, rgba(83, 199, 216, 0.045), transparent 76%),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 4.5%, transparent), transparent 76%),
     color-mix(in oklab, var(--surface-raised) 82%, black 18%);
-  border-color: rgba(83, 199, 216, 0.12);
+  border-color: color-mix(in oklab, var(--signal-focus) 12%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
     0 14px 30px -26px rgba(0, 0, 0, 0.78);
@@ -6553,7 +6553,7 @@ body {
 .agent-panel-section.agent-key-signal .agent-section-heading > span,
 .agent-section-heading > span,
 .review-context-summary header span {
-  color: color-mix(in oklab, var(--accent-strong) 66%, var(--text-muted));
+  color: color-mix(in oklab, var(--signal-focus-strong) 66%, var(--text-muted));
 }
 
 .agent-panel-section.agent-key-signal {
@@ -6579,9 +6579,9 @@ body {
 
 .recovery-workspace-strip {
   min-height: 34px;
-  border-color: rgba(83, 199, 216, 0.1);
+  border-color: color-mix(in oklab, var(--signal-focus) 10%, transparent);
   background:
-    linear-gradient(180deg, rgba(83, 199, 216, 0.045), rgba(83, 199, 216, 0.018)),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 4.5%, transparent), color-mix(in oklab, var(--signal-focus) 1.8%, transparent)),
     color-mix(in oklab, var(--surface-panel) 86%, black 14%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.035),
@@ -6589,11 +6589,11 @@ body {
 }
 
 .recovery-workspace-strip > span {
-  color: color-mix(in oklab, var(--accent-strong) 82%, var(--text-secondary));
+  color: color-mix(in oklab, var(--signal-focus-strong) 82%, var(--text-secondary));
 }
 
 .recovery-workspace-strip strong {
-  color: color-mix(in oklab, var(--text-primary) 92%, var(--accent-strong));
+  color: color-mix(in oklab, var(--text-primary) 92%, var(--signal-focus-strong));
 }
 
 /* Observatory: cross-workspace session radar, separate from the command palette. */
@@ -6602,26 +6602,26 @@ body {
   min-width: 108px;
   padding: 0 10px;
   gap: 8px;
-  border-color: rgba(83, 199, 216, 0.16);
+  border-color: color-mix(in oklab, var(--signal-focus) 16%, transparent);
   background:
-    linear-gradient(180deg, rgba(83, 199, 216, 0.065), rgba(83, 199, 216, 0.022)),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 6.5%, transparent), color-mix(in oklab, var(--signal-focus) 2.2%, transparent)),
     color-mix(in oklab, var(--surface-raised) 82%, black 18%);
   color: var(--text-secondary);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.045),
-    0 12px 24px -22px var(--accent-halo);
+    0 12px 24px -22px color-mix(in oklab, var(--signal-focus) 16%, transparent);
 }
 
 .mission-actions .session-observatory-button:hover,
 .mission-actions .session-observatory-button:focus-visible {
-  border-color: rgba(83, 199, 216, 0.3);
+  border-color: color-mix(in oklab, var(--signal-focus) 30%, transparent);
   background:
-    linear-gradient(180deg, rgba(83, 199, 216, 0.11), rgba(83, 199, 216, 0.035)),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 11%, transparent), color-mix(in oklab, var(--signal-focus) 3.5%, transparent)),
     color-mix(in oklab, var(--surface-raised) 88%, black 12%);
   color: var(--text-primary);
   box-shadow:
-    0 0 0 1px rgba(83, 199, 216, 0.11),
-    0 16px 30px -24px var(--accent-halo);
+    0 0 0 1px color-mix(in oklab, var(--signal-focus) 11%, transparent),
+    0 16px 30px -24px color-mix(in oklab, var(--signal-focus) 16%, transparent);
 }
 
 .mission-actions .session-observatory-button span {
@@ -6633,11 +6633,11 @@ body {
 .mission-actions .session-observatory-button strong {
   min-width: 20px;
   min-height: 20px;
-  border: 1px solid rgba(83, 199, 216, 0.16);
+  border: 1px solid color-mix(in oklab, var(--signal-focus) 16%, transparent);
   border-radius: 999px;
   padding: 0 6px;
   background: rgba(3, 10, 6, 0.44);
-  color: var(--accent-strong);
+  color: var(--signal-focus-strong);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -6650,8 +6650,8 @@ body {
   z-index: 42;
   padding: 8vh 48px 48px;
   background:
-    radial-gradient(820px 520px at 18% 0%, rgba(83, 199, 216, 0.09), transparent 66%),
-    radial-gradient(760px 460px at 90% 96%, rgba(83, 199, 216, 0.045), transparent 68%),
+    radial-gradient(820px 520px at 18% 0%, color-mix(in oklab, var(--signal-focus) 9%, transparent), transparent 66%),
+    radial-gradient(760px 460px at 90% 96%, color-mix(in oklab, var(--signal-focus) 4.5%, transparent), transparent 68%),
     rgba(0, 0, 0, 0.68);
   display: grid;
   place-items: start center;
@@ -6667,7 +6667,7 @@ body {
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 136px),
-    radial-gradient(520px 260px at 12% -10%, rgba(83, 199, 216, 0.08), transparent 72%),
+    radial-gradient(520px 260px at 12% -10%, color-mix(in oklab, var(--signal-focus) 8%, transparent), transparent 72%),
     color-mix(in oklab, var(--surface-panel) 90%, black 10%);
   box-shadow:
     var(--depth-raised),
@@ -6733,11 +6733,11 @@ body {
 
 .session-observatory-close:hover,
 .session-observatory-close:focus-visible {
-  border-color: rgba(83, 199, 216, 0.34);
+  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
   color: var(--text-primary);
   outline: none;
   box-shadow:
-    0 0 0 3px rgba(83, 199, 216, 0.10),
+    0 0 0 3px color-mix(in oklab, var(--signal-focus) 10%, transparent),
     var(--depth-card);
 }
 
@@ -6778,11 +6778,11 @@ body {
 }
 
 .session-observatory-search:focus-within {
-  border-color: rgba(83, 199, 216, 0.28);
+  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
   box-shadow:
-    0 0 0 3px rgba(83, 199, 216, 0.07),
+    0 0 0 3px color-mix(in oklab, var(--signal-focus) 7%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.055),
-    0 20px 42px -30px var(--accent-halo);
+    0 20px 42px -30px color-mix(in oklab, var(--signal-focus) 16%, transparent);
 }
 
 .session-observatory-list {
@@ -6826,12 +6826,12 @@ body {
 
 .session-observatory-main:hover,
 .session-observatory-main:focus-visible {
-  border-color: rgba(83, 199, 216, 0.32);
+  border-color: color-mix(in oklab, var(--signal-focus) 32%, transparent);
   background:
-    linear-gradient(180deg, rgba(83, 199, 216, 0.055), transparent 92%),
+    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 5.5%, transparent), transparent 92%),
     color-mix(in oklab, var(--surface-raised) 82%, black 18%);
   box-shadow:
-    0 0 0 1px rgba(83, 199, 216, 0.08),
+    0 0 0 1px color-mix(in oklab, var(--signal-focus) 8%, transparent),
     var(--depth-card);
   outline: none;
   transform: translateY(-1px);
@@ -6924,8 +6924,8 @@ body {
 
 .session-observatory-row.status-active .session-observatory-meta span,
 .session-observatory-row.status-starting .session-observatory-meta span {
-  border-color: rgba(83, 199, 216, 0.28);
-  color: var(--accent-strong);
+  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
+  color: var(--signal-focus-strong);
 }
 
 .session-observatory-row.status-error .session-observatory-meta span,
@@ -7034,7 +7034,7 @@ body {
   border: 1px solid var(--line);
   border-radius: 18px;
   background:
-    radial-gradient(720px 420px at 6% 0%, rgba(83, 199, 216, 0.055), transparent 70%),
+    radial-gradient(720px 420px at 6% 0%, color-mix(in oklab, var(--signal-focus) 5.5%, transparent), transparent 70%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.028), transparent 220px),
     var(--surface-panel);
   box-shadow: var(--depth-card);
@@ -7063,7 +7063,7 @@ body {
 .review-empty-lead > span,
 .observatory-empty span,
 .observatory-detail-card > span {
-  color: var(--accent);
+  color: var(--signal-focus);
   font: 700 10px/1.2 var(--sans);
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -7146,8 +7146,8 @@ body {
 }
 
 .review-surface-item.selected {
-  border-color: rgba(83, 199, 216, 0.32);
-  box-shadow: var(--depth-card), 0 0 0 1px rgba(83, 199, 216, 0.08);
+  border-color: color-mix(in oklab, var(--signal-focus) 32%, transparent);
+  box-shadow: var(--depth-card), 0 0 0 1px color-mix(in oklab, var(--signal-focus) 8%, transparent);
 }
 
 .review-surface-item-main {
@@ -7173,10 +7173,10 @@ body {
 .review-surface-workspace {
   width: 42px;
   height: 36px;
-  border: 1px solid rgba(83, 199, 216, 0.20);
+  border: 1px solid color-mix(in oklab, var(--signal-focus) 20%, transparent);
   border-radius: 12px;
-  background: rgba(83, 199, 216, 0.06);
-  color: var(--accent-strong);
+  background: color-mix(in oklab, var(--signal-focus) 6%, transparent);
+  color: var(--signal-focus-strong);
   display: inline-grid;
   place-items: center;
   font: 720 11px/1 var(--mono);
@@ -7316,9 +7316,9 @@ body {
 }
 
 .review-surface-primary {
-  border-color: rgba(83, 199, 216, 0.36);
-  background: rgba(83, 199, 216, 0.08);
-  color: var(--accent-strong);
+  border-color: color-mix(in oklab, var(--signal-focus) 36%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 8%, transparent);
+  color: var(--signal-focus-strong);
 }
 
 .review-surface-primary:hover,
@@ -7327,21 +7327,21 @@ body {
 .observatory-detail-card button:focus-visible,
 .observatory-surface-header button:hover,
 .observatory-surface-header button:focus-visible {
-  border-color: rgba(83, 199, 216, 0.42);
+  border-color: color-mix(in oklab, var(--signal-focus) 42%, transparent);
   color: var(--text-primary);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(83, 199, 216, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--signal-focus) 8%, transparent);
 }
 
 .review-surface-discard {
   border-color: transparent;
   background: transparent;
-  color: color-mix(in oklab, var(--coral) 68%, var(--text-muted));
+  color: color-mix(in oklab, var(--signal-danger) 68%, var(--text-muted));
 }
 
 .review-surface-discard:hover,
 .review-surface-discard:focus-visible {
-  color: var(--coral);
+  color: var(--signal-danger);
   outline: none;
 }
 
@@ -7366,10 +7366,10 @@ body {
 
 .review-surface-empty {
   border-style: solid;
-  border-color: rgba(83, 199, 216, 0.12);
+  border-color: color-mix(in oklab, var(--signal-focus) 12%, transparent);
   padding: 28px;
   background:
-    radial-gradient(420px 230px at 50% 0%, rgba(83, 199, 216, 0.08), transparent 72%),
+    radial-gradient(420px 230px at 50% 0%, color-mix(in oklab, var(--signal-focus) 8%, transparent), transparent 72%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.026), transparent 160px),
     rgba(0, 0, 0, 0.16);
   place-items: center;
@@ -7383,8 +7383,8 @@ body {
 }
 
 .review-empty-lead svg {
-  color: var(--accent-strong);
-  filter: drop-shadow(0 0 12px rgba(83, 199, 216, 0.24));
+  color: var(--signal-focus-strong);
+  filter: drop-shadow(0 0 12px color-mix(in oklab, var(--signal-focus) 24%, transparent));
 }
 
 .review-surface-empty strong,
@@ -7419,7 +7419,7 @@ body {
 }
 
 .review-empty-lanes svg {
-  color: color-mix(in oklab, var(--accent-strong) 76%, var(--text-muted));
+  color: color-mix(in oklab, var(--signal-focus-strong) 76%, var(--text-muted));
 }
 
 .review-empty-lanes span {
@@ -7478,8 +7478,8 @@ body {
 }
 
 .observatory-search:focus-within {
-  border-color: rgba(83, 199, 216, 0.34);
-  box-shadow: 0 0 0 3px rgba(83, 199, 216, 0.08);
+  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--signal-focus) 8%, transparent);
 }
 
 .observatory-refresh-status {
@@ -7531,7 +7531,7 @@ body {
 
 .observatory-projects {
   scrollbar-width: thin;
-  scrollbar-color: rgba(83, 199, 216, 0.28) transparent;
+  scrollbar-color: color-mix(in oklab, var(--signal-focus) 28%, transparent) transparent;
 }
 
 .observatory-projects::-webkit-scrollbar {
@@ -7545,7 +7545,7 @@ body {
 .observatory-projects::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: rgba(83, 199, 216, 0.24);
+  background: color-mix(in oklab, var(--signal-focus) 24%, transparent);
   background-clip: padding-box;
 }
 
@@ -7587,12 +7587,12 @@ body {
 }
 
 .observatory-project.active {
-  border-color: rgba(83, 199, 216, 0.24);
-  background: rgba(83, 199, 216, 0.07);
+  border-color: color-mix(in oklab, var(--signal-focus) 24%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 7%, transparent);
 }
 
 .observatory-project.current:not(.active) {
-  box-shadow: inset 2px 0 0 rgba(83, 199, 216, 0.24);
+  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--signal-focus) 24%, transparent);
 }
 
 .observatory-project-marker {
@@ -7607,9 +7607,9 @@ body {
 }
 
 .observatory-project.active .observatory-project-marker {
-  border-color: rgba(83, 199, 216, 0.28);
-  background: rgba(83, 199, 216, 0.09);
-  color: var(--accent-strong);
+  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 9%, transparent);
+  color: var(--signal-focus-strong);
 }
 
 .observatory-project-copy {
@@ -7649,8 +7649,8 @@ body {
 }
 
 .observatory-project.active .observatory-project-count {
-  background: rgba(83, 199, 216, 0.14);
-  color: var(--accent-strong);
+  background: color-mix(in oklab, var(--signal-focus) 14%, transparent);
+  color: var(--signal-focus-strong);
 }
 
 .observatory-project-arrow {
@@ -7701,8 +7701,8 @@ body {
 .observatory-session-row:hover,
 .observatory-session-row:focus-visible,
 .observatory-session-row.selected {
-  border-color: rgba(83, 199, 216, 0.28);
-  background: rgba(83, 199, 216, 0.055);
+  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 5.5%, transparent);
   outline: none;
 }
 
@@ -7981,7 +7981,7 @@ body {
 .context-toggle-button.active,
 .context-toggle-button:hover,
 .context-toggle-button:focus-visible {
-  border-color: color-mix(in oklab, var(--accent) 32%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 32%, transparent);
   color: var(--text-primary);
   outline: none;
 }
@@ -7991,7 +7991,7 @@ body {
   min-height: 18px;
   border-radius: 7px;
   padding: 0 5px;
-  background: color-mix(in oklab, var(--coral) 15%, transparent);
+  background: color-mix(in oklab, var(--signal-danger) 15%, transparent);
   color: #ffd7d0;
   display: inline-flex;
   align-items: center;
@@ -8101,7 +8101,7 @@ body {
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklab, var(--accent) 24%, transparent) transparent;
+  scrollbar-color: color-mix(in oklab, var(--signal-focus) 24%, transparent) transparent;
 }
 
 .terminal-stage.arranging .terminal-grid {
@@ -8193,8 +8193,8 @@ body {
 }
 
 .composer-bar[data-state="ready"] .composer-status-indicator {
-  border-color: color-mix(in oklab, var(--accent) 42%, transparent);
-  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 42%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 8%, transparent);
 }
 
 .composer-bar[data-state="busy"] .composer-status-indicator {
@@ -8337,7 +8337,7 @@ body {
 
 .workbench-title-line span {
   min-height: 20px;
-  border-color: color-mix(in oklab, var(--accent) 24%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 24%, transparent);
   border-radius: 7px;
   padding: 0 7px;
   background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
@@ -8494,14 +8494,14 @@ body {
 
 .workspace-button.active,
 .workspace-button.active:hover {
-  border-color: color-mix(in oklab, var(--accent) 30%, transparent);
+  border-color: color-mix(in oklab, var(--signal-focus) 30%, transparent);
   background: var(--signal-focus-soft);
   background-image: none;
   box-shadow: none;
 }
 
 .workspace-button.active .workspace-monogram {
-  background: var(--role-active, var(--accent));
+  background: var(--role-active, var(--signal-focus));
   background-image: none;
   box-shadow: none;
 }
@@ -8514,8 +8514,8 @@ body {
 
 .terminal-grid.arranging {
   background:
-    linear-gradient(color-mix(in oklab, var(--accent) 5%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklab, var(--accent) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in oklab, var(--signal-focus) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--signal-focus) 5%, transparent) 1px, transparent 1px),
     var(--surface-terminal);
 }
 
@@ -8536,7 +8536,7 @@ body {
 .terminal-tile.selected,
 .terminal-tile:focus-visible,
 .terminal-tile:focus-within {
-  border-color: color-mix(in oklab, var(--accent) 24%, var(--border));
+  border-color: color-mix(in oklab, var(--signal-focus) 24%, var(--border));
   box-shadow: none;
 }
 
@@ -8591,7 +8591,7 @@ body {
 }
 
 .agent-panel-section.agent-session-summary {
-  border-color: color-mix(in oklab, var(--accent) 18%, var(--border));
+  border-color: color-mix(in oklab, var(--signal-focus) 18%, var(--border));
 }
 
 .dispatch-target-chip,
@@ -8747,8 +8747,8 @@ body {
 
 .workspace-button.active,
 .workspace-button.active:hover {
-  border-color: rgba(83, 199, 216, 0.28);
-  background: rgba(83, 199, 216, 0.09);
+  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 9%, transparent);
 }
 
 .workbench-header {
@@ -8832,7 +8832,7 @@ body {
 
 .terminal-tile.selected,
 .terminal-tile:focus-within {
-  border-color: rgba(83, 199, 216, 0.34);
+  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
 }
 
 .terminal-tile .terminal-host,
@@ -9898,9 +9898,9 @@ body {
 
 :root,
 .agent-space-shell {
-  --role-active: var(--cyan);
-  --role-attention: var(--brass);
-  --role-success: #63d18a;
+  --role-active: var(--signal-focus);
+  --role-attention: var(--signal-agent);
+  --role-success: var(--signal-success);
   --role-neutral-marker: #8d98a5;
   --role-control: color-mix(in oklab, var(--surface-raised) 76%, black 24%);
   --role-control-hover: color-mix(in oklab, var(--surface-raised) 88%, black 12%);
@@ -9921,7 +9921,7 @@ body {
 .context-toggle-button.active {
   border-color: color-mix(in oklab, var(--role-active) 34%, var(--line));
   background: color-mix(in oklab, var(--role-active) 8%, var(--surface-sunken));
-  color: var(--accent-strong);
+  color: var(--signal-focus-strong);
 }
 
 .workbench-tool-group button:hover,
@@ -9954,7 +9954,7 @@ body {
 .context-toggle-button.active:focus-visible {
   border-color: color-mix(in oklab, var(--role-active) 38%, var(--line));
   background: color-mix(in oklab, var(--role-active) 10%, var(--surface-sunken));
-  color: var(--accent-strong);
+  color: var(--signal-focus-strong);
 }
 
 .workbench-launch-group button[aria-label="Start Codex"]:hover,
@@ -9972,10 +9972,10 @@ body {
 .workbench-primary-action,
 .mission-actions .new-terminal-button,
 .terminal-empty-primary-action {
-  background: color-mix(in oklab, var(--role-success) 22%, var(--surface-raised));
+  background: color-mix(in oklab, var(--surface-raised) 82%, black 18%);
   background-image: none;
-  border-color: color-mix(in oklab, var(--role-success) 40%, var(--line));
-  color: color-mix(in oklab, var(--role-success) 82%, white 12%);
+  border-color: var(--border-focus);
+  color: var(--text-primary);
   box-shadow: none;
 }
 
@@ -9985,9 +9985,9 @@ body {
 .mission-actions .new-terminal-button:focus-visible,
 .terminal-empty-primary-action:hover,
 .terminal-empty-primary-action:focus-visible {
-  background: color-mix(in oklab, var(--role-success) 28%, var(--surface-raised));
-  border-color: color-mix(in oklab, var(--role-success) 50%, var(--line));
-  color: color-mix(in oklab, var(--role-success) 90%, white 10%);
+  background: color-mix(in oklab, var(--signal-focus) 10%, var(--surface-raised));
+  border-color: color-mix(in oklab, var(--signal-focus) 46%, var(--line));
+  color: var(--text-primary);
   box-shadow: none;
 }
 
@@ -10045,7 +10045,7 @@ body {
 .dispatch-bar[data-state="ready"] .composer-send:enabled {
   background: color-mix(in oklab, var(--role-active) 14%, var(--surface-raised));
   border-color: color-mix(in oklab, var(--role-active) 36%, var(--line));
-  color: var(--accent-strong);
+  color: var(--signal-focus-strong);
 }
 
 .dispatch-bar[data-state="busy"] .composer-send:enabled {
