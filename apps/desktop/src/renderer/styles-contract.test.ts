@@ -141,6 +141,14 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toMatch(/0\s+28px\s+80px/);
   });
 
+  it("keeps the CSS terminal surface synchronized with the xterm profile", () => {
+    const xtermHost = blockFor(".terminal-tile .terminal-host,\n.terminal-tile .xterm-host");
+
+    expect(rootToken("--surface-terminal")).toBe("#0a0e12");
+    expect(rootToken("--signal-focus")).toBe("#53c7d8");
+    expect(xtermHost).toContain("background: var(--surface-terminal)");
+  });
+
   it("keeps Arrange mode scrollable with room for the bottom resize handle", () => {
     const arrangeCanvas = blockFor(".terminal-stage.arranging .terminal-grid-column");
     const arrangingGrid = blockFor(".terminal-stage.arranging .terminal-grid");
