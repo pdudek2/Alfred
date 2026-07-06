@@ -669,15 +669,15 @@ describe("App integration", () => {
     expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toHaveClass("embedded");
 
     await user.click(within(screen.getByTestId("primary-nav-rail")).getByRole("button", { name: /open inbox surface/i }));
-    expect(screen.getByTestId("clean-depth-shell")).toHaveClass("surface-inbox");
+    expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-inbox");
     expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toHaveClass("embedded");
     await user.click(within(panel).getByRole("button", { name: /Manual · zsh 1/i }));
     await waitFor(() => {
-      expect(screen.getByTestId("clean-depth-shell")).toHaveClass("surface-work");
+      expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-work");
     });
 
     await user.click(screen.getByRole("button", { name: /open history surface/i }));
-    expect(screen.getByTestId("clean-depth-shell")).toHaveClass("surface-history");
+    expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-history");
     expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toHaveClass("embedded");
   });
 
@@ -4120,6 +4120,33 @@ describe("App integration", () => {
           workspaceId: "A",
         }),
       );
+    });
+  });
+
+  it("announces terminal status changes through one central live region", async () => {
+    const { emitExit } = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-a",
+        clientId: "manual-a",
+        title: "Manual · zsh 9",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 9/i })).toBeInTheDocument();
+    expect(screen.getAllByTestId("session-status-announcer")).toHaveLength(1);
+    expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("");
+
+    emitExit({ id: "runtime-a", exitCode: 1 });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("Manual · zsh 9 is now error.");
     });
   });
 

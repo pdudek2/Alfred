@@ -12,18 +12,14 @@ describe("ComposerBar", () => {
   const dispatchTarget = { kind: "session" as const, id: "manual-1", label: "Manual · zsh 1" };
 
   it("keeps send disabled until the dispatch has text and no blocking reason", () => {
-    const onChange = vi.fn();
     const onSubmit = vi.fn();
 
     render(
       <ComposerBar
         blockedReason={undefined}
         dispatchTarget={dispatchTarget}
-        value=""
         thinking={false}
         disabled={false}
-        workspaceName="Alfred"
-        onChange={onChange}
         onSubmit={onSubmit}
       />,
     );
@@ -41,7 +37,6 @@ describe("ComposerBar", () => {
 
   it("blocks submit and keeps the draft editable while a plan is staged", async () => {
     const user = userEvent.setup();
-    const onChange = vi.fn();
     const onSubmit = vi.fn();
 
     render(
@@ -49,15 +44,13 @@ describe("ComposerBar", () => {
         blockedReason="Resolve the current Alfred plan before asking for another."
         dispatchTarget={dispatchTarget}
         thinking={false}
-        value="prepare tests"
-        workspaceName="Alfred"
-        onChange={onChange}
         onSubmit={onSubmit}
       />,
     );
 
     const input = screen.getByLabelText("Dispatch instruction");
     expect(input).toBeEnabled();
+    await user.type(input, "prepare tests");
     expect(screen.getByRole("status")).toHaveTextContent("Resolve the current Alfred plan");
     const sendButton = screen.getByRole("button", { name: "Prepare work with Manual · zsh 1" });
     expect(sendButton).toBeDisabled();
@@ -70,29 +63,28 @@ describe("ComposerBar", () => {
     expect(onSubmit).not.toHaveBeenCalled();
 
     await user.keyboard(" now");
-    expect(onChange).toHaveBeenCalled();
+    expect(input).toHaveValue("prepare tests now");
   });
 
   it("submits with the keyboard when no plan is blocking Alfred", async () => {
     const user = userEvent.setup();
-    const onSubmit = vi.fn();
+    const onSubmit = vi.fn().mockReturnValue(true);
 
     render(
       <ComposerBar
         blockedReason={undefined}
         dispatchTarget={dispatchTarget}
         thinking={false}
-        value="prepare dev servers"
-        workspaceName="Alfred"
-        onChange={vi.fn()}
         onSubmit={onSubmit}
       />,
     );
 
     await user.click(screen.getByLabelText("Dispatch instruction"));
+    await user.keyboard("prepare dev servers");
     await user.keyboard("{Meta>}{Enter}{/Meta}");
 
-    expect(onSubmit).toHaveBeenCalledOnce();
+    expect(onSubmit).toHaveBeenCalledWith("prepare dev servers");
+    expect(screen.getByLabelText("Dispatch instruction")).toHaveValue("");
   });
 
   it("offers a blocked action when another workspace needs review", async () => {
@@ -105,10 +97,7 @@ describe("ComposerBar", () => {
         blockedReason="Review staged items in ClientApp workspace first."
         dispatchTarget={dispatchTarget}
         thinking={false}
-        value="prepare dev servers"
-        workspaceName="Alfred"
         onBlockedAction={onBlockedAction}
-        onChange={vi.fn()}
         onSubmit={vi.fn()}
       />,
     );
@@ -126,9 +115,6 @@ describe("ComposerBar", () => {
         dispatchTarget={dispatchTarget}
         thinking={false}
         disabled
-        value=""
-        workspaceName="Alfred"
-        onChange={vi.fn()}
         onSubmit={vi.fn()}
       />,
     );
@@ -145,11 +131,8 @@ describe("ComposerBar", () => {
     render(
       <ComposerBar
         blockedReason={undefined}
-        value="run tests"
         dispatchTarget={null}
         thinking={false}
-        workspaceName="Alfred"
-        onChange={() => undefined}
         onSubmit={onSubmit}
       />,
     );

@@ -40,6 +40,7 @@
   --accent-strong: color-mix(in oklab, var(--accent) 70%, white 8%);
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --type-micro: 10px;
   color: var(--ink);
   background: var(--night);
   font-family: var(--sans);
@@ -1921,7 +1922,7 @@ body.arranging-pointer {
   justify-content: center;
   flex: 0 0 auto;
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: var(--type-micro);
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -2134,7 +2135,7 @@ body.arranging-pointer {
 .tile-title .session-location-meta {
   flex: 0 0 auto;
   color: color-mix(in oklab, var(--faint) 74%, var(--muted));
-  font-size: 9px;
+  font-size: var(--type-micro);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -4615,13 +4616,13 @@ body.arranging-pointer {
   justify-content: center;
   gap: 3px;
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: var(--type-micro);
 }
 
 .review-kind span {
   margin: 0;
   color: inherit;
-  font-size: 9px;
+  font-size: var(--type-micro);
   line-height: 1;
 }
 
@@ -8691,8 +8692,8 @@ body {
 }
 
 /* ============================================================
-   ALFRED PROTOTYPE CLEAN v5
-   Match the clean-depth prototype more closely: fewer permanent
+   ALFRED WORKBENCH CLEAN v5
+   Match the current workbench direction more closely: fewer permanent
    columns, quieter empty states, flat material surfaces.
    ============================================================ */
 
@@ -8840,7 +8841,7 @@ body {
 }
 
 .workbench-crumbs {
-  font-size: 9px;
+  font-size: var(--type-micro);
   letter-spacing: 0.11em;
 }
 
@@ -9178,7 +9179,7 @@ body {
 }
 
 /* ============================================================
-   ALFRED PROTOTYPE POLISH v6
+   ALFRED WORKBENCH POLISH v6
    Fix overlap/scroll regressions after v5 and flatten leftover
    glass gradients in session surfaces.
    ============================================================ */
@@ -9954,7 +9955,7 @@ body {
 }
 
 .dispatch-target-chip span {
-  font-size: 8.5px;
+  font-size: var(--type-micro);
   letter-spacing: 0.08em;
 }
 

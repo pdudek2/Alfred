@@ -169,10 +169,10 @@ export function App() {
   });
   const [tileLayoutsByWorkspace, setTileLayoutsByWorkspace] = useState<Record<string, Record<string, TileLayout>>>({});
   const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>([]);
+  const [sessionStatusAnnouncement, setSessionStatusAnnouncement] = useState<string>("");
   const [selectedSessionIdsByWorkspace, setSelectedSessionIdsByWorkspace] = useState<Record<string, string>>({});
   const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
   const [pendingPlan, setPendingPlan] = useState<SquadPlan | null>(null);
-  const [composerValue, setComposerValue] = useState<string>("");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState<boolean>(false);
   const [commandQuery, setCommandQuery] = useState<string>("");
   const [privacyPanelOpen, setPrivacyPanelOpen] = useState<boolean>(false);
@@ -207,6 +207,8 @@ export function App() {
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
   const worktreeActionPendingRef = useRef<Set<string>>(new Set());
   const terminalSessionsRef = useRef<SessionTile[]>([]);
+  const announcedSessionStatusesRef = useRef<Map<string, string>>(new Map());
+  const sessionStatusAnnouncementsReadyRef = useRef<boolean>(false);
   const workspaceStateHydratedRef = useRef<boolean>(false);
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? DEFAULT_WORKSPACE;
@@ -278,6 +280,32 @@ export function App() {
 
   useEffect(() => {
     terminalSessionsRef.current = terminalSessions;
+  }, [terminalSessions]);
+
+  useEffect(() => {
+    const previousStatuses = announcedSessionStatusesRef.current;
+    const nextStatuses = new Map<string, string>();
+    let nextAnnouncement: string | null = null;
+
+    for (const session of terminalSessions) {
+      const status = accessibleSessionStatusLabel(session);
+      nextStatuses.set(session.id, status);
+      const previousStatus = previousStatuses.get(session.id);
+      if (previousStatus && previousStatus !== status) {
+        nextAnnouncement = `${session.title} is now ${status}.`;
+      }
+    }
+
+    announcedSessionStatusesRef.current = nextStatuses;
+
+    if (!sessionStatusAnnouncementsReadyRef.current) {
+      sessionStatusAnnouncementsReadyRef.current = true;
+      return;
+    }
+
+    if (nextAnnouncement) {
+      setSessionStatusAnnouncement(nextAnnouncement);
+    }
   }, [terminalSessions]);
 
   useEffect(() => {
@@ -1261,8 +1289,8 @@ export function App() {
     [],
   );
 
-  const handleSubmitPrompt = useCallback(async (dispatchTarget: DispatchTargetSnapshot): Promise<boolean> => {
-    const prompt = composerValue.trim();
+  const handleSubmitPrompt = useCallback(async (dispatchTarget: DispatchTargetSnapshot, draft: string): Promise<boolean> => {
+    const prompt = draft.trim();
     if (!prompt) return false;
     if (!canRequestPlan(alfredStatus, globalStagedCount)) return false;
     const alfredApi = getDesktopAlfredApi();
@@ -1281,7 +1309,6 @@ export function App() {
       return false;
     }
     setAlfredStatus(idle());
-    setComposerValue("");
     setTerminalSessions((sessions) => {
       const before = sessions;
       const after = addStagedSessions(before, response.plan.sessions, activeWorkspace.rootPath ?? "", activeWorkspace.id);
@@ -1309,13 +1336,14 @@ export function App() {
       return after;
     });
     return true;
-  }, [activeSessions, activeWorkspace, alfredStatus, composerValue, globalStagedCount]);
+  }, [activeSessions, activeWorkspace, alfredStatus, globalStagedCount]);
 
-  const handleSubmitDispatch = useCallback(() => {
+  const handleSubmitDispatch = useCallback((draft: string) => {
     const target = activeDispatchTarget;
-    if (!target) return;
-    void handleSubmitPrompt(target).then((submitted) => {
+    if (!target) return false;
+    return handleSubmitPrompt(target, draft).then((submitted) => {
       if (submitted) setLastDispatchDestination(target.label);
+      return submitted;
     });
   }, [activeDispatchTarget, handleSubmitPrompt]);
 
@@ -1877,6 +1905,14 @@ export function App() {
 
   return (
     <main className="agent-space-shell">
+      <div
+        className="visually-hidden"
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="session-status-announcer"
+      >
+        {sessionStatusAnnouncement}
+      </div>
       <section
         className={`desktop-frame ${shortcutModifier === "Cmd" ? "mac-frame" : ""}`}
         aria-label="Alfred Agent Space desktop shell"
@@ -1941,7 +1977,7 @@ export function App() {
           className={`workspace-layout surface-${activeSurface} ${alfredExpanded ? "alfred-expanded" : "alfred-compact"} ${
             previewVisible ? "preview-visible" : ""
           }`}
-          data-testid="clean-depth-shell"
+          data-testid="workbench-shell"
         >
           <PrimaryNavigationRail
             activeSurface={activeSurface}
@@ -2124,17 +2160,14 @@ export function App() {
           blockedReason={composerBlockedReason}
           dispatchTarget={activeDispatchTarget}
           lastDispatchDestination={lastDispatchDestination}
-          value={composerValue}
           thinking={isThinking(alfredStatus)}
           disabled={commandPaletteOpen || sessionObservatoryOpen || privacyPanelOpen}
-          workspaceName={activeWorkspace.label === "Alfred" ? "this workspace" : activeWorkspace.label}
           onBlockedAction={
             stagedWorkspaceId
               ? () => handleSelectWorkspace(stagedWorkspaceId)
               : undefined
           }
           onCycleDispatchTarget={handleCycleDispatchTarget}
-          onChange={setComposerValue}
           onSubmit={handleSubmitDispatch}
         />
         {pendingDiscardConfirmation && (
@@ -3131,6 +3164,30 @@ function mergeSessionInitialBuffer(
 
 function isFreeChatSession(session: SessionTile): boolean {
   return session.stage === "live" && session.cwd.includes("/Documents/Codex/");
+}
+
+function accessibleSessionStatusLabel(session: SessionTile): string {
+  if (session.stage === "staged") {
+    if (session.stagedReviewStatus === "checking") return "checking";
+    return isLaunchBlocked(session) ? "blocked" : "ready";
+  }
+
+  switch (session.runtimeStatus) {
+    case "starting":
+      return "starting";
+    case "live":
+      return "running";
+    case "exited":
+      return "done";
+    case "error":
+      return "error";
+    case "restored":
+      return "restored";
+    case "unavailable":
+      return "unavailable";
+    default:
+      return terminalSessionDisplayStatus(session).label;
+  }
 }
 
 function visibleNavigationWorkspaces(
