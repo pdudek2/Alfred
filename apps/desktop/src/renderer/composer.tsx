@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 
 type ComposerBarProps = {
   blockedActionLabel?: string | undefined;
@@ -6,13 +6,10 @@ type ComposerBarProps = {
   disabled?: boolean;
   dispatchTarget: { id: string; kind: "session" | "workspace"; label: string } | null;
   lastDispatchDestination?: string | null | undefined;
-  value: string;
   thinking: boolean;
-  workspaceName: string;
-  onChange: (value: string) => void;
   onBlockedAction?: (() => void) | undefined;
   onCycleDispatchTarget?: (() => void) | undefined;
-  onSubmit: () => void;
+  onSubmit: (value: string) => boolean | Promise<boolean>;
 };
 
 export function ComposerBar({
@@ -21,16 +18,15 @@ export function ComposerBar({
   disabled = false,
   dispatchTarget,
   lastDispatchDestination,
-  value,
   thinking,
   onBlockedAction,
   onCycleDispatchTarget,
-  onChange,
   onSubmit,
 }: ComposerBarProps) {
+  const [draft, setDraft] = useState<string>("");
   const blocked = blockedReason !== undefined;
   const composerDisabled = disabled || thinking || !dispatchTarget;
-  const canSubmit = !composerDisabled && !blocked && value.trim().length > 0;
+  const canSubmit = !composerDisabled && !blocked && draft.trim().length > 0;
   const state = thinking ? "busy" : composerDisabled ? "disabled" : blocked ? "blocked" : "ready";
   const targetLabel = dispatchTarget?.label ?? "Select a target";
   const targetKindLabel = dispatchTarget?.kind === "session" ? "session" : "workspace";
@@ -47,19 +43,25 @@ export function ComposerBar({
             ? `Prepared work for ${lastDispatchDestination}.`
             : `Ready to prepare work ${targetPreposition} ${targetLabel}.`;
 
+  const handleSubmit = useCallback(async () => {
+    if (!canSubmit) return;
+    const submitted = await onSubmit(draft);
+    if (submitted) setDraft("");
+  }, [canSubmit, draft, onSubmit]);
+
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
         event.preventDefault();
-        if (canSubmit) onSubmit();
+        void handleSubmit();
         return;
       }
       if (event.key === "Escape") {
         event.preventDefault();
-        onChange("");
+        setDraft("");
       }
     },
-    [canSubmit, onChange, onSubmit],
+    [handleSubmit],
   );
 
   return (
@@ -84,19 +86,19 @@ export function ComposerBar({
       <textarea
         className="composer-input"
         rows={1}
-        value={value}
+        value={draft}
         placeholder={dispatchTarget ? `Prepare work ${targetPreposition} ${dispatchTarget.label}...` : "Choose a planning scope first..."}
         disabled={composerDisabled}
         aria-label="Dispatch instruction"
         aria-describedby="composer-status"
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => setDraft(event.target.value)}
         onKeyDown={handleKeyDown}
       />
       <button
         type="button"
         className="composer-send"
         disabled={!canSubmit}
-        onClick={onSubmit}
+        onClick={() => void handleSubmit()}
         aria-label={`Prepare work ${targetPreposition} ${targetLabel}`}
       >
         {thinking ? "Preparing..." : "Prepare"}

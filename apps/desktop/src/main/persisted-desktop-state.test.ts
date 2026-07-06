@@ -248,7 +248,7 @@ describe("persisted-desktop-state", () => {
     });
   });
 
-  it("preserves additive clean-depth workspace view state while legacy snapshots keep default behavior", async () => {
+  it("preserves additive workbench workspace view state while legacy snapshots keep default behavior", async () => {
     const filePath = await temporaryStateFile();
     await writeFile(
       filePath,
