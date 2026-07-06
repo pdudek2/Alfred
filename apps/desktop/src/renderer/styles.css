@@ -10126,6 +10126,106 @@ body {
   color: var(--text-primary);
 }
 
+.workspace-navigation-panel {
+  background: var(--surface-panel);
+}
+
+.workspace-nav-section > header {
+  color: var(--text-faint);
+  font: 700 var(--type-micro)/1 var(--mono);
+}
+
+.workspace-nav-section > header strong {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.workspace-nav-row {
+  min-height: 48px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.workspace-nav-row strong {
+  color: var(--text-secondary);
+  font: 620 13px/1.2 var(--sans);
+}
+
+.workspace-nav-row small {
+  color: var(--text-faint);
+}
+
+.workspace-nav-empty {
+  color: var(--text-faint);
+}
+
+.workspace-nav-row:hover strong,
+.workspace-nav-row:focus-visible strong {
+  color: var(--text-primary);
+}
+
+.workspace-nav-mark {
+  background: color-mix(in oklab, var(--surface-raised) 78%, black 22%);
+  color: var(--text-faint);
+}
+
+.workspace-nav-mark.codex {
+  background: color-mix(in oklab, var(--codex-blue) 7%, var(--surface-raised));
+  border-color: color-mix(in oklab, var(--codex-blue) 28%, transparent);
+}
+
+.workspace-nav-mark.claude {
+  background: color-mix(in oklab, var(--claude-amber) 7%, var(--surface-raised));
+  border-color: color-mix(in oklab, var(--claude-amber) 28%, transparent);
+}
+
+.workspace-nav-mark.alert {
+  background: color-mix(in oklab, var(--alert-red) 7%, var(--surface-raised));
+  border-color: color-mix(in oklab, var(--alert-red) 32%, transparent);
+}
+
+.workspace-button:not(.active) {
+  border-color: transparent;
+  background: transparent;
+}
+
+.workspace-button:not(.active) .workspace-button-details strong {
+  color: var(--text-muted);
+  font-weight: 550;
+}
+
+.workspace-button:not(.active) .workspace-button-details span {
+  color: var(--text-faint);
+}
+
+.workspace-button:not(.active) .workspace-priority-chip {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text-faint);
+}
+
+.workspace-button.active {
+  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 7%, var(--surface-raised));
+  background-image: none;
+  box-shadow: none;
+}
+
+.workspace-button.active .workspace-button-details strong {
+  color: var(--text-primary);
+}
+
+.workspace-button.active .workspace-button-details span {
+  color: var(--text-muted);
+}
+
+.workspace-button.add-workspace {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text-muted);
+}
+
 /*
  * ALFRED TERMINAL GRID SCROLL v10
  * Keep the xterm viewport scroll independent from the workbench tile scroll.
