@@ -112,10 +112,21 @@ describe("renderer CSS contracts", () => {
     expect(tokenDefinitionCount("--surface-canvas")).toBe(1);
     expect(tokenDefinitionCount("--surface-panel")).toBe(1);
     expect(tokenDefinitionCount("--surface-raised")).toBe(1);
+    expect(tokenDefinitionCount("--surface-workbench")).toBe(1);
+    expect(tokenDefinitionCount("--surface-chrome")).toBe(1);
+    expect(tokenDefinitionCount("--surface-control")).toBe(1);
+    expect(tokenDefinitionCount("--surface-control-hover")).toBe(1);
+    expect(tokenDefinitionCount("--surface-tile-header")).toBe(1);
     expect(tokenDefinitionCount("--text-primary")).toBe(1);
     expect(tokenDefinitionCount("--text-muted")).toBe(1);
     expect(tokenDefinitionCount("--text-faint")).toBe(1);
 
+    expect(rootToken("--surface-workbench")).toBe("#040506");
+    expect(rootToken("--surface-chrome")).toBe("#07090b");
+    expect(rootToken("--surface-chrome-soft")).toBe("#0b0f13");
+    expect(rootToken("--surface-control")).toBe("#090d11");
+    expect(rootToken("--surface-control-hover")).toBe("#10151a");
+    expect(rootToken("--surface-tile-header")).toBe("#0b0f13");
     expect(tokenValue("--accent")).toBe("var(--signal-focus)");
     expect(tokenValue("--terminal")).toBe("var(--surface-terminal)");
     expect(styles).not.toMatch(/--flat-/);
@@ -143,8 +154,8 @@ describe("renderer CSS contracts", () => {
   it("keeps the CSS terminal surface on the legacy shell rail", () => {
     const xtermHost = blockFor(".terminal-tile .terminal-host,\n.terminal-tile .xterm-host");
 
-    expect(rootToken("--surface-terminal")).toBe("#080909");
-    expect(rootToken("--signal-focus")).toBe("#53c7d8");
+    expect(rootToken("--surface-terminal")).toBe("#070808");
+    expect(rootToken("--signal-focus")).toBe("#55bdca");
     expect(xtermHost).toContain("background: var(--surface-terminal)");
   });
 
@@ -286,14 +297,13 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps the Inbox empty state compact instead of a stretched dashboard card", () => {
-    const emptyLanes = blockFor(".review-empty-lanes div");
     const reviewEmpty = blockForContaining(".review-surface-empty", "align-self: start");
 
     expect(reviewEmpty).toContain("align-self: start");
     expect(reviewEmpty).toContain("min-height: 0");
-    expect(reviewEmpty).toContain("grid-template-columns: minmax(0, 1fr) auto");
+    expect(reviewEmpty).toContain("grid-template-columns: minmax(0, 1fr)");
     expect(reviewEmpty).toContain("background-image: none");
-    expect(emptyLanes).toContain("grid-template-columns: auto minmax(0, 1fr) auto");
+    expect(styles).not.toContain(".review-empty-lanes");
   });
 
   it("styles workspace scrollbars so native white rails do not dominate the shell", () => {
@@ -365,27 +375,33 @@ describe("renderer CSS contracts", () => {
   it("keeps terminal tile chrome secondary to the xterm body", () => {
     const tile = blockForContaining(".terminal-tile", "box-shadow: none");
     const header = blockFor(".terminal-tile-header");
+    const tileTitle = blockFor(".terminal-tile-header .tile-title b");
     const xtermHost = exactBlockFor(".xterm-host");
     const kindMark = blockFor(".tile-kind-mark");
     const kindMarkText = blockFor(".tile-kind-mark span");
     const primaryActions = blockFor(".tile-primary-actions");
+    const primaryActionButton = blockForContaining(".tile-primary-actions .continue-button", "var(--role-active)");
     const utilities = blockFor(".tile-utility-actions,\n.tile-danger-actions");
+    const utilityButtons = blockFor(".tile-utility-actions button,\n.tile-danger-actions button");
     const readyToolDot = blockFor(".terminal-tile.real-terminal.ready .tool-dot");
     const selectedToolDotRule = ruleForSelectorContaining(".terminal-tile.real-terminal.selected .tool-dot");
     const terminalChromeLayer = styles.slice(styles.indexOf(".terminal-tile.real-terminal .tool-dot"));
 
-    expect(tile).toContain("background: var(--surface-panel)");
+    expect(tile).toContain("background: var(--surface-chrome)");
     expect(tile).toContain("box-shadow: none");
     expect(header).toContain("min-height");
-    expect(header).toContain("background: var(--surface-raised)");
+    expect(header).toContain("background: var(--surface-tile-header)");
     expect(header).not.toContain("linear-gradient");
+    expect(tileTitle).toContain("font: 650 13px/1.12 var(--sans)");
     expect(xtermHost).toContain("background: var(--surface-terminal)");
     expect(kindMark).toContain("width: 24px");
     expect(kindMarkText).toContain("display: none");
     expect(primaryActions).toContain("opacity: 1");
     expect(primaryActions).toContain("pointer-events: auto");
+    expect(primaryActionButton).toContain("var(--role-active)");
     expect(utilities).toContain("opacity: 0");
     expect(utilities).toContain("pointer-events: none");
+    expect(utilityButtons).toContain("color: var(--text-faint)");
     expect(readyToolDot).not.toContain("var(--green)");
     expect(selectedToolDotRule.selectors).toContain(".terminal-tile.real-terminal.selected .tool-dot");
     expect(selectedToolDotRule.selectors).toContain(".terminal-tile.real-terminal.session-waiting .tool-dot");
@@ -430,6 +446,8 @@ describe("renderer CSS contracts", () => {
 
     expect(styles).toContain("--role-active: var(--signal-focus)");
     expect(styles).toContain("--role-success: var(--signal-success)");
+    expect(styles).toContain("--role-control: var(--surface-control)");
+    expect(styles).toContain("--role-control-hover: var(--surface-control-hover)");
     expect(manualDot).toContain("var(--role-neutral-marker)");
     expect(manualDot).not.toContain("var(--green)");
     expect(codexDot).toContain("var(--codex-blue)");
@@ -488,12 +506,15 @@ describe("renderer CSS contracts", () => {
   it("keeps the Work chrome quiet and command-like", () => {
     const tileUtilities = blockFor(".tile-utility-actions,\n.tile-danger-actions");
     const dispatchBar = blockFor(".dispatch-bar");
+    const dispatchCapsule = blockFor(".dispatch-capsule");
     const dispatchChip = blockFor(".dispatch-target-chip,\n.dispatch-bar .composer-input,\n.dispatch-bar .composer-send");
 
     expect(styles).toContain(".arrange-mode-label");
     expect(tileUtilities).toContain("opacity: 0");
     expect(tileUtilities).toContain("pointer-events: none");
-    expect(dispatchBar).toContain("grid-template-rows: 32px 14px");
+    expect(dispatchBar).toContain("grid-template-rows: var(--control-height) 14px");
+    expect(dispatchCapsule).toContain("height: var(--control-height)");
+    expect(dispatchCapsule).toContain("background-image: none");
     expect(dispatchChip).toContain("background-image: none");
     expect(styles).not.toContain(".work-mode-control");
     expect(styles).not.toContain(".layout-controls button");
@@ -530,19 +551,31 @@ describe("renderer CSS contracts", () => {
   it("keeps Context hierarchy quiet except selected session and key signal", () => {
     const drawer = blockForContaining(".context-drawer", "background: var(--surface-panel)");
     const identity = blockForContaining(".agent-context-zone.agent-context-identity", "color: var(--text-muted)");
+    const summary = blockFor(".agent-panel-section.agent-session-summary");
     const moreDetails = blockForContaining(".agent-context-zone.agent-context-more", "color: var(--text-faint)");
     const activityList = blockForContaining(".agent-activity-list", "color: var(--text-faint)");
+    const sectionLabelRule = ruleForSelectorContaining(".agent-section-heading span");
+    const factLabel = blockFor(".agent-session-facts dt");
+    const factValue = blockFor(".agent-session-facts dd");
+    const keySignal = blockFor(".agent-panel-section.agent-key-signal");
     const pulseTitle = blockFor(".agent-session-pulse strong");
     const pulseBody = blockFor(".agent-session-pulse p");
     const handoffButton = blockFor(".agent-handoff-buttons button");
 
     expect(drawer).toContain("background: var(--surface-panel)");
     expect(identity).toContain("color: var(--text-muted)");
+    expect(summary).toContain("background: var(--surface-control)");
+    expect(summary).toContain("background-image: none");
     expect(moreDetails).toContain("color: var(--text-faint)");
     expect(activityList).toContain("color: var(--text-faint)");
+    expect(sectionLabelRule.body).toContain("font: 700 10px/1 var(--sans)");
+    expect(sectionLabelRule.body).toContain("text-transform: uppercase");
+    expect(factLabel).toContain("font: 650 10px/1.2 var(--sans)");
+    expect(factValue).toContain("color: var(--text-secondary)");
+    expect(keySignal).toContain("var(--role-active)");
     expect(pulseTitle).toContain("color: var(--text-primary)");
     expect(pulseBody).toContain("color: var(--text-muted)");
-    expect(handoffButton).toContain("background: color-mix(in oklab, var(--surface-raised) 72%, black 28%)");
+    expect(handoffButton).toContain("background: var(--surface-control)");
   });
 
   it("keeps sidebar radar hierarchy quiet but readable", () => {
@@ -555,14 +588,18 @@ describe("renderer CSS contracts", () => {
     const inactiveWorkspaceMeta = blockFor(".workspace-button:not(.active) .workspace-button-details span");
     const activeWorkspace = blockFor(".workspace-button.active");
 
-    expect(navPanel).toContain("background: var(--surface-panel)");
+    expect(navPanel).toContain("background: var(--surface-chrome)");
     expect(navSectionHeader).toContain("color: var(--text-faint)");
+    expect(navSectionHeader).toContain("var(--sans)");
     expect(navRow).toContain("background: transparent");
+    expect(navRow).toContain("grid-template-columns: 26px minmax(0, 1fr)");
     expect(navRowTitle).toContain("color: var(--text-secondary)");
+    expect(navRowTitle).toContain("font: 650 13px/1.22 var(--sans)");
     expect(navRowMeta).toContain("color: var(--text-faint)");
-    expect(inactiveWorkspaceTitle).toContain("color: var(--text-muted)");
+    expect(inactiveWorkspaceTitle).toContain("color: var(--text-secondary)");
+    expect(inactiveWorkspaceTitle).toContain("font: 600 12px/1.2 var(--sans)");
     expect(inactiveWorkspaceMeta).toContain("color: var(--text-faint)");
-    expect(activeWorkspace).toContain("background: color-mix(in oklab, var(--signal-focus) 7%, var(--surface-raised))");
+    expect(activeWorkspace).toContain("background: color-mix(in oklab, var(--signal-focus) 3.5%, var(--surface-control))");
     expect(activeWorkspace).not.toContain("linear-gradient");
     expect(activeWorkspace).toContain("box-shadow: none");
   });
