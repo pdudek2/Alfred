@@ -3281,11 +3281,13 @@ describe("App integration", () => {
 
     const tile = await screen.findByRole("article", { name: /Codex · isolated review/i });
     await user.dblClick(tile.querySelector(".tile-header")!);
+    await user.click(within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open Context drawer/ }));
 
     const checkoutActions = screen.getByRole("toolbar", { name: "checkout actions for Codex · isolated review" });
     await user.click(within(checkoutActions).getByRole("button", { name: "Review diff" }));
 
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-1" });
+    await user.click(screen.getByRole("button", { name: /^Activity \(/ }));
     await waitFor(() => {
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Checkout diff reviewed");
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("2 changed files");
@@ -4297,6 +4299,7 @@ describe("App integration", () => {
     const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
     await user.dblClick(tile.querySelector(".tile-header")!);
     await user.click(within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open Context drawer/ }));
+    await user.click(screen.getByRole("button", { name: /^Activity \(/ }));
     await user.click(
       screen.getByRole("button", { name: "Reveal edited: apps/desktop/src/renderer/app.tsx" }),
     );
@@ -4329,7 +4332,12 @@ describe("App integration", () => {
     );
     const inspector = screen.getByRole("complementary", { name: "Agent activity" });
     expect(within(inspector).getByText("Manual · alpha")).toBeInTheDocument();
-    expect(within(inspector).getByText("Continue outside Alfred")).toBeInTheDocument();
+    expect(
+      within(inspector).getByRole("group", { name: "Handoff actions for Manual · alpha" }),
+    ).toBeInTheDocument();
+    const essentials = within(inspector).getByRole("region", { name: "Session essentials" });
+    expect(essentials).toHaveTextContent("Manual");
+    expect(essentials).toHaveTextContent("…/Desktop/Alfred");
   });
 
   it("opens the focused session cwd in an external terminal", async () => {
