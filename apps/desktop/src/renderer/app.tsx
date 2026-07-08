@@ -2308,13 +2308,12 @@ function QuietWorkspaceNavigationPanel({
 
   return (
     <aside className="workspace-navigation-panel" data-testid="workspace-navigation-panel" aria-label="Runs and workspaces">
-      <header className="workspace-nav-head">
+      <header className="workspace-nav-head" title={activeWorkspace.rootPath ?? undefined}>
         <span className="workspace-nav-avatar">{activeWorkspace.shortLabel}</span>
         <div>
           <strong>{activeWorkspace.label}</strong>
           <span>
-            {activeSessions.length} terminals · {activeWorkspace.gitBranch ?? "local"} ·{" "}
-            {activeWorkspace.rootPath ? activeWorkspace.rootPath.replace(/^.*\/Desktop\//, "~/Desktop/") : "scratch desk"}
+            {activeSessions.length} terminals · {activeWorkspace.gitBranch ?? "local"}
           </span>
         </div>
       </header>
@@ -2330,8 +2329,7 @@ function QuietWorkspaceNavigationPanel({
       <div className="workspace-nav-scroll">
         <section className="workspace-nav-section">
           <header>
-            <span>Active terminals</span>
-            <strong>{activeSessions.length}</strong>
+            <span>Terminals</span>
           </header>
           <div className="workspace-nav-list">
             {activeSessions.length === 0 ? (
@@ -2341,38 +2339,33 @@ function QuietWorkspaceNavigationPanel({
                 const status = terminalSessionDisplayStatus(session);
                 const kindMeta = tileKindMeta(sessionTileKind(session));
                 return (
-                  <button key={session.id} type="button" className="workspace-nav-row" onClick={() => onFocusSession(session.id)}>
+                  <button
+                    key={session.id}
+                    type="button"
+                    className="workspace-nav-row"
+                    title={session.cwd}
+                    onClick={() => onFocusSession(session.id)}
+                  >
                     <span className={`workspace-nav-mark ${kindMeta.className}`}>{kindMeta.shortLabel}</span>
-                    <span>
-                      <strong>{session.title}</strong>
-                      <small>{status.label} · {session.cwd.replace(/^.*\/Desktop\//, "~/Desktop/")}</small>
-                    </span>
+                    <strong>{session.title}</strong>
+                    <small>{status.label}</small>
                   </button>
                 );
               })
             )}
           </div>
         </section>
-        <section className="workspace-nav-section">
-          <header>
-            <span>Inbox</span>
-            <strong>{inboxCount}</strong>
-          </header>
-          <div className="workspace-nav-list">
-            <button type="button" className="workspace-nav-row" onClick={onOpenInbox}>
-              <span className="workspace-nav-mark alert">!</span>
-              <span>
-                <strong>Needs review</strong>
-                <small>{inboxNavigationSummary(inboxCount)}</small>
-              </span>
-            </button>
-          </div>
-        </section>
+        <button type="button" className="workspace-nav-row workspace-nav-inbox" onClick={onOpenInbox}>
+          <span className={`workspace-nav-mark${inboxCount > 0 ? " alert" : ""}`} aria-hidden="true">
+            {inboxCount > 0 ? "!" : ""}
+          </span>
+          <strong>Inbox</strong>
+          <small>{inboxNavigationSummary(inboxCount)}</small>
+        </button>
         {freeChats.length > 0 && (
           <section className="workspace-nav-section">
             <header>
               <span>Free chats</span>
-              <strong>{freeChats.length}</strong>
             </header>
             <div className="workspace-nav-list">
               {freeChats.map((session) => (
@@ -2380,13 +2373,11 @@ function QuietWorkspaceNavigationPanel({
                   key={session.id}
                   type="button"
                   className="workspace-nav-row"
+                  title={session.cwd}
                   onClick={() => onFocusSessionInWorkspace(session.workspaceId, session.id)}
                 >
                   <span className="workspace-nav-mark">FC</span>
-                  <span>
-                    <strong>{session.title}</strong>
-                    <small>{session.cwd.replace(/^.*\/Documents\/Codex\//, "~/Documents/Codex/")}</small>
-                  </span>
+                  <strong>{session.title}</strong>
                 </button>
               ))}
             </div>
@@ -2395,7 +2386,6 @@ function QuietWorkspaceNavigationPanel({
         <section className="workspace-nav-section workspace-nav-workspaces">
           <header>
             <span>Workspaces</span>
-            <strong>{workspaces.length}</strong>
           </header>
           <WorkspaceRail
             activeWorkspaceId={activeWorkspaceId}

@@ -567,7 +567,7 @@ describe("App integration", () => {
     render(<App />);
 
     const panel = await screen.findByTestId("workspace-navigation-panel");
-    expect(within(panel).getByText("Active terminals")).toBeInTheDocument();
+    expect(within(panel).getByText("Terminals")).toBeInTheDocument();
     expect(within(panel).getByText("Inbox")).toBeInTheDocument();
     expect(within(panel).getByText("Workspaces")).toBeInTheDocument();
     expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toBeInTheDocument();
@@ -600,6 +600,26 @@ describe("App integration", () => {
     const panel = await screen.findByTestId("workspace-navigation-panel");
     expect(within(panel).getByText("1 item waiting")).toBeInTheDocument();
     expect(within(panel).queryByText(/decisions, blocked runs, recovery/i)).not.toBeInTheDocument();
+    expect(within(panel).queryByText("Needs review")).not.toBeInTheDocument();
+    expect(panel.querySelector(".workspace-nav-mark.alert")).not.toBeNull();
+  });
+
+  it("keeps sidebar section headers free of count badges", async () => {
+    installDesktopBridge();
+    render(<App />);
+
+    const panel = await screen.findByTestId("workspace-navigation-panel");
+    expect(panel.querySelectorAll(".workspace-nav-section > header strong")).toHaveLength(0);
+  });
+
+  it("shows the inbox as a quiet single row when clear", async () => {
+    installDesktopBridge();
+    render(<App />);
+
+    const panel = await screen.findByTestId("workspace-navigation-panel");
+    const inboxRow = within(panel).getByRole("button", { name: /Inbox/ });
+    expect(within(inboxRow).getByText("Clear")).toBeInTheDocument();
+    expect(inboxRow.querySelector(".workspace-nav-mark.alert")).toBeNull();
   });
 
   it("does not render an empty Free Chats section when there are no scratch chats", async () => {
@@ -652,6 +672,7 @@ describe("App integration", () => {
     render(<App />);
 
     const panel = await screen.findByTestId("workspace-navigation-panel");
+    expect(within(panel).queryByText(/~\/Documents\/Codex\//)).not.toBeInTheDocument();
     await user.click(within(panel).getByRole("button", { name: /Scratch API worker/i }));
 
     await waitFor(() => {
