@@ -1,6 +1,6 @@
 # Alfred UI Canonical Plan
 
-> **For agentic workers:** For multi-step implementation, use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Keep Alfred moving toward a calm graphite operator console where terminal orchestration is the product center, context is supportive, and color/assets carry deliberate meaning.
 
@@ -17,10 +17,6 @@
 - Branch work should start from latest `main` unless continuing an active reviewed branch.
 - Do not change xterm renderer technology.
 - Do not remount, conditionally unmount, or dispose xterm hosts while changing chrome, panels, sidebar, scroll, or typography.
-- Keep-alive mechanism, by name: `workSurfaceHidden` in `apps/desktop/src/renderer/app.tsx` (~line 2028) toggles `.surface-panel.inactive`, which hides the desk via `visibility: hidden` + `opacity: 0` + `pointer-events: none` (`styles.css` ~line 1100); focus/split modes hide tiles the same way via `.focus-hidden`. Never replace these with `display: none`, conditional render, or keyed remount.
-- Layer discipline: each phase edits the newest canonical layer in `styles.css` instead of appending another `vN` override layer; adding a net-new layer header requires updating Phase 6 scope in this document.
-- Visual smoke uses fresh screenshots via `screencapture` or Patryk's own eyes; the Computer Use screenshot stream cached stale frames during the July 2026 smoke and is not trusted for pixel checks.
-- Each phase may store local before/after screenshots next to the audit baseline under `docs/audits/` so perception changes stay reviewable. `docs/audits/*` is ignored by git unless a specific artifact is explicitly promoted.
 - No new IPC for pure UI phases.
 - No dependency changes for pure UI phases.
 - Keep the product model: Work / Inbox / History, terminal grid first, Context supportive.
@@ -51,10 +47,10 @@
 - Sidebar, Context, and terminal toolbar received a first readability pass.
 
 **Before merge, verify:**
-- [x] Run `git diff --check`. (passed after `4fa264d`)
-- [x] Run `pnpm --filter @alfred/desktop typecheck`. (passed after `4fa264d`)
-- [x] Run `pnpm --filter @alfred/desktop test`. (47 files, 577 tests after `4fa264d`)
-- [x] Run `pnpm --filter @alfred/desktop build`. (passed; known Vite large-chunk warning)
+- [ ] Run `git diff --check`.
+- [ ] Run `pnpm --filter @alfred/desktop typecheck`.
+- [ ] Run `pnpm --filter @alfred/desktop test`.
+- [ ] Run `pnpm --filter @alfred/desktop build`.
 - [ ] Smoke in real Electron:
   - [ ] Work with 1 terminal.
   - [ ] Work with 3+ terminals; scroll reaches lower tiles.
@@ -116,8 +112,7 @@ Use this section before starting any new phase. It prevents old findings from be
 ### Not Started
 
 - Asset and icon system:
-  - workspace/session/inbox marks still rely on letters such as `A`, `W4`, `M`, `Cx`, `Cl`, `FC`, `!`;
-  - note: `tile-kind-icon.tsx`, `SessionStatusGlyph.tsx`, and `AlfredMark.tsx` already exist with Lucide icons — Phase 3 wires them in, it does not build a second icon system.
+  - workspace/session/inbox marks still rely on letters such as `A`, `W4`, `M`, `Cx`, `Cl`, `!`.
 - Work header grouping:
   - layout, panel toggles, agent launchers, and new terminal actions still share one crowded row.
 - History density:
@@ -149,35 +144,11 @@ Use this section before starting any new phase. It prevents old findings from be
 - Fable P2.16 Motion/interaction states: not started; Phase 6 unless promoted.
 - Fable P2.17 Copy tone cleanup: not started; Phase 2.
 
-### Fresh Electron Smoke Findings (2026-07-08)
-
-Screenshots: `docs/audits/fresh-smoke-2026-07-08/`. Captured from the live app on `ui-token-hierarchy` at `4fa264d`.
-
-Confirmed working:
-- Terminal tiles fill the workbench in Grid and Focus modes; the dead void below the grid (Fable P1.9) is largely resolved.
-- xterm keep-alive held through Work → Inbox → History → overlays → Work; scrollback stayed intact.
-- Command palette opens and renders via `Cmd K` (reported Fable command-palette render bug not reproduced) and is already search-first.
-
-New or sharpened findings:
-- Quick switch still opens with eyebrow + title + subtitle before the search input and has no kbd footer, while the palette is search-first — the two overlays visibly diverge (Phase 5).
-- Privacy modal is a third overlay style (amber `LOCAL CONTROLS` eyebrow, mono subtitle, bordered rows) (Phase 5).
-- Inbox renders zero-count sections (`Needs decision 0`, `Blocked & safety 0`) as full-weight rows, and the `1 RECOVERY` stat tile duplicates the `Recovery — 1` row below it (Phase 2).
-- Sidebar inbox row reads `1 decisions, blocked runs, recovery` while decisions are 0 and recovery is 1 — the count is attached to the wrong noun; also `1 decisions` and rail a11y `1 items` pluralization bugs (Phase 2 copy).
-- History keeps two near-synonymous description sentences; the Projects column lists zero-count workspaces as truncated `Workspac…` rows — false density plus unreadable labels (Phase 2).
-- `untrusted cwd` chip repeats on most external session rows — warning-tone noise for a resting state (Phase 2 copy, Phase 3 color semantics).
-- Sidebar workspace chip flips between `1 active` and `restored`, mirroring the selected session status on a workspace identity row (Phase 2/3).
-- Context section headers double themselves: `IDENTITY`/`Session`, `DETAILS`/`More`, `RECENT ACTIVITY`/`Recent activity` (Phase 2).
-- Title bar copy `Workspace 4 workspace` duplicates the word workspace (Phase 2 copy).
-- Rail buttons need accessibility-activation verification: AX inspection returned the element, but navigation was not confirmed; pointer clicks work. Treat this as an assistive-tech and UI-automation risk until Phase 6 verifies the handler path.
-- Transient layout: right after a window raise, the Focus tile briefly rendered at ~40% width before filling the stage — watch for it during smoke; possibly fit-addon/resize timing.
-
 ---
 
 ## Phase 1: Close Current Token Hierarchy Slice
 
 **Purpose:** Finish and merge only the work already in the active branch; do not add new product scope here.
-
-**Status (2026-07-08):** command checks (diff --check, typecheck, test, build) already passed after commit `4fa264d`; the accessibility tree confirmed Work/Inbox/History/quick-switch states. What remains is the fresh visual smoke per Global Constraints (Computer Use screenshots were stale).
 
 **Files:**
 - Modify only if smoke exposes a bug:
@@ -185,7 +156,6 @@ New or sharpened findings:
   - `apps/desktop/src/renderer/styles-contract.test.ts`
   - `apps/desktop/src/renderer/composer.tsx`
   - `apps/desktop/src/renderer/composer.test.tsx`
-  - `apps/desktop/src/renderer/terminal-visual-profile.test.ts`
   - `apps/desktop/src/renderer/components/ReviewSurface.tsx`
   - `apps/desktop/src/renderer/components/WorkbenchHeader.tsx`
 
@@ -219,12 +189,9 @@ New or sharpened findings:
   - `apps/desktop/src/renderer/styles-contract.test.ts`
 - Modify only if CSS cannot express the hierarchy:
   - `apps/desktop/src/renderer/components/AgentTimelinePanel.tsx`
-  - `apps/desktop/src/renderer/components/ContextColumn.tsx`
-  - `apps/desktop/src/renderer/components/ObservatorySurface.tsx` (History surface; single description and column baseline likely need markup, not just CSS)
   - `apps/desktop/src/renderer/components/WorkspaceNavigationPanel.tsx`
   - `apps/desktop/src/renderer/components/WorkspaceRail.tsx`
   - `apps/desktop/src/renderer/components/TerminalDesk.tsx`
-  - `apps/desktop/src/renderer/app.tsx` (sidebar rows and repeated workspace copy render here)
 
 **Context panel decisions:**
 - Keep immediately visible:
@@ -291,13 +258,10 @@ New or sharpened findings:
 **Purpose:** Replace generic letter boxes and placeholder identity with Alfred-specific operational marks that fit the app icon direction.
 
 **Files:**
-- Extend existing icon components; do not create a parallel icon system (`lucide-react` is already a dependency used across the renderer):
-  - `apps/desktop/src/renderer/tile-kind-icon.tsx` (kind → Lucide map already covers claude/codex/manual/shell/dev-server)
-  - `apps/desktop/src/renderer/components/SessionStatusGlyph.tsx`
-  - `apps/desktop/src/renderer/components/AlfredMark.tsx`
-- Modify (letter marks render here):
-  - `apps/desktop/src/renderer/app.tsx` (`workspace-nav-mark` short labels ~line 2344, `!` alert ~2362, `FC` ~2384)
-  - `apps/desktop/src/renderer/staged-tile.tsx` (`tile-kind-mark`)
+- Likely create:
+  - `apps/desktop/src/renderer/components/AlfredGlyph.tsx`
+  - `apps/desktop/src/renderer/components/SessionKindIcon.tsx`
+- Modify:
   - `apps/desktop/src/renderer/components/WorkspaceNavigationPanel.tsx`
   - `apps/desktop/src/renderer/components/WorkspaceRail.tsx`
   - `apps/desktop/src/renderer/components/TerminalDesk.tsx`
@@ -310,13 +274,12 @@ New or sharpened findings:
 - Replace raw letters where they feel like placeholders:
   - workspace `W4`, `A`, `COD`,
   - session `M`, `Cx`, `Cl`,
-  - nav `FC`,
   - inbox `!`.
 - Keep accessible labels; icons are visual affordances, not the only text.
 - Do not introduce decorative illustrations into the workbench.
 
 **Steps:**
-- [ ] Inventory all letter-box marks with `rg -n "workspace-monogram|workspace-nav-mark|tile-kind-mark|shortLabel" apps/desktop/src/renderer` (bare `M`/`!` alternations match too much to be useful).
+- [ ] Inventory all letter-box marks with `rg -n "workspace-monogram|workspace-nav-mark|tile-kind-mark|Cx|Cl|M|!" apps/desktop/src/renderer`.
 - [ ] Define a minimal glyph set:
   - workspace,
   - manual shell,
@@ -400,12 +363,12 @@ New or sharpened findings:
 **Files:**
 - Modify:
   - `apps/desktop/src/renderer/styles.css`
-  - `apps/desktop/src/renderer/components/SessionObservatoryPanel.tsx` (session quick switch)
+  - `apps/desktop/src/renderer/components/SessionObservatory.tsx` or current session quick switch component
   - `apps/desktop/src/renderer/components/CommandPalette.tsx`
-  - `apps/desktop/src/renderer/app.tsx` (privacy panel markup lives inline; `privacyPanelOpen` state ~line 178 — there is no `LocalDataPrivacyPanel.tsx`)
+  - `apps/desktop/src/renderer/components/LocalDataPrivacyPanel.tsx`
 - Test:
   - `apps/desktop/src/renderer/app.test.tsx`
-  - `apps/desktop/src/renderer/components/SessionObservatoryPanel.test.tsx`
+  - relevant component tests if present.
 
 **Rules:**
 - One overlay visual language:
@@ -421,7 +384,6 @@ New or sharpened findings:
 
 **Steps:**
 - [ ] Inventory overlay components and shared classes.
-- [ ] Verify remaining `backdrop-filter` declarations stay explicitly pinned to `none`; as of 2026-07-08 all matching declarations are `none`, so this is a regression guard rather than a visual cleanup count.
 - [ ] Add CSS contract for overlay panel/scrim tokens.
 - [ ] Remove duplicate hero-like headings in quick switch when search already explains the mode.
 - [ ] Add keyboard hint footer where it improves discoverability.
