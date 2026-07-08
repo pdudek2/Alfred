@@ -5044,58 +5044,89 @@ body.arranging-pointer {
   scrollbar-color: color-mix(in oklab, white 12%, transparent) transparent;
 }
 
-.agent-context-zone {
+.agent-context-essentials {
   display: grid;
-  gap: 10px;
-  padding: 14px 0;
-  border-top: 1px solid var(--line);
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--surface-control);
+  background-image: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
 }
 
-.agent-context-zone:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-
-.agent-context-zone > .agent-panel-section,
-.agent-context-zone > .agent-staged-editor,
-.agent-context-zone > .agent-staged-edit-form {
+.agent-context-essentials p {
   margin: 0;
-}
-
-.agent-context-zone-heading {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
   min-width: 0;
-  display: grid;
-  gap: 2px;
+  color: var(--text-secondary);
+  font: 500 12px/1.35 var(--sans);
 }
 
-.agent-context-zone-heading span,
-.agent-context-zone-heading strong {
-  display: block;
-  min-width: 0;
+.agent-context-essentials .agent-essentials-kind {
+  color: var(--text-muted);
 }
 
-.agent-context-zone-heading span {
-  color: var(--faint);
-  font-family: var(--mono);
+.agent-context-essentials .agent-essentials-cwd,
+.agent-context-essentials .agent-essentials-command {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-essentials-command {
+  font: 500 11.5px/1.4 var(--mono);
+  color: var(--text-primary);
+}
+
+.agent-context-disclosure {
+  margin: 0 0 4px;
+  border-top: 1px solid var(--line);
+  padding-top: 4px;
+}
+
+.agent-disclosure-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 2px;
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  font: 600 12px/1.2 var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.agent-disclosure-toggle::before {
+  content: "▸";
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: lowercase;
+  color: var(--text-faint);
 }
 
-.agent-context-zone-heading strong {
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 620;
+.agent-disclosure-toggle[aria-expanded="true"]::before {
+  content: "▾";
 }
 
-.agent-context-identity .agent-session-summary {
-  background: var(--surface-raised);
-  border-color: var(--line-strong);
+.agent-disclosure-toggle:hover,
+.agent-disclosure-toggle:focus-visible {
+  color: var(--text-primary);
 }
 
-.agent-context-more {
-  color: var(--muted);
+.agent-handoff-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.agent-activity-note {
+  margin: 0 0 8px;
+  color: var(--text-faint);
+  font: 500 11.5px/1.4 var(--sans);
 }
 
 .agent-timeline-empty {
@@ -5114,49 +5145,6 @@ body.arranging-pointer {
     linear-gradient(180deg, color-mix(in oklab, white 3%, transparent), transparent 64px),
     color-mix(in oklab, black 16%, transparent);
   box-shadow: inset 0 1px 0 color-mix(in oklab, white 5%, transparent);
-}
-
-.agent-section-heading {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-  margin-bottom: 10px;
-}
-
-.agent-section-heading span,
-.agent-section-heading strong,
-.agent-section-heading p {
-  display: block;
-  min-width: 0;
-}
-
-.agent-section-heading span {
-  color: var(--faint);
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: lowercase;
-  letter-spacing: 0.04em;
-}
-
-.agent-section-heading strong {
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 620;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-section-heading p {
-  margin: 1px 0 0;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-.agent-session-summary .agent-section-heading {
-  margin-bottom: 12px;
 }
 
 .agent-session-facts {
@@ -5317,42 +5305,10 @@ body.arranging-pointer {
   opacity: 0.55;
 }
 
-.agent-handoff-actions {
-  display: grid;
-  gap: 9px;
-}
-
-.agent-handoff-actions span,
-.agent-handoff-actions strong {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-handoff-actions span {
-  color: inherit;
-}
-
-.agent-handoff-actions .agent-section-heading span {
-  color: var(--faint);
-  font-family: var(--mono);
-  font-size: 10px;
-  text-transform: lowercase;
-}
-
 .agent-handoff-buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
-}
-
-.agent-handoff-note {
-  margin: 6px 0 0;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.45;
 }
 
 .agent-handoff-buttons button {
@@ -5401,6 +5357,10 @@ body.arranging-pointer {
     color-mix(in oklab, white 2.6%, transparent);
   color: var(--signal-focus);
   box-shadow: inset 0 1px 0 color-mix(in oklab, white 6%, transparent);
+}
+
+.agent-timeline-body > .agent-session-pulse {
+  margin: 0 0 12px;
 }
 
 .agent-session-pulse span {
@@ -5486,14 +5446,6 @@ body.arranging-pointer {
 .agent-activity-digest .tone-issue { color: var(--signal-danger); }
 .agent-activity-digest .tone-plan { color: var(--signal-focus); }
 .agent-activity-digest .tone-work { color: var(--signal-focus); }
-
-.agent-timeline-section {
-  padding-bottom: 12px;
-}
-
-.agent-timeline-section .agent-section-heading {
-  margin-bottom: 12px;
-}
 
 .agent-activity-list {
   display: grid;
@@ -5790,27 +5742,6 @@ body {
 }
 
 /* --- Inspector dock: hierarchy, not four equal boxes --- */
-/* Eyebrow labels: tiny, uppercase, quiet — consistent across sections. */
-/* Eyebrow = the <span> only; title + detail stay normal-case and wrap (no clip). */
-.agent-section-heading > span {
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.agent-section-heading > strong {
-  text-transform: none;
-  white-space: normal;
-  font-family: var(--sans);
-}
-
-.agent-section-heading > p {
-  text-transform: none;
-  color: var(--text-muted);
-}
-
 /* Secondary sections: quiet, divider-separated — no competing boxes. */
 .agent-panel-section {
   background: transparent;
@@ -5819,24 +5750,6 @@ body {
   border-radius: 0;
   box-shadow: none;
   padding: 16px 2px;
-}
-
-/* Lead block: the one prominent surface — session context. */
-.agent-panel-section.agent-session-summary {
-  background: var(--surface-raised);
-  border: 1px solid var(--line-strong);
-  border-radius: 14px;
-  box-shadow: var(--depth-card);
-  padding: 16px;
-}
-
-/* Latest signal keeps a quiet active edge — it answers "what happened". */
-.agent-panel-section.agent-key-signal {
-  border-top: 1px solid var(--line-strong);
-}
-
-.agent-panel-section.agent-key-signal .agent-section-heading > span {
-  color: var(--signal-focus);
 }
 
 /* Handoff actions read as a quiet utility row, not a primary panel. */
@@ -6054,8 +5967,7 @@ body {
 
 .terminal-stage-header span,
 .agent-timeline-header span,
-.review-context-summary header span,
-.agent-section-heading > span {
+.review-context-summary header span {
   font-family: var(--sans);
   letter-spacing: 0.08em;
 }
@@ -6068,17 +5980,6 @@ body {
   font-size: 15px;
   font-weight: 650;
   color: var(--text-primary);
-}
-
-.agent-section-heading > strong {
-  font-size: var(--type-panel-title);
-  font-weight: 650;
-  line-height: 1.25;
-}
-
-.agent-section-heading > p {
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 .review-context-summary {
@@ -6474,62 +6375,9 @@ body {
   padding: 12px 14px 14px;
 }
 
-.agent-timeline-body .agent-context-zone {
-  gap: 9px;
-  padding: 13px 0;
-  border-top-color: var(--line);
-}
-
-.agent-timeline-body .agent-context-zone:first-child {
-  padding-top: 0;
-}
-
-.agent-timeline-body .agent-context-zone > .agent-panel-section,
-.agent-timeline-body .agent-context-zone > .agent-staged-editor,
-.agent-timeline-body .agent-context-zone > .agent-staged-edit-form {
-  margin-bottom: 0;
-}
-
-.agent-context-zone-heading span {
-  color: color-mix(in oklab, var(--text-muted) 82%, transparent);
-  font-family: var(--sans);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.agent-context-zone-heading strong {
-  color: var(--text-primary);
-  font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 650;
-  letter-spacing: 0;
-}
-
 .agent-timeline-body .agent-panel-section {
   margin-bottom: 10px;
   padding: 12px 2px;
-}
-
-.agent-panel-section.agent-session-summary {
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 4.5%, transparent), transparent 76%),
-    color-mix(in oklab, var(--surface-raised) 82%, black 18%);
-  border-color: color-mix(in oklab, var(--signal-focus) 12%, transparent);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 14px 30px -26px rgba(0, 0, 0, 0.78);
-  padding: 13px;
-}
-
-.agent-timeline-body .agent-context-identity .agent-session-summary {
-  background: var(--surface-raised);
-  border-color: var(--line-strong);
-}
-
-.agent-session-summary .agent-section-heading {
-  margin-bottom: 9px;
 }
 
 .agent-session-facts {
@@ -6550,18 +6398,8 @@ body {
   padding: 7px;
 }
 
-.agent-panel-section.agent-key-signal .agent-section-heading > span,
-.agent-section-heading > span,
 .review-context-summary header span {
   color: color-mix(in oklab, var(--signal-focus-strong) 66%, var(--text-muted));
-}
-
-.agent-panel-section.agent-key-signal {
-  border-top-color: var(--line-strong);
-}
-
-.agent-timeline-section .agent-section-heading {
-  margin-bottom: 8px;
 }
 
 .agent-activity-list {
@@ -8537,7 +8375,6 @@ body {
 }
 
 .agent-panel-section,
-.agent-panel-section.agent-session-summary,
 .agent-session-pulse,
 .review-context-summary,
 .review-surface-item,
@@ -8549,10 +8386,6 @@ body {
   background: var(--surface-raised);
   background-image: none;
   box-shadow: none;
-}
-
-.agent-panel-section.agent-session-summary {
-  border-color: color-mix(in oklab, var(--signal-focus) 18%, var(--border));
 }
 
 .dispatch-target-chip,
@@ -8890,16 +8723,10 @@ body {
 }
 
 .agent-panel-section,
-.agent-panel-section.agent-session-summary,
 .agent-session-pulse,
 .review-context-summary {
   border-color: var(--border);
   border-radius: var(--radius-panel);
-  background: var(--surface-raised);
-}
-
-.agent-panel-section.agent-session-summary {
-  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
   background: var(--surface-raised);
 }
 
@@ -8959,7 +8786,6 @@ body {
   overflow: auto;
 }
 
-.agent-section-heading,
 .agent-detail-list,
 .agent-handoff-buttons,
 .agent-timeline-list {
@@ -9139,7 +8965,6 @@ body {
 }
 
 .context-drawer .agent-panel-section,
-.context-drawer .agent-panel-section.agent-session-summary,
 .context-drawer .agent-session-pulse {
   background: var(--surface-raised);
   background-image: none;
@@ -10097,47 +9922,10 @@ body {
   letter-spacing: 0;
 }
 
-.agent-context-zone.agent-context-identity {
-  color: var(--text-muted);
-}
-
 .context-drawer-header strong,
 .agent-timeline-header strong,
-.agent-context-zone-heading strong,
-.agent-section-heading strong,
 .agent-session-pulse strong {
   color: var(--text-primary);
-}
-
-.agent-panel-section.agent-session-summary {
-  background: var(--surface-control);
-  background-image: none;
-  border-color: var(--border);
-  color: var(--text-muted);
-  box-shadow: none;
-}
-
-.agent-context-zone-heading {
-  gap: 3px;
-}
-
-.agent-context-zone-heading span,
-.agent-section-heading span {
-  color: var(--text-faint);
-  font: 700 10px/1 var(--sans);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.agent-context-zone-heading strong,
-.agent-section-heading strong {
-  font: 650 13px/1.2 var(--sans);
-  letter-spacing: 0;
-}
-
-.agent-section-heading p {
-  color: var(--text-muted);
-  font: 500 11px/1.45 var(--sans);
 }
 
 .agent-session-facts {
@@ -10161,28 +9949,10 @@ body {
   font: 500 11px/1.35 var(--mono);
 }
 
-.agent-panel-section.agent-key-signal {
-  background: color-mix(in oklab, var(--role-active) 4%, var(--surface-control));
-  background-image: none;
-  border-color: color-mix(in oklab, var(--role-active) 18%, var(--border));
-  box-shadow: none;
-}
-
-.agent-context-zone.agent-context-more {
-  color: var(--text-faint);
-}
-
-.agent-timeline-section,
 .agent-activity-list {
   color: var(--text-faint);
 }
 
-.agent-context-zone.agent-context-more .agent-section-heading strong,
-.agent-timeline-section .agent-section-heading strong {
-  color: var(--text-muted);
-}
-
-.agent-context-zone.agent-context-more .agent-section-heading p,
 .agent-activity-list p,
 .agent-activity-list time {
   color: var(--text-faint);
@@ -10233,24 +10003,35 @@ body {
 }
 
 .workspace-nav-row {
-  min-height: 48px;
-  border-color: transparent;
   background: transparent;
-  color: var(--text-muted);
-  grid-template-columns: 26px minmax(0, 1fr);
-  gap: 10px;
+  border: 0;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-align: left;
+  cursor: pointer;
 }
 
 .workspace-nav-row strong {
   color: var(--text-secondary);
   font: 650 13px/1.22 var(--sans);
-  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workspace-nav-row small {
   color: var(--text-faint);
-  margin-top: 3px;
-  font: 500 11px/1.35 var(--sans);
+  white-space: nowrap;
+}
+
+.workspace-nav-row.workspace-nav-inbox {
+  margin: 2px 8px 10px;
+  width: auto;
 }
 
 .workspace-nav-empty {
