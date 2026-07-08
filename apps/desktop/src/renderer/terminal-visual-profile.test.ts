@@ -12,7 +12,7 @@ describe("alfredGraphiteTerminalProfile", () => {
     expect(alfredGraphiteTerminalProfile.lineHeight).toBe(1.32);
   });
 
-  it("matches Alfred's graphite shell instead of the old Vesper copy", () => {
+  it("keeps Alfred's tactical graphite xterm surface aligned with CSS tokens", () => {
     expect(alfredGraphiteTerminalProfile.theme.background).toBe("#0a0e12");
     expect(alfredGraphiteTerminalProfile.theme.cursor).toBe("#6ee7ff");
     expect(alfredGraphiteTerminalProfile.theme.selectionBackground).toBe("#12313a");

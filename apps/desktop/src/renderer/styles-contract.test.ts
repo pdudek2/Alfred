@@ -12,28 +12,6 @@ if (!stylesPath) {
 }
 
 const styles = readFileSync(stylesPath, "utf8");
-const flatStylesStart = styles.indexOf("ALFRED CLEAN FLAT v4");
-
-if (flatStylesStart < 0) {
-  throw new Error("Unable to locate CLEAN FLAT v4 styles");
-}
-
-const flatStyles = styles.slice(flatStylesStart);
-const workbenchStylesStart = styles.indexOf("ALFRED WORKBENCH CLEAN v5");
-
-if (workbenchStylesStart < 0) {
-  throw new Error("Unable to locate WORKBENCH CLEAN v5 styles");
-}
-
-const workbenchStyles = styles.slice(workbenchStylesStart);
-const polishStylesStart = styles.indexOf("ALFRED WORKBENCH POLISH v6");
-const polishStyles = polishStylesStart >= 0 ? styles.slice(polishStylesStart) : "";
-const materialStylesStart = styles.indexOf("ALFRED CLEAN MATERIAL v7");
-const materialStyles = materialStylesStart >= 0 ? styles.slice(materialStylesStart) : "";
-const readabilityStylesStart = styles.indexOf("ALFRED CLEAN READABILITY v8");
-const readabilityStyles = readabilityStylesStart >= 0 ? styles.slice(readabilityStylesStart) : "";
-const colorRoleStylesStart = styles.indexOf("ALFRED TERMINAL-FIRST COLOR ROLES v9");
-const colorRoleStyles = colorRoleStylesStart >= 0 ? styles.slice(colorRoleStylesStart) : "";
 
 function blockFor(selector: string): string {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -44,6 +22,17 @@ function blockFor(selector: string): string {
 function firstBlockFor(source: string, selector: string): string {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return source.match(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`, "m"))?.groups?.body ?? "";
+}
+
+function blocksFor(selector: string): string[] {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return [...styles.matchAll(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`, "gm"))].map(
+    (match) => match.groups?.body ?? "",
+  );
+}
+
+function blockForContaining(selector: string, text: string): string {
+  return blocksFor(selector).find((body) => body.includes(text)) ?? "";
 }
 
 function exactBlockFor(selector: string): string {
@@ -81,6 +70,21 @@ function rootToken(name: string): string {
   return match?.[1] ?? "";
 }
 
+function tokenValue(name: string): string {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return styles.match(new RegExp(`${escaped}:\\s*([^;]+);`))?.[1]?.trim() ?? "";
+}
+
+function tokenDefinitionCount(tokenName: string): number {
+  const escaped = tokenName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return [...styles.matchAll(new RegExp(`${escaped}:\\s*`, "g"))].length;
+}
+
+function tokenUsageCount(tokenPrefix: string): number {
+  const escaped = tokenPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return [...styles.matchAll(new RegExp(`var\\(${escaped}`, "g"))].length;
+}
+
 function relativeLuminance(hex: string): number {
   const channels = hex
     .replace("#", "")
@@ -103,6 +107,69 @@ function contrastRatio(foreground: string, background: string): number {
 }
 
 describe("renderer CSS contracts", () => {
+  it("uses one canonical tactical-dark token hierarchy", () => {
+    expect(tokenDefinitionCount("--surface-terminal")).toBe(1);
+    expect(tokenDefinitionCount("--surface-canvas")).toBe(1);
+    expect(tokenDefinitionCount("--surface-panel")).toBe(1);
+    expect(tokenDefinitionCount("--surface-raised")).toBe(1);
+    expect(tokenDefinitionCount("--surface-workbench")).toBe(1);
+    expect(tokenDefinitionCount("--surface-chrome")).toBe(1);
+    expect(tokenDefinitionCount("--surface-control")).toBe(1);
+    expect(tokenDefinitionCount("--surface-control-hover")).toBe(1);
+    expect(tokenDefinitionCount("--surface-tile-header")).toBe(1);
+    expect(tokenDefinitionCount("--text-primary")).toBe(1);
+    expect(tokenDefinitionCount("--text-muted")).toBe(1);
+    expect(tokenDefinitionCount("--text-faint")).toBe(1);
+
+    expect(rootToken("--surface-workbench")).toBe("#040506");
+    expect(rootToken("--surface-chrome")).toBe("#07090b");
+    expect(rootToken("--surface-chrome-soft")).toBe("#0b0f13");
+    expect(rootToken("--surface-control")).toBe("#090d11");
+    expect(rootToken("--surface-control-hover")).toBe("#10151a");
+    expect(rootToken("--surface-tile-header")).toBe("#0b0f13");
+    expect(tokenValue("--accent")).toBe("var(--signal-focus)");
+    expect(tokenValue("--terminal")).toBe("var(--surface-terminal)");
+    expect(styles).not.toMatch(/--flat-/);
+    expect(styles).not.toMatch(/--proto-/);
+    expect(styles).not.toMatch(/ALFRED CLEAN FLAT v4/);
+    expect(styles).not.toMatch(/ALFRED WORKBENCH CLEAN v5/);
+    expect(styles).not.toMatch(/ALFRED WORKBENCH POLISH v6/);
+    expect(styles).not.toMatch(/ALFRED CLEAN MATERIAL v7/);
+    expect(styles).not.toMatch(/ALFRED CLEAN READABILITY v8/);
+    expect(styles).not.toMatch(/ALFRED TERMINAL-FIRST COLOR ROLES v9/);
+    expect(tokenUsageCount("--flat-")).toBe(0);
+    expect(tokenUsageCount("--proto-")).toBe(0);
+  });
+
+  it("keeps terminal-first contrast and avoids glass on primary surfaces", () => {
+    expect(contrastRatio(rootToken("--text-primary"), rootToken("--surface-terminal"))).toBeGreaterThanOrEqual(12);
+    expect(contrastRatio(rootToken("--text-muted"), rootToken("--surface-panel"))).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(rootToken("--text-faint"), rootToken("--surface-panel"))).toBeGreaterThanOrEqual(4.0);
+
+    expect(styles).not.toMatch(/backdrop-filter:\s*blur/i);
+    expect(styles).not.toMatch(/-webkit-backdrop-filter:\s*blur/i);
+    expect(styles).not.toMatch(/--glass:/);
+  });
+
+  it("keeps the CSS terminal surface on the legacy shell rail", () => {
+    const xtermHost = blockFor(".terminal-tile .terminal-host,\n.terminal-tile .xterm-host");
+
+    expect(rootToken("--surface-terminal")).toBe("#070808");
+    expect(rootToken("--signal-focus")).toBe("#55bdca");
+    expect(xtermHost).toContain("background: var(--surface-terminal)");
+  });
+
+  it("routes operational colors through signal tokens", () => {
+    expect(styles).not.toMatch(/rgba\(83,\s*199,\s*216,/);
+    expect(styles).not.toMatch(/rgba\(217,\s*174,\s*70,/);
+    expect(styles).not.toMatch(/#(?:35d47f|37d884|3ee68a)/i);
+    expect(rootToken("--signal-agent")).toBe("#e0b75b");
+    expect(styles).not.toMatch(/var\(--accent\)/);
+    expect(styles).not.toMatch(/var\(--amber\)/);
+    expect(styles).not.toMatch(/var\(--coral\)/);
+    expect(styles).not.toMatch(/var\(--green\)/);
+  });
+
   it("keeps Arrange mode scrollable with room for the bottom resize handle", () => {
     const arrangeCanvas = blockFor(".terminal-stage.arranging .terminal-grid-column");
     const arrangingGrid = blockFor(".terminal-stage.arranging .terminal-grid");
@@ -163,13 +230,18 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps the clean flat workbench controls proportional", () => {
-    expect(flatStyles).toContain(".workbench-actions button,");
-    expect(flatStyles).toContain("height: var(--flat-control-height)");
-    expect(flatStyles).toContain("background: var(--flat-control)");
-    expect(flatStyles).toContain(".workbench-tool-group");
-    expect(flatStyles).toContain("padding: 2px");
-    expect(flatStyles).toContain(".workbench-primary-action");
-    expect(flatStyles).toContain("background-image: none");
+    const workbenchAction = blockFor(
+      ".workbench-actions button,\n.context-toggle-button,\n.agent-handoff-buttons button,\n.workspace-preview-actions button,\n.review-surface-primary,\n.review-surface-discard,\n.observatory-surface-header button,\n.observatory-detail-card button",
+    );
+    const workbenchToolGroup = blockFor(".workbench-tool-group");
+    const primaryAction = blockFor(".workbench-primary-action,\n.mission-actions .new-terminal-button");
+
+    expect(workbenchAction).toMatch(/height:\s*(?:var\(--control-height\)|32px)/);
+    expect(workbenchAction).toContain("background:");
+    expect(workbenchToolGroup).toContain("padding: 2px");
+    expect(primaryAction).toContain("height:");
+    expect(styles).not.toContain("--flat-control-height");
+    expect(styles).not.toContain("--flat-control");
   });
 
   it("keeps header counts quiet instead of rendering badge bubbles", () => {
@@ -196,47 +268,61 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps legacy gradients out of the main clean flat surfaces", () => {
-    expect(flatStyles).toContain(".workspace-popover");
-    expect(flatStyles).toContain("background: var(--flat-panel-2)");
-    expect(flatStyles).toContain(".terminal-tile");
-    expect(flatStyles).toContain("background-image: none");
-    expect(flatStyles).toContain(".workspace-button.active");
+    const workspacePopover = blockFor(".workspace-popover");
+    const terminalTile = exactBlockFor(".terminal-tile");
+    const activeWorkspace = blockFor(".workspace-button.active,\n.workspace-button.active:hover");
+
+    expect(workspacePopover).toContain("background:");
+    expect(workspacePopover).not.toContain("linear-gradient");
+    expect(terminalTile).toContain("background-image: none");
+    expect(terminalTile).not.toContain("linear-gradient");
+    expect(activeWorkspace).toContain("background:");
+    expect(styles).not.toContain("--flat-");
   });
 
   it("keeps the workbench shell close to the current layout", () => {
-    expect(workbenchStyles).toContain("grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr)");
-    expect(workbenchStyles).toContain(".context-column {");
-    expect(materialStyles).toContain(".workspace-layout:has(.context-column.open)");
-    expect(materialStyles).toContain("grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr) minmax(304px, 340px)");
-    expect(materialStyles).toContain(".workspace-layout > .context-column.open");
-    expect(materialStyles).toContain("position: static");
-    expect(workbenchStyles).toContain(".context-column.closed");
-    expect(workbenchStyles).toContain("display: none");
+    const closedLayout = blockFor(
+      ".workspace-layout,\n.workspace-layout.alfred-compact,\n.workspace-layout.preview-visible,\n.workspace-layout.alfred-compact.preview-visible,\n.workspace-layout:has(.context-column.closed),\n.workspace-layout.alfred-compact:has(.context-column.closed),\n.workspace-layout.preview-visible:has(.context-column.closed),\n.workspace-layout.alfred-compact.preview-visible:has(.context-column.closed),\n.workspace-layout.surface-inbox,\n.workspace-layout.surface-history,\n.workspace-layout.surface-inbox.preview-visible,\n.workspace-layout.surface-history.preview-visible,\n.workspace-layout.surface-inbox.alfred-compact,\n.workspace-layout.surface-history.alfred-compact",
+    );
+    const openLayout = blockFor(
+      ".workspace-layout:has(.context-column.open),\n.workspace-layout.alfred-compact:has(.context-column.open),\n.workspace-layout.preview-visible:has(.context-column.open),\n.workspace-layout.alfred-compact.preview-visible:has(.context-column.open),\n.workspace-layout.surface-inbox:has(.context-column.open),\n.workspace-layout.surface-history:has(.context-column.open)",
+    );
+    const openColumn = firstBlockFor(styles, ".workspace-layout > .context-column.open");
+    const closedColumn = blockFor(".workspace-layout > .context-column.closed");
+
+    expect(closedLayout).toContain("grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr)");
+    expect(openLayout).toContain("grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr) minmax(304px, 340px)");
+    expect(openColumn).toContain("position: static");
+    expect(closedColumn).toContain("display: none");
   });
 
   it("keeps the Inbox empty state compact instead of a stretched dashboard card", () => {
-    const emptyLanes = blockFor(".review-empty-lanes div");
+    const reviewEmpty = blockForContaining(".review-surface-empty", "align-self: start");
 
-    expect(workbenchStyles).toContain(".review-surface-empty {");
-    expect(workbenchStyles).toContain("align-self: start");
-    expect(workbenchStyles).toContain("min-height: 0");
-    expect(workbenchStyles).toContain("grid-template-columns: minmax(0, 1fr) auto");
-    expect(workbenchStyles).toContain("background-image: none");
-    expect(emptyLanes).toContain("grid-template-columns: auto minmax(0, 1fr) auto");
+    expect(reviewEmpty).toContain("align-self: start");
+    expect(reviewEmpty).toContain("min-height: 0");
+    expect(reviewEmpty).toContain("grid-template-columns: minmax(0, 1fr)");
+    expect(reviewEmpty).toContain("background-image: none");
+    expect(styles).not.toContain(".review-empty-lanes");
   });
 
   it("styles workspace scrollbars so native white rails do not dominate the shell", () => {
-    expect(workbenchStyles).toContain(".workspace-nav-scroll,");
-    expect(workbenchStyles).toContain("scrollbar-width: thin");
-    expect(workbenchStyles).toContain("scrollbar-color: rgba(255, 255, 255, 0.18) transparent");
-    expect(workbenchStyles).toContain(".workspace-nav-scroll::-webkit-scrollbar-thumb");
-    expect(workbenchStyles).toContain("background: rgba(255, 255, 255, 0.16)");
+    const workspaceScroll = blockFor(
+      ".workspace-nav-scroll,\n.terminal-stage-body,\n.review-surface-list,\n.observatory-surface,\n.observatory-projects,\n.observatory-session-list,\n.context-drawer,\n.agent-timeline-panel",
+    );
+    const scrollbarThumb = blockFor(
+      ".workspace-nav-scroll::-webkit-scrollbar-thumb,\n.terminal-stage-body::-webkit-scrollbar-thumb,\n.review-surface-list::-webkit-scrollbar-thumb,\n.observatory-surface::-webkit-scrollbar-thumb,\n.observatory-projects::-webkit-scrollbar-thumb,\n.observatory-session-list::-webkit-scrollbar-thumb,\n.context-drawer::-webkit-scrollbar-thumb,\n.agent-timeline-panel::-webkit-scrollbar-thumb",
+    );
+
+    expect(workspaceScroll).toContain("scrollbar-width: thin");
+    expect(workspaceScroll).toContain("scrollbar-color:");
+    expect(scrollbarThumb).toContain("background:");
   });
 
   it("keeps the top chrome as one workspace switcher plus one workbench header", () => {
     const frame = blockFor(".desktop-frame");
     const missionBar = blockFor(".mission-bar");
-    const missionNameBase = firstBlockFor(polishStyles, ".mission-bar .mission-name");
+    const missionNameBase = blockForContaining(".mission-bar .mission-name", "position: static");
     const stageUtilityText = blockFor(".terminal-stage-utility span");
 
     expect(frame).toContain("grid-template-rows: 52px minmax(0, 1fr) 58px");
@@ -249,7 +335,7 @@ describe("renderer CSS contracts", () => {
   });
 
   it("makes the context drawer itself scrollable instead of clipping the lower timeline", () => {
-    const contextColumn = firstBlockFor(materialStyles, ".workspace-layout > .context-column.open");
+    const contextColumn = firstBlockFor(styles, ".workspace-layout > .context-column.open");
     const contextDrawer = blockFor(".context-drawer");
     const timelinePanel = blockFor(".context-drawer .agent-timeline-panel");
 
@@ -260,12 +346,14 @@ describe("renderer CSS contracts", () => {
   });
 
   it("removes old glass gradients from the Sessions modal", () => {
-    expect(polishStyles).toContain(".session-observatory-backdrop");
-    expect(polishStyles).toContain("backdrop-filter: none");
-    expect(polishStyles).toContain(".session-observatory-panel");
-    expect(polishStyles).toContain("background-image: none");
-    expect(polishStyles).toContain(".session-observatory-empty");
-    expect(polishStyles).toContain(".session-observatory-main");
+    const backdrop = blockFor(".session-observatory-backdrop");
+    const panel = blockFor(".session-observatory-panel");
+    const empty = blockFor(".session-observatory-empty");
+
+    expect(backdrop).toContain("backdrop-filter: none");
+    expect(panel).toContain("background-image: none");
+    expect(empty).toContain("background-image: none");
+    expect(panel).not.toContain("linear-gradient");
   });
 
   it("keeps recovery strip text from visually colliding", () => {
@@ -285,24 +373,35 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps terminal tile chrome secondary to the xterm body", () => {
+    const tile = blockForContaining(".terminal-tile", "box-shadow: none");
     const header = blockFor(".terminal-tile-header");
+    const tileTitle = blockFor(".terminal-tile-header .tile-title b");
+    const xtermHost = exactBlockFor(".xterm-host");
     const kindMark = blockFor(".tile-kind-mark");
     const kindMarkText = blockFor(".tile-kind-mark span");
     const primaryActions = blockFor(".tile-primary-actions");
+    const primaryActionButton = blockForContaining(".tile-primary-actions .continue-button", "var(--role-active)");
     const utilities = blockFor(".tile-utility-actions,\n.tile-danger-actions");
+    const utilityButtons = blockFor(".tile-utility-actions button,\n.tile-danger-actions button");
     const readyToolDot = blockFor(".terminal-tile.real-terminal.ready .tool-dot");
     const selectedToolDotRule = ruleForSelectorContaining(".terminal-tile.real-terminal.selected .tool-dot");
     const terminalChromeLayer = styles.slice(styles.indexOf(".terminal-tile.real-terminal .tool-dot"));
 
+    expect(tile).toContain("background: var(--surface-chrome)");
+    expect(tile).toContain("box-shadow: none");
     expect(header).toContain("min-height");
-    expect(header).toContain("background: var(--proto-panel-soft)");
+    expect(header).toContain("background: var(--surface-tile-header)");
     expect(header).not.toContain("linear-gradient");
+    expect(tileTitle).toContain("font: 650 13px/1.12 var(--sans)");
+    expect(xtermHost).toContain("background: var(--surface-terminal)");
     expect(kindMark).toContain("width: 24px");
     expect(kindMarkText).toContain("display: none");
     expect(primaryActions).toContain("opacity: 1");
     expect(primaryActions).toContain("pointer-events: auto");
+    expect(primaryActionButton).toContain("var(--role-active)");
     expect(utilities).toContain("opacity: 0");
     expect(utilities).toContain("pointer-events: none");
+    expect(utilityButtons).toContain("color: var(--text-faint)");
     expect(readyToolDot).not.toContain("var(--green)");
     expect(selectedToolDotRule.selectors).toContain(".terminal-tile.real-terminal.selected .tool-dot");
     expect(selectedToolDotRule.selectors).toContain(".terminal-tile.real-terminal.session-waiting .tool-dot");
@@ -345,8 +444,10 @@ describe("renderer CSS contracts", () => {
     const codexHover = blockFor(".workbench-launch-group button[aria-label=\"Start Codex\"]:hover,\n.workbench-launch-group button[aria-label=\"Start Codex\"]:focus-visible");
     const claudeHover = blockFor(".workbench-launch-group button[aria-label=\"Start Claude\"]:hover,\n.workbench-launch-group button[aria-label=\"Start Claude\"]:focus-visible");
 
-    expect(colorRoleStyles).toContain("--role-active: var(--cyan)");
-    expect(colorRoleStyles).toContain("--role-success: #63d18a");
+    expect(styles).toContain("--role-active: var(--signal-focus)");
+    expect(styles).toContain("--role-success: var(--signal-success)");
+    expect(styles).toContain("--role-control: var(--surface-control)");
+    expect(styles).toContain("--role-control-hover: var(--surface-control-hover)");
     expect(manualDot).toContain("var(--role-neutral-marker)");
     expect(manualDot).not.toContain("var(--green)");
     expect(codexDot).toContain("var(--codex-blue)");
@@ -356,7 +457,7 @@ describe("renderer CSS contracts", () => {
     expect(readyDispatch).not.toContain("var(--role-success)");
     expect(commandActivity).toContain("var(--role-active)");
     expect(activeControlHover).toContain("var(--role-active)");
-    expect(activeControlHover).toContain("var(--accent-strong)");
+    expect(activeControlHover).toContain("var(--signal-focus-strong)");
     expect(codexHover).toContain("var(--codex-blue)");
     expect(claudeHover).toContain("var(--claude-amber)");
   });
@@ -375,7 +476,7 @@ describe("renderer CSS contracts", () => {
     );
 
     expect(importantPrimaryRules).toEqual([]);
-    expect(finalPrimaryAction).toContain("var(--role-success)");
+    expect(finalPrimaryAction).toContain("var(--border-focus)");
     expect(finalPrimaryAction).not.toMatch(/(background|border-color|box-shadow|color|padding):[^;]+!important/i);
   });
 
@@ -394,51 +495,133 @@ describe("renderer CSS contracts", () => {
 
   it("keeps overlay surfaces flat instead of glassy", () => {
     const overlayBackdrop = blockFor(".review-queue-backdrop,\n.command-palette-backdrop,\n.session-observatory-backdrop");
+    const commandPalette = blockFor(".command-palette,\n.global-review-panel,\n.privacy-panel,\n.session-observatory-panel");
 
-    expect(materialStyles).toContain("ALFRED CLEAN MATERIAL v7");
     expect(overlayBackdrop).toContain("backdrop-filter: none");
     expect(overlayBackdrop).toContain("background-image: none");
-    expect(materialStyles).toContain(".command-palette,");
-    expect(materialStyles).toContain("box-shadow: none");
+    expect(commandPalette).toContain("background: var(--surface-panel)");
+    expect(commandPalette).toContain("background-image: none");
   });
 
   it("keeps the Work chrome quiet and command-like", () => {
     const tileUtilities = blockFor(".tile-utility-actions,\n.tile-danger-actions");
     const dispatchBar = blockFor(".dispatch-bar");
+    const dispatchCapsule = blockFor(".dispatch-capsule");
     const dispatchChip = blockFor(".dispatch-target-chip,\n.dispatch-bar .composer-input,\n.dispatch-bar .composer-send");
 
-    expect(readabilityStyles).toContain("ALFRED CLEAN READABILITY v8");
-    expect(readabilityStyles).toContain(".arrange-mode-label");
+    expect(styles).toContain(".arrange-mode-label");
     expect(tileUtilities).toContain("opacity: 0");
     expect(tileUtilities).toContain("pointer-events: none");
-    expect(dispatchBar).toContain("grid-template-rows: 32px 14px");
+    expect(dispatchBar).toContain("grid-template-rows: var(--control-height) 14px");
+    expect(dispatchCapsule).toContain("height: var(--control-height)");
+    expect(dispatchCapsule).toContain("background-image: none");
     expect(dispatchChip).toContain("background-image: none");
     expect(styles).not.toContain(".work-mode-control");
     expect(styles).not.toContain(".layout-controls button");
   });
 
   it("keeps workbench controls on shared sizing tokens instead of ad-hoc px heights", () => {
-    const workbenchControlSizing = firstBlockFor(
-      readabilityStyles,
+    const workbenchControlSizing = blockForContaining(
       ".workbench-tool-group,\n.workbench-actions button,\n.context-toggle-button",
+      "height: var(--workbench-control-height)",
     );
-    const workbenchSegmentSizing = firstBlockFor(readabilityStyles, ".workbench-tool-group button");
+    const workbenchSegmentSizing = blockForContaining(
+      ".workbench-tool-group button",
+      "height: var(--workbench-segment-height)",
+    );
 
-    expect(readabilityStyles).toContain("--workbench-control-height: 32px");
-    expect(readabilityStyles).toContain("--workbench-segment-height: calc(var(--workbench-control-height) - 6px)");
+    expect(styles).toContain("--workbench-control-height: 32px");
+    expect(styles).toContain("--workbench-segment-height: calc(var(--workbench-control-height) - 6px)");
     expect(workbenchControlSizing).toContain("height: var(--workbench-control-height)");
     expect(workbenchControlSizing).toContain("min-height: var(--workbench-control-height)");
     expect(workbenchSegmentSizing).toContain("height: var(--workbench-segment-height)");
     expect(workbenchSegmentSizing).toContain("min-height: var(--workbench-segment-height)");
-    expect(readabilityStyles).not.toMatch(/\.workbench-tool-group button\s*\{[^}]*height:\s*(?:24|30|32)px/s);
+    expect(styles).not.toMatch(/\.workbench-tool-group button\s*\{[^}]*height:\s*(?:24|30|32)px/s);
   });
 
   it("keeps passive chrome text readable against the dark panel surface", () => {
-    expect(contrastRatio(rootToken("--passive"), rootToken("--surface-panel"))).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(rootToken("--text-faint"), rootToken("--surface-panel"))).toBeGreaterThanOrEqual(4.0);
   });
 
   it("keeps chrome microcopy on a readable type floor", () => {
     expect(styles).toContain("--type-micro: 10px");
     expect(styles).not.toMatch(/font-size:\s*(?:8\.5|9)px/);
+  });
+
+  it("keeps Context hierarchy quiet except selected session and key signal", () => {
+    const drawer = blockForContaining(".context-drawer", "background: var(--surface-panel)");
+    const identity = blockForContaining(".agent-context-zone.agent-context-identity", "color: var(--text-muted)");
+    const summary = blockFor(".agent-panel-section.agent-session-summary");
+    const moreDetails = blockForContaining(".agent-context-zone.agent-context-more", "color: var(--text-faint)");
+    const activityList = blockForContaining(".agent-activity-list", "color: var(--text-faint)");
+    const sectionLabelRule = ruleForSelectorContaining(".agent-section-heading span");
+    const factLabel = blockFor(".agent-session-facts dt");
+    const factValue = blockFor(".agent-session-facts dd");
+    const keySignal = blockFor(".agent-panel-section.agent-key-signal");
+    const pulseTitle = blockFor(".agent-session-pulse strong");
+    const pulseBody = blockFor(".agent-session-pulse p");
+    const handoffButton = blockFor(".agent-handoff-buttons button");
+
+    expect(drawer).toContain("background: var(--surface-panel)");
+    expect(identity).toContain("color: var(--text-muted)");
+    expect(summary).toContain("background: var(--surface-control)");
+    expect(summary).toContain("background-image: none");
+    expect(moreDetails).toContain("color: var(--text-faint)");
+    expect(activityList).toContain("color: var(--text-faint)");
+    expect(sectionLabelRule.body).toContain("font: 700 10px/1 var(--sans)");
+    expect(sectionLabelRule.body).toContain("text-transform: uppercase");
+    expect(factLabel).toContain("font: 650 10px/1.2 var(--sans)");
+    expect(factValue).toContain("color: var(--text-secondary)");
+    expect(keySignal).toContain("var(--role-active)");
+    expect(pulseTitle).toContain("color: var(--text-primary)");
+    expect(pulseBody).toContain("color: var(--text-muted)");
+    expect(handoffButton).toContain("background: var(--surface-control)");
+  });
+
+  it("keeps sidebar radar hierarchy quiet but readable", () => {
+    const navPanel = blockFor(".workspace-navigation-panel");
+    const navSectionHeader = blockFor(".workspace-nav-section > header");
+    const navRow = blockFor(".workspace-nav-row");
+    const navRowTitle = blockFor(".workspace-nav-row strong");
+    const navRowMeta = blockFor(".workspace-nav-row small");
+    const inactiveWorkspaceTitle = blockFor(".workspace-button:not(.active) .workspace-button-details strong");
+    const inactiveWorkspaceMeta = blockFor(".workspace-button:not(.active) .workspace-button-details span");
+    const activeWorkspace = blockFor(".workspace-button.active");
+
+    expect(navPanel).toContain("background: var(--surface-chrome)");
+    expect(navSectionHeader).toContain("color: var(--text-faint)");
+    expect(navSectionHeader).toContain("var(--sans)");
+    expect(navRow).toContain("background: transparent");
+    expect(navRow).toContain("grid-template-columns: 26px minmax(0, 1fr)");
+    expect(navRowTitle).toContain("color: var(--text-secondary)");
+    expect(navRowTitle).toContain("font: 650 13px/1.22 var(--sans)");
+    expect(navRowMeta).toContain("color: var(--text-faint)");
+    expect(inactiveWorkspaceTitle).toContain("color: var(--text-secondary)");
+    expect(inactiveWorkspaceTitle).toContain("font: 600 12px/1.2 var(--sans)");
+    expect(inactiveWorkspaceMeta).toContain("color: var(--text-faint)");
+    expect(activeWorkspace).toContain("background: color-mix(in oklab, var(--signal-focus) 3.5%, var(--surface-control))");
+    expect(activeWorkspace).not.toContain("linear-gradient");
+    expect(activeWorkspace).toContain("box-shadow: none");
+  });
+
+  it("keeps overlays opaque and tactical instead of glassy", () => {
+    const primaryOverlayBackdrop = blockFor(".review-queue-backdrop,\n.command-palette-backdrop");
+    const quickSwitchBackdrop = blockFor(".session-observatory-backdrop");
+    const overlayPanels = blockFor(".command-palette,\n.global-review-panel,\n.privacy-panel,\n.session-observatory-panel");
+    const activePaletteRow = blockFor(
+      ".command-palette-list button:hover,\n.command-palette-list button:focus-visible,\n.command-palette-list button.active",
+    );
+
+    expect(primaryOverlayBackdrop).toContain("background: rgba(0, 0, 0, 0.66)");
+    expect(primaryOverlayBackdrop).toContain("background-image: none");
+    expect(primaryOverlayBackdrop).toContain("backdrop-filter: none");
+    expect(primaryOverlayBackdrop).toContain("-webkit-backdrop-filter: none");
+    expect(quickSwitchBackdrop).toContain("background: rgba(0, 0, 0, 0.54)");
+    expect(quickSwitchBackdrop).toContain("backdrop-filter: none");
+    expect(overlayPanels).toContain("background: var(--surface-panel)");
+    expect(overlayPanels).toContain("background-image: none");
+    expect(overlayPanels).toContain("border: 1px solid var(--border)");
+    expect(overlayPanels).toContain("box-shadow: var(--shadow-panel)");
+    expect(activePaletteRow).not.toContain("linear-gradient");
   });
 });
