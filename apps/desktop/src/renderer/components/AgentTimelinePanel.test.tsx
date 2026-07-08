@@ -17,7 +17,8 @@ describe("AgentTimelinePanel", () => {
     expect(screen.getByText(/select a terminal to inspect/i)).toBeInTheDocument();
   });
 
-  it("shows actionable session facts when a session is provided", () => {
+  it("shows actionable session facts when a session is provided", async () => {
+    const user = userEvent.setup();
     const session: SessionTile = {
       id: "s1",
       title: "claude — alfred",
@@ -34,11 +35,15 @@ describe("AgentTimelinePanel", () => {
     expect(screen.getByText("claude — alfred")).toBeInTheDocument();
     expect(screen.getByText("active")).toBeInTheDocument();
     expect(screen.getByText("claude --continue")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Details" }));
     expect(screen.getByText("last output")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Activity (1)" }));
     expect(screen.getByText("Session attached")).toBeInTheDocument();
   });
 
-  it("organizes selected session context into session, attention, and more zones", () => {
+  it("shows session essentials without zone or summary label layers", () => {
     const session: SessionTile = {
       id: "s1",
       title: "codex — feature",
@@ -46,35 +51,105 @@ describe("AgentTimelinePanel", () => {
       stage: "live",
       cwd: "/repo/alfred",
       source: "alfred",
-      command: "codex",
-      runtimeId: "runtime-1",
-    };
-
-    render(<AgentTimelinePanel session={session} />);
-
-    expect(screen.getByRole("region", { name: "Session identity" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Needs attention" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "More details" })).toBeInTheDocument();
-  });
-
-  it("keeps context zone headings as quiet labels instead of duplicate titles", () => {
-    const session: SessionTile = {
-      id: "s1",
-      title: "codex — feature",
-      workspaceId: "w1",
-      stage: "live",
-      cwd: "/repo/alfred",
-      source: "alfred",
+      agentKind: "codex",
       command: "codex",
       runtimeId: "runtime-1",
     };
 
     const { container } = render(<AgentTimelinePanel session={session} />);
 
-    expect(container.querySelectorAll(".agent-context-zone-heading strong")).toHaveLength(0);
-    expect(screen.getByRole("region", { name: "Session identity" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Needs attention" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "More details" })).toBeInTheDocument();
+    expect(container.querySelectorAll(".agent-context-zone-heading")).toHaveLength(0);
+    expect(container.querySelectorAll(".agent-section-heading")).toHaveLength(0);
+    expect(screen.queryByText(/use the facts below/i)).not.toBeInTheDocument();
+
+    const essentials = screen.getByRole("region", { name: "Session essentials" });
+    expect(within(essentials).getByText("Codex")).toBeInTheDocument();
+    expect(within(essentials).getByText("/repo/alfred")).toBeInTheDocument();
+    expect(within(essentials).getByText("codex")).toBeInTheDocument();
+  });
+
+  it("keeps secondary facts behind a collapsed Details disclosure", async () => {
+    const user = userEvent.setup();
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — worktree",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/repo/.worktrees/feature",
+      source: "alfred",
+      command: "codex",
+      runtimeId: "runtime-1",
+      isolation: "worktree",
+      branchName: "feature-branch",
+      baseCwd: "/repo/alfred",
+      lastOutputAt: Date.now(),
+    };
+
+    render(<AgentTimelinePanel session={session} />);
+
+    expect(screen.queryByText("branch")).not.toBeInTheDocument();
+    expect(screen.queryByText("last output")).not.toBeInTheDocument();
+
+    const toggle = screen.getByRole("button", { name: "Details" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("branch")).toBeInTheDocument();
+    expect(screen.getByText("last output")).toBeInTheDocument();
+  });
+
+  it("keeps the activity timeline behind a counted disclosure", async () => {
+    const user = userEvent.setup();
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — feature",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/repo/alfred",
+      source: "alfred",
+      command: "codex",
+      runtimeId: "runtime-1",
+      activityEvents: [
+        { id: "e1", kind: "command", title: "Command ran", detail: "pnpm test", at: 100 },
+        { id: "e2", kind: "output", title: "Progress reported", detail: "build passed", at: 200 },
+      ],
+    };
+
+    const { container } = render(<AgentTimelinePanel session={session} />);
+
+    expect(screen.queryByText("Command ran")).not.toBeInTheDocument();
+
+    const toggle = screen.getByRole("button", { name: "Activity (2)" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await user.click(toggle);
+
+    const activity = within(container).getByRole("region", { name: "Recent activity" });
+    expect(within(activity).getByText("Command ran")).toBeInTheDocument();
+    expect(within(activity).getByText("Progress reported")).toBeInTheDocument();
+  });
+
+  it("collapses disclosures again when the selected session changes", async () => {
+    const user = userEvent.setup();
+    const baseSession: SessionTile = {
+      id: "s1",
+      title: "codex — one",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/repo/alfred",
+      source: "alfred",
+      command: "codex",
+      runtimeId: "runtime-1",
+      branchName: "feature-one",
+      baseCwd: "/repo/alfred",
+    };
+
+    const { rerender } = render(<AgentTimelinePanel session={baseSession} />);
+    await user.click(screen.getByRole("button", { name: "Details" }));
+    expect(screen.getByRole("button", { name: "Details" })).toHaveAttribute("aria-expanded", "true");
+
+    rerender(<AgentTimelinePanel session={{ ...baseSession, id: "s2", title: "codex — two" }} />);
+    expect(screen.getByRole("button", { name: "Details" })).toHaveAttribute("aria-expanded", "false");
   });
 
   it("offers session handoff actions for cwd and command", async () => {
@@ -103,8 +178,7 @@ describe("AgentTimelinePanel", () => {
       />,
     );
 
-    const handoff = screen.getByRole("region", { name: "Handoff actions for codex — feature" });
-    expect(handoff).toHaveTextContent("Continue outside Alfred");
+    const handoff = screen.getByRole("group", { name: "Handoff actions for codex — feature" });
 
     await user.click(within(handoff).getByRole("button", { name: "Reveal folder for codex — feature" }));
     await user.click(within(handoff).getByRole("button", { name: "Open external terminal for codex — feature" }));
@@ -139,16 +213,22 @@ describe("AgentTimelinePanel", () => {
 
     const { container } = render(<AgentTimelinePanel session={session} onCopyActivityText={onCopyActivityText} />);
 
+    const essentialsCwd = container.querySelector<HTMLElement>(".agent-essentials-cwd");
+    if (!essentialsCwd) throw new Error("Essentials cwd not rendered");
+    expect(essentialsCwd).toHaveTextContent("…/.worktrees/path…with-extra-detail");
+    expect(essentialsCwd).toHaveAttribute("title", cwd);
+    expect(essentialsCwd).toHaveAttribute("aria-label", cwd);
+    expect(essentialsCwd).not.toHaveTextContent(cwd);
+
+    await user.click(screen.getByRole("button", { name: "Details" }));
+
     const facts = container.querySelector<HTMLElement>(".agent-session-facts");
     if (!facts) throw new Error("Session facts not rendered");
-    expect(within(facts).getByText("…/.worktrees/path…with-extra-detail")).toHaveAttribute("title", cwd);
-    expect(within(facts).getByText("…/.worktrees/path…with-extra-detail")).toHaveAttribute("aria-label", cwd);
     expect(within(facts).getByText("…/right-dock/path-noise-pass-branch")).toHaveAttribute("title", branchName);
     expect(within(facts).getByText("…/Desktop/Alfred")).toHaveAttribute("title", baseCwd);
-    expect(facts).not.toHaveTextContent(cwd);
     expect(facts).not.toHaveTextContent(branchName);
 
-    const handoff = within(container).getByRole("region", { name: "Handoff actions for codex — path noise" });
+    const handoff = within(container).getByRole("group", { name: "Handoff actions for codex — path noise" });
     await user.click(within(handoff).getByRole("button", { name: "Copy cwd for codex — path noise" }));
 
     expect(onCopyActivityText).toHaveBeenCalledWith(cwd);
@@ -169,11 +249,10 @@ describe("AgentTimelinePanel", () => {
     };
 
     const { rerender, container } = render(<AgentTimelinePanel session={legacyWorktreeSession} />);
-    const lifecycle = within(container).getByRole("region", { name: "Checkout lifecycle for codex — isolated" });
+    const lifecycle = within(container).getByRole("group", { name: "Handoff actions for codex — isolated" });
 
     expect(within(lifecycle).getByText("Review diff")).toBeInTheDocument();
     expect(within(lifecycle).getByText("Apply to project")).toBeInTheDocument();
-    expect(within(lifecycle).getByText("Use the checkout actions above to review or apply changes.")).toBeInTheDocument();
     expect(within(lifecycle).queryByRole("button", { name: "Review diff" })).not.toBeInTheDocument();
     expect(within(lifecycle).queryByRole("button", { name: "Apply to project" })).not.toBeInTheDocument();
 
@@ -195,11 +274,12 @@ describe("AgentTimelinePanel", () => {
       />,
     );
 
-    expect(within(container).queryByRole("region", { name: "Checkout lifecycle for codex — shared" })).not.toBeInTheDocument();
-    expect(within(container).queryByText("Use the checkout actions above to review or apply changes.")).not.toBeInTheDocument();
+    expect(within(container).queryByText("Review diff")).not.toBeInTheDocument();
+    expect(within(container).queryByText("Apply to project")).not.toBeInTheDocument();
   });
 
-  it("renders recent stored activity events before generic runtime copy", () => {
+  it("renders recent stored activity events before generic runtime copy", async () => {
+    const user = userEvent.setup();
     const session: SessionTile = {
       id: "s1",
       title: "codex — fix",
@@ -229,6 +309,9 @@ describe("AgentTimelinePanel", () => {
 
     const { container } = render(<AgentTimelinePanel session={session} />);
 
+    await user.click(screen.getByRole("button", { name: /^Activity \(/ }));
+    await user.click(screen.getByRole("button", { name: "Details" }));
+
     const timeline = within(container).getByRole("region", { name: "Recent activity" });
     expect(within(timeline).getByText("Progress reported")).toBeInTheDocument();
     expect(within(timeline).getByText("✓ tests passed")).toBeInTheDocument();
@@ -236,7 +319,8 @@ describe("AgentTimelinePanel", () => {
     expect(container).not.toHaveTextContent("Terminal output is streaming in the workspace.");
   });
 
-  it("keeps the timeline to a short important preview", () => {
+  it("keeps the timeline to a short important preview", async () => {
+    const user = userEvent.setup();
     const session: SessionTile = {
       id: "s1",
       title: "codex — busy",
@@ -256,14 +340,15 @@ describe("AgentTimelinePanel", () => {
 
     const { container } = render(<AgentTimelinePanel session={session} />);
     const timeline = within(container).getByRole("region", { name: "Recent activity" });
+    await user.click(within(timeline).getByRole("button", { name: /^Activity \(/ }));
 
-    expect(within(timeline).getByText("Recent activity")).toBeInTheDocument();
     expect(within(timeline).getByText("Latest command")).toBeInTheDocument();
     expect(within(timeline).queryByText("Oldest command")).not.toBeInTheDocument();
     expect(within(timeline).getByText("1 older event hidden; debug noise stays out.")).toBeInTheDocument();
   });
 
-  it("renders structured activity payloads as inspectable objects", () => {
+  it("renders structured activity payloads as inspectable objects", async () => {
+    const user = userEvent.setup();
     const session: SessionTile = {
       id: "s1",
       title: "codex — activity",
@@ -309,6 +394,7 @@ describe("AgentTimelinePanel", () => {
     };
 
     const { container } = render(<AgentTimelinePanel session={session} />);
+    await user.click(screen.getByRole("button", { name: /^Activity \(/ }));
     const objects = Array.from(container.querySelectorAll(".agent-activity-object"));
 
     expect(objects).toHaveLength(4);
@@ -347,6 +433,10 @@ describe("AgentTimelinePanel", () => {
     };
 
     render(<AgentTimelinePanel session={session} />);
+
+    expect(screen.queryByText("File activity")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^Activity \(/ }));
 
     expect(screen.getByText("File activity")).toBeInTheDocument();
     expect(screen.queryByText("SessionStart hook (completed)")).not.toBeInTheDocument();
@@ -397,6 +487,7 @@ describe("AgentTimelinePanel", () => {
       />,
     );
     const panel = within(container);
+    await user.click(panel.getByRole("button", { name: /^Activity \(/ }));
 
     await user.click(
       panel.getByRole("button", { name: "Reveal edited: apps/desktop/src/renderer/app.tsx" }),
@@ -438,13 +529,15 @@ describe("AgentTimelinePanel", () => {
       />,
     );
     const panel = within(container);
+    await user.click(panel.getByRole("button", { name: /^Activity \(/ }));
 
     await user.click(panel.getByRole("button", { name: "Copy command: pnpm test" }));
 
     expect(panel.getByRole("button", { name: "Copy command: pnpm test" })).toHaveTextContent("missing");
   });
 
-  it("summarizes structured activity as a compact digest", () => {
+  it("summarizes structured activity as a compact digest", async () => {
+    const user = userEvent.setup();
     const session: SessionTile = {
       id: "s1",
       title: "codex — implementation",
@@ -464,6 +557,7 @@ describe("AgentTimelinePanel", () => {
     };
 
     render(<AgentTimelinePanel session={session} />);
+    await user.click(screen.getByRole("button", { name: "Details" }));
 
     const digest = screen.getAllByRole("region", { name: "Activity digest" }).at(-1);
     expect(digest).toBeDefined();
@@ -643,7 +737,7 @@ describe("AgentTimelinePanel", () => {
     );
 
     expect(screen.getByLabelText("Command")).toHaveValue("codex resume abc");
-    expect(screen.getByRole("region", { name: "Needs attention" })).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: /Edit staged command for/ })).toBeInTheDocument();
   });
 
   it("keeps coding-agent staged sessions read-only until launch defaults are wired", () => {
