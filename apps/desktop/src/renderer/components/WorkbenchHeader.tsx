@@ -43,12 +43,8 @@ export function WorkbenchHeader({
   onToggleContext,
 }: WorkbenchHeaderProps) {
   const surfaceCrumb = activeSurface === "work" ? "Work" : activeSurface === "inbox" ? "Inbox" : "History";
-  const headline =
-    activeSurface === "work"
-      ? "Terminal grid"
-      : activeSurface === "inbox"
-        ? "Decision inbox"
-        : "Sessions and project memory";
+  // Inbox/History render their own surface title; repeating it here reads twice.
+  const headline = activeSurface === "work" ? "Terminal grid" : null;
   const sessionCountLabel = `${activeSessionCount} session${activeSessionCount === 1 ? "" : "s"}`;
   const contextSignalLabel =
     contextSignalCount > 0 ? `, ${contextSignalCount} important signal${contextSignalCount === 1 ? "" : "s"}` : "";
@@ -65,7 +61,7 @@ export function WorkbenchHeader({
           <span>{workspaceLabel}</span>
         </div>
         <div className="workbench-title-line">
-          <h1>{headline}</h1>
+          {headline && <h1>{headline}</h1>}
           <span>{sessionCountLabel}</span>
         </div>
         <p>{workspacePathLabel}</p>

@@ -60,15 +60,16 @@ export function ReviewSurface({
     <section className="review-surface inbox-surface" aria-label="Inbox workspace">
       <header className="review-surface-header">
         <div>
-          <span>Inbox</span>
           <strong>Decision inbox</strong>
-          <p>Launch, restart, resume, or discard queued work without turning Work into a warning wall.</p>
+          <p>Launch, restart, resume, or discard queued work.</p>
         </div>
-        <div className="review-surface-stats" aria-label="Inbox summary">
-          <ReviewStat label="staged" value={stagedCount} />
-          <ReviewStat label="blocked" value={blockedCount} />
-          <ReviewStat label="recovery" value={recoveryCount} />
-        </div>
+        {stagedCount + blockedCount + recoveryCount > 0 && (
+          <div className="review-surface-stats" aria-label="Inbox summary">
+            {stagedCount > 0 && <ReviewStat label="staged" value={stagedCount} />}
+            {blockedCount > 0 && <ReviewStat label="blocked" value={blockedCount} />}
+            {recoveryCount > 0 && <ReviewStat label="recovery" value={recoveryCount} />}
+          </div>
+        )}
       </header>
 
       {items.length === 0 ? (
@@ -78,23 +79,6 @@ export function ReviewSurface({
             <span>Queue clear</span>
             <strong>No decisions waiting.</strong>
             <p>New launch gates and recovery prompts will land here while Work stays focused on active terminals.</p>
-          </div>
-          <div className="review-empty-lanes" aria-label="Empty review lanes">
-            <div>
-              <Play size={14} aria-hidden="true" />
-              <span>staged launches</span>
-              <strong>0</strong>
-            </div>
-            <div>
-              <ShieldAlert size={14} aria-hidden="true" />
-              <span>blocked checks</span>
-              <strong>0</strong>
-            </div>
-            <div>
-              <RotateCcw size={14} aria-hidden="true" />
-              <span>recovery prompts</span>
-              <strong>0</strong>
-            </div>
           </div>
         </div>
       ) : (

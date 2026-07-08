@@ -35,6 +35,25 @@ describe("ComposerBar", () => {
     );
   });
 
+  it("keeps target, input and primary action inside one dispatch capsule", () => {
+    render(
+      <ComposerBar
+        blockedReason={undefined}
+        dispatchTarget={dispatchTarget}
+        thinking={false}
+        disabled={false}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    const capsule = screen.getByTestId("dispatch-bar").querySelector(".dispatch-capsule");
+    expect(capsule).not.toBeNull();
+    expect(capsule).toContainElement(screen.getByRole("button", { name: "Change planning scope" }));
+    expect(capsule).toContainElement(screen.getByLabelText("Dispatch instruction"));
+    expect(capsule).toContainElement(screen.getByRole("button", { name: "Prepare work with Manual · zsh 1" }));
+    expect(screen.getByTestId("dispatch-bar").querySelector(".alfred-mark")).toBeNull();
+  });
+
   it("blocks submit and keeps the draft editable while a plan is staged", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();

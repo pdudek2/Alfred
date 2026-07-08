@@ -72,37 +72,42 @@ export function ComposerBar({
       data-state={state}
       data-testid="dispatch-bar"
     >
-      <div className="alfred-mark" aria-hidden="true">A</div>
-      <button
-        type="button"
-        className="dispatch-target-chip"
-        aria-label="Change planning scope"
-        disabled={disabled || thinking}
-        onClick={onCycleDispatchTarget}
-      >
-        <span>{dispatchTarget ? targetKindLabel : "Scope"}</span>
-        <strong>{dispatchTarget?.label ?? "Choose target"}</strong>
-      </button>
-      <textarea
-        className="composer-input"
-        rows={1}
-        value={draft}
-        placeholder={dispatchTarget ? `Prepare work ${targetPreposition} ${dispatchTarget.label}...` : "Choose a planning scope first..."}
-        disabled={composerDisabled}
-        aria-label="Dispatch instruction"
-        aria-describedby="composer-status"
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={handleKeyDown}
-      />
-      <button
-        type="button"
-        className="composer-send"
-        disabled={!canSubmit}
-        onClick={() => void handleSubmit()}
-        aria-label={`Prepare work ${targetPreposition} ${targetLabel}`}
-      >
-        {thinking ? "Preparing..." : "Prepare"}
-      </button>
+      <div className="dispatch-capsule">
+        <button
+          type="button"
+          className="dispatch-target-chip"
+          aria-label="Change planning scope"
+          disabled={disabled || thinking}
+          onClick={onCycleDispatchTarget}
+        >
+          <span>{dispatchTarget ? targetKindLabel : "Scope"}</span>
+          <strong>{dispatchTarget?.label ?? "Choose target"}</strong>
+        </button>
+        <textarea
+          className="composer-input"
+          rows={1}
+          value={draft}
+          placeholder={dispatchTarget ? `Prepare work ${targetPreposition} ${dispatchTarget.label}...` : "Choose a planning scope first..."}
+          disabled={composerDisabled}
+          aria-label="Dispatch instruction"
+          aria-describedby="composer-status"
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+        <span className="dispatch-kbd-hint" aria-hidden="true">
+          <kbd>⌘</kbd>
+          <kbd>↵</kbd>
+        </span>
+        <button
+          type="button"
+          className="composer-send"
+          disabled={!canSubmit}
+          onClick={() => void handleSubmit()}
+          aria-label={`Prepare work ${targetPreposition} ${targetLabel}`}
+        >
+          {thinking ? "Preparing..." : "Prepare"}
+        </button>
+      </div>
       <div className="composer-status-row">
         <span className="composer-status-indicator" aria-hidden="true" />
         <span className="composer-status" id="composer-status" role="status" aria-live="polite">
