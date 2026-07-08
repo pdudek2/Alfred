@@ -3,6 +3,7 @@ import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { WorkspaceRail, type WorkspaceRailWorkspace } from "./WorkspaceRail";
+import { inboxNavigationSummary } from "./workspace-navigation-copy";
 
 type WorkspaceNavigationPanelProps = {
   activeWorkspace: WorkspaceRailWorkspace;
@@ -87,7 +88,7 @@ export function WorkspaceNavigationPanel({
               <span className="workspace-nav-mark alert">!</span>
               <span>
                 <strong>Needs review</strong>
-                <small>{inboxCount} decisions, blocked runs, recovery</small>
+                <small>{inboxNavigationSummary(inboxCount)}</small>
               </span>
             </button>
           </div>

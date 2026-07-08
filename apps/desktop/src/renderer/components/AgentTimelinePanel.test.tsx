@@ -57,6 +57,26 @@ describe("AgentTimelinePanel", () => {
     expect(screen.getByRole("region", { name: "More details" })).toBeInTheDocument();
   });
 
+  it("keeps context zone headings as quiet labels instead of duplicate titles", () => {
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — feature",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/repo/alfred",
+      source: "alfred",
+      command: "codex",
+      runtimeId: "runtime-1",
+    };
+
+    const { container } = render(<AgentTimelinePanel session={session} />);
+
+    expect(container.querySelectorAll(".agent-context-zone-heading strong")).toHaveLength(0);
+    expect(screen.getByRole("region", { name: "Session identity" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Needs attention" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "More details" })).toBeInTheDocument();
+  });
+
   it("offers session handoff actions for cwd and command", async () => {
     const user = userEvent.setup();
     const onCopyActivityText = vi.fn();

@@ -573,6 +573,35 @@ describe("App integration", () => {
     expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toBeInTheDocument();
   });
 
+  it("keeps workspace navigation inbox copy concise instead of catch-all category text", async () => {
+    installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "codex-restored",
+          title: "Codex · restored",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          source: "alfred",
+          agentKind: "codex",
+          command: "codex",
+          shell: "codex",
+          buffer: "saved output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+
+    const panel = await screen.findByTestId("workspace-navigation-panel");
+    expect(within(panel).getByText("1 item waiting")).toBeInTheDocument();
+    expect(within(panel).queryByText(/decisions, blocked runs, recovery/i)).not.toBeInTheDocument();
+  });
+
   it("does not render an empty Free Chats section when there are no scratch chats", async () => {
     installDesktopBridge();
     render(<App />);
@@ -1998,7 +2027,13 @@ describe("App integration", () => {
     expect(quickSwitch).not.toHaveTextContent("Sessions and project memory");
 
     await user.click(screen.getByRole("button", { name: "Open History surface" }));
-    expect(await screen.findByRole("region", { name: "History workspace" })).toBeInTheDocument();
+    const history = await screen.findByRole("region", { name: "History workspace" });
+    expect(history).toBeInTheDocument();
+    const historyHeader = history.querySelector(".observatory-surface-header");
+    expect(historyHeader?.querySelectorAll("p")).toHaveLength(1);
+    expect(historyHeader).toHaveTextContent(
+      "Browse Alfred-managed sessions and external Codex transcripts. External sessions stay read-only until resumed.",
+    );
   });
 
   it("surfaces detected localhost URLs in the workspace preview dock", async () => {

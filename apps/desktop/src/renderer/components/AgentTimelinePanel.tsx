@@ -229,7 +229,6 @@ export function AgentTimelinePanel({
         <section className="agent-context-zone agent-context-identity" aria-label="Session identity">
           <div className="agent-context-zone-heading">
             <span>identity</span>
-            <strong>Session</strong>
           </div>
           <section className="agent-panel-section agent-session-summary" aria-label="Session summary">
             <div className="agent-section-heading">
@@ -314,7 +313,6 @@ export function AgentTimelinePanel({
         <section className="agent-context-zone agent-context-attention" aria-label="Needs attention">
           <div className="agent-context-zone-heading">
             <span>attention</span>
-            <strong>Needs attention</strong>
           </div>
           {canEditStagedSession && !editMode && (
             <section className="agent-staged-editor" aria-label={`Edit staged command for ${session.title}`}>
@@ -428,7 +426,6 @@ export function AgentTimelinePanel({
         <section className="agent-context-zone agent-context-more" aria-label="More details">
           <div className="agent-context-zone-heading">
             <span>details</span>
-            <strong>More</strong>
           </div>
           <section className="agent-panel-section agent-timeline-section" aria-label="Recent activity">
             <div className="agent-section-heading">

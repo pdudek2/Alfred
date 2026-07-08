@@ -32,6 +32,7 @@ import { SessionObservatoryPanel } from "./components/SessionObservatoryPanel";
 import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
 import { WorkbenchHeader } from "./components/WorkbenchHeader";
 import { WorkspaceRail, type WorkspaceRailWorkspace } from "./components/WorkspaceRail";
+import { inboxNavigationSummary } from "./components/workspace-navigation-copy";
 import {
   applyLayoutPreset,
   ensureTileLayouts,
@@ -2362,7 +2363,7 @@ function QuietWorkspaceNavigationPanel({
               <span className="workspace-nav-mark alert">!</span>
               <span>
                 <strong>Needs review</strong>
-                <small>{inboxCount} decisions, blocked runs, recovery</small>
+                <small>{inboxNavigationSummary(inboxCount)}</small>
               </span>
             </button>
           </div>
