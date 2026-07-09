@@ -1919,33 +1919,53 @@ export function App() {
         aria-label="Alfred Agent Space desktop shell"
       >
         <div className="mission-bar">
-          <div className="mission-name" role="group" aria-label="Workspace context">
-            <AlfredMark label={activeWorkspace.shortLabel} />
-            <WorkspaceTitleMenu
-              detail={workspaceDetail(activeWorkspace)}
-              menuOpen={workspaceMenuOpen}
-              missionBrief={activeWorkspace.missionBrief}
-              renameDraft={workspaceRenameDraft}
-              renameEditing={workspaceRenameEditing}
-              rootPath={activeWorkspace.rootPath}
-              workspaceLabel={activeWorkspace.label}
-              onCancelRename={handleCancelWorkspaceRename}
-              onChangeRenameDraft={setWorkspaceRenameDraft}
-              onClose={() => {
-                setWorkspaceMenuOpen(false);
-                setWorkspaceRenameEditing(false);
-              }}
-              onOpenExternalTerminal={() => void handleOpenActiveWorkspaceTerminal()}
-              onRevealFolder={() => void handleRevealActiveWorkspace()}
-              onSaveMissionBrief={handleSaveWorkspaceMissionBrief}
-              onSaveRename={handleSaveWorkspaceRename}
-              onStartRename={handleBeginRenameActiveWorkspace}
-              onToggleMenu={() => {
-                setWorkspaceMenuOpen((open) => !open);
-                setWorkspaceRenameEditing(false);
-              }}
-            />
-          </div>
+          <WorkbenchHeader
+            activeSurface={activeSurface}
+            activeSessionCount={activeSessions.length}
+            arrangeMode={arrangeMode}
+            contextOpen={activeContextDrawerOpen}
+            contextSignalCount={activeImportantSignalCount}
+            inboxCount={globalReviewItems.length}
+            sessionCount={terminalSessions.length}
+            shortcutModifier={shortcutModifier}
+            workMode={activeWorkMode}
+            workspaceSwitcher={
+              <div className="mission-name" role="group" aria-label="Workspace context">
+                <AlfredMark label={activeWorkspace.shortLabel} />
+                <WorkspaceTitleMenu
+                  detail={workspaceDetail(activeWorkspace)}
+                  menuOpen={workspaceMenuOpen}
+                  missionBrief={activeWorkspace.missionBrief}
+                  renameDraft={workspaceRenameDraft}
+                  renameEditing={workspaceRenameEditing}
+                  rootPath={activeWorkspace.rootPath}
+                  workspaceLabel={activeWorkspace.label}
+                  onCancelRename={handleCancelWorkspaceRename}
+                  onChangeRenameDraft={setWorkspaceRenameDraft}
+                  onClose={() => {
+                    setWorkspaceMenuOpen(false);
+                    setWorkspaceRenameEditing(false);
+                  }}
+                  onOpenExternalTerminal={() => void handleOpenActiveWorkspaceTerminal()}
+                  onRevealFolder={() => void handleRevealActiveWorkspace()}
+                  onSaveMissionBrief={handleSaveWorkspaceMissionBrief}
+                  onSaveRename={handleSaveWorkspaceRename}
+                  onStartRename={handleBeginRenameActiveWorkspace}
+                  onToggleMenu={() => {
+                    setWorkspaceMenuOpen((open) => !open);
+                    setWorkspaceRenameEditing(false);
+                  }}
+                />
+              </div>
+            }
+            onAddAgentSession={handleAddAgentSession}
+            onAddManualSession={handleAddManualSession}
+            onApplyWorkMode={handleApplyWorkMode}
+            onOpenInbox={() => setActiveSurface("inbox")}
+            onOpenSessionObservatory={handleOpenSessionObservatory}
+            onToggleArrangeMode={handleToggleArrangeMode}
+            onToggleContext={handleToggleContextDrawer}
+          />
         </div>
 
         {desktopSaveStatus.status === "saveFailed" && (
@@ -2006,25 +2026,6 @@ export function App() {
             onSelectWorkspace={handleSelectWorkspace}
           />
           <div className="orchestrator-surface" data-testid="workbench-surface">
-            <WorkbenchHeader
-              activeSurface={activeSurface}
-              activeSessionCount={activeSessions.length}
-              arrangeMode={arrangeMode}
-              contextOpen={activeContextDrawerOpen}
-              contextSignalCount={activeImportantSignalCount}
-              inboxCount={globalReviewItems.length}
-              sessionCount={terminalSessions.length}
-              workMode={activeWorkMode}
-              workspaceLabel={activeWorkspace.label}
-              workspacePathLabel={workspaceDetail(activeWorkspace)}
-              onAddAgentSession={handleAddAgentSession}
-              onAddManualSession={handleAddManualSession}
-              onApplyWorkMode={handleApplyWorkMode}
-              onOpenInbox={() => setActiveSurface("inbox")}
-              onOpenSessionObservatory={handleOpenSessionObservatory}
-              onToggleArrangeMode={handleToggleArrangeMode}
-              onToggleContext={handleToggleContextDrawer}
-            />
             <div
               className={`surface-panel desk-surface-panel ${workSurfaceHidden ? "inactive" : "active"}`}
               data-testid="desk-runtime-surface"
@@ -2782,7 +2783,7 @@ function WorkspaceTitleMenu({
         onClick={onToggleMenu}
       >
         <span>
-          <strong>{workspaceLabel} workspace</strong>
+          <strong>{workspaceLabel}</strong>
           <small>{detail}</small>
         </span>
         <ChevronDown size={14} aria-hidden="true" />

@@ -1,4 +1,5 @@
 import { Eye, ListChecks, Plus, Search } from "lucide-react";
+import type { ReactNode } from "react";
 
 type WorkMode = "focus" | "split" | "desk";
 type ActiveSurface = "work" | "inbox" | "history";
@@ -11,9 +12,9 @@ type WorkbenchHeaderProps = {
   contextSignalCount: number;
   inboxCount: number;
   sessionCount: number;
+  shortcutModifier: string;
   workMode: WorkMode;
-  workspaceLabel: string;
-  workspacePathLabel: string;
+  workspaceSwitcher: ReactNode;
   onAddAgentSession: (kind: "codex" | "claude") => void;
   onAddManualSession: () => void;
   onApplyWorkMode: (mode: WorkMode) => void;
@@ -31,9 +32,9 @@ export function WorkbenchHeader({
   contextSignalCount,
   inboxCount,
   sessionCount,
+  shortcutModifier,
   workMode,
-  workspaceLabel,
-  workspacePathLabel,
+  workspaceSwitcher,
   onAddAgentSession,
   onAddManualSession,
   onApplyWorkMode,
@@ -42,30 +43,24 @@ export function WorkbenchHeader({
   onToggleArrangeMode,
   onToggleContext,
 }: WorkbenchHeaderProps) {
-  const surfaceCrumb = activeSurface === "work" ? "Work" : activeSurface === "inbox" ? "Inbox" : "History";
-  // Inbox/History render their own surface title; repeating it here reads twice.
-  const headline = activeSurface === "work" ? "Terminal grid" : null;
   const sessionCountLabel = `${activeSessionCount} session${activeSessionCount === 1 ? "" : "s"}`;
   const contextSignalLabel =
     contextSignalCount > 0 ? `, ${contextSignalCount} important signal${contextSignalCount === 1 ? "" : "s"}` : "";
   const contextLabel = `${contextOpen ? "Close" : "Open"} Context drawer${contextSignalLabel}`;
   const sessionsLabel = `Open session quick switch, ${sessionCount} session${sessionCount === 1 ? "" : "s"}`;
   const inboxLabel = `Open Inbox surface${inboxCount > 0 ? `, ${inboxCount} item${inboxCount === 1 ? "" : "s"}` : ""}`;
+  const newTerminalShortcut = shortcutModifier === "Cmd" ? "Meta+T" : "Control+T";
 
   return (
     <header className="workbench-header" data-testid="workbench-header">
-      <div className="workbench-title-block">
-        <div className="workbench-crumbs">
-          <span>{surfaceCrumb}</span>
-          <span>/</span>
-          <span>{workspaceLabel}</span>
-        </div>
-        <div className="workbench-title-line">
-          {headline && <h1>{headline}</h1>}
+      {workspaceSwitcher}
+      {activeSurface === "work" && (
+        <div className="workbench-bar-title">
+          <h1>Terminal grid</h1>
           <span>{sessionCountLabel}</span>
         </div>
-        <p>{workspacePathLabel}</p>
-      </div>
+      )}
+      <div className="workbench-bar-spacer" aria-hidden="true" />
       <div className="workbench-actions" role="group" aria-label="terminal actions">
         {activeSurface === "work" && (
           <div className="workbench-tool-group workbench-layout-group" role="group" aria-label="Layout mode">
@@ -88,21 +83,19 @@ export function WorkbenchHeader({
             type="button"
             className={contextOpen ? "active" : ""}
             aria-label={contextLabel}
+            title="Context"
             aria-expanded={contextOpen}
             onClick={onToggleContext}
           >
             <Eye size={15} />
-            <span>Context</span>
             {contextSignalCount > 0 && <span className="quiet-count-dot" aria-hidden="true" />}
           </button>
-          <button type="button" aria-label={sessionsLabel} onClick={onOpenSessionObservatory}>
+          <button type="button" aria-label={sessionsLabel} title="Sessions" onClick={onOpenSessionObservatory}>
             <Search size={15} />
-            <span>Sessions</span>
             {sessionCount > 0 && <span className="quiet-count-mark" aria-hidden="true" />}
           </button>
-          <button type="button" aria-label={inboxLabel} onClick={onOpenInbox}>
+          <button type="button" aria-label={inboxLabel} title="Inbox" onClick={onOpenInbox}>
             <ListChecks size={15} />
-            <span>Inbox</span>
             {inboxCount > 0 && <span className="quiet-count-dot attention" aria-hidden="true" />}
           </button>
         </div>
@@ -113,7 +106,14 @@ export function WorkbenchHeader({
           <button type="button" aria-label="Start Claude" onClick={() => onAddAgentSession("claude")}>
             Claude
           </button>
-          <button type="button" className="workbench-primary-action" aria-label="New terminal" onClick={onAddManualSession}>
+          <button
+            type="button"
+            className="workbench-primary-action"
+            aria-label="New terminal"
+            aria-keyshortcuts={newTerminalShortcut}
+            title={`New terminal (${shortcutModifier}+T)`}
+            onClick={onAddManualSession}
+          >
             <Plus size={16} />
             <span>New terminal</span>
           </button>
