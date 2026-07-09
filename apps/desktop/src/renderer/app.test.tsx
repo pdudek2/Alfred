@@ -2196,14 +2196,14 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("tab", { name: "Alfred workspace, 1 idle" })).toBeInTheDocument();
-    expect(screen.getByText("Alfred workspace")).toBeInTheDocument();
+    expect(within(screen.getByTestId("workbench-header")).getByText("Alfred")).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Add workspace" }));
 
     expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
     expect(screen.getByRole("tab", { name: "Workspace 2 workspace, empty" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("Workspace 2 workspace")).toBeInTheDocument();
+    expect(within(screen.getByTestId("workbench-header")).getByText("Workspace 2")).toBeInTheDocument();
     expect(screen.getByRole("status", { name: "Empty workspace" })).toHaveTextContent("Scratch workspace ready");
     expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
 
@@ -2447,14 +2447,16 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Add workspace" }));
 
     expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
-    expect(await screen.findByText("Workspace 2 workspace")).toBeInTheDocument();
+    expect(
+      await within(screen.getByTestId("workbench-header")).findByText("Workspace 2"),
+    ).toBeInTheDocument();
     expect(await screen.findByRole("status", { name: "Empty workspace" })).toHaveTextContent("Workspace 2");
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await user.type(screen.getByRole("textbox", { name: "Search commands" }), "close current{Enter}");
 
-    expect(screen.queryByText("Workspace 2 workspace")).not.toBeInTheDocument();
-    expect(screen.getByText("Alfred workspace")).toBeInTheDocument();
+    expect(within(screen.getByTestId("workbench-header")).queryByText("Workspace 2")).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("workbench-header")).getByText("Alfred")).toBeInTheDocument();
     await waitFor(() => {
       expect(setWorkspaceState).toHaveBeenLastCalledWith({
         workspaces: [
@@ -2480,7 +2482,7 @@ describe("App integration", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.getByText("Workspace 2 workspace")).toBeInTheDocument();
+    expect(within(screen.getByTestId("workbench-header")).getByText("Workspace 2")).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({ cwd: "/tmp/workspace-2" }));
@@ -3068,7 +3070,9 @@ describe("App integration", () => {
     await user.keyboard("scratch{Enter}");
 
     expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
-    expect(await screen.findByText("Workspace 2 workspace")).toBeInTheDocument();
+    expect(
+      await within(screen.getByTestId("workbench-header")).findByText("Workspace 2"),
+    ).toBeInTheDocument();
     expect(setWorkspaceState).toHaveBeenLastCalledWith({
       workspaces: [
         { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
