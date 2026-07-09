@@ -540,7 +540,7 @@ describe("AgentTimelinePanel", () => {
     expect(panel.getByRole("button", { name: "Copy command: pnpm test" })).toHaveTextContent("missing");
   });
 
-  it("summarizes structured activity as a compact digest", async () => {
+  it("keeps activity counts in the details list without a digest card", async () => {
     const user = userEvent.setup();
     const session: SessionTile = {
       id: "s1",
@@ -563,13 +563,9 @@ describe("AgentTimelinePanel", () => {
     render(<AgentTimelinePanel session={session} />);
     await user.click(screen.getByRole("button", { name: "Details" }));
 
-    const digest = screen.getByRole("region", { name: "Activity digest" });
-    expect(within(digest).getByText("command")).toBeInTheDocument();
-    expect(within(digest).getByText("file")).toBeInTheDocument();
-    expect(within(digest).getByText("tool")).toBeInTheDocument();
-    expect(within(digest).getByText("plan")).toBeInTheDocument();
-    expect(within(digest).getByText("ask")).toBeInTheDocument();
-    expect(within(digest).getByText("issue")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Activity digest" })).not.toBeInTheDocument();
+    const details = screen.getByLabelText("session details");
+    expect(within(details).getByText("activity")).toBeInTheDocument();
   });
 
   it("surfaces the next approval as the primary session pulse", () => {

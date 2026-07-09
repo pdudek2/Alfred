@@ -2111,7 +2111,6 @@ export function App() {
           </div>
           <ContextColumn
             contextOpen={activeContextDrawerOpen}
-            inspectedTitle={activeInspectedSession?.title ?? activeWorkspace.label}
             previewVisible={previewVisible}
             onCloseContext={handleCloseContextDrawer}
             previewProps={{

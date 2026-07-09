@@ -28,10 +28,10 @@ describe("ComposerBar", () => {
     expect(screen.getByText("session")).toBeInTheDocument();
     expect(screen.getByText("Manual · zsh 1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Prepare work with Manual · zsh 1" })).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Ready to prepare work with Manual · zsh 1.");
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
     expect(screen.getByLabelText("Dispatch instruction")).toHaveAttribute(
       "placeholder",
-      "Prepare work with Manual · zsh 1...",
+      "Prepare work…",
     );
   });
 
