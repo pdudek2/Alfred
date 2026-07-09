@@ -1134,6 +1134,19 @@ describe("App integration", () => {
     expect(screen.queryByText(/2 tiles · 0 staged/i)).not.toBeInTheDocument();
   });
 
+  it("lets the terminal body fill a one-bar stage without a local header", async () => {
+    installDesktopBridge();
+
+    render(<App />);
+
+    const stage = await screen.findByLabelText("terminals");
+    expect(stage).toHaveClass("headerless");
+    expect(stage.querySelector(".terminal-stage-header")).not.toBeInTheDocument();
+    expect(rendererStyles).toMatch(
+      /\.terminal-stage\.headerless\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\);[^}]*\}/s,
+    );
+  });
+
   it("keeps non-visible Split terminals mounted and replayable when returning to Grid", async () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge(undefined, null, [
