@@ -53,7 +53,7 @@ export function PrimaryNavigationRail({
           onClick={() => onSelectSurface("inbox")}
         >
           <Inbox size={18} />
-          {inboxCount > 0 && <span>{inboxCount}</span>}
+          {inboxCount > 0 && <span className="quiet-count-dot attention" aria-hidden="true" />}
         </button>
         <button
           type="button"
@@ -79,7 +79,7 @@ export function PrimaryNavigationRail({
           onClick={onToggleContext}
         >
           <PanelRight size={18} />
-          {contextSignalCount > 0 && <span>{contextSignalCount}</span>}
+          {contextSignalCount > 0 && <span className="quiet-count-dot" aria-hidden="true" />}
         </button>
         <button
           ref={commandPaletteTriggerRef}

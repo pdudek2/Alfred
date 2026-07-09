@@ -11,7 +11,7 @@ const baseProps = {
   contextSignalCount: 3,
   inboxCount: 4,
   sessionCount: 9,
-  shortcutModifier: "Cmd",
+  shortcutModifier: "Cmd" as const,
   workMode: "desk" as const,
   workspaceSwitcher: <div data-testid="switcher-slot">W4</div>,
   onAddAgentSession: vi.fn(),
@@ -43,7 +43,10 @@ describe("WorkbenchHeader", () => {
     expect(within(panels).getByRole("button", { name: /3 important signals/i })).toBeInTheDocument();
     expect(within(panels).getByRole("button", { name: /9 sessions/i })).toBeInTheDocument();
     expect(within(panels).getByRole("button", { name: /4 items/i })).toBeInTheDocument();
-    expect(panels.querySelectorAll(".quiet-count-dot, .quiet-count-mark").length).toBeGreaterThan(0);
+    const quietIndicators = panels.querySelectorAll(".quiet-count-dot, .quiet-count-mark");
+    expect(quietIndicators).toHaveLength(3);
+    expect(panels).not.toHaveTextContent(/3|4|9/);
+    quietIndicators.forEach((indicator) => expect(indicator).toHaveAttribute("aria-hidden", "true"));
   });
 
   it("renders the workspace switcher slot with no breadcrumb or path line", () => {
@@ -71,6 +74,14 @@ describe("WorkbenchHeader", () => {
     const button = screen.getByRole("button", { name: "New terminal" });
     expect(button).toHaveAttribute("aria-keyshortcuts", "Meta+T");
     expect(button).toHaveAttribute("title", "New terminal (Cmd+T)");
+  });
+
+  it("advertises the Ctrl new-terminal shortcut on non-Mac platforms", () => {
+    render(<WorkbenchHeader {...baseProps} shortcutModifier="Ctrl" />);
+
+    const button = screen.getByRole("button", { name: "New terminal" });
+    expect(button).toHaveAttribute("aria-keyshortcuts", "Control+T");
+    expect(button).toHaveAttribute("title", "New terminal (Ctrl+T)");
   });
 
   it("keeps exact context count in the accessible label when the drawer is open", () => {

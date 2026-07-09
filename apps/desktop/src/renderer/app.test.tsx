@@ -536,8 +536,12 @@ describe("App integration", () => {
 
     expect(await screen.findByTestId("primary-nav-rail")).toBeInTheDocument();
     expect(screen.getByTestId("workspace-navigation-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("workbench-surface")).toBeInTheDocument();
-    expect(screen.getByTestId("workbench-header")).toBeInTheDocument();
+    const workbenchSurface = screen.getByTestId("workbench-surface");
+    const workbenchHeader = screen.getByTestId("workbench-header");
+    expect(workbenchSurface).toBeInTheDocument();
+    expect(workbenchHeader).toBeInTheDocument();
+    expect(document.querySelector(".mission-bar")).toContainElement(workbenchHeader);
+    expect(workbenchSurface).not.toContainElement(workbenchHeader);
     expect(screen.getByTestId("context-column")).toBeInTheDocument();
     expect(screen.getByTestId("desk-runtime-surface")).toBeInTheDocument();
     expect(screen.getByTestId("terminal-grid")).toBeInTheDocument();
@@ -602,6 +606,16 @@ describe("App integration", () => {
     expect(within(panel).queryByText(/decisions, blocked runs, recovery/i)).not.toBeInTheDocument();
     expect(within(panel).queryByText("Needs review")).not.toBeInTheDocument();
     expect(panel.querySelector(".workspace-nav-mark.alert")).not.toBeNull();
+
+    const primaryNav = screen.getByTestId("primary-nav-rail");
+    const inboxButton = within(primaryNav).getByRole("button", { name: "Open Inbox surface, 1 items" });
+    const contextButton = within(primaryNav).getByRole("button", {
+      name: "Open Context drawer, 1 important signal",
+    });
+    expect(inboxButton).not.toHaveTextContent("1");
+    expect(contextButton).not.toHaveTextContent("1");
+    expect(inboxButton.querySelector(".quiet-count-dot.attention")).toHaveAttribute("aria-hidden", "true");
+    expect(contextButton.querySelector(".quiet-count-dot")).toHaveAttribute("aria-hidden", "true");
   });
 
   it("keeps sidebar section headers free of count badges", async () => {

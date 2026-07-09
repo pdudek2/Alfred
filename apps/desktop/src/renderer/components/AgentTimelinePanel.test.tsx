@@ -566,6 +566,9 @@ describe("AgentTimelinePanel", () => {
     expect(screen.queryByRole("region", { name: "Activity digest" })).not.toBeInTheDocument();
     const details = screen.getByLabelText("session details");
     expect(within(details).getByText("activity")).toBeInTheDocument();
+    expect(
+      within(details).getByText("1 command · 1 file · 1 plan · 1 tool · 1 ask · 1 error", { selector: "dd" }),
+    ).toBeInTheDocument();
   });
 
   it("surfaces the next approval as the primary session pulse", () => {

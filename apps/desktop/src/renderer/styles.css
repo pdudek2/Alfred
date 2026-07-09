@@ -899,18 +899,11 @@ button:focus-visible {
   outline: none;
 }
 
-.primary-nav-rail button span {
+.primary-nav-rail button > .quiet-count-dot,
+.primary-nav-rail button > .quiet-count-mark {
   position: absolute;
-  right: -4px;
-  top: -4px;
-  min-width: 16px;
-  height: 16px;
-  border-radius: 6px;
-  background: var(--signal-focus);
-  color: #03110b;
-  display: grid;
-  place-items: center;
-  font: 800 9px/1 var(--mono);
+  top: 5px;
+  right: 5px;
 }
 
 .workspace-layout.alfred-compact {
@@ -997,23 +990,6 @@ button:focus-visible {
     background 160ms ease,
     color 160ms ease,
     box-shadow 160ms ease;
-}
-
-.workbench-actions button strong {
-  min-width: 20px;
-  min-height: 20px;
-  border-radius: 999px;
-  padding: 0 6px;
-  background: rgba(0, 0, 0, 0.22);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: inherit;
-  font: 700 11px/1 var(--mono);
-}
-
-.workbench-panel-group button strong {
-  display: none;
 }
 
 .quiet-count-dot,
@@ -7823,7 +7799,6 @@ body {
   box-shadow: none;
 }
 
-.workbench-actions button strong,
 .context-toggle-button strong,
 .mission-actions .session-observatory-button strong {
   min-width: 18px;
@@ -8907,10 +8882,6 @@ body {
   padding: 0 12px;
 }
 
-.workbench-panel-group button strong {
-  display: none;
-}
-
 .quiet-count-dot,
 .quiet-count-mark {
   display: inline-block;
@@ -9895,7 +9866,7 @@ body {
 
 @media (max-width: 1240px) {
   .workbench-launch-group button:not(.workbench-primary-action) {
-    padding: 6px 9px;
+    padding: 6px 7px;
     font-size: 11.5px;
   }
 
@@ -9958,6 +9929,7 @@ body {
   display: flex;
   align-items: baseline;
   gap: 8px;
+  min-height: 0;
   padding: 4px 2px;
   border: none;
   background: transparent;
@@ -9979,6 +9951,7 @@ body {
 
 .review-surface-row {
   display: grid;
+  grid-column: 1 / -1;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
@@ -10010,8 +9983,12 @@ body {
 
 .review-surface-command.is-disclosure summary {
   display: inline-flex;
+  justify-self: start;
+  justify-content: flex-start;
   align-items: center;
   gap: 6px;
+  min-height: 0;
+  padding: 0;
   font-size: 11px;
   color: var(--text-faint);
   cursor: pointer;
