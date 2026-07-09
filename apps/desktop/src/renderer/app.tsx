@@ -2040,7 +2040,6 @@ export function App() {
                 recoverableSessions={activeRecoverableSessions}
                 selectedSessionId={activeSelectedSessionId}
                 sessions={activeSessions}
-                shortcutModifier={shortcutModifier}
                 workMode={activeWorkMode}
                 worktreeActionPending={worktreeActionPending}
                 workspaceGitBranch={activeWorkspace.gitBranch}
@@ -2052,6 +2051,7 @@ export function App() {
                 onApplyWorktree={handleApplyWorktree}
                 onCloseSession={handleCloseSession}
                 onContinueRestoredSession={handleContinueRestoredSession}
+                onOpenInbox={() => setActiveSurface("inbox")}
                 onRestartSession={handleRestartSession}
                 onApplyWorkMode={handleApplyWorkMode}
                 onMoveTile={handleMoveTile}

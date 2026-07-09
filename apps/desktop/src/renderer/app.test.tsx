@@ -437,6 +437,7 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     onApplyWorktree: vi.fn(),
     onCloseSession: vi.fn(),
     onContinueRestoredSession: vi.fn(),
+    onOpenInbox: vi.fn(),
     onRestartSession: vi.fn(),
     onApplyWorkMode: vi.fn(),
     onMoveTile: vi.fn(),
@@ -467,7 +468,6 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
       relaunchArmedSessionIds={new Set()}
       selectedSessionId={nextSessions[0]?.id ?? null}
       sessions={nextSessions}
-      shortcutModifier="Cmd"
       workMode="desk"
       worktreeActionPending={{}}
       workspaceGitBranch="main"
@@ -1112,7 +1112,7 @@ describe("App integration", () => {
 
     expect(screen.getByRole("button", { name: /Workspace menu for Alfred/i })).not.toHaveTextContent(/2 tiles/);
     expect(workbenchHeader).toHaveTextContent("2 sessions");
-    expect(screen.getByLabelText("Terminal grid controls")).toHaveTextContent(/^(Cmd|Ctrl) T$/);
+    expect(screen.queryByLabelText("Terminal grid controls")).not.toBeInTheDocument();
     expect(screen.queryByText(/2 tiles · 0 staged/i)).not.toBeInTheDocument();
   });
 
@@ -5275,8 +5275,11 @@ describe("App integration", () => {
 
     const recovery = await screen.findByRole("region", { name: "Session recovery" });
     expect(recovery).toHaveTextContent("2 saved sessions ready");
+    expect(recovery.textContent).not.toMatch(/ready\s*·\s*2 saved/);
+    const user = userEvent.setup();
+    await user.click(within(recovery).getByRole("button", { name: "Review in Inbox" }));
+    expect(await screen.findByRole("region", { name: "Inbox workspace" })).toBeInTheDocument();
     expect(recovery).toHaveTextContent("2 saved");
-    expect(within(recovery).queryByRole("button")).not.toBeInTheDocument();
 
     await openReviewQueueFromCommandPalette(userEvent.setup());
     const queue = screen.getByRole("dialog", { name: "Review queue" });
