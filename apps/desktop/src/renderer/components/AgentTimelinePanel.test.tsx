@@ -148,8 +148,12 @@ describe("AgentTimelinePanel", () => {
     await user.click(screen.getByRole("button", { name: "Details" }));
     expect(screen.getByRole("button", { name: "Details" })).toHaveAttribute("aria-expanded", "true");
 
+    await user.click(screen.getByRole("button", { name: /^Activity \(/ }));
+    expect(screen.getByRole("button", { name: /^Activity \(/ })).toHaveAttribute("aria-expanded", "true");
+
     rerender(<AgentTimelinePanel session={{ ...baseSession, id: "s2", title: "codex — two" }} />);
     expect(screen.getByRole("button", { name: "Details" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("button", { name: /^Activity \(/ })).toHaveAttribute("aria-expanded", "false");
   });
 
   it("offers session handoff actions for cwd and command", async () => {
@@ -559,9 +563,7 @@ describe("AgentTimelinePanel", () => {
     render(<AgentTimelinePanel session={session} />);
     await user.click(screen.getByRole("button", { name: "Details" }));
 
-    const digest = screen.getAllByRole("region", { name: "Activity digest" }).at(-1);
-    expect(digest).toBeDefined();
-    if (!digest) throw new Error("Activity digest not rendered");
+    const digest = screen.getByRole("region", { name: "Activity digest" });
     expect(within(digest).getByText("command")).toBeInTheDocument();
     expect(within(digest).getByText("file")).toBeInTheDocument();
     expect(within(digest).getByText("tool")).toBeInTheDocument();

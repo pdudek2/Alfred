@@ -672,6 +672,7 @@ describe("App integration", () => {
     render(<App />);
 
     const panel = await screen.findByTestId("workspace-navigation-panel");
+    expect(panel.querySelectorAll(".workspace-nav-section > header strong")).toHaveLength(0);
     expect(within(panel).queryByText(/~\/Documents\/Codex\//)).not.toBeInTheDocument();
     await user.click(within(panel).getByRole("button", { name: /Scratch API worker/i }));
 

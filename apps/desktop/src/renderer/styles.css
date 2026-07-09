@@ -5136,17 +5136,6 @@ body.arranging-pointer {
   margin: 0;
 }
 
-.agent-panel-section {
-  margin: 0 0 14px;
-  border: 1px solid color-mix(in oklab, white 7%, transparent);
-  border-radius: 12px;
-  padding: 10px;
-  background:
-    linear-gradient(180deg, color-mix(in oklab, white 3%, transparent), transparent 64px),
-    color-mix(in oklab, black 16%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in oklab, white 5%, transparent);
-}
-
 .agent-session-facts {
   display: grid;
   gap: 10px;
@@ -5739,17 +5728,6 @@ body {
   background: var(--signal-success);
   color: #04120a;
   font-weight: 600;
-}
-
-/* --- Inspector dock: hierarchy, not four equal boxes --- */
-/* Secondary sections: quiet, divider-separated — no competing boxes. */
-.agent-panel-section {
-  background: transparent;
-  border: 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0;
-  box-shadow: none;
-  padding: 16px 2px;
 }
 
 /* Handoff actions read as a quiet utility row, not a primary panel. */
@@ -6373,11 +6351,6 @@ body {
 
 .agent-timeline-body {
   padding: 12px 14px 14px;
-}
-
-.agent-timeline-body .agent-panel-section {
-  margin-bottom: 10px;
-  padding: 12px 2px;
 }
 
 .agent-session-facts {
@@ -8374,7 +8347,6 @@ body {
   box-shadow: none;
 }
 
-.agent-panel-section,
 .agent-session-pulse,
 .review-context-summary,
 .review-surface-item,
@@ -8722,7 +8694,6 @@ body {
   box-shadow: none;
 }
 
-.agent-panel-section,
 .agent-session-pulse,
 .review-context-summary {
   border-color: var(--border);
@@ -8786,9 +8757,7 @@ body {
   overflow: auto;
 }
 
-.agent-detail-list,
-.agent-handoff-buttons,
-.agent-timeline-list {
+.agent-handoff-buttons {
   padding-right: 0;
 }
 
@@ -8964,7 +8933,6 @@ body {
   overflow: visible;
 }
 
-.context-drawer .agent-panel-section,
 .context-drawer .agent-session-pulse {
   background: var(--surface-raised);
   background-image: none;
@@ -9995,11 +9963,6 @@ body {
   color: var(--text-faint);
   font: 700 var(--type-micro)/1.1 var(--sans);
   letter-spacing: 0.06em;
-}
-
-.workspace-nav-section > header strong {
-  color: var(--text-muted);
-  font-weight: 700;
 }
 
 .workspace-nav-row {
