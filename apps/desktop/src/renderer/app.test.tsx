@@ -578,6 +578,7 @@ describe("App integration", () => {
   });
 
   it("keeps workspace navigation inbox copy concise instead of catch-all category text", async () => {
+    const user = userEvent.setup();
     installDesktopBridge(
       undefined,
       null,
@@ -608,14 +609,17 @@ describe("App integration", () => {
     expect(panel.querySelector(".workspace-nav-mark.alert")).not.toBeNull();
 
     const primaryNav = screen.getByTestId("primary-nav-rail");
-    const inboxButton = within(primaryNav).getByRole("button", { name: "Open Inbox surface, 1 items" });
-    const contextButton = within(primaryNav).getByRole("button", {
-      name: "Open Context drawer, 1 important signal",
-    });
+    const inboxButton = within(primaryNav).getByTitle("Inbox");
+    const contextButton = within(primaryNav).getByTitle("Context");
+    expect(inboxButton).toHaveAccessibleName("Open Inbox surface, 1 item");
+    expect(contextButton).toHaveAccessibleName("Open Context drawer, 1 important signal");
     expect(inboxButton).not.toHaveTextContent("1");
     expect(contextButton).not.toHaveTextContent("1");
     expect(inboxButton.querySelector(".quiet-count-dot.attention")).toHaveAttribute("aria-hidden", "true");
     expect(contextButton.querySelector(".quiet-count-dot")).toHaveAttribute("aria-hidden", "true");
+
+    await user.click(contextButton);
+    expect(contextButton).toHaveAccessibleName("Close Context drawer, 1 important signal");
   });
 
   it("keeps sidebar section headers free of count badges", async () => {
