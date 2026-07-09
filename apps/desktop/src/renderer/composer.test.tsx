@@ -141,6 +141,7 @@ describe("ComposerBar", () => {
     expect(screen.getByRole("form", { name: "Alfred dispatch" })).toHaveAttribute("data-state", "disabled");
     expect(screen.getByRole("status")).toHaveTextContent("Dispatch paused while another Alfred panel is active.");
     expect(screen.getByLabelText("Dispatch instruction")).toBeDisabled();
+    expect(screen.getByLabelText("Dispatch instruction")).toHaveAttribute("placeholder", "Prepare work…");
     expect(screen.getByRole("button", { name: "Prepare work with Manual · zsh 1" })).toBeDisabled();
   });
 
