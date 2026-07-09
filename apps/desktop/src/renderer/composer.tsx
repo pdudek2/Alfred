@@ -41,7 +41,7 @@ export function ComposerBar({
           ? blockedReason
           : lastDispatchDestination
             ? `Prepared work for ${lastDispatchDestination}.`
-            : `Ready to prepare work ${targetPreposition} ${targetLabel}.`;
+            : "";
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit) return;
@@ -87,7 +87,7 @@ export function ComposerBar({
           className="composer-input"
           rows={1}
           value={draft}
-          placeholder={dispatchTarget ? `Prepare work ${targetPreposition} ${dispatchTarget.label}...` : "Choose a planning scope first..."}
+          placeholder={dispatchTarget ? "Prepare work…" : "Choose a planning scope first..."}
           disabled={composerDisabled}
           aria-label="Dispatch instruction"
           aria-describedby="composer-status"

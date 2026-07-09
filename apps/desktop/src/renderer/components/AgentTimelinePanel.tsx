@@ -73,7 +73,6 @@ export function AgentTimelinePanel({
   const activityEvents = session.activityEvents ?? [];
   const presentedActivity = presentActivityEvents(activityEvents, { includeRaw: showRawActivity });
   const ageLabel = sessionAgeLabel(session.createdAt, ageClock);
-  const activityDigest = activityDigestItems(activityEvents);
   const activitySummary = summarizeActivityEvents(activityEvents);
   const pulseCard = sessionPulseCard(session, displayStatus, activityEvents);
   const isolatedCheckout = isIsolatedCheckoutSession(session);
@@ -218,15 +217,14 @@ export function AgentTimelinePanel({
         ];
   const visibleTimelineEvents = showRawActivity ? displayedEvents : displayedEvents.slice(0, TIMELINE_PREVIEW_LIMIT);
   const hiddenPreviewCount = Math.max(0, displayedEvents.length - visibleTimelineEvents.length);
-  const hasDetails =
-    Boolean(
-      isolationFactLabel ||
-        session.branchName ||
-        session.baseCwd ||
-        activitySummary ||
-        session.lastActivityAt ||
-        session.lastOutputAt,
-    ) || activityDigest.length > 0;
+  const hasDetails = Boolean(
+    isolationFactLabel ||
+      session.branchName ||
+      session.baseCwd ||
+      activitySummary ||
+      session.lastActivityAt ||
+      session.lastOutputAt,
+  );
 
   return (
     <aside className="agent-timeline-panel" aria-label="Agent activity">
@@ -397,16 +395,6 @@ export function AgentTimelinePanel({
                     </div>
                   )}
                 </dl>
-                {activityDigest.length > 0 && (
-                  <section className="agent-activity-digest" aria-label="Activity digest">
-                    {activityDigest.map((item) => (
-                      <div className={`tone-${item.tone}`} key={item.label}>
-                        <strong>{item.value}</strong>
-                        <span>{countedLabel(item.value, item.label)}</span>
-                      </div>
-                    ))}
-                  </section>
-                )}
               </>
             )}
           </section>
@@ -480,7 +468,6 @@ export function AgentTimelinePanel({
   );
 }
 
-type ActivityDigestTone = "ask" | "issue" | "plan" | "work";
 type SessionPulseTone = "ask" | "issue" | "recovery" | "signal" | "work";
 
 type SessionHandoffAction =
@@ -630,29 +617,6 @@ function sessionHandoffActions(session: SessionTile, command: string): SessionHa
 
 function sessionHandoffActionKey(sessionId: string, actionId: SessionHandoffAction["id"]): string {
   return `${sessionId}:${actionId}`;
-}
-
-function activityDigestItems(events: NonNullable<SessionTile["activityEvents"]>): Array<{
-  label: string;
-  tone: ActivityDigestTone;
-  value: number;
-}> {
-  const items = [
-    { label: "command", tone: "work" as const, value: events.filter((event) => event.kind === "command").length },
-    { label: "file", tone: "work" as const, value: events.filter((event) => event.kind === "file").length },
-    { label: "tool", tone: "work" as const, value: events.filter((event) => event.kind === "tool").length },
-    { label: "plan", tone: "plan" as const, value: events.filter((event) => event.kind === "plan").length },
-    { label: "ask", tone: "ask" as const, value: events.filter((event) => event.kind === "approval").length },
-    { label: "issue", tone: "issue" as const, value: events.filter((event) => event.kind === "error" || event.kind === "warning").length },
-  ];
-
-  return items.filter((item) => item.value > 0);
-}
-
-function countedLabel(count: number, singular: string): string {
-  if (count === 1) return singular;
-  if (singular === "ask") return "asks";
-  return `${singular}s`;
 }
 
 function activityPayloadView(

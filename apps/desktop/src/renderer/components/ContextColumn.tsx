@@ -5,7 +5,6 @@ import { WorkspacePreviewPanel, type WorkspacePreviewPanelProps } from "./Worksp
 
 type ContextColumnProps = {
   contextOpen: boolean;
-  inspectedTitle: string;
   previewVisible: boolean;
   timelineProps: AgentTimelinePanelProps;
   railProps: AlfredControlRailProps;
@@ -15,7 +14,6 @@ type ContextColumnProps = {
 
 export function ContextColumn({
   contextOpen,
-  inspectedTitle,
   previewVisible,
   timelineProps,
   railProps,
@@ -33,7 +31,6 @@ export function ContextColumn({
         <header className="context-drawer-header">
           <div>
             <span>Context</span>
-            <strong>{inspectedTitle}</strong>
           </div>
           <button type="button" onClick={onCloseContext} aria-label="Close Context panel">
             <X size={15} />
