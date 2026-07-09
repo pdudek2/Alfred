@@ -269,7 +269,10 @@ export function TerminalDesk({
   );
 
   return (
-    <section className={`terminal-stage ${arrangeMode ? "arranging" : ""} mode-${workMode}`} aria-label="terminals">
+    <section
+      className={`terminal-stage ${showLayoutControls ? "" : "headerless"} ${arrangeMode ? "arranging" : ""} mode-${workMode}`}
+      aria-label="terminals"
+    >
       {showLayoutControls && (
         <header className="terminal-stage-header">
           <div className="layout-controls" aria-label="layout controls">

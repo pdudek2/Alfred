@@ -1315,6 +1315,10 @@ button:focus-visible {
   grid-template-rows: 44px minmax(0, 1fr);
 }
 
+.terminal-stage.headerless {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .terminal-stage-header {
   min-width: 0;
   border-bottom: 1px solid rgba(188, 202, 218, 0.09);
