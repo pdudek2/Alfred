@@ -28,6 +28,12 @@ export function PrimaryNavigationRail({
   onToggleContext,
   onSelectSurface,
 }: PrimaryNavigationRailProps) {
+  const inboxCountLabel = inboxCount > 0 ? `, ${inboxCount} item${inboxCount === 1 ? "" : "s"}` : "";
+  const contextSignalLabel =
+    contextSignalCount > 0
+      ? `, ${contextSignalCount} important signal${contextSignalCount === 1 ? "" : "s"}`
+      : "";
+
   return (
     <nav className="primary-nav-rail" data-testid="primary-nav-rail" aria-label="Primary navigation">
       <div className="primary-nav-brand" aria-hidden="true">
@@ -47,7 +53,7 @@ export function PrimaryNavigationRail({
         <button
           type="button"
           className={activeSurface === "inbox" ? "active" : ""}
-          aria-label={`Open Inbox surface${inboxCount > 0 ? `, ${inboxCount} items` : ""}`}
+          aria-label={`Open Inbox surface${inboxCountLabel}`}
           aria-current={activeSurface === "inbox" ? "page" : undefined}
           title="Inbox"
           onClick={() => onSelectSurface("inbox")}
@@ -69,11 +75,7 @@ export function PrimaryNavigationRail({
       <div className="primary-nav-stack primary-nav-bottom">
         <button
           type="button"
-          aria-label={
-            contextOpen
-              ? "Close Context drawer"
-              : `Open Context drawer${contextSignalCount > 0 ? `, ${contextSignalCount} important signal${contextSignalCount === 1 ? "" : "s"}` : ""}`
-          }
+          aria-label={`${contextOpen ? "Close" : "Open"} Context drawer${contextSignalLabel}`}
           aria-expanded={contextOpen}
           title="Context"
           onClick={onToggleContext}
