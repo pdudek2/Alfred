@@ -550,32 +550,27 @@ describe("renderer CSS contracts", () => {
 
   it("keeps Context hierarchy quiet except selected session and key signal", () => {
     const drawer = blockForContaining(".context-drawer", "background: var(--surface-panel)");
-    const identity = blockForContaining(".agent-context-zone.agent-context-identity", "color: var(--text-muted)");
-    const summary = blockFor(".agent-panel-section.agent-session-summary");
-    const moreDetails = blockForContaining(".agent-context-zone.agent-context-more", "color: var(--text-faint)");
-    const activityList = blockForContaining(".agent-activity-list", "color: var(--text-faint)");
-    const sectionLabelRule = ruleForSelectorContaining(".agent-section-heading span");
+    const essentials = blockFor(".agent-context-essentials");
+    const essentialsCommand = blockFor(".agent-essentials-command");
+    const disclosureToggle = blockFor(".agent-disclosure-toggle");
     const factLabel = blockFor(".agent-session-facts dt");
     const factValue = blockFor(".agent-session-facts dd");
-    const keySignal = blockFor(".agent-panel-section.agent-key-signal");
     const pulseTitle = blockFor(".agent-session-pulse strong");
     const pulseBody = blockFor(".agent-session-pulse p");
     const handoffButton = blockFor(".agent-handoff-buttons button");
 
     expect(drawer).toContain("background: var(--surface-panel)");
-    expect(identity).toContain("color: var(--text-muted)");
-    expect(summary).toContain("background: var(--surface-control)");
-    expect(summary).toContain("background-image: none");
-    expect(moreDetails).toContain("color: var(--text-faint)");
-    expect(activityList).toContain("color: var(--text-faint)");
-    expect(sectionLabelRule.body).toContain("font: 700 10px/1 var(--sans)");
-    expect(sectionLabelRule.body).toContain("text-transform: uppercase");
-    expect(factLabel).toContain("font: 650 10px/1.2 var(--sans)");
+    expect(essentials).toContain("background: var(--surface-control)");
+    expect(essentialsCommand).toContain("var(--mono)");
+    expect(disclosureToggle).toContain("var(--sans)");
+    expect(disclosureToggle).not.toContain("uppercase");
+    expect(factLabel).toContain("var(--sans)");
     expect(factValue).toContain("color: var(--text-secondary)");
-    expect(keySignal).toContain("var(--role-active)");
     expect(pulseTitle).toContain("color: var(--text-primary)");
     expect(pulseBody).toContain("color: var(--text-muted)");
     expect(handoffButton).toContain("background: var(--surface-control)");
+    expect(styles).not.toContain(".agent-context-zone");
+    expect(styles).not.toContain(".agent-section-heading");
   });
 
   it("keeps sidebar radar hierarchy quiet but readable", () => {
@@ -592,9 +587,11 @@ describe("renderer CSS contracts", () => {
     expect(navSectionHeader).toContain("color: var(--text-faint)");
     expect(navSectionHeader).toContain("var(--sans)");
     expect(navRow).toContain("background: transparent");
-    expect(navRow).toContain("grid-template-columns: 26px minmax(0, 1fr)");
+    expect(navRow).toContain("grid-template-columns: 26px minmax(0, 1fr) auto");
     expect(navRowTitle).toContain("color: var(--text-secondary)");
     expect(navRowTitle).toContain("font: 650 13px/1.22 var(--sans)");
+    expect(navRowTitle).toContain("text-overflow: ellipsis");
+    expect(navRowTitle).toContain("white-space: nowrap");
     expect(navRowMeta).toContain("color: var(--text-faint)");
     expect(inactiveWorkspaceTitle).toContain("color: var(--text-secondary)");
     expect(inactiveWorkspaceTitle).toContain("font: 600 12px/1.2 var(--sans)");

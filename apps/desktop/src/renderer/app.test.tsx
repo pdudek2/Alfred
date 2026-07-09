@@ -567,10 +567,59 @@ describe("App integration", () => {
     render(<App />);
 
     const panel = await screen.findByTestId("workspace-navigation-panel");
-    expect(within(panel).getByText("Active terminals")).toBeInTheDocument();
+    expect(within(panel).getByText("Terminals")).toBeInTheDocument();
     expect(within(panel).getByText("Inbox")).toBeInTheDocument();
     expect(within(panel).getByText("Workspaces")).toBeInTheDocument();
     expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toBeInTheDocument();
+  });
+
+  it("keeps workspace navigation inbox copy concise instead of catch-all category text", async () => {
+    installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "codex-restored",
+          title: "Codex · restored",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          source: "alfred",
+          agentKind: "codex",
+          command: "codex",
+          shell: "codex",
+          buffer: "saved output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+
+    const panel = await screen.findByTestId("workspace-navigation-panel");
+    expect(within(panel).getByText("1 item waiting")).toBeInTheDocument();
+    expect(within(panel).queryByText(/decisions, blocked runs, recovery/i)).not.toBeInTheDocument();
+    expect(within(panel).queryByText("Needs review")).not.toBeInTheDocument();
+    expect(panel.querySelector(".workspace-nav-mark.alert")).not.toBeNull();
+  });
+
+  it("keeps sidebar section headers free of count badges", async () => {
+    installDesktopBridge();
+    render(<App />);
+
+    const panel = await screen.findByTestId("workspace-navigation-panel");
+    expect(panel.querySelectorAll(".workspace-nav-section > header strong")).toHaveLength(0);
+  });
+
+  it("shows the inbox as a quiet single row when clear", async () => {
+    installDesktopBridge();
+    render(<App />);
+
+    const panel = await screen.findByTestId("workspace-navigation-panel");
+    const inboxRow = within(panel).getByRole("button", { name: /Inbox/ });
+    expect(within(inboxRow).getByText("Clear")).toBeInTheDocument();
+    expect(inboxRow.querySelector(".workspace-nav-mark.alert")).toBeNull();
   });
 
   it("does not render an empty Free Chats section when there are no scratch chats", async () => {
@@ -623,6 +672,8 @@ describe("App integration", () => {
     render(<App />);
 
     const panel = await screen.findByTestId("workspace-navigation-panel");
+    expect(panel.querySelectorAll(".workspace-nav-section > header strong")).toHaveLength(0);
+    expect(within(panel).queryByText(/~\/Documents\/Codex\//)).not.toBeInTheDocument();
     await user.click(within(panel).getByRole("button", { name: /Scratch API worker/i }));
 
     await waitFor(() => {
@@ -1998,7 +2049,13 @@ describe("App integration", () => {
     expect(quickSwitch).not.toHaveTextContent("Sessions and project memory");
 
     await user.click(screen.getByRole("button", { name: "Open History surface" }));
-    expect(await screen.findByRole("region", { name: "History workspace" })).toBeInTheDocument();
+    const history = await screen.findByRole("region", { name: "History workspace" });
+    expect(history).toBeInTheDocument();
+    const historyHeader = history.querySelector(".observatory-surface-header");
+    expect(historyHeader?.querySelectorAll("p")).toHaveLength(1);
+    expect(historyHeader).toHaveTextContent(
+      "Browse Alfred-managed sessions and external Codex transcripts. External sessions stay read-only until resumed.",
+    );
   });
 
   it("surfaces detected localhost URLs in the workspace preview dock", async () => {
@@ -3246,11 +3303,13 @@ describe("App integration", () => {
 
     const tile = await screen.findByRole("article", { name: /Codex · isolated review/i });
     await user.dblClick(tile.querySelector(".tile-header")!);
+    await user.click(within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open Context drawer/ }));
 
     const checkoutActions = screen.getByRole("toolbar", { name: "checkout actions for Codex · isolated review" });
     await user.click(within(checkoutActions).getByRole("button", { name: "Review diff" }));
 
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-1" });
+    await user.click(screen.getByRole("button", { name: /^Activity \(/ }));
     await waitFor(() => {
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Checkout diff reviewed");
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("2 changed files");
@@ -4262,6 +4321,7 @@ describe("App integration", () => {
     const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
     await user.dblClick(tile.querySelector(".tile-header")!);
     await user.click(within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open Context drawer/ }));
+    await user.click(screen.getByRole("button", { name: /^Activity \(/ }));
     await user.click(
       screen.getByRole("button", { name: "Reveal edited: apps/desktop/src/renderer/app.tsx" }),
     );
@@ -4294,7 +4354,12 @@ describe("App integration", () => {
     );
     const inspector = screen.getByRole("complementary", { name: "Agent activity" });
     expect(within(inspector).getByText("Manual · alpha")).toBeInTheDocument();
-    expect(within(inspector).getByText("Continue outside Alfred")).toBeInTheDocument();
+    expect(
+      within(inspector).getByRole("group", { name: "Handoff actions for Manual · alpha" }),
+    ).toBeInTheDocument();
+    const essentials = within(inspector).getByRole("region", { name: "Session essentials" });
+    expect(essentials).toHaveTextContent("Manual");
+    expect(essentials).toHaveTextContent("…/Desktop/Alfred");
   });
 
   it("opens the focused session cwd in an external terminal", async () => {
