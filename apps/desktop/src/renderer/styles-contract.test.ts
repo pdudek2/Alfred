@@ -24,6 +24,11 @@ function firstBlockFor(source: string, selector: string): string {
   return source.match(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`, "m"))?.groups?.body ?? "";
 }
 
+function mediaBlockFor(query: string): string {
+  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return styles.match(new RegExp(`@media\\s*${escapedQuery}\\s*\\{(?<body>[\\s\\S]*?)^\\}`, "m"))?.groups?.body ?? "";
+}
+
 function blocksFor(selector: string): string[] {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return [...styles.matchAll(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`, "gm"))].map(
@@ -238,12 +243,21 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain("--flat-control");
   });
 
-  it("keeps header counts quiet instead of rendering badge bubbles", () => {
-    const panelGroup = blockFor(".workbench-panel-group button strong");
-    const quietDot = blockFor(".quiet-count-dot,\n.quiet-count-mark");
+  it("keeps count indicators quiet instead of rendering numeric badge pills", () => {
+    const quietIndicators = blockFor(".quiet-count-dot,\n.quiet-count-mark");
+    const primaryNavIndicators = blockFor(
+      ".primary-nav-rail button > .quiet-count-dot,\n.primary-nav-rail button > .quiet-count-mark",
+    );
 
-    expect(panelGroup).toContain("display: none");
-    expect(quietDot).toContain("border-radius: 999px");
+    expect(quietIndicators).toContain("width: 6px");
+    expect(quietIndicators).toContain("height: 6px");
+    expect(quietIndicators).toContain("border-radius: 999px");
+    expect(primaryNavIndicators).toContain("position: absolute");
+    expect(primaryNavIndicators).toContain("top: 5px");
+    expect(primaryNavIndicators).toContain("right: 5px");
+    expect(styles).not.toMatch(/\.primary-nav-rail button\s*(?:>\s*)?span\s*\{/);
+    expect(styles).not.toContain(".workbench-panel-group button strong");
+    expect(styles).not.toContain(".workbench-actions button strong");
   });
 
   it("keeps quick switch as a compact flat switcher, not a heavy glass modal", () => {
@@ -339,7 +353,32 @@ describe("renderer CSS contracts", () => {
     expect(blockFor(".mission-bar")).toContain("display: flex");
     expect(blockFor(".mission-bar .workbench-header")).toContain("flex: 1");
     expect(blockFor(".review-surface-row")).toContain("grid-template-columns: minmax(0, 1fr) auto");
+    expect(blockFor(".review-surface-row")).toContain("grid-column: 1 / -1");
     expect(blockFor(".recovery-workspace-strip")).toContain("background: transparent");
+  });
+
+  it("keeps the final restart disclosure compact", () => {
+    const restartSummary = blockFor(".review-surface-command.is-disclosure summary");
+
+    expect(restartSummary).toContain("justify-self: start");
+    expect(restartSummary).toContain("justify-content: flex-start");
+    expect(restartSummary).toContain("min-height: 0");
+    expect(restartSummary).toContain("padding: 0");
+  });
+
+  it("resets inherited height on the final Inbox section header", () => {
+    expect(blockFor(".inbox-section > header")).toContain("min-height: 0");
+  });
+
+  it("reduces agent launch padding inside the 1240px breakpoint", () => {
+    const compactChrome = mediaBlockFor("(max-width: 1240px)");
+    const compactAgentLaunch = firstBlockFor(
+      compactChrome,
+      ".workbench-launch-group button:not(.workbench-primary-action)",
+    );
+
+    expect(compactAgentLaunch).toContain("padding: 6px 7px");
+    expect(firstBlockFor(compactChrome, ".workbench-bar-title span")).toContain("display: none");
   });
 
   it("lays workspace title and detail out inline in the one bar", () => {

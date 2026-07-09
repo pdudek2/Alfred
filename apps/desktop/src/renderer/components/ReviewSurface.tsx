@@ -75,10 +75,18 @@ export function ReviewSurface({
           {sections
             .filter((section) => section.items.length > 0)
             .map((section) => (
-              <section className="inbox-section" aria-label={section.title} key={section.id}>
+              <section
+                className="inbox-section"
+                aria-label={section.title}
+                aria-describedby={`inbox-section-${section.id}-detail`}
+                key={section.id}
+              >
                 <header title={section.detail}>
                   <strong>{section.title}</strong>
                   <small>{section.items.length}</small>
+                  <p className="visually-hidden" id={`inbox-section-${section.id}-detail`}>
+                    {section.detail}
+                  </p>
                 </header>
                 <ol className="review-surface-list" aria-label={`${section.title} items`}>
                   {section.items.map((item) => (

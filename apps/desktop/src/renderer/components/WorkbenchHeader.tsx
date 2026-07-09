@@ -12,7 +12,7 @@ type WorkbenchHeaderProps = {
   contextSignalCount: number;
   inboxCount: number;
   sessionCount: number;
-  shortcutModifier: string;
+  shortcutModifier: "Cmd" | "Ctrl";
   workMode: WorkMode;
   workspaceSwitcher: ReactNode;
   onAddAgentSession: (kind: "codex" | "claude") => void;

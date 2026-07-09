@@ -70,6 +70,35 @@ describe("ReviewSurface", () => {
     expect(document.querySelector(".review-surface-stats")).toBeNull();
   });
 
+  it("exposes section detail as a visually hidden accessible description", () => {
+    renderSurface([
+      reviewItem(
+        {
+          id: "codex-1",
+          title: "Codex · session 1",
+          workspaceId: "COD",
+          cwd: "/Users/patryk/Desktop/CodexPulse",
+          source: "alfred",
+          stage: "live",
+          runtimeStatus: "restored",
+          command: "codex",
+          args: ["resume", "--last"],
+          agentKind: "codex",
+        },
+        { kind: "restored", label: "restored" },
+      ),
+    ]);
+
+    const recovery = screen.getByRole("region", { name: "Recovery" });
+    const detail = document.getElementById("inbox-section-recovery-detail");
+
+    expect(recovery).toHaveAttribute("aria-describedby", "inbox-section-recovery-detail");
+    expect(recovery).toHaveAccessibleDescription(
+      "Restored, exited and failed sessions that need a restart or discard.",
+    );
+    expect(detail).toHaveClass("visually-hidden");
+  });
+
   it("keeps discard as an icon action and the meta line free of the workspace name", () => {
     renderSurface([
       reviewItem(
