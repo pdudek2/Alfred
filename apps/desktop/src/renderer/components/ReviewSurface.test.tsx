@@ -43,7 +43,7 @@ function renderSurface(items: WorkspaceReviewItem[]) {
 }
 
 describe("ReviewSurface", () => {
-  it("keeps empty Inbox sections compact and expands only sections with work", () => {
+  it("renders only populated sections with a single waiting count", () => {
     renderSurface([
       reviewItem(
         {
@@ -62,15 +62,37 @@ describe("ReviewSurface", () => {
       ),
     ]);
 
-    const needsDecision = screen.getByRole("region", { name: "Needs decision" });
-    const blockedSafety = screen.getByRole("region", { name: "Blocked & safety" });
+    expect(screen.queryByRole("region", { name: "Needs decision" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Blocked & safety" })).not.toBeInTheDocument();
     const recovery = screen.getByRole("region", { name: "Recovery" });
+    expect(within(recovery).getByText("1")).toBeInTheDocument();
+    expect(screen.getByText("1 waiting")).toBeInTheDocument();
+    expect(document.querySelector(".review-surface-stats")).toBeNull();
+  });
 
-    expect(needsDecision).toHaveAttribute("data-state", "empty");
-    expect(blockedSafety).toHaveAttribute("data-state", "empty");
-    expect(recovery).toHaveAttribute("data-state", "populated");
-    expect(within(needsDecision).queryByText("Clear.")).not.toBeInTheDocument();
-    expect(within(blockedSafety).queryByText("Clear.")).not.toBeInTheDocument();
+  it("keeps discard as an icon action and the meta line free of the workspace name", () => {
+    renderSurface([
+      reviewItem(
+        {
+          id: "codex-1",
+          title: "Codex · session 1",
+          workspaceId: "COD",
+          cwd: "/Users/patryk/Desktop/CodexPulse",
+          source: "alfred",
+          stage: "live",
+          runtimeStatus: "restored",
+          command: "codex",
+          args: ["resume", "--last"],
+          agentKind: "codex",
+        },
+        { kind: "restored", label: "restored" },
+      ),
+    ]);
+
+    expect(screen.getByRole("button", { name: "Discard Codex · session 1" })).toBeInTheDocument();
+    const meta = screen.getByText(/Stopped on quit/);
+    expect(meta.textContent).not.toContain("CodexPulse");
+    expect(meta).toHaveAttribute("title", expect.stringContaining("CodexPulse"));
   });
 
   it("tucks recovery commands behind an explicit disclosure instead of a prominent debug block", () => {

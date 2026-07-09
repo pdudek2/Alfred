@@ -30,11 +30,6 @@ export function ReviewSurface({
   onLaunchItem,
   onRestartSession,
 }: ReviewSurfaceProps) {
-  const stagedCount = items.filter((item) => item.status.kind === "staged" || item.status.kind === "checking").length;
-  const blockedCount = items.filter((item) => item.status.kind === "blocked").length;
-  const recoveryCount = items.filter((item) =>
-    item.status.kind === "restored" || item.status.kind === "done" || item.status.kind === "error",
-  ).length;
   const sections = [
     {
       id: "needs-decision",
@@ -63,13 +58,7 @@ export function ReviewSurface({
           <strong>Decision inbox</strong>
           <p>Launch, restart, resume, or discard queued work.</p>
         </div>
-        {stagedCount + blockedCount + recoveryCount > 0 && (
-          <div className="review-surface-stats" aria-label="Inbox summary">
-            {stagedCount > 0 && <ReviewStat label="staged" value={stagedCount} />}
-            {blockedCount > 0 && <ReviewStat label="blocked" value={blockedCount} />}
-            {recoveryCount > 0 && <ReviewStat label="recovery" value={recoveryCount} />}
-          </div>
-        )}
+        {items.length > 0 && <span className="review-surface-waiting">{items.length} waiting</span>}
       </header>
 
       {items.length === 0 ? (
@@ -83,44 +72,32 @@ export function ReviewSurface({
         </div>
       ) : (
         <div className="inbox-section-stack" aria-label="Inbox sections">
-          {sections.map((section) => {
-            const populated = section.items.length > 0;
-
-            return (
-              <section
-                className={`inbox-section ${populated ? "is-populated" : "is-empty"}`}
-                data-state={populated ? "populated" : "empty"}
-                aria-label={section.title}
-                key={section.id}
-              >
-                <header>
-                  <div>
-                    <strong>{section.title}</strong>
-                    <span>{section.detail}</span>
-                  </div>
+          {sections
+            .filter((section) => section.items.length > 0)
+            .map((section) => (
+              <section className="inbox-section" aria-label={section.title} key={section.id}>
+                <header title={section.detail}>
+                  <strong>{section.title}</strong>
                   <small>{section.items.length}</small>
                 </header>
-                {populated && (
-                  <ol className="review-surface-list" aria-label={`${section.title} items`}>
-                    {section.items.map((item) => (
-                      <ReviewSurfaceItem
-                        armed={armedUnsafeSessionIds.has(item.session.id)}
-                        item={item}
-                        key={item.id}
-                        selected={item.session.id === selectedSessionId}
-                        onApproveTile={onApproveTile}
-                        onContinueRestoredSession={onContinueRestoredSession}
-                        onDiscardSession={onDiscardSession}
-                        onFocusItem={onFocusItem}
-                        onLaunchItem={onLaunchItem}
-                        onRestartSession={onRestartSession}
-                      />
-                    ))}
-                  </ol>
-                )}
+                <ol className="review-surface-list" aria-label={`${section.title} items`}>
+                  {section.items.map((item) => (
+                    <ReviewSurfaceItem
+                      armed={armedUnsafeSessionIds.has(item.session.id)}
+                      item={item}
+                      key={item.id}
+                      selected={item.session.id === selectedSessionId}
+                      onApproveTile={onApproveTile}
+                      onContinueRestoredSession={onContinueRestoredSession}
+                      onDiscardSession={onDiscardSession}
+                      onFocusItem={onFocusItem}
+                      onLaunchItem={onLaunchItem}
+                      onRestartSession={onRestartSession}
+                    />
+                  ))}
+                </ol>
               </section>
-            );
-          })}
+            ))}
         </div>
       )}
     </section>
@@ -135,15 +112,6 @@ function inboxSectionForItem(item: WorkspaceReviewItem): "needs-decision" | "blo
     return "blocked-safety";
   }
   return "needs-decision";
-}
-
-function ReviewStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <strong>{value}</strong>
-      <span>{label}</span>
-    </div>
-  );
 }
 
 function ReviewSurfaceItem({
@@ -202,26 +170,50 @@ function ReviewSurfaceItem({
 
   return (
     <li className={`review-surface-item tone-${item.status.kind} ${selected ? "selected" : ""}`}>
-      <button
-        type="button"
-        className="review-surface-item-main"
-        onClick={() => onFocusItem(item.workspaceId, item.session.id)}
-        aria-label={`Open ${item.session.title} in ${item.workspaceLabel}`}
-      >
-        <span className="review-surface-workspace">{item.workspaceShortLabel}</span>
-        <span className="review-surface-copy">
-          <strong>{item.session.title}</strong>
-          <small>
-            {item.workspaceLabel} · {status.label} · {item.detail}
-          </small>
-        </span>
-        {ageLabel && (
-          <time dateTime={new Date(ageSource ?? Date.now()).toISOString()} title={sessionAgeTitle(ageSource)}>
-            {ageLabel}
-          </time>
-        )}
-        <ArrowRight size={15} />
-      </button>
+      <div className="review-surface-row">
+        <button
+          type="button"
+          className="review-surface-item-main"
+          onClick={() => onFocusItem(item.workspaceId, item.session.id)}
+          aria-label={`Open ${item.session.title} in ${item.workspaceLabel}`}
+        >
+          <span className="review-surface-workspace">{item.workspaceShortLabel}</span>
+          <span className="review-surface-copy">
+            <strong>{item.session.title}</strong>
+            <small title={`${item.workspaceLabel} · ${status.label} · ${item.detail}`}>
+              {status.label} · {item.detail}
+            </small>
+          </span>
+          {ageLabel && (
+            <time dateTime={new Date(ageSource ?? Date.now()).toISOString()} title={sessionAgeTitle(ageSource)}>
+              {ageLabel}
+            </time>
+          )}
+          <ArrowRight size={15} />
+        </button>
+        <div className="review-surface-actions">
+          <button
+            type="button"
+            className={`review-surface-primary action-${item.status.kind} ${armed ? "armed" : ""}`}
+            disabled={hardBlocked || checking}
+            onClick={runAction}
+          >
+            {recoveryAction ? <RotateCcw size={14} /> : <Play size={14} />}
+            <span>{action}</span>
+          </button>
+          {(stagedAction || recoveryAction) && (
+            <button
+              type="button"
+              className="review-surface-discard"
+              title="Discard"
+              aria-label={`Discard ${item.session.title}`}
+              onClick={() => onDiscardSession(item.session.id)}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      </div>
 
       {(hardBlocked || checking || item.session.safetyNote) && (
         <div className="review-surface-note" role="note">
@@ -251,28 +243,6 @@ function ReviewSurfaceItem({
           <code>{command}</code>
         </details>
       )}
-
-      <div className="review-surface-actions">
-        <button
-          type="button"
-          className={`review-surface-primary action-${item.status.kind} ${armed ? "armed" : ""}`}
-          disabled={hardBlocked || checking}
-          onClick={runAction}
-        >
-          {recoveryAction ? <RotateCcw size={14} /> : <Play size={14} />}
-          <span>{action}</span>
-        </button>
-        {(stagedAction || recoveryAction) && (
-          <button
-            type="button"
-            className="review-surface-discard"
-            onClick={() => onDiscardSession(item.session.id)}
-          >
-            <X size={14} />
-            <span>Discard</span>
-          </button>
-        )}
-      </div>
     </li>
   );
 }
