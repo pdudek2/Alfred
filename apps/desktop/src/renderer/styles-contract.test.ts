@@ -205,28 +205,22 @@ describe("renderer CSS contracts", () => {
     expect(laidOutTile).toContain("scroll-margin-bottom: var(--grid-bottom-safe-zone)");
   });
 
-  it("keeps Inbox section titles separated from explanatory copy", () => {
+  it("keeps Inbox section titles quiet and inline", () => {
     const inboxHeader = blockFor(".inbox-section > header");
-    const inboxHeaderCopy = blockFor(".inbox-section > header div");
-    const emptyCopy = blockFor(".inbox-section-empty");
 
-    expect(inboxHeader).toContain("grid-template-columns: minmax(0, 1fr) auto");
-    expect(inboxHeaderCopy).toContain("display: grid");
-    expect(inboxHeaderCopy).toContain("gap: 4px");
-    expect(emptyCopy).toContain("font: 500 13px/1.4 var(--sans)");
+    expect(inboxHeader).toContain("display: flex");
+    expect(inboxHeader).toContain("align-items: baseline");
+    expect(inboxHeader).toContain("background: transparent");
   });
 
-  it("keeps empty Inbox lanes compact instead of stretching across the workspace", () => {
+  it("omits empty Inbox lane chrome because empty sections are not rendered", () => {
     const inboxStack = blockFor(".inbox-section-stack");
-    const emptySection = blockFor(".inbox-section.is-empty");
-    const emptyHeader = blockFor(".inbox-section.is-empty > header");
 
     expect(inboxStack).toContain("align-content: start");
     expect(inboxStack).toContain("align-items: start");
     expect(inboxStack).toContain("grid-auto-rows: max-content");
-    expect(emptySection).toContain("align-self: start");
-    expect(emptyHeader).toContain("min-height: 32px");
-    expect(emptyHeader).toContain("padding: 7px 10px");
+    expect(styles).not.toContain(".inbox-section.is-empty");
+    expect(styles).not.toContain('.inbox-section[data-state="empty"]');
   });
 
   it("keeps the clean flat workbench controls proportional", () => {
@@ -319,19 +313,33 @@ describe("renderer CSS contracts", () => {
     expect(scrollbarThumb).toContain("background:");
   });
 
-  it("keeps the top chrome as one workspace switcher plus one workbench header", () => {
+  it("keeps the top chrome in one frame row with a flexible workbench title", () => {
     const frame = blockFor(".desktop-frame");
     const missionBar = blockFor(".mission-bar");
-    const missionNameBase = blockForContaining(".mission-bar .mission-name", "position: static");
-    const stageUtilityText = blockFor(".terminal-stage-utility span");
+    const workbenchHeader = blockFor(".mission-bar .workbench-header");
+    const title = blockFor(".workbench-bar-title");
+    const spacer = blockFor(".workbench-bar-spacer");
 
     expect(frame).toContain("grid-template-rows: 52px minmax(0, 1fr) 58px");
-    expect(missionBar).toContain("position: static");
-    expect(missionBar).toContain("height: 52px");
-    expect(missionNameBase).toContain("position: static");
-    expect(missionNameBase).toContain("max-width: min(420px, 48vw)");
-    expect(stageUtilityText).toContain("font: 600 10px/1 var(--mono)");
-    expect(stageUtilityText).toContain("text-transform: uppercase");
+    expect(missionBar).toContain("display: flex");
+    expect(workbenchHeader).toContain("min-width: 0");
+    expect(title).toContain("white-space: nowrap");
+    expect(spacer).toContain("flex: 1 1 auto");
+  });
+
+  it("drops deduped chrome selectors from the sheet", () => {
+    expect(styles).not.toContain(".workbench-crumbs");
+    expect(styles).not.toContain(".workbench-title-block");
+    expect(styles).not.toContain(".terminal-stage-utility");
+    expect(styles).not.toContain(".agent-activity-digest");
+    expect(styles).not.toContain(".review-surface-stats");
+  });
+
+  it("lays the one-bar chrome and inbox rows out on the approved grids", () => {
+    expect(blockFor(".mission-bar")).toContain("display: flex");
+    expect(blockFor(".mission-bar .workbench-header")).toContain("flex: 1");
+    expect(blockFor(".review-surface-row")).toContain("grid-template-columns: minmax(0, 1fr) auto");
+    expect(blockFor(".recovery-workspace-strip")).toContain("background: transparent");
   });
 
   it("makes the context drawer itself scrollable instead of clipping the lower timeline", () => {
@@ -359,7 +367,7 @@ describe("renderer CSS contracts", () => {
   it("keeps recovery strip text from visually colliding", () => {
     const recoveryCopy = blockFor(".recovery-workspace-strip p");
 
-    expect(recoveryCopy).toContain("gap: 4px");
+    expect(recoveryCopy).toContain("gap: 6px");
   });
 
   it("keeps Arrange mode reachable at the bottom edge", () => {
@@ -544,8 +552,15 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps chrome microcopy on a readable type floor", () => {
+    const disclosureMarker = blockFor(".review-surface-command.is-disclosure summary::before");
+    const textStyles = styles.replace(
+      /\.review-surface-command\.is-disclosure summary::before\s*\{[^}]*\}/,
+      "",
+    );
+
     expect(styles).toContain("--type-micro: 10px");
-    expect(styles).not.toMatch(/font-size:\s*(?:8\.5|9)px/);
+    expect(disclosureMarker).toContain("font-size: 9px");
+    expect(textStyles).not.toMatch(/font-size:\s*(?:8\.5|9)px/);
   });
 
   it("keeps Context hierarchy quiet except selected session and key signal", () => {
