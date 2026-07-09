@@ -342,6 +342,27 @@ describe("renderer CSS contracts", () => {
     expect(blockFor(".recovery-workspace-strip")).toContain("background: transparent");
   });
 
+  it("lays workspace title and detail out inline in the one bar", () => {
+    const workspaceTitle = blockFor(".workspace-title-trigger > span");
+
+    expect(workspaceTitle).toContain("display: flex");
+    expect(workspaceTitle).toContain("flex-direction: row");
+    expect(workspaceTitle).toContain("align-items: baseline");
+  });
+
+  it("uses only the disclosure caret marker for Inbox commands", () => {
+    expect(styles).not.toContain(".review-surface-command summary::after");
+    expect(styles).not.toContain(".review-surface-command[open] summary::after");
+    expect(blockFor(".review-surface-command.is-disclosure summary::before")).toContain('content: "▸"');
+    expect(blockFor(".review-surface-command.is-disclosure[open] summary::before")).toContain('content: "▾"');
+  });
+
+  it("drops Inbox selectors for markup that is no longer rendered", () => {
+    expect(styles).not.toContain(".inbox-section > header div");
+    expect(styles).not.toContain(".inbox-section > header span");
+    expect(styles).not.toContain(".inbox-section-empty");
+  });
+
   it("makes the context drawer itself scrollable instead of clipping the lower timeline", () => {
     const contextColumn = firstBlockFor(styles, ".workspace-layout > .context-column.open");
     const contextDrawer = blockFor(".context-drawer");

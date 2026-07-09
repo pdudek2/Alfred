@@ -6778,16 +6778,6 @@ body {
   display: none;
 }
 
-.review-surface-command summary::after {
-  content: "+";
-  color: var(--text-muted);
-  font: 650 12px/1 var(--mono);
-}
-
-.review-surface-command[open] summary::after {
-  content: "-";
-}
-
 .review-surface-command.is-disclosure code {
   display: none;
   padding: 0 10px 10px;
@@ -7713,34 +7703,15 @@ body {
   gap: 10px;
 }
 
-.inbox-section > header div {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-}
-
 .inbox-section > header strong {
   min-width: 0;
   color: var(--text-primary);
   font: 650 12px/1.2 var(--sans);
 }
 
-.inbox-section > header span {
-  min-width: 0;
-  color: var(--text-muted);
-  font: 600 10px/1.35 var(--mono);
-}
-
 .inbox-section > header small {
   color: var(--text-secondary);
   font: 650 12px/1.2 var(--mono);
-}
-
-.inbox-section-empty {
-  margin: 0;
-  padding: 14px 12px;
-  color: var(--text-muted);
-  font: 500 13px/1.4 var(--sans);
 }
 
 .agent-space-shell {
@@ -9889,6 +9860,7 @@ body {
 }
 
 .workspace-title-trigger > span {
+  display: flex;
   flex-direction: row;
   align-items: baseline;
   gap: 7px;
