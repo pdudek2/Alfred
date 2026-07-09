@@ -23,7 +23,7 @@ import type { ArrangePointerMode, ArrangePreview, WorkMode } from "../terminal-d
 import type { AgentKind } from "../../shared/alfred-ipc";
 import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../../shared/terminal-ipc";
 import { shortenPath } from "../path-display";
-import { recoveryHeadline, recoverySummary } from "../recovery-display";
+import { recoveryHeadline } from "../recovery-display";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { restoredSessionActionLabel, restoredSessionActionTitle } from "../restored-session-action";
 import { normalizeSessionTitle } from "../../shared/session-title";
@@ -47,7 +47,6 @@ type TerminalDeskProps = {
   selectedSessionId: string | null;
   sessions: SessionTile[];
   showHeaderControls?: boolean;
-  shortcutModifier: string;
   workMode: WorkMode;
   worktreeActionPending: Record<string, WorktreeActionKind | undefined>;
   workspaceGitBranch?: string | undefined;
@@ -59,6 +58,7 @@ type TerminalDeskProps = {
   onApplyWorktree: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
   onContinueRestoredSession: (sessionId: string) => void;
+  onOpenInbox: () => void;
   onRestartSession: (sessionId: string) => void;
   onApplyWorkMode: (mode: WorkMode) => void;
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
@@ -90,7 +90,6 @@ export function TerminalDesk({
   selectedSessionId,
   sessions,
   showHeaderControls = true,
-  shortcutModifier,
   workMode,
   worktreeActionPending,
   workspaceGitBranch,
@@ -102,6 +101,7 @@ export function TerminalDesk({
   onApplyWorktree,
   onCloseSession,
   onContinueRestoredSession,
+  onOpenInbox,
   onRestartSession,
   onApplyWorkMode,
   onMoveTile,
@@ -270,11 +270,8 @@ export function TerminalDesk({
 
   return (
     <section className={`terminal-stage ${arrangeMode ? "arranging" : ""} mode-${workMode}`} aria-label="terminals">
-      <header className="terminal-stage-header">
-        <div className="terminal-stage-utility" aria-label="Terminal grid controls">
-          <span>{shortcutModifier} T</span>
-        </div>
-        {showLayoutControls ? (
+      {showLayoutControls && (
+        <header className="terminal-stage-header">
           <div className="layout-controls" aria-label="layout controls">
             {arrangeMode && (
               <>
@@ -311,13 +308,14 @@ export function TerminalDesk({
               </div>
             )}
           </div>
-        ) : null}
-      </header>
+        </header>
+      )}
       <div className="terminal-stage-body">
         <div className="terminal-grid-column" onWheelCapture={handleGridWheelCapture}>
           {recoverableSessions.length > 0 && (
             <RecoveryWorkspaceStrip
               sessions={recoverableSessions}
+              onOpenInbox={onOpenInbox}
             />
           )}
           {blockedStagedSession && (
@@ -497,23 +495,16 @@ function WorktreeActionStrip({
   );
 }
 
-function RecoveryWorkspaceStrip({ sessions }: { sessions: SessionTile[] }) {
-  const headline = recoveryHeadline(sessions);
-  const summary = recoverySummary(sessions);
-
+function RecoveryWorkspaceStrip({ sessions, onOpenInbox }: { sessions: SessionTile[]; onOpenInbox: () => void }) {
   return (
     <section className="recovery-workspace-strip" aria-label="Session recovery">
-      <span>Recovery</span>
+      <RotateCcw size={13} aria-hidden="true" />
       <p>
-        <strong>{headline}</strong>
-        {summary ? (
-          <>
-            <span aria-hidden="true"> · </span>
-            <span>{summary}</span>
-          </>
-        ) : (
-          <span>Saved transcript available</span>
-        )}
+        <strong>{recoveryHeadline(sessions)}</strong>
+        <span aria-hidden="true"> · </span>
+        <button type="button" className="recovery-inbox-link" onClick={onOpenInbox}>
+          Review in Inbox
+        </button>
       </p>
     </section>
   );
