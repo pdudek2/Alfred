@@ -1,4 +1,5 @@
 import { AlertTriangle, ArrowRight, CheckCircle2, Play, RotateCcw, X } from "lucide-react";
+import { useLayoutEffect, useRef } from "react";
 import { isLaunchBlocked } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
@@ -30,6 +31,12 @@ export function ReviewSurface({
   onLaunchItem,
   onRestartSession,
 }: ReviewSurfaceProps) {
+  const surfaceRef = useRef<HTMLElement | null>(null);
+
+  useLayoutEffect(() => {
+    surfaceRef.current?.focus();
+  }, []);
+
   const sections = [
     {
       id: "needs-decision",
@@ -52,7 +59,7 @@ export function ReviewSurface({
   ];
 
   return (
-    <section className="review-surface inbox-surface" aria-label="Inbox workspace">
+    <section ref={surfaceRef} className="review-surface inbox-surface" aria-label="Inbox workspace" tabIndex={-1}>
       <header className="review-surface-header">
         <div>
           <strong>Decision inbox</strong>

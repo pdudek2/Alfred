@@ -5277,6 +5277,7 @@ describe("App integration", () => {
     const user = userEvent.setup();
     await user.click(within(recovery).getByRole("button", { name: "Review in Inbox" }));
     const inbox = await screen.findByRole("region", { name: "Inbox workspace" });
+    expect(inbox).toHaveFocus();
     expect(recovery).toHaveTextContent("2 saved");
 
     expect(inbox).toHaveTextContent("Manual · zsh 9");
