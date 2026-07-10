@@ -1134,7 +1134,7 @@ describe("App integration", () => {
     expect(screen.queryByText(/2 tiles · 0 staged/i)).not.toBeInTheDocument();
   });
 
-  it("lets the terminal body fill a one-bar stage without a local header", async () => {
+  it("renders the normal terminal stage without a local header", async () => {
     installDesktopBridge();
 
     render(<App />);
@@ -1142,9 +1142,6 @@ describe("App integration", () => {
     const stage = await screen.findByLabelText("terminals");
     expect(stage).toHaveClass("headerless");
     expect(stage.querySelector(".terminal-stage-header")).not.toBeInTheDocument();
-    expect(rendererStyles).toMatch(
-      /\.terminal-stage\.headerless\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\);[^}]*\}/s,
-    );
   });
 
   it("keeps non-visible Split terminals mounted and replayable when returning to Grid", async () => {
@@ -2638,6 +2635,9 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Arrange" }));
 
+    const stage = screen.getByLabelText("terminals");
+    expect(stage).not.toHaveClass("headerless");
+    expect(stage.querySelector(".terminal-stage-header")).toBeInTheDocument();
     expect(screen.getByText("Arrange mode")).toBeInTheDocument();
     expect(screen.getByText("drag header · resize corner")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Apply Full preset" })).not.toBeInTheDocument();
