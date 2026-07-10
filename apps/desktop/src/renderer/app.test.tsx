@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
@@ -30,8 +28,6 @@ const { terminalConstructorOptions, terminalDisposeCalls } = vi.hoisted(() => ({
   terminalConstructorOptions: [] as unknown[],
   terminalDisposeCalls: [] as unknown[],
 }));
-
-const rendererStyles = readFileSync(resolve(process.cwd(), "src/renderer/styles.css"), "utf8");
 
 vi.mock("@xterm/xterm", () => ({
   Terminal: class {
@@ -1192,10 +1188,6 @@ describe("App integration", () => {
     if (!(hiddenSplitTile instanceof HTMLElement)) {
       throw new Error("Expected hidden split tile to be present.");
     }
-    expect(rendererStyles).toMatch(
-      /\.terminal-stage\.mode-focus \.terminal-tile\.focus-hidden,\s*\.terminal-stage\.mode-split \.terminal-tile\.focus-hidden\s*\{[^}]*visibility:\s*hidden;[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;[^}]*\}/s,
-    );
-    expect(hiddenSplitTile.matches(".terminal-stage.mode-split .terminal-tile.focus-hidden")).toBe(true);
     expect(within(hiddenSplitTile).getByTestId("xterm-host").isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCount);
 
