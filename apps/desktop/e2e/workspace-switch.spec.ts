@@ -1,6 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { realpath } from "node:fs/promises";
+import type { Page } from "@playwright/test";
+import type {
+  TerminalApi,
+  TerminalListResult,
+  TerminalSnapshotResult,
+} from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
+
+type DesktopTerminalWindow = Window & {
+  alfredDesktop?: { terminal: TerminalApi };
+};
 
 test.use({ fixtureOptions: { activeWorkspaceId: "A" } });
 
@@ -17,6 +27,10 @@ test("workspace switch keeps the same terminal runtime in workspace A", async ({
   await terminalInput.press("Enter");
   await expect(terminalHost).toContainText(marker);
   await expect(terminalTiles).toHaveCount(1);
+  const beforeSwitchRuntimes = await listMainProcessTerminals(page);
+  expect(beforeSwitchRuntimes.sessions).toHaveLength(1);
+  const runtimeId = beforeSwitchRuntimes.sessions[0]?.id;
+  if (runtimeId === undefined) throw new Error("Workspace A runtime is missing before switch.");
 
   const betaWorkspace = page.getByRole("tab", { name: /Fixture Beta workspace/i });
   const alphaWorkspace = page.getByRole("tab", { name: /Fixture Alpha workspace/i });
@@ -29,6 +43,12 @@ test("workspace switch keeps the same terminal runtime in workspace A", async ({
   await expect(alphaWorkspace).toHaveAttribute("aria-selected", "true");
   await expect(terminalTiles).toHaveCount(1);
   await expect(terminalHost).toContainText(marker);
+  const afterReturnRuntimes = await listMainProcessTerminals(page);
+  expect(afterReturnRuntimes.sessions).toHaveLength(1);
+  expect(afterReturnRuntimes.sessions[0]?.id).toBe(runtimeId);
+  const afterReturnSnapshot = await snapshotMainProcessTerminal(page, runtimeId);
+  expect(afterReturnSnapshot.id).toBe(runtimeId);
+  expect(afterReturnSnapshot.buffer).toContain(marker);
   const cwdLabel = terminalTiles.locator('[aria-label^="cwd "]');
   await expect(cwdLabel).toHaveCount(1);
   const cwdAriaLabel = await cwdLabel.getAttribute("aria-label");
@@ -45,6 +65,11 @@ test("workspace switch keeps the same terminal runtime in workspace A", async ({
   await expect(terminalHost).toContainText(marker);
   await expect(terminalHost).toContainText(secondMarker);
   await expect(terminalTiles).toHaveCount(1);
+  const afterWriteRuntimes = await listMainProcessTerminals(page);
+  expect(afterWriteRuntimes.sessions.map((session) => session.id)).toEqual([runtimeId]);
+  const afterWriteSnapshot = await snapshotMainProcessTerminal(page, runtimeId);
+  expect(afterWriteSnapshot.buffer).toContain(marker);
+  expect(afterWriteSnapshot.buffer).toContain(secondMarker);
 
   harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();
@@ -53,4 +78,25 @@ test("workspace switch keeps the same terminal runtime in workspace A", async ({
 function encodedPrintCommand(value: string): string {
   const hex = Buffer.from(value, "utf8").toString("hex");
   return `printf '${hex}' | /usr/bin/xxd -r -p; printf '\\n'`;
+}
+
+async function listMainProcessTerminals(page: Page): Promise<TerminalListResult> {
+  return page.evaluate(async () => {
+    const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
+    if (!terminalApi) throw new Error("Desktop terminal API is unavailable.");
+    return terminalApi.list();
+  });
+}
+
+async function snapshotMainProcessTerminal(
+  page: Page,
+  id: string,
+): Promise<NonNullable<TerminalSnapshotResult>> {
+  const snapshot = await page.evaluate(async (runtimeId) => {
+    const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
+    if (!terminalApi) throw new Error("Desktop terminal API is unavailable.");
+    return terminalApi.snapshot({ id: runtimeId });
+  }, id);
+  if (snapshot === null) throw new Error(`Main-process terminal ${id} is missing.`);
+  return snapshot;
 }
