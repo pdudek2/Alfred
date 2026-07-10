@@ -6345,7 +6345,6 @@ body {
   min-height: 0;
   margin: 0;
   padding: 18px;
-  overflow: auto;
   list-style: none;
   display: grid;
   align-content: start;
@@ -7385,6 +7384,8 @@ body {
 }
 
 .inbox-section-stack {
+  min-height: 0;
+  overflow: auto;
   display: grid;
   align-content: start;
   align-items: start;
@@ -7787,7 +7788,7 @@ body {
 
 .workspace-nav-scroll,
 .terminal-stage-body,
-.review-surface-list,
+.inbox-section-stack,
 .observatory-surface,
 .observatory-projects,
 .observatory-session-list,
@@ -7799,7 +7800,7 @@ body {
 
 .workspace-nav-scroll::-webkit-scrollbar,
 .terminal-stage-body::-webkit-scrollbar,
-.review-surface-list::-webkit-scrollbar,
+.inbox-section-stack::-webkit-scrollbar,
 .observatory-surface::-webkit-scrollbar,
 .observatory-projects::-webkit-scrollbar,
 .observatory-session-list::-webkit-scrollbar,
@@ -7811,7 +7812,7 @@ body {
 
 .workspace-nav-scroll::-webkit-scrollbar-track,
 .terminal-stage-body::-webkit-scrollbar-track,
-.review-surface-list::-webkit-scrollbar-track,
+.inbox-section-stack::-webkit-scrollbar-track,
 .observatory-surface::-webkit-scrollbar-track,
 .observatory-projects::-webkit-scrollbar-track,
 .observatory-session-list::-webkit-scrollbar-track,
@@ -7822,7 +7823,7 @@ body {
 
 .workspace-nav-scroll::-webkit-scrollbar-thumb,
 .terminal-stage-body::-webkit-scrollbar-thumb,
-.review-surface-list::-webkit-scrollbar-thumb,
+.inbox-section-stack::-webkit-scrollbar-thumb,
 .observatory-surface::-webkit-scrollbar-thumb,
 .observatory-projects::-webkit-scrollbar-thumb,
 .observatory-session-list::-webkit-scrollbar-thumb,
@@ -9651,7 +9652,7 @@ body {
   text-decoration: underline;
 }
 
-.review-surface-waiting {
+.review-surface-header .review-surface-waiting {
   font-size: 12.5px;
   color: var(--text-muted);
   white-space: nowrap;

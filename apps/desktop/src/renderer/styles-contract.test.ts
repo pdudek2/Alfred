@@ -220,10 +220,17 @@ describe("renderer CSS contracts", () => {
 
   it("omits empty Inbox lane chrome because empty sections are not rendered", () => {
     const inboxStack = blockFor(".inbox-section-stack");
+    const reviewList = blockForContaining(".review-surface-list", "padding: 18px");
+    const waitingCount = blockFor(".review-surface-header .review-surface-waiting");
 
     expect(inboxStack).toContain("align-content: start");
     expect(inboxStack).toContain("align-items: start");
     expect(inboxStack).toContain("grid-auto-rows: max-content");
+    expect(inboxStack).toContain("min-height: 0");
+    expect(inboxStack).toContain("overflow: auto");
+    expect(reviewList).not.toContain("overflow: auto");
+    expect(waitingCount).toContain("font-size: 12.5px");
+    expect(waitingCount).toContain("color: var(--text-muted)");
     expect(styles).not.toContain(".inbox-section.is-empty");
     expect(styles).not.toContain('.inbox-section[data-state="empty"]');
   });
@@ -316,10 +323,10 @@ describe("renderer CSS contracts", () => {
 
   it("styles workspace scrollbars so native white rails do not dominate the shell", () => {
     const workspaceScroll = blockFor(
-      ".workspace-nav-scroll,\n.terminal-stage-body,\n.review-surface-list,\n.observatory-surface,\n.observatory-projects,\n.observatory-session-list,\n.context-drawer,\n.agent-timeline-panel",
+      ".workspace-nav-scroll,\n.terminal-stage-body,\n.inbox-section-stack,\n.observatory-surface,\n.observatory-projects,\n.observatory-session-list,\n.context-drawer,\n.agent-timeline-panel",
     );
     const scrollbarThumb = blockFor(
-      ".workspace-nav-scroll::-webkit-scrollbar-thumb,\n.terminal-stage-body::-webkit-scrollbar-thumb,\n.review-surface-list::-webkit-scrollbar-thumb,\n.observatory-surface::-webkit-scrollbar-thumb,\n.observatory-projects::-webkit-scrollbar-thumb,\n.observatory-session-list::-webkit-scrollbar-thumb,\n.context-drawer::-webkit-scrollbar-thumb,\n.agent-timeline-panel::-webkit-scrollbar-thumb",
+      ".workspace-nav-scroll::-webkit-scrollbar-thumb,\n.terminal-stage-body::-webkit-scrollbar-thumb,\n.inbox-section-stack::-webkit-scrollbar-thumb,\n.observatory-surface::-webkit-scrollbar-thumb,\n.observatory-projects::-webkit-scrollbar-thumb,\n.observatory-session-list::-webkit-scrollbar-thumb,\n.context-drawer::-webkit-scrollbar-thumb,\n.agent-timeline-panel::-webkit-scrollbar-thumb",
     );
 
     expect(workspaceScroll).toContain("scrollbar-width: thin");
