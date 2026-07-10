@@ -36,7 +36,7 @@ describe("cloud smoke", () => {
     assert.equal(requests.some((request) => request.cookie), false);
   });
 
-  it("checks the authenticated API boundary with the configured session cookie", async () => {
+  it("checks the authenticated runtime routes with the configured session cookie", async () => {
     const requests = [];
     const result = await runSmoke({
       env: {
@@ -46,8 +46,8 @@ describe("cloud smoke", () => {
       handler: async (req, res) => {
         requests.push({ cookie: req.headers.cookie, method: req.method, url: req.url });
         if (req.url === "/health") return sendJson(res, 200, { ok: true, service: "alfred-api" });
-        if (req.url === "/api/system") return sendJson(res, 200, { runner: { state: "online" } });
-        if (req.url === "/api/runs") return sendJson(res, 200, { items: [] });
+        if (req.url === "/api/v1/system/status") return sendJson(res, 200, { runner: { state: "online" } });
+        if (req.url === "/api/v1/runs?limit=1") return sendJson(res, 200, { items: [] });
         return send(res, 404, "text/plain", "not found");
       },
     });
@@ -57,10 +57,11 @@ describe("cloud smoke", () => {
       requests.map((request) => [request.method, request.url, request.cookie]),
       [
         ["GET", "/health", "alfred_session=dev-session-token"],
-        ["GET", "/api/system", "alfred_session=dev-session-token"],
-        ["GET", "/api/runs", "alfred_session=dev-session-token"],
+        ["GET", "/api/v1/system/status", "alfred_session=dev-session-token"],
+        ["GET", "/api/v1/runs?limit=1", "alfred_session=dev-session-token"],
       ],
     );
+    assert.equal(requests.some((request) => ["/", "/api/system", "/api/runs"].includes(request.url)), false);
   });
 
   it("checks runner heartbeat and batch ingest with device auth", async () => {
