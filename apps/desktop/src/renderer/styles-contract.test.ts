@@ -562,8 +562,12 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps overlay surfaces flat instead of glassy", () => {
-    const overlayBackdrop = blockFor(".review-queue-backdrop,\n.command-palette-backdrop,\n.session-observatory-backdrop");
-    const commandPalette = blockFor(".command-palette,\n.global-review-panel,\n.privacy-panel,\n.session-observatory-panel");
+    const overlayBackdrop = blockFor(
+      ".privacy-backdrop,\n.discard-checkout-backdrop,\n.command-palette-backdrop,\n.session-observatory-backdrop",
+    );
+    const commandPalette = blockFor(
+      ".command-palette,\n.privacy-panel,\n.discard-checkout-dialog,\n.session-observatory-panel",
+    );
 
     expect(overlayBackdrop).toContain("backdrop-filter: none");
     expect(overlayBackdrop).toContain("background-image: none");
@@ -677,9 +681,13 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps overlays opaque and tactical instead of glassy", () => {
-    const primaryOverlayBackdrop = blockFor(".review-queue-backdrop,\n.command-palette-backdrop");
+    const primaryOverlayBackdrop = blockFor(
+      ".privacy-backdrop,\n.discard-checkout-backdrop,\n.command-palette-backdrop",
+    );
     const quickSwitchBackdrop = blockFor(".session-observatory-backdrop");
-    const overlayPanels = blockFor(".command-palette,\n.global-review-panel,\n.privacy-panel,\n.session-observatory-panel");
+    const overlayPanels = blockFor(
+      ".command-palette,\n.privacy-panel,\n.discard-checkout-dialog,\n.session-observatory-panel",
+    );
     const activePaletteRow = blockFor(
       ".command-palette-list button:hover,\n.command-palette-list button:focus-visible,\n.command-palette-list button.active",
     );

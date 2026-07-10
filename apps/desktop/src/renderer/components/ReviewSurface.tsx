@@ -149,7 +149,7 @@ function ReviewSurfaceItem({
   const checking = item.status.kind === "checking";
   const recoveryAction = item.status.kind === "restored" || item.status.kind === "done" || item.status.kind === "error";
   const stagedAction = item.status.kind === "staged" || item.status.kind === "blocked" || item.status.kind === "checking";
-  const relaunchSafety = recoveryAction ? sessionRelaunchSafety(item.session) : { safe: true };
+  const relaunchSafety = recoveryAction ? sessionRelaunchSafety(item.session) : { safe: true as const };
   const relaunchNeedsReview = recoveryAction && !relaunchSafety.safe;
   const ageSource = item.session.lastActivityAt ?? item.session.createdAt;
   const ageLabel = sessionAgeLabel(ageSource);
@@ -236,7 +236,7 @@ function ReviewSurfaceItem({
         </div>
       </div>
 
-      {(hardBlocked || checking || item.session.safetyNote) && (
+      {(hardBlocked || checking || item.session.safetyNote || relaunchNeedsReview) && (
         <div className="review-surface-note" role="note">
           <AlertTriangle size={14} />
           <span>
@@ -244,7 +244,7 @@ function ReviewSurfaceItem({
               ? "Alfred is rechecking this edited command."
               : item.session.launchPreflight?.status === "blocked"
                 ? item.session.launchPreflight.reason
-                : item.session.safetyNote ?? "This launch needs review."}
+                : item.session.safetyNote ?? (!relaunchSafety.safe ? relaunchSafety.reason : "This launch needs review.")}
           </span>
         </div>
       )}

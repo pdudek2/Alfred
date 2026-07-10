@@ -26,7 +26,6 @@ import { CommandPalette } from "./components/CommandPalette";
 import { ContextColumn } from "./components/ContextColumn";
 import { ObservatorySurface } from "./components/ObservatorySurface";
 import { PrimaryNavigationRail, type PrimarySurface } from "./components/PrimaryNavigationRail";
-import { ReviewQueuePanel } from "./components/ReviewQueuePanel";
 import { ReviewSurface } from "./components/ReviewSurface";
 import { SessionObservatoryPanel } from "./components/SessionObservatoryPanel";
 import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
@@ -191,7 +190,6 @@ export function App() {
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState<boolean>(false);
   const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState<string>("");
   const [workspaceRenameEditing, setWorkspaceRenameEditing] = useState<boolean>(false);
-  const [reviewQueueOpen, setReviewQueueOpen] = useState<boolean>(false);
   const [armedUnsafeSessionIds, setArmedUnsafeSessionIds] = useState<Set<string>>(() => new Set());
   const [runtimeStatus, setRuntimeStatus] = useState<AlfredRuntimeStatus | null>(null);
   const [previewCandidates, setPreviewCandidates] = useState<PreviewUrlCandidate[]>([]);
@@ -685,18 +683,11 @@ export function App() {
     handleFocusSession(activeAttention.session.id);
   }, [activeAttention, handleFocusSession]);
 
-  const handleOpenReviewQueue = useCallback(() => {
-    if (commandPaletteOpen) {
-      commandPaletteTriggerRef.current?.focus();
-    }
+  const handleOpenInbox = useCallback(() => {
     setCommandPaletteOpen(false);
     setCommandQuery("");
     setSessionObservatoryOpen(false);
-    setReviewQueueOpen(true);
-  }, [commandPaletteOpen]);
-
-  const handleCloseReviewQueue = useCallback(() => {
-    setReviewQueueOpen(false);
+    setActiveSurface("inbox");
   }, []);
 
   const handleFocusSessionByDelta = useCallback((delta: number) => {
@@ -1489,14 +1480,13 @@ export function App() {
   }, []);
 
   const handleOpenCommandPalette = useCallback(() => {
-    setReviewQueueOpen(false);
     setSessionObservatoryOpen(false);
+    setPrivacyPanelOpen(false);
     setCommandQuery("");
     setCommandPaletteOpen(true);
   }, []);
 
   const handleOpenPrivacyPanel = useCallback(() => {
-    setReviewQueueOpen(false);
     setSessionObservatoryOpen(false);
     setCommandPaletteOpen(false);
     setCommandQuery("");
@@ -1513,7 +1503,7 @@ export function App() {
   }, []);
 
   const handleOpenSessionObservatory = useCallback(() => {
-    setReviewQueueOpen(false);
+    setPrivacyPanelOpen(false);
     setCommandPaletteOpen(false);
     setCommandQuery("");
     setSessionObservatoryOpen(true);
@@ -1670,7 +1660,7 @@ export function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (commandPaletteOpen || sessionObservatoryOpen || reviewQueueOpen || privacyPanelOpen) {
+      if (commandPaletteOpen || sessionObservatoryOpen || privacyPanelOpen) {
         const shortcutPressed = event.metaKey || event.ctrlKey;
         const key = event.key.toLowerCase();
         const appShortcut =
@@ -1763,7 +1753,6 @@ export function App() {
     handleOpenSessionTerminal,
     handleSelectWorkspace,
     privacyPanelOpen,
-    reviewQueueOpen,
     sessionObservatoryOpen,
     workspaces,
   ]);
@@ -1961,7 +1950,7 @@ export function App() {
             onAddAgentSession={handleAddAgentSession}
             onAddManualSession={handleAddManualSession}
             onApplyWorkMode={handleApplyWorkMode}
-            onOpenInbox={() => setActiveSurface("inbox")}
+            onOpenInbox={handleOpenInbox}
             onOpenSessionObservatory={handleOpenSessionObservatory}
             onToggleArrangeMode={handleToggleArrangeMode}
             onToggleContext={handleToggleContextDrawer}
@@ -2022,7 +2011,7 @@ export function App() {
             onAddWorkspace={handleAddWorkspace}
             onFocusSession={handleFocusSession}
             onFocusSessionInWorkspace={handleFocusSessionInWorkspace}
-            onOpenInbox={() => setActiveSurface("inbox")}
+            onOpenInbox={handleOpenInbox}
             onSelectWorkspace={handleSelectWorkspace}
           />
           <div className="orchestrator-surface" data-testid="workbench-surface">
@@ -2051,7 +2040,7 @@ export function App() {
                 onApplyWorktree={handleApplyWorktree}
                 onCloseSession={handleCloseSession}
                 onContinueRestoredSession={handleContinueRestoredSession}
-                onOpenInbox={() => setActiveSurface("inbox")}
+                onOpenInbox={handleOpenInbox}
                 onRestartSession={handleRestartSession}
                 onApplyWorkMode={handleApplyWorkMode}
                 onMoveTile={handleMoveTile}
@@ -2199,7 +2188,6 @@ export function App() {
             pendingPlan={activePendingPlan}
             query={commandQuery}
             recoverableSessions={activeRecoverableSessions}
-            reviewQueueCount={globalReviewItems.length}
             reviewQueuePreview={reviewQueuePreview}
             attention={activeAttention}
             safeStagedCount={safeStagedCount}
@@ -2229,7 +2217,7 @@ export function App() {
             onFocusSessionInWorkspace={handleFocusSessionInWorkspace}
             onFocusNextSession={() => handleFocusSessionByDelta(1)}
             onFocusPreviousSession={() => handleFocusSessionByDelta(-1)}
-            onOpenReviewQueue={handleOpenReviewQueue}
+            onOpenInbox={handleOpenInbox}
             onOpenPrivacyControls={handleOpenPrivacyPanel}
             onReviewAttention={handleReviewAttention}
             onRejectAll={handleRejectAll}
@@ -2245,20 +2233,6 @@ export function App() {
             workspaces={workspaces}
             onClose={handleCloseSessionObservatory}
             onOpenSession={handleFocusSessionInWorkspace}
-          />
-        )}
-        {reviewQueueOpen && (
-          <ReviewQueuePanel
-            armedUnsafeSessionIds={armedUnsafeSessionIds}
-            items={globalReviewItems}
-            selectedSessionId={activeSelectedSessionId}
-            onApproveTile={handleApproveTile}
-            onClose={handleCloseReviewQueue}
-            onContinueRestoredSession={handleContinueRestoredSession}
-            onDiscardSession={handleCloseSession}
-            onFocusItem={handleFocusSessionInWorkspace}
-            onLaunchItem={handleLaunchReviewQueueItem}
-            onRestartSession={handleRestartSession}
           />
         )}
       </section>
@@ -2459,9 +2433,9 @@ function PrivacyPanel({
   };
 
   return (
-    <div className="review-queue-backdrop" role="presentation" onMouseDown={onClose}>
+    <div className="privacy-backdrop" role="presentation" onMouseDown={onClose}>
       <div
-        className="global-review-panel privacy-panel"
+        className="privacy-panel"
         role="dialog"
         aria-modal="true"
         aria-label="Local Data & Privacy"
@@ -2470,13 +2444,13 @@ function PrivacyPanel({
         }}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <header className="global-review-header">
+        <header className="privacy-panel-header">
           <div>
             <span>Local controls</span>
             <strong>Local Data & Privacy</strong>
             <small>Saved terminal data and external Codex indexing</small>
           </div>
-          <button type="button" className="global-review-close" onClick={onClose} aria-label="Close privacy controls">
+          <button type="button" className="privacy-panel-close" onClick={onClose} aria-label="Close privacy controls">
             <X size={15} />
           </button>
         </header>
@@ -2591,21 +2565,21 @@ function DiscardCheckoutDialog({
   const remaining = confirmation.files.length - previewFiles.length;
 
   return (
-    <div className="review-queue-backdrop" role="presentation" onMouseDown={onCancel}>
+    <div className="discard-checkout-backdrop" role="presentation" onMouseDown={onCancel}>
       <div
-        className="global-review-panel discard-checkout-dialog"
+        className="discard-checkout-dialog"
         role="dialog"
         aria-modal="true"
         aria-label="Discard isolated checkout"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <header className="global-review-header">
+        <header className="discard-checkout-header">
           <div>
             <span>Destructive action</span>
             <strong>Discard isolated checkout</strong>
             <small>{confirmation.title} · {changedFileLabel}</small>
           </div>
-          <button type="button" className="global-review-close" onClick={onCancel} aria-label="Close discard dialog">
+          <button type="button" className="discard-checkout-close" onClick={onCancel} aria-label="Close discard dialog">
             <X size={15} />
           </button>
         </header>

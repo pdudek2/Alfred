@@ -36,7 +36,6 @@ type CommandPaletteProps = {
   pendingPlan: SquadPlan | null;
   query: string;
   recoverableSessions: SessionTile[];
-  reviewQueueCount: number;
   reviewQueuePreview: WorkspaceReviewItem | null;
   attention: WorkspaceAttention | null;
   safeStagedCount: number;
@@ -66,7 +65,7 @@ type CommandPaletteProps = {
   onFocusSessionInWorkspace: (workspaceId: string, sessionId: string) => void;
   onFocusNextSession: () => void;
   onFocusPreviousSession: () => void;
-  onOpenReviewQueue: () => void;
+  onOpenInbox: () => void;
   onOpenPrivacyControls: () => void;
   onReviewAttention: () => void;
   onRejectAll: () => void;
@@ -83,7 +82,6 @@ export function CommandPalette({
   pendingPlan,
   query,
   recoverableSessions,
-  reviewQueueCount,
   reviewQueuePreview,
   attention,
   safeStagedCount,
@@ -113,7 +111,7 @@ export function CommandPalette({
   onFocusSessionInWorkspace,
   onFocusNextSession,
   onFocusPreviousSession,
-  onOpenReviewQueue,
+  onOpenInbox,
   onOpenPrivacyControls,
   onReviewAttention,
   onRejectAll,
@@ -284,13 +282,12 @@ export function CommandPalette({
         run: onOpenPrivacyControls,
       },
       {
-        id: "open-review-queue",
-        label: "Open review queue",
+        id: "open-inbox",
+        label: "Open Inbox",
         detail: reviewQueuePreview
           ? `${reviewQueuePreview.workspaceLabel} · ${reviewQueuePreview.status.label} · ${reviewQueuePreview.session.title}`
           : "No queued decisions",
-        disabled: reviewQueueCount === 0,
-        run: onOpenReviewQueue,
+        run: onOpenInbox,
       },
       {
         id: "review-attention",
@@ -356,14 +353,14 @@ export function CommandPalette({
       },
       {
         id: "relaunch-saved-sessions",
-        label: recoverableNeedsReview ? "Review recovery queue" : recoverableOnlySaved ? "Relaunch saved sessions" : "Recover sessions",
+        label: recoverableNeedsReview ? "Review recovery in Inbox" : recoverableOnlySaved ? "Relaunch saved sessions" : "Recover sessions",
         detail: recoverableCount > 0
           ? recoverableNeedsReview
             ? "One or more recovery commands needs review before relaunch"
             : `${recoverableSummary || `${recoverableCount} recovery item${recoverableCount === 1 ? "" : "s"}`} in this workspace`
           : "No recovery items",
         disabled: recoverableCount === 0,
-        run: recoverableNeedsReview ? onOpenReviewQueue : onContinueRecoverableSessions,
+        run: recoverableNeedsReview ? onOpenInbox : onContinueRecoverableSessions,
       },
       {
         id: "dismiss-saved-sessions",
@@ -456,7 +453,7 @@ export function CommandPalette({
       onFocusSessionInWorkspace,
       onFocusNextSession,
       onFocusPreviousSession,
-      onOpenReviewQueue,
+      onOpenInbox,
       onOpenPrivacyControls,
       onReviewAttention,
       onRejectAll,
@@ -468,7 +465,6 @@ export function CommandPalette({
       recoverableNeedsReview,
       recoverableOnlySaved,
       recoverableSummary,
-      reviewQueueCount,
       reviewQueuePreview,
       safeStagedCount,
       globalSearchableSessions,

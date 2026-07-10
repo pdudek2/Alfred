@@ -237,6 +237,7 @@ describe("ReviewSurface", () => {
     );
     const handlers = renderSurface([item]);
 
+    expect(screen.getByText("find -exec mutates files when replayed")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Review relaunch Clean Desktop in Alfred" }));
 
     expect(handlers.onContinueRestoredSession).toHaveBeenCalledWith("clean-desktop");
