@@ -59,8 +59,8 @@ const checks =
     : mode === "authenticated"
     ? [
         { name: "health", path: "/health", validate: validateHealth },
-        { name: "system", path: "/api/system", validate: validateSystemStatus },
-        { name: "runs", path: "/api/runs", validate: validateRuns },
+        { name: "system", path: "/api/v1/system/status", validate: validateSystemStatus },
+        { name: "runs", path: "/api/v1/runs?limit=1", validate: validateRuns },
       ]
     : [
         { name: "health", path: "/health", validate: validateHealth },
