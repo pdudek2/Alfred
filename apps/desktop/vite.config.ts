@@ -8,6 +8,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: "jsdom",
+    setupFiles: ["./src/renderer/test-setup.ts"],
   },
   build: {
     outDir: "dist/renderer",

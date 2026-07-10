@@ -1,7 +1,6 @@
-import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -169,9 +168,9 @@ function installDesktopBridge(
   snapshotTerminal: ReturnType<typeof vi.fn>;
   updatePrivacySettings: ReturnType<typeof vi.fn>;
   setTerminalSnapshots: (next: TerminalSessionSnapshot[]) => void;
-  emitData: (event: TerminalDataEvent) => void;
-  emitExit: (event: TerminalExitEvent) => void;
-  emitSaveStatus: (status: DesktopSaveStatus) => void;
+  emitData: (event: TerminalDataEvent) => Promise<void>;
+  emitExit: (event: TerminalExitEvent) => Promise<void>;
+  emitSaveStatus: (status: DesktopSaveStatus) => Promise<void>;
 } {
   const dataListeners = new Set<(event: TerminalDataEvent) => void>();
   const exitListeners = new Set<(event: TerminalExitEvent) => void>();
@@ -368,14 +367,20 @@ function installDesktopBridge(
     setTerminalSnapshots: (next: TerminalSessionSnapshot[]) => {
       terminalSnapshots = next;
     },
-    emitData: (event: TerminalDataEvent) => {
-      for (const listener of dataListeners) listener(event);
+    emitData: async (event: TerminalDataEvent) => {
+      await act(async () => {
+        for (const listener of dataListeners) listener(event);
+      });
     },
-    emitExit: (event: TerminalExitEvent) => {
-      for (const listener of exitListeners) listener(event);
+    emitExit: async (event: TerminalExitEvent) => {
+      await act(async () => {
+        for (const listener of exitListeners) listener(event);
+      });
     },
-    emitSaveStatus: (status: DesktopSaveStatus) => {
-      for (const listener of saveStatusListeners) listener(status);
+    emitSaveStatus: async (status: DesktopSaveStatus) => {
+      await act(async () => {
+        for (const listener of saveStatusListeners) listener(status);
+      });
     },
   };
 }
@@ -423,8 +428,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
   vi.restoreAllMocks();
   delete window.alfredDesktop;
 });
@@ -486,7 +489,31 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
 
 async function openInboxFromCommandPalette(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "Open command palette" }));
-  await user.type(screen.getByRole("textbox", { name: "Search commands" }), "open inbox{Enter}");
+  await submitCommandPalette(user, "open inbox");
+  await waitFor(() => {
+    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
+  });
+}
+
+async function submitCommandPalette(user: ReturnType<typeof userEvent.setup>, query: string) {
+  const search = screen.getByRole("textbox", { name: "Search commands" });
+  await user.type(search, query);
+  await pressCommandPaletteEnter(search);
+}
+
+async function pressCommandPaletteEnter(search: HTMLElement) {
+  await act(async () => {
+    search.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  });
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
+  });
+}
+
+async function waitForTerminalStartsToSettle() {
+  await waitFor(() => {
+    expect(document.querySelectorAll('[aria-label="status starting"]')).toHaveLength(0);
+  });
 }
 
 describe("App integration", () => {
@@ -832,9 +859,7 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
-    act(() => {
-      bridge.emitSaveStatus({ status: "saveFailed", message: "Failed to persist desktop state.", failedAt: 123 });
-    });
+    await bridge.emitSaveStatus({ status: "saveFailed", message: "Failed to persist desktop state.", failedAt: 123 });
 
     const alert = screen.getByRole("alert");
     expect(within(alert).getByText("State not saved")).toBeInTheDocument();
@@ -878,7 +903,9 @@ describe("App integration", () => {
     await user.tab({ shift: true });
     expect(palette).toContainElement(document.activeElement as HTMLElement | null);
 
-    await user.keyboard("{Escape}");
+    await act(async () => {
+      search.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
 
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
@@ -1109,9 +1136,7 @@ describe("App integration", () => {
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
 
-    act(() => {
-      bridge.emitData({ id: "runtime-1", data: "keep-alive output\n" });
-    });
+    await bridge.emitData({ id: "runtime-1", data: "keep-alive output\n" });
     expect(tile).toHaveTextContent("keep-alive output");
 
     const finalHosts = within(screen.getByTestId("desk-runtime-surface")).getAllByTestId("xterm-host");
@@ -1127,6 +1152,7 @@ describe("App integration", () => {
     render(<App />);
 
     const workbenchHeader = await screen.findByTestId("workbench-header");
+    await within(workbenchHeader).findByText("2 sessions");
 
     expect(screen.getByRole("button", { name: /Workspace menu for Alfred/i })).not.toHaveTextContent(/2 tiles/);
     expect(workbenchHeader).toHaveTextContent("2 sessions");
@@ -1173,9 +1199,7 @@ describe("App integration", () => {
     expect(within(hiddenSplitTile).getByTestId("xterm-host").isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCount);
 
-    act(() => {
-      bridge.emitData({ id: "runtime-three", data: "hidden split output\n" });
-    });
+    await bridge.emitData({ id: "runtime-three", data: "hidden split output\n" });
 
     await user.click(screen.getByRole("button", { name: "Grid" }));
     expect(document.querySelector("article[aria-label='Codex · three']")).toHaveTextContent("hidden split output");
@@ -1293,8 +1317,11 @@ describe("App integration", () => {
 
     const tile = await screen.findByTestId("terminal-tile");
     const collapseButton = within(tile).getByRole("button", { name: "Collapse Manual · zsh 1" });
+    await screen.findByRole("tab", { name: "Alfred workspace, 1 idle" });
 
-    tile.focus();
+    await act(async () => {
+      tile.focus();
+    });
     expect(tile).toHaveFocus();
 
     await user.tab();
@@ -1466,9 +1493,7 @@ describe("App integration", () => {
       expect(window.alfredDesktop?.terminal.onData).toHaveBeenCalledTimes(1);
     });
 
-    act(() => {
-      bridge.emitData({ id: "runtime-a", data: "metadata-safe output\n" });
-    });
+    await bridge.emitData({ id: "runtime-a", data: "metadata-safe output\n" });
 
     expect(tile).toHaveTextContent("metadata-safe output");
     const disposeCountBeforeRename = terminalDisposeCalls.length;
@@ -1585,9 +1610,7 @@ describe("App integration", () => {
     });
 
     const reattachedTile = await screen.findByRole("article", { name: /Codex · alfred/i });
-    act(() => {
-      emitData({ id: "runtime-alfred", data: "ran pnpm test\n" });
-    });
+    await emitData({ id: "runtime-alfred", data: "ran pnpm test\n" });
 
     await act(async () => {
       delayedSnapshot.resolve({
@@ -1669,9 +1692,7 @@ describe("App integration", () => {
       expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
     });
 
-    act(() => {
-      emitData({ id: "runtime-alfred", data: "ran pnpm test\n" });
-    });
+    await emitData({ id: "runtime-alfred", data: "ran pnpm test\n" });
 
     await act(async () => {
       delayedSnapshot.resolve(null);
@@ -1746,9 +1767,7 @@ describe("App integration", () => {
       expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
     });
 
-    act(() => {
-      emitData({ id: "runtime-alfred", data: "ran pnpm lint\n" });
-    });
+    await emitData({ id: "runtime-alfred", data: "ran pnpm lint\n" });
 
     await act(async () => {
       delayedSnapshot.reject(new Error("snapshot failed"));
@@ -1805,9 +1824,7 @@ describe("App integration", () => {
       expect(window.alfredDesktop?.terminal.onData).toHaveBeenCalledTimes(1);
     });
 
-    act(() => {
-      bridge.emitData({ id: "runtime-resume", data: "resume output stays\n" });
-    });
+    await bridge.emitData({ id: "runtime-resume", data: "resume output stays\n" });
 
     expect(tile).toHaveTextContent("resume output stays");
     const disposeCountBeforeMetadataUpdate = terminalDisposeCalls.length;
@@ -2032,7 +2049,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "local data & privacy{Enter}");
+    await submitCommandPalette(user, "local data & privacy");
     expect(screen.getByRole("dialog", { name: "Local Data & Privacy" })).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "k", code: "KeyK", metaKey: true });
@@ -2152,7 +2169,7 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(window.alfredDesktop?.terminal.onData as unknown as ReturnType<typeof vi.fn>).toHaveBeenCalled();
     });
-    emitData({ id: "runtime-dev", data: "ready on http://127.0.0.1:3000/app\n" });
+    await emitData({ id: "runtime-dev", data: "ready on http://127.0.0.1:3000/app\n" });
 
     const preview = await screen.findByLabelText("Workspace preview");
     expect(within(preview).getAllByText("127.0.0.1:3000")).toHaveLength(2);
@@ -2187,7 +2204,9 @@ describe("App integration", () => {
     expect(within(secondaryActions).getByRole("button", { name: "Start Claude" })).toBeInTheDocument();
     expect(within(secondaryActions).getByRole("button", { name: "Bind folder" })).toBeInTheDocument();
 
-    await user.click(primaryAction);
+    await act(async () => {
+      primaryAction.click();
+    });
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ source: "manual", workspaceId: "A" }));
     });
@@ -2198,12 +2217,13 @@ describe("App integration", () => {
     const palette = screen.getByRole("dialog", { name: "Command palette" });
     expect(within(palette).getByText("New manual terminal")).toBeInTheDocument();
     expect(within(palette).getByText(/(?:Cmd|Ctrl) T · start a shell in the scratch desk/)).toBeInTheDocument();
-    await user.keyboard("{Enter}");
+    await pressCommandPaletteEnter(screen.getByRole("textbox", { name: "Search commands" }));
     await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(2));
-    await user.keyboard("{Escape}");
 
     await user.type(screen.getByRole("textbox", { name: "Dispatch instruction" }), "prepare codex");
-    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
+    await act(async () => {
+      screen.getByRole("button", { name: /Prepare work (?:in|with) / }).click();
+    });
     await waitFor(() => expect(requestPlan).toHaveBeenCalledOnce());
     expect(requestPlan).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -2213,6 +2233,7 @@ describe("App integration", () => {
     );
 
     expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
+    await waitForTerminalStartsToSettle();
   });
 
   it("keeps browser fallback terminal status consistent across tile and workspace", async () => {
@@ -2495,7 +2516,7 @@ describe("App integration", () => {
     expect(await screen.findByRole("status", { name: "Empty workspace" })).toHaveTextContent("Workspace 2");
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "close current{Enter}");
+    await submitCommandPalette(user, "close current");
 
     expect(within(screen.getByTestId("workbench-header")).queryByText("Workspace 2")).not.toBeInTheDocument();
     expect(within(screen.getByTestId("workbench-header")).getByText("Alfred")).toBeInTheDocument();
@@ -3118,13 +3139,14 @@ describe("App integration", () => {
     expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
     expect(screen.getByText("Launch")).toBeInTheDocument();
     expect(screen.getByText("Review and recovery")).toBeInTheDocument();
-    await user.keyboard("{Enter}");
+    await pressCommandPaletteEnter(screen.getByRole("textbox", { name: "Search commands" }));
 
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
     expect(await screen.findByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
+    await waitForTerminalStartsToSettle();
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.keyboard("split{Enter}");
+    await submitCommandPalette(user, "split");
 
     expect(screen.getByRole("button", { name: "Split" })).toHaveAttribute("aria-pressed", "true");
     expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
@@ -3136,7 +3158,7 @@ describe("App integration", () => {
     });
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.keyboard("scratch{Enter}");
+    await submitCommandPalette(user, "scratch");
 
     expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
     expect(
@@ -3151,7 +3173,7 @@ describe("App integration", () => {
     });
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "alfred{Enter}");
+    await submitCommandPalette(user, "alfred");
 
     await waitFor(() => {
       expect(screen.getByRole("tab", { name: "Alfred workspace, 2 idle" })).toHaveAttribute(
@@ -3161,7 +3183,7 @@ describe("App integration", () => {
     });
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "zsh 2{Enter}");
+    await submitCommandPalette(user, "zsh 2");
 
     expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 2");
@@ -3222,7 +3244,7 @@ describe("App integration", () => {
     await user.type(within(palette).getByRole("textbox", { name: "Search commands" }), "api worker");
 
     expect(within(palette).getByRole("option", { name: /ClientApp · idle · .*ClientApp/i })).toHaveTextContent("Open API worker");
-    await user.keyboard("{Enter}");
+    await pressCommandPaletteEnter(within(palette).getByRole("textbox", { name: "Search commands" }));
 
     await waitFor(() => {
       expect(screen.getByRole("tab", { name: /ClientApp workspace/i })).toHaveAttribute("aria-selected", "true");
@@ -3284,7 +3306,7 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "close focused session{Enter}");
+    await submitCommandPalette(user, "close focused session");
 
     await waitFor(() => {
       expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
@@ -3303,7 +3325,7 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "codex{Enter}");
+    await submitCommandPalette(user, "codex");
 
     const codexTile = await screen.findByRole("article", { name: /Codex · session 1/i });
     await waitFor(() => {
@@ -3336,7 +3358,7 @@ describe("App integration", () => {
     expect(within(palette).getByText("New Codex isolated checkout")).toBeInTheDocument();
     expect(within(palette).getByText("New Claude isolated checkout")).toBeInTheDocument();
     expect(within(palette).getAllByText("Create a temporary Git worktree for risky or parallel edits")).toHaveLength(2);
-    await user.type(within(palette).getByRole("textbox", { name: "Search commands" }), "codex isolated{Enter}");
+    await submitCommandPalette(user, "codex isolated");
 
     expect(await screen.findByRole("article", { name: /Codex · session 1/i })).toBeInTheDocument();
     await waitFor(() => {
@@ -3541,7 +3563,7 @@ describe("App integration", () => {
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     const palette = screen.getByRole("dialog", { name: "Command palette" });
-    await user.type(within(palette).getByRole("textbox", { name: "Search commands" }), "codex isolated{Enter}");
+    await submitCommandPalette(user, "codex isolated");
     const newTile = await screen.findByRole("article", { name: /Codex · session 1/i });
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
@@ -3710,7 +3732,7 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "review attention{Enter}");
+    await submitCommandPalette(user, "review attention");
 
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
@@ -4188,7 +4210,7 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(window.alfredDesktop?.terminal.onExit).toHaveBeenCalled();
     });
-    emitExit({ id: "runtime-a", exitCode: 0 });
+    await emitExit({ id: "runtime-a", exitCode: 0 });
 
     await openInboxFromCommandPalette(user);
     const inbox = screen.getByRole("region", { name: "Inbox workspace" });
@@ -4226,7 +4248,7 @@ describe("App integration", () => {
     expect(screen.getAllByTestId("session-status-announcer")).toHaveLength(1);
     expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("");
 
-    emitExit({ id: "runtime-a", exitCode: 1 });
+    await emitExit({ id: "runtime-a", exitCode: 1 });
 
     await waitFor(() => {
       expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("Manual · zsh 9 is now error.");
@@ -4517,12 +4539,12 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /Codex · session 1/i });
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "open focused session{Enter}");
+    await submitCommandPalette(user, "open focused session");
 
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "reveal focused session{Enter}");
+    await submitCommandPalette(user, "reveal focused session");
 
     expect(revealPath).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred", path: "." });
   });
@@ -4988,9 +5010,15 @@ describe("App integration", () => {
     });
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "relaunch");
+    const search = screen.getByRole("textbox", { name: "Search commands" });
+    await user.type(search, "relaunch");
     expect(screen.getByText("Review recovery in Inbox")).toBeInTheDocument();
-    await user.keyboard("{Escape}");
+    await act(async () => {
+      search.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
+    });
 
     await openInboxFromCommandPalette(user);
     const inbox = screen.getByRole("region", { name: "Inbox workspace" });
@@ -5254,7 +5282,7 @@ describe("App integration", () => {
     expect(await screen.findByRole("region", { name: "Session recovery" })).toHaveTextContent("2 saved sessions ready");
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "dismiss saved{Enter}");
+    await submitCommandPalette(user, "dismiss saved");
 
     expect(screen.queryByRole("article", { name: /Manual · zsh 9/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /Codex · session 9/i })).not.toBeInTheDocument();
@@ -5368,7 +5396,7 @@ describe("App integration", () => {
     expect(await screen.findByRole("region", { name: "Session recovery" })).toHaveTextContent("1 saved session ready");
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await user.type(screen.getByRole("textbox", { name: "Search commands" }), "relaunch saved{Enter}");
+    await submitCommandPalette(user, "relaunch saved");
 
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "manual-9" }));
