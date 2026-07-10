@@ -23,17 +23,38 @@ test("inbox scrolls, executes a real action, and opens Observatory history", asy
   );
   expect(beforeScroll.itemBottomOverflow, scrollEvidence("before", beforeScroll)).toBeGreaterThan(2);
 
-  await scrollOwner.hover();
-  await page.mouse.wheel(0, beforeScroll.itemBottomOverflow + 2);
-  await expect.poll(async () => (await readScrollGeometry(scrollOwner, lastItem)).scrollTop).toBeGreaterThan(0);
-
-  const afterScroll = await readScrollGeometry(scrollOwner, lastItem);
+  const scrollDelta = Math.ceil(beforeScroll.itemBottomOverflow + 2);
+  const afterScroll = await wheelUntil(
+    page,
+    scrollOwner,
+    lastItem,
+    scrollDelta,
+    (geometry) => geometry.scrollTop > beforeScroll.scrollTop,
+    "scroll Fixture item 14 into view",
+    beforeScroll,
+  );
+  expect(afterScroll.scrollTop, scrollEvidence("after", afterScroll)).toBeGreaterThan(0);
+  expect(afterScroll.itemTop, scrollEvidence("after", afterScroll)).toBeGreaterThanOrEqual(
+    afterScroll.ownerTop - 2,
+  );
+  expect(afterScroll.itemBottom, scrollEvidence("after", afterScroll)).toBeLessThanOrEqual(
+    afterScroll.ownerBottom + 2,
+  );
   expect(afterScroll.itemTopUnderflow, scrollEvidence("after", afterScroll)).toBeLessThanOrEqual(2);
   expect(afterScroll.itemBottomOverflow, scrollEvidence("after", afterScroll)).toBeLessThanOrEqual(2);
 
-  await scrollOwner.hover();
-  await page.mouse.wheel(0, -afterScroll.scrollHeight);
-  await expect.poll(async () => (await readScrollGeometry(scrollOwner, lastItem)).scrollTop).toBe(0);
+  const restoredScroll = afterScroll.scrollTop === 0
+    ? afterScroll
+    : await wheelUntil(
+        page,
+        scrollOwner,
+        lastItem,
+        -Math.ceil(afterScroll.scrollHeight),
+        (geometry) => geometry.scrollTop === 0,
+        "restore Inbox scroll position",
+        afterScroll,
+      );
+  expect(restoredScroll.scrollTop, scrollEvidence("restored", restoredScroll)).toBe(0);
 
   await expect(page.getByRole("article", { name: /Fixture item 1/i })).toHaveCount(0);
   await page.getByRole("button", {
@@ -91,9 +112,38 @@ async function readScrollGeometry(scrollOwner: Locator, item: Locator) {
   if (ownerBox === null || itemBox === null) throw new Error("Inbox scroll geometry is unavailable.");
   return {
     ...dimensions,
+    ownerTop: ownerBox.y,
+    ownerBottom: ownerBox.y + ownerBox.height,
+    itemTop: itemBox.y,
+    itemBottom: itemBox.y + itemBox.height,
     itemTopUnderflow: ownerBox.y - itemBox.y,
     itemBottomOverflow: itemBox.y + itemBox.height - (ownerBox.y + ownerBox.height),
   };
+}
+
+async function wheelUntil(
+  page: Page,
+  scrollOwner: Locator,
+  item: Locator,
+  deltaY: number,
+  done: (geometry: Awaited<ReturnType<typeof readScrollGeometry>>) => boolean,
+  action: string,
+  initial: Awaited<ReturnType<typeof readScrollGeometry>>,
+) {
+  const maxAttempts = 3;
+  let geometry = initial;
+  if (!Number.isInteger(deltaY)) throw new Error(`Inbox wheel delta must be an integer, received ${deltaY}.`);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    await scrollOwner.hover();
+    await page.mouse.wheel(0, deltaY);
+    geometry = await readScrollGeometry(scrollOwner, item);
+    if (done(geometry)) return geometry;
+  }
+
+  throw new Error(
+    `Public wheel input did not ${action} after ${maxAttempts} attempts. ${scrollEvidence("initial", initial)}; ${scrollEvidence("last", geometry)}`,
+  );
 }
 
 function scrollEvidence(
