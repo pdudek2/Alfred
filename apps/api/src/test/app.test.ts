@@ -83,7 +83,7 @@ describe("api", () => {
       endpoints: {
         health: "/health",
         runs: "/v1/runs",
-        webPrefixedRuns: "/api/v1/runs",
+        apiAliasRuns: "/api/v1/runs",
       },
     });
   });
@@ -98,7 +98,7 @@ describe("api", () => {
     });
   });
 
-  it("keeps the web-prefixed runs endpoint compatible", async () => {
+  it("keeps the Vercel runs API alias compatible", async () => {
     const res = await createApp().request("/api/v1/runs?limit=7", {
       headers: { cookie: "alfred_session=dev-session-token" },
     });

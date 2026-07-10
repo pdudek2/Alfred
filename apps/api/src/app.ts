@@ -70,7 +70,7 @@ export function createApp() {
       endpoints: {
         health: "/health",
         runs: "/v1/runs",
-        webPrefixedRuns: "/api/v1/runs",
+        apiAliasRuns: "/api/v1/runs",
       },
     }),
   );
