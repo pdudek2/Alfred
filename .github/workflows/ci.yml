@@ -42,7 +42,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @alfred/desktop build
+      - run: pnpm --filter @alfred/desktop... build
       - run: pnpm smoke:electron
       - name: Upload Electron diagnostics
         if: failure()
