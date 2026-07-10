@@ -71,7 +71,10 @@ export function AgentTimelinePanel({
   const runtimeStatus = session.runtimeStatus ?? (session.runtimeId ? "live" : "starting");
   const displayStatus = terminalSessionDisplayStatus(session);
   const activityEvents = session.activityEvents ?? [];
-  const presentedActivity = presentActivityEvents(activityEvents, { includeRaw: showRawActivity });
+  const presentedActivity = presentActivityEvents(activityEvents, {
+    includeRaw: showRawActivity,
+    limit: activityEvents.length,
+  });
   const ageLabel = sessionAgeLabel(session.createdAt, ageClock);
   const activitySummary = summarizeActivityEvents(activityEvents);
   const pulseCard = sessionPulseCard(session, displayStatus, activityEvents);
