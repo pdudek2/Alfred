@@ -19,7 +19,6 @@ describe("cloud smoke", () => {
       },
       handler: async (req, res) => {
         requests.push({ cookie: req.headers.cookie, method: req.method, url: req.url });
-        if (req.url === "/") return send(res, 200, "text/html", "<html><title>Alfred</title></html>");
         if (req.url === "/health") return sendJson(res, 200, { ok: true, service: "alfred-api" });
         if (req.url === "/auth/login") return sendJson(res, 503, { error: "oidc_not_configured" });
         return send(res, 404, "text/plain", "not found");
@@ -30,12 +29,38 @@ describe("cloud smoke", () => {
     assert.deepEqual(
       requests.map((request) => [request.method, request.url]),
       [
-        ["GET", "/"],
         ["GET", "/health"],
         ["GET", "/auth/login"],
       ],
     );
     assert.equal(requests.some((request) => request.cookie), false);
+  });
+
+  it("checks the authenticated API boundary with the configured session cookie", async () => {
+    const requests = [];
+    const result = await runSmoke({
+      env: {
+        ALFRED_CLOUD_SMOKE_MODE: "authenticated",
+        AUTH_DEV_SESSION_TOKEN: "dev-session-token",
+      },
+      handler: async (req, res) => {
+        requests.push({ cookie: req.headers.cookie, method: req.method, url: req.url });
+        if (req.url === "/health") return sendJson(res, 200, { ok: true, service: "alfred-api" });
+        if (req.url === "/api/system") return sendJson(res, 200, { runner: { state: "online" } });
+        if (req.url === "/api/runs") return sendJson(res, 200, { items: [] });
+        return send(res, 404, "text/plain", "not found");
+      },
+    });
+
+    assert.equal(result.code, 0, result.stderr);
+    assert.deepEqual(
+      requests.map((request) => [request.method, request.url, request.cookie]),
+      [
+        ["GET", "/health", "alfred_session=dev-session-token"],
+        ["GET", "/api/system", "alfred_session=dev-session-token"],
+        ["GET", "/api/runs", "alfred_session=dev-session-token"],
+      ],
+    );
   });
 
   it("checks runner heartbeat and batch ingest with device auth", async () => {
