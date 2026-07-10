@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, CheckCircle2, Play, RotateCcw, ShieldAlert, X } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, Play, RotateCcw, X } from "lucide-react";
 import { isLaunchBlocked } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
@@ -157,6 +157,10 @@ function ReviewSurfaceItem({
 
   const runAction = () => {
     if (hardBlocked || checking) return;
+    if (item.status.kind === "waiting") {
+      onFocusItem(item.workspaceId, item.session.id);
+      return;
+    }
     if (item.status.kind === "blocked" && !armed) {
       onApproveTile(item.session.id);
       return;
@@ -167,11 +171,13 @@ function ReviewSurfaceItem({
     }
     if (item.status.kind === "restored") {
       onContinueRestoredSession(item.session.id);
+      if (relaunchNeedsReview && !armed) return;
       onFocusItem(item.workspaceId, item.session.id);
       return;
     }
     if (item.status.kind === "done" || item.status.kind === "error") {
       onRestartSession(item.session.id);
+      if (relaunchNeedsReview && !armed) return;
       onFocusItem(item.workspaceId, item.session.id);
     }
   };
@@ -189,7 +195,7 @@ function ReviewSurfaceItem({
           <span className="review-surface-copy">
             <strong>{item.session.title}</strong>
             <small title={`${item.workspaceLabel} · ${status.label} · ${item.detail}`}>
-              {status.label} · {item.detail}
+              {item.workspaceLabel} · {status.label} · {item.detail}
             </small>
           </span>
           {ageLabel && (
@@ -200,21 +206,28 @@ function ReviewSurfaceItem({
           <ArrowRight size={15} />
         </button>
         <div className="review-surface-actions">
-          <button
-            type="button"
-            className={`review-surface-primary action-${item.status.kind} ${armed ? "armed" : ""}`}
-            disabled={hardBlocked || checking}
-            onClick={runAction}
-          >
-            {recoveryAction ? <RotateCcw size={14} /> : <Play size={14} />}
-            <span>{action}</span>
-          </button>
+          {action !== null && (
+            <button
+              type="button"
+              className={`review-surface-primary action-${item.status.kind} ${armed ? "armed" : ""}`}
+              disabled={hardBlocked || checking}
+              onClick={runAction}
+              aria-label={`${action} ${item.session.title} in ${item.workspaceLabel}`}
+            >
+              {recoveryAction
+                ? <RotateCcw size={14} />
+                : item.status.kind === "waiting"
+                  ? <ArrowRight size={14} />
+                  : <Play size={14} />}
+              <span>{action}</span>
+            </button>
+          )}
           {(stagedAction || recoveryAction) && (
             <button
               type="button"
               className="review-surface-discard"
               title="Discard"
-              aria-label={`Discard ${item.session.title}`}
+              aria-label={`Discard ${item.session.title} from ${item.workspaceLabel}`}
               onClick={() => onDiscardSession(item.session.id)}
             >
               <X size={14} />
@@ -255,19 +268,25 @@ function ReviewSurfaceItem({
   );
 }
 
-function reviewSurfaceAction(item: WorkspaceReviewItem, unsafe: boolean, armed: boolean): string {
+function reviewSurfaceAction(item: WorkspaceReviewItem, unsafe: boolean, armed: boolean): string | null {
   switch (item.status.kind) {
+    case "waiting":
+      return "Open";
+    case "staged":
+      return "Launch";
+    case "blocked":
+      return "Blocked";
+    case "checking":
+      return "Checking";
     case "restored":
       return restoredSessionActionLabel(item.session, unsafe, armed);
     case "done":
-      return armed ? "Confirm restart" : "Restart";
     case "error":
-      return armed ? "Confirm restart" : "Restart";
-    case "blocked":
-      return armed ? "Launch" : "Review";
-    case "checking":
-      return "Checking";
-    default:
-      return "Launch";
+      return unsafe ? (armed ? "Confirm restart" : "Review restart") : "Restart";
+    case "active":
+    case "idle":
+    case "runtime":
+    case "starting":
+      return null;
   }
 }
