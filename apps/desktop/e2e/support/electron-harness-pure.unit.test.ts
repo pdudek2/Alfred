@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isAllowedElectronMainOutput,
   isAllowedElectronWarning,
   isPgrepNoChildren,
 } from "./electron-harness-pure";
@@ -25,5 +26,14 @@ describe("Electron harness pure guards", () => {
     expect(isPgrepNoChildren({ code: "ENOENT" })).toBe(false);
     expect(isPgrepNoChildren({ code: 2 })).toBe(false);
     expect(isPgrepNoChildren(new Error("permission denied"))).toBe(false);
+  });
+
+  it("allows only Playwright's exact inspector shutdown message from Electron main", () => {
+    const inspectorShutdown = `Debugger ending on ws://127.0.0.1:62487/b3c0e65a-f123-47df-9774-6c8a4d671ebd
+For help, see: https://nodejs.org/en/docs/inspector
+`;
+    expect(isAllowedElectronMainOutput(inspectorShutdown)).toBe(true);
+    expect(isAllowedElectronMainOutput(`${inspectorShutdown}unexpected output`)).toBe(false);
+    expect(isAllowedElectronMainOutput("Debugger ending on ws://attacker.example/abc")).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { access, mkdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { redactText } from "@alfred/schema";
@@ -17,7 +17,11 @@ import {
   type DesktopFixtureOptions,
   type DesktopFixturePaths,
 } from "./desktop-state-fixture";
-import { isAllowedElectronWarning, isPgrepNoChildren } from "./electron-harness-pure";
+import {
+  isAllowedElectronMainOutput,
+  isAllowedElectronWarning,
+  isPgrepNoChildren,
+} from "./electron-harness-pure";
 
 const execFileAsync = promisify(execFile);
 const desktopRoot = path.resolve(import.meta.dirname, "../..");
@@ -103,7 +107,7 @@ export const test = base.extend<Fixtures>({
       const actualUserData = await app.evaluate(({ app: electronApp }) =>
         electronApp.getPath("userData"),
       );
-      expect(actualUserData).toBe(paths.userData);
+      expect(await realpath(actualUserData)).toBe(await realpath(paths.userData));
       page = await app.firstWindow();
       instrumentPage(page);
     } catch (error) {
@@ -130,6 +134,12 @@ export const test = base.extend<Fixtures>({
           message.source === "renderer" &&
           message.level === "warning" &&
           isAllowedElectronWarning(message.text)
+        ) {
+          return false;
+        }
+        if (
+          (message.source === "main-stderr" || message.source === "main-stdout") &&
+          isAllowedElectronMainOutput(message.text)
         ) {
           return false;
         }
@@ -160,7 +170,7 @@ export const test = base.extend<Fixtures>({
       const closeButtons = terminalTiles.getByRole("button", { name: /^Close / });
       while ((await closeButtons.count()) > 0) {
         const before = await terminalTiles.count();
-        await closeButtons.first().click();
+        await closeButtons.first().click({ force: true });
         await expect(terminalTiles).toHaveCount(before - 1);
       }
     };

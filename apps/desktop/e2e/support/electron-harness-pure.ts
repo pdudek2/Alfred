@@ -10,6 +10,12 @@ export function isAllowedElectronWarning(text: string): boolean {
   return normalizeElectronConsoleText(text) === ELECTRON_42_CSP_WARNING;
 }
 
+export function isAllowedElectronMainOutput(text: string): boolean {
+  return /^Debugger ending on ws:\/\/127\.0\.0\.1:\d+\/[0-9a-f-]+\nFor help, see: https:\/\/nodejs\.org\/en\/docs\/inspector\n?$/i.test(
+    text,
+  );
+}
+
 export function isPgrepNoChildren(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === 1;
 }
