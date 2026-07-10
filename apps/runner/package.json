@@ -10,7 +10,6 @@
     "dev": "ALFRED_RUNNER_LOOP=1 tsx src/index.ts",
     "dev:watch": "ALFRED_RUNNER_LOOP=1 tsx watch src/index.ts",
     "dev:once": "tsx src/index.ts",
-    "lint": "tsc -p tsconfig.json --noEmit",
     "start": "ALFRED_RUNNER_LOOP=1 node dist/index.js",
     "start:once": "node dist/index.js",
     "test": "vitest run src/test",

@@ -17,26 +17,35 @@
     "runner:service:start": "node scripts/runner-service.mjs start",
     "runner:service:stop": "node scripts/runner-service.mjs stop",
     "runner:service:uninstall": "node scripts/runner-service.mjs uninstall",
-    "lint": "turbo run lint",
+    "lint": "eslint . --max-warnings 0",
     "smoke:cloud": "node scripts/cloud-smoke.mjs",
     "smoke:cloud:runner": "ALFRED_CLOUD_SMOKE_MODE=runner-auth node scripts/cloud-smoke.mjs",
+    "smoke:electron": "pnpm --filter @alfred/desktop smoke:electron",
     "test": "node --test scripts/test/*.test.mjs && turbo run test",
     "test:scripts": "node --test scripts/test/*.test.mjs",
     "typecheck": "turbo run typecheck",
+    "verify:quality": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "verify": "pnpm verify:quality && pnpm smoke:electron",
     "agent:launch": "node scripts/launch-parallel-agents.mjs",
     "agent:monitor": "node scripts/monitor-parallel-agents.mjs"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "drizzle-kit": "latest",
+    "eslint": "10.6.0",
+    "eslint-plugin-react-hooks": "7.1.1",
     "esbuild": "^0.28.0",
+    "globals": "17.7.0",
     "tsx": "latest",
     "turbo": "latest",
     "typescript": "latest",
+    "typescript-eslint": "8.63.0",
     "vitest": "latest"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3",
+      "electron",
       "esbuild"
     ]
   }
