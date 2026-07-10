@@ -67,7 +67,7 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   identityTransitions.push("Split→Grid (all restored)");
   await expect(page.getByTestId("xterm-host").first()).toContainText(marker);
 
-  const initialTerminalGeometry = await readTerminalGeometry(page);
+  const initialGridScroll = await proveGridScroll(page, "Initial Grid");
   const beforeResize = await readWindowGeometry(app, page);
   await app.evaluate(({ BrowserWindow }) => {
     const [window] = BrowserWindow.getAllWindows();
@@ -85,7 +85,7 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
     };
   }).toEqual({ boundsWidth: 1120, boundsHeight: 720, clientViewportChanged: true });
   const afterResize = await readWindowGeometry(app, page);
-  const narrowTerminalGeometry = await readTerminalGeometry(page);
+  const narrowGridScroll = await proveGridScroll(page, "1120×720 Grid");
 
   const runtimeProofPath = testInfo.outputPath("terminal-core-runtime-proof.json");
   await writeFile(runtimeProofPath, `${JSON.stringify({
@@ -94,8 +94,8 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
       markerCommandContainsDecodedMarker: markerCommand.includes(marker),
       identityTransitions,
       surfaceGeometries,
-      initialTerminalGeometry,
-      narrowTerminalGeometry,
+      initialGridScroll,
+      narrowGridScroll,
       beforeResize,
       afterResize,
     }, null, 2)}\n`, "utf8");
@@ -105,8 +105,6 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   });
 
   for (const geometry of surfaceGeometries) assertSurfaceGeometry(geometry);
-  assertTerminalGeometry(initialTerminalGeometry);
-  assertTerminalGeometry(narrowTerminalGeometry);
   harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();
 });
@@ -200,7 +198,7 @@ async function readTerminalGeometry(page: Page) {
     }
     const stageRect = stage.getBoundingClientRect();
     const scrollOwnerRect = scrollOwner.getBoundingClientRect();
-    const scrollContentBottom = scrollOwnerRect.top + scrollOwner.scrollHeight - scrollOwner.scrollTop;
+    const overflowY = getComputedStyle(scrollOwner).overflowY;
     const visibleTiles = Array.from(
       stage.querySelectorAll('[data-testid="terminal-tile"]:not([aria-hidden="true"])'),
     );
@@ -217,8 +215,9 @@ async function readTerminalGeometry(page: Page) {
         tileHeight: tileRect.height,
         hostWidth: hostRect.width,
         hostHeight: hostRect.height,
-        viewportBottomOverflow: tileRect.bottom - stageRect.bottom,
-        bottomOverflow: tileRect.bottom - scrollContentBottom,
+        viewportBottomOverflow: tileRect.bottom - scrollOwnerRect.bottom,
+        leftOverflow: scrollOwnerRect.left - tileRect.left,
+        rightOverflow: tileRect.right - scrollOwnerRect.right,
       };
     });
     return {
@@ -226,12 +225,32 @@ async function readTerminalGeometry(page: Page) {
       stageHeight: stageRect.height,
       scrollClientHeight: scrollOwner.clientHeight,
       scrollHeight: scrollOwner.scrollHeight,
+      scrollTop: scrollOwner.scrollTop,
+      overflowY,
       tiles,
-      maxBottomOverflow: Math.max(...tiles.map((tile) => tile.bottomOverflow)),
       documentOverflow:
         document.documentElement.scrollWidth - document.documentElement.clientWidth,
     };
   });
+}
+
+async function proveGridScroll(page: Page, label: string) {
+  const before = await readTerminalGeometry(page);
+  assertGridBeforeScroll(before, label);
+
+  const lastVisibleTile = page
+    .locator('[data-testid="desk-runtime-surface"] [data-testid="terminal-tile"]:not([aria-hidden="true"])')
+    .last();
+  await lastVisibleTile.scrollIntoViewIfNeeded();
+  await expect.poll(async () => (await readTerminalGeometry(page)).scrollTop).toBeGreaterThan(0);
+
+  const after = await readTerminalGeometry(page);
+  assertGridAfterScroll(after, label);
+
+  const scrollOwner = page.locator('[data-testid="desk-runtime-surface"] .terminal-grid-column');
+  await scrollOwner.evaluate((element) => element.scrollTo(0, 0));
+  await expect.poll(async () => (await readTerminalGeometry(page)).scrollTop).toBe(0);
+  return { label, before, after, restoredScrollTop: 0 };
 }
 
 async function readWindowGeometry(app: ElectronApplication, page: Page) {
@@ -261,13 +280,37 @@ function assertTerminalGeometry(geometry: Awaited<ReturnType<typeof readTerminal
   expect(geometry.stageWidth, evidence).toBeGreaterThan(0);
   expect(geometry.stageHeight, evidence).toBeGreaterThan(0);
   expect(geometry.scrollHeight, evidence).toBeGreaterThan(geometry.scrollClientHeight);
+  expect(["auto", "scroll"], evidence).toContain(geometry.overflowY);
   expect(geometry.tiles, evidence).toHaveLength(3);
   for (const tile of geometry.tiles) {
     expect(tile.tileWidth, evidence).toBeGreaterThan(0);
     expect(tile.tileHeight, evidence).toBeGreaterThan(0);
     expect(tile.hostWidth, evidence).toBeGreaterThan(0);
     expect(tile.hostHeight, evidence).toBeGreaterThan(0);
+    expect(tile.leftOverflow, evidence).toBeLessThanOrEqual(2);
+    expect(tile.rightOverflow, evidence).toBeLessThanOrEqual(2);
   }
-  expect(geometry.maxBottomOverflow, evidence).toBeLessThanOrEqual(2);
   expect(geometry.documentOverflow, evidence).toBeLessThanOrEqual(0);
+}
+
+function assertGridBeforeScroll(
+  geometry: Awaited<ReturnType<typeof readTerminalGeometry>>,
+  label: string,
+): void {
+  assertTerminalGeometry(geometry);
+  const lastTile = geometry.tiles.at(-1);
+  expect(lastTile, "Grid must contain a last visible tile.").toBeDefined();
+  expect(geometry.scrollTop, `${label} must start at scrollTop 0.`).toBe(0);
+  expect(lastTile?.viewportBottomOverflow, `${label} before scroll: ${JSON.stringify(geometry)}`).toBeGreaterThan(0);
+}
+
+function assertGridAfterScroll(
+  geometry: Awaited<ReturnType<typeof readTerminalGeometry>>,
+  label: string,
+): void {
+  assertTerminalGeometry(geometry);
+  const lastTile = geometry.tiles.at(-1);
+  expect(lastTile, "Grid must contain a last visible tile.").toBeDefined();
+  expect(geometry.scrollTop, `${label} must have scrolled.`).toBeGreaterThan(0);
+  expect(lastTile?.viewportBottomOverflow, `${label} after scroll: ${JSON.stringify(geometry)}`).toBeLessThanOrEqual(2);
 }
