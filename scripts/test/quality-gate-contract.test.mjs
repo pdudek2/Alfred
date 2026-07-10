@@ -22,7 +22,12 @@ test("root quality gates are independent and ordered", async () => {
   assert.equal(pkg.scripts["verify:quality"], "pnpm lint && pnpm typecheck && pnpm test && pnpm build");
   assert.equal(pkg.scripts.verify, "pnpm verify:quality && pnpm smoke:electron");
   assert.equal(pkg.scripts["smoke:electron"], "pnpm --filter @alfred/desktop smoke:electron");
-  assert.ok(pkg.pnpm.onlyBuiltDependencies.includes("electron"));
+  assert.ok(!pkg.pnpm.onlyBuiltDependencies.includes("electron"));
+  const desktop = await json("apps/desktop/package.json");
+  assert.equal(
+    desktop.scripts["smoke:electron"],
+    "electron --version && playwright test --config playwright.config.ts",
+  );
 });
 
 test("package manifests do not advertise typecheck as lint", async () => {
