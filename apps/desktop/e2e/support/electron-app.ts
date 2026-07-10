@@ -137,10 +137,7 @@ export const test = base.extend<Fixtures>({
         ) {
           return false;
         }
-        if (
-          (message.source === "main-stderr" || message.source === "main-stdout") &&
-          isAllowedElectronMainOutput(message.text)
-        ) {
+        if (isAllowedElectronMainOutput(message.source, message.text)) {
           return false;
         }
         return message.level === "error" || message.level === "warning";
@@ -167,10 +164,15 @@ export const test = base.extend<Fixtures>({
       }
 
       const terminalTiles = page.getByTestId("terminal-tile");
-      const closeButtons = terminalTiles.getByRole("button", { name: /^Close / });
-      while ((await closeButtons.count()) > 0) {
+      while ((await terminalTiles.count()) > 0) {
         const before = await terminalTiles.count();
-        await closeButtons.first().click({ force: true });
+        const tile = terminalTiles.first();
+        await tile.hover();
+        await tile.focus();
+        const closeButton = tile.getByRole("button", { name: /^Close / });
+        await expect(closeButton).toBeVisible();
+        await expect(closeButton).toBeEnabled();
+        await closeButton.click();
         await expect(terminalTiles).toHaveCount(before - 1);
       }
     };

@@ -32,8 +32,15 @@ describe("Electron harness pure guards", () => {
     const inspectorShutdown = `Debugger ending on ws://127.0.0.1:62487/b3c0e65a-f123-47df-9774-6c8a4d671ebd
 For help, see: https://nodejs.org/en/docs/inspector
 `;
-    expect(isAllowedElectronMainOutput(inspectorShutdown)).toBe(true);
-    expect(isAllowedElectronMainOutput(`${inspectorShutdown}unexpected output`)).toBe(false);
-    expect(isAllowedElectronMainOutput("Debugger ending on ws://attacker.example/abc")).toBe(false);
+    expect(isAllowedElectronMainOutput("main-stderr", inspectorShutdown)).toBe(true);
+    expect(isAllowedElectronMainOutput("main-stdout", inspectorShutdown)).toBe(false);
+    expect(isAllowedElectronMainOutput("main-stderr", `${inspectorShutdown}unexpected output`)).toBe(false);
+    expect(
+      isAllowedElectronMainOutput(
+        "main-stderr",
+        inspectorShutdown.replace("b3c0e65a-f123-47df-9774-6c8a4d671ebd", "b3c0e65a-f123"),
+      ),
+    ).toBe(false);
+    expect(isAllowedElectronMainOutput("main-stderr", "Debugger ending on ws://attacker.example/abc")).toBe(false);
   });
 });
