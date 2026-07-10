@@ -44,3 +44,21 @@ test("Turbo owns build, test and typecheck but not lint", async () => {
   assert.ok(turbo.tasks.test);
   assert.ok(turbo.tasks.typecheck);
 });
+
+test("CI exposes quality and electron smoke without weakening failures", async () => {
+  const workflow = await readFile(new URL(".github/workflows/ci.yml", root), "utf8");
+  for (const fragment of [
+    "pull_request:",
+    "workflow_dispatch:",
+    "quality:",
+    "electron-smoke:",
+    "runs-on: ubuntu-latest",
+    "runs-on: macos-14",
+    "timeout-minutes: 20",
+    "timeout-minutes: 15",
+    "pnpm verify:quality",
+    "pnpm smoke:electron",
+    "if: failure()",
+  ]) assert.match(workflow, new RegExp(fragment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(workflow, /continue-on-error:\s*true/);
+});
