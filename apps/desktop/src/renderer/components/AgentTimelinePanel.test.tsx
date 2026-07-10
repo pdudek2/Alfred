@@ -451,6 +451,45 @@ describe("AgentTimelinePanel", () => {
     expect(screen.getByRole("button", { name: "Hide raw" })).toBeInTheDocument();
   });
 
+  it("counts the full bounded activity buffer and reveals older raw events", async () => {
+    const user = userEvent.setup();
+    const session: SessionTile = {
+      id: "s1",
+      title: "codex — long activity",
+      workspaceId: "w1",
+      stage: "live",
+      cwd: "/tmp",
+      source: "alfred",
+      runtimeId: "runtime-1",
+      activityEvents: [
+        ...Array.from({ length: 9 }, (_, index) => ({
+          id: `work-${index + 1}`,
+          kind: "file" as const,
+          title: `File activity ${index + 1}`,
+          detail: `src/file-${index + 1}.ts(modified)`,
+          at: 100 + index,
+        })),
+        {
+          id: "raw-old",
+          kind: "output",
+          title: "Progress reported",
+          detail: "SessionStart hook (completed)",
+          at: 1,
+        },
+      ],
+    };
+
+    render(<AgentTimelinePanel session={session} />);
+
+    await user.click(screen.getByRole("button", { name: "Activity (9)" }));
+    expect(screen.getByRole("button", { name: "Show raw (1)" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Show raw (1)" }));
+
+    expect(screen.getByText("SessionStart hook (completed)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide raw" })).toBeInTheDocument();
+  });
+
   it("reveals file payloads and copies text payloads from the activity object", async () => {
     const user = userEvent.setup();
     const onCopyActivityText = vi.fn();
