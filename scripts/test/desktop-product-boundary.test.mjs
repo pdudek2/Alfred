@@ -21,13 +21,17 @@ describe("desktop product boundary", () => {
   it("keeps Vercel deployment API-only", () => {
     const config = readJson("vercel.json");
 
-    assert.match(config.buildCommand, /api/i);
-    assert.equal("outputDirectory" in config, false);
-    assert.equal("framework" in config, false);
-    assert.equal(
-      config.rewrites.every((rewrite) => rewrite.destination.startsWith("/api/")),
-      true,
-    );
+    assert.deepEqual(config, {
+      $schema: "https://openapi.vercel.sh/vercel.json",
+      installCommand: "pnpm install --frozen-lockfile",
+      buildCommand: "node scripts/build-vercel-api.mjs",
+      rewrites: [
+        { source: "/api/:path*", destination: "/api/:path*" },
+        { source: "/auth/:path*", destination: "/api/auth/:path*" },
+        { source: "/v1/:path*", destination: "/api/v1/:path*" },
+        { source: "/health", destination: "/api/health" },
+      ],
+    });
   });
 
   it("starts the desktop client in the main local dev loop", () => {
