@@ -17,15 +17,14 @@ import {
   type DesktopFixtureOptions,
   type DesktopFixturePaths,
 } from "./desktop-state-fixture";
+import { isAllowedElectronWarning, isPgrepNoChildren } from "./electron-harness-pure";
 
 const execFileAsync = promisify(execFile);
 const desktopRoot = path.resolve(import.meta.dirname, "../..");
-const ALLOWED_ELECTRON_WARNING_PREFIX =
-  "Electron Security Warning (Insecure Content-Security-Policy)";
 
 type RuntimeMessage = {
   source: "main-stderr" | "main-stdout" | "pageerror" | "renderer";
-  level: "error" | "info" | "warning";
+  level: "error" | "warning";
   text: string;
 };
 
@@ -51,7 +50,12 @@ export const test = base.extend<Fixtures>({
     const marker = `ALFRED_E2E_${randomUUID()}`;
     const messages: RuntimeMessage[] = [];
     const diagnosticDir = testInfo.outputPath("diagnostics");
-    await mkdir(diagnosticDir, { recursive: true });
+    try {
+      await mkdir(diagnosticDir, { recursive: true });
+    } catch (error) {
+      await rm(paths.root, { recursive: true, force: true });
+      throw error;
+    }
 
     let app: ElectronApplication;
     try {
@@ -65,14 +69,6 @@ export const test = base.extend<Fixtures>({
       await rm(paths.root, { recursive: true, force: true });
       throw error;
     }
-    const mainProcess = app.process();
-    mainProcess.stdout?.on("data", (chunk: Buffer) => {
-      messages.push(runtimeMessage("main-stdout", "info", chunk.toString("utf8")));
-    });
-    mainProcess.stderr?.on("data", (chunk: Buffer) => {
-      messages.push(runtimeMessage("main-stderr", "error", chunk.toString("utf8")));
-    });
-
     const instrumentedPages = new WeakSet<Page>();
     const instrumentPage = (window: Page): void => {
       if (instrumentedPages.has(window)) return;
@@ -92,6 +88,15 @@ export const test = base.extend<Fixtures>({
       });
     };
     app.on("window", instrumentPage);
+    for (const window of app.windows()) instrumentPage(window);
+
+    const mainProcess = app.process();
+    mainProcess.stdout?.on("data", (chunk: Buffer) => {
+      messages.push(runtimeMessage("main-stdout", "error", chunk.toString("utf8")));
+    });
+    mainProcess.stderr?.on("data", (chunk: Buffer) => {
+      messages.push(runtimeMessage("main-stderr", "error", chunk.toString("utf8")));
+    });
 
     let page: Page;
     try {
@@ -103,10 +108,13 @@ export const test = base.extend<Fixtures>({
       instrumentPage(page);
     } catch (error) {
       const processCleanup = await stopElectronApplication(app, mainProcess.pid);
-      await writeDiagnostics(messages, processCleanup, diagnosticDir);
-      await attachDiagnostics(testInfo, diagnosticDir);
-      if (processCleanup.alive.length === 0) {
-        await rm(paths.root, { recursive: true, force: true });
+      try {
+        await writeDiagnostics(messages, processCleanup, diagnosticDir);
+        await attachDiagnostics(testInfo, diagnosticDir);
+      } finally {
+        if (processCleanup.alive.length === 0) {
+          await rm(paths.root, { recursive: true, force: true });
+        }
       }
       if (!processCleanup.clean) {
         throw new Error(`Electron setup cleanup failed: ${JSON.stringify(processCleanup)}`, { cause: error });
@@ -114,14 +122,14 @@ export const test = base.extend<Fixtures>({
       throw error;
     }
 
-    let closed = false;
+    let closeAttempt: Promise<void> | null = null;
     const assertNoRuntimeErrors = (): void => {
       const forbidden = messages.filter((message) => {
-        const text = message.text.trimStart();
+        if (message.text.trim().length === 0) return false;
         if (
           message.source === "renderer" &&
           message.level === "warning" &&
-          text.startsWith(ALLOWED_ELECTRON_WARNING_PREFIX)
+          isAllowedElectronWarning(message.text)
         ) {
           return false;
         }
@@ -157,10 +165,7 @@ export const test = base.extend<Fixtures>({
       }
     };
 
-    const close = async (): Promise<void> => {
-      if (closed) return;
-      closed = true;
-
+    const performClose = async (): Promise<void> => {
       let uiCleanupError: string | null = null;
       try {
         await closeActiveTerminals();
@@ -174,8 +179,14 @@ export const test = base.extend<Fixtures>({
         uiCleanupError,
         clean: processCleanup.clean && uiCleanupError === null,
       };
-      await writeDiagnostics(messages, cleanup, diagnosticDir);
-      await attachDiagnostics(testInfo, diagnosticDir);
+      try {
+        await writeDiagnostics(messages, cleanup, diagnosticDir);
+        await attachDiagnostics(testInfo, diagnosticDir);
+      } finally {
+        if (processCleanup.alive.length === 0) {
+          await rm(paths.root, { recursive: true, force: true });
+        }
+      }
 
       let runtimeError: unknown = null;
       try {
@@ -183,13 +194,19 @@ export const test = base.extend<Fixtures>({
       } catch (error) {
         runtimeError = error;
       }
-      if (processCleanup.alive.length === 0) {
-        await rm(paths.root, { recursive: true, force: true });
-      }
       if (!cleanup.clean) {
         throw new Error(`Electron cleanup failed: ${JSON.stringify(cleanup)}`, { cause: runtimeError });
       }
       if (runtimeError !== null) throw runtimeError;
+    };
+
+    const close = (): Promise<void> => {
+      if (closeAttempt !== null) return closeAttempt;
+      closeAttempt = performClose().catch((error: unknown) => {
+        closeAttempt = null;
+        throw error;
+      });
+      return closeAttempt;
     };
 
     try {
@@ -216,12 +233,9 @@ function electronEnvironment(paths: DesktopFixturePaths): Record<string, string>
     "DISPLAY",
     "LANG",
     "LC_ALL",
-    "LOGNAME",
     "PATH",
     "SHELL",
     "TERM",
-    "TMPDIR",
-    "USER",
     "XAUTHORITY",
   ];
   const env = Object.fromEntries(
@@ -233,6 +247,7 @@ function electronEnvironment(paths: DesktopFixturePaths): Record<string, string>
   return {
     ...env,
     HOME: paths.home,
+    TMPDIR: paths.root,
     ZDOTDIR: paths.home,
     XDG_CONFIG_HOME: path.join(paths.home, ".config"),
     ALFRED_DESKTOP_WORKSPACE_CWD: paths.workspaceA,
@@ -264,8 +279,9 @@ async function collectDescendants(parentPid: number): Promise<number[]> {
       .split("\n")
       .map((value) => Number.parseInt(value.trim(), 10))
       .filter(Number.isInteger);
-  } catch {
-    return [];
+  } catch (error) {
+    if (isPgrepNoChildren(error)) return [];
+    throw new Error(`Failed to discover descendants for Electron PID ${parentPid}.`, { cause: error });
   }
   const nested = await Promise.all(direct.map(collectDescendants));
   return [...direct, ...nested.flat()];
@@ -279,36 +295,58 @@ async function stopElectronApplication(
   descendants: number[];
   alive: number[];
   closeResult: string;
+  descendantDiscoveryError: string | null;
+  requiredSignalFallback: boolean;
   usedSigkill: boolean;
   clean: boolean;
 }> {
-  const descendants = mainPid === undefined ? [] : await collectDescendants(mainPid);
-  const closePromise = app.close().then(
-    () => "closed",
-    (error: unknown) => `close-error: ${safeError(error)}`,
-  );
+  let descendants: number[] = [];
+  let descendantDiscoveryError: string | null = null;
+  if (mainPid !== undefined) {
+    try {
+      descendants = await collectDescendants(mainPid);
+    } catch (error) {
+      descendantDiscoveryError = safeError(error);
+    }
+  }
+  let closePromise: Promise<string>;
+  try {
+    closePromise = app.close().then(
+      () => "closed",
+      (error: unknown) => `close-error: ${safeError(error)}`,
+    );
+  } catch (error) {
+    closePromise = Promise.resolve(`close-error: ${safeError(error)}`);
+  }
   let closeResult = await withTimeout(closePromise, 5_000, "close-timeout");
+  const trackedPids = [mainPid, ...descendants].filter((pid): pid is number => pid !== undefined);
+  const aliveAfterClose = trackedPids.filter(isAlive);
+  const requiredSignalFallback = aliveAfterClose.length > 0;
   let usedSigkill = false;
-  if (closeResult !== "closed" && mainPid !== undefined) {
-    terminate([...descendants].reverse().concat(mainPid), "SIGTERM");
-    const terminated = await waitUntilDead([mainPid, ...descendants], 2_000);
+  if (requiredSignalFallback) {
+    terminate([...aliveAfterClose].reverse(), "SIGTERM");
+    const terminated = await waitUntilDead(aliveAfterClose, 2_000);
     if (!terminated) {
       usedSigkill = true;
-      terminate([...descendants].reverse().concat(mainPid), "SIGKILL");
-      await waitUntilDead([mainPid, ...descendants], 1_000);
+      terminate([...aliveAfterClose].reverse(), "SIGKILL");
+      await waitUntilDead(aliveAfterClose, 1_000);
       closeResult = `${closeResult}; sigkill-fallback`;
     }
   }
-  const alive = [mainPid, ...descendants]
-    .filter((pid): pid is number => pid !== undefined)
-    .filter(isAlive);
+  const alive = trackedPids.filter(isAlive);
   return {
     mainPid,
     descendants,
     alive,
     closeResult,
+    descendantDiscoveryError,
+    requiredSignalFallback,
     usedSigkill,
-    clean: alive.length === 0 && closeResult === "closed",
+    clean:
+      alive.length === 0 &&
+      closeResult === "closed" &&
+      descendantDiscoveryError === null &&
+      !requiredSignalFallback,
   };
 }
 
@@ -317,7 +355,7 @@ function terminate(pids: number[], signal: NodeJS.Signals): void {
     try {
       process.kill(pid, signal);
     } catch {
-      // The process already exited between discovery and termination.
+      // The final liveness check records any process that did not exit.
     }
   }
 }
@@ -326,8 +364,8 @@ function isAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    return typeof error === "object" && error !== null && "code" in error && error.code === "EPERM";
   }
 }
 
