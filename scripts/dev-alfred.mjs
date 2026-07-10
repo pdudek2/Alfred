@@ -19,10 +19,12 @@ const processes = [
     },
   },
   {
-    name: "web",
+    name: "desktop",
     command: pnpmCommand,
-    args: ["--filter", "@alfred/web", "dev"],
-    env: {},
+    args: ["--filter", "@alfred/desktop", "dev:electron"],
+    env: {
+      DESKTOP_PORT: "4310",
+    },
   },
   {
     name: "runner",

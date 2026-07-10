@@ -13,7 +13,7 @@ const tasks = [
     task: "runner-cutoff",
     title: "Runner Codex import cutoff",
     owned: "apps/runner/src/env.ts, apps/runner/src/config.ts, apps/runner/src/sources/codex/**, apps/runner/src/test/codex-adapter.test.ts, apps/runner/src/test/config.test.ts",
-    forbidden: "apps/web/**, apps/api/**, packages/db/**, drizzle/**, pnpm-lock.yaml",
+    forbidden: "apps/api/**, packages/db/**, drizzle/**, pnpm-lock.yaml",
     goal:
       "Add ALFRED_CODEX_SINCE support so the runner skips Codex events before a configured ISO timestamp. Default behavior must remain unchanged when unset.",
     checks: "pnpm --filter @alfred/runner test && pnpm --filter @alfred/runner typecheck",
@@ -24,32 +24,10 @@ const tasks = [
     task: "api-run-filters",
     title: "API run filters",
     owned: "apps/api/src/routes/runs.ts, apps/api/src/services/runs-query-service.ts, apps/api/src/test/runs.test.ts",
-    forbidden: "apps/web/**, apps/runner/**, packages/db/src/schema.ts, drizzle/**, pnpm-lock.yaml",
+    forbidden: "apps/runner/**, packages/db/src/schema.ts, drizzle/**, pnpm-lock.yaml",
     goal:
       "Add optional query filters to GET /v1/runs: since, source, status, and project. Keep default list behavior unchanged.",
     checks: "pnpm --filter @alfred/api test && pnpm --filter @alfred/api typecheck",
-  },
-  {
-    slot: "03",
-    tool: "codex",
-    task: "web-run-filters",
-    title: "Web run filters",
-    owned: "apps/web/src/app.tsx, apps/web/src/lib/api-client.ts, apps/web/src/components/filter-bar.tsx, apps/web/src/test/**",
-    forbidden: "apps/api/**, apps/runner/**, packages/db/**, drizzle/**, pnpm-lock.yaml",
-    goal:
-      "Add a compact filter bar for source/status/project/since and send selected filters through the API client query string. Keep current default view unchanged.",
-    checks: "pnpm --filter @alfred/web test && pnpm --filter @alfred/web typecheck && pnpm --filter @alfred/web build",
-  },
-  {
-    slot: "04",
-    tool: "claude",
-    task: "event-inspector",
-    title: "Event inspector UI",
-    owned: "apps/web/src/components/run-detail.tsx, apps/web/src/components/event-payload.tsx, apps/web/src/test/app.test.tsx",
-    forbidden: "apps/api/**, apps/runner/**, packages/db/**, drizzle/**, pnpm-lock.yaml",
-    goal:
-      "Make event payloads collapsible with a concise summary row and expanded JSON body. Keep keyboard accessibility and existing timeline data intact.",
-    checks: "pnpm --filter @alfred/web test && pnpm --filter @alfred/web typecheck",
   },
   {
     slot: "05",
@@ -59,7 +37,7 @@ const tasks = [
     owned: "scripts/dev-doctor.mjs",
     forbidden: "apps/**, packages/**, drizzle/**, pnpm-lock.yaml, package.json",
     goal:
-      "Create a node script that checks Docker/Postgres, API health, web health, and basic repo commands. It should print actionable PASS/FAIL lines and never mutate data.",
+      "Create a node script that checks Docker/Postgres, API health, desktop renderer health, and basic repo commands. It should print actionable PASS/FAIL lines and never mutate data.",
     checks: "node scripts/dev-doctor.mjs",
   },
   {
@@ -79,7 +57,7 @@ const tasks = [
     task: "api-root-tests",
     title: "API root and prefix tests",
     owned: "apps/api/src/test/app.test.ts",
-    forbidden: "apps/web/**, apps/runner/**, packages/db/**, drizzle/**, pnpm-lock.yaml",
+    forbidden: "apps/runner/**, packages/db/**, drizzle/**, pnpm-lock.yaml",
     goal:
       "Add tests proving / returns endpoint metadata and /api/v1/runs stays compatible. Only change production app routing if a test exposes a real gap.",
     checks: "pnpm --filter @alfred/api test && pnpm --filter @alfred/api typecheck",
@@ -90,7 +68,7 @@ const tasks = [
     task: "privacy-redactor",
     title: "Privacy redactor hardening",
     owned: "apps/runner/src/privacy/redactor.ts, apps/runner/src/test/redactor.test.ts",
-    forbidden: "apps/web/**, apps/api/**, packages/db/**, drizzle/**, pnpm-lock.yaml",
+    forbidden: "apps/api/**, packages/db/**, drizzle/**, pnpm-lock.yaml",
     goal:
       "Expand redaction tests and implementation for common secret-like keys and nested objects while preserving current privacy modes.",
     checks: "pnpm --filter @alfred/runner test && pnpm --filter @alfred/runner typecheck",
@@ -101,7 +79,7 @@ const tasks = [
     task: "outbox-maintenance",
     title: "Outbox maintenance primitives",
     owned: "apps/runner/src/outbox/outbox-db.ts, apps/runner/src/test/outbox.test.ts",
-    forbidden: "apps/web/**, apps/api/**, packages/db/**, drizzle/**, pnpm-lock.yaml",
+    forbidden: "apps/api/**, packages/db/**, drizzle/**, pnpm-lock.yaml",
     goal:
       "Add small maintenance helpers for counting queued records and pruning old failed records. Keep existing enqueue/flush behavior unchanged.",
     checks: "pnpm --filter @alfred/runner test && pnpm --filter @alfred/runner typecheck",
@@ -112,7 +90,7 @@ const tasks = [
     task: "claude-adapter-spike",
     title: "Claude adapter fixture spike",
     owned: "apps/runner/src/sources/claude/**, apps/runner/src/test/claude-adapter.test.ts, apps/runner/src/test/fixtures/claude-session.jsonl",
-    forbidden: "apps/web/**, apps/api/**, packages/db/**, drizzle/**, pnpm-lock.yaml",
+    forbidden: "apps/api/**, packages/db/**, drizzle/**, pnpm-lock.yaml",
     goal:
       "Create an isolated Claude Code adapter spike using fixtures only. Do not wire it into the live runner yet; expose a collect/normalize function and tests.",
     checks: "pnpm --filter @alfred/runner test && pnpm --filter @alfred/runner typecheck",
@@ -145,7 +123,7 @@ function branchFor(agent) {
 
 function promptFor(agent, worktreePath) {
   const port = 4310 + Number.parseInt(agent.slot, 10);
-  const webPort = 4410 + Number.parseInt(agent.slot, 10);
+  const desktopPort = 4410 + Number.parseInt(agent.slot, 10);
 
   return `Jestes rownoleglym agentem Alfreda.
 
@@ -171,7 +149,7 @@ Zasady:
 - Nie dodawaj AI co-author trailers.
 - Nie cofaj cudzych zmian.
 - Nie uruchamiaj realnego runnera na ~/.codex, chyba ze Twoje zadanie wyraznie tego wymaga; uzywaj fixture lub tymczasowego ALFRED_CODEX_HOME.
-- Jesli musisz uruchomic serwer, uzyj API_PORT=${port} i WEB_PORT=${webPort}.
+- Jesli musisz uruchomic serwer, uzyj API_PORT=${port} i DESKTOP_PORT=${desktopPort}.
 - Zacznij od testu lub malej reprodukcji, potem implementacja.
 - Na koniec uruchom: ${agent.checks}
 - Zrob lokalny commit na swoim branchu z jasnym komunikatem.
@@ -185,13 +163,12 @@ function runScriptFor(agent, worktreePath) {
   const promptPath = join(worktreePath, ".agent", "prompt.md");
   const logPath = join(worktreePath, ".agent", "run.log");
   const port = 4310 + Number.parseInt(agent.slot, 10);
-  const webPort = 4410 + Number.parseInt(agent.slot, 10);
+  const desktopPort = 4410 + Number.parseInt(agent.slot, 10);
   const common = `#!/usr/bin/env zsh
 set -u
 cd "${worktreePath}"
 export API_PORT=${port}
-export WEB_PORT=${webPort}
-export WEB_API_TARGET="http://127.0.0.1:${port}"
+export DESKTOP_PORT=${desktopPort}
 export RUNNER_API_URL="http://127.0.0.1:${port}"
 export ALFRED_RUNNER_DB_PATH=".alfred-runner/outbox.sqlite"
 echo "== Alfred ${agent.tool.toUpperCase()} agent ${agent.slot}: ${agent.task} =="

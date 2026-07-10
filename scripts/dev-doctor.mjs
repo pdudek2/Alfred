@@ -155,9 +155,9 @@ async function loadConfig() {
     resolveConfig("API_PORT", envFile, envExample, "4301"),
     4301,
   );
-  const webPort = parsePositivePort(
-    resolveConfig("WEB_PORT", envFile, envExample, "4300"),
-    4300,
+  const desktopPort = parsePositivePort(
+    resolveConfig("DESKTOP_PORT", envFile, envExample, "4310"),
+    4310,
   );
   const authDevSessionToken = resolveConfig(
     "AUTH_DEV_SESSION_TOKEN",
@@ -181,8 +181,9 @@ async function loadConfig() {
       `http://127.0.0.1:${apiPort}/api/v1/system/status`,
     authDevSessionToken,
     databaseEndpoint: parseDatabaseEndpoint(databaseUrl),
-    webPort,
-    webHealthUrl: process.env.WEB_HEALTH_URL ?? `http://127.0.0.1:${webPort}/`,
+    desktopPort,
+    desktopHealthUrl:
+      process.env.DESKTOP_HEALTH_URL ?? `http://127.0.0.1:${desktopPort}/`,
   };
 }
 
@@ -190,9 +191,9 @@ function startApiCommand(port) {
   return `ALFRED_ALLOW_DEV_AUTH=1 API_PORT=${port} pnpm --filter @alfred/api dev`;
 }
 
-function startWebCommand(port) {
-  if (port === 4300) return "pnpm --filter @alfred/web dev";
-  return `pnpm --filter @alfred/web dev -- --host 127.0.0.1 --port ${port}`;
+function startDesktopCommand(port) {
+  if (port === 4310) return "pnpm --filter @alfred/desktop dev:electron";
+  return `DESKTOP_PORT=${port} pnpm --filter @alfred/desktop dev:electron`;
 }
 
 function startRunnerAction() {
@@ -518,40 +519,43 @@ async function checkApiHealth(config) {
   );
 }
 
-async function checkWebHealth(config) {
-  const result = await fetchText(config.webHealthUrl, {
+async function checkDesktopRendererHealth(config) {
+  const result = await fetchText(config.desktopHealthUrl, {
     accept: "text/html",
     timeoutMs: HTTP_TIMEOUT_MS,
   });
 
   if (!result.ok) {
     fail(
-      "web health",
-      `${config.webHealthUrl} failed (${result.error})`,
-      startWebCommand(config.webPort),
+      "desktop renderer health",
+      `${config.desktopHealthUrl} failed (${result.error})`,
+      startDesktopCommand(config.desktopPort),
     );
     return;
   }
 
   if (result.status < 200 || result.status >= 300) {
     fail(
-      "web health",
-      `${config.webHealthUrl} returned HTTP ${result.status}`,
-      "inspect the web dev server logs",
+      "desktop renderer health",
+      `${config.desktopHealthUrl} returned HTTP ${result.status}`,
+      "inspect the desktop renderer dev server logs",
     );
     return;
   }
 
   if (!result.body.includes('id="root"') && !result.body.includes("Vite")) {
     fail(
-      "web health",
+      "desktop renderer health",
       `unexpected HTML response: ${compact(result.body)}`,
-      "verify the process on the web port is the Alfred web app",
+      "verify the process on the desktop renderer port is Alfred Desktop",
     );
     return;
   }
 
-  pass("web health", `${config.webHealthUrl} returned app HTML`);
+  pass(
+    "desktop renderer health",
+    `${config.desktopHealthUrl} returned app HTML`,
+  );
 }
 
 async function checkRunnerProcess() {
@@ -721,7 +725,7 @@ async function main() {
   const config = await loadConfig();
   pass(
     "config",
-    `API ${config.apiHealthUrl}, web ${config.webHealthUrl}`,
+    `API ${config.apiHealthUrl}, desktop renderer ${config.desktopHealthUrl}`,
   );
 
   await checkRepoCommands();
@@ -730,7 +734,7 @@ async function main() {
   await checkApiHealth(config);
   const runnerProcessRunning = await checkRunnerProcess();
   await checkRunnerStatus(config, runnerProcessRunning);
-  await checkWebHealth(config);
+  await checkDesktopRendererHealth(config);
 
   const failed = results.filter((result) => result.status === "FAIL").length;
   const passed = results.filter((result) => result.status === "PASS").length;
