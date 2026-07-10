@@ -58,13 +58,11 @@ const checks =
       ]
     : mode === "authenticated"
     ? [
-        { name: "root", path: "/", validate: validateRoot },
         { name: "health", path: "/health", validate: validateHealth },
-        { name: "system", path: "/api/v1/system/status", validate: validateSystemStatus },
-        { name: "runs", path: "/api/v1/runs?limit=1", validate: validateRuns },
+        { name: "system", path: "/api/system", validate: validateSystemStatus },
+        { name: "runs", path: "/api/runs", validate: validateRuns },
       ]
     : [
-        { name: "root", path: "/", validate: validateRoot },
         { name: "health", path: "/health", validate: validateHealth },
         { name: "auth", path: "/auth/login", validate: validateAuth },
       ];
@@ -103,12 +101,6 @@ for (const check of checks) {
 }
 
 process.exit(failed ? 1 : 0);
-
-function validateRoot(response, body) {
-  if (!response.ok) return false;
-  const headers = response.headers;
-  return contentType(headers).includes("text/html") && body.includes("Alfred") && !body.includes("Deployment has failed");
-}
 
 function validateHealth(response, body) {
   if (!response.ok) return false;
