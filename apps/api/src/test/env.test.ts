@@ -9,6 +9,7 @@ describe("api env", () => {
         ALFRED_ALLOW_DEV_AUTH: "1",
       }),
     ).toMatchObject({
+      APP_BASE_URL: "http://127.0.0.1:4301",
       AUTH_DEV_SESSION_TOKEN: "dev-session-token",
       DEV_AUTH_ENABLED: true,
       RUNNER_DEVICE_TOKEN: "dev-device-token",

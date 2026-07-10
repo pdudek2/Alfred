@@ -28,7 +28,7 @@ function createEnvSchema(devAuthEnabled: boolean) {
     AUTH_OIDC_ISSUER: z.string().url().optional(),
     AUTH_OIDC_CLIENT_ID: z.string().min(1).optional(),
     AUTH_OIDC_CLIENT_SECRET: z.string().min(1).optional(),
-    APP_BASE_URL: z.string().url().default("http://127.0.0.1:4300"),
+    APP_BASE_URL: z.string().url().default("http://127.0.0.1:4301"),
     ALFRED_BOOTSTRAP_ADMIN_EMAIL: z.string().email().default("local@alfred.local"),
     ALFRED_BOOTSTRAP_USER_ID: z.string().uuid().default(LOCAL_USER_ID),
     ALFRED_BOOTSTRAP_WORKSPACE_ID: z.string().uuid().default(LOCAL_WORKSPACE_ID),

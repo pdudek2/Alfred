@@ -56,14 +56,14 @@ describe("git worktree preparation", () => {
     });
 
     const result = await preflightAgentWorktree(
-      { agentKind: "claude", branchName: "alfred-claude-review", clientId: "Review", cwd: "/repo/apps/web" },
+      { agentKind: "claude", branchName: "alfred-claude-review", clientId: "Review", cwd: "/repo/apps/client" },
       { execFile },
     );
 
     expect(result).toEqual({
       baseCwd: "/repo",
       branchName: "alfred-claude-review",
-      cwd: "/.alfred-worktrees/repo/alfred-claude-review/apps/web",
+      cwd: "/.alfred-worktrees/repo/alfred-claude-review/apps/client",
     });
     expect(execFile).toHaveBeenCalledTimes(2);
   });
@@ -94,7 +94,7 @@ describe("git worktree preparation", () => {
     });
 
     const result = await preflightAgentWorktree(
-      { agentKind: "claude", branchName: "alfred-claude-review", clientId: "Review", cwd: "/Users/patryk/Desktop/Alfred/apps/web" },
+      { agentKind: "claude", branchName: "alfred-claude-review", clientId: "Review", cwd: "/Users/patryk/Desktop/Alfred/apps/client" },
       {
         execFile,
         worktreeStoreRoot: "/Users/patryk/Library/Application Support/Alfred/worktrees",
@@ -104,7 +104,7 @@ describe("git worktree preparation", () => {
     expect(result).toEqual({
       baseCwd: "/Users/patryk/Desktop/Alfred",
       branchName: "alfred-claude-review",
-      cwd: "/Users/patryk/Library/Application Support/Alfred/worktrees/alfred-44c8fe0e/alfred-claude-review/apps/web",
+      cwd: "/Users/patryk/Library/Application Support/Alfred/worktrees/alfred-44c8fe0e/alfred-claude-review/apps/client",
     });
   });
 
@@ -215,7 +215,7 @@ describe("git worktree preparation", () => {
       {
         baseCwd: "/Users/patryk/Desktop/Alfred",
         branchName: "alfred-codex-review",
-        cwd: "/managed/worktrees/alfred-44c8fe0e/alfred-codex-review/apps/web",
+        cwd: "/managed/worktrees/alfred-44c8fe0e/alfred-codex-review/apps/client",
         force: true,
       },
       { execFile, worktreeStoreRoot: "/managed/worktrees" },
