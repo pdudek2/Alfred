@@ -3562,7 +3562,6 @@ describe("App integration", () => {
     await waitFor(() => expect(screen.queryByRole("article", { name: /Codex · isolated review/i })).not.toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    const palette = screen.getByRole("dialog", { name: "Command palette" });
     await submitCommandPalette(user, "codex isolated");
     const newTile = await screen.findByRole("article", { name: /Codex · session 1/i });
     await waitFor(() => {
