@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import process from "node:process";
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
+const SHUTDOWN_POLL_INTERVAL_MS = 50;
 
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const supportsProcessGroups = process.platform !== "win32";
@@ -37,8 +38,10 @@ const processes = [
 ];
 
 const children = new Map();
+const processGroupIds = new Set();
 let shuttingDown = false;
 let expectedExitCode = 0;
+let shutdownPoller;
 let shutdownTimer;
 
 function childEnv(defaults) {
@@ -80,20 +83,54 @@ function exitCodeForSignal(signal) {
 
 function finishWhenStopped() {
   if (children.size > 0) return;
+  if (supportsProcessGroups) {
+    pruneStoppedProcessGroups();
+    if (processGroupIds.size > 0) return;
+  }
+  if (shutdownPoller) clearInterval(shutdownPoller);
   if (shutdownTimer) clearTimeout(shutdownTimer);
   process.exit(expectedExitCode);
 }
 
 function signalChild(child, signal) {
   try {
-    if (supportsProcessGroups && child.pid) {
-      process.kill(-child.pid, signal);
-      return;
-    }
-
-    if (!child.killed) child.kill(signal);
+    if (child.exitCode === null && child.signalCode === null) child.kill(signal);
   } catch (error) {
     if (error?.code !== "ESRCH") throw error;
+  }
+}
+
+function signalProcessGroup(processGroupId, signal) {
+  try {
+    process.kill(-processGroupId, signal);
+  } catch (error) {
+    if (error?.code !== "ESRCH") throw error;
+    processGroupIds.delete(processGroupId);
+  }
+}
+
+function signalManagedProcesses(signal) {
+  if (supportsProcessGroups) {
+    for (const processGroupId of processGroupIds) {
+      signalProcessGroup(processGroupId, signal);
+    }
+    return;
+  }
+
+  for (const child of children.values()) {
+    signalChild(child, signal);
+  }
+}
+
+function pruneStoppedProcessGroups() {
+  for (const processGroupId of processGroupIds) {
+    try {
+      process.kill(-processGroupId, 0);
+    } catch (error) {
+      if (error?.code === "EPERM") continue;
+      if (error?.code !== "ESRCH") throw error;
+      processGroupIds.delete(processGroupId);
+    }
   }
 }
 
@@ -103,17 +140,15 @@ function shutdown(reason, exitCode) {
     expectedExitCode = exitCode;
     if (reason) process.stderr.write(`${reason}\n`);
 
-    for (const child of children.values()) {
-      signalChild(child, "SIGTERM");
-    }
+    signalManagedProcesses("SIGTERM");
 
     shutdownTimer = setTimeout(() => {
-      for (const child of children.values()) {
-        signalChild(child, "SIGKILL");
-      }
+      signalManagedProcesses("SIGKILL");
       process.exit(expectedExitCode);
     }, SHUTDOWN_TIMEOUT_MS);
-    shutdownTimer.unref();
+    if (supportsProcessGroups) {
+      shutdownPoller = setInterval(finishWhenStopped, SHUTDOWN_POLL_INTERVAL_MS);
+    }
   }
 
   finishWhenStopped();
@@ -128,6 +163,9 @@ for (const definition of processes) {
   });
 
   children.set(definition.name, child);
+  if (supportsProcessGroups && child.pid) {
+    processGroupIds.add(child.pid);
+  }
   prefixStream(definition.name, child.stdout, process.stdout);
   prefixStream(definition.name, child.stderr, process.stderr);
 
