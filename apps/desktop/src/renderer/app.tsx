@@ -3294,18 +3294,6 @@ function workspaceForCwd(cwd: string, workspaces: Workspace[]): Workspace | null
   return findWorkspaceForCwd(cwd, workspaces);
 }
 
-function uniqueWorkspaceId(base: string, existingIds: string[]): string {
-  const used = new Set(existingIds);
-  const normalizedBase = base.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toUpperCase() || "WORKSPACE";
-  let candidate = normalizedBase;
-  let suffix = 2;
-  while (used.has(candidate)) {
-    candidate = `${normalizedBase}-${suffix}`;
-    suffix += 1;
-  }
-  return candidate;
-}
-
 function omitWorkspaceRecord<T>(record: Record<string, T>, workspaceId: string): Record<string, T> {
   if (!(workspaceId in record)) return record;
   const next = { ...record };

@@ -4158,7 +4158,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const tile = await screen.findByRole("article", { name: /Manual · zsh 9/i });
+    await screen.findByRole("article", { name: /Manual · zsh 9/i });
     expect(createTerminal).not.toHaveBeenCalled();
 
     await waitFor(() => {

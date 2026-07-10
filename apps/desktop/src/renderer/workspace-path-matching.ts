@@ -9,10 +9,11 @@ export function findWorkspaceForCwd<T extends WorkspacePathTarget>(
   const normalizedCwd = normalizePosixPath(cwd);
   if (!normalizedCwd) return null;
 
-  return workspaces
-    .filter((workspace) => pathMatchesWorkspace(normalizedCwd, workspace.rootPath))
-    .sort((left, right) => (normalizedPathLength(right.rootPath) - normalizedPathLength(left.rootPath)))
-    [0] ?? null;
+  return (
+    workspaces
+      .filter((workspace) => pathMatchesWorkspace(normalizedCwd, workspace.rootPath))
+      .sort((left, right) => normalizedPathLength(right.rootPath) - normalizedPathLength(left.rootPath))[0] ?? null
+  );
 }
 
 export function pathMatchesWorkspace(cwd: string, rootPath: string | undefined): boolean {

@@ -243,10 +243,7 @@ function ReviewRecoveryContext({
       </header>
       {firstDecision && <ReviewContextItem item={firstDecision} />}
       {firstRecoverable && (
-        <RecoveryContextItem
-          sessions={recoverableSessions}
-          session={firstRecoverable}
-        />
+        <RecoveryContextItem session={firstRecoverable} />
       )}
     </section>
   );
@@ -271,10 +268,8 @@ function ReviewContextItem({ item }: { item: WorkspaceReviewItem }) {
 }
 
 function RecoveryContextItem({
-  sessions,
   session,
 }: {
-  sessions: SessionTile[];
   session: SessionTile;
 }) {
   const kind = sessionTileKind(session);

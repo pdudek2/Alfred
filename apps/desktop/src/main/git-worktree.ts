@@ -567,7 +567,7 @@ async function gitOutputRaw(run: ExecFile, args: string[], fallbackMessage: stri
     const { stdout } = await run("git", args, { cwd: os.homedir(), timeout: 2_500 });
     return stdout;
   } catch (error: unknown) {
-    throw new Error(`${fallbackMessage} ${errorMessage(error)}`);
+    throw new Error(`${fallbackMessage} ${errorMessage(error)}`, { cause: error });
   }
 }
 

@@ -29,7 +29,6 @@ import {
 } from "./window-state.js";
 import {
   QUIT_GUARD_CANCEL_BUTTON,
-  QUIT_GUARD_CONFIRM_BUTTON,
   didCancelTerminalQuit,
   shouldConfirmTerminalQuit,
 } from "./quit-guard.js";
