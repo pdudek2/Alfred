@@ -1,195 +1,166 @@
 # Alfred
 
-Alfred is a personal-cloud agent observatory and command center.
+Alfred is an Electron desktop command center for working with coding agents.
 
-The old macOS/Tauri/Rust prototype is preserved outside this repository as `Alfred_OLD`. This repo is the clean web-first refoundation.
+## Product model
 
-## What Exists Now
+Alfred is terminal-first. The desktop app keeps agent terminals at the center of
+the workspace, lets the user switch between projects and sessions, and makes
+session state visible without replacing the underlying command-line tools.
 
-- Cloud API skeleton with Hono.
-- Postgres data model with Drizzle.
-- Shared Zod contracts in `@alfred/schema`.
-- Local runner in `@alfred/runner`.
-- Shared adapter normalization in `@alfred/adapters`.
-- Codex JSONL adapter as the first source adapter.
-- SQLite outbox for durable local runner sync.
-- Privacy redaction before runner events are persisted or sent.
+The Inbox contains only work that needs a decision. The Observatory is a
+secondary surface for status and detail, not the primary place to operate
+agents. There is no supported standalone browser client.
 
 ## Architecture
 
+The desktop runtime has three layers:
+
+- The React/Vite renderer presents projects, sessions, terminal desks, the
+  decision-only Inbox, and the secondary Observatory.
+- The Electron main process owns trusted operating-system work: terminal
+  processes, workspaces, persisted desktop state, session orchestration, and
+  external navigation.
+- The preload bridge exposes narrow typed IPC APIs to the renderer. Electron
+  runs with context isolation enabled and Node integration disabled in the
+  renderer.
+
+The desktop can operate locally without cloud sync. When sync and historical
+run data are needed, the optional data path is:
+
 ```text
-Agent runtimes
-  Codex CLI
-  Claude Code later
-  OpenAI Agents SDK later
-  custom agents later
-
+Local agent session files
         |
         v
-
-Local runner
-  source adapters
-  privacy redaction
-  SQLite outbox
-  ingest client
-
-        |
-        v
-
-Cloud API
-  /health
-  /v1/ingest/batches
-
-        |
-        v
-
-Postgres
-  workspaces
-  devices
-  projects
-  runs
-  events
-  ingest batches
+Local runner -> Hono API -> Postgres
 ```
+
+The runner normalizes supported agent records, applies privacy redaction, and
+uses a SQLite outbox before sending batches to the API. The same Hono API runs
+locally and on Vercel.
+
+Vercel hosts only the API. The root `api/**` files are the Vercel function shim;
+`scripts/build-vercel-api.mjs` generates `api/.generated/app.cjs`, which the
+shim loads. No desktop renderer or other user client is deployed there.
 
 ## Workspace
 
 ```text
-apps/
-  api/       Hono ingest API
-  web/       React/Vite observatory UI
-  runner/    local agent runner
-
-packages/
-  schema/    shared Zod contracts
-  db/        Drizzle schema/client
-  adapters/  source normalization helpers
-
-docs/
-  local notes only, ignored by git
+apps/desktop/      Electron main process, preload bridge, and React renderer
+apps/api/          Hono API for auth, queries, status, and runner ingest
+apps/runner/       local source adapters, redaction, outbox, and sync loop
+packages/schema/   shared Zod contracts
+packages/db/       Drizzle schema and database client
+packages/adapters/ source normalization helpers
+api/               Vercel API adapter and generated server bundle
+drizzle/           Postgres migrations and migration metadata
 ```
 
-## Local Setup
+## Local setup
 
-Run from the repository root:
+Run commands from the repository root.
 
 ```bash
 pnpm install
-pnpm test
-pnpm typecheck
-pnpm build
+cp .env.example .env
+docker compose up -d postgres
+pnpm exec drizzle-kit migrate --config apps/api/drizzle.config.ts
 ```
 
-Copy the local env example when running services:
+The example environment uses the local Postgres instance and development-only
+credentials. Keep real database, authentication, and runner secrets out of the
+repository.
+
+## Desktop development
+
+Start Electron and its renderer:
 
 ```bash
-cp .env.example .env
+pnpm --filter @alfred/desktop dev:electron
 ```
 
-Start the main local development loop:
+The desktop renderer development server listens on `127.0.0.1:4310`; it exists
+to serve the Electron window during development and is not a separate supported
+client.
+
+Start the normal integrated development loop after Postgres is ready:
 
 ```bash
 pnpm dev:alfred
 ```
 
-This starts the API, web app, and runner together. Output is prefixed with
-`[api]`, `[web]`, or `[runner]`, and if one process fails the launcher stops
-the rest.
+This starts the API, Electron desktop app, and fixture-backed local runner.
+Output is prefixed with `[api]`, `[desktop]`, or `[runner]`. If one process
+exits, the launcher stops the others. The fixture runner does not read live
+agent session directories.
 
-## API
+## API and cloud sync
 
-Start Postgres:
+Start only the API with:
 
 ```bash
-docker compose up -d postgres
+pnpm --filter @alfred/api dev
 ```
 
-Run migrations:
+The local API listens on `127.0.0.1:4301`. Its health route is public:
 
 ```bash
-pnpm exec drizzle-kit migrate --config apps/api/drizzle.config.ts
+curl -sS http://127.0.0.1:4301/health
 ```
 
-## Neon / Hosted Postgres Setup
-
-Local development still uses Docker Postgres from `docker compose up -d postgres`.
-Keep the local `.env` values from `.env.example` for that path.
-
-For hosted deployments, create a Neon Postgres project outside the repository and
-store the real connection strings only in your deployment environment or local
-secret manager. Do not commit Neon secrets to this repo.
-
-Use two database URLs:
-
-- `DATABASE_URL`: runtime connection string. In serverless environments, this
-  should be the pooled Neon URL, usually the host containing `-pooler`.
-- `DATABASE_URL_UNPOOLED`: migration connection string. This should be the
-  direct Neon URL without the pooler, used by Drizzle migration commands.
-
-Run hosted migrations with the direct URL:
+Run queries require a session. With the development defaults enabled, query a
+few recent runs with:
 
 ```bash
-DATABASE_URL="$DATABASE_URL_UNPOOLED" pnpm exec drizzle-kit migrate --config apps/api/drizzle.config.ts
+curl -sS --cookie "alfred_session=dev-session-token" \
+  "http://127.0.0.1:4301/v1/runs?limit=5"
 ```
 
-## Vercel Deployment
+The `/api/v1/runs` alias is also available for the Vercel adapter. Runner ingest
+uses device authentication at `/v1/ingest/heartbeat` and
+`/v1/ingest/batches`.
 
-Required Vercel env vars:
+`vercel.json` is deliberately API-only. Hosted runtime configuration requires:
 
-- `DATABASE_URL`: Neon pooled runtime URL.
-- `DATABASE_URL_UNPOOLED`: Neon direct migration URL, used only by manual or CI migration jobs.
-- `RUNNER_WORKSPACE_ID`
-- `RUNNER_DEVICE_ID`
-- `RUNNER_DEVICE_TOKEN`
-- `APP_BASE_URL`: production Vercel URL.
-- `ALFRED_BOOTSTRAP_ADMIN_EMAIL`
-- `ALFRED_BOOTSTRAP_USER_ID`
-- `ALFRED_BOOTSTRAP_WORKSPACE_ID`
+- `DATABASE_URL`: pooled Postgres URL used at runtime.
+- `APP_BASE_URL`: the deployed API origin.
+- `ALFRED_BOOTSTRAP_ADMIN_EMAIL`, `ALFRED_BOOTSTRAP_USER_ID`, and
+  `ALFRED_BOOTSTRAP_WORKSPACE_ID`.
+- `RUNNER_WORKSPACE_ID`, `RUNNER_DEVICE_ID`, and `RUNNER_DEVICE_TOKEN`.
 
-After changing any Vercel env var, redeploy the affected environment. Existing
-Vercel deployments keep the env snapshot they were built with.
-
-For the local runner service, `.secrets/runner.env` is the default source of
-truth. Keep its `RUNNER_DEVICE_TOKEN`, `RUNNER_DEVICE_ID`, and
-`RUNNER_WORKSPACE_ID` aligned with the Vercel environment it reports to. For
-batch ingest, the runner workspace must match the API bootstrap workspace
-(`ALFRED_BOOTSTRAP_WORKSPACE_ID`).
-
-Production login requires a real OIDC provider:
-
-- `AUTH_OIDC_ISSUER`
-- `AUTH_OIDC_CLIENT_ID`
-- `AUTH_OIDC_CLIENT_SECRET`
-
-Do not enable preview dev auth on a public production deployment. If OIDC is not
-configured yet, keep production protected/private and treat `/auth/login`
-returning `oidc_not_configured` as an explicit release blocker, not as a runner
-problem.
-
-Preview-only optional:
-
-- `ALFRED_ALLOW_DEV_AUTH=1`
-- `AUTH_DEV_SESSION_TOKEN`: preview-only token.
-- `VERCEL_AUTOMATION_BYPASS_SECRET`: required by local smoke checks and the
-  local runner when Vercel Deployment Protection is enabled.
-
-Local dev auth may use the built-in development defaults. When dev auth is
-enabled in hosted runtime (`NODE_ENV=production` or Vercel), `AUTH_DEV_SESSION_TOKEN`
-and `RUNNER_DEVICE_TOKEN` must both be explicit non-default secrets. The API
-refuses to start with the built-in development defaults there.
-
-Run public cloud smoke checks after deployment. This verifies the static app,
-API health, and whether the login route is production-ready:
+Use `DATABASE_URL_UNPOOLED` for Drizzle migration jobs, not as the serverless
+runtime connection:
 
 ```bash
-ALFRED_CLOUD_SMOKE_MODE=public ALFRED_EXPECT_AUTH=ready ALFRED_CLOUD_URL=<prod-url> pnpm smoke:cloud
+DATABASE_URL="$DATABASE_URL_UNPOOLED" \
+  pnpm exec drizzle-kit migrate --config apps/api/drizzle.config.ts
 ```
 
-Run runner-auth smoke after changing runner credentials or after a production
-redeploy. This sends one authenticated heartbeat and one completed synthetic
-batch, then expects the batch to be freshly accepted without duplicates:
+Production login requires `AUTH_OIDC_ISSUER`, `AUTH_OIDC_CLIENT_ID`, and
+`AUTH_OIDC_CLIENT_SECRET`. `ALFRED_ALLOW_DEV_AUTH=1` and
+`AUTH_DEV_SESSION_TOKEN` are for local development or a protected preview only.
+Do not enable development auth on a public production deployment. Hosted
+development auth refuses built-in default session and runner tokens; configure
+explicit non-default secrets.
+
+If Vercel Deployment Protection is enabled, local smoke checks and the runner
+may also need `VERCEL_AUTOMATION_BYPASS_SECRET`. Changing hosted environment
+variables requires a new deployment because existing deployments keep their
+environment snapshot.
+
+Cloud smoke commands verify API routes rather than a user interface:
 
 ```bash
+ALFRED_CLOUD_SMOKE_MODE=public \
+ALFRED_EXPECT_AUTH=ready \
+ALFRED_CLOUD_URL=<prod-url> \
+pnpm smoke:cloud
+
+ALFRED_CLOUD_SMOKE_MODE=authenticated \
+ALFRED_CLOUD_URL=<preview-url> \
+AUTH_DEV_SESSION_TOKEN=<preview-token> \
+pnpm smoke:cloud
+
 ALFRED_CLOUD_URL=<prod-url> \
 RUNNER_DEVICE_TOKEN=<device-token> \
 RUNNER_WORKSPACE_ID=<workspace-id> \
@@ -197,121 +168,53 @@ RUNNER_DEVICE_ID=<device-id> \
 pnpm smoke:cloud:runner
 ```
 
-This verifies that the cloud API accepts the runner device token and that the
-workspace/device scope can write a batch. It writes a tiny `ops-smoke` completed
-run that is hidden from user-facing run queries. It does not prove the local
-service loop is running; follow it with `pnpm runner:service:doctor` and
-`pnpm runner:service:logs`.
-
-Run authenticated smoke checks against a preview that has dev auth enabled:
-
-```bash
-ALFRED_CLOUD_SMOKE_MODE=authenticated ALFRED_CLOUD_URL=<preview-url> AUTH_DEV_SESSION_TOKEN=<preview-token> pnpm smoke:cloud
-```
-
-Run the local runner against a protected preview:
-
-```bash
-RUNNER_API_URL=<preview-url> \
-RUNNER_DEVICE_TOKEN=<device-token> \
-RUNNER_WORKSPACE_ID=00000000-0000-4000-8000-000000000001 \
-RUNNER_DEVICE_ID=00000000-0000-4000-8000-000000000101 \
-VERCEL_AUTOMATION_BYPASS_SECRET=<bypass-secret> \
-ALFRED_ALLOW_DEV_CONFIG=1 \
-ALFRED_SOURCES=codex \
-pnpm --filter @alfred/runner dev
-```
-
-Run the built runner continuously:
-
-```bash
-pnpm --filter @alfred/runner build
-RUNNER_API_URL=<cloud-url> RUNNER_DEVICE_TOKEN=<device-token> pnpm --filter @alfred/runner start
-```
-
-Start the API:
-
-```bash
-pnpm --filter @alfred/api dev
-```
-
-Health check:
-
-```bash
-curl -sS http://127.0.0.1:4301/health
-```
-
-Query runs:
-
-```bash
-curl -sS "http://127.0.0.1:4301/v1/runs?limit=5"
-```
-
-The API also accepts the web-style prefix:
-
-```bash
-curl -sS "http://127.0.0.1:4301/api/v1/runs?limit=5"
-```
-
-## Web
-
-Start the observatory:
-
-```bash
-pnpm --filter @alfred/web dev
-```
-
-Open:
-
-```text
-http://127.0.0.1:4300
-```
-
-Port `4300` is the web app. Port `4301` is API only, so open `/health`,
-`/v1/runs`, or `/api/v1/runs` there rather than the UI.
-
-The web app proxies `/api/*` to the local API at `http://127.0.0.1:4301`.
+Public mode checks API health and login readiness. Authenticated mode checks
+protected runtime queries. Runner mode sends an authenticated heartbeat and a
+small synthetic ingest batch; that run is hidden from user-facing queries.
 
 ## Runner
 
-Development watcher:
-
-```bash
-ALFRED_ALLOW_DEV_CONFIG=1 pnpm --filter @alfred/runner dev
-```
-
-The development runner polls every 5 seconds by default. Set
-`ALFRED_RUNNER_POLL_MS=2000` or another interval when you want a different cadence.
-
-One-shot import:
-
-```bash
-ALFRED_ALLOW_DEV_CONFIG=1 pnpm --filter @alfred/runner dev:once
-```
-
-Each pass:
-
-1. reads Codex session JSONL files,
-2. normalizes recognized records into Alfred ingest events,
-3. redacts payloads according to `ALFRED_PRIVACY_MODE`,
-4. stores events in the local SQLite outbox,
-5. flushes ready events to `POST /v1/ingest/batches`.
-
-## Local Runner Service
-
-Alfred's web/API can run on Vercel, but the runner must run on the Mac because
-it reads local agent state from `~/.codex` and `~/.claude`.
-
-Put real runner secrets in `.secrets/runner.env`, not in `.env.example` or
-committed files.
-
-Foreground local runner:
+Safe development commands use repository fixtures:
 
 ```bash
 pnpm runner:local
+
+ALFRED_ALLOW_DEV_CONFIG=1 pnpm --filter @alfred/runner dev
+ALFRED_ALLOW_DEV_CONFIG=1 pnpm --filter @alfred/runner dev:once
 ```
 
-Background macOS service:
+`pnpm runner:local` is the runner used by `pnpm dev:alfred`. It pins
+`ALFRED_CODEX_HOME` and `ALFRED_CLAUDE_HOME` to test fixtures and keeps its
+SQLite outbox under `apps/runner/.alfred-runner/`. Development defaults do the
+same when `ALFRED_ALLOW_DEV_CONFIG=1` is present.
+
+Each runner pass:
+
+1. reads configured Codex or Claude session files,
+2. normalizes recognized records into Alfred ingest events,
+3. redacts payloads according to `ALFRED_PRIVACY_MODE`,
+4. writes events to the local SQLite outbox,
+5. flushes ready events to `POST /v1/ingest/batches`.
+
+Use fixture directories or a temporary `ALFRED_CODEX_HOME` for ordinary
+development and validation. Point the runner at real local agent state only
+when intentionally working on ingestion. Do not run general tests or the dev
+loop against a real agent home. Non-loopback runner API URLs must use HTTPS.
+
+## Local runner service
+
+The runner service stays on the Mac because it reads explicitly configured
+local agent state. Put its real credentials in `.secrets/runner.env`; never put
+them in `.env.example` or committed files. Keep the runner workspace and device
+values aligned with the API environment it reports to.
+
+Run the configured service in the foreground:
+
+```bash
+pnpm runner:service:run
+```
+
+Install and operate the background macOS service:
 
 ```bash
 pnpm runner:service:install
@@ -319,37 +222,47 @@ pnpm runner:service:start
 pnpm runner:service:status
 pnpm runner:service:doctor
 pnpm runner:service:logs
+pnpm runner:service:restart
 ```
 
-Stop background service:
+Stop or remove it with:
 
 ```bash
 pnpm runner:service:stop
 pnpm runner:service:uninstall
 ```
 
-Health check:
-
-```bash
-pnpm runner:service:doctor
-```
-
-`node scripts/dev-doctor.mjs` is for the local dev stack with
-`ALFRED_ALLOW_DEV_AUTH=1`. It does not authenticate against a hosted Vercel API.
+`pnpm runner:service:doctor` verifies the launchd process and recent runner boot
+evidence. `node scripts/dev-doctor.mjs` instead checks the local development
+stack with development auth; it does not authenticate against a hosted API.
 
 ## Validation
 
-Current expected checks:
+Run the repository checks:
 
 ```bash
 pnpm test
 pnpm typecheck
+pnpm lint
 pnpm build
 ```
 
-Last known local validation: all pass on `web-observatory`.
+When the desktop test suite needs to run serially, use:
 
-## Current Next Step
+```bash
+pnpm --filter @alfred/desktop test --no-file-parallelism --maxWorkers=1
+```
 
-Use the first web observatory view against live runner data, then add drill-down filters
-and richer event inspection.
+The product-boundary and cloud smoke contracts can be run together without
+starting services:
+
+```bash
+node --test scripts/test/desktop-product-boundary.test.mjs scripts/test/cloud-smoke.test.mjs
+```
+
+## Current boundaries
+
+Electron is the only user client. Remote browser access is not part of the first
+version, and there is no supported standalone browser client. Vercel serves the
+API only. Git history archives the deleted client if its earlier implementation
+ever needs to be inspected.
