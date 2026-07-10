@@ -99,7 +99,7 @@ agent session directories.
 Start only the API with:
 
 ```bash
-pnpm --filter @alfred/api dev
+API_PORT=4301 ALFRED_ALLOW_DEV_AUTH=1 pnpm --filter @alfred/api dev
 ```
 
 The local API listens on `127.0.0.1:4301`. Its health route is public:
@@ -174,19 +174,15 @@ small synthetic ingest batch; that run is hidden from user-facing queries.
 
 ## Runner
 
-Safe development commands use repository fixtures:
+The safe development command uses repository fixtures:
 
 ```bash
 pnpm runner:local
-
-ALFRED_ALLOW_DEV_CONFIG=1 pnpm --filter @alfred/runner dev
-ALFRED_ALLOW_DEV_CONFIG=1 pnpm --filter @alfred/runner dev:once
 ```
 
 `pnpm runner:local` is the runner used by `pnpm dev:alfred`. It pins
 `ALFRED_CODEX_HOME` and `ALFRED_CLAUDE_HOME` to test fixtures and keeps its
-SQLite outbox under `apps/runner/.alfred-runner/`. Development defaults do the
-same when `ALFRED_ALLOW_DEV_CONFIG=1` is present.
+SQLite outbox under `apps/runner/.alfred-runner/`.
 
 Each runner pass:
 
@@ -197,9 +193,10 @@ Each runner pass:
 5. flushes ready events to `POST /v1/ingest/batches`.
 
 Use fixture directories or a temporary `ALFRED_CODEX_HOME` for ordinary
-development and validation. Point the runner at real local agent state only
-when intentionally working on ingestion. Do not run general tests or the dev
-loop against a real agent home. Non-loopback runner API URLs must use HTTPS.
+development and validation. Never point the local runner at a real `~/.codex`
+or `~/.claude` in those workflows. Read real local agent state only when
+intentionally working on ingestion. Non-loopback runner API URLs must use
+HTTPS.
 
 ## Local runner service
 
