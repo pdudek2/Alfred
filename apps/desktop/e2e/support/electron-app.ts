@@ -169,7 +169,9 @@ export const test = base.extend<Fixtures>({
         const tile = terminalTiles.first();
         await tile.hover();
         await tile.focus();
-        const closeButton = tile.getByRole("button", { name: /^Close / });
+        const closeButton = tile.getByRole("button", {
+          name: /^(?:Close|Discard(?: checkout)?|Reject) /,
+        });
         await expect(closeButton).toBeVisible();
         await expect(closeButton).toBeEnabled();
         await closeButton.click();
