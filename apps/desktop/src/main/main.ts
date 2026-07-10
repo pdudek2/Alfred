@@ -157,6 +157,9 @@ if (!hasSingleInstanceLock) {
         void createWindow(persistedDesktopStateStore);
       }
     });
+  }).catch((error: unknown) => {
+    console.error("Failed to start Alfred desktop.", error);
+    app.quit();
   });
 
   app.on("window-all-closed", () => {

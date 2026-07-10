@@ -2675,6 +2675,30 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("applies layout presets to the current workspace sessions after a session is added", async () => {
+    const user = userEvent.setup();
+    const { setWorkspaceLayout } = installDesktopBridge();
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "New terminal" }));
+    expect(await screen.findByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Focus" }));
+
+    await waitFor(() => {
+      expect(setWorkspaceLayout).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          layouts: expect.objectContaining({
+            "manual-1": expect.any(Object),
+            "manual-2": expect.any(Object),
+          }),
+        }),
+      );
+    });
+  });
+
   it("shows a useful second pane prompt when split mode has one session", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
