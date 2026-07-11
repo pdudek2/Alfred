@@ -47,8 +47,12 @@ function exactBlockFor(selector: string): string {
   return matches.at(-1)?.groups?.body ?? "";
 }
 
+function withoutComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "");
+}
+
 function exactRuleBodiesIn(source: string, selector: string): string[] {
-  const commentlessSource = source.replace(/\/\*[\s\S]*?\*\//g, "");
+  const commentlessSource = withoutComments(source);
   return [...commentlessSource.matchAll(/(?<selectors>[^{}]+)\{(?<body>[^{}]*)\}/gm)]
     .filter((match) =>
       (match.groups?.selectors ?? "")
@@ -73,34 +77,48 @@ function balancedBlockBody(source: string, openingBraceIndex: number): { body: s
   throw new Error("Unbalanced CSS block");
 }
 
-function topLevelExactRuleBodies(selector: string): string[] {
+function topLevelExactRuleBodiesIn(source: string, selector: string): string[] {
+  const commentlessSource = withoutComments(source);
   let topLevelStyles = "";
   let cursor = 0;
   const mediaStart = /@media\s*[^{}]+\{/g;
-  for (const match of styles.matchAll(mediaStart)) {
+  for (const match of commentlessSource.matchAll(mediaStart)) {
     const openingBraceIndex = (match.index ?? 0) + match[0].lastIndexOf("{");
-    const block = balancedBlockBody(styles, openingBraceIndex);
-    topLevelStyles += styles.slice(cursor, match.index);
-    topLevelStyles += "\n".repeat(styles.slice(match.index, block.end + 1).split("\n").length - 1);
+    const block = balancedBlockBody(commentlessSource, openingBraceIndex);
+    topLevelStyles += commentlessSource.slice(cursor, match.index);
+    topLevelStyles += "\n".repeat(commentlessSource.slice(match.index, block.end + 1).split("\n").length - 1);
     cursor = block.end + 1;
   }
-  topLevelStyles += styles.slice(cursor);
+  topLevelStyles += commentlessSource.slice(cursor);
   return exactRuleBodiesIn(topLevelStyles, selector);
 }
 
-function mediaExactRuleBodies(query: string, selector: string): string[] {
+function topLevelExactRuleBodies(selector: string): string[] {
+  return topLevelExactRuleBodiesIn(styles, selector);
+}
+
+function mediaExactRuleBodiesIn(source: string, query: string, selector: string): string[] {
+  const commentlessSource = withoutComments(source);
   const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const mediaStart = new RegExp(`@media\\s*${escapedQuery}\\s*\\{`, "g");
   const bodies: string[] = [];
-  for (const match of styles.matchAll(mediaStart)) {
+  for (const match of commentlessSource.matchAll(mediaStart)) {
     const openingBraceIndex = (match.index ?? 0) + match[0].lastIndexOf("{");
-    bodies.push(...exactRuleBodiesIn(balancedBlockBody(styles, openingBraceIndex).body, selector));
+    bodies.push(...exactRuleBodiesIn(balancedBlockBody(commentlessSource, openingBraceIndex).body, selector));
   }
   return bodies;
 }
 
+function mediaExactRuleBodies(query: string, selector: string): string[] {
+  return mediaExactRuleBodiesIn(styles, query, selector);
+}
+
+function canonicalBaseRuleBodiesIn(source: string, selector: string): string[] {
+  return topLevelExactRuleBodiesIn(source, selector);
+}
+
 function expectCanonicalBase(selector: string, requiredDeclarations: string[]): void {
-  const bodies = exactRuleBodies(selector);
+  const bodies = canonicalBaseRuleBodiesIn(styles, selector);
   expect(bodies, `${selector} must have one canonical base rule`).toHaveLength(1);
   for (const declaration of requiredDeclarations) expect(bodies[0]).toContain(declaration);
 }
@@ -170,6 +188,16 @@ function contrastRatio(foreground: string, background: string): number {
 }
 
 describe("renderer CSS contracts", () => {
+  it("does not treat a media-only fixture as a canonical top-level base", () => {
+    const fixture = `@media (max-width: 980px) { .fixture-owner { display: grid; } }`;
+    expect(canonicalBaseRuleBodiesIn(fixture, ".fixture-owner")).toHaveLength(0);
+  });
+
+  it("does not discover media owners inside comments", () => {
+    const fixture = `/* @media (max-width: 980px) { .fixture-owner { display: none; } } */`;
+    expect(mediaExactRuleBodiesIn(fixture, "(max-width: 980px)", ".fixture-owner")).toHaveLength(0);
+  });
+
   it("keeps one canonical base owner for frame chrome and navigation", () => {
     const desktopFrameBodies = topLevelExactRuleBodies(".desktop-frame");
     expect(desktopFrameBodies).toHaveLength(1);
