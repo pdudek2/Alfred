@@ -2007,7 +2007,6 @@ export function App() {
                 onRejectTile={handleRejectTile}
                 onResizeTile={handleResizeTile}
                 onReviewWorktree={handleReviewWorktree}
-                showHeaderControls={false}
                 onToggleCollapseSession={handleToggleCollapseSession}
               />
             </div>
