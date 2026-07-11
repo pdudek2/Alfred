@@ -109,7 +109,10 @@ function attentionDetail(kind: SessionDisplayStatus["kind"]): string {
       return "can be relaunched";
     case "done":
       return "can be restarted";
-    default:
+    case "idle":
+    case "starting":
+    case "active":
+    case "runtime":
       return "needs review";
   }
 }

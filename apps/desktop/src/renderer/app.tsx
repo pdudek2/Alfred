@@ -213,7 +213,6 @@ export function App() {
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? DEFAULT_WORKSPACE;
   const activeWorkMode = workModesByWorkspace[activeWorkspace.id] ?? "desk";
   const activeSessions = terminalSessions.filter((session) => session.workspaceId === activeWorkspace.id);
-  const activeSessionKey = activeSessions.map((session) => session.id).join("\0");
   const activePreviewCandidates = previewCandidates.filter((candidate) => candidate.workspaceId === activeWorkspace.id);
   const activeSelectedPreviewUrl =
     activePreviewCandidates.find((candidate) => candidate.url === selectedPreviewUrlsByWorkspace[activeWorkspace.id])
@@ -624,7 +623,7 @@ export function App() {
         [activeWorkspace.id]: workspaceLayouts,
       };
     });
-  }, [activeSelectedSessionId, activeSessionKey, activeWorkspace.id]);
+  }, [activeSelectedSessionId, activeSessions, activeWorkspace.id]);
 
   const handleApplyWorkMode = useCallback((mode: WorkMode, selectedSessionId = activeSelectedSessionId) => {
     const preset: LayoutPreset = mode === "focus" ? "focus" : mode === "split" ? "two-up" : "grid";
@@ -1375,7 +1374,7 @@ export function App() {
         detail: "The staged command was released to the terminal runtime.",
       }),
     );
-  }, [armedUnsafeSessionIds, terminalSessions]);
+  }, [terminalSessions]);
 
   const handleLaunchReviewQueueItem = useCallback((workspaceId: string, sessionId: string) => {
     handleApproveTile(sessionId);
@@ -3137,6 +3136,8 @@ function accessibleSessionStatusLabel(session: SessionTile): string {
     return isLaunchBlocked(session) ? "blocked" : "ready";
   }
 
+  if (session.runtimeStatus === undefined) return terminalSessionDisplayStatus(session).label;
+
   switch (session.runtimeStatus) {
     case "starting":
       return "starting";
@@ -3150,8 +3151,6 @@ function accessibleSessionStatusLabel(session: SessionTile): string {
       return "restored";
     case "unavailable":
       return "unavailable";
-    default:
-      return terminalSessionDisplayStatus(session).label;
   }
 }
 
@@ -3292,18 +3291,6 @@ function createScratchWorkspaceState(workspaces: Workspace[]): WorkspaceStateSna
 
 function workspaceForCwd(cwd: string, workspaces: Workspace[]): Workspace | null {
   return findWorkspaceForCwd(cwd, workspaces);
-}
-
-function uniqueWorkspaceId(base: string, existingIds: string[]): string {
-  const used = new Set(existingIds);
-  const normalizedBase = base.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toUpperCase() || "WORKSPACE";
-  let candidate = normalizedBase;
-  let suffix = 2;
-  while (used.has(candidate)) {
-    candidate = `${normalizedBase}-${suffix}`;
-    suffix += 1;
-  }
-  return candidate;
 }
 
 function omitWorkspaceRecord<T>(record: Record<string, T>, workspaceId: string): Record<string, T> {

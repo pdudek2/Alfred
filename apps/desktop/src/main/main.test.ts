@@ -178,6 +178,22 @@ describe("main quit persistence", () => {
     }
   });
 
+  it("logs startup rejection before closing the desktop app", async () => {
+    const startupFailure = new Error("startup failed");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.app.whenReady.mockRejectedValueOnce(startupFailure);
+
+    try {
+      await import("./main.js");
+      await flushMicrotasks();
+
+      expect(consoleError).toHaveBeenCalledWith("Failed to start Alfred desktop.", startupFailure);
+      expect(mocks.app.quit).toHaveBeenCalledTimes(1);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it("exits immediately when another Alfred instance owns the desktop profile", async () => {
     mocks.app.requestSingleInstanceLock.mockReturnValueOnce(false);
 

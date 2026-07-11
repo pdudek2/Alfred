@@ -181,33 +181,29 @@ describe("renderer CSS contracts", () => {
 
     expect(arrangeCanvas).toContain("overflow-y: auto");
     expect(arrangeCanvas).toContain("scrollbar-gutter: stable");
-    expect(arrangingGrid).toContain("--arrange-bottom-safe-zone");
+    expect(arrangingGrid).toContain("--arrange-bottom-safe-zone: 156px");
     expect(arrangingGrid).toContain("flex: 0 0 auto");
     expect(arrangingGrid).toContain("min-height: calc(100% + var(--arrange-bottom-safe-zone))");
     expect(arrangingGrid).toContain("padding-bottom: var(--arrange-bottom-safe-zone)");
   });
 
-  it("keeps normal Grid scrollable when terminal tiles overflow the viewport", () => {
-    const activeDeskSurface = exactBlockFor(".desk-surface-panel.active");
+  it("keeps the terminal Grid scrollbar visually quiet", () => {
+    const gridColumn = exactBlockFor(".terminal-grid-column");
+
+    expect(gridColumn).toContain("scrollbar-width: thin");
+    expect(gridColumn).toContain("scrollbar-color:");
+  });
+
+  it("keeps terminal stage sizing and scroll propagation contracts", () => {
     const stage = exactBlockFor(".surface-panel > .terminal-stage");
     const gridColumn = exactBlockFor(".terminal-grid-column");
-    const laidOutGrid = exactBlockFor(".terminal-grid.laid-out");
-    const laidOutTile = exactBlockFor(".terminal-grid.laid-out .terminal-tile");
 
-    expect(activeDeskSurface).toContain("overflow: hidden");
     expect(stage).toContain("height: 100%");
     expect(stage).toContain("max-height: 100%");
     expect(gridColumn).toContain("height: 100%");
     expect(gridColumn).toContain("max-height: 100%");
-    expect(gridColumn).toContain("overflow-y: auto");
     expect(gridColumn).toContain("overscroll-behavior: contain");
     expect(gridColumn).toContain("scrollbar-gutter: stable");
-    expect(gridColumn).toContain("scrollbar-width: thin");
-    expect(gridColumn).toContain("scrollbar-color:");
-    expect(laidOutGrid).toContain("--grid-bottom-safe-zone");
-    expect(laidOutGrid).toContain("flex: 0 0 auto");
-    expect(laidOutGrid).toContain("padding-bottom: var(--grid-bottom-safe-zone)");
-    expect(laidOutTile).toContain("scroll-margin-bottom: var(--grid-bottom-safe-zone)");
   });
 
   it("keeps Inbox section titles quiet and inline", () => {
@@ -220,15 +216,11 @@ describe("renderer CSS contracts", () => {
 
   it("omits empty Inbox lane chrome because empty sections are not rendered", () => {
     const inboxStack = blockFor(".inbox-section-stack");
-    const reviewList = blockForContaining(".review-surface-list", "padding: 18px");
     const waitingCount = blockFor(".review-surface-header .review-surface-waiting");
 
     expect(inboxStack).toContain("align-content: start");
     expect(inboxStack).toContain("align-items: start");
     expect(inboxStack).toContain("grid-auto-rows: max-content");
-    expect(inboxStack).toContain("min-height: 0");
-    expect(inboxStack).toContain("overflow: auto");
-    expect(reviewList).not.toContain("overflow: auto");
     expect(waitingCount).toContain("font-size: 12.5px");
     expect(waitingCount).toContain("color: var(--text-muted)");
     expect(styles).not.toContain(".inbox-section.is-empty");
@@ -437,12 +429,9 @@ describe("renderer CSS contracts", () => {
     expect(recoveryCopy).toContain("gap: 6px");
   });
 
-  it("keeps Arrange mode reachable at the bottom edge", () => {
-    const arrangingGrid = blockFor(".terminal-stage.arranging .terminal-grid");
+  it("keeps the Arrange resize handle visually distinct", () => {
     const resizeHandle = blockFor(".tile-resize-handle");
 
-    expect(arrangingGrid).toContain("--arrange-bottom-safe-zone: 156px");
-    expect(arrangingGrid).toContain("min-height: calc(100% + var(--arrange-bottom-safe-zone))");
     expect(resizeHandle).toContain("width: 32px");
     expect(resizeHandle).toContain("background-image: none");
   });

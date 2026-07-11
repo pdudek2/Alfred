@@ -8,7 +8,7 @@
     "build": "vite build && tsc -p tsconfig.main.json",
     "dev": "vite --host 127.0.0.1",
     "dev:electron": "tsc -p tsconfig.main.json && node scripts/dev-electron.mjs",
-    "lint": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit",
+    "smoke:electron": "electron --version && playwright test --config playwright.config.ts",
     "start": "electron .",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit"
@@ -28,6 +28,7 @@
     "vite": "latest"
   },
   "devDependencies": {
+    "@playwright/test": "1.61.1",
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",
     "@testing-library/user-event": "latest",

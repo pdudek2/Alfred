@@ -3,7 +3,6 @@ import {
   appendActivityEvent,
   classifyTerminalOutputActivities,
   type SessionActivityEvent,
-  type SessionActivityEventKind,
   type SessionActivityInput,
 } from "../shared/session-activity";
 import type {

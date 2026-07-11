@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_DESKTOP_STATE,
-  createPersistedDesktopStateStore,
   type DesktopSaveStatus,
 } from "./persisted-desktop-state.js";
 import { registerDesktopStateIpc } from "./desktop-state-ipc.js";

@@ -1295,7 +1295,7 @@ function ManualTerminalTile({
       removeDataListener();
       removeExitListener();
     };
-  }, [runtimeBindingKey, sessionKey, setTileStatus]);
+  }, [runtimeBindingKey, runtimeId, sessionKey, setTileStatus]);
 
   useEffect(() => {
     if (!selected || status !== "ready") return;

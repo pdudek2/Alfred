@@ -848,6 +848,8 @@ function latestStructuredSignal(
 }
 
 function runtimeEventTitle(status: SessionTile["runtimeStatus"]): string {
+  if (status === undefined) return "Starting terminal";
+
   switch (status) {
     case "error":
       return "Start failed";
@@ -857,13 +859,16 @@ function runtimeEventTitle(status: SessionTile["runtimeStatus"]): string {
       return "Session attached";
     case "restored":
       return "Transcript restored";
+    case "unavailable":
+      return "Starting terminal";
     case "starting":
-    default:
       return "Starting terminal";
   }
 }
 
 function runtimeEventCopy(status: SessionTile["runtimeStatus"]): string {
+  if (status === undefined) return "Alfred is attaching the runtime process.";
+
   switch (status) {
     case "error":
       return "The runtime could not create this terminal.";
@@ -873,8 +878,9 @@ function runtimeEventCopy(status: SessionTile["runtimeStatus"]): string {
       return "Terminal output is streaming in the workspace.";
     case "restored":
       return "This is the last saved scrollback. Start a new terminal to continue work.";
+    case "unavailable":
+      return "Alfred is attaching the runtime process.";
     case "starting":
-    default:
       return "Alfred is attaching the runtime process.";
   }
 }

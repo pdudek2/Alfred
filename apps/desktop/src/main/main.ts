@@ -29,7 +29,6 @@ import {
 } from "./window-state.js";
 import {
   QUIT_GUARD_CANCEL_BUTTON,
-  QUIT_GUARD_CONFIRM_BUTTON,
   didCancelTerminalQuit,
   shouldConfirmTerminalQuit,
 } from "./quit-guard.js";
@@ -158,6 +157,9 @@ if (!hasSingleInstanceLock) {
         void createWindow(persistedDesktopStateStore);
       }
     });
+  }).catch((error: unknown) => {
+    console.error("Failed to start Alfred desktop.", error);
+    app.quit();
   });
 
   app.on("window-all-closed", () => {

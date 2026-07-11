@@ -257,6 +257,18 @@ starting services:
 node --test scripts/test/desktop-product-boundary.test.mjs scripts/test/cloud-smoke.test.mjs
 ```
 
+## Release gate
+
+Run the complete local release gate:
+
+    pnpm verify
+
+It runs ESLint, typecheck, tests, build, and three Playwright scenarios against a built Electron app. The Electron smoke uses temporary HOME, user-data, agent-home, and workspace directories; it does not read the normal Codex or Claude state.
+
+For a faster code-only loop use pnpm verify:quality. To rerun only the desktop smoke use pnpm smoke:electron.
+
+GitHub Actions runs the same quality gate on Linux and the Electron smoke on macOS. The macOS job is visible as a normal failing check, but Phase E does not make it a required branch-protection check.
+
 ## Current boundaries
 
 Electron is the only user client. Remote browser access is not part of the first

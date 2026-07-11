@@ -150,6 +150,7 @@ describe("api", () => {
     const originalNodeEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     bootstrapAuthMock.seedBootstrapAuth.mockRejectedValue(new Error("bootstrap unavailable"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     try {
       const app = createApp();
@@ -163,7 +164,10 @@ describe("api", () => {
       expect(health.status).toBe(200);
       expect(apiHealth.status).toBe(200);
       expect(runs.status).toBeGreaterThanOrEqual(500);
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      expect(consoleError).toHaveBeenCalledWith(expect.objectContaining({ message: "bootstrap unavailable" }));
     } finally {
+      consoleError.mockRestore();
       process.env.NODE_ENV = originalNodeEnv;
     }
   });
@@ -174,6 +178,7 @@ describe("api", () => {
     bootstrapAuthMock.seedBootstrapAuth
       .mockRejectedValueOnce(new Error("temporary bootstrap failure"))
       .mockResolvedValueOnce(undefined);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     try {
       const app = createApp();
@@ -184,7 +189,12 @@ describe("api", () => {
       expect(first.status).toBeGreaterThanOrEqual(500);
       expect(second.status).toBe(401);
       expect(bootstrapAuthMock.seedBootstrapAuth).toHaveBeenCalledTimes(2);
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      expect(consoleError).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "temporary bootstrap failure" }),
+      );
     } finally {
+      consoleError.mockRestore();
       process.env.NODE_ENV = originalNodeEnv;
     }
   });

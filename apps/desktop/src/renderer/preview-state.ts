@@ -19,6 +19,8 @@ export type PreviewUrlObservation = {
 const HTTP_URL_PATTERN = /\bhttp:\/\/[^\s<>"'`|\\]+/gi;
 const LOCAL_HTTP_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const TRAILING_TERMINAL_PUNCTUATION = new Set([".", ",", ";", ":", "!", "?", ")", "]", "}", ">"]);
+// Terminal output contains the ESC control byte by protocol; matching it is intentional.
+// eslint-disable-next-line no-control-regex
 const ANSI_ESCAPE_PATTERN = /\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g;
 const PREVIEW_CANDIDATE_KEY_SEPARATOR = "\u0000";
 

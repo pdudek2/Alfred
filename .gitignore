@@ -10,6 +10,7 @@ coverage/
 .alfred-worktrees/
 output/
 api/.generated/
+vercel-static/
 
 # Product docs: track audits and specs, keep local plans/scratch notes ignored
 docs/*
