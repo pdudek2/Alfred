@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -12,6 +13,8 @@ const removedPortKey = ["W", "EB_PORT"].join("");
 const removedTargetKey = ["W", "EB_API_TARGET"].join("");
 const removedLocalOrigin = ["http://127.0.0.1:43", "00"].join("");
 const removedIdentity = [removedClientName, "-first"].join("");
+const vercelOutputDirectory = "vercel-static";
+const vercelMarker = "Alfred cloud deployment exposes API endpoints only.\n";
 
 describe("desktop product boundary", () => {
   it("has no standalone browser client package", () => {
@@ -24,7 +27,7 @@ describe("desktop product boundary", () => {
     assert.deepEqual(config, {
       $schema: "https://openapi.vercel.sh/vercel.json",
       framework: null,
-      outputDirectory: null,
+      outputDirectory: vercelOutputDirectory,
       installCommand: "pnpm install --frozen-lockfile",
       buildCommand: "node scripts/build-vercel-api.mjs",
       rewrites: [
@@ -34,6 +37,30 @@ describe("desktop product boundary", () => {
         { source: "/health", destination: "/api/health" },
       ],
     });
+    assert.notEqual(config.outputDirectory, ".");
+    assert.notEqual(config.outputDirectory, path.join("apps", removedClientName));
+  });
+
+  it("builds only an API marker in the Vercel output directory", () => {
+    const outputDirectory = path.join(repoRoot, vercelOutputDirectory);
+    const generatedApiDirectory = path.join(repoRoot, "api", ".generated");
+    const generatedApiBundle = path.join(generatedApiDirectory, "app.cjs");
+
+    rmSync(outputDirectory, { force: true, recursive: true });
+    rmSync(generatedApiDirectory, { force: true, recursive: true });
+    execFileSync(process.execPath, [path.join(repoRoot, "scripts", "build-vercel-api.mjs")], {
+      cwd: repoRoot,
+      stdio: "pipe",
+    });
+
+    assert.equal(existsSync(outputDirectory), true);
+    assert.deepEqual(readdirSync(outputDirectory), ["api-only.txt"]);
+    assert.equal(readFileSync(path.join(outputDirectory, "api-only.txt"), "utf8"), vercelMarker);
+    assert.ok(statSync(generatedApiBundle).size > 0);
+
+    const gitignore = read(".gitignore");
+    assert.match(gitignore, /^vercel-static\/$/m);
+    assert.match(gitignore, /^api\/\.generated\/$/m);
   });
 
   it("starts the desktop client in the main local dev loop", () => {
