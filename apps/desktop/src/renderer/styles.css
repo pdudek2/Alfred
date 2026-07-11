@@ -1289,6 +1289,15 @@ button:focus-visible {
 
 .surface-panel > .terminal-stage {
   flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+}
+
+.desk-surface-panel.active {
+  min-height: 0;
+  overflow: hidden;
 }
 
 .workspace-rail {
@@ -1565,16 +1574,14 @@ button:focus-visible {
 .terminal-stage {
   min-width: 0;
   min-height: 0;
-  border: 1px solid rgba(188, 202, 218, 0.13);
-  border-radius: 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.045), transparent 76px),
-    linear-gradient(90deg, rgba(238, 243, 247, 0.024), transparent 42%),
-    rgba(5, 8, 12, 0.96);
-  box-shadow:
-    inset 0 1px 0 rgba(238, 243, 247, 0.055),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.34);
+  background: var(--surface-panel);
+  background-image: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   display: grid;
   grid-template-rows: 44px minmax(0, 1fr);
 }
@@ -1629,6 +1636,73 @@ button:focus-visible {
   font-size: 11px;
 }
 
+/*
+ * TERMINAL GRID SCROLL
+ * Keep the xterm viewport scroll independent from the workbench tile scroll.
+ */
+.terminal-stage-body {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.terminal-stage-body::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.terminal-stage-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.terminal-stage-body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.terminal-grid-column {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--role-active) 42%, transparent) transparent;
+  padding-bottom: 10px;
+}
+
+.terminal-grid-column::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.terminal-grid-column::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.terminal-grid-column::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--role-active) 38%, transparent);
+  background-clip: padding-box;
+}
+
+.terminal-grid-column > .terminal-grid {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .terminal-grid {
   min-width: 0;
   min-height: 0;
@@ -1647,24 +1721,31 @@ button:focus-visible {
   scrollbar-color: rgba(188, 202, 218, 0.18) transparent;
 }
 
-.terminal-grid.arranging,
-.terminal-grid.laid-out {
+.terminal-grid.arranging {
   grid-template-columns: repeat(12, minmax(0, 1fr));
   grid-auto-rows: 84px;
-}
-
-.terminal-grid.arranging {
   background:
-    linear-gradient(color-mix(in oklab, var(--signal-focus) 9%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklab, var(--signal-focus) 9%, transparent) 1px, transparent 1px),
-    rgba(3, 5, 8, 0.76);
+    linear-gradient(color-mix(in oklab, var(--signal-focus) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--signal-focus) 5%, transparent) 1px, transparent 1px),
+    var(--surface-terminal);
   background-size: calc((100% - 88px) / 12) 84px, calc((100% - 88px) / 12) 84px, auto;
 }
 
 .terminal-grid.laid-out {
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.012), transparent 140px),
-    rgba(3, 5, 8, 0.72);
+  --grid-bottom-safe-zone: 76px;
+  flex: 0 0 auto;
+  align-content: start;
+  min-height: 100%;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: 84px;
+  padding-bottom: var(--grid-bottom-safe-zone);
+  scroll-padding-bottom: var(--grid-bottom-safe-zone);
+  background: var(--surface-terminal);
+  background-image: none;
+}
+
+.terminal-grid.laid-out .terminal-tile {
+  scroll-margin-bottom: var(--grid-bottom-safe-zone);
 }
 
 .terminal-grid.laid-out.single {
@@ -1674,6 +1755,36 @@ button:focus-visible {
 .terminal-grid.laid-out.split,
 .terminal-grid.laid-out.dense {
   align-content: start;
+}
+
+.terminal-stage.arranging .terminal-stage-body {
+  overflow: hidden;
+}
+
+.terminal-stage.arranging .terminal-grid-column {
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 18px;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--signal-focus) 24%, transparent) transparent;
+}
+
+.terminal-stage.arranging .terminal-grid {
+  --arrange-bottom-safe-zone: 156px;
+  align-content: start;
+  flex: 0 0 auto;
+  min-height: calc(100% + var(--arrange-bottom-safe-zone));
+  padding-bottom: var(--arrange-bottom-safe-zone);
+  scroll-padding-bottom: var(--arrange-bottom-safe-zone);
+}
+
+.terminal-stage.arranging .terminal-tile {
+  scroll-margin-bottom: var(--arrange-bottom-safe-zone);
 }
 
 .terminal-empty-state {
@@ -1876,12 +1987,14 @@ button:focus-visible {
   position: relative;
   min-width: 0;
   min-height: 0;
-  border: 1px solid color-mix(in oklab, white 7%, transparent);
-  border-radius: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
   overflow: hidden;
-  border-color: color-mix(in oklab, white 9%, transparent);
-  background: rgba(3, 7, 6, 0.98);
-  box-shadow: 0 16px 32px -28px rgba(0, 0, 0, 0.95);
+  background: var(--surface-panel);
+  background-image: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   container: terminal-tile / inline-size;
   display: grid;
   grid-template-rows: 42px 1fr;
@@ -2806,7 +2919,6 @@ body.arranging-pointer {
   font-size: 11px;
 }
 
-.xterm-host,
 .real-terminal .xterm {
   min-width: 0;
   min-height: 0;
@@ -2814,6 +2926,8 @@ body.arranging-pointer {
 }
 
 .xterm-host {
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
   border-radius: 0 0 10px 10px;
   background: var(--surface-terminal);
@@ -3072,13 +3186,14 @@ body.arranging-pointer {
   min-width: 0;
   min-height: 0;
   align-self: start;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
   padding: 12px;
-  background:
-    linear-gradient(180deg, rgba(224, 183, 91, 0.026), transparent 62px),
-    var(--surface-panel);
-  box-shadow: inset 0 1px 0 rgba(238, 243, 247, 0.045);
+  background: var(--surface-panel);
+  background-image: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   color: var(--muted);
   display: grid;
   gap: 12px;
@@ -3378,7 +3493,7 @@ body.arranging-pointer {
 /* Composer */
 .composer-bar {
   min-height: 66px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--line-strong);
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr) 96px;
   grid-template-rows: 36px 16px;
@@ -3386,9 +3501,10 @@ body.arranging-pointer {
   column-gap: 12px;
   row-gap: 4px;
   padding: 7px 12px 7px;
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 34px),
-    rgba(8, 11, 15, 0.94);
+  background: var(--surface-panel);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.045) inset,
+    0 -16px 36px -32px rgba(0, 0, 0, 0.9);
 }
 
 .composer-bar[data-state="busy"] {
@@ -3463,14 +3579,16 @@ body.arranging-pointer {
 .composer-send {
   min-height: 36px;
   min-width: 84px;
-  border: 1px solid rgba(188, 202, 218, 0.14);
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
   padding: 0 14px;
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.032), rgba(238, 243, 247, 0.012));
-  color: var(--ink-soft);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  background-image: none;
+  box-shadow: none;
+  color: #04120a;
   font-family: var(--mono);
   font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -3526,23 +3644,27 @@ body.arranging-pointer {
 }
 
 .composer-status-indicator {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--muted) 72%, transparent);
+  width: 14px;
+  height: 14px;
+  border: 1px solid color-mix(in oklab, var(--muted) 32%, transparent);
+  border-radius: 4px;
+  background: transparent;
   flex: 0 0 auto;
 }
 
 .composer-bar[data-state="ready"] .composer-status-indicator {
-  background: color-mix(in oklab, var(--signal-focus) 70%, var(--muted));
+  border-color: color-mix(in oklab, var(--signal-focus) 42%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 8%, transparent);
 }
 
 .composer-bar[data-state="busy"] .composer-status-indicator {
-  background: color-mix(in oklab, var(--cyan) 78%, var(--signal-focus));
+  border-color: color-mix(in oklab, var(--cyan) 46%, transparent);
+  background: color-mix(in oklab, var(--cyan) 9%, transparent);
 }
 
 .composer-bar[data-state="blocked"] .composer-status-indicator {
-  background: color-mix(in oklab, var(--brass) 78%, var(--muted));
+  border-color: color-mix(in oklab, var(--brass) 48%, transparent);
+  background: color-mix(in oklab, var(--brass) 10%, transparent);
 }
 
 .composer-status {
@@ -4714,27 +4836,6 @@ body.arranging-pointer {
 
 /* Focus mode and inspector */
 
-.terminal-stage-body {
-  display: flex;
-  gap: 12px;
-  min-height: 0;
-  min-width: 0;
-}
-
-.terminal-grid-column {
-  min-width: 0;
-  min-height: 0;
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.terminal-grid-column > .terminal-grid {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
 .focus-session-strip {
   min-height: 38px;
   border: 1px solid color-mix(in oklab, white 7%, transparent);
@@ -5435,18 +5536,6 @@ body {
   box-shadow: 0 0 0 2px var(--surface-canvas), 0 0 0 4px color-mix(in oklab, var(--signal-focus) 16%, transparent);
 }
 
-/* --- Terminal stage: the desk plate --- */
-.terminal-stage {
-  background: var(--surface-canvas);
-}
-
-/* --- Terminal tile: raised workbench panel (xterm stays darkest) --- */
-.terminal-tile {
-  background: var(--surface-panel);
-  border: 1px solid var(--line);
-  box-shadow: var(--depth-card);
-}
-
 .terminal-tile:not(.arranging):hover {
   border-color: var(--border-strong);
   box-shadow: var(--depth-raised);
@@ -5487,7 +5576,6 @@ body {
 }
 
 /* --- Side dock: raised evidence cards --- */
-.alfred-dock,
 .agent-timeline-panel,
 .workspace-preview-panel {
   background: var(--surface-panel);
@@ -5495,23 +5583,8 @@ body {
   box-shadow: var(--depth-card);
 }
 
-/* --- Composer: elevated command bar --- */
-.composer-bar {
-  background: var(--surface-panel);
-  border-top: 1px solid var(--line-strong);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.045) inset,
-    0 -16px 36px -32px rgba(0, 0, 0, 0.9);
-}
-
 .composer-input:focus-visible {
   box-shadow: 0 0 0 1px color-mix(in oklab, var(--signal-focus) 16%, transparent), 0 0 0 4px color-mix(in oklab, var(--signal-focus) 12%, transparent);
-}
-
-.composer-send {
-  background: var(--signal-success);
-  color: #04120a;
-  font-weight: 600;
 }
 
 /* Handoff actions read as a quiet utility row, not a primary panel. */
@@ -5646,8 +5719,6 @@ body {
   gap: 8px;
 }
 
-.terminal-stage,
-.alfred-dock,
 .agent-timeline-panel,
 .workspace-preview-panel {
   border-radius: 18px;
@@ -5994,12 +6065,6 @@ body {
 .workspace-priority-chip.tone-quiet,
 .workspace-priority-chip.tone-empty {
   background: rgba(2, 6, 4, 0.34);
-}
-
-.terminal-grid.laid-out {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.01), transparent 120px),
-    rgba(1, 4, 3, 0.62);
 }
 
 .terminal-tile.selected,
@@ -7297,8 +7362,6 @@ body {
 }
 
 .workspace-rail,
-.terminal-stage,
-.alfred-dock,
 .agent-timeline-panel,
 .workspace-preview-panel,
 .observatory-surface,
@@ -7311,8 +7374,6 @@ body {
   -webkit-backdrop-filter: none;
 }
 
-.terminal-stage,
-.alfred-dock,
 .agent-timeline-panel,
 .workspace-preview-panel {
   box-shadow:
@@ -7320,11 +7381,6 @@ body {
     0 16px 34px -30px rgba(0, 0, 0, 0.9);
 }
 
-.terminal-stage,
-.terminal-tile,
-.context-column,
-.context-drawer,
-.alfred-dock,
 .dispatch-bar {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -7367,15 +7423,24 @@ body {
 }
 
 .context-drawer {
+  width: 100%;
   min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.022), transparent 120px),
-    rgba(7, 12, 10, 0.96);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.035),
-    0 16px 34px -28px rgba(0, 0, 0, 0.86);
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, white 8%);
+  border-radius: var(--radius-panel);
+  background: var(--surface-panel);
+  background-image: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
 .context-drawer.closed {
@@ -7384,6 +7449,20 @@ body {
 
 .context-drawer.open {
   display: flex;
+}
+
+.context-drawer::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.context-drawer::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.context-drawer::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .context-drawer-header {
@@ -7435,10 +7514,19 @@ body {
 }
 
 .context-column {
-  grid-column: 4;
+  grid-column: auto;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  bottom: 66px;
+  z-index: 35;
+  width: min(360px, calc(100% - 32px));
   min-width: 0;
   min-height: 0;
-  display: flex;
+  display: block;
+  pointer-events: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .context-column.open .context-drawer,
@@ -7446,29 +7534,6 @@ body {
 .context-compact-status > .alfred-dock {
   width: 100%;
   min-height: 0;
-}
-
-.terminal-stage.arranging .terminal-stage-body {
-  overflow: hidden;
-}
-
-.terminal-stage.arranging .terminal-grid-column {
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklab, var(--signal-focus) 24%, transparent) transparent;
-}
-
-.terminal-stage.arranging .terminal-grid {
-  --arrange-bottom-safe-zone: 96px;
-  align-content: start;
-  flex: 0 0 auto;
-  min-height: 100%;
-  padding-bottom: var(--arrange-bottom-safe-zone);
-  scroll-padding-bottom: var(--arrange-bottom-safe-zone);
 }
 
 .context-compact-status {
@@ -7542,29 +7607,6 @@ body {
   grid-column: 2 / 5;
 }
 
-.composer-status-indicator {
-  width: 14px;
-  height: 14px;
-  border: 1px solid color-mix(in oklab, var(--muted) 32%, transparent);
-  border-radius: 4px;
-  background: transparent;
-}
-
-.composer-bar[data-state="ready"] .composer-status-indicator {
-  border-color: color-mix(in oklab, var(--signal-focus) 42%, transparent);
-  background: color-mix(in oklab, var(--signal-focus) 8%, transparent);
-}
-
-.composer-bar[data-state="busy"] .composer-status-indicator {
-  border-color: color-mix(in oklab, var(--cyan) 46%, transparent);
-  background: color-mix(in oklab, var(--cyan) 9%, transparent);
-}
-
-.composer-bar[data-state="blocked"] .composer-status-indicator {
-  border-color: color-mix(in oklab, var(--brass) 48%, transparent);
-  background: color-mix(in oklab, var(--brass) 10%, transparent);
-}
-
 .terminal-tile.collapsed {
   grid-template-rows: 42px 0;
   min-height: 42px;
@@ -7628,9 +7670,6 @@ body {
 }
 
 .workspace-rail,
-.terminal-stage,
-.context-drawer,
-.alfred-dock,
 .dispatch-bar,
 .workspace-popover,
 .review-surface,
@@ -7750,30 +7789,10 @@ body {
   box-shadow: none;
 }
 
-.terminal-grid.laid-out,
-.terminal-grid.laid-out.single {
-  background: var(--surface-terminal);
-  background-image: none;
-}
-
-.terminal-grid.arranging {
-  background:
-    linear-gradient(color-mix(in oklab, var(--signal-focus) 5%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklab, var(--signal-focus) 5%, transparent) 1px, transparent 1px),
-    var(--surface-terminal);
-}
-
 .terminal-stage-header,
 .context-drawer-header {
   background: var(--surface-chrome-soft);
   background-image: none;
-}
-
-.terminal-tile {
-  border-color: var(--border);
-  background: var(--surface-chrome);
-  background-image: none;
-  box-shadow: none;
 }
 
 .terminal-tile:not(.arranging):hover,
@@ -7832,8 +7851,7 @@ body {
 }
 
 .dispatch-target-chip,
-.dispatch-bar .composer-input,
-.composer-send {
+.dispatch-bar .composer-input {
   background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   background-image: none;
   box-shadow: none;
@@ -7889,11 +7907,9 @@ body {
   background: var(--surface-canvas);
 }
 
-.terminal-stage,
 .review-surface,
 .observatory-surface,
 .workspace-rail,
-.alfred-dock,
 .dispatch-bar,
 .workspace-popover {
   border-color: var(--border);
@@ -7904,47 +7920,39 @@ body {
 }
 
 .workspace-nav-scroll,
-.terminal-stage-body,
 .inbox-section-stack,
 .observatory-surface,
 .observatory-projects,
 .observatory-session-list,
-.context-drawer,
 .agent-timeline-panel {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
 .workspace-nav-scroll::-webkit-scrollbar,
-.terminal-stage-body::-webkit-scrollbar,
 .inbox-section-stack::-webkit-scrollbar,
 .observatory-surface::-webkit-scrollbar,
 .observatory-projects::-webkit-scrollbar,
 .observatory-session-list::-webkit-scrollbar,
-.context-drawer::-webkit-scrollbar,
 .agent-timeline-panel::-webkit-scrollbar {
   width: 7px;
   height: 7px;
 }
 
 .workspace-nav-scroll::-webkit-scrollbar-track,
-.terminal-stage-body::-webkit-scrollbar-track,
 .inbox-section-stack::-webkit-scrollbar-track,
 .observatory-surface::-webkit-scrollbar-track,
 .observatory-projects::-webkit-scrollbar-track,
 .observatory-session-list::-webkit-scrollbar-track,
-.context-drawer::-webkit-scrollbar-track,
 .agent-timeline-panel::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .workspace-nav-scroll::-webkit-scrollbar-thumb,
-.terminal-stage-body::-webkit-scrollbar-thumb,
 .inbox-section-stack::-webkit-scrollbar-thumb,
 .observatory-surface::-webkit-scrollbar-thumb,
 .observatory-projects::-webkit-scrollbar-thumb,
 .observatory-session-list::-webkit-scrollbar-thumb,
-.context-drawer::-webkit-scrollbar-thumb,
 .agent-timeline-panel::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.16);
@@ -7996,13 +8004,6 @@ body {
 .terminal-stage-header {
   min-height: 38px;
   padding: 8px 10px;
-}
-
-.terminal-tile {
-  border-color: var(--border);
-  border-radius: var(--radius-panel);
-  background: var(--surface-panel);
-  box-shadow: none;
 }
 
 .terminal-tile.selected,
@@ -8093,20 +8094,6 @@ body {
   background: var(--surface-raised);
 }
 
-.context-column {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  bottom: 58px;
-  z-index: 35;
-  grid-column: auto;
-  width: min(360px, calc(100% - 32px));
-  min-width: 0;
-  min-height: 0;
-  display: block;
-  pointer-events: none;
-}
-
 .context-column.closed {
   display: none;
 }
@@ -8117,21 +8104,6 @@ body {
 
 .context-column .context-compact-status {
   display: none;
-}
-
-.context-drawer {
-  width: 100%;
-  height: 100%;
-  max-height: 100%;
-  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
-  border-radius: var(--radius-panel);
-  background: var(--surface-panel);
-  background-image: none;
-  box-shadow: 0 24px 58px -38px rgba(0, 0, 0, 0.92);
-}
-
-.context-drawer.open {
-  display: flex;
 }
 
 .context-drawer-header {
@@ -8159,8 +8131,7 @@ body {
 }
 
 .dispatch-target-chip,
-.dispatch-bar .composer-input,
-.composer-send {
+.dispatch-bar .composer-input {
   border-color: var(--border);
   border-radius: var(--radius-control);
   background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
@@ -8212,30 +8183,11 @@ body {
   }
 }
 
-.terminal-tile,
 .terminal-status-label,
 .tile-actions button,
 .recovery-banner {
   background-image: none;
   box-shadow: none;
-}
-
-.context-column {
-  top: 8px;
-  right: 8px;
-  bottom: 66px;
-  width: min(360px, calc(100% - 32px));
-}
-
-.context-drawer {
-  display: block;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-.context-drawer.open {
-  display: block;
 }
 
 .context-drawer .workspace-preview-panel,
@@ -8405,20 +8357,6 @@ body {
   display: none;
 }
 
-.context-drawer {
-  min-height: 0;
-  height: auto;
-  max-height: none;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: none;
-}
-
-.context-drawer.open {
-  display: flex;
-}
-
 .context-drawer .workspace-preview-panel {
   flex: 0 0 auto;
   max-height: 32%;
@@ -8433,30 +8371,6 @@ body {
 
 .context-drawer .agent-timeline-body {
   overflow: visible;
-}
-
-.terminal-stage.arranging .terminal-stage-body {
-  overflow: hidden;
-}
-
-.terminal-stage.arranging .terminal-grid-column {
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding-bottom: 18px;
-  scrollbar-gutter: stable;
-}
-
-.terminal-stage.arranging .terminal-grid {
-  --arrange-bottom-safe-zone: 156px;
-  flex: 0 0 auto;
-  min-height: calc(100% + var(--arrange-bottom-safe-zone));
-  padding-bottom: var(--arrange-bottom-safe-zone);
-  scroll-padding-bottom: var(--arrange-bottom-safe-zone);
-}
-
-.terminal-stage.arranging .terminal-tile {
-  scroll-margin-bottom: var(--arrange-bottom-safe-zone);
 }
 
 .tile-resize-handle {
@@ -9070,12 +8984,6 @@ body {
   color: color-mix(in oklab, var(--role-attention) 86%, white 8%);
 }
 
-.context-drawer {
-  background: var(--surface-panel);
-  flex-direction: column;
-  overflow: hidden;
-}
-
 .agent-timeline-header strong {
   font: 650 13px/1.2 var(--sans);
   letter-spacing: 0;
@@ -9264,92 +9172,6 @@ body {
   background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   background-image: none;
   box-shadow: none;
-}
-
-/*
- * ALFRED TERMINAL GRID SCROLL v10
- * Keep the xterm viewport scroll independent from the workbench tile scroll.
- */
-.terminal-stage-body {
-  min-height: 0;
-  overflow: hidden;
-}
-
-.desk-surface-panel.active {
-  min-height: 0;
-  overflow: hidden;
-}
-
-.surface-panel > .terminal-stage {
-  min-width: 0;
-  min-height: 0;
-  height: 100%;
-  max-height: 100%;
-}
-
-.terminal-grid-column {
-  min-height: 0;
-  height: 100%;
-  max-height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklab, var(--role-active) 42%, transparent) transparent;
-  padding-bottom: 10px;
-}
-
-.terminal-grid-column::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.terminal-grid-column::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.terminal-grid-column::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--role-active) 38%, transparent);
-  background-clip: padding-box;
-}
-
-.terminal-grid.laid-out {
-  --grid-bottom-safe-zone: 76px;
-  flex: 0 0 auto;
-  align-content: start;
-  min-height: 100%;
-  padding-bottom: var(--grid-bottom-safe-zone);
-  scroll-padding-bottom: var(--grid-bottom-safe-zone);
-}
-
-.terminal-grid.laid-out .terminal-tile {
-  scroll-margin-bottom: var(--grid-bottom-safe-zone);
-}
-
-.terminal-stage.arranging .terminal-grid-column {
-  min-height: 0;
-  height: 100%;
-  max-height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-  padding-bottom: 18px;
-}
-
-.terminal-stage.arranging .terminal-grid {
-  --arrange-bottom-safe-zone: 156px;
-  flex: 0 0 auto;
-  min-height: calc(100% + var(--arrange-bottom-safe-zone));
-  padding-bottom: var(--arrange-bottom-safe-zone);
-  scroll-padding-bottom: var(--arrange-bottom-safe-zone);
-}
-
-.terminal-stage.arranging .terminal-tile {
-  scroll-margin-bottom: var(--arrange-bottom-safe-zone);
 }
 
 /* ============================================================
