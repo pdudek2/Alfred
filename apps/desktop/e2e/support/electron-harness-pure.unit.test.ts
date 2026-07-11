@@ -43,4 +43,42 @@ For help, see: https://nodejs.org/en/docs/inspector
     ).toBe(false);
     expect(isAllowedElectronMainOutput("main-stderr", "Debugger ending on ws://attacker.example/abc")).toBe(false);
   });
+
+  it("allows one or more canonical macOS backupd XPC lines from Electron main stderr", () => {
+    const firstXpcLine =
+      "2026-07-11 00:09:16.142 Electron Helper[3532:12612] XPC error for connection com.apple.backupd.sandbox.xpc: Connection invalid";
+    const secondXpcLine =
+      "2026-07-11 00:09:17.004 Electron Helper[91:7] XPC error for connection com.apple.backupd.sandbox.xpc: Connection invalid";
+
+    expect(isAllowedElectronMainOutput("main-stderr", firstXpcLine)).toBe(true);
+    expect(isAllowedElectronMainOutput("main-stderr", `${firstXpcLine}\n`)).toBe(true);
+    expect(isAllowedElectronMainOutput("main-stderr", `${firstXpcLine}\n${secondXpcLine}\n`)).toBe(true);
+  });
+
+  it("rejects non-canonical or mixed macOS XPC output", () => {
+    const canonicalXpcLine =
+      "2026-07-11 00:09:16.142 Electron Helper[3532:12612] XPC error for connection com.apple.backupd.sandbox.xpc: Connection invalid";
+
+    expect(isAllowedElectronMainOutput("main-stdout", canonicalXpcLine)).toBe(false);
+    expect(isAllowedElectronMainOutput("main-stderr", `${canonicalXpcLine} attacker-controlled suffix`)).toBe(false);
+    expect(
+      isAllowedElectronMainOutput(
+        "main-stderr",
+        canonicalXpcLine.replace("com.apple.backupd.sandbox.xpc", "com.apple.malwared.xpc"),
+      ),
+    ).toBe(false);
+    expect(
+      isAllowedElectronMainOutput(
+        "main-stderr",
+        canonicalXpcLine.replace("Connection invalid", "Connection interrupted"),
+      ),
+    ).toBe(false);
+    expect(
+      isAllowedElectronMainOutput(
+        "main-stderr",
+        canonicalXpcLine.replace("Electron Helper[3532:12612]", "Electron Helper"),
+      ),
+    ).toBe(false);
+    expect(isAllowedElectronMainOutput("main-stderr", `${canonicalXpcLine}\nunexpected output\n`)).toBe(false);
+  });
 });

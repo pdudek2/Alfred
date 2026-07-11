@@ -1,30 +1,33 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const existsSyncMock = vi.hoisted(() => vi.fn());
-
-vi.mock("node:fs", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("node:fs")>()),
-  existsSync: existsSyncMock,
-}));
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { resolveDesktopAppIconPath } from "./app-icon.js";
 
 describe("desktop app icon", () => {
+  let temporaryDirectory: string;
+
   beforeEach(() => {
-    existsSyncMock.mockReset();
+    temporaryDirectory = mkdtempSync(path.join(tmpdir(), "alfred-app-icon-"));
+  });
+
+  afterEach(() => {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
   });
 
   it("resolves the app-owned PNG icon when it exists", () => {
-    existsSyncMock.mockReturnValue(true);
+    const appPath = path.join(temporaryDirectory, "app");
+    const expectedIconPath = path.join(appPath, "assets", "alfred-icon.png");
+    mkdirSync(path.dirname(expectedIconPath), { recursive: true });
+    writeFileSync(expectedIconPath, "test icon");
 
-    expect(resolveDesktopAppIconPath("/Users/patryk/Desktop/Alfred/apps/desktop")).toBe(
-      "/Users/patryk/Desktop/Alfred/apps/desktop/assets/alfred-icon.png",
-    );
+    expect(resolveDesktopAppIconPath(appPath)).toBe(expectedIconPath);
   });
 
   it("omits the icon when the asset is unavailable", () => {
-    existsSyncMock.mockReturnValue(false);
+    const missingAppPath = path.join(temporaryDirectory, "missing-app");
 
-    expect(resolveDesktopAppIconPath("/missing/app")).toBeUndefined();
+    expect(resolveDesktopAppIconPath(missingAppPath)).toBeUndefined();
   });
 });
