@@ -1588,15 +1588,15 @@ button:focus-visible {
 
 .terminal-stage-header {
   min-width: 0;
+  min-height: 34px;
   border-bottom: 1px solid rgba(188, 202, 218, 0.09);
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 10px;
-  padding: 0 12px;
-  background:
-    linear-gradient(90deg, rgba(238, 243, 247, 0.04), transparent 42%),
-    rgba(8, 12, 17, 0.78);
+  padding: 6px 9px;
+  background: var(--surface-chrome-soft);
+  background-image: none;
 }
 
 .terminal-stage-header span {
@@ -1620,16 +1620,25 @@ button:focus-visible {
 }
 
 .arrange-hint {
-  min-height: 26px;
-  border: 1px solid color-mix(in oklab, var(--signal-focus) 14%, transparent);
-  border-radius: 6px;
+  min-height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
   padding: 0 9px;
-  background: color-mix(in oklab, var(--signal-focus) 3.5%, transparent);
-  color: #9fdde3;
+  background: transparent;
+  color: var(--text-muted);
   display: inline-flex;
   align-items: center;
-  font-family: var(--mono);
-  font-size: 11px;
+  font: 600 10px/24px var(--mono);
+}
+
+.arrange-mode-label {
+  min-height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0 9px;
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  color: var(--text-primary);
+  font: 650 11px/24px var(--mono);
 }
 
 /*
@@ -1781,6 +1790,10 @@ button:focus-visible {
 
 .terminal-stage.arranging .terminal-tile {
   scroll-margin-bottom: var(--arrange-bottom-safe-zone);
+}
+
+.terminal-stage.arranging .layout-controls {
+  gap: 6px;
 }
 
 .terminal-empty-state {
@@ -2003,8 +2016,8 @@ button:focus-visible {
 
 .terminal-tile:not(.arranging):hover {
   transform: translateY(-1px);
-  border-color: color-mix(in oklab, var(--signal-focus) 24%, var(--border));
-  box-shadow: none;
+  border-color: var(--border-strong);
+  box-shadow: var(--depth-raised);
 }
 
 .terminal-tile.selected {
@@ -2113,19 +2126,15 @@ button:focus-visible {
 
 .tile-resize-handle {
   position: absolute;
-  right: 10px;
-  bottom: 10px;
-  width: 40px;
-  height: 40px;
+  right: 8px;
+  bottom: 8px;
+  width: 32px;
+  height: 32px;
   border: 1px solid color-mix(in oklab, var(--signal-focus) 58%, transparent);
-  border-radius: 10px;
-  background:
-    linear-gradient(135deg, transparent 0 42%, color-mix(in oklab, var(--signal-focus) 72%, transparent) 42% 48%, transparent 48% 62%, color-mix(in oklab, var(--signal-focus) 72%, transparent) 62% 68%, transparent 68%),
-    rgba(3, 4, 4, 0.82);
-  box-shadow:
-    0 0 0 1px rgba(3, 4, 4, 0.78),
-    0 10px 24px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 color-mix(in oklab, white 10%, transparent);
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  background-image: none;
+  box-shadow: none;
   cursor: nwse-resize;
   touch-action: none;
   z-index: 5;
@@ -2134,13 +2143,13 @@ button:focus-visible {
 .tile-resize-handle::before {
   content: "";
   position: absolute;
-  right: 8px;
-  bottom: 8px;
-  width: 17px;
-  height: 17px;
+  right: 7px;
+  bottom: 7px;
+  width: 13px;
+  height: 13px;
   border-right: 2px solid color-mix(in oklab, var(--signal-focus) 72%, white 8%);
   border-bottom: 2px solid color-mix(in oklab, var(--signal-focus) 72%, white 8%);
-  box-shadow: 5px 5px 0 -3px color-mix(in oklab, var(--signal-focus) 62%, transparent);
+  box-shadow: none;
 }
 
 .tile-resize-handle:hover {
@@ -2225,6 +2234,55 @@ body.arranging-pointer {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.terminal-tile-header .tile-title {
+  flex: 1 1 auto;
+  min-width: 140px;
+  overflow: hidden;
+}
+
+.terminal-tile-header .tile-title:has(.session-rename-form) {
+  min-width: max-content;
+  overflow: visible;
+}
+
+.terminal-tile-header .tile-title > div {
+  min-width: 0;
+}
+
+.terminal-tile-header .tile-title > div:has(.session-rename-form) {
+  min-width: max-content;
+  overflow: visible;
+}
+
+.terminal-tile-header .tile-title b {
+  color: var(--text-secondary);
+  font: 650 13px/1.12 var(--sans);
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-tile-header .tile-title small {
+  color: var(--text-faint);
+  font: 500 10px/1.2 var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-tile-header .session-location-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-tile-header .tile-actions {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .tile-activity {
@@ -2331,15 +2389,32 @@ body.arranging-pointer {
   opacity: 0.8;
 }
 
+.terminal-tile.real-terminal .tool-dot {
+  width: 5px;
+  height: 5px;
+  opacity: 0.42;
+}
+
+.terminal-tile.real-terminal.ready .tool-dot {
+  background: var(--faint);
+}
+
+.terminal-tile.real-terminal.selected .tool-dot,
+.terminal-tile.real-terminal.session-waiting .tool-dot,
+.terminal-tile.real-terminal.error .tool-dot {
+  opacity: 0.68;
+}
+
 .terminal-tile.ready .tool-dot {
   background: var(--signal-success);
+  box-shadow: none;
 }
 
 .terminal-tile.selected .tool-dot,
 .terminal-tile.session-waiting .tool-dot,
 .terminal-tile.error .tool-dot {
   opacity: 1;
-  box-shadow: 0 0 10px color-mix(in oklab, currentColor 24%, transparent);
+  box-shadow: none;
 }
 
 .tool-dot.manual { background: var(--signal-success); }
@@ -2363,6 +2438,17 @@ body.arranging-pointer {
   font-family: var(--mono);
   font-size: 10px;
   line-height: 1;
+}
+
+.terminal-tile.real-terminal .tile-kind-mark {
+  width: 24px;
+  min-width: 24px;
+  min-height: 22px;
+  gap: 0;
+}
+
+.terminal-tile.real-terminal .tile-kind-mark span {
+  display: none;
 }
 
 .tile-kind-mark svg {
@@ -2485,14 +2571,14 @@ body.arranging-pointer {
   justify-self: end;
   display: inline-flex;
   align-items: center;
-  gap: 0;
+  gap: 5px;
 }
 
 .tile-action-group {
   min-width: 0;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   padding-left: 10px;
   margin-left: 10px;
   border-left: 1px solid color-mix(in oklab, white 7%, transparent);
@@ -2506,22 +2592,39 @@ body.arranging-pointer {
 
 .tile-status-group {
   gap: 8px;
+  color: var(--text-faint);
 }
 
 .tile-primary-actions {
   min-width: 0;
   gap: 8px;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .tile-utility-actions {
   gap: 4px;
   padding-left: 12px;
   margin-left: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
 }
 
 .tile-danger-actions {
   padding-left: 12px;
   margin-left: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.terminal-tile:hover .tile-utility-actions,
+.terminal-tile:hover .tile-danger-actions,
+.terminal-tile:focus-within .tile-utility-actions,
+.terminal-tile:focus-within .tile-danger-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .tile-status {
@@ -2543,14 +2646,23 @@ body.arranging-pointer {
 }
 
 .terminal-status-label {
+  min-height: 22px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 3px 7px;
+  border-radius: 7px;
+  padding: 0 7px;
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  background-image: none;
+  box-shadow: none;
   color: var(--text-muted);
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font: 750 10px/1 var(--mono);
+  font-size: 10px;
+}
+
+.terminal-status-label::before {
+  box-shadow: none;
 }
 
 .terminal-status-label.tone-codex {
@@ -2564,6 +2676,10 @@ body.arranging-pointer {
 }
 
 .terminal-status-text {
+  max-width: 86px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   line-height: 1;
 }
 
@@ -2653,6 +2769,17 @@ body.arranging-pointer {
   opacity: 0.76;
 }
 
+.terminal-tile.restored,
+.terminal-tile.kind-manual,
+.terminal-tile.kind-codex,
+.terminal-tile.kind-claude,
+.terminal-tile.kind-dev-server,
+.terminal-tile.real-terminal.browser {
+  background: var(--surface-panel);
+  background-image: none;
+  box-shadow: none;
+}
+
 .arrange-handle {
   width: 22px;
   height: 18px;
@@ -2669,15 +2796,19 @@ body.arranging-pointer {
 .terminal-tile.real-terminal.session-waiting .tile-status::before,
 .terminal-tile.selected .tile-status.status-active::before,
 .terminal-tile.staged .tile-status.status-blocked::before {
-  box-shadow: 0 0 8px currentColor;
+  box-shadow: none;
 }
 
 .tile-actions button {
-  width: 32px;
-  min-height: 32px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
   border: 1px solid rgba(188, 202, 218, 0.1);
-  border-radius: 8px;
-  background: rgba(238, 243, 247, 0.024);
+  border-radius: 7px;
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  background-image: none;
+  box-shadow: none;
   color: color-mix(in oklab, var(--muted) 78%, var(--ink-soft));
   display: inline-flex;
   align-items: center;
@@ -2695,6 +2826,55 @@ body.arranging-pointer {
 .terminal-tile:hover .tile-actions button,
 .tile-actions button:focus-visible {
   opacity: 1;
+}
+
+.tile-primary-actions button {
+  border-color: color-mix(in oklab, var(--signal-focus) 42%, transparent);
+  color: var(--signal-focus-strong);
+}
+
+.tile-primary-actions button:hover,
+.tile-primary-actions button:focus-visible {
+  border-color: color-mix(in oklab, var(--signal-focus) 60%, transparent);
+  background: var(--signal-focus-soft);
+}
+
+.tile-utility-actions button,
+.tile-danger-actions button {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text-faint);
+}
+
+.tile-utility-actions button:hover,
+.tile-utility-actions button:focus-visible {
+  border-color: var(--border-focus);
+  background: var(--surface-control-hover);
+  color: var(--text-secondary);
+}
+
+.tile-danger-actions button:hover,
+.tile-danger-actions button:focus-visible {
+  border-color: color-mix(in oklab, var(--alert-red) 30%, transparent);
+  background: color-mix(in oklab, var(--alert-red) 7%, var(--surface-control));
+  color: color-mix(in oklab, var(--alert-red) 82%, white 12%);
+}
+
+.tile-primary-actions .continue-button {
+  min-height: 28px;
+  max-width: 124px;
+  border-color: color-mix(in oklab, var(--role-active) 28%, var(--border));
+  border-radius: 8px;
+  padding: 0 10px;
+  background: color-mix(in oklab, var(--role-active) 5%, var(--surface-control));
+  color: var(--signal-focus-strong);
+}
+
+.tile-primary-actions .continue-button span {
+  max-width: 86px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @container terminal-tile (max-width: 680px) {
@@ -2934,6 +3114,16 @@ body.arranging-pointer {
 .real-terminal .xterm {
   min-width: 0;
   min-height: 0;
+  background: var(--surface-terminal);
+}
+
+.terminal-tile .xterm,
+.terminal-tile .terminal-viewport {
+  background: var(--surface-sunken);
+}
+
+.terminal-tile .terminal-host,
+.terminal-tile .xterm-host {
   background: var(--surface-terminal);
 }
 
@@ -4349,17 +4539,14 @@ body.arranging-pointer {
 /* Staged tile (Alfred-proposed, awaiting approval) */
 .terminal-tile.staged {
   border: 1px solid color-mix(in oklab, var(--signal-agent) 32%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--signal-agent) 5.5%, transparent), transparent 72px),
-    rgba(8, 10, 13, 0.88);
-  box-shadow:
-    0 20px 54px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(238, 243, 247, 0.045),
-    inset 0 0 0 1px color-mix(in oklab, var(--signal-agent) 5.5%, transparent);
+  background: var(--surface-panel);
+  background-image: none;
+  box-shadow: none;
 }
 
 .terminal-tile.staged::before {
   content: "";
+  display: none;
   position: absolute;
   inset: 42px auto 42px 0;
   width: 2px;
@@ -5644,16 +5831,6 @@ body {
   box-shadow: 0 0 0 2px var(--surface-canvas), 0 0 0 4px color-mix(in oklab, var(--signal-focus) 16%, transparent);
 }
 
-.terminal-tile:not(.arranging):hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--depth-raised);
-}
-
-.terminal-tile .xterm,
-.terminal-tile .terminal-viewport {
-  background: var(--surface-sunken);
-}
-
 /* --- Primary CTA: success green only --- */
 .mission-actions .new-terminal-button {
   background: var(--signal-success);
@@ -5738,29 +5915,6 @@ body {
 }
 
 /* --- Terminal tile actions: cyan active, quiet danger --- */
-.tile-primary-actions button {
-  border-color: color-mix(in oklab, var(--signal-focus) 42%, transparent);
-  color: var(--signal-focus-strong);
-}
-
-.tile-primary-actions button:hover,
-.tile-primary-actions button:focus-visible {
-  background: var(--signal-focus-soft);
-  border-color: color-mix(in oklab, var(--signal-focus) 60%, transparent);
-}
-
-.tile-danger-actions button {
-  background: transparent;
-  border-color: transparent;
-  color: var(--text-muted);
-}
-
-.tile-danger-actions button:hover,
-.tile-danger-actions button:focus-visible {
-  color: var(--signal-danger);
-  border-color: var(--line);
-}
-
 /* --- Command palette: raised modal, cyan active row --- */
 .command-palette-backdrop {
   background: rgba(3, 6, 5, 0.6);
@@ -7539,9 +7693,11 @@ body {
 }
 
 .context-drawer-header {
-  min-height: 48px;
+  min-height: 44px;
   border-bottom: 1px solid var(--line);
-  padding: 10px 12px;
+  padding: 8px 10px;
+  background: var(--surface-panel);
+  background-image: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -7575,10 +7731,39 @@ body {
 
 .context-drawer .workspace-preview-panel,
 .context-drawer .agent-timeline-panel {
-  width: auto;
+  width: 100%;
+  min-width: 0;
+  min-height: auto;
+  max-height: none;
   border: 0;
   border-radius: 0;
   background: transparent;
+  box-shadow: none;
+  display: block;
+  flex: none;
+  overflow: visible;
+  animation: none;
+}
+
+.context-drawer .workspace-preview-panel {
+  flex: 0 0 auto;
+  max-height: 32%;
+  overflow: auto;
+}
+
+.context-drawer .agent-timeline-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.context-drawer .agent-timeline-body {
+  overflow: visible;
+}
+
+.context-drawer .agent-session-pulse {
+  background: var(--surface-raised);
+  background-image: none;
   box-shadow: none;
 }
 
@@ -7666,6 +7851,10 @@ body {
 }
 
 .context-compact-status.hidden {
+  display: none;
+}
+
+.context-column .context-compact-status {
   display: none;
 }
 
@@ -7872,47 +8061,6 @@ body {
   box-shadow: none;
 }
 
-.terminal-stage-header,
-.context-drawer-header {
-  background: var(--surface-chrome-soft);
-  background-image: none;
-}
-
-.terminal-tile.restored,
-.terminal-tile.kind-manual,
-.terminal-tile.kind-codex,
-.terminal-tile.kind-claude,
-.terminal-tile.kind-dev-server,
-.terminal-tile.real-terminal.browser,
-.terminal-tile.staged {
-  background: var(--surface-panel);
-  background-image: none;
-  box-shadow: none;
-}
-
-.terminal-tile.staged::before {
-  display: none;
-}
-
-.terminal-status-label,
-.tile-actions button {
-  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
-  background-image: none;
-  box-shadow: none;
-}
-
-.terminal-tile.ready .tool-dot,
-.terminal-tile.selected .tool-dot,
-.terminal-tile.session-waiting .tool-dot,
-.terminal-tile.error .tool-dot,
-.terminal-status-label::before,
-.terminal-tile.real-terminal.error .tile-status::before,
-.terminal-tile.real-terminal.session-waiting .tile-status::before,
-.terminal-tile.selected .tile-status.status-active::before,
-.terminal-tile.staged .tile-status.status-blocked::before {
-  box-shadow: none;
-}
-
 .agent-session-pulse,
 .review-context-summary,
 .review-surface-item,
@@ -8070,16 +8218,6 @@ body {
   box-shadow: none;
 }
 
-.terminal-stage-header {
-  min-height: 38px;
-  padding: 8px 10px;
-}
-
-.terminal-tile .terminal-host,
-.terminal-tile .xterm-host {
-  background: var(--surface-terminal);
-}
-
 .review-surface,
 .observatory-surface {
   overflow: hidden;
@@ -8158,25 +8296,6 @@ body {
   background: var(--surface-raised);
 }
 
-.context-column .context-compact-status {
-  display: none;
-}
-
-.context-drawer-header {
-  min-height: 44px;
-  padding: 8px 10px;
-  background: var(--surface-panel);
-}
-
-.context-drawer .workspace-preview-panel,
-.context-drawer .agent-timeline-panel {
-  background: transparent;
-}
-
-.context-drawer .agent-timeline-panel {
-  overflow: auto;
-}
-
 .agent-handoff-buttons {
   padding-right: 0;
 }
@@ -8233,32 +8352,7 @@ body {
   }
 }
 
-.terminal-status-label,
-.tile-actions button,
 .recovery-banner {
-  background-image: none;
-  box-shadow: none;
-}
-
-.context-drawer .workspace-preview-panel,
-.context-drawer .agent-timeline-panel {
-  width: 100%;
-  min-width: 0;
-  min-height: auto;
-  max-height: none;
-  border: 0;
-  display: block;
-  flex: none;
-  overflow: visible;
-  animation: none;
-}
-
-.context-drawer .agent-timeline-body {
-  overflow: visible;
-}
-
-.context-drawer .agent-session-pulse {
-  background: var(--surface-raised);
   background-image: none;
   box-shadow: none;
 }
@@ -8382,41 +8476,6 @@ body {
   background-image: none;
 }
 
-.context-drawer .workspace-preview-panel {
-  flex: 0 0 auto;
-  max-height: 32%;
-  overflow: auto;
-}
-
-.context-drawer .agent-timeline-panel {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-}
-
-.context-drawer .agent-timeline-body {
-  overflow: visible;
-}
-
-.tile-resize-handle {
-  right: 8px;
-  bottom: 8px;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
-  background-image: none;
-  box-shadow: none;
-}
-
-.tile-resize-handle::before {
-  right: 7px;
-  bottom: 7px;
-  width: 13px;
-  height: 13px;
-  box-shadow: none;
-}
-
 .workspace-popover {
   z-index: 90;
   background: var(--surface-panel);
@@ -8460,9 +8519,6 @@ body {
 
 .workspace-button,
 .workspace-button.active,
-.terminal-status-label,
-.tile-actions button,
-.agent-session-pulse,
 .review-surface-item,
 .observatory-session-row,
 .observatory-detail-card {
@@ -8535,203 +8591,6 @@ body {
 
 .quiet-count-dot.attention {
   background: var(--brass);
-}
-
-.terminal-stage-header {
-  min-height: 34px;
-  padding: 6px 9px;
-}
-
-.terminal-stage.arranging .layout-controls {
-  gap: 6px;
-}
-
-.arrange-mode-label {
-  min-height: 24px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 0 9px;
-  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
-  color: var(--text-primary);
-  font: 650 11px/24px var(--mono);
-}
-
-.arrange-hint {
-  min-height: 24px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 0 9px;
-  background: transparent;
-  color: var(--text-muted);
-  font: 600 10px/24px var(--mono);
-}
-
-.terminal-tile-header .tile-title {
-  min-width: 0;
-}
-
-.terminal-tile-header .tile-title b {
-  color: var(--text-secondary);
-  font: 650 13px/1.12 var(--sans);
-  letter-spacing: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.terminal-tile-header .tile-title small {
-  color: var(--text-faint);
-  font: 500 10px/1.2 var(--mono);
-}
-
-.terminal-tile.real-terminal .tool-dot {
-  width: 5px;
-  height: 5px;
-  opacity: 0.42;
-}
-
-.terminal-tile.real-terminal.ready .tool-dot {
-  background: var(--faint);
-}
-
-.terminal-tile.real-terminal.selected .tool-dot,
-.terminal-tile.real-terminal.session-waiting .tool-dot,
-.terminal-tile.real-terminal.error .tool-dot {
-  opacity: 0.68;
-}
-
-.terminal-tile.real-terminal .tile-kind-mark {
-  width: 24px;
-  min-width: 24px;
-  min-height: 22px;
-  gap: 0;
-}
-
-.terminal-tile.real-terminal .tile-kind-mark span {
-  display: none;
-}
-
-.tile-actions {
-  gap: 5px;
-}
-
-.tile-action-group {
-  gap: 4px;
-}
-
-.tile-status-group {
-  color: var(--text-faint);
-}
-
-.tile-utility-actions,
-.tile-danger-actions {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-}
-
-.tile-primary-actions {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.terminal-tile:hover .tile-utility-actions,
-.terminal-tile:hover .tile-danger-actions,
-.terminal-tile:focus-within .tile-utility-actions,
-.terminal-tile:focus-within .tile-danger-actions {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.tile-actions button {
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  min-height: 28px;
-  border-radius: 7px;
-}
-
-.tile-utility-actions button,
-.tile-danger-actions button {
-  background: transparent;
-  border-color: var(--border);
-  color: var(--text-faint);
-}
-
-.tile-utility-actions button:hover,
-.tile-utility-actions button:focus-visible {
-  background: var(--surface-control-hover);
-  border-color: var(--border-focus);
-  color: var(--text-secondary);
-}
-
-.tile-danger-actions button:hover,
-.tile-danger-actions button:focus-visible {
-  background: color-mix(in oklab, var(--alert-red) 7%, var(--surface-control));
-  border-color: color-mix(in oklab, var(--alert-red) 30%, transparent);
-  color: color-mix(in oklab, var(--alert-red) 82%, white 12%);
-}
-
-.tile-primary-actions .continue-button {
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: color-mix(in oklab, var(--role-active) 5%, var(--surface-control));
-  border-color: color-mix(in oklab, var(--role-active) 28%, var(--border));
-  color: var(--signal-focus-strong);
-}
-
-.terminal-status-label {
-  min-height: 22px;
-  padding: 0 7px;
-  border-radius: 7px;
-  font-size: 10px;
-}
-
-.terminal-tile-header .tile-title {
-  flex: 1 1 auto;
-  min-width: 140px;
-  overflow: hidden;
-}
-
-.terminal-tile-header .tile-title:has(.session-rename-form) {
-  overflow: visible;
-  min-width: max-content;
-}
-
-.terminal-tile-header .tile-title > div {
-  min-width: 0;
-}
-
-.terminal-tile-header .tile-title > div:has(.session-rename-form) {
-  min-width: max-content;
-  overflow: visible;
-}
-
-.terminal-tile-header .tile-title b,
-.terminal-tile-header .tile-title small,
-.terminal-tile-header .session-location-value {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.terminal-tile-header .tile-actions {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.tile-primary-actions .continue-button {
-  max-width: 124px;
-}
-
-.tile-primary-actions .continue-button span,
-.terminal-status-text {
-  max-width: 86px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 @container terminal-tile (max-width: 520px) {
