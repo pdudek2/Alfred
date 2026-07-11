@@ -1009,10 +1009,6 @@ button:focus-visible {
   overflow: hidden;
 }
 
-.side-dock-stack > .alfred-dock.compact {
-  align-self: flex-end;
-}
-
 .side-dock-stack > .agent-timeline-panel {
   width: 100%;
   min-width: 0;
@@ -2007,11 +2003,45 @@ button:focus-visible {
 
 .terminal-tile:not(.arranging):hover {
   transform: translateY(-1px);
-  border-color: color-mix(in oklab, white 13%, transparent);
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklab, white 10%, transparent),
-    0 4px 10px -2px rgba(0, 0, 0, 0.4),
-    0 24px 48px -22px rgba(0, 0, 0, 0.9);
+  border-color: color-mix(in oklab, var(--signal-focus) 24%, var(--border));
+  box-shadow: none;
+}
+
+.terminal-tile.selected {
+  outline: none;
+  outline-offset: 2px;
+  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
+  box-shadow: none;
+}
+
+.terminal-tile:focus-visible {
+  outline: none;
+  border-color: color-mix(in oklab, var(--signal-focus) 24%, var(--border));
+  box-shadow: none;
+}
+
+.terminal-tile:focus-within {
+  outline: 1px solid var(--focus-border);
+  outline-offset: 2px;
+  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
+  box-shadow: none;
+}
+
+.terminal-tile.collapsed {
+  grid-template-rows: 42px 0;
+  min-height: 42px;
+}
+
+.terminal-tile.collapsed .xterm-host {
+  min-height: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.terminal-tile.collapsed .terminal-viewport,
+.terminal-tile.collapsed .xterm {
+  min-height: 0;
 }
 
 .terminal-tile.restored {
@@ -2031,10 +2061,6 @@ button:focus-visible {
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
-}
-
-.terminal-tile:focus-visible {
-  outline: none;
 }
 
 .terminal-tile.arranging {
@@ -2627,20 +2653,6 @@ body.arranging-pointer {
   opacity: 0.76;
 }
 
-.terminal-tile.selected,
-.terminal-tile:focus-within {
-  outline: 1px solid var(--focus-border);
-  outline-offset: 2px;
-  border-color: color-mix(in oklab, var(--signal-focus) 36%, transparent);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--signal-focus) 38%, transparent),
-    inset 0 1px 0 color-mix(in oklab, white 12%, transparent),
-    0 0 0 1px rgba(3, 4, 4, 0.88),
-    0 0 0 3px color-mix(in oklab, var(--signal-focus) 14%, transparent),
-    0 18px 38px -22px color-mix(in oklab, var(--signal-focus) 42%, black 58%),
-    0 28px 50px -22px rgba(0, 0, 0, 0.9);
-}
-
 .arrange-handle {
   width: 22px;
   height: 18px;
@@ -3215,6 +3227,10 @@ body.arranging-pointer {
     0 16px 30px -24px rgba(0, 0, 0, 0.8);
 }
 
+.side-dock-stack > .alfred-dock.compact {
+  align-self: flex-end;
+}
+
 .alfred-dock-header {
   min-width: 0;
   display: grid;
@@ -3525,6 +3541,35 @@ body.arranging-pointer {
     rgba(7, 10, 14, 0.92);
 }
 
+.dispatch-bar {
+  min-height: 0;
+  border-top: 1px solid var(--border);
+  border-color: var(--border);
+  border-radius: var(--radius-panel);
+  padding: 4px 10px;
+  background: var(--surface-canvas);
+  background-image: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--control-height) 14px;
+  gap: 3px;
+}
+
+.dispatch-target-chip,
+.dispatch-bar .composer-input,
+.dispatch-bar .composer-send {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  border: 0;
+  border-radius: calc(var(--radius-control) - 2px);
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+
 .composer-input {
   min-width: 0;
   min-height: 36px;
@@ -3561,9 +3606,20 @@ body.arranging-pointer {
   background:
     linear-gradient(180deg, rgba(0, 0, 0, 0.16), color-mix(in oklab, var(--signal-focus) 5%, transparent)),
     rgba(5, 9, 12, 0.94);
-  box-shadow:
-    inset 0 1px 0 rgba(238, 243, 247, 0.03),
-    0 0 0 1px color-mix(in oklab, var(--signal-focus) 12%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--signal-focus) 16%, transparent), 0 0 0 4px color-mix(in oklab, var(--signal-focus) 12%, transparent);
+}
+
+.dispatch-bar .composer-input {
+  grid-column: 3;
+  flex: 1 1 auto;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.dispatch-bar .composer-input:focus-visible {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .composer-input:disabled {
@@ -3614,6 +3670,35 @@ body.arranging-pointer {
   color: color-mix(in oklab, var(--muted) 88%, var(--ink-soft));
   cursor: not-allowed;
   opacity: 1;
+}
+
+.dispatch-bar .composer-send {
+  grid-column: 4;
+  flex: 0 0 auto;
+  min-width: 76px;
+  border-color: var(--line);
+  padding: 0 12px;
+  background: var(--role-control);
+  background-image: none;
+  box-shadow: none;
+  color: var(--text-secondary);
+  font: 600 12px/1 var(--sans);
+}
+
+.dispatch-bar .composer-send:disabled {
+  color: var(--text-faint);
+}
+
+.dispatch-bar[data-state="ready"] .composer-send:enabled {
+  background: color-mix(in oklab, var(--role-active) 5%, var(--surface-control));
+  border-color: color-mix(in oklab, var(--role-active) 28%, var(--line));
+  color: var(--signal-focus-strong);
+}
+
+.dispatch-bar[data-state="busy"] .composer-send:enabled {
+  background: color-mix(in oklab, var(--role-attention) 9%, var(--surface-control));
+  border-color: color-mix(in oklab, var(--role-attention) 36%, var(--line));
+  color: color-mix(in oklab, var(--role-attention) 86%, white 8%);
 }
 
 .composer-bar[data-state="ready"] .composer-send:enabled {
@@ -3678,6 +3763,29 @@ body.arranging-pointer {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.dispatch-bar .composer-status-row {
+  grid-column: 1;
+  min-width: 0;
+  min-height: 14px;
+  padding: 0 3px;
+  gap: 6px;
+  opacity: 1;
+  overflow: hidden;
+}
+
+.dispatch-bar .composer-status {
+  color: var(--text-faint);
+  font: 400 11px/1.2 var(--sans);
+  letter-spacing: 0;
+}
+
+.dispatch-bar .composer-status-indicator {
+  width: 6px;
+  height: 6px;
+  border: 0;
+  border-radius: 999px;
 }
 
 .composer-blocked-action {
@@ -5541,16 +5649,6 @@ body {
   box-shadow: var(--depth-raised);
 }
 
-.terminal-tile.selected,
-.terminal-tile:focus-visible {
-  outline: none;
-  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--signal-focus) 30%, transparent),
-    0 0 0 4px color-mix(in oklab, var(--signal-focus) 12%, transparent),
-    var(--depth-raised);
-}
-
 .terminal-tile .xterm,
 .terminal-tile .terminal-viewport {
   background: var(--surface-sunken);
@@ -5581,10 +5679,6 @@ body {
   background: var(--surface-panel);
   border: 1px solid var(--line);
   box-shadow: var(--depth-card);
-}
-
-.composer-input:focus-visible {
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--signal-focus) 16%, transparent), 0 0 0 4px color-mix(in oklab, var(--signal-focus) 12%, transparent);
 }
 
 /* Handoff actions read as a quiet utility row, not a primary panel. */
@@ -6065,15 +6159,6 @@ body {
 .workspace-priority-chip.tone-quiet,
 .workspace-priority-chip.tone-empty {
   background: rgba(2, 6, 4, 0.34);
-}
-
-.terminal-tile.selected,
-.terminal-tile:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 27%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--signal-focus) 24%, transparent),
-    0 0 0 3px color-mix(in oklab, var(--signal-focus) 8%, transparent),
-    var(--depth-raised);
 }
 
 .split-empty-state {
@@ -7354,13 +7439,6 @@ body {
   background: rgba(4, 8, 7, 0.94);
 }
 
-.workspace-layout:has(.context-column.closed),
-.workspace-layout.alfred-compact:has(.context-column.closed),
-.workspace-layout.preview-visible:has(.context-column.closed),
-.workspace-layout.alfred-compact.preview-visible:has(.context-column.closed) {
-  grid-template-columns: 54px 252px minmax(0, 1fr) minmax(246px, 292px);
-}
-
 .workspace-rail,
 .agent-timeline-panel,
 .workspace-preview-panel,
@@ -7379,11 +7457,6 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.035),
     0 16px 34px -30px rgba(0, 0, 0, 0.9);
-}
-
-.dispatch-bar {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 
 .context-toggle-button {
@@ -7529,6 +7602,56 @@ body {
   -webkit-backdrop-filter: none;
 }
 
+.context-column.closed {
+  display: none;
+}
+
+.context-column.open {
+  pointer-events: auto;
+}
+
+.workspace-layout,
+.workspace-layout.alfred-compact,
+.workspace-layout.preview-visible,
+.workspace-layout.alfred-compact.preview-visible,
+.workspace-layout:has(.context-column.closed),
+.workspace-layout.alfred-compact:has(.context-column.closed),
+.workspace-layout.preview-visible:has(.context-column.closed),
+.workspace-layout.alfred-compact.preview-visible:has(.context-column.closed),
+.workspace-layout.surface-inbox,
+.workspace-layout.surface-history,
+.workspace-layout.surface-inbox.preview-visible,
+.workspace-layout.surface-history.preview-visible,
+.workspace-layout.surface-inbox.alfred-compact,
+.workspace-layout.surface-history.alfred-compact {
+  grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr);
+}
+
+.workspace-layout:has(.context-column.open),
+.workspace-layout.alfred-compact:has(.context-column.open),
+.workspace-layout.preview-visible:has(.context-column.open),
+.workspace-layout.alfred-compact.preview-visible:has(.context-column.open),
+.workspace-layout.surface-inbox:has(.context-column.open),
+.workspace-layout.surface-history:has(.context-column.open) {
+  grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr) minmax(304px, 340px);
+}
+
+.workspace-layout > .context-column.open {
+  position: static;
+  inset: auto;
+  grid-column: 4;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  display: flex;
+  pointer-events: auto;
+}
+
+.workspace-layout > .context-column.closed {
+  display: none;
+}
+
 .context-column.open .context-drawer,
 .context-compact-status,
 .context-compact-status > .alfred-dock {
@@ -7544,14 +7667,6 @@ body {
 
 .context-compact-status.hidden {
   display: none;
-}
-
-.dispatch-bar {
-  border-top: 1px solid var(--line);
-  background: rgba(5, 11, 9, 0.98);
-  padding: 8px;
-  grid-template-columns: 30px minmax(150px, 220px) minmax(0, 1fr) 96px;
-  grid-template-rows: 36px 16px;
 }
 
 .dispatch-target-chip {
@@ -7591,37 +7706,6 @@ body {
 .dispatch-target-chip:focus-visible {
   border-color: var(--focus-border);
   outline: none;
-}
-
-.dispatch-bar .composer-input {
-  grid-column: 3;
-  border-radius: 10px;
-  background: rgba(2, 6, 5, 0.92);
-}
-
-.dispatch-bar .composer-send {
-  grid-column: 4;
-}
-
-.dispatch-bar .composer-status-row {
-  grid-column: 2 / 5;
-}
-
-.terminal-tile.collapsed {
-  grid-template-rows: 42px 0;
-  min-height: 42px;
-}
-
-.terminal-tile.collapsed .xterm-host {
-  min-height: 0;
-  height: 0;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.terminal-tile.collapsed .terminal-viewport,
-.terminal-tile.collapsed .xterm {
-  min-height: 0;
 }
 
 .inbox-section-stack {
@@ -7670,7 +7754,6 @@ body {
 }
 
 .workspace-rail,
-.dispatch-bar,
 .workspace-popover,
 .review-surface,
 .observatory-surface,
@@ -7795,14 +7878,6 @@ body {
   background-image: none;
 }
 
-.terminal-tile:not(.arranging):hover,
-.terminal-tile.selected,
-.terminal-tile:focus-visible,
-.terminal-tile:focus-within {
-  border-color: color-mix(in oklab, var(--signal-focus) 24%, var(--border));
-  box-shadow: none;
-}
-
 .terminal-tile.restored,
 .terminal-tile.kind-manual,
 .terminal-tile.kind-codex,
@@ -7850,8 +7925,7 @@ body {
   box-shadow: none;
 }
 
-.dispatch-target-chip,
-.dispatch-bar .composer-input {
+.dispatch-target-chip {
   background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
   background-image: none;
   box-shadow: none;
@@ -7890,10 +7964,6 @@ body {
 .workspace-layout.alfred-compact,
 .workspace-layout.preview-visible,
 .workspace-layout.alfred-compact.preview-visible,
-.workspace-layout:has(.context-column.closed),
-.workspace-layout.alfred-compact:has(.context-column.closed),
-.workspace-layout.preview-visible:has(.context-column.closed),
-.workspace-layout.alfred-compact.preview-visible:has(.context-column.closed),
 .workspace-layout.surface-inbox,
 .workspace-layout.surface-history,
 .workspace-layout.surface-inbox.preview-visible,
@@ -7910,7 +7980,6 @@ body {
 .review-surface,
 .observatory-surface,
 .workspace-rail,
-.dispatch-bar,
 .workspace-popover {
   border-color: var(--border);
   border-radius: var(--radius-panel);
@@ -8006,11 +8075,6 @@ body {
   padding: 8px 10px;
 }
 
-.terminal-tile.selected,
-.terminal-tile:focus-within {
-  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
-}
-
 .terminal-tile .terminal-host,
 .terminal-tile .xterm-host {
   background: var(--surface-terminal);
@@ -8094,14 +8158,6 @@ body {
   background: var(--surface-raised);
 }
 
-.context-column.closed {
-  display: none;
-}
-
-.context-column.open {
-  pointer-events: auto;
-}
-
 .context-column .context-compact-status {
   display: none;
 }
@@ -8125,13 +8181,7 @@ body {
   padding-right: 0;
 }
 
-.dispatch-bar {
-  border-top-color: var(--border);
-  background: #050b08;
-}
-
-.dispatch-target-chip,
-.dispatch-bar .composer-input {
+.dispatch-target-chip {
   border-color: var(--border);
   border-radius: var(--radius-control);
   background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
@@ -8332,31 +8382,6 @@ body {
   background-image: none;
 }
 
-.workspace-layout:has(.context-column.open),
-.workspace-layout.alfred-compact:has(.context-column.open),
-.workspace-layout.preview-visible:has(.context-column.open),
-.workspace-layout.alfred-compact.preview-visible:has(.context-column.open),
-.workspace-layout.surface-inbox:has(.context-column.open),
-.workspace-layout.surface-history:has(.context-column.open) {
-  grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr) minmax(304px, 340px);
-}
-
-.workspace-layout > .context-column.open {
-  position: static;
-  inset: auto;
-  grid-column: 4;
-  width: auto;
-  min-width: 0;
-  min-height: 0;
-  height: auto;
-  display: flex;
-  pointer-events: auto;
-}
-
-.workspace-layout > .context-column.closed {
-  display: none;
-}
-
 .context-drawer .workspace-preview-panel {
   flex: 0 0 auto;
   max-height: 32%;
@@ -8454,10 +8479,6 @@ body {
 
 .dispatch-target-chip span {
   min-width: max-content;
-}
-
-.dispatch-bar .composer-send {
-  font-weight: 650;
 }
 
 @media (max-width: 1180px) {
@@ -8731,16 +8752,6 @@ body {
   }
 }
 
-.dispatch-bar {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: var(--control-height) 14px;
-  gap: 3px;
-  padding: 4px 10px;
-  min-height: 0;
-  background: var(--surface-canvas);
-  background-image: none;
-}
-
 .dispatch-capsule {
   min-width: 0;
   height: var(--control-height);
@@ -8759,9 +8770,7 @@ body {
   border-color: var(--border-focus);
 }
 
-.dispatch-target-chip,
-.dispatch-bar .composer-input,
-.dispatch-bar .composer-send {
+.dispatch-target-chip {
   height: auto;
   min-height: 0;
   max-height: none;
@@ -8796,18 +8805,6 @@ body {
   font-weight: 650;
 }
 
-.dispatch-bar .composer-input {
-  flex: 1 1 auto;
-  padding: 4px 10px;
-  font-size: 12px;
-}
-
-.dispatch-bar .composer-input:focus-visible {
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
 .dispatch-kbd-hint {
   flex: 0 0 auto;
   align-self: center;
@@ -8825,40 +8822,6 @@ body {
   place-items: center;
   color: var(--text-faint);
   font: 500 10px/1 var(--mono);
-}
-
-.dispatch-bar .composer-send {
-  flex: 0 0 auto;
-  min-width: 76px;
-  padding: 0 12px;
-  font: 600 12px/1 var(--sans);
-}
-
-.dispatch-bar .composer-send:disabled {
-  color: var(--text-faint);
-}
-
-.dispatch-bar .composer-status-row {
-  grid-column: 1;
-  min-width: 0;
-  min-height: 14px;
-  padding: 0 3px;
-  gap: 6px;
-  opacity: 1;
-  overflow: hidden;
-}
-
-.dispatch-bar .composer-status {
-  color: var(--text-faint);
-  font: 400 11px/1.2 var(--sans);
-  letter-spacing: 0;
-}
-
-.dispatch-bar .composer-status-indicator {
-  width: 6px;
-  height: 6px;
-  border: 0;
-  border-radius: 999px;
 }
 
 /* Terminal-first color role layer. */
@@ -8962,26 +8925,6 @@ body {
 .agent-activity-object.type-command,
 .agent-activity-object.type-file {
   color: var(--role-active);
-}
-
-.dispatch-bar .composer-send {
-  background: var(--role-control);
-  background-image: none;
-  border-color: var(--line);
-  color: var(--text-secondary);
-  box-shadow: none;
-}
-
-.dispatch-bar[data-state="ready"] .composer-send:enabled {
-  background: color-mix(in oklab, var(--role-active) 5%, var(--surface-control));
-  border-color: color-mix(in oklab, var(--role-active) 28%, var(--line));
-  color: var(--signal-focus-strong);
-}
-
-.dispatch-bar[data-state="busy"] .composer-send:enabled {
-  background: color-mix(in oklab, var(--role-attention) 9%, var(--surface-control));
-  border-color: color-mix(in oklab, var(--role-attention) 36%, var(--line));
-  color: color-mix(in oklab, var(--role-attention) 86%, white 8%);
 }
 
 .agent-timeline-header strong {

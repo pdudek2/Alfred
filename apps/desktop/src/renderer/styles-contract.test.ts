@@ -123,6 +123,43 @@ function expectCanonicalBase(selector: string, requiredDeclarations: string[]): 
   for (const declaration of requiredDeclarations) expect(bodies[0]).toContain(declaration);
 }
 
+function expectTopLevelOwnerWithin(
+  selector: string,
+  requiredDeclarations: string[],
+  startMarker: string,
+  endMarker: string,
+): void {
+  const bodies = topLevelExactRuleBodies(selector);
+  expect(bodies, `${selector} must have one top-level owner`).toHaveLength(1);
+  const start = styles.indexOf(startMarker);
+  const end = styles.indexOf(endMarker, start + startMarker.length);
+  expect(start, `Missing owner-region start marker ${startMarker}`).toBeGreaterThanOrEqual(0);
+  expect(end, `Missing owner-region end marker ${endMarker}`).toBeGreaterThan(start);
+  const regionalBodies = exactRuleBodiesIn(styles.slice(start, end), selector);
+  expect(regionalBodies, `${selector} must be inside ${startMarker} … ${endMarker}`).toHaveLength(1);
+  for (const declaration of requiredDeclarations) expect(regionalBodies[0]).toContain(declaration);
+}
+
+function expectTopLevelDeclarationOwnerWithin(
+  selector: string,
+  requiredDeclarations: string[],
+  startMarker: string,
+  endMarker: string,
+): void {
+  const matchingBodies = topLevelExactRuleBodies(selector).filter((body) =>
+    requiredDeclarations.every((declaration) => body.includes(declaration)),
+  );
+  expect(matchingBodies, `${selector} must have one owner for ${requiredDeclarations.join(", ")}`).toHaveLength(1);
+  const start = styles.indexOf(startMarker);
+  const end = styles.indexOf(endMarker, start + startMarker.length);
+  expect(start, `Missing owner-region start marker ${startMarker}`).toBeGreaterThanOrEqual(0);
+  expect(end, `Missing owner-region end marker ${endMarker}`).toBeGreaterThan(start);
+  const regionalMatchingBodies = exactRuleBodiesIn(styles.slice(start, end), selector).filter((body) =>
+    requiredDeclarations.every((declaration) => body.includes(declaration)),
+  );
+  expect(regionalMatchingBodies, `${selector} declaration owner must be inside ${startMarker} … ${endMarker}`).toHaveLength(1);
+}
+
 function ruleForSelectorContaining(selector: string): { selectors: string; body: string } {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matches = [
@@ -276,20 +313,64 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps canonical base owners for terminal Context and composer", () => {
+    expectCanonicalBase(".terminal-stage", ["display: grid", "overflow: hidden"]);
     expectCanonicalBase(".terminal-stage-body", ["min-height: 0", "overflow: hidden"]);
     expectCanonicalBase(".terminal-grid-column", ["overflow-y: auto", "height: 100%"]);
+    expectCanonicalBase(".terminal-grid", ["display: grid", "min-height: 0"]);
+    expectCanonicalBase(".terminal-tile", ["display: grid", "overflow: hidden"]);
+    expectCanonicalBase(".context-column", ["position: absolute", "pointer-events: none"]);
+    expectCanonicalBase(".context-drawer", ["display: flex", "overflow: hidden"]);
     expectCanonicalBase(".composer-bar", ["display: grid", "min-height: 66px"]);
+    expectCanonicalBase(".composer-input", ["box-sizing: border-box", "resize: none"]);
+    expectCanonicalBase(".composer-send", ["display: inline-flex", "cursor: pointer"]);
 
-    expect(topLevelExactRuleBodies(".terminal-stage.arranging .terminal-grid-column")).toHaveLength(1);
-    expect(topLevelExactRuleBodies(".terminal-grid.laid-out")).toHaveLength(1);
-    expect(topLevelExactRuleBodies(".context-column.open")).toHaveLength(1);
-    expect(topLevelExactRuleBodies(".context-column.closed")).toHaveLength(1);
-    expect(topLevelExactRuleBodies('.composer-bar[data-state="busy"]')).toHaveLength(1);
-    expect(topLevelExactRuleBodies('.composer-bar[data-state="blocked"]')).toHaveLength(1);
-    expect(topLevelExactRuleBodies('.composer-bar[data-state="disabled"]')).toHaveLength(1);
-    expect(topLevelExactRuleBodies('.composer-bar[data-state="ready"] .composer-status-indicator')).toHaveLength(1);
-    expect(topLevelExactRuleBodies('.composer-bar[data-state="busy"] .composer-status-indicator')).toHaveLength(1);
-    expect(topLevelExactRuleBodies('.composer-bar[data-state="blocked"] .composer-status-indicator')).toHaveLength(1);
+    const terminalGridStart = ".terminal-stage {";
+    const terminalGridEnd = ".terminal-empty-state {";
+    expectTopLevelOwnerWithin(".terminal-grid.laid-out", ["--grid-bottom-safe-zone: 76px", "grid-auto-rows: 84px"], terminalGridStart, terminalGridEnd);
+    expectTopLevelOwnerWithin(".terminal-grid.laid-out.dense", ["align-content: start"], terminalGridStart, terminalGridEnd);
+    expectTopLevelOwnerWithin(".terminal-stage.arranging .terminal-grid-column", ["overflow-y: auto", "padding-bottom: 18px"], terminalGridStart, terminalGridEnd);
+
+    const terminalTileStart = ".terminal-tile {";
+    const terminalTileEnd = ".tile-header {";
+    expectTopLevelOwnerWithin(".terminal-stage.mode-focus .terminal-tile.focus-hidden", ["visibility: hidden", "pointer-events: none"], terminalTileStart, terminalTileEnd);
+    expectTopLevelOwnerWithin(".terminal-tile.selected", ["border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
+    expectTopLevelOwnerWithin(".terminal-tile:focus-visible", ["border-color: color-mix(in oklab, var(--signal-focus) 24%, var(--border))", "box-shadow: none"], terminalTileStart, terminalTileEnd);
+    expectTopLevelOwnerWithin(".terminal-tile:focus-within", ["outline: 1px solid var(--focus-border)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
+    expectTopLevelOwnerWithin(".terminal-tile.collapsed", ["grid-template-rows: 42px 0", "min-height: 42px"], terminalTileStart, terminalTileEnd);
+
+    const dockStart = ".alfred-dock {";
+    const dockEnd = ".alfred-dock-header {";
+    expectTopLevelOwnerWithin(".alfred-dock.compact", ["width: 44px", "place-items: center"], dockStart, dockEnd);
+    expectTopLevelOwnerWithin(".side-dock-stack > .alfred-dock.compact", ["align-self: flex-end"], dockStart, dockEnd);
+
+    const contextStart = ".context-drawer {";
+    const contextEnd = ".dispatch-target-chip {";
+    expectTopLevelOwnerWithin(".context-drawer.closed", ["display: none"], contextStart, contextEnd);
+    expectTopLevelOwnerWithin(".context-drawer.open", ["display: flex"], contextStart, contextEnd);
+    expectTopLevelOwnerWithin(".context-column.closed", ["display: none"], contextStart, contextEnd);
+    expectTopLevelOwnerWithin(".context-column.open", ["pointer-events: auto"], contextStart, contextEnd);
+    expectTopLevelOwnerWithin(".workspace-layout:has(.context-column.closed)", ["grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr)"], contextStart, contextEnd);
+    expectTopLevelOwnerWithin(".workspace-layout:has(.context-column.open)", ["minmax(304px, 340px)"], contextStart, contextEnd);
+    expectTopLevelOwnerWithin(".workspace-layout > .context-column.open", ["position: static", "grid-column: 4", "display: flex"], contextStart, contextEnd);
+    expectTopLevelOwnerWithin(".workspace-layout > .context-column.closed", ["display: none"], contextStart, contextEnd);
+
+    const composerStart = ".composer-bar {";
+    const composerEnd = "/* Focus mode and inspector */";
+    expectTopLevelOwnerWithin('.composer-bar[data-state="busy"]', ["var(--signal-focus) 4%"], composerStart, composerEnd);
+    expectTopLevelOwnerWithin('.composer-bar[data-state="blocked"]', ["var(--signal-agent) 4%"], composerStart, composerEnd);
+    expectTopLevelOwnerWithin('.composer-bar[data-state="disabled"]', ["rgba(7, 10, 14, 0.92)"], composerStart, composerEnd);
+    expectTopLevelOwnerWithin(".composer-input:focus-visible", ["border-color: var(--focus-border)", "0 0 0 4px"], composerStart, composerEnd);
+    expectTopLevelOwnerWithin(".dispatch-bar", ["grid-template-columns: minmax(0, 1fr)", "background: var(--surface-canvas)"], composerStart, composerEnd);
+    expectTopLevelDeclarationOwnerWithin(".dispatch-bar .composer-input", ["grid-column: 3", "flex: 1 1 auto"], composerStart, composerEnd);
+    expectTopLevelOwnerWithin(".dispatch-bar .composer-input:focus-visible", ["border: 0", "box-shadow: none"], composerStart, composerEnd);
+    expectTopLevelDeclarationOwnerWithin(".dispatch-bar .composer-send", ["min-width: 76px", "background: var(--role-control)"], composerStart, composerEnd);
+    expectTopLevelOwnerWithin(".dispatch-bar .composer-send:disabled", ["color: var(--text-faint)"], composerStart, composerEnd);
+    expectTopLevelOwnerWithin('.dispatch-bar[data-state="ready"] .composer-send:enabled', ["var(--role-active) 5%", "var(--role-active) 28%"], composerStart, composerEnd);
+    expectTopLevelOwnerWithin('.dispatch-bar[data-state="busy"] .composer-send:enabled', ["var(--role-attention) 9%", "var(--role-attention) 36%"], composerStart, composerEnd);
+    expectTopLevelOwnerWithin('.composer-bar[data-state="blocked"] .composer-send:enabled', ["var(--signal-agent) 28%"], composerStart, composerEnd);
+    expectTopLevelOwnerWithin('.composer-bar[data-state="ready"] .composer-status-indicator', ["var(--signal-focus) 8%"], composerStart, composerEnd);
+    expectTopLevelOwnerWithin('.composer-bar[data-state="busy"] .composer-status-indicator', ["var(--cyan) 9%"], composerStart, composerEnd);
+    expectTopLevelOwnerWithin('.composer-bar[data-state="blocked"] .composer-status-indicator', ["var(--brass) 10%"], composerStart, composerEnd);
   });
 
   it("uses one canonical tactical-dark token hierarchy", () => {
