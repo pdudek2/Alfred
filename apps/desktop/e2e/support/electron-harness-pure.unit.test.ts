@@ -53,6 +53,7 @@ For help, see: https://nodejs.org/en/docs/inspector
     expect(isAllowedElectronMainOutput("main-stderr", firstXpcLine)).toBe(true);
     expect(isAllowedElectronMainOutput("main-stderr", `${firstXpcLine}\n`)).toBe(true);
     expect(isAllowedElectronMainOutput("main-stderr", `${firstXpcLine}\n${secondXpcLine}\n`)).toBe(true);
+    expect(isAllowedElectronMainOutput("main-stderr", `${firstXpcLine}\r\n${secondXpcLine}\r\n`)).toBe(true);
   });
 
   it("rejects non-canonical or mixed macOS XPC output", () => {
