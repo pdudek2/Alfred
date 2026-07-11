@@ -33,7 +33,6 @@ function renderSurface(
   armedRecoverySessionIds = new Set<string>(),
 ) {
   const handlers = {
-    onApproveTile: vi.fn(),
     onContinueRestoredSession: vi.fn(),
     onDiscardSession: vi.fn(),
     onFocusItem: vi.fn(),
@@ -381,7 +380,17 @@ describe("ReviewSurface", () => {
       ),
     ]);
 
-    expect(screen.getByRole("button", { name: "Review details UI/UX Deep Analysis in Alfred" })).toBeEnabled();
+    const reviewDetails = screen.getByRole("button", {
+      name: "Review details UI/UX Deep Analysis in Alfred",
+    });
+    expect(reviewDetails).toBeEnabled();
+
+    await user.click(reviewDetails);
+
+    expect(handlers.onReviewBlockedItem).toHaveBeenCalledWith("A", "claude-review");
+    expect(handlers.onLaunchItem).not.toHaveBeenCalled();
+    expect(handlers.onRestartSession).not.toHaveBeenCalled();
+
     await user.click(screen.getByRole("button", { name: "Discard UI/UX Deep Analysis from Alfred" }));
 
     expect(handlers.onDiscardSession).toHaveBeenCalledWith("claude-review");
@@ -420,6 +429,5 @@ describe("ReviewSurface", () => {
 
     expect(handlers.onReviewBlockedItem).toHaveBeenCalledWith("A", "risky-cleanup");
     expect(handlers.onLaunchItem).not.toHaveBeenCalled();
-    expect(handlers.onApproveTile).not.toHaveBeenCalled();
   });
 });
