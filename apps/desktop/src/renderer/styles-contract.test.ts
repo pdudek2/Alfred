@@ -47,15 +47,56 @@ function exactBlockFor(selector: string): string {
   return matches.at(-1)?.groups?.body ?? "";
 }
 
-function exactRuleBodies(selector: string): string[] {
-  const commentlessStyles = styles.replace(/\/\*[\s\S]*?\*\//g, "");
-  return [...commentlessStyles.matchAll(/(?<selectors>[^{}]+)\{(?<body>[^{}]*)\}/gm)]
+function exactRuleBodiesIn(source: string, selector: string): string[] {
+  const commentlessSource = source.replace(/\/\*[\s\S]*?\*\//g, "");
+  return [...commentlessSource.matchAll(/(?<selectors>[^{}]+)\{(?<body>[^{}]*)\}/gm)]
     .filter((match) =>
       (match.groups?.selectors ?? "")
         .split(",")
         .some((candidate) => candidate.trim() === selector),
     )
     .map((match) => match.groups?.body ?? "");
+}
+
+function exactRuleBodies(selector: string): string[] {
+  return exactRuleBodiesIn(styles, selector);
+}
+
+function balancedBlockBody(source: string, openingBraceIndex: number): { body: string; end: number } {
+  let depth = 1;
+  for (let index = openingBraceIndex + 1; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    if (source[index] !== "}") continue;
+    depth -= 1;
+    if (depth === 0) return { body: source.slice(openingBraceIndex + 1, index), end: index };
+  }
+  throw new Error("Unbalanced CSS block");
+}
+
+function topLevelExactRuleBodies(selector: string): string[] {
+  let topLevelStyles = "";
+  let cursor = 0;
+  const mediaStart = /@media\s*[^{}]+\{/g;
+  for (const match of styles.matchAll(mediaStart)) {
+    const openingBraceIndex = (match.index ?? 0) + match[0].lastIndexOf("{");
+    const block = balancedBlockBody(styles, openingBraceIndex);
+    topLevelStyles += styles.slice(cursor, match.index);
+    topLevelStyles += "\n".repeat(styles.slice(match.index, block.end + 1).split("\n").length - 1);
+    cursor = block.end + 1;
+  }
+  topLevelStyles += styles.slice(cursor);
+  return exactRuleBodiesIn(topLevelStyles, selector);
+}
+
+function mediaExactRuleBodies(query: string, selector: string): string[] {
+  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const mediaStart = new RegExp(`@media\\s*${escapedQuery}\\s*\\{`, "g");
+  const bodies: string[] = [];
+  for (const match of styles.matchAll(mediaStart)) {
+    const openingBraceIndex = (match.index ?? 0) + match[0].lastIndexOf("{");
+    bodies.push(...exactRuleBodiesIn(balancedBlockBody(styles, openingBraceIndex).body, selector));
+  }
+  return bodies;
 }
 
 function expectCanonicalBase(selector: string, requiredDeclarations: string[]): void {
@@ -130,22 +171,21 @@ function contrastRatio(foreground: string, background: string): number {
 
 describe("renderer CSS contracts", () => {
   it("keeps one canonical base owner for frame chrome and navigation", () => {
-    // One base plus the explicit max-width: 980px owner.
-    const desktopFrameBodies = exactRuleBodies(".desktop-frame");
-    expect(desktopFrameBodies).toHaveLength(2);
+    const desktopFrameBodies = topLevelExactRuleBodies(".desktop-frame");
+    expect(desktopFrameBodies).toHaveLength(1);
     expect(desktopFrameBodies[0]).toContain("display: grid");
     expect(desktopFrameBodies[0]).toContain("overflow: hidden");
+    expect(mediaExactRuleBodies("(max-width: 980px)", ".desktop-frame")).toHaveLength(1);
 
     expectCanonicalBase(".mission-bar", ["display: flex", "min-height: 46px"]);
     expectCanonicalBase(".mission-name", ["display: flex", "min-width: 0"]);
     expectCanonicalBase(".workspace-title-menu", ["position: relative", "min-width: 0"]);
-    // One base plus the explicit max-width: 980px owner.
-    expect(exactRuleBodies(".workspace-title-trigger")).toHaveLength(2);
+    expect(topLevelExactRuleBodies(".workspace-title-trigger")).toHaveLength(1);
+    expect(mediaExactRuleBodies("(max-width: 980px)", ".workspace-title-trigger")).toHaveLength(1);
     expectCanonicalBase(".workbench-header", ["align-items: center", "padding: 9px 12px"]);
     expectCanonicalBase(".workbench-actions", ["display: flex", "gap: 8px"]);
-    // Component base plus the shared workbench-control sizing owner.
-    const workbenchToolGroupBodies = exactRuleBodies(".workbench-tool-group");
-    expect(workbenchToolGroupBodies).toHaveLength(2);
+    const workbenchToolGroupBodies = topLevelExactRuleBodies(".workbench-tool-group");
+    expect(workbenchToolGroupBodies).toHaveLength(1);
     expect(workbenchToolGroupBodies.some((body) => body.includes("display: inline-flex") && body.includes("padding: 2px"))).toBe(true);
     expectCanonicalBase(".workbench-bar-title", ["display: flex", "white-space: nowrap"]);
     expectCanonicalBase(".workbench-bar-spacer", ["flex: 1 1 auto", "min-width: 8px"]);
@@ -179,6 +219,32 @@ describe("renderer CSS contracts", () => {
     const workspaceNavEmptyBodies = exactRuleBodies(".workspace-nav-empty");
     expect(workspaceNavEmptyBodies).toHaveLength(2);
     expect(workspaceNavEmptyBodies.some((body) => body.includes("color: var(--text-faint)"))).toBe(true);
+  });
+
+  it("keeps Slice A interaction winners adjacent to their canonical components", () => {
+    const workspaceNavHover = topLevelExactRuleBodies(".workspace-nav-row:hover");
+    const workspaceNavFocus = topLevelExactRuleBodies(".workspace-nav-row:focus-visible");
+    expect(workspaceNavHover).toHaveLength(1);
+    expect(workspaceNavFocus).toHaveLength(1);
+    expect(workspaceNavHover[0]).toContain("background: color-mix(in oklab, var(--surface-raised) 72%, black 28%)");
+    expect(workspaceNavHover[0]).toContain("background-image: none");
+
+    expect(topLevelExactRuleBodies(".workbench-actions button")).toHaveLength(1);
+    expect(topLevelExactRuleBodies(".workbench-actions button:hover")).toHaveLength(1);
+    expect(topLevelExactRuleBodies(".workbench-actions button:focus-visible")).toHaveLength(1);
+    expect(topLevelExactRuleBodies('.workbench-actions button[aria-pressed="true"]')).toHaveLength(1);
+    expect(topLevelExactRuleBodies(".workbench-actions button.active")).toHaveLength(1);
+    expect(topLevelExactRuleBodies(".workbench-tool-group button")).toHaveLength(1);
+    expect(topLevelExactRuleBodies('.workbench-tool-group button[aria-pressed="true"]')).toHaveLength(1);
+    expect(topLevelExactRuleBodies(".workbench-tool-group button.active")).toHaveLength(1);
+    expect(topLevelExactRuleBodies(".workbench-primary-action")).toHaveLength(1);
+    expect(topLevelExactRuleBodies(".workbench-primary-action:hover")).toHaveLength(1);
+    expect(topLevelExactRuleBodies(".workbench-primary-action:focus-visible")).toHaveLength(1);
+    expect(topLevelExactRuleBodies('.workbench-launch-group button[aria-label="Start Codex"]')).toHaveLength(1);
+    expect(topLevelExactRuleBodies('.workbench-launch-group button[aria-label="Start Claude"]')).toHaveLength(1);
+    expect(topLevelExactRuleBodies(".primary-nav-rail button.active")).toHaveLength(1);
+    expect(topLevelExactRuleBodies(".primary-nav-rail button:hover")).toHaveLength(1);
+    expect(topLevelExactRuleBodies(".primary-nav-rail button:focus-visible")).toHaveLength(1);
   });
 
   it("uses one canonical tactical-dark token hierarchy", () => {
@@ -297,13 +363,11 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps the clean flat workbench controls proportional", () => {
-    const workbenchAction = blockFor(
-      ".workbench-actions button,\n.context-toggle-button,\n.agent-handoff-buttons button,\n.workspace-preview-actions button,\n.review-surface-primary,\n.review-surface-discard,\n.observatory-surface-header button,\n.observatory-detail-card button",
-    );
+    const workbenchAction = exactBlockFor(".workbench-actions button");
     const workbenchToolGroup = blockFor(".workbench-tool-group");
-    const primaryAction = blockFor(".workbench-primary-action,\n.mission-actions .new-terminal-button");
+    const primaryAction = exactBlockFor(".workbench-primary-action");
 
-    expect(workbenchAction).toMatch(/height:\s*(?:var\(--control-height\)|32px)/);
+    expect(workbenchAction).toMatch(/height:\s*(?:var\(--workbench-control-height\)|var\(--control-height\)|32px)/);
     expect(workbenchAction).toContain("background:");
     expect(workbenchToolGroup).toContain("padding: 2px");
     expect(primaryAction).toContain("height:");
@@ -570,10 +634,10 @@ describe("renderer CSS contracts", () => {
     const manualDot = blockFor(".terminal-tile.real-terminal .tool-dot.manual,\n.terminal-tile.real-terminal .tool-dot.shell,\n.focus-session-strip .tool-dot.manual,\n.focus-session-strip .tool-dot.shell");
     const codexDot = blockFor(".terminal-tile.real-terminal .tool-dot.codex,\n.focus-session-strip .tool-dot.codex");
     const claudeDot = blockFor(".terminal-tile.real-terminal .tool-dot.claude,\n.focus-session-strip .tool-dot.claude");
-    const primaryAction = blockFor(".workbench-primary-action,\n.mission-actions .new-terminal-button,\n.terminal-empty-primary-action");
+    const primaryAction = exactBlockFor(".workbench-primary-action");
     const readyDispatch = blockFor(".dispatch-bar[data-state=\"ready\"] .composer-send:enabled");
     const commandActivity = blockFor(".agent-activity-object.type-command,\n.agent-activity-object.type-file");
-    const activeControlHover = blockFor(".workbench-tool-group button[aria-pressed=\"true\"]:hover,\n.workbench-tool-group button[aria-pressed=\"true\"]:focus-visible,\n.workbench-tool-group button.active:hover,\n.workbench-tool-group button.active:focus-visible,\n.context-toggle-button.active:hover,\n.context-toggle-button.active:focus-visible");
+    const activeControlHover = exactBlockFor('.workbench-tool-group button[aria-pressed="true"]:hover');
     const codexHover = blockFor(".workbench-launch-group button[aria-label=\"Start Codex\"]:hover,\n.workbench-launch-group button[aria-label=\"Start Codex\"]:focus-visible");
     const claudeHover = blockFor(".workbench-launch-group button[aria-label=\"Start Claude\"]:hover,\n.workbench-launch-group button[aria-label=\"Start Claude\"]:focus-visible");
 
@@ -604,9 +668,7 @@ describe("renderer CSS contracts", () => {
     const importantPrimaryRules = rulesForSelectorContaining(".workbench-primary-action")
       .filter(({ body }) => /(background|border-color|box-shadow|color|padding):[^;]+!important/i.test(body))
       .map(({ selectors }) => selectors.trim());
-    const finalPrimaryAction = blockFor(
-      ".workbench-primary-action,\n.mission-actions .new-terminal-button,\n.terminal-empty-primary-action",
-    );
+    const finalPrimaryAction = exactBlockFor(".workbench-primary-action");
 
     expect(importantPrimaryRules).toEqual([]);
     expect(finalPrimaryAction).toContain("var(--border-focus)");
@@ -656,14 +718,8 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps workbench controls on shared sizing tokens instead of ad-hoc px heights", () => {
-    const workbenchControlSizing = blockForContaining(
-      ".workbench-tool-group,\n.workbench-actions button,\n.context-toggle-button",
-      "height: var(--workbench-control-height)",
-    );
-    const workbenchSegmentSizing = blockForContaining(
-      ".workbench-tool-group button",
-      "height: var(--workbench-segment-height)",
-    );
+    const workbenchControlSizing = exactBlockFor(".workbench-actions button");
+    const workbenchSegmentSizing = exactBlockFor(".workbench-tool-group button");
 
     expect(styles).toContain("--workbench-control-height: 32px");
     expect(styles).toContain("--workbench-segment-height: calc(var(--workbench-control-height) - 6px)");

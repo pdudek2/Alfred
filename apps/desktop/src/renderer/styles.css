@@ -877,6 +877,9 @@ button:focus-visible {
 .workspace-nav-row:hover,
 .workspace-nav-row:focus-visible {
   border-color: color-mix(in oklab, var(--signal-focus) 24%, transparent);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  background-image: none;
+  box-shadow: none;
   color: var(--text-primary);
   outline: none;
 }
@@ -976,6 +979,8 @@ button:focus-visible {
 .primary-nav-rail button:focus-visible {
   border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
   background: color-mix(in oklab, var(--signal-focus) 10%, transparent);
+  background-image: none;
+  box-shadow: none;
   color: var(--text-primary);
   outline: none;
 }
@@ -1145,12 +1150,17 @@ button:focus-visible {
 }
 
 .workbench-actions button {
-  min-height: 32px;
+  min-width: 0;
+  height: var(--workbench-control-height);
+  min-height: var(--workbench-control-height);
   border: 1px solid var(--line);
-  border-radius: 9px;
-  padding: 0 10px;
-  background: rgba(255, 255, 255, 0.025);
+  border-radius: var(--radius-control);
+  padding: 0 9px;
+  background: var(--role-control);
+  background-image: none;
+  box-shadow: none;
   color: var(--text-secondary);
+  font: 620 12px/1 var(--sans);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1177,14 +1187,98 @@ button:focus-visible {
   background: var(--brass);
 }
 
-.workbench-actions button[aria-pressed="true"],
-.workbench-actions button.active,
 .workbench-actions button:hover,
 .workbench-actions button:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 30%, transparent);
+  border-color: color-mix(in oklab, var(--role-active) 24%, var(--line));
+  background: var(--role-control-hover);
+  box-shadow: none;
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.04);
   outline: none;
+}
+
+.workbench-actions button[aria-pressed="true"],
+.workbench-actions button.active {
+  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
+  background: var(--signal-focus-soft);
+  box-shadow: none;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.workbench-tool-group button {
+  min-width: 0;
+  height: var(--workbench-segment-height);
+  min-height: var(--workbench-segment-height);
+  border-color: transparent;
+  border-radius: var(--workbench-control-radius);
+  padding: 0 9px;
+  background: transparent;
+  line-height: 1;
+}
+
+.workbench-tool-group button[aria-pressed="true"],
+.workbench-tool-group button.active {
+  border-color: color-mix(in oklab, var(--role-active) 26%, var(--line));
+  background: color-mix(in oklab, var(--role-active) 4.5%, var(--surface-sunken));
+  color: var(--signal-focus-strong);
+}
+
+.workbench-tool-group button:hover,
+.workbench-tool-group button:focus-visible {
+  border-color: color-mix(in oklab, var(--role-active) 24%, var(--line));
+  background: var(--role-control-hover);
+  box-shadow: none;
+  color: var(--text-primary);
+}
+
+.workbench-tool-group button[aria-pressed="true"]:hover,
+.workbench-tool-group button[aria-pressed="true"]:focus-visible,
+.workbench-tool-group button.active:hover,
+.workbench-tool-group button.active:focus-visible {
+  border-color: color-mix(in oklab, var(--role-active) 30%, var(--line));
+  background: color-mix(in oklab, var(--role-active) 6%, var(--surface-sunken));
+  color: var(--signal-focus-strong);
+}
+
+.workbench-launch-group button[aria-label="Start Codex"] {
+  border-color: color-mix(in oklab, var(--codex-blue) 20%, var(--line));
+  color: var(--codex-blue);
+}
+
+.workbench-launch-group button[aria-label="Start Claude"] {
+  border-color: color-mix(in oklab, var(--claude-amber) 20%, var(--line));
+  color: var(--claude-amber);
+}
+
+.workbench-launch-group button[aria-label="Start Codex"]:hover,
+.workbench-launch-group button[aria-label="Start Codex"]:focus-visible {
+  border-color: color-mix(in oklab, var(--codex-blue) 32%, var(--line));
+  color: var(--codex-blue);
+}
+
+.workbench-launch-group button[aria-label="Start Claude"]:hover,
+.workbench-launch-group button[aria-label="Start Claude"]:focus-visible {
+  border-color: color-mix(in oklab, var(--claude-amber) 32%, var(--line));
+  color: var(--claude-amber);
+}
+
+.workbench-primary-action {
+  height: var(--control-height);
+  min-height: var(--control-height);
+  padding: 0 12px;
+  border-color: var(--border-focus);
+  background: var(--surface-control);
+  background-image: none;
+  box-shadow: none;
+  color: var(--text-primary);
+}
+
+.workbench-primary-action:hover,
+.workbench-primary-action:focus-visible {
+  border-color: color-mix(in oklab, var(--signal-focus) 36%, var(--line));
+  background: color-mix(in oklab, var(--signal-focus) 5%, var(--surface-control-hover));
+  box-shadow: none;
+  color: var(--text-primary);
 }
 
 .surface-panel.inactive {
@@ -7549,7 +7643,6 @@ body {
   box-shadow: none;
 }
 
-.workbench-actions button,
 .context-toggle-button,
 .agent-handoff-buttons button,
 .workspace-preview-actions button,
@@ -7569,19 +7662,6 @@ body {
   font: 620 13px/1 var(--sans);
 }
 
-.workbench-tool-group button {
-  height: calc(var(--control-height) - 4px);
-  min-height: calc(var(--control-height) - 4px);
-  border-color: transparent;
-  border-radius: 7px;
-  background: transparent;
-  padding: 0 11px;
-}
-
-.workbench-actions button:hover,
-.workbench-actions button:focus-visible,
-.workbench-actions button[aria-pressed="true"],
-.workbench-actions button.active,
 .context-toggle-button:hover,
 .context-toggle-button:focus-visible,
 .context-toggle-button.active,
@@ -7595,13 +7675,6 @@ body {
   color: var(--text-primary);
 }
 
-.workbench-actions button[aria-pressed="true"],
-.workbench-actions button.active {
-  background: var(--signal-focus-soft);
-  color: var(--text-primary);
-}
-
-.workbench-primary-action,
 .mission-actions .new-terminal-button {
   height: var(--control-height);
   min-height: var(--control-height);
@@ -7656,9 +7729,7 @@ body {
   box-shadow: none;
 }
 
-.workspace-button:hover,
-.workspace-nav-row:hover,
-.workspace-nav-row:focus-visible {
+.workspace-button:hover {
   background: var(--surface-control);
   background-image: none;
   box-shadow: none;
@@ -7887,8 +7958,6 @@ body {
   background: transparent;
 }
 
-.workspace-nav-row:hover,
-.workspace-nav-row:focus-visible,
 .workspace-button:hover,
 .workspace-button:focus-visible {
   background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
@@ -7900,7 +7969,6 @@ body {
   background: color-mix(in oklab, var(--signal-focus) 9%, transparent);
 }
 
-.workbench-actions button,
 .context-toggle-button,
 .agent-handoff-buttons button,
 .workspace-preview-actions button,
@@ -7919,13 +7987,6 @@ body {
   font-size: 12px;
 }
 
-.workbench-tool-group button {
-  height: calc(var(--control-height) - 6px);
-  min-height: calc(var(--control-height) - 6px);
-  padding: 0 10px;
-}
-
-.workbench-primary-action,
 .mission-actions .new-terminal-button {
   height: var(--control-height);
   min-height: var(--control-height);
@@ -8458,9 +8519,6 @@ body {
   box-shadow: none;
 }
 
-.primary-nav-rail button.active,
-.primary-nav-rail button:hover,
-.primary-nav-rail button:focus-visible,
 .workspace-button,
 .workspace-button.active,
 .terminal-status-label,
@@ -8473,8 +8531,6 @@ body {
   box-shadow: none;
 }
 
-.workbench-actions button,
-.workbench-tool-group button,
 .context-toggle-button {
   min-width: 0;
   height: 32px;
@@ -8521,28 +8577,14 @@ body {
   --workbench-control-radius: 8px;
 }
 
-.workbench-tool-group,
-.workbench-actions button,
 .context-toggle-button {
   height: var(--workbench-control-height);
   min-height: var(--workbench-control-height);
 }
 
-.workbench-tool-group button {
-  height: var(--workbench-segment-height);
-  min-height: var(--workbench-segment-height);
-  border-radius: var(--workbench-control-radius);
-  padding: 0 9px;
-}
-
-.workbench-actions button,
 .context-toggle-button {
   padding: 0 9px;
   font-size: 12px;
-}
-
-.workbench-primary-action {
-  padding: 0 12px;
 }
 
 .quiet-count-dot,
@@ -8917,7 +8959,6 @@ body {
   --role-control-hover: var(--surface-control-hover);
 }
 
-.workbench-actions button,
 .context-toggle-button {
   background: var(--role-control);
   background-image: none;
@@ -8926,18 +8967,12 @@ body {
   box-shadow: none;
 }
 
-.workbench-tool-group button[aria-pressed="true"],
-.workbench-tool-group button.active,
 .context-toggle-button.active {
   border-color: color-mix(in oklab, var(--role-active) 26%, var(--line));
   background: color-mix(in oklab, var(--role-active) 4.5%, var(--surface-sunken));
   color: var(--signal-focus-strong);
 }
 
-.workbench-tool-group button:hover,
-.workbench-tool-group button:focus-visible,
-.workbench-actions button:hover,
-.workbench-actions button:focus-visible,
 .context-toggle-button:hover,
 .context-toggle-button:focus-visible {
   border-color: color-mix(in oklab, var(--role-active) 24%, var(--line));
@@ -8946,20 +8981,6 @@ body {
   box-shadow: none;
 }
 
-.workbench-launch-group button[aria-label="Start Codex"] {
-  color: var(--codex-blue);
-  border-color: color-mix(in oklab, var(--codex-blue) 20%, var(--line));
-}
-
-.workbench-launch-group button[aria-label="Start Claude"] {
-  color: var(--claude-amber);
-  border-color: color-mix(in oklab, var(--claude-amber) 20%, var(--line));
-}
-
-.workbench-tool-group button[aria-pressed="true"]:hover,
-.workbench-tool-group button[aria-pressed="true"]:focus-visible,
-.workbench-tool-group button.active:hover,
-.workbench-tool-group button.active:focus-visible,
 .context-toggle-button.active:hover,
 .context-toggle-button.active:focus-visible {
   border-color: color-mix(in oklab, var(--role-active) 30%, var(--line));
@@ -8967,19 +8988,6 @@ body {
   color: var(--signal-focus-strong);
 }
 
-.workbench-launch-group button[aria-label="Start Codex"]:hover,
-.workbench-launch-group button[aria-label="Start Codex"]:focus-visible {
-  color: var(--codex-blue);
-  border-color: color-mix(in oklab, var(--codex-blue) 32%, var(--line));
-}
-
-.workbench-launch-group button[aria-label="Start Claude"]:hover,
-.workbench-launch-group button[aria-label="Start Claude"]:focus-visible {
-  color: var(--claude-amber);
-  border-color: color-mix(in oklab, var(--claude-amber) 32%, var(--line));
-}
-
-.workbench-primary-action,
 .mission-actions .new-terminal-button,
 .terminal-empty-primary-action {
   background: var(--surface-control);
@@ -8989,8 +8997,6 @@ body {
   box-shadow: none;
 }
 
-.workbench-primary-action:hover,
-.workbench-primary-action:focus-visible,
 .mission-actions .new-terminal-button:hover,
 .mission-actions .new-terminal-button:focus-visible,
 .terminal-empty-primary-action:hover,
