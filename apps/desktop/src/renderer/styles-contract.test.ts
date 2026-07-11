@@ -47,6 +47,23 @@ function exactBlockFor(selector: string): string {
   return matches.at(-1)?.groups?.body ?? "";
 }
 
+function exactRuleBodies(selector: string): string[] {
+  const commentlessStyles = styles.replace(/\/\*[\s\S]*?\*\//g, "");
+  return [...commentlessStyles.matchAll(/(?<selectors>[^{}]+)\{(?<body>[^{}]*)\}/gm)]
+    .filter((match) =>
+      (match.groups?.selectors ?? "")
+        .split(",")
+        .some((candidate) => candidate.trim() === selector),
+    )
+    .map((match) => match.groups?.body ?? "");
+}
+
+function expectCanonicalBase(selector: string, requiredDeclarations: string[]): void {
+  const bodies = exactRuleBodies(selector);
+  expect(bodies, `${selector} must have one canonical base rule`).toHaveLength(1);
+  for (const declaration of requiredDeclarations) expect(bodies[0]).toContain(declaration);
+}
+
 function ruleForSelectorContaining(selector: string): { selectors: string; body: string } {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matches = [
@@ -112,6 +129,58 @@ function contrastRatio(foreground: string, background: string): number {
 }
 
 describe("renderer CSS contracts", () => {
+  it("keeps one canonical base owner for frame chrome and navigation", () => {
+    // One base plus the explicit max-width: 980px owner.
+    const desktopFrameBodies = exactRuleBodies(".desktop-frame");
+    expect(desktopFrameBodies).toHaveLength(2);
+    expect(desktopFrameBodies[0]).toContain("display: grid");
+    expect(desktopFrameBodies[0]).toContain("overflow: hidden");
+
+    expectCanonicalBase(".mission-bar", ["display: flex", "min-height: 46px"]);
+    expectCanonicalBase(".mission-name", ["display: flex", "min-width: 0"]);
+    expectCanonicalBase(".workspace-title-menu", ["position: relative", "min-width: 0"]);
+    // One base plus the explicit max-width: 980px owner.
+    expect(exactRuleBodies(".workspace-title-trigger")).toHaveLength(2);
+    expectCanonicalBase(".workbench-header", ["align-items: center", "padding: 9px 12px"]);
+    expectCanonicalBase(".workbench-actions", ["display: flex", "gap: 8px"]);
+    // Component base plus the shared workbench-control sizing owner.
+    const workbenchToolGroupBodies = exactRuleBodies(".workbench-tool-group");
+    expect(workbenchToolGroupBodies).toHaveLength(2);
+    expect(workbenchToolGroupBodies.some((body) => body.includes("display: inline-flex") && body.includes("padding: 2px"))).toBe(true);
+    expectCanonicalBase(".workbench-bar-title", ["display: flex", "white-space: nowrap"]);
+    expectCanonicalBase(".workbench-bar-spacer", ["flex: 1 1 auto", "min-width: 8px"]);
+
+    expectCanonicalBase(".primary-nav-rail", ["display: grid", "grid-template-rows: auto 1fr auto"]);
+    // Shared dimensions with rail buttons plus the brand component base.
+    const primaryNavBrandBodies = exactRuleBodies(".primary-nav-brand");
+    expect(primaryNavBrandBodies).toHaveLength(2);
+    expect(primaryNavBrandBodies.some((body) => body.includes("display: grid") && body.includes("place-items: center"))).toBe(true);
+    expectCanonicalBase(".primary-nav-stack", ["display: grid", "align-content: start"]);
+    expectCanonicalBase(".primary-nav-bottom", ["align-content: end"]);
+
+    expectCanonicalBase(".workspace-navigation-panel", ["min-width: 0", "display: grid"]);
+    expectCanonicalBase(".workspace-nav-head", ["display: grid", "align-items: center"]);
+    expectCanonicalBase(".workspace-nav-avatar", ["display: grid", "place-items: center"]);
+    expectCanonicalBase(".workspace-nav-search", ["display: grid", "align-items: center"]);
+    // Component base plus the shared native-scrollbar owner.
+    const workspaceNavScrollBodies = exactRuleBodies(".workspace-nav-scroll");
+    expect(workspaceNavScrollBodies).toHaveLength(2);
+    expect(workspaceNavScrollBodies.some((body) => body.includes("overflow: auto") && body.includes("align-content: start"))).toBe(true);
+    expectCanonicalBase(".workspace-nav-section", ["display: grid", "gap: 7px"]);
+    expectCanonicalBase(".workspace-nav-section > header", ["text-transform: uppercase"]);
+    expectCanonicalBase(".workspace-nav-list", ["display: grid", "gap: 6px"]);
+    expectCanonicalBase(".workspace-nav-more-button", ["min-height: 32px"]);
+    expectCanonicalBase(".workspace-nav-row", ["display: grid", "width: 100%"]);
+    expectCanonicalBase(".workspace-nav-mark", ["display: grid", "place-items: center"]);
+    expectCanonicalBase(".workspace-nav-mark.codex", ["border-color:"]);
+    expectCanonicalBase(".workspace-nav-mark.claude", ["border-color:"]);
+    expectCanonicalBase(".workspace-nav-mark.alert", ["border-color:"]);
+    // Shared navigation microcopy typography plus the empty-state color owner.
+    const workspaceNavEmptyBodies = exactRuleBodies(".workspace-nav-empty");
+    expect(workspaceNavEmptyBodies).toHaveLength(2);
+    expect(workspaceNavEmptyBodies.some((body) => body.includes("color: var(--text-faint)"))).toBe(true);
+  });
+
   it("uses one canonical tactical-dark token hierarchy", () => {
     expect(tokenDefinitionCount("--surface-terminal")).toBe(1);
     expect(tokenDefinitionCount("--surface-canvas")).toBe(1);
@@ -328,7 +397,7 @@ describe("renderer CSS contracts", () => {
 
   it("keeps the top chrome in one frame row with a flexible workbench title", () => {
     const frame = blockFor(".desktop-frame");
-    const missionBar = blockFor(".mission-bar");
+    const missionBar = exactBlockFor(".mission-bar");
     const workbenchHeader = blockFor(".mission-bar .workbench-header");
     const title = blockFor(".workbench-bar-title");
     const spacer = blockFor(".workbench-bar-spacer");
@@ -349,7 +418,7 @@ describe("renderer CSS contracts", () => {
   });
 
   it("lays the one-bar chrome and inbox rows out on the approved grids", () => {
-    expect(blockFor(".mission-bar")).toContain("display: flex");
+    expect(exactBlockFor(".mission-bar")).toContain("display: flex");
     expect(blockFor(".mission-bar .workbench-header")).toContain("flex: 1");
     expect(blockFor(".review-surface-row")).toContain("grid-template-columns: minmax(0, 1fr) auto");
     expect(blockFor(".review-surface-row")).toContain("grid-column: 1 / -1");
@@ -647,7 +716,7 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps sidebar radar hierarchy quiet but readable", () => {
-    const navPanel = blockFor(".workspace-navigation-panel");
+    const navPanel = exactBlockFor(".workspace-navigation-panel");
     const navSectionHeader = blockFor(".workspace-nav-section > header");
     const navRow = blockFor(".workspace-nav-row");
     const navRowTitle = blockFor(".workspace-nav-row strong");

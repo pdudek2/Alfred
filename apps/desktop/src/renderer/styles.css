@@ -197,41 +197,40 @@ button:focus-visible {
 .agent-space-shell {
   position: relative;
   min-height: 100vh;
-  padding: 8px;
+  padding: 10px;
   display: block;
-  background:
-    radial-gradient(circle at 16% 0%, color-mix(in oklab, var(--signal-focus) 3.5%, transparent), transparent 34%),
-    linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 180px),
-    linear-gradient(90deg, rgba(201, 163, 93, 0.025), transparent 28%, transparent 72%, color-mix(in oklab, var(--signal-focus) 2%, transparent)),
-    var(--night);
+  background: var(--surface-canvas);
+  background-image: none;
 }
 
 .desktop-frame {
   height: calc(100vh - 16px);
-  border: 1px solid var(--line);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
   overflow: hidden;
   box-shadow:
     var(--shadow-panel),
     inset 0 1px 0 rgba(238, 243, 247, 0.045);
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.03), transparent 88px),
-    var(--panel);
+  background: var(--surface-canvas);
   display: grid;
-  grid-template-rows: 46px minmax(0, 1fr) 66px;
+  grid-template-rows: 52px minmax(0, 1fr) 58px;
 }
 
 .mission-bar {
-  border-bottom: 1px solid var(--line);
-  display: grid;
+  position: static;
+  height: 52px;
+  min-height: 46px;
+  overflow: visible;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
   grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   padding: 0 14px;
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 100%),
-    linear-gradient(90deg, color-mix(in oklab, var(--signal-focus) 4%, transparent), transparent 34%),
-    var(--surface-panel);
+  background: var(--surface-canvas);
+  background-image: none;
+  box-shadow: none;
   -webkit-app-region: drag;
   user-select: none;
 }
@@ -252,25 +251,37 @@ button:focus-visible {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+}
+
+.mission-bar .mission-name {
+  position: static;
+  left: auto;
+  top: auto;
+  z-index: auto;
+  max-width: min(420px, 48vw);
+}
+
+.mission-bar .mission-actions {
+  display: none;
 }
 
 .workspace-title-menu {
   position: relative;
+  z-index: 70;
   min-width: 0;
 }
 
 .workspace-title-trigger {
-  max-width: min(520px, 44vw);
+  max-width: min(360px, 38vw);
   min-width: 0;
-  min-height: 36px;
-  border: 1px solid color-mix(in oklab, var(--line) 88%, transparent);
-  border-radius: 10px;
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
   padding: 4px 10px 4px 8px;
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.02), transparent 72%),
-    color-mix(in oklab, var(--panel-raised) 92%, transparent);
-  box-shadow: inset 0 1px 0 rgba(238, 243, 247, 0.035);
+  background: var(--surface-raised);
+  background-image: none;
+  box-shadow: none;
   color: inherit;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 18px;
@@ -283,10 +294,10 @@ button:focus-visible {
 .workspace-title-trigger:hover,
 .workspace-title-trigger:focus-visible,
 .workspace-title-trigger[aria-expanded="true"] {
-  border-color: color-mix(in oklab, var(--signal-focus) 24%, var(--line));
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.028), transparent 72%),
-    color-mix(in oklab, var(--panel-soft) 88%, transparent);
+  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
+  background: color-mix(in oklab, var(--surface-raised) 88%, black 12%);
+  background-image: none;
+  box-shadow: none;
 }
 
 .workspace-title-trigger > span,
@@ -297,6 +308,13 @@ button:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.workspace-title-trigger > span {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 7px;
 }
 
 .workspace-title-trigger svg {
@@ -316,11 +334,25 @@ button:focus-visible {
   letter-spacing: 0.01em;
 }
 
+.workspace-title-main strong {
+  font-size: 13px;
+}
+
+.workspace-title-main span {
+  font-size: 11px;
+}
+
 .workspace-title-trigger small {
   margin-top: 2px;
   color: var(--muted);
   font-family: var(--mono);
   font-size: 11px;
+  white-space: nowrap;
+}
+
+.workspace-title-trigger small::before {
+  content: "· ";
+  color: var(--text-faint);
 }
 
 .workspace-popover {
@@ -514,14 +546,16 @@ button:focus-visible {
 }
 
 .mission-name strong {
-  color: var(--ink);
+  color: var(--text-primary);
+  font-family: var(--sans);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .mission-name span {
   margin-top: 2px;
-  color: var(--muted);
+  color: var(--text-muted);
   font-family: var(--mono);
   font-size: 12px;
 }
@@ -683,9 +717,13 @@ button:focus-visible {
 .primary-nav-rail {
   grid-column: 1;
   min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(5, 11, 9, 0.96);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface-panel);
+  background-image: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   display: grid;
   grid-template-rows: auto 1fr auto;
   justify-items: center;
@@ -697,13 +735,17 @@ button:focus-visible {
   grid-column: 2;
   min-width: 0;
   min-height: 0;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(5, 11, 9, 0.96);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface-chrome);
+  background-image: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   gap: 10px;
-  padding: 10px;
+  padding: 8px;
 }
 
 .workspace-nav-head {
@@ -739,6 +781,10 @@ button:focus-visible {
   font: 500 11px/1.35 var(--sans);
 }
 
+.workspace-nav-empty {
+  color: var(--text-faint);
+}
+
 .workspace-nav-search {
   min-height: 32px;
   border: 1px solid var(--line);
@@ -767,6 +813,8 @@ button:focus-visible {
   display: grid;
   align-content: start;
   gap: 14px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
 .workspace-nav-section {
@@ -778,9 +826,9 @@ button:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: var(--text-muted);
-  font: 800 9px/1 var(--mono);
-  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  font: 600 var(--type-micro)/1 var(--sans);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
@@ -810,14 +858,18 @@ button:focus-visible {
 
 .workspace-nav-row {
   min-width: 0;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  padding: 8px;
-  background: rgba(255, 255, 255, 0.025);
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
   color: var(--text-secondary);
   cursor: pointer;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
   gap: 8px;
   text-align: left;
 }
@@ -829,6 +881,29 @@ button:focus-visible {
   outline: none;
 }
 
+.workspace-nav-row strong {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font: 650 13px/1.22 var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-nav-row small {
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.workspace-nav-row.workspace-nav-inbox {
+  width: auto;
+  margin: 2px 8px 10px;
+}
+
+.workspace-nav-row:hover strong,
+.workspace-nav-row:focus-visible strong {
+  color: var(--text-primary);
+}
+
 .workspace-nav-mark {
   width: 28px;
   height: 28px;
@@ -836,23 +911,29 @@ button:focus-visible {
   display: grid;
   place-items: center;
   border: 1px solid var(--line);
-  color: var(--text-muted);
+  background: var(--surface-control);
+  background-image: none;
+  box-shadow: none;
+  color: var(--text-faint);
   font: 800 10px/1 var(--mono);
 }
 
 .workspace-nav-mark.codex {
   color: var(--codex-blue);
-  border-color: color-mix(in oklab, var(--codex-blue) 36%, transparent);
+  border-color: color-mix(in oklab, var(--codex-blue) 22%, transparent);
+  background: color-mix(in oklab, var(--codex-blue) 4.5%, var(--surface-raised));
 }
 
 .workspace-nav-mark.claude {
   color: var(--claude-amber);
-  border-color: color-mix(in oklab, var(--claude-amber) 36%, transparent);
+  border-color: color-mix(in oklab, var(--claude-amber) 28%, transparent);
+  background: color-mix(in oklab, var(--claude-amber) 7%, var(--surface-raised));
 }
 
 .workspace-nav-mark.alert {
   color: var(--alert-red);
-  border-color: color-mix(in oklab, var(--alert-red) 42%, transparent);
+  border-color: color-mix(in oklab, var(--alert-red) 32%, transparent);
+  background: color-mix(in oklab, var(--alert-red) 7%, var(--surface-raised));
 }
 
 .primary-nav-brand,
@@ -955,6 +1036,57 @@ button:focus-visible {
   display: flex;
 }
 
+.workbench-header {
+  align-items: center;
+  gap: 14px;
+  padding: 9px 12px;
+  border-color: var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface-panel);
+  background-image: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.mission-bar .workbench-header {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.workbench-bar-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.workbench-bar-title h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.workbench-bar-title span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.workbench-bar-spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
+}
+
 .workbench-actions {
   display: flex;
   align-items: center;
@@ -964,6 +1096,39 @@ button:focus-visible {
   min-width: 0;
 }
 
+.mission-bar .workbench-actions {
+  flex-wrap: nowrap;
+}
+
+.workbench-panel-group button {
+  position: relative;
+  padding: 6px 9px;
+}
+
+.workbench-panel-group .quiet-count-dot,
+.workbench-panel-group .quiet-count-mark {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+}
+
+@media (max-width: 1360px) {
+  .workspace-title-trigger small {
+    display: none;
+  }
+}
+
+@media (max-width: 1240px) {
+  .workbench-launch-group button:not(.workbench-primary-action) {
+    padding: 6px 7px;
+    font-size: 11.5px;
+  }
+
+  .workbench-bar-title span {
+    display: none;
+  }
+}
+
 .workbench-tool-group {
   display: inline-flex;
   align-items: center;
@@ -971,7 +1136,12 @@ button:focus-visible {
   padding: 2px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--surface-sunken);
+  height: var(--workbench-control-height);
+  min-height: var(--workbench-control-height);
+  background: var(--role-control);
+  background-image: none;
+  color: var(--text-secondary);
+  box-shadow: none;
 }
 
 .workbench-actions button {
@@ -5124,15 +5294,6 @@ body {
   background: var(--surface-canvas);
 }
 
-/* --- Mission bar: flat graphite header --- */
-.mission-bar {
-  border-bottom: 1px solid var(--line-strong);
-  background: var(--surface-panel);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.05) inset,
-    0 18px 40px -34px rgba(0, 0, 0, 0.9);
-}
-
 .alfred-mark {
   box-shadow: 0 0 0 1px var(--border-strong), 0 8px 18px -10px color-mix(in oklab, var(--signal-focus) 16%, transparent);
 }
@@ -5276,19 +5437,6 @@ body {
   font-weight: 600;
 }
 
-/* --- Mission bar: one primary weight; utilities recede --- */
-.mission-name strong {
-  font-family: var(--sans);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  letter-spacing: 0.01em;
-}
-
-.mission-name span {
-  color: var(--text-muted);
-}
-
 /* Secondary actions step back so the primary CTA leads the eye. */
 .mission-actions .arrange-button,
 .mission-actions .command-palette-button {
@@ -5386,18 +5534,6 @@ body {
    shell containers + generous gaps + softer radius + more air.
    Top bar and composer stay full-bleed (macOS window controls).
    ============================================================ */
-
-/* Graphite substrate the floating panels sit on. */
-.agent-space-shell {
-  padding: 10px;
-  background: var(--surface-canvas);
-}
-
-/* Frame + layout go transparent so the graphite canvas shows between panels. */
-.desktop-frame {
-  background: transparent;
-  border-color: var(--border-subtle);
-}
 
 .workspace-layout {
   background: transparent;
@@ -7049,12 +7185,6 @@ body {
    Keep depth through opaque layers and hairlines, not glass/glow.
    ============================================================ */
 
-.agent-space-shell {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 180px),
-    var(--surface-canvas);
-}
-
 .workspace-layout,
 .workspace-layout.alfred-compact,
 .workspace-layout.preview-visible,
@@ -7070,28 +7200,6 @@ body {
 .workspace-layout.preview-visible:has(.context-column.closed),
 .workspace-layout.alfred-compact.preview-visible:has(.context-column.closed) {
   grid-template-columns: 54px 252px minmax(0, 1fr) minmax(246px, 292px);
-}
-
-.mission-bar {
-  position: relative;
-  min-height: 0;
-  height: 0;
-  overflow: visible;
-  border: 0;
-  padding: 0;
-  background: transparent;
-}
-
-.mission-bar .mission-name {
-  position: absolute;
-  left: 74px;
-  top: 12px;
-  z-index: 5;
-  max-width: 252px;
-}
-
-.mission-bar .mission-actions {
-  display: none;
 }
 
 .workspace-rail,
@@ -7118,9 +7226,6 @@ body {
     0 16px 34px -30px rgba(0, 0, 0, 0.9);
 }
 
-.primary-nav-rail,
-.workspace-navigation-panel,
-.workbench-header,
 .terminal-stage,
 .terminal-tile,
 .context-column,
@@ -7421,10 +7526,6 @@ body {
   font: 650 12px/1.2 var(--mono);
 }
 
-.agent-space-shell {
-  background: var(--surface-workbench);
-}
-
 .workspace-layout,
 .workspace-layout.alfred-compact,
 .workspace-layout.preview-visible,
@@ -7432,10 +7533,7 @@ body {
   background: var(--surface-workbench);
 }
 
-.primary-nav-rail,
-.workspace-navigation-panel,
 .workspace-rail,
-.workbench-header,
 .terminal-stage,
 .context-drawer,
 .alfred-dock,
@@ -7449,25 +7547,6 @@ body {
   background: var(--surface-chrome);
   background-image: none;
   box-shadow: none;
-}
-
-.workbench-header {
-  align-items: flex-start;
-  gap: 14px;
-  padding: 12px;
-}
-
-.workbench-actions {
-  gap: 6px;
-}
-
-.workbench-tool-group {
-  height: var(--control-height);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  padding: 2px;
-  background: var(--surface-control);
-  gap: 2px;
 }
 
 .workbench-actions button,
@@ -7541,23 +7620,6 @@ body {
   font-size: 10px;
 }
 
-.workspace-title-trigger {
-  min-height: 36px;
-  border-color: var(--border);
-  border-radius: 10px;
-  background: var(--surface-control);
-  background-image: none;
-  box-shadow: none;
-}
-
-.workspace-title-trigger:hover,
-.workspace-title-trigger:focus-visible,
-.workspace-title-trigger[aria-expanded="true"] {
-  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
-  background: var(--surface-control-hover);
-  box-shadow: none;
-}
-
 .workspace-popover {
   width: min(390px, 82vw);
   border-color: color-mix(in oklab, var(--border) 70%, white 8%);
@@ -7588,8 +7650,7 @@ body {
   background: var(--border);
 }
 
-.workspace-button,
-.workspace-nav-row {
+.workspace-button {
   background: transparent;
   background-image: none;
   box-shadow: none;
@@ -7736,10 +7797,6 @@ body {
   }
 }
 
-.agent-space-shell {
-  background: var(--surface-canvas);
-}
-
 .workspace-layout,
 .workspace-layout.alfred-compact,
 .workspace-layout.preview-visible,
@@ -7761,9 +7818,6 @@ body {
   background: var(--surface-canvas);
 }
 
-.primary-nav-rail,
-.workspace-navigation-panel,
-.workbench-header,
 .terminal-stage,
 .review-surface,
 .observatory-surface,
@@ -7776,10 +7830,6 @@ body {
   background: var(--surface-panel);
   background-image: none;
   box-shadow: none;
-}
-
-.workspace-navigation-panel {
-  padding: 8px;
 }
 
 .workspace-nav-scroll,
@@ -7829,12 +7879,10 @@ body {
   background: rgba(255, 255, 255, 0.16);
 }
 
-.workspace-nav-row,
 .workspace-button {
   border-radius: var(--radius-control);
 }
 
-.workspace-nav-row,
 .workspace-button:not(.active) {
   background: transparent;
 }
@@ -7850,20 +7898,6 @@ body {
 .workspace-button.active:hover {
   border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
   background: color-mix(in oklab, var(--signal-focus) 9%, transparent);
-}
-
-.workbench-header {
-  align-items: center;
-  padding: 10px 12px;
-}
-
-.workbench-actions {
-  gap: 5px;
-}
-
-.workbench-tool-group {
-  height: var(--control-height);
-  border-radius: var(--radius-control);
 }
 
 .workbench-actions button,
@@ -8117,72 +8151,6 @@ body {
   }
 }
 
-/* Workbench polish layer. */
-
-.desktop-frame {
-  grid-template-rows: 52px minmax(0, 1fr) 58px;
-  background: var(--surface-canvas);
-}
-
-.desktop-frame.mac-frame .mission-bar {
-  padding-left: 88px;
-}
-
-.mission-bar {
-  position: static;
-  height: 52px;
-  min-height: 52px;
-  border-bottom: 1px solid var(--border);
-  padding: 0 12px;
-  background: var(--surface-canvas);
-  background-image: none;
-  box-shadow: none;
-}
-
-.mission-bar .mission-name {
-  position: static;
-  left: auto;
-  top: auto;
-  z-index: auto;
-  max-width: min(420px, 48vw);
-}
-
-.mission-name {
-  gap: 10px;
-}
-
-.mission-bar .mission-actions {
-  display: none;
-}
-
-.workspace-title-trigger {
-  max-width: min(360px, 38vw);
-  min-height: 34px;
-  border-color: var(--border);
-  border-radius: var(--radius-control);
-  background: var(--surface-raised);
-  background-image: none;
-  box-shadow: none;
-}
-
-.workspace-title-trigger:hover,
-.workspace-title-trigger:focus-visible,
-.workspace-title-trigger[aria-expanded="true"] {
-  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
-  background: color-mix(in oklab, var(--surface-raised) 88%, black 12%);
-  background-image: none;
-  box-shadow: none;
-}
-
-.workspace-title-main strong {
-  font-size: 13px;
-}
-
-.workspace-title-main span {
-  font-size: 11px;
-}
-
-.workspace-nav-row,
 .terminal-tile,
 .terminal-status-label,
 .tile-actions button,
@@ -8346,7 +8314,6 @@ body {
 
 /* Clean material containment layer. */
 
-.agent-space-shell,
 body {
   background: var(--surface-canvas);
   background-image: none;
@@ -8450,10 +8417,6 @@ body {
   box-shadow: none;
 }
 
-.workspace-title-menu {
-  z-index: 70;
-}
-
 .workspace-popover {
   z-index: 90;
   background: var(--surface-panel);
@@ -8498,10 +8461,8 @@ body {
 .primary-nav-rail button.active,
 .primary-nav-rail button:hover,
 .primary-nav-rail button:focus-visible,
-.workspace-nav-row,
 .workspace-button,
 .workspace-button.active,
-.workspace-nav-mark,
 .terminal-status-label,
 .tile-actions button,
 .agent-session-pulse,
@@ -8519,11 +8480,6 @@ body {
   height: 32px;
   min-height: 32px;
   line-height: 1;
-}
-
-.workbench-tool-group {
-  display: inline-flex;
-  align-items: center;
 }
 
 .dispatch-target-chip span {
@@ -8565,32 +8521,11 @@ body {
   --workbench-control-radius: 8px;
 }
 
-.workbench-header {
-  padding: 9px 12px;
-  align-items: center;
-}
-
-.workbench-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .workbench-tool-group,
 .workbench-actions button,
 .context-toggle-button {
   height: var(--workbench-control-height);
   min-height: var(--workbench-control-height);
-}
-
-.workbench-tool-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface-sunken);
 }
 
 .workbench-tool-group button {
@@ -8982,7 +8917,6 @@ body {
   --role-control-hover: var(--surface-control-hover);
 }
 
-.workbench-tool-group,
 .workbench-actions button,
 .context-toggle-button {
   background: var(--role-control);
@@ -9203,77 +9137,6 @@ body {
   border-color: var(--border-focus);
   background: var(--surface-control-hover);
   color: var(--text-primary);
-}
-
-.workspace-navigation-panel {
-  background: var(--surface-chrome);
-}
-
-.workspace-nav-section > header {
-  color: var(--text-faint);
-  font: 700 var(--type-micro)/1.1 var(--sans);
-  letter-spacing: 0.06em;
-}
-
-.workspace-nav-row {
-  background: transparent;
-  border: 0;
-  display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 8px;
-  border-radius: 8px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.workspace-nav-row strong {
-  color: var(--text-secondary);
-  font: 650 13px/1.22 var(--sans);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workspace-nav-row small {
-  color: var(--text-faint);
-  white-space: nowrap;
-}
-
-.workspace-nav-row.workspace-nav-inbox {
-  margin: 2px 8px 10px;
-  width: auto;
-}
-
-.workspace-nav-empty {
-  color: var(--text-faint);
-}
-
-.workspace-nav-row:hover strong,
-.workspace-nav-row:focus-visible strong {
-  color: var(--text-primary);
-}
-
-.workspace-nav-mark {
-  background: var(--surface-control);
-  color: var(--text-faint);
-}
-
-.workspace-nav-mark.codex {
-  background: color-mix(in oklab, var(--codex-blue) 4.5%, var(--surface-raised));
-  border-color: color-mix(in oklab, var(--codex-blue) 22%, transparent);
-}
-
-.workspace-nav-mark.claude {
-  background: color-mix(in oklab, var(--claude-amber) 7%, var(--surface-raised));
-  border-color: color-mix(in oklab, var(--claude-amber) 28%, transparent);
-}
-
-.workspace-nav-mark.alert {
-  background: color-mix(in oklab, var(--alert-red) 7%, var(--surface-raised));
-  border-color: color-mix(in oklab, var(--alert-red) 32%, transparent);
 }
 
 .workspace-button:not(.active) {
@@ -9500,109 +9363,6 @@ body {
   font: 600 var(--type-micro)/1.2 var(--sans);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-.workspace-nav-section > header {
-  color: var(--text-faint);
-  font: 600 var(--type-micro)/1 var(--sans);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-/* ————— One-bar chrome + inbox redesign (2026-07-09) ————— */
-.mission-bar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-height: 46px;
-  padding: 0 14px;
-}
-
-.mission-bar .workbench-header {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-}
-
-.workbench-bar-title {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  white-space: nowrap;
-}
-
-.workbench-bar-title h1 {
-  font-size: 13.5px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  margin: 0;
-  color: var(--text-primary);
-}
-
-.workbench-bar-title span {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.workbench-bar-spacer {
-  flex: 1 1 auto;
-  min-width: 8px;
-}
-
-.mission-bar .workbench-actions {
-  flex-wrap: nowrap;
-}
-
-.workspace-title-trigger > span {
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  gap: 7px;
-}
-
-.workspace-title-trigger small {
-  white-space: nowrap;
-}
-
-.workspace-title-trigger small::before {
-  content: "· ";
-  color: var(--text-faint);
-}
-
-.workbench-panel-group button {
-  position: relative;
-  padding: 6px 9px;
-}
-
-.workbench-panel-group .quiet-count-dot,
-.workbench-panel-group .quiet-count-mark {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-}
-
-@media (max-width: 1360px) {
-  .workspace-title-trigger small {
-    display: none;
-  }
-}
-
-@media (max-width: 1240px) {
-  .workbench-launch-group button:not(.workbench-primary-action) {
-    padding: 6px 7px;
-    font-size: 11.5px;
-  }
-
-  .workbench-bar-title span {
-    display: none;
-  }
 }
 
 .recovery-workspace-strip {
