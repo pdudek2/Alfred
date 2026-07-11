@@ -25,6 +25,10 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   await page.getByRole("button", { name: "New terminal" }).click();
   await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
 
+  await expect(page.getByRole("button", { name: "Focus", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Split", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Grid", exact: true })).toHaveCount(1);
+
   const terminalNodes = await captureTerminalNodes(page);
   const identityTransitions: string[] = [];
   const surfaceGeometries = [await readActiveSurfaceGeometry(page, "Work initial")];

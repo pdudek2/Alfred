@@ -461,9 +461,9 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     onReviewWorktree: vi.fn(),
     onToggleCollapseSession: vi.fn(),
   };
-  const renderDesk = (nextSessions: SessionTile[]) => (
+  const renderDesk = (nextSessions: SessionTile[], arrangeMode = false) => (
     <TerminalDesk
-      arrangeMode={false}
+      arrangeMode={arrangeMode}
       armedRecoverySessionIds={new Set()}
       collapsedSessionIds={new Set()}
       layouts={{}}
@@ -1167,6 +1167,25 @@ describe("App integration", () => {
     const stage = await screen.findByLabelText("terminals");
     expect(stage).toHaveClass("headerless");
     expect(stage.querySelector(".terminal-stage-header")).not.toBeInTheDocument();
+  });
+
+  it("never renders a second Focus Split Grid control set inside TerminalDesk", () => {
+    const session: SessionTile = {
+      id: "one",
+      runtimeId: "runtime-one",
+      title: "Codex · one",
+      source: "manual",
+      workspaceId: "A",
+      cwd: "/Users/patryk/Desktop/Alfred",
+      stage: "live",
+      runtimeStatus: "live",
+      initialBuffer: "",
+    };
+    renderTerminalDeskForSessions([session]);
+
+    expect(screen.queryByRole("button", { name: "Focus" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Split" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Grid" })).not.toBeInTheDocument();
   });
 
   it("keeps non-visible Split terminals mounted and replayable when returning to Grid", async () => {

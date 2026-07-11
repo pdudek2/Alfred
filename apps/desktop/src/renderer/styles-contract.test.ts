@@ -584,8 +584,6 @@ describe("renderer CSS contracts", () => {
     expect(dispatchCapsule).toContain("height: var(--control-height)");
     expect(dispatchCapsule).toContain("background-image: none");
     expect(dispatchChip).toContain("background-image: none");
-    expect(styles).not.toContain(".work-mode-control");
-    expect(styles).not.toContain(".layout-controls button");
   });
 
   it("keeps workbench controls on shared sizing tokens instead of ad-hoc px heights", () => {

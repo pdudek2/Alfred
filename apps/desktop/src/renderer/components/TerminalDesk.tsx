@@ -45,7 +45,6 @@ type TerminalDeskProps = {
   armedRecoverySessionIds: Set<string>;
   selectedSessionId: string | null;
   sessions: SessionTile[];
-  showHeaderControls?: boolean;
   workMode: WorkMode;
   worktreeActionPending: Record<string, WorktreeActionKind | undefined>;
   workspaceGitBranch?: string | undefined;
@@ -87,7 +86,6 @@ export function TerminalDesk({
   armedRecoverySessionIds,
   selectedSessionId,
   sessions,
-  showHeaderControls = true,
   workMode,
   worktreeActionPending,
   workspaceGitBranch,
@@ -138,7 +136,7 @@ export function TerminalDesk({
   const showSplitEmptyState = workMode === "split" && sessions.length > 0 && visibleSessions.length < 2;
   const gridDensity =
     workMode === "split" ? "split" : visibleSessions.length <= 1 ? "single" : visibleSessions.length === 2 ? "split" : "dense";
-  const showLayoutControls = arrangeMode || (showHeaderControls && sessions.length > 0);
+  const showLayoutControls = arrangeMode;
 
   useEffect(() => {
     if (workMode !== "focus") return;
@@ -279,34 +277,6 @@ export function TerminalDesk({
                 <span className="arrange-mode-label">Arrange mode</span>
                 <span className="arrange-hint">drag header · resize corner</span>
               </>
-            )}
-            {showHeaderControls && !arrangeMode && sessions.length > 0 && (
-              <div className="work-mode-control" aria-label="work mode">
-                <button
-                  type="button"
-                  className={workMode === "focus" ? "active" : ""}
-                  aria-pressed={workMode === "focus"}
-                  onClick={() => onApplyWorkMode("focus")}
-                >
-                  Focus
-                </button>
-                <button
-                  type="button"
-                  className={workMode === "split" ? "active" : ""}
-                  aria-pressed={workMode === "split"}
-                  onClick={() => onApplyWorkMode("split")}
-                >
-                  Split
-                </button>
-                <button
-                  type="button"
-                  className={workMode === "desk" ? "active" : ""}
-                  aria-pressed={workMode === "desk"}
-                  onClick={() => onApplyWorkMode("desk")}
-                >
-                  Grid
-                </button>
-              </div>
             )}
           </div>
         </header>
