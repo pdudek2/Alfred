@@ -55,7 +55,6 @@ import {
   addStagedSessions,
   appendSessionActivity,
   attachRuntimeSession,
-  approveAllStaged,
   approveStaged,
   closeSession,
   createInitialSessions,
@@ -67,7 +66,6 @@ import {
   markSessionUnavailable,
   isLaunchBlocked,
   recordSessionOutputActivity,
-  rejectAllStaged,
   rejectStaged,
   relaunchRestoredSession,
   renameSession,
@@ -80,7 +78,7 @@ import { terminalSessionDisplayStatus } from "./session-status";
 import { sessionTileKind, tileKindMeta } from "./tile-kind";
 import { recordPreviewUrlsFromText, type PreviewUrlCandidate } from "./preview-state";
 import type { WorkMode } from "./terminal-desk-types";
-import { workspaceAttention, workspaceReviewQueue, type WorkspaceReviewItem } from "./workspace-attention";
+import { workspaceReviewQueue, type WorkspaceReviewItem } from "./workspace-attention";
 import { shortenPath } from "./path-display";
 import { findWorkspaceForCwd } from "./workspace-path-matching";
 import { sessionRelaunchSafety } from "./relaunch-safety";
@@ -243,17 +241,13 @@ export function App() {
   const activeRecoverableSessions = activeSessions.filter((session) =>
     session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error",
   );
-  const activeAttention = workspaceAttention(activeSessions);
   const globalReviewItems = workspaceReviewQueue(workspaces, terminalSessions);
   const activeWorkspaceReviewItems = globalReviewItems.filter((item) => item.workspaceId === activeWorkspace.id);
   const activeDecisionItems = activeWorkspaceReviewItems.filter(isDecisionReviewItem);
   const reviewQueuePreview = globalReviewItems[0] ?? null;
-  const activeStagedSessions = orderStagedSessions(activeSessions, activePendingPlan);
   const stagedCount = activeSessions.filter((s) => s.stage === "staged").length;
   const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
-  const checkingStagedCount = activeSessions.filter((s) => s.stage === "staged" && s.stagedReviewStatus === "checking").length;
   const blockedStagedCount = activeSessions.filter((s) => s.stage === "staged" && isLaunchBlocked(s)).length;
-  const safeStagedCount = Math.max(0, stagedCount - blockedStagedCount - checkingStagedCount);
   const liveAlfredCount = activeSessions.filter((s) => s.stage === "live" && s.source === "alfred").length;
   const alfredExpanded =
     alfredStatus.kind !== "idle" ||
@@ -676,11 +670,6 @@ export function App() {
     });
     handleApplyWorkMode("focus", sessionId);
   }, [activeWorkspace.id, handleApplyWorkMode]);
-  const handleReviewAttention = useCallback(() => {
-    if (!activeAttention) return;
-    handleFocusSession(activeAttention.session.id);
-  }, [activeAttention, handleFocusSession]);
-
   const handleOpenInbox = useCallback(() => {
     setCommandPaletteOpen(false);
     setCommandQuery("");
@@ -1107,12 +1096,6 @@ export function App() {
     handleCloseSession(session.id);
   }, [activeSelectedSession, activeWorkspace.id, handleCloseSession, selectedSessionIdsByWorkspace]);
 
-  const handleCloseRecoverableSessions = useCallback(() => {
-    for (const session of activeRecoverableSessions) {
-      handleCloseSession(session.id);
-    }
-  }, [activeRecoverableSessions, handleCloseSession]);
-
   const handleCancelDiscardCheckout = useCallback(() => {
     setPendingDiscardConfirmation(null);
   }, []);
@@ -1132,16 +1115,6 @@ export function App() {
     setPendingDiscardConfirmation(null);
     closeSessionNow(confirmation.sessionId);
   }, [closeSessionNow, pendingDiscardConfirmation]);
-
-  const handleContinueRecoverableSessions = useCallback(() => {
-    for (const session of activeRecoverableSessions) {
-      if (session.runtimeStatus === "restored") {
-        handleContinueRestoredSession(session.id);
-      } else if (session.runtimeStatus === "exited" || session.runtimeStatus === "error") {
-        handleRestartSession(session.id);
-      }
-    }
-  }, [activeRecoverableSessions, handleContinueRestoredSession, handleRestartSession]);
 
   const handleRuntimeSessionStarting = useCallback((tileId: string): boolean => {
     if (startingSessionIdsRef.current.has(tileId)) {
@@ -1369,7 +1342,7 @@ export function App() {
     );
   }, [terminalSessions]);
 
-  const handleLaunchReviewQueueItem = useCallback((workspaceId: string, sessionId: string) => {
+  const handleLaunchInboxItem = useCallback((workspaceId: string, sessionId: string) => {
     handleApproveTile(sessionId);
     handleFocusSessionInWorkspace(workspaceId, sessionId);
   }, [handleApproveTile, handleFocusSessionInWorkspace]);
@@ -1441,17 +1414,6 @@ export function App() {
     );
     setPendingPlan(toSquadPlan({ plan: response.plan, defaultWorkspaceId: activeWorkspace.id }));
   }, [activeSessions, activeWorkspace, pendingPlan?.id]);
-
-  const handleApproveAll = useCallback(() => {
-    setTerminalSessions((sessions) => approveAllStaged(sessions, activeWorkspace.id));
-  }, [activeWorkspace.id]);
-
-  const handleRejectAll = useCallback(() => {
-    const alfredApi = getDesktopAlfredApi();
-    setTerminalSessions((sessions) => rejectAllStaged(sessions, activeWorkspace.id));
-    setPendingPlan(null);
-    void alfredApi?.clearStagedPlan();
-  }, [activeWorkspace.id]);
 
   const handleDismissError = useCallback(() => {
     setAlfredStatus(idle());
@@ -2058,7 +2020,7 @@ export function App() {
                   onContinueRestoredSession={handleContinueRestoredSession}
                   onDiscardSession={handleCloseSession}
                   onFocusItem={handleOpenManagedSessionFromObservatory}
-                  onLaunchItem={handleLaunchReviewQueueItem}
+                  onLaunchItem={handleLaunchInboxItem}
                   onRestartSession={handleRestartSession}
                   onReviewBlockedItem={handleReviewBlockedSession}
                 />
@@ -2110,17 +2072,11 @@ export function App() {
               missionBrief: activeWorkspace.missionBrief,
               pendingPlan: activePendingPlan,
               recoverableSessions: activeRecoverableSessions,
-              selectedSessionId: activeSelectedSessionId,
-              stagedSessions: activeStagedSessions,
               stagedCount,
               blockedStagedCount,
               liveAlfredCount,
-              onApproveAll: handleApproveAll,
-              onApproveTile: handleApproveTile,
               onDismissError: handleDismissError,
-              onFocusSession: handleFocusSession,
-              onRejectAll: handleRejectAll,
-              onRejectTile: handleRejectTile,
+              onOpenInbox: handleOpenInbox,
             }}
           />
         </div>
@@ -2168,29 +2124,21 @@ export function App() {
             activeWorkMode={activeWorkMode}
             arrangeMode={arrangeMode}
             allSessions={terminalSessions}
-            pendingPlan={activePendingPlan}
             query={commandQuery}
-            recoverableSessions={activeRecoverableSessions}
             reviewQueuePreview={reviewQueuePreview}
-            attention={activeAttention}
-            safeStagedCount={safeStagedCount}
             selectedSessionId={activeSelectedSessionId}
             sessions={activeSessions}
             shortcutModifier={shortcutModifier}
-            blockedStagedCount={blockedStagedCount}
             workspaces={workspaces}
             canCloseWorkspace={canCloseActiveWorkspace}
             onAddAgentSession={handleAddAgentSession}
             onAddManualSession={handleAddManualSession}
             onAddWorkspace={handleAddWorkspace}
             onApplyWorkMode={handleApplyWorkMode}
-            onApproveAll={handleApproveAll}
             onChangeQuery={setCommandQuery}
-            onCloseRecoverableSessions={handleCloseRecoverableSessions}
             onClose={handleCloseCommandPalette}
             onCloseSession={handleCloseSession}
             onCloseWorkspace={handleCloseActiveWorkspace}
-            onContinueRecoverableSessions={handleContinueRecoverableSessions}
             onCopySessionCwd={handleCopySessionCwd}
             onOpenWorkspaceFolder={() => void handleRevealActiveWorkspace()}
             onOpenWorkspaceTerminal={() => void handleOpenActiveWorkspaceTerminal()}
@@ -2202,8 +2150,6 @@ export function App() {
             onFocusPreviousSession={() => handleFocusSessionByDelta(-1)}
             onOpenInbox={handleOpenInbox}
             onOpenPrivacyControls={handleOpenPrivacyPanel}
-            onReviewAttention={handleReviewAttention}
-            onRejectAll={handleRejectAll}
             onRestartSession={handleRestartSession}
             onSelectWorkspace={handleSelectWorkspace}
             onToggleArrange={handleToggleArrangeMode}
@@ -3348,17 +3294,6 @@ function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[])
   return [...merged, ...additions];
 }
 
-function orderStagedSessions(sessions: SessionTile[], plan: SquadPlan | null): SessionTile[] {
-  const plannedOrder = new Map((plan?.sessionIds ?? []).map((id, index) => [id, index]));
-  return sessions
-    .filter((session) => session.stage === "staged")
-    .sort((a, b) => {
-      const safetyDelta = Number(Boolean(b.safetyNote)) - Number(Boolean(a.safetyNote));
-      if (safetyDelta !== 0) return safetyDelta;
-      return (plannedOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (plannedOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER);
-    });
-}
-
 function isDecisionReviewItem(item: WorkspaceReviewItem): boolean {
-  return item.status.kind === "waiting" || item.status.kind === "blocked" || item.status.kind === "staged";
+  return item.status.kind === "waiting" || item.status.kind === "blocked" || item.status.kind === "checking" || item.status.kind === "staged";
 }

@@ -5,7 +5,6 @@ import {
   addStagedSessions,
   appendSessionActivity,
   attachRuntimeSession,
-  approveAllStaged,
   approveStaged,
   closeSession,
   createInitialSessions,
@@ -15,7 +14,6 @@ import {
   markSessionExited,
   markSessionStartFailed,
   recordSessionOutputActivity,
-  rejectAllStaged,
   rejectStaged,
   relaunchRestoredSession,
   renameSession,
@@ -901,19 +899,6 @@ describe("staged sessions", () => {
     expect(after).toEqual(before); // manual is live, not staged → unchanged
   });
 
-  it("approveAllStaged flips safe staged tiles to live and leaves unsafe tiles staged", () => {
-    const initial = createInitialSessions("/repo");
-    const before = addStagedSessions(initial, planSessions, "/repo");
-    const after = approveAllStaged(before);
-
-    expect(after.find((s) => s.id === "manual-1")?.stage).toBe("live");
-    expect(after.find((s) => s.id === "alfred-1")?.stage).toBe("live");
-    expect(after.find((s) => s.id === "alfred-2")?.stage).toBe("live");
-    expect(after.find((s) => s.id === "alfred-3")?.stage).toBe("staged");
-    expect(after.find((s) => s.id === "alfred-4")?.stage).toBe("staged");
-    expect(after.map((s) => s.id)).toEqual(before.map((s) => s.id)); // same ids, same order
-  });
-
   it("keeps staged tiles queued while an edit is being rechecked", () => {
     const initial = createInitialSessions("/repo");
     const before = addStagedSessions(initial, planSessions, "/repo").map((session) =>
@@ -921,10 +906,6 @@ describe("staged sessions", () => {
     );
 
     expect(approveStaged(before, "alfred-1")).toEqual(before);
-
-    const after = approveAllStaged(before);
-    expect(after.find((s) => s.id === "alfred-1")?.stage).toBe("staged");
-    expect(after.find((s) => s.id === "alfred-2")?.stage).toBe("live");
   });
 
   it("refuses to approve preflight-blocked staged tiles", () => {
@@ -966,13 +947,5 @@ describe("staged sessions", () => {
       runtimeStatus: "error",
     });
     expect(failed[1]?.launchPreflight).toBeUndefined();
-  });
-
-  it("rejectAllStaged removes every staged tile and leaves manual tiles untouched", () => {
-    const initial = createInitialSessions("/repo");
-    const before = addStagedSessions(initial, planSessions, "/repo");
-    const after = rejectAllStaged(before);
-
-    expect(after).toEqual(initial); // back to just the manual tile
   });
 });

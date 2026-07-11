@@ -32,26 +32,6 @@ const ATTENTION_PRIORITY: Partial<Record<SessionDisplayStatus["kind"], number>> 
   done: 5,
 };
 
-export function workspaceAttention(sessions: SessionTile[], now = Date.now()): WorkspaceAttention | null {
-  let best: WorkspaceAttention | null = null;
-  let bestPriority = Number.POSITIVE_INFINITY;
-
-  for (const session of sessions) {
-    const status = terminalSessionDisplayStatus(session, "ready", now);
-    const priority = ATTENTION_PRIORITY[status.kind];
-    if (priority === undefined || priority >= bestPriority) continue;
-
-    bestPriority = priority;
-    best = {
-      session,
-      status,
-      detail: attentionDetailForSession(session, status.kind),
-    };
-  }
-
-  return best;
-}
-
 export function workspaceReviewQueue(
   workspaces: WorkspaceReviewScope[],
   sessions: SessionTile[],

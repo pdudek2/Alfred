@@ -8,17 +8,14 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import type { SquadPlan } from "../alfred-state";
 import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import type { WorkMode } from "../terminal-desk-types";
-import type { WorkspaceAttention, WorkspaceReviewItem } from "../workspace-attention";
+import type { WorkspaceReviewItem } from "../workspace-attention";
 import type { AgentKind } from "../../shared/alfred-ipc";
 import type { TerminalSessionIsolation } from "../../shared/terminal-ipc";
 import type { WorkspaceRailWorkspace } from "./WorkspaceRail";
 import { shortenPath } from "../path-display";
-import { recoveryCounts, recoverySummary } from "../recovery-display";
-import { relaunchNeedsReview } from "../relaunch-safety";
 
 type CommandPaletteItem = {
   id: string;
@@ -33,29 +30,21 @@ type CommandPaletteProps = {
   activeWorkMode: WorkMode;
   arrangeMode: boolean;
   allSessions: SessionTile[];
-  pendingPlan: SquadPlan | null;
   query: string;
-  recoverableSessions: SessionTile[];
   reviewQueuePreview: WorkspaceReviewItem | null;
-  attention: WorkspaceAttention | null;
-  safeStagedCount: number;
   selectedSessionId: string | null;
   sessions: SessionTile[];
   shortcutModifier: string;
-  blockedStagedCount: number;
   workspaces: WorkspaceRailWorkspace[];
   canCloseWorkspace: boolean;
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">, isolation?: TerminalSessionIsolation) => void;
   onAddManualSession: () => void;
   onAddWorkspace: () => void;
   onApplyWorkMode: (mode: WorkMode) => void;
-  onApproveAll: () => void;
   onChangeQuery: (query: string) => void;
-  onCloseRecoverableSessions: () => void;
   onClose: () => void;
   onCloseSession: (sessionId: string) => void;
   onCloseWorkspace: () => void;
-  onContinueRecoverableSessions: () => void;
   onCopySessionCwd: (cwd: string) => void;
   onOpenWorkspaceFolder: () => void;
   onOpenWorkspaceTerminal: () => void;
@@ -67,8 +56,6 @@ type CommandPaletteProps = {
   onFocusPreviousSession: () => void;
   onOpenInbox: () => void;
   onOpenPrivacyControls: () => void;
-  onReviewAttention: () => void;
-  onRejectAll: () => void;
   onRestartSession: (sessionId: string) => void;
   onSelectWorkspace: (workspaceId: string) => void;
   onToggleArrange: () => void;
@@ -79,29 +66,21 @@ export function CommandPalette({
   activeWorkMode,
   arrangeMode,
   allSessions,
-  pendingPlan,
   query,
-  recoverableSessions,
   reviewQueuePreview,
-  attention,
-  safeStagedCount,
   selectedSessionId,
   sessions,
   shortcutModifier,
-  blockedStagedCount,
   workspaces,
   canCloseWorkspace,
   onAddAgentSession,
   onAddManualSession,
   onAddWorkspace,
   onApplyWorkMode,
-  onApproveAll,
   onChangeQuery,
-  onCloseRecoverableSessions,
   onClose,
   onCloseSession,
   onCloseWorkspace,
-  onContinueRecoverableSessions,
   onCopySessionCwd,
   onOpenWorkspaceFolder,
   onOpenWorkspaceTerminal,
@@ -113,8 +92,6 @@ export function CommandPalette({
   onFocusPreviousSession,
   onOpenInbox,
   onOpenPrivacyControls,
-  onReviewAttention,
-  onRejectAll,
   onRestartSession,
   onSelectWorkspace,
   onToggleArrange,
@@ -165,11 +142,6 @@ export function CommandPalette({
     [activeWorkspaceId, allSessions],
   );
   const searchableSessions = normalizedQuery ? globalSearchableSessions : activeSearchableSessions;
-  const recoverableCount = recoverableSessions.length;
-  const recoverableCounts = recoveryCounts(recoverableSessions);
-  const recoverableOnlySaved = recoverableCount > 0 && recoverableCounts.saved === recoverableCount;
-  const recoverableSummary = recoverySummary(recoverableSessions);
-  const recoverableNeedsReview = recoverableSessions.some(relaunchNeedsReview);
 
   const commands: CommandPaletteItem[] = useMemo(
     () => [
@@ -290,15 +262,6 @@ export function CommandPalette({
         run: onOpenInbox,
       },
       {
-        id: "review-attention",
-        label: "Review attention",
-        detail: attention
-          ? `${attention.status.label} · ${attention.session.title} ${attention.detail}`
-          : "No session needs review",
-        disabled: attention === null,
-        run: onReviewAttention,
-      },
-      {
         id: "close-selected-session",
         label: "Close focused session",
         detail: selectedSession
@@ -352,26 +315,6 @@ export function CommandPalette({
         },
       },
       {
-        id: "relaunch-saved-sessions",
-        label: recoverableNeedsReview ? "Review recovery in Inbox" : recoverableOnlySaved ? "Relaunch saved sessions" : "Recover sessions",
-        detail: recoverableCount > 0
-          ? recoverableNeedsReview
-            ? "One or more recovery commands needs review before relaunch"
-            : `${recoverableSummary || `${recoverableCount} recovery item${recoverableCount === 1 ? "" : "s"}`} in this workspace`
-          : "No recovery items",
-        disabled: recoverableCount === 0,
-        run: recoverableNeedsReview ? onOpenInbox : onContinueRecoverableSessions,
-      },
-      {
-        id: "dismiss-saved-sessions",
-        label: recoverableOnlySaved ? "Dismiss saved sessions" : "Clear recovery items",
-        detail: recoverableCount > 0
-          ? `Remove ${recoverableSummary || `${recoverableCount} recovery item${recoverableCount === 1 ? "" : "s"}`}`
-          : "No recovery items",
-        disabled: recoverableCount === 0,
-        run: onCloseRecoverableSessions,
-      },
-      {
         id: "next-session",
         label: "Next session",
         detail: `${shortcutModifier} Shift ] · move focus forward`,
@@ -409,40 +352,20 @@ export function CommandPalette({
         detail: "Drag headers and resize corners",
         run: onToggleArrange,
       },
-      {
-        id: "launch-plan",
-        label: blockedStagedCount > 0 ? "Launch safe staged tiles" : "Launch staged plan",
-        detail: pendingPlan
-          ? `${safeStagedCount} launchable · ${blockedStagedCount} blocked`
-          : "No Alfred plan staged",
-        disabled: !pendingPlan || safeStagedCount === 0,
-        run: onApproveAll,
-      },
-      {
-        id: "clear-plan",
-        label: "Clear staged plan",
-        detail: pendingPlan ? "Reject Alfred's current proposal" : "No staged plan",
-        disabled: !pendingPlan,
-        run: onRejectAll,
-      },
     ],
     [
       activeWorkMode,
       activeWorkspaceId,
       activeWorkspace,
       activeWorkspaceBound,
-      attention,
       arrangeMode,
       canCloseWorkspace,
       onAddAgentSession,
       onAddManualSession,
       onAddWorkspace,
       onApplyWorkMode,
-      onApproveAll,
       onCloseSession,
-      onCloseRecoverableSessions,
       onCloseWorkspace,
-      onContinueRecoverableSessions,
       onCopySessionCwd,
       onOpenWorkspaceFolder,
       onOpenWorkspaceTerminal,
@@ -454,24 +377,15 @@ export function CommandPalette({
       onFocusPreviousSession,
       onOpenInbox,
       onOpenPrivacyControls,
-      onReviewAttention,
-      onRejectAll,
       onRestartSession,
       onSelectWorkspace,
       onToggleArrange,
-      pendingPlan,
-      recoverableCount,
-      recoverableNeedsReview,
-      recoverableOnlySaved,
-      recoverableSummary,
       reviewQueuePreview,
-      safeStagedCount,
       selectedRestartable,
       selectedSession,
       sessions,
       shortcutModifier,
       searchableSessions,
-      blockedStagedCount,
       workspaceById,
       workspaces,
     ],
@@ -661,9 +575,7 @@ function groupPaletteCommands(commands: CommandPaletteItem[]): CommandPaletteRow
 function commandGroupLabel(commandId: string): string {
   if (
     commandId.includes("review") ||
-    commandId.includes("saved-sessions") ||
-    commandId === "launch-plan" ||
-    commandId === "clear-plan"
+    commandId === "open-inbox"
   ) {
     return "Review and recovery";
   }

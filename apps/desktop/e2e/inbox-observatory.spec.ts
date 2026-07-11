@@ -10,7 +10,11 @@ test.use({ fixtureOptions: { inboxItems: 14, restoredSessions: 2 } });
 
 test("inbox scrolls, executes a real action, and opens Observatory history", async ({ harness }) => {
   const { page } = harness;
-  await page.getByRole("button", { name: /Open Inbox surface/i }).first().click();
+  await page.getByTestId("workbench-header").getByRole("button", { name: /Open Context drawer/i }).click();
+  await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
+  await expect(page.getByRole("region", { name: "Alfred review queue" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Close Context panel" }).click();
+  await page.getByTestId("primary-nav-rail").getByRole("button", { name: /Open Inbox surface/i }).click();
 
   const inbox = page.getByRole("region", { name: "Inbox workspace" });
   await expect(inbox).toBeVisible();
