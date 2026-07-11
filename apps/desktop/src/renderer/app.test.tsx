@@ -5658,7 +5658,22 @@ describe("App integration", () => {
     expect(blocked).toHaveTextContent("Launch blocked: Workspace has uncommitted or untracked changes.");
     await openInboxFromCommandPalette(user);
     expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveTextContent("Blocked Codex");
-    expect(screen.getByRole("button", { name: "Review details Blocked Codex in Alfred" })).toBeEnabled();
+    const reviewDetails = screen.getByRole("button", {
+      name: "Review details Blocked Codex in Alfred",
+    });
+    expect(reviewDetails).toBeEnabled();
+
+    await user.click(reviewDetails);
+
+    expect(screen.getByTestId("desk-runtime-surface")).not.toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
+    expect(screen.getByRole("complementary", { name: "Agent activity" })).toHaveTextContent("Blocked Codex");
+    expect(screen.getByRole("note", { name: "Blocked launch details for Blocked Codex" })).toHaveTextContent(
+      "Workspace has uncommitted or untracked changes.",
+    );
+    expect(createTerminal).not.toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-2" }));
+
+    await openInboxFromCommandPalette(user);
 
     await user.click(screen.getByRole("button", { name: "Launch Safe task in Alfred" }));
 
