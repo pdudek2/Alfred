@@ -275,6 +275,23 @@ describe("renderer CSS contracts", () => {
     expect(topLevelExactRuleBodies(".primary-nav-rail button:focus-visible")).toHaveLength(1);
   });
 
+  it("keeps canonical base owners for terminal Context and composer", () => {
+    expectCanonicalBase(".terminal-stage-body", ["min-height: 0", "overflow: hidden"]);
+    expectCanonicalBase(".terminal-grid-column", ["overflow-y: auto", "height: 100%"]);
+    expectCanonicalBase(".composer-bar", ["display: grid", "min-height: 66px"]);
+
+    expect(topLevelExactRuleBodies(".terminal-stage.arranging .terminal-grid-column")).toHaveLength(1);
+    expect(topLevelExactRuleBodies(".terminal-grid.laid-out")).toHaveLength(1);
+    expect(topLevelExactRuleBodies(".context-column.open")).toHaveLength(1);
+    expect(topLevelExactRuleBodies(".context-column.closed")).toHaveLength(1);
+    expect(topLevelExactRuleBodies('.composer-bar[data-state="busy"]')).toHaveLength(1);
+    expect(topLevelExactRuleBodies('.composer-bar[data-state="blocked"]')).toHaveLength(1);
+    expect(topLevelExactRuleBodies('.composer-bar[data-state="disabled"]')).toHaveLength(1);
+    expect(topLevelExactRuleBodies('.composer-bar[data-state="ready"] .composer-status-indicator')).toHaveLength(1);
+    expect(topLevelExactRuleBodies('.composer-bar[data-state="busy"] .composer-status-indicator')).toHaveLength(1);
+    expect(topLevelExactRuleBodies('.composer-bar[data-state="blocked"] .composer-status-indicator')).toHaveLength(1);
+  });
+
   it("uses one canonical tactical-dark token hierarchy", () => {
     expect(tokenDefinitionCount("--surface-terminal")).toBe(1);
     expect(tokenDefinitionCount("--surface-canvas")).toBe(1);
@@ -476,10 +493,10 @@ describe("renderer CSS contracts", () => {
 
   it("styles workspace scrollbars so native white rails do not dominate the shell", () => {
     const workspaceScroll = blockFor(
-      ".workspace-nav-scroll,\n.terminal-stage-body,\n.inbox-section-stack,\n.observatory-surface,\n.observatory-projects,\n.observatory-session-list,\n.context-drawer,\n.agent-timeline-panel",
+      ".workspace-nav-scroll,\n.inbox-section-stack,\n.observatory-surface,\n.observatory-projects,\n.observatory-session-list,\n.agent-timeline-panel",
     );
     const scrollbarThumb = blockFor(
-      ".workspace-nav-scroll::-webkit-scrollbar-thumb,\n.terminal-stage-body::-webkit-scrollbar-thumb,\n.inbox-section-stack::-webkit-scrollbar-thumb,\n.observatory-surface::-webkit-scrollbar-thumb,\n.observatory-projects::-webkit-scrollbar-thumb,\n.observatory-session-list::-webkit-scrollbar-thumb,\n.context-drawer::-webkit-scrollbar-thumb,\n.agent-timeline-panel::-webkit-scrollbar-thumb",
+      ".workspace-nav-scroll::-webkit-scrollbar-thumb,\n.inbox-section-stack::-webkit-scrollbar-thumb,\n.observatory-surface::-webkit-scrollbar-thumb,\n.observatory-projects::-webkit-scrollbar-thumb,\n.observatory-session-list::-webkit-scrollbar-thumb,\n.agent-timeline-panel::-webkit-scrollbar-thumb",
     );
 
     expect(workspaceScroll).toContain("scrollbar-width: thin");
@@ -612,7 +629,7 @@ describe("renderer CSS contracts", () => {
     const selectedToolDotRule = ruleForSelectorContaining(".terminal-tile.real-terminal.selected .tool-dot");
     const terminalChromeLayer = styles.slice(styles.indexOf(".terminal-tile.real-terminal .tool-dot"));
 
-    expect(tile).toContain("background: var(--surface-chrome)");
+    expect(tile).toContain("background: var(--surface-panel)");
     expect(tile).toContain("box-shadow: none");
     expect(header).toContain("min-height");
     expect(header).toContain("background: var(--surface-tile-header)");
