@@ -39,11 +39,10 @@ export type WorktreeActionKind = "review" | "apply";
 
 type TerminalDeskProps = {
   arrangeMode: boolean;
-  armedUnsafeSessionIds: Set<string>;
   layouts: Record<string, TileLayout>;
   collapsedSessionIds: Set<string>;
   recoverableSessions: SessionTile[];
-  relaunchArmedSessionIds: Set<string>;
+  armedRecoverySessionIds: Set<string>;
   selectedSessionId: string | null;
   sessions: SessionTile[];
   showHeaderControls?: boolean;
@@ -82,11 +81,10 @@ type TerminalDeskProps = {
 
 export function TerminalDesk({
   arrangeMode,
-  armedUnsafeSessionIds,
   layouts,
   collapsedSessionIds,
   recoverableSessions,
-  relaunchArmedSessionIds,
+  armedRecoverySessionIds,
   selectedSessionId,
   sessions,
   showHeaderControls = true,
@@ -373,7 +371,7 @@ export function TerminalDesk({
                 sessionKey={session.id}
                 runtimeId={session.runtimeId}
                 runtimeStatus={session.runtimeStatus}
-                relaunchArmed={relaunchArmedSessionIds.has(session.id)}
+                relaunchArmed={armedRecoverySessionIds.has(session.id)}
                 workspaceId={session.workspaceId}
                 title={session.title}
                 layoutHidden={layoutHidden}
@@ -413,7 +411,6 @@ export function TerminalDesk({
               />
             ) : (
               <StagedTilePreview
-                armed={armedUnsafeSessionIds.has(session.id)}
                 focusHidden={layoutHidden}
                 key={session.id}
                 layout={layouts[session.id]}

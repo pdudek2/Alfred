@@ -9,27 +9,27 @@ import { restoredSessionActionLabel } from "../restored-session-action";
 import type { WorkspaceReviewItem } from "../workspace-attention";
 
 type ReviewSurfaceProps = {
-  armedUnsafeSessionIds: Set<string>;
+  armedRecoverySessionIds: Set<string>;
   items: WorkspaceReviewItem[];
   selectedSessionId: string | null;
-  onApproveTile: (tileId: string) => void;
   onContinueRestoredSession: (tileId: string) => void;
   onDiscardSession: (tileId: string) => void;
   onFocusItem: (workspaceId: string, sessionId: string) => void;
   onLaunchItem: (workspaceId: string, sessionId: string) => void;
   onRestartSession: (tileId: string) => void;
+  onReviewBlockedItem: (workspaceId: string, sessionId: string) => void;
 };
 
 export function ReviewSurface({
-  armedUnsafeSessionIds,
+  armedRecoverySessionIds,
   items,
   selectedSessionId,
-  onApproveTile,
   onContinueRestoredSession,
   onDiscardSession,
   onFocusItem,
   onLaunchItem,
   onRestartSession,
+  onReviewBlockedItem,
 }: ReviewSurfaceProps) {
   const surfaceRef = useRef<HTMLElement | null>(null);
 
@@ -98,16 +98,19 @@ export function ReviewSurface({
                 <ol className="review-surface-list" aria-label={`${section.title} items`}>
                   {section.items.map((item) => (
                     <ReviewSurfaceItem
-                      armed={armedUnsafeSessionIds.has(item.session.id)}
+                      armed={
+                        (item.status.kind === "restored" || item.status.kind === "done" || item.status.kind === "error") &&
+                        armedRecoverySessionIds.has(item.session.id)
+                      }
                       item={item}
                       key={item.id}
                       selected={item.session.id === selectedSessionId}
-                      onApproveTile={onApproveTile}
                       onContinueRestoredSession={onContinueRestoredSession}
                       onDiscardSession={onDiscardSession}
                       onFocusItem={onFocusItem}
                       onLaunchItem={onLaunchItem}
                       onRestartSession={onRestartSession}
+                      onReviewBlockedItem={onReviewBlockedItem}
                     />
                   ))}
                 </ol>
@@ -133,22 +136,22 @@ function ReviewSurfaceItem({
   armed,
   item,
   selected,
-  onApproveTile,
   onContinueRestoredSession,
   onDiscardSession,
   onFocusItem,
   onLaunchItem,
   onRestartSession,
+  onReviewBlockedItem,
 }: {
   armed: boolean;
   item: WorkspaceReviewItem;
   selected: boolean;
-  onApproveTile: (tileId: string) => void;
   onContinueRestoredSession: (tileId: string) => void;
   onDiscardSession: (tileId: string) => void;
   onFocusItem: (workspaceId: string, sessionId: string) => void;
   onLaunchItem: (workspaceId: string, sessionId: string) => void;
   onRestartSession: (tileId: string) => void;
+  onReviewBlockedItem: (workspaceId: string, sessionId: string) => void;
 }) {
   const status = terminalSessionDisplayStatus(item.session);
   const command = formatCommand(item.session);
@@ -163,16 +166,16 @@ function ReviewSurfaceItem({
   const action = reviewSurfaceAction(item, relaunchNeedsReview, armed);
 
   const runAction = () => {
-    if (hardBlocked || checking) return;
+    if (checking) return;
+    if (hardBlocked) {
+      onReviewBlockedItem(item.workspaceId, item.session.id);
+      return;
+    }
     if (item.status.kind === "waiting") {
       onFocusItem(item.workspaceId, item.session.id);
       return;
     }
-    if (item.status.kind === "blocked" && !armed) {
-      onApproveTile(item.session.id);
-      return;
-    }
-    if (item.status.kind === "staged" || item.status.kind === "blocked") {
+    if (item.status.kind === "staged") {
       onLaunchItem(item.workspaceId, item.session.id);
       return;
     }
@@ -217,7 +220,7 @@ function ReviewSurfaceItem({
             <button
               type="button"
               className={`review-surface-primary action-${item.status.kind} ${armed ? "armed" : ""}`}
-              disabled={hardBlocked || checking}
+              disabled={checking}
               onClick={runAction}
               aria-label={`${action} ${item.session.title} in ${item.workspaceLabel}`}
             >
@@ -282,7 +285,7 @@ function reviewSurfaceAction(item: WorkspaceReviewItem, unsafe: boolean, armed: 
     case "staged":
       return "Launch";
     case "blocked":
-      return "Blocked";
+      return item.session.safetyNote ? "Review and edit" : "Review details";
     case "checking":
       return "Checking";
     case "restored":

@@ -190,7 +190,7 @@ export function App() {
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState<boolean>(false);
   const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState<string>("");
   const [workspaceRenameEditing, setWorkspaceRenameEditing] = useState<boolean>(false);
-  const [armedUnsafeSessionIds, setArmedUnsafeSessionIds] = useState<Set<string>>(() => new Set());
+  const [armedRecoverySessionIds, setArmedRecoverySessionIds] = useState<Set<string>>(() => new Set());
   const [runtimeStatus, setRuntimeStatus] = useState<AlfredRuntimeStatus | null>(null);
   const [previewCandidates, setPreviewCandidates] = useState<PreviewUrlCandidate[]>([]);
   const [selectedPreviewUrlsByWorkspace, setSelectedPreviewUrlsByWorkspace] = useState<Record<string, string>>({});
@@ -253,8 +253,7 @@ export function App() {
   const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
   const checkingStagedCount = activeSessions.filter((s) => s.stage === "staged" && s.stagedReviewStatus === "checking").length;
   const blockedStagedCount = activeSessions.filter((s) => s.stage === "staged" && isLaunchBlocked(s)).length;
-  const unsafeStagedCount = activeSessions.filter((s) => s.stage === "staged" && s.safetyNote && !isLaunchBlocked(s)).length;
-  const safeStagedCount = Math.max(0, stagedCount - unsafeStagedCount - blockedStagedCount - checkingStagedCount);
+  const safeStagedCount = Math.max(0, stagedCount - blockedStagedCount - checkingStagedCount);
   const liveAlfredCount = activeSessions.filter((s) => s.stage === "live" && s.source === "alfred").length;
   const alfredExpanded =
     alfredStatus.kind !== "idle" ||
@@ -901,15 +900,15 @@ export function App() {
       const session = sessions.find((item) => item.id === sessionId);
       if (!session || session.runtimeStatus !== "restored") return sessions;
       const relaunchSafety = sessionRelaunchSafety(session);
-      if (!relaunchSafety.safe && !armedUnsafeSessionIds.has(sessionId)) {
-        setArmedUnsafeSessionIds((ids) => new Set(ids).add(sessionId));
+      if (!relaunchSafety.safe && !armedRecoverySessionIds.has(sessionId)) {
+        setArmedRecoverySessionIds((ids) => new Set(ids).add(sessionId));
         return appendSessionActivity(sessions, sessionId, {
           kind: "warning",
           title: "Review before relaunch",
           detail: relaunchSafety.reason,
         });
       }
-      setArmedUnsafeSessionIds((ids) => {
+      setArmedRecoverySessionIds((ids) => {
         if (!ids.has(sessionId)) return ids;
         const next = new Set(ids);
         next.delete(sessionId);
@@ -921,22 +920,22 @@ export function App() {
         detail: "Alfred is starting a fresh process from this saved transcript.",
       });
     });
-  }, [armedUnsafeSessionIds]);
+  }, [armedRecoverySessionIds]);
 
   const handleRestartSession = useCallback((sessionId: string) => {
     setTerminalSessions((sessions) => {
       const session = sessions.find((item) => item.id === sessionId);
       if (!session || (session.runtimeStatus !== "exited" && session.runtimeStatus !== "error")) return sessions;
       const restartSafety = sessionRelaunchSafety(session);
-      if (!restartSafety.safe && !armedUnsafeSessionIds.has(sessionId)) {
-        setArmedUnsafeSessionIds((ids) => new Set(ids).add(sessionId));
+      if (!restartSafety.safe && !armedRecoverySessionIds.has(sessionId)) {
+        setArmedRecoverySessionIds((ids) => new Set(ids).add(sessionId));
         return appendSessionActivity(sessions, sessionId, {
           kind: "warning",
           title: "Review before restart",
           detail: restartSafety.reason,
         });
       }
-      setArmedUnsafeSessionIds((ids) => {
+      setArmedRecoverySessionIds((ids) => {
         if (!ids.has(sessionId)) return ids;
         const next = new Set(ids);
         next.delete(sessionId);
@@ -948,7 +947,7 @@ export function App() {
         detail: "Alfred is starting a fresh process in this tile.",
       });
     });
-  }, [armedUnsafeSessionIds]);
+  }, [armedRecoverySessionIds]);
 
   const handleRenameSession = useCallback((sessionId: string, title: string) => {
     const normalizedTitle = normalizeSessionTitle(title);
@@ -1361,12 +1360,6 @@ export function App() {
       return;
     }
 
-    setArmedUnsafeSessionIds((ids) => {
-      if (!ids.has(tileId)) return ids;
-      const next = new Set(ids);
-      next.delete(tileId);
-      return next;
-    });
     setTerminalSessions((sessions) =>
       appendSessionActivity(approveStaged(sessions, tileId), tileId, {
         kind: "approval",
@@ -1383,12 +1376,6 @@ export function App() {
 
   const handleRejectTile = useCallback((tileId: string) => {
     const alfredApi = getDesktopAlfredApi();
-    setArmedUnsafeSessionIds((ids) => {
-      if (!ids.has(tileId)) return ids;
-      const next = new Set(ids);
-      next.delete(tileId);
-      return next;
-    });
     setTerminalSessions((sessions) => rejectStaged(sessions, tileId));
     setPendingPlan((plan) => {
       if (!plan) return plan;
@@ -1405,12 +1392,6 @@ export function App() {
       throw new Error("No staged plan is available to edit.");
     }
 
-    setArmedUnsafeSessionIds((ids) => {
-      if (!ids.has(sessionId)) return ids;
-      const next = new Set(ids);
-      next.delete(sessionId);
-      return next;
-    });
     setTerminalSessions((sessions) =>
       sessions.map((session) =>
         session.id === sessionId && session.stage === "staged"
@@ -1462,13 +1443,11 @@ export function App() {
   }, [activeSessions, activeWorkspace, pendingPlan?.id]);
 
   const handleApproveAll = useCallback(() => {
-    setArmedUnsafeSessionIds(new Set());
     setTerminalSessions((sessions) => approveAllStaged(sessions, activeWorkspace.id));
   }, [activeWorkspace.id]);
 
   const handleRejectAll = useCallback(() => {
     const alfredApi = getDesktopAlfredApi();
-    setArmedUnsafeSessionIds(new Set());
     setTerminalSessions((sessions) => rejectAllStaged(sessions, activeWorkspace.id));
     setPendingPlan(null);
     void alfredApi?.clearStagedPlan();
@@ -1600,6 +1579,14 @@ export function App() {
   const handleOpenManagedSessionFromObservatory = useCallback((workspaceId: string, sessionId: string) => {
     setActiveSurface("work");
     handleFocusSessionInWorkspace(workspaceId, sessionId);
+  }, [handleFocusSessionInWorkspace]);
+
+  const handleReviewBlockedSession = useCallback((workspaceId: string, sessionId: string) => {
+    handleFocusSessionInWorkspace(workspaceId, sessionId);
+    setContextDrawerOpenByWorkspace((current) => ({
+      ...current,
+      [workspaceId]: true,
+    }));
   }, [handleFocusSessionInWorkspace]);
 
   const handleResumeExternalCodexSession = useCallback((session: ExternalCodexSessionSummary) => {
@@ -2022,7 +2009,7 @@ export function App() {
             >
               <TerminalDesk
                 arrangeMode={arrangeMode}
-                armedUnsafeSessionIds={armedUnsafeSessionIds}
+                armedRecoverySessionIds={armedRecoverySessionIds}
                 collapsedSessionIds={activeCollapsedSessionIds}
                 layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
                 recoverableSessions={activeRecoverableSessions}
@@ -2052,7 +2039,6 @@ export function App() {
                 onRuntimeSessionStarting={handleRuntimeSessionStarting}
                 onRuntimeSessionUnavailable={handleRuntimeSessionUnavailable}
                 onRenameSession={handleRenameSession}
-                relaunchArmedSessionIds={armedUnsafeSessionIds}
                 onFocusSession={handleFocusSession}
                 onSelectSession={handleSelectSession}
                 onApproveTile={handleApproveTile}
@@ -2066,15 +2052,15 @@ export function App() {
             {activeSurface === "inbox" && (
               <div className="surface-panel active">
                 <ReviewSurface
-                  armedUnsafeSessionIds={armedUnsafeSessionIds}
+                  armedRecoverySessionIds={armedRecoverySessionIds}
                   items={globalReviewItems}
                   selectedSessionId={activeSelectedSessionId}
-                  onApproveTile={handleApproveTile}
                   onContinueRestoredSession={handleContinueRestoredSession}
                   onDiscardSession={handleCloseSession}
                   onFocusItem={handleOpenManagedSessionFromObservatory}
                   onLaunchItem={handleLaunchReviewQueueItem}
                   onRestartSession={handleRestartSession}
+                  onReviewBlockedItem={handleReviewBlockedSession}
                 />
               </div>
             )}
@@ -2119,7 +2105,6 @@ export function App() {
               onUpdateStagedSession: handleUpdateStagedSession,
             }}
             railProps={{
-              armedUnsafeSessionIds,
               status: alfredStatus,
               activeDecisionItems,
               missionBrief: activeWorkspace.missionBrief,
@@ -2129,7 +2114,6 @@ export function App() {
               stagedSessions: activeStagedSessions,
               stagedCount,
               blockedStagedCount,
-              unsafeStagedCount,
               liveAlfredCount,
               onApproveAll: handleApproveAll,
               onApproveTile: handleApproveTile,
@@ -2193,7 +2177,7 @@ export function App() {
             selectedSessionId={activeSelectedSessionId}
             sessions={activeSessions}
             shortcutModifier={shortcutModifier}
-            unsafeStagedCount={unsafeStagedCount}
+            blockedStagedCount={blockedStagedCount}
             workspaces={workspaces}
             canCloseWorkspace={canCloseActiveWorkspace}
             onAddAgentSession={handleAddAgentSession}

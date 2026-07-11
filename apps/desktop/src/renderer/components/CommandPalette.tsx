@@ -42,7 +42,7 @@ type CommandPaletteProps = {
   selectedSessionId: string | null;
   sessions: SessionTile[];
   shortcutModifier: string;
-  unsafeStagedCount: number;
+  blockedStagedCount: number;
   workspaces: WorkspaceRailWorkspace[];
   canCloseWorkspace: boolean;
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">, isolation?: TerminalSessionIsolation) => void;
@@ -88,7 +88,7 @@ export function CommandPalette({
   selectedSessionId,
   sessions,
   shortcutModifier,
-  unsafeStagedCount,
+  blockedStagedCount,
   workspaces,
   canCloseWorkspace,
   onAddAgentSession,
@@ -411,9 +411,9 @@ export function CommandPalette({
       },
       {
         id: "launch-plan",
-        label: unsafeStagedCount > 0 ? "Launch safe staged tiles" : "Launch staged plan",
+        label: blockedStagedCount > 0 ? "Launch safe staged tiles" : "Launch staged plan",
         detail: pendingPlan
-          ? `${safeStagedCount} launchable · ${unsafeStagedCount} need review`
+          ? `${safeStagedCount} launchable · ${blockedStagedCount} blocked`
           : "No Alfred plan staged",
         disabled: !pendingPlan || safeStagedCount === 0,
         run: onApproveAll,
@@ -471,7 +471,7 @@ export function CommandPalette({
       sessions,
       shortcutModifier,
       searchableSessions,
-      unsafeStagedCount,
+      blockedStagedCount,
       workspaceById,
       workspaces,
     ],
