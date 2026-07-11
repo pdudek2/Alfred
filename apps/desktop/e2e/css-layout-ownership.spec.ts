@@ -11,6 +11,7 @@ import {
   type CssOwnerProbe,
   type CssStateEvidence,
 } from "./support/css-layout-evidence";
+import { selectDisplayBounds, type EvidenceDisplay } from "./support/display-placement";
 
 const frameProbes: CssOwnerProbe[] = [
   { name: "desktop-frame", selector: ".desktop-frame", required: true,
@@ -237,14 +238,35 @@ async function setWindowSize(
   width: number,
   height: number,
 ): Promise<void> {
+  const targetScaleFactorValue = process.env.ALFRED_CSS_TARGET_SCALE_FACTOR;
+  const targetScaleFactor = targetScaleFactorValue === undefined
+    ? undefined
+    : Number(targetScaleFactorValue);
+  let bounds = { x: 0, y: 0, width, height };
+
+  if (targetScaleFactor !== undefined) {
+    const displays = await app.evaluate(({ screen }) => screen.getAllDisplays().map((display) => ({
+      id: display.id,
+      scaleFactor: display.scaleFactor,
+      workArea: display.workArea,
+    }))) as EvidenceDisplay[];
+    bounds = selectDisplayBounds(displays, targetScaleFactor, { width, height }).bounds;
+  }
+
   await app.evaluate(({ BrowserWindow }, size) => {
     const [window] = BrowserWindow.getAllWindows();
     if (!window) throw new Error("Electron window is missing.");
-    window.setBounds({ x: 0, y: 0, width: size.width, height: size.height });
-  }, { width, height });
+    window.setBounds(size);
+  }, bounds);
   await expect.poll(async () => app.evaluate(({ BrowserWindow }) => {
     const [window] = BrowserWindow.getAllWindows();
     return window?.getBounds() ?? null;
-  })).toMatchObject({ width, height });
+  })).toMatchObject(bounds);
+  if (targetScaleFactor !== undefined) {
+    await expect.poll(
+      () => page.evaluate(() => window.devicePixelRatio),
+      { message: `Expected Electron renderer devicePixelRatio ${targetScaleFactor}` },
+    ).toBe(targetScaleFactor);
+  }
   await page.waitForTimeout(50);
 }
