@@ -891,6 +891,7 @@ async function ensureNodePtySpawnHelperExecutable(nodePtyIndexPath: string): Pro
       `Unable to prepare node-pty spawn helper at ${helperPath}: ${
         error instanceof Error ? error.message : String(error)
       }`,
+      { cause: error },
     );
   }
 }

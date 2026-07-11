@@ -943,13 +943,13 @@ button:focus-visible {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 10px;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
 }
 
 .surface-panel {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 1;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -7776,10 +7776,6 @@ body {
   background: var(--surface-panel);
   background-image: none;
   box-shadow: none;
-}
-
-.orchestrator-surface {
-  gap: 8px;
 }
 
 .workspace-navigation-panel {

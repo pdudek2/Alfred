@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
@@ -6,6 +6,8 @@ import { build } from "esbuild";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outdir = resolve(repoRoot, "api/.generated");
 const outfile = resolve(outdir, "app.cjs");
+const staticOutdir = resolve(repoRoot, "vercel-static");
+const staticMarker = "Alfred cloud deployment exposes API endpoints only.\n";
 const workspaceAliases = new Map([
   ["@alfred/db", resolve(repoRoot, "packages/db/src/index.ts")],
   ["@alfred/schema", resolve(repoRoot, "packages/schema/src/index.ts")],
@@ -41,3 +43,7 @@ await writeFile(
   resolve(outdir, "app.d.cts"),
   'export { createApp } from "../../apps/api/src/app";\n',
 );
+
+await rm(staticOutdir, { force: true, recursive: true });
+await mkdir(staticOutdir, { recursive: true });
+await writeFile(resolve(staticOutdir, "api-only.txt"), staticMarker);

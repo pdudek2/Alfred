@@ -235,6 +235,8 @@ function cleanActivityLine(value: string): string {
 }
 
 function stripAnsi(value: string): string {
+  // Terminal output contains the ESC control byte by protocol; matching it is intentional.
+  // eslint-disable-next-line no-control-regex
   return value.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "");
 }
 
