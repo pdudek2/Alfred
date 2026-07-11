@@ -385,18 +385,6 @@ export function rejectStaged(sessions: SessionTile[], tileId: string): SessionTi
   return sessions.filter((session) => !(session.id === tileId && session.stage === "staged"));
 }
 
-export function approveAllStaged(sessions: SessionTile[], workspaceId?: string): SessionTile[] {
-  return sessions.map((session) =>
-    session.stage === "staged" && isLaunchableStagedSession(session) && !session.safetyNote && (!workspaceId || session.workspaceId === workspaceId)
-      ? { ...session, stage: "live", runtimeStatus: "starting" }
-      : session,
-  );
-}
-
-export function rejectAllStaged(sessions: SessionTile[], workspaceId?: string): SessionTile[] {
-  return sessions.filter((session) => !(session.stage === "staged" && (!workspaceId || session.workspaceId === workspaceId)));
-}
-
 export function isLaunchBlocked(session: Pick<SessionTile, "launchPreflight" | "safetyNote">): boolean {
   return Boolean(session.safetyNote) || session.launchPreflight?.status === "blocked";
 }

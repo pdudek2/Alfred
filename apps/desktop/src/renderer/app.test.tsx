@@ -3736,12 +3736,6 @@ describe("App integration", () => {
 
     expect(screen.getByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
-
-    await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await submitCommandPalette(user, "review attention");
-
-    expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
   });
 
   it("opens the global Inbox and focuses attention in another workspace", async () => {
@@ -4663,11 +4657,12 @@ describe("App integration", () => {
       }),
     );
     const rail = await screen.findByLabelText("Alfred status");
-    const reviewQueue = within(rail).getByRole("region", { name: "Alfred review queue" });
     expect(rail).toHaveTextContent("ready to launch");
-    expect(reviewQueue).toHaveTextContent("2 safe");
-    expect(within(rail).getByRole("button", { name: "Launch queue" })).toBeInTheDocument();
-    expect(within(rail).getByRole("button", { name: "Clear staged plan from review queue" })).toBeInTheDocument();
+    expect(rail).toHaveTextContent("2 staged");
+    expect(within(rail).queryByRole("region", { name: "Alfred review queue" })).not.toBeInTheDocument();
+    await user.click(within(rail).getByRole("button", { name: "Open Inbox" }));
+    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Open Work surface" }));
     expect(await screen.findByRole("article", { name: /Staged Task A/i })).toBeInTheDocument();
     const stagedTaskB = await screen.findByRole("article", { name: /Staged Task B/i });
     const stagedTaskBHeader = stagedTaskB.querySelector(".tile-header")!;
@@ -5015,17 +5010,6 @@ describe("App integration", () => {
       expect(within(tile).getByRole("button", { name: "Review relaunch Clean Desktop" })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    const search = screen.getByRole("textbox", { name: "Search commands" });
-    await user.type(search, "relaunch");
-    expect(screen.getByText("Review recovery in Inbox")).toBeInTheDocument();
-    await act(async () => {
-      search.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    });
-    await waitFor(() => {
-      expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
-    });
-
     await openInboxFromCommandPalette(user);
     const inbox = screen.getByRole("region", { name: "Inbox workspace" });
     expect(inbox).toHaveTextContent("find -exec mutates files when replayed");
@@ -5251,49 +5235,32 @@ describe("App integration", () => {
     expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9", cleanupWorktree: true });
   });
 
-  it("dismisses all recoverable sessions from the command palette", async () => {
+  it("routes aggregate recovery commands through the canonical Inbox", async () => {
     const user = userEvent.setup();
-    const { forgetTerminal } = installDesktopBridge(
+    const { createTerminal, forgetTerminal } = installDesktopBridge(
       undefined,
       null,
       [],
       undefined,
       undefined,
       undefined,
-      [
-        {
-          clientId: "manual-9",
-          title: "Manual · zsh 9",
-          cwd: "/repo",
-          source: "manual",
-          shell: "/bin/zsh",
-          buffer: "saved output\n",
-        },
-        {
-          clientId: "codex-9",
-          title: "Codex · session 9",
-          cwd: "/repo",
-          source: "manual",
-          agentKind: "codex",
-          command: "codex",
-          args: [],
-          shell: "codex",
-          buffer: "saved output\n",
-        },
-      ],
+      [{
+        clientId: "manual-9",
+        title: "Manual · zsh 9",
+        cwd: "/repo",
+        source: "manual",
+        shell: "/bin/zsh",
+        buffer: "saved output\n",
+      }],
     );
 
     render(<App />);
-
-    expect(await screen.findByRole("region", { name: "Session recovery" })).toHaveTextContent("2 saved sessions ready");
-
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await submitCommandPalette(user, "dismiss saved");
+    await submitCommandPalette(user, "open inbox");
 
-    expect(screen.queryByRole("article", { name: /Manual · zsh 9/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("article", { name: /Codex · session 9/i })).not.toBeInTheDocument();
-    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "manual-9", cleanupWorktree: true });
-    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9", cleanupWorktree: true });
+    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
+    expect(createTerminal).not.toHaveBeenCalled();
+    expect(forgetTerminal).not.toHaveBeenCalled();
   });
 
   it("keeps the workspace recovery strip contextual and routes it to Inbox", async () => {
@@ -5374,39 +5341,6 @@ describe("App integration", () => {
 
     expect(await screen.findByLabelText("Session recovery")).toHaveTextContent("saved session");
     expect(screen.getByRole("complementary", { name: /alfred status/i })).toBeInTheDocument();
-  });
-
-  it("relaunches saved sessions from the command palette", async () => {
-    const user = userEvent.setup();
-    const { createTerminal } = installDesktopBridge(
-      undefined,
-      null,
-      [],
-      undefined,
-      undefined,
-      undefined,
-      [
-        {
-          clientId: "manual-9",
-          title: "Manual · zsh 9",
-          cwd: "/repo",
-          source: "manual",
-          shell: "/bin/zsh",
-          buffer: "saved output\n",
-        },
-      ],
-    );
-
-    render(<App />);
-
-    expect(await screen.findByRole("region", { name: "Session recovery" })).toHaveTextContent("1 saved session ready");
-
-    await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await submitCommandPalette(user, "relaunch saved");
-
-    await waitFor(() => {
-      expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "manual-9" }));
-    });
   });
 
   it("keeps restored transcripts recoverable when relaunch all cannot start a process", async () => {
@@ -5526,7 +5460,7 @@ describe("App integration", () => {
 
   it("unlocks Alfred after rejecting the staged plan", async () => {
     const user = userEvent.setup();
-    const { clearStagedPlan, requestPlan } = installDesktopBridge();
+    const { requestPlan } = installDesktopBridge();
 
     render(<App />);
 
@@ -5537,12 +5471,13 @@ describe("App integration", () => {
     await user.click(send);
     await screen.findByRole("article", { name: /Staged Task A/i });
 
-    await user.click(screen.getByRole("button", { name: "Clear staged plan from review queue" }));
+    await openInboxFromCommandPalette(user);
+    await user.click(screen.getByRole("button", { name: "Discard Task A from Alfred" }));
+    await user.click(screen.getByRole("button", { name: "Discard Task B from Alfred" }));
     await user.type(composer, "second after reject");
     await user.click(send);
 
     expect(requestPlan).toHaveBeenCalledTimes(2);
-    expect(clearStagedPlan).toHaveBeenCalledOnce();
   });
 
   it("resolves a staged tile after approval starts its terminal", async () => {
@@ -5594,15 +5529,16 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Staged Safe task/i })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Launch safe" }));
+    await openInboxFromCommandPalette(user);
+    await user.click(screen.getByRole("button", { name: "Launch Safe task in Alfred" }));
 
     await waitFor(() => {
       expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
     });
     expect(screen.queryByRole("article", { name: /Staged Safe task/i })).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Safe task/i })).toBeInTheDocument();
-    expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("0 safe · 1 blocked");
+    await openInboxFromCommandPalette(user);
+    expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveTextContent("Risky task");
     expect(clearStagedPlan).not.toHaveBeenCalled();
   });
 
@@ -5637,19 +5573,15 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /Staged Safe build/i });
     await screen.findByRole("article", { name: /Staged Risky cleanup/i });
 
-    const rail = screen.getByRole("region", { name: "Alfred review queue" });
-    const blockedItem = within(rail)
-      .getByRole("button", { name: "Focus staged tile: Risky cleanup" })
-      .closest("li");
-    if (!blockedItem) throw new Error("Expected blocked review queue item");
+    await openInboxFromCommandPalette(user);
+    const blockedItem = screen.getByRole("button", { name: "Open Risky cleanup in Alfred" }).closest("li");
+    if (!blockedItem) throw new Error("Expected blocked Inbox item");
 
-    expect(blockedItem).toHaveTextContent("Cannot launch yet");
+    expect(blockedItem).toHaveTextContent("Review and edit");
     expect(blockedItem).toHaveTextContent("rm -rf detected");
     expect(within(blockedItem).queryByText(/^Blocked$/)).not.toBeInTheDocument();
 
-    const reviewDetails = within(blockedItem).getByRole("button", {
-      name: "Review details for blocked launch: Risky cleanup",
-    });
+    const reviewDetails = within(blockedItem).getByRole("button", { name: "Review and edit Risky cleanup in Alfred" });
     expect(reviewDetails).toBeEnabled();
     expect(screen.queryByRole("note", { name: "Blocked launch details for Risky cleanup" })).not.toBeInTheDocument();
 
@@ -5705,10 +5637,11 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Staged Safe task/i })).toHaveTextContent("normal workspace");
     const blocked = screen.getByRole("article", { name: /Staged Blocked Codex/i });
     expect(blocked).toHaveTextContent("Launch blocked: Workspace has uncommitted or untracked changes.");
-    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("1 safe · 1 blocked");
-    expect(screen.getByRole("button", { name: "Launch blocked: Blocked Codex" })).toBeDisabled();
+    await openInboxFromCommandPalette(user);
+    expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveTextContent("Blocked Codex");
+    expect(screen.getByRole("button", { name: "Review details Blocked Codex in Alfred" })).toBeEnabled();
 
-    await user.click(screen.getByRole("button", { name: "Launch safe" }));
+    await user.click(screen.getByRole("button", { name: "Launch Safe task in Alfred" }));
 
     await waitFor(() => {
       expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
@@ -5716,7 +5649,8 @@ describe("App integration", () => {
     expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-1" }));
     expect(createTerminal).not.toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-2" }));
     expect(screen.queryByRole("article", { name: /Staged Safe task/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("article", { name: /Staged Blocked Codex/i })).toBeInTheDocument();
+    await openInboxFromCommandPalette(user);
+    expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveTextContent("Blocked Codex");
   });
 
   it("launches a preflighted worktree branch for staged coding agents", async () => {
@@ -5905,13 +5839,14 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
     await screen.findByRole("article", { name: /Staged Safe task/i });
 
-    await user.click(screen.getByRole("button", { name: "Launch safe" }));
+    await openInboxFromCommandPalette(user);
+    await user.click(screen.getByRole("button", { name: "Launch Safe task in Alfred" }));
 
     await waitFor(() => {
       expect(screen.getByRole("article", { name: /Staged Safe task/i })).toBeInTheDocument();
     });
-    expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("1 safe · 1 blocked");
+    await openInboxFromCommandPalette(user);
+    expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveTextContent("Risky task");
     expect(resolveStagedPlan).not.toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
   });
 

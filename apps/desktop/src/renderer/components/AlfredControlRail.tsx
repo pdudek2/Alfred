@@ -1,12 +1,9 @@
-import { Play, ShieldAlert, X } from "lucide-react";
 import type { AlfredStatus, SquadPlan } from "../alfred-state";
-import { isLaunchBlocked, type SessionTile } from "../session-state";
+import type { SessionTile } from "../session-state";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import type { WorkspaceReviewItem } from "../workspace-attention";
 import type { WorkspaceMissionBrief } from "../../shared/workspace-ipc";
-import { shortenPath } from "../path-display";
-import { formatCommand } from "../command-display";
 import { recoveryCounts, recoveryStatusLabel } from "../recovery-display";
 
 export type AlfredControlRailProps = {
@@ -15,17 +12,11 @@ export type AlfredControlRailProps = {
   missionBrief: WorkspaceMissionBrief | undefined;
   pendingPlan: SquadPlan | null;
   recoverableSessions: SessionTile[];
-  selectedSessionId: string | null;
-  stagedSessions: SessionTile[];
   stagedCount: number;
   blockedStagedCount: number;
   liveAlfredCount: number;
-  onApproveAll: () => void;
-  onApproveTile: (tileId: string) => void;
   onDismissError: () => void;
-  onFocusSession: (tileId: string) => void;
-  onRejectAll: () => void;
-  onRejectTile: (tileId: string) => void;
+  onOpenInbox: () => void;
 };
 
 export function AlfredControlRail({
@@ -34,19 +25,13 @@ export function AlfredControlRail({
   missionBrief,
   pendingPlan,
   recoverableSessions,
-  selectedSessionId,
-  stagedSessions,
   stagedCount,
   blockedStagedCount,
   liveAlfredCount,
-  onApproveAll,
-  onApproveTile,
   onDismissError,
-  onFocusSession,
-  onRejectAll,
-  onRejectTile,
+  onOpenInbox,
 }: AlfredControlRailProps) {
-  const checkingStagedCount = stagedSessions.filter((session) => session.stagedReviewStatus === "checking").length;
+  const checkingStagedCount = activeDecisionItems.filter((item) => item.status.kind === "checking").length;
   const safeStagedCount = Math.max(0, stagedCount - blockedStagedCount - checkingStagedCount);
   const hasMissionBrief = isMissionBriefVisible(missionBrief);
   const compact =
@@ -136,18 +121,9 @@ export function AlfredControlRail({
             </div>
           )}
           <p className="plan-prompt">"{truncate(pendingPlan.prompt, 140)}"</p>
-          <PlanReviewQueue
-            safeStagedCount={safeStagedCount}
-            selectedSessionId={selectedSessionId}
-            sessions={stagedSessions}
-            blockedStagedCount={blockedStagedCount}
-            checkingStagedCount={checkingStagedCount}
-            onApproveAll={onApproveAll}
-            onApproveTile={onApproveTile}
-            onFocusSession={onFocusSession}
-            onRejectAll={onRejectAll}
-            onRejectTile={onRejectTile}
-          />
+          <button type="button" className="alfred-dock-open-inbox" onClick={onOpenInbox}>
+            Open Inbox
+          </button>
         </section>
       ) : recoverableSessions.length > 0 || activeDecisionItems.length > 0 ? (
         <ReviewRecoveryContext
@@ -309,169 +285,4 @@ function alfredSigilState(
 
 function truncate(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
-}
-
-function PlanReviewQueue({
-  blockedStagedCount,
-  checkingStagedCount,
-  safeStagedCount,
-  selectedSessionId,
-  sessions,
-  onApproveAll,
-  onApproveTile,
-  onFocusSession,
-  onRejectAll,
-  onRejectTile,
-}: {
-  blockedStagedCount: number;
-  checkingStagedCount: number;
-  safeStagedCount: number;
-  selectedSessionId: string | null;
-  sessions: SessionTile[];
-  onApproveAll: () => void;
-  onApproveTile: (tileId: string) => void;
-  onFocusSession: (tileId: string) => void;
-  onRejectAll: () => void;
-  onRejectTile: (tileId: string) => void;
-}) {
-  if (sessions.length === 0) {
-    return <p className="review-queue-empty">No staged sessions remain.</p>;
-  }
-
-  return (
-    <section className="review-queue" aria-label="Alfred review queue">
-      <header>
-        <span>Review queue</span>
-        <strong>
-          {safeStagedCount} safe
-          {checkingStagedCount > 0 ? ` · ${checkingStagedCount} checking` : ""}
-          {blockedStagedCount > 0 ? ` · ${blockedStagedCount} blocked` : ""}
-        </strong>
-      </header>
-      <div className="review-queue-actions">
-        <button
-          type="button"
-          className="review-launch"
-          onClick={onApproveAll}
-          disabled={safeStagedCount === 0}
-        >
-          <Play size={13} />
-          <span>{blockedStagedCount > 0 ? "Launch safe" : "Launch queue"}</span>
-        </button>
-        <button
-          type="button"
-          className="review-clear"
-          onClick={onRejectAll}
-          aria-label="Clear staged plan from review queue"
-        >
-          Clear
-        </button>
-      </div>
-      <ol>
-        {sessions.map((session) => (
-          <ReviewQueueItem
-            key={session.id}
-            selected={session.id === selectedSessionId}
-            session={session}
-            onApprove={onApproveTile}
-            onFocus={onFocusSession}
-            onReject={onRejectTile}
-          />
-        ))}
-      </ol>
-    </section>
-  );
-}
-
-function ReviewQueueItem({
-  selected,
-  session,
-  onApprove,
-  onFocus,
-  onReject,
-}: {
-  selected: boolean;
-  session: SessionTile;
-  onApprove: (tileId: string) => void;
-  onFocus: (tileId: string) => void;
-  onReject: (tileId: string) => void;
-}) {
-  const kind = sessionTileKind(session);
-  const kindMeta = tileKindMeta(kind);
-  const command = formatCommand(session);
-  const hardBlocked = isLaunchBlocked(session);
-  const checking = session.stagedReviewStatus === "checking";
-  const blockedDetail = hardBlocked ? blockedLaunchDetail(session) : null;
-  const approveLabel = checking
-    ? `Checking edited command from review queue: ${session.title}`
-    : hardBlocked
-      ? `Review details for blocked launch: ${session.title}`
-    : `Launch from review queue: ${session.title}`;
-
-  return (
-    <li className={`review-queue-item ${checking ? "checking" : hardBlocked ? "blocked" : "safe"} ${selected ? "selected" : ""}`}>
-      <button
-        type="button"
-        className="review-item-focus"
-        onClick={() => onFocus(session.id)}
-        aria-label={`Focus staged tile: ${session.title}`}
-      >
-        <div className="review-item-head">
-          <span className={`review-kind ${kindMeta.className}`} title={kindMeta.label}>
-            <TileKindIcon kind={kind} />
-            <span>{kindMeta.shortLabel}</span>
-          </span>
-          <div>
-            <strong>{session.title}</strong>
-            <span>{session.cwd ? shortenPath(session.cwd) : "default cwd"}</span>
-          </div>
-        </div>
-        <code>{command}</code>
-        {checking && (
-          <div className="review-safety-note checking">
-            <ShieldAlert size={13} />
-            <span>Rechecking edited command before launch.</span>
-          </div>
-        )}
-        {hardBlocked && blockedDetail && (
-          <div className="review-safety-note blocked">
-            <ShieldAlert size={13} />
-            <span>Cannot launch yet: {blockedDetail}</span>
-          </div>
-        )}
-      </button>
-      <div className="review-item-actions">
-        <button
-          type="button"
-          className={checking ? "review-item-launch blocked" : "review-item-launch"}
-          onClick={() => {
-            if (hardBlocked) {
-              onFocus(session.id);
-              return;
-            }
-            onApprove(session.id);
-          }}
-          disabled={checking}
-          aria-label={approveLabel}
-        >
-          {checking ? "Checking" : hardBlocked ? "Review details" : "Launch"}
-        </button>
-        <button
-          type="button"
-          className="review-item-reject"
-          onClick={() => onReject(session.id)}
-          aria-label={`Remove from review queue: ${session.title}`}
-        >
-          <X size={13} />
-        </button>
-      </div>
-    </li>
-  );
-}
-
-function blockedLaunchDetail(session: Pick<SessionTile, "launchPreflight" | "safetyNote">): string {
-  const safetyNote = session.safetyNote?.trim();
-  if (safetyNote) return safetyNote;
-  if (session.launchPreflight?.status === "blocked") return session.launchPreflight.reason;
-  return "Preflight failed.";
 }
