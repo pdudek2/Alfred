@@ -23,6 +23,8 @@ describe("desktop product boundary", () => {
 
     assert.deepEqual(config, {
       $schema: "https://openapi.vercel.sh/vercel.json",
+      framework: null,
+      outputDirectory: null,
       installCommand: "pnpm install --frozen-lockfile",
       buildCommand: "node scripts/build-vercel-api.mjs",
       rewrites: [
