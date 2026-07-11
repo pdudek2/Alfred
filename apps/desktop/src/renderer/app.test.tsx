@@ -464,11 +464,10 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
   const renderDesk = (nextSessions: SessionTile[]) => (
     <TerminalDesk
       arrangeMode={false}
-      armedUnsafeSessionIds={new Set()}
+      armedRecoverySessionIds={new Set()}
       collapsedSessionIds={new Set()}
       layouts={{}}
       recoverableSessions={[]}
-      relaunchArmedSessionIds={new Set()}
       selectedSessionId={nextSessions[0]?.id ?? null}
       sessions={nextSessions}
       workMode="desk"
@@ -4023,7 +4022,7 @@ describe("App integration", () => {
     expect(inbox).toHaveTextContent("rm -rf dist");
     expect(inbox).toHaveTextContent("rm -rf detected");
 
-    expect(within(inbox).getByRole("button", { name: "Blocked Risky cleanup in ClientApp" })).toBeDisabled();
+    expect(within(inbox).getByRole("button", { name: "Review and edit Risky cleanup in ClientApp" })).toBeEnabled();
     expect(resolveStagedPlan).not.toHaveBeenCalled();
     expect(createTerminal).not.toHaveBeenCalled();
   });
@@ -4666,7 +4665,7 @@ describe("App integration", () => {
     const rail = await screen.findByLabelText("Alfred status");
     const reviewQueue = within(rail).getByRole("region", { name: "Alfred review queue" });
     expect(rail).toHaveTextContent("ready to launch");
-    expect(reviewQueue).toHaveTextContent("2 safe · 0 flagged");
+    expect(reviewQueue).toHaveTextContent("2 safe");
     expect(within(rail).getByRole("button", { name: "Launch queue" })).toBeInTheDocument();
     expect(within(rail).getByRole("button", { name: "Clear staged plan from review queue" })).toBeInTheDocument();
     expect(await screen.findByRole("article", { name: /Staged Task A/i })).toBeInTheDocument();
@@ -5595,7 +5594,7 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Staged Safe task/i })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Launch queue" }));
+    await user.click(screen.getByRole("button", { name: "Launch safe" }));
 
     await waitFor(() => {
       expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
@@ -5603,7 +5602,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("article", { name: /Staged Safe task/i })).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Safe task/i })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("0 safe · 0 flagged · 1 blocked");
+    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("0 safe · 1 blocked");
     expect(clearStagedPlan).not.toHaveBeenCalled();
   });
 
@@ -5706,10 +5705,10 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Staged Safe task/i })).toHaveTextContent("normal workspace");
     const blocked = screen.getByRole("article", { name: /Staged Blocked Codex/i });
     expect(blocked).toHaveTextContent("Launch blocked: Workspace has uncommitted or untracked changes.");
-    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("1 safe · 0 flagged · 1 blocked");
+    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("1 safe · 1 blocked");
     expect(screen.getByRole("button", { name: "Launch blocked: Blocked Codex" })).toBeDisabled();
 
-    await user.click(screen.getByRole("button", { name: "Launch queue" }));
+    await user.click(screen.getByRole("button", { name: "Launch safe" }));
 
     await waitFor(() => {
       expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
@@ -5906,13 +5905,13 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
     await screen.findByRole("article", { name: /Staged Safe task/i });
 
-    await user.click(screen.getByRole("button", { name: "Launch queue" }));
+    await user.click(screen.getByRole("button", { name: "Launch safe" }));
 
     await waitFor(() => {
       expect(screen.getByRole("article", { name: /Staged Safe task/i })).toBeInTheDocument();
     });
     expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("1 safe · 0 flagged");
+    expect(screen.getByRole("region", { name: "Alfred review queue" })).toHaveTextContent("1 safe · 1 blocked");
     expect(resolveStagedPlan).not.toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
   });
 
@@ -5943,6 +5942,37 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Launch blocked: Risky task" })).toBeDisabled();
     expect(screen.getByRole("article", { name: /Staged Risky task/i })).toHaveTextContent("rm -rf detected");
     expect(resolveStagedPlan).not.toHaveBeenCalled();
+  });
+
+  it("opens the selected blocked staged command in Context for editing", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge({
+      ok: true,
+      plan: {
+        name: "Unsafe plan",
+        sessions: [{
+          kind: "shell",
+          title: "Risky cleanup",
+          command: "rm",
+          args: ["-rf", "dist"],
+          safetyNote: "rm -rf detected",
+        }],
+      },
+    });
+
+    render(<App />);
+    await user.type(screen.getByLabelText("Dispatch instruction"), "stage risky cleanup");
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
+    await openInboxFromCommandPalette(user);
+    await user.click(screen.getByRole("button", {
+      name: "Review and edit Risky cleanup in Alfred",
+    }));
+
+    expect(screen.getByTestId("desk-runtime-surface")).toBeVisible();
+    expect(screen.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Risky cleanup");
+    expect(screen.getByRole("button", { name: "Edit command" })).toBeInTheDocument();
+    expect(createTerminal).not.toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-1" }));
   });
 
   it("keeps the draft when Alfred plan creation fails", async () => {

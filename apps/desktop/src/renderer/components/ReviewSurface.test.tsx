@@ -30,7 +30,7 @@ function reviewItem(
 
 function renderSurface(
   items: WorkspaceReviewItem[],
-  armedUnsafeSessionIds = new Set<string>(),
+  armedRecoverySessionIds = new Set<string>(),
 ) {
   const handlers = {
     onApproveTile: vi.fn(),
@@ -39,11 +39,12 @@ function renderSurface(
     onFocusItem: vi.fn(),
     onLaunchItem: vi.fn(),
     onRestartSession: vi.fn(),
+    onReviewBlockedItem: vi.fn(),
   };
 
   render(
     <ReviewSurface
-      armedUnsafeSessionIds={armedUnsafeSessionIds}
+      armedRecoverySessionIds={armedRecoverySessionIds}
       items={items}
       selectedSessionId={null}
       {...handlers}
@@ -353,7 +354,7 @@ describe("ReviewSurface", () => {
     expect(screen.getByRole("button", { name: "Resume latest Codex · latest session in ClientApp" })).toBeInTheDocument();
   });
 
-  it("keeps blocked staged commands disabled but independently discardable", async () => {
+  it("keeps blocked staged commands reviewable and independently discardable", async () => {
     const user = userEvent.setup();
     const handlers = renderSurface([
       reviewItem(
@@ -380,10 +381,45 @@ describe("ReviewSurface", () => {
       ),
     ]);
 
-    expect(screen.getByRole("button", { name: "Blocked UI/UX Deep Analysis in Alfred" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Review details UI/UX Deep Analysis in Alfred" })).toBeEnabled();
     await user.click(screen.getByRole("button", { name: "Discard UI/UX Deep Analysis from Alfred" }));
 
     expect(handlers.onDiscardSession).toHaveBeenCalledWith("claude-review");
     expect(handlers.onLaunchItem).not.toHaveBeenCalled();
+  });
+
+  it("routes a safety-blocked staged command to editing without exposing confirm or launch", async () => {
+    const user = userEvent.setup();
+    const handlers = renderSurface([
+      reviewItem(
+        {
+          id: "risky-cleanup",
+          title: "Risky cleanup",
+          workspaceId: "A",
+          cwd: "/repo",
+          source: "alfred",
+          stage: "staged",
+          command: "rm",
+          args: ["-rf", "dist"],
+          safetyNote: "rm -rf detected",
+        },
+        { kind: "blocked", label: "blocked" },
+        "rm -rf detected",
+        { label: "Alfred", shortLabel: "A" },
+      ),
+    ]);
+
+    const action = screen.getByRole("button", {
+      name: "Review and edit Risky cleanup in Alfred",
+    });
+    expect(action).toBeEnabled();
+    expect(screen.queryByRole("button", { name: /Confirm unsafe\scommand/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Launch Risky cleanup/i })).not.toBeInTheDocument();
+
+    await user.click(action);
+
+    expect(handlers.onReviewBlockedItem).toHaveBeenCalledWith("A", "risky-cleanup");
+    expect(handlers.onLaunchItem).not.toHaveBeenCalled();
+    expect(handlers.onApproveTile).not.toHaveBeenCalled();
   });
 });

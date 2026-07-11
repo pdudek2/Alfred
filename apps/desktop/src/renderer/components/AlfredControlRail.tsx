@@ -10,7 +10,6 @@ import { formatCommand } from "../command-display";
 import { recoveryCounts, recoveryStatusLabel } from "../recovery-display";
 
 export type AlfredControlRailProps = {
-  armedUnsafeSessionIds: Set<string>;
   status: AlfredStatus;
   activeDecisionItems: WorkspaceReviewItem[];
   missionBrief: WorkspaceMissionBrief | undefined;
@@ -20,7 +19,6 @@ export type AlfredControlRailProps = {
   stagedSessions: SessionTile[];
   stagedCount: number;
   blockedStagedCount: number;
-  unsafeStagedCount: number;
   liveAlfredCount: number;
   onApproveAll: () => void;
   onApproveTile: (tileId: string) => void;
@@ -31,7 +29,6 @@ export type AlfredControlRailProps = {
 };
 
 export function AlfredControlRail({
-  armedUnsafeSessionIds,
   status,
   activeDecisionItems,
   missionBrief,
@@ -41,7 +38,6 @@ export function AlfredControlRail({
   stagedSessions,
   stagedCount,
   blockedStagedCount,
-  unsafeStagedCount,
   liveAlfredCount,
   onApproveAll,
   onApproveTile,
@@ -51,7 +47,7 @@ export function AlfredControlRail({
   onRejectTile,
 }: AlfredControlRailProps) {
   const checkingStagedCount = stagedSessions.filter((session) => session.stagedReviewStatus === "checking").length;
-  const safeStagedCount = Math.max(0, stagedCount - unsafeStagedCount - blockedStagedCount - checkingStagedCount);
+  const safeStagedCount = Math.max(0, stagedCount - blockedStagedCount - checkingStagedCount);
   const hasMissionBrief = isMissionBriefVisible(missionBrief);
   const compact =
     status.kind === "idle" &&
@@ -63,7 +59,7 @@ export function AlfredControlRail({
     status,
     pendingPlan,
     recoverableSessions.length,
-    unsafeStagedCount,
+    blockedStagedCount,
     activeDecisionItems.length,
   );
   const statusText = status.kind === "thinking"
@@ -129,11 +125,6 @@ export function AlfredControlRail({
           <div className="plan-counts">
             {stagedCount} staged · {liveAlfredCount} live
           </div>
-          {unsafeStagedCount > 0 && (
-            <div className="plan-safety-note" role="note">
-              {unsafeStagedCount} flagged item{unsafeStagedCount === 1 ? "" : "s"} need manual approval.
-            </div>
-          )}
           {blockedStagedCount > 0 && (
             <div className="plan-safety-note blocked" role="note">
               {blockedStagedCount} item{blockedStagedCount === 1 ? "" : "s"} blocked before launch.
@@ -146,13 +137,11 @@ export function AlfredControlRail({
           )}
           <p className="plan-prompt">"{truncate(pendingPlan.prompt, 140)}"</p>
           <PlanReviewQueue
-            armedUnsafeSessionIds={armedUnsafeSessionIds}
             safeStagedCount={safeStagedCount}
             selectedSessionId={selectedSessionId}
             sessions={stagedSessions}
             blockedStagedCount={blockedStagedCount}
             checkingStagedCount={checkingStagedCount}
-            unsafeStagedCount={unsafeStagedCount}
             onApproveAll={onApproveAll}
             onApproveTile={onApproveTile}
             onFocusSession={onFocusSession}
@@ -306,11 +295,11 @@ function alfredSigilState(
   status: AlfredStatus,
   pendingPlan: SquadPlan | null,
   recoverableCount: number,
-  unsafeStagedCount: number,
+  blockedStagedCount: number,
   activeReviewCount: number,
 ): AlfredSigilState {
   if (status.kind === "error") return "error";
-  if (unsafeStagedCount > 0) return "ask";
+  if (blockedStagedCount > 0) return "ask";
   if (activeReviewCount > 0) return "ask";
   if (pendingPlan) return "active";
   if (recoverableCount > 0) return "recovery";
@@ -323,26 +312,22 @@ function truncate(value: string, max: number): string {
 }
 
 function PlanReviewQueue({
-  armedUnsafeSessionIds,
   blockedStagedCount,
   checkingStagedCount,
   safeStagedCount,
   selectedSessionId,
   sessions,
-  unsafeStagedCount,
   onApproveAll,
   onApproveTile,
   onFocusSession,
   onRejectAll,
   onRejectTile,
 }: {
-  armedUnsafeSessionIds: Set<string>;
   blockedStagedCount: number;
   checkingStagedCount: number;
   safeStagedCount: number;
   selectedSessionId: string | null;
   sessions: SessionTile[];
-  unsafeStagedCount: number;
   onApproveAll: () => void;
   onApproveTile: (tileId: string) => void;
   onFocusSession: (tileId: string) => void;
@@ -358,7 +343,7 @@ function PlanReviewQueue({
       <header>
         <span>Review queue</span>
         <strong>
-          {safeStagedCount} safe · {unsafeStagedCount} flagged
+          {safeStagedCount} safe
           {checkingStagedCount > 0 ? ` · ${checkingStagedCount} checking` : ""}
           {blockedStagedCount > 0 ? ` · ${blockedStagedCount} blocked` : ""}
         </strong>
@@ -371,7 +356,7 @@ function PlanReviewQueue({
           disabled={safeStagedCount === 0}
         >
           <Play size={13} />
-          <span>{unsafeStagedCount > 0 ? "Launch safe" : "Launch queue"}</span>
+          <span>{blockedStagedCount > 0 ? "Launch safe" : "Launch queue"}</span>
         </button>
         <button
           type="button"
@@ -385,7 +370,6 @@ function PlanReviewQueue({
       <ol>
         {sessions.map((session) => (
           <ReviewQueueItem
-            armed={armedUnsafeSessionIds.has(session.id)}
             key={session.id}
             selected={session.id === selectedSessionId}
             session={session}
@@ -400,14 +384,12 @@ function PlanReviewQueue({
 }
 
 function ReviewQueueItem({
-  armed,
   selected,
   session,
   onApprove,
   onFocus,
   onReject,
 }: {
-  armed: boolean;
   selected: boolean;
   session: SessionTile;
   onApprove: (tileId: string) => void;
@@ -419,20 +401,15 @@ function ReviewQueueItem({
   const command = formatCommand(session);
   const hardBlocked = isLaunchBlocked(session);
   const checking = session.stagedReviewStatus === "checking";
-  const flagged = Boolean(session.safetyNote) && !hardBlocked;
   const blockedDetail = hardBlocked ? blockedLaunchDetail(session) : null;
   const approveLabel = checking
     ? `Checking edited command from review queue: ${session.title}`
-    : flagged
-    ? armed
-      ? `Confirm unsafe command from review queue: ${session.title}`
-      : `Review unsafe command from review queue: ${session.title}`
     : hardBlocked
       ? `Review details for blocked launch: ${session.title}`
     : `Launch from review queue: ${session.title}`;
 
   return (
-    <li className={`review-queue-item ${checking ? "checking" : hardBlocked ? "blocked" : flagged ? "flagged" : "safe"} ${armed ? "armed" : ""} ${selected ? "selected" : ""}`}>
+    <li className={`review-queue-item ${checking ? "checking" : hardBlocked ? "blocked" : "safe"} ${selected ? "selected" : ""}`}>
       <button
         type="button"
         className="review-item-focus"
@@ -462,17 +439,11 @@ function ReviewQueueItem({
             <span>Cannot launch yet: {blockedDetail}</span>
           </div>
         )}
-        {flagged && session.safetyNote && (
-          <div className="review-safety-note">
-            <ShieldAlert size={13} />
-            <span>{session.safetyNote}</span>
-          </div>
-        )}
       </button>
       <div className="review-item-actions">
         <button
           type="button"
-          className={checking ? "review-item-launch blocked" : hardBlocked ? "review-item-launch" : flagged ? "review-item-launch flagged" : "review-item-launch"}
+          className={checking ? "review-item-launch blocked" : "review-item-launch"}
           onClick={() => {
             if (hardBlocked) {
               onFocus(session.id);
@@ -483,7 +454,7 @@ function ReviewQueueItem({
           disabled={checking}
           aria-label={approveLabel}
         >
-          {checking ? "Checking" : hardBlocked ? "Review details" : flagged ? (armed ? "Confirm" : "Review") : "Launch"}
+          {checking ? "Checking" : hardBlocked ? "Review details" : "Launch"}
         </button>
         <button
           type="button"

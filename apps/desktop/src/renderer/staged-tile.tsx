@@ -9,7 +9,6 @@ import { shortenPath } from "./path-display";
 
 type StagedTilePreviewProps = {
   arrangeMode: boolean;
-  armed: boolean;
   focusHidden?: boolean;
   layout?: TileLayout | undefined;
   preview?: ArrangePreview | undefined;
@@ -25,7 +24,6 @@ type StagedTilePreviewProps = {
 
 export function StagedTilePreview({
   arrangeMode,
-  armed,
   focusHidden = false,
   layout,
   preview,
@@ -53,17 +51,12 @@ export function StagedTilePreview({
   const edited = tile.stagedReviewStatus === "edited";
   const launchBlocked = tile.launchPreflight?.status === "blocked" || Boolean(tile.safetyNote);
   const launchBlockReason = tile.launchPreflight?.status === "blocked" ? tile.launchPreflight.reason : tile.safetyNote ?? null;
-  const unsafe = Boolean(tile.safetyNote) && !launchBlocked;
-  const approveLabel = checking ? "Checking" : launchBlocked ? "Blocked" : unsafe ? (armed ? "Confirm" : "Review") : "Launch";
+  const approveLabel = checking ? "Checking" : launchBlocked ? "Blocked" : "Launch";
   const approveAriaLabel = checking
     ? `Checking edited command: ${tile.title}`
     : launchBlocked
-    ? `Launch blocked: ${tile.title}`
-    : unsafe
-    ? armed
-      ? `Confirm unsafe command: ${tile.title}`
-      : `Review unsafe command: ${tile.title}`
-    : `Launch ${tile.title}`;
+      ? `Launch blocked: ${tile.title}`
+      : `Launch ${tile.title}`;
 
   return (
     <article
@@ -112,12 +105,6 @@ export function StagedTilePreview({
             edited · rechecked
           </div>
         )}
-        {unsafe && (
-          <div className={`staged-safety-chip ${armed ? "armed" : ""}`} role="note">
-            {armed ? "Confirm to launch: " : "Review before launch: "}
-            {tile.safetyNote}
-          </div>
-        )}
         {launchBlocked && (
           <div className="staged-safety-chip blocked" role="note">
             Launch blocked: {launchBlockReason}
@@ -134,7 +121,7 @@ export function StagedTilePreview({
       <div className="staged-actions">
         <button
           type="button"
-          className={`approve-button ${unsafe ? "unsafe" : ""} ${armed ? "armed" : ""}`}
+          className="approve-button"
           onClick={() => onApprove(tile.id)}
           disabled={checking || launchBlocked}
           aria-label={approveAriaLabel}
