@@ -1588,7 +1588,10 @@ describe("App integration", () => {
     );
 
     render(<App />);
-    expect(await screen.findByRole("article", { name: /Codex · alfred/i })).toHaveTextContent("before switch");
+    const initialTile = await screen.findByRole("article", { name: /Codex · alfred/i });
+    await waitFor(() => {
+      expect(initialTile).toHaveTextContent("before switch");
+    });
 
     const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
     let delayAlfredReattachSnapshot = true;
@@ -1669,7 +1672,10 @@ describe("App integration", () => {
     );
 
     render(<App />);
-    expect(await screen.findByRole("article", { name: /Codex · alfred/i })).toHaveTextContent("before switch");
+    const initialTile = await screen.findByRole("article", { name: /Codex · alfred/i });
+    await waitFor(() => {
+      expect(initialTile).toHaveTextContent("before switch");
+    });
 
     const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
     let delayAlfredReattachSnapshot = true;
@@ -1744,7 +1750,10 @@ describe("App integration", () => {
     );
 
     render(<App />);
-    expect(await screen.findByRole("article", { name: /Codex · alfred/i })).toHaveTextContent("before switch");
+    const initialTile = await screen.findByRole("article", { name: /Codex · alfred/i });
+    await waitFor(() => {
+      expect(initialTile).toHaveTextContent("before switch");
+    });
 
     const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
     let delayAlfredReattachSnapshot = true;
