@@ -81,8 +81,8 @@ function topLevelExactRuleBodiesIn(source: string, selector: string): string[] {
   const commentlessSource = withoutComments(source);
   let topLevelStyles = "";
   let cursor = 0;
-  const mediaStart = /@media\s*[^{}]+\{/g;
-  for (const match of commentlessSource.matchAll(mediaStart)) {
+  const nestedAtRuleStart = /@(media|container)\s*[^{}]+\{/g;
+  for (const match of commentlessSource.matchAll(nestedAtRuleStart)) {
     const openingBraceIndex = (match.index ?? 0) + match[0].lastIndexOf("{");
     const block = balancedBlockBody(commentlessSource, openingBraceIndex);
     topLevelStyles += commentlessSource.slice(cursor, match.index);
@@ -160,6 +160,44 @@ function expectTopLevelDeclarationOwnerWithin(
   expect(regionalMatchingBodies, `${selector} declaration owner must be inside ${startMarker} … ${endMarker}`).toHaveLength(1);
 }
 
+type CssOwnerRegion = {
+  name: string;
+  startMarker: string;
+  endMarker: string;
+};
+
+function expectAllTopLevelOccurrencesWithinSource(
+  source: string,
+  selector: string,
+  allowedRegions: CssOwnerRegion[],
+  expectedOccurrences: number,
+): void {
+  const allOccurrences = topLevelExactRuleBodiesIn(source, selector);
+  expect(allOccurrences, `${selector} top-level occurrence count`).toHaveLength(expectedOccurrences);
+
+  let allowedOccurrenceCount = 0;
+  for (const region of allowedRegions) {
+    const start = source.indexOf(region.startMarker);
+    const end = source.indexOf(region.endMarker, start + region.startMarker.length);
+    expect(start, `Missing ${region.name} start marker ${region.startMarker}`).toBeGreaterThanOrEqual(0);
+    expect(end, `Missing ${region.name} end marker ${region.endMarker}`).toBeGreaterThan(start);
+    allowedOccurrenceCount += topLevelExactRuleBodiesIn(source.slice(start, end), selector).length;
+  }
+
+  expect(
+    allowedOccurrenceCount,
+    `${selector} has a top-level occurrence outside allowed owner regions: ${allowedRegions.map((region) => region.name).join(", ")}`,
+  ).toBe(allOccurrences.length);
+}
+
+function expectAllTopLevelOccurrencesWithin(
+  selector: string,
+  allowedRegions: CssOwnerRegion[],
+  expectedOccurrences: number,
+): void {
+  expectAllTopLevelOccurrencesWithinSource(styles, selector, allowedRegions, expectedOccurrences);
+}
+
 function ruleForSelectorContaining(selector: string): { selectors: string; body: string } {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matches = [
@@ -225,6 +263,24 @@ function contrastRatio(foreground: string, background: string): number {
 }
 
 describe("renderer CSS contracts", () => {
+  it("rejects a protected selector with a late top-level occurrence outside its owner region", () => {
+    const fixture = `
+      .owner-start { display: block; }
+      .protected-state { color: cyan; }
+      .owner-end { display: block; }
+      .protected-state { color: red; }
+    `;
+
+    expect(() =>
+      expectAllTopLevelOccurrencesWithinSource(
+        fixture,
+        ".protected-state",
+        [{ name: "fixture canonical", startMarker: ".owner-start {", endMarker: ".owner-end {" }],
+        2,
+      ),
+    ).toThrow(/outside allowed owner regions/);
+  });
+
   it("does not treat a media-only fixture as a canonical top-level base", () => {
     const fixture = `@media (max-width: 980px) { .fixture-owner { display: grid; } }`;
     expect(canonicalBaseRuleBodiesIn(fixture, ".fixture-owner")).toHaveLength(0);
@@ -337,6 +393,11 @@ describe("renderer CSS contracts", () => {
     expectTopLevelOwnerWithin(".terminal-tile:focus-visible", ["border-color: color-mix(in oklab, var(--signal-focus) 24%, var(--border))", "box-shadow: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile:focus-within", ["outline: 1px solid var(--focus-border)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.collapsed", ["grid-template-rows: 42px 0", "min-height: 42px"], terminalTileStart, terminalTileEnd);
+    expectTopLevelOwnerWithin(".terminal-tile:not(.arranging):hover", ["border-color: var(--border-strong)", "box-shadow: var(--depth-raised)"], terminalTileStart, terminalTileEnd);
+    expectTopLevelOwnerWithin(".terminal-stage.mode-split .terminal-tile.focus-hidden", ["visibility: hidden", "pointer-events: none"], terminalTileStart, terminalTileEnd);
+    expectTopLevelOwnerWithin(".terminal-tile.collapsed .xterm-host", ["height: 0", "pointer-events: none"], terminalTileStart, terminalTileEnd);
+    expectTopLevelOwnerWithin(".terminal-tile.collapsed .terminal-viewport", ["min-height: 0"], terminalTileStart, terminalTileEnd);
+    expectTopLevelOwnerWithin(".terminal-tile.collapsed .xterm", ["min-height: 0"], terminalTileStart, terminalTileEnd);
 
     const dockStart = ".alfred-dock {";
     const dockEnd = ".alfred-dock-header {";
@@ -353,6 +414,8 @@ describe("renderer CSS contracts", () => {
     expectTopLevelOwnerWithin(".workspace-layout:has(.context-column.open)", ["minmax(304px, 340px)"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".workspace-layout > .context-column.open", ["position: static", "grid-column: 4", "display: flex"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".workspace-layout > .context-column.closed", ["display: none"], contextStart, contextEnd);
+    expectTopLevelOwnerWithin(".context-column .context-compact-status", ["display: none"], contextStart, contextEnd);
+    expectTopLevelOwnerWithin(".context-compact-status.hidden", ["display: none"], contextStart, contextEnd);
 
     const composerStart = ".composer-bar {";
     const composerEnd = "/* Focus mode and inspector */";
@@ -371,6 +434,151 @@ describe("renderer CSS contracts", () => {
     expectTopLevelOwnerWithin('.composer-bar[data-state="ready"] .composer-status-indicator', ["var(--signal-focus) 8%"], composerStart, composerEnd);
     expectTopLevelOwnerWithin('.composer-bar[data-state="busy"] .composer-status-indicator', ["var(--cyan) 9%"], composerStart, composerEnd);
     expectTopLevelOwnerWithin('.composer-bar[data-state="blocked"] .composer-status-indicator', ["var(--brass) 10%"], composerStart, composerEnd);
+    expectTopLevelOwnerWithin(".dispatch-bar .composer-status-row", ["grid-column: 1", "overflow: hidden"], composerStart, composerEnd);
+    expectTopLevelOwnerWithin(".dispatch-bar .composer-status", ["font: 400 11px/1.2 var(--sans)", "letter-spacing: 0"], composerStart, composerEnd);
+    expectTopLevelOwnerWithin(".dispatch-bar .composer-status-indicator", ["width: 6px", "border: 0"], composerStart, composerEnd);
+
+    const terminalStageRegion: CssOwnerRegion = {
+      name: "terminal stage/grid",
+      startMarker: ".terminal-stage {",
+      endMarker: ".terminal-empty-state {",
+    };
+    const terminalTileRegion: CssOwnerRegion = {
+      name: "terminal tile/xterm",
+      startMarker: ".terminal-tile {",
+      endMarker: ".alfred-dock {",
+    };
+    const stagedTileRegion: CssOwnerRegion = {
+      name: "staged terminal tile",
+      startMarker: ".terminal-tile.staged {",
+      endMarker: ".staged-body {",
+    };
+    const sharedTypographyRegion: CssOwnerRegion = {
+      name: "shared region typography",
+      startMarker: "/* Region titles: sans for chrome, mono only where data/terminal content needs it. */",
+      endMarker: ".agent-timeline-header {",
+    };
+    const terminalSemanticRoleRegion: CssOwnerRegion = {
+      name: "terminal semantic role layer",
+      startMarker: "/* Terminal-first color role layer. */",
+      endMarker: ".agent-timeline-header strong {",
+    };
+    const contextRegion: CssOwnerRegion = {
+      name: "Context drawer/column",
+      startMarker: ".context-drawer {",
+      endMarker: ".dispatch-target-chip {",
+    };
+    const composerRegion: CssOwnerRegion = {
+      name: "composer/dispatch",
+      startMarker: ".composer-bar {",
+      endMarker: "/* Focus mode and inspector */",
+    };
+
+    for (const [selector, expectedOccurrences] of [
+      [".terminal-stage-header", 1],
+      [".terminal-stage.arranging .layout-controls", 1],
+    ] as const) {
+      expectAllTopLevelOccurrencesWithin(selector, [terminalStageRegion], expectedOccurrences);
+    }
+    expectAllTopLevelOccurrencesWithin(".terminal-stage-header span", [terminalStageRegion, sharedTypographyRegion], 3);
+
+    for (const [selector, expectedOccurrences] of [
+      [".terminal-tile:not(.arranging):hover", 1],
+      [".terminal-tile .xterm", 1],
+      [".terminal-tile .terminal-viewport", 1],
+      [".terminal-tile .xterm-host", 1],
+      [".terminal-tile.restored", 2],
+      [".terminal-tile.kind-manual", 2],
+      [".terminal-tile.kind-codex", 2],
+      [".terminal-tile.kind-claude", 2],
+      [".terminal-tile.kind-dev-server", 2],
+      [".terminal-tile.real-terminal.browser", 2],
+      [".terminal-tile.selected .tool-dot", 1],
+      [".terminal-tile.selected .tile-status.status-active::before", 1],
+      [".terminal-tile-header .tile-title", 1],
+      [".terminal-tile-header .tile-title b", 1],
+      [".terminal-tile-header .tile-title small", 1],
+      [".terminal-tile.real-terminal .tool-dot", 1],
+      [".terminal-tile.real-terminal.ready .tool-dot", 1],
+      [".terminal-tile.real-terminal.selected .tool-dot", 1],
+      [".terminal-tile.real-terminal .tile-kind-mark", 1],
+      [".terminal-tile.real-terminal .tile-kind-mark span", 1],
+      [".terminal-tile:hover .tile-utility-actions", 1],
+      [".terminal-tile:focus-within .tile-utility-actions", 1],
+      [".terminal-tile-header .tile-title:has(.session-rename-form)", 1],
+      [".terminal-tile-header .tile-title > div", 1],
+      [".terminal-tile-header .tile-title > div:has(.session-rename-form)", 1],
+      [".terminal-tile-header .session-location-value", 1],
+      [".terminal-tile-header .tile-actions", 1],
+      [".tile-resize-handle", 1],
+      [".tile-resize-handle::before", 1],
+      [".tile-actions", 1],
+      [".tile-action-group", 1],
+      [".tile-status-group", 1],
+      [".tile-utility-actions", 1],
+      [".tile-danger-actions", 1],
+      [".tile-primary-actions", 1],
+      [".tile-actions button", 1],
+      [".terminal-status-label", 1],
+      [".tile-primary-actions button", 1],
+      [".tile-primary-actions button:hover", 1],
+      [".tile-primary-actions button:focus-visible", 1],
+      [".tile-danger-actions button", 1],
+      [".tile-danger-actions button:hover", 1],
+      [".tile-danger-actions button:focus-visible", 1],
+      [".tile-utility-actions button", 1],
+      [".tile-utility-actions button:hover", 1],
+      [".tile-utility-actions button:focus-visible", 1],
+      [".tile-primary-actions .continue-button", 1],
+      [".tile-primary-actions .continue-button span", 1],
+    ] as const) {
+      expectAllTopLevelOccurrencesWithin(selector, [terminalTileRegion], expectedOccurrences);
+    }
+
+    for (const [selector, expectedOccurrences] of [
+      [".terminal-status-label.tone-manual", 1],
+      [".terminal-status-label.tone-shell", 1],
+      [".terminal-status-label.tone-codex", 2],
+      [".terminal-status-label.tone-claude", 2],
+    ] as const) {
+      expectAllTopLevelOccurrencesWithin(selector, [terminalTileRegion, terminalSemanticRoleRegion], expectedOccurrences);
+    }
+
+    for (const [selector, expectedOccurrences] of [
+      [".terminal-tile.staged", 1],
+      [".terminal-tile.staged::before", 1],
+    ] as const) {
+      expectAllTopLevelOccurrencesWithin(selector, [stagedTileRegion], expectedOccurrences);
+    }
+
+    for (const [selector, expectedOccurrences] of [
+      [".context-drawer-header", 1],
+      [".context-column .context-compact-status", 1],
+      [".context-compact-status", 2],
+      [".context-compact-status.hidden", 1],
+      [".context-compact-status > .alfred-dock", 1],
+      [".context-drawer .workspace-preview-panel", 2],
+      [".context-drawer .agent-timeline-panel", 2],
+      [".context-drawer .agent-timeline-body", 1],
+      [".context-drawer .agent-session-pulse", 1],
+    ] as const) {
+      expectAllTopLevelOccurrencesWithin(selector, [contextRegion], expectedOccurrences);
+    }
+
+    for (const [selector, expectedOccurrences] of [
+      [".dispatch-bar", 1],
+      [".dispatch-bar .composer-input", 2],
+      [".dispatch-bar .composer-input:focus-visible", 1],
+      [".dispatch-bar .composer-send", 2],
+      [".dispatch-bar .composer-send:disabled", 1],
+      [".dispatch-bar .composer-status-row", 1],
+      [".dispatch-bar .composer-status", 1],
+      [".dispatch-bar .composer-status-indicator", 1],
+      ['.dispatch-bar[data-state="ready"] .composer-send:enabled', 1],
+      ['.dispatch-bar[data-state="busy"] .composer-send:enabled', 1],
+    ] as const) {
+      expectAllTopLevelOccurrencesWithin(selector, [composerRegion], expectedOccurrences);
+    }
   });
 
   it("uses one canonical tactical-dark token hierarchy", () => {
@@ -700,15 +908,15 @@ describe("renderer CSS contracts", () => {
     const header = blockFor(".terminal-tile-header");
     const tileTitle = blockFor(".terminal-tile-header .tile-title b");
     const xtermHost = exactBlockFor(".xterm-host");
-    const kindMark = blockFor(".tile-kind-mark");
-    const kindMarkText = blockFor(".tile-kind-mark span");
-    const primaryActions = blockFor(".tile-primary-actions");
+    const kindMark = exactBlockFor(".terminal-tile.real-terminal .tile-kind-mark");
+    const kindMarkText = exactBlockFor(".terminal-tile.real-terminal .tile-kind-mark span");
+    const primaryActions = blockForContaining(".tile-primary-actions", "opacity: 1");
     const primaryActionButton = blockForContaining(".tile-primary-actions .continue-button", "var(--role-active)");
-    const utilities = blockFor(".tile-utility-actions,\n.tile-danger-actions");
+    const utilities = blockForContaining(".tile-utility-actions", "opacity: 0");
+    const dangerActions = blockForContaining(".tile-danger-actions", "opacity: 0");
     const utilityButtons = blockFor(".tile-utility-actions button,\n.tile-danger-actions button");
     const readyToolDot = blockFor(".terminal-tile.real-terminal.ready .tool-dot");
     const selectedToolDotRule = ruleForSelectorContaining(".terminal-tile.real-terminal.selected .tool-dot");
-    const terminalChromeLayer = styles.slice(styles.indexOf(".terminal-tile.real-terminal .tool-dot"));
 
     expect(tile).toContain("background: var(--surface-panel)");
     expect(tile).toContain("box-shadow: none");
@@ -724,12 +932,13 @@ describe("renderer CSS contracts", () => {
     expect(primaryActionButton).toContain("var(--role-active)");
     expect(utilities).toContain("opacity: 0");
     expect(utilities).toContain("pointer-events: none");
+    expect(dangerActions).toContain("opacity: 0");
+    expect(dangerActions).toContain("pointer-events: none");
     expect(utilityButtons).toContain("color: var(--text-faint)");
     expect(readyToolDot).not.toContain("var(--green)");
     expect(selectedToolDotRule.selectors).toContain(".terminal-tile.real-terminal.selected .tool-dot");
     expect(selectedToolDotRule.selectors).toContain(".terminal-tile.real-terminal.session-waiting .tool-dot");
     expect(selectedToolDotRule.selectors).toContain(".terminal-tile.real-terminal.error .tool-dot");
-    expect(terminalChromeLayer).not.toMatch(/\.terminal-tile\.selected\s+\.tool-dot/);
   });
 
   it("keeps terminal tile titles readable before action chrome under constrained width", () => {
@@ -829,7 +1038,8 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps the Work chrome quiet and command-like", () => {
-    const tileUtilities = blockFor(".tile-utility-actions,\n.tile-danger-actions");
+    const tileUtilities = blockForContaining(".tile-utility-actions", "opacity: 0");
+    const tileDangerActions = blockForContaining(".tile-danger-actions", "opacity: 0");
     const dispatchBar = blockFor(".dispatch-bar");
     const dispatchCapsule = blockFor(".dispatch-capsule");
     const dispatchChip = blockFor(".dispatch-target-chip,\n.dispatch-bar .composer-input,\n.dispatch-bar .composer-send");
@@ -837,6 +1047,8 @@ describe("renderer CSS contracts", () => {
     expect(styles).toContain(".arrange-mode-label");
     expect(tileUtilities).toContain("opacity: 0");
     expect(tileUtilities).toContain("pointer-events: none");
+    expect(tileDangerActions).toContain("opacity: 0");
+    expect(tileDangerActions).toContain("pointer-events: none");
     expect(dispatchBar).toContain("grid-template-rows: var(--control-height) 14px");
     expect(dispatchCapsule).toContain("height: var(--control-height)");
     expect(dispatchCapsule).toContain("background-image: none");
