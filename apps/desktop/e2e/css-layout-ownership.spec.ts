@@ -19,6 +19,7 @@ import {
   type EvidenceDisplay,
 } from "./support/display-placement";
 import {
+  neutralScreenshotPointer,
   privacySafeHiddenScreenshotSelectors,
   privacySafeScreenshotSelectors,
   privacySafeScreenshotStyle,
@@ -210,6 +211,10 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await harness.closeActiveTerminals();
 
   async function capture(state: CssEvidenceStateName, probes: CssOwnerProbe[]): Promise<void> {
+    await page.mouse.move(neutralScreenshotPointer.x, neutralScreenshotPointer.y);
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+    }));
     const readiness = captureReadinessForState(state);
     if (readiness) await expect(page.locator(readiness.selector)).toHaveCount(1);
     states.push(await captureCssEvidence(page, state, probes));
