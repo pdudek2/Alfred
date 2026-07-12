@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { selectDisplayBounds, windowBoundsExpectation } from "./display-placement";
+import {
+  rendererViewportMatches,
+  selectDisplayBounds,
+  windowBoundsExpectation,
+} from "./display-placement";
 
 type Display = {
   id: number;
@@ -8,6 +12,12 @@ type Display = {
 };
 
 describe("CSS evidence display placement", () => {
+  it("requires the renderer viewport to match both requested dimensions", () => {
+    expect(rendererViewportMatches({ width: 1440, height: 920 }, { width: 1440, height: 920 })).toBe(true);
+    expect(rendererViewportMatches({ width: 1439, height: 920 }, { width: 1440, height: 920 })).toBe(false);
+    expect(rendererViewportMatches({ width: 1440, height: 919 }, { width: 1440, height: 920 })).toBe(false);
+  });
+
   it("ignores OS-clamped position by default but preserves strict display placement", () => {
     const requested = { x: -1728, y: 30, width: 1120, height: 720 };
 
