@@ -13,6 +13,11 @@ if (!stylesPath) {
 
 const styles = readFileSync(stylesPath, "utf8");
 
+function orphanClassTokenPattern(className: string): RegExp {
+  const escapedClassName = className.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\.${escapedClassName}(?:[^a-zA-Z0-9_-]|$)`);
+}
+
 function blockFor(selector: string): string {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matches = [...styles.matchAll(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`, "gm"))];
@@ -1329,18 +1334,44 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toMatch(/\.workbench-tool-group button\s*\{[^}]*height:\s*(?:24|30|32)px/s);
   });
 
-  it("does not retain proven orphan selectors from the historical mission chrome", () => {
-    expect(styles).not.toMatch(/\.agent-launch-buttons(?:[\s.:#\[]|$)/);
-    expect(styles).not.toMatch(/\.agent-launch-button(?:[\s.:#\[]|$)/);
-    expect(styles).not.toMatch(/\.arrange-button(?:[\s.:#\[]|$)/);
-    expect(styles).not.toMatch(/\.command-palette-button(?:[\s.:#\[]|$)/);
-    expect(styles).not.toMatch(/\.context-toggle-button(?:[\s.:#\[]|$)/);
-    expect(styles).not.toMatch(/\.mission-actions(?:[\s.:#\[]|$)/);
-    expect(styles).not.toMatch(/\.new-terminal-button(?:[\s.:#\[]|$)/);
-    expect(styles).not.toMatch(/\.review-queue-button(?:[\s.:#\[]|$)/);
-    expect(styles).not.toMatch(/\.session-observatory-button(?:[\s.:#\[]|$)/);
-    expect(styles).not.toMatch(/\.session-observatory-stats(?:[\s.:#\[]|$)/);
-    expect(styles).not.toMatch(/\.workspace-title-main(?:[\s.:#\[]|$)/);
+  it.each([
+    ["comma", ","],
+    ["opening brace", "{"],
+    ["child combinator", ">"],
+    ["adjacent-sibling combinator", "+"],
+    ["general-sibling combinator", "~"],
+    ["class chaining", "."],
+    ["pseudo-class", ":"],
+    ["ID", "#"],
+    ["attribute", "["],
+    ["whitespace", " "],
+    ["EOF", ""],
+  ])("matches a complete class token before %s", (_label, suffix) => {
+    expect(`.mission-actions${suffix}`).toMatch(orphanClassTokenPattern("mission-actions"));
+  });
+
+  it.each([
+    [".workspace-mission-actions", "mission-actions"],
+    [".new-terminal-button-extra", "new-terminal-button"],
+    [".session-observatory-button-secondary", "session-observatory-button"],
+  ])("does not match a longer class identifier: %s", (candidate, className) => {
+    expect(candidate).not.toMatch(orphanClassTokenPattern(className));
+  });
+
+  it.each([
+    "agent-launch-buttons",
+    "agent-launch-button",
+    "arrange-button",
+    "command-palette-button",
+    "context-toggle-button",
+    "mission-actions",
+    "new-terminal-button",
+    "review-queue-button",
+    "session-observatory-button",
+    "session-observatory-stats",
+    "workspace-title-main",
+  ])("does not retain proven orphan selector .%s", (className) => {
+    expect(styles).not.toMatch(orphanClassTokenPattern(className));
   });
 
   it("keeps passive chrome text readable against the dark panel surface", () => {
