@@ -4051,9 +4051,8 @@ body.arranging-pointer {
   position: fixed;
   inset: 0;
   z-index: 40;
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.052), transparent 38vh),
-    rgba(0, 0, 0, 0.58);
+  background: rgba(0, 0, 0, 0.66);
+  background-image: none;
   display: grid;
   place-items: start center;
   padding-top: 14vh;
@@ -4087,12 +4086,13 @@ body.arranging-pointer {
 .privacy-panel-header,
 .discard-checkout-header {
   min-width: 0;
-  border-bottom: 1px solid rgba(188, 202, 218, 0.1);
+  border-bottom: 1px solid var(--border);
   padding: 16px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 34px;
   gap: 16px;
   align-items: start;
+  background: transparent;
 }
 
 .privacy-panel-header span,
@@ -4177,7 +4177,9 @@ body.arranging-pointer {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.026);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  background-image: none;
+  box-shadow: none;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -4422,26 +4424,24 @@ body.arranging-pointer {
 
 .command-palette {
   width: min(640px, calc(100vw - 48px));
-  border: 1px solid rgba(188, 202, 218, 0.2);
-  border-radius: 10px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.038), transparent 80px),
-    rgba(9, 13, 18, 0.98);
-  box-shadow:
-    0 28px 96px rgba(0, 0, 0, 0.52),
-    inset 0 1px 0 rgba(238, 243, 247, 0.065);
+  background: var(--surface-panel);
+  background-image: none;
+  box-shadow: var(--shadow-panel);
 }
 
 .command-palette-search {
   min-height: 50px;
-  border-bottom: 1px solid rgba(188, 202, 218, 0.1);
+  border-bottom: 1px solid var(--border);
   padding: 0 12px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   color: var(--muted);
+  background: transparent;
 }
 
 .command-palette-search input {
@@ -4507,10 +4507,20 @@ body.arranging-pointer {
 .command-palette-list button:hover,
 .command-palette-list button:focus-visible,
 .command-palette-list button.active {
-  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
-  background:
-    linear-gradient(90deg, color-mix(in oklab, var(--signal-focus) 7%, transparent), transparent 56%),
-    rgba(238, 243, 247, 0.035);
+  border-color: var(--border-focus);
+  background: color-mix(in oklab, var(--signal-focus) 8%, var(--surface-raised));
+  background-image: none;
+}
+
+.command-palette-search input:focus-visible {
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--signal-focus) 16%, transparent);
+}
+
+.command-palette-list button.active,
+.command-palette-list button:hover,
+.command-palette-list button:focus-visible {
+  color: var(--text-primary);
+  box-shadow: inset 2px 0 0 var(--signal-focus);
 }
 
 .command-palette-list button:disabled {
@@ -4534,6 +4544,16 @@ body.arranging-pointer {
   color: var(--faint);
   font-family: var(--mono);
   font-size: 11px;
+}
+
+.command-palette,
+.privacy-panel,
+.discard-checkout-dialog,
+.session-observatory-panel {
+  border: 1px solid var(--border);
+  background: var(--surface-panel);
+  background-image: none;
+  box-shadow: var(--shadow-panel);
 }
 
 /* Staged tile (Alfred-proposed, awaiting approval) */
@@ -5915,33 +5935,6 @@ body {
 }
 
 /* --- Terminal tile actions: cyan active, quiet danger --- */
-/* --- Command palette: raised modal, cyan active row --- */
-.command-palette-backdrop {
-  background: rgba(3, 6, 5, 0.6);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.command-palette {
-  background:
-    radial-gradient(520px 200px at 50% -12%, color-mix(in oklab, var(--signal-focus) 7%, transparent), transparent 70%),
-    var(--surface-panel);
-  border: 1px solid var(--border-strong);
-  border-radius: 16px;
-  box-shadow: var(--depth-raised), var(--shadow-panel);
-}
-
-.command-palette-search input:focus-visible {
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--signal-focus) 16%, transparent);
-}
-
-.command-palette-list button.active,
-.command-palette-list button:hover,
-.command-palette-list button:focus-visible {
-  background: var(--signal-focus-soft);
-  color: var(--text-primary);
-  box-shadow: inset 2px 0 0 var(--signal-focus);
-}
 
 /* ============================================================
    ALFRED DEPTH v2 — composition pass
@@ -6438,11 +6431,9 @@ body {
   position: fixed;
   inset: 0;
   z-index: 42;
-  padding: 8vh 48px 48px;
-  background:
-    radial-gradient(820px 520px at 18% 0%, color-mix(in oklab, var(--signal-focus) 9%, transparent), transparent 66%),
-    radial-gradient(760px 460px at 90% 96%, color-mix(in oklab, var(--signal-focus) 4.5%, transparent), transparent 68%),
-    rgba(0, 0, 0, 0.68);
+  padding: 52px 44px 44px;
+  background: rgba(0, 0, 0, 0.54);
+  background-image: none;
   display: grid;
   place-items: start center;
   backdrop-filter: none;
@@ -6450,31 +6441,27 @@ body {
 }
 
 .session-observatory-panel {
-  width: min(720px, calc(100vw - 96px));
-  max-height: min(680px, calc(100vh - 96px));
-  border: 1px solid var(--line-strong);
-  border-radius: 20px;
+  width: min(760px, calc(100vw - 88px));
+  max-height: min(560px, calc(100vh - 96px));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 136px),
-    radial-gradient(520px 260px at 12% -10%, color-mix(in oklab, var(--signal-focus) 8%, transparent), transparent 72%),
-    color-mix(in oklab, var(--surface-panel) 90%, black 10%);
-  box-shadow:
-    var(--depth-raised),
-    var(--shadow-panel),
-    0 0 0 1px rgba(255, 255, 255, 0.03);
+  background: var(--surface-panel);
+  background-image: none;
+  box-shadow: var(--shadow-panel);
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
 }
 
 .session-observatory-header {
   min-width: 0;
-  border-bottom: 1px solid var(--line-strong);
-  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--border);
+  padding: 14px 18px 12px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 40px;
   gap: 18px;
   align-items: start;
+  background: transparent;
 }
 
 .session-observatory-header > div {
@@ -6507,46 +6494,43 @@ body {
 }
 
 .session-observatory-close {
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--line-strong);
-  border-radius: 12px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
-    var(--surface-raised);
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  background-image: none;
   color: var(--text-secondary);
   display: inline-grid;
   place-items: center;
   cursor: pointer;
-  box-shadow: var(--depth-card);
+  box-shadow: none;
 }
 
 .session-observatory-close:hover,
 .session-observatory-close:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
+  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
+  background: color-mix(in oklab, var(--surface-raised) 88%, black 12%);
+  background-image: none;
   color: var(--text-primary);
   outline: none;
-  box-shadow:
-    0 0 0 3px color-mix(in oklab, var(--signal-focus) 10%, transparent),
-    var(--depth-card);
+  box-shadow: none;
+  transform: none;
 }
 
 .session-observatory-search {
-  min-height: 52px;
-  margin: 0 24px 0;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 0 16px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
-    var(--surface-sunken);
+  min-height: 44px;
+  margin: 10px 18px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  padding: 0 12px;
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  background-image: none;
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);
   gap: 12px;
   align-items: center;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 18px 36px -30px rgba(0, 0, 0, 0.86);
+  box-shadow: none;
 }
 
 .session-observatory-search svg {
@@ -6559,7 +6543,7 @@ body {
   border: 0;
   background: transparent;
   color: var(--text-primary);
-  font: 16px/1.35 var(--sans);
+  font: 14px/1.35 var(--sans);
   outline: none;
 }
 
@@ -6568,21 +6552,32 @@ body {
 }
 
 .session-observatory-search:focus-within {
-  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
-  box-shadow:
-    0 0 0 3px color-mix(in oklab, var(--signal-focus) 7%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.055),
-    0 20px 42px -30px color-mix(in oklab, var(--signal-focus) 16%, transparent);
+  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
+  background: color-mix(in oklab, var(--surface-raised) 88%, black 12%);
+  background-image: none;
+  box-shadow: none;
+  transform: none;
 }
 
 .session-observatory-list {
   min-height: 0;
   margin: 0;
-  padding: 14px 24px 24px;
+  padding: 10px 18px 18px;
   display: grid;
-  gap: 10px;
+  gap: 8px;
   overflow: auto;
   list-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.session-observatory-list::-webkit-scrollbar {
+  width: 7px;
+}
+
+.session-observatory-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .session-observatory-row {
@@ -6592,21 +6587,20 @@ body {
 .session-observatory-main {
   width: 100%;
   min-width: 0;
-  min-height: 68px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 12px 13px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.028), transparent 90%),
-    color-mix(in oklab, var(--surface-raised) 78%, black 22%);
+  min-height: 58px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  padding: 10px 12px;
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  background-image: none;
   color: var(--text-secondary);
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 14px;
+  gap: 12px;
   align-items: center;
   text-align: left;
   cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.028);
+  box-shadow: none;
   transition:
     border-color 160ms ease,
     background 160ms ease,
@@ -6616,22 +6610,19 @@ body {
 
 .session-observatory-main:hover,
 .session-observatory-main:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 32%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 5.5%, transparent), transparent 92%),
-    color-mix(in oklab, var(--surface-raised) 82%, black 18%);
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--signal-focus) 8%, transparent),
-    var(--depth-card);
+  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
+  background: color-mix(in oklab, var(--surface-raised) 88%, black 12%);
+  background-image: none;
+  box-shadow: none;
   outline: none;
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .session-observatory-kind {
-  min-width: 50px;
-  min-height: 34px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
+  min-width: 42px;
+  min-height: 30px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.01)),
     var(--surface-sunken);
@@ -6707,7 +6698,8 @@ body {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.026);
+  background: var(--surface-raised);
+  background-image: none;
   color: var(--text-secondary);
   font-size: 11px;
 }
@@ -6736,9 +6728,9 @@ body {
   margin: 0 24px 24px;
   border: 1px dashed var(--line-strong);
   border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 120px),
-    color-mix(in oklab, var(--surface-panel) 90%, black 10%);
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  background-image: none;
+  box-shadow: none;
   color: var(--text-muted);
   display: grid;
   place-content: center;
@@ -6816,34 +6808,45 @@ body {
   overflow: hidden;
 }
 
-.review-surface,
-.observatory-surface {
+.review-surface {
   width: 100%;
   min-width: 0;
   min-height: 0;
   border: 1px solid var(--line);
-  border-radius: 18px;
-  background:
-    radial-gradient(720px 420px at 6% 0%, color-mix(in oklab, var(--signal-focus) 5.5%, transparent), transparent 70%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.028), transparent 220px),
-    var(--surface-panel);
-  box-shadow: var(--depth-card);
+  border-color: var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface-panel);
+  background-image: none;
+  box-shadow: none;
   overflow: hidden;
-}
-
-.review-surface {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+}
+
+.observatory-surface {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface-panel);
+  background-image: none;
+  box-shadow: none;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
 .review-surface-header,
 .observatory-surface-header {
   min-width: 0;
   border-bottom: 1px solid var(--line);
-  padding: 22px 24px;
+  padding: 16px 18px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 18px;
+  gap: 14px;
   align-items: start;
 }
 
@@ -6853,26 +6856,86 @@ body {
 .review-empty-lead > span,
 .observatory-empty span,
 .observatory-detail-card > span {
-  color: var(--signal-focus);
-  font: 700 10px/1.2 var(--sans);
-  letter-spacing: 0.12em;
+  color: var(--text-faint);
+  font: 600 var(--type-micro)/1.2 var(--sans);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .review-surface-header strong,
 .observatory-surface-header strong {
   display: block;
-  margin-top: 6px;
+  margin-top: 5px;
   color: var(--text-primary);
-  font: 700 28px/1.06 var(--sans);
+  font: 700 22px/1.06 var(--sans);
 }
 
 .review-surface-header p,
 .observatory-surface-header p {
   max-width: 720px;
-  margin: 8px 0 0;
+  margin: 7px 0 0;
   color: var(--text-muted);
-  font: 14px/1.5 var(--sans);
+  font: 13px/1.5 var(--sans);
+}
+
+.inbox-section-stack {
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  align-items: start;
+  grid-auto-rows: max-content;
+  gap: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.inbox-section-stack::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.inbox-section-stack::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.inbox-section-stack::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.inbox-section {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface-raised);
+  background-image: none;
+  box-shadow: none;
+}
+
+.inbox-section > header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 0;
+  padding: 4px 2px;
+  border: none;
+  background: transparent;
+}
+
+.inbox-section > header strong {
+  min-width: 0;
+  color: var(--text-muted);
+  font: 650 var(--type-micro)/1.2 var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.inbox-section > header small {
+  color: var(--text-faint);
+  font: 650 11.5px/1.2 var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .review-surface-list {
@@ -6888,12 +6951,12 @@ body {
 .review-surface-item {
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-color: var(--border);
+  border-radius: var(--radius-panel);
   padding: 12px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.032), transparent 80%),
-    color-mix(in oklab, var(--surface-raised) 76%, black 24%);
-  box-shadow: var(--depth-card);
+  background: var(--surface-raised);
+  background-image: none;
+  box-shadow: none;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
@@ -7043,11 +7106,14 @@ body {
 .review-surface-discard,
 .observatory-surface-header button,
 .observatory-detail-card button {
-  min-height: 34px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  padding: 0 12px;
-  background: var(--surface-raised);
+  height: var(--control-height);
+  min-height: var(--control-height);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: 0 10px;
+  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  background-image: none;
+  box-shadow: none;
   color: var(--text-secondary);
   display: inline-flex;
   align-items: center;
@@ -7107,14 +7173,20 @@ body {
 }
 
 .review-surface-empty {
-  border-style: solid;
-  border-color: color-mix(in oklab, var(--signal-focus) 12%, transparent);
-  padding: 28px;
-  background:
-    radial-gradient(420px 230px at 50% 0%, color-mix(in oklab, var(--signal-focus) 8%, transparent), transparent 72%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.026), transparent 160px),
-    rgba(0, 0, 0, 0.16);
-  place-items: center;
+  align-self: start;
+  min-height: 0;
+  margin: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  padding: 18px;
+  background: var(--surface-raised);
+  background-image: none;
+  box-shadow: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: stretch;
+  gap: 18px;
+  text-align: left;
 }
 
 .review-empty-lead {
@@ -7135,15 +7207,15 @@ body {
   font: 660 18px/1.3 var(--sans);
 }
 
-.review-surface-empty p {
-  margin: 0;
-  color: var(--text-muted);
-  font: 13px/1.5 var(--sans);
+.review-surface-empty strong {
+  font-size: 16px;
 }
 
-.observatory-surface {
-  display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+.review-surface-empty p {
+  max-width: 520px;
+  margin: 0;
+  color: var(--text-muted);
+  font: 12px/1.5 var(--sans);
 }
 
 .observatory-surface-header button:disabled {
@@ -7233,6 +7305,8 @@ body {
 .observatory-session-list {
   padding: 12px;
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
 .observatory-projects {
@@ -7253,6 +7327,26 @@ body {
   border-radius: 999px;
   background: color-mix(in oklab, var(--signal-focus) 24%, transparent);
   background-clip: padding-box;
+}
+
+.observatory-surface::-webkit-scrollbar,
+.observatory-projects::-webkit-scrollbar,
+.observatory-session-list::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.observatory-surface::-webkit-scrollbar-track,
+.observatory-projects::-webkit-scrollbar-track,
+.observatory-session-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.observatory-surface::-webkit-scrollbar-thumb,
+.observatory-projects::-webkit-scrollbar-thumb,
+.observatory-session-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .observatory-column-heading {
@@ -7392,9 +7486,12 @@ body {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-color: var(--border);
+  border-radius: var(--radius-panel);
   padding: 10px;
-  background: rgba(0, 0, 0, 0.16);
+  background: var(--surface-raised);
+  background-image: none;
+  box-shadow: none;
   color: inherit;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -7472,12 +7569,12 @@ body {
 .observatory-detail-card {
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-color: var(--border);
+  border-radius: var(--radius-panel);
   padding: 16px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.036), transparent 120px),
-    var(--surface-sunken);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  background: var(--surface-raised);
+  background-image: none;
+  box-shadow: none;
 }
 
 .observatory-detail-card.source-external-codex {
@@ -7525,6 +7622,72 @@ body {
   white-space: nowrap;
   color: var(--text-secondary);
   font: 12px/1.35 var(--mono);
+}
+
+.review-surface-header .review-surface-waiting {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.review-surface-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.review-surface-row .review-surface-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 0;
+}
+
+.review-surface-discard {
+  padding: 6px 8px;
+}
+
+.review-surface-copy small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.review-surface-command.is-disclosure {
+  border: none;
+  background: transparent;
+  padding: 0 14px 10px;
+}
+
+.review-surface-command.is-disclosure summary {
+  display: inline-flex;
+  justify-self: start;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+  padding: 0;
+  font-size: 11px;
+  color: var(--text-faint);
+  cursor: pointer;
+  list-style: none;
+}
+
+.review-surface-command.is-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.review-surface-command.is-disclosure summary::before {
+  content: "▸";
+  font-size: 9px;
+}
+
+.review-surface-command.is-disclosure[open] summary::before {
+  content: "▾";
 }
 
 .agent-raw-toggle {
@@ -7595,11 +7758,7 @@ body {
 
 .workspace-rail,
 .agent-timeline-panel,
-.workspace-preview-panel,
-.observatory-surface,
-.review-surface,
-.observatory-detail-card,
-.observatory-session-row {
+.workspace-preview-panel {
   border-radius: 10px;
   background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 108px);
   backdrop-filter: none;
@@ -7897,44 +8056,6 @@ body {
   outline: none;
 }
 
-.inbox-section-stack {
-  min-height: 0;
-  overflow: auto;
-  display: grid;
-  align-content: start;
-  align-items: start;
-  grid-auto-rows: max-content;
-  gap: 12px;
-}
-
-.inbox-section {
-  min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: rgba(3, 8, 7, 0.52);
-}
-
-.inbox-section > header {
-  min-height: 40px;
-  border-bottom: 1px solid var(--line);
-  padding: 9px 11px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 10px;
-}
-
-.inbox-section > header strong {
-  min-width: 0;
-  color: var(--text-primary);
-  font: 650 12px/1.2 var(--sans);
-}
-
-.inbox-section > header small {
-  color: var(--text-secondary);
-  font: 650 12px/1.2 var(--mono);
-}
-
 .workspace-layout,
 .workspace-layout.alfred-compact,
 .workspace-layout.preview-visible,
@@ -7944,8 +8065,6 @@ body {
 
 .workspace-rail,
 .workspace-popover,
-.review-surface,
-.observatory-surface,
 .workspace-preview-panel,
 .agent-timeline-panel {
   border-color: var(--border);
@@ -7956,11 +8075,7 @@ body {
 
 .context-toggle-button,
 .agent-handoff-buttons button,
-.workspace-preview-actions button,
-.review-surface-primary,
-.review-surface-discard,
-.observatory-surface-header button,
-.observatory-detail-card button {
+.workspace-preview-actions button {
   height: var(--control-height);
   min-height: var(--control-height);
   border-color: var(--border);
@@ -8062,12 +8177,7 @@ body {
 }
 
 .agent-session-pulse,
-.review-context-summary,
-.review-surface-item,
-.observatory-session-row,
-.observatory-detail-card,
-.session-observatory-main,
-.inbox-section {
+.review-context-summary {
   background: var(--surface-raised);
   background-image: none;
   box-shadow: none;
@@ -8125,8 +8235,6 @@ body {
   background: var(--surface-canvas);
 }
 
-.review-surface,
-.observatory-surface,
 .workspace-rail,
 .workspace-popover {
   border-color: var(--border);
@@ -8137,39 +8245,23 @@ body {
 }
 
 .workspace-nav-scroll,
-.inbox-section-stack,
-.observatory-surface,
-.observatory-projects,
-.observatory-session-list,
 .agent-timeline-panel {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
 .workspace-nav-scroll::-webkit-scrollbar,
-.inbox-section-stack::-webkit-scrollbar,
-.observatory-surface::-webkit-scrollbar,
-.observatory-projects::-webkit-scrollbar,
-.observatory-session-list::-webkit-scrollbar,
 .agent-timeline-panel::-webkit-scrollbar {
   width: 7px;
   height: 7px;
 }
 
 .workspace-nav-scroll::-webkit-scrollbar-track,
-.inbox-section-stack::-webkit-scrollbar-track,
-.observatory-surface::-webkit-scrollbar-track,
-.observatory-projects::-webkit-scrollbar-track,
-.observatory-session-list::-webkit-scrollbar-track,
 .agent-timeline-panel::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .workspace-nav-scroll::-webkit-scrollbar-thumb,
-.inbox-section-stack::-webkit-scrollbar-thumb,
-.observatory-surface::-webkit-scrollbar-thumb,
-.observatory-projects::-webkit-scrollbar-thumb,
-.observatory-session-list::-webkit-scrollbar-thumb,
 .agent-timeline-panel::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.16);
@@ -8196,11 +8288,7 @@ body {
 
 .context-toggle-button,
 .agent-handoff-buttons button,
-.workspace-preview-actions button,
-.review-surface-primary,
-.review-surface-discard,
-.observatory-surface-header button,
-.observatory-detail-card button {
+.workspace-preview-actions button {
   height: var(--control-height);
   min-height: var(--control-height);
   border-color: var(--border);
@@ -8218,46 +8306,6 @@ body {
   box-shadow: none;
 }
 
-.review-surface,
-.observatory-surface {
-  overflow: hidden;
-}
-
-.review-surface-header,
-.observatory-surface-header {
-  padding: 16px 18px;
-  gap: 14px;
-}
-
-.review-surface-header strong,
-.observatory-surface-header strong {
-  margin-top: 5px;
-  font-size: 22px;
-}
-
-.review-surface-header p,
-.observatory-surface-header p {
-  margin-top: 7px;
-  font-size: 13px;
-}
-
-.review-surface-empty {
-  align-self: start;
-  min-height: 0;
-  margin: 18px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
-  padding: 18px;
-  background: var(--surface-raised);
-  background-image: none;
-  box-shadow: none;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  place-items: stretch;
-  gap: 18px;
-  text-align: left;
-}
-
 .review-empty-lead {
   max-width: none;
   justify-items: start;
@@ -8267,26 +8315,6 @@ body {
 
 .review-empty-lead svg {
   filter: none;
-}
-
-.review-surface-empty strong {
-  font-size: 16px;
-}
-
-.review-surface-empty p {
-  max-width: 520px;
-  font-size: 12px;
-}
-
-.inbox-section,
-.review-surface-item,
-.observatory-session-row,
-.observatory-detail-card,
-.session-observatory-main {
-  border-color: var(--border);
-  border-radius: var(--radius-panel);
-  background: var(--surface-raised);
-  box-shadow: none;
 }
 
 .agent-session-pulse,
@@ -8357,104 +8385,6 @@ body {
   box-shadow: none;
 }
 
-.session-observatory-backdrop {
-  padding: 52px 44px 44px;
-  background: rgba(0, 0, 0, 0.54);
-  background-image: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.session-observatory-panel {
-  width: min(760px, calc(100vw - 88px));
-  max-height: min(560px, calc(100vh - 96px));
-  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
-  border-radius: var(--radius-panel);
-  background: var(--surface-panel);
-  background-image: none;
-  box-shadow: none;
-}
-
-.session-observatory-header {
-  padding: 14px 18px 12px;
-}
-
-.session-observatory-close,
-.session-observatory-search,
-.session-observatory-main,
-.session-observatory-empty {
-  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
-  background-image: none;
-  box-shadow: none;
-}
-
-.session-observatory-close {
-  width: 34px;
-  height: 34px;
-  border-color: var(--border);
-  border-radius: var(--radius-control);
-}
-
-.session-observatory-close:hover,
-.session-observatory-close:focus-visible,
-.session-observatory-search:focus-within,
-.session-observatory-main:hover,
-.session-observatory-main:focus-visible {
-  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
-  background: color-mix(in oklab, var(--surface-raised) 88%, black 12%);
-  background-image: none;
-  box-shadow: none;
-  transform: none;
-}
-
-.session-observatory-search {
-  min-height: 44px;
-  margin: 10px 18px 0;
-  border-color: var(--border);
-  border-radius: var(--radius-panel);
-  padding: 0 12px;
-}
-
-.session-observatory-search input {
-  font-size: 14px;
-}
-
-.session-observatory-list {
-  padding: 10px 18px 18px;
-  gap: 8px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
-}
-
-.session-observatory-list::-webkit-scrollbar {
-  width: 7px;
-}
-
-.session-observatory-list::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
-}
-
-.session-observatory-main {
-  min-height: 58px;
-  border-color: var(--border);
-  border-radius: var(--radius-panel);
-  padding: 10px 12px;
-  gap: 12px;
-}
-
-.session-observatory-kind {
-  min-width: 42px;
-  min-height: 30px;
-  border-color: var(--border);
-  border-radius: var(--radius-control);
-}
-
-.session-observatory-meta span {
-  background: var(--surface-raised);
-  background-image: none;
-}
-
 @media (max-width: 980px) {
   .desktop-frame {
     grid-template-rows: 52px minmax(0, 1fr) 58px;
@@ -8483,45 +8413,8 @@ body {
   box-shadow: 0 18px 44px -36px rgba(0, 0, 0, 0.95);
 }
 
-.privacy-backdrop,
-.discard-checkout-backdrop,
-.command-palette-backdrop,
-.session-observatory-backdrop {
-  background: rgba(0, 0, 0, 0.72);
-  background-image: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.command-palette,
-.privacy-panel,
-.discard-checkout-dialog,
-.session-observatory-panel {
-  background: var(--surface-panel);
-  background-image: none;
-  box-shadow: none;
-}
-
-.session-observatory-backdrop {
-  background: rgba(0, 0, 0, 0.54);
-  background-image: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.session-observatory-panel {
-  width: min(760px, calc(100vw - 88px));
-  max-height: min(560px, calc(100vh - 96px));
-  background: var(--surface-panel);
-  background-image: none;
-  box-shadow: none;
-}
-
 .workspace-button,
-.workspace-button.active,
-.review-surface-item,
-.observatory-session-row,
-.observatory-detail-card {
+.workspace-button.active {
   background-image: none;
   box-shadow: none;
 }
@@ -8897,103 +8790,12 @@ body {
   color: var(--text-muted);
 }
 
-.privacy-backdrop,
-.discard-checkout-backdrop,
-.command-palette-backdrop,
-.session-observatory-backdrop {
-  background: rgba(0, 0, 0, 0.66);
-  background-image: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.session-observatory-backdrop {
-  background: rgba(0, 0, 0, 0.54);
-  background-image: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.privacy-backdrop,
-.discard-checkout-backdrop,
-.command-palette-backdrop {
-  background: rgba(0, 0, 0, 0.66);
-  background-image: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.command-palette,
-.privacy-panel,
-.discard-checkout-dialog,
-.session-observatory-panel {
-  border: 1px solid var(--border);
-  background: var(--surface-panel);
-  background-image: none;
-  box-shadow: var(--shadow-panel);
-}
-
-.session-observatory-panel {
-  width: min(760px, calc(100vw - 88px));
-  max-height: min(560px, calc(100vh - 96px));
-  border: 1px solid var(--border);
-  background: var(--surface-panel);
-  background-image: none;
-  box-shadow: var(--shadow-panel);
-}
-
-.command-palette-search,
-.privacy-panel-header,
-.discard-checkout-header,
-.session-observatory-header {
-  border-color: var(--border);
-  background: transparent;
-}
-
-.session-observatory-header {
-  padding: 14px 18px 12px;
-  border-color: var(--border);
-  background: transparent;
-}
-
-.session-observatory-list {
-  padding: 10px 18px 18px;
-}
-
-.command-palette-list button:hover,
-.command-palette-list button:focus-visible,
-.command-palette-list button.active {
-  border-color: var(--border-focus);
-  background: color-mix(in oklab, var(--signal-focus) 8%, var(--surface-raised));
-  background-image: none;
-}
-
-.privacy-control-row,
-.privacy-action-row,
-.session-observatory-main {
-  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
-  background-image: none;
-  box-shadow: none;
-}
-
 /* ============================================================
    ALFRED UI DISCIPLINE v11
    One-capsule dispatch, sans section labels, identity ≠ signal.
    Mono stays reserved for terminal content, paths, timestamps
    and keyboard hints; cyan stays reserved for focus/selection.
    ============================================================ */
-
-.review-surface-header span,
-.observatory-surface-header span,
-.observatory-column-heading span,
-.review-empty-lead > span,
-.observatory-empty span,
-.observatory-detail-card > span {
-  color: var(--text-faint);
-  font: 600 var(--type-micro)/1.2 var(--sans);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
 
 .recovery-workspace-strip {
   display: flex;
@@ -9036,94 +8838,4 @@ body {
 .recovery-inbox-link:hover,
 .recovery-inbox-link:focus-visible {
   text-decoration: underline;
-}
-
-.review-surface-header .review-surface-waiting {
-  font-size: 12.5px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.inbox-section > header {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-height: 0;
-  padding: 4px 2px;
-  border: none;
-  background: transparent;
-}
-
-.inbox-section > header strong {
-  font-size: var(--type-micro);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  font-weight: 650;
-}
-
-.inbox-section > header small {
-  font-size: 11.5px;
-  color: var(--text-faint);
-  font-variant-numeric: tabular-nums;
-}
-
-.review-surface-row {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-}
-
-.review-surface-row .review-surface-actions {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px 0 0;
-}
-
-.review-surface-discard {
-  padding: 6px 8px;
-}
-
-.review-surface-copy small {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.review-surface-command.is-disclosure {
-  border: none;
-  background: transparent;
-  padding: 0 14px 10px;
-}
-
-.review-surface-command.is-disclosure summary {
-  display: inline-flex;
-  justify-self: start;
-  justify-content: flex-start;
-  align-items: center;
-  gap: 6px;
-  min-height: 0;
-  padding: 0;
-  font-size: 11px;
-  color: var(--text-faint);
-  cursor: pointer;
-  list-style: none;
-}
-
-.review-surface-command.is-disclosure summary::-webkit-details-marker {
-  display: none;
-}
-
-.review-surface-command.is-disclosure summary::before {
-  content: "▸";
-  font-size: 9px;
-}
-
-.review-surface-command.is-disclosure[open] summary::before {
-  content: "▾";
 }

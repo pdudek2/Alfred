@@ -198,6 +198,23 @@ function expectAllTopLevelOccurrencesWithin(
   expectAllTopLevelOccurrencesWithinSource(styles, selector, allowedRegions, expectedOccurrences);
 }
 
+function expectExactGroupedRule(selectors: string[], requiredDeclarations: string[]): void {
+  const expectedSelectors = [...selectors].sort();
+  const matches = [...withoutComments(styles).matchAll(/(?<selectors>[^{}]+)\{(?<body>[^{}]*)\}/gm)].filter((match) => {
+    const actualSelectors = (match.groups?.selectors ?? "")
+      .split(",")
+      .map((selector) => selector.trim())
+      .sort();
+    return (
+      actualSelectors.length === expectedSelectors.length &&
+      actualSelectors.every((selector, index) => selector === expectedSelectors[index])
+    );
+  });
+
+  expect(matches, `Expected one exact grouped rule for ${selectors.join(", ")}`).toHaveLength(1);
+  for (const declaration of requiredDeclarations) expect(matches[0]?.groups?.body ?? "").toContain(declaration);
+}
+
 function ruleForSelectorContaining(selector: string): { selectors: string; body: string } {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matches = [
@@ -581,6 +598,51 @@ describe("renderer CSS contracts", () => {
     }
   });
 
+  it("keeps canonical owners for Inbox Observatory and overlays", () => {
+    const surfaceRegion = [
+      {
+        name: "Inbox and Observatory",
+        startMarker: "/* ============================================================\n   Navigation + Observatory v1",
+        endMarker: ".agent-raw-toggle {",
+      },
+    ];
+    const overlayRegions = [
+      {
+        name: "command palette and privacy overlays",
+        startMarker: "/* Command palette and privacy modal */",
+        endMarker: "/* Staged tile (Alfred-proposed, awaiting approval) */",
+      },
+      {
+        name: "session Observatory overlay",
+        startMarker: "/* Observatory: cross-workspace session radar, separate from the command palette. */",
+        endMarker: "/* ============================================================\n   Navigation + Observatory v1",
+      },
+    ];
+
+    expectCanonicalBase(".inbox-section-stack", ["overflow-y: auto"]);
+    expectCanonicalBase(".observatory-grid", ["display: grid"]);
+    expectAllTopLevelOccurrencesWithin(".review-surface", surfaceRegion, 1);
+    expectAllTopLevelOccurrencesWithin(".inbox-section", surfaceRegion, 1);
+    expectAllTopLevelOccurrencesWithin(".inbox-section > header", surfaceRegion, 1);
+    expectAllTopLevelOccurrencesWithin(".observatory-surface", surfaceRegion, 1);
+    expectAllTopLevelOccurrencesWithin(".observatory-session-row", surfaceRegion, 1);
+    expectAllTopLevelOccurrencesWithin(".observatory-detail-card", surfaceRegion, 1);
+
+    expectExactGroupedRule(
+      [".privacy-backdrop", ".discard-checkout-backdrop", ".command-palette-backdrop"],
+      ["background: rgba(0, 0, 0, 0.66)", "backdrop-filter: none"],
+    );
+    expectExactGroupedRule(
+      [".command-palette", ".privacy-panel", ".discard-checkout-dialog", ".session-observatory-panel"],
+      ["background: var(--surface-panel)", "box-shadow: var(--shadow-panel)"],
+    );
+    expectAllTopLevelOccurrencesWithin(".privacy-backdrop", overlayRegions, 2);
+    expectAllTopLevelOccurrencesWithin(".command-palette-backdrop", overlayRegions, 1);
+    expectAllTopLevelOccurrencesWithin(".session-observatory-backdrop", overlayRegions, 1);
+    expectAllTopLevelOccurrencesWithin(".session-observatory-panel", overlayRegions, 2);
+    expectAllTopLevelOccurrencesWithin(".session-observatory-main", overlayRegions, 1);
+  });
+
   it("uses one canonical tactical-dark token hierarchy", () => {
     expect(tokenDefinitionCount("--surface-terminal")).toBe(1);
     expect(tokenDefinitionCount("--surface-canvas")).toBe(1);
@@ -727,8 +789,8 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps quick switch as a compact flat switcher, not a heavy glass modal", () => {
-    const backdrop = blockFor(".session-observatory-backdrop");
-    const panel = blockFor(".session-observatory-panel");
+    const backdrop = blockForContaining(".session-observatory-backdrop", "background: rgba(0, 0, 0, 0.54)");
+    const panel = blockForContaining(".session-observatory-panel", "width: min(760px, calc(100vw - 88px))");
     const header = blockFor(".session-observatory-header");
     const list = blockFor(".session-observatory-list");
 
@@ -781,15 +843,15 @@ describe("renderer CSS contracts", () => {
   });
 
   it("styles workspace scrollbars so native white rails do not dominate the shell", () => {
-    const workspaceScroll = blockFor(
-      ".workspace-nav-scroll,\n.inbox-section-stack,\n.observatory-surface,\n.observatory-projects,\n.observatory-session-list,\n.agent-timeline-panel",
-    );
-    const scrollbarThumb = blockFor(
-      ".workspace-nav-scroll::-webkit-scrollbar-thumb,\n.inbox-section-stack::-webkit-scrollbar-thumb,\n.observatory-surface::-webkit-scrollbar-thumb,\n.observatory-projects::-webkit-scrollbar-thumb,\n.observatory-session-list::-webkit-scrollbar-thumb,\n.agent-timeline-panel::-webkit-scrollbar-thumb",
-    );
+    const workspaceScroll = blockFor(".workspace-nav-scroll,\n.agent-timeline-panel");
+    const inboxScroll = exactBlockFor(".inbox-section-stack");
+    const observatoryScroll = exactBlockFor(".observatory-surface");
+    const scrollbarThumb = blockFor(".inbox-section-stack::-webkit-scrollbar-thumb");
 
     expect(workspaceScroll).toContain("scrollbar-width: thin");
     expect(workspaceScroll).toContain("scrollbar-color:");
+    expect(inboxScroll).toContain("scrollbar-width: thin");
+    expect(observatoryScroll).toContain("scrollbar-width: thin");
     expect(scrollbarThumb).toContain("background:");
   });
 
@@ -880,8 +942,8 @@ describe("renderer CSS contracts", () => {
   });
 
   it("removes old glass gradients from the Sessions modal", () => {
-    const backdrop = blockFor(".session-observatory-backdrop");
-    const panel = blockFor(".session-observatory-panel");
+    const backdrop = blockForContaining(".session-observatory-backdrop", "background: rgba(0, 0, 0, 0.54)");
+    const panel = blockForContaining(".session-observatory-panel", "width: min(760px, calc(100vw - 88px))");
     const empty = blockFor(".session-observatory-empty");
 
     expect(backdrop).toContain("backdrop-filter: none");
@@ -1024,9 +1086,7 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps overlay surfaces flat instead of glassy", () => {
-    const overlayBackdrop = blockFor(
-      ".privacy-backdrop,\n.discard-checkout-backdrop,\n.command-palette-backdrop,\n.session-observatory-backdrop",
-    );
+    const overlayBackdrop = blockFor(".privacy-backdrop,\n.discard-checkout-backdrop,\n.command-palette-backdrop");
     const commandPalette = blockFor(
       ".command-palette,\n.privacy-panel,\n.discard-checkout-dialog,\n.session-observatory-panel",
     );
@@ -1141,7 +1201,10 @@ describe("renderer CSS contracts", () => {
     const primaryOverlayBackdrop = blockFor(
       ".privacy-backdrop,\n.discard-checkout-backdrop,\n.command-palette-backdrop",
     );
-    const quickSwitchBackdrop = blockFor(".session-observatory-backdrop");
+    const quickSwitchBackdrop = blockForContaining(
+      ".session-observatory-backdrop",
+      "background: rgba(0, 0, 0, 0.54)",
+    );
     const overlayPanels = blockFor(
       ".command-palette,\n.privacy-panel,\n.discard-checkout-dialog,\n.session-observatory-panel",
     );
