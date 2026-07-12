@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { compareCssEvidence, type CssStateEvidence } from "./css-layout-evidence";
+import {
+  captureReadinessForState,
+  compareCssEvidence,
+  type CssStateEvidence,
+} from "./css-layout-evidence";
 
 const baseline: CssStateEvidence[] = [{
   state: "work-grid",
@@ -15,6 +19,13 @@ const baseline: CssStateEvidence[] = [{
 }];
 
 describe("CSS layout evidence comparison", () => {
+  it("waits for the command palette selection effect before capture", () => {
+    expect(captureReadinessForState("command-palette")).toEqual({
+      selector: ".command-palette-list [role='option'][aria-selected='true']",
+    });
+    expect(captureReadinessForState("inbox")).toBeNull();
+  });
+
   it("accepts geometry noise up to one pixel", () => {
     const actual = structuredClone(baseline);
     actual[0]!.nodes[0]!.rect!.width += 1;

@@ -16,6 +16,14 @@ export type CssEvidenceStateName =
   | "privacy"
   | "session-quick-switch";
 
+export function captureReadinessForState(
+  state: CssEvidenceStateName,
+): { selector: string } | null {
+  return state === "command-palette"
+    ? { selector: ".command-palette-list [role='option'][aria-selected='true']" }
+    : null;
+}
+
 export type CssOwnerProbe = {
   name: string;
   selector: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectDisplayBounds } from "./display-placement";
+import { selectDisplayBounds, windowBoundsExpectation } from "./display-placement";
 
 type Display = {
   id: number;
@@ -8,6 +8,13 @@ type Display = {
 };
 
 describe("CSS evidence display placement", () => {
+  it("ignores OS-clamped position by default but preserves strict display placement", () => {
+    const requested = { x: -1728, y: 30, width: 1120, height: 720 };
+
+    expect(windowBoundsExpectation(requested, false)).toEqual({ width: 1120, height: 720 });
+    expect(windowBoundsExpectation(requested, true)).toEqual(requested);
+  });
+
   it("selects the lowest-id exact-scale display and places the whole window in its work area", () => {
     const displays: Display[] = [
       { id: 9, scaleFactor: 2, workArea: { x: 1800, y: 40, width: 1800, height: 1120 } },

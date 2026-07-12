@@ -6,6 +6,15 @@ export type EvidenceDisplay = {
 
 export type EvidenceWindowBounds = { x: number; y: number; width: number; height: number };
 
+export function windowBoundsExpectation(
+  requestedBounds: EvidenceWindowBounds,
+  strictPlacement: boolean,
+): EvidenceWindowBounds | Pick<EvidenceWindowBounds, "width" | "height"> {
+  return strictPlacement
+    ? requestedBounds
+    : { width: requestedBounds.width, height: requestedBounds.height };
+}
+
 export function selectDisplayBounds(
   displays: EvidenceDisplay[],
   targetScaleFactor: number,
