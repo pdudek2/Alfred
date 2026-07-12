@@ -527,13 +527,13 @@ button:focus-visible {
 
 .mission-name strong,
 .mission-name span {
-  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .mission-name strong {
+  display: block;
   color: var(--text-primary);
   font-family: var(--sans);
   font-size: 14px;
