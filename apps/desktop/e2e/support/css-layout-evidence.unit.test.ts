@@ -4,7 +4,11 @@ import {
   compareCssEvidence,
   type CssStateEvidence,
 } from "./css-layout-evidence";
-import { privacySafeScreenshotSelectors, privacySafeScreenshotStyle } from "./privacy-safe-screenshot";
+import {
+  privacySafeHiddenScreenshotSelectors,
+  privacySafeScreenshotSelectors,
+  privacySafeScreenshotStyle,
+} from "./privacy-safe-screenshot";
 
 const baseline: CssStateEvidence[] = [{
   state: "work-grid",
@@ -34,7 +38,10 @@ describe("CSS layout evidence comparison", () => {
     expect(privacySafeScreenshotStyle).toContain(".staged-cwd");
     expect(privacySafeScreenshotStyle).toContain(".agent-session-pulse");
     expect(privacySafeScreenshotStyle).toContain(".review-surface-command code");
+    expect(privacySafeScreenshotStyle).toContain(".xterm-screen");
+    expect(privacySafeScreenshotStyle).toContain("opacity: 0 !important");
     expect(privacySafeScreenshotSelectors).not.toContain("body *");
+    expect(privacySafeHiddenScreenshotSelectors).toContain(".xterm-screen");
   });
 
   it("waits for the command palette selection effect before capture", () => {

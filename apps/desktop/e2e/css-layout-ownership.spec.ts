@@ -19,6 +19,7 @@ import {
   type EvidenceDisplay,
 } from "./support/display-placement";
 import {
+  privacySafeHiddenScreenshotSelectors,
   privacySafeScreenshotSelectors,
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
@@ -101,7 +102,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
   const { app, marker, page } = harness;
   const evidenceDir = process.env.ALFRED_CSS_EVIDENCE_DIR ?? testInfo.outputDir;
   const states: CssStateEvidence[] = [];
-  const privacySelectorRuntimeMatches = new Map(privacySafeScreenshotSelectors.map((selector) => [selector, false]));
+  const privacySelectors = [...privacySafeScreenshotSelectors, ...privacySafeHiddenScreenshotSelectors];
+  const privacySelectorRuntimeMatches = new Map(privacySelectors.map((selector) => [selector, false]));
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 920);
   await expect(page.getByTestId("workbench-header")).toBeVisible();
@@ -211,7 +213,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
     const readiness = captureReadinessForState(state);
     if (readiness) await expect(page.locator(readiness.selector)).toHaveCount(1);
     states.push(await captureCssEvidence(page, state, probes));
-    for (const selector of privacySafeScreenshotSelectors) {
+    for (const selector of privacySelectors) {
       if (!privacySelectorRuntimeMatches.get(selector) && await page.locator(selector).count() > 0) {
         privacySelectorRuntimeMatches.set(selector, true);
       }

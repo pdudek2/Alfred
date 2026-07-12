@@ -20,11 +20,19 @@ export const privacySafeScreenshotSelectors = [
   "time",
 ] as const;
 
+export const privacySafeHiddenScreenshotSelectors = [
+  ".xterm-screen",
+] as const;
+
 export const privacySafeScreenshotStyle = `
   ${privacySafeScreenshotSelectors.join(",\n  ")} {
     color: transparent !important;
     -webkit-text-fill-color: transparent !important;
     text-shadow: none !important;
     caret-color: transparent !important;
+  }
+
+  ${privacySafeHiddenScreenshotSelectors.join(",\n  ")} {
+    opacity: 0 !important;
   }
 `;
