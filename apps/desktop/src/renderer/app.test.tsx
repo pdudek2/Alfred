@@ -4267,6 +4267,9 @@ describe("App integration", () => {
     expect(screen.getAllByTestId("session-status-announcer")).toHaveLength(1);
     expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("");
 
+    await waitFor(() => {
+      expect(window.alfredDesktop?.terminal.onExit).toHaveBeenCalled();
+    });
     await emitExit({ id: "runtime-a", exitCode: 1 });
 
     await waitFor(() => {
