@@ -4,6 +4,7 @@ import {
   compareCssEvidence,
   type CssStateEvidence,
 } from "./css-layout-evidence";
+import { privacySafeScreenshotSelectors, privacySafeScreenshotStyle } from "./privacy-safe-screenshot";
 
 const baseline: CssStateEvidence[] = [{
   state: "work-grid",
@@ -19,6 +20,18 @@ const baseline: CssStateEvidence[] = [{
 }];
 
 describe("CSS layout evidence comparison", () => {
+  it("keeps deterministic fixture text visible while masking sensitive runtime fields", () => {
+    expect(privacySafeScreenshotStyle).not.toMatch(/body\s+\*/);
+    expect(privacySafeScreenshotStyle).toContain(".xterm-host");
+    expect(privacySafeScreenshotStyle).toContain(".session-location-value");
+    expect(privacySafeScreenshotStyle).toContain(".agent-context-essentials");
+    expect(privacySafeScreenshotStyle).toContain(".workspace-button-details > span");
+    expect(privacySafeScreenshotStyle).toContain(".observatory-project-copy small");
+    expect(privacySafeScreenshotStyle).toContain(".session-observatory-copy small");
+    expect(privacySafeScreenshotStyle).toContain(".command-palette-list button small");
+    expect(privacySafeScreenshotSelectors).not.toContain("body *");
+  });
+
   it("waits for the command palette selection effect before capture", () => {
     expect(captureReadinessForState("command-palette")).toEqual({
       selector: ".command-palette-list [role='option'][aria-selected='true']",

@@ -192,6 +192,62 @@ type CssOwnerRegion = {
   endMarker: string;
 };
 
+type ResponsiveOwnerAllowance = {
+  atRule: "media" | "container";
+  query: string;
+  selector: string;
+  region: CssOwnerRegion;
+};
+
+function expectResponsiveFamilyOwnersWithinSource(
+  source: string,
+  familyName: string,
+  matchesFamily: (selector: string) => boolean,
+  allowances: ResponsiveOwnerAllowance[],
+): void {
+  const commentlessSource = withoutComments(source);
+  const actual: Array<{ atRule: "media" | "container"; query: string; selector: string; index: number }> = [];
+  const atRuleStart = /@(media|container)\s*([^{}]+)\{/g;
+
+  for (const match of commentlessSource.matchAll(atRuleStart)) {
+    const atRule = match[1] as "media" | "container";
+    const query = (match[2] ?? "").trim();
+    const openingBraceIndex = (match.index ?? 0) + match[0].lastIndexOf("{");
+    const selectors = topLevelExactSelectorsIn(balancedBlockBody(commentlessSource, openingBraceIndex).body);
+    for (const selector of selectors.filter(matchesFamily)) {
+      actual.push({ atRule, query, selector, index: match.index ?? 0 });
+    }
+  }
+
+  const remainingAllowances = [...allowances];
+  for (const occurrence of actual) {
+    const allowanceIndex = remainingAllowances.findIndex((allowance) => {
+      if (
+        allowance.atRule !== occurrence.atRule
+        || allowance.query !== occurrence.query
+        || allowance.selector !== occurrence.selector
+      ) return false;
+      const start = commentlessSource.indexOf(allowance.region.startMarker);
+      const end = commentlessSource.indexOf(
+        allowance.region.endMarker,
+        start + allowance.region.startMarker.length,
+      );
+      expect(start, `Missing ${allowance.region.name} start marker`).toBeGreaterThanOrEqual(0);
+      expect(end, `Missing ${allowance.region.name} end marker`).toBeGreaterThan(start);
+      return occurrence.index > start && occurrence.index < end;
+    });
+
+    if (allowanceIndex === -1) {
+      throw new Error(
+        `${familyName} responsive owner is not allowed: @${occurrence.atRule} ${occurrence.query} ${occurrence.selector}`,
+      );
+    }
+    remainingAllowances.splice(allowanceIndex, 1);
+  }
+
+  expect(remainingAllowances, `${familyName} responsive owner allowlist must be complete`).toEqual([]);
+}
+
 function expectAllTopLevelOccurrencesWithinSource(
   source: string,
   selector: string,
@@ -362,6 +418,50 @@ describe("renderer CSS contracts", () => {
         [{ name: "fixture family", startMarker: ".owner-start {", endMarker: ".owner-end {" }],
       ),
     ).toThrow(/outside allowed owner regions/);
+  });
+
+  it("rejects a responsive family owner outside its allowed query and region", () => {
+    const fixture = `
+      .owner-start { display: block; }
+      @media (max-width: 980px) {
+        .review-surface-header { grid-template-columns: 1fr; }
+      }
+      .owner-end { display: block; }
+      @media (max-width: 980px) {
+        .review-surface-primary { display: none; }
+      }
+    `;
+    const region = { name: "fixture responsive owner", startMarker: ".owner-start {", endMarker: ".owner-end {" };
+
+    expect(() => expectResponsiveFamilyOwnersWithinSource(
+      fixture,
+      "fixture Inbox",
+      (selector) => selector.startsWith(".review-surface"),
+      [{ atRule: "media", query: "(max-width: 980px)", selector: ".review-surface-header", region }],
+    )).toThrow(/responsive owner is not allowed/);
+  });
+
+  it("accepts an explicitly allowed container owner inside its region", () => {
+    const fixture = `
+      .owner-start { display: block; }
+      @container terminal-tile (max-width: 520px) {
+        .tile-title { min-width: 0; }
+      }
+      .owner-end { display: block; }
+    `;
+    const region = { name: "fixture container owner", startMarker: ".owner-start {", endMarker: ".owner-end {" };
+
+    expect(() => expectResponsiveFamilyOwnersWithinSource(
+      fixture,
+      "fixture tile",
+      (selector) => selector.startsWith(".tile-"),
+      [{
+        atRule: "container",
+        query: "terminal-tile (max-width: 520px)",
+        selector: ".tile-title",
+        region,
+      }],
+    )).not.toThrow();
   });
 
   it("rejects duplicate top-level rule bodies instead of accepting the last match", () => {
@@ -726,6 +826,16 @@ describe("renderer CSS contracts", () => {
         endMarker: "/* ============================================================\n   Navigation + Observatory v1",
       },
     ];
+    const surfaceResponsiveRegion = {
+      name: "Inbox and Observatory responsive ownership",
+      startMarker: ".review-surface {",
+      endMarker: ".workspace-layout,\n.workspace-layout.alfred-compact,",
+    };
+    const sessionObservatoryResponsiveRegion = {
+      name: "session quick switch responsive ownership",
+      startMarker: ".session-observatory-backdrop {",
+      endMarker: ".workspace-layout.surface-inbox,",
+    };
 
     expectCanonicalBase(".inbox-section-stack", ["overflow-y: auto"]);
     expectCanonicalBase(".observatory-grid", ["display: grid"]);
@@ -784,11 +894,20 @@ describe("renderer CSS contracts", () => {
       ".observatory-detail-card button:focus-visible",
     ]));
 
-    expect(mediaExactRuleBodies("(max-width: 1180px)", ".observatory-grid")).toHaveLength(1);
-    expect(mediaExactRuleBodies("(max-width: 1180px)", ".observatory-detail")).toHaveLength(1);
-    expect(mediaExactRuleBodies("(max-width: 980px)", ".review-surface-header")).toHaveLength(1);
-    expect(mediaExactRuleBodies("(max-width: 980px)", ".observatory-surface-header")).toHaveLength(1);
-    expect(mediaExactRuleBodies("(max-width: 980px)", ".observatory-grid")).toHaveLength(1);
+    expectResponsiveFamilyOwnersWithinSource(
+      styles,
+      "Inbox and Observatory",
+      (selector) => selector.startsWith(".review-surface")
+        || selector.startsWith(".inbox-")
+        || selector.startsWith(".observatory-"),
+      [
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".observatory-grid", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".observatory-detail", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 980px)", selector: ".review-surface-header", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 980px)", selector: ".observatory-surface-header", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 980px)", selector: ".observatory-grid", region: surfaceResponsiveRegion },
+      ],
+    );
 
     expect(exactRuleBodies(".history-surface"), ".history-surface must remain an unstyled semantic hook").toHaveLength(0);
 
@@ -853,10 +972,17 @@ describe("renderer CSS contracts", () => {
       ".session-observatory-row.status-checking .session-observatory-meta span",
       ".session-observatory-empty",
     ]));
-    expect(mediaExactRuleBodies("(max-width: 900px)", ".session-observatory-backdrop")).toHaveLength(1);
-    expect(mediaExactRuleBodies("(max-width: 900px)", ".session-observatory-panel")).toHaveLength(1);
-    expect(mediaExactRuleBodies("(max-width: 900px)", ".session-observatory-main")).toHaveLength(1);
-    expect(mediaExactRuleBodies("(max-width: 900px)", ".session-observatory-meta")).toHaveLength(1);
+    expectResponsiveFamilyOwnersWithinSource(
+      styles,
+      "session quick switch",
+      (selector) => selector.startsWith(".session-observatory-"),
+      [
+        { atRule: "media", query: "(max-width: 900px)", selector: ".session-observatory-backdrop", region: sessionObservatoryResponsiveRegion },
+        { atRule: "media", query: "(max-width: 900px)", selector: ".session-observatory-panel", region: sessionObservatoryResponsiveRegion },
+        { atRule: "media", query: "(max-width: 900px)", selector: ".session-observatory-main", region: sessionObservatoryResponsiveRegion },
+        { atRule: "media", query: "(max-width: 900px)", selector: ".session-observatory-meta", region: sessionObservatoryResponsiveRegion },
+      ],
+    );
 
     expectExactGroupedRule(
       [".privacy-backdrop", ".discard-checkout-backdrop", ".command-palette-backdrop"],

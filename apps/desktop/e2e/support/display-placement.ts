@@ -6,6 +6,13 @@ export type EvidenceDisplay = {
 
 export type EvidenceWindowBounds = { x: number; y: number; width: number; height: number };
 
+export function rendererViewportMatches(
+  actual: Pick<EvidenceWindowBounds, "width" | "height">,
+  requested: Pick<EvidenceWindowBounds, "width" | "height">,
+): boolean {
+  return actual.width === requested.width && actual.height === requested.height;
+}
+
 export function windowBoundsExpectation(
   requestedBounds: EvidenceWindowBounds,
   strictPlacement: boolean,

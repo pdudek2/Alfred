@@ -13,10 +13,15 @@ import {
   type CssStateEvidence,
 } from "./support/css-layout-evidence";
 import {
+  rendererViewportMatches,
   selectDisplayBounds,
   windowBoundsExpectation,
   type EvidenceDisplay,
 } from "./support/display-placement";
+import {
+  privacySafeScreenshotSelectors,
+  privacySafeScreenshotStyle,
+} from "./support/privacy-safe-screenshot";
 
 const frameProbes: CssOwnerProbe[] = [
   { name: "desktop-frame", selector: ".desktop-frame", required: true,
@@ -90,21 +95,13 @@ const overlayProbes: Record<"command-palette" | "privacy" | "session-quick-switc
   ],
 };
 
-const privacySafeScreenshotStyle = `
-  body *, body *::before, body *::after {
-    color: transparent !important;
-    -webkit-text-fill-color: transparent !important;
-    text-shadow: none !important;
-    caret-color: transparent !important;
-  }
-`;
-
 test.use({ fixtureOptions: { inboxItems: 1 } });
 
 test("captures deterministic CSS ownership evidence across core states and overlays", async ({ harness }, testInfo) => {
   const { app, marker, page } = harness;
   const evidenceDir = process.env.ALFRED_CSS_EVIDENCE_DIR ?? testInfo.outputDir;
   const states: CssStateEvidence[] = [];
+  const privacySelectorRuntimeMatches = new Map(privacySafeScreenshotSelectors.map((selector) => [selector, false]));
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 920);
   await expect(page.getByTestId("workbench-header")).toBeVisible();
@@ -195,6 +192,11 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await page.getByRole("button", { name: "Close session quick switch" }).click();
   await expect(page.getByRole("dialog", { name: "Session quick switch" })).toHaveCount(0);
 
+  expect(
+    [...privacySelectorRuntimeMatches].filter(([, matched]) => !matched).map(([selector]) => selector),
+    "Every privacy screenshot selector must match the fixture DOM in at least one captured state",
+  ).toEqual([]);
+
   await writeCssEvidence(testInfo, evidenceDir, states);
   const baselineDir = process.env.ALFRED_CSS_BASELINE_DIR;
   if (baselineDir) {
@@ -209,6 +211,11 @@ test("captures deterministic CSS ownership evidence across core states and overl
     const readiness = captureReadinessForState(state);
     if (readiness) await expect(page.locator(readiness.selector)).toHaveCount(1);
     states.push(await captureCssEvidence(page, state, probes));
+    for (const selector of privacySafeScreenshotSelectors) {
+      if (!privacySelectorRuntimeMatches.get(selector) && await page.locator(selector).count() > 0) {
+        privacySelectorRuntimeMatches.set(selector, true);
+      }
+    }
     await page.screenshot({
       path: join(evidenceDir, `${state}.png`),
       style: privacySafeScreenshotStyle,
@@ -275,5 +282,14 @@ async function setWindowSize(
       { message: `Expected Electron renderer devicePixelRatio ${targetScaleFactor}` },
     ).toBe(targetScaleFactor);
   }
-  await page.waitForTimeout(50);
+  await expect.poll(
+    async () => rendererViewportMatches(
+      await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight })),
+      { width, height },
+    ),
+    { message: `Expected renderer viewport ${width}x${height}` },
+  ).toBe(true);
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+  }));
 }
