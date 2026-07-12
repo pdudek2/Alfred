@@ -1,3 +1,5 @@
+export const neutralScreenshotPointer = { x: 1, y: 1 } as const;
+
 export const privacySafeScreenshotSelectors = [
   ".xterm-host",
   ".xterm-host *",

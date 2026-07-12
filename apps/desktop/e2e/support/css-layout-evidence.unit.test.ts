@@ -5,6 +5,7 @@ import {
   type CssStateEvidence,
 } from "./css-layout-evidence";
 import {
+  neutralScreenshotPointer,
   privacySafeHiddenScreenshotSelectors,
   privacySafeScreenshotSelectors,
   privacySafeScreenshotStyle,
@@ -42,6 +43,7 @@ describe("CSS layout evidence comparison", () => {
     expect(privacySafeScreenshotStyle).toContain("opacity: 0 !important");
     expect(privacySafeScreenshotSelectors).not.toContain("body *");
     expect(privacySafeHiddenScreenshotSelectors).toContain(".xterm-screen");
+    expect(neutralScreenshotPointer).toEqual({ x: 1, y: 1 });
   });
 
   it("waits for the command palette selection effect before capture", () => {
