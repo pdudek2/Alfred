@@ -77,7 +77,7 @@ function balancedBlockBody(source: string, openingBraceIndex: number): { body: s
   throw new Error("Unbalanced CSS block");
 }
 
-function topLevelExactRuleBodiesIn(source: string, selector: string): string[] {
+function topLevelStylesOnlyIn(source: string): string {
   const commentlessSource = withoutComments(source);
   let topLevelStyles = "";
   let cursor = 0;
@@ -90,7 +90,20 @@ function topLevelExactRuleBodiesIn(source: string, selector: string): string[] {
     cursor = block.end + 1;
   }
   topLevelStyles += commentlessSource.slice(cursor);
-  return exactRuleBodiesIn(topLevelStyles, selector);
+  return topLevelStyles;
+}
+
+function topLevelExactRuleBodiesIn(source: string, selector: string): string[] {
+  return exactRuleBodiesIn(topLevelStylesOnlyIn(source), selector);
+}
+
+function topLevelExactSelectorsIn(source: string): string[] {
+  return [...topLevelStylesOnlyIn(source).matchAll(/(?<selectors>[^{}]+)\{[^{}]*\}/gm)].flatMap((match) =>
+    (match.groups?.selectors ?? "")
+      .split(",")
+      .map((selector) => selector.trim())
+      .filter(Boolean),
+  );
 }
 
 function topLevelExactRuleBodies(selector: string): string[] {
@@ -198,6 +211,27 @@ function expectAllTopLevelOccurrencesWithin(
   expectAllTopLevelOccurrencesWithinSource(styles, selector, allowedRegions, expectedOccurrences);
 }
 
+function expectAllFamilyTopLevelOccurrencesWithinSource(
+  source: string,
+  familyName: string,
+  matchesFamily: (selector: string) => boolean,
+  allowedRegions: CssOwnerRegion[],
+): string[] {
+  const selectors = topLevelExactSelectorsIn(source).filter(matchesFamily);
+  expect(selectors, `${familyName} must have protected top-level selectors`).not.toHaveLength(0);
+
+  for (const selector of new Set(selectors)) {
+    expectAllTopLevelOccurrencesWithinSource(
+      source,
+      selector,
+      allowedRegions,
+      selectors.filter((candidate) => candidate === selector).length,
+    );
+  }
+
+  return [...new Set(selectors)];
+}
+
 function expectExactGroupedRule(selectors: string[], requiredDeclarations: string[]): void {
   const expectedSelectors = [...selectors].sort();
   const matches = [...withoutComments(styles).matchAll(/(?<selectors>[^{}]+)\{(?<body>[^{}]*)\}/gm)].filter((match) => {
@@ -294,6 +328,25 @@ describe("renderer CSS contracts", () => {
         ".protected-state",
         [{ name: "fixture canonical", startMarker: ".owner-start {", endMarker: ".owner-end {" }],
         2,
+      ),
+    ).toThrow(/outside allowed owner regions/);
+  });
+
+  it("rejects a late state occurrence outside a protected family owner region", () => {
+    const fixture = `
+      .owner-start { display: block; }
+      .protected { display: grid; }
+      .protected.selected { color: cyan; }
+      .owner-end { display: block; }
+      .protected.selected { color: red; }
+    `;
+
+    expect(() =>
+      expectAllFamilyTopLevelOccurrencesWithinSource(
+        fixture,
+        "fixture family",
+        (selector) => selector.startsWith(".protected"),
+        [{ name: "fixture family", startMarker: ".owner-start {", endMarker: ".owner-end {" }],
       ),
     ).toThrow(/outside allowed owner regions/);
   });
@@ -599,17 +652,48 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps canonical owners for Inbox Observatory and overlays", () => {
-    const surfaceRegion = [
+    const inboxRegions = [
       {
-        name: "Inbox and Observatory",
-        startMarker: "/* ============================================================\n   Navigation + Observatory v1",
+        name: "Inbox core",
+        startMarker: ".review-surface {",
+        endMarker: ".observatory-surface::-webkit-scrollbar,",
+      },
+      {
+        name: "Inbox compact row states",
+        startMarker: ".review-surface-header .review-surface-waiting {",
         endMarker: ".agent-raw-toggle {",
       },
     ];
-    const overlayRegions = [
+    const observatoryRegions = [
       {
-        name: "command palette and privacy overlays",
+        name: "Observatory surface",
+        startMarker: ".observatory-surface {",
+        endMarker: ".review-surface-header .review-surface-waiting {",
+      },
+    ];
+    const commandPaletteRegions = [
+      {
+        name: "command palette overlay",
         startMarker: "/* Command palette and privacy modal */",
+        endMarker: "/* Staged tile (Alfred-proposed, awaiting approval) */",
+      },
+      {
+        name: "shared overlay input typography",
+        startMarker: "/* Region titles: sans for chrome, mono only where data/terminal content needs it. */",
+        endMarker: ".agent-timeline-header {",
+      },
+    ];
+    const privacyRegions = [
+      {
+        name: "privacy overlay",
+        startMarker: "/* Command palette and privacy modal */",
+        endMarker: "/* Staged tile (Alfred-proposed, awaiting approval) */",
+      },
+    ];
+    const sessionObservatoryRegions = [
+      {
+        name: "shared opaque overlay panel",
+        startMarker: ".command-palette,\n.privacy-panel,\n.discard-checkout-dialog,\n.session-observatory-panel {",
         endMarker: "/* Staged tile (Alfred-proposed, awaiting approval) */",
       },
       {
@@ -621,12 +705,129 @@ describe("renderer CSS contracts", () => {
 
     expectCanonicalBase(".inbox-section-stack", ["overflow-y: auto"]);
     expectCanonicalBase(".observatory-grid", ["display: grid"]);
-    expectAllTopLevelOccurrencesWithin(".review-surface", surfaceRegion, 1);
-    expectAllTopLevelOccurrencesWithin(".inbox-section", surfaceRegion, 1);
-    expectAllTopLevelOccurrencesWithin(".inbox-section > header", surfaceRegion, 1);
-    expectAllTopLevelOccurrencesWithin(".observatory-surface", surfaceRegion, 1);
-    expectAllTopLevelOccurrencesWithin(".observatory-session-row", surfaceRegion, 1);
-    expectAllTopLevelOccurrencesWithin(".observatory-detail-card", surfaceRegion, 1);
+    const inboxSelectors = expectAllFamilyTopLevelOccurrencesWithinSource(
+      styles,
+      "Inbox",
+      (selector) => selector.startsWith(".review-surface") || selector.startsWith(".inbox-"),
+      inboxRegions,
+    );
+    expect(inboxSelectors).toEqual(expect.arrayContaining([
+      ".inbox-section-stack",
+      ".inbox-section-stack::-webkit-scrollbar-thumb",
+      ".review-surface-item.tone-error",
+      ".review-surface-item.tone-blocked",
+      ".review-surface-item.selected",
+      ".review-surface-item-main:focus-visible",
+      ".review-surface-primary:hover",
+      ".review-surface-primary:focus-visible",
+      ".review-surface-primary:disabled",
+      ".review-surface-discard:hover",
+      ".review-surface-discard:focus-visible",
+      ".review-surface-command.is-disclosure",
+      ".review-surface-command.is-disclosure[open] code",
+      ".review-surface-command.is-disclosure[open] summary::before",
+    ]));
+
+    const observatorySelectors = expectAllFamilyTopLevelOccurrencesWithinSource(
+      styles,
+      "Observatory",
+      (selector) => selector.startsWith(".observatory-"),
+      observatoryRegions,
+    );
+    expect(observatorySelectors).toEqual(expect.arrayContaining([
+      ".observatory-project:hover",
+      ".observatory-project:focus-visible",
+      ".observatory-project.active",
+      ".observatory-project.current:not(.active)",
+      ".observatory-project.active .observatory-project-marker",
+      ".observatory-project.active .observatory-project-count",
+      ".observatory-project.active .observatory-project-arrow",
+      ".observatory-session-row:hover",
+      ".observatory-session-row:focus-visible",
+      ".observatory-session-row.selected",
+      ".observatory-source-badge.source-external-codex",
+      ".observatory-detail-card.source-external-codex",
+      ".observatory-surface-header button:disabled",
+      ".observatory-surface-header button:hover",
+      ".observatory-surface-header button:focus-visible",
+      ".observatory-detail-card button:disabled",
+      ".observatory-detail-card button:hover",
+      ".observatory-detail-card button:focus-visible",
+    ]));
+
+    expect(mediaExactRuleBodies("(max-width: 1180px)", ".observatory-grid")).toHaveLength(1);
+    expect(mediaExactRuleBodies("(max-width: 1180px)", ".observatory-detail")).toHaveLength(1);
+    expect(mediaExactRuleBodies("(max-width: 980px)", ".review-surface-header")).toHaveLength(1);
+    expect(mediaExactRuleBodies("(max-width: 980px)", ".observatory-surface-header")).toHaveLength(1);
+    expect(mediaExactRuleBodies("(max-width: 980px)", ".observatory-grid")).toHaveLength(1);
+
+    expect(exactRuleBodies(".history-surface"), ".history-surface must remain an unstyled semantic hook").toHaveLength(0);
+
+    const commandPaletteSelectors = expectAllFamilyTopLevelOccurrencesWithinSource(
+      styles,
+      "command palette",
+      (selector) => selector === ".command-palette" || selector.startsWith(".command-palette-"),
+      commandPaletteRegions,
+    );
+    expect(commandPaletteSelectors).toEqual(expect.arrayContaining([
+      ".command-palette-backdrop",
+      ".command-palette-search input:focus-visible",
+      ".command-palette-list button.active",
+      ".command-palette-list button:hover",
+      ".command-palette-list button:focus-visible",
+      ".command-palette-list button:disabled",
+      ".command-palette-group",
+      ".command-palette-empty",
+    ]));
+
+    const privacySelectors = expectAllFamilyTopLevelOccurrencesWithinSource(
+      styles,
+      "privacy",
+      (selector) => selector.startsWith(".privacy-"),
+      privacyRegions,
+    );
+    expect(privacySelectors).toEqual(expect.arrayContaining([
+      ".privacy-panel-close:hover",
+      ".privacy-panel-close:focus-visible",
+      '.privacy-segmented button[aria-pressed="true"]',
+      ".privacy-panel-status.error",
+      ".privacy-panel-status.error button",
+      ".privacy-control-row",
+      ".privacy-action-row",
+      ".privacy-action-button.danger",
+      ".privacy-confirm-actions .danger",
+    ]));
+
+    const sessionObservatorySelectors = expectAllFamilyTopLevelOccurrencesWithinSource(
+      styles,
+      "session quick switch",
+      (selector) => selector.startsWith(".session-observatory-"),
+      sessionObservatoryRegions,
+    );
+    expect(sessionObservatorySelectors).toEqual(expect.arrayContaining([
+      ".session-observatory-backdrop",
+      ".session-observatory-panel",
+      ".session-observatory-search:focus-within",
+      ".session-observatory-list",
+      ".session-observatory-list::-webkit-scrollbar-thumb",
+      ".session-observatory-main:hover",
+      ".session-observatory-main:focus-visible",
+      ".session-observatory-kind.claude",
+      ".session-observatory-kind.manual",
+      ".session-observatory-kind.shell",
+      ".session-observatory-row.status-active .session-observatory-meta span",
+      ".session-observatory-row.status-starting .session-observatory-meta span",
+      ".session-observatory-row.status-error .session-observatory-meta span",
+      ".session-observatory-row.status-blocked .session-observatory-meta span",
+      ".session-observatory-row.status-waiting .session-observatory-meta span",
+      ".session-observatory-row.status-staged .session-observatory-meta span",
+      ".session-observatory-row.status-checking .session-observatory-meta span",
+      ".session-observatory-empty",
+    ]));
+    expect(mediaExactRuleBodies("(max-width: 900px)", ".session-observatory-backdrop")).toHaveLength(1);
+    expect(mediaExactRuleBodies("(max-width: 900px)", ".session-observatory-panel")).toHaveLength(1);
+    expect(mediaExactRuleBodies("(max-width: 900px)", ".session-observatory-main")).toHaveLength(1);
+    expect(mediaExactRuleBodies("(max-width: 900px)", ".session-observatory-meta")).toHaveLength(1);
 
     expectExactGroupedRule(
       [".privacy-backdrop", ".discard-checkout-backdrop", ".command-palette-backdrop"],
@@ -636,11 +837,11 @@ describe("renderer CSS contracts", () => {
       [".command-palette", ".privacy-panel", ".discard-checkout-dialog", ".session-observatory-panel"],
       ["background: var(--surface-panel)", "box-shadow: var(--shadow-panel)"],
     );
-    expectAllTopLevelOccurrencesWithin(".privacy-backdrop", overlayRegions, 2);
-    expectAllTopLevelOccurrencesWithin(".command-palette-backdrop", overlayRegions, 1);
-    expectAllTopLevelOccurrencesWithin(".session-observatory-backdrop", overlayRegions, 1);
-    expectAllTopLevelOccurrencesWithin(".session-observatory-panel", overlayRegions, 2);
-    expectAllTopLevelOccurrencesWithin(".session-observatory-main", overlayRegions, 1);
+    expectAllTopLevelOccurrencesWithin(".privacy-backdrop", privacyRegions, 2);
+    expectAllTopLevelOccurrencesWithin(".command-palette-backdrop", commandPaletteRegions, 1);
+    expectAllTopLevelOccurrencesWithin(".session-observatory-backdrop", sessionObservatoryRegions, 1);
+    expectAllTopLevelOccurrencesWithin(".session-observatory-panel", sessionObservatoryRegions, 2);
+    expectAllTopLevelOccurrencesWithin(".session-observatory-main", sessionObservatoryRegions, 1);
   });
 
   it("uses one canonical tactical-dark token hierarchy", () => {
