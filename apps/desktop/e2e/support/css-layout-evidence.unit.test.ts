@@ -29,6 +29,11 @@ describe("CSS layout evidence comparison", () => {
     expect(privacySafeScreenshotStyle).toContain(".observatory-project-copy small");
     expect(privacySafeScreenshotStyle).toContain(".session-observatory-copy small");
     expect(privacySafeScreenshotStyle).toContain(".command-palette-list button small");
+    expect(privacySafeScreenshotStyle).toContain(".workspace-title-trigger small");
+    expect(privacySafeScreenshotStyle).toContain(".staged-command");
+    expect(privacySafeScreenshotStyle).toContain(".staged-cwd");
+    expect(privacySafeScreenshotStyle).toContain(".agent-session-pulse");
+    expect(privacySafeScreenshotStyle).toContain(".review-surface-command code");
     expect(privacySafeScreenshotSelectors).not.toContain("body *");
   });
 
