@@ -1329,6 +1329,20 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toMatch(/\.workbench-tool-group button\s*\{[^}]*height:\s*(?:24|30|32)px/s);
   });
 
+  it("does not retain proven orphan selectors from the historical mission chrome", () => {
+    expect(styles).not.toMatch(/\.agent-launch-buttons(?:[\s.:#\[]|$)/);
+    expect(styles).not.toMatch(/\.agent-launch-button(?:[\s.:#\[]|$)/);
+    expect(styles).not.toMatch(/\.arrange-button(?:[\s.:#\[]|$)/);
+    expect(styles).not.toMatch(/\.command-palette-button(?:[\s.:#\[]|$)/);
+    expect(styles).not.toMatch(/\.context-toggle-button(?:[\s.:#\[]|$)/);
+    expect(styles).not.toMatch(/\.mission-actions(?:[\s.:#\[]|$)/);
+    expect(styles).not.toMatch(/\.new-terminal-button(?:[\s.:#\[]|$)/);
+    expect(styles).not.toMatch(/\.review-queue-button(?:[\s.:#\[]|$)/);
+    expect(styles).not.toMatch(/\.session-observatory-button(?:[\s.:#\[]|$)/);
+    expect(styles).not.toMatch(/\.session-observatory-stats(?:[\s.:#\[]|$)/);
+    expect(styles).not.toMatch(/\.workspace-title-main(?:[\s.:#\[]|$)/);
+  });
+
   it("keeps passive chrome text readable against the dark panel surface", () => {
     expect(contrastRatio(rootToken("--text-faint"), rootToken("--surface-panel"))).toBeGreaterThanOrEqual(4.0);
   });
