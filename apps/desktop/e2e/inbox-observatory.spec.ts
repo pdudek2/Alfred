@@ -10,6 +10,7 @@ test.use({ fixtureOptions: { inboxItems: 14, restoredSessions: 2 } });
 
 test("inbox scrolls, executes a real action, and opens Observatory history", async ({ harness }) => {
   const { page } = harness;
+  await expect(page.getByRole("article", { name: /Restored fixture 1/i })).toBeVisible();
   await page.getByTestId("workbench-header").getByRole("button", { name: /Open Context drawer/i }).click();
   await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
   await expect(page.getByRole("region", { name: "Alfred review queue" })).toHaveCount(0);
