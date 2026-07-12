@@ -4,6 +4,7 @@ import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwri
 import { expect, test } from "./support/electron-app";
 import {
   assertCssEvidenceMatchesBaseline,
+  captureReadinessForState,
   captureCssEvidence,
   readCssEvidence,
   writeCssEvidence,
@@ -11,7 +12,11 @@ import {
   type CssOwnerProbe,
   type CssStateEvidence,
 } from "./support/css-layout-evidence";
-import { selectDisplayBounds, type EvidenceDisplay } from "./support/display-placement";
+import {
+  selectDisplayBounds,
+  windowBoundsExpectation,
+  type EvidenceDisplay,
+} from "./support/display-placement";
 
 const frameProbes: CssOwnerProbe[] = [
   { name: "desktop-frame", selector: ".desktop-frame", required: true,
@@ -201,6 +206,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await harness.closeActiveTerminals();
 
   async function capture(state: CssEvidenceStateName, probes: CssOwnerProbe[]): Promise<void> {
+    const readiness = captureReadinessForState(state);
+    if (readiness) await expect(page.locator(readiness.selector)).toHaveCount(1);
     states.push(await captureCssEvidence(page, state, probes));
     await page.screenshot({
       path: join(evidenceDir, `${state}.png`),
@@ -261,7 +268,7 @@ async function setWindowSize(
   await expect.poll(async () => app.evaluate(({ BrowserWindow }) => {
     const [window] = BrowserWindow.getAllWindows();
     return window?.getBounds() ?? null;
-  })).toMatchObject(bounds);
+  })).toMatchObject(windowBoundsExpectation(bounds, targetScaleFactor !== undefined));
   if (targetScaleFactor !== undefined) {
     await expect.poll(
       () => page.evaluate(() => window.devicePixelRatio),

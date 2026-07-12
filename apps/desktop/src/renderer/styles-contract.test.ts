@@ -710,6 +710,11 @@ describe("renderer CSS contracts", () => {
 
     expectCanonicalBase(".inbox-section-stack", ["overflow-y: auto"]);
     expectCanonicalBase(".observatory-grid", ["display: grid"]);
+    const primaryInboxAction = exactBlockFor(".review-surface-primary");
+    expect(primaryInboxAction).toContain("background: color-mix(in oklab, var(--surface-raised) 72%, black 28%)");
+    expect(primaryInboxAction).toContain("border: 1px solid var(--border)");
+    expect(primaryInboxAction).toContain("color: var(--text-secondary)");
+    expect(primaryInboxAction).not.toContain("var(--signal-focus-strong)");
     const inboxSelectors = expectAllFamilyTopLevelOccurrencesWithinSource(
       styles,
       "Inbox",

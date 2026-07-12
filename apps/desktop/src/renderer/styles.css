@@ -6872,12 +6872,6 @@ body {
   cursor: pointer;
 }
 
-.review-surface-primary {
-  border-color: color-mix(in oklab, var(--signal-focus) 36%, transparent);
-  background: color-mix(in oklab, var(--signal-focus) 8%, transparent);
-  color: var(--signal-focus-strong);
-}
-
 .review-surface-primary:hover,
 .review-surface-primary:focus-visible,
 .observatory-detail-card button:hover,
