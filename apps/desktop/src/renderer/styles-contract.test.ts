@@ -115,6 +115,14 @@ function topLevelExactRuleBodies(selector: string): string[] {
   return topLevelExactRuleBodiesIn(styles, selector);
 }
 
+function singleTopLevelRuleBodyIn(source: string, selector: string): string {
+  const bodies = topLevelExactRuleBodiesIn(source, selector);
+  if (bodies.length !== 1) {
+    throw new Error(`${selector} must have one top-level rule body; found ${bodies.length}`);
+  }
+  return bodies[0] ?? "";
+}
+
 function mediaExactRuleBodiesIn(source: string, query: string, selector: string): string[] {
   const commentlessSource = withoutComments(source);
   const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -354,6 +362,17 @@ describe("renderer CSS contracts", () => {
         [{ name: "fixture family", startMarker: ".owner-start {", endMarker: ".owner-end {" }],
       ),
     ).toThrow(/outside allowed owner regions/);
+  });
+
+  it("rejects duplicate top-level rule bodies instead of accepting the last match", () => {
+    const fixture = `
+      .review-surface-primary { background: black; }
+      .review-surface-primary { background: cyan; }
+    `;
+
+    expect(() => singleTopLevelRuleBodyIn(fixture, ".review-surface-primary")).toThrow(
+      /must have one top-level rule body; found 2/,
+    );
   });
 
   it("does not treat a media-only fixture as a canonical top-level base", () => {
@@ -710,7 +729,7 @@ describe("renderer CSS contracts", () => {
 
     expectCanonicalBase(".inbox-section-stack", ["overflow-y: auto"]);
     expectCanonicalBase(".observatory-grid", ["display: grid"]);
-    const primaryInboxAction = exactBlockFor(".review-surface-primary");
+    const primaryInboxAction = singleTopLevelRuleBodyIn(styles, ".review-surface-primary");
     expect(primaryInboxAction).toContain("background: color-mix(in oklab, var(--surface-raised) 72%, black 28%)");
     expect(primaryInboxAction).toContain("border: 1px solid var(--border)");
     expect(primaryInboxAction).toContain("color: var(--text-secondary)");
