@@ -1267,10 +1267,13 @@ describe("renderer CSS contracts", () => {
 
   it("lays workspace title and detail out inline in the one bar", () => {
     const workspaceTitle = blockFor(".workspace-title-trigger > span");
+    const sharedMissionText = exactRuleBodies(".mission-name span");
 
     expect(workspaceTitle).toContain("display: flex");
     expect(workspaceTitle).toContain("flex-direction: row");
     expect(workspaceTitle).toContain("align-items: baseline");
+    expect(sharedMissionText).not.toHaveLength(0);
+    for (const body of sharedMissionText) expect(body).not.toContain("display: block");
   });
 
   it("uses only the disclosure caret marker for Inbox commands", () => {

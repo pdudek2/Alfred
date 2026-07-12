@@ -38,6 +38,14 @@ const frameProbes: CssOwnerProbe[] = [
     properties: ["display", "grid-template-columns", "min-width", "min-height", "overflow"] },
 ];
 
+const extendedVisualProbes: CssOwnerProbe[] = [
+  { name: "workspace-title-trigger", selector: ".workspace-title-trigger", required: true,
+    properties: [
+      "display", "width", "min-width", "max-width", "min-height", "grid-template-columns",
+      "overflow", "font-family", "font-size", "font-weight", "line-height", "color",
+    ] },
+];
+
 const terminalProbes: CssOwnerProbe[] = [
   { name: "workbench-surface", selector: "[data-testid='workbench-surface']", required: true,
     properties: ["display", "min-width", "min-height", "overflow", "background-color"] },
@@ -111,6 +119,9 @@ test("captures deterministic CSS ownership evidence across core states and overl
   const newTerminalButton = page.getByTestId("workbench-header").getByRole("button", { name: "New terminal" });
   await newTerminalButton.click();
   await expect(page.getByTestId("xterm-host")).toHaveCount(1);
+  await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
+  await expect(page.locator(".workspace-title-trigger strong")).toHaveText("Fixture Alpha");
+  await expect(page.locator(".workbench-bar-title")).toContainText("Terminal grid2 sessions");
 
   const firstHost = page.getByTestId("xterm-host").first();
   const firstScreen = firstHost.locator(".xterm-screen");
@@ -217,7 +228,13 @@ test("captures deterministic CSS ownership evidence across core states and overl
     }));
     const readiness = captureReadinessForState(state);
     if (readiness) await expect(page.locator(readiness.selector)).toHaveCount(1);
-    states.push(await captureCssEvidence(page, state, probes));
+    await page.locator(".tile-utility-actions, .tile-danger-actions").evaluateAll(async (elements) => {
+      await Promise.allSettled(elements.flatMap((element) => element.getAnimations()).map((animation) => animation.finished));
+    });
+    const captureProbes = process.env.ALFRED_CSS_EXTENDED_VISUAL_PROBES === "1"
+      ? [...probes, ...extendedVisualProbes]
+      : probes;
+    states.push(await captureCssEvidence(page, state, captureProbes));
     for (const selector of privacySelectors) {
       if (!privacySelectorRuntimeMatches.get(selector) && await page.locator(selector).count() > 0) {
         privacySelectorRuntimeMatches.set(selector, true);
