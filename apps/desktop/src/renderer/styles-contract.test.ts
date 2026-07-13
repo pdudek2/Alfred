@@ -393,11 +393,6 @@ function rootToken(name: string): string {
   return match?.[1] ?? "";
 }
 
-function tokenValue(name: string): string {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return styles.match(new RegExp(`${escaped}:\\s*([^;]+);`))?.[1]?.trim() ?? "";
-}
-
 function tokenDefinitionCount(tokenName: string): number {
   const escaped = tokenName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return [...styles.matchAll(new RegExp(`${escaped}:\\s*`, "g"))].length;
@@ -668,6 +663,15 @@ describe("renderer CSS contracts", () => {
       "--highlight-soft",
       "--shadow-soft",
       "--accent-press",
+      "--accent",
+      "--accent-primary",
+      "--accent-focus",
+      "--accent-soft",
+      "--accent-strong",
+      "--amber",
+      "--coral",
+      "--green",
+      "--accent-halo",
       "--on-accent",
       "--depth-raised",
     ]) {
@@ -1220,7 +1224,6 @@ describe("renderer CSS contracts", () => {
     expect(rootToken("--surface-chrome")).toBe("#07090b");
     expect(rootToken("--surface-control")).toBe("#090d11");
     expect(rootToken("--surface-control-hover")).toBe("#10151a");
-    expect(tokenValue("--accent")).toBe("var(--signal-focus)");
     expect(styles).not.toMatch(/--flat-/);
     expect(styles).not.toMatch(/--proto-/);
     expect(styles).not.toMatch(/ALFRED CLEAN FLAT v4/);
@@ -1255,10 +1258,6 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toMatch(/rgba\(217,\s*174,\s*70,/);
     expect(styles).not.toMatch(/#(?:35d47f|37d884|3ee68a)/i);
     expect(rootToken("--signal-agent")).toBe("#e0b75b");
-    expect(styles).not.toMatch(/var\(--accent\)/);
-    expect(styles).not.toMatch(/var\(--amber\)/);
-    expect(styles).not.toMatch(/var\(--coral\)/);
-    expect(styles).not.toMatch(/var\(--green\)/);
   });
 
   it("keeps Arrange mode scrollable with room for the bottom resize handle", () => {

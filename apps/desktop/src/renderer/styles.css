@@ -55,19 +55,10 @@
   --passive: var(--text-faint);
   --line: var(--border);
   --line-strong: var(--border-strong);
-  --accent: var(--signal-focus);
-  --accent-primary: var(--signal-focus);
-  --accent-focus: var(--signal-focus-strong);
-  --accent-soft: var(--signal-focus-soft);
-  --accent-strong: var(--signal-focus-strong);
   --cyan: var(--signal-focus);
   --brass: var(--signal-agent);
-  --amber: var(--signal-agent);
-  --coral: var(--signal-danger);
-  --green: var(--signal-success);
   --claude-amber: #c9a26d;
   --focus-border: var(--border-focus);
-  --accent-halo: color-mix(in oklab, var(--signal-focus) 34%, transparent);
   --depth-card:
     0 1px 0 rgba(255, 255, 255, 0.045) inset,
     0 18px 38px -26px rgba(0, 0, 0, 0.85);
