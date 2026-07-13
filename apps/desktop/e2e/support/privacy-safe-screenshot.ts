@@ -16,7 +16,6 @@ export const privacySafeScreenshotSelectors = [
   ".observatory-project-copy small",
   ".observatory-row-copy small",
   ".observatory-detail-card dd",
-  ".session-observatory-copy small",
   ".command-palette-list button small",
   ".tile-age",
   "time",

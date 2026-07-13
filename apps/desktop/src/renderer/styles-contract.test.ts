@@ -13,13 +13,13 @@ if (!stylesPath) {
 }
 
 const styles = readFileSync(stylesPath, "utf8");
-const cssParserConfig = resolveConfig(
+const lightningCssConfig = resolveConfig(
   { configFile: false, css: { transformer: "lightningcss" } },
   "build",
 );
 
-async function parseCss(source: string, filename: string): Promise<void> {
-  await preprocessCSS(source, filename, await cssParserConfig);
+async function parseWithLightningCss(source: string, filename: string): Promise<void> {
+  await preprocessCSS(source, filename, await lightningCssConfig);
 }
 
 function isLiveSliceOneSelector(selector: string): boolean {
@@ -34,6 +34,7 @@ function isLiveSliceOneSelector(selector: string): boolean {
     ".workspace-layout", ".workspace-navigation-panel", ".workspace-nav-", ".workspace-rail",
     ".workspace-button", ".workspace-monogram", ".workspace-priority-chip", ".workspace-spacer",
     ".alfred-mark", ".workbench-", ".session-chrome-", ".chrome-menu", ".prepare-work-popover",
+    ".desktop-save-", ".recovery-",
     ".terminal-", ".tile-", ".tool-dot", ".session-status-", ".session-rename-form",
     ".split-empty-", ".staged-", ".arrange-", ".xterm-host", ".composer-", ".dispatch-",
   ].some((prefix) => selector.includes(prefix));
@@ -429,7 +430,7 @@ function contrastRatio(foreground: string, background: string): number {
 }
 
 describe("renderer CSS contracts", () => {
-  it("parses the complete stylesheet with the production CSS parser", async () => {
+  it("keeps the complete stylesheet compatible with Lightning CSS minification", async () => {
     const invalidFixture = `
       .fixture-one,
       .fixture-two {
@@ -437,8 +438,8 @@ describe("renderer CSS contracts", () => {
       @keyframes fixture-motion { from { opacity: 0; } to { opacity: 1; } }
     `;
 
-    await expect(parseCss(invalidFixture, "invalid-fixture.css")).rejects.toThrow(/Unknown at rule/);
-    await expect(parseCss(styles, stylesPath)).resolves.toBeUndefined();
+    await expect(parseWithLightningCss(invalidFixture, "invalid-fixture.css")).rejects.toThrow(/Unknown at rule/);
+    await expect(parseWithLightningCss(styles, stylesPath)).resolves.toBeUndefined();
   });
 
   it("defines the approved achromatic material ramp exactly once", () => {
@@ -487,12 +488,18 @@ describe("renderer CSS contracts", () => {
     const liveRules = allRulesIn(styles).filter((rule) =>
       rule.selectors.some(isLiveSliceOneSelector),
     );
+    const liveSelectors = liveRules.flatMap(({ selectors }) => selectors);
     const legacyColorUses = liveRules.filter(({ body }) =>
       /var\(--(?:signal-focus(?:-strong)?|signal-danger|signal-agent(?:-soft)?|signal-success|codex-blue|claude-amber|cyan|brass|role-[^)]+|surface-[^)]+|text-[^)]+|border(?:-[^)]+)?|line(?:-strong)?|panel(?:-soft)?|terminal|muted|faint|passive|ink(?:-soft)?|radius-[^)]+)\)/.test(body),
     );
     const lowContrastControlUses = liveRules.filter(({ body }) => /color:\s*var\(--ink-4\)/.test(body));
     const literalColorUses = liveRules.filter(({ body }) => /#[0-9a-f]{3,8}\b|rgba?\(/i.test(body));
 
+    expect(liveSelectors).toEqual(expect.arrayContaining([
+      ".desktop-save-banner",
+      ".recovery-workspace-strip",
+      ".recovery-inbox-link",
+    ]));
     expect(legacyColorUses.map(({ selectors }) => selectors)).toEqual([]);
     expect(lowContrastControlUses.map(({ selectors }) => selectors)).toEqual([]);
     expect(literalColorUses.map(({ selectors }) => selectors)).toEqual([]);
@@ -593,6 +600,22 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain("--workbench-control-height");
     expect(styles).not.toContain("--workbench-segment-height");
     expect(styles).not.toContain("--workbench-control-radius");
+  });
+
+  it("drops proven orphan compatibility families", () => {
+    expect(styles).not.toMatch(/\.session-observatory-/);
+    expect(styles).not.toMatch(/\.(?:review-queue|review-item-|decision-detail)/);
+    expect(styles).not.toMatch(/\.(?:review-launch|review-clear|review-safety-note)/);
+    expect(styles).not.toMatch(/\.(?:review-modal-header|recovery-banner|empty-workspace-card)/);
+  });
+
+  it("keeps one canonical body owner on the ink canvas", () => {
+    const bodyRules = topLevelExactRuleBodies("body");
+
+    expect(bodyRules).toHaveLength(1);
+    expect(bodyRules[0]).toContain("background: var(--ink-0)");
+    expect(bodyRules[0]).not.toContain("gradient");
+    expect(bodyRules[0]).not.toContain("background-size");
   });
 
   it("rejects a protected selector with a late top-level occurrence outside its owner region", () => {
@@ -995,27 +1018,10 @@ describe("renderer CSS contracts", () => {
         endMarker: "/* Alfred dock variants */",
       },
     ];
-    const sessionObservatoryRegions = [
-      {
-        name: "shared opaque overlay panel",
-        startMarker: ".command-palette,\n.privacy-panel,\n.discard-checkout-dialog,\n.session-observatory-panel {",
-        endMarker: "/* Alfred dock variants */",
-      },
-      {
-        name: "session Observatory overlay",
-        startMarker: "/* Observatory: cross-workspace session radar, separate from the command palette. */",
-        endMarker: "/* ============================================================\n   Navigation + Observatory v1",
-      },
-    ];
     const surfaceResponsiveRegion = {
       name: "Inbox and Observatory responsive ownership",
       startMarker: ".review-surface {",
       endMarker: ".agent-timeline-panel,\n.workspace-preview-panel {",
-    };
-    const sessionObservatoryResponsiveRegion = {
-      name: "session quick switch responsive ownership",
-      startMarker: ".session-observatory-backdrop {",
-      endMarker: ".workspace-layout.surface-inbox,",
     };
 
     expectCanonicalBase(".inbox-section-stack", ["overflow-y: auto"]);
@@ -1127,57 +1133,16 @@ describe("renderer CSS contracts", () => {
       ".privacy-confirm-actions .danger",
     ]));
 
-    const sessionObservatorySelectors = expectAllFamilyTopLevelOccurrencesWithinSource(
-      styles,
-      "session quick switch",
-      (selector) => selector.startsWith(".session-observatory-"),
-      sessionObservatoryRegions,
-    );
-    expect(sessionObservatorySelectors).toEqual(expect.arrayContaining([
-      ".session-observatory-backdrop",
-      ".session-observatory-panel",
-      ".session-observatory-search:focus-within",
-      ".session-observatory-list",
-      ".session-observatory-list::-webkit-scrollbar-thumb",
-      ".session-observatory-main:hover",
-      ".session-observatory-main:focus-visible",
-      ".session-observatory-kind.claude",
-      ".session-observatory-kind.manual",
-      ".session-observatory-kind.shell",
-      ".session-observatory-row.status-active .session-observatory-meta span",
-      ".session-observatory-row.status-starting .session-observatory-meta span",
-      ".session-observatory-row.status-error .session-observatory-meta span",
-      ".session-observatory-row.status-blocked .session-observatory-meta span",
-      ".session-observatory-row.status-waiting .session-observatory-meta span",
-      ".session-observatory-row.status-staged .session-observatory-meta span",
-      ".session-observatory-row.status-checking .session-observatory-meta span",
-      ".session-observatory-empty",
-    ]));
-    expectResponsiveFamilyOwnersWithinSource(
-      styles,
-      "session quick switch",
-      (selector) => selector.startsWith(".session-observatory-"),
-      [
-        { atRule: "media", query: "(max-width: 900px)", selector: ".session-observatory-backdrop", region: sessionObservatoryResponsiveRegion },
-        { atRule: "media", query: "(max-width: 900px)", selector: ".session-observatory-panel", region: sessionObservatoryResponsiveRegion },
-        { atRule: "media", query: "(max-width: 900px)", selector: ".session-observatory-main", region: sessionObservatoryResponsiveRegion },
-        { atRule: "media", query: "(max-width: 900px)", selector: ".session-observatory-meta", region: sessionObservatoryResponsiveRegion },
-      ],
-    );
-
     expectExactGroupedRule(
       [".privacy-backdrop", ".discard-checkout-backdrop", ".command-palette-backdrop"],
       ["background: rgba(0, 0, 0, 0.66)", "backdrop-filter: none"],
     );
     expectExactGroupedRule(
-      [".command-palette", ".privacy-panel", ".discard-checkout-dialog", ".session-observatory-panel"],
+      [".command-palette", ".privacy-panel", ".discard-checkout-dialog"],
       ["background: var(--surface-panel)", "box-shadow: var(--shadow-panel)"],
     );
     expectAllTopLevelOccurrencesWithin(".privacy-backdrop", privacyRegions, 2);
     expectAllTopLevelOccurrencesWithin(".command-palette-backdrop", commandPaletteRegions, 1);
-    expectAllTopLevelOccurrencesWithin(".session-observatory-backdrop", sessionObservatoryRegions, 1);
-    expectAllTopLevelOccurrencesWithin(".session-observatory-panel", sessionObservatoryRegions, 2);
-    expectAllTopLevelOccurrencesWithin(".session-observatory-main", sessionObservatoryRegions, 1);
   });
 
   it("uses one canonical tactical-dark token hierarchy", () => {
@@ -1312,21 +1277,6 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toMatch(/\.quiet-count-(?:dot|mark)/);
   });
 
-  it("keeps quick switch as a compact flat switcher, not a heavy glass modal", () => {
-    const backdrop = blockForContaining(".session-observatory-backdrop", "background: rgba(0, 0, 0, 0.54)");
-    const panel = blockForContaining(".session-observatory-panel", "width: min(760px, calc(100vw - 88px))");
-    const header = blockFor(".session-observatory-header");
-    const list = blockFor(".session-observatory-list");
-
-    expect(backdrop).toContain("background: rgba(0, 0, 0, 0.54)");
-    expect(backdrop).toContain("backdrop-filter: none");
-    expect(panel).toContain("width: min(760px, calc(100vw - 88px))");
-    expect(panel).toContain("max-height: min(560px, calc(100vh - 96px))");
-    expect(panel).toContain("background-image: none");
-    expect(header).toContain("padding: 14px 18px 12px");
-    expect(list).toContain("padding: 10px 18px 18px");
-  });
-
   it("keeps legacy gradients out of the main clean flat surfaces", () => {
     const workspacePopover = blockFor(".workspace-popover");
     const terminalTile = exactBlockFor(".terminal-tile");
@@ -1457,17 +1407,6 @@ describe("renderer CSS contracts", () => {
     expect(timelinePanel).toContain("overflow: auto");
   });
 
-  it("removes old glass gradients from the Sessions modal", () => {
-    const backdrop = blockForContaining(".session-observatory-backdrop", "background: rgba(0, 0, 0, 0.54)");
-    const panel = blockForContaining(".session-observatory-panel", "width: min(760px, calc(100vw - 88px))");
-    const empty = blockFor(".session-observatory-empty");
-
-    expect(backdrop).toContain("backdrop-filter: none");
-    expect(panel).toContain("background-image: none");
-    expect(empty).toContain("background-image: none");
-    expect(panel).not.toContain("linear-gradient");
-  });
-
   it("keeps recovery strip text from visually colliding", () => {
     const recoveryCopy = blockFor(".recovery-workspace-strip p");
 
@@ -1580,7 +1519,7 @@ describe("renderer CSS contracts", () => {
   it("keeps overlay surfaces flat instead of glassy", () => {
     const overlayBackdrop = blockFor(".privacy-backdrop,\n.discard-checkout-backdrop,\n.command-palette-backdrop");
     const commandPalette = blockFor(
-      ".command-palette,\n.privacy-panel,\n.discard-checkout-dialog,\n.session-observatory-panel",
+      ".command-palette,\n.privacy-panel,\n.discard-checkout-dialog",
     );
 
     expect(overlayBackdrop).toContain("backdrop-filter: none");
@@ -1634,7 +1573,6 @@ describe("renderer CSS contracts", () => {
   it.each([
     [".workspace-mission-actions", "mission-actions"],
     [".new-terminal-button-extra", "new-terminal-button"],
-    [".session-observatory-button-secondary", "session-observatory-button"],
   ])("does not match a longer class identifier: %s", (candidate, className) => {
     expect(candidate).not.toMatch(orphanClassTokenPattern(className));
   });
@@ -1647,9 +1585,6 @@ describe("renderer CSS contracts", () => {
     "context-toggle-button",
     "mission-actions",
     "new-terminal-button",
-    "review-queue-button",
-    "session-observatory-button",
-    "session-observatory-stats",
     "workspace-title-main",
   ])("does not retain proven orphan selector .%s", (className) => {
     expect(styles).not.toMatch(orphanClassTokenPattern(className));
@@ -1728,12 +1663,8 @@ describe("renderer CSS contracts", () => {
     const primaryOverlayBackdrop = blockFor(
       ".privacy-backdrop,\n.discard-checkout-backdrop,\n.command-palette-backdrop",
     );
-    const quickSwitchBackdrop = blockForContaining(
-      ".session-observatory-backdrop",
-      "background: rgba(0, 0, 0, 0.54)",
-    );
     const overlayPanels = blockFor(
-      ".command-palette,\n.privacy-panel,\n.discard-checkout-dialog,\n.session-observatory-panel",
+      ".command-palette,\n.privacy-panel,\n.discard-checkout-dialog",
     );
     const activePaletteRow = blockFor(
       ".command-palette-list button:hover,\n.command-palette-list button:focus-visible,\n.command-palette-list button.active",
@@ -1743,8 +1674,6 @@ describe("renderer CSS contracts", () => {
     expect(primaryOverlayBackdrop).toContain("background-image: none");
     expect(primaryOverlayBackdrop).toContain("backdrop-filter: none");
     expect(primaryOverlayBackdrop).toContain("-webkit-backdrop-filter: none");
-    expect(quickSwitchBackdrop).toContain("background: rgba(0, 0, 0, 0.54)");
-    expect(quickSwitchBackdrop).toContain("backdrop-filter: none");
     expect(overlayPanels).toContain("background: var(--surface-panel)");
     expect(overlayPanels).toContain("background-image: none");
     expect(overlayPanels).toContain("border: 1px solid var(--border)");

@@ -84,7 +84,7 @@ const observatoryProbes: CssOwnerProbe[] = [
     properties: ["display", "grid-template-columns", "min-height", "overflow", "gap"] },
 ];
 
-const overlayProbes: Record<"command-palette" | "privacy" | "session-quick-switch", CssOwnerProbe[]> = {
+const overlayProbes: Record<"command-palette" | "privacy", CssOwnerProbe[]> = {
   "command-palette": [
     { name: "command-palette-backdrop", selector: ".command-palette-backdrop", required: true,
       properties: ["display", "position", "inset", "padding-top", "background-color"] },
@@ -95,12 +95,6 @@ const overlayProbes: Record<"command-palette" | "privacy" | "session-quick-switc
     { name: "privacy-backdrop", selector: ".privacy-backdrop", required: true,
       properties: ["display", "position", "inset", "padding", "background-color"] },
     { name: "privacy-panel", selector: ".privacy-panel", required: true,
-      properties: ["display", "width", "max-height", "overflow", "background-color", "border-radius"] },
-  ],
-  "session-quick-switch": [
-    { name: "session-observatory-backdrop", selector: ".session-observatory-backdrop", required: true,
-      properties: ["display", "position", "inset", "padding", "background-color"] },
-    { name: "session-observatory-panel", selector: ".session-observatory-panel", required: true,
       properties: ["display", "width", "max-height", "overflow", "background-color", "border-radius"] },
   ],
 };
@@ -199,12 +193,6 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await capture("privacy", [...frameProbes, ...overlayProbes.privacy]);
   await page.getByRole("button", { name: "Close privacy controls" }).click();
   await expect(page.getByRole("dialog", { name: "Local Data & Privacy" })).toHaveCount(0);
-
-  await page.getByTestId("workbench-header").getByRole("button", { name: /Open session quick switch/i }).click();
-  await expect(page.getByRole("dialog", { name: "Session quick switch" })).toBeVisible();
-  await capture("session-quick-switch", [...frameProbes, ...overlayProbes["session-quick-switch"]]);
-  await page.getByRole("button", { name: "Close session quick switch" }).click();
-  await expect(page.getByRole("dialog", { name: "Session quick switch" })).toHaveCount(0);
 
   expect(
     [...privacySelectorRuntimeMatches].filter(([, matched]) => !matched).map(([selector]) => selector),
