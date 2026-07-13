@@ -1921,6 +1921,10 @@ button:focus-visible {
   pointer-events: none;
 }
 
+.terminal-tile.workspace-hidden {
+  display: none;
+}
+
 .terminal-tile.arranging {
   grid-template-rows: 42px 1fr;
   transition:

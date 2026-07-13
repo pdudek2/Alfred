@@ -419,7 +419,7 @@ function liveSnapshot(
 ): TerminalSessionSnapshot {
   return {
     id: `runtime-${suffix}`,
-    clientId: `session-${suffix}`,
+    clientId: suffix,
     title: `Codex · ${suffix}`,
     source: "manual",
     agentKind: "codex",
@@ -504,6 +504,7 @@ function renderTerminalDeskForSessions(
   };
   const renderDesk = (nextSessions: SessionTile[], arrangeMode = false) => (
     <TerminalDesk
+      activeWorkspaceId="A"
       arrangeMode={arrangeMode}
       armedRecoverySessionIds={new Set()}
       collapsedSessionIds={new Set()}
@@ -1640,22 +1641,14 @@ describe("App integration", () => {
     expect(renamedTile).toHaveTextContent("metadata-safe output");
   });
 
-  it("replays fresh main-process buffer when returning to a workspace with a live runtime", async () => {
+  it("keeps the same xterm host connected and processing output across A to B to A", async () => {
     const user = userEvent.setup();
-    const alfredSession = liveSnapshot("alfred", {
-      id: "runtime-alfred",
-      workspaceId: "A",
-      buffer: "before switch\n",
-    });
-    const clientSession = liveSnapshot("client", {
-      id: "runtime-client",
-      workspaceId: "CLIENT",
-      cwd: "/Users/patryk/Desktop/ClientApp",
-    });
-    const { setTerminalSnapshots, snapshotTerminal } = installDesktopBridge(
+    const alpha = liveSnapshot("alpha", { id: "runtime-alpha", workspaceId: "A", buffer: "alpha before\n" });
+    const beta = liveSnapshot("beta", { id: "runtime-beta", workspaceId: "CLIENT", buffer: "beta before\n" });
+    const bridge = installDesktopBridge(
       undefined,
       null,
-      [alfredSession, clientSession],
+      [alpha, beta],
       undefined,
       { layoutsByWorkspace: {}, viewStateByWorkspace: {} },
       {
@@ -1668,304 +1661,70 @@ describe("App integration", () => {
     );
 
     render(<App />);
-    const initialTile = await screen.findByRole("article", { name: /Codex · alfred/i });
-    await waitFor(() => {
-      expect(initialTile).toHaveTextContent("before switch");
-    });
-
-    setTerminalSnapshots([
-      { ...alfredSession, buffer: "before switch\nafter switch\n" },
-      clientSession,
-    ]);
+    const alphaTile = await screen.findByTestId("terminal-tile");
+    expect(alphaTile).toHaveAttribute("data-session-id", "alpha");
+    const alphaHost = within(alphaTile).getByTestId("xterm-host");
+    const disposeCount = terminalDisposeCalls.length;
 
     await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
-    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
+    expect(alphaTile).toHaveAttribute("data-testid", "background-terminal-tile");
+    expect(alphaTile).toHaveAttribute("aria-hidden", "true");
+    expect(alphaHost.isConnected).toBe(true);
 
-    expect(await screen.findByRole("article", { name: /Codex · alfred/i })).toHaveTextContent("after switch");
-    expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
+    await bridge.emitData({ id: "runtime-alpha", data: "alpha while hidden\n", activities: [] });
+    await waitFor(() => expect(alphaHost).toHaveTextContent("alpha while hidden"));
+
+    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
+    expect(screen.getByTestId("terminal-tile")).toBe(alphaTile);
+    expect(screen.getByTestId("xterm-host")).toBe(alphaHost);
+    expect(terminalDisposeCalls).toHaveLength(disposeCount);
   });
 
-  it("replays fresh main-process buffer without duplicating handshake output on live runtime reattach", async () => {
-    const user = userEvent.setup();
-    const alfredSession = liveSnapshot("alfred", {
-      id: "runtime-alfred",
-      workspaceId: "A",
-      buffer: "before switch\n",
-      activityEvents: [
-        {
-          id: "snapshot-start",
-          kind: "lifecycle",
-          title: "Session attached",
-          detail: "attached before switch",
-          at: 5,
-        },
-      ],
-      lastActivityAt: 5,
-      lastOutputAt: 5,
-    });
-    const clientSession = liveSnapshot("client", {
-      id: "runtime-client",
-      workspaceId: "CLIENT",
-      cwd: "/Users/patryk/Desktop/ClientApp",
-    });
-    const { emitData, snapshotTerminal } = installDesktopBridge(
-      undefined,
-      null,
-      [alfredSession, clientSession],
-      undefined,
-      { layoutsByWorkspace: {}, viewStateByWorkspace: {} },
-      {
-        workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
-          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
-        ],
-        activeWorkspaceId: "A",
-      },
-    );
-
-    render(<App />);
-    const initialTile = await screen.findByRole("article", { name: /Codex · alfred/i });
-    await waitFor(() => {
-      expect(initialTile).toHaveTextContent("before switch");
-    });
-
-    const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
-    let delayAlfredReattachSnapshot = true;
-    snapshotTerminal.mockImplementation(async (request: { id: string }) => {
-      if (request.id === "runtime-alfred" && delayAlfredReattachSnapshot) {
-        delayAlfredReattachSnapshot = false;
-        return delayedSnapshot.promise;
-      }
-
-      return [alfredSession, clientSession].find((session) => session.id === request.id) ?? null;
-    });
-
-    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
-    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
-
-    await waitFor(() => {
-      expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
-    });
-
-    const reattachedTile = await screen.findByRole("article", { name: /Codex · alfred/i });
-    await emitData({
-      id: "runtime-alfred",
-      data: "ran pnpm test\n",
-      activities: [{
-        kind: "command",
-        title: "Ran command",
-        detail: "ran pnpm test",
-        payload: { type: "command", command: "pnpm test" },
-      }],
-    });
-
-    await act(async () => {
-      delayedSnapshot.resolve({
-        ...alfredSession,
-        buffer: "before switch\nran pnpm test\n",
-        activityEvents: [
-          {
-            id: "snapshot-warning",
-            kind: "warning",
-            title: "Warning reported",
-            detail: "warning: older snapshot",
-            at: 10,
-            payload: { type: "warning", message: "warning: older snapshot" },
-          },
-        ],
-        lastActivityAt: 10,
-        lastOutputAt: 10,
+  it.each(["null", "reject"] as const)(
+    "replays the fallback buffer once when the initial snapshot resolves as %s",
+    async (outcome) => {
+      const alfredSession = liveSnapshot("alfred", {
+        id: "runtime-alfred",
+        workspaceId: "A",
+        buffer: "before switch\n",
       });
-      await delayedSnapshot.promise;
-    });
+      const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
+      const bridge = installDesktopBridge(undefined, null, [alfredSession]);
+      bridge.snapshotTerminal.mockImplementation(() => delayedSnapshot.promise);
 
-    await waitFor(() => {
-      const hostText = within(reattachedTile).getByTestId("xterm-host").textContent ?? "";
-      expect(hostText).toContain("before switch\nran pnpm test\n");
-      expect(hostText.match(/ran pnpm test/g)).toHaveLength(1);
-    });
-    expect(within(reattachedTile).getByText("Ran command")).toBeInTheDocument();
-    expect(within(reattachedTile).getByText("ran pnpm test")).toBeInTheDocument();
-    expect(within(reattachedTile).queryByText("Warning reported")).not.toBeInTheDocument();
-  });
+      render(<App />);
+      await waitFor(() => {
+        expect(bridge.snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
+      });
+      await bridge.emitData({
+        id: "runtime-alfred",
+        data: "ran pnpm test\n",
+        activities: [],
+      });
 
-  it("replays fresh main-process buffer after null snapshot fallback on a second reattach", async () => {
-    const user = userEvent.setup();
-    const alfredSession = liveSnapshot("alfred", {
-      id: "runtime-alfred",
-      workspaceId: "A",
-      buffer: "before switch\n",
-    });
-    const clientSession = liveSnapshot("client", {
-      id: "runtime-client",
-      workspaceId: "CLIENT",
-      cwd: "/Users/patryk/Desktop/ClientApp",
-    });
-    const { emitData, snapshotTerminal } = installDesktopBridge(
-      undefined,
-      null,
-      [alfredSession, clientSession],
-      undefined,
-      { layoutsByWorkspace: {}, viewStateByWorkspace: {} },
-      {
-        workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
-          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
-        ],
-        activeWorkspaceId: "A",
-      },
-    );
+      await act(async () => {
+        if (outcome === "null") {
+          delayedSnapshot.resolve(null);
+          await delayedSnapshot.promise;
+          return;
+        }
 
-    render(<App />);
-    const initialTile = await screen.findByRole("article", { name: /Codex · alfred/i });
-    await waitFor(() => {
-      expect(initialTile).toHaveTextContent("before switch");
-    });
+        delayedSnapshot.reject(new Error("snapshot failed"));
+        try {
+          await delayedSnapshot.promise;
+        } catch {
+          // expected in this regression path
+        }
+      });
 
-    const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
-    let delayAlfredReattachSnapshot = true;
-    snapshotTerminal.mockImplementation(async (request: { id: string }) => {
-      if (request.id === "runtime-alfred" && delayAlfredReattachSnapshot) {
-        delayAlfredReattachSnapshot = false;
-        return delayedSnapshot.promise;
-      }
-
-      return request.id === "runtime-alfred"
-        ? null
-        : [alfredSession, clientSession].find((session) => session.id === request.id) ?? null;
-    });
-
-    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
-    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
-
-    await waitFor(() => {
-      expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
-    });
-
-    await emitData({
-      id: "runtime-alfred",
-      data: "ran pnpm test\n",
-      activities: [{
-        kind: "command",
-        title: "Ran command",
-        detail: "ran pnpm test",
-        payload: { type: "command", command: "pnpm test" },
-      }],
-    });
-
-    await act(async () => {
-      delayedSnapshot.resolve(null);
-      await delayedSnapshot.promise;
-    });
-
-    const firstReattachTile = await screen.findByRole("article", { name: /Codex · alfred/i });
-    await waitFor(() => {
-      const hostText = within(firstReattachTile).getByTestId("xterm-host").textContent ?? "";
-      expect(hostText).toContain("before switch\nran pnpm test\n");
-      expect(hostText.match(/ran pnpm test/g)).toHaveLength(1);
-    });
-
-    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
-    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
-
-    const secondReattachTile = await screen.findByRole("article", { name: /Codex · alfred/i });
-    await waitFor(() => {
-      const hostText = within(secondReattachTile).getByTestId("xterm-host").textContent ?? "";
-      expect(hostText).toContain("before switch\nran pnpm test\n");
-      expect(hostText.match(/ran pnpm test/g)).toHaveLength(1);
-    });
-  });
-
-  it("replays fresh main-process buffer after rejected snapshot fallback on a second reattach", async () => {
-    const user = userEvent.setup();
-    const alfredSession = liveSnapshot("alfred", {
-      id: "runtime-alfred",
-      workspaceId: "A",
-      buffer: "before switch\n",
-    });
-    const clientSession = liveSnapshot("client", {
-      id: "runtime-client",
-      workspaceId: "CLIENT",
-      cwd: "/Users/patryk/Desktop/ClientApp",
-    });
-    const { emitData, snapshotTerminal } = installDesktopBridge(
-      undefined,
-      null,
-      [alfredSession, clientSession],
-      undefined,
-      { layoutsByWorkspace: {}, viewStateByWorkspace: {} },
-      {
-        workspaces: [
-          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
-          { id: "CLIENT", label: "ClientApp", shortLabel: "CLI", rootPath: "/Users/patryk/Desktop/ClientApp" },
-        ],
-        activeWorkspaceId: "A",
-      },
-    );
-
-    render(<App />);
-    const initialTile = await screen.findByRole("article", { name: /Codex · alfred/i });
-    await waitFor(() => {
-      expect(initialTile).toHaveTextContent("before switch");
-    });
-
-    const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
-    let delayAlfredReattachSnapshot = true;
-    snapshotTerminal.mockImplementation(async (request: { id: string }) => {
-      if (request.id === "runtime-alfred" && delayAlfredReattachSnapshot) {
-        delayAlfredReattachSnapshot = false;
-        return delayedSnapshot.promise;
-      }
-
-      return request.id === "runtime-alfred"
-        ? null
-        : [alfredSession, clientSession].find((session) => session.id === request.id) ?? null;
-    });
-
-    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
-    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
-
-    await waitFor(() => {
-      expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
-    });
-
-    await emitData({
-      id: "runtime-alfred",
-      data: "ran pnpm lint\n",
-      activities: [{
-        kind: "command",
-        title: "Ran command",
-        detail: "ran pnpm lint",
-        payload: { type: "command", command: "pnpm lint" },
-      }],
-    });
-
-    await act(async () => {
-      delayedSnapshot.reject(new Error("snapshot failed"));
-      try {
-        await delayedSnapshot.promise;
-      } catch {
-        // expected in this regression path
-      }
-    });
-
-    const firstReattachTile = await screen.findByRole("article", { name: /Codex · alfred/i });
-    await waitFor(() => {
-      const hostText = within(firstReattachTile).getByTestId("xterm-host").textContent ?? "";
-      expect(hostText).toContain("before switch\nran pnpm lint\n");
-      expect(hostText.match(/ran pnpm lint/g)).toHaveLength(1);
-    });
-
-    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
-    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
-
-    const secondReattachTile = await screen.findByRole("article", { name: /Codex · alfred/i });
-    await waitFor(() => {
-      const hostText = within(secondReattachTile).getByTestId("xterm-host").textContent ?? "";
-      expect(hostText).toContain("before switch\nran pnpm lint\n");
-      expect(hostText.match(/ran pnpm lint/g)).toHaveLength(1);
-    });
-  });
+      const tile = await screen.findByRole("article", { name: /Codex · alfred/i });
+      await waitFor(() => {
+        const hostText = within(tile).getByTestId("xterm-host").textContent ?? "";
+        expect(hostText).toContain("before switch\nran pnpm test\n");
+        expect(hostText.match(/ran pnpm test/g)).toHaveLength(1);
+      });
+    },
+  );
 
   it("preserves live xterm output and instance when args and resume target metadata change", async () => {
     const bridge = installDesktopBridge();
