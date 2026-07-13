@@ -826,13 +826,13 @@ describe("renderer CSS contracts", () => {
       terminalTileStart,
       terminalTileEnd,
     );
-    expectTopLevelOwnerWithin(".terminal-stage.mode-focus .terminal-tile.focus-hidden", ["visibility: hidden", "pointer-events: none"], terminalTileStart, terminalTileEnd);
+    expectTopLevelOwnerWithin(".terminal-stage.mode-focus .terminal-tile.focus-hidden", ["display: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.selected", ["border-color: var(--ink-6)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile:focus-visible", ["border-color: var(--ink-6)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile:focus-within", ["outline: 1px solid var(--ink-5)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.collapsed", ["grid-template-rows: 30px 0", "min-height: 30px"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile:not(.arranging):hover", ["border-color: var(--ink-5)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
-    expectTopLevelOwnerWithin(".terminal-stage.mode-split .terminal-tile.focus-hidden", ["visibility: hidden", "pointer-events: none"], terminalTileStart, terminalTileEnd);
+    expectTopLevelOwnerWithin(".terminal-stage.mode-split .terminal-tile.focus-hidden", ["display: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.collapsed .xterm-host", ["height: 0", "pointer-events: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.collapsed .terminal-viewport", ["min-height: 0"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.collapsed .xterm", ["min-height: 0"], terminalTileStart, terminalTileEnd);

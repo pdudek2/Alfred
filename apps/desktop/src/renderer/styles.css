@@ -2020,9 +2020,7 @@ button:focus-visible {
 
 .terminal-stage.mode-focus .terminal-tile.focus-hidden,
 .terminal-stage.mode-split .terminal-tile.focus-hidden {
-  visibility: hidden;
-  opacity: 0;
-  pointer-events: none;
+  display: none;
 }
 
 .terminal-tile.workspace-hidden {

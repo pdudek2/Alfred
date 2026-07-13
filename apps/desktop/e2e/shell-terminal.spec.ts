@@ -24,6 +24,10 @@ type ShellGeometry = {
   frameHeight: number;
   alertStackHeight: number;
   workspaceLayoutHeight: number;
+  terminalColumnClientHeight: number;
+  terminalColumnScrollHeight: number;
+  terminalColumnScrollTop: number;
+  visibleTileViewportIntersection: number;
   frameGridTemplateRows: string;
   frameChildren: Array<{ className: string; height: number; top: number }>;
 };
@@ -69,6 +73,14 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(r1.sessionTabCount).toBe(2);
   expect(r1.visibleTileCount).toBe(1);
   expect(r1.visibleTileHeaderCount).toBe(0);
+  await page.locator(".terminal-grid-column").evaluate((node) => {
+    node.scrollTop = 900;
+  });
+  const focusGeometry = await readShellGeometry(page);
+  expect(focusGeometry.terminalColumnScrollHeight)
+    .toBeLessThanOrEqual(focusGeometry.terminalColumnClientHeight + 1);
+  expect(focusGeometry.terminalColumnScrollTop).toBe(0);
+  expect(focusGeometry.visibleTileViewportIntersection).toBeGreaterThan(0);
   screenshotHashes["r1-focus-two-sessions.png"] = await captureEvidence(
     page,
     "r1-focus-two-sessions.png",
@@ -217,6 +229,15 @@ async function readShellGeometry(page: Page): Promise<ShellGeometry> {
         '[data-testid="terminal-tile"]:not([aria-hidden="true"]) .terminal-tile-header',
       ),
     );
+    const terminalColumn = document.querySelector<HTMLElement>(".terminal-grid-column");
+    const visibleTile = visibleTiles[0] ?? null;
+    if (!terminalColumn) throw new Error("Terminal grid scroll owner is missing.");
+    const columnRect = terminalColumn.getBoundingClientRect();
+    const tileRect = visibleTile?.getBoundingClientRect() ?? null;
+    const visibleTileViewportIntersection = tileRect
+      ? Math.max(0, Math.min(columnRect.bottom, tileRect.bottom) - Math.max(columnRect.top, tileRect.top))
+      : 0;
+
     return {
       headerHeight: header.getBoundingClientRect().height,
       secondaryRowCount: secondaryRows.length,
@@ -228,6 +249,10 @@ async function readShellGeometry(page: Page): Promise<ShellGeometry> {
       frameHeight: frame.getBoundingClientRect().height,
       alertStackHeight: alertStack.getBoundingClientRect().height,
       workspaceLayoutHeight: workspaceLayout.getBoundingClientRect().height,
+      terminalColumnClientHeight: terminalColumn.clientHeight,
+      terminalColumnScrollHeight: terminalColumn.scrollHeight,
+      terminalColumnScrollTop: terminalColumn.scrollTop,
+      visibleTileViewportIntersection,
       frameGridTemplateRows: getComputedStyle(frame).gridTemplateRows,
       frameChildren: Array.from(frame.children).map((node) => {
         const rect = node.getBoundingClientRect();

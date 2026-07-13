@@ -768,18 +768,19 @@ function ManualTerminalTile({
   const statusRef = useRef<LocalTerminalStatus>("connecting");
   const fitAndResizeRef = useRef<(() => boolean) | null>(null);
   const scheduleRepaintRef = useRef<((passes?: number) => void) | null>(null);
-  const previousWorkspaceHiddenRef = useRef(workspaceHidden);
+  const tileHidden = workspaceHidden || layoutHidden;
+  const previousTileHiddenRef = useRef(tileHidden);
   const writeAndRepaintRef = useRef<((data: string) => void) | null>(null);
   const onTerminalTailChangeRef = useRef(onTerminalTailChange);
   onTerminalTailChangeRef.current = onTerminalTailChange;
 
   useEffect(() => {
-    const wasHidden = previousWorkspaceHiddenRef.current;
-    previousWorkspaceHiddenRef.current = workspaceHidden;
-    if (wasHidden && !workspaceHidden) {
+    const wasHidden = previousTileHiddenRef.current;
+    previousTileHiddenRef.current = tileHidden;
+    if (wasHidden && !tileHidden) {
       scheduleRepaintRef.current?.(3);
     }
-  }, [workspaceHidden]);
+  }, [tileHidden]);
   const [resolvedCwd, setResolvedCwd] = useState<string>(cwd);
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState(title);

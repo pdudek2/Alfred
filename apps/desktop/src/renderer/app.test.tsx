@@ -1454,7 +1454,7 @@ describe("App integration", () => {
       throw new Error("Expected hidden split tile to be present.");
     }
     expect(rendererStyles).toMatch(
-      /\.terminal-stage\.mode-focus \.terminal-tile\.focus-hidden,\s*\.terminal-stage\.mode-split \.terminal-tile\.focus-hidden\s*\{[^}]*visibility:\s*hidden;[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;[^}]*\}/s,
+      /\.terminal-stage\.mode-focus \.terminal-tile\.focus-hidden,\s*\.terminal-stage\.mode-split \.terminal-tile\.focus-hidden\s*\{[^}]*display:\s*none;[^}]*\}/s,
     );
     expect(within(hiddenSplitTile).getByTestId("xterm-host").isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCount);
