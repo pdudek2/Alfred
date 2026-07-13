@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
 import { TerminalDesk } from "./components/TerminalDesk";
 import type { SessionTile } from "./session-state";
+import type { TerminalTailProjection } from "./terminal-tail-projection";
 import { alfredGraphiteTerminalProfile } from "./terminal-visual-profile";
 import type {
   AlfredApi,
@@ -55,15 +56,33 @@ vi.mock("@xterm/xterm", () => ({
     open = vi.fn((element: HTMLElement) => {
       this.element = element;
     });
+    output = "";
+    get buffer() {
+      const lines = this.output.split("\n");
+      return {
+        active: {
+          baseY: Math.max(0, lines.length - this.rows),
+          length: lines.length,
+          getLine: (index: number) => {
+            const value = lines[index];
+            return value === undefined
+              ? undefined
+              : { translateToString: () => value };
+          },
+        },
+      };
+    }
     resize = vi.fn((cols: number, rows: number) => {
       this.cols = cols;
       this.rows = rows;
     });
     write = vi.fn((data: string, callback?: () => void) => {
+      this.output += data;
       this.element?.append(data);
       callback?.();
     });
     writeln = vi.fn((data = "") => {
+      this.output += `${data}\n`;
       this.element?.append(`${data}\n`);
     });
 
@@ -432,7 +451,17 @@ afterEach(() => {
   delete window.alfredDesktop;
 });
 
-function renderTerminalDeskForSessions(sessions: SessionTile[]) {
+type TerminalDeskTestOverrides = {
+  onTerminalTailChange?: (
+    sessionId: string,
+    projection: TerminalTailProjection | null,
+  ) => void;
+};
+
+function renderTerminalDeskForSessions(
+  sessions: SessionTile[],
+  overrides: TerminalDeskTestOverrides = {},
+) {
   const callbacks = {
     onBindWorkspace: vi.fn(),
     onAddAgentSession: vi.fn(),
@@ -452,6 +481,7 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     onRuntimeSessionReady: vi.fn(),
     onRuntimeSessionStarting: vi.fn(() => true),
     onRuntimeSessionUnavailable: vi.fn(),
+    onTerminalTailChange: vi.fn(),
     onRenameSession: vi.fn(),
     onFocusSession: vi.fn(),
     onSelectSession: vi.fn(),
@@ -476,6 +506,7 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
       workspaceLabel="Alfred"
       workspaceRootPath="/Users/patryk/Desktop/Alfred"
       {...callbacks}
+      {...overrides}
     />
   );
 
@@ -1186,6 +1217,42 @@ describe("App integration", () => {
     expect(screen.queryByRole("button", { name: "Focus" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Split" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Grid" })).not.toBeInTheDocument();
+  });
+
+  it("publishes an xterm-derived tail after parsed output and removes it on explicit unmount", async () => {
+    const bridge = installDesktopBridge();
+    const session: SessionTile = {
+      id: "codex-tail",
+      runtimeId: "runtime-tail",
+      title: "Codex · tail",
+      workspaceId: "A",
+      cwd: "/Users/patryk/Desktop/Alfred",
+      source: "manual",
+      stage: "live",
+      runtimeStatus: "live",
+      agentKind: "codex",
+      command: "codex",
+      args: [],
+      initialBuffer: "",
+    };
+    const onTerminalTailChange = vi.fn();
+    const { unmount } = renderTerminalDeskForSessions([session], { onTerminalTailChange });
+
+    await bridge.emitData({
+      id: "runtime-tail",
+      data: "first\nsecond\n",
+      activities: [],
+    });
+
+    await waitFor(() => {
+      expect(onTerminalTailChange).toHaveBeenLastCalledWith(
+        "codex-tail",
+        expect.objectContaining({ lines: ["first", "second"], source: "xterm-projection" }),
+      );
+    });
+
+    unmount();
+    expect(onTerminalTailChange).toHaveBeenLastCalledWith("codex-tail", null);
   });
 
   it("keeps non-visible Split terminals mounted and replayable when returning to Grid", async () => {
