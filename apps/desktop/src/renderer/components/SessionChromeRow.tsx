@@ -39,7 +39,7 @@ export function SessionChromeRow({
   onToggleArrangeMode,
 }: SessionChromeRowProps) {
   const chromeSessions = workChromeSessions(sessions);
-  const activeSession = chromeSessions.find((session) => session.id === activeSessionId) ?? chromeSessions[0];
+  const activeSession = chromeSessions.find((session) => session.id === activeSessionId);
   const [renameDraft, setRenameDraft] = useState<{ sessionId: string; value: string } | null>(null);
   const renameTriggerRefs = useRef(new Map<string, HTMLButtonElement>());
   const pendingRenameFocusRef = useRef<string | null>(null);
@@ -53,7 +53,7 @@ export function SessionChromeRow({
 
   return (
     <div className="session-chrome-row" role="toolbar" aria-label="Session and layout controls">
-      {workMode === "focus" && !arrangeMode && (
+      {workMode === "focus" && !arrangeMode && activeSession && (
         <div className="session-chrome-tabs" role="tablist" aria-label="Sessions">
           {chromeSessions.map((session) => {
             const status = terminalSessionDisplayStatus(session);

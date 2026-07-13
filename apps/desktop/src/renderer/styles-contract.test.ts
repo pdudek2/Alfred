@@ -478,6 +478,15 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".terminal-tile-header", ["height: 30px", "min-height: 30px"]);
   });
 
+  it("uses the technical mono stack for session identity and workspace context", () => {
+    const topLevelOwner = (selector: string) => topLevelExactRuleBodiesIn(styles, selector).at(-1) ?? "";
+
+    expect(topLevelOwner(".workbench-session-context > span")).toContain("var(--mono)");
+    expect(topLevelOwner(".workbench-session-context > small")).toContain("var(--mono)");
+    expect(topLevelOwner(".session-chrome-tab > button > span:last-child")).toContain("var(--mono)");
+    expect(topLevelOwner(".session-chrome-context")).toContain("var(--mono)");
+  });
+
   it("drops deleted navigation and migration-era selector families", () => {
     expect(styles).not.toMatch(orphanClassTokenPattern("primary-nav-rail"));
     expect(styles).not.toMatch(orphanClassTokenPattern("primary-nav-brand"));
@@ -485,6 +494,7 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toMatch(orphanClassTokenPattern("primary-nav-bottom"));
     expect(styles).not.toMatch(orphanClassTokenPattern("focus-session-strip"));
     expect(styles).not.toMatch(orphanClassTokenPattern("workbench-session-row"));
+    expect(styles).not.toMatch(orphanClassTokenPattern("terminal-host"));
   });
 
   it("keeps live shell and terminal owners on the achromatic material", () => {
@@ -1207,7 +1217,7 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps the CSS terminal surface on the approved graphite material", () => {
-    const xtermHost = blockFor(".terminal-tile .terminal-host,\n.terminal-tile .xterm-host");
+    const xtermHost = blockFor(".terminal-tile .xterm-host");
 
     expect(rootToken("--ink-0")).toBe("#0A0C0F");
     expect(xtermHost).toContain("background: var(--ink-0)");

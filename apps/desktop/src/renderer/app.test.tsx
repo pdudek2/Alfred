@@ -988,6 +988,14 @@ describe("App integration", () => {
     expect(composer).toHaveValue("keep this draft");
     expect(createTerminal).toHaveBeenCalledTimes(1);
 
+    await user.keyboard("{Control>}t{/Control}");
+    await user.keyboard("{Meta>}t{/Meta}");
+    expect(createTerminal).toHaveBeenCalledTimes(1);
+
+    await user.tab();
+    await user.tab({ shift: true });
+    expect(palette).toContainElement(document.activeElement as HTMLElement | null);
+
     await act(async () => {
       search.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     });
@@ -1234,6 +1242,33 @@ describe("App integration", () => {
     expect(screen.queryByRole("toolbar", { name: "focus session switcher" })).not.toBeInTheDocument();
     expect(screen.getAllByTestId("xterm-host")[0]).toBe(firstHost);
     expect(terminalDisposeCalls).toHaveLength(0);
+  });
+
+  it("omits live session tabs when a staged tile owns Focus", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(
+      undefined,
+      {
+        id: "plan-staged-focus",
+        name: "Staged focus",
+        prompt: "review staged work",
+        sessions: [
+          { id: "staged-focus", kind: "shell", title: "Review me", command: "echo", args: ["ok"] },
+        ],
+      },
+      [liveSnapshot("one"), liveSnapshot("two")],
+    );
+
+    render(<App />);
+
+    const stagedTile = await screen.findByRole("article", { name: /Staged Review me/i });
+    await user.dblClick(stagedTile.querySelector(".tile-header")!);
+
+    expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
+    expect(screen.queryByRole("tablist", { name: "Sessions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Rename Codex · one" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Close Codex · one" })).not.toBeInTheDocument();
+    expect(stagedTile.querySelector(".tile-header")).not.toBeNull();
   });
 
   it.each(["Split", "Grid"])("%s keeps tile headers and omits session tabs", async (name) => {

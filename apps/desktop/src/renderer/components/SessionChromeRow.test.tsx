@@ -78,6 +78,22 @@ describe("SessionChromeRow", () => {
     expect(within(toolbar).queryByText(staged.title)).not.toBeInTheDocument();
   });
 
+  it.each([restored, staged])(
+    "does not expose another session's tab actions while focusing $title",
+    (excludedSession) => {
+      renderRow({
+        activeSessionId: excludedSession.id,
+        workMode: "focus",
+        sessions: [liveA, liveB, excludedSession],
+      });
+
+      expect(screen.queryByRole("tablist", { name: "Sessions" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Rename " + liveA.title })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Close " + liveA.title })).not.toBeInTheDocument();
+      expect(screen.getByRole("group", { name: "Layout mode" })).toBeInTheDocument();
+    },
+  );
+
   it.each(["split", "desk"] as const)("uses tile headers instead of session tabs in %s", (workMode) => {
     renderRow({ workMode, sessions: [liveB, liveC] });
     expect(screen.queryByRole("tablist", { name: "Sessions" })).not.toBeInTheDocument();
