@@ -14,7 +14,9 @@ type DesktopTerminalWindow = Window & {
 
 test.use({ fixtureOptions: { activeWorkspaceId: "A" } });
 
-test("workspace switch keeps the same terminal runtime in workspace A", async ({ harness }) => {
+test("workspace switch keeps the same xterm node and streams background output", async ({
+  harness,
+}) => {
   const { marker, page, paths } = harness;
   const terminalInput = page.getByRole("textbox", { name: "Terminal input" });
   const terminalHost = page.getByTestId("xterm-host");
@@ -31,6 +33,11 @@ test("workspace switch keeps the same terminal runtime in workspace A", async ({
   expect(beforeSwitchRuntimes.sessions).toHaveLength(1);
   const runtimeId = beforeSwitchRuntimes.sessions[0]?.id;
   if (runtimeId === undefined) throw new Error("Workspace A runtime is missing before switch.");
+  const alphaTile = page.locator('article[data-session-id="manual-1"]');
+  const alphaScreen = alphaTile.locator(".xterm-screen");
+  await expect(alphaScreen).toBeAttached();
+  const screenBefore = await alphaScreen.elementHandle();
+  if (!screenBefore) throw new Error("Workspace A xterm screen is missing before switch.");
 
   const betaWorkspace = page.getByRole("tab", { name: /Fixture Beta workspace/i });
   const alphaWorkspace = page.getByRole("tab", { name: /Fixture Alpha workspace/i });
@@ -38,11 +45,25 @@ test("workspace switch keeps the same terminal runtime in workspace A", async ({
   await expect(betaWorkspace).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("status", { name: "Empty workspace" })).toBeVisible();
   await expect(alphaWorkspace).toHaveAttribute("aria-selected", "false");
+  await expect(alphaTile).toHaveAttribute("data-testid", "background-terminal-tile");
+  expect(await screenBefore.evaluate((node) => node.isConnected)).toBe(true);
+
+  const backgroundMarker = `ALFRED_E2E_BACKGROUND_${randomUUID()}`;
+  await writeMainProcessTerminal(page, runtimeId, `${encodedPrintCommand(backgroundMarker)}\r`);
+  await expect.poll(async () => (await snapshotMainProcessTerminal(page, runtimeId)).buffer).toContain(backgroundMarker);
 
   await alphaWorkspace.click();
   await expect(alphaWorkspace).toHaveAttribute("aria-selected", "true");
   await expect(terminalTiles).toHaveCount(1);
   await expect(terminalHost).toContainText(marker);
+  const screenAfter = await alphaTile.locator(".xterm-screen").elementHandle();
+  if (!screenAfter) throw new Error("Workspace A xterm screen is missing after return.");
+  const sameNode = await screenBefore.evaluate(
+    (before, after) => before.isSameNode(after) && before.isConnected,
+    screenAfter,
+  );
+  expect(sameNode).toBe(true);
+  await expect(page.getByTestId("xterm-host")).toContainText(backgroundMarker);
   const afterReturnRuntimes = await listMainProcessTerminals(page);
   expect(afterReturnRuntimes.sessions).toHaveLength(1);
   expect(afterReturnRuntimes.sessions[0]?.id).toBe(runtimeId);
@@ -78,6 +99,14 @@ test("workspace switch keeps the same terminal runtime in workspace A", async ({
 function encodedPrintCommand(value: string): string {
   const hex = Buffer.from(value, "utf8").toString("hex");
   return `printf '${hex}' | /usr/bin/xxd -r -p; printf '\\n'`;
+}
+
+async function writeMainProcessTerminal(page: Page, id: string, data: string): Promise<void> {
+  await page.evaluate(({ runtimeId, input }) => {
+    const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
+    if (!terminalApi) throw new Error("Desktop terminal API is unavailable.");
+    terminalApi.write({ id: runtimeId, data: input });
+  }, { runtimeId: id, input: data });
 }
 
 async function listMainProcessTerminals(page: Page): Promise<TerminalListResult> {
