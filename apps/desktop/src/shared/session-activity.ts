@@ -103,8 +103,9 @@ export function appendActivityEvent(
     return { events: previousEvents, lastActivityAt: now };
   }
 
+  const sequence = nextActivityEventSequence(previousEvents, ownerId);
   const event: SessionActivityEvent = {
-    id: `${ownerId}-activity-${now}-${previousEvents.length + 1}`,
+    id: `${ownerId}-activity-${now}-${sequence}`,
     kind: activity.kind,
     title: activity.title,
     detail: activity.detail,
@@ -116,6 +117,18 @@ export function appendActivityEvent(
     events: [...previousEvents, event].slice(-maxEvents),
     lastActivityAt: now,
   };
+}
+
+function nextActivityEventSequence(events: SessionActivityEvent[], ownerId: string): number {
+  const prefix = `${ownerId}-activity-`;
+  const latestSequence = events.reduce((latest, event) => {
+    if (!event.id.startsWith(prefix)) return latest;
+    const separator = event.id.lastIndexOf("-");
+    if (separator < prefix.length) return latest;
+    const sequence = Number(event.id.slice(separator + 1));
+    return Number.isSafeInteger(sequence) && sequence > latest ? sequence : latest;
+  }, 0);
+  return latestSequence + 1;
 }
 
 export function classifyTerminalOutputActivity(data: string): SessionActivityInput | null {

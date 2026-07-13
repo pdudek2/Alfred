@@ -144,6 +144,7 @@ describe("terminal-manager IPC", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });
 
@@ -619,6 +620,40 @@ describe("terminal-manager IPC", () => {
       payload: { id: created.id, data: "Bash(\"pnpm test\")\n", activities: [] },
       windowId: 1,
     });
+  });
+
+  it("keeps same-chunk activity ids unique after the retained event cap", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(5_000);
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+    const created = await invoke<{ id: string }>(terminalChannels.create, {
+      clientId: "manual-capped",
+      command: "node",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+    });
+    for (let index = 0; index < 40; index += 1) {
+      pty.onDataHandler?.(`Bash("seed-${index}")\n`);
+    }
+
+    const overflowChunk = 'Bash("overflow-a")\nBash("overflow-b")\n';
+    pty.onDataHandler?.(overflowChunk);
+
+    const emitted = sentEvents
+      .filter((event) => event.channel === terminalChannels.data)
+      .at(-1)?.payload as TerminalDataEvent;
+    const listed = await invoke<TerminalListResult>(terminalChannels.list);
+    const retainedLatest = listed.sessions[0]?.activityEvents?.slice(-2);
+
+    expect(emitted).toMatchObject({ id: created.id, data: overflowChunk });
+    expect(emitted.activities.map((activity) => activity.detail)).toEqual([
+      '"overflow-a"',
+      '"overflow-b"',
+    ]);
+    expect([...new Set(emitted.activities.map((activity) => activity.id))]).toHaveLength(2);
+    expect(emitted.activities).toEqual(retainedLatest);
+    expect(listed.sessions[0]?.activityEvents).toHaveLength(40);
   });
 
   it("blocks unsafe terminal commands in the main process", async () => {

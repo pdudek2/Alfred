@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  appendActivityEvent,
   classifyTerminalOutputActivities,
   classifyTerminalOutputActivity,
   classifyTerminalOutputChunk,
 } from "./session-activity";
+import type { SessionActivityEvent } from "./session-activity";
 
 describe("session activity classifier", () => {
   it("carries a prompt split across arbitrary PTY chunks and emits it once", () => {
@@ -178,5 +180,34 @@ describe("session activity classifier", () => {
     });
 
     expect(classifyTerminalOutputActivity("Updated to version 1.2.3")).toBeNull();
+  });
+});
+
+describe("session activity identity", () => {
+  it("keeps increasing the sequence after retained events reach the cap", () => {
+    let events: SessionActivityEvent[] = [];
+    for (let index = 0; index < 40; index += 1) {
+      events = appendActivityEvent(events, "manual-1", {
+        kind: "command",
+        title: "Ran command",
+        detail: `seed-${index}`,
+      }, 1_000 + index, 40).events;
+    }
+
+    events = appendActivityEvent(events, "manual-1", {
+      kind: "command",
+      title: "Ran command",
+      detail: "overflow-a",
+    }, 5_000, 40).events;
+    events = appendActivityEvent(events, "manual-1", {
+      kind: "command",
+      title: "Ran command",
+      detail: "overflow-b",
+    }, 5_000, 40).events;
+
+    expect(events.slice(-2).map((event) => event.id)).toEqual([
+      "manual-1-activity-5000-41",
+      "manual-1-activity-5000-42",
+    ]);
   });
 });

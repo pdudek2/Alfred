@@ -26,6 +26,7 @@ import type {
 import type { WorkspaceApi, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 import type { ExternalCodexSessionSummary, SessionIndexApi } from "../shared/session-index-ipc";
 import type { DesktopPrivacySettings, DesktopSaveStatus, DesktopStateApi } from "../shared/desktop-state-ipc";
+import { appendActivityEvent, type SessionActivityEvent } from "../shared/session-activity";
 
 const { terminalConstructorOptions, terminalDisposeCalls, terminalWriteControl } = vi.hoisted(() => ({
   terminalConstructorOptions: [] as unknown[],
@@ -1769,6 +1770,66 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Activity (1)" })).toBeInTheDocument();
     });
+  });
+
+  it("keeps both capped same-timestamp activities after live and snapshot reconciliation", async () => {
+    const user = userEvent.setup();
+    let retainedEvents: SessionActivityEvent[] = [];
+    for (let index = 0; index < 40; index += 1) {
+      retainedEvents = appendActivityEvent(retainedEvents, "activity", {
+        kind: "command",
+        title: "Ran command",
+        detail: `seed-${index}`,
+      }, 1_000 + index, 40).events;
+    }
+    const initialEvents = retainedEvents;
+    retainedEvents = appendActivityEvent(retainedEvents, "activity", {
+      kind: "command",
+      title: "Ran command",
+      detail: "overflow-a",
+    }, 5_000, 40).events;
+    retainedEvents = appendActivityEvent(retainedEvents, "activity", {
+      kind: "command",
+      title: "Ran command",
+      detail: "overflow-b",
+    }, 5_000, 40).events;
+    const overflowEvents = retainedEvents.slice(-2);
+    const initial = liveSnapshot("activity", {
+      id: "runtime-activity",
+      activityEvents: initialEvents,
+      lastActivityAt: 1_039,
+    });
+    const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
+    const bridge = installDesktopBridge(undefined, null, [initial]);
+    bridge.snapshotTerminal.mockImplementation(() => delayedSnapshot.promise);
+
+    render(<App />);
+    await waitFor(() => {
+      expect(bridge.snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-activity" });
+    });
+    await bridge.emitData({
+      id: "runtime-activity",
+      data: 'Bash("overflow-a")\nBash("overflow-b")\n',
+      activities: overflowEvents,
+    });
+
+    await act(async () => {
+      delayedSnapshot.resolve({
+        ...initial,
+        activityEvents: retainedEvents,
+        lastActivityAt: 5_000,
+      });
+      await delayedSnapshot.promise;
+    });
+
+    await user.click(
+      within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open Context drawer/ }),
+    );
+    const activity = await screen.findByRole("region", { name: "Recent activity" });
+    await user.click(within(activity).getByRole("button", { name: /^Activity \(/ }));
+
+    expect(within(activity).getByText("overflow-a")).toBeInTheDocument();
+    expect(within(activity).getByText("overflow-b")).toBeInTheDocument();
   });
 
   it("preserves live xterm output and instance when args and resume target metadata change", async () => {
