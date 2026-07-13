@@ -23,6 +23,17 @@ const liveB: SessionTile = {
   title: "Codex review",
 };
 
+const restoredCodex: SessionTile = {
+  id: "restored-codex",
+  title: "Codex · Dokończ plan na branchu",
+  workspaceId: "A",
+  cwd: "/workspace",
+  source: "manual",
+  stage: "live",
+  agentKind: "codex",
+  runtimeStatus: "restored",
+};
+
 const baseProps: WorkbenchHeaderProps = {
   activeSessions: [liveA],
   activeSurface: "work",
@@ -77,6 +88,26 @@ describe("WorkbenchHeader", () => {
     renderHeader({ activeSessions: [liveA], arrangeMode: true });
     expect(screen.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "74");
     expect(screen.getByRole("toolbar", { name: "Session and layout controls" })).toBeInTheDocument();
+  });
+
+  it("uses the selected restored tile as Work identity instead of the unrelated live session", () => {
+    renderHeader({
+      activeSessions: [liveA, restoredCodex],
+      selectedSessionId: restoredCodex.id,
+      workMode: "focus",
+    });
+
+    const header = screen.getByTestId("workbench-header");
+    expect(header).toHaveAttribute("data-chrome-height", "74");
+    expect(within(header).getByText(restoredCodex.title)).toBeInTheDocument();
+    expect(within(header).queryByText(liveA.title)).not.toBeInTheDocument();
+    expect(screen.getByRole("toolbar", { name: "Session and layout controls" })).toBeInTheDocument();
+  });
+
+  it("does not carry Work session identity onto Observatory", () => {
+    renderHeader({ activeSessions: [liveA], activeSurface: "history" });
+    expect(screen.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "40");
+    expect(screen.queryByText(liveA.title)).not.toBeInTheDocument();
   });
 
   it("exposes Inbox Surfaces command palette and plus destinations", async () => {
