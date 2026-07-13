@@ -992,9 +992,16 @@ describe("App integration", () => {
     await user.keyboard("{Meta>}t{/Meta}");
     expect(createTerminal).toHaveBeenCalledTimes(1);
 
-    await user.tab();
+    const enabledOptions = within(palette)
+      .getAllByRole("option")
+      .filter((option) => !(option as HTMLButtonElement).disabled);
+    const lastEnabledOption = enabledOptions.at(-1);
+    expect(lastEnabledOption).toBeInstanceOf(HTMLButtonElement);
+
     await user.tab({ shift: true });
-    expect(palette).toContainElement(document.activeElement as HTMLElement | null);
+    expect(lastEnabledOption).toHaveFocus();
+    await user.tab();
+    expect(search).toHaveFocus();
 
     await act(async () => {
       search.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
