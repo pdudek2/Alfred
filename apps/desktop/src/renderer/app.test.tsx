@@ -617,6 +617,35 @@ describe("App integration", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it("keeps Focus active when Prepare Work handles Escape", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
+
+    render(<App />);
+
+    const focus = await screen.findByRole("button", { name: "Focus" });
+    await user.click(focus);
+    expect(focus).toHaveAttribute("aria-pressed", "true");
+
+    const launchTrigger = screen.getByRole("button", { name: "Open launch menu" });
+    launchTrigger.focus();
+    await user.keyboard("{Enter}");
+    const prepareWorkItem = screen.getByRole("menuitem", { name: "Prepare Work" });
+    await waitFor(() => expect(prepareWorkItem).toHaveFocus());
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("textbox", { name: "Dispatch instruction" })).toHaveFocus();
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Prepare Work" })).not.toBeInTheDocument();
+    expect(launchTrigger).toHaveFocus();
+    expect(focus).toHaveAttribute("aria-pressed", "true");
+    const visibleTiles = screen.getAllByTestId("terminal-tile").filter(
+      (tile) => tile.getAttribute("aria-hidden") !== "true",
+    );
+    expect(visibleTiles).toHaveLength(1);
+  });
+
   it("renders the clean depth shell regions around the live terminal workbench", async () => {
     installDesktopBridge();
     render(<App />);
@@ -1017,7 +1046,6 @@ describe("App integration", () => {
     render(<App />);
 
     const workbench = await screen.findByTestId("workbench-surface");
-    const header = screen.getByTestId("workbench-header");
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
 
     await selectSurface(userEvent.setup(), "Context");

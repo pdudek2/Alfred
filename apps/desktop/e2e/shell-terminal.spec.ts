@@ -18,6 +18,7 @@ type ShellGeometry = {
   secondaryRowCount: number;
   secondaryRowHeight: number;
   sessionTabCount: number;
+  visibleTileCount: number;
   visibleTileHeaderCount: number;
   tileHeaderHeights: number[];
   frameHeight: number;
@@ -41,6 +42,9 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   const r0 = await readShellGeometry(page);
   expect(r0.headerHeight).toBe(40);
   expect(r0.secondaryRowCount).toBe(0);
+  expect(r0.visibleTileCount).toBe(1);
+  expect(r0.visibleTileHeaderCount).toBe(1);
+  expect(r0.tileHeaderHeights).toEqual([30]);
   expect(
     r0.frameHeight - r0.headerHeight - r0.alertStackHeight,
     `R0 shell geometry: ${JSON.stringify(r0)}`,
@@ -63,6 +67,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(r1.secondaryRowCount).toBe(1);
   expect(r1.secondaryRowHeight).toBe(34);
   expect(r1.sessionTabCount).toBe(2);
+  expect(r1.visibleTileCount).toBe(1);
   expect(r1.visibleTileHeaderCount).toBe(0);
   screenshotHashes["r1-focus-two-sessions.png"] = await captureEvidence(
     page,
@@ -76,6 +81,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(r6.secondaryRowCount).toBe(1);
   expect(r6.secondaryRowHeight).toBe(34);
   expect(r6.sessionTabCount).toBe(0);
+  expect(r6.visibleTileCount).toBe(2);
   expect(r6.visibleTileHeaderCount).toBe(2);
   expect(r6.tileHeaderHeights).toEqual([30, 30]);
   screenshotHashes["r6-split.png"] = await captureEvidence(page, "r6-split.png");
@@ -97,7 +103,14 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Prepare Work" })).toHaveCount(0);
   await expect(launchTrigger).toBeFocused();
-  const focusRestoration = { openedWithKeyboard: true, restoredToLaunchTrigger: true };
+  await expect(page.getByRole("button", { name: "Focus", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(visibleTerminalTiles(page)).toHaveCount(1);
+  const focusRestoration = {
+    openedWithKeyboard: true,
+    restoredToLaunchTrigger: true,
+    focusStillActive: true,
+    visibleTileCount: 1,
+  };
 
   await selectSurface(page, "Observatory");
   await expect(page.getByRole("region", { name: "History workspace" })).toBeVisible();
@@ -113,13 +126,18 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(identityTransitions["Work→Context"]).toBe(true);
   await page.getByRole("button", { name: "Close Context panel" }).click();
 
+  await page.getByRole("button", { name: "Grid", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Grid", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(visibleTerminalTiles(page)).toHaveCount(2);
   await setWindowSize(app, page, 1120, 720);
   const narrow = await readNarrowGeometry(page);
+  expect(narrow.layout).toBe("Grid");
+  expect(narrow.visibleTileCount).toBe(2);
   expect(narrow.documentOverflow).toBe(0);
   expect(narrow.activeControlOverflow).toBeLessThanOrEqual(0.5);
   screenshotHashes["narrow-1120x720.png"] = await captureEvidence(page, "narrow-1120x720.png");
-  identityTransitions["Context→narrow Work"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
-  expect(identityTransitions["Context→narrow Work"]).toBe(true);
+  identityTransitions["Context→narrow Grid"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
+  expect(identityTransitions["Context→narrow Grid"]).toBe(true);
 
   const runtimeProof = {
     viewport: { initial: { width: 1440, height: 900 }, narrow: { width: 1120, height: 720 } },
@@ -155,6 +173,10 @@ async function selectSurface(page: Page, surface: "Work" | "Observatory" | "Cont
   await page.getByRole("menuitem", { name: surface }).click();
 }
 
+function visibleTerminalTiles(page: Page): Locator {
+  return page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])');
+}
+
 async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {
   const handle = await locator.elementHandle();
   if (!handle) throw new Error(`${label} is not mounted.`);
@@ -187,6 +209,9 @@ async function readShellGeometry(page: Page): Promise<ShellGeometry> {
       throw new Error("Adaptive shell geometry owners are missing.");
     }
     const secondaryRows = Array.from(document.querySelectorAll<HTMLElement>(".session-chrome-row"));
+    const visibleTiles = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"]:not([aria-hidden="true"])'),
+    );
     const visibleTileHeaders = Array.from(
       document.querySelectorAll<HTMLElement>(
         '[data-testid="terminal-tile"]:not([aria-hidden="true"]) .terminal-tile-header',
@@ -197,6 +222,7 @@ async function readShellGeometry(page: Page): Promise<ShellGeometry> {
       secondaryRowCount: secondaryRows.length,
       secondaryRowHeight: secondaryRows[0]?.getBoundingClientRect().height ?? 0,
       sessionTabCount: document.querySelectorAll('.session-chrome-row [role="tab"]').length,
+      visibleTileCount: visibleTiles.length,
       visibleTileHeaderCount: visibleTileHeaders.length,
       tileHeaderHeights: visibleTileHeaders.map((node) => node.getBoundingClientRect().height),
       frameHeight: frame.getBoundingClientRect().height,
@@ -216,6 +242,8 @@ async function readShellGeometry(page: Page): Promise<ShellGeometry> {
 }
 
 async function readNarrowGeometry(page: Page): Promise<{
+  layout: string;
+  visibleTileCount: number;
   documentOverflow: number;
   activeControlOverflow: number;
 }> {
@@ -240,6 +268,10 @@ async function readNarrowGeometry(page: Page): Promise<{
       return Math.max(maximum, Math.max(0, -rect.left, rect.right - window.innerWidth));
     }, 0);
     return {
+      layout: document.querySelector('.session-chrome-layout button[aria-pressed="true"]')?.textContent?.trim() ?? "",
+      visibleTileCount: document.querySelectorAll(
+        '[data-testid="terminal-tile"]:not([aria-hidden="true"])',
+      ).length,
       documentOverflow: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth),
       activeControlOverflow,
     };

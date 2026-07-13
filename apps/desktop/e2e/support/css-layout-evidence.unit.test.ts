@@ -29,6 +29,7 @@ describe("CSS layout evidence comparison", () => {
     expect(privacySafeScreenshotStyle).not.toMatch(/body\s+\*/);
     expect(privacySafeScreenshotStyle).toContain(".xterm-host");
     expect(privacySafeScreenshotStyle).toContain(".session-location-value");
+    expect(privacySafeScreenshotStyle).toContain(".composer-input");
     expect(privacySafeScreenshotStyle).toContain(".agent-context-essentials");
     expect(privacySafeScreenshotStyle).toContain(".workspace-button-details > span");
     expect(privacySafeScreenshotStyle).toContain(".observatory-project-copy small");
