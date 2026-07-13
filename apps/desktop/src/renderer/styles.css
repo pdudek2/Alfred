@@ -28,7 +28,6 @@
 
   --signal-focus: #55bdca;
   --signal-focus-strong: color-mix(in oklab, var(--signal-focus) 60%, white 8%);
-  --signal-focus-soft: color-mix(in oklab, var(--signal-focus) 4%, transparent);
   --signal-agent: #e0b75b;
   --signal-agent-soft: color-mix(in oklab, var(--signal-agent) 10%, transparent);
   --signal-danger: #f07f72;

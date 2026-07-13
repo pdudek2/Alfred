@@ -668,6 +668,7 @@ describe("renderer CSS contracts", () => {
       "--accent-focus",
       "--accent-soft",
       "--accent-strong",
+      "--signal-focus-soft",
       "--amber",
       "--coral",
       "--green",
