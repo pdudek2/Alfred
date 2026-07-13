@@ -34,7 +34,6 @@ import { sessionRelaunchSafety } from "../relaunch-safety";
 import { restoredSessionActionLabel, restoredSessionActionTitle } from "../restored-session-action";
 import { normalizeSessionTitle } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
-import { projectTerminalTail, type TerminalTailProjection } from "../terminal-tail-projection";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 
 const ARRANGE_GRID_ROW_HEIGHT = 84;
@@ -70,7 +69,6 @@ type TerminalDeskProps = {
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
   onRuntimeSessionExited: (runtimeId: TerminalSessionId, exitCode: number) => void;
   onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
-  onTerminalTailChange: (sessionId: string, projection: TerminalTailProjection | null) => void;
   onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
   onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
@@ -113,7 +111,6 @@ export function TerminalDesk({
   onRuntimeSessionFailed,
   onRuntimeSessionExited,
   onRuntimeSessionOutput,
-  onTerminalTailChange,
   onRuntimeSessionReplayBuffer,
   onRuntimeSessionSnapshot,
   onRuntimeSessionReady,
@@ -384,7 +381,6 @@ export function TerminalDesk({
                 onRuntimeSessionFailed={onRuntimeSessionFailed}
                 onRuntimeSessionExited={onRuntimeSessionExited}
                 onRuntimeSessionOutput={onRuntimeSessionOutput}
-                onTerminalTailChange={onTerminalTailChange}
                 onRuntimeSessionReplayBuffer={onRuntimeSessionReplayBuffer}
                 onRuntimeSessionSnapshot={onRuntimeSessionSnapshot}
                 onRuntimeSessionReady={onRuntimeSessionReady}
@@ -686,7 +682,6 @@ function ManualTerminalTile({
   onRuntimeSessionFailed,
   onRuntimeSessionExited,
   onRuntimeSessionOutput,
-  onTerminalTailChange,
   onRuntimeSessionReplayBuffer,
   onRuntimeSessionSnapshot,
   onRuntimeSessionReady,
@@ -735,7 +730,6 @@ function ManualTerminalTile({
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
   onRuntimeSessionExited: (runtimeId: TerminalSessionId, exitCode: number) => void;
   onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
-  onTerminalTailChange: (sessionId: string, projection: TerminalTailProjection | null) => void;
   onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
   onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
@@ -768,18 +762,16 @@ function ManualTerminalTile({
   const statusRef = useRef<LocalTerminalStatus>("connecting");
   const fitAndResizeRef = useRef<(() => boolean) | null>(null);
   const scheduleRepaintRef = useRef<((passes?: number) => void) | null>(null);
-  const previousWorkspaceHiddenRef = useRef(workspaceHidden);
+  const tileHidden = workspaceHidden || layoutHidden;
+  const previousTileHiddenRef = useRef(tileHidden);
   const writeAndRepaintRef = useRef<((data: string) => void) | null>(null);
-  const onTerminalTailChangeRef = useRef(onTerminalTailChange);
-  onTerminalTailChangeRef.current = onTerminalTailChange;
-
   useEffect(() => {
-    const wasHidden = previousWorkspaceHiddenRef.current;
-    previousWorkspaceHiddenRef.current = workspaceHidden;
-    if (wasHidden && !workspaceHidden) {
+    const wasHidden = previousTileHiddenRef.current;
+    previousTileHiddenRef.current = tileHidden;
+    if (wasHidden && !tileHidden) {
       scheduleRepaintRef.current?.(3);
     }
-  }, [workspaceHidden]);
+  }, [tileHidden]);
   const [resolvedCwd, setResolvedCwd] = useState<string>(cwd);
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState(title);
@@ -1007,16 +999,9 @@ function ManualTerminalTile({
         if (passes > 1) scheduleRepaint(passes - 1);
       });
     };
-    const publishTail = () => {
-      onTerminalTailChangeRef.current(
-        sessionKey,
-        projectTerminalTail(terminal, sessionKey),
-      );
-    };
     const writeAndRepaint = (data: string) => {
       terminal.write(data, () => {
         if (disposed) return;
-        publishTail();
         scheduleRepaint();
       });
       scheduleRepaint();
@@ -1031,7 +1016,6 @@ function ManualTerminalTile({
 
     return () => {
       disposed = true;
-      onTerminalTailChangeRef.current(sessionKey, null);
       resizeObserver.disconnect();
       fitAndResizeRef.current = null;
       scheduleRepaintRef.current = null;

@@ -5,7 +5,6 @@ import {
   ListChecks,
   Pencil,
   RefreshCcw,
-  Search,
   ShieldCheck,
   SquareTerminal,
   Trash2,
@@ -74,7 +73,6 @@ import {
   type SessionTile,
 } from "./session-state";
 import { terminalSessionDisplayStatus } from "./session-status";
-import type { TerminalTailProjection } from "./terminal-tail-projection";
 import { sessionTileKind, tileKindMeta } from "./tile-kind";
 import { recordPreviewUrlsFromText, type PreviewUrlCandidate } from "./preview-state";
 import type { WorkMode } from "./terminal-desk-types";
@@ -126,7 +124,6 @@ const DEFAULT_WORKSPACE_ID = "A";
 const DEFAULT_WORKSPACE: Workspace = { id: DEFAULT_WORKSPACE_ID, label: "Alfred", shortLabel: "A" };
 const DEFAULT_WORKSPACES: Workspace[] = [DEFAULT_WORKSPACE];
 const MAX_VISIBLE_EMPTY_NAV_WORKSPACES = 8;
-const MAX_VISIBLE_ACTIVE_NAV_SESSIONS = 5;
 const MAX_VISIBLE_FREE_CHAT_SESSIONS = 3;
 const DEFAULT_PRIVACY_SETTINGS: DesktopPrivacySettings = {
   terminalScrollbackRetention: "redactedTail",
@@ -206,7 +203,6 @@ export function App() {
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
   const worktreeActionPendingRef = useRef<Set<string>>(new Set());
   const terminalSessionsRef = useRef<SessionTile[]>([]);
-  const terminalTailProjectionsRef = useRef(new Map<string, TerminalTailProjection>());
   const announcedSessionStatusesRef = useRef<Map<string, string>>(new Map());
   const sessionStatusAnnouncementsReadyRef = useRef<boolean>(false);
   const workspaceStateHydratedRef = useRef<boolean>(false);
@@ -1211,17 +1207,6 @@ export function App() {
     setTerminalSessions((sessions) => recordSessionOutputActivity(sessions, event));
   }, []);
 
-  const handleTerminalTailChange = useCallback((
-    sessionId: string,
-    projection: TerminalTailProjection | null,
-  ) => {
-    if (projection) {
-      terminalTailProjectionsRef.current.set(sessionId, projection);
-    } else {
-      terminalTailProjectionsRef.current.delete(sessionId);
-    }
-  }, []);
-
   const handleRuntimeSessionSnapshot = useCallback((sessionId: string, snapshot: TerminalSessionSnapshot) => {
     setTerminalSessions((sessions) =>
       sessions.map((session) => {
@@ -1991,7 +1976,6 @@ export function App() {
                 onRuntimeSessionFailed={handleRuntimeSessionFailed}
                 onRuntimeSessionExited={handleRuntimeSessionExited}
                 onRuntimeSessionOutput={handleRuntimeSessionOutput}
-                onTerminalTailChange={handleTerminalTailChange}
                 onRuntimeSessionReplayBuffer={handleRuntimeSessionReplayBuffer}
                 onRuntimeSessionSnapshot={handleRuntimeSessionSnapshot}
                 onRuntimeSessionReady={handleRuntimeSessionReady}
@@ -2196,7 +2180,6 @@ function QuietWorkspaceNavigationPanel({
   onOpenInbox,
   onSelectWorkspace,
 }: QuietWorkspaceNavigationPanelProps) {
-  const [navigationQuery, setNavigationQuery] = useState("");
   const [showAllEmptyWorkspaces, setShowAllEmptyWorkspaces] = useState(false);
   const freeChats = sessions
     .filter((session) => session.workspaceId !== activeWorkspaceId && isFreeChatSession(session))
@@ -2205,7 +2188,6 @@ function QuietWorkspaceNavigationPanel({
     workspaces,
     sessions,
     activeWorkspaceId,
-    navigationQuery,
     showAllEmptyWorkspaces,
   );
 
@@ -2220,15 +2202,6 @@ function QuietWorkspaceNavigationPanel({
           </span>
         </div>
       </header>
-      <label className="workspace-nav-search">
-        <Search size={14} />
-        <input
-          aria-label="Search sessions, chats, files"
-          placeholder="Search sessions, chats, files"
-          value={navigationQuery}
-          onChange={(event) => setNavigationQuery(event.target.value)}
-        />
-      </label>
       <div className="workspace-nav-scroll">
         <section className="workspace-nav-section">
           <header>
@@ -2238,7 +2211,7 @@ function QuietWorkspaceNavigationPanel({
             {activeSessions.length === 0 ? (
               <p className="workspace-nav-empty">No active terminals in this workspace.</p>
             ) : (
-              activeSessions.slice(0, MAX_VISIBLE_ACTIVE_NAV_SESSIONS).map((session) => {
+              activeSessions.map((session) => {
                 const status = terminalSessionDisplayStatus(session);
                 const kindMeta = tileKindMeta(sessionTileKind(session));
                 return (
@@ -2298,7 +2271,7 @@ function QuietWorkspaceNavigationPanel({
             onAddWorkspace={onAddWorkspace}
             onSelectWorkspace={onSelectWorkspace}
           />
-          {navigationQuery.trim().length === 0 && hiddenEmptyWorkspaceCount > 0 && !showAllEmptyWorkspaces && (
+          {hiddenEmptyWorkspaceCount > 0 && !showAllEmptyWorkspaces && (
             <button
               type="button"
               className="workspace-nav-more-button"
@@ -3088,20 +3061,9 @@ function visibleNavigationWorkspaces(
   workspaces: WorkspaceRailWorkspace[],
   sessions: SessionTile[],
   activeWorkspaceId: string,
-  query: string,
   showAllEmptyWorkspaces: boolean,
 ): { hiddenEmptyWorkspaceCount: number; visibleWorkspaces: WorkspaceRailWorkspace[] } {
-  const normalizedQuery = normalizeNavigationQuery(query);
   const workspaceIdsWithSessions = new Set(sessions.map((session) => session.workspaceId));
-  const sessionsByWorkspaceId = new Map<string, SessionTile[]>();
-  for (const session of sessions) {
-    const existing = sessionsByWorkspaceId.get(session.workspaceId);
-    if (existing) {
-      existing.push(session);
-      continue;
-    }
-    sessionsByWorkspaceId.set(session.workspaceId, [session]);
-  }
 
   const visibleWorkspaces: WorkspaceRailWorkspace[] = [];
   let hiddenEmptyWorkspaceCount = 0;
@@ -3117,13 +3079,6 @@ function visibleNavigationWorkspaces(
       continue;
     }
 
-    if (normalizedQuery.length > 0) {
-      if (workspaceMatchesNavigationQuery(workspace, sessionsByWorkspaceId.get(workspace.id) ?? [], normalizedQuery)) {
-        visibleWorkspaces.push(workspace);
-      }
-      continue;
-    }
-
     if (showAllEmptyWorkspaces || visibleEmptyWorkspaceCount < MAX_VISIBLE_EMPTY_NAV_WORKSPACES) {
       visibleEmptyWorkspaceCount += 1;
       visibleWorkspaces.push(workspace);
@@ -3134,26 +3089,6 @@ function visibleNavigationWorkspaces(
   }
 
   return { hiddenEmptyWorkspaceCount, visibleWorkspaces };
-}
-
-function workspaceMatchesNavigationQuery(
-  workspace: WorkspaceRailWorkspace,
-  sessions: SessionTile[],
-  normalizedQuery: string,
-): boolean {
-  if (normalizedQuery.length === 0) return true;
-
-  return [
-    workspace.label,
-    workspace.shortLabel,
-    workspace.rootPath,
-    workspace.gitBranch,
-    ...sessions.flatMap((session) => [session.title, session.cwd]),
-  ].some((value) => normalizeNavigationQuery(value).includes(normalizedQuery));
-}
-
-function normalizeNavigationQuery(value: string | undefined): string {
-  return value?.trim().toLocaleLowerCase() ?? "";
 }
 
 function workspaceRootPath(state: WorkspaceStateSnapshot | null, workspaceId: string): string {

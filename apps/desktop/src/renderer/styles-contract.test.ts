@@ -393,11 +393,6 @@ function rootToken(name: string): string {
   return match?.[1] ?? "";
 }
 
-function tokenValue(name: string): string {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return styles.match(new RegExp(`${escaped}:\\s*([^;]+);`))?.[1]?.trim() ?? "";
-}
-
 function tokenDefinitionCount(tokenName: string): number {
   const escaped = tokenName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return [...styles.matchAll(new RegExp(`${escaped}:\\s*`, "g"))].length;
@@ -613,6 +608,15 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain("--workbench-control-height");
     expect(styles).not.toContain("--workbench-segment-height");
     expect(styles).not.toContain("--workbench-control-radius");
+    expect(styles).not.toContain(".workspace-layout.surface-inbox > .workspace-rail:not(.embedded)");
+    expect(styles).not.toContain(".workspace-layout.surface-history > .workspace-rail:not(.embedded)");
+  });
+
+  it("keeps one winning workspace button weight declaration", () => {
+    const workspaceButton = singleTopLevelRuleBodyIn(styles, ".workspace-button");
+
+    expect(workspaceButton.match(/font-weight:/g)).toHaveLength(1);
+    expect(workspaceButton).toContain("font-weight: 500");
   });
 
   it("drops proven orphan compatibility families", () => {
@@ -642,6 +646,37 @@ describe("renderer CSS contracts", () => {
       "--role-attention", "--role-success", "--role-neutral-marker", "--role-control", "--role-control-hover",
     ]) {
       expect(styles).not.toContain(`${token}:`);
+    }
+  });
+
+  it("does not retain token definitions without runtime consumers", () => {
+    for (const token of [
+      "--surface-workbench",
+      "--surface-tile-header",
+      "--surface-chrome-soft",
+      "--panel",
+      "--panel-raised",
+      "--panel-soft",
+      "--terminal",
+      "--codex-blue",
+      "--alert-red",
+      "--highlight-soft",
+      "--shadow-soft",
+      "--accent-press",
+      "--accent",
+      "--accent-primary",
+      "--accent-focus",
+      "--accent-soft",
+      "--accent-strong",
+      "--signal-focus-soft",
+      "--amber",
+      "--coral",
+      "--green",
+      "--accent-halo",
+      "--on-accent",
+      "--depth-raised",
+    ]) {
+      expect(tokenDefinitionCount(token)).toBe(0);
     }
   });
 
@@ -765,10 +800,13 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".chrome-menu-popover", ["z-index: 120", "box-shadow:"]);
     expectCanonicalBase(".prepare-work-popover", ["width: 560px", "max-width: calc(100vw - 24px)"]);
 
-    expectCanonicalBase(".workspace-navigation-panel", ["min-width: 0", "display: grid"]);
+    expectCanonicalBase(".workspace-navigation-panel", [
+      "min-width: 0",
+      "display: grid",
+      "grid-template-rows: auto minmax(0, 1fr)",
+    ]);
     expectCanonicalBase(".workspace-nav-head", ["display: grid", "align-items: center"]);
     expectCanonicalBase(".workspace-nav-avatar", ["display: grid", "place-items: center"]);
-    expectCanonicalBase(".workspace-nav-search", ["display: grid", "align-items: center"]);
     const workspaceNavScrollBodies = exactRuleBodies(".workspace-nav-scroll");
     expect(workspaceNavScrollBodies).toHaveLength(1);
     expect(workspaceNavScrollBodies[0]).toContain("overflow: auto");
@@ -826,13 +864,13 @@ describe("renderer CSS contracts", () => {
       terminalTileStart,
       terminalTileEnd,
     );
-    expectTopLevelOwnerWithin(".terminal-stage.mode-focus .terminal-tile.focus-hidden", ["visibility: hidden", "pointer-events: none"], terminalTileStart, terminalTileEnd);
+    expectTopLevelOwnerWithin(".terminal-stage.mode-focus .terminal-tile.focus-hidden", ["display: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.selected", ["border-color: var(--ink-6)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile:focus-visible", ["border-color: var(--ink-6)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile:focus-within", ["outline: 1px solid var(--ink-5)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.collapsed", ["grid-template-rows: 30px 0", "min-height: 30px"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile:not(.arranging):hover", ["border-color: var(--ink-5)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
-    expectTopLevelOwnerWithin(".terminal-stage.mode-split .terminal-tile.focus-hidden", ["visibility: hidden", "pointer-events: none"], terminalTileStart, terminalTileEnd);
+    expectTopLevelOwnerWithin(".terminal-stage.mode-split .terminal-tile.focus-hidden", ["display: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.collapsed .xterm-host", ["height: 0", "pointer-events: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.collapsed .terminal-viewport", ["min-height: 0"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.collapsed .xterm", ["min-height: 0"], terminalTileStart, terminalTileEnd);
@@ -1177,23 +1215,16 @@ describe("renderer CSS contracts", () => {
     expect(tokenDefinitionCount("--surface-canvas")).toBe(1);
     expect(tokenDefinitionCount("--surface-panel")).toBe(1);
     expect(tokenDefinitionCount("--surface-raised")).toBe(1);
-    expect(tokenDefinitionCount("--surface-workbench")).toBe(1);
     expect(tokenDefinitionCount("--surface-chrome")).toBe(1);
     expect(tokenDefinitionCount("--surface-control")).toBe(1);
     expect(tokenDefinitionCount("--surface-control-hover")).toBe(1);
-    expect(tokenDefinitionCount("--surface-tile-header")).toBe(1);
     expect(tokenDefinitionCount("--text-primary")).toBe(1);
     expect(tokenDefinitionCount("--text-muted")).toBe(1);
     expect(tokenDefinitionCount("--text-faint")).toBe(1);
 
-    expect(rootToken("--surface-workbench")).toBe("#040506");
     expect(rootToken("--surface-chrome")).toBe("#07090b");
-    expect(rootToken("--surface-chrome-soft")).toBe("#0b0f13");
     expect(rootToken("--surface-control")).toBe("#090d11");
     expect(rootToken("--surface-control-hover")).toBe("#10151a");
-    expect(rootToken("--surface-tile-header")).toBe("#0b0f13");
-    expect(tokenValue("--accent")).toBe("var(--signal-focus)");
-    expect(tokenValue("--terminal")).toBe("var(--surface-terminal)");
     expect(styles).not.toMatch(/--flat-/);
     expect(styles).not.toMatch(/--proto-/);
     expect(styles).not.toMatch(/ALFRED CLEAN FLAT v4/);
@@ -1228,10 +1259,6 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toMatch(/rgba\(217,\s*174,\s*70,/);
     expect(styles).not.toMatch(/#(?:35d47f|37d884|3ee68a)/i);
     expect(rootToken("--signal-agent")).toBe("#e0b75b");
-    expect(styles).not.toMatch(/var\(--accent\)/);
-    expect(styles).not.toMatch(/var\(--amber\)/);
-    expect(styles).not.toMatch(/var\(--coral\)/);
-    expect(styles).not.toMatch(/var\(--green\)/);
   });
 
   it("keeps Arrange mode scrollable with room for the bottom resize handle", () => {

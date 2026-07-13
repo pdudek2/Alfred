@@ -24,6 +24,10 @@ type ShellGeometry = {
   frameHeight: number;
   alertStackHeight: number;
   workspaceLayoutHeight: number;
+  terminalColumnClientHeight: number;
+  terminalColumnScrollHeight: number;
+  terminalColumnScrollTop: number;
+  visibleTileViewportIntersection: number;
   frameGridTemplateRows: string;
   frameChildren: Array<{ className: string; height: number; top: number }>;
 };
@@ -55,8 +59,8 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     bannerAlert.frameHeight - bannerAlert.headerHeight - bannerAlert.alertStackHeight,
     `Non-empty alert shell geometry: ${JSON.stringify(bannerAlert)}`,
   ).toBe(bannerAlert.workspaceLayoutHeight);
-  const screenshotHashes: Record<string, string> = {};
-  screenshotHashes["r0-one-session.png"] = await captureEvidence(page, "r0-one-session.png");
+  const diagnosticScreenshotHashes: Record<string, string> = {};
+  diagnosticScreenshotHashes["r0-one-session.png"] = await captureEvidence(page, "r0-one-session.png");
 
   await addManualTerminal(page);
   await expect(page.getByTestId("xterm-host")).toHaveCount(2);
@@ -69,7 +73,15 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(r1.sessionTabCount).toBe(2);
   expect(r1.visibleTileCount).toBe(1);
   expect(r1.visibleTileHeaderCount).toBe(0);
-  screenshotHashes["r1-focus-two-sessions.png"] = await captureEvidence(
+  await page.locator(".terminal-grid-column").evaluate((node) => {
+    node.scrollTop = 900;
+  });
+  const focusGeometry = await readShellGeometry(page);
+  expect(focusGeometry.terminalColumnScrollHeight)
+    .toBeLessThanOrEqual(focusGeometry.terminalColumnClientHeight + 1);
+  expect(focusGeometry.terminalColumnScrollTop).toBe(0);
+  expect(focusGeometry.visibleTileViewportIntersection).toBeGreaterThan(0);
+  diagnosticScreenshotHashes["r1-focus-two-sessions.png"] = await captureEvidence(
     page,
     "r1-focus-two-sessions.png",
   );
@@ -84,7 +96,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(r6.visibleTileCount).toBe(2);
   expect(r6.visibleTileHeaderCount).toBe(2);
   expect(r6.tileHeaderHeights).toEqual([30, 30]);
-  screenshotHashes["r6-split.png"] = await captureEvidence(page, "r6-split.png");
+  diagnosticScreenshotHashes["r6-split.png"] = await captureEvidence(page, "r6-split.png");
 
   await page.getByRole("button", { name: "Focus", exact: true }).click();
   const identityTransitions: Record<string, boolean> = {
@@ -135,7 +147,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(narrow.visibleTileCount).toBe(2);
   expect(narrow.documentOverflow).toBe(0);
   expect(narrow.activeControlOverflow).toBeLessThanOrEqual(0.5);
-  screenshotHashes["narrow-1120x720.png"] = await captureEvidence(page, "narrow-1120x720.png");
+  diagnosticScreenshotHashes["narrow-1120x720.png"] = await captureEvidence(page, "narrow-1120x720.png");
   identityTransitions["Context→narrow Grid"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
   expect(identityTransitions["Context→narrow Grid"]).toBe(true);
 
@@ -148,14 +160,14 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     narrow,
     identityTransitions,
     focusRestoration,
-    screenshotSha256: screenshotHashes,
+    diagnosticScreenshotSha256: diagnosticScreenshotHashes,
   };
   const proofText = `${JSON.stringify(runtimeProof, null, 2)}\n`;
   expect(proofText).not.toContain(harness.paths.root);
   const proofPath = path.join(evidenceDir, "runtime-proof.json");
   await writeFile(proofPath, proofText, "utf8");
   await testInfo.attach("runtime-proof.json", { path: proofPath, contentType: "application/json" });
-  for (const fileName of Object.keys(screenshotHashes)) {
+  for (const fileName of Object.keys(diagnosticScreenshotHashes)) {
     await testInfo.attach(fileName, { path: path.join(evidenceDir, fileName), contentType: "image/png" });
   }
 
@@ -217,6 +229,15 @@ async function readShellGeometry(page: Page): Promise<ShellGeometry> {
         '[data-testid="terminal-tile"]:not([aria-hidden="true"]) .terminal-tile-header',
       ),
     );
+    const terminalColumn = document.querySelector<HTMLElement>(".terminal-grid-column");
+    const visibleTile = visibleTiles[0] ?? null;
+    if (!terminalColumn) throw new Error("Terminal grid scroll owner is missing.");
+    const columnRect = terminalColumn.getBoundingClientRect();
+    const tileRect = visibleTile?.getBoundingClientRect() ?? null;
+    const visibleTileViewportIntersection = tileRect
+      ? Math.max(0, Math.min(columnRect.bottom, tileRect.bottom) - Math.max(columnRect.top, tileRect.top))
+      : 0;
+
     return {
       headerHeight: header.getBoundingClientRect().height,
       secondaryRowCount: secondaryRows.length,
@@ -228,6 +249,10 @@ async function readShellGeometry(page: Page): Promise<ShellGeometry> {
       frameHeight: frame.getBoundingClientRect().height,
       alertStackHeight: alertStack.getBoundingClientRect().height,
       workspaceLayoutHeight: workspaceLayout.getBoundingClientRect().height,
+      terminalColumnClientHeight: terminalColumn.clientHeight,
+      terminalColumnScrollHeight: terminalColumn.scrollHeight,
+      terminalColumnScrollTop: terminalColumn.scrollTop,
+      visibleTileViewportIntersection,
       frameGridTemplateRows: getComputedStyle(frame).gridTemplateRows,
       frameChildren: Array.from(frame.children).map((node) => {
         const rect = node.getBoundingClientRect();

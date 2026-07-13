@@ -61,8 +61,20 @@ export function WorkbenchHeader({
   onToggleContext,
 }: WorkbenchHeaderProps) {
   const chromeSessions = workChromeSessions(activeSessions);
-  const singleSession = chromeSessions.length === 1 ? chromeSessions[0] : null;
-  const expanded = activeSurface === "work" && (chromeSessions.length > 1 || arrangeMode);
+  const selectedSession = selectedSessionId
+    ? activeSessions.find((session) => session.id === selectedSessionId) ?? null
+    : null;
+  const selectedSessionHasChromeTab = selectedSession
+    ? chromeSessions.some((session) => session.id === selectedSession.id)
+    : false;
+  const workIdentitySession = activeSurface === "work"
+    ? selectedSession ?? (chromeSessions.length === 1 ? chromeSessions[0] ?? null : null)
+    : null;
+  const expanded = activeSurface === "work" && (
+    chromeSessions.length > 1 ||
+    arrangeMode ||
+    Boolean(selectedSession && !selectedSessionHasChromeTab)
+  );
   const inboxLabel = `Open Inbox surface${inboxCount > 0 ? `, ${inboxCount} item${inboxCount === 1 ? "" : "s"}` : ""}`;
   const launchItems: ChromeMenuItem[] = [
     { id: "prepare-work", label: "Prepare Work", run: onOpenPrepareWork },
@@ -86,9 +98,9 @@ export function WorkbenchHeader({
       <div className="workbench-primary-row">
         <div className="workbench-project-zone">{workspaceSwitcher}</div>
         <div className="workbench-session-context">
-          {singleSession && (
+          {workIdentitySession && (
             <>
-              <span>{singleSession.title}</span>
+              <span>{workIdentitySession.title}</span>
               <small>{workspaceDetail}</small>
             </>
           )}
