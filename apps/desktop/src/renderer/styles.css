@@ -13,12 +13,10 @@
   --surface-canvas: #050607;
   --surface-panel: #0a0d10;
   --surface-raised: #0f1317;
-  --surface-workbench: #040506;
   --surface-chrome: #07090b;
   --surface-chrome-soft: #0b0f13;
   --surface-control: #090d11;
   --surface-control-hover: #10151a;
-  --surface-tile-header: #0b0f13;
 
   --text-primary: #edf2f6;
   --text-secondary: #c9d2db;
@@ -51,10 +49,6 @@
   /* Transitional aliases. Remove only after all callsites use role tokens. */
   --surface-sunken: var(--surface-terminal);
   --night: var(--surface-canvas);
-  --panel: var(--surface-panel);
-  --panel-raised: var(--surface-raised);
-  --panel-soft: var(--surface-chrome-soft);
-  --terminal: var(--surface-terminal);
   --ink: var(--text-primary);
   --ink-soft: var(--text-secondary);
   --muted: var(--text-muted);
@@ -72,22 +66,12 @@
   --amber: var(--signal-agent);
   --coral: var(--signal-danger);
   --green: var(--signal-success);
-  --codex-blue: #6aa9bd;
   --claude-amber: #c9a26d;
-  --alert-red: var(--signal-danger);
   --focus-border: var(--border-focus);
-  --highlight-soft: rgba(237, 242, 246, 0.055);
-  --shadow-soft: 0 14px 30px -22px rgba(0, 0, 0, 0.72);
-  --accent-press: color-mix(in oklab, var(--signal-focus) 68%, black 12%);
   --accent-halo: color-mix(in oklab, var(--signal-focus) 34%, transparent);
-  --on-accent: #04141a;
   --depth-card:
     0 1px 0 rgba(255, 255, 255, 0.045) inset,
     0 18px 38px -26px rgba(0, 0, 0, 0.85);
-  --depth-raised:
-    0 1px 0 rgba(255, 255, 255, 0.06) inset,
-    0 26px 56px -28px rgba(0, 0, 0, 0.8),
-    0 2px 8px -3px rgba(0, 0, 0, 0.55);
   --border-subtle: var(--border);
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -1247,7 +1231,6 @@ button:focus-visible {
   border: 1px solid transparent;
   border-radius: 7px;
   font-family: var(--sans);
-  font-weight: 600;
   background: transparent;
   color: var(--ink-6);
   cursor: pointer;
@@ -6478,11 +6461,6 @@ body.arranging-pointer {
   .workspace-layout.surface-inbox .workspace-navigation-panel,
   .workspace-layout.surface-history .workspace-navigation-panel {
     grid-column: 1;
-  }
-
-  .workspace-layout.surface-inbox > .workspace-rail:not(.embedded),
-  .workspace-layout.surface-history > .workspace-rail:not(.embedded) {
-    display: none;
   }
 
   .review-surface-header,

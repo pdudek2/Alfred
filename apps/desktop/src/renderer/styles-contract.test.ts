@@ -613,6 +613,15 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain("--workbench-control-height");
     expect(styles).not.toContain("--workbench-segment-height");
     expect(styles).not.toContain("--workbench-control-radius");
+    expect(styles).not.toContain(".workspace-layout.surface-inbox > .workspace-rail:not(.embedded)");
+    expect(styles).not.toContain(".workspace-layout.surface-history > .workspace-rail:not(.embedded)");
+  });
+
+  it("keeps one winning workspace button weight declaration", () => {
+    const workspaceButton = singleTopLevelRuleBodyIn(styles, ".workspace-button");
+
+    expect(workspaceButton.match(/font-weight:/g)).toHaveLength(1);
+    expect(workspaceButton).toContain("font-weight: 500");
   });
 
   it("drops proven orphan compatibility families", () => {
@@ -642,6 +651,26 @@ describe("renderer CSS contracts", () => {
       "--role-attention", "--role-success", "--role-neutral-marker", "--role-control", "--role-control-hover",
     ]) {
       expect(styles).not.toContain(`${token}:`);
+    }
+  });
+
+  it("does not retain token definitions without runtime consumers", () => {
+    for (const token of [
+      "--surface-workbench",
+      "--surface-tile-header",
+      "--panel",
+      "--panel-raised",
+      "--panel-soft",
+      "--terminal",
+      "--codex-blue",
+      "--alert-red",
+      "--highlight-soft",
+      "--shadow-soft",
+      "--accent-press",
+      "--on-accent",
+      "--depth-raised",
+    ]) {
+      expect(tokenDefinitionCount(token)).toBe(0);
     }
   });
 
@@ -1180,23 +1209,18 @@ describe("renderer CSS contracts", () => {
     expect(tokenDefinitionCount("--surface-canvas")).toBe(1);
     expect(tokenDefinitionCount("--surface-panel")).toBe(1);
     expect(tokenDefinitionCount("--surface-raised")).toBe(1);
-    expect(tokenDefinitionCount("--surface-workbench")).toBe(1);
     expect(tokenDefinitionCount("--surface-chrome")).toBe(1);
     expect(tokenDefinitionCount("--surface-control")).toBe(1);
     expect(tokenDefinitionCount("--surface-control-hover")).toBe(1);
-    expect(tokenDefinitionCount("--surface-tile-header")).toBe(1);
     expect(tokenDefinitionCount("--text-primary")).toBe(1);
     expect(tokenDefinitionCount("--text-muted")).toBe(1);
     expect(tokenDefinitionCount("--text-faint")).toBe(1);
 
-    expect(rootToken("--surface-workbench")).toBe("#040506");
     expect(rootToken("--surface-chrome")).toBe("#07090b");
     expect(rootToken("--surface-chrome-soft")).toBe("#0b0f13");
     expect(rootToken("--surface-control")).toBe("#090d11");
     expect(rootToken("--surface-control-hover")).toBe("#10151a");
-    expect(rootToken("--surface-tile-header")).toBe("#0b0f13");
     expect(tokenValue("--accent")).toBe("var(--signal-focus)");
-    expect(tokenValue("--terminal")).toBe("var(--surface-terminal)");
     expect(styles).not.toMatch(/--flat-/);
     expect(styles).not.toMatch(/--proto-/);
     expect(styles).not.toMatch(/ALFRED CLEAN FLAT v4/);
