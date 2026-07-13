@@ -220,12 +220,12 @@ button:focus-visible {
 }
 
 .mission-bar {
+  grid-row: 1;
   position: static;
   height: auto;
   min-height: 40px;
   overflow: visible;
   border: 0;
-  border-bottom: 1px solid var(--ink-3);
   display: flex;
   align-items: center;
   padding: 0;
@@ -235,8 +235,9 @@ button:focus-visible {
   user-select: none;
 }
 
-.desktop-alert-stack:empty {
-  display: none;
+.desktop-alert-stack {
+  grid-row: 2;
+  min-height: 0;
 }
 
 .desktop-save-banner {
@@ -638,6 +639,7 @@ button:focus-visible {
 }
 
 .workspace-layout {
+  grid-row: 3;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(196px, 232px) minmax(0, 1fr);

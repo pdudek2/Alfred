@@ -466,7 +466,10 @@ describe("renderer CSS contracts", () => {
   it("owns the exact Slice 1 shell and terminal geometry", () => {
     expectCanonicalBase(".agent-space-shell", ["min-height: 100vh", "padding: 0"]);
     expectCanonicalBase(".desktop-frame", ["height: 100vh", "grid-template-rows: auto auto minmax(0, 1fr)"]);
-    expectCanonicalBase(".mission-bar", ["min-height: 40px", "padding: 0"]);
+    expectCanonicalBase(".mission-bar", ["grid-row: 1", "min-height: 40px", "padding: 0"]);
+    expectCanonicalBase(".desktop-alert-stack", ["grid-row: 2", "min-height: 0"]);
+    expectCanonicalBase(".workspace-layout", ["grid-row: 3"]);
+    expect(styles).not.toContain(".desktop-alert-stack:empty");
     expectCanonicalBase(".workbench-header.is-compact", ["height: 40px"]);
     expectCanonicalBase(".workbench-header.is-expanded", ["height: 74px"]);
     expectCanonicalBase(".workbench-primary-row", ["height: 40px"]);
