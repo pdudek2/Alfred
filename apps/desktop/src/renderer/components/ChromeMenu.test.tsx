@@ -104,4 +104,85 @@ describe("ChromeMenu", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "After menu" })).toHaveFocus();
   });
+
+  it("moves Tab outside when the first item owns focus", async () => {
+    const user = userEvent.setup();
+    render(
+      <div>
+        <ChromeMenu
+          label="Open Surfaces menu"
+          title="Surfaces"
+          items={[
+            { id: "work", label: "Work", run: vi.fn() },
+            { id: "disabled", label: "Disabled", disabled: true, run: vi.fn() },
+            { id: "observatory", label: "Observatory", run: vi.fn() },
+            { id: "context", label: "Context", run: vi.fn() },
+          ]}
+        >
+          Surfaces
+        </ChromeMenu>
+        <button type="button">After menu</button>
+      </div>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open Surfaces menu" }));
+    expect(screen.getByRole("menuitem", { name: "Work" })).toHaveFocus();
+    await user.tab();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "After menu" })).toHaveFocus();
+  });
+
+  it("moves Tab outside when a middle item owns focus", async () => {
+    const user = userEvent.setup();
+    render(
+      <div>
+        <ChromeMenu
+          label="Open Surfaces menu"
+          title="Surfaces"
+          items={[
+            { id: "work", label: "Work", run: vi.fn() },
+            { id: "disabled", label: "Disabled", disabled: true, run: vi.fn() },
+            { id: "observatory", label: "Observatory", run: vi.fn() },
+            { id: "context", label: "Context", run: vi.fn() },
+          ]}
+        >
+          Surfaces
+        </ChromeMenu>
+        <button type="button">After menu</button>
+      </div>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open Surfaces menu" }));
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("menuitem", { name: "Observatory" })).toHaveFocus();
+    await user.tab();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "After menu" })).toHaveFocus();
+  });
+
+  it("moves Shift+Tab back to the trigger from the last item", async () => {
+    const user = userEvent.setup();
+    render(
+      <ChromeMenu
+        label="Open Surfaces menu"
+        title="Surfaces"
+        items={[
+          { id: "work", label: "Work", run: vi.fn() },
+          { id: "disabled", label: "Disabled", disabled: true, run: vi.fn() },
+          { id: "observatory", label: "Observatory", run: vi.fn() },
+          { id: "context", label: "Context", run: vi.fn() },
+        ]}
+      >
+        Surfaces
+      </ChromeMenu>,
+    );
+
+    const trigger = screen.getByRole("button", { name: "Open Surfaces menu" });
+    await user.click(trigger);
+    await user.keyboard("{End}");
+    expect(screen.getByRole("menuitem", { name: "Context" })).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
 });

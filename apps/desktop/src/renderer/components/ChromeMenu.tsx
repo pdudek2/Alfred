@@ -53,7 +53,11 @@ export function ChromeMenu({ children, items, label, title, triggerRef }: Chrome
     const focusAt = (index: number) => {
       const menuItems = enabledItems();
       if (menuItems.length === 0) return;
-      menuItems[(index + menuItems.length) % menuItems.length]?.focus();
+      const nextIndex = (index + menuItems.length) % menuItems.length;
+      menuItems.forEach((item, itemIndex) => {
+        item.tabIndex = itemIndex === nextIndex ? 0 : -1;
+      });
+      menuItems[nextIndex]?.focus();
     };
     let tabCloseTimer: number | undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -106,6 +110,7 @@ export function ChromeMenu({ children, items, label, title, triggerRef }: Chrome
     localTriggerRef.current?.focus();
     item.run();
   };
+  const firstEnabledItemId = items.find((item) => !item.disabled)?.id;
 
   return (
     <div className="chrome-menu" ref={rootRef}>
@@ -129,6 +134,7 @@ export function ChromeMenu({ children, items, label, title, triggerRef }: Chrome
               type="button"
               role="menuitem"
               disabled={item.disabled}
+              tabIndex={item.id === firstEnabledItemId ? 0 : -1}
               onClick={() => runItem(item)}
             >
               <span>{item.label}</span>
