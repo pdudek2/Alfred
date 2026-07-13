@@ -466,7 +466,7 @@ function WorktreeActionStrip({
   const disabled = pendingAction !== undefined;
   return (
     <div
-      className="terminal-action-strip worktree-action-strip"
+      className="terminal-action-strip"
       role="toolbar"
       aria-label={`checkout actions for ${session.title}`}
     >
