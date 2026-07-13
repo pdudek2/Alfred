@@ -1159,7 +1159,8 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const workbenchHeader = await screen.findByTestId("workbench-header");
+    await screen.findByRole("article", { name: /Codex · two/i });
+    const workbenchHeader = screen.getByTestId("workbench-header");
 
     expect(screen.getByRole("button", { name: /Workspace menu for Alfred/i })).not.toHaveTextContent(/2 tiles/);
     expect(workbenchHeader).toHaveAttribute("data-chrome-height", "74");
