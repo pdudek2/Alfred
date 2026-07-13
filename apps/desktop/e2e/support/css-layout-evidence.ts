@@ -5,6 +5,7 @@ import { expect } from "@playwright/test";
 
 export type CssEvidenceStateName =
   | "work-grid"
+  | "prepare-work"
   | "focus"
   | "split"
   | "arrange"
@@ -13,8 +14,7 @@ export type CssEvidenceStateName =
   | "context"
   | "narrow"
   | "command-palette"
-  | "privacy"
-  | "session-quick-switch";
+  | "privacy";
 
 export function captureReadinessForState(
   state: CssEvidenceStateName,

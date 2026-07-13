@@ -38,6 +38,8 @@
   --signal-danger-soft: color-mix(in oklab, var(--signal-danger) 10%, transparent);
   --signal-success: #63d18a;
   --signal-success-soft: color-mix(in oklab, var(--signal-success) 8%, transparent);
+  --tone-error: #ee8f83;
+  --role-active: var(--signal-focus);
 
   --radius-control: 8px;
   --radius-panel: 12px;
@@ -5348,15 +5350,6 @@ body.arranging-pointer {
    dense UI read as product surfaces instead of equal-weight text.
    ============================================================ */
 
-:root {
-  --type-region: 16px;
-  --type-panel-title: 14px;
-  --type-ui: 12px;
-  --tone-waiting: #d8c078;
-  --tone-error: #ee8f83;
-  --tone-active: var(--signal-focus-strong);
-}
-
 /* Region titles: sans for chrome, mono only where data/terminal content needs it. */
 .agent-timeline-header strong,
 .workspace-preview-header strong,
@@ -6853,20 +6846,7 @@ body.arranging-pointer {
 
 }
 
-/* Clean material containment layer. */
-
-/* Terminal-first readability layer. */
-
 /* Terminal-first color role layer. */
-
-:root {
-  --role-active: var(--signal-focus);
-  --role-attention: var(--signal-agent);
-  --role-success: var(--signal-success);
-  --role-neutral-marker: #8d98a5;
-  --role-control: var(--surface-control);
-  --role-control-hover: var(--surface-control-hover);
-}
 
 .agent-activity-object.type-command,
 .agent-activity-object.type-file {

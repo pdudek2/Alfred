@@ -51,6 +51,7 @@ describe("CSS layout evidence comparison", () => {
       selector: ".command-palette-list [role='option'][aria-selected='true']",
     });
     expect(captureReadinessForState("inbox")).toBeNull();
+    expect(captureReadinessForState("prepare-work")).toBeNull();
   });
 
   it("accepts geometry noise up to one pixel", () => {

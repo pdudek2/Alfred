@@ -11,11 +11,11 @@ test.use({ fixtureOptions: { inboxItems: 14, restoredSessions: 2 } });
 test("inbox scrolls, executes a real action, and opens Observatory history", async ({ harness }) => {
   const { page } = harness;
   await expect(page.getByRole("article", { name: /Restored fixture 1/i })).toBeVisible();
-  await page.getByTestId("workbench-header").getByRole("button", { name: /Open Context drawer/i }).click();
+  await selectSurface(page, "Context");
   await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
   await expect(page.getByRole("region", { name: "Alfred review queue" })).toHaveCount(0);
   await page.getByRole("button", { name: "Close Context panel" }).click();
-  await page.getByTestId("primary-nav-rail").getByRole("button", { name: /Open Inbox surface/i }).click();
+  await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
 
   const inbox = page.getByRole("region", { name: "Inbox workspace" });
   await expect(inbox).toBeVisible();
@@ -34,7 +34,8 @@ test("inbox scrolls, executes a real action, and opens Observatory history", asy
     scrollOwner,
     lastItem,
     scrollDelta,
-    (geometry) => geometry.scrollTop > beforeScroll.scrollTop,
+    (geometry) =>
+      geometry.itemTop >= geometry.ownerTop - 2 && geometry.itemBottom <= geometry.ownerBottom + 2,
     "scroll Fixture item 14 into view",
     beforeScroll,
   );
@@ -86,7 +87,7 @@ test("inbox scrolls, executes a real action, and opens Observatory history", asy
     command: "/usr/bin/printf",
   });
 
-  await page.getByRole("button", { name: "Open History surface" }).click();
+  await selectSurface(page, "Observatory");
   const history = page.getByRole("region", { name: "History workspace" });
   await expect(history).toBeVisible();
   await expect(history.getByText("Sessions and project memory", { exact: true })).toBeVisible();
@@ -98,11 +99,16 @@ test("inbox scrolls, executes a real action, and opens Observatory history", asy
     history.getByLabel("Sessions", { exact: true }).getByText("Fixture item 1", { exact: true }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Open Work surface" }).click();
+  await selectSurface(page, "Work");
   await expect(runtimeSurface).toBeVisible();
   harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();
 });
+
+async function selectSurface(page: Page, surface: "Work" | "Observatory" | "Context"): Promise<void> {
+  await page.getByRole("button", { name: "Open Surfaces menu" }).click();
+  await page.getByRole("menuitem", { name: surface }).click();
+}
 
 async function readScrollGeometry(scrollOwner: Locator, item: Locator) {
   const [ownerBox, itemBox, dimensions] = await Promise.all([

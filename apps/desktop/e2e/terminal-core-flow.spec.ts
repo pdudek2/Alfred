@@ -20,9 +20,9 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   await firstInput.press("Enter");
   await expect(page.getByTestId("xterm-host").first()).toContainText(marker);
 
-  await page.getByRole("button", { name: "New terminal" }).click();
+  await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
-  await page.getByRole("button", { name: "New terminal" }).click();
+  await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
 
   await expect(page.getByRole("button", { name: "Focus", exact: true })).toHaveCount(1);
@@ -33,19 +33,19 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   const identityTransitions: string[] = [];
   const surfaceGeometries = [await readActiveSurfaceGeometry(page, "Work initial")];
 
-  await page.getByRole("button", { name: /Open Inbox surface/i }).first().click();
+  await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
   await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
   await expectTerminalNodes(terminalNodes, page, "Inbox");
   identityTransitions.push("Work→Inbox");
   surfaceGeometries.push(await readActiveSurfaceGeometry(page, "Inbox"));
 
-  await page.getByRole("button", { name: "Open History surface" }).click();
+  await selectSurface(page, "Observatory");
   await expect(page.getByRole("region", { name: "History workspace" })).toBeVisible();
   await expectTerminalNodes(terminalNodes, page, "History");
   identityTransitions.push("Inbox→History");
   surfaceGeometries.push(await readActiveSurfaceGeometry(page, "History"));
 
-  await page.getByRole("button", { name: "Open Work surface" }).click();
+  await selectSurface(page, "Work");
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
   await expectTerminalNodes(terminalNodes, page, "Work restored");
   identityTransitions.push("History→Work");
@@ -112,6 +112,16 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();
 });
+
+async function addManualTerminal(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Open launch menu" }).click();
+  await page.getByRole("menuitem", { name: "New manual terminal" }).click();
+}
+
+async function selectSurface(page: Page, surface: "Work" | "Observatory"): Promise<void> {
+  await page.getByRole("button", { name: "Open Surfaces menu" }).click();
+  await page.getByRole("menuitem", { name: surface }).click();
+}
 
 async function captureTerminalNodes(page: Page): Promise<TerminalNodeHandles[]> {
   const tiles = page.getByTestId("terminal-tile");

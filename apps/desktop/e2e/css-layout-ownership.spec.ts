@@ -30,8 +30,6 @@ const frameProbes: CssOwnerProbe[] = [
     properties: ["display", "grid-template-rows", "overflow", "padding", "background-color", "border-radius"] },
   { name: "mission-bar", selector: ".mission-bar", required: true,
     properties: ["display", "min-height", "padding", "gap", "background-color", "border-bottom-width"] },
-  { name: "primary-nav", selector: ".primary-nav-rail", required: true,
-    properties: ["display", "width", "overflow", "padding", "background-color"] },
   { name: "workspace-navigation", selector: ".workspace-navigation-panel", required: true,
     properties: ["display", "width", "min-width", "overflow", "background-color"] },
   { name: "workbench-shell", selector: "[data-testid='workbench-shell']", required: true,
@@ -61,11 +59,16 @@ const terminalProbes: CssOwnerProbe[] = [
     properties: ["display", "width", "height", "min-height", "overflow", "background-color"] },
 ];
 
-const contextAndComposerProbes: CssOwnerProbe[] = [
+const contextProbes: CssOwnerProbe[] = [
   { name: "context-column", selector: "[data-testid='context-column']", required: true,
     properties: ["display", "width", "min-width", "overflow"] },
   { name: "context-drawer", selector: "[data-testid='context-drawer']", required: false,
     properties: ["display", "width", "overflow-x", "overflow-y", "background-color"] },
+];
+
+const prepareWorkProbes: CssOwnerProbe[] = [
+  { name: "prepare-work", selector: ".prepare-work-popover", required: true,
+    properties: ["display", "width", "min-width", "max-width", "background-color", "border-radius"] },
   { name: "composer", selector: ".composer-bar", required: true,
     properties: ["display", "grid-template-columns", "grid-template-rows", "min-height", "padding", "gap", "background-color"] },
 ];
@@ -110,12 +113,12 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 920);
   await expect(page.getByTestId("workbench-header")).toBeVisible();
-  const newTerminalButton = page.getByTestId("workbench-header").getByRole("button", { name: "New terminal" });
-  await newTerminalButton.click();
+  await addManualTerminal(page);
   await expect(page.getByTestId("xterm-host")).toHaveCount(1);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
   await expect(page.locator(".workspace-title-trigger strong")).toHaveText("Fixture Alpha");
-  await expect(page.locator(".workbench-bar-title")).toContainText("Terminal grid2 sessions");
+  await expect(page.getByTestId("workbench-header")).toHaveClass(/is-compact/);
+  await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "40");
 
   const firstHost = page.getByTestId("xterm-host").first();
   const firstScreen = firstHost.locator(".xterm-screen");
@@ -131,19 +134,30 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await terminalInput.press("Enter");
   await expect(firstHost).toContainText(marker);
 
-  await capture("work-grid", [...frameProbes, ...terminalProbes, ...contextAndComposerProbes]);
+  await addManualTerminal(page);
+  await expect(page.getByTestId("xterm-host")).toHaveCount(2);
+  await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
+  await expect(page.getByTestId("workbench-header")).toHaveClass(/is-expanded/);
+  await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "74");
+
+  await capture("work-grid", [...frameProbes, ...terminalProbes]);
+
+  await page.getByRole("button", { name: "Open launch menu" }).click();
+  await page.getByRole("menuitem", { name: "Prepare Work" }).click();
+  await expect(page.getByRole("dialog", { name: "Prepare Work" })).toBeVisible();
+  await capture("prepare-work", [...frameProbes, ...terminalProbes, ...prepareWorkProbes]);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Prepare Work" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Focus", exact: true }).click();
   await expect(page.getByRole("button", { name: "Focus", exact: true })).toHaveAttribute("aria-pressed", "true");
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Focus");
-  await capture("focus", [...frameProbes, ...terminalProbes, ...contextAndComposerProbes]);
+  await capture("focus", [...frameProbes, ...terminalProbes]);
 
-  await newTerminalButton.click();
-  await expect(page.getByTestId("xterm-host")).toHaveCount(2);
   await page.getByRole("button", { name: "Split", exact: true }).click();
   await expect(page.getByRole("button", { name: "Split", exact: true })).toHaveAttribute("aria-pressed", "true");
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Split");
-  await capture("split", [...frameProbes, ...terminalProbes, ...contextAndComposerProbes]);
+  await capture("split", [...frameProbes, ...terminalProbes]);
 
   await page.getByRole("button", { name: "Grid", exact: true }).click();
   await expect(page.getByRole("button", { name: "Grid", exact: true })).toHaveAttribute("aria-pressed", "true");
@@ -151,35 +165,35 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await page.getByRole("button", { name: "Arrange", exact: true }).click();
   await expect(page.getByText("Arrange mode", { exact: true })).toBeVisible();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Arrange");
-  await capture("arrange", [...frameProbes, ...terminalProbes, ...contextAndComposerProbes]);
+  await capture("arrange", [...frameProbes, ...terminalProbes]);
   await page.getByRole("button", { name: "Arrange", exact: true }).click();
   await expect(page.getByRole("button", { name: "Arrange", exact: true })).toHaveAttribute("aria-pressed", "false");
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Arrange closed");
 
-  await page.getByTestId("primary-nav-rail").getByRole("button", { name: /Open Inbox surface/i }).click();
+  await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
   await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Inbox");
   await capture("inbox", [...frameProbes, ...inboxProbes]);
 
-  await page.getByRole("button", { name: "Open History surface" }).click();
+  await selectSurface(page, "Observatory");
   await expect(page.getByRole("region", { name: "History workspace" })).toBeVisible();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Observatory");
   await capture("observatory", [...frameProbes, ...observatoryProbes]);
 
-  await page.getByRole("button", { name: "Open Work surface" }).click();
+  await selectSurface(page, "Work");
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Work restored after surfaces");
   await expect(firstHost).toContainText(marker);
-  await page.getByTestId("workbench-header").getByRole("button", { name: /Open Context drawer/i }).click();
+  await selectSurface(page, "Context");
   await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Context");
-  await capture("context", [...frameProbes, ...terminalProbes, ...contextAndComposerProbes]);
+  await capture("context", [...frameProbes, ...terminalProbes, ...contextProbes]);
 
   await page.getByRole("button", { name: "Close Context panel" }).click();
   await page.getByRole("button", { name: "Grid", exact: true }).click();
   await setWindowSize(app, page, 1120, 720);
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow Grid");
-  await capture("narrow", [...frameProbes, ...terminalProbes, ...contextAndComposerProbes]);
+  await capture("narrow", [...frameProbes, ...terminalProbes]);
 
   await setWindowSize(app, page, 1440, 920);
   await page.getByRole("button", { name: "Open command palette" }).click();
@@ -188,7 +202,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Command palette" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Open Local Data & Privacy" }).click();
+  await selectSurface(page, "Local Data & Privacy");
   await expect(page.getByRole("dialog", { name: "Local Data & Privacy" })).toBeVisible();
   await capture("privacy", [...frameProbes, ...overlayProbes.privacy]);
   await page.getByRole("button", { name: "Close privacy controls" }).click();
@@ -234,6 +248,19 @@ test("captures deterministic CSS ownership evidence across core states and overl
     });
   }
 });
+
+async function addManualTerminal(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Open launch menu" }).click();
+  await page.getByRole("menuitem", { name: "New manual terminal" }).click();
+}
+
+async function selectSurface(
+  page: Page,
+  surface: "Work" | "Observatory" | "Context" | "Local Data & Privacy",
+): Promise<void> {
+  await page.getByRole("button", { name: "Open Surfaces menu" }).click();
+  await page.getByRole("menuitem", { name: surface }).click();
+}
 
 async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {
   const handle = await locator.elementHandle();
