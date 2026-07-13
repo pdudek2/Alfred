@@ -1154,6 +1154,37 @@ describe("App integration", () => {
     expect(screen.queryByText(/2 tiles · 0 staged/i)).not.toBeInTheDocument();
   });
 
+  it("keeps one-session Focus compact with the primary row as its only session chrome", async () => {
+    installDesktopBridge(
+      undefined,
+      null,
+      [liveSnapshot("solo", { title: "Codex · solo" })],
+      undefined,
+      {
+        layoutsByWorkspace: {},
+        viewStateByWorkspace: {
+          A: { workMode: "focus", selectedSessionId: "solo" },
+        },
+      },
+    );
+
+    render(<App />);
+
+    const workbenchHeader = await screen.findByTestId("workbench-header");
+    expect(workbenchHeader).toHaveAttribute("data-chrome-height", "40");
+    expect(within(workbenchHeader).queryByRole("toolbar", { name: "Session and layout controls" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tablist", { name: "Sessions" })).not.toBeInTheDocument();
+    const primarySessionContext = workbenchHeader.querySelector(".workbench-primary-row .workbench-session-context");
+    expect(primarySessionContext).toHaveTextContent("Codex · solo");
+    expect(primarySessionContext).toHaveTextContent("…/Desktop/Alfred · main");
+
+    const visibleTiles = screen.getAllByTestId("terminal-tile").filter(
+      (tile) => tile.getAttribute("aria-hidden") !== "true",
+    );
+    expect(visibleTiles).toHaveLength(1);
+    expect(visibleTiles[0]?.querySelector(".terminal-tile-header")).toBeNull();
+  });
+
   it("uses session tabs as the only Focus header without replacing xterm", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
@@ -1166,11 +1197,11 @@ describe("App integration", () => {
 
     await user.click(screen.getByRole("button", { name: "Focus" }));
 
-    const visibleTile = screen.getAllByTestId("terminal-tile").find(
+    const visibleTiles = screen.getAllByTestId("terminal-tile").filter(
       (tile) => tile.getAttribute("aria-hidden") !== "true",
     );
-    expect(visibleTile).toBeInstanceOf(HTMLElement);
-    expect(visibleTile?.querySelector(".terminal-tile-header")).toBeNull();
+    expect(visibleTiles).toHaveLength(1);
+    expect(visibleTiles[0]?.querySelector(".terminal-tile-header")).toBeNull();
     expect(screen.getByRole("tablist", { name: "Sessions" })).toBeInTheDocument();
     expect(screen.queryByRole("toolbar", { name: "focus session switcher" })).not.toBeInTheDocument();
     expect(screen.getAllByTestId("xterm-host")[0]).toBe(firstHost);
@@ -1185,13 +1216,44 @@ describe("App integration", () => {
 
     await user.click(await screen.findByRole("button", { name }));
 
-    expect(screen.queryByRole("tablist", { name: "Sessions" })).not.toBeInTheDocument();
     const visibleTiles = screen.getAllByTestId("terminal-tile").filter(
       (tile) => tile.getAttribute("aria-hidden") !== "true",
     );
+    expect(visibleTiles).toHaveLength(2);
+    expect(screen.queryByRole("tablist", { name: "Sessions" })).not.toBeInTheDocument();
     visibleTiles.forEach((tile) => {
       expect(tile.querySelector(".terminal-tile-header")).not.toBeNull();
     });
+  });
+
+  it("uses tile headers only while arranging from Focus without replacing xterms", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Focus" }));
+    const initialHosts = screen.getAllByTestId("xterm-host");
+    expect(initialHosts).toHaveLength(2);
+    const disposeCountBeforeArrange = terminalDisposeCalls.length;
+
+    await user.click(screen.getByRole("button", { name: "Arrange" }));
+
+    const visibleTiles = screen.getAllByTestId("terminal-tile").filter(
+      (tile) => tile.getAttribute("aria-hidden") !== "true",
+    );
+    expect(visibleTiles).toHaveLength(2);
+    expect(screen.queryByRole("tablist", { name: "Sessions" })).not.toBeInTheDocument();
+    visibleTiles.forEach((tile) => {
+      expect(tile.querySelector(".terminal-tile-header")).not.toBeNull();
+    });
+    const arrangedHosts = screen.getAllByTestId("xterm-host");
+    expect(arrangedHosts).toHaveLength(initialHosts.length);
+    arrangedHosts.forEach((host, index) => {
+      expect(host).toBe(initialHosts[index]);
+      expect(host.isConnected).toBe(true);
+    });
+    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeArrange);
   });
 
   it("renders the normal terminal stage without a local header", async () => {
@@ -3498,7 +3560,6 @@ describe("App integration", () => {
         args: [],
         buffer: "",
       },
-      liveSnapshot("companion", { title: "Codex · companion" }),
     ]);
     worktreeApply.mockImplementation(() =>
       new Promise((resolve) => {
@@ -3514,12 +3575,16 @@ describe("App integration", () => {
     fireEvent.click(within(checkoutActions).getByRole("button", { name: "Apply to project" }));
     await waitFor(() => expect(within(checkoutActions).getByRole("button", { name: "Applying..." })).toBeDisabled());
 
-    await user.click(screen.getByRole("button", { name: "Rename Codex · isolated review" }));
-    const input = screen.getByRole("textbox", { name: "Rename Codex · isolated review" });
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await submitCommandPalette(user, "arrange tiles");
+    const arrangedTile = screen.getByRole("article", { name: /Codex · isolated review/i });
+    await user.click(within(arrangedTile).getByRole("button", { name: "Rename Codex · isolated review" }));
+    const input = within(arrangedTile).getByRole("textbox", { name: "Rename Codex · isolated review" });
     await user.clear(input);
     await user.type(input, "Spec reviewer{Enter}");
 
     expect(renameTerminal).toHaveBeenCalledWith({ clientId: "codex-1", title: "Spec reviewer" });
+    await user.click(screen.getByRole("button", { name: "Arrange" }));
     expect(screen.getByRole("toolbar", { name: "checkout actions for Spec reviewer" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Applying..." })).toBeDisabled();
 
@@ -3551,7 +3616,6 @@ describe("App integration", () => {
         args: [],
         buffer: "",
       },
-      liveSnapshot("companion", { title: "Codex · companion" }),
     ]);
     worktreeApply.mockImplementation(async () => {
       const result = await new Promise<{ ok: true; appliedFiles: number }>((resolve) => {
@@ -3569,7 +3633,8 @@ describe("App integration", () => {
     fireEvent.click(within(oldActions).getByRole("button", { name: "Apply to project" }));
     await waitFor(() => expect(within(oldActions).getByRole("button", { name: "Applying..." })).toBeDisabled());
 
-    await user.click(screen.getByRole("button", { name: "Close Codex · isolated review" }));
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await submitCommandPalette(user, "close focused session");
     await waitFor(() => expect(screen.queryByRole("article", { name: /Codex · isolated review/i })).not.toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
@@ -3582,9 +3647,6 @@ describe("App integration", () => {
         }),
       );
     });
-    await user.click(
-      within(screen.getByRole("tablist", { name: "Sessions" })).getByRole("tab", { name: /Codex · session 1/ }),
-    );
     const newTile = await screen.findByRole("article", { name: /Codex · session 1/i });
 
     resolveApply({ ok: true, appliedFiles: 1 });

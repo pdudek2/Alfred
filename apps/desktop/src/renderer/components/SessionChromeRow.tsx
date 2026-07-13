@@ -53,7 +53,7 @@ export function SessionChromeRow({
 
   return (
     <div className="session-chrome-row" role="toolbar" aria-label="Session and layout controls">
-      {workMode === "focus" && (
+      {workMode === "focus" && !arrangeMode && (
         <div className="session-chrome-tabs" role="tablist" aria-label="Sessions">
           {chromeSessions.map((session) => {
             const status = terminalSessionDisplayStatus(session);

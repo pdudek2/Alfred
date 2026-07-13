@@ -84,6 +84,14 @@ describe("SessionChromeRow", () => {
     expect(screen.getByRole("group", { name: "Layout mode" })).toBeInTheDocument();
   });
 
+  it("uses tile headers instead of session tabs while arranging from Focus", () => {
+    renderRow({ workMode: "focus", arrangeMode: true, sessions: [liveA, liveB] });
+
+    expect(screen.queryByRole("tablist", { name: "Sessions" })).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Layout mode" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Arrange" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("renames and closes only from the active Focus tab", async () => {
     const user = userEvent.setup();
     const onRenameSession = vi.fn();
