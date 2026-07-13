@@ -10,6 +10,13 @@ import { expect, test } from "./support/electron-app";
 
 type DesktopTerminalWindow = Window & {
   alfredDesktop?: { terminal: TerminalApi };
+  alfredE2eTerminalDataWaits?: Map<
+    string,
+    {
+      result: Promise<{ ok: true } | { ok: false; error: string }>;
+      cleanup: () => void;
+    }
+  >;
 };
 
 test.use({ fixtureOptions: { activeWorkspaceId: "A" } });
@@ -49,8 +56,18 @@ test("workspace switch keeps the same xterm node and streams background output",
   expect(await screenBefore.evaluate((node) => node.isConnected)).toBe(true);
 
   const backgroundMarker = `ALFRED_E2E_BACKGROUND_${randomUUID()}`;
-  await writeMainProcessTerminal(page, runtimeId, `${encodedPrintCommand(backgroundMarker)}\r`);
-  await expect.poll(async () => (await snapshotMainProcessTerminal(page, runtimeId)).buffer).toContain(backgroundMarker);
+  const rendererDataWait = await installRendererTerminalDataWait(page, runtimeId, backgroundMarker);
+  try {
+    await writeMainProcessTerminal(page, runtimeId, `${encodedPrintCommand(backgroundMarker)}\r`);
+    await Promise.all([
+      expect
+        .poll(async () => (await snapshotMainProcessTerminal(page, runtimeId)).buffer)
+        .toContain(backgroundMarker),
+      rendererDataWait.received,
+    ]);
+  } finally {
+    await rendererDataWait.cleanup();
+  }
 
   await alphaWorkspace.click();
   await expect(alphaWorkspace).toHaveAttribute("aria-selected", "true");
@@ -63,7 +80,7 @@ test("workspace switch keeps the same xterm node and streams background output",
     screenAfter,
   );
   expect(sameNode).toBe(true);
-  await expect(page.getByTestId("xterm-host")).toContainText(backgroundMarker);
+  await expect(alphaTile.locator(".xterm-screen")).toContainText(backgroundMarker);
   const afterReturnRuntimes = await listMainProcessTerminals(page);
   expect(afterReturnRuntimes.sessions).toHaveLength(1);
   expect(afterReturnRuntimes.sessions[0]?.id).toBe(runtimeId);
@@ -107,6 +124,71 @@ async function writeMainProcessTerminal(page: Page, id: string, data: string): P
     if (!terminalApi) throw new Error("Desktop terminal API is unavailable.");
     terminalApi.write({ id: runtimeId, data: input });
   }, { runtimeId: id, input: data });
+}
+
+async function installRendererTerminalDataWait(
+  page: Page,
+  id: string,
+  marker: string,
+): Promise<{ received: Promise<void>; cleanup: () => Promise<void> }> {
+  const waitId = randomUUID();
+  await page.evaluate(({ runtimeId, expectedMarker, key }) => {
+    const desktopWindow = window as DesktopTerminalWindow;
+    const terminalApi = desktopWindow.alfredDesktop?.terminal;
+    if (!terminalApi) throw new Error("Desktop terminal API is unavailable.");
+    const waits = desktopWindow.alfredE2eTerminalDataWaits ?? new Map();
+    desktopWindow.alfredE2eTerminalDataWaits = waits;
+    if (waits.has(key)) throw new Error(`Renderer terminal data wait ${key} already exists.`);
+
+    let accumulated = "";
+    let settled = false;
+    let unsubscribe = () => {};
+    let resolveResult!: (result: { ok: true } | { ok: false; error: string }) => void;
+    const result = new Promise<{ ok: true } | { ok: false; error: string }>((resolve) => {
+      resolveResult = resolve;
+    });
+    const finish = (waitResult: { ok: true } | { ok: false; error: string }) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      unsubscribe();
+      resolveResult(waitResult);
+    };
+    const timeoutId = window.setTimeout(() => {
+      finish({
+        ok: false,
+        error: `Timed out waiting for renderer terminal data ${expectedMarker}.`,
+      });
+    }, 15_000);
+    unsubscribe = terminalApi.onData((event) => {
+      if (event.id !== runtimeId) return;
+      accumulated += event.data;
+      if (accumulated.includes(expectedMarker)) finish({ ok: true });
+    });
+    waits.set(key, {
+      result,
+      cleanup: () => finish({ ok: false, error: `Renderer terminal data wait ${key} was cancelled.` }),
+    });
+  }, { runtimeId: id, expectedMarker: marker, key: waitId });
+
+  const received = page.evaluate(async (key) => {
+    const wait = (window as DesktopTerminalWindow).alfredE2eTerminalDataWaits?.get(key);
+    if (!wait) throw new Error(`Renderer terminal data wait ${key} is missing.`);
+    const result = await wait.result;
+    if (!result.ok) throw new Error(result.error);
+  }, waitId);
+
+  return {
+    received,
+    cleanup: async () => {
+      await page.evaluate((key) => {
+        const waits = (window as DesktopTerminalWindow).alfredE2eTerminalDataWaits;
+        const wait = waits?.get(key);
+        wait?.cleanup();
+        waits?.delete(key);
+      }, waitId);
+    },
+  };
 }
 
 async function listMainProcessTerminals(page: Page): Promise<TerminalListResult> {
