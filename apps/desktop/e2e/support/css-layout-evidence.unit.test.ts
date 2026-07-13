@@ -32,7 +32,7 @@ describe("CSS layout evidence comparison", () => {
     expect(privacySafeScreenshotStyle).toContain(".agent-context-essentials");
     expect(privacySafeScreenshotStyle).toContain(".workspace-button-details > span");
     expect(privacySafeScreenshotStyle).toContain(".observatory-project-copy small");
-    expect(privacySafeScreenshotStyle).toContain(".session-observatory-copy small");
+    expect(privacySafeScreenshotStyle).not.toContain(".session-observatory-");
     expect(privacySafeScreenshotStyle).toContain(".command-palette-list button small");
     expect(privacySafeScreenshotStyle).toContain(".workspace-title-trigger small");
     expect(privacySafeScreenshotStyle).toContain(".staged-command");
