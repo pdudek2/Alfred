@@ -1,18 +1,35 @@
-import { useEffect, useRef, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 
 type PrepareWorkPopoverProps = {
   children: ReactNode;
+  dismissalSuspended?: boolean;
   onClose: () => void;
   triggerRef: RefObject<HTMLButtonElement | null>;
 };
 
-export function PrepareWorkPopover({ children, onClose, triggerRef }: PrepareWorkPopoverProps) {
+export function PrepareWorkPopover({
+  children,
+  dismissalSuspended = false,
+  onClose,
+  triggerRef,
+}: PrepareWorkPopoverProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const lastFocusedElementRef = useRef<HTMLElement | null>(null);
+  const previouslySuspendedRef = useRef(dismissalSuspended);
   const previouslyFocusedRef = useRef<HTMLElement | null>(
     document.activeElement instanceof HTMLElement ? document.activeElement : null,
   );
 
+  useLayoutEffect(() => {
+    if (previouslySuspendedRef.current && !dismissalSuspended) {
+      lastFocusedElementRef.current?.focus();
+    }
+    previouslySuspendedRef.current = dismissalSuspended;
+  }, [dismissalSuspended]);
+
   useEffect(() => {
+    if (dismissalSuspended) return;
+
     const closeAndRestoreFocus = () => {
       onClose();
       const focusTarget = triggerRef.current ?? previouslyFocusedRef.current;
@@ -34,10 +51,18 @@ export function PrepareWorkPopover({ children, onClose, triggerRef }: PrepareWor
       document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("pointerdown", handlePointerDown);
     };
-  }, [onClose, triggerRef]);
+  }, [dismissalSuspended, onClose, triggerRef]);
 
   return (
-    <div ref={dialogRef} className="prepare-work-popover" role="dialog" aria-label="Prepare Work">
+    <div
+      ref={dialogRef}
+      className="prepare-work-popover"
+      role="dialog"
+      aria-label="Prepare Work"
+      onFocusCapture={(event) => {
+        lastFocusedElementRef.current = event.target as HTMLElement;
+      }}
+    >
       {children}
     </div>
   );

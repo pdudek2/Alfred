@@ -2078,10 +2078,9 @@ export function App() {
         </div>
         {prepareWorkOpen && (
           <PrepareWorkPopover
+            dismissalSuspended={commandPaletteOpen || privacyPanelOpen}
             triggerRef={prepareWorkTriggerRef}
-            onClose={() => {
-              if (!commandPaletteOpen) setPrepareWorkOpen(false);
-            }}
+            onClose={() => setPrepareWorkOpen(false)}
           >
             <ComposerBar
               autoFocus
