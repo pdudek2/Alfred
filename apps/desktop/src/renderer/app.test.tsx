@@ -3577,6 +3577,10 @@ describe("App integration", () => {
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "arrange tiles");
+    const arrangingCheckoutActions = screen.getByRole("toolbar", {
+      name: "checkout actions for Codex · isolated review",
+    });
+    expect(within(arrangingCheckoutActions).getByRole("button", { name: "Applying..." })).toBeDisabled();
     const arrangedTile = screen.getByRole("article", { name: /Codex · isolated review/i });
     await user.click(within(arrangedTile).getByRole("button", { name: "Rename Codex · isolated review" }));
     const input = within(arrangedTile).getByRole("textbox", { name: "Rename Codex · isolated review" });

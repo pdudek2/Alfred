@@ -133,13 +133,13 @@ export function TerminalDesk({
   const activeSessions = sessions.filter((session) => session.workspaceId === activeWorkspaceId);
   const activeLayouts = layouts;
   const selectedSession = selectedSessionForDesk(activeSessions, selectedSessionId);
-  const focusSession = workMode === "focus" && !arrangeMode
+  const focusSession = workMode === "focus"
     ? selectedSession ?? focusedSession(activeSessions, activeLayouts) ?? activeSessions[0] ?? null
     : null;
   const splitSessions = workMode === "split"
     ? splitSessionsForDesk(activeSessions, selectedSessionId, activeLayouts)
     : activeSessions;
-  const visibleSessions = focusSession ? [focusSession] : splitSessions;
+  const visibleSessions = arrangeMode ? activeSessions : focusSession ? [focusSession] : splitSessions;
   const renderedSessions = sessions.filter(
     (session) => session.stage === "live" || session.workspaceId === activeWorkspaceId,
   );
@@ -334,7 +334,7 @@ export function TerminalDesk({
           )}
           {renderedSessions.map((session) => {
             const workspaceHidden = session.workspaceId !== activeWorkspaceId;
-            const layoutHidden = !workspaceHidden && Boolean(
+            const layoutHidden = !workspaceHidden && !arrangeMode && Boolean(
               (focusSession && session.id !== focusSession.id) ||
                 (workMode === "split" && !visibleSessionIds.has(session.id)),
             );
