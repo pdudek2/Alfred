@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
 import { TerminalDesk } from "./components/TerminalDesk";
 import type { SessionTile } from "./session-state";
-import type { TerminalTailProjection } from "./terminal-tail-projection";
 import { alfredGraphiteTerminalProfile } from "./terminal-visual-profile";
 import type {
   AlfredApi,
@@ -28,13 +27,9 @@ import type { ExternalCodexSessionSummary, SessionIndexApi } from "../shared/ses
 import type { DesktopPrivacySettings, DesktopSaveStatus, DesktopStateApi } from "../shared/desktop-state-ipc";
 import { appendActivityEvent, type SessionActivityEvent } from "../shared/session-activity";
 
-const { terminalConstructorOptions, terminalDisposeCalls, terminalWriteControl } = vi.hoisted(() => ({
+const { terminalConstructorOptions, terminalDisposeCalls } = vi.hoisted(() => ({
   terminalConstructorOptions: [] as unknown[],
   terminalDisposeCalls: [] as unknown[],
-  terminalWriteControl: {
-    deferCallbacks: false,
-    pendingCallbacks: [] as Array<() => void>,
-  },
 }));
 
 const rendererStyles = readFileSync(resolve(process.cwd(), "src/renderer/styles.css"), "utf8");
@@ -61,38 +56,15 @@ vi.mock("@xterm/xterm", () => ({
     open = vi.fn((element: HTMLElement) => {
       this.element = element;
     });
-    output = "";
-    get buffer() {
-      const lines = this.output.split("\n");
-      return {
-        active: {
-          baseY: Math.max(0, lines.length - this.rows),
-          length: lines.length,
-          getLine: (index: number) => {
-            const value = lines[index];
-            return value === undefined
-              ? undefined
-              : { translateToString: () => value };
-          },
-        },
-      };
-    }
     resize = vi.fn((cols: number, rows: number) => {
       this.cols = cols;
       this.rows = rows;
     });
     write = vi.fn((data: string, callback?: () => void) => {
-      this.output += data;
       this.element?.append(data);
-      if (!callback) return;
-      if (terminalWriteControl.deferCallbacks) {
-        terminalWriteControl.pendingCallbacks.push(callback);
-      } else {
-        callback();
-      }
+      callback?.();
     });
     writeln = vi.fn((data = "") => {
-      this.output += `${data}\n`;
       this.element?.append(`${data}\n`);
     });
 
@@ -448,8 +420,6 @@ function deferred<T>() {
 beforeEach(() => {
   terminalConstructorOptions.length = 0;
   terminalDisposeCalls.length = 0;
-  terminalWriteControl.deferCallbacks = false;
-  terminalWriteControl.pendingCallbacks.length = 0;
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
@@ -463,16 +433,8 @@ afterEach(() => {
   delete window.alfredDesktop;
 });
 
-type TerminalDeskTestOverrides = {
-  onTerminalTailChange?: (
-    sessionId: string,
-    projection: TerminalTailProjection | null,
-  ) => void;
-};
-
 function renderTerminalDeskForSessions(
   sessions: SessionTile[],
-  overrides: TerminalDeskTestOverrides = {},
 ) {
   const callbacks = {
     onBindWorkspace: vi.fn(),
@@ -493,7 +455,6 @@ function renderTerminalDeskForSessions(
     onRuntimeSessionReady: vi.fn(),
     onRuntimeSessionStarting: vi.fn(() => true),
     onRuntimeSessionUnavailable: vi.fn(),
-    onTerminalTailChange: vi.fn(),
     onRenameSession: vi.fn(),
     onFocusSession: vi.fn(),
     onSelectSession: vi.fn(),
@@ -519,7 +480,6 @@ function renderTerminalDeskForSessions(
       workspaceLabel="Alfred"
       workspaceRootPath="/Users/patryk/Desktop/Alfred"
       {...callbacks}
-      {...overrides}
     />
   );
 
@@ -1365,82 +1325,6 @@ describe("App integration", () => {
     expect(screen.queryByRole("button", { name: "Focus" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Split" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Grid" })).not.toBeInTheDocument();
-  });
-
-  it("publishes an xterm-derived tail after parsed output and removes it on explicit unmount", async () => {
-    const bridge = installDesktopBridge();
-    const session: SessionTile = {
-      id: "codex-tail",
-      runtimeId: "runtime-tail",
-      title: "Codex · tail",
-      workspaceId: "A",
-      cwd: "/Users/patryk/Desktop/Alfred",
-      source: "manual",
-      stage: "live",
-      runtimeStatus: "live",
-      agentKind: "codex",
-      command: "codex",
-      args: [],
-      initialBuffer: "",
-    };
-    const onTerminalTailChange = vi.fn();
-    const { unmount } = renderTerminalDeskForSessions([session], { onTerminalTailChange });
-
-    await bridge.emitData({
-      id: "runtime-tail",
-      data: "first\nsecond\n",
-      activities: [],
-    });
-
-    await waitFor(() => {
-      expect(onTerminalTailChange).toHaveBeenLastCalledWith(
-        "codex-tail",
-        expect.objectContaining({ lines: ["first", "second"], source: "xterm-projection" }),
-      );
-    });
-
-    unmount();
-    expect(onTerminalTailChange).toHaveBeenLastCalledWith("codex-tail", null);
-  });
-
-  it("does not republish a terminal tail when a queued xterm write completes after unmount", async () => {
-    terminalWriteControl.deferCallbacks = true;
-    const bridge = installDesktopBridge();
-    const session: SessionTile = {
-      id: "codex-tail-race",
-      runtimeId: "runtime-tail-race",
-      title: "Codex · tail race",
-      workspaceId: "A",
-      cwd: "/Users/patryk/Desktop/Alfred",
-      source: "manual",
-      stage: "live",
-      runtimeStatus: "live",
-      agentKind: "codex",
-      command: "codex",
-      args: [],
-      initialBuffer: "",
-    };
-    const onTerminalTailChange = vi.fn();
-    const { unmount } = renderTerminalDeskForSessions([session], { onTerminalTailChange });
-
-    await bridge.emitData({
-      id: "runtime-tail-race",
-      data: "queued output\n",
-      activities: [],
-    });
-    expect(terminalWriteControl.pendingCallbacks).toHaveLength(1);
-
-    unmount();
-    expect(onTerminalTailChange).toHaveBeenLastCalledWith("codex-tail-race", null);
-
-    act(() => {
-      for (const callback of terminalWriteControl.pendingCallbacks.splice(0)) {
-        callback();
-      }
-    });
-
-    expect(onTerminalTailChange).toHaveBeenCalledTimes(1);
-    expect(onTerminalTailChange).toHaveBeenLastCalledWith("codex-tail-race", null);
   });
 
   it("keeps non-visible Split terminals mounted and replayable when returning to Grid", async () => {

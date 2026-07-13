@@ -73,7 +73,6 @@ import {
   type SessionTile,
 } from "./session-state";
 import { terminalSessionDisplayStatus } from "./session-status";
-import type { TerminalTailProjection } from "./terminal-tail-projection";
 import { sessionTileKind, tileKindMeta } from "./tile-kind";
 import { recordPreviewUrlsFromText, type PreviewUrlCandidate } from "./preview-state";
 import type { WorkMode } from "./terminal-desk-types";
@@ -204,7 +203,6 @@ export function App() {
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
   const worktreeActionPendingRef = useRef<Set<string>>(new Set());
   const terminalSessionsRef = useRef<SessionTile[]>([]);
-  const terminalTailProjectionsRef = useRef(new Map<string, TerminalTailProjection>());
   const announcedSessionStatusesRef = useRef<Map<string, string>>(new Map());
   const sessionStatusAnnouncementsReadyRef = useRef<boolean>(false);
   const workspaceStateHydratedRef = useRef<boolean>(false);
@@ -1209,17 +1207,6 @@ export function App() {
     setTerminalSessions((sessions) => recordSessionOutputActivity(sessions, event));
   }, []);
 
-  const handleTerminalTailChange = useCallback((
-    sessionId: string,
-    projection: TerminalTailProjection | null,
-  ) => {
-    if (projection) {
-      terminalTailProjectionsRef.current.set(sessionId, projection);
-    } else {
-      terminalTailProjectionsRef.current.delete(sessionId);
-    }
-  }, []);
-
   const handleRuntimeSessionSnapshot = useCallback((sessionId: string, snapshot: TerminalSessionSnapshot) => {
     setTerminalSessions((sessions) =>
       sessions.map((session) => {
@@ -1989,7 +1976,6 @@ export function App() {
                 onRuntimeSessionFailed={handleRuntimeSessionFailed}
                 onRuntimeSessionExited={handleRuntimeSessionExited}
                 onRuntimeSessionOutput={handleRuntimeSessionOutput}
-                onTerminalTailChange={handleTerminalTailChange}
                 onRuntimeSessionReplayBuffer={handleRuntimeSessionReplayBuffer}
                 onRuntimeSessionSnapshot={handleRuntimeSessionSnapshot}
                 onRuntimeSessionReady={handleRuntimeSessionReady}
