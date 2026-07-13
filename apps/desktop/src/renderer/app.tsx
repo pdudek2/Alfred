@@ -27,7 +27,6 @@ import { ContextColumn } from "./components/ContextColumn";
 import { ObservatorySurface } from "./components/ObservatorySurface";
 import { PrepareWorkPopover } from "./components/PrepareWorkPopover";
 import { ReviewSurface } from "./components/ReviewSurface";
-import { SessionObservatoryPanel } from "./components/SessionObservatoryPanel";
 import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
 import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHeader";
 import { WorkspaceRail, type WorkspaceRailWorkspace } from "./components/WorkspaceRail";
@@ -178,7 +177,6 @@ export function App() {
   const [privacyPanelOpen, setPrivacyPanelOpen] = useState<boolean>(false);
   const [privacySettings, setPrivacySettings] = useState<DesktopPrivacySettings>(DEFAULT_PRIVACY_SETTINGS);
   const [desktopSaveStatus, setDesktopSaveStatus] = useState<DesktopSaveStatus>({ status: "saved" });
-  const [sessionObservatoryOpen, setSessionObservatoryOpen] = useState<boolean>(false);
   const [activeSurface, setActiveSurface] = useState<PrimarySurface>("work");
   const [workspaceHydrationStatus, setWorkspaceHydrationStatus] = useState<WorkspaceHydrationStatus>({
     status: "loading",
@@ -239,7 +237,6 @@ export function App() {
     activeDispatchTargets.find((target) => dispatchTargetsEqual(target, savedDispatchTarget)) ??
     activeDispatchTargets[0] ??
     null;
-  const activeImportantSignalCount = importantContextSignalCount(activeInspectedSession);
   const activePendingPlan = pendingPlan?.workspaceId === activeWorkspace.id ? pendingPlan : null;
   const canCloseActiveWorkspace =
     activeWorkspace.id !== DEFAULT_WORKSPACE_ID && workspaces.length > 1 && activeSessions.length === 0;
@@ -678,7 +675,6 @@ export function App() {
   const handleOpenInbox = useCallback(() => {
     setCommandPaletteOpen(false);
     setCommandQuery("");
-    setSessionObservatoryOpen(false);
     setActiveSurface("inbox");
   }, []);
 
@@ -1436,14 +1432,12 @@ export function App() {
   }, []);
 
   const handleOpenCommandPalette = useCallback(() => {
-    setSessionObservatoryOpen(false);
     setPrivacyPanelOpen(false);
     setCommandQuery("");
     setCommandPaletteOpen(true);
   }, []);
 
   const handleOpenPrivacyPanel = useCallback(() => {
-    setSessionObservatoryOpen(false);
     setCommandPaletteOpen(false);
     setCommandQuery("");
     setPrivacyPanelOpen(true);
@@ -1456,17 +1450,6 @@ export function App() {
   const handleCloseCommandPalette = useCallback(() => {
     setCommandPaletteOpen(false);
     setCommandQuery("");
-  }, []);
-
-  const handleOpenSessionObservatory = useCallback(() => {
-    setPrivacyPanelOpen(false);
-    setCommandPaletteOpen(false);
-    setCommandQuery("");
-    setSessionObservatoryOpen(true);
-  }, []);
-
-  const handleCloseSessionObservatory = useCallback(() => {
-    setSessionObservatoryOpen(false);
   }, []);
 
   const handleRefreshExternalCodexSessions = useCallback(async () => {
@@ -1624,7 +1607,7 @@ export function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (commandPaletteOpen || sessionObservatoryOpen || privacyPanelOpen) {
+      if (commandPaletteOpen || privacyPanelOpen) {
         const shortcutPressed = event.metaKey || event.ctrlKey;
         const key = event.key.toLowerCase();
         const appShortcut =
@@ -1717,7 +1700,6 @@ export function App() {
     handleOpenSessionTerminal,
     handleSelectWorkspace,
     privacyPanelOpen,
-    sessionObservatoryOpen,
     workspaces,
   ]);
 
@@ -2097,7 +2079,9 @@ export function App() {
         {prepareWorkOpen && (
           <PrepareWorkPopover
             triggerRef={prepareWorkTriggerRef}
-            onClose={() => setPrepareWorkOpen(false)}
+            onClose={() => {
+              if (!commandPaletteOpen) setPrepareWorkOpen(false);
+            }}
           >
             <ComposerBar
               autoFocus
@@ -2110,7 +2094,7 @@ export function App() {
               dispatchTarget={activeDispatchTarget}
               lastDispatchDestination={lastDispatchDestination}
               thinking={isThinking(alfredStatus)}
-              disabled={commandPaletteOpen || sessionObservatoryOpen || privacyPanelOpen}
+              disabled={commandPaletteOpen || privacyPanelOpen}
               onBlockedAction={
                 stagedWorkspaceId
                   ? () => handleSelectWorkspace(stagedWorkspaceId)
@@ -2179,15 +2163,6 @@ export function App() {
             onRestartSession={handleRestartSession}
             onSelectWorkspace={handleSelectWorkspace}
             onToggleArrange={handleToggleArrangeMode}
-          />
-        )}
-        {sessionObservatoryOpen && (
-          <SessionObservatoryPanel
-            activeWorkspaceId={activeWorkspace.id}
-            sessions={terminalSessions}
-            workspaces={workspaces}
-            onClose={handleCloseSessionObservatory}
-            onOpenSession={handleFocusSessionInWorkspace}
           />
         )}
       </section>
@@ -3207,20 +3182,6 @@ function dispatchTargetsEqual(
   right: DispatchTargetSnapshot | null | undefined,
 ): boolean {
   return Boolean(left && right && left.kind === right.kind && left.id === right.id);
-}
-
-function importantContextSignalCount(session: SessionTile | null): number {
-  if (!session) return 0;
-  let count = 0;
-  if (session.stage === "staged") count += 1;
-  if (session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error") {
-    count += 1;
-  }
-  if (session.safetyNote || isLaunchBlocked(session)) count += 1;
-  if (session.activityEvents?.some((event) => event.kind === "error" || event.kind === "warning" || event.kind === "approval")) {
-    count += 1;
-  }
-  return Math.min(count, 9);
 }
 
 function createScratchWorkspaceState(workspaces: Workspace[]): WorkspaceStateSnapshot {
