@@ -437,7 +437,7 @@ function BlockedStagedLaunchDetails({
 
   return (
     <section
-      className="focus-session-strip"
+      className="terminal-action-strip"
       role="note"
       aria-label={`Blocked launch details for ${session.title}`}
     >
@@ -466,7 +466,7 @@ function WorktreeActionStrip({
   const disabled = pendingAction !== undefined;
   return (
     <div
-      className="focus-session-strip worktree-action-strip"
+      className="terminal-action-strip worktree-action-strip"
       role="toolbar"
       aria-label={`checkout actions for ${session.title}`}
     >
