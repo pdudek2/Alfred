@@ -99,4 +99,55 @@ describe("SessionChromeRow", () => {
     expect(onCloseSession).toHaveBeenCalledWith(liveA.id);
     expect(screen.queryByRole("button", { name: "Rename " + liveB.title })).not.toBeInTheDocument();
   });
+
+  it("moves Focus tab focus and activation with ArrowRight and ArrowLeft", async () => {
+    const user = userEvent.setup();
+    const onFocusSession = vi.fn();
+    renderRow({ sessions: [liveA, liveB, liveC], onFocusSession });
+    const tabs = screen.getAllByRole("tab");
+
+    tabs[0]?.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(tabs[1]).toHaveFocus();
+    expect(onFocusSession).toHaveBeenLastCalledWith(liveB.id);
+
+    await user.keyboard("{ArrowLeft}");
+    expect(tabs[0]).toHaveFocus();
+    expect(onFocusSession).toHaveBeenLastCalledWith(liveA.id);
+  });
+
+  it("cancels rename on Escape and restores focus to its Rename trigger", async () => {
+    const user = userEvent.setup();
+    const onRenameSession = vi.fn();
+    renderRow({ sessions: [liveA, liveB], onRenameSession });
+
+    await user.click(screen.getByRole("button", { name: "Rename " + liveA.title }));
+    await user.keyboard("{Escape}");
+
+    expect(onRenameSession).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Rename " + liveA.title })).toHaveFocus();
+  });
+
+  it("never exposes a draft started for one session as another session rename", async () => {
+    const user = userEvent.setup();
+    const onRenameSession = vi.fn();
+    const { rerender } = renderRow({ sessions: [liveA, liveB], onRenameSession });
+
+    await user.click(screen.getByRole("button", { name: "Rename " + liveA.title }));
+    const input = screen.getByRole("textbox", { name: "Rename " + liveA.title });
+    await user.clear(input);
+    await user.type(input, "Draft for A");
+
+    rerender(
+      <SessionChromeRow
+        {...baseProps}
+        activeSessionId={liveB.id}
+        sessions={[liveA, liveB]}
+        onRenameSession={onRenameSession}
+      />,
+    );
+
+    expect(screen.queryByRole("textbox", { name: "Rename " + liveB.title })).not.toBeInTheDocument();
+    expect(onRenameSession).not.toHaveBeenCalled();
+  });
 });
