@@ -119,6 +119,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expect(page.locator(".workspace-title-trigger strong")).toHaveText("Fixture Alpha");
   await expect(page.getByTestId("workbench-header")).toHaveClass(/is-compact/);
   await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "40");
+  await recordPrivacyMaskCoverage();
 
   const firstHost = page.getByTestId("xterm-host").first();
   const firstScreen = firstHost.locator(".xterm-screen");
@@ -210,7 +211,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
 
   expect(
     [...privacySelectorRuntimeMatches].filter(([, matched]) => !matched).map(([selector]) => selector),
-    "Every privacy screenshot selector must match the fixture DOM in at least one captured state",
+    "Every privacy screenshot selector must match the fixture DOM in at least one exercised state",
   ).toEqual([]);
 
   await writeCssEvidence(testInfo, evidenceDir, states);
@@ -237,15 +238,19 @@ test("captures deterministic CSS ownership evidence across core states and overl
       ? [...probes, ...extendedVisualProbes]
       : probes;
     states.push(await captureCssEvidence(page, state, captureProbes));
+    await recordPrivacyMaskCoverage();
+    await page.screenshot({
+      path: join(evidenceDir, `${state}.png`),
+      style: privacySafeScreenshotStyle,
+    });
+  }
+
+  async function recordPrivacyMaskCoverage(): Promise<void> {
     for (const selector of privacySelectors) {
       if (!privacySelectorRuntimeMatches.get(selector) && await page.locator(selector).count() > 0) {
         privacySelectorRuntimeMatches.set(selector, true);
       }
     }
-    await page.screenshot({
-      path: join(evidenceDir, `${state}.png`),
-      style: privacySafeScreenshotStyle,
-    });
   }
 });
 

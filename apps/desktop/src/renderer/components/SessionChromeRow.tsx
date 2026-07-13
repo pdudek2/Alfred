@@ -168,7 +168,7 @@ export function SessionChromeRow({
         </button>
       </div>
 
-      <span className="session-chrome-context mono">{workspaceDetail}</span>
+      <span className="session-chrome-context">{workspaceDetail}</span>
     </div>
   );
 }
