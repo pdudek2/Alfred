@@ -3058,7 +3058,7 @@ describe("App integration", () => {
         expect.objectContaining({
           cursorBlink: alfredGraphiteTerminalProfile.cursorBlink,
           cursorStyle: alfredGraphiteTerminalProfile.cursorStyle,
-          fontFamily: expect.stringContaining("Geist Mono"),
+          fontFamily: alfredGraphiteTerminalProfile.fontFamily,
           fontSize: alfredGraphiteTerminalProfile.fontSize,
           lineHeight: alfredGraphiteTerminalProfile.lineHeight,
           theme: expect.objectContaining({

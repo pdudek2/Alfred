@@ -1,4 +1,14 @@
 :root {
+  --ink-0: #0A0C0F;
+  --ink-1: #0E1114;
+  --ink-2: #14181D;
+  --ink-3: #1D2228;
+  --ink-4: #5A6169;
+  --ink-5: #8B929B;
+  --ink-6: #C9CED5;
+  --ink-7: #EDF0F3;
+  --signal: #E29B6E;
+
   --surface-terminal: #070808;
   --surface-canvas: #050607;
   --surface-panel: #0a0d10;
@@ -197,46 +207,40 @@ button:focus-visible {
 .agent-space-shell {
   position: relative;
   min-height: 100vh;
-  padding: 10px;
+  padding: 0;
   display: block;
-  background: var(--surface-canvas);
-  background-image: none;
+  background: var(--ink-0);
 }
 
 .desktop-frame {
-  height: calc(100vh - 16px);
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
+  height: 100vh;
+  border: 0;
+  border-radius: 0;
   overflow: hidden;
-  box-shadow:
-    var(--shadow-panel),
-    inset 0 1px 0 rgba(238, 243, 247, 0.045);
-  background: var(--surface-canvas);
+  box-shadow: none;
+  background: var(--ink-0);
   display: grid;
-  grid-template-rows: 52px minmax(0, 1fr) 58px;
+  grid-template-rows: auto auto minmax(0, 1fr);
 }
 
 .mission-bar {
   position: static;
-  height: 52px;
-  min-height: 46px;
+  height: auto;
+  min-height: 40px;
   overflow: visible;
   border: 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--ink-3);
   display: flex;
-  grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 14px;
-  padding: 0 14px;
-  background: var(--surface-canvas);
-  background-image: none;
+  padding: 0;
+  background: var(--ink-0);
   box-shadow: none;
   -webkit-app-region: drag;
   user-select: none;
 }
 
-.desktop-frame.mac-frame .mission-bar {
-  padding-left: 88px;
+.desktop-alert-stack:empty {
+  display: none;
 }
 
 .mission-bar button,
@@ -272,11 +276,10 @@ button:focus-visible {
   max-width: min(360px, 38vw);
   min-width: 0;
   min-height: 34px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
   padding: 4px 10px 4px 8px;
-  background: var(--surface-raised);
-  background-image: none;
+  background: var(--ink-1);
   box-shadow: none;
   color: inherit;
   display: grid;
@@ -290,9 +293,8 @@ button:focus-visible {
 .workspace-title-trigger:hover,
 .workspace-title-trigger:focus-visible,
 .workspace-title-trigger[aria-expanded="true"] {
-  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
-  background: color-mix(in oklab, var(--surface-raised) 88%, black 12%);
-  background-image: none;
+  border-color: var(--ink-5);
+  background: var(--ink-2);
   box-shadow: none;
 }
 
@@ -314,17 +316,17 @@ button:focus-visible {
 }
 
 .workspace-title-trigger svg {
-  color: var(--faint);
+  color: var(--ink-5);
   transition: transform 160ms ease, color 160ms ease;
 }
 
 .workspace-title-trigger[aria-expanded="true"] svg {
-  color: var(--signal-focus);
+  color: var(--ink-6);
   transform: rotate(180deg);
 }
 
 .workspace-title-trigger strong {
-  color: var(--ink);
+  color: var(--ink-7);
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -332,7 +334,7 @@ button:focus-visible {
 
 .workspace-title-trigger small {
   margin-top: 2px;
-  color: var(--muted);
+  color: var(--ink-5);
   font-family: var(--mono);
   font-size: 11px;
   white-space: nowrap;
@@ -340,7 +342,7 @@ button:focus-visible {
 
 .workspace-title-trigger small::before {
   content: "· ";
-  color: var(--text-faint);
+  color: var(--ink-5);
 }
 
 .workspace-popover {
@@ -349,20 +351,18 @@ button:focus-visible {
   left: -2px;
   z-index: 40;
   width: min(390px, 78vw);
-  border: 1px solid var(--line-strong);
-  border-radius: 10px;
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
   padding: 7px;
-  background: color-mix(in oklab, var(--panel-raised) 94%, black 6%);
-  box-shadow:
-    inset 0 1px 0 var(--highlight-soft),
-    0 22px 54px rgba(0, 0, 0, 0.48);
+  background: var(--ink-1);
+  box-shadow: none;
 }
 
 .workspace-popover::before {
   content: "Workspace";
   display: block;
   padding: 7px 8px 8px;
-  color: var(--faint);
+  color: var(--ink-5);
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 700;
@@ -377,7 +377,7 @@ button:focus-visible {
   border-radius: 7px;
   padding: 8px;
   background: transparent;
-  color: var(--ink-soft);
+  color: var(--ink-6);
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
   align-items: center;
@@ -388,9 +388,9 @@ button:focus-visible {
 
 .workspace-popover button:hover,
 .workspace-popover button:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 18%, var(--line));
-  background: color-mix(in oklab, var(--signal-focus) 6%, var(--panel-soft));
-  color: var(--ink);
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-7);
 }
 
 .workspace-popover button:disabled {
@@ -399,7 +399,7 @@ button:focus-visible {
 }
 
 .workspace-popover button svg {
-  color: var(--signal-focus);
+  color: var(--ink-6);
 }
 
 .workspace-popover button strong,
@@ -418,7 +418,7 @@ button:focus-visible {
 
 .workspace-popover button small {
   margin-top: 2px;
-  color: var(--faint);
+  color: var(--ink-5);
   font-family: var(--mono);
   font-size: 10px;
 }
@@ -427,7 +427,7 @@ button:focus-visible {
   height: 1px;
   border: 0;
   margin: 6px 4px;
-  background: var(--line);
+  background: var(--ink-3);
 }
 
 .workspace-rename-form,
@@ -515,11 +515,10 @@ button:focus-visible {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ink-3);
   border-radius: 6px;
-  background:
-    linear-gradient(145deg, rgba(238, 243, 247, 0.055), rgba(238, 243, 247, 0.018));
-  color: var(--ink-soft);
+  background: var(--ink-2);
+  color: var(--ink-6);
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 650;
@@ -534,7 +533,7 @@ button:focus-visible {
 
 .mission-name strong {
   display: block;
-  color: var(--text-primary);
+  color: var(--ink-7);
   font-family: var(--sans);
   font-size: 14px;
   font-weight: 600;
@@ -543,7 +542,7 @@ button:focus-visible {
 
 .mission-name span {
   margin-top: 2px;
-  color: var(--text-muted);
+  color: var(--ink-5);
   font-family: var(--mono);
   font-size: 12px;
 }
@@ -551,42 +550,21 @@ button:focus-visible {
 .workspace-layout {
   min-height: 0;
   display: grid;
-  grid-template-columns: 50px minmax(194px, 220px) minmax(0, 1fr) 218px;
-  gap: 8px;
-  padding: 8px;
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.012), transparent 144px),
-    rgba(6, 9, 13, 0.84);
-}
-
-.primary-nav-rail {
-  grid-column: 1;
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
-  background: var(--surface-panel);
-  background-image: none;
-  box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  justify-items: center;
-  gap: 14px;
-  padding: 10px 7px;
+  grid-template-columns: minmax(196px, 232px) minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+  background: var(--ink-0);
 }
 
 .workspace-navigation-panel {
-  grid-column: 2;
+  grid-column: 1;
   min-width: 0;
   min-height: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
-  background: var(--surface-chrome);
-  background-image: none;
+  border: 0;
+  border-right: 1px solid var(--ink-3);
+  border-radius: 0;
+  background: var(--ink-1);
   box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   gap: 10px;
@@ -603,11 +581,12 @@ button:focus-visible {
 .workspace-nav-avatar {
   width: 34px;
   height: 34px;
-  border-radius: 10px;
+  border-radius: 7px;
   display: grid;
   place-items: center;
-  background: var(--signal-focus);
-  color: #03110b;
+  border: 1px solid var(--ink-3);
+  background: var(--ink-2);
+  color: var(--ink-7);
   font: 800 12px/1 var(--mono);
 }
 
@@ -622,25 +601,25 @@ button:focus-visible {
 .workspace-nav-head span,
 .workspace-nav-row small,
 .workspace-nav-empty {
-  color: var(--text-muted);
+  color: var(--ink-5);
   font: 500 11px/1.35 var(--sans);
 }
 
 .workspace-nav-empty {
-  color: var(--text-faint);
+  color: var(--ink-5);
 }
 
 .workspace-nav-search {
   min-height: 32px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   padding: 0 9px;
-  color: var(--text-muted);
-  background: rgba(2, 6, 5, 0.58);
+  color: var(--ink-5);
+  background: var(--ink-0);
 }
 
 .workspace-nav-search input {
@@ -648,7 +627,7 @@ button:focus-visible {
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--text-primary);
+  color: var(--ink-7);
   font: 500 12px/1 var(--sans);
 }
 
@@ -671,7 +650,7 @@ button:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: var(--text-faint);
+  color: var(--ink-5);
   font: 600 var(--type-micro)/1 var(--sans);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -684,20 +663,20 @@ button:focus-visible {
 
 .workspace-nav-more-button {
   min-height: 32px;
-  border: 1px dashed color-mix(in oklab, var(--line) 84%, transparent);
-  border-radius: 10px;
+  border: 1px dashed var(--ink-3);
+  border-radius: 7px;
   padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.02);
-  color: var(--text-muted);
+  background: transparent;
+  color: var(--ink-5);
   font: 600 11px/1.2 var(--sans);
   text-align: left;
 }
 
 .workspace-nav-more-button:hover,
 .workspace-nav-more-button:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-primary);
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-7);
   outline: none;
 }
 
@@ -705,12 +684,12 @@ button:focus-visible {
   min-width: 0;
   width: 100%;
   border: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   padding: 6px 8px;
   background: transparent;
   background-image: none;
   box-shadow: none;
-  color: var(--text-secondary);
+  color: var(--ink-6);
   cursor: pointer;
   display: grid;
   grid-template-columns: 26px minmax(0, 1fr) auto;
@@ -721,24 +700,22 @@ button:focus-visible {
 
 .workspace-nav-row:hover,
 .workspace-nav-row:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 24%, transparent);
-  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
-  background-image: none;
+  background: var(--ink-2);
   box-shadow: none;
-  color: var(--text-primary);
+  color: var(--ink-7);
   outline: none;
 }
 
 .workspace-nav-row strong {
   overflow: hidden;
-  color: var(--text-secondary);
+  color: var(--ink-6);
   font: 650 13px/1.22 var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .workspace-nav-row small {
-  color: var(--text-faint);
+  color: var(--ink-5);
   white-space: nowrap;
 }
 
@@ -749,100 +726,40 @@ button:focus-visible {
 
 .workspace-nav-row:hover strong,
 .workspace-nav-row:focus-visible strong {
-  color: var(--text-primary);
+  color: var(--ink-7);
 }
 
 .workspace-nav-mark {
   width: 28px;
   height: 28px;
-  border-radius: 9px;
+  border-radius: 7px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--line);
-  background: var(--surface-control);
-  background-image: none;
+  border: 1px solid var(--ink-3);
+  background: var(--ink-2);
   box-shadow: none;
-  color: var(--text-faint);
+  color: var(--ink-5);
   font: 800 10px/1 var(--mono);
 }
 
 .workspace-nav-mark.codex {
-  color: var(--codex-blue);
-  border-color: color-mix(in oklab, var(--codex-blue) 22%, transparent);
-  background: color-mix(in oklab, var(--codex-blue) 4.5%, var(--surface-raised));
+  color: var(--ink-6);
 }
 
 .workspace-nav-mark.claude {
-  color: var(--claude-amber);
-  border-color: color-mix(in oklab, var(--claude-amber) 28%, transparent);
-  background: color-mix(in oklab, var(--claude-amber) 7%, var(--surface-raised));
+  color: var(--ink-6);
 }
 
 .workspace-nav-mark.alert {
-  color: var(--alert-red);
-  border-color: color-mix(in oklab, var(--alert-red) 32%, transparent);
-  background: color-mix(in oklab, var(--alert-red) 7%, var(--surface-raised));
-}
-
-.primary-nav-brand,
-.primary-nav-rail button {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-}
-
-.primary-nav-brand {
-  display: grid;
-  place-items: center;
-  border: 1px solid color-mix(in oklab, var(--signal-focus) 38%, transparent);
-  background: color-mix(in oklab, var(--signal-focus) 13%, transparent);
-  color: var(--signal-focus-strong);
-  font: 800 13px/1 var(--mono);
-}
-
-.primary-nav-stack {
-  display: grid;
-  gap: 8px;
-  align-content: start;
-}
-
-.primary-nav-bottom {
-  align-content: end;
-}
-
-.primary-nav-rail button {
-  position: relative;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--text-muted);
-  display: grid;
-  place-items: center;
-}
-
-.primary-nav-rail button.active,
-.primary-nav-rail button:hover,
-.primary-nav-rail button:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
-  background: color-mix(in oklab, var(--signal-focus) 10%, transparent);
-  background-image: none;
-  box-shadow: none;
-  color: var(--text-primary);
-  outline: none;
-}
-
-.primary-nav-rail button > .quiet-count-dot,
-.primary-nav-rail button > .quiet-count-mark {
-  position: absolute;
-  top: 5px;
-  right: 5px;
+  color: var(--ink-6);
 }
 
 .workspace-layout.alfred-compact {
-  grid-template-columns: 50px minmax(194px, 220px) minmax(0, 1fr) minmax(320px, 34vw);
+  grid-template-columns: minmax(196px, 232px) minmax(0, 1fr);
 }
 
 .workspace-layout.preview-visible {
-  grid-template-columns: 50px minmax(194px, 220px) minmax(0, 1fr) minmax(320px, 34vw);
+  grid-template-columns: minmax(196px, 232px) minmax(0, 1fr);
 }
 
 .side-dock-stack {
@@ -866,7 +783,7 @@ button:focus-visible {
 }
 
 .orchestrator-surface {
-  grid-column: 3;
+  grid-column: 2;
   min-width: 0;
   min-height: 0;
   display: grid;
@@ -883,243 +800,286 @@ button:focus-visible {
 }
 
 .workbench-header {
-  align-items: center;
-  gap: 14px;
-  padding: 9px 12px;
-  border-color: var(--border);
-  border-radius: var(--radius-panel);
-  background: var(--surface-panel);
-  background-image: none;
-  box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.mission-bar .workbench-header {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: 14px;
+  width: 100%;
   min-width: 0;
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  border: none;
+  overflow: visible;
+  background: var(--ink-0);
   box-shadow: none;
+  color: var(--ink-6);
 }
 
-.workbench-bar-title {
-  display: flex;
-  align-items: baseline;
+.workbench-header.is-compact {
+  height: 40px;
+}
+
+.workbench-header.is-expanded {
+  height: 74px;
+}
+
+.workbench-primary-row {
+  width: 100%;
+  height: 40px;
+  min-width: 0;
+  border-bottom: 1px solid var(--ink-3);
+  padding: 0 8px;
+  display: grid;
+  grid-template-columns: minmax(140px, auto) minmax(0, 1fr) auto;
+  align-items: center;
   gap: 8px;
+  -webkit-app-region: drag;
+}
+
+.desktop-frame.mac-frame .workbench-primary-row {
+  padding-left: 80px;
+}
+
+.workbench-project-zone,
+.workbench-session-context,
+.workbench-right-zone {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workbench-session-context {
+  justify-content: center;
+  overflow: hidden;
+}
+
+.workbench-right-zone {
+  justify-content: flex-end;
+}
+
+.workbench-session-context > span,
+.workbench-session-context > small,
+.session-chrome-tab span,
+.session-chrome-context {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.workbench-bar-title h1 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 13.5px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+.workbench-session-context > span {
+  color: var(--ink-6);
+  font: 600 12px/1 var(--sans);
 }
 
-.workbench-bar-title span {
-  color: var(--text-muted);
-  font-size: 11px;
+.workbench-session-context > small {
+  color: var(--ink-5);
+  font: 500 11px/1 var(--sans);
 }
 
-.workbench-bar-spacer {
-  flex: 1 1 auto;
-  min-width: 8px;
+.workbench-primary-row button,
+.session-chrome-row button {
+  max-height: 28px;
+  min-height: 26px;
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
+  padding: 0 8px;
+  background: var(--ink-1);
+  box-shadow: none;
+  color: var(--ink-6);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font: 600 11px/1 var(--sans);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
 }
 
-.workbench-actions {
+.workbench-primary-row button:hover,
+.workbench-primary-row button:focus-visible,
+.session-chrome-row button:hover,
+.session-chrome-row button:focus-visible {
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-7);
+  outline: none;
+}
+
+.workbench-primary-row button[aria-pressed="true"],
+.session-chrome-row button[aria-pressed="true"],
+.session-chrome-row button[aria-selected="true"] {
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-7);
+  font-weight: 700;
+}
+
+.workbench-attention-count {
+  min-width: 15px;
+  height: 15px;
+  border-radius: 7px;
+  padding: 0 4px;
+  background: var(--signal);
+  color: var(--ink-0);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 9px/1 var(--sans);
+}
+
+.workbench-right-zone kbd {
+  color: var(--ink-5);
+  font: 500 10px/1 var(--mono);
+}
+
+.session-chrome-row {
+  width: 100%;
+  height: 34px;
+  min-width: 0;
+  border-bottom: 1px solid var(--ink-3);
+  padding: 3px 8px;
+  background: var(--ink-1);
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.session-chrome-tabs,
+.session-chrome-tab,
+.session-chrome-tab-actions,
+.session-chrome-layout {
   min-width: 0;
-}
-
-.mission-bar .workbench-actions {
-  flex-wrap: nowrap;
-}
-
-.workbench-panel-group button {
-  position: relative;
-  padding: 6px 9px;
-}
-
-.workbench-panel-group .quiet-count-dot,
-.workbench-panel-group .quiet-count-mark {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-}
-
-@media (max-width: 1360px) {
-  .workspace-title-trigger small {
-    display: none;
-  }
-}
-
-@media (max-width: 1240px) {
-  .workbench-launch-group button:not(.workbench-primary-action) {
-    padding: 6px 7px;
-    font-size: 11.5px;
-  }
-
-  .workbench-bar-title span {
-    display: none;
-  }
-}
-
-.workbench-tool-group {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 4px;
-  padding: 2px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  height: var(--workbench-control-height);
-  min-height: var(--workbench-control-height);
-  background: var(--role-control);
-  background-image: none;
-  color: var(--text-secondary);
-  box-shadow: none;
 }
 
-.workbench-actions button {
-  min-width: 0;
-  height: var(--workbench-control-height);
-  min-height: var(--workbench-control-height);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  padding: 0 9px;
-  background: var(--role-control);
-  background-image: none;
-  box-shadow: none;
-  color: var(--text-secondary);
-  font: 620 12px/1 var(--sans);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  transition:
-    border-color 160ms ease,
-    background 160ms ease,
-    color 160ms ease,
-    box-shadow 160ms ease;
+.session-chrome-tabs {
+  flex: 1 1 auto;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-.quiet-count-dot,
-.quiet-count-mark {
-  display: inline-block;
-  flex: 0 0 auto;
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--muted);
-  opacity: 0.78;
+.session-chrome-tabs::-webkit-scrollbar {
+  display: none;
 }
 
-.quiet-count-dot.attention {
-  background: var(--brass);
+.session-chrome-tab > button {
+  max-width: 180px;
 }
 
-.workbench-actions button:hover,
-.workbench-actions button:focus-visible {
-  border-color: color-mix(in oklab, var(--role-active) 24%, var(--line));
-  background: var(--role-control-hover);
-  box-shadow: none;
-  color: var(--text-primary);
-  outline: none;
-}
-
-.workbench-actions button[aria-pressed="true"],
-.workbench-actions button.active {
-  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
-  background: var(--signal-focus-soft);
-  box-shadow: none;
-  color: var(--text-primary);
-  outline: none;
-}
-
-.workbench-tool-group button {
-  min-width: 0;
-  height: var(--workbench-segment-height);
-  min-height: var(--workbench-segment-height);
+.session-chrome-tab-actions button {
   border-color: transparent;
-  border-radius: var(--workbench-control-radius);
-  padding: 0 9px;
   background: transparent;
-  line-height: 1;
+  color: var(--ink-5);
 }
 
-.workbench-tool-group button[aria-pressed="true"],
-.workbench-tool-group button.active {
-  border-color: color-mix(in oklab, var(--role-active) 26%, var(--line));
-  background: color-mix(in oklab, var(--role-active) 4.5%, var(--surface-sunken));
-  color: var(--signal-focus-strong);
+.session-chrome-tab-actions input {
+  width: 140px;
+  height: 26px;
+  border: 1px solid var(--ink-5);
+  border-radius: 7px;
+  padding: 0 7px;
+  background: var(--ink-0);
+  color: var(--ink-7);
+  font: 600 11px/1 var(--sans);
 }
 
-.workbench-tool-group button:hover,
-.workbench-tool-group button:focus-visible {
-  border-color: color-mix(in oklab, var(--role-active) 24%, var(--line));
-  background: var(--role-control-hover);
+.session-chrome-add {
+  flex: 0 0 auto;
+  width: 28px;
+  padding: 0;
+}
+
+.session-chrome-layout {
+  flex: 0 0 auto;
+}
+
+.session-chrome-context {
+  flex: 0 1 220px;
+  color: var(--ink-5);
+  font-size: 10px;
+}
+
+.chrome-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.chrome-menu-trigger {
+  width: 28px;
+  padding: 0;
+}
+
+.chrome-menu-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 120;
+  width: 220px;
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
+  padding: 5px;
+  background: var(--ink-1);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.46);
+  display: grid;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+
+.chrome-menu-popover button {
+  width: 100%;
+  min-height: 30px;
+  max-height: none;
+  border-color: transparent;
+  justify-content: flex-start;
+  background: transparent;
+  color: var(--ink-6);
+  text-align: left;
+}
+
+.chrome-menu-popover button:hover,
+.chrome-menu-popover button:focus-visible {
+  border-color: var(--ink-3);
+  background: var(--ink-2);
+  color: var(--ink-7);
+}
+
+.chrome-menu-popover button span,
+.chrome-menu-popover button small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prepare-work-popover {
+  position: fixed;
+  top: 44px;
+  left: 50%;
+  z-index: 110;
+  width: 560px;
+  max-width: calc(100vw - 24px);
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
+  padding: 8px;
+  background: var(--ink-1);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.5);
+  transform: translateX(-50%);
+}
+
+.prepare-work-popover .composer-bar {
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
   box-shadow: none;
-  color: var(--text-primary);
 }
 
-.workbench-tool-group button[aria-pressed="true"]:hover,
-.workbench-tool-group button[aria-pressed="true"]:focus-visible,
-.workbench-tool-group button.active:hover,
-.workbench-tool-group button.active:focus-visible {
-  border-color: color-mix(in oklab, var(--role-active) 30%, var(--line));
-  background: color-mix(in oklab, var(--role-active) 6%, var(--surface-sunken));
-  color: var(--signal-focus-strong);
-}
-
-.workbench-launch-group button[aria-label="Start Codex"] {
-  border-color: color-mix(in oklab, var(--codex-blue) 20%, var(--line));
-  color: var(--codex-blue);
-}
-
-.workbench-launch-group button[aria-label="Start Claude"] {
-  border-color: color-mix(in oklab, var(--claude-amber) 20%, var(--line));
-  color: var(--claude-amber);
-}
-
-.workbench-launch-group button[aria-label="Start Codex"]:hover,
-.workbench-launch-group button[aria-label="Start Codex"]:focus-visible {
-  border-color: color-mix(in oklab, var(--codex-blue) 32%, var(--line));
-  color: var(--codex-blue);
-}
-
-.workbench-launch-group button[aria-label="Start Claude"]:hover,
-.workbench-launch-group button[aria-label="Start Claude"]:focus-visible {
-  border-color: color-mix(in oklab, var(--claude-amber) 32%, var(--line));
-  color: var(--claude-amber);
-}
-
-.workbench-primary-action {
-  height: var(--control-height);
-  min-height: var(--control-height);
-  padding: 0 12px;
-  border-color: var(--border-focus);
-  background: var(--surface-control);
-  background-image: none;
-  box-shadow: none;
-  color: var(--text-primary);
-}
-
-.workbench-primary-action:hover,
-.workbench-primary-action:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 36%, var(--line));
-  background: color-mix(in oklab, var(--signal-focus) 5%, var(--surface-control-hover));
-  box-shadow: none;
-  color: var(--text-primary);
+@media (max-width: 1120px) {
+  .workbench-session-context > span,
+  .workbench-session-context > small,
+  .workbench-right-zone kbd,
+  .session-chrome-context {
+    display: none;
+  }
 }
 
 .surface-panel.inactive {
@@ -1145,15 +1105,11 @@ button:focus-visible {
   width: 100%;
   min-width: 0;
   min-height: 0;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
   overflow: visible;
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.018), transparent 72px),
-    color-mix(in oklab, var(--panel-raised) 96%, transparent);
-  box-shadow:
-    inset 0 1px 0 rgba(238, 243, 247, 0.03),
-    var(--shadow-soft);
+  background: var(--ink-1);
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1166,13 +1122,11 @@ button:focus-visible {
   width: 100%;
   min-height: 56px;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 7px;
   font-family: var(--sans);
   font-weight: 600;
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.012), transparent 100%),
-    transparent;
-  color: var(--ink-soft);
+  background: transparent;
+  color: var(--ink-6);
   cursor: pointer;
   font-family: var(--mono);
   font-size: 12px;
@@ -1192,29 +1146,24 @@ button:focus-visible {
 }
 
 .workspace-button:hover {
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.02), transparent 100%),
-    color-mix(in oklab, var(--panel-soft) 76%, transparent);
-  border-color: color-mix(in oklab, var(--line-strong) 88%, transparent);
-  box-shadow: inset 0 1px 0 rgba(238, 243, 247, 0.03);
-  transform: translateY(-1px);
+  background: var(--ink-2);
+  border-color: var(--ink-3);
+  box-shadow: none;
 }
 
 .workspace-button:focus-visible {
   outline: none;
-  box-shadow:
-    inset 0 0 0 2px color-mix(in oklab, var(--signal-focus) 84%, var(--ink) 16%),
-    inset 2px 0 0 color-mix(in oklab, var(--signal-focus) 76%, transparent);
+  border-color: var(--ink-6);
+  box-shadow: none;
 }
 
 .workspace-monogram {
   width: 34px;
   height: 34px;
-  border: 1px solid color-mix(in oklab, var(--line-strong) 92%, transparent);
-  border-radius: 8px;
-  background:
-    linear-gradient(145deg, rgba(238, 243, 247, 0.04), rgba(238, 243, 247, 0.012));
-  color: var(--ink-soft);
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
+  background: var(--ink-2);
+  color: var(--ink-6);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1238,7 +1187,7 @@ button:focus-visible {
 }
 
 .workspace-button-details strong {
-  color: var(--ink);
+  color: var(--ink-7);
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 650;
@@ -1247,7 +1196,7 @@ button:focus-visible {
 
 .workspace-button-details span {
   margin-top: 3px;
-  color: var(--muted);
+  color: var(--ink-5);
   font-size: 11px;
   line-height: 1.25;
 }
@@ -1257,10 +1206,10 @@ button:focus-visible {
   max-width: 78px;
   min-height: 22px;
   padding: 0 7px;
-  border: 1px solid color-mix(in oklab, var(--line) 92%, transparent);
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--panel) 92%, black 8%);
-  color: var(--muted);
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
+  background: var(--ink-1);
+  color: var(--ink-5);
   font-size: 11px;
   font-weight: 650;
   display: inline-flex;
@@ -1274,21 +1223,21 @@ button:focus-visible {
 
 .workspace-priority-chip.tone-waiting,
 .workspace-priority-chip.tone-staged {
-  border-color: color-mix(in oklab, var(--brass) 30%, transparent);
-  background: color-mix(in oklab, var(--brass) 10%, transparent);
-  color: #dfcf9d;
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-5);
 }
 
 .workspace-priority-chip.tone-error {
-  border-color: color-mix(in oklab, var(--signal-danger) 40%, transparent);
-  background: color-mix(in oklab, var(--signal-danger) 12%, transparent);
-  color: #f2c3bd;
+  border-color: var(--ink-3);
+  background: var(--ink-1);
+  color: var(--ink-5);
 }
 
 .workspace-priority-chip.tone-active {
-  border-color: color-mix(in oklab, var(--signal-focus) 26%, transparent);
-  background: color-mix(in oklab, var(--signal-focus) 8%, transparent);
-  color: var(--signal-focus-strong);
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-6);
 }
 
 .workspace-priority-chip.tone-empty {
@@ -1296,29 +1245,24 @@ button:focus-visible {
 }
 
 .workspace-button.active {
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 8%, transparent), transparent 100%),
-    color-mix(in oklab, var(--panel-soft) 88%, transparent);
-  border-color: color-mix(in oklab, var(--signal-focus) 26%, var(--line));
-  color: var(--ink);
-  box-shadow:
-    inset 2px 0 0 color-mix(in oklab, var(--signal-focus) 76%, transparent),
-    inset 0 1px 0 rgba(238, 243, 247, 0.03),
-    0 14px 26px -24px color-mix(in oklab, var(--signal-focus) 30%, black 70%);
+  background: var(--ink-2);
+  border-color: var(--ink-5);
+  color: var(--ink-7);
+  box-shadow: none;
 }
 
 .workspace-button.active .workspace-monogram {
-  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
-  background: color-mix(in oklab, var(--signal-focus) 10%, transparent);
-  color: #d8efec;
+  border-color: var(--ink-5);
+  background: var(--ink-3);
+  color: var(--ink-7);
 }
 
 .workspace-button.active .workspace-button-details strong {
-  color: var(--ink);
+  color: var(--ink-7);
 }
 
 .workspace-button.active .workspace-button-details span {
-  color: var(--ink-soft);
+  color: var(--ink-5);
 }
 
 .workspace-button.add-workspace {
@@ -1350,15 +1294,15 @@ button:focus-visible {
 
 @media (max-width: 1180px) {
   .workspace-layout {
-    grid-template-columns: 50px minmax(194px, 220px) minmax(0, 1fr) 198px;
+    grid-template-columns: minmax(196px, 232px) minmax(0, 1fr);
   }
 
   .workspace-layout.alfred-compact {
-    grid-template-columns: 50px minmax(194px, 220px) minmax(0, 1fr) minmax(280px, 34vw);
+    grid-template-columns: minmax(196px, 232px) minmax(0, 1fr);
   }
 
   .workspace-layout.preview-visible {
-    grid-template-columns: 50px minmax(194px, 220px) minmax(0, 1fr) minmax(280px, 34vw);
+    grid-template-columns: minmax(196px, 232px) minmax(0, 1fr);
   }
 
   .workspace-rail {
@@ -1415,11 +1359,10 @@ button:focus-visible {
 .terminal-stage {
   min-width: 0;
   min-height: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
+  border: 0;
+  border-radius: 0;
   overflow: hidden;
-  background: var(--surface-panel);
-  background-image: none;
+  background: var(--ink-0);
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -1434,14 +1377,13 @@ button:focus-visible {
 .terminal-stage-header {
   min-width: 0;
   min-height: 34px;
-  border-bottom: 1px solid rgba(188, 202, 218, 0.09);
+  border-bottom: 1px solid var(--ink-3);
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 10px;
   padding: 6px 9px;
-  background: var(--surface-chrome-soft);
-  background-image: none;
+  background: var(--ink-0);
 }
 
 .terminal-stage-header span {
@@ -1453,7 +1395,7 @@ button:focus-visible {
 
 .terminal-stage-header span {
   margin-top: 2px;
-  color: var(--muted);
+  color: var(--ink-5);
   font-family: var(--mono);
   font-size: 11px;
 }
@@ -1466,11 +1408,11 @@ button:focus-visible {
 
 .arrange-hint {
   min-height: 24px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--ink-3);
   border-radius: 7px;
   padding: 0 9px;
   background: transparent;
-  color: var(--text-muted);
+  color: var(--ink-5);
   display: inline-flex;
   align-items: center;
   font: 600 10px/24px var(--mono);
@@ -1478,11 +1420,11 @@ button:focus-visible {
 
 .arrange-mode-label {
   min-height: 24px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--ink-3);
   border-radius: 7px;
   padding: 0 9px;
-  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
-  color: var(--text-primary);
+  background: var(--ink-2);
+  color: var(--ink-7);
   font: 650 11px/24px var(--mono);
 }
 
@@ -1544,7 +1486,7 @@ button:focus-visible {
 .terminal-grid-column::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--role-active) 38%, transparent);
+  background: var(--ink-3);
   background-clip: padding-box;
 }
 
@@ -1557,11 +1499,7 @@ button:focus-visible {
   min-width: 0;
   min-height: 0;
   overflow: visible;
-  background:
-    linear-gradient(90deg, rgba(188, 202, 218, 0.024) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(188, 202, 218, 0.02) 1px, transparent 1px),
-    rgba(3, 5, 8, 0.82);
-  background-size: 28px 28px, 28px 28px, auto;
+  background: var(--ink-0);
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(620px, 100%), 1fr));
   grid-auto-rows: minmax(320px, 1fr);
@@ -1574,11 +1512,7 @@ button:focus-visible {
 .terminal-grid.arranging {
   grid-template-columns: repeat(12, minmax(0, 1fr));
   grid-auto-rows: 84px;
-  background:
-    linear-gradient(color-mix(in oklab, var(--signal-focus) 5%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklab, var(--signal-focus) 5%, transparent) 1px, transparent 1px),
-    var(--surface-terminal);
-  background-size: calc((100% - 88px) / 12) 84px, calc((100% - 88px) / 12) 84px, auto;
+  background: var(--ink-0);
 }
 
 .terminal-grid.laid-out {
@@ -1590,8 +1524,7 @@ button:focus-visible {
   grid-auto-rows: 84px;
   padding-bottom: var(--grid-bottom-safe-zone);
   scroll-padding-bottom: var(--grid-bottom-safe-zone);
-  background: var(--surface-terminal);
-  background-image: none;
+  background: var(--ink-0);
 }
 
 .terminal-grid.laid-out .terminal-tile {
@@ -1621,7 +1554,7 @@ button:focus-visible {
   padding-bottom: 18px;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklab, var(--signal-focus) 24%, transparent) transparent;
+  scrollbar-color: var(--ink-3) transparent;
 }
 
 .terminal-stage.arranging .terminal-grid {
@@ -1644,13 +1577,10 @@ button:focus-visible {
 .terminal-empty-state {
   grid-column: 1 / -1;
   min-height: 360px;
-  border: 1px solid rgba(188, 202, 218, 0.12);
-  border-radius: 10px;
-  background:
-    linear-gradient(135deg, color-mix(in oklab, var(--signal-focus) 4.5%, transparent), transparent 34%),
-    linear-gradient(180deg, rgba(238, 243, 247, 0.026), rgba(238, 243, 247, 0.01)),
-    rgba(6, 8, 10, 0.84);
-  box-shadow: inset 0 1px 0 rgba(238, 243, 247, 0.045);
+  border: 1px solid var(--ink-3);
+  border-radius: 0;
+  background: var(--ink-0);
+  box-shadow: none;
   display: grid;
   place-items: center;
   gap: 18px;
@@ -1659,7 +1589,7 @@ button:focus-visible {
 }
 
 .terminal-empty-state span {
-  color: var(--signal-focus);
+  color: var(--ink-5);
   display: block;
   font-family: var(--mono);
   font-size: 11px;
@@ -1669,7 +1599,7 @@ button:focus-visible {
 }
 
 .terminal-empty-state strong {
-  color: var(--ink);
+  color: var(--ink-7);
   display: block;
   font-size: clamp(24px, 3vw, 38px);
   font-weight: 720;
@@ -1678,7 +1608,7 @@ button:focus-visible {
 }
 
 .terminal-empty-state p {
-  color: var(--muted);
+  color: var(--ink-5);
   font-size: 14px;
   line-height: 1.45;
   margin: 10px auto 0;
@@ -1695,15 +1625,15 @@ button:focus-visible {
 
 .terminal-empty-facts > div {
   min-width: 0;
-  border: 1px solid color-mix(in oklab, white 5%, transparent);
-  border-radius: 8px;
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
   padding: 8px 10px;
-  background: color-mix(in oklab, white 2.2%, transparent);
+  background: var(--ink-1);
   text-align: left;
 }
 
 .terminal-empty-facts dt {
-  color: var(--faint);
+  color: var(--ink-5);
   font-family: var(--mono);
   font-size: 10px;
   text-transform: lowercase;
@@ -1712,7 +1642,7 @@ button:focus-visible {
 .terminal-empty-facts dd {
   min-width: 0;
   margin: 5px 0 0;
-  color: var(--ink-soft);
+  color: var(--ink-6);
   font-family: var(--mono);
   font-size: 12px;
   overflow: hidden;
@@ -1730,19 +1660,19 @@ button:focus-visible {
 
 .terminal-empty-actions button {
   min-height: 36px;
-  border: 1px solid rgba(188, 202, 218, 0.16);
-  border-radius: 8px;
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
   padding: 0 13px;
-  background: rgba(238, 243, 247, 0.05);
-  color: var(--ink-soft);
+  background: var(--ink-2);
+  color: var(--ink-6);
   font: 700 12px var(--sans);
 }
 
 .terminal-empty-primary-action {
   min-width: 180px;
-  border-color: rgba(68, 206, 220, 0.32);
-  background: rgba(68, 206, 220, 0.105);
-  color: #d7fbff;
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-7);
 }
 
 .terminal-empty-secondary-actions {
@@ -1753,23 +1683,21 @@ button:focus-visible {
 }
 
 .terminal-empty-secondary-actions button {
-  background: rgba(238, 243, 247, 0.032);
-  color: var(--muted);
+  background: var(--ink-1);
+  color: var(--ink-5);
 }
 
 .terminal-empty-primary-action:hover,
 .terminal-empty-primary-action:focus-visible {
-  border-color: rgba(68, 206, 220, 0.46);
-  color: var(--ink);
-  transform: translateY(-1px);
+  border-color: var(--ink-6);
+  color: var(--ink-7);
 }
 
 .terminal-empty-secondary-actions button:hover,
 .terminal-empty-secondary-actions button:focus-visible {
-  border-color: rgba(188, 202, 218, 0.3);
-  background: rgba(238, 243, 247, 0.052);
-  color: var(--ink-soft);
-  transform: translateY(-1px);
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-6);
 }
 
 .split-empty-state {
@@ -1777,13 +1705,11 @@ button:focus-visible {
   grid-row: 1 / span 8;
   min-width: 0;
   min-height: 320px;
-  border: 1px dashed color-mix(in oklab, white 13%, transparent);
-  border-radius: 10px;
+  border: 1px dashed var(--ink-3);
+  border-radius: 0;
   padding: 24px;
-  background:
-    linear-gradient(180deg, color-mix(in oklab, white 2.6%, transparent), transparent 96px),
-    rgba(5, 7, 10, 0.58);
-  color: var(--muted);
+  background: var(--ink-0);
+  color: var(--ink-5);
   display: grid;
   align-content: center;
   justify-items: start;
@@ -1791,7 +1717,7 @@ button:focus-visible {
 }
 
 .split-empty-state span {
-  color: var(--passive);
+  color: var(--ink-5);
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 720;
@@ -1800,7 +1726,7 @@ button:focus-visible {
 }
 
 .split-empty-state strong {
-  color: var(--ink-soft);
+  color: var(--ink-6);
   font-size: 16px;
   font-weight: 640;
 }
@@ -1841,17 +1767,16 @@ button:focus-visible {
   position: relative;
   min-width: 0;
   min-height: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
+  border: 1px solid var(--ink-3);
+  border-radius: 0;
   overflow: hidden;
-  background: var(--surface-panel);
-  background-image: none;
+  background: var(--ink-0);
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   container: terminal-tile / inline-size;
   display: grid;
-  grid-template-rows: 42px 1fr;
+  grid-template-rows: 30px minmax(0, 1fr);
   isolation: isolate;
   transition:
     transform 220ms cubic-bezier(0.2, 0.7, 0.1, 1),
@@ -1860,34 +1785,37 @@ button:focus-visible {
 }
 
 .terminal-tile:not(.arranging):hover {
-  transform: translateY(-1px);
-  border-color: var(--border-strong);
-  box-shadow: var(--depth-raised);
+  border-color: var(--ink-5);
+  box-shadow: none;
 }
 
 .terminal-tile.selected {
   outline: none;
   outline-offset: 2px;
-  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
+  border-color: var(--ink-6);
   box-shadow: none;
 }
 
 .terminal-tile:focus-visible {
   outline: none;
-  border-color: color-mix(in oklab, var(--signal-focus) 24%, var(--border));
+  border-color: var(--ink-6);
   box-shadow: none;
 }
 
 .terminal-tile:focus-within {
-  outline: 1px solid var(--focus-border);
+  outline: 1px solid var(--ink-5);
   outline-offset: 2px;
-  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
+  border-color: var(--ink-6);
   box-shadow: none;
 }
 
 .terminal-tile.collapsed {
-  grid-template-rows: 42px 0;
-  min-height: 42px;
+  grid-template-rows: 30px 0;
+  min-height: 30px;
+}
+
+.terminal-tile.chrome-headerless {
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .terminal-tile.collapsed .xterm-host {
@@ -1903,10 +1831,8 @@ button:focus-visible {
 }
 
 .terminal-tile.restored {
-  border-color: rgba(188, 202, 218, 0.14);
-  background:
-    linear-gradient(180deg, rgba(188, 202, 218, 0.045), transparent 72px),
-    rgba(8, 10, 13, 0.78);
+  border-color: var(--ink-3);
+  background: var(--ink-0);
 }
 
 .terminal-tile.restored .tile-status {
@@ -1926,7 +1852,7 @@ button:focus-visible {
 }
 
 .terminal-tile.arranging {
-  grid-template-rows: 42px 1fr;
+  grid-template-rows: 30px minmax(0, 1fr);
   transition:
     border-color 140ms ease,
     box-shadow 140ms ease,
@@ -1936,29 +1862,23 @@ button:focus-visible {
 
 .terminal-tile.arranging.is-dragging {
   opacity: 0.88;
-  border-color: color-mix(in oklab, var(--signal-focus) 62%, transparent);
-  box-shadow:
-    0 18px 46px rgba(0, 0, 0, 0.38),
-    0 0 0 1px color-mix(in oklab, var(--signal-focus) 20%, transparent),
-    inset 0 1px 0 rgba(238, 243, 247, 0.06);
+  border-color: var(--ink-6);
+  box-shadow: none;
   pointer-events: none;
 }
 
 .terminal-tile.arranging.is-resizing {
-  border-color: color-mix(in oklab, var(--signal-agent) 56%, transparent);
-  box-shadow:
-    0 12px 30px rgba(0, 0, 0, 0.28),
-    0 0 0 1px color-mix(in oklab, var(--signal-agent) 18%, transparent),
-    inset 0 1px 0 rgba(238, 243, 247, 0.06);
+  border-color: var(--ink-6);
+  box-shadow: none;
 }
 
 .terminal-tile.arranging.is-resizing::after {
   content: "";
   position: absolute;
   inset: 0 calc(-1 * max(var(--arrange-x, 0px), 0px)) calc(-1 * max(var(--arrange-y, 0px), 0px)) 0;
-  border: 1px dashed color-mix(in oklab, var(--signal-agent) 50%, transparent);
-  border-radius: 8px;
-  background: color-mix(in oklab, var(--signal-agent) 4.5%, transparent);
+  border: 1px dashed var(--ink-5);
+  border-radius: 0;
+  background: transparent;
   pointer-events: none;
   z-index: 4;
 }
@@ -1979,9 +1899,9 @@ button:focus-visible {
   bottom: 8px;
   width: 32px;
   height: 32px;
-  border: 1px solid color-mix(in oklab, var(--signal-focus) 58%, transparent);
-  border-radius: 8px;
-  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  border: 1px solid var(--ink-5);
+  border-radius: 7px;
+  background: var(--ink-2);
   background-image: none;
   box-shadow: none;
   cursor: nwse-resize;
@@ -1996,16 +1916,14 @@ button:focus-visible {
   bottom: 7px;
   width: 13px;
   height: 13px;
-  border-right: 2px solid color-mix(in oklab, var(--signal-focus) 72%, white 8%);
-  border-bottom: 2px solid color-mix(in oklab, var(--signal-focus) 72%, white 8%);
+  border-right: 2px solid var(--ink-6);
+  border-bottom: 2px solid var(--ink-6);
   box-shadow: none;
 }
 
 .tile-resize-handle:hover {
-  border-color: color-mix(in oklab, var(--signal-focus) 72%, transparent);
-  background:
-    linear-gradient(135deg, transparent 0 42%, color-mix(in oklab, var(--signal-focus) 78%, transparent) 42% 48%, transparent 48% 62%, color-mix(in oklab, var(--signal-focus) 78%, transparent) 62% 68%, transparent 68%),
-    rgba(12, 22, 23, 0.96);
+  border-color: var(--ink-6);
+  background: var(--ink-3);
 }
 
 body.arranging-pointer {
@@ -2014,71 +1932,47 @@ body.arranging-pointer {
 }
 
 .terminal-tile.real-terminal {
-  border-color: color-mix(in oklab, white 9%, transparent);
+  border-color: var(--ink-3);
 }
 
 .terminal-tile.real-terminal.ready {
-  border-color: color-mix(in oklab, var(--signal-success) 16%, transparent);
+  border-color: var(--ink-3);
 }
 
-.terminal-tile.kind-manual {
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.014), transparent 44px),
-    var(--terminal);
-}
-
-.terminal-tile.kind-codex {
-  border-color: rgba(86, 200, 213, 0.14);
-  background:
-    linear-gradient(180deg, rgba(86, 200, 213, 0.022), transparent 44px),
-    var(--terminal);
-}
-
-.terminal-tile.kind-claude {
-  border-color: rgba(169, 156, 255, 0.14);
-  background:
-    linear-gradient(180deg, rgba(169, 156, 255, 0.02), transparent 44px),
-    var(--terminal);
-}
-
-.terminal-tile.kind-dev-server {
-  border-color: color-mix(in oklab, var(--signal-agent) 16%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--signal-agent) 2.4%, transparent), transparent 44px),
-    var(--terminal);
-}
-
+.terminal-tile.kind-manual,
+.terminal-tile.kind-codex,
+.terminal-tile.kind-claude,
+.terminal-tile.kind-dev-server,
 .terminal-tile.kind-shell {
-  border-color: rgba(188, 202, 218, 0.15);
+  border-color: var(--ink-3);
+  background: var(--ink-0);
 }
 
 .terminal-tile.real-terminal.error,
 .terminal-tile.real-terminal.exited {
-  border-color: rgba(239, 129, 115, 0.42);
+  border-color: var(--ink-5);
 }
 
 .tile-header {
   min-width: 0;
-  border-bottom: 1px solid color-mix(in oklab, white 5%, transparent);
+  border-bottom: 1px solid var(--ink-3);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(150px, min(300px, 42vw)) auto;
   align-items: center;
   gap: 8px;
   padding: 0 14px;
-  color: var(--muted);
+  color: var(--ink-5);
   font-family: var(--mono);
   font-size: 12px;
-  background:
-    linear-gradient(180deg, color-mix(in oklab, white 1.8%, transparent), transparent),
-    #070a0b;
+  background: var(--ink-0);
 }
 
 .terminal-tile-header {
-  min-height: 36px;
-  padding: 5px 7px;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface-tile-header);
-  background-image: none;
+  height: 30px;
+  min-height: 30px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--ink-3);
+  background: var(--ink-0);
   box-shadow: none;
   display: flex;
   align-items: center;
@@ -2106,7 +2000,7 @@ body.arranging-pointer {
 }
 
 .terminal-tile-header .tile-title b {
-  color: var(--text-secondary);
+  color: var(--ink-6);
   font: 650 13px/1.12 var(--sans);
   letter-spacing: 0;
   overflow: hidden;
@@ -2115,7 +2009,7 @@ body.arranging-pointer {
 }
 
 .terminal-tile-header .tile-title small {
-  color: var(--text-faint);
+  color: var(--ink-5);
   font: 500 10px/1.2 var(--mono);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2137,24 +2031,23 @@ body.arranging-pointer {
 .tile-activity {
   min-width: 0;
   min-height: 24px;
-  border: 1px solid color-mix(in oklab, white 4%, transparent);
-  border-radius: 999px;
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
   padding: 2px 7px 2px 4px;
-  background:
-    linear-gradient(180deg, color-mix(in oklab, white 2.4%, transparent), color-mix(in oklab, white 1%, transparent));
-  color: var(--muted);
+  background: var(--ink-1);
+  color: var(--ink-5);
   display: flex;
   align-items: center;
   gap: 6px;
   overflow: hidden;
-  box-shadow: inset 0 1px 0 color-mix(in oklab, white 4%, transparent);
+  box-shadow: none;
 }
 
 .tile-activity > span {
   min-width: 34px;
   min-height: 18px;
-  border-radius: 999px;
-  background: color-mix(in oklab, currentColor 12%, transparent);
+  border-radius: 7px;
+  background: var(--ink-2);
   color: inherit;
   display: inline-flex;
   align-items: center;
@@ -2177,42 +2070,42 @@ body.arranging-pointer {
 .tile-activity strong {
   flex: 0 0 auto;
   max-width: 108px;
-  color: var(--ink-soft);
+  color: var(--ink-6);
   font-size: 11px;
   font-weight: 600;
 }
 
 .tile-activity small {
   min-width: 0;
-  color: var(--faint);
+  color: var(--ink-5);
   font-size: 10px;
 }
 
 .tile-activity.activity-approval,
 .tile-activity.activity-plan {
-  border-color: color-mix(in oklab, var(--brass) 26%, transparent);
-  color: var(--brass);
+  border-color: var(--ink-3);
+  color: var(--ink-5);
 }
 
 .tile-activity.activity-error {
-  border-color: color-mix(in oklab, var(--signal-danger) 34%, transparent);
-  color: var(--signal-danger);
+  border-color: var(--ink-3);
+  color: var(--ink-5);
 }
 
 .tile-activity.activity-warning {
-  border-color: color-mix(in oklab, var(--brass) 30%, transparent);
-  color: #f5d67f;
+  border-color: var(--ink-3);
+  color: var(--ink-5);
 }
 
 .tile-activity.activity-command {
-  border-color: color-mix(in oklab, var(--signal-success) 22%, transparent);
-  color: var(--signal-success);
+  border-color: var(--ink-3);
+  color: var(--ink-5);
 }
 
 .tile-activity.activity-file,
 .tile-activity.activity-tool {
-  border-color: color-mix(in oklab, var(--signal-focus) 24%, transparent);
-  color: var(--signal-focus);
+  border-color: var(--ink-3);
+  color: var(--ink-5);
 }
 
 .tile-title {
@@ -2233,7 +2126,7 @@ body.arranging-pointer {
   height: 7px;
   flex: 0 0 auto;
   border-radius: 999px;
-  background: var(--cyan);
+  background: var(--ink-5);
   box-shadow: none;
   opacity: 0.8;
 }
@@ -2245,7 +2138,7 @@ body.arranging-pointer {
 }
 
 .terminal-tile.real-terminal.ready .tool-dot {
-  background: var(--faint);
+  background: var(--ink-5);
 }
 
 .terminal-tile.real-terminal.selected .tool-dot,
@@ -2255,7 +2148,7 @@ body.arranging-pointer {
 }
 
 .terminal-tile.ready .tool-dot {
-  background: var(--signal-success);
+  background: var(--ink-5);
   box-shadow: none;
 }
 
@@ -2266,19 +2159,19 @@ body.arranging-pointer {
   box-shadow: none;
 }
 
-.tool-dot.manual { background: var(--signal-success); }
-.tool-dot.codex { background: var(--cyan); }
-.tool-dot.claude { background: var(--claude-amber); }
-.tool-dot.dev-server { background: var(--brass); }
-.tool-dot.shell { background: var(--ink-soft); }
+.tool-dot.manual,
+.tool-dot.codex,
+.tool-dot.claude,
+.tool-dot.dev-server,
+.tool-dot.shell { background: var(--ink-5); }
 
 .tile-kind-mark {
   min-width: 40px;
   min-height: 22px;
-  border: 1px solid rgba(188, 202, 218, 0.12);
+  border: 1px solid var(--ink-3);
   border-radius: 6px;
-  background: rgba(238, 243, 247, 0.035);
-  color: var(--muted);
+  background: var(--ink-1);
+  color: var(--ink-5);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2310,40 +2203,20 @@ body.arranging-pointer {
   white-space: nowrap;
 }
 
-.tile-kind-mark.manual {
-  border-color: var(--line);
-  background: rgba(238, 243, 247, 0.035);
-  color: var(--text-secondary);
-}
-
+.tile-kind-mark.manual,
 .tile-kind-mark.codex {
-  border-color: rgba(86, 200, 213, 0.25);
-  background: rgba(86, 200, 213, 0.055);
-  color: #9fdde3;
-}
-
-.tile-kind-mark.claude {
-  border-color: rgba(169, 156, 255, 0.24);
-  background: rgba(169, 156, 255, 0.052);
-  color: #cec6ff;
-}
-
-.tile-kind-mark.dev-server {
-  border-color: color-mix(in oklab, var(--signal-agent) 24%, transparent);
-  background: color-mix(in oklab, var(--signal-agent) 5.5%, transparent);
-  color: #f5d67f;
-}
-
+.tile-kind-mark.claude,
+.tile-kind-mark.dev-server,
 .tile-kind-mark.shell {
-  border-color: rgba(188, 202, 218, 0.16);
-  background: rgba(238, 243, 247, 0.04);
-  color: var(--ink-soft);
+  border-color: var(--ink-3);
+  background: var(--ink-1);
+  color: var(--ink-6);
 }
 
 .tile-title b {
   display: block;
   overflow: hidden;
-  color: var(--ink-soft);
+  color: var(--ink-6);
   font-weight: 580;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2360,10 +2233,10 @@ body.arranging-pointer {
   width: min(260px, 22vw);
   min-width: 120px;
   height: 24px;
-  border: 1px solid color-mix(in oklab, var(--cyan) 42%, transparent);
+  border: 1px solid var(--ink-5);
   border-radius: 6px;
-  background: rgba(9, 12, 12, 0.96);
-  color: var(--ink);
+  background: var(--ink-0);
+  color: var(--ink-7);
   font: inherit;
   font-size: 13px;
   font-weight: 650;
@@ -2375,10 +2248,10 @@ body.arranging-pointer {
   width: 24px;
   height: 24px;
   min-height: 24px;
-  border: 1px solid color-mix(in oklab, var(--cyan) 32%, transparent);
+  border: 1px solid var(--ink-5);
   border-radius: 6px;
-  background: color-mix(in oklab, var(--cyan) 9%, transparent);
-  color: var(--cyan);
+  background: var(--ink-2);
+  color: var(--ink-7);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2394,14 +2267,14 @@ body.arranging-pointer {
   align-items: center;
   gap: 6px;
   min-width: 0;
-  color: var(--faint);
+  color: var(--ink-5);
   font-size: 10px;
   line-height: 1.15;
 }
 
 .tile-title .session-location-meta {
   flex: 0 0 auto;
-  color: color-mix(in oklab, var(--faint) 74%, var(--muted));
+  color: var(--ink-5);
   font-size: var(--type-micro);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2412,7 +2285,7 @@ body.arranging-pointer {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: color-mix(in oklab, var(--ink-soft) 72%, var(--faint));
+  color: var(--ink-5);
 }
 
 .tile-actions {
@@ -2430,7 +2303,7 @@ body.arranging-pointer {
   gap: 4px;
   padding-left: 10px;
   margin-left: 10px;
-  border-left: 1px solid color-mix(in oklab, white 7%, transparent);
+  border-left: 1px solid var(--ink-3);
 }
 
 .tile-action-group:first-child {
@@ -2441,7 +2314,7 @@ body.arranging-pointer {
 
 .tile-status-group {
   gap: 8px;
-  color: var(--text-faint);
+  color: var(--ink-5);
 }
 
 .tile-primary-actions {
@@ -2482,10 +2355,10 @@ body.arranging-pointer {
   gap: 6px;
   min-height: 22px;
   padding: 3px 10px 3px 8px;
-  border: 1px solid color-mix(in oklab, white 5%, transparent);
-  border-radius: 999px;
-  background: color-mix(in oklab, white 1.8%, transparent);
-  color: var(--ink-soft);
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
+  background: var(--ink-1);
+  color: var(--ink-5);
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 500;
@@ -2496,13 +2369,13 @@ body.arranging-pointer {
 
 .terminal-status-label {
   min-height: 22px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ink-3);
   border-radius: 7px;
   padding: 0 7px;
-  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  background: var(--ink-1);
   background-image: none;
   box-shadow: none;
-  color: var(--text-muted);
+  color: var(--ink-5);
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -2515,13 +2388,13 @@ body.arranging-pointer {
 }
 
 .terminal-status-label.tone-codex {
-  color: var(--codex-blue);
-  border-color: color-mix(in oklab, var(--codex-blue) 32%, transparent);
+  color: var(--ink-5);
+  border-color: var(--ink-3);
 }
 
 .terminal-status-label.tone-claude {
-  color: var(--claude-amber);
-  border-color: color-mix(in oklab, var(--claude-amber) 32%, transparent);
+  color: var(--ink-5);
+  border-color: var(--ink-3);
 }
 
 .terminal-status-text {
@@ -2539,24 +2412,24 @@ body.arranging-pointer {
   flex: 0 0 18px;
   align-items: center;
   justify-content: center;
-  color: var(--muted);
+  color: var(--ink-5);
 }
 
-.session-status-glyph.status-active { color: var(--cyan); }
-.session-status-glyph.status-waiting,
+.session-status-glyph.status-waiting { color: var(--signal); }
+.session-status-glyph.status-active,
 .session-status-glyph.status-checking,
 .session-status-glyph.status-starting,
-.session-status-glyph.status-runtime { color: var(--brass); }
+.session-status-glyph.status-runtime,
 .session-status-glyph.status-blocked,
-.session-status-glyph.status-error { color: var(--signal-danger); }
+.session-status-glyph.status-error,
 .session-status-glyph.status-restored,
 .session-status-glyph.status-done,
 .session-status-glyph.status-idle,
-.session-status-glyph.status-staged { color: var(--muted); }
+.session-status-glyph.status-staged { color: var(--ink-5); }
 
 .tile-age {
   min-width: 34px;
-  color: color-mix(in oklab, var(--faint) 80%, transparent);
+  color: var(--ink-5);
   font-family: var(--mono);
   font-size: 10px;
   text-align: right;
@@ -2572,44 +2445,38 @@ body.arranging-pointer {
   box-shadow: none;
 }
 
-.terminal-tile.real-terminal.connecting .tile-status { color: var(--brass); }
-.terminal-tile.real-terminal.ready .tile-status      { color: color-mix(in oklab, var(--signal-success) 72%, var(--muted)); }
-.terminal-tile.real-terminal.exited .tile-status     { color: var(--muted); }
-.terminal-tile.real-terminal.error .tile-status      { color: var(--signal-danger); }
-.terminal-tile.real-terminal.browser .tile-status    { color: var(--passive); }
-.terminal-tile.real-terminal.restored .tile-status   { color: var(--muted); }
-
-.terminal-tile.real-terminal .tile-status.status-active  { color: var(--signal-focus-strong); }
-.terminal-tile.real-terminal .tile-status.status-idle    { color: var(--muted); }
-.terminal-tile.real-terminal .tile-status.status-waiting { color: var(--brass); }
-.terminal-tile.real-terminal .tile-status.status-done    { color: var(--muted); }
-.terminal-tile.real-terminal .tile-status.status-error   { color: var(--signal-danger); }
-.terminal-tile.real-terminal .tile-status.status-runtime { color: var(--passive); }
-.terminal-tile.real-terminal .tile-status.status-restored { color: var(--muted); }
+.terminal-tile.real-terminal.connecting .tile-status,
+.terminal-tile.real-terminal.ready .tile-status,
+.terminal-tile.real-terminal.exited .tile-status,
+.terminal-tile.real-terminal.error .tile-status,
+.terminal-tile.real-terminal.browser .tile-status,
+.terminal-tile.real-terminal.restored .tile-status,
+.terminal-tile.real-terminal .tile-status.status-active,
+.terminal-tile.real-terminal .tile-status.status-idle,
+.terminal-tile.real-terminal .tile-status.status-done,
+.terminal-tile.real-terminal .tile-status.status-error,
+.terminal-tile.real-terminal .tile-status.status-runtime,
+.terminal-tile.real-terminal .tile-status.status-restored { color: var(--ink-5); }
+.terminal-tile.real-terminal .tile-status.status-waiting { color: var(--signal); }
 .terminal-tile.staged .tile-status.status-blocked { color: var(--brass); }
 .terminal-tile.staged .tile-status.status-checking { color: var(--cyan); }
 
 .terminal-tile.real-terminal.browser .tile-status.status-runtime {
-  color: var(--passive);
+  color: var(--ink-5);
 }
 
 .terminal-tile.real-terminal.session-active {
-  border-color: color-mix(in oklab, var(--signal-success) 18%, transparent);
+  border-color: var(--ink-3);
 }
 
 .terminal-tile.real-terminal.session-waiting {
-  border-color: color-mix(in oklab, var(--brass) 42%, transparent);
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklab, white 12%, transparent),
-    inset 0 0 0 1px color-mix(in oklab, var(--brass) 12%, transparent),
-    0 22px 46px -20px rgba(0, 0, 0, 0.88);
+  border-color: var(--ink-5);
+  box-shadow: none;
 }
 
 .terminal-tile.real-terminal.browser {
-  border-color: color-mix(in oklab, white 8%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in oklab, white 2%, transparent), transparent 46px),
-    rgba(4, 6, 8, 0.78);
+  border-color: var(--ink-3);
+  background: var(--ink-0);
   opacity: 0.82;
 }
 
@@ -2624,20 +2491,17 @@ body.arranging-pointer {
 .terminal-tile.kind-claude,
 .terminal-tile.kind-dev-server,
 .terminal-tile.real-terminal.browser {
-  background: var(--surface-panel);
-  background-image: none;
+  background: var(--ink-0);
   box-shadow: none;
 }
 
 .arrange-handle {
   width: 22px;
   height: 18px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ink-3);
   border-radius: 6px;
   justify-self: end;
-  background:
-    radial-gradient(circle, color-mix(in oklab, var(--signal-focus) 56%, transparent) 1.2px, transparent 1.2px)
-      center / 6px 6px;
+  background: var(--ink-2);
   opacity: 0.9;
 }
 
@@ -2653,12 +2517,12 @@ body.arranging-pointer {
   height: 28px;
   min-width: 28px;
   min-height: 28px;
-  border: 1px solid rgba(188, 202, 218, 0.1);
+  border: 1px solid var(--ink-3);
   border-radius: 7px;
-  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  background: var(--ink-1);
   background-image: none;
   box-shadow: none;
-  color: color-mix(in oklab, var(--muted) 78%, var(--ink-soft));
+  color: var(--ink-5);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2678,45 +2542,45 @@ body.arranging-pointer {
 }
 
 .tile-primary-actions button {
-  border-color: color-mix(in oklab, var(--signal-focus) 42%, transparent);
-  color: var(--signal-focus-strong);
+  border-color: var(--ink-5);
+  color: var(--ink-6);
 }
 
 .tile-primary-actions button:hover,
 .tile-primary-actions button:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 60%, transparent);
-  background: var(--signal-focus-soft);
+  border-color: var(--ink-6);
+  background: var(--ink-2);
 }
 
 .tile-utility-actions button,
 .tile-danger-actions button {
-  border-color: var(--border);
+  border-color: var(--ink-3);
   background: transparent;
-  color: var(--text-faint);
+  color: var(--ink-5);
 }
 
 .tile-utility-actions button:hover,
 .tile-utility-actions button:focus-visible {
-  border-color: var(--border-focus);
-  background: var(--surface-control-hover);
-  color: var(--text-secondary);
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-6);
 }
 
 .tile-danger-actions button:hover,
 .tile-danger-actions button:focus-visible {
-  border-color: color-mix(in oklab, var(--alert-red) 30%, transparent);
-  background: color-mix(in oklab, var(--alert-red) 7%, var(--surface-control));
-  color: color-mix(in oklab, var(--alert-red) 82%, white 12%);
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-6);
 }
 
 .tile-primary-actions .continue-button {
   min-height: 28px;
   max-width: 124px;
-  border-color: color-mix(in oklab, var(--role-active) 28%, var(--border));
-  border-radius: 8px;
+  border-color: var(--ink-5);
+  border-radius: 7px;
   padding: 0 10px;
-  background: color-mix(in oklab, var(--role-active) 5%, var(--surface-control));
-  color: var(--signal-focus-strong);
+  background: var(--ink-1);
+  color: var(--ink-6);
 }
 
 .tile-primary-actions .continue-button span {
@@ -2874,16 +2738,16 @@ body.arranging-pointer {
 
 .tile-actions button:hover,
 .tile-actions button:focus-visible {
-  border-color: rgba(188, 202, 218, 0.18);
-  background: rgba(238, 243, 247, 0.05);
-  color: var(--ink-soft);
-  box-shadow: inset 0 1px 0 color-mix(in oklab, white 6%, transparent);
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-6);
+  box-shadow: none;
 }
 
 .tile-actions .handoff-button:hover,
 .tile-actions .handoff-button:focus-visible {
-  border-color: rgba(86, 200, 213, 0.44);
-  color: var(--cyan);
+  border-color: var(--ink-5);
+  color: var(--ink-6);
 }
 
 .tile-actions .continue-button {
@@ -2891,41 +2755,41 @@ body.arranging-pointer {
   min-width: 88px;
   gap: 6px;
   padding: 0 10px;
-  color: #f5e6b8;
-  border-color: color-mix(in oklab, var(--signal-agent) 34%, transparent);
-  background: color-mix(in oklab, var(--signal-agent) 7%, transparent);
+  color: var(--ink-6);
+  border-color: var(--ink-5);
+  background: var(--ink-1);
 }
 
 .tile-primary-actions .continue-button:not(.unsafe) {
-  border-color: color-mix(in oklab, var(--signal-focus) 40%, transparent);
-  background: color-mix(in oklab, var(--signal-focus) 10%, transparent);
-  color: #d8fbff;
+  border-color: var(--ink-5);
+  background: var(--ink-1);
+  color: var(--ink-6);
 }
 
 .tile-primary-actions .continue-button:not(.unsafe):hover,
 .tile-primary-actions .continue-button:not(.unsafe):focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 56%, transparent);
-  background: color-mix(in oklab, var(--signal-focus) 14%, transparent);
-  color: #effeff;
+  border-color: var(--ink-6);
+  background: var(--ink-2);
+  color: var(--ink-7);
 }
 
 .tile-actions .continue-button:hover,
 .tile-actions .continue-button:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-agent) 50%, transparent);
-  background: color-mix(in oklab, var(--signal-agent) 10%, transparent);
-  color: #fff1bf;
+  border-color: var(--ink-6);
+  background: var(--ink-2);
+  color: var(--ink-7);
 }
 
 .tile-actions .continue-button.unsafe {
-  border-color: rgba(239, 129, 115, 0.38);
-  background: rgba(239, 129, 115, 0.075);
-  color: #ffd5cc;
+  border-color: var(--ink-5);
+  background: var(--ink-1);
+  color: var(--ink-6);
 }
 
 .tile-actions .continue-button.unsafe.armed {
-  border-color: rgba(245, 214, 127, 0.58);
-  background: rgba(245, 214, 127, 0.12);
-  color: #fff1bf;
+  border-color: var(--ink-6);
+  background: var(--ink-2);
+  color: var(--ink-7);
 }
 
 .tile-actions .continue-button span {
@@ -2935,7 +2799,7 @@ body.arranging-pointer {
 
 .tile-actions .rename-session-button,
 .tile-actions .handoff-button {
-  color: var(--faint);
+  color: var(--ink-5);
 }
 
 .tile-actions .discard-session-button {
@@ -2944,15 +2808,15 @@ body.arranging-pointer {
   padding: 0 7px;
   border-color: transparent;
   background: transparent;
-  color: color-mix(in oklab, var(--signal-danger) 54%, var(--muted));
+  color: var(--ink-5);
   opacity: 0.72;
 }
 
 .tile-actions .discard-session-button:hover,
 .tile-actions .discard-session-button:focus-visible {
   border-color: transparent;
-  background: rgba(239, 129, 115, 0.04);
-  color: #ffd5cc;
+  background: var(--ink-2);
+  color: var(--ink-6);
 }
 
 .tile-actions .discard-session-button span {
@@ -2963,25 +2827,25 @@ body.arranging-pointer {
 .real-terminal .xterm {
   min-width: 0;
   min-height: 0;
-  background: var(--surface-terminal);
+  background: var(--ink-0);
 }
 
 .terminal-tile .xterm,
 .terminal-tile .terminal-viewport {
-  background: var(--surface-sunken);
+  background: var(--ink-0);
 }
 
 .terminal-tile .terminal-host,
 .terminal-tile .xterm-host {
-  background: var(--surface-terminal);
+  background: var(--ink-0);
 }
 
 .xterm-host {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border-radius: 0 0 10px 10px;
-  background: var(--surface-terminal);
+  border-radius: 0;
+  background: var(--ink-0);
   background-image: none;
 }
 
@@ -3547,47 +3411,30 @@ body.arranging-pointer {
 
 /* Composer */
 .composer-bar {
-  min-height: 66px;
-  border-top: 1px solid var(--line-strong);
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) 96px;
-  grid-template-rows: 36px 16px;
+  min-width: 0;
   align-items: center;
-  column-gap: 12px;
-  row-gap: 4px;
-  padding: 7px 12px 7px;
-  background: var(--surface-panel);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.045) inset,
-    0 -16px 36px -32px rgba(0, 0, 0, 0.9);
+  gap: 5px;
 }
 
 .composer-bar[data-state="busy"] {
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 4%, transparent), transparent 28px),
-    rgba(8, 11, 15, 0.94);
+  background: transparent;
 }
 
 .composer-bar[data-state="blocked"] {
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--signal-agent) 4%, transparent), transparent 28px),
-    rgba(8, 11, 15, 0.94);
+  background: transparent;
 }
 
 .composer-bar[data-state="disabled"] {
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.01), transparent 28px),
-    rgba(7, 10, 14, 0.92);
+  background: transparent;
 }
 
 .dispatch-bar {
   min-height: 0;
-  border-top: 1px solid var(--border);
-  border-color: var(--border);
-  border-radius: var(--radius-panel);
-  padding: 4px 10px;
-  background: var(--surface-canvas);
-  background-image: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -3613,16 +3460,12 @@ body.arranging-pointer {
   min-width: 0;
   min-height: 36px;
   max-height: 36px;
-  border: 1px solid rgba(188, 202, 218, 0.1);
-  border-radius: 8px;
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
   padding: 7px 11px;
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.22), rgba(238, 243, 247, 0.016)),
-    rgba(4, 7, 10, 0.92);
-  box-shadow:
-    inset 0 1px 0 rgba(238, 243, 247, 0.02),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.12);
-  color: var(--ink);
+  background: var(--ink-0);
+  box-shadow: none;
+  color: var(--ink-7);
   font-family: var(--sans);
   font-size: 13px;
   line-height: 1.4;
@@ -3637,15 +3480,13 @@ body.arranging-pointer {
 }
 
 .composer-input::placeholder {
-  color: var(--faint);
+  color: var(--ink-5);
 }
 
 .composer-input:focus-visible {
-  border-color: var(--focus-border);
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.16), color-mix(in oklab, var(--signal-focus) 5%, transparent)),
-    rgba(5, 9, 12, 0.94);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--signal-focus) 16%, transparent), 0 0 0 4px color-mix(in oklab, var(--signal-focus) 12%, transparent);
+  border-color: var(--ink-6);
+  background: var(--ink-0);
+  box-shadow: none;
 }
 
 .dispatch-bar .composer-input {
@@ -3662,11 +3503,9 @@ body.arranging-pointer {
 }
 
 .composer-input:disabled {
-  border-color: rgba(188, 202, 218, 0.08);
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(238, 243, 247, 0.012)),
-    rgba(6, 9, 12, 0.9);
-  color: color-mix(in oklab, var(--ink-soft) 80%, var(--muted));
+  border-color: var(--ink-3);
+  background: var(--ink-0);
+  color: var(--ink-5);
   opacity: 1;
   cursor: not-allowed;
 }
@@ -3674,13 +3513,12 @@ body.arranging-pointer {
 .composer-send {
   min-height: 36px;
   min-width: 84px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
   padding: 0 14px;
-  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
-  background-image: none;
+  background: var(--ink-2);
   box-shadow: none;
-  color: #04120a;
+  color: var(--ink-6);
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 600;
@@ -3697,16 +3535,14 @@ body.arranging-pointer {
 }
 
 .composer-send:focus-visible {
-  border-color: var(--focus-border);
-  color: var(--ink);
+  border-color: var(--ink-6);
+  color: var(--ink-7);
 }
 
 .composer-send:disabled {
-  border-color: rgba(188, 202, 218, 0.1);
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.018), rgba(238, 243, 247, 0.008)),
-    rgba(255, 255, 255, 0.01);
-  color: color-mix(in oklab, var(--muted) 88%, var(--ink-soft));
+  border-color: var(--ink-3);
+  background: var(--ink-1);
+  color: var(--ink-5);
   cursor: not-allowed;
   opacity: 1;
 }
@@ -3715,47 +3551,44 @@ body.arranging-pointer {
   grid-column: 4;
   flex: 0 0 auto;
   min-width: 76px;
-  border-color: var(--line);
+  border-color: var(--ink-3);
   padding: 0 12px;
-  background: var(--role-control);
-  background-image: none;
+  background: var(--ink-2);
   box-shadow: none;
-  color: var(--text-secondary);
+  color: var(--ink-6);
   font: 600 12px/1 var(--sans);
 }
 
 .dispatch-bar .composer-send:disabled {
-  color: var(--text-faint);
+  color: var(--ink-5);
 }
 
 .dispatch-bar[data-state="ready"] .composer-send:enabled {
-  background: color-mix(in oklab, var(--role-active) 5%, var(--surface-control));
-  border-color: color-mix(in oklab, var(--role-active) 28%, var(--line));
-  color: var(--signal-focus-strong);
+  background: var(--ink-2);
+  border-color: var(--ink-5);
+  color: var(--ink-7);
 }
 
 .dispatch-bar[data-state="busy"] .composer-send:enabled {
-  background: color-mix(in oklab, var(--role-attention) 9%, var(--surface-control));
-  border-color: color-mix(in oklab, var(--role-attention) 36%, var(--line));
-  color: color-mix(in oklab, var(--role-attention) 86%, white 8%);
+  background: var(--ink-2);
+  border-color: var(--ink-5);
+  color: var(--ink-6);
 }
 
 .composer-bar[data-state="ready"] .composer-send:enabled {
-  border-color: color-mix(in oklab, var(--signal-focus) 22%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 8%, transparent), color-mix(in oklab, var(--signal-focus) 3%, transparent)),
-    rgba(238, 243, 247, 0.018);
-  color: #d4f4f7;
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-7);
 }
 
 .composer-bar[data-state="busy"] .composer-send:enabled {
-  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
-  color: #d4f4f7;
+  border-color: var(--ink-5);
+  color: var(--ink-6);
 }
 
 .composer-bar[data-state="blocked"] .composer-send:enabled {
-  border-color: color-mix(in oklab, var(--signal-agent) 28%, transparent);
-  color: #eadbb1;
+  border-color: var(--ink-5);
+  color: var(--ink-6);
 }
 
 .composer-status-row {
@@ -3777,24 +3610,24 @@ body.arranging-pointer {
 }
 
 .composer-bar[data-state="ready"] .composer-status-indicator {
-  border-color: color-mix(in oklab, var(--signal-focus) 42%, transparent);
-  background: color-mix(in oklab, var(--signal-focus) 8%, transparent);
+  border-color: var(--ink-5);
+  background: var(--ink-5);
 }
 
 .composer-bar[data-state="busy"] .composer-status-indicator {
-  border-color: color-mix(in oklab, var(--cyan) 46%, transparent);
-  background: color-mix(in oklab, var(--cyan) 9%, transparent);
+  border-color: var(--ink-5);
+  background: var(--ink-5);
 }
 
 .composer-bar[data-state="blocked"] .composer-status-indicator {
-  border-color: color-mix(in oklab, var(--brass) 48%, transparent);
-  background: color-mix(in oklab, var(--brass) 10%, transparent);
+  border-color: var(--ink-5);
+  background: var(--ink-5);
 }
 
 .composer-status {
   min-width: 0;
   flex: 1 1 auto;
-  color: var(--faint);
+  color: var(--ink-5);
   font-family: var(--mono);
   font-size: 10px;
   line-height: 1.2;
@@ -3815,7 +3648,7 @@ body.arranging-pointer {
 }
 
 .dispatch-bar .composer-status {
-  color: var(--text-faint);
+  color: var(--ink-5);
   font: 400 11px/1.2 var(--sans);
   letter-spacing: 0;
 }
@@ -3829,11 +3662,11 @@ body.arranging-pointer {
 
 .composer-blocked-action {
   min-height: 18px;
-  border: 1px solid color-mix(in oklab, var(--brass) 24%, transparent);
+  border: 1px solid var(--ink-3);
   border-radius: 6px;
   padding: 0 8px;
-  background: color-mix(in oklab, var(--brass) 7%, transparent);
-  color: #f5e6b8;
+  background: var(--ink-2);
+  color: var(--ink-6);
   font-family: var(--mono);
   font-size: 10px;
   cursor: pointer;
@@ -3842,8 +3675,8 @@ body.arranging-pointer {
 
 .composer-blocked-action:hover,
 .composer-blocked-action:focus-visible {
-  border-color: color-mix(in oklab, var(--brass) 44%, transparent);
-  color: var(--ink);
+  border-color: var(--ink-5);
+  color: var(--ink-7);
 }
 
 .desktop-save-banner {
@@ -4423,10 +4256,10 @@ body.arranging-pointer {
   box-shadow: 0 0 18px color-mix(in oklab, var(--signal-agent) 22%, transparent);
 }
 
-.terminal-tile.staged .tool-dot.codex { background: var(--cyan); }
-.terminal-tile.staged .tool-dot.claude { background: var(--claude-amber); }
-.terminal-tile.staged .tool-dot.dev-server { background: var(--signal-success); }
-.terminal-tile.staged .tool-dot.shell { background: var(--ink-soft); }
+.terminal-tile.staged .tool-dot.codex,
+.terminal-tile.staged .tool-dot.claude,
+.terminal-tile.staged .tool-dot.dev-server,
+.terminal-tile.staged .tool-dot.shell { background: var(--ink-5); }
 
 .terminal-tile.staged.kind-codex::before { background: rgba(86, 200, 213, 0.72); }
 .terminal-tile.staged.kind-claude::before { background: rgba(169, 156, 255, 0.72); }
@@ -5000,14 +4833,13 @@ body.arranging-pointer {
 
 /* Focus mode and inspector */
 
-.focus-session-strip {
+.terminal-action-strip {
   min-height: 38px;
-  border: 1px solid color-mix(in oklab, white 7%, transparent);
-  border-radius: 12px;
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
   padding: 5px;
-  background:
-    linear-gradient(180deg, color-mix(in oklab, white 5%, transparent), transparent),
-    rgba(7, 10, 13, 0.68);
+  background: var(--ink-1);
+  color: var(--ink-6);
   display: flex;
   align-items: center;
   gap: 5px;
@@ -5015,17 +4847,17 @@ body.arranging-pointer {
   scrollbar-width: none;
 }
 
-.focus-session-strip::-webkit-scrollbar {
+.terminal-action-strip::-webkit-scrollbar {
   display: none;
 }
 
-.focus-session-strip button {
+.terminal-action-strip button {
   min-height: 28px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 7px;
   padding: 0 10px 0 8px;
   background: transparent;
-  color: var(--muted);
+  color: var(--ink-5);
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -5033,27 +4865,23 @@ body.arranging-pointer {
   font: 700 12px var(--sans);
 }
 
-.focus-session-strip button .tool-dot {
+.terminal-action-strip button .tool-dot {
   width: 7px;
   height: 7px;
 }
 
-.focus-session-strip button.active,
-.focus-session-strip button[aria-pressed="true"] {
-  border-color: color-mix(in oklab, var(--signal-focus) 22%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 13%, transparent), transparent),
-    color-mix(in oklab, white 5%, transparent);
-  color: var(--ink);
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklab, white 10%, transparent),
-    0 8px 20px -18px color-mix(in oklab, var(--signal-focus) 60%, transparent);
+.terminal-action-strip button.active,
+.terminal-action-strip button[aria-pressed="true"] {
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-7);
+  box-shadow: none;
 }
 
-.focus-session-strip button:hover,
-.focus-session-strip button:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
-  color: var(--ink-soft);
+.terminal-action-strip button:hover,
+.terminal-action-strip button:focus-visible {
+  border-color: var(--ink-5);
+  color: var(--ink-6);
 }
 
 .agent-timeline-panel {
@@ -5654,14 +5482,14 @@ body {
 }
 
 .alfred-mark {
-  box-shadow: 0 0 0 1px var(--border-strong), 0 8px 18px -10px color-mix(in oklab, var(--signal-focus) 16%, transparent);
+  box-shadow: none;
 }
 
 /* --- Workspace rail: raised navigation card --- */
 .workspace-rail {
-  background: var(--surface-panel);
-  border: 1px solid var(--line);
-  box-shadow: var(--depth-card);
+  background: var(--ink-1);
+  border: 1px solid var(--ink-3);
+  box-shadow: none;
 }
 
 .workspace-button {
@@ -5670,18 +5498,14 @@ body {
 }
 
 .workspace-button:hover {
-  background: rgba(255, 255, 255, 0.035);
-  border-color: var(--border-subtle);
+  background: var(--ink-2);
+  border-color: var(--ink-3);
 }
 
 .workspace-button.active {
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 9%, transparent), color-mix(in oklab, var(--signal-focus) 3%, transparent)),
-    var(--surface-raised);
-  border-color: color-mix(in oklab, var(--signal-focus) 32%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--signal-focus) 22%, transparent),
-    var(--depth-card);
+  background: var(--ink-2);
+  border-color: var(--ink-5);
+  box-shadow: none;
 }
 
 .workspace-button.active .workspace-monogram,
@@ -5690,14 +5514,15 @@ body {
 }
 
 .workspace-button.active .workspace-monogram {
-  background: linear-gradient(180deg, var(--signal-focus-strong), var(--accent-press));
-  color: var(--on-accent);
+  background: var(--ink-3);
+  color: var(--ink-7);
   box-shadow: none;
 }
 
 .workspace-button:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--surface-canvas), 0 0 0 4px color-mix(in oklab, var(--signal-focus) 16%, transparent);
+  border-color: var(--ink-6);
+  box-shadow: none;
 }
 
 /* --- Side dock: raised evidence cards --- */
@@ -5783,8 +5608,7 @@ body {
    dense UI read as product surfaces instead of equal-weight text.
    ============================================================ */
 
-:root,
-.agent-space-shell {
+:root {
   --type-region: 16px;
   --type-panel-title: 14px;
   --type-ui: 12px;
@@ -5865,61 +5689,6 @@ body {
   font-family: var(--sans);
   font-size: 11px;
   color: var(--text-muted);
-}
-
-/* Workspace popover: floating command surface, not a flat menu. */
-.workspace-popover {
-  width: min(430px, 82vw);
-  border: 1px solid var(--border-strong);
-  border-radius: 18px;
-  padding: 10px;
-  background: color-mix(in oklab, var(--surface-panel) 94%, black 6%);
-  box-shadow: var(--depth-raised), var(--shadow-panel);
-}
-
-.workspace-popover::before {
-  padding: 8px 9px 10px;
-  color: var(--signal-focus-strong);
-  font-family: var(--sans);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.09em;
-}
-
-.workspace-popover button {
-  min-height: 54px;
-  border-radius: 12px;
-  padding: 10px;
-  color: var(--text-secondary);
-}
-
-.workspace-popover button:hover,
-.workspace-popover button:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 10.5%, transparent), color-mix(in oklab, var(--signal-focus) 3.5%, transparent)),
-    var(--surface-raised);
-  box-shadow: var(--depth-card);
-}
-
-.workspace-popover button strong,
-.workspace-popover button small {
-  font-family: var(--sans);
-}
-
-.workspace-popover button strong {
-  font-size: 13px;
-  color: var(--text-primary);
-}
-
-.workspace-popover button small {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.workspace-popover hr {
-  margin: 9px 4px;
-  background: var(--border-subtle);
 }
 
 .workspace-rename-form,
@@ -6060,27 +5829,21 @@ body {
 
 .workspace-priority-chip.tone-waiting,
 .workspace-priority-chip.tone-staged {
-  border-color: color-mix(in oklab, var(--tone-waiting) 30%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--tone-waiting) 12%, transparent), transparent),
-    var(--surface-sunken);
-  color: color-mix(in oklab, var(--tone-waiting) 86%, white 6%);
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-5);
 }
 
 .workspace-priority-chip.tone-error {
-  border-color: color-mix(in oklab, var(--tone-error) 34%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--tone-error) 12%, transparent), transparent),
-    var(--surface-sunken);
-  color: color-mix(in oklab, var(--tone-error) 88%, white 7%);
+  border-color: var(--ink-3);
+  background: var(--ink-1);
+  color: var(--ink-5);
 }
 
 .workspace-priority-chip.tone-active {
-  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 14%, transparent), color-mix(in oklab, var(--signal-focus) 3.5%, transparent)),
-    var(--surface-sunken);
-  color: var(--tone-active);
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-6);
 }
 
 /* ============================================================
@@ -6090,24 +5853,17 @@ body {
    ============================================================ */
 
 .workspace-rail {
-  background:
-    radial-gradient(360px 300px at 18% 0%, color-mix(in oklab, var(--signal-focus) 3.5%, transparent), transparent 72%),
-    color-mix(in oklab, var(--surface-panel) 88%, black 12%);
+  background: var(--ink-1);
 }
 
 .workspace-button.active {
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 7.5%, transparent), color-mix(in oklab, var(--signal-focus) 2.5%, transparent)),
-    color-mix(in oklab, var(--surface-raised) 86%, black 14%);
-  border-color: color-mix(in oklab, var(--signal-focus) 24%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--signal-focus) 13%, transparent),
-    0 14px 26px -24px color-mix(in oklab, var(--signal-focus) 16%, transparent);
+  background: var(--ink-2);
+  border-color: var(--ink-5);
+  box-shadow: none;
 }
 
 .workspace-button.active .workspace-monogram {
-  background:
-    linear-gradient(180deg, rgba(111, 216, 230, 0.94), rgba(61, 174, 190, 0.9));
+  background: var(--ink-3);
   box-shadow: none;
 }
 
@@ -6545,14 +6301,14 @@ body {
 
 .workspace-layout.surface-inbox,
 .workspace-layout.surface-history {
-  grid-template-columns: 50px minmax(194px, 220px) minmax(0, 1fr);
+  grid-template-columns: minmax(196px, 232px) minmax(0, 1fr);
 }
 
 .workspace-layout.surface-inbox.preview-visible,
 .workspace-layout.surface-history.preview-visible,
 .workspace-layout.surface-inbox.alfred-compact,
 .workspace-layout.surface-history.alfred-compact {
-  grid-template-columns: 50px minmax(194px, 220px) minmax(0, 1fr);
+  grid-template-columns: minmax(196px, 232px) minmax(0, 1fr);
 }
 
 .workspace-layout.surface-inbox .orchestrator-surface,
@@ -7493,16 +7249,6 @@ body {
    Keep depth through opaque layers and hairlines, not glass/glow.
    ============================================================ */
 
-.workspace-layout,
-.workspace-layout.alfred-compact,
-.workspace-layout.preview-visible,
-.workspace-layout.alfred-compact.preview-visible {
-  grid-template-columns: 54px 252px minmax(0, 1fr) minmax(276px, 320px);
-  gap: 10px;
-  padding: 10px;
-  background: rgba(4, 8, 7, 0.94);
-}
-
 .workspace-rail,
 .agent-timeline-panel,
 .workspace-preview-panel {
@@ -7679,7 +7425,7 @@ body {
 .workspace-layout.surface-history.preview-visible,
 .workspace-layout.surface-inbox.alfred-compact,
 .workspace-layout.surface-history.alfred-compact {
-  grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr);
+  grid-template-columns: minmax(196px, 232px) minmax(0, 1fr);
 }
 
 .workspace-layout:has(.context-column.open),
@@ -7688,13 +7434,13 @@ body {
 .workspace-layout.alfred-compact.preview-visible:has(.context-column.open),
 .workspace-layout.surface-inbox:has(.context-column.open),
 .workspace-layout.surface-history:has(.context-column.open) {
-  grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr) minmax(304px, 340px);
+  grid-template-columns: minmax(196px, 232px) minmax(0, 1fr) minmax(304px, 340px);
 }
 
 .workspace-layout > .context-column.open {
   position: static;
   inset: auto;
-  grid-column: 4;
+  grid-column: 3;
   width: auto;
   min-width: 0;
   min-height: 0;
@@ -7775,7 +7521,6 @@ body {
 }
 
 .workspace-rail,
-.workspace-popover,
 .workspace-preview-panel,
 .agent-timeline-panel {
   border-color: var(--border);
@@ -7808,36 +7553,6 @@ body {
   color: var(--text-primary);
 }
 
-.workspace-popover {
-  width: min(390px, 82vw);
-  border-color: color-mix(in oklab, var(--border) 70%, white 8%);
-  border-radius: 12px;
-  padding: 8px;
-  background: var(--surface-chrome);
-  box-shadow: 0 18px 44px -36px rgba(0, 0, 0, 0.95);
-}
-
-.workspace-popover button {
-  min-height: 48px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  padding: 8px;
-  background: transparent;
-  box-shadow: none;
-}
-
-.workspace-popover button:hover,
-.workspace-popover button:focus-visible {
-  border-color: var(--border);
-  background: var(--surface-control);
-  background-image: none;
-  box-shadow: none;
-}
-
-.workspace-popover hr {
-  background: var(--border);
-}
-
 .workspace-button {
   background: transparent;
   background-image: none;
@@ -7852,16 +7567,14 @@ body {
 
 .workspace-button.active,
 .workspace-button.active:hover {
-  border-color: color-mix(in oklab, var(--signal-focus) 22%, transparent);
-  background: color-mix(in oklab, var(--signal-focus) 3.5%, var(--surface-control));
-  background-image: none;
+  border-color: var(--ink-5);
+  background: var(--ink-2);
   box-shadow: none;
 }
 
 .workspace-button.active .workspace-monogram {
-  border-color: color-mix(in oklab, var(--signal-focus) 22%, transparent);
-  background: color-mix(in oklab, var(--signal-focus) 42%, var(--surface-control));
-  background-image: none;
+  border-color: var(--ink-5);
+  background: var(--ink-3);
   box-shadow: none;
 }
 
@@ -7894,7 +7607,6 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .workspace-layout > .primary-nav-rail,
   .workspace-layout > .workspace-navigation-panel,
   .workspace-layout > .orchestrator-surface,
   .workspace-layout > .context-column {
@@ -7918,14 +7630,13 @@ body {
 .workspace-layout.surface-inbox.alfred-compact,
 .workspace-layout.surface-history.alfred-compact {
   position: relative;
-  grid-template-columns: 48px minmax(196px, 232px) minmax(0, 1fr);
-  gap: 8px;
-  padding: 8px;
-  background: var(--surface-canvas);
+  grid-template-columns: minmax(196px, 232px) minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+  background: var(--ink-0);
 }
 
-.workspace-rail,
-.workspace-popover {
+.workspace-rail {
   border-color: var(--border);
   border-radius: var(--radius-panel);
   background: var(--surface-panel);
@@ -7966,13 +7677,13 @@ body {
 
 .workspace-button:hover,
 .workspace-button:focus-visible {
-  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
+  background: var(--ink-2);
 }
 
 .workspace-button.active,
 .workspace-button.active:hover {
-  border-color: color-mix(in oklab, var(--signal-focus) 28%, transparent);
-  background: color-mix(in oklab, var(--signal-focus) 9%, transparent);
+  border-color: var(--ink-5);
+  background: var(--ink-2);
 }
 
 .agent-handoff-buttons button,
@@ -8016,26 +7727,6 @@ body {
   background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
 }
 
-@media (max-width: 1120px) {
-  .workspace-layout,
-  .workspace-layout.alfred-compact,
-  .workspace-layout.preview-visible,
-  .workspace-layout.alfred-compact.preview-visible,
-  .workspace-layout:has(.context-column.closed),
-  .workspace-layout.alfred-compact:has(.context-column.closed),
-  .workspace-layout.preview-visible:has(.context-column.closed),
-  .workspace-layout.alfred-compact.preview-visible:has(.context-column.closed),
-  .workspace-layout.surface-inbox,
-  .workspace-layout.surface-history,
-  .workspace-layout.surface-inbox.preview-visible,
-  .workspace-layout.surface-history.preview-visible,
-  .workspace-layout.surface-inbox.alfred-compact,
-  .workspace-layout.surface-history.alfred-compact {
-    grid-template-columns: 44px minmax(180px, 212px) minmax(0, 1fr);
-  }
-
-}
-
 @media (max-width: 980px) {
   .workspace-layout,
   .workspace-layout.alfred-compact,
@@ -8054,7 +7745,6 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .workspace-layout > .primary-nav-rail,
   .workspace-layout > .workspace-navigation-panel,
   .workspace-layout > .orchestrator-surface,
   .workspace-layout > .context-column {
@@ -8068,10 +7758,6 @@ body {
 }
 
 @media (max-width: 980px) {
-  .desktop-frame {
-    grid-template-rows: 52px minmax(0, 1fr) 58px;
-  }
-
   .mission-bar .mission-name {
     max-width: min(360px, calc(100vw - 112px));
   }
@@ -8084,15 +7770,7 @@ body {
 /* Clean material containment layer. */
 
 body {
-  background: var(--surface-canvas);
-  background-image: none;
-}
-
-.workspace-popover {
-  z-index: 90;
-  background: var(--surface-panel);
-  background-image: none;
-  box-shadow: 0 18px 44px -36px rgba(0, 0, 0, 0.95);
+  background: var(--ink-0);
 }
 
 .workspace-button,
@@ -8103,17 +7781,6 @@ body {
 
 .dispatch-target-chip span {
   min-width: max-content;
-}
-
-@media (max-width: 1180px) {
-  .workspace-layout:has(.context-column.open),
-  .workspace-layout.alfred-compact:has(.context-column.open),
-  .workspace-layout.preview-visible:has(.context-column.open),
-  .workspace-layout.alfred-compact.preview-visible:has(.context-column.open),
-  .workspace-layout.surface-inbox:has(.context-column.open),
-  .workspace-layout.surface-history:has(.context-column.open) {
-    grid-template-columns: 44px minmax(176px, 210px) minmax(0, 1fr) minmax(286px, 316px);
-  }
 }
 
 @media (max-width: 980px) {
@@ -8129,8 +7796,7 @@ body {
 
 /* Terminal-first readability layer. */
 
-:root,
-.agent-space-shell {
+:root {
   --workbench-control-height: 32px;
   --workbench-segment-height: calc(var(--workbench-control-height) - 6px);
   --workbench-control-radius: 8px;
@@ -8172,11 +7838,10 @@ body {
 .dispatch-capsule {
   min-width: 0;
   height: var(--control-height);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
   padding: 2px;
-  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
-  background-image: none;
+  background: var(--ink-0);
   box-shadow: none;
   display: flex;
   align-items: stretch;
@@ -8184,7 +7849,7 @@ body {
 }
 
 .dispatch-capsule:focus-within {
-  border-color: var(--border-focus);
+  border-color: var(--ink-6);
 }
 
 .dispatch-target-chip {
@@ -8192,7 +7857,7 @@ body {
   min-height: 0;
   max-height: none;
   border: 0;
-  border-radius: calc(var(--radius-control) - 2px);
+  border-radius: 5px;
   background: transparent;
   background-image: none;
   box-shadow: none;
@@ -8202,16 +7867,16 @@ body {
   flex: 0 1 auto;
   gap: 7px;
   padding: 0 9px;
-  background: var(--surface-control);
+  background: var(--ink-1);
 }
 
 .dispatch-target-chip:hover,
 .dispatch-target-chip:focus-visible {
-  background: var(--surface-control-hover);
+  background: var(--ink-2);
 }
 
 .dispatch-target-chip span {
-  color: var(--text-faint);
+  color: var(--ink-5);
   font: 600 var(--type-micro)/1 var(--sans);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -8232,19 +7897,18 @@ body {
 .dispatch-kbd-hint kbd {
   min-width: 16px;
   height: 16px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--ink-3);
   border-radius: 4px;
   padding: 0 4px;
   display: inline-grid;
   place-items: center;
-  color: var(--text-faint);
+  color: var(--ink-5);
   font: 500 10px/1 var(--mono);
 }
 
 /* Terminal-first color role layer. */
 
-:root,
-.agent-space-shell {
+:root {
   --role-active: var(--signal-focus);
   --role-attention: var(--signal-agent);
   --role-success: var(--signal-success);
@@ -8271,40 +7935,31 @@ body {
 
 .terminal-tile.real-terminal .tool-dot.manual,
 .terminal-tile.real-terminal .tool-dot.shell,
-.focus-session-strip .tool-dot.manual,
-.focus-session-strip .tool-dot.shell {
-  background: var(--role-neutral-marker);
-}
-
+.terminal-action-strip .tool-dot.manual,
+.terminal-action-strip .tool-dot.shell,
 .terminal-tile.real-terminal .tool-dot.codex,
-.focus-session-strip .tool-dot.codex {
-  background: var(--codex-blue);
-}
-
+.terminal-action-strip .tool-dot.codex,
 .terminal-tile.real-terminal .tool-dot.claude,
-.focus-session-strip .tool-dot.claude {
-  background: var(--claude-amber);
-}
-
+.terminal-action-strip .tool-dot.claude,
 .terminal-tile.real-terminal .tool-dot.dev-server,
-.focus-session-strip .tool-dot.dev-server {
-  background: var(--role-attention);
+.terminal-action-strip .tool-dot.dev-server {
+  background: var(--ink-5);
 }
 
 .terminal-status-label.tone-manual,
 .terminal-status-label.tone-shell {
-  border-color: var(--line);
-  color: var(--text-muted);
+  border-color: var(--ink-3);
+  color: var(--ink-5);
 }
 
 .terminal-status-label.tone-codex {
-  border-color: color-mix(in oklab, var(--codex-blue) 28%, transparent);
-  color: var(--codex-blue);
+  border-color: var(--ink-3);
+  color: var(--ink-5);
 }
 
 .terminal-status-label.tone-claude {
-  border-color: color-mix(in oklab, var(--claude-amber) 28%, transparent);
-  color: var(--claude-amber);
+  border-color: var(--ink-3);
+  color: var(--ink-5);
 }
 
 .agent-activity-object.type-command,
@@ -8387,40 +8042,39 @@ body {
 }
 
 .workspace-button:not(.active) .workspace-button-details strong {
-  color: var(--text-secondary);
+  color: var(--ink-6);
   font: 600 12px/1.2 var(--sans);
 }
 
 .workspace-button:not(.active) .workspace-button-details span {
-  color: var(--text-faint);
+  color: var(--ink-5);
   font: 500 11px/1.35 var(--sans);
 }
 
 .workspace-button:not(.active) .workspace-priority-chip {
-  border-color: var(--border);
+  border-color: var(--ink-3);
   background: transparent;
-  color: var(--text-faint);
+  color: var(--ink-5);
 }
 
 .workspace-button.active {
-  border-color: color-mix(in oklab, var(--signal-focus) 22%, transparent);
-  background: color-mix(in oklab, var(--signal-focus) 3.5%, var(--surface-control));
-  background-image: none;
+  border-color: var(--ink-5);
+  background: var(--ink-2);
   box-shadow: none;
 }
 
 .workspace-button.active .workspace-button-details strong {
-  color: var(--text-primary);
+  color: var(--ink-7);
 }
 
 .workspace-button.active .workspace-button-details span {
-  color: var(--text-muted);
+  color: var(--ink-5);
 }
 
 .workspace-button.add-workspace {
-  border-color: var(--border);
+  border-color: var(--ink-3);
   background: transparent;
-  color: var(--text-muted);
+  color: var(--ink-5);
 }
 
 /* ============================================================
