@@ -69,4 +69,39 @@ describe("ChromeMenu", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(run).not.toHaveBeenCalled();
   });
+
+  it("moves menu focus with arrows Home and End and closes on Tab", async () => {
+    const user = userEvent.setup();
+    render(
+      <div>
+        <ChromeMenu
+          label="Open Surfaces menu"
+          title="Surfaces"
+          items={[
+            { id: "work", label: "Work", run: vi.fn() },
+            { id: "disabled", label: "Disabled", disabled: true, run: vi.fn() },
+            { id: "observatory", label: "Observatory", run: vi.fn() },
+            { id: "context", label: "Context", run: vi.fn() },
+          ]}
+        >
+          Surfaces
+        </ChromeMenu>
+        <button type="button">After menu</button>
+      </div>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open Surfaces menu" }));
+    expect(screen.getByRole("menuitem", { name: "Work" })).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("menuitem", { name: "Observatory" })).toHaveFocus();
+    await user.keyboard("{End}");
+    expect(screen.getByRole("menuitem", { name: "Context" })).toHaveFocus();
+    await user.keyboard("{Home}");
+    expect(screen.getByRole("menuitem", { name: "Work" })).toHaveFocus();
+    await user.keyboard("{ArrowUp}");
+    expect(screen.getByRole("menuitem", { name: "Context" })).toHaveFocus();
+    await user.keyboard("{Tab}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "After menu" })).toHaveFocus();
+  });
 });
