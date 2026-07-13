@@ -44,10 +44,49 @@ export function ChromeMenu({ children, items, label, title, triggerRef }: Chrome
         ?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')
         ?.focus();
     });
+    const enabledItems = () =>
+      Array.from(
+        rootRef.current?.querySelectorAll<HTMLButtonElement>(
+          '[role="menuitem"]:not(:disabled)',
+        ) ?? [],
+      );
+    const focusAt = (index: number) => {
+      const menuItems = enabledItems();
+      if (menuItems.length === 0) return;
+      const nextIndex = (index + menuItems.length) % menuItems.length;
+      menuItems.forEach((item, itemIndex) => {
+        item.tabIndex = itemIndex === nextIndex ? 0 : -1;
+      });
+      menuItems[nextIndex]?.focus();
+    };
+    let tabCloseTimer: number | undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setOpen(false);
-      localTriggerRef.current?.focus();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        localTriggerRef.current?.focus();
+        return;
+      }
+      if (event.key === "Tab") {
+        // Let native focus traversal finish before removing the focused menu item.
+        tabCloseTimer = window.setTimeout(() => setOpen(false));
+        return;
+      }
+      const menuItems = enabledItems();
+      const currentIndex = menuItems.indexOf(document.activeElement as HTMLButtonElement);
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        focusAt(currentIndex + 1);
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        focusAt(currentIndex - 1);
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        focusAt(0);
+      } else if (event.key === "End") {
+        event.preventDefault();
+        focusAt(menuItems.length - 1);
+      }
     };
     const handlePointerDown = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) {
@@ -59,6 +98,7 @@ export function ChromeMenu({ children, items, label, title, triggerRef }: Chrome
     document.addEventListener("pointerdown", handlePointerDown);
     return () => {
       cancelAnimationFrame(frame);
+      window.clearTimeout(tabCloseTimer);
       document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("pointerdown", handlePointerDown);
     };
@@ -70,6 +110,7 @@ export function ChromeMenu({ children, items, label, title, triggerRef }: Chrome
     localTriggerRef.current?.focus();
     item.run();
   };
+  const firstEnabledItemId = items.find((item) => !item.disabled)?.id;
 
   return (
     <div className="chrome-menu" ref={rootRef}>
@@ -93,6 +134,7 @@ export function ChromeMenu({ children, items, label, title, triggerRef }: Chrome
               type="button"
               role="menuitem"
               disabled={item.disabled}
+              tabIndex={item.id === firstEnabledItemId ? 0 : -1}
               onClick={() => runItem(item)}
             >
               <span>{item.label}</span>
