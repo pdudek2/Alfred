@@ -618,6 +618,20 @@ describe("renderer CSS contracts", () => {
     expect(bodyRules[0]).not.toContain("background-size");
   });
 
+  it("keeps one canonical root owner without unused late material tokens", () => {
+    const rootRules = topLevelExactRuleBodies(":root");
+
+    expect(rootRules).toHaveLength(1);
+    expect(rootRules[0]).toContain("--tone-error: #ee8f83");
+    expect(rootRules[0]).toContain("--role-active: var(--signal-focus)");
+    for (const token of [
+      "--type-region", "--type-panel-title", "--type-ui", "--tone-waiting", "--tone-active",
+      "--role-attention", "--role-success", "--role-neutral-marker", "--role-control", "--role-control-hover",
+    ]) {
+      expect(styles).not.toContain(`${token}:`);
+    }
+  });
+
   it("rejects a protected selector with a late top-level occurrence outside its owner region", () => {
     const fixture = `
       .owner-start { display: block; }

@@ -12,6 +12,7 @@ import {
   type Page,
   type TestInfo,
 } from "@playwright/test";
+import type { TerminalApi } from "../../src/shared/terminal-ipc";
 import {
   createDesktopFixture,
   type DesktopFixtureOptions,
@@ -30,6 +31,10 @@ type RuntimeMessage = {
   source: "main-stderr" | "main-stdout" | "pageerror" | "renderer";
   level: "error" | "warning";
   text: string;
+};
+
+type DesktopTerminalWindow = Window & {
+  alfredDesktop?: { terminal: TerminalApi };
 };
 
 export type ElectronHarness = {
@@ -154,29 +159,22 @@ export const test = base.extend<Fixtures>({
     const closeActiveTerminals = async (): Promise<void> => {
       if (page.isClosed()) return;
 
-      const workSurface = page.getByRole("button", { name: "Open Work surface" });
-      if ((await workSurface.count()) > 0 && (await workSurface.getAttribute("aria-current")) !== "page") {
-        await workSurface.click();
+      const runtimeSurface = page.getByTestId("desk-runtime-surface");
+      if ((await runtimeSurface.count()) > 0 && !(await runtimeSurface.isVisible())) {
+        await page.getByRole("button", { name: "Open Surfaces menu" }).click();
+        await page.getByRole("menuitem", { name: "Work" }).click();
       }
-      const gridMode = page.getByRole("button", { name: "Grid", exact: true }).first();
-      if ((await gridMode.count()) > 0 && (await gridMode.getAttribute("aria-pressed")) !== "true") {
-        await gridMode.click();
-      }
-
-      const terminalTiles = page.getByTestId("terminal-tile");
-      while ((await terminalTiles.count()) > 0) {
-        const before = await terminalTiles.count();
-        const tile = terminalTiles.first();
-        await tile.hover();
-        await tile.focus();
-        const closeButton = tile.getByRole("button", {
-          name: /^(?:Close|Discard(?: checkout)?|Reject) /,
-        });
-        await expect(closeButton).toBeVisible();
-        await expect(closeButton).toBeEnabled();
-        await closeButton.click();
-        await expect(terminalTiles).toHaveCount(before - 1);
-      }
+      await page.evaluate(async () => {
+        const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
+        if (!terminalApi) throw new Error("Desktop terminal API is unavailable during cleanup.");
+        const { sessions } = await terminalApi.list();
+        for (const session of sessions) terminalApi.kill({ id: session.id });
+      });
+      await expect.poll(() => page.evaluate(async () => {
+        const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
+        if (!terminalApi) throw new Error("Desktop terminal API is unavailable during cleanup.");
+        return (await terminalApi.list()).sessions.length;
+      })).toBe(0);
     };
 
     const performClose = async (): Promise<void> => {
