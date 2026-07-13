@@ -263,7 +263,7 @@ Run the complete local release gate:
 
     pnpm verify
 
-It runs ESLint, typecheck, tests, build, and three Playwright scenarios against a built Electron app. The Electron smoke uses temporary HOME, user-data, agent-home, and workspace directories; it does not read the normal Codex or Claude state.
+It runs ESLint, typecheck, tests, build, and five Playwright Electron scenarios against a built app. Runtime assertions are the acceptance gate; privacy-safe screenshots, hashes, traces, and CSS captures are diagnostic evidence. The Electron smoke uses temporary HOME, user-data, agent-home, and workspace directories; it does not read the normal Codex or Claude state.
 
 For a faster code-only loop use pnpm verify:quality. To rerun only the desktop smoke use pnpm smoke:electron.
 
