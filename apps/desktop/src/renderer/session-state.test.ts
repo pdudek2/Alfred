@@ -601,10 +601,12 @@ describe("desktop session state", () => {
         data: "\u001b[31mError: build failed\u001b[0m\n",
         activities: [
           {
+            id: "manual-4-activity-200-1",
             kind: "error",
             title: "Error reported",
             detail: "Error: build failed",
             payload: { type: "error", message: "Error: build failed" },
+            at: 200,
           },
         ],
       },
@@ -643,7 +645,7 @@ describe("desktop session state", () => {
     expect(next[0]?.activityEvents).toBeUndefined();
   });
 
-  it("classifies approval prompts as waiting activity", () => {
+  it("records supplied approval events as waiting activity", () => {
     const hydrated = hydrateLiveTerminalSessions([
       {
         id: "pty-a",
@@ -660,10 +662,12 @@ describe("desktop session state", () => {
       id: "pty-a",
       data: "text that is not parsed in renderer",
       activities: [{
+        id: "manual-4-activity-260-1",
         kind: "approval",
         title: "Waiting for approval",
         detail: "Approval required: apply patch?",
         payload: { type: "approval", prompt: "Approval required: apply patch?" },
+        at: 260,
       }],
     };
     const next = recordSessionOutputActivity(hydrated, event, 260);
@@ -673,6 +677,41 @@ describe("desktop session state", () => {
       title: "Waiting for approval",
       detail: "Approval required: apply patch?",
     });
+  });
+
+  it("preserves producer event identity and ignores repeated delivery by id", () => {
+    const hydrated = hydrateLiveTerminalSessions([
+      {
+        id: "pty-a",
+        clientId: "manual-4",
+        title: "Manual · zsh 4",
+        cwd: "/repo",
+        source: "manual",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+    const producerEvent = {
+      id: "manual-4-activity-1234-1",
+      kind: "approval" as const,
+      title: "Waiting for approval",
+      detail: "Approval required: apply patch?",
+      payload: { type: "approval" as const, prompt: "Approval required: apply patch?" },
+      at: 1_234,
+    };
+    const terminalEvent: TerminalDataEvent = {
+      id: "pty-a",
+      data: "Approval required: apply patch?",
+      activities: [producerEvent],
+    };
+
+    const once = recordSessionOutputActivity(hydrated, terminalEvent, 2_000);
+    const repeated = recordSessionOutputActivity(once, terminalEvent, 3_000);
+
+    expect(repeated[0]?.activityEvents).toEqual([producerEvent]);
+    expect(repeated[0]?.activityEvents?.[0]).toBe(producerEvent);
+    expect(repeated[0]?.lastActivityAt).toBe(producerEvent.at);
+    expect(repeated[0]?.lastOutputAt).toBe(3_000);
   });
 
   it("keeps the latest visible activity last after notable output", () => {
@@ -696,16 +735,20 @@ describe("desktop session state", () => {
         data: 'Bash("pnpm test")\nDo you want to proceed? y/N\n',
         activities: [
           {
+            id: "codex-1-activity-300-1",
             kind: "command",
             title: "Ran command",
             detail: '"pnpm test"',
             payload: { type: "command", command: "pnpm test" },
+            at: 300,
           },
           {
+            id: "codex-1-activity-300-2",
             kind: "approval",
             title: "Waiting for approval",
             detail: "Do you want to proceed? y/N",
             payload: { type: "approval", prompt: "Do you want to proceed? y/N" },
+            at: 300,
           },
         ],
       },
@@ -739,12 +782,15 @@ describe("desktop session state", () => {
         data: 'Bash("pnpm test")\nEdit(apps/desktop/src/renderer/app.tsx)\n',
         activities: [
           {
+            id: "manual-4-activity-280-1",
             kind: "command",
             title: "Ran command",
             detail: '"pnpm test"',
             payload: { type: "command", command: "pnpm test" },
+            at: 280,
           },
           {
+            id: "manual-4-activity-280-2",
             kind: "file",
             title: "Edit file",
             detail: "apps/desktop/src/renderer/app.tsx",
@@ -753,6 +799,7 @@ describe("desktop session state", () => {
               operation: "edited",
               path: "apps/desktop/src/renderer/app.tsx",
             },
+            at: 280,
           },
         ],
       },
