@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { preprocessCSS, resolveConfig } from "vite";
 
 const stylesPath = [
   resolve(process.cwd(), "src/renderer/styles.css"),
@@ -12,6 +13,31 @@ if (!stylesPath) {
 }
 
 const styles = readFileSync(stylesPath, "utf8");
+const cssParserConfig = resolveConfig(
+  { configFile: false, css: { transformer: "lightningcss" } },
+  "build",
+);
+
+async function parseCss(source: string, filename: string): Promise<void> {
+  await preprocessCSS(source, filename, await cssParserConfig);
+}
+
+function isLiveSliceOneSelector(selector: string): boolean {
+  if (
+    selector.startsWith(".workspace-layout.surface-inbox")
+    || selector.startsWith(".workspace-layout.surface-history")
+  ) return false;
+
+  return [
+    ".agent-space-shell", ".desktop-frame", ".mission-bar", ".desktop-alert-stack",
+    ".workspace-title", ".workspace-popover", ".workspace-rename-form", ".workspace-mission-form",
+    ".workspace-layout", ".workspace-navigation-panel", ".workspace-nav-", ".workspace-rail",
+    ".workspace-button", ".workspace-monogram", ".workspace-priority-chip", ".workspace-spacer",
+    ".alfred-mark", ".workbench-", ".session-chrome-", ".chrome-menu", ".prepare-work-popover",
+    ".terminal-", ".tile-", ".tool-dot", ".session-status-", ".session-rename-form",
+    ".split-empty-", ".staged-", ".arrange-", ".xterm-host", ".composer-", ".dispatch-",
+  ].some((prefix) => selector.includes(prefix));
+}
 
 function orphanClassTokenPattern(className: string): RegExp {
   const escapedClassName = className.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -22,11 +48,6 @@ function blockFor(selector: string): string {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matches = [...styles.matchAll(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`, "gm"))];
   return matches.at(-1)?.groups?.body ?? "";
-}
-
-function firstBlockFor(source: string, selector: string): string {
-  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return source.match(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`, "m"))?.groups?.body ?? "";
 }
 
 function blocksFor(selector: string): string[] {
@@ -113,6 +134,17 @@ function topLevelRulesIn(source: string): Array<{ selectors: string[]; body: str
   }));
 }
 
+function allRulesIn(source: string): Array<{ selectors: string[]; body: string }> {
+  const rules = topLevelRulesIn(source);
+  const commentlessSource = withoutComments(source);
+  const nestedAtRuleStart = /@(media|container)\s*[^{}]+\{/g;
+  for (const match of commentlessSource.matchAll(nestedAtRuleStart)) {
+    const openingBraceIndex = (match.index ?? 0) + match[0].lastIndexOf("{");
+    rules.push(...allRulesIn(balancedBlockBody(commentlessSource, openingBraceIndex).body));
+  }
+  return rules;
+}
+
 function topLevelExactRuleBodies(selector: string): string[] {
   return topLevelExactRuleBodiesIn(styles, selector);
 }
@@ -139,6 +171,18 @@ function mediaExactRuleBodiesIn(source: string, query: string, selector: string)
 
 function mediaExactRuleBodies(query: string, selector: string): string[] {
   return mediaExactRuleBodiesIn(styles, query, selector);
+}
+
+function containerExactRuleBodies(query: string, selector: string): string[] {
+  const commentlessSource = withoutComments(styles);
+  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const containerStart = new RegExp(`@container\\s*${escapedQuery}\\s*\\{`, "g");
+  const bodies: string[] = [];
+  for (const match of commentlessSource.matchAll(containerStart)) {
+    const openingBraceIndex = (match.index ?? 0) + match[0].lastIndexOf("{");
+    bodies.push(...exactRuleBodiesIn(balancedBlockBody(commentlessSource, openingBraceIndex).body, selector));
+  }
+  return bodies;
 }
 
 function canonicalBaseRuleBodiesIn(source: string, selector: string): string[] {
@@ -385,6 +429,18 @@ function contrastRatio(foreground: string, background: string): number {
 }
 
 describe("renderer CSS contracts", () => {
+  it("parses the complete stylesheet with the production CSS parser", async () => {
+    const invalidFixture = `
+      .fixture-one,
+      .fixture-two {
+      .fixture-three { color: red; }
+      @keyframes fixture-motion { from { opacity: 0; } to { opacity: 1; } }
+    `;
+
+    await expect(parseCss(invalidFixture, "invalid-fixture.css")).rejects.toThrow(/Unknown at rule/);
+    await expect(parseCss(styles, stylesPath)).resolves.toBeUndefined();
+  });
+
   it("defines the approved achromatic material ramp exactly once", () => {
     const expectedTokens = {
       "--ink-0": "#0A0C0F",
@@ -428,48 +484,115 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps live shell and terminal owners on the achromatic material", () => {
-    const livePrefixes = [
-      ".agent-space-shell", ".desktop-frame", ".mission-bar", ".desktop-alert-stack",
-      ".workspace-title", ".alfred-mark", ".workspace-layout", ".workspace-navigation-panel",
-      ".workspace-nav-", ".workspace-button", ".workspace-monogram", ".workspace-priority-chip",
-      ".workbench-", ".session-chrome-", ".chrome-menu", ".prepare-work-popover",
-      ".terminal-stage", ".terminal-grid", ".terminal-tile", ".tile-", ".xterm-host",
-      ".terminal-action-strip", ".composer-", ".dispatch-",
-    ];
-    const liveRules = topLevelRulesIn(styles).filter((rule) =>
-      rule.selectors.some((selector) => livePrefixes.some((prefix) => selector.startsWith(prefix))),
+    const liveRules = allRulesIn(styles).filter((rule) =>
+      rule.selectors.some(isLiveSliceOneSelector),
     );
     const legacyColorUses = liveRules.filter(({ body }) =>
-      /var\(--(?:signal-focus|signal-danger|codex-blue|claude-amber)\)/.test(body),
+      /var\(--(?:signal-focus(?:-strong)?|signal-danger|signal-agent(?:-soft)?|signal-success|codex-blue|claude-amber|cyan|brass|role-[^)]+|surface-[^)]+|text-[^)]+|border(?:-[^)]+)?|line(?:-strong)?|panel(?:-soft)?|terminal|muted|faint|passive|ink(?:-soft)?|radius-[^)]+)\)/.test(body),
     );
     const lowContrastControlUses = liveRules.filter(({ body }) => /color:\s*var\(--ink-4\)/.test(body));
+    const literalColorUses = liveRules.filter(({ body }) => /#[0-9a-f]{3,8}\b|rgba?\(/i.test(body));
 
     expect(legacyColorUses.map(({ selectors }) => selectors)).toEqual([]);
     expect(lowContrastControlUses.map(({ selectors }) => selectors)).toEqual([]);
+    expect(literalColorUses.map(({ selectors }) => selectors)).toEqual([]);
   });
 
   it("keeps live shell and terminal material flat and reserves signal for attention", () => {
-    const ownerSource = [
-      styles.slice(styles.indexOf(".agent-space-shell {"), styles.indexOf(".surface-panel.inactive {")),
-      styles.slice(styles.indexOf(".terminal-stage {"), styles.indexOf(".workspace-preview-panel {", styles.indexOf(".terminal-stage {"))),
-      styles.slice(styles.indexOf(".composer-bar {", styles.indexOf("/* Composer */")), styles.indexOf(".desktop-save-banner {")),
-    ].join("\n");
-    const ownerRules = topLevelRulesIn(ownerSource);
+    const ownerRules = allRulesIn(styles).filter((rule) => rule.selectors.some(isLiveSliceOneSelector));
     const gradients = ownerRules.filter(({ body }) => /(?:linear|radial)-gradient/.test(body));
     const materialShadows = ownerRules.filter(({ body }) => {
       const value = body.match(/box-shadow:\s*([^;]+)/)?.[1]?.trim();
       return value !== undefined && value !== "none";
     });
     const signalUses = ownerRules.filter(({ body }) => /var\(--signal\)/.test(body));
+    const oversizedRadii = ownerRules.flatMap(({ selectors, body }) =>
+      [...body.matchAll(/border-radius:\s*(\d+(?:\.\d+)?)px/g)]
+        .filter((match) => Number(match[1]) > 7)
+        .map((match) => ({ selectors, radius: match[1] })),
+    );
 
     expect(gradients.map(({ selectors }) => selectors)).toEqual([]);
     expect(materialShadows.map(({ selectors }) => selectors)).toEqual([
       [".chrome-menu-popover"],
       [".prepare-work-popover"],
     ]);
+    expect(oversizedRadii).toEqual([]);
     expect(signalUses.every(({ selectors }) =>
       selectors.every((selector) => selector.includes("attention") || selector.includes("waiting")),
     )).toBe(true);
+  });
+
+  it("keeps every live Slice 1 family inside its canonical owner region", () => {
+    const shellRegion = [{
+      name: "canonical shell/navigation/workbench",
+      startMarker: ".agent-space-shell {",
+      endMarker: "\n.terminal-stage {",
+    }];
+    const terminalRegion = [{
+      name: "canonical terminal scene",
+      startMarker: "\n.terminal-stage {",
+      endMarker: ".alfred-dock {",
+    }];
+    const composerRegion = [{
+      name: "canonical composer/dispatch",
+      startMarker: "\n.composer-bar {",
+      endMarker: "/* Focus mode and inspector */",
+    }];
+
+    expectAllFamilyTopLevelOccurrencesWithinSource(
+      styles,
+      "Slice 1 shell",
+      (selector) => isLiveSliceOneSelector(selector)
+        && !selector.startsWith(".workspace-layout > .context-column")
+        && (
+          selector.startsWith(".prepare-work-popover")
+          || !/(?:\.terminal-|\.tile-|\.tool-dot|\.session-status-|\.session-rename-form|\.split-empty-|\.staged-|\.arrange-|\.xterm-host|\.composer-|\.dispatch-)/.test(selector)
+        ),
+      shellRegion,
+    );
+    expectAllFamilyTopLevelOccurrencesWithinSource(
+      styles,
+      "Slice 1 terminal",
+      (selector) => /(?:\.terminal-|\.tile-|\.tool-dot|\.session-status-|\.session-rename-form|\.split-empty-|\.staged-|\.arrange-|\.xterm-host)/.test(selector),
+      terminalRegion,
+    );
+    expectAllFamilyTopLevelOccurrencesWithinSource(
+      styles,
+      "Slice 1 composer",
+      (selector) => !selector.startsWith(".prepare-work-popover") && /(?:\.composer-|\.dispatch-)/.test(selector),
+      composerRegion,
+    );
+  });
+
+  it("keeps live responsive owners beside their canonical Slice 1 families", () => {
+    const source = withoutComments(styles);
+    const shellStart = source.indexOf(".agent-space-shell {");
+    const terminalStart = source.indexOf("\n.terminal-stage {");
+    const terminalEnd = source.indexOf(".alfred-dock {", terminalStart);
+    const responsiveStarts = /@(media|container)\s*([^{}]+)\{/g;
+    const misplaced: string[] = [];
+
+    for (const match of source.matchAll(responsiveStarts)) {
+      const index = match.index ?? 0;
+      const openingBraceIndex = index + match[0].lastIndexOf("{");
+      const selectors = topLevelExactSelectorsIn(balancedBlockBody(source, openingBraceIndex).body);
+      for (const selector of selectors) {
+        const isTerminal = /(?:\.terminal-|\.tile-|\.tool-dot|\.session-status-|\.session-rename-form|\.split-empty-|\.staged-|\.arrange-|\.xterm-host)/.test(selector);
+        const isShell = isLiveSliceOneSelector(selector) && !isTerminal && !/(?:\.composer-|\.dispatch-)/.test(selector);
+        if (isTerminal && (index < terminalStart || index >= terminalEnd)) misplaced.push(selector);
+        if (isShell && (index < shellStart || index >= terminalStart)) misplaced.push(selector);
+      }
+    }
+
+    expect(misplaced).toEqual([]);
+  });
+
+  it("drops dead migration hooks from the live shell", () => {
+    expect(styles).not.toMatch(/\.quiet-count-(?:dot|mark)/);
+    expect(styles).not.toContain("--workbench-control-height");
+    expect(styles).not.toContain("--workbench-segment-height");
+    expect(styles).not.toContain("--workbench-control-radius");
   });
 
   it("rejects a protected selector with a late top-level occurrence outside its owner region", () => {
@@ -596,10 +719,10 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".workspace-nav-head", ["display: grid", "align-items: center"]);
     expectCanonicalBase(".workspace-nav-avatar", ["display: grid", "place-items: center"]);
     expectCanonicalBase(".workspace-nav-search", ["display: grid", "align-items: center"]);
-    // Component base plus the shared native-scrollbar owner.
     const workspaceNavScrollBodies = exactRuleBodies(".workspace-nav-scroll");
-    expect(workspaceNavScrollBodies).toHaveLength(2);
-    expect(workspaceNavScrollBodies.some((body) => body.includes("overflow: auto") && body.includes("align-content: start"))).toBe(true);
+    expect(workspaceNavScrollBodies).toHaveLength(1);
+    expect(workspaceNavScrollBodies[0]).toContain("overflow: auto");
+    expect(workspaceNavScrollBodies[0]).toContain("scrollbar-color: var(--ink-3) transparent");
     expectCanonicalBase(".workspace-nav-section", ["display: grid", "gap: 7px"]);
     expectCanonicalBase(".workspace-nav-section > header", ["text-transform: uppercase"]);
     expectCanonicalBase(".workspace-nav-list", ["display: grid", "gap: 6px"]);
@@ -637,6 +760,7 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".composer-bar", ["display: grid", "min-width: 0"]);
     expectCanonicalBase(".composer-input", ["box-sizing: border-box", "resize: none"]);
     expectCanonicalBase(".composer-send", ["display: inline-flex", "cursor: pointer"]);
+    expectCanonicalBase(".dispatch-target-chip", ["border-radius: 5px", "background-image: none"]);
 
     const terminalGridStart = ".terminal-stage {";
     const terminalGridEnd = ".terminal-empty-state {";
@@ -669,19 +793,19 @@ describe("renderer CSS contracts", () => {
     expectTopLevelOwnerWithin(".side-dock-stack > .alfred-dock.compact", ["align-self: flex-end"], dockStart, dockEnd);
 
     const contextStart = ".context-drawer {";
-    const contextEnd = ".dispatch-target-chip {";
+    const contextEnd = ".workspace-preview-panel,\n.agent-timeline-panel {";
     expectTopLevelOwnerWithin(".context-drawer.closed", ["display: none"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-drawer.open", ["display: flex"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-column.closed", ["display: none"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-column.open", ["pointer-events: auto"], contextStart, contextEnd);
-    expectTopLevelOwnerWithin(".workspace-layout:has(.context-column.closed)", ["grid-template-columns: minmax(196px, 232px) minmax(0, 1fr)"], contextStart, contextEnd);
-    expectTopLevelOwnerWithin(".workspace-layout:has(.context-column.open)", ["minmax(304px, 340px)"], contextStart, contextEnd);
+    expectCanonicalBase(".workspace-layout", ["grid-template-columns: minmax(196px, 232px) minmax(0, 1fr)"]);
+    expectCanonicalBase(".workspace-layout:has(.context-column.open)", ["minmax(304px, 340px)"]);
     expectTopLevelOwnerWithin(".workspace-layout > .context-column.open", ["position: static", "grid-column: 3", "display: flex"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".workspace-layout > .context-column.closed", ["display: none"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-column .context-compact-status", ["display: none"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-compact-status.hidden", ["display: none"], contextStart, contextEnd);
 
-    const composerStart = ".composer-bar {";
+    const composerStart = "\n.composer-bar {";
     const composerEnd = "/* Focus mode and inspector */";
     expectTopLevelOwnerWithin('.composer-bar[data-state="busy"]', ["background: transparent"], composerStart, composerEnd);
     expectTopLevelOwnerWithin('.composer-bar[data-state="blocked"]', ["background: transparent"], composerStart, composerEnd);
@@ -712,16 +836,6 @@ describe("renderer CSS contracts", () => {
       startMarker: ".terminal-tile {",
       endMarker: ".alfred-dock {",
     };
-    const stagedTileRegion: CssOwnerRegion = {
-      name: "staged terminal tile",
-      startMarker: ".terminal-tile.staged {",
-      endMarker: ".staged-body {",
-    };
-    const sharedTypographyRegion: CssOwnerRegion = {
-      name: "shared region typography",
-      startMarker: "/* Region titles: sans for chrome, mono only where data/terminal content needs it. */",
-      endMarker: ".agent-timeline-header {",
-    };
     const terminalSemanticRoleRegion: CssOwnerRegion = {
       name: "terminal semantic role layer",
       startMarker: "/* Terminal-first color role layer. */",
@@ -730,11 +844,11 @@ describe("renderer CSS contracts", () => {
     const contextRegion: CssOwnerRegion = {
       name: "Context drawer/column",
       startMarker: ".context-drawer {",
-      endMarker: ".dispatch-target-chip {",
+      endMarker: ".workspace-preview-panel,\n.agent-timeline-panel {",
     };
     const composerRegion: CssOwnerRegion = {
       name: "composer/dispatch",
-      startMarker: ".composer-bar {",
+      startMarker: "\n.composer-bar {",
       endMarker: "/* Focus mode and inspector */",
     };
 
@@ -744,19 +858,20 @@ describe("renderer CSS contracts", () => {
     ] as const) {
       expectAllTopLevelOccurrencesWithin(selector, [terminalStageRegion], expectedOccurrences);
     }
-    expectAllTopLevelOccurrencesWithin(".terminal-stage-header span", [terminalStageRegion, sharedTypographyRegion], 3);
+    expectAllTopLevelOccurrencesWithin(".terminal-stage-header span", [terminalStageRegion], 1);
 
     for (const [selector, expectedOccurrences] of [
       [".terminal-tile:not(.arranging):hover", 1],
       [".terminal-tile .xterm", 1],
       [".terminal-tile .terminal-viewport", 1],
       [".terminal-tile .xterm-host", 1],
-      [".terminal-tile.restored", 2],
-      [".terminal-tile.kind-manual", 2],
-      [".terminal-tile.kind-codex", 2],
-      [".terminal-tile.kind-claude", 2],
-      [".terminal-tile.kind-dev-server", 2],
-      [".terminal-tile.real-terminal.browser", 2],
+      [".terminal-tile.restored", 1],
+      [".terminal-tile.kind-manual", 1],
+      [".terminal-tile.kind-codex", 1],
+      [".terminal-tile.kind-claude", 1],
+      [".terminal-tile.kind-dev-server", 1],
+      [".terminal-tile.real-terminal.browser", 1],
+      [".terminal-tile.staged", 1],
       [".terminal-tile.selected .tool-dot", 1],
       [".terminal-tile.selected .tile-status.status-active::before", 1],
       [".terminal-tile-header .tile-title", 1],
@@ -802,18 +917,14 @@ describe("renderer CSS contracts", () => {
     for (const [selector, expectedOccurrences] of [
       [".terminal-status-label.tone-manual", 1],
       [".terminal-status-label.tone-shell", 1],
-      [".terminal-status-label.tone-codex", 2],
-      [".terminal-status-label.tone-claude", 2],
+      [".terminal-status-label.tone-codex", 1],
+      [".terminal-status-label.tone-claude", 1],
     ] as const) {
       expectAllTopLevelOccurrencesWithin(selector, [terminalTileRegion, terminalSemanticRoleRegion], expectedOccurrences);
     }
 
-    for (const [selector, expectedOccurrences] of [
-      [".terminal-tile.staged", 1],
-      [".terminal-tile.staged::before", 1],
-    ] as const) {
-      expectAllTopLevelOccurrencesWithin(selector, [stagedTileRegion], expectedOccurrences);
-    }
+    expect(styles).not.toContain(".terminal-tile.staged::before");
+    expect(styles).not.toMatch(/\.terminal-tile\.staged\.kind-[\w-]+::before/);
 
     for (const [selector, expectedOccurrences] of [
       [".context-drawer-header", 1],
@@ -831,9 +942,9 @@ describe("renderer CSS contracts", () => {
 
     for (const [selector, expectedOccurrences] of [
       [".dispatch-bar", 1],
-      [".dispatch-bar .composer-input", 2],
+      [".dispatch-bar .composer-input", 1],
       [".dispatch-bar .composer-input:focus-visible", 1],
-      [".dispatch-bar .composer-send", 2],
+      [".dispatch-bar .composer-send", 1],
       [".dispatch-bar .composer-send:disabled", 1],
       [".dispatch-bar .composer-status-row", 1],
       [".dispatch-bar .composer-status", 1],
@@ -869,7 +980,7 @@ describe("renderer CSS contracts", () => {
       {
         name: "command palette overlay",
         startMarker: "/* Command palette and privacy modal */",
-        endMarker: "/* Staged tile (Alfred-proposed, awaiting approval) */",
+        endMarker: "/* Alfred dock variants */",
       },
       {
         name: "shared overlay input typography",
@@ -881,14 +992,14 @@ describe("renderer CSS contracts", () => {
       {
         name: "privacy overlay",
         startMarker: "/* Command palette and privacy modal */",
-        endMarker: "/* Staged tile (Alfred-proposed, awaiting approval) */",
+        endMarker: "/* Alfred dock variants */",
       },
     ];
     const sessionObservatoryRegions = [
       {
         name: "shared opaque overlay panel",
         startMarker: ".command-palette,\n.privacy-panel,\n.discard-checkout-dialog,\n.session-observatory-panel {",
-        endMarker: "/* Staged tile (Alfred-proposed, awaiting approval) */",
+        endMarker: "/* Alfred dock variants */",
       },
       {
         name: "session Observatory overlay",
@@ -899,7 +1010,7 @@ describe("renderer CSS contracts", () => {
     const surfaceResponsiveRegion = {
       name: "Inbox and Observatory responsive ownership",
       startMarker: ".review-surface {",
-      endMarker: ".workspace-layout,\n.workspace-layout.alfred-compact,",
+      endMarker: ".agent-timeline-panel,\n.workspace-preview-panel {",
     };
     const sessionObservatoryResponsiveRegion = {
       name: "session quick switch responsive ownership",
@@ -1193,15 +1304,12 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain("--flat-control");
   });
 
-  it("keeps count indicators quiet instead of rendering numeric badge pills", () => {
-    const quietIndicators = blockFor(".quiet-count-dot,\n.quiet-count-mark");
+  it("keeps the live attention count compact", () => {
     const attentionCount = exactBlockFor(".workbench-attention-count");
 
-    expect(quietIndicators).toContain("width: 6px");
-    expect(quietIndicators).toContain("height: 6px");
-    expect(quietIndicators).toContain("border-radius: 999px");
     expect(attentionCount).toContain("background: var(--signal)");
     expect(attentionCount).toContain("border-radius: 7px");
+    expect(styles).not.toMatch(/\.quiet-count-(?:dot|mark)/);
   });
 
   it("keeps quick switch as a compact flat switcher, not a heavy glass modal", () => {
@@ -1222,7 +1330,7 @@ describe("renderer CSS contracts", () => {
   it("keeps legacy gradients out of the main clean flat surfaces", () => {
     const workspacePopover = blockFor(".workspace-popover");
     const terminalTile = exactBlockFor(".terminal-tile");
-    const activeWorkspace = blockFor(".workspace-button.active,\n.workspace-button.active:hover");
+    const activeWorkspace = exactBlockFor(".workspace-button.active");
 
     expect(workspacePopover).toContain("background:");
     expect(workspacePopover).not.toContain("linear-gradient");
@@ -1233,14 +1341,12 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps the workbench shell close to the current layout", () => {
-    const closedLayout = blockFor(
-      ".workspace-layout,\n.workspace-layout.alfred-compact,\n.workspace-layout.preview-visible,\n.workspace-layout.alfred-compact.preview-visible,\n.workspace-layout:has(.context-column.closed),\n.workspace-layout.alfred-compact:has(.context-column.closed),\n.workspace-layout.preview-visible:has(.context-column.closed),\n.workspace-layout.alfred-compact.preview-visible:has(.context-column.closed),\n.workspace-layout.surface-inbox,\n.workspace-layout.surface-history,\n.workspace-layout.surface-inbox.preview-visible,\n.workspace-layout.surface-history.preview-visible,\n.workspace-layout.surface-inbox.alfred-compact,\n.workspace-layout.surface-history.alfred-compact",
-    );
+    const closedLayout = singleTopLevelRuleBodyIn(styles, ".workspace-layout");
     const openLayout = blockFor(
-      ".workspace-layout:has(.context-column.open),\n.workspace-layout.alfred-compact:has(.context-column.open),\n.workspace-layout.preview-visible:has(.context-column.open),\n.workspace-layout.alfred-compact.preview-visible:has(.context-column.open),\n.workspace-layout.surface-inbox:has(.context-column.open),\n.workspace-layout.surface-history:has(.context-column.open)",
+      ".workspace-layout:has(.context-column.open),\n.workspace-layout.alfred-compact:has(.context-column.open),\n.workspace-layout.preview-visible:has(.context-column.open),\n.workspace-layout.alfred-compact.preview-visible:has(.context-column.open)",
     );
-    const openColumn = firstBlockFor(styles, ".workspace-layout > .context-column.open");
-    const closedColumn = blockFor(".workspace-layout > .context-column.closed");
+    const openColumn = singleTopLevelRuleBodyIn(styles, ".workspace-layout > .context-column.open");
+    const closedColumn = singleTopLevelRuleBodyIn(styles, ".workspace-layout > .context-column.closed");
 
     expect(closedLayout).toContain("grid-template-columns: minmax(196px, 232px) minmax(0, 1fr)");
     expect(openLayout).toContain("grid-template-columns: minmax(196px, 232px) minmax(0, 1fr) minmax(304px, 340px)");
@@ -1259,7 +1365,7 @@ describe("renderer CSS contracts", () => {
   });
 
   it("styles workspace scrollbars so native white rails do not dominate the shell", () => {
-    const workspaceScroll = blockFor(".workspace-nav-scroll,\n.agent-timeline-panel");
+    const workspaceScroll = exactBlockFor(".workspace-nav-scroll");
     const inboxScroll = exactBlockFor(".inbox-section-stack");
     const observatoryScroll = exactBlockFor(".observatory-surface");
     const scrollbarThumb = blockFor(".inbox-section-stack::-webkit-scrollbar-thumb");
@@ -1341,7 +1447,7 @@ describe("renderer CSS contracts", () => {
   });
 
   it("makes the context drawer itself scrollable instead of clipping the lower timeline", () => {
-    const contextColumn = firstBlockFor(styles, ".workspace-layout > .context-column.open");
+    const contextColumn = singleTopLevelRuleBodyIn(styles, ".workspace-layout > .context-column.open");
     const contextDrawer = blockFor(".context-drawer");
     const timelinePanel = blockFor(".context-drawer .agent-timeline-panel");
 
@@ -1420,8 +1526,8 @@ describe("renderer CSS contracts", () => {
     const actions = blockFor(".terminal-tile-header .tile-actions");
     const primaryAction = blockFor(".tile-primary-actions .continue-button");
     const primaryActionText = blockFor(".tile-primary-actions .continue-button span");
-    const statusText = blockFor(".terminal-status-text");
-    const constrainedChrome = blockFor(".tile-age,\n  .terminal-status-text,\n  .tile-primary-actions .continue-button span");
+    const statusText = singleTopLevelRuleBodyIn(styles, ".terminal-status-text");
+    const constrainedStatusText = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".terminal-status-text");
 
     expect(/\.terminal-tile-header\s*\{[^}]*display:\s*flex;/.test(styles)).toBe(true);
     expect(title).toContain("flex: 1 1 auto");
@@ -1434,11 +1540,12 @@ describe("renderer CSS contracts", () => {
     expect(primaryAction).toContain("max-width");
     expect(primaryActionText).toContain("overflow: hidden");
     expect(statusText).toContain("max-width");
-    expect(constrainedChrome).toContain("display: none");
+    expect(constrainedStatusText).toHaveLength(1);
+    expect(constrainedStatusText[0]).toContain("display: none");
   });
 
   it("keeps shell and terminal identity achromatic", () => {
-    const identityDots = blockFor(".terminal-tile.real-terminal .tool-dot.manual,\n.terminal-tile.real-terminal .tool-dot.shell,\n.terminal-action-strip .tool-dot.manual,\n.terminal-action-strip .tool-dot.shell,\n.terminal-tile.real-terminal .tool-dot.codex,\n.terminal-action-strip .tool-dot.codex,\n.terminal-tile.real-terminal .tool-dot.claude,\n.terminal-action-strip .tool-dot.claude,\n.terminal-tile.real-terminal .tool-dot.dev-server,\n.terminal-action-strip .tool-dot.dev-server");
+    const identityDots = blockFor(".tool-dot.manual,\n.tool-dot.codex,\n.tool-dot.claude,\n.tool-dot.dev-server,\n.tool-dot.shell");
     const readyDispatch = blockFor(".dispatch-bar[data-state=\"ready\"] .composer-send:enabled");
 
     expect(identityDots).toContain("background: var(--ink-5)");
@@ -1487,7 +1594,7 @@ describe("renderer CSS contracts", () => {
     const tileDangerActions = blockForContaining(".tile-danger-actions", "opacity: 0");
     const dispatchBar = blockFor(".dispatch-bar");
     const dispatchCapsule = blockFor(".dispatch-capsule");
-    const dispatchChip = blockFor(".dispatch-target-chip,\n.dispatch-bar .composer-input,\n.dispatch-bar .composer-send");
+    const dispatchChip = exactBlockFor(".dispatch-target-chip");
 
     expect(styles).toContain(".arrange-mode-label");
     expect(tileUtilities).toContain("opacity: 0");

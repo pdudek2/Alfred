@@ -432,7 +432,11 @@ button:focus-visible {
 
 .workspace-rename-form,
 .workspace-mission-form {
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
   padding: 6px;
+  background: var(--ink-1);
+  box-shadow: none;
 }
 
 .workspace-rename-form label,
@@ -444,7 +448,7 @@ button:focus-visible {
 
 .workspace-rename-form label span,
 .workspace-mission-form label span {
-  color: var(--faint);
+  color: var(--ink-5);
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 700;
@@ -457,11 +461,11 @@ button:focus-visible {
   width: 100%;
   min-height: 38px;
   margin-top: 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
   padding: 0 10px;
-  background: color-mix(in oklab, var(--terminal) 78%, var(--panel) 22%);
-  color: var(--ink);
+  background: var(--ink-0);
+  color: var(--ink-7);
   font: 650 13px var(--sans);
 }
 
@@ -479,8 +483,9 @@ button:focus-visible {
 
 .workspace-rename-form input:focus,
 .workspace-mission-form textarea:focus {
-  outline: 2px solid color-mix(in oklab, var(--signal-focus) 72%, white 8%);
-  outline-offset: 2px;
+  border-color: var(--ink-6);
+  outline: none;
+  box-shadow: none;
 }
 
 .workspace-rename-form > div,
@@ -506,7 +511,7 @@ button:focus-visible {
 }
 
 .workspace-mission-actions button.danger {
-  color: var(--signal-danger);
+  color: var(--ink-5);
 }
 
 .alfred-mark {
@@ -554,6 +559,13 @@ button:focus-visible {
   gap: 0;
   padding: 0;
   background: var(--ink-0);
+}
+
+.workspace-layout:has(.context-column.open),
+.workspace-layout.alfred-compact:has(.context-column.open),
+.workspace-layout.preview-visible:has(.context-column.open),
+.workspace-layout.alfred-compact.preview-visible:has(.context-column.open) {
+  grid-template-columns: minmax(196px, 232px) minmax(0, 1fr) minmax(304px, 340px);
 }
 
 .workspace-navigation-panel {
@@ -638,7 +650,21 @@ button:focus-visible {
   align-content: start;
   gap: 14px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  scrollbar-color: var(--ink-3) transparent;
+}
+
+.workspace-nav-scroll::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.workspace-nav-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.workspace-nav-scroll::-webkit-scrollbar-thumb {
+  border-radius: 7px;
+  background: var(--ink-3);
 }
 
 .workspace-nav-section {
@@ -1017,7 +1043,7 @@ button:focus-visible {
   border-radius: 7px;
   padding: 5px;
   background: var(--ink-1);
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.46);
+  box-shadow: 0 14px 36px color-mix(in oklab, black 46%, transparent);
   display: grid;
   gap: 2px;
   -webkit-app-region: no-drag;
@@ -1060,7 +1086,7 @@ button:focus-visible {
   border-radius: 7px;
   padding: 8px;
   background: var(--ink-1);
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 18px 46px color-mix(in oklab, black 50%, transparent);
   transform: translateX(-50%);
 }
 
@@ -1082,18 +1108,46 @@ button:focus-visible {
   }
 }
 
+@media (max-width: 980px) {
+  .mission-bar .mission-name {
+    max-width: min(360px, calc(100vw - 112px));
+  }
+
+  .workspace-title-trigger {
+    max-width: min(320px, calc(100vw - 128px));
+  }
+
+  .workspace-layout,
+  .workspace-layout.alfred-compact,
+  .workspace-layout.preview-visible,
+  .workspace-layout.alfred-compact.preview-visible,
+  .workspace-layout:has(.context-column.closed),
+  .workspace-layout.alfred-compact:has(.context-column.closed),
+  .workspace-layout.preview-visible:has(.context-column.closed),
+  .workspace-layout.alfred-compact.preview-visible:has(.context-column.closed) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workspace-layout > .workspace-navigation-panel,
+  .workspace-layout > .orchestrator-surface,
+  .workspace-layout > .context-column {
+    grid-column: 1;
+  }
+
+  .workspace-layout > .context-column.open {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    bottom: 66px;
+    grid-column: auto;
+    width: min(340px, calc(100% - 16px));
+  }
+}
+
 .surface-panel.inactive {
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
-}
-
-.surface-panel > .terminal-stage {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  height: 100%;
-  max-height: 100%;
 }
 
 .desk-surface-panel.active {
@@ -1128,7 +1182,6 @@ button:focus-visible {
   background: transparent;
   color: var(--ink-6);
   cursor: pointer;
-  font-family: var(--mono);
   font-size: 12px;
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) auto;
@@ -1241,7 +1294,35 @@ button:focus-visible {
 }
 
 .workspace-priority-chip.tone-empty {
-  color: color-mix(in oklab, var(--muted) 78%, transparent);
+  border-color: var(--ink-3);
+  background: transparent;
+  color: var(--ink-5);
+  opacity: 0.72;
+}
+
+.workspace-button:not(.active) {
+  border-color: transparent;
+  background: transparent;
+}
+
+.workspace-button:not(.active) .workspace-button-details strong {
+  color: var(--ink-6);
+  font: 600 12px/1.2 var(--sans);
+}
+
+.workspace-button:not(.active) .workspace-button-details span {
+  color: var(--ink-5);
+  font: 500 11px/1.35 var(--sans);
+}
+
+.workspace-button:not(.active) .workspace-monogram {
+  opacity: 0.82;
+}
+
+.workspace-button:not(.active) .workspace-priority-chip {
+  border-color: var(--ink-3);
+  background: transparent;
+  color: var(--ink-5);
 }
 
 .workspace-button.active {
@@ -1269,9 +1350,9 @@ button:focus-visible {
   min-height: 42px;
   grid-template-columns: 1fr;
   place-items: center;
-  border-color: color-mix(in oklab, var(--line) 82%, transparent);
-  background: color-mix(in oklab, var(--panel-soft) 74%, transparent);
-  color: var(--muted);
+  border-color: var(--ink-3);
+  background: transparent;
+  color: var(--ink-5);
   font-size: 15px;
 }
 
@@ -1370,6 +1451,14 @@ button:focus-visible {
   grid-template-rows: 44px minmax(0, 1fr);
 }
 
+.surface-panel > .terminal-stage {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+}
+
 .terminal-stage.headerless {
   grid-template-rows: minmax(0, 1fr);
 }
@@ -1388,16 +1477,13 @@ button:focus-visible {
 
 .terminal-stage-header span {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.terminal-stage-header span {
   margin-top: 2px;
+  overflow: hidden;
   color: var(--ink-5);
   font-family: var(--mono);
   font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .layout-controls {
@@ -1439,7 +1525,7 @@ button:focus-visible {
   min-height: 0;
   overflow: hidden;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  scrollbar-color: var(--ink-3) transparent;
 }
 
 .terminal-stage-body::-webkit-scrollbar {
@@ -1452,8 +1538,8 @@ button:focus-visible {
 }
 
 .terminal-stage-body::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
+  border-radius: 7px;
+  background: var(--ink-3);
 }
 
 .terminal-grid-column {
@@ -1470,7 +1556,7 @@ button:focus-visible {
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklab, var(--role-active) 42%, transparent) transparent;
+  scrollbar-color: var(--ink-3) transparent;
   padding-bottom: 10px;
 }
 
@@ -1485,7 +1571,7 @@ button:focus-visible {
 
 .terminal-grid-column::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
-  border-radius: 999px;
+  border-radius: 7px;
   background: var(--ink-3);
   background-clip: padding-box;
 }
@@ -1506,7 +1592,7 @@ button:focus-visible {
   gap: 10px;
   padding: 9px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(188, 202, 218, 0.18) transparent;
+  scrollbar-color: var(--ink-3) transparent;
 }
 
 .terminal-grid.arranging {
@@ -1734,7 +1820,7 @@ button:focus-visible {
 .split-empty-state p {
   max-width: 420px;
   margin: 0;
-  color: var(--muted);
+  color: var(--ink-5);
   font-size: 13px;
   line-height: 1.45;
 }
@@ -1748,19 +1834,20 @@ button:focus-visible {
 
 .split-empty-state button {
   min-height: 32px;
-  border: 1px solid color-mix(in oklab, white 11%, transparent);
+  border: 1px solid var(--ink-3);
   border-radius: 7px;
   padding: 0 10px;
-  background: color-mix(in oklab, white 3%, transparent);
-  color: var(--ink-soft);
+  background: var(--ink-1);
+  color: var(--ink-5);
   font-family: var(--mono);
   font-size: 11px;
 }
 
 .split-empty-state button:hover,
 .split-empty-state button:focus-visible {
-  border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent);
-  color: #cff3f6;
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-6);
 }
 
 .terminal-tile {
@@ -1836,8 +1923,8 @@ button:focus-visible {
 }
 
 .terminal-tile.restored .tile-status {
-  border-color: rgba(188, 202, 218, 0.18);
-  color: var(--muted);
+  border-color: var(--ink-3);
+  color: var(--ink-5);
 }
 
 .terminal-stage.mode-focus .terminal-tile.focus-hidden,
@@ -2125,7 +2212,7 @@ body.arranging-pointer {
   width: 7px;
   height: 7px;
   flex: 0 0 auto;
-  border-radius: 999px;
+  border-radius: 50%;
   background: var(--ink-5);
   box-shadow: none;
   opacity: 0.8;
@@ -2204,7 +2291,7 @@ body.arranging-pointer {
 }
 
 .tile-kind-mark.manual,
-.tile-kind-mark.codex {
+.tile-kind-mark.codex,
 .tile-kind-mark.claude,
 .tile-kind-mark.dev-server,
 .tile-kind-mark.shell {
@@ -2387,11 +2474,9 @@ body.arranging-pointer {
   box-shadow: none;
 }
 
-.terminal-status-label.tone-codex {
-  color: var(--ink-5);
-  border-color: var(--ink-3);
-}
-
+.terminal-status-label.tone-manual,
+.terminal-status-label.tone-shell,
+.terminal-status-label.tone-codex,
 .terminal-status-label.tone-claude {
   color: var(--ink-5);
   border-color: var(--ink-3);
@@ -2440,7 +2525,7 @@ body.arranging-pointer {
   content: "";
   width: 6px;
   height: 6px;
-  border-radius: 999px;
+  border-radius: 50%;
   background: currentColor;
   box-shadow: none;
 }
@@ -2458,8 +2543,8 @@ body.arranging-pointer {
 .terminal-tile.real-terminal .tile-status.status-runtime,
 .terminal-tile.real-terminal .tile-status.status-restored { color: var(--ink-5); }
 .terminal-tile.real-terminal .tile-status.status-waiting { color: var(--signal); }
-.terminal-tile.staged .tile-status.status-blocked { color: var(--brass); }
-.terminal-tile.staged .tile-status.status-checking { color: var(--cyan); }
+.terminal-tile.staged .tile-status.status-blocked,
+.terminal-tile.staged .tile-status.status-checking { color: var(--ink-5); }
 
 .terminal-tile.real-terminal.browser .tile-status.status-runtime {
   color: var(--ink-5);
@@ -2483,16 +2568,6 @@ body.arranging-pointer {
 .terminal-tile.real-terminal.browser .xterm-host {
   filter: grayscale(0.45);
   opacity: 0.76;
-}
-
-.terminal-tile.restored,
-.terminal-tile.kind-manual,
-.terminal-tile.kind-codex,
-.terminal-tile.kind-claude,
-.terminal-tile.kind-dev-server,
-.terminal-tile.real-terminal.browser {
-  background: var(--ink-0);
-  box-shadow: none;
 }
 
 .arrange-handle {
@@ -2692,6 +2767,10 @@ body.arranging-pointer {
   .tile-status {
     max-width: 9ch;
   }
+
+  .terminal-status-text {
+    display: none;
+  }
 }
 
 @container terminal-tile (max-width: 420px) {
@@ -2863,12 +2942,166 @@ body.arranging-pointer {
 }
 
 .xterm-host .xterm-screen {
-  filter: saturate(1.02);
+  filter: none;
 }
 
 .xterm-host .xterm-viewport {
   scrollbar-width: thin;
-  scrollbar-color: rgba(185, 174, 218, 0.28) transparent;
+  scrollbar-color: var(--ink-3) transparent;
+}
+
+.terminal-tile.staged {
+  border-color: var(--ink-3);
+  background: var(--ink-0);
+  background-image: none;
+  box-shadow: none;
+}
+
+.terminal-tile.staged .tool-dot.codex,
+.terminal-tile.staged .tool-dot.claude,
+.terminal-tile.staged .tool-dot.dev-server,
+.terminal-tile.staged .tool-dot.shell {
+  background: var(--ink-5);
+}
+
+.staged-body {
+  min-width: 0;
+  min-height: 0;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  color: var(--ink-6);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.staged-label,
+.staged-cwd {
+  color: var(--ink-5);
+  font-size: 11px;
+}
+
+.staged-label {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.staged-command {
+  color: var(--ink-7);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.staged-isolation,
+.staged-safety-chip,
+.staged-edited-chip {
+  justify-self: start;
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
+  padding: 3px 8px;
+  background: var(--ink-1);
+  color: var(--ink-5);
+  font-size: 11px;
+}
+
+.staged-isolation.blocked,
+.staged-safety-chip.blocked {
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-6);
+}
+
+.staged-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid var(--ink-3);
+}
+
+.staged-actions .approve-button,
+.staged-actions .reject-button {
+  min-height: 34px;
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
+  background: var(--ink-1);
+  color: var(--ink-6);
+  cursor: pointer;
+}
+
+.staged-actions .approve-button {
+  flex: 1;
+  font: 600 12px/1 var(--mono);
+}
+
+.staged-actions .approve-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.staged-actions .reject-button {
+  width: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.staged-actions .reject-button:hover,
+.staged-actions .reject-button:focus-visible {
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-7);
+}
+
+.terminal-action-strip {
+  min-height: 38px;
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
+  padding: 5px;
+  background: var(--ink-1);
+  color: var(--ink-6);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.terminal-action-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.terminal-action-strip button {
+  min-height: 28px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 0 10px 0 8px;
+  background: transparent;
+  color: var(--ink-5);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  font: 700 12px var(--sans);
+}
+
+.terminal-action-strip button .tool-dot {
+  width: 7px;
+  height: 7px;
+}
+
+.terminal-action-strip button.active,
+.terminal-action-strip button[aria-pressed="true"] {
+  border-color: var(--ink-5);
+  background: var(--ink-2);
+  color: var(--ink-7);
+  box-shadow: none;
+}
+
+.terminal-action-strip button:hover,
+.terminal-action-strip button:focus-visible {
+  border-color: var(--ink-5);
+  color: var(--ink-6);
 }
 
 .workspace-preview-panel {
@@ -3443,19 +3676,6 @@ body.arranging-pointer {
   gap: 3px;
 }
 
-.dispatch-target-chip,
-.dispatch-bar .composer-input,
-.dispatch-bar .composer-send {
-  height: auto;
-  min-height: 0;
-  max-height: none;
-  border: 0;
-  border-radius: calc(var(--radius-control) - 2px);
-  background: transparent;
-  background-image: none;
-  box-shadow: none;
-}
-
 .composer-input {
   min-width: 0;
   min-height: 36px;
@@ -3492,7 +3712,15 @@ body.arranging-pointer {
 .dispatch-bar .composer-input {
   grid-column: 3;
   flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  border: 0;
+  border-radius: 5px;
   padding: 4px 10px;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
   font-size: 12px;
 }
 
@@ -3550,10 +3778,15 @@ body.arranging-pointer {
 .dispatch-bar .composer-send {
   grid-column: 4;
   flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
   min-width: 76px;
-  border-color: var(--ink-3);
+  border: 0;
+  border-radius: 5px;
   padding: 0 12px;
   background: var(--ink-2);
+  background-image: none;
   box-shadow: none;
   color: var(--ink-6);
   font: 600 12px/1 var(--sans);
@@ -3603,7 +3836,7 @@ body.arranging-pointer {
 .composer-status-indicator {
   width: 14px;
   height: 14px;
-  border: 1px solid color-mix(in oklab, var(--muted) 32%, transparent);
+  border: 1px solid var(--ink-3);
   border-radius: 4px;
   background: transparent;
   flex: 0 0 auto;
@@ -3657,7 +3890,80 @@ body.arranging-pointer {
   width: 6px;
   height: 6px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 50%;
+}
+
+.dispatch-capsule {
+  min-width: 0;
+  height: var(--control-height);
+  border: 1px solid var(--ink-3);
+  border-radius: 7px;
+  padding: 2px;
+  background: var(--ink-0);
+  box-shadow: none;
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.dispatch-capsule:focus-within {
+  border-color: var(--ink-6);
+}
+
+.dispatch-target-chip {
+  flex: 0 1 auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  border: 0;
+  border-radius: 5px;
+  gap: 7px;
+  padding: 0 9px;
+  background: var(--ink-1);
+  background-image: none;
+  box-shadow: none;
+}
+
+.dispatch-target-chip:hover,
+.dispatch-target-chip:focus-visible {
+  background: var(--ink-2);
+  outline: none;
+}
+
+.dispatch-target-chip span {
+  min-width: max-content;
+  color: var(--ink-5);
+  font: 600 var(--type-micro)/1 var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dispatch-target-chip strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-6);
+  font: 650 11px/1.2 var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dispatch-kbd-hint {
+  flex: 0 0 auto;
+  align-self: center;
+  display: inline-flex;
+  gap: 3px;
+}
+
+.dispatch-kbd-hint kbd {
+  min-width: 16px;
+  height: 16px;
+  border: 1px solid var(--ink-3);
+  border-radius: 4px;
+  padding: 0 4px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--ink-5);
+  font: 500 10px/1 var(--mono);
 }
 
 .composer-blocked-action {
@@ -4238,170 +4544,6 @@ body.arranging-pointer {
   box-shadow: var(--shadow-panel);
 }
 
-/* Staged tile (Alfred-proposed, awaiting approval) */
-.terminal-tile.staged {
-  border: 1px solid color-mix(in oklab, var(--signal-agent) 32%, transparent);
-  background: var(--surface-panel);
-  background-image: none;
-  box-shadow: none;
-}
-
-.terminal-tile.staged::before {
-  content: "";
-  display: none;
-  position: absolute;
-  inset: 42px auto 42px 0;
-  width: 2px;
-  background: color-mix(in oklab, var(--signal-agent) 62%, transparent);
-  box-shadow: 0 0 18px color-mix(in oklab, var(--signal-agent) 22%, transparent);
-}
-
-.terminal-tile.staged .tool-dot.codex,
-.terminal-tile.staged .tool-dot.claude,
-.terminal-tile.staged .tool-dot.dev-server,
-.terminal-tile.staged .tool-dot.shell { background: var(--ink-5); }
-
-.terminal-tile.staged.kind-codex::before { background: rgba(86, 200, 213, 0.72); }
-.terminal-tile.staged.kind-claude::before { background: rgba(169, 156, 255, 0.72); }
-.terminal-tile.staged.kind-dev-server::before { background: color-mix(in oklab, var(--signal-agent) 72%, transparent); }
-.terminal-tile.staged.kind-shell::before { background: rgba(188, 202, 218, 0.46); }
-
-.staged-body {
-  min-width: 0;
-  min-height: 0;
-  padding: 12px;
-  display: grid;
-  gap: 10px;
-  align-content: start;
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--ink-soft);
-}
-
-.staged-label {
-  color: var(--faint);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.staged-command {
-  word-break: break-all;
-  white-space: pre-wrap;
-  color: var(--ink);
-}
-
-.staged-cwd {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.staged-isolation {
-  justify-self: start;
-  border: 1px solid color-mix(in oklab, var(--signal-focus) 22%, transparent);
-  border-radius: 999px;
-  padding: 3px 8px;
-  background: color-mix(in oklab, var(--signal-focus) 6%, transparent);
-  color: color-mix(in oklab, var(--signal-focus) 68%, white 16%);
-  font-size: 11px;
-}
-
-.staged-isolation.blocked {
-  border-color: color-mix(in oklab, var(--brass) 26%, transparent);
-  color: #d7c18b;
-}
-
-.staged-safety-chip {
-  align-self: start;
-  border: 1px solid rgba(239, 129, 115, 0.46);
-  border-radius: 999px;
-  padding: 3px 9px;
-  background: rgba(239, 129, 115, 0.1);
-  color: var(--signal-danger);
-  font-size: 11px;
-}
-
-.staged-safety-chip.blocked {
-  border-color: color-mix(in oklab, var(--signal-agent) 48%, transparent);
-  background: color-mix(in oklab, var(--signal-agent) 10%, transparent);
-  color: #f5d67f;
-}
-
-.staged-safety-chip.armed {
-  border-color: rgba(245, 214, 127, 0.5);
-  background: rgba(245, 214, 127, 0.1);
-  color: #f5d67f;
-}
-
-.staged-edited-chip {
-  align-self: start;
-  justify-self: start;
-  border: 1px solid color-mix(in oklab, var(--signal-focus) 34%, transparent);
-  border-radius: 999px;
-  padding: 3px 9px;
-  background: color-mix(in oklab, var(--signal-focus) 8%, transparent);
-  color: #9be7ef;
-  font-size: 11px;
-}
-
-.staged-actions {
-  display: flex;
-  gap: 8px;
-  padding: 8px;
-  border-top: 1px solid rgba(188, 202, 218, 0.09);
-}
-
-.staged-actions .approve-button {
-  flex: 1;
-  min-height: 34px;
-  border: 1px solid color-mix(in oklab, var(--signal-agent) 50%, transparent);
-  border-radius: 7px;
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--signal-agent) 20%, transparent), color-mix(in oklab, var(--signal-agent) 8%, transparent));
-  color: #f5e6b8;
-  font-family: var(--mono);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.staged-actions .approve-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
-}
-
-.staged-actions .approve-button.unsafe {
-  border-color: rgba(239, 129, 115, 0.5);
-  background:
-    linear-gradient(180deg, rgba(239, 129, 115, 0.16), rgba(239, 129, 115, 0.06));
-  color: #ffd5cc;
-}
-
-.staged-actions .approve-button.unsafe.armed {
-  border-color: rgba(245, 214, 127, 0.62);
-  background:
-    linear-gradient(180deg, rgba(245, 214, 127, 0.2), rgba(245, 214, 127, 0.08));
-  color: #fff1bf;
-}
-
-.staged-actions .reject-button {
-  width: 34px;
-  min-height: 34px;
-  border: 1px solid rgba(188, 202, 218, 0.13);
-  border-radius: 7px;
-  background: rgba(238, 243, 247, 0.035);
-  color: var(--muted);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.staged-actions .reject-button:hover,
-.staged-actions .reject-button:focus-visible {
-  border-color: rgba(239, 129, 115, 0.42);
-  color: var(--signal-danger);
-}
-
 /* Alfred dock variants */
 .alfred-dock-plan,
 .alfred-dock-error {
@@ -4832,57 +4974,6 @@ body.arranging-pointer {
 }
 
 /* Focus mode and inspector */
-
-.terminal-action-strip {
-  min-height: 38px;
-  border: 1px solid var(--ink-3);
-  border-radius: 7px;
-  padding: 5px;
-  background: var(--ink-1);
-  color: var(--ink-6);
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.terminal-action-strip::-webkit-scrollbar {
-  display: none;
-}
-
-.terminal-action-strip button {
-  min-height: 28px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  padding: 0 10px 0 8px;
-  background: transparent;
-  color: var(--ink-5);
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  white-space: nowrap;
-  font: 700 12px var(--sans);
-}
-
-.terminal-action-strip button .tool-dot {
-  width: 7px;
-  height: 7px;
-}
-
-.terminal-action-strip button.active,
-.terminal-action-strip button[aria-pressed="true"] {
-  border-color: var(--ink-5);
-  background: var(--ink-2);
-  color: var(--ink-7);
-  box-shadow: none;
-}
-
-.terminal-action-strip button:hover,
-.terminal-action-strip button:focus-visible {
-  border-color: var(--ink-5);
-  color: var(--ink-6);
-}
 
 .agent-timeline-panel {
   width: clamp(280px, 30%, 420px);
@@ -5481,50 +5572,6 @@ body {
   background: var(--surface-canvas);
 }
 
-.alfred-mark {
-  box-shadow: none;
-}
-
-/* --- Workspace rail: raised navigation card --- */
-.workspace-rail {
-  background: var(--ink-1);
-  border: 1px solid var(--ink-3);
-  box-shadow: none;
-}
-
-.workspace-button {
-  font-family: var(--sans);
-  border: 1px solid transparent;
-}
-
-.workspace-button:hover {
-  background: var(--ink-2);
-  border-color: var(--ink-3);
-}
-
-.workspace-button.active {
-  background: var(--ink-2);
-  border-color: var(--ink-5);
-  box-shadow: none;
-}
-
-.workspace-button.active .workspace-monogram,
-.workspace-monogram {
-  font-weight: 600;
-}
-
-.workspace-button.active .workspace-monogram {
-  background: var(--ink-3);
-  color: var(--ink-7);
-  box-shadow: none;
-}
-
-.workspace-button:focus-visible {
-  outline: none;
-  border-color: var(--ink-6);
-  box-shadow: none;
-}
-
 /* --- Side dock: raised evidence cards --- */
 .agent-timeline-panel,
 .workspace-preview-panel {
@@ -5550,27 +5597,6 @@ body {
   font-weight: 600;
 }
 
-/* --- Workspace rail: active dominant, empties quiet --- */
-.workspace-button:not(.active) .workspace-button-details strong {
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.workspace-button:not(.active) .workspace-button-details span {
-  color: var(--faint);
-}
-
-.workspace-button:not(.active) .workspace-monogram {
-  opacity: 0.82;
-}
-
-.workspace-priority-chip.tone-empty {
-  background: transparent;
-  border: 1px solid var(--line);
-  color: var(--passive);
-  opacity: 0.72;
-}
-
 /* --- Terminal tile actions: cyan active, quiet danger --- */
 
 /* ============================================================
@@ -5580,21 +5606,8 @@ body {
    Top bar and composer stay full-bleed (macOS window controls).
    ============================================================ */
 
-.workspace-layout {
-  background: transparent;
-  gap: 16px;
-  padding: 16px;
-}
-
 .side-dock-stack {
   gap: 16px;
-}
-
-/* Softer, premium card radius + more internal breathing room. */
-.workspace-rail {
-  border-radius: 18px;
-  padding: 10px;
-  gap: 8px;
 }
 
 .agent-timeline-panel,
@@ -5627,7 +5640,6 @@ body {
   letter-spacing: 0;
 }
 
-.terminal-stage-header span,
 .agent-timeline-header span,
 .review-context-summary header span {
   font-family: var(--sans);
@@ -5691,26 +5703,6 @@ body {
   color: var(--text-muted);
 }
 
-.workspace-rename-form,
-.workspace-mission-form {
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 12px;
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--signal-focus) 5.5%, transparent), transparent 90px),
-    var(--surface-raised);
-  box-shadow: var(--depth-card);
-}
-
-.workspace-rename-form label span,
-.workspace-mission-form label span {
-  color: var(--text-muted);
-  font-family: var(--sans);
-  letter-spacing: 0.08em;
-}
-
-.workspace-rename-form input,
-.workspace-mission-form textarea,
 .agent-staged-edit-form input,
 .agent-staged-edit-form textarea {
   background: var(--surface-sunken);
@@ -5718,8 +5710,6 @@ body {
   color: var(--text-primary);
 }
 
-.workspace-rename-form input:focus,
-.workspace-mission-form textarea:focus,
 .agent-staged-edit-form input:focus-visible,
 .agent-staged-edit-form textarea:focus-visible {
   outline: none;
@@ -5727,11 +5717,6 @@ body {
   box-shadow:
     0 0 0 1px color-mix(in oklab, var(--signal-focus) 28%, transparent),
     0 0 0 4px color-mix(in oklab, var(--signal-focus) 11%, transparent);
-}
-
-.workspace-rename-form > div button,
-.workspace-mission-actions button {
-  border-radius: 10px;
 }
 
 /* Staged command editor: active review surface instead of brass warning card. */
@@ -5815,102 +5800,11 @@ body {
   color: var(--text-secondary);
 }
 
-/* Priority chips: all tones use the same dark pill grammar as empty. */
-.workspace-priority-chip {
-  min-height: 23px;
-  border-radius: 999px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
-    var(--surface-sunken);
-  border-color: var(--line);
-  color: var(--text-muted);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.workspace-priority-chip.tone-waiting,
-.workspace-priority-chip.tone-staged {
-  border-color: var(--ink-5);
-  background: var(--ink-2);
-  color: var(--ink-5);
-}
-
-.workspace-priority-chip.tone-error {
-  border-color: var(--ink-3);
-  background: var(--ink-1);
-  color: var(--ink-5);
-}
-
-.workspace-priority-chip.tone-active {
-  border-color: var(--ink-5);
-  background: var(--ink-2);
-  color: var(--ink-6);
-}
-
 /* ============================================================
    ALFRED DEPTH v2 — restraint pass
    The terminal is the center of work. Navigation and evidence stay
    elevated, but stop competing with the live tile.
    ============================================================ */
-
-.workspace-rail {
-  background: var(--ink-1);
-}
-
-.workspace-button.active {
-  background: var(--ink-2);
-  border-color: var(--ink-5);
-  box-shadow: none;
-}
-
-.workspace-button.active .workspace-monogram {
-  background: var(--ink-3);
-  box-shadow: none;
-}
-
-.workspace-priority-chip {
-  opacity: 0.9;
-}
-
-.workspace-priority-chip.tone-quiet,
-.workspace-priority-chip.tone-empty {
-  background: rgba(2, 6, 4, 0.34);
-}
-
-.split-empty-state {
-  min-height: 240px;
-  border-color: rgba(120, 210, 160, 0.09);
-  border-style: solid;
-  border-radius: 16px;
-  padding: 26px 30px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 120px),
-    rgba(1, 4, 3, 0.3);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
-}
-
-.split-empty-state span {
-  color: var(--text-muted);
-  font-family: var(--sans);
-}
-
-.split-empty-state strong {
-  color: var(--text-secondary);
-  font-family: var(--sans);
-  font-size: 15px;
-}
-
-.split-empty-state p {
-  max-width: 520px;
-  color: color-mix(in oklab, var(--text-muted) 86%, transparent);
-  font-size: 12px;
-}
-
-.split-empty-state button {
-  font-family: var(--sans);
-  background: rgba(255, 255, 255, 0.026);
-  border-color: var(--border-subtle);
-  color: var(--text-secondary);
-}
 
 .agent-timeline-panel {
   background:
@@ -7249,7 +7143,6 @@ body {
    Keep depth through opaque layers and hairlines, not glass/glow.
    ============================================================ */
 
-.workspace-rail,
 .agent-timeline-panel,
 .workspace-preview-panel {
   border-radius: 10px;
@@ -7411,14 +7304,6 @@ body {
   pointer-events: auto;
 }
 
-.workspace-layout,
-.workspace-layout.alfred-compact,
-.workspace-layout.preview-visible,
-.workspace-layout.alfred-compact.preview-visible,
-.workspace-layout:has(.context-column.closed),
-.workspace-layout.alfred-compact:has(.context-column.closed),
-.workspace-layout.preview-visible:has(.context-column.closed),
-.workspace-layout.alfred-compact.preview-visible:has(.context-column.closed),
 .workspace-layout.surface-inbox,
 .workspace-layout.surface-history,
 .workspace-layout.surface-inbox.preview-visible,
@@ -7428,10 +7313,6 @@ body {
   grid-template-columns: minmax(196px, 232px) minmax(0, 1fr);
 }
 
-.workspace-layout:has(.context-column.open),
-.workspace-layout.alfred-compact:has(.context-column.open),
-.workspace-layout.preview-visible:has(.context-column.open),
-.workspace-layout.alfred-compact.preview-visible:has(.context-column.open),
 .workspace-layout.surface-inbox:has(.context-column.open),
 .workspace-layout.surface-history:has(.context-column.open) {
   grid-template-columns: minmax(196px, 232px) minmax(0, 1fr) minmax(304px, 340px);
@@ -7474,53 +7355,6 @@ body {
   display: none;
 }
 
-.dispatch-target-chip {
-  min-width: 0;
-  height: 36px;
-  border: 1px solid rgba(188, 202, 218, 0.12);
-  border-radius: 8px;
-  padding: 0 10px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
-    rgba(3, 8, 7, 0.86);
-  color: var(--text-secondary);
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
-
-.dispatch-target-chip span {
-  color: var(--text-muted);
-  font: 700 9px/1 var(--sans);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.dispatch-target-chip strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-primary);
-  font: 650 12px/1.2 var(--sans);
-}
-
-.dispatch-target-chip:hover,
-.dispatch-target-chip:focus-visible {
-  border-color: var(--focus-border);
-  outline: none;
-}
-
-.workspace-layout,
-.workspace-layout.alfred-compact,
-.workspace-layout.preview-visible,
-.workspace-layout.alfred-compact.preview-visible {
-  background: var(--surface-workbench);
-}
-
-.workspace-rail,
 .workspace-preview-panel,
 .agent-timeline-panel {
   border-color: var(--border);
@@ -7553,31 +7387,6 @@ body {
   color: var(--text-primary);
 }
 
-.workspace-button {
-  background: transparent;
-  background-image: none;
-  box-shadow: none;
-}
-
-.workspace-button:hover {
-  background: var(--surface-control);
-  background-image: none;
-  box-shadow: none;
-}
-
-.workspace-button.active,
-.workspace-button.active:hover {
-  border-color: var(--ink-5);
-  background: var(--ink-2);
-  box-shadow: none;
-}
-
-.workspace-button.active .workspace-monogram {
-  border-color: var(--ink-5);
-  background: var(--ink-3);
-  box-shadow: none;
-}
-
 .agent-session-pulse,
 .review-context-summary {
   background: var(--surface-raised);
@@ -7585,44 +7394,6 @@ body {
   box-shadow: none;
 }
 
-.dispatch-target-chip {
-  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
-  background-image: none;
-  box-shadow: none;
-}
-
-@media (max-width: 980px) {
-  body {
-    min-width: 0;
-  }
-
-  .workspace-layout,
-  .workspace-layout.alfred-compact,
-  .workspace-layout.preview-visible,
-  .workspace-layout.alfred-compact.preview-visible,
-  .workspace-layout.alfred-compact:has(.context-column.closed),
-  .workspace-layout.preview-visible:has(.context-column.closed),
-  .workspace-layout.alfred-compact.preview-visible:has(.context-column.closed),
-  .workspace-layout:has(.context-column.closed) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .workspace-layout > .workspace-navigation-panel,
-  .workspace-layout > .orchestrator-surface,
-  .workspace-layout > .context-column {
-    grid-column: 1;
-  }
-
-  .context-drawer.open,
-  .context-column {
-    grid-column: 1;
-  }
-}
-
-.workspace-layout,
-.workspace-layout.alfred-compact,
-.workspace-layout.preview-visible,
-.workspace-layout.alfred-compact.preview-visible,
 .workspace-layout.surface-inbox,
 .workspace-layout.surface-history,
 .workspace-layout.surface-inbox.preview-visible,
@@ -7636,54 +7407,23 @@ body {
   background: var(--ink-0);
 }
 
-.workspace-rail {
-  border-color: var(--border);
-  border-radius: var(--radius-panel);
-  background: var(--surface-panel);
-  background-image: none;
-  box-shadow: none;
-}
-
-.workspace-nav-scroll,
 .agent-timeline-panel {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
-.workspace-nav-scroll::-webkit-scrollbar,
 .agent-timeline-panel::-webkit-scrollbar {
   width: 7px;
   height: 7px;
 }
 
-.workspace-nav-scroll::-webkit-scrollbar-track,
 .agent-timeline-panel::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.workspace-nav-scroll::-webkit-scrollbar-thumb,
 .agent-timeline-panel::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.16);
-}
-
-.workspace-button {
-  border-radius: var(--radius-control);
-}
-
-.workspace-button:not(.active) {
-  background: transparent;
-}
-
-.workspace-button:hover,
-.workspace-button:focus-visible {
-  background: var(--ink-2);
-}
-
-.workspace-button.active,
-.workspace-button.active:hover {
-  border-color: var(--ink-5);
-  background: var(--ink-2);
 }
 
 .agent-handoff-buttons button,
@@ -7721,21 +7461,7 @@ body {
   padding-right: 0;
 }
 
-.dispatch-target-chip {
-  border-color: var(--border);
-  border-radius: var(--radius-control);
-  background: color-mix(in oklab, var(--surface-raised) 72%, black 28%);
-}
-
 @media (max-width: 980px) {
-  .workspace-layout,
-  .workspace-layout.alfred-compact,
-  .workspace-layout.preview-visible,
-  .workspace-layout.alfred-compact.preview-visible,
-  .workspace-layout:has(.context-column.closed),
-  .workspace-layout.alfred-compact:has(.context-column.closed),
-  .workspace-layout.preview-visible:has(.context-column.closed),
-  .workspace-layout.alfred-compact.preview-visible:has(.context-column.closed),
   .workspace-layout.surface-inbox,
   .workspace-layout.surface-history,
   .workspace-layout.surface-inbox.preview-visible,
@@ -7745,26 +7471,11 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .workspace-layout > .workspace-navigation-panel,
-  .workspace-layout > .orchestrator-surface,
-  .workspace-layout > .context-column {
-    grid-column: 1;
-  }
 }
 
 .recovery-banner {
   background-image: none;
   box-shadow: none;
-}
-
-@media (max-width: 980px) {
-  .mission-bar .mission-name {
-    max-width: min(360px, calc(100vw - 112px));
-  }
-
-  .workspace-title-trigger {
-    max-width: min(320px, calc(100vw - 128px));
-  }
 }
 
 /* Clean material containment layer. */
@@ -7773,138 +7484,7 @@ body {
   background: var(--ink-0);
 }
 
-.workspace-button,
-.workspace-button.active {
-  background-image: none;
-  box-shadow: none;
-}
-
-.dispatch-target-chip span {
-  min-width: max-content;
-}
-
-@media (max-width: 980px) {
-  .workspace-layout > .context-column.open {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    bottom: 66px;
-    grid-column: auto;
-    width: min(340px, calc(100% - 16px));
-  }
-}
-
 /* Terminal-first readability layer. */
-
-:root {
-  --workbench-control-height: 32px;
-  --workbench-segment-height: calc(var(--workbench-control-height) - 6px);
-  --workbench-control-radius: 8px;
-}
-
-.quiet-count-dot,
-.quiet-count-mark {
-  display: inline-block;
-  flex: 0 0 auto;
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--muted);
-  opacity: 0.78;
-}
-
-.quiet-count-dot.attention {
-  background: var(--brass);
-}
-
-@container terminal-tile (max-width: 520px) {
-  .tile-age,
-  .terminal-status-text,
-  .tile-primary-actions .continue-button span {
-    display: none;
-    max-width: 86px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .terminal-tile-header .tile-title {
-    flex: 1 1 auto;
-    min-width: 140px;
-    min-width: 120px;
-  }
-}
-
-.dispatch-capsule {
-  min-width: 0;
-  height: var(--control-height);
-  border: 1px solid var(--ink-3);
-  border-radius: 7px;
-  padding: 2px;
-  background: var(--ink-0);
-  box-shadow: none;
-  display: flex;
-  align-items: stretch;
-  gap: 6px;
-}
-
-.dispatch-capsule:focus-within {
-  border-color: var(--ink-6);
-}
-
-.dispatch-target-chip {
-  height: auto;
-  min-height: 0;
-  max-height: none;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  background-image: none;
-  box-shadow: none;
-}
-
-.dispatch-target-chip {
-  flex: 0 1 auto;
-  gap: 7px;
-  padding: 0 9px;
-  background: var(--ink-1);
-}
-
-.dispatch-target-chip:hover,
-.dispatch-target-chip:focus-visible {
-  background: var(--ink-2);
-}
-
-.dispatch-target-chip span {
-  color: var(--ink-5);
-  font: 600 var(--type-micro)/1 var(--sans);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.dispatch-target-chip strong {
-  font-size: 11px;
-  font-weight: 650;
-}
-
-.dispatch-kbd-hint {
-  flex: 0 0 auto;
-  align-self: center;
-  display: inline-flex;
-  gap: 3px;
-}
-
-.dispatch-kbd-hint kbd {
-  min-width: 16px;
-  height: 16px;
-  border: 1px solid var(--ink-3);
-  border-radius: 4px;
-  padding: 0 4px;
-  display: inline-grid;
-  place-items: center;
-  color: var(--ink-5);
-  font: 500 10px/1 var(--mono);
-}
 
 /* Terminal-first color role layer. */
 
@@ -7915,51 +7495,6 @@ body {
   --role-neutral-marker: #8d98a5;
   --role-control: var(--surface-control);
   --role-control-hover: var(--surface-control-hover);
-}
-
-.terminal-empty-primary-action {
-  background: var(--surface-control);
-  background-image: none;
-  border-color: var(--border-focus);
-  color: var(--text-primary);
-  box-shadow: none;
-}
-
-.terminal-empty-primary-action:hover,
-.terminal-empty-primary-action:focus-visible {
-  background: color-mix(in oklab, var(--signal-focus) 5%, var(--surface-control-hover));
-  border-color: color-mix(in oklab, var(--signal-focus) 36%, var(--line));
-  color: var(--text-primary);
-  box-shadow: none;
-}
-
-.terminal-tile.real-terminal .tool-dot.manual,
-.terminal-tile.real-terminal .tool-dot.shell,
-.terminal-action-strip .tool-dot.manual,
-.terminal-action-strip .tool-dot.shell,
-.terminal-tile.real-terminal .tool-dot.codex,
-.terminal-action-strip .tool-dot.codex,
-.terminal-tile.real-terminal .tool-dot.claude,
-.terminal-action-strip .tool-dot.claude,
-.terminal-tile.real-terminal .tool-dot.dev-server,
-.terminal-action-strip .tool-dot.dev-server {
-  background: var(--ink-5);
-}
-
-.terminal-status-label.tone-manual,
-.terminal-status-label.tone-shell {
-  border-color: var(--ink-3);
-  color: var(--ink-5);
-}
-
-.terminal-status-label.tone-codex {
-  border-color: var(--ink-3);
-  color: var(--ink-5);
-}
-
-.terminal-status-label.tone-claude {
-  border-color: var(--ink-3);
-  color: var(--ink-5);
 }
 
 .agent-activity-object.type-command,
@@ -8034,47 +7569,6 @@ body {
   border-color: var(--border-focus);
   background: var(--surface-control-hover);
   color: var(--text-primary);
-}
-
-.workspace-button:not(.active) {
-  border-color: transparent;
-  background: transparent;
-}
-
-.workspace-button:not(.active) .workspace-button-details strong {
-  color: var(--ink-6);
-  font: 600 12px/1.2 var(--sans);
-}
-
-.workspace-button:not(.active) .workspace-button-details span {
-  color: var(--ink-5);
-  font: 500 11px/1.35 var(--sans);
-}
-
-.workspace-button:not(.active) .workspace-priority-chip {
-  border-color: var(--ink-3);
-  background: transparent;
-  color: var(--ink-5);
-}
-
-.workspace-button.active {
-  border-color: var(--ink-5);
-  background: var(--ink-2);
-  box-shadow: none;
-}
-
-.workspace-button.active .workspace-button-details strong {
-  color: var(--ink-7);
-}
-
-.workspace-button.active .workspace-button-details span {
-  color: var(--ink-5);
-}
-
-.workspace-button.add-workspace {
-  border-color: var(--ink-3);
-  background: transparent;
-  color: var(--ink-5);
 }
 
 /* ============================================================
