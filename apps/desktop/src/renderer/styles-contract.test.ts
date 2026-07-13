@@ -765,10 +765,13 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".chrome-menu-popover", ["z-index: 120", "box-shadow:"]);
     expectCanonicalBase(".prepare-work-popover", ["width: 560px", "max-width: calc(100vw - 24px)"]);
 
-    expectCanonicalBase(".workspace-navigation-panel", ["min-width: 0", "display: grid"]);
+    expectCanonicalBase(".workspace-navigation-panel", [
+      "min-width: 0",
+      "display: grid",
+      "grid-template-rows: auto minmax(0, 1fr)",
+    ]);
     expectCanonicalBase(".workspace-nav-head", ["display: grid", "align-items: center"]);
     expectCanonicalBase(".workspace-nav-avatar", ["display: grid", "place-items: center"]);
-    expectCanonicalBase(".workspace-nav-search", ["display: grid", "align-items: center"]);
     const workspaceNavScrollBodies = exactRuleBodies(".workspace-nav-scroll");
     expect(workspaceNavScrollBodies).toHaveLength(1);
     expect(workspaceNavScrollBodies[0]).toContain("overflow: auto");

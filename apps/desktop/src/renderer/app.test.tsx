@@ -821,7 +821,7 @@ describe("App integration", () => {
     });
   });
 
-  it("collapses long empty workspace lists while keeping search available", async () => {
+  it("collapses long empty workspace lists behind an explicit expansion", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [], undefined, undefined, {
       workspaces: Array.from({ length: 14 }, (_, index) => ({
@@ -834,9 +834,21 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("button", { name: /Show .* more empty workspaces/i })).toBeInTheDocument();
-    await user.type(screen.getByLabelText("Search sessions, chats, files"), "Workspace 14");
+    expect(screen.queryByRole("tab", { name: /Workspace 14 workspace/i })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: /Show .* more empty workspaces/i }));
     expect(screen.getByRole("tab", { name: /Workspace 14 workspace/i })).toBeInTheDocument();
+  });
+
+  it("shows every active workspace session without a silent five-row cap", async () => {
+    installDesktopBridge(undefined, null, Array.from({ length: 6 }, (_, index) =>
+      liveSnapshot(`session-${index + 1}`, { title: `Manual · zsh ${index + 1}` }),
+    ));
+
+    render(<App />);
+
+    const panel = await screen.findByTestId("workspace-navigation-panel");
+    expect(within(panel).getByRole("button", { name: /Manual · zsh 6/i })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Search sessions, chats, files")).not.toBeInTheDocument();
   });
 
   it("keeps the embedded workspace rail mounted in the navigation panel across surface switches", async () => {

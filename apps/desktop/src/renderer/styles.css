@@ -665,7 +665,7 @@ button:focus-visible {
   background: var(--ink-1);
   box-shadow: none;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
   padding: 8px;
 }
@@ -706,28 +706,6 @@ button:focus-visible {
 
 .workspace-nav-empty {
   color: var(--ink-5);
-}
-
-.workspace-nav-search {
-  min-height: 32px;
-  border: 1px solid var(--ink-3);
-  border-radius: 7px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  padding: 0 9px;
-  color: var(--ink-5);
-  background: var(--ink-0);
-}
-
-.workspace-nav-search input {
-  width: 100%;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--ink-7);
-  font: 500 12px/1 var(--sans);
 }
 
 .workspace-nav-scroll {
