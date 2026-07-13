@@ -1,95 +1,115 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WorkbenchHeader } from "./WorkbenchHeader";
+import type { SessionTile } from "../session-state";
+import { WorkbenchHeader, type WorkbenchHeaderProps } from "./WorkbenchHeader";
 
-const baseProps = {
-  activeSurface: "work" as const,
-  activeSessionCount: 2,
+const liveA: SessionTile = {
+  id: "live-a",
+  runtimeId: "runtime-a",
+  title: "Claude implementation",
+  workspaceId: "A",
+  cwd: "/workspace",
+  source: "manual",
+  stage: "live",
+  runtimeStatus: "live",
+};
+
+const liveB: SessionTile = {
+  ...liveA,
+  id: "live-b",
+  runtimeId: "runtime-b",
+  title: "Codex review",
+};
+
+const baseProps: WorkbenchHeaderProps = {
+  activeSessions: [liveA],
+  activeSurface: "work",
   arrangeMode: false,
-  contextOpen: false,
-  contextSignalCount: 3,
   inboxCount: 4,
-  sessionCount: 9,
-  shortcutModifier: "Cmd" as const,
-  workMode: "desk" as const,
+  selectedSessionId: liveA.id,
+  shortcutModifier: "Cmd",
+  workMode: "desk",
+  workspaceDetail: "Alfred · /workspace",
   workspaceSwitcher: <div data-testid="switcher-slot">W4</div>,
   onAddAgentSession: vi.fn(),
   onAddManualSession: vi.fn(),
   onApplyWorkMode: vi.fn(),
+  onCloseSession: vi.fn(),
+  onFocusSession: vi.fn(),
+  onOpenCommandPalette: vi.fn(),
   onOpenInbox: vi.fn(),
-  onOpenSessionObservatory: vi.fn(),
+  onOpenPrepareWork: vi.fn(),
+  onOpenPrivacyControls: vi.fn(),
+  onRenameSession: vi.fn(),
+  onSelectSurface: vi.fn(),
   onToggleArrangeMode: vi.fn(),
   onToggleContext: vi.fn(),
 };
+
+function renderHeader(overrides: Partial<WorkbenchHeaderProps> = {}) {
+  return render(<WorkbenchHeader {...baseProps} {...overrides} />);
+}
 
 afterEach(() => {
   cleanup();
 });
 
 describe("WorkbenchHeader", () => {
-  it("groups actions into layout, panels, and launch controls", () => {
-    render(<WorkbenchHeader {...baseProps} />);
-
-    expect(screen.getByRole("group", { name: "Layout mode" })).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Panels" })).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "Launch" })).toBeInTheDocument();
+  it("renders a compact 40-px contract for zero or one chrome session", () => {
+    renderHeader({ activeSessions: [liveA] });
+    const header = screen.getByTestId("workbench-header");
+    expect(header).toHaveAttribute("data-chrome-height", "40");
+    expect(screen.queryByRole("toolbar", { name: "Session and layout controls" })).not.toBeInTheDocument();
+    expect(screen.getByText(liveA.title)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open launch menu" })).toBeInTheDocument();
   });
 
-  it("keeps exact counts in accessible labels while rendering quiet indicators", () => {
-    render(<WorkbenchHeader {...baseProps} />);
-
-    const panels = screen.getByRole("group", { name: "Panels" });
-    expect(within(panels).getByRole("button", { name: /3 important signals/i })).toBeInTheDocument();
-    expect(within(panels).getByRole("button", { name: /9 sessions/i })).toBeInTheDocument();
-    expect(within(panels).getByRole("button", { name: /4 items/i })).toBeInTheDocument();
-    const quietIndicators = panels.querySelectorAll(".quiet-count-dot, .quiet-count-mark");
-    expect(quietIndicators).toHaveLength(3);
-    expect(panels).not.toHaveTextContent(/3|4|9/);
-    quietIndicators.forEach((indicator) => expect(indicator).toHaveAttribute("aria-hidden", "true"));
+  it("renders a 74-px contract and secondary row for two chrome sessions", () => {
+    renderHeader({ activeSessions: [liveA, liveB], workMode: "focus" });
+    const header = screen.getByTestId("workbench-header");
+    expect(header).toHaveAttribute("data-chrome-height", "74");
+    expect(screen.getByRole("toolbar", { name: "Session and layout controls" })).toBeInTheDocument();
   });
 
-  it("renders the workspace switcher slot with no breadcrumb or path line", () => {
-    render(<WorkbenchHeader {...baseProps} />);
+  it("renders the secondary row while arrange mode is active", () => {
+    renderHeader({ activeSessions: [liveA], arrangeMode: true });
+    expect(screen.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "74");
+    expect(screen.getByRole("toolbar", { name: "Session and layout controls" })).toBeInTheDocument();
+  });
 
+  it("exposes Inbox Surfaces command palette and plus destinations", async () => {
+    const user = userEvent.setup();
+    renderHeader({ activeSessions: [liveA] });
+    expect(screen.getByRole("button", { name: /Open Inbox/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Surfaces menu" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open command palette" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open launch menu" }));
+    expect(screen.getByRole("menuitem", { name: "Prepare Work" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "New Codex session" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "New Claude session" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "New manual terminal" })).toBeInTheDocument();
+  });
+
+  it("exposes every replaced rail destination from the primary row", async () => {
+    const user = userEvent.setup();
+    renderHeader();
+
+    await user.click(screen.getByRole("button", { name: "Open Surfaces menu" }));
+    const menu = screen.getByRole("menu", { name: "Surfaces" });
+    expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
+      "Work",
+      "Observatory",
+      "Context",
+      "Local Data & Privacy",
+    ]);
+  });
+
+  it("renders the workspace switcher in the project zone", () => {
+    renderHeader();
     const header = screen.getByTestId("workbench-header");
     expect(within(header).getByTestId("switcher-slot")).toBeInTheDocument();
-    expect(header.querySelector(".workbench-crumbs")).toBeNull();
-    expect(header.querySelector(".workbench-title-block")).toBeNull();
-  });
-
-  it("shows the Terminal grid title on work and hides it elsewhere", () => {
-    const { rerender } = render(<WorkbenchHeader {...baseProps} />);
-    expect(screen.getByRole("heading", { name: "Terminal grid" })).toBeInTheDocument();
-    expect(screen.getByText("2 sessions")).toBeInTheDocument();
-
-    rerender(<WorkbenchHeader {...baseProps} activeSurface="inbox" />);
-    expect(screen.queryByRole("heading", { name: "Terminal grid" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("group", { name: "Layout mode" })).not.toBeInTheDocument();
-  });
-
-  it("advertises the new-terminal shortcut on the primary action", () => {
-    render(<WorkbenchHeader {...baseProps} />);
-
-    const button = screen.getByRole("button", { name: "New terminal" });
-    expect(button).toHaveAttribute("aria-keyshortcuts", "Meta+T");
-    expect(button).toHaveAttribute("title", "New terminal (Cmd+T)");
-  });
-
-  it("advertises the Ctrl new-terminal shortcut on non-Mac platforms", () => {
-    render(<WorkbenchHeader {...baseProps} shortcutModifier="Ctrl" />);
-
-    const button = screen.getByRole("button", { name: "New terminal" });
-    expect(button).toHaveAttribute("aria-keyshortcuts", "Control+T");
-    expect(button).toHaveAttribute("title", "New terminal (Ctrl+T)");
-  });
-
-  it("keeps exact context count in the accessible label when the drawer is open", () => {
-    render(<WorkbenchHeader {...baseProps} contextOpen />);
-
-    expect(screen.getByRole("button", { name: "Close Context drawer, 3 important signals" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
+    expect(header.querySelector(".workbench-project-zone")).toContainElement(screen.getByTestId("switcher-slot"));
   });
 });

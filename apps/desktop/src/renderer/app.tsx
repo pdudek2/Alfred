@@ -25,11 +25,11 @@ import { AlfredMark } from "./components/AlfredMark";
 import { CommandPalette } from "./components/CommandPalette";
 import { ContextColumn } from "./components/ContextColumn";
 import { ObservatorySurface } from "./components/ObservatorySurface";
-import { PrimaryNavigationRail, type PrimarySurface } from "./components/PrimaryNavigationRail";
+import { PrepareWorkPopover } from "./components/PrepareWorkPopover";
 import { ReviewSurface } from "./components/ReviewSurface";
 import { SessionObservatoryPanel } from "./components/SessionObservatoryPanel";
 import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
-import { WorkbenchHeader } from "./components/WorkbenchHeader";
+import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHeader";
 import { WorkspaceRail, type WorkspaceRailWorkspace } from "./components/WorkspaceRail";
 import { inboxNavigationSummary } from "./components/workspace-navigation-copy";
 import {
@@ -201,7 +201,9 @@ export function App() {
   const [dispatchTargetsByWorkspace, setDispatchTargetsByWorkspace] = useState<Record<string, DispatchTargetSnapshot>>({});
   const [lastDispatchDestination, setLastDispatchDestination] = useState<string | null>(null);
   const [pendingDiscardConfirmation, setPendingDiscardConfirmation] = useState<PendingDiscardConfirmation | null>(null);
+  const [prepareWorkOpen, setPrepareWorkOpen] = useState(false);
   const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const prepareWorkTriggerRef = useRef<HTMLButtonElement | null>(null);
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
   const worktreeActionPendingRef = useRef<Set<string>>(new Set());
@@ -1871,15 +1873,16 @@ export function App() {
       >
         <div className="mission-bar">
           <WorkbenchHeader
+            activeSessions={activeSessions}
             activeSurface={activeSurface}
-            activeSessionCount={activeSessions.length}
             arrangeMode={arrangeMode}
-            contextOpen={activeContextDrawerOpen}
-            contextSignalCount={activeImportantSignalCount}
+            commandPaletteTriggerRef={commandPaletteTriggerRef}
             inboxCount={globalReviewItems.length}
-            sessionCount={terminalSessions.length}
+            prepareWorkTriggerRef={prepareWorkTriggerRef}
+            selectedSessionId={activeSelectedSessionId}
             shortcutModifier={shortcutModifier}
             workMode={activeWorkMode}
+            workspaceDetail={workspaceDetail(activeWorkspace)}
             workspaceSwitcher={
               <div className="mission-name" role="group" aria-label="Workspace context">
                 <AlfredMark label={activeWorkspace.shortLabel} />
@@ -1912,38 +1915,46 @@ export function App() {
             onAddAgentSession={handleAddAgentSession}
             onAddManualSession={handleAddManualSession}
             onApplyWorkMode={handleApplyWorkMode}
+            onCloseSession={handleCloseSession}
+            onFocusSession={handleFocusSession}
+            onOpenCommandPalette={handleOpenCommandPalette}
             onOpenInbox={handleOpenInbox}
-            onOpenSessionObservatory={handleOpenSessionObservatory}
+            onOpenPrepareWork={() => setPrepareWorkOpen(true)}
+            onOpenPrivacyControls={handleOpenPrivacyPanel}
+            onRenameSession={handleRenameSession}
+            onSelectSurface={setActiveSurface}
             onToggleArrangeMode={handleToggleArrangeMode}
             onToggleContext={handleToggleContextDrawer}
           />
         </div>
 
-        {desktopSaveStatus.status === "saveFailed" && (
-          <div className="desktop-save-banner" role="alert">
-            <div>
-              <strong>State not saved</strong>
-              <span>{desktopSaveStatus.message}</span>
+        <div className="desktop-alert-stack">
+          {desktopSaveStatus.status === "saveFailed" && (
+            <div className="desktop-save-banner" role="alert">
+              <div>
+                <strong>State not saved</strong>
+                <span>{desktopSaveStatus.message}</span>
+              </div>
+              <button type="button" onClick={() => void handleRetryStateSave()}>
+                <RefreshCcw size={14} />
+                <span>Retry</span>
+              </button>
             </div>
-            <button type="button" onClick={() => void handleRetryStateSave()}>
-              <RefreshCcw size={14} />
-              <span>Retry</span>
-            </button>
-          </div>
-        )}
+          )}
 
-        {workspaceHydrationStatus.status === "failed" && (
-          <div className="desktop-save-banner" role="alert">
-            <div>
-              <strong>Workspace not loaded</strong>
-              <span>{workspaceHydrationStatus.message}</span>
+          {workspaceHydrationStatus.status === "failed" && (
+            <div className="desktop-save-banner" role="alert">
+              <div>
+                <strong>Workspace not loaded</strong>
+                <span>{workspaceHydrationStatus.message}</span>
+              </div>
+              <button type="button" onClick={handleRetryWorkspaceHydration}>
+                <RefreshCcw size={14} />
+                <span>Retry</span>
+              </button>
             </div>
-            <button type="button" onClick={handleRetryWorkspaceHydration}>
-              <RefreshCcw size={14} />
-              <span>Retry</span>
-            </button>
-          </div>
-        )}
+          )}
+        </div>
 
         <div
           className={`workspace-layout surface-${activeSurface} ${alfredExpanded ? "alfred-expanded" : "alfred-compact"} ${
@@ -1951,18 +1962,6 @@ export function App() {
           }`}
           data-testid="workbench-shell"
         >
-          <PrimaryNavigationRail
-            activeSurface={activeSurface}
-            commandPaletteTriggerRef={commandPaletteTriggerRef}
-            contextOpen={activeContextDrawerOpen}
-            contextSignalCount={activeImportantSignalCount}
-            inboxCount={globalReviewItems.length}
-            shortcutModifier={shortcutModifier}
-            onOpenCommandPalette={handleOpenCommandPalette}
-            onOpenPrivacyControls={handleOpenPrivacyPanel}
-            onToggleContext={handleToggleContextDrawer}
-            onSelectSurface={(surface) => setActiveSurface(surface)}
-          />
           <QuietWorkspaceNavigationPanel
             activeSessions={activeSessions}
             activeWorkspace={activeWorkspace}
@@ -2095,25 +2094,37 @@ export function App() {
             }}
           />
         </div>
-        <ComposerBar
-          blockedActionLabel={
-            stagedWorkspaceId && stagedWorkspaceLabel
-              ? `Open ${stagedWorkspaceLabel}`
-              : undefined
-          }
-          blockedReason={composerBlockedReason}
-          dispatchTarget={activeDispatchTarget}
-          lastDispatchDestination={lastDispatchDestination}
-          thinking={isThinking(alfredStatus)}
-          disabled={commandPaletteOpen || sessionObservatoryOpen || privacyPanelOpen}
-          onBlockedAction={
-            stagedWorkspaceId
-              ? () => handleSelectWorkspace(stagedWorkspaceId)
-              : undefined
-          }
-          onCycleDispatchTarget={handleCycleDispatchTarget}
-          onSubmit={handleSubmitDispatch}
-        />
+        {prepareWorkOpen && (
+          <PrepareWorkPopover
+            triggerRef={prepareWorkTriggerRef}
+            onClose={() => setPrepareWorkOpen(false)}
+          >
+            <ComposerBar
+              autoFocus
+              blockedActionLabel={
+                stagedWorkspaceId && stagedWorkspaceLabel
+                  ? `Open ${stagedWorkspaceLabel}`
+                  : undefined
+              }
+              blockedReason={composerBlockedReason}
+              dispatchTarget={activeDispatchTarget}
+              lastDispatchDestination={lastDispatchDestination}
+              thinking={isThinking(alfredStatus)}
+              disabled={commandPaletteOpen || sessionObservatoryOpen || privacyPanelOpen}
+              onBlockedAction={
+                stagedWorkspaceId
+                  ? () => handleSelectWorkspace(stagedWorkspaceId)
+                  : undefined
+              }
+              onCycleDispatchTarget={handleCycleDispatchTarget}
+              onSubmit={async (draft) => {
+                const submitted = await handleSubmitDispatch(draft);
+                if (submitted) setPrepareWorkOpen(false);
+                return submitted;
+              }}
+            />
+          </PrepareWorkPopover>
+        )}
         {pendingDiscardConfirmation && (
           <DiscardCheckoutDialog
             confirmation={pendingDiscardConfirmation}

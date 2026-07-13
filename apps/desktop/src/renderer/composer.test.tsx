@@ -11,6 +11,20 @@ afterEach(() => {
 describe("ComposerBar", () => {
   const dispatchTarget = { kind: "session" as const, id: "manual-1", label: "Manual · zsh 1" };
 
+  it("forwards autoFocus to the dispatch textarea", () => {
+    render(
+      <ComposerBar
+        autoFocus
+        blockedReason={undefined}
+        dispatchTarget={dispatchTarget}
+        thinking={false}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("textbox", { name: "Dispatch instruction" })).toHaveFocus();
+  });
+
   it("keeps send disabled until the dispatch has text and no blocking reason", () => {
     const onSubmit = vi.fn();
 

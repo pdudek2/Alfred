@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 
 type ComposerBarProps = {
+  autoFocus?: boolean;
   blockedActionLabel?: string | undefined;
   blockedReason: string | undefined;
   disabled?: boolean;
@@ -13,6 +14,7 @@ type ComposerBarProps = {
 };
 
 export function ComposerBar({
+  autoFocus = false,
   blockedActionLabel,
   blockedReason,
   disabled = false,
@@ -84,6 +86,7 @@ export function ComposerBar({
           <strong>{dispatchTarget?.label ?? "Choose target"}</strong>
         </button>
         <textarea
+          autoFocus={autoFocus}
           className="composer-input"
           rows={1}
           value={draft}
