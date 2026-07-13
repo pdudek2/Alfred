@@ -100,6 +100,7 @@ import type {
 } from "../shared/alfred-ipc";
 import type {
   TerminalCreateResult,
+  TerminalDataEvent,
   TerminalSessionIsolation,
   TerminalSessionSnapshot,
 } from "../shared/terminal-ipc";
@@ -1195,19 +1196,19 @@ export function App() {
     });
   }, []);
 
-  const handleRuntimeSessionOutput = useCallback((runtimeId: TerminalCreateResult["id"], data: string) => {
-    const session = terminalSessionsRef.current.find((item) => item.runtimeId === runtimeId);
+  const handleRuntimeSessionOutput = useCallback((event: TerminalDataEvent) => {
+    const session = terminalSessionsRef.current.find((item) => item.runtimeId === event.id);
     if (session) {
       setPreviewCandidates((candidates) =>
         recordPreviewUrlsFromText(candidates, {
           workspaceId: session.workspaceId,
           sessionId: session.id,
           sessionTitle: session.title,
-          text: data,
+          text: event.data,
         }),
       );
     }
-    setTerminalSessions((sessions) => recordSessionOutputActivity(sessions, runtimeId, data));
+    setTerminalSessions((sessions) => recordSessionOutputActivity(sessions, event));
   }, []);
 
   const handleRuntimeSessionSnapshot = useCallback((sessionId: string, snapshot: TerminalSessionSnapshot) => {

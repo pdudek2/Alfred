@@ -21,7 +21,7 @@ import {
 } from "./session-state";
 import type { AlfredPlanSession } from "../shared/alfred-ipc";
 import type { AlfredStagedPlanSnapshot } from "../shared/alfred-ipc";
-import type { TerminalSessionSnapshot } from "../shared/terminal-ipc";
+import type { TerminalDataEvent, TerminalSessionSnapshot } from "../shared/terminal-ipc";
 
 function restoreSessionWithResumeTarget(sessionId: string) {
   const restored = hydratePersistedTerminalSessions([
@@ -594,7 +594,22 @@ describe("desktop session state", () => {
       },
     ]);
 
-    const next = recordSessionOutputActivity(hydrated, "pty-a", "\u001b[31mError: build failed\u001b[0m\n", 200);
+    const next = recordSessionOutputActivity(
+      hydrated,
+      {
+        id: "pty-a",
+        data: "\u001b[31mError: build failed\u001b[0m\n",
+        activities: [
+          {
+            kind: "error",
+            title: "Error reported",
+            detail: "Error: build failed",
+            payload: { type: "error", message: "Error: build failed" },
+          },
+        ],
+      },
+      200,
+    );
 
     expect(next[0]?.lastOutputAt).toBe(200);
     expect(next[0]?.activityEvents?.[0]).toMatchObject({
@@ -618,7 +633,11 @@ describe("desktop session state", () => {
       },
     ]);
 
-    const next = recordSessionOutputActivity(hydrated, "pty-a", "plain shell prompt\n", 240);
+    const next = recordSessionOutputActivity(
+      hydrated,
+      { id: "pty-a", data: "plain shell prompt\n", activities: [] },
+      240,
+    );
 
     expect(next[0]).toMatchObject({ lastOutputAt: 240 });
     expect(next[0]?.activityEvents).toBeUndefined();
@@ -637,12 +656,22 @@ describe("desktop session state", () => {
       },
     ]);
 
-    const next = recordSessionOutputActivity(hydrated, "pty-a", "Do you want to proceed? y/N\n", 260);
+    const event: TerminalDataEvent = {
+      id: "pty-a",
+      data: "text that is not parsed in renderer",
+      activities: [{
+        kind: "approval",
+        title: "Waiting for approval",
+        detail: "Approval required: apply patch?",
+        payload: { type: "approval", prompt: "Approval required: apply patch?" },
+      }],
+    };
+    const next = recordSessionOutputActivity(hydrated, event, 260);
 
     expect(next[0]?.activityEvents?.[0]).toMatchObject({
       kind: "approval",
       title: "Waiting for approval",
-      detail: "Do you want to proceed? y/N",
+      detail: "Approval required: apply patch?",
     });
   });
 
@@ -660,7 +689,28 @@ describe("desktop session state", () => {
       },
     ]);
 
-    const next = recordSessionOutputActivity(hydrated, "pty-a", 'Bash("pnpm test")\nDo you want to proceed? y/N\n', 300);
+    const next = recordSessionOutputActivity(
+      hydrated,
+      {
+        id: "pty-a",
+        data: 'Bash("pnpm test")\nDo you want to proceed? y/N\n',
+        activities: [
+          {
+            kind: "command",
+            title: "Ran command",
+            detail: '"pnpm test"',
+            payload: { type: "command", command: "pnpm test" },
+          },
+          {
+            kind: "approval",
+            title: "Waiting for approval",
+            detail: "Do you want to proceed? y/N",
+            payload: { type: "approval", prompt: "Do you want to proceed? y/N" },
+          },
+        ],
+      },
+      300,
+    );
 
     expect(next[0]?.activityEvents?.at(-1)).toMatchObject({
       kind: "approval",
@@ -684,8 +734,28 @@ describe("desktop session state", () => {
 
     const next = recordSessionOutputActivity(
       hydrated,
-      "pty-a",
-      'Bash("pnpm test")\nEdit(apps/desktop/src/renderer/app.tsx)\n',
+      {
+        id: "pty-a",
+        data: 'Bash("pnpm test")\nEdit(apps/desktop/src/renderer/app.tsx)\n',
+        activities: [
+          {
+            kind: "command",
+            title: "Ran command",
+            detail: '"pnpm test"',
+            payload: { type: "command", command: "pnpm test" },
+          },
+          {
+            kind: "file",
+            title: "Edit file",
+            detail: "apps/desktop/src/renderer/app.tsx",
+            payload: {
+              type: "file",
+              operation: "edited",
+              path: "apps/desktop/src/renderer/app.tsx",
+            },
+          },
+        ],
+      },
       280,
     );
 

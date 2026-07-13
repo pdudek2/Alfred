@@ -1,7 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { classifyTerminalOutputActivities, classifyTerminalOutputActivity } from "./session-activity";
+import {
+  classifyTerminalOutputActivities,
+  classifyTerminalOutputActivity,
+  classifyTerminalOutputChunk,
+} from "./session-activity";
 
 describe("session activity classifier", () => {
+  it("carries a prompt split across arbitrary PTY chunks and emits it once", () => {
+    const first = classifyTerminalOutputChunk({ carry: "" }, "Approval re");
+    expect(first.activities).toEqual([]);
+    expect(first.state).toEqual({ carry: "Approval re" });
+
+    const second = classifyTerminalOutputChunk(first.state, "quired: apply patch?");
+    expect(second.activities).toEqual([
+      {
+        kind: "approval",
+        title: "Waiting for approval",
+        detail: "Approval required: apply patch?",
+        payload: { type: "approval", prompt: "Approval required: apply patch?" },
+      },
+    ]);
+    expect(second.state).toEqual({ carry: "" });
+
+    const third = classifyTerminalOutputChunk(second.state, "\n");
+    expect(third.activities).toEqual([]);
+  });
+
+  it("classifies complete lines while retaining only the unfinished tail", () => {
+    const result = classifyTerminalOutputChunk(
+      { carry: "" },
+      'Bash("pnpm test")\nEdit(app.tsx)\npartial',
+    );
+
+    expect(result.activities.map((activity) => activity.kind)).toEqual(["command", "file"]);
+    expect(result.state).toEqual({ carry: "partial" });
+  });
+
+  it("bounds an unterminated PTY carry", () => {
+    const result = classifyTerminalOutputChunk({ carry: "" }, "x".repeat(5_000));
+    expect(result.state.carry).toHaveLength(4_096);
+  });
+
   it("classifies agent command, file, plan, and tool lines", () => {
     expect(classifyTerminalOutputActivity('Bash("pnpm test")')).toEqual({
       kind: "command",

@@ -9,9 +9,12 @@ import { pathToFileURL } from "node:url";
 import { redactText, redactUnknown } from "@alfred/schema";
 import {
   appendActivityEvent,
-  classifyTerminalOutputActivities,
+  classifyTerminalOutputChunk,
   type SessionActivityEvent,
+  type SessionActivityInput,
   type SessionActivityPayload,
+  type TerminalOutputActivityChunkResult,
+  type TerminalOutputActivityStreamState,
 } from "../shared/session-activity.js";
 import { normalizeAgentCommand } from "../shared/agent-command.js";
 import { scratchWorkspacePath } from "./codex-scratch.js";
@@ -98,6 +101,7 @@ type TerminalSession = {
   resumeTarget?: TerminalCreateResult["resumeTarget"];
   buffer: string;
   activityEvents?: SessionActivityEvent[];
+  activityStream: TerminalOutputActivityStreamState;
   lastActivityAt?: number;
   lastOutputAt?: number;
   pty: PtyProcess;
@@ -235,7 +239,15 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           COLORTERM: "truecolor",
         },
       });
-      const session: TerminalSession = { ...metadata, buffer: "", activityEvents: [], ownerWindowId: window.id, pty, window };
+      const session: TerminalSession = {
+        ...metadata,
+        buffer: "",
+        activityEvents: [],
+        activityStream: { carry: "" },
+        ownerWindowId: window.id,
+        pty,
+        window,
+      };
 
       sessions.set(id, session);
       if (session.clientId) {
@@ -247,9 +259,9 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         const now = Date.now();
         appendToBuffer(session, data);
         session.lastOutputAt = now;
-        recordOutputActivity(session, data, now);
+        const activities = recordOutputActivity(session, data, now);
         rememberSessionSnapshot(session);
-        sendToSessionWindow(session, terminalChannels.data, { id, data });
+        sendToSessionWindow(session, terminalChannels.data, { id, data, activities });
       });
 
       pty.onExit(({ exitCode, signal }) => {
@@ -716,10 +728,17 @@ function clonePersistedSession(session: PersistedTerminalSessionSnapshot): Persi
   };
 }
 
-function recordOutputActivity(session: TerminalSession, data: string, now = Date.now()): void {
-  for (const activity of classifyTerminalOutputActivities(data)) {
+function recordOutputActivity(
+  session: TerminalSession,
+  data: string,
+  now = Date.now(),
+): SessionActivityInput[] {
+  const result: TerminalOutputActivityChunkResult = classifyTerminalOutputChunk(session.activityStream, data);
+  session.activityStream = result.state;
+  for (const activity of result.activities) {
     recordSessionActivity(session, activity, now);
   }
+  return result.activities;
 }
 
 function recordSessionActivity(

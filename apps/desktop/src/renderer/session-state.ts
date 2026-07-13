@@ -1,12 +1,12 @@
 import type { AgentKind, AlfredLaunchPreflight, AlfredPlanSession, AlfredStagedPlanSnapshot } from "../shared/alfred-ipc";
 import {
   appendActivityEvent,
-  classifyTerminalOutputActivities,
   type SessionActivityEvent,
   type SessionActivityInput,
 } from "../shared/session-activity";
 import type {
   TerminalCreateResult,
+  TerminalDataEvent,
   PersistedTerminalSessionSnapshot,
   TerminalSessionSnapshot,
   TerminalSessionId,
@@ -418,20 +418,17 @@ export function appendSessionActivity(
 
 export function recordSessionOutputActivity(
   sessions: SessionTile[],
-  runtimeId: TerminalSessionId,
-  data: string,
+  event: TerminalDataEvent,
   now = Date.now(),
 ): SessionTile[] {
-  const activities = classifyTerminalOutputActivities(data);
-  const session = sessions.find((item) => item.runtimeId === runtimeId);
+  const session = sessions.find((item) => item.runtimeId === event.id);
   if (!session) return sessions;
-  const sessionsWithOutputAt = sessions.map((item) =>
+  const withOutputAt = sessions.map((item) =>
     item.id === session.id ? { ...item, lastOutputAt: now } : item,
   );
-  if (activities.length === 0) return sessionsWithOutputAt;
-  return activities.reduce(
-    (nextSessions, activity) => appendSessionActivity(nextSessions, session.id, activity, now),
-    sessionsWithOutputAt,
+  return event.activities.reduce(
+    (next, activity) => appendSessionActivity(next, session.id, activity, now),
+    withOutputAt,
   );
 }
 

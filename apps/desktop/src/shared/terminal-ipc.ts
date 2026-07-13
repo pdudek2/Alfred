@@ -1,5 +1,5 @@
 import type { AgentKind } from "./alfred-ipc.js";
-import type { SessionActivityEvent } from "./session-activity.js";
+import type { SessionActivityEvent, SessionActivityInput } from "./session-activity.js";
 
 export type TerminalSessionId = string;
 export type TerminalSessionSource = "manual" | "alfred";
@@ -124,6 +124,7 @@ export type TerminalExitEvent = {
 export type TerminalDataEvent = {
   id: TerminalSessionId;
   data: string;
+  activities: SessionActivityInput[];
 };
 
 export type TerminalApi = {
