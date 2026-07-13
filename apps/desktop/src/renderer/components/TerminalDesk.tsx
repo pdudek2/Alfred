@@ -21,7 +21,13 @@ import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import type { ArrangePointerMode, ArrangePreview, WorkMode } from "../terminal-desk-types";
 import type { AgentKind } from "../../shared/alfred-ipc";
-import type { TerminalCreateRequest, TerminalCreateResult, TerminalSessionId } from "../../shared/terminal-ipc";
+import type {
+  TerminalCreateRequest,
+  TerminalCreateResult,
+  TerminalDataEvent,
+  TerminalSessionId,
+  TerminalSessionSnapshot,
+} from "../../shared/terminal-ipc";
 import { shortenPath } from "../path-display";
 import { recoveryHeadline } from "../recovery-display";
 import { sessionRelaunchSafety } from "../relaunch-safety";
@@ -29,7 +35,6 @@ import { restoredSessionActionLabel, restoredSessionActionTitle } from "../resto
 import { normalizeSessionTitle } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
-import type { TerminalSessionSnapshot } from "../../shared/terminal-ipc";
 
 const ARRANGE_GRID_ROW_HEIGHT = 84;
 const MIN_TERMINAL_FIT_HEIGHT = 48;
@@ -62,7 +67,7 @@ type TerminalDeskProps = {
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
   onRuntimeSessionExited: (runtimeId: TerminalSessionId, exitCode: number) => void;
-  onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
+  onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
   onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
   onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
@@ -750,7 +755,7 @@ function ManualTerminalTile({
   onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
   onRuntimeSessionExited: (runtimeId: TerminalSessionId, exitCode: number) => void;
-  onRuntimeSessionOutput: (runtimeId: TerminalSessionId, data: string) => void;
+  onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
   onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
   onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
@@ -1112,7 +1117,7 @@ function ManualTerminalTile({
         } else {
           writeAndRepaint(event.data);
         }
-        runtimeCallbacksRef.current.onRuntimeSessionOutput(event.id, event.data);
+        runtimeCallbacksRef.current.onRuntimeSessionOutput(event);
       }
     });
     const removeExitListener = terminalApi.onExit((event) => {

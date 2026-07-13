@@ -1135,7 +1135,7 @@ describe("App integration", () => {
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
 
-    await bridge.emitData({ id: "runtime-1", data: "keep-alive output\n" });
+    await bridge.emitData({ id: "runtime-1", data: "keep-alive output\n", activities: [] });
     expect(tile).toHaveTextContent("keep-alive output");
 
     const finalHosts = within(screen.getByTestId("desk-runtime-surface")).getAllByTestId("xterm-host");
@@ -1216,7 +1216,7 @@ describe("App integration", () => {
     expect(within(hiddenSplitTile).getByTestId("xterm-host").isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCount);
 
-    await bridge.emitData({ id: "runtime-three", data: "hidden split output\n" });
+    await bridge.emitData({ id: "runtime-three", data: "hidden split output\n", activities: [] });
 
     await user.click(screen.getByRole("button", { name: "Grid" }));
     expect(document.querySelector("article[aria-label='Codex · three']")).toHaveTextContent("hidden split output");
@@ -1510,7 +1510,7 @@ describe("App integration", () => {
       expect(window.alfredDesktop?.terminal.onData).toHaveBeenCalledTimes(1);
     });
 
-    await bridge.emitData({ id: "runtime-a", data: "metadata-safe output\n" });
+    await bridge.emitData({ id: "runtime-a", data: "metadata-safe output\n", activities: [] });
 
     expect(tile).toHaveTextContent("metadata-safe output");
     const disposeCountBeforeRename = terminalDisposeCalls.length;
@@ -1630,7 +1630,16 @@ describe("App integration", () => {
     });
 
     const reattachedTile = await screen.findByRole("article", { name: /Codex · alfred/i });
-    await emitData({ id: "runtime-alfred", data: "ran pnpm test\n" });
+    await emitData({
+      id: "runtime-alfred",
+      data: "ran pnpm test\n",
+      activities: [{
+        kind: "command",
+        title: "Ran command",
+        detail: "ran pnpm test",
+        payload: { type: "command", command: "pnpm test" },
+      }],
+    });
 
     await act(async () => {
       delayedSnapshot.resolve({
@@ -1715,7 +1724,16 @@ describe("App integration", () => {
       expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
     });
 
-    await emitData({ id: "runtime-alfred", data: "ran pnpm test\n" });
+    await emitData({
+      id: "runtime-alfred",
+      data: "ran pnpm test\n",
+      activities: [{
+        kind: "command",
+        title: "Ran command",
+        detail: "ran pnpm test",
+        payload: { type: "command", command: "pnpm test" },
+      }],
+    });
 
     await act(async () => {
       delayedSnapshot.resolve(null);
@@ -1793,7 +1811,16 @@ describe("App integration", () => {
       expect(snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
     });
 
-    await emitData({ id: "runtime-alfred", data: "ran pnpm lint\n" });
+    await emitData({
+      id: "runtime-alfred",
+      data: "ran pnpm lint\n",
+      activities: [{
+        kind: "command",
+        title: "Ran command",
+        detail: "ran pnpm lint",
+        payload: { type: "command", command: "pnpm lint" },
+      }],
+    });
 
     await act(async () => {
       delayedSnapshot.reject(new Error("snapshot failed"));
@@ -1850,7 +1877,7 @@ describe("App integration", () => {
       expect(window.alfredDesktop?.terminal.onData).toHaveBeenCalledTimes(1);
     });
 
-    await bridge.emitData({ id: "runtime-resume", data: "resume output stays\n" });
+    await bridge.emitData({ id: "runtime-resume", data: "resume output stays\n", activities: [] });
 
     expect(tile).toHaveTextContent("resume output stays");
     const disposeCountBeforeMetadataUpdate = terminalDisposeCalls.length;
@@ -2195,7 +2222,15 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(window.alfredDesktop?.terminal.onData as unknown as ReturnType<typeof vi.fn>).toHaveBeenCalled();
     });
-    await emitData({ id: "runtime-dev", data: "ready on http://127.0.0.1:3000/app\n" });
+    await emitData({
+      id: "runtime-dev",
+      data: "ready on http://127.0.0.1:3000/app\n",
+      activities: [{
+        kind: "output",
+        title: "Progress reported",
+        detail: "ready on http://127.0.0.1:3000/app",
+      }],
+    });
 
     const preview = await screen.findByLabelText("Workspace preview");
     expect(within(preview).getAllByText("127.0.0.1:3000")).toHaveLength(2);

@@ -40,6 +40,50 @@ export type SessionActivityInput = {
   payload?: SessionActivityPayload;
 };
 
+export type TerminalOutputActivityStreamState = {
+  carry: string;
+};
+
+export type TerminalOutputActivityChunkResult = {
+  activities: SessionActivityInput[];
+  state: TerminalOutputActivityStreamState;
+};
+
+const MAX_ACTIVITY_CARRY = 4_096;
+
+export function classifyTerminalOutputChunk(
+  state: TerminalOutputActivityStreamState,
+  data: string,
+): TerminalOutputActivityChunkResult {
+  const normalized = stripAnsi(`${state.carry}${data}`).replace(/\r/g, "\n");
+  const segments = normalized.split("\n");
+  const unfinished = normalized.endsWith("\n") ? "" : (segments.pop() ?? "");
+  const activities = segments.flatMap((segment) => {
+    const line = segment.trim();
+    if (!line) return [];
+    const activity = classifyOutputLine(line);
+    return activity ? [activity] : [];
+  });
+  const prompt = selfTerminatingApproval(unfinished);
+  if (prompt) activities.push(prompt);
+
+  return {
+    activities,
+    state: {
+      carry: prompt ? "" : unfinished.slice(-MAX_ACTIVITY_CARRY),
+    },
+  };
+}
+
+function selfTerminatingApproval(value: string): SessionActivityInput | null {
+  const line = value.trim();
+  if (!line || !(/\?\s*$/.test(line) || /(?:\[|\()\s*y\s*\/\s*n\s*(?:\]|\))\s*$/i.test(line))) {
+    return null;
+  }
+  const activity = classifyOutputLine(line);
+  return activity?.kind === "approval" ? activity : null;
+}
+
 export function appendActivityEvent(
   events: SessionActivityEvent[] | undefined,
   ownerId: string,

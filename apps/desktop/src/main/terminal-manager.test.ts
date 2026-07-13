@@ -564,11 +564,36 @@ describe("terminal-manager IPC", () => {
     );
     expect(sentEvents).toContainEqual({
       channel: terminalChannels.data,
-      payload: { id: created.id, data: "hello\n" },
+      payload: { id: created.id, data: "hello\n", activities: [] },
       windowId: 1,
     });
     expect(listed.sessions).toEqual([
       expect.objectContaining({ id: created.id, buffer: "hello\n", clientId: "manual-1" }),
+    ]);
+  });
+
+  it("classifies a split approval once and sends the classified input with terminal data", async () => {
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+    const created = await invoke<{ id: string }>(terminalChannels.create, {
+      command: "node", cols: 80, cwd: "/repo", rows: 24,
+    });
+
+    pty.onDataHandler?.("Approval re");
+    pty.onDataHandler?.("quired: apply patch?");
+
+    const dataEvents = sentEvents.filter((event) => event.channel === terminalChannels.data);
+    expect(dataEvents).toEqual([
+      { channel: terminalChannels.data, payload: { id: created.id, data: "Approval re", activities: [] }, windowId: 1 },
+      {
+        channel: terminalChannels.data,
+        payload: {
+          id: created.id,
+          data: "quired: apply patch?",
+          activities: [expect.objectContaining({ kind: "approval", detail: "Approval required: apply patch?" })],
+        },
+        windowId: 1,
+      },
     ]);
   });
 
@@ -1872,7 +1897,7 @@ describe("terminal-manager IPC", () => {
     expect(listed.sessions).toEqual([expect.objectContaining({ id: created.id })]);
     expect(sentEvents).toContainEqual({
       channel: terminalChannels.data,
-      payload: { id: created.id, data: "after reattach\n" },
+      payload: { id: created.id, data: "after reattach\n", activities: [] },
       windowId: 2,
     });
     expect(pty.writes).toEqual(["ok\r"]);
