@@ -658,6 +658,7 @@ describe("renderer CSS contracts", () => {
     for (const token of [
       "--surface-workbench",
       "--surface-tile-header",
+      "--surface-chrome-soft",
       "--panel",
       "--panel-raised",
       "--panel-soft",
@@ -1217,7 +1218,6 @@ describe("renderer CSS contracts", () => {
     expect(tokenDefinitionCount("--text-faint")).toBe(1);
 
     expect(rootToken("--surface-chrome")).toBe("#07090b");
-    expect(rootToken("--surface-chrome-soft")).toBe("#0b0f13");
     expect(rootToken("--surface-control")).toBe("#090d11");
     expect(rootToken("--surface-control-hover")).toBe("#10151a");
     expect(tokenValue("--accent")).toBe("var(--signal-focus)");
