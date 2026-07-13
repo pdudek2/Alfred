@@ -309,13 +309,6 @@ export function TerminalDesk({
               onReviewDetails={() => handleFocusSession(blockedStagedSession.id)}
             />
           )}
-          {focusSession && activeSessions.length > 1 && (
-            <FocusSessionStrip
-              activeSessionId={focusSession.id}
-              sessions={activeSessions}
-              onFocusSession={onFocusSession}
-            />
-          )}
           {focusSession && isReviewableIsolatedCheckout(focusSession) && (
             <WorktreeActionStrip
               pendingAction={worktreeActionPending[sessionInstanceKey(focusSession)]}
@@ -376,6 +369,11 @@ export function TerminalDesk({
                 lastOutputAt={session.lastOutputAt}
                 collapsed={collapsedSessionIds.has(session.id)}
                 selected={inspectedSession?.id === session.id}
+                showHeader={
+                  arrangeMode ||
+                  workMode !== "focus" ||
+                  focusSession?.id !== session.id
+                }
                 onClose={() => onCloseSession(session.id)}
                 onContinueRestoredSession={() => onContinueRestoredSession(session.id)}
                 onRestartSession={() => onRestartSession(session.id)}
@@ -525,40 +523,6 @@ function SplitModeEmptyState({
         </button>
       </div>
     </aside>
-  );
-}
-
-function FocusSessionStrip({
-  activeSessionId,
-  sessions,
-  onFocusSession,
-}: {
-  activeSessionId: string;
-  sessions: SessionTile[];
-  onFocusSession: (sessionId: string) => void;
-}) {
-  return (
-    <div className="focus-session-strip" role="toolbar" aria-label="focus session switcher">
-      {sessions.map((session) => {
-        const kind = sessionTileKind(session);
-        const kindMeta = tileKindMeta(kind);
-        const active = session.id === activeSessionId;
-
-        return (
-          <button
-            type="button"
-            key={session.id}
-            className={active ? "active" : ""}
-            aria-pressed={active}
-            aria-label={`Focus ${session.title}`}
-            onClick={() => onFocusSession(session.id)}
-          >
-            <span className={`tool-dot ${kindMeta.className}`} />
-            <span>{session.title}</span>
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
@@ -732,6 +696,7 @@ function ManualTerminalTile({
   onRenameSession,
   onToggleCollapse,
   selected,
+  showHeader,
   runtimeId,
   runtimeStatus,
   sessionKey,
@@ -780,6 +745,7 @@ function ManualTerminalTile({
   onRenameSession: (sessionId: string, title: string) => void;
   onToggleCollapse: () => void;
   selected: boolean;
+  showHeader: boolean;
   runtimeId?: TerminalSessionId | undefined;
   runtimeStatus?: SessionTile["runtimeStatus"] | undefined;
   sessionKey: string;
@@ -1314,7 +1280,7 @@ function ManualTerminalTile({
 
   return (
     <article
-      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${workspaceHidden ? "workspace-hidden" : ""} ${layoutHidden ? "focus-hidden" : ""} ${collapsed ? "collapsed" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${workspaceHidden ? "workspace-hidden" : ""} ${layoutHidden ? "focus-hidden" : ""} ${collapsed ? "collapsed" : ""} ${arrangeMode ? "arranging" : ""} ${showHeader ? "" : "chrome-headerless"} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
       data-testid={workspaceHidden ? "background-terminal-tile" : "terminal-tile"}
       data-session-id={sessionKey}
       aria-label={latestActivity ? `${title}, ${latestActivity.title}: ${latestActivity.detail}` : title}
@@ -1332,12 +1298,13 @@ function ManualTerminalTile({
         }
       }}
     >
-      <header
-        className={`tile-header terminal-tile-header ${arrangeMode ? "drag-handle" : ""}`}
-        onClick={!arrangeMode ? onSelectSession : undefined}
-        onDoubleClick={!arrangeMode ? onFocusSession : undefined}
-        onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
-      >
+      {showHeader && (
+        <header
+          className={`tile-header terminal-tile-header ${arrangeMode ? "drag-handle" : ""}`}
+          onClick={!arrangeMode ? onSelectSession : undefined}
+          onDoubleClick={!arrangeMode ? onFocusSession : undefined}
+          onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
+        >
         <div className="tile-title">
           <span className={`tool-dot ${kindMeta.className}`} />
           <span className={`tile-kind-mark ${kindMeta.className}`} title={kindMeta.label} aria-label={kindMeta.label}>
@@ -1496,7 +1463,8 @@ function ManualTerminalTile({
             </button>
           </div>
         </div>
-      </header>
+        </header>
+      )}
       <div
         className="xterm-host"
         data-testid={workspaceHidden ? "background-xterm-host" : "xterm-host"}

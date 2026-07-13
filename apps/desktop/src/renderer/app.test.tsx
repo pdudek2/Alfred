@@ -1154,6 +1154,46 @@ describe("App integration", () => {
     expect(screen.queryByText(/2 tiles · 0 staged/i)).not.toBeInTheDocument();
   });
 
+  it("uses session tabs as the only Focus header without replacing xterm", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: "Focus" });
+    const firstHost = screen.getAllByTestId("xterm-host")[0];
+    expect(firstHost).toBeInstanceOf(HTMLElement);
+
+    await user.click(screen.getByRole("button", { name: "Focus" }));
+
+    const visibleTile = screen.getAllByTestId("terminal-tile").find(
+      (tile) => tile.getAttribute("aria-hidden") !== "true",
+    );
+    expect(visibleTile).toBeInstanceOf(HTMLElement);
+    expect(visibleTile?.querySelector(".terminal-tile-header")).toBeNull();
+    expect(screen.getByRole("tablist", { name: "Sessions" })).toBeInTheDocument();
+    expect(screen.queryByRole("toolbar", { name: "focus session switcher" })).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("xterm-host")[0]).toBe(firstHost);
+    expect(terminalDisposeCalls).toHaveLength(0);
+  });
+
+  it.each(["Split", "Grid"])("%s keeps tile headers and omits session tabs", async (name) => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name }));
+
+    expect(screen.queryByRole("tablist", { name: "Sessions" })).not.toBeInTheDocument();
+    const visibleTiles = screen.getAllByTestId("terminal-tile").filter(
+      (tile) => tile.getAttribute("aria-hidden") !== "true",
+    );
+    visibleTiles.forEach((tile) => {
+      expect(tile.querySelector(".terminal-tile-header")).not.toBeNull();
+    });
+  });
+
   it("renders the normal terminal stage without a local header", async () => {
     installDesktopBridge();
 
@@ -3043,7 +3083,7 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
   });
 
-  it("focus mode isolates the selected session and keeps nearby sessions switchable", async () => {
+  it("focus mode isolates the selected session and keeps session tabs switchable", async () => {
     const { setWorkspaceLayout } = installDesktopBridge(undefined, null, [
       {
         id: "runtime-a",
@@ -3078,7 +3118,7 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 2");
     expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
-    expect(screen.getByRole("toolbar", { name: "focus session switcher" })).toBeInTheDocument();
+    expect(screen.getByRole("tablist", { name: "Sessions" })).toBeInTheDocument();
     expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
       workspaceId: "A",
       layouts: expect.objectContaining({
@@ -3086,7 +3126,9 @@ describe("App integration", () => {
       }),
     });
 
-    await userEvent.click(screen.getByRole("button", { name: "Focus Manual · zsh 1" }));
+    await userEvent.click(
+      within(screen.getByRole("tablist", { name: "Sessions" })).getByRole("tab", { name: /Manual · zsh 1/ }),
+    );
 
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
@@ -3456,6 +3498,7 @@ describe("App integration", () => {
         args: [],
         buffer: "",
       },
+      liveSnapshot("companion", { title: "Codex · companion" }),
     ]);
     worktreeApply.mockImplementation(() =>
       new Promise((resolve) => {
@@ -3471,8 +3514,8 @@ describe("App integration", () => {
     fireEvent.click(within(checkoutActions).getByRole("button", { name: "Apply to project" }));
     await waitFor(() => expect(within(checkoutActions).getByRole("button", { name: "Applying..." })).toBeDisabled());
 
-    await user.click(within(tile).getByRole("button", { name: "Rename Codex · isolated review" }));
-    const input = within(tile).getByRole("textbox", { name: "Rename Codex · isolated review" });
+    await user.click(screen.getByRole("button", { name: "Rename Codex · isolated review" }));
+    const input = screen.getByRole("textbox", { name: "Rename Codex · isolated review" });
     await user.clear(input);
     await user.type(input, "Spec reviewer{Enter}");
 
@@ -3508,6 +3551,7 @@ describe("App integration", () => {
         args: [],
         buffer: "",
       },
+      liveSnapshot("companion", { title: "Codex · companion" }),
     ]);
     worktreeApply.mockImplementation(async () => {
       const result = await new Promise<{ ok: true; appliedFiles: number }>((resolve) => {
@@ -3525,12 +3569,11 @@ describe("App integration", () => {
     fireEvent.click(within(oldActions).getByRole("button", { name: "Apply to project" }));
     await waitFor(() => expect(within(oldActions).getByRole("button", { name: "Applying..." })).toBeDisabled());
 
-    await user.click(within(oldTile).getByRole("button", { name: "Close Codex · isolated review" }));
+    await user.click(screen.getByRole("button", { name: "Close Codex · isolated review" }));
     await waitFor(() => expect(screen.queryByRole("article", { name: /Codex · isolated review/i })).not.toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "codex isolated");
-    const newTile = await screen.findByRole("article", { name: /Codex · session 1/i });
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -3539,6 +3582,10 @@ describe("App integration", () => {
         }),
       );
     });
+    await user.click(
+      within(screen.getByRole("tablist", { name: "Sessions" })).getByRole("tab", { name: /Codex · session 1/ }),
+    );
+    const newTile = await screen.findByRole("article", { name: /Codex · session 1/i });
 
     resolveApply({ ok: true, appliedFiles: 1 });
     await waitFor(() => expect(applyPromiseSettled).toBe(true));
