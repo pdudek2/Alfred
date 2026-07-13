@@ -934,6 +934,7 @@ describe("App integration", () => {
     });
     await screen.findByRole("tab", { name: "Alfred workspace, 1 idle" });
 
+    const launchTrigger = screen.getByRole("button", { name: "Open launch menu" });
     const dispatch = await openPrepareWork(user);
     const composer = within(dispatch).getByRole("textbox", { name: "Dispatch instruction" });
     await user.type(composer, "keep this draft");
@@ -950,6 +951,10 @@ describe("App integration", () => {
         within(palette).getAllByRole("option").some((option) => option.getAttribute("aria-selected") === "true"),
       ).toBe(true);
     });
+    await user.click(search);
+    expect(search).toHaveFocus();
+    expect(dispatch).toBeInTheDocument();
+    expect(launchTrigger).not.toHaveFocus();
     expect(composer).toBeDisabled();
     expect(composer).toHaveValue("keep this draft");
     expect(createTerminal).toHaveBeenCalledTimes(1);
@@ -963,7 +968,10 @@ describe("App integration", () => {
       expect(screen.getByTestId("dispatch-bar")).toBeInTheDocument();
       expect(screen.getByRole("textbox", { name: "Dispatch instruction" })).toBeEnabled();
     });
-    expect(screen.getByRole("textbox", { name: "Dispatch instruction" })).toHaveValue("keep this draft");
+    const connectedComposer = screen.getByRole("textbox", { name: "Dispatch instruction" });
+    expect(connectedComposer).toHaveFocus();
+    expect(connectedComposer).toHaveValue("keep this draft");
+    expect(launchTrigger).not.toHaveFocus();
   });
 
   it("keeps the xterm renderer mounted while moving from Work to Inbox and History and back", async () => {
