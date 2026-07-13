@@ -13,7 +13,7 @@ import {
   resetTerminalPersistenceForTests,
 } from "./terminal-manager.js";
 import { terminalChannels } from "../shared/terminal-ipc.js";
-import type { TerminalCreateRequest, TerminalListResult } from "../shared/terminal-ipc.js";
+import type { TerminalCreateRequest, TerminalDataEvent, TerminalListResult } from "../shared/terminal-ipc.js";
 import type { TerminalSnapshotResult } from "../shared/terminal-ipc.js";
 import type { AgentWorktreeCleanupRequest } from "./git-worktree.js";
 import { DEFAULT_DESKTOP_STATE, type DesktopStateSnapshot, type PersistedDesktopStateStore } from "./persisted-desktop-state.js";
@@ -572,7 +572,7 @@ describe("terminal-manager IPC", () => {
     ]);
   });
 
-  it("classifies a split approval once and sends the classified input with terminal data", async () => {
+  it("classifies a split approval once and sends the persisted event with terminal data", async () => {
     const pty = new FakePty();
     registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
     const created = await invoke<{ id: string }>(terminalChannels.create, {
@@ -583,18 +583,42 @@ describe("terminal-manager IPC", () => {
     pty.onDataHandler?.("quired: apply patch?");
 
     const dataEvents = sentEvents.filter((event) => event.channel === terminalChannels.data);
-    expect(dataEvents).toEqual([
-      { channel: terminalChannels.data, payload: { id: created.id, data: "Approval re", activities: [] }, windowId: 1 },
-      {
-        channel: terminalChannels.data,
-        payload: {
-          id: created.id,
-          data: "quired: apply patch?",
-          activities: [expect.objectContaining({ kind: "approval", detail: "Approval required: apply patch?" })],
-        },
-        windowId: 1,
-      },
-    ]);
+    const emittedActivity = (dataEvents[1]?.payload as TerminalDataEvent).activities[0];
+    const listed = await invoke<TerminalListResult>(terminalChannels.list);
+    const persistedActivity = listed.sessions[0]?.activityEvents?.[0];
+
+    expect(dataEvents[0]).toEqual({
+      channel: terminalChannels.data,
+      payload: { id: created.id, data: "Approval re", activities: [] },
+      windowId: 1,
+    });
+    expect(emittedActivity).toEqual(persistedActivity);
+    expect(emittedActivity).toEqual(expect.objectContaining({
+      id: expect.any(String),
+      at: expect.any(Number),
+      kind: "approval",
+      title: "Waiting for approval",
+      detail: "Approval required: apply patch?",
+      payload: { type: "approval", prompt: "Approval required: apply patch?" },
+    }));
+  });
+
+  it("does not emit a classified activity suppressed as a duplicate", async () => {
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+    const created = await invoke<{ id: string }>(terminalChannels.create, {
+      command: "node", cols: 80, cwd: "/repo", rows: 24,
+    });
+
+    pty.onDataHandler?.("Bash(\"pnpm test\")\n");
+    pty.onDataHandler?.("Bash(\"pnpm test\")\n");
+
+    const dataEvents = sentEvents.filter((event) => event.channel === terminalChannels.data);
+    expect(dataEvents.at(-1)).toEqual({
+      channel: terminalChannels.data,
+      payload: { id: created.id, data: "Bash(\"pnpm test\")\n", activities: [] },
+      windowId: 1,
+    });
   });
 
   it("blocks unsafe terminal commands in the main process", async () => {

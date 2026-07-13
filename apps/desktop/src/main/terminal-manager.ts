@@ -11,7 +11,6 @@ import {
   appendActivityEvent,
   classifyTerminalOutputChunk,
   type SessionActivityEvent,
-  type SessionActivityInput,
   type SessionActivityPayload,
   type TerminalOutputActivityChunkResult,
   type TerminalOutputActivityStreamState,
@@ -732,23 +731,25 @@ function recordOutputActivity(
   session: TerminalSession,
   data: string,
   now = Date.now(),
-): SessionActivityInput[] {
+): SessionActivityEvent[] {
   const result: TerminalOutputActivityChunkResult = classifyTerminalOutputChunk(session.activityStream, data);
   session.activityStream = result.state;
-  for (const activity of result.activities) {
-    recordSessionActivity(session, activity, now);
-  }
-  return result.activities;
+  return result.activities.flatMap((activity) => {
+    const event = recordSessionActivity(session, activity, now);
+    return event ? [event] : [];
+  });
 }
 
 function recordSessionActivity(
   session: TerminalSession,
   activity: Parameters<typeof appendActivityEvent>[2],
   now = Date.now(),
-): void {
-  const result = appendActivityEvent(session.activityEvents, session.clientId ?? session.id, activity, now);
+): SessionActivityEvent | null {
+  const previousEvents = session.activityEvents;
+  const result = appendActivityEvent(previousEvents, session.clientId ?? session.id, activity, now);
   session.activityEvents = result.events;
   session.lastActivityAt = result.lastActivityAt;
+  return result.events === previousEvents ? null : (result.events.at(-1) ?? null);
 }
 
 function cloneActivityEvents(events: SessionActivityEvent[]): SessionActivityEvent[] {

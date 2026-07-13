@@ -1726,6 +1726,51 @@ describe("App integration", () => {
     },
   );
 
+  it("keeps one producer activity after live delivery and snapshot reconciliation", async () => {
+    const user = userEvent.setup();
+    const initial = liveSnapshot("activity", {
+      id: "runtime-activity",
+      activityEvents: [],
+    });
+    const producerEvent = {
+      id: "activity-approval-1",
+      kind: "approval" as const,
+      title: "Waiting for approval",
+      detail: "Allow the release?",
+      payload: { type: "approval" as const, prompt: "Allow the release?" },
+      at: 1_234,
+    };
+    const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
+    const bridge = installDesktopBridge(undefined, null, [initial]);
+    bridge.snapshotTerminal.mockImplementation(() => delayedSnapshot.promise);
+
+    render(<App />);
+    await waitFor(() => {
+      expect(bridge.snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-activity" });
+    });
+    await bridge.emitData({
+      id: "runtime-activity",
+      data: "Allow the release?",
+      activities: [producerEvent],
+    });
+
+    await act(async () => {
+      delayedSnapshot.resolve({
+        ...initial,
+        activityEvents: [producerEvent],
+        lastActivityAt: producerEvent.at,
+      });
+      await delayedSnapshot.promise;
+    });
+
+    await user.click(
+      within(screen.getByTestId("workbench-header")).getByRole("button", { name: /Open Context drawer/ }),
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Activity (1)" })).toBeInTheDocument();
+    });
+  });
+
   it("preserves live xterm output and instance when args and resume target metadata change", async () => {
     const bridge = installDesktopBridge();
     const session: SessionTile = {
@@ -2103,9 +2148,11 @@ describe("App integration", () => {
       id: "runtime-dev",
       data: "ready on http://127.0.0.1:3000/app\n",
       activities: [{
+        id: "manual-dev-activity-1",
         kind: "output",
         title: "Progress reported",
         detail: "ready on http://127.0.0.1:3000/app",
+        at: 100,
       }],
     });
 

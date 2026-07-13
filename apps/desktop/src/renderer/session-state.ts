@@ -423,13 +423,32 @@ export function recordSessionOutputActivity(
 ): SessionTile[] {
   const session = sessions.find((item) => item.runtimeId === event.id);
   if (!session) return sessions;
-  const withOutputAt = sessions.map((item) =>
-    item.id === session.id ? { ...item, lastOutputAt: now } : item,
-  );
-  return event.activities.reduce(
-    (next, activity) => appendSessionActivity(next, session.id, activity, now),
-    withOutputAt,
-  );
+  return sessions.map((item) => {
+    if (item.id !== session.id) return item;
+
+    const previousEvents = item.activityEvents ?? [];
+    const eventIds = new Set(previousEvents.map((activity) => activity.id));
+    const acceptedEvents = event.activities.filter((activity) => {
+      if (eventIds.has(activity.id)) return false;
+      eventIds.add(activity.id);
+      return true;
+    });
+    const activityEvents = [...previousEvents, ...acceptedEvents].slice(-MAX_ACTIVITY_EVENTS);
+    const acceptedLastActivityAt = acceptedEvents.reduce<number | undefined>(
+      (latest, activity) => latest === undefined ? activity.at : Math.max(latest, activity.at),
+      undefined,
+    );
+    const lastActivityAt = acceptedLastActivityAt === undefined
+      ? item.lastActivityAt
+      : Math.max(item.lastActivityAt ?? acceptedLastActivityAt, acceptedLastActivityAt);
+
+    return {
+      ...item,
+      lastOutputAt: now,
+      ...(activityEvents.length === 0 ? {} : { activityEvents }),
+      ...(lastActivityAt === undefined ? {} : { lastActivityAt }),
+    };
+  });
 }
 
 function nextAlfredSessionIndex(sessions: SessionTile[]): number {

@@ -58,12 +58,14 @@ test("workspace switch keeps the same xterm node and streams background output",
   const backgroundMarker = `ALFRED_E2E_BACKGROUND_${randomUUID()}`;
   const rendererDataWait = await installRendererTerminalDataWait(page, runtimeId, backgroundMarker);
   try {
-    await writeMainProcessTerminal(page, runtimeId, `${encodedPrintCommand(backgroundMarker)}\r`);
     await Promise.all([
-      expect
-        .poll(async () => (await snapshotMainProcessTerminal(page, runtimeId)).buffer)
-        .toContain(backgroundMarker),
       rendererDataWait.received,
+      (async () => {
+        await writeMainProcessTerminal(page, runtimeId, `${encodedPrintCommand(backgroundMarker)}\r`);
+        await expect
+          .poll(async () => (await snapshotMainProcessTerminal(page, runtimeId)).buffer)
+          .toContain(backgroundMarker);
+      })(),
     ]);
   } finally {
     await rendererDataWait.cleanup();
