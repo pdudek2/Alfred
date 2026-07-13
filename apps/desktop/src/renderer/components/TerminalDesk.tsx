@@ -133,7 +133,7 @@ export function TerminalDesk({
   const activeSessions = sessions.filter((session) => session.workspaceId === activeWorkspaceId);
   const activeLayouts = layouts;
   const selectedSession = selectedSessionForDesk(activeSessions, selectedSessionId);
-  const focusSession = workMode === "focus"
+  const focusSession = workMode === "focus" && !arrangeMode
     ? selectedSession ?? focusedSession(activeSessions, activeLayouts) ?? activeSessions[0] ?? null
     : null;
   const splitSessions = workMode === "split"
