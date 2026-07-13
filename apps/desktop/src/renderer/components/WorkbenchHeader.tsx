@@ -1,124 +1,141 @@
-import { Eye, ListChecks, Plus, Search } from "lucide-react";
-import type { ReactNode } from "react";
+import { Command, Layers3, ListChecks, Plus } from "lucide-react";
+import type { ReactNode, Ref } from "react";
+import type { SessionTile } from "../session-state";
+import type { WorkMode } from "../terminal-desk-types";
+import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
+import { SessionChromeRow, workChromeSessions } from "./SessionChromeRow";
 
-type WorkMode = "focus" | "split" | "desk";
-type ActiveSurface = "work" | "inbox" | "history";
+export type PrimarySurface = "work" | "inbox" | "history";
 
-type WorkbenchHeaderProps = {
-  activeSurface: ActiveSurface;
-  activeSessionCount: number;
+export type WorkbenchHeaderProps = {
+  activeSessions: SessionTile[];
+  activeSurface: PrimarySurface;
   arrangeMode: boolean;
-  contextOpen: boolean;
-  contextSignalCount: number;
+  commandPaletteTriggerRef?: Ref<HTMLButtonElement>;
   inboxCount: number;
-  sessionCount: number;
+  prepareWorkTriggerRef?: Ref<HTMLButtonElement>;
+  selectedSessionId: string | null;
   shortcutModifier: "Cmd" | "Ctrl";
   workMode: WorkMode;
+  workspaceDetail: string;
   workspaceSwitcher: ReactNode;
   onAddAgentSession: (kind: "codex" | "claude") => void;
   onAddManualSession: () => void;
   onApplyWorkMode: (mode: WorkMode) => void;
+  onCloseSession: (sessionId: string) => void;
+  onFocusSession: (sessionId: string) => void;
+  onOpenCommandPalette: () => void;
   onOpenInbox: () => void;
-  onOpenSessionObservatory: () => void;
+  onOpenPrepareWork: () => void;
+  onOpenPrivacyControls: () => void;
+  onRenameSession: (sessionId: string, title: string) => void;
+  onSelectSurface: (surface: PrimarySurface) => void;
   onToggleArrangeMode: () => void;
   onToggleContext: () => void;
 };
 
 export function WorkbenchHeader({
+  activeSessions,
   activeSurface,
-  activeSessionCount,
   arrangeMode,
-  contextOpen,
-  contextSignalCount,
+  commandPaletteTriggerRef,
   inboxCount,
-  sessionCount,
+  prepareWorkTriggerRef,
+  selectedSessionId,
   shortcutModifier,
   workMode,
+  workspaceDetail,
   workspaceSwitcher,
   onAddAgentSession,
   onAddManualSession,
   onApplyWorkMode,
+  onCloseSession,
+  onFocusSession,
+  onOpenCommandPalette,
   onOpenInbox,
-  onOpenSessionObservatory,
+  onOpenPrepareWork,
+  onOpenPrivacyControls,
+  onRenameSession,
+  onSelectSurface,
   onToggleArrangeMode,
   onToggleContext,
 }: WorkbenchHeaderProps) {
-  const sessionCountLabel = `${activeSessionCount} session${activeSessionCount === 1 ? "" : "s"}`;
-  const contextSignalLabel =
-    contextSignalCount > 0 ? `, ${contextSignalCount} important signal${contextSignalCount === 1 ? "" : "s"}` : "";
-  const contextLabel = `${contextOpen ? "Close" : "Open"} Context drawer${contextSignalLabel}`;
-  const sessionsLabel = `Open session quick switch, ${sessionCount} session${sessionCount === 1 ? "" : "s"}`;
+  const chromeSessions = workChromeSessions(activeSessions);
+  const singleSession = chromeSessions.length === 1 ? chromeSessions[0] : null;
+  const expanded = activeSurface === "work" && (chromeSessions.length > 1 || arrangeMode);
   const inboxLabel = `Open Inbox surface${inboxCount > 0 ? `, ${inboxCount} item${inboxCount === 1 ? "" : "s"}` : ""}`;
-  const newTerminalShortcut = shortcutModifier === "Cmd" ? "Meta+T" : "Control+T";
+  const launchItems: ChromeMenuItem[] = [
+    { id: "prepare-work", label: "Prepare Work", run: onOpenPrepareWork },
+    { id: "new-codex", label: "New Codex session", run: () => onAddAgentSession("codex") },
+    { id: "new-claude", label: "New Claude session", run: () => onAddAgentSession("claude") },
+    { id: "new-manual", label: "New manual terminal", run: onAddManualSession },
+  ];
+  const surfaceItems: ChromeMenuItem[] = [
+    { id: "work", label: "Work", run: () => onSelectSurface("work") },
+    { id: "observatory", label: "Observatory", run: () => onSelectSurface("history") },
+    { id: "context", label: "Context", run: onToggleContext },
+    { id: "privacy", label: "Local Data & Privacy", run: onOpenPrivacyControls },
+  ];
 
   return (
-    <header className="workbench-header" data-testid="workbench-header">
-      {workspaceSwitcher}
-      {activeSurface === "work" && (
-        <div className="workbench-bar-title">
-          <h1>Terminal grid</h1>
-          <span>{sessionCountLabel}</span>
-        </div>
-      )}
-      <div className="workbench-bar-spacer" aria-hidden="true" />
-      <div className="workbench-actions" role="group" aria-label="terminal actions">
-        {activeSurface === "work" && (
-          <div className="workbench-tool-group workbench-layout-group" role="group" aria-label="Layout mode">
-            <button type="button" aria-pressed={workMode === "focus"} onClick={() => onApplyWorkMode("focus")}>
-              Focus
-            </button>
-            <button type="button" aria-pressed={workMode === "split"} onClick={() => onApplyWorkMode("split")}>
-              Split
-            </button>
-            <button type="button" aria-pressed={workMode === "desk"} onClick={() => onApplyWorkMode("desk")}>
-              Grid
-            </button>
-            <button type="button" aria-pressed={arrangeMode} onClick={onToggleArrangeMode}>
-              Arrange
-            </button>
-          </div>
-        )}
-        <div className="workbench-tool-group workbench-panel-group" role="group" aria-label="Panels">
-          <button
-            type="button"
-            className={contextOpen ? "active" : ""}
-            aria-label={contextLabel}
-            title="Context"
-            aria-expanded={contextOpen}
-            onClick={onToggleContext}
+    <header
+      className={expanded ? "workbench-header is-expanded" : "workbench-header is-compact"}
+      data-testid="workbench-header"
+      data-chrome-height={expanded ? "74" : "40"}
+    >
+      <div className="workbench-primary-row">
+        <div className="workbench-project-zone">{workspaceSwitcher}</div>
+        <div className="workbench-session-context">
+          {singleSession && (
+            <>
+              <span>{singleSession.title}</span>
+              <small>{workspaceDetail}</small>
+            </>
+          )}
+          <ChromeMenu
+            {...(prepareWorkTriggerRef ? { triggerRef: prepareWorkTriggerRef } : {})}
+            label="Open launch menu"
+            title="New"
+            items={launchItems}
           >
-            <Eye size={15} />
-            {contextSignalCount > 0 && <span className="quiet-count-dot" aria-hidden="true" />}
-          </button>
-          <button type="button" aria-label={sessionsLabel} title="Sessions" onClick={onOpenSessionObservatory}>
-            <Search size={15} />
-            {sessionCount > 0 && <span className="quiet-count-mark" aria-hidden="true" />}
-          </button>
+            <Plus aria-hidden="true" size={14} />
+          </ChromeMenu>
+        </div>
+        <div className="workbench-right-zone">
           <button type="button" aria-label={inboxLabel} title="Inbox" onClick={onOpenInbox}>
-            <ListChecks size={15} />
-            {inboxCount > 0 && <span className="quiet-count-dot attention" aria-hidden="true" />}
+            <ListChecks aria-hidden="true" size={14} />
+            {inboxCount > 0 && <span className="workbench-attention-count">{inboxCount}</span>}
           </button>
-        </div>
-        <div className="workbench-tool-group workbench-launch-group" role="group" aria-label="Launch">
-          <button type="button" aria-label="Start Codex" onClick={() => onAddAgentSession("codex")}>
-            Codex
-          </button>
-          <button type="button" aria-label="Start Claude" onClick={() => onAddAgentSession("claude")}>
-            Claude
-          </button>
+          <ChromeMenu label="Open Surfaces menu" title="Surfaces" items={surfaceItems}>
+            <Layers3 aria-hidden="true" size={14} />
+          </ChromeMenu>
           <button
+            ref={commandPaletteTriggerRef}
             type="button"
-            className="workbench-primary-action"
-            aria-label="New terminal"
-            aria-keyshortcuts={newTerminalShortcut}
-            title={`New terminal (${shortcutModifier}+T)`}
-            onClick={onAddManualSession}
+            aria-label="Open command palette"
+            title={shortcutModifier + " K"}
+            onClick={onOpenCommandPalette}
           >
-            <Plus size={16} />
-            <span>New terminal</span>
+            <Command aria-hidden="true" size={14} />
+            <kbd>{shortcutModifier === "Cmd" ? "⌘K" : "Ctrl K"}</kbd>
           </button>
         </div>
       </div>
+      {expanded && (
+        <SessionChromeRow
+          activeSessionId={selectedSessionId}
+          arrangeMode={arrangeMode}
+          sessions={activeSessions}
+          workMode={workMode}
+          workspaceDetail={workspaceDetail}
+          onAddManualSession={onAddManualSession}
+          onApplyWorkMode={onApplyWorkMode}
+          onCloseSession={onCloseSession}
+          onFocusSession={onFocusSession}
+          onRenameSession={onRenameSession}
+          onToggleArrangeMode={onToggleArrangeMode}
+        />
+      )}
     </header>
   );
 }
