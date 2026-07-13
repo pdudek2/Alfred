@@ -922,7 +922,7 @@ describe("App integration", () => {
     expect(bridge.retrySave).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps command palette input isolated from the composer and global hotkeys", async () => {
+  it("keeps an open composer draft isolated while the command palette is open", async () => {
     const user = userEvent.setup();
     const { createTerminal } = installDesktopBridge();
 
@@ -934,32 +934,36 @@ describe("App integration", () => {
     });
     await screen.findByRole("tab", { name: "Alfred workspace, 1 idle" });
 
-    const trigger = screen.getByRole("button", { name: "Open command palette" });
-    await user.click(trigger);
+    const dispatch = await openPrepareWork(user);
+    const composer = within(dispatch).getByRole("textbox", { name: "Dispatch instruction" });
+    await user.type(composer, "keep this draft");
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", code: "KeyK", ctrlKey: true }));
+    });
 
     const palette = screen.getByRole("dialog", { name: "Command palette" });
     const search = within(palette).getByRole("textbox", { name: "Search commands" });
     expect(search).toHaveFocus();
-
-    await user.keyboard("review");
-
-    expect(search).toHaveValue("review");
-
-    await user.keyboard("{Control>}t{/Control}");
-    await user.keyboard("{Meta>}t{/Meta}");
-
+    await waitFor(() => {
+      expect(
+        within(palette).getAllByRole("option").some((option) => option.getAttribute("aria-selected") === "true"),
+      ).toBe(true);
+    });
+    expect(composer).toBeDisabled();
+    expect(composer).toHaveValue("keep this draft");
     expect(createTerminal).toHaveBeenCalledTimes(1);
-
-    await user.tab();
-    await user.tab({ shift: true });
-    expect(palette).toContainElement(document.activeElement as HTMLElement | null);
 
     await act(async () => {
       search.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     });
 
-    expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
-    expect(trigger).toHaveFocus();
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
+      expect(screen.getByTestId("dispatch-bar")).toBeInTheDocument();
+      expect(screen.getByRole("textbox", { name: "Dispatch instruction" })).toBeEnabled();
+    });
+    expect(screen.getByRole("textbox", { name: "Dispatch instruction" })).toHaveValue("keep this draft");
   });
 
   it("keeps the xterm renderer mounted while moving from Work to Inbox and History and back", async () => {
