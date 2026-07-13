@@ -27,9 +27,13 @@ import type { WorkspaceApi, WorkspaceStateSnapshot } from "../shared/workspace-i
 import type { ExternalCodexSessionSummary, SessionIndexApi } from "../shared/session-index-ipc";
 import type { DesktopPrivacySettings, DesktopSaveStatus, DesktopStateApi } from "../shared/desktop-state-ipc";
 
-const { terminalConstructorOptions, terminalDisposeCalls } = vi.hoisted(() => ({
+const { terminalConstructorOptions, terminalDisposeCalls, terminalWriteControl } = vi.hoisted(() => ({
   terminalConstructorOptions: [] as unknown[],
   terminalDisposeCalls: [] as unknown[],
+  terminalWriteControl: {
+    deferCallbacks: false,
+    pendingCallbacks: [] as Array<() => void>,
+  },
 }));
 
 const rendererStyles = readFileSync(resolve(process.cwd(), "src/renderer/styles.css"), "utf8");
@@ -79,7 +83,12 @@ vi.mock("@xterm/xterm", () => ({
     write = vi.fn((data: string, callback?: () => void) => {
       this.output += data;
       this.element?.append(data);
-      callback?.();
+      if (!callback) return;
+      if (terminalWriteControl.deferCallbacks) {
+        terminalWriteControl.pendingCallbacks.push(callback);
+      } else {
+        callback();
+      }
     });
     writeln = vi.fn((data = "") => {
       this.output += `${data}\n`;
@@ -438,6 +447,8 @@ function deferred<T>() {
 beforeEach(() => {
   terminalConstructorOptions.length = 0;
   terminalDisposeCalls.length = 0;
+  terminalWriteControl.deferCallbacks = false;
+  terminalWriteControl.pendingCallbacks.length = 0;
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
@@ -1253,6 +1264,46 @@ describe("App integration", () => {
 
     unmount();
     expect(onTerminalTailChange).toHaveBeenLastCalledWith("codex-tail", null);
+  });
+
+  it("does not republish a terminal tail when a queued xterm write completes after unmount", async () => {
+    terminalWriteControl.deferCallbacks = true;
+    const bridge = installDesktopBridge();
+    const session: SessionTile = {
+      id: "codex-tail-race",
+      runtimeId: "runtime-tail-race",
+      title: "Codex · tail race",
+      workspaceId: "A",
+      cwd: "/Users/patryk/Desktop/Alfred",
+      source: "manual",
+      stage: "live",
+      runtimeStatus: "live",
+      agentKind: "codex",
+      command: "codex",
+      args: [],
+      initialBuffer: "",
+    };
+    const onTerminalTailChange = vi.fn();
+    const { unmount } = renderTerminalDeskForSessions([session], { onTerminalTailChange });
+
+    await bridge.emitData({
+      id: "runtime-tail-race",
+      data: "queued output\n",
+      activities: [],
+    });
+    expect(terminalWriteControl.pendingCallbacks).toHaveLength(1);
+
+    unmount();
+    expect(onTerminalTailChange).toHaveBeenLastCalledWith("codex-tail-race", null);
+
+    act(() => {
+      for (const callback of terminalWriteControl.pendingCallbacks.splice(0)) {
+        callback();
+      }
+    });
+
+    expect(onTerminalTailChange).toHaveBeenCalledTimes(1);
+    expect(onTerminalTailChange).toHaveBeenLastCalledWith("codex-tail-race", null);
   });
 
   it("keeps non-visible Split terminals mounted and replayable when returning to Grid", async () => {

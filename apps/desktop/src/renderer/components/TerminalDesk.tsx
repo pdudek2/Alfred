@@ -1030,6 +1030,7 @@ function ManualTerminalTile({
     };
     const writeAndRepaint = (data: string) => {
       terminal.write(data, () => {
+        if (disposed) return;
         publishTail();
         scheduleRepaint();
       });
