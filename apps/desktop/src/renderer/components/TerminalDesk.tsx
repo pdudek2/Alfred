@@ -44,6 +44,7 @@ const MIN_TERMINAL_FIT_WIDTH = 80;
 export type WorktreeActionKind = "review" | "apply";
 
 type TerminalDeskProps = {
+  activeWorkspaceId: string;
   arrangeMode: boolean;
   layouts: Record<string, TileLayout>;
   collapsedSessionIds: Set<string>;
@@ -86,6 +87,7 @@ type TerminalDeskProps = {
 };
 
 export function TerminalDesk({
+  activeWorkspaceId,
   arrangeMode,
   layouts,
   collapsedSessionIds,
@@ -128,20 +130,24 @@ export function TerminalDesk({
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
-  const selectedSession = selectedSessionForDesk(sessions, selectedSessionId);
+  const activeSessions = sessions.filter((session) => session.workspaceId === activeWorkspaceId);
+  const activeLayouts = layouts;
+  const selectedSession = selectedSessionForDesk(activeSessions, selectedSessionId);
   const focusSession = workMode === "focus"
-    ? selectedSession ?? focusedSession(sessions, layouts) ?? sessions[0] ?? null
+    ? selectedSession ?? focusedSession(activeSessions, activeLayouts) ?? activeSessions[0] ?? null
     : null;
   const splitSessions = workMode === "split"
-    ? splitSessionsForDesk(sessions, selectedSessionId, layouts)
-    : sessions;
+    ? splitSessionsForDesk(activeSessions, selectedSessionId, activeLayouts)
+    : activeSessions;
   const visibleSessions = focusSession ? [focusSession] : splitSessions;
-  const renderedSessions = focusSession || workMode === "split" ? sessions : visibleSessions;
+  const renderedSessions = sessions.filter(
+    (session) => session.stage === "live" || session.workspaceId === activeWorkspaceId,
+  );
   const visibleSessionIds = new Set(visibleSessions.map((session) => session.id));
   const inspectedSession = focusSession ?? selectedSession ?? visibleSessions[0] ?? null;
   const blockedStagedSession =
     inspectedSession?.stage === "staged" && isLaunchBlocked(inspectedSession) ? inspectedSession : null;
-  const showSplitEmptyState = workMode === "split" && sessions.length > 0 && visibleSessions.length < 2;
+  const showSplitEmptyState = workMode === "split" && activeSessions.length > 0 && visibleSessions.length < 2;
   const gridDensity =
     workMode === "split" ? "split" : visibleSessions.length <= 1 ? "single" : visibleSessions.length === 2 ? "split" : "dense";
   const showLayoutControls = arrangeMode;
@@ -303,10 +309,10 @@ export function TerminalDesk({
               onReviewDetails={() => handleFocusSession(blockedStagedSession.id)}
             />
           )}
-          {focusSession && sessions.length > 1 && (
+          {focusSession && activeSessions.length > 1 && (
             <FocusSessionStrip
               activeSessionId={focusSession.id}
-              sessions={sessions}
+              sessions={activeSessions}
               onFocusSession={onFocusSession}
             />
           )}
@@ -323,7 +329,7 @@ export function TerminalDesk({
             data-testid="terminal-grid"
             ref={gridRef}
           >
-          {sessions.length === 0 && (
+          {activeSessions.length === 0 && (
             <EmptyWorkspaceState
               onAddAgentSession={onAddAgentSession}
               onAddManualSession={onAddManualSession}
@@ -334,7 +340,8 @@ export function TerminalDesk({
             />
           )}
           {renderedSessions.map((session) => {
-            const layoutHidden = Boolean(
+            const workspaceHidden = session.workspaceId !== activeWorkspaceId;
+            const layoutHidden = !workspaceHidden && Boolean(
               (focusSession && session.id !== focusSession.id) ||
                 (workMode === "split" && !visibleSessionIds.has(session.id)),
             );
@@ -353,6 +360,7 @@ export function TerminalDesk({
                 workspaceId={session.workspaceId}
                 title={session.title}
                 layoutHidden={layoutHidden}
+                workspaceHidden={workspaceHidden}
                 source={session.source}
                 agentKind={session.agentKind}
                 isolation={session.isolation}
@@ -731,6 +739,7 @@ function ManualTerminalTile({
   workspaceId,
   title,
   layoutHidden = false,
+  workspaceHidden,
   command,
   args,
   resumeTarget,
@@ -778,6 +787,7 @@ function ManualTerminalTile({
   workspaceId: string;
   title: string;
   layoutHidden?: boolean;
+  workspaceHidden: boolean;
   command?: string | undefined;
   args?: string[] | undefined;
   resumeTarget?: SessionTile["resumeTarget"] | undefined;
@@ -792,9 +802,18 @@ function ManualTerminalTile({
   const statusRef = useRef<LocalTerminalStatus>("connecting");
   const fitAndResizeRef = useRef<(() => boolean) | null>(null);
   const scheduleRepaintRef = useRef<((passes?: number) => void) | null>(null);
+  const previousWorkspaceHiddenRef = useRef(workspaceHidden);
   const writeAndRepaintRef = useRef<((data: string) => void) | null>(null);
   const onTerminalTailChangeRef = useRef(onTerminalTailChange);
   onTerminalTailChangeRef.current = onTerminalTailChange;
+
+  useEffect(() => {
+    const wasHidden = previousWorkspaceHiddenRef.current;
+    previousWorkspaceHiddenRef.current = workspaceHidden;
+    if (wasHidden && !workspaceHidden) {
+      scheduleRepaintRef.current?.(3);
+    }
+  }, [workspaceHidden]);
   const [resolvedCwd, setResolvedCwd] = useState<string>(cwd);
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState(title);
@@ -1295,12 +1314,14 @@ function ManualTerminalTile({
 
   return (
     <article
-      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${layoutHidden ? "focus-hidden" : ""} ${collapsed ? "collapsed" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
-      data-testid="terminal-tile"
+      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${workspaceHidden ? "workspace-hidden" : ""} ${layoutHidden ? "focus-hidden" : ""} ${collapsed ? "collapsed" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      data-testid={workspaceHidden ? "background-terminal-tile" : "terminal-tile"}
+      data-session-id={sessionKey}
       aria-label={latestActivity ? `${title}, ${latestActivity.title}: ${latestActivity.detail}` : title}
-      aria-hidden={layoutHidden ? "true" : undefined}
+      aria-hidden={workspaceHidden || layoutHidden ? "true" : undefined}
+      inert={workspaceHidden || undefined}
       style={gridStyle(layout, preview)}
-      tabIndex={layoutHidden ? -1 : 0}
+      tabIndex={workspaceHidden || layoutHidden ? -1 : 0}
       onFocus={(event) => {
         if (focusEnteredTile(event)) onSelectSession();
       }}
@@ -1476,7 +1497,12 @@ function ManualTerminalTile({
           </div>
         </div>
       </header>
-      <div className="xterm-host" data-testid="xterm-host" ref={containerRef} />
+      <div
+        className="xterm-host"
+        data-testid={workspaceHidden ? "background-xterm-host" : "xterm-host"}
+        data-session-id={sessionKey}
+        ref={containerRef}
+      />
       {arrangeMode && (
         <button
           className="tile-resize-handle"

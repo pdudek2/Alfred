@@ -582,6 +582,12 @@ describe("renderer CSS contracts", () => {
 
     const terminalTileStart = ".terminal-tile {";
     const terminalTileEnd = ".tile-header {";
+    expectTopLevelOwnerWithin(
+      ".terminal-tile.workspace-hidden",
+      ["display: none"],
+      terminalTileStart,
+      terminalTileEnd,
+    );
     expectTopLevelOwnerWithin(".terminal-stage.mode-focus .terminal-tile.focus-hidden", ["visibility: hidden", "pointer-events: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.selected", ["border-color: color-mix(in oklab, var(--signal-focus) 34%, transparent)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile:focus-visible", ["border-color: color-mix(in oklab, var(--signal-focus) 24%, var(--border))", "box-shadow: none"], terminalTileStart, terminalTileEnd);

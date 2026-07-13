@@ -1984,13 +1984,14 @@ export function App() {
               inert={workSurfaceHidden || undefined}
             >
               <TerminalDesk
+                activeWorkspaceId={activeWorkspace.id}
                 arrangeMode={arrangeMode}
                 armedRecoverySessionIds={armedRecoverySessionIds}
                 collapsedSessionIds={activeCollapsedSessionIds}
                 layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
                 recoverableSessions={activeRecoverableSessions}
                 selectedSessionId={activeSelectedSessionId}
-                sessions={activeSessions}
+                sessions={terminalSessions}
                 workMode={activeWorkMode}
                 worktreeActionPending={worktreeActionPending}
                 workspaceGitBranch={activeWorkspace.gitBranch}
