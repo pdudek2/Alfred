@@ -976,12 +976,12 @@ button:focus-visible {
 
 .workbench-session-context > span {
   color: var(--ink-6);
-  font: 600 12px/1 var(--sans);
+  font: 600 12px/1 var(--mono);
 }
 
 .workbench-session-context > small {
   color: var(--ink-5);
-  font: 500 11px/1 var(--sans);
+  font: 500 11px/1 var(--mono);
 }
 
 .workbench-primary-row button,
@@ -1077,6 +1077,10 @@ button:focus-visible {
   max-width: 180px;
 }
 
+.session-chrome-tab > button > span:last-child {
+  font-family: var(--mono);
+}
+
 .session-chrome-tab-actions button {
   border-color: transparent;
   background: transparent;
@@ -1107,7 +1111,7 @@ button:focus-visible {
 .session-chrome-context {
   flex: 0 1 220px;
   color: var(--ink-5);
-  font-size: 10px;
+  font: 500 10px/1 var(--mono);
 }
 
 .chrome-menu {
@@ -3001,7 +3005,6 @@ body.arranging-pointer {
   background: var(--ink-0);
 }
 
-.terminal-tile .terminal-host,
 .terminal-tile .xterm-host {
   background: var(--ink-0);
 }
