@@ -1,16 +1,11 @@
 import {
-  ChevronDown,
   Eye,
-  FolderOpen,
-  ListChecks,
-  Pencil,
   RefreshCcw,
   ShieldCheck,
-  SquareTerminal,
   Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getDesktopAlfredApi,
   getDesktopLayoutApi,
@@ -20,16 +15,15 @@ import {
   getDesktopWorkspaceApi,
 } from "./desktop-api";
 import { ComposerBar } from "./composer";
-import { AlfredMark } from "./components/AlfredMark";
 import { CommandPalette } from "./components/CommandPalette";
 import { ContextColumn } from "./components/ContextColumn";
 import { ObservatorySurface } from "./components/ObservatorySurface";
 import { PrepareWorkPopover } from "./components/PrepareWorkPopover";
+import { ProjectNavigator, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
 import { ReviewSurface } from "./components/ReviewSurface";
 import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
 import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHeader";
-import { WorkspaceRail, type WorkspaceRailWorkspace } from "./components/WorkspaceRail";
-import { inboxNavigationSummary } from "./components/workspace-navigation-copy";
+import { WorkspaceActionsMenu } from "./components/WorkspaceActionsMenu";
 import {
   applyLayoutPreset,
   ensureTileLayouts,
@@ -73,7 +67,6 @@ import {
   type SessionTile,
 } from "./session-state";
 import { terminalSessionDisplayStatus } from "./session-status";
-import { sessionTileKind, tileKindMeta } from "./tile-kind";
 import { recordPreviewUrlsFromText, type PreviewUrlCandidate } from "./preview-state";
 import type { WorkMode } from "./terminal-desk-types";
 import { workspaceReviewQueue, type WorkspaceReviewItem } from "./workspace-attention";
@@ -107,7 +100,7 @@ import type { WorkspaceMissionBrief, WorkspaceStateSnapshot } from "../shared/wo
 import type { ExternalCodexSessionSummary } from "../shared/session-index-ipc";
 import "@xterm/xterm/css/xterm.css";
 
-type Workspace = WorkspaceRailWorkspace;
+type Workspace = ProjectNavigatorWorkspace;
 type WorkspaceHydrationStatus =
   | { status: "loading" }
   | { status: "ready" }
@@ -123,8 +116,6 @@ type PendingDiscardConfirmation = {
 const DEFAULT_WORKSPACE_ID = "A";
 const DEFAULT_WORKSPACE: Workspace = { id: DEFAULT_WORKSPACE_ID, label: "Alfred", shortLabel: "A" };
 const DEFAULT_WORKSPACES: Workspace[] = [DEFAULT_WORKSPACE];
-const MAX_VISIBLE_EMPTY_NAV_WORKSPACES = 8;
-const MAX_VISIBLE_FREE_CHAT_SESSIONS = 3;
 const DEFAULT_PRIVACY_SETTINGS: DesktopPrivacySettings = {
   terminalScrollbackRetention: "redactedTail",
   externalSessionIndexingEnabled: true,
@@ -185,6 +176,7 @@ export function App() {
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState<boolean>(false);
   const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState<string>("");
   const [workspaceRenameEditing, setWorkspaceRenameEditing] = useState<boolean>(false);
+  const [projectNavigatorCollapsed, setProjectNavigatorCollapsed] = useState(false);
   const [armedRecoverySessionIds, setArmedRecoverySessionIds] = useState<Set<string>>(() => new Set());
   const [runtimeStatus, setRuntimeStatus] = useState<AlfredRuntimeStatus | null>(null);
   const [previewCandidates, setPreviewCandidates] = useState<PreviewUrlCandidate[]>([]);
@@ -1850,35 +1842,7 @@ export function App() {
             shortcutModifier={shortcutModifier}
             workMode={activeWorkMode}
             workspaceDetail={workspaceDetail(activeWorkspace)}
-            workspaceSwitcher={
-              <div className="mission-name" role="group" aria-label="Workspace context">
-                <AlfredMark label={activeWorkspace.shortLabel} />
-                <WorkspaceTitleMenu
-                  detail={workspaceDetail(activeWorkspace)}
-                  menuOpen={workspaceMenuOpen}
-                  missionBrief={activeWorkspace.missionBrief}
-                  renameDraft={workspaceRenameDraft}
-                  renameEditing={workspaceRenameEditing}
-                  rootPath={activeWorkspace.rootPath}
-                  workspaceLabel={activeWorkspace.label}
-                  onCancelRename={handleCancelWorkspaceRename}
-                  onChangeRenameDraft={setWorkspaceRenameDraft}
-                  onClose={() => {
-                    setWorkspaceMenuOpen(false);
-                    setWorkspaceRenameEditing(false);
-                  }}
-                  onOpenExternalTerminal={() => void handleOpenActiveWorkspaceTerminal()}
-                  onRevealFolder={() => void handleRevealActiveWorkspace()}
-                  onSaveMissionBrief={handleSaveWorkspaceMissionBrief}
-                  onSaveRename={handleSaveWorkspaceRename}
-                  onStartRename={handleBeginRenameActiveWorkspace}
-                  onToggleMenu={() => {
-                    setWorkspaceMenuOpen((open) => !open);
-                    setWorkspaceRenameEditing(false);
-                  }}
-                />
-              </div>
-            }
+            workspaceSwitcher={null}
             onAddAgentSession={handleAddAgentSession}
             onAddManualSession={handleAddManualSession}
             onApplyWorkMode={handleApplyWorkMode}
@@ -1929,18 +1893,45 @@ export function App() {
           }`}
           data-testid="workbench-shell"
         >
-          <QuietWorkspaceNavigationPanel
-            activeSessions={activeSessions}
-            activeWorkspace={activeWorkspace}
+          <ProjectNavigator
+            activeSessionId={activeSelectedSessionId}
             activeWorkspaceId={activeWorkspace.id}
-            inboxCount={globalReviewItems.length}
+            attentionWorkspaceIds={new Set(globalReviewItems.map((item) => item.workspaceId))}
+            collapsed={projectNavigatorCollapsed}
             sessions={terminalSessions}
             workspaces={workspaces}
+            workspaceActions={(
+              <WorkspaceActionsMenu
+                canCloseWorkspace={canCloseActiveWorkspace}
+                detail={workspaceDetail(activeWorkspace)}
+                menuOpen={workspaceMenuOpen}
+                missionBrief={activeWorkspace.missionBrief}
+                renameDraft={workspaceRenameDraft}
+                renameEditing={workspaceRenameEditing}
+                {...(activeWorkspace.rootPath ? { rootPath: activeWorkspace.rootPath } : {})}
+                workspaceLabel={activeWorkspace.label}
+                onCancelRename={handleCancelWorkspaceRename}
+                onChangeRenameDraft={setWorkspaceRenameDraft}
+                onClose={() => {
+                  setWorkspaceMenuOpen(false);
+                  setWorkspaceRenameEditing(false);
+                }}
+                onCloseWorkspace={handleCloseActiveWorkspace}
+                onOpenExternalTerminal={() => void handleOpenActiveWorkspaceTerminal()}
+                onRevealFolder={() => void handleRevealActiveWorkspace()}
+                onSaveMissionBrief={handleSaveWorkspaceMissionBrief}
+                onSaveRename={handleSaveWorkspaceRename}
+                onStartRename={handleBeginRenameActiveWorkspace}
+                onToggleMenu={() => {
+                  setWorkspaceMenuOpen((open) => !open);
+                  setWorkspaceRenameEditing(false);
+                }}
+              />
+            )}
             onAddWorkspace={handleAddWorkspace}
-            onFocusSession={handleFocusSession}
             onFocusSessionInWorkspace={handleFocusSessionInWorkspace}
-            onOpenInbox={handleOpenInbox}
             onSelectWorkspace={handleSelectWorkspace}
+            onToggleCollapsed={() => setProjectNavigatorCollapsed((collapsed) => !collapsed)}
           />
           <div className="orchestrator-surface" data-testid="workbench-surface">
             <div
@@ -2150,139 +2141,6 @@ export function App() {
         )}
       </section>
     </main>
-  );
-}
-
-type QuietWorkspaceNavigationPanelProps = {
-  activeWorkspace: WorkspaceRailWorkspace;
-  activeWorkspaceId: string;
-  activeSessions: SessionTile[];
-  inboxCount: number;
-  sessions: SessionTile[];
-  workspaces: WorkspaceRailWorkspace[];
-  onAddWorkspace: () => void;
-  onFocusSession: (sessionId: string) => void;
-  onFocusSessionInWorkspace: (workspaceId: string, sessionId: string) => void;
-  onOpenInbox: () => void;
-  onSelectWorkspace: (workspaceId: string) => void;
-};
-
-function QuietWorkspaceNavigationPanel({
-  activeWorkspace,
-  activeWorkspaceId,
-  activeSessions,
-  inboxCount,
-  sessions,
-  workspaces,
-  onAddWorkspace,
-  onFocusSession,
-  onFocusSessionInWorkspace,
-  onOpenInbox,
-  onSelectWorkspace,
-}: QuietWorkspaceNavigationPanelProps) {
-  const [showAllEmptyWorkspaces, setShowAllEmptyWorkspaces] = useState(false);
-  const freeChats = sessions
-    .filter((session) => session.workspaceId !== activeWorkspaceId && isFreeChatSession(session))
-    .slice(0, MAX_VISIBLE_FREE_CHAT_SESSIONS);
-  const { hiddenEmptyWorkspaceCount, visibleWorkspaces } = visibleNavigationWorkspaces(
-    workspaces,
-    sessions,
-    activeWorkspaceId,
-    showAllEmptyWorkspaces,
-  );
-
-  return (
-    <aside className="workspace-navigation-panel" data-testid="workspace-navigation-panel" aria-label="Runs and workspaces">
-      <header className="workspace-nav-head" title={activeWorkspace.rootPath ?? undefined}>
-        <span className="workspace-nav-avatar">{activeWorkspace.shortLabel}</span>
-        <div>
-          <strong>{activeWorkspace.label}</strong>
-          <span>
-            {activeSessions.length} terminals · {activeWorkspace.gitBranch ?? "local"}
-          </span>
-        </div>
-      </header>
-      <div className="workspace-nav-scroll">
-        <section className="workspace-nav-section">
-          <header>
-            <span>Terminals</span>
-          </header>
-          <div className="workspace-nav-list">
-            {activeSessions.length === 0 ? (
-              <p className="workspace-nav-empty">No active terminals in this workspace.</p>
-            ) : (
-              activeSessions.map((session) => {
-                const status = terminalSessionDisplayStatus(session);
-                const kindMeta = tileKindMeta(sessionTileKind(session));
-                return (
-                  <button
-                    key={session.id}
-                    type="button"
-                    className="workspace-nav-row"
-                    title={session.cwd}
-                    onClick={() => onFocusSession(session.id)}
-                  >
-                    <span className={`workspace-nav-mark ${kindMeta.className}`}>{kindMeta.shortLabel}</span>
-                    <strong>{session.title}</strong>
-                    <small>{status.label}</small>
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </section>
-        <button type="button" className="workspace-nav-row workspace-nav-inbox" onClick={onOpenInbox}>
-          <span className={`workspace-nav-mark${inboxCount > 0 ? " alert" : ""}`} aria-hidden="true">
-            {inboxCount > 0 ? "!" : ""}
-          </span>
-          <strong>Inbox</strong>
-          <small>{inboxNavigationSummary(inboxCount)}</small>
-        </button>
-        {freeChats.length > 0 && (
-          <section className="workspace-nav-section">
-            <header>
-              <span>Free chats</span>
-            </header>
-            <div className="workspace-nav-list">
-              {freeChats.map((session) => (
-                <button
-                  key={session.id}
-                  type="button"
-                  className="workspace-nav-row"
-                  title={session.cwd}
-                  onClick={() => onFocusSessionInWorkspace(session.workspaceId, session.id)}
-                >
-                  <span className="workspace-nav-mark">FC</span>
-                  <strong>{session.title}</strong>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-        <section className="workspace-nav-section workspace-nav-workspaces">
-          <header>
-            <span>Workspaces</span>
-          </header>
-          <WorkspaceRail
-            activeWorkspaceId={activeWorkspaceId}
-            embedded
-            sessions={sessions}
-            workspaces={visibleWorkspaces}
-            onAddWorkspace={onAddWorkspace}
-            onSelectWorkspace={onSelectWorkspace}
-          />
-          {hiddenEmptyWorkspaceCount > 0 && !showAllEmptyWorkspaces && (
-            <button
-              type="button"
-              className="workspace-nav-more-button"
-              onClick={() => setShowAllEmptyWorkspaces(true)}
-            >
-              Show {hiddenEmptyWorkspaceCount} more empty workspaces
-            </button>
-          )}
-        </section>
-      </div>
-    </aside>
   );
 }
 
@@ -2526,322 +2384,6 @@ function DiscardCheckoutDialog({
   );
 }
 
-function WorkspaceTitleMenu({
-  detail,
-  menuOpen,
-  missionBrief,
-  renameDraft,
-  renameEditing,
-  rootPath,
-  workspaceLabel,
-  onCancelRename,
-  onChangeRenameDraft,
-  onClose,
-  onOpenExternalTerminal,
-  onRevealFolder,
-  onSaveMissionBrief,
-  onSaveRename,
-  onStartRename,
-  onToggleMenu,
-}: {
-  detail: string;
-  menuOpen: boolean;
-  missionBrief: WorkspaceMissionBrief | undefined;
-  renameDraft: string;
-  renameEditing: boolean;
-  rootPath?: string | undefined;
-  workspaceLabel: string;
-  onCancelRename: () => void;
-  onChangeRenameDraft: (value: string) => void;
-  onClose: () => void;
-  onOpenExternalTerminal: () => void;
-  onRevealFolder: () => void;
-  onSaveMissionBrief: (missionBrief: WorkspaceMissionBrief | undefined) => void;
-  onSaveRename: (value: string) => void;
-  onStartRename: () => void;
-  onToggleMenu: () => void;
-}) {
-  const surfaceRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const missionInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const [missionEditing, setMissionEditing] = useState<boolean>(false);
-  const [missionDraft, setMissionDraft] = useState<WorkspaceMissionDraft>(() => missionBriefToDraft(missionBrief));
-  const revealLabel = navigator.platform.includes("Mac") ? "Reveal in Finder" : "Reveal folder";
-  const terminalLabel = navigator.platform.includes("Mac") ? "Open in Ghostty" : "Open in external terminal";
-  const popoverLabel = renameEditing
-    ? "Rename workspace"
-    : missionEditing
-      ? "Workspace mission brief"
-      : "Workspace actions";
-  const missionActionLabel = missionBrief ? "Edit mission brief..." : "Add mission brief...";
-  const missionSummary = missionBrief?.goal || missionBrief?.doneWhen[0] || "Give Alfred persistent context";
-
-  useEffect(() => {
-    if (!renameEditing) return;
-    window.requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    });
-  }, [renameEditing]);
-
-  useEffect(() => {
-    if (!missionEditing) return;
-    window.requestAnimationFrame(() => {
-      missionInputRef.current?.focus();
-      missionInputRef.current?.select();
-    });
-  }, [missionEditing]);
-
-  useEffect(() => {
-    if (menuOpen) return;
-    setMissionEditing(false);
-  }, [menuOpen]);
-
-  useEffect(() => {
-    if (missionEditing) return;
-    setMissionDraft(missionBriefToDraft(missionBrief));
-  }, [missionBrief, missionEditing]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && surfaceRef.current?.contains(target)) return;
-      onClose();
-    };
-
-    window.addEventListener("pointerdown", handlePointerDown);
-    return () => {
-      window.removeEventListener("pointerdown", handlePointerDown);
-    };
-  }, [menuOpen, onClose]);
-
-  const handleRenameSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    onSaveRename(renameDraft);
-  };
-
-  const handleMissionSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    onSaveMissionBrief(missionBriefFromDraft(missionDraft));
-    setMissionEditing(false);
-  };
-
-  const handleCancelMissionEdit = () => {
-    setMissionDraft(missionBriefToDraft(missionBrief));
-    setMissionEditing(false);
-  };
-
-  return (
-    <div
-      className="workspace-title-menu"
-      ref={surfaceRef}
-      onKeyDown={(event) => {
-        if (event.key !== "Escape") return;
-        event.preventDefault();
-        if (renameEditing) {
-          onCancelRename();
-        } else if (missionEditing) {
-          handleCancelMissionEdit();
-        } else {
-          onClose();
-        }
-      }}
-    >
-      <button
-        type="button"
-        className="workspace-title-trigger"
-        aria-haspopup="dialog"
-        aria-expanded={menuOpen}
-        aria-label={`Workspace menu for ${workspaceLabel}`}
-        onClick={onToggleMenu}
-      >
-        <span>
-          <strong>{workspaceLabel}</strong>
-          <small>{detail}</small>
-        </span>
-        <ChevronDown size={14} aria-hidden="true" />
-      </button>
-      {menuOpen && (
-        <div className="workspace-popover" role="dialog" aria-label={popoverLabel}>
-          {renameEditing ? (
-            <form className="workspace-rename-form" onSubmit={handleRenameSubmit}>
-              <label>
-                <span>Workspace name</span>
-                <input
-                  ref={inputRef}
-                  value={renameDraft}
-                  onChange={(event) => onChangeRenameDraft(event.target.value)}
-                />
-              </label>
-              <div>
-                <button type="submit" disabled={!renameDraft.trim()}>
-                  Save
-                </button>
-                <button type="button" onClick={onCancelRename}>
-                  Cancel
-                </button>
-              </div>
-            </form>
-          ) : missionEditing ? (
-            <form className="workspace-mission-form" onSubmit={handleMissionSubmit}>
-              <label>
-                <span>Mission goal</span>
-                <textarea
-                  aria-label="Mission goal"
-                  ref={missionInputRef}
-                  rows={3}
-                  value={missionDraft.goal}
-                  onChange={(event) => setMissionDraft((draft) => ({ ...draft, goal: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>Done when</span>
-                <textarea
-                  aria-label="Done when"
-                  rows={3}
-                  value={missionDraft.doneWhen}
-                  placeholder="One condition per line"
-                  onChange={(event) => setMissionDraft((draft) => ({ ...draft, doneWhen: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>Guardrails</span>
-                <textarea
-                  aria-label="Guardrails"
-                  rows={3}
-                  value={missionDraft.guardrails}
-                  placeholder="Constraints Alfred should respect"
-                  onChange={(event) => setMissionDraft((draft) => ({ ...draft, guardrails: event.target.value }))}
-                />
-              </label>
-              <div className="workspace-mission-actions">
-                <button type="submit" disabled={!hasMissionDraft(missionDraft)}>
-                  Save
-                </button>
-                <button type="button" onClick={handleCancelMissionEdit}>
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="danger"
-                  onClick={() => {
-                    onSaveMissionBrief(undefined);
-                    setMissionDraft(missionBriefToDraft(undefined));
-                    setMissionEditing(false);
-                  }}
-                >
-                  Clear
-                </button>
-              </div>
-            </form>
-          ) : (
-            <>
-              <button
-                type="button"
-                disabled={!rootPath}
-                onClick={() => {
-                  onOpenExternalTerminal();
-                  onClose();
-                }}
-              >
-                <SquareTerminal size={14} />
-                <span>
-                  <strong>{terminalLabel}</strong>
-                  <small>{rootPath ? shortenPath(rootPath) : "No folder bound"}</small>
-                </span>
-              </button>
-              <button
-                type="button"
-                disabled={!rootPath}
-                onClick={() => {
-                  onRevealFolder();
-                  onClose();
-                }}
-              >
-                <FolderOpen size={14} />
-                <span>
-                  <strong>{revealLabel}</strong>
-                  <small>{rootPath ? shortenPath(rootPath) : "No folder bound"}</small>
-                </span>
-              </button>
-              <hr />
-              <button type="button" onClick={onStartRename}>
-                <Pencil size={14} />
-                <span>
-                  <strong>Rename workspace...</strong>
-                  <small>Keep this desk readable</small>
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMissionDraft(missionBriefToDraft(missionBrief));
-                  setMissionEditing(true);
-                }}
-              >
-                <ListChecks size={14} />
-                <span>
-                  <strong>{missionActionLabel}</strong>
-                  <small>{truncateText(missionSummary, 38)}</small>
-                </span>
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-type WorkspaceMissionDraft = {
-  goal: string;
-  doneWhen: string;
-  guardrails: string;
-};
-
-function missionBriefToDraft(brief: WorkspaceMissionBrief | undefined): WorkspaceMissionDraft {
-  return {
-    goal: brief?.goal ?? "",
-    doneWhen: brief?.doneWhen.join("\n") ?? "",
-    guardrails: brief?.guardrails.join("\n") ?? "",
-  };
-}
-
-function missionBriefFromDraft(draft: WorkspaceMissionDraft): WorkspaceMissionBrief | undefined {
-  const goal = normalizeMissionDraftLine(draft.goal, 320);
-  const doneWhen = normalizeMissionDraftList(draft.doneWhen);
-  const guardrails = normalizeMissionDraftList(draft.guardrails);
-  if (!goal) return undefined;
-  return { goal, doneWhen, guardrails };
-}
-
-function hasMissionDraft(draft: WorkspaceMissionDraft): boolean {
-  return missionBriefFromDraft(draft) !== undefined;
-}
-
-function normalizeMissionDraftList(value: string): string[] {
-  const seen = new Set<string>();
-  const items: string[] = [];
-  for (const line of value.split(/\r?\n/)) {
-    const normalized = normalizeMissionDraftLine(line, 240);
-    if (!normalized || seen.has(normalized)) continue;
-    seen.add(normalized);
-    items.push(normalized);
-    if (items.length >= 8) break;
-  }
-  return items;
-}
-
-function normalizeMissionDraftLine(value: string, maxLength: number): string {
-  return value.replace(/\s+/g, " ").trim().slice(0, maxLength);
-}
-
-function truncateText(value: string, maxLength: number): string {
-  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
-}
-
 function isReviewableWorktreeSession(
   session: Pick<SessionTile, "baseCwd" | "branchName" | "isolation"> | null | undefined,
 ): boolean {
@@ -3029,10 +2571,6 @@ function mergeSessionInitialBuffer(
   return incomingBuffer.length >= currentBuffer.length ? incomingBuffer : currentBuffer;
 }
 
-function isFreeChatSession(session: SessionTile): boolean {
-  return session.stage === "live" && session.cwd.includes("/Documents/Codex/");
-}
-
 function accessibleSessionStatusLabel(session: SessionTile): string {
   if (session.stage === "staged") {
     if (session.stagedReviewStatus === "checking") return "checking";
@@ -3055,40 +2593,6 @@ function accessibleSessionStatusLabel(session: SessionTile): string {
     case "unavailable":
       return "unavailable";
   }
-}
-
-function visibleNavigationWorkspaces(
-  workspaces: WorkspaceRailWorkspace[],
-  sessions: SessionTile[],
-  activeWorkspaceId: string,
-  showAllEmptyWorkspaces: boolean,
-): { hiddenEmptyWorkspaceCount: number; visibleWorkspaces: WorkspaceRailWorkspace[] } {
-  const workspaceIdsWithSessions = new Set(sessions.map((session) => session.workspaceId));
-
-  const visibleWorkspaces: WorkspaceRailWorkspace[] = [];
-  let hiddenEmptyWorkspaceCount = 0;
-  let visibleEmptyWorkspaceCount = 0;
-
-  for (const workspace of workspaces) {
-    const isActiveWorkspace = workspace.id === activeWorkspaceId;
-    const hasSessions = workspaceIdsWithSessions.has(workspace.id);
-    const isEmptyWorkspace = !isActiveWorkspace && !hasSessions;
-
-    if (!isEmptyWorkspace) {
-      visibleWorkspaces.push(workspace);
-      continue;
-    }
-
-    if (showAllEmptyWorkspaces || visibleEmptyWorkspaceCount < MAX_VISIBLE_EMPTY_NAV_WORKSPACES) {
-      visibleEmptyWorkspaceCount += 1;
-      visibleWorkspaces.push(workspace);
-      continue;
-    }
-
-    hiddenEmptyWorkspaceCount += 1;
-  }
-
-  return { hiddenEmptyWorkspaceCount, visibleWorkspaces };
 }
 
 function workspaceRootPath(state: WorkspaceStateSnapshot | null, workspaceId: string): string {
