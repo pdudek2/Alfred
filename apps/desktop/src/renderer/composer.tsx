@@ -7,6 +7,7 @@ type ComposerBarProps = {
   disabled?: boolean;
   dispatchTarget: { id: string; kind: "session" | "workspace"; label: string } | null;
   lastDispatchDestination?: string | null | undefined;
+  requestError?: string | undefined;
   thinking: boolean;
   onBlockedAction?: (() => void) | undefined;
   onCycleDispatchTarget?: (() => void) | undefined;
@@ -20,6 +21,7 @@ export function ComposerBar({
   disabled = false,
   dispatchTarget,
   lastDispatchDestination,
+  requestError,
   thinking,
   onBlockedAction,
   onCycleDispatchTarget,
@@ -29,13 +31,15 @@ export function ComposerBar({
   const blocked = blockedReason !== undefined;
   const composerDisabled = disabled || thinking || !dispatchTarget;
   const canSubmit = !composerDisabled && !blocked && draft.trim().length > 0;
-  const state = thinking ? "busy" : composerDisabled ? "disabled" : blocked ? "blocked" : "ready";
+  const state = thinking ? "busy" : requestError ? "error" : composerDisabled ? "disabled" : blocked ? "blocked" : "ready";
   const targetLabel = dispatchTarget?.label ?? "Select a target";
   const targetKindLabel = dispatchTarget?.kind === "session" ? "session" : "workspace";
   const targetPreposition = dispatchTarget?.kind === "session" ? "with" : "in";
   const status = thinking
     ? `Preparing work ${targetPreposition} ${targetLabel}.`
-    : disabled
+    : requestError
+      ? requestError
+      : disabled
       ? "Dispatch paused while another Alfred panel is active."
       : !dispatchTarget
         ? "Select a planning scope before sending."
@@ -113,7 +117,7 @@ export function ComposerBar({
       </div>
       <div className="composer-status-row">
         <span className="composer-status-indicator" aria-hidden="true" />
-        <span className="composer-status" id="composer-status" role="status" aria-live="polite">
+        <span className="composer-status" id="composer-status" role={requestError ? "alert" : "status"}>
           {status}
         </span>
         {blocked && blockedActionLabel && onBlockedAction && (
