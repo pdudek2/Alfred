@@ -33,7 +33,7 @@ function isLiveSliceOneSelector(selector: string): boolean {
     ".workspace-title", ".workspace-popover", ".workspace-rename-form", ".workspace-mission-form",
     ".workspace-layout", ".project-navigator", ".project-", ".free-chat-",
     ".alfred-mark", ".workbench-", ".work-surface-", ".chrome-menu", ".prepare-work-popover",
-    ".desktop-save-", ".recovery-",
+    ".desktop-save-", ".shell-action-", ".recovery-",
     ".terminal-", ".tile-", ".tool-dot", ".session-status-", ".session-rename-form",
     ".split-empty-", ".staged-", ".arrange-", ".xterm-host", ".composer-", ".dispatch-",
   ].some((prefix) => selector.includes(prefix));
@@ -462,6 +462,8 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".desktop-frame", ["height: 100vh", "grid-template-rows: auto auto minmax(0, 1fr)"]);
     expectCanonicalBase(".mission-bar", ["grid-row: 1", "min-height: 40px", "padding: 0"]);
     expectCanonicalBase(".desktop-alert-stack", ["grid-row: 2", "min-height: 0"]);
+    expectCanonicalBase(".shell-action-alert", ["position: fixed", "z-index: 40"]);
+    expect(exactBlockFor(".shell-action-alert")).not.toMatch(/animation|transition/);
     expectCanonicalBase(".workspace-layout", ["grid-row: 3"]);
     expect(styles).not.toContain(".desktop-alert-stack:empty");
     expectCanonicalBase(".workbench-header", ["height: 40px"]);

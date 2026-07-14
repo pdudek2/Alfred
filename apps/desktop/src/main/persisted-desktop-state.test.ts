@@ -248,7 +248,7 @@ describe("persisted-desktop-state", () => {
     });
   });
 
-  it("preserves additive workbench workspace view state while legacy snapshots keep default behavior", async () => {
+  it("preserves active workspace view state while dropping the retired context drawer field", async () => {
     const filePath = await temporaryStateFile();
     await writeFile(
       filePath,
@@ -275,18 +275,32 @@ describe("persisted-desktop-state", () => {
     );
     const store = createPersistedDesktopStateStore({ filePath });
 
-    await expect(store.getState()).resolves.toMatchObject({
-      viewStateByWorkspace: {
-        A: {
-          workMode: "focus",
-          selectedSessionId: "manual-1",
-          collapsedSessionIds: ["manual-2"],
-          contextDrawerOpen: true,
-          dispatchTarget: { kind: "session", id: "manual-1", label: "Manual · zsh 1" },
-        },
+    const state = await store.getState();
+    expect(state.viewStateByWorkspace).toEqual({
+      A: {
+        workMode: "focus",
+        selectedSessionId: "manual-1",
+        collapsedSessionIds: ["manual-2"],
+        dispatchTarget: { kind: "session", id: "manual-1", label: "Manual · zsh 1" },
       },
     });
-    expect((await store.getState()).viewStateByWorkspace.B).toBeUndefined();
+  });
+
+  it("normalizes a legacy view state containing only contextDrawerOpen to an empty snapshot", async () => {
+    const filePath = await temporaryStateFile();
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: DESKTOP_STATE_VERSION,
+        viewStateByWorkspace: {
+          A: { contextDrawerOpen: true },
+        },
+      }),
+      "utf8",
+    );
+
+    const state = await createPersistedDesktopStateStore({ filePath }).getState();
+    expect(state.viewStateByWorkspace).toEqual({});
   });
 
   it("normalizes workspace mission briefs", async () => {

@@ -16,7 +16,6 @@ export type DispatchTargetSnapshot = {
 
 export type WorkspaceViewState = {
   collapsedSessionIds?: string[];
-  contextDrawerOpen?: boolean;
   dispatchTarget?: DispatchTargetSnapshot;
   workMode?: WorkMode;
   selectedSessionId?: string;

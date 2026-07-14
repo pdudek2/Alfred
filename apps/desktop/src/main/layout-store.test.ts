@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -10,7 +10,7 @@ import {
   setWorkspaceLayoutSnapshot,
   setWorkspaceViewStateSnapshot,
 } from "./layout-store.js";
-import { createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
+import { DESKTOP_STATE_VERSION, createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
 
 let temporaryDirectory: string | null = null;
 
@@ -100,6 +100,26 @@ describe("layout-store", () => {
         },
       }),
     );
+  });
+
+  it("does not expose a retired context drawer value from persisted layout state", async () => {
+    const filePath = await temporaryStateFile();
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: DESKTOP_STATE_VERSION,
+        viewStateByWorkspace: {
+          A: { contextDrawerOpen: true },
+        },
+      }),
+      "utf8",
+    );
+    configureLayoutPersistence(createPersistedDesktopStateStore({ filePath }));
+
+    await expect(getLayoutsSnapshot()).resolves.toEqual({
+      layoutsByWorkspace: {},
+      viewStateByWorkspace: {},
+    });
   });
 
   it("keeps concurrent persisted layout and view-state updates", async () => {

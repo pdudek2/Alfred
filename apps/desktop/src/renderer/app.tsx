@@ -107,6 +107,11 @@ type WorkspaceHydrationStatus =
   | { status: "ready" }
   | { status: "failed"; message: string };
 
+type ShellActionResult = {
+  ok: boolean;
+  error?: string;
+};
+
 type PendingDiscardConfirmation = {
   files: Array<{ path: string; status: string }>;
   sessionId: string;
@@ -160,6 +165,7 @@ export function App() {
   const [sessionStatusAnnouncement, setSessionStatusAnnouncement] = useState<string>("");
   const [selectedSessionIdsByWorkspace, setSelectedSessionIdsByWorkspace] = useState<Record<string, string>>({});
   const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
+  const [shellActionError, setShellActionError] = useState<string | null>(null);
   const [pendingPlan, setPendingPlan] = useState<SquadPlan | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState<boolean>(false);
   const [commandQuery, setCommandQuery] = useState<string>("");
@@ -499,21 +505,38 @@ export function App() {
     });
   }, [activeWorkspace.id]);
 
-  const handleRevealActiveWorkspace = useCallback(async () => {
-    if (!activeWorkspace.rootPath) return;
-    const result = await getDesktopWorkspaceApi()?.revealPath({ cwd: activeWorkspace.rootPath, path: "." });
-    if (!result?.ok) {
-      setAlfredStatus(errored({ code: "network", message: result?.error ?? "Workspace folder is unavailable." }));
+  const runShellAction = useCallback(async (
+    action: () => Promise<ShellActionResult> | undefined,
+    fallbackMessage: string,
+  ) => {
+    setShellActionError(null);
+    try {
+      const result = await action();
+      if (!result?.ok) {
+        setShellActionError(result?.error ?? fallbackMessage);
+      }
+    } catch (error) {
+      setShellActionError(error instanceof Error ? error.message : fallbackMessage);
     }
-  }, [activeWorkspace.rootPath]);
+  }, []);
+
+  const handleRevealActiveWorkspace = useCallback(async () => {
+    const rootPath = activeWorkspace.rootPath;
+    if (!rootPath) return;
+    await runShellAction(
+      () => getDesktopWorkspaceApi()?.revealPath({ cwd: rootPath, path: "." }),
+      "Workspace folder is unavailable.",
+    );
+  }, [activeWorkspace.rootPath, runShellAction]);
 
   const handleOpenActiveWorkspaceTerminal = useCallback(async () => {
-    if (!activeWorkspace.rootPath) return;
-    const result = await getDesktopWorkspaceApi()?.openExternalTerminal({ cwd: activeWorkspace.rootPath });
-    if (!result?.ok) {
-      setAlfredStatus(errored({ code: "network", message: result?.error ?? "Workspace terminal is unavailable." }));
-    }
-  }, [activeWorkspace.rootPath]);
+    const rootPath = activeWorkspace.rootPath;
+    if (!rootPath) return;
+    await runShellAction(
+      () => getDesktopWorkspaceApi()?.openExternalTerminal({ cwd: rootPath }),
+      "Workspace terminal is unavailable.",
+    );
+  }, [activeWorkspace.rootPath, runShellAction]);
 
   const handleCopyActivityText = useCallback(async (value: string) => {
     if (!navigator.clipboard?.writeText) {
@@ -541,18 +564,18 @@ export function App() {
   }, []);
 
   const handleOpenSessionFolder = useCallback(async (cwd: string) => {
-    const result = await getDesktopWorkspaceApi()?.revealPath({ cwd, path: "." });
-    if (!result?.ok) {
-      setAlfredStatus(errored({ code: "network", message: result?.error ?? "Session folder is unavailable." }));
-    }
-  }, []);
+    await runShellAction(
+      () => getDesktopWorkspaceApi()?.revealPath({ cwd, path: "." }),
+      "Session folder is unavailable.",
+    );
+  }, [runShellAction]);
 
   const handleOpenSessionTerminal = useCallback(async (cwd: string) => {
-    const result = await getDesktopWorkspaceApi()?.openExternalTerminal({ cwd });
-    if (!result?.ok) {
-      setAlfredStatus(errored({ code: "network", message: result?.error ?? "Session terminal is unavailable." }));
-    }
-  }, []);
+    await runShellAction(
+      () => getDesktopWorkspaceApi()?.openExternalTerminal({ cwd }),
+      "Session terminal is unavailable.",
+    );
+  }, [runShellAction]);
 
   const handleSelectPreviewUrl = useCallback((url: string) => {
     setSelectedPreviewUrlsByWorkspace((current) => ({
@@ -573,11 +596,11 @@ export function App() {
   }, []);
 
   const handleOpenPreviewExternal = useCallback(async (url: string) => {
-    const result = await getDesktopWorkspaceApi()?.openExternalUrl({ url });
-    if (!result?.ok) {
-      setAlfredStatus(errored({ code: "network", message: result?.error ?? "Preview URL is unavailable." }));
-    }
-  }, []);
+    await runShellAction(
+      () => getDesktopWorkspaceApi()?.openExternalUrl({ url }),
+      "Preview URL is unavailable.",
+    );
+  }, [runShellAction]);
 
   const handleApplyLayoutPreset = useCallback((preset: LayoutPreset, selectedSessionId = activeSelectedSessionId) => {
     const layoutApi = getDesktopLayoutApi();
@@ -1790,17 +1813,12 @@ export function App() {
   }, [activeWorkspaceId, workspaces]);
 
   const workSurfaceHidden = activeSurface !== "work";
-  const liveWorkSessionCount = activeSessions.filter(
-    (session) => session.stage === "live"
-      && session.runtimeStatus !== "restored"
-      && session.runtimeStatus !== "exited"
-      && session.runtimeStatus !== "error",
-  ).length;
+  const activeSessionCount = activeSessions.length;
   const visibleWorkSessionCount = arrangeMode || activeWorkMode === "desk"
-    ? liveWorkSessionCount
+    ? activeSessionCount
     : activeWorkMode === "focus"
-      ? Math.min(1, liveWorkSessionCount)
-      : Math.min(2, liveWorkSessionCount);
+      ? Math.min(1, activeSessionCount)
+      : Math.min(2, activeSessionCount);
 
   return (
     <main className="agent-space-shell">
@@ -1836,6 +1854,22 @@ export function App() {
             onToggleContext={handleToggleContextDrawer}
           />
         </div>
+
+        {shellActionError && (
+          <div className="shell-action-alert" role="alert" aria-label="Shell action failed">
+            <div>
+              <strong>Action unavailable</strong>
+              <span>{shellActionError}</span>
+            </div>
+            <button
+              type="button"
+              aria-label="Dismiss action error"
+              onClick={() => setShellActionError(null)}
+            >
+              <X aria-hidden="true" size={14} />
+            </button>
+          </div>
+        )}
 
         <div className="desktop-alert-stack">
           {desktopSaveStatus.status === "saveFailed" && (
