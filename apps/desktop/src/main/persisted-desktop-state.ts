@@ -370,7 +370,6 @@ function normalizeViewStateByWorkspace(value: unknown): Record<string, Workspace
   for (const [workspaceId, rawViewState] of Object.entries(value)) {
     if (!workspaceId.trim() || !isRecord(rawViewState)) continue;
     const collapsedSessionIds = normalizeStringList(rawViewState.collapsedSessionIds);
-    const contextDrawerOpen = typeof rawViewState.contextDrawerOpen === "boolean" ? rawViewState.contextDrawerOpen : undefined;
     const dispatchTarget = normalizeDispatchTarget(rawViewState.dispatchTarget);
     const workMode = normalizeWorkMode(rawViewState.workMode);
     const selectedSessionId =
@@ -378,12 +377,11 @@ function normalizeViewStateByWorkspace(value: unknown): Record<string, Workspace
         ? rawViewState.selectedSessionId.trim()
         : undefined;
 
-    if (!collapsedSessionIds.length && contextDrawerOpen === undefined && !dispatchTarget && !workMode && !selectedSessionId) {
+    if (!collapsedSessionIds.length && !dispatchTarget && !workMode && !selectedSessionId) {
       continue;
     }
     viewStateByWorkspace[workspaceId] = {
       ...(collapsedSessionIds.length === 0 ? {} : { collapsedSessionIds }),
-      ...(contextDrawerOpen === undefined ? {} : { contextDrawerOpen }),
       ...(dispatchTarget === undefined ? {} : { dispatchTarget }),
       ...(workMode === undefined ? {} : { workMode }),
       ...(selectedSessionId === undefined ? {} : { selectedSessionId }),

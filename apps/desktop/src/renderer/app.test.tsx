@@ -1269,6 +1269,47 @@ describe("App integration", () => {
     expect(screen.queryByText(/2 tiles · 0 staged/i)).not.toBeInTheDocument();
   });
 
+  it("counts staged and restored sessions with the same mode semantics as TerminalDesk", async () => {
+    const user = userEvent.setup();
+    const stagedPlan: AlfredStagedPlanSnapshot = {
+      id: "plan-visible-count",
+      prompt: "prepare visible work",
+      sessions: [
+        { id: "alfred-staged-1", kind: "shell", title: "Staged one", command: "echo", args: ["one"] },
+        { id: "alfred-staged-2", kind: "shell", title: "Staged two", command: "echo", args: ["two"] },
+      ],
+    };
+    const restoredSessions: PersistedTerminalSessionSnapshot[] = [
+      {
+        clientId: "restored-visible",
+        title: "Codex · restored visible",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        shell: "codex",
+        command: "codex",
+        buffer: "saved output\n",
+      },
+    ];
+    installDesktopBridge(undefined, stagedPlan, [], undefined, undefined, undefined, restoredSessions);
+
+    render(<App />);
+
+    const toolbar = await screen.findByRole("toolbar", { name: "Work layout controls" });
+    await waitFor(() => expect(toolbar).toHaveTextContent("3 visible sessions"));
+    expect(screen.getAllByTestId("terminal-tile").filter((tile) => tile.getAttribute("aria-hidden") !== "true")).toHaveLength(3);
+
+    await user.click(within(toolbar).getByRole("button", { name: "Focus" }));
+    expect(toolbar).toHaveTextContent("1 visible session");
+
+    await user.click(within(toolbar).getByRole("button", { name: "Split" }));
+    expect(toolbar).toHaveTextContent("2 visible sessions");
+
+    await user.click(within(toolbar).getByRole("button", { name: "Arrange" }));
+    expect(toolbar).toHaveTextContent("3 visible sessions");
+  });
+
   it("keeps one-session Focus compact with the primary row as its only session chrome", async () => {
     installDesktopBridge(
       undefined,
@@ -2269,6 +2310,24 @@ describe("App integration", () => {
     expect(screen.queryByLabelText("Workspace preview")).not.toBeInTheDocument();
   });
 
+  it("surfaces preview launch failures at the shell action site", async () => {
+    const user = userEvent.setup();
+    const { openExternalUrl } = installDesktopBridge(undefined, null, [
+      liveSnapshot("preview", { buffer: "Ready at http://localhost:5173/\n" }),
+    ]);
+    openExternalUrl.mockResolvedValue({ ok: false, error: "Browser could not open this preview." });
+
+    render(<App />);
+
+    await selectSurface(user, "Context");
+    const preview = await screen.findByLabelText("Workspace preview");
+    await user.click(within(preview).getByRole("button", { name: "Open preview externally" }));
+
+    expect(await screen.findByRole("alert", { name: "Shell action failed" })).toHaveTextContent(
+      "Browser could not open this preview.",
+    );
+  });
+
   it("adds preview URLs from live terminal output", async () => {
     const { emitData } = installDesktopBridge(undefined, null, [
       {
@@ -2493,6 +2552,31 @@ describe("App integration", () => {
         activeWorkspaceId: "A",
       });
     });
+  });
+
+  it("shows and dismisses workspace action failures without leaking them into Prepare Work", async () => {
+    const user = userEvent.setup();
+    const { revealPath } = installDesktopBridge();
+    revealPath.mockResolvedValue({ ok: false, error: "Finder could not reveal this workspace." });
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await user.click(screen.getByRole("button", { name: "Workspace menu for Alfred" }));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Workspace actions" })).getByRole("button", { name: /Reveal/ }),
+    );
+
+    const alert = await screen.findByRole("alert", { name: "Shell action failed" });
+    expect(alert).toHaveTextContent("Finder could not reveal this workspace.");
+
+    const composer = await openPrepareWork(user);
+    expect(composer).toHaveAttribute("data-state", "ready");
+    expect(within(composer).queryByRole("alert")).not.toBeInTheDocument();
+    expect(within(composer).getByRole("status")).toBeEmptyDOMElement();
+
+    await user.click(within(alert).getByRole("button", { name: "Dismiss action error" }));
+    expect(screen.queryByRole("alert", { name: "Shell action failed" })).not.toBeInTheDocument();
   });
 
   it("saves a workspace mission brief and sends it with the next Alfred prompt", async () => {
@@ -4492,6 +4576,24 @@ describe("App integration", () => {
     await user.click(within(tile).getByRole("button", { name: "Open Codex · session 1 in external terminal" }));
 
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
+  });
+
+  it("surfaces session terminal launch failures in shell chrome", async () => {
+    const user = userEvent.setup();
+    const { openExternalTerminal } = installDesktopBridge(undefined, null, [
+      liveSnapshot("handoff", { title: "Codex · handoff" }),
+    ]);
+    openExternalTerminal.mockResolvedValue({ ok: false, error: "Ghostty could not open this session." });
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Codex · handoff/i });
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await submitCommandPalette(user, "open focused session");
+
+    expect(await screen.findByRole("alert", { name: "Shell action failed" })).toHaveTextContent(
+      "Ghostty could not open this session.",
+    );
   });
 
   it("hands off the focused session to the external terminal with a keyboard shortcut", async () => {
