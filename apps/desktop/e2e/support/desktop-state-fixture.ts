@@ -13,6 +13,7 @@ import type { PersistedTerminalSessionSnapshot } from "../../src/shared/terminal
 export type DesktopFixtureOptions = {
   activeWorkspaceId?: "A" | "B";
   inboxItems?: number;
+  projectShell?: boolean;
   restoredSessions?: number;
 };
 
@@ -53,6 +54,19 @@ export async function createDesktopFixture(
     const workspaces = [
       { id: "A", label: "Fixture Alpha", shortLabel: "FA", rootPath: paths.workspaceA },
       { id: "B", label: "Fixture Beta", shortLabel: "FB", rootPath: paths.workspaceB },
+      ...(options.projectShell
+        ? [
+            { id: "C", label: "Fixture Gamma", shortLabel: "FG" },
+            { id: "D", label: "Fixture Delta", shortLabel: "FD" },
+            { id: "E", label: "Fixture Epsilon", shortLabel: "FE" },
+            {
+              id: "LONG",
+              label: "Fixture Project With A Deliberately Long Navigator Label",
+              shortLabel: "FL",
+            },
+            { id: "G", label: "Fixture Eta", shortLabel: "FE2" },
+          ]
+        : []),
     ];
     const inboxItems = options.inboxItems ?? 0;
     const stagedPlan: AlfredStagedPlanSnapshot | null =
@@ -118,7 +132,10 @@ export async function createDesktopFixture(
     };
 
     if (state.version !== DESKTOP_STATE_VERSION) throw new Error("Fixture state version drifted.");
-    if (state.workspaces.length !== 2) throw new Error("Fixture must contain two workspaces.");
+    const expectedWorkspaceCount = options.projectShell ? 7 : 2;
+    if (state.workspaces.length !== expectedWorkspaceCount) {
+      throw new Error(`Fixture must contain ${expectedWorkspaceCount} workspaces.`);
+    }
     await writeFile(
       path.join(paths.userData, DESKTOP_STATE_FILE_NAME),
       `${JSON.stringify(state, null, 2)}\n`,

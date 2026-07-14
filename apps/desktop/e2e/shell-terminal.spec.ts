@@ -33,7 +33,11 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   const { app, page } = harness;
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 900);
-  await expect(page.getByTestId("workbench-header")).toBeVisible();
+  const header = page.getByTestId("workbench-header");
+  const workToolbar = page.getByRole("toolbar", { name: "Work layout controls" });
+  await expect(header).toHaveAttribute("data-chrome-height", "40");
+  await expect(header).toHaveCSS("height", "40px");
+  await expect(workToolbar).toBeVisible();
 
   await expect(page.getByTestId("xterm-host")).toHaveCount(1);
   const firstScreen = page.getByTestId("xterm-host").first().locator(".xterm-screen");
@@ -60,9 +64,12 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
 
   await addManualTerminal(page);
   await expect(page.getByTestId("xterm-host")).toHaveCount(2);
-  await page.getByRole("button", { name: /^Manual · zsh 2,/i }).click();
-  await page.getByRole("button", { name: "Focus", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Focus", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("navigation", { name: "Projects and Free Chats" })
+    .getByRole("group", { name: "Fixture Alpha sessions" })
+    .getByRole("button", { name: "Manual · zsh 2", exact: true })
+    .click();
+  await workToolbar.getByRole("button", { name: "Focus", exact: true }).click();
+  await expect(workToolbar.getByRole("button", { name: "Focus", exact: true })).toHaveAttribute("aria-pressed", "true");
   expect(await readHeaderHeight(page)).toBe(40);
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
   await expect(visibleTerminalTiles(page).locator(".terminal-tile-header")).toHaveCount(0);
@@ -83,8 +90,8 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     "r1-focus-two-sessions.png",
   );
 
-  await page.getByRole("button", { name: "Split", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Split", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await workToolbar.getByRole("button", { name: "Split", exact: true }).click();
+  await expect(workToolbar.getByRole("button", { name: "Split", exact: true })).toHaveAttribute("aria-pressed", "true");
   const r6 = await readShellGeometry(page);
   expect(r6.headerHeight).toBe(40);
   expect(r6.visibleTileCount).toBe(2);
@@ -92,7 +99,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(r6.tileHeaderHeights).toEqual([30, 30]);
   diagnosticScreenshotHashes["r6-split.png"] = await captureEvidence(page, "r6-split.png");
 
-  await page.getByRole("button", { name: "Focus", exact: true }).click();
+  await workToolbar.getByRole("button", { name: "Focus", exact: true }).click();
   const identityTransitions: Record<string, boolean> = {
     "R0→Focus→Split→Focus": await isSameConnectedNode(firstScreenHandle, firstScreen),
   };
@@ -109,7 +116,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Prepare Work" })).toHaveCount(0);
   await expect(launchTrigger).toBeFocused();
-  await expect(page.getByRole("button", { name: "Focus", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(workToolbar.getByRole("button", { name: "Focus", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
   const focusRestoration = {
     openedWithKeyboard: true,
@@ -132,8 +139,8 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(identityTransitions["Work→Context"]).toBe(true);
   await page.getByRole("button", { name: "Close Context panel" }).click();
 
-  await page.getByRole("button", { name: "Grid", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Grid", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await workToolbar.getByRole("button", { name: "Grid", exact: true }).click();
+  await expect(workToolbar.getByRole("button", { name: "Grid", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(visibleTerminalTiles(page)).toHaveCount(2);
   await setWindowSize(app, page, 1120, 720);
   const narrow = await readNarrowGeometry(page);

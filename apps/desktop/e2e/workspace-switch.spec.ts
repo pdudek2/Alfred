@@ -46,8 +46,15 @@ test("workspace switch keeps the same xterm node and streams background output",
   const screenBefore = await alphaScreen.elementHandle();
   if (!screenBefore) throw new Error("Workspace A xterm screen is missing before switch.");
 
-  const betaWorkspace = page.getByRole("tab", { name: /Fixture Beta workspace/i });
-  const alphaWorkspace = page.getByRole("tab", { name: /Fixture Alpha workspace/i });
+  const projectNavigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
+  const betaWorkspace = projectNavigator.getByRole("tab", {
+    name: "Fixture Beta workspace",
+    exact: true,
+  });
+  const alphaWorkspace = projectNavigator.getByRole("tab", {
+    name: "Fixture Alpha workspace",
+    exact: true,
+  });
   await betaWorkspace.click();
   await expect(betaWorkspace).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("status", { name: "Empty workspace" })).toBeVisible();
