@@ -199,6 +199,7 @@ export function App() {
   const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const prepareWorkTriggerRef = useRef<HTMLButtonElement | null>(null);
   const surfacesTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const contextReturnFocusRef = useRef<HTMLButtonElement | null>(null);
   const contextFocusRequestKeyRef = useRef(0);
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
@@ -415,7 +416,10 @@ export function App() {
 
   const handleToggleContextDrawer = useCallback(() => {
     const nextOpen = !activeContextDrawerOpen;
-    if (nextOpen) contextFocusRequestKeyRef.current += 1;
+    if (nextOpen) {
+      contextReturnFocusRef.current = surfacesTriggerRef.current;
+      contextFocusRequestKeyRef.current += 1;
+    }
     setContextDrawerOpenByWorkspace((current) => {
       return {
         ...current,
@@ -423,6 +427,15 @@ export function App() {
       };
     });
   }, [activeContextDrawerOpen, activeWorkspace.id]);
+
+  const handleOpenContextFromCommandPalette = useCallback(() => {
+    contextReturnFocusRef.current = commandPaletteTriggerRef.current;
+    contextFocusRequestKeyRef.current += 1;
+    setContextDrawerOpenByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: true,
+    }));
+  }, [activeWorkspace.id]);
 
   const handleCloseContextDrawer = useCallback(() => {
     setContextDrawerOpenByWorkspace((current) => {
@@ -1532,6 +1545,7 @@ export function App() {
   }, [handleFocusSessionInWorkspace]);
 
   const handleReviewBlockedSession = useCallback((workspaceId: string, sessionId: string) => {
+    contextReturnFocusRef.current = null;
     contextFocusRequestKeyRef.current += 1;
     handleFocusSessionInWorkspace(workspaceId, sessionId);
     setContextDrawerOpenByWorkspace((current) => ({
@@ -2055,7 +2069,7 @@ export function App() {
             }
             focusRequestKey={contextFocusRequestKeyRef.current}
             previewVisible={previewVisible}
-            returnFocusRef={surfacesTriggerRef}
+            returnFocusRef={contextReturnFocusRef}
             onCloseContext={handleCloseContextDrawer}
             previewProps={{
               candidates: activePreviewCandidates,
@@ -2158,6 +2172,7 @@ export function App() {
             onFocusSessionInWorkspace={handleFocusSessionInWorkspace}
             onFocusNextSession={() => handleFocusSessionByDelta(1)}
             onFocusPreviousSession={() => handleFocusSessionByDelta(-1)}
+            onOpenContext={handleOpenContextFromCommandPalette}
             onOpenInbox={handleOpenInbox}
             onOpenPrivacyControls={handleOpenPrivacyPanel}
             onRestartSession={handleRestartSession}
