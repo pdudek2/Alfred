@@ -2004,6 +2004,13 @@ export function App() {
           </div>
           <ContextColumn
             contextOpen={activeContextDrawerOpen}
+            dismissalSuspended={
+              commandPaletteOpen ||
+              privacyPanelOpen ||
+              prepareWorkOpen ||
+              workspaceMenuOpen ||
+              pendingDiscardConfirmation !== null
+            }
             previewVisible={previewVisible}
             returnFocusRef={surfacesTriggerRef}
             onCloseContext={handleCloseContextDrawer}
@@ -2307,6 +2314,12 @@ function DiscardCheckoutDialog({
         role="dialog"
         aria-modal="true"
         aria-label="Discard isolated checkout"
+        onKeyDown={(event) => {
+          if (event.key !== "Escape") return;
+          event.preventDefault();
+          event.stopPropagation();
+          onCancel();
+        }}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="discard-checkout-header">

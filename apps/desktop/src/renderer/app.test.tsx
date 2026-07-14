@@ -1059,6 +1059,89 @@ describe("App integration", () => {
     expect(workbench).toBeInTheDocument();
   });
 
+  it("lets the Command palette consume Escape before Context", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+    render(<App />);
+
+    await screen.findByTestId("project-navigator");
+    await selectSurface(user, "Context");
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
+  });
+
+  it("lets Prepare Work consume Escape before Context", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await selectSurface(user, "Context");
+    await openPrepareWork(user);
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Prepare Work" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
+  });
+
+  it("lets Privacy consume Escape before Context", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await selectSurface(user, "Context");
+    await selectSurface(user, "Local Data & Privacy");
+    screen.getByRole("button", { name: "Close privacy controls" }).focus();
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Local Data & Privacy" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
+  });
+
+  it("lets workspace actions consume Escape before Context", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await selectSurface(user, "Context");
+    await user.click(screen.getByRole("button", { name: "Workspace menu for Alfred" }));
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Workspace actions" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
+  });
+
+  it("keeps workspace navigation focus when switching away from an open Context", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [], undefined, undefined, {
+      workspaces: [
+        { id: "A", label: "Alfred", shortLabel: "A" },
+        { id: "W2", label: "ClientApp", shortLabel: "CLI" },
+      ],
+      activeWorkspaceId: "A",
+    });
+    render(<App />);
+
+    await screen.findByTestId("project-navigator");
+    await selectSurface(user, "Context");
+    const clientWorkspace = screen.getByRole("tab", { name: "ClientApp workspace" });
+
+    await user.click(clientWorkspace);
+
+    expect(screen.getByTestId("context-column")).toHaveClass("closed");
+    await waitFor(() => expect(clientWorkspace).toHaveFocus());
+    expect(screen.getByRole("button", { name: "Open Surfaces menu" })).not.toHaveFocus();
+  });
+
   it("keeps every xterm host mounted when Focus hides non-selected terminal tiles", async () => {
     installDesktopBridge(
       undefined,
@@ -5038,6 +5121,7 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("article", { name: /Codex · session 9/i })).toBeInTheDocument();
+    await selectSurface(user, "Context");
 
     await user.click(screen.getByRole("button", { name: "Discard checkout Codex · session 9" }));
 
@@ -5046,8 +5130,9 @@ describe("App integration", () => {
     expect(discardDialog).toHaveTextContent("2 changed files");
     expect(forgetTerminal).not.toHaveBeenCalled();
 
-    await user.click(within(discardDialog).getByRole("button", { name: "Cancel" }));
+    await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
     expect(screen.getByRole("article", { name: /Codex · session 9/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Discard checkout Codex · session 9" }));
@@ -5888,6 +5973,7 @@ describe("App integration", () => {
 
     expect(screen.getByTestId("desk-runtime-surface")).toBeVisible();
     expect(screen.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Close Context panel" })).toHaveFocus());
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Risky cleanup");
     expect(screen.getByRole("button", { name: "Edit command" })).toBeInTheDocument();
     expect(createTerminal).not.toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-1" }));

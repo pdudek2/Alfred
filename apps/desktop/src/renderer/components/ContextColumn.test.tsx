@@ -39,7 +39,12 @@ const baseProps = {
   onCloseContext: vi.fn(),
 };
 
-function contextWith(overrides: Partial<ContextColumnProps> & { session?: SessionTile } = {}) {
+type ContextOverrides = Partial<ContextColumnProps> & {
+  dismissalSuspended?: boolean;
+  session?: SessionTile;
+};
+
+function contextWith(overrides: ContextOverrides = {}) {
   const { session, ...props } = overrides;
   const contextProps = {
     ...baseProps,
@@ -53,7 +58,7 @@ function contextWith(overrides: Partial<ContextColumnProps> & { session?: Sessio
   return <ContextColumn {...contextProps} />;
 }
 
-function renderContext(overrides: Partial<ContextColumnProps> & { session?: SessionTile } = {}) {
+function renderContext(overrides: ContextOverrides = {}) {
   return render(contextWith(overrides));
 }
 
@@ -75,6 +80,38 @@ describe("ContextColumn", () => {
     expect(onCloseContext).toHaveBeenCalledOnce();
     rerender(contextWith({ contextOpen: false, returnFocusRef, onCloseContext }));
     await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it("leaves Escape for a higher layer while dismissal is suspended", () => {
+    const onCloseContext = vi.fn();
+    renderContext({ contextOpen: true, dismissalSuspended: true, onCloseContext });
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(onCloseContext).not.toHaveBeenCalled();
+  });
+
+  it("focuses the close control when Context opens", async () => {
+    const { rerender } = renderContext({ contextOpen: false });
+
+    rerender(contextWith({ contextOpen: true }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Close Context panel" })).toHaveFocus());
+  });
+
+  it("does not restore Surfaces focus when Context closes from external workspace state", async () => {
+    const surfacesTrigger = document.createElement("button");
+    const workspaceTrigger = document.createElement("button");
+    document.body.append(surfacesTrigger, workspaceTrigger);
+    const returnFocusRef = { current: surfacesTrigger };
+    const { rerender } = renderContext({ contextOpen: true, returnFocusRef });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Close Context panel" })).toHaveFocus());
+
+    workspaceTrigger.focus();
+    rerender(contextWith({ contextOpen: false, returnFocusRef }));
+
+    await waitFor(() => expect(workspaceTrigger).toHaveFocus());
+    expect(surfacesTrigger).not.toHaveFocus();
   });
 
   it("rebinds the visible timeline and preview to the selected session without a second status rail", () => {
