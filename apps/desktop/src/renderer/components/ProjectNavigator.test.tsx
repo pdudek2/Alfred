@@ -169,7 +169,20 @@ describe("ProjectNavigator", () => {
   it("propagates a hidden project's honest review marker to the overflow control", () => {
     renderNavigator({ attentionWorkspaceIds: new Set(["SEVEN"]) });
 
-    expect(screen.getByRole("button", { name: "Show 2 more projects" })).toHaveAttribute("data-attention", "true");
+    expect(screen.getAllByRole("tab")).toHaveLength(5);
+    expect(
+      screen.getByRole("button", { name: "Show 2 more projects, hidden project needs review" }),
+    ).toHaveAttribute("data-attention", "true");
+  });
+
+  it("includes review attention in the accessible project label", () => {
+    renderNavigator({ attentionWorkspaceIds: new Set(["CLIENT"]) });
+
+    expect(screen.getAllByRole("tab")).toHaveLength(5);
+    expect(screen.getByRole("tab", { name: "ClientApp workspace, needs review" })).toHaveAttribute(
+      "data-attention",
+      "true",
+    );
   });
 
   it("renders one destination tree in collapsed mode", () => {
@@ -185,4 +198,32 @@ describe("ProjectNavigator", () => {
 
     expect(screen.queryByRole("group", { name: "Free Chats" })).not.toBeInTheDocument();
   });
+
+  it.each(["restored", "exited", "error"] as const)(
+    "excludes %s scratch sessions from both active rows and Free Chats",
+    (runtimeStatus) => {
+      const activeScratch = {
+        ...liveSession(
+          `active-scratch-${runtimeStatus}`,
+          `Active scratch ${runtimeStatus}`,
+          "CLIENT",
+          `/Users/patryk/Documents/Codex/active-${runtimeStatus}`,
+          "codex",
+        ),
+        runtimeStatus,
+      };
+      const foreignScratch = {
+        ...activeScratch,
+        id: `foreign-scratch-${runtimeStatus}`,
+        title: `Foreign scratch ${runtimeStatus}`,
+        workspaceId: "CLOUD",
+      };
+
+      renderNavigator({ activeWorkspaceId: "CLIENT", sessions: [activeScratch, foreignScratch] });
+
+      expect(screen.queryByRole("button", { name: `Active scratch ${runtimeStatus}` })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: `Foreign scratch ${runtimeStatus}` })).not.toBeInTheDocument();
+      expect(screen.queryByRole("group", { name: "Free Chats" })).not.toBeInTheDocument();
+    },
+  );
 });

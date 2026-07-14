@@ -748,11 +748,16 @@ button:focus-visible {
 }
 
 .project-row-button:hover,
-.project-row-button:focus-visible,
 .project-row-button[aria-selected="true"] {
   background: var(--ink-2);
   color: var(--ink-7);
-  outline: none;
+}
+
+.project-row-button:focus-visible {
+  background: var(--ink-2);
+  color: var(--ink-7);
+  outline: 2px solid var(--ink-6);
+  outline-offset: -2px;
 }
 
 .project-folder-icon {
@@ -819,11 +824,16 @@ button:focus-visible {
 }
 
 .project-session:hover,
-.project-session:focus-visible,
 .project-session.is-active {
   background: var(--ink-2);
   color: var(--ink-7);
-  outline: none;
+}
+
+.project-session:focus-visible {
+  background: var(--ink-2);
+  color: var(--ink-7);
+  outline: 2px solid var(--ink-6);
+  outline-offset: -2px;
 }
 
 .project-overflow-button {
@@ -1222,13 +1232,6 @@ button:focus-visible {
     max-width: min(320px, calc(100vw - 128px));
   }
 
-  .workspace-layout,
-  .workspace-layout.preview-visible,
-  .workspace-layout:has(.project-navigator.is-collapsed),
-  .workspace-layout.preview-visible:has(.project-navigator.is-collapsed) {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
   .workspace-layout > .project-navigator {
     grid-column: 1;
   }
@@ -1256,6 +1259,13 @@ button:focus-visible {
 }
 
 @media (max-width: 1180px) {
+  .workspace-layout,
+  .workspace-layout.preview-visible,
+  .workspace-layout:has(.project-navigator.is-collapsed),
+  .workspace-layout.preview-visible:has(.project-navigator.is-collapsed) {
+    grid-template-columns: 46px minmax(0, 1fr);
+  }
+
   .project-navigator {
     width: 46px;
   }
@@ -1273,7 +1283,6 @@ button:focus-visible {
   .project-navigator .project-row-label,
   .project-navigator .project-row-button kbd,
   .project-navigator .project-row-button > svg:last-child,
-  .project-navigator .project-workspace-actions,
   .project-navigator .project-session-title,
   .project-navigator .project-overflow-button > span:first-child,
   .project-navigator .free-chat-section > header strong,
@@ -1283,6 +1292,21 @@ button:focus-visible {
 
   .project-navigator .project-row {
     display: block;
+  }
+
+  .project-navigator .project-workspace-actions {
+    display: flex;
+    justify-content: center;
+    padding: 2px 0 4px;
+  }
+
+  .project-workspace-actions .workspace-popover {
+    position: fixed;
+    top: 52px;
+    left: 48px;
+    width: min(390px, calc(100vw - 60px));
+    max-height: calc(100vh - 64px);
+    overflow-y: auto;
   }
 
   .project-navigator .project-row-button {
@@ -5795,6 +5819,13 @@ body.arranging-pointer {
 }
 
 @media (max-width: 1180px) {
+  .workspace-layout.surface-inbox,
+  .workspace-layout.surface-history,
+  .workspace-layout.surface-inbox.preview-visible,
+  .workspace-layout.surface-history.preview-visible {
+    grid-template-columns: 46px minmax(0, 1fr);
+  }
+
   .observatory-grid {
     grid-template-columns: minmax(180px, 0.75fr) minmax(320px, 1.4fr);
   }
@@ -5805,11 +5836,6 @@ body.arranging-pointer {
 }
 
 @media (max-width: 980px) {
-  .workspace-layout.surface-inbox,
-  .workspace-layout.surface-history {
-    grid-template-columns: 46px minmax(0, 1fr);
-  }
-
   .workspace-layout.surface-inbox .project-navigator,
   .workspace-layout.surface-history .project-navigator {
     grid-column: 1;

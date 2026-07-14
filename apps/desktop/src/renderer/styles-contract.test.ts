@@ -860,6 +860,17 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps the forced narrow navigator peekable and its toggle honest", () => {
+    for (const selector of [
+      ".workspace-layout",
+      ".workspace-layout.preview-visible",
+      ".workspace-layout:has(.project-navigator.is-collapsed)",
+      ".workspace-layout.preview-visible:has(.project-navigator.is-collapsed)",
+    ]) {
+      const layout = mediaExactRuleBodies("(max-width: 1180px)", selector);
+      expect(layout).toHaveLength(1);
+      expect(layout[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
+    }
+
     const forcedRail = mediaExactRuleBodies("(max-width: 1180px)", ".project-navigator");
     expect(forcedRail).toHaveLength(1);
     expect(forcedRail[0]).toContain("width: 46px");
@@ -882,9 +893,27 @@ describe("renderer CSS contracts", () => {
     expect(focusPeek[0]).toContain("content: attr(data-label)");
   });
 
-  it("keeps narrow Inbox and History surfaces beside the 46px navigator", () => {
+  it("keeps the single workspace actions owner operable in the forced narrow rail", () => {
+    const actions = mediaExactRuleBodies(
+      "(max-width: 1180px)",
+      ".project-navigator .project-workspace-actions",
+    );
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toContain("display: flex");
+    expect(actions[0]).not.toContain("display: none");
+
+    const popover = mediaExactRuleBodies(
+      "(max-width: 1180px)",
+      ".project-workspace-actions .workspace-popover",
+    );
+    expect(popover).toHaveLength(1);
+    expect(popover[0]).toContain("position: fixed");
+    expect(popover[0]).toContain("left: 48px");
+  });
+
+  it("keeps narrow Inbox and History surfaces beside the 46px navigator at the forced-rail breakpoint", () => {
     for (const selector of [".workspace-layout.surface-inbox", ".workspace-layout.surface-history"]) {
-      const layout = mediaExactRuleBodies("(max-width: 980px)", selector);
+      const layout = mediaExactRuleBodies("(max-width: 1180px)", selector);
       expect(layout).toHaveLength(1);
       expect(layout[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
     }
@@ -913,6 +942,23 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".workbench-primary-row button", ["max-height: 28px", "border-radius: 7px"]);
     expectCanonicalBase('.work-surface-toolbar button[aria-pressed="true"]', ["font-weight: 700"]);
     expectCanonicalBase(".chrome-menu-popover button", ["width: 100%"]);
+  });
+
+  it("draws a focus-only ring on project and session destinations", () => {
+    const projectFocus = topLevelExactRuleBodies(".project-row-button:focus-visible");
+    const sessionFocus = topLevelExactRuleBodies(".project-session:focus-visible");
+    expect(projectFocus).toHaveLength(1);
+    expect(sessionFocus).toHaveLength(1);
+    for (const focus of [...projectFocus, ...sessionFocus]) {
+      expect(focus).toContain("outline: 2px solid var(--ink-6)");
+      expect(focus).toContain("outline-offset: -2px");
+      expect(focus).not.toContain("outline: none");
+    }
+
+    expect(singleTopLevelRuleBodyIn(styles, '.project-row-button[aria-selected="true"]')).not.toContain(
+      "outline:",
+    );
+    expect(singleTopLevelRuleBodyIn(styles, ".project-session.is-active")).not.toContain("outline:");
   });
 
   it("keeps canonical base owners for terminal Context and composer", () => {
@@ -1406,7 +1452,7 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps legacy gradients out of the main clean flat surfaces", () => {
-    const workspacePopover = blockFor(".workspace-popover");
+    const workspacePopover = singleTopLevelRuleBodyIn(styles, ".workspace-popover");
     const terminalTile = exactBlockFor(".terminal-tile");
     const activeWorkspace = exactBlockFor('.project-row-button[aria-selected="true"]');
 

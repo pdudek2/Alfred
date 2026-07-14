@@ -35,12 +35,22 @@ type GridRect = {
 type NarrowProjectShell = {
   activeControlOverflow: number;
   documentOverflow: number;
+  gridTemplateColumns: string;
+  layoutX: number;
   navigatorWidth: number;
+  navigatorRight: number;
+  orchestratorX: number;
   visibleTileCount: number;
   visibleTileHeaderHeights: number[];
 };
 
-test.use({ fixtureOptions: { activeWorkspaceId: "A", projectShell: true, restoredSessions: 1 } });
+test.use({
+  fixtureOptions: {
+    activeWorkspaceId: "A",
+    projectShell: true,
+    restoredScratchSessions: 1,
+  },
+});
 
 test("proves the project-first shell without replacing xterm", async ({ harness }, testInfo) => {
   const { app, page } = harness;
@@ -73,9 +83,11 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await expect(activeSessionGroup.getByRole("button", { name: longSessionLabel })).toBeVisible();
   const freeChats = navigator.getByRole("group", { name: "Free Chats" });
   await expect(freeChats.getByRole("button")).toHaveCount(4);
-  await expect(navigator.getByRole("button", { name: "Restored fixture 1" })).toHaveCount(0);
+  await expect(activeSessionGroup.getByRole("button", { name: "Restored scratch fixture 1" })).toHaveCount(0);
+  await expect(freeChats.getByRole("button", { name: "Restored scratch fixture 1" })).toHaveCount(0);
+  await expect((await listMainProcessTerminals(page)).restoredSessions).toHaveLength(1);
   await expect(header.getByRole("button", { name: "Open Inbox surface, 1 item" })).toBeVisible();
-  await expect(navigator.getByRole("tab", { name: "Fixture Alpha workspace" })).toHaveAttribute(
+  await expect(navigator.getByRole("tab", { name: "Fixture Beta workspace, needs review" })).toHaveAttribute(
     "data-attention",
     "true",
   );
@@ -108,11 +120,16 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await setWindowSize(app, page, 1120, 720);
   const narrow = await readNarrowProjectShell(page);
   expect(narrow.navigatorWidth).toBe(46);
+  expect(narrow.gridTemplateColumns).toBe("46px 1074px");
+  expect(narrow.orchestratorX - narrow.layoutX).toBe(46);
+  expect(narrow.orchestratorX).toBe(narrow.navigatorRight);
   expect(narrow.documentOverflow).toBe(0);
   expect(narrow.activeControlOverflow).toBeLessThanOrEqual(0.5);
-  expect(narrow.visibleTileCount).toBeGreaterThanOrEqual(6);
+  expect(narrow.visibleTileCount).toBe(6);
   expect(narrow.visibleTileHeaderHeights.every((height) => height === 30)).toBe(true);
   expect(await isSameConnectedNode(before, alphaScreen)).toBe(true);
+
+  const narrowWorkspaceActions = await operateNarrowWorkspaceActions(page, navigator);
 
   const screenshotSha256 = {
     "project-shell-1120x720.png": await captureEvidence(page, "project-shell-1120x720.png"),
@@ -129,8 +146,12 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
       projectCount: 7,
       activeSessionCount: 6,
       freeChatCount: 4,
-      restoredSessionExcluded: true,
+      restoredSessionCount: 1,
+      restoredSessionsExcluded: 1,
+      restoredScratchExcludedFromActiveRows: true,
+      restoredScratchExcludedFromFreeChats: true,
       currentReviewItemCount: 1,
+      reviewAttentionWorkspace: "Fixture Beta",
       longProjectLabelPreserved: true,
       longSessionLabelPreserved: true,
     },
@@ -145,6 +166,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
       backgroundOutputObserved: true,
     },
     narrow,
+    narrowWorkspaceActions,
     screenshotSha256,
     runtimeErrors: 0,
   };
@@ -196,6 +218,33 @@ async function seedProjectShellTerminals(page: Page, workspaceACwd: string): Pro
   await expect.poll(async () => (await listMainProcessTerminals(page)).sessions.length).toBe(10);
 }
 
+async function operateNarrowWorkspaceActions(page: Page, navigator: Locator) {
+  const trigger = navigator.getByRole("button", { name: "Workspace menu for Fixture Alpha" });
+  await expect(trigger).toHaveCount(1);
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+
+  const actions = page.getByRole("dialog", { name: "Workspace actions" });
+  await expect(actions).toBeVisible();
+  await expect(actions.getByRole("button", { name: /Add mission brief/i })).toBeVisible();
+  await actions.getByRole("button", { name: /Rename workspace/i }).click();
+
+  const rename = page.getByRole("dialog", { name: "Rename workspace" });
+  const input = rename.getByRole("textbox", { name: "Workspace name" });
+  await expect(rename).toBeVisible();
+  await expect(input).toBeFocused();
+  await input.fill("Fixture Alpha Narrow");
+  await input.press("Enter");
+  await expect(navigator.getByRole("tab", { name: "Fixture Alpha Narrow workspace" })).toBeVisible();
+  await expect(navigator.getByRole("button", { name: "Workspace menu for Fixture Alpha Narrow" })).toBeVisible();
+
+  return {
+    missionBriefEntryVisible: true,
+    renamedWorkspace: "Fixture Alpha Narrow",
+    triggerCount: 1,
+  };
+}
+
 async function openContext(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: "Context" }).click();
@@ -204,7 +253,9 @@ async function openContext(page: Page): Promise<void> {
 
 async function switchProject(page: Page, label: "Fixture Alpha" | "Fixture Beta"): Promise<void> {
   const destination = page.getByRole("navigation", { name: "Projects and Free Chats" })
-    .getByRole("tab", { name: `${label} workspace` });
+    .getByRole("tab", {
+      name: label === "Fixture Beta" ? `${label} workspace, needs review` : `${label} workspace`,
+    });
   await destination.click();
   await expect(destination).toHaveAttribute("aria-selected", "true");
 }
@@ -265,6 +316,13 @@ async function readNarrowProjectShell(page: Page): Promise<NarrowProjectShell> {
   return page.evaluate(() => {
     const navigator = document.querySelector<HTMLElement>("[data-testid='project-navigator']");
     if (!navigator) throw new Error("Project navigator is missing.");
+    const layout = document.querySelector<HTMLElement>(".workspace-layout");
+    if (!layout) throw new Error("Workspace layout is missing.");
+    const orchestrator = layout.querySelector<HTMLElement>(":scope > .orchestrator-surface");
+    if (!orchestrator) throw new Error("Orchestrator surface is missing.");
+    const layoutRect = layout.getBoundingClientRect();
+    const navigatorRect = navigator.getBoundingClientRect();
+    const orchestratorRect = orchestrator.getBoundingClientRect();
     const visibleTiles = Array.from(
       document.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"]:not([aria-hidden="true"])'),
     );
@@ -292,7 +350,11 @@ async function readNarrowProjectShell(page: Page): Promise<NarrowProjectShell> {
         return Math.max(maximum, Math.max(0, -rect.left, rect.right - innerWidth));
       }, 0),
       documentOverflow: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth),
-      navigatorWidth: navigator.getBoundingClientRect().width,
+      gridTemplateColumns: getComputedStyle(layout).gridTemplateColumns,
+      layoutX: layoutRect.x,
+      navigatorWidth: navigatorRect.width,
+      navigatorRight: navigatorRect.right,
+      orchestratorX: orchestratorRect.x,
       visibleTileCount: visibleTiles.length,
       visibleTileHeaderHeights: visibleTileHeaders.map((header) => header.getBoundingClientRect().height),
     };
