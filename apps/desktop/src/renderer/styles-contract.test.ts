@@ -850,7 +850,7 @@ describe("renderer CSS contracts", () => {
     const terminalAncestorPattern = /^(?:\.terminal-stage|\.terminal-stage-body|\.terminal-grid-column|\.terminal-grid|\.terminal-tile|\.xterm-host)(?:$|[. :>])/;
     const motionOwners = allRulesIn(styles).filter(({ selectors, body }) =>
       selectors.some((selector) => terminalAncestorPattern.test(selector))
-      && /(?:animation|transition)\s*:/.test(body),
+      && /(?:animation|transition)(?:-[a-z-]+)?\s*:/.test(body),
     );
     expect(motionOwners.map(({ selectors }) => selectors)).toEqual([]);
 
