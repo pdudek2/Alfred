@@ -23,6 +23,7 @@ import { ProjectNavigator, type ProjectNavigatorWorkspace } from "./components/P
 import { ReviewSurface } from "./components/ReviewSurface";
 import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
 import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHeader";
+import { WorkSurfaceToolbar } from "./components/WorkSurfaceToolbar";
 import { WorkspaceActionsMenu } from "./components/WorkspaceActionsMenu";
 import {
   applyLayoutPreset,
@@ -191,6 +192,7 @@ export function App() {
   const [prepareWorkOpen, setPrepareWorkOpen] = useState(false);
   const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const prepareWorkTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const surfacesTriggerRef = useRef<HTMLButtonElement | null>(null);
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
   const worktreeActionPendingRef = useRef<Set<string>>(new Set());
@@ -1815,6 +1817,17 @@ export function App() {
   }, [activeWorkspaceId, workspaces]);
 
   const workSurfaceHidden = activeSurface !== "work";
+  const liveWorkSessionCount = activeSessions.filter(
+    (session) => session.stage === "live"
+      && session.runtimeStatus !== "restored"
+      && session.runtimeStatus !== "exited"
+      && session.runtimeStatus !== "error",
+  ).length;
+  const visibleWorkSessionCount = arrangeMode || activeWorkMode === "desk"
+    ? liveWorkSessionCount
+    : activeWorkMode === "focus"
+      ? Math.min(1, liveWorkSessionCount)
+      : Math.min(2, liveWorkSessionCount);
 
   return (
     <main className="agent-space-shell">
@@ -1832,29 +1845,21 @@ export function App() {
       >
         <div className="mission-bar">
           <WorkbenchHeader
-            activeSessions={activeSessions}
             activeSurface={activeSurface}
-            arrangeMode={arrangeMode}
             commandPaletteTriggerRef={commandPaletteTriggerRef}
             inboxCount={globalReviewItems.length}
             prepareWorkTriggerRef={prepareWorkTriggerRef}
-            selectedSessionId={activeSelectedSessionId}
+            selectedSession={activeSelectedSession}
             shortcutModifier={shortcutModifier}
-            workMode={activeWorkMode}
+            surfacesTriggerRef={surfacesTriggerRef}
             workspaceDetail={workspaceDetail(activeWorkspace)}
-            workspaceSwitcher={null}
             onAddAgentSession={handleAddAgentSession}
             onAddManualSession={handleAddManualSession}
-            onApplyWorkMode={handleApplyWorkMode}
-            onCloseSession={handleCloseSession}
-            onFocusSession={handleFocusSession}
             onOpenCommandPalette={handleOpenCommandPalette}
             onOpenInbox={handleOpenInbox}
             onOpenPrepareWork={() => setPrepareWorkOpen(true)}
             onOpenPrivacyControls={handleOpenPrivacyPanel}
-            onRenameSession={handleRenameSession}
             onSelectSurface={setActiveSurface}
-            onToggleArrangeMode={handleToggleArrangeMode}
             onToggleContext={handleToggleContextDrawer}
           />
         </div>
@@ -1940,6 +1945,16 @@ export function App() {
               aria-hidden={workSurfaceHidden ? "true" : undefined}
               inert={workSurfaceHidden || undefined}
             >
+              <WorkSurfaceToolbar
+                arrangeMode={arrangeMode}
+                branch={activeWorkspace.gitBranch}
+                rootPath={activeWorkspace.rootPath}
+                visibleSessionCount={visibleWorkSessionCount}
+                workMode={activeWorkMode}
+                onAddManualSession={handleAddManualSession}
+                onApplyWorkMode={handleApplyWorkMode}
+                onToggleArrangeMode={handleToggleArrangeMode}
+              />
               <TerminalDesk
                 activeWorkspaceId={activeWorkspace.id}
                 arrangeMode={arrangeMode}

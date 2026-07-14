@@ -1,80 +1,53 @@
 import { Command, Layers3, ListChecks, Plus } from "lucide-react";
-import type { ReactNode, Ref } from "react";
+import type { Ref } from "react";
 import type { SessionTile } from "../session-state";
-import type { WorkMode } from "../terminal-desk-types";
+import { AlfredMark } from "./AlfredMark";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
-import { SessionChromeRow, workChromeSessions } from "./SessionChromeRow";
 
 export type PrimarySurface = "work" | "inbox" | "history";
 
 export type WorkbenchHeaderProps = {
-  activeSessions: SessionTile[];
   activeSurface: PrimarySurface;
-  arrangeMode: boolean;
   commandPaletteTriggerRef?: Ref<HTMLButtonElement>;
   inboxCount: number;
   prepareWorkTriggerRef?: Ref<HTMLButtonElement>;
-  selectedSessionId: string | null;
+  selectedSession: SessionTile | null;
   shortcutModifier: "Cmd" | "Ctrl";
-  workMode: WorkMode;
+  surfacesTriggerRef?: Ref<HTMLButtonElement>;
   workspaceDetail: string;
-  workspaceSwitcher: ReactNode;
   onAddAgentSession: (kind: "codex" | "claude") => void;
   onAddManualSession: () => void;
-  onApplyWorkMode: (mode: WorkMode) => void;
-  onCloseSession: (sessionId: string) => void;
-  onFocusSession: (sessionId: string) => void;
   onOpenCommandPalette: () => void;
   onOpenInbox: () => void;
   onOpenPrepareWork: () => void;
   onOpenPrivacyControls: () => void;
-  onRenameSession: (sessionId: string, title: string) => void;
   onSelectSurface: (surface: PrimarySurface) => void;
-  onToggleArrangeMode: () => void;
   onToggleContext: () => void;
 };
 
 export function WorkbenchHeader({
-  activeSessions,
   activeSurface,
-  arrangeMode,
   commandPaletteTriggerRef,
   inboxCount,
   prepareWorkTriggerRef,
-  selectedSessionId,
+  selectedSession,
   shortcutModifier,
-  workMode,
+  surfacesTriggerRef,
   workspaceDetail,
-  workspaceSwitcher,
   onAddAgentSession,
   onAddManualSession,
-  onApplyWorkMode,
-  onCloseSession,
-  onFocusSession,
   onOpenCommandPalette,
   onOpenInbox,
   onOpenPrepareWork,
   onOpenPrivacyControls,
-  onRenameSession,
   onSelectSurface,
-  onToggleArrangeMode,
   onToggleContext,
 }: WorkbenchHeaderProps) {
-  const chromeSessions = workChromeSessions(activeSessions);
-  const selectedSession = selectedSessionId
-    ? activeSessions.find((session) => session.id === selectedSessionId) ?? null
-    : null;
-  const selectedSessionHasChromeTab = selectedSession
-    ? chromeSessions.some((session) => session.id === selectedSession.id)
-    : false;
-  const workIdentitySession = activeSurface === "work"
-    ? selectedSession ?? (chromeSessions.length === 1 ? chromeSessions[0] ?? null : null)
-    : null;
-  const expanded = activeSurface === "work" && (
-    chromeSessions.length > 1 ||
-    arrangeMode ||
-    Boolean(selectedSession && !selectedSessionHasChromeTab)
-  );
+  const surfaceTitle = activeSurface === "inbox"
+    ? "Decision Inbox"
+    : activeSurface === "history"
+      ? "Observatory"
+      : selectedSession?.title ?? "Work";
   const inboxLabel = `Open Inbox surface${inboxCount > 0 ? `, ${inboxCount} item${inboxCount === 1 ? "" : "s"}` : ""}`;
   const launchItems: ChromeMenuItem[] = [
     { id: "prepare-work", label: "Prepare Work", run: onOpenPrepareWork },
@@ -90,20 +63,12 @@ export function WorkbenchHeader({
   ];
 
   return (
-    <header
-      className={expanded ? "workbench-header is-expanded" : "workbench-header is-compact"}
-      data-testid="workbench-header"
-      data-chrome-height={expanded ? "74" : "40"}
-    >
+    <header className="workbench-header" data-testid="workbench-header" data-chrome-height="40">
       <div className="workbench-primary-row">
-        <div className="workbench-project-zone">{workspaceSwitcher}</div>
+        <div className="workbench-product-signature"><AlfredMark /></div>
         <div className="workbench-session-context">
-          {workIdentitySession && (
-            <>
-              <span>{workIdentitySession.title}</span>
-              <small>{workspaceDetail}</small>
-            </>
-          )}
+          <span>{surfaceTitle}</span>
+          <small>{activeSurface === "work" ? workspaceDetail : "Alfred"}</small>
           <ChromeMenu
             {...(prepareWorkTriggerRef ? { triggerRef: prepareWorkTriggerRef } : {})}
             label="Open launch menu"
@@ -118,7 +83,12 @@ export function WorkbenchHeader({
             <ListChecks aria-hidden="true" size={14} />
             {inboxCount > 0 && <span className="workbench-attention-count">{inboxCount}</span>}
           </button>
-          <ChromeMenu label="Open Surfaces menu" title="Surfaces" items={surfaceItems}>
+          <ChromeMenu
+            {...(surfacesTriggerRef ? { triggerRef: surfacesTriggerRef } : {})}
+            label="Open Surfaces menu"
+            title="Surfaces"
+            items={surfaceItems}
+          >
             <Layers3 aria-hidden="true" size={14} />
           </ChromeMenu>
           <button
@@ -133,21 +103,6 @@ export function WorkbenchHeader({
           </button>
         </div>
       </div>
-      {expanded && (
-        <SessionChromeRow
-          activeSessionId={selectedSessionId}
-          arrangeMode={arrangeMode}
-          sessions={activeSessions}
-          workMode={workMode}
-          workspaceDetail={workspaceDetail}
-          onAddManualSession={onAddManualSession}
-          onApplyWorkMode={onApplyWorkMode}
-          onCloseSession={onCloseSession}
-          onFocusSession={onFocusSession}
-          onRenameSession={onRenameSession}
-          onToggleArrangeMode={onToggleArrangeMode}
-        />
-      )}
     </header>
   );
 }

@@ -15,9 +15,6 @@ const evidenceDir = path.resolve(
 
 type ShellGeometry = {
   headerHeight: number;
-  secondaryRowCount: number;
-  secondaryRowHeight: number;
-  sessionTabCount: number;
   visibleTileCount: number;
   visibleTileHeaderCount: number;
   tileHeaderHeights: number[];
@@ -45,7 +42,6 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
 
   const r0 = await readShellGeometry(page);
   expect(r0.headerHeight).toBe(40);
-  expect(r0.secondaryRowCount).toBe(0);
   expect(r0.visibleTileCount).toBe(1);
   expect(r0.visibleTileHeaderCount).toBe(1);
   expect(r0.tileHeaderHeights).toEqual([30]);
@@ -64,13 +60,14 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
 
   await addManualTerminal(page);
   await expect(page.getByTestId("xterm-host")).toHaveCount(2);
+  await page.getByRole("button", { name: /^Manual · zsh 2,/i }).click();
   await page.getByRole("button", { name: "Focus", exact: true }).click();
   await expect(page.getByRole("button", { name: "Focus", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(await readHeaderHeight(page)).toBe(40);
+  await expect(visibleTerminalTiles(page)).toHaveCount(1);
+  await expect(visibleTerminalTiles(page).locator(".terminal-tile-header")).toHaveCount(0);
   const r1 = await readShellGeometry(page);
-  expect(r1.headerHeight).toBe(74);
-  expect(r1.secondaryRowCount).toBe(1);
-  expect(r1.secondaryRowHeight).toBe(34);
-  expect(r1.sessionTabCount).toBe(2);
+  expect(r1.headerHeight).toBe(40);
   expect(r1.visibleTileCount).toBe(1);
   expect(r1.visibleTileHeaderCount).toBe(0);
   await page.locator(".terminal-grid-column").evaluate((node) => {
@@ -89,10 +86,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await page.getByRole("button", { name: "Split", exact: true }).click();
   await expect(page.getByRole("button", { name: "Split", exact: true })).toHaveAttribute("aria-pressed", "true");
   const r6 = await readShellGeometry(page);
-  expect(r6.headerHeight).toBe(74);
-  expect(r6.secondaryRowCount).toBe(1);
-  expect(r6.secondaryRowHeight).toBe(34);
-  expect(r6.sessionTabCount).toBe(0);
+  expect(r6.headerHeight).toBe(40);
   expect(r6.visibleTileCount).toBe(2);
   expect(r6.visibleTileHeaderCount).toBe(2);
   expect(r6.tileHeaderHeights).toEqual([30, 30]);
@@ -189,6 +183,10 @@ function visibleTerminalTiles(page: Page): Locator {
   return page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])');
 }
 
+async function readHeaderHeight(page: Page): Promise<number> {
+  return page.getByTestId("workbench-header").evaluate((node) => node.getBoundingClientRect().height);
+}
+
 async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {
   const handle = await locator.elementHandle();
   if (!handle) throw new Error(`${label} is not mounted.`);
@@ -220,7 +218,6 @@ async function readShellGeometry(page: Page): Promise<ShellGeometry> {
     ) {
       throw new Error("Adaptive shell geometry owners are missing.");
     }
-    const secondaryRows = Array.from(document.querySelectorAll<HTMLElement>(".session-chrome-row"));
     const visibleTiles = Array.from(
       document.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"]:not([aria-hidden="true"])'),
     );
@@ -240,9 +237,6 @@ async function readShellGeometry(page: Page): Promise<ShellGeometry> {
 
     return {
       headerHeight: header.getBoundingClientRect().height,
-      secondaryRowCount: secondaryRows.length,
-      secondaryRowHeight: secondaryRows[0]?.getBoundingClientRect().height ?? 0,
-      sessionTabCount: document.querySelectorAll('.session-chrome-row [role="tab"]').length,
       visibleTileCount: visibleTiles.length,
       visibleTileHeaderCount: visibleTileHeaders.length,
       tileHeaderHeights: visibleTileHeaders.map((node) => node.getBoundingClientRect().height),
@@ -293,7 +287,7 @@ async function readNarrowGeometry(page: Page): Promise<{
       return Math.max(maximum, Math.max(0, -rect.left, rect.right - window.innerWidth));
     }, 0);
     return {
-      layout: document.querySelector('.session-chrome-layout button[aria-pressed="true"]')?.textContent?.trim() ?? "",
+      layout: document.querySelector('.work-surface-layout button[aria-pressed="true"]')?.textContent?.trim() ?? "",
       visibleTileCount: document.querySelectorAll(
         '[data-testid="terminal-tile"]:not([aria-hidden="true"])',
       ).length,

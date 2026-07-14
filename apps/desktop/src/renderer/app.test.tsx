@@ -1151,7 +1151,7 @@ describe("App integration", () => {
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
   });
 
-  it("does not repeat workspace tile counts across mission and Work headers", async () => {
+  it("keeps session counts in the Work toolbar instead of the fixed header", async () => {
     installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
 
     render(<App />);
@@ -1160,9 +1160,10 @@ describe("App integration", () => {
     const workbenchHeader = screen.getByTestId("workbench-header");
 
     expect(screen.getByRole("button", { name: /Workspace menu for Alfred/i })).not.toHaveTextContent(/2 tiles/);
-    expect(workbenchHeader).toHaveAttribute("data-chrome-height", "74");
-    expect(within(workbenchHeader).getByRole("toolbar", { name: "Session and layout controls" })).toBeInTheDocument();
+    expect(workbenchHeader).toHaveAttribute("data-chrome-height", "40");
+    expect(within(workbenchHeader).queryByRole("toolbar")).not.toBeInTheDocument();
     expect(workbenchHeader).not.toHaveTextContent("2 sessions");
+    expect(screen.getByRole("toolbar", { name: "Work layout controls" })).toHaveTextContent("2 visible sessions");
     expect(screen.queryByLabelText("Terminal grid controls")).not.toBeInTheDocument();
     expect(screen.queryByText(/2 tiles · 0 staged/i)).not.toBeInTheDocument();
   });
@@ -1198,7 +1199,7 @@ describe("App integration", () => {
     expect(visibleTiles[0]?.querySelector(".terminal-tile-header")).toBeNull();
   });
 
-  it("uses session tabs as the only Focus header without replacing xterm", async () => {
+  it("uses the project navigator to change Focus sessions without replacing xterm", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
 
@@ -1209,14 +1210,15 @@ describe("App integration", () => {
     expect(firstHost).toBeInstanceOf(HTMLElement);
 
     await user.click(screen.getByRole("button", { name: "Focus" }));
+    await user.click(screen.getByRole("button", { name: /Codex · two/i }));
 
     const visibleTiles = screen.getAllByTestId("terminal-tile").filter(
       (tile) => tile.getAttribute("aria-hidden") !== "true",
     );
     expect(visibleTiles).toHaveLength(1);
     expect(visibleTiles[0]?.querySelector(".terminal-tile-header")).toBeNull();
-    expect(screen.getByRole("tablist", { name: "Sessions" })).toBeInTheDocument();
-    expect(screen.queryByRole("toolbar", { name: "focus session switcher" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tablist", { name: "Sessions" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · two");
     expect(screen.getAllByTestId("xterm-host")[0]).toBe(firstHost);
     expect(terminalDisposeCalls).toHaveLength(0);
   });
@@ -3107,7 +3109,7 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
   });
 
-  it("focus mode isolates the selected session and keeps session tabs switchable", async () => {
+  it("focus mode isolates the selected session and keeps navigator selection available", async () => {
     const { setWorkspaceLayout } = installDesktopBridge(undefined, null, [
       {
         id: "runtime-a",
@@ -3142,7 +3144,7 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 2");
     expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
-    expect(screen.getByRole("tablist", { name: "Sessions" })).toBeInTheDocument();
+    expect(screen.queryByRole("tablist", { name: "Sessions" })).not.toBeInTheDocument();
     expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
       workspaceId: "A",
       layouts: expect.objectContaining({
@@ -3150,9 +3152,7 @@ describe("App integration", () => {
       }),
     });
 
-    await userEvent.click(
-      within(screen.getByRole("tablist", { name: "Sessions" })).getByRole("tab", { name: /Manual · zsh 1/ }),
-    );
+    await userEvent.click(screen.getByRole("button", { name: /Manual · zsh 1/i }));
 
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();

@@ -574,18 +574,13 @@ button:focus-visible {
 }
 
 .alfred-mark {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
-  border: 1px solid var(--ink-3);
-  border-radius: 6px;
-  background: var(--ink-2);
   color: var(--ink-6);
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 650;
 }
 
 .mission-name strong,
@@ -994,19 +989,12 @@ button:focus-visible {
 
 .workbench-header {
   width: 100%;
+  height: 40px;
   min-width: 0;
   overflow: visible;
   background: var(--ink-0);
   box-shadow: none;
   color: var(--ink-6);
-}
-
-.workbench-header.is-compact {
-  height: 40px;
-}
-
-.workbench-header.is-expanded {
-  height: 74px;
 }
 
 .workbench-primary-row {
@@ -1016,7 +1004,7 @@ button:focus-visible {
   border-bottom: 1px solid var(--ink-3);
   padding: 0 8px;
   display: grid;
-  grid-template-columns: minmax(140px, auto) minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   -webkit-app-region: drag;
@@ -1026,7 +1014,7 @@ button:focus-visible {
   padding-left: 80px;
 }
 
-.workbench-project-zone,
+.workbench-product-signature,
 .workbench-session-context,
 .workbench-right-zone {
   min-width: 0;
@@ -1046,8 +1034,7 @@ button:focus-visible {
 
 .workbench-session-context > span,
 .workbench-session-context > small,
-.session-chrome-tab span,
-.session-chrome-context {
+.work-surface-context {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1065,7 +1052,7 @@ button:focus-visible {
 }
 
 .workbench-primary-row button,
-.session-chrome-row button {
+.work-surface-toolbar button {
   max-height: 28px;
   min-height: 26px;
   border: 1px solid var(--ink-3);
@@ -1085,8 +1072,8 @@ button:focus-visible {
 
 .workbench-primary-row button:hover,
 .workbench-primary-row button:focus-visible,
-.session-chrome-row button:hover,
-.session-chrome-row button:focus-visible {
+.work-surface-toolbar button:hover,
+.work-surface-toolbar button:focus-visible {
   border-color: var(--ink-5);
   background: var(--ink-2);
   color: var(--ink-7);
@@ -1094,8 +1081,7 @@ button:focus-visible {
 }
 
 .workbench-primary-row button[aria-pressed="true"],
-.session-chrome-row button[aria-pressed="true"],
-.session-chrome-row button[aria-selected="true"] {
+.work-surface-toolbar button[aria-pressed="true"] {
   border-color: var(--ink-5);
   background: var(--ink-2);
   color: var(--ink-7);
@@ -1120,75 +1106,29 @@ button:focus-visible {
   font: 500 10px/1 var(--mono);
 }
 
-.session-chrome-row {
+.work-surface-toolbar {
   width: 100%;
-  height: 34px;
+  height: 36px;
   min-width: 0;
   border-bottom: 1px solid var(--ink-3);
   padding: 3px 8px;
-  background: var(--ink-1);
+  background: var(--ink-0);
   display: flex;
   align-items: center;
   gap: 6px;
   overflow: hidden;
 }
 
-.session-chrome-tabs,
-.session-chrome-tab,
-.session-chrome-tab-actions,
-.session-chrome-layout {
+.work-surface-layout {
   min-width: 0;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.session-chrome-tabs {
-  flex: 1 1 auto;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.session-chrome-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.session-chrome-tab > button {
-  max-width: 180px;
-}
-
-.session-chrome-tab > button > span:last-child {
-  font-family: var(--mono);
-}
-
-.session-chrome-tab-actions button {
-  border-color: transparent;
-  background: transparent;
-  color: var(--ink-5);
-}
-
-.session-chrome-tab-actions input {
-  width: 140px;
-  height: 26px;
-  border: 1px solid var(--ink-5);
-  border-radius: 7px;
-  padding: 0 7px;
-  background: var(--ink-0);
-  color: var(--ink-7);
-  font: 600 11px/1 var(--sans);
-}
-
-.session-chrome-add {
-  flex: 0 0 auto;
-  width: 28px;
-  padding: 0;
-}
-
-.session-chrome-layout {
-  flex: 0 0 auto;
-}
-
-.session-chrome-context {
+.work-surface-context {
+  margin-left: auto;
   flex: 0 1 220px;
   color: var(--ink-5);
   font: 500 10px/1 var(--mono);
@@ -1274,7 +1214,7 @@ button:focus-visible {
   .workbench-session-context > span,
   .workbench-session-context > small,
   .workbench-right-zone kbd,
-  .session-chrome-context {
+  .work-surface-context {
     display: none;
   }
 }
@@ -1321,6 +1261,11 @@ button:focus-visible {
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
+}
+
+.desk-surface-panel {
+  display: grid;
+  grid-template-rows: 36px minmax(0, 1fr);
 }
 
 .desk-surface-panel.active {

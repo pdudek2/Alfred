@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionTile } from "../session-state";
 import { WorkbenchHeader, type WorkbenchHeaderProps } from "./WorkbenchHeader";
@@ -23,41 +24,21 @@ const liveB: SessionTile = {
   title: "Codex review",
 };
 
-const restoredCodex: SessionTile = {
-  id: "restored-codex",
-  title: "Codex · Dokończ plan na branchu",
-  workspaceId: "A",
-  cwd: "/workspace",
-  source: "manual",
-  stage: "live",
-  agentKind: "codex",
-  runtimeStatus: "restored",
-};
-
-const baseProps: WorkbenchHeaderProps = {
-  activeSessions: [liveA],
+const baseProps = {
   activeSurface: "work",
-  arrangeMode: false,
   inboxCount: 4,
-  selectedSessionId: liveA.id,
+  selectedSession: liveA,
   shortcutModifier: "Cmd",
-  workMode: "desk",
   workspaceDetail: "Alfred · /workspace",
-  workspaceSwitcher: <div data-testid="switcher-slot">W4</div>,
   onAddAgentSession: vi.fn(),
   onAddManualSession: vi.fn(),
-  onApplyWorkMode: vi.fn(),
-  onCloseSession: vi.fn(),
-  onFocusSession: vi.fn(),
   onOpenCommandPalette: vi.fn(),
   onOpenInbox: vi.fn(),
   onOpenPrepareWork: vi.fn(),
   onOpenPrivacyControls: vi.fn(),
-  onRenameSession: vi.fn(),
   onSelectSurface: vi.fn(),
-  onToggleArrangeMode: vi.fn(),
   onToggleContext: vi.fn(),
-};
+} satisfies WorkbenchHeaderProps;
 
 function renderHeader(overrides: Partial<WorkbenchHeaderProps> = {}) {
   return render(<WorkbenchHeader {...baseProps} {...overrides} />);
@@ -68,51 +49,24 @@ afterEach(() => {
 });
 
 describe("WorkbenchHeader", () => {
-  it("renders a compact 40-px contract for zero or one chrome session", () => {
-    renderHeader({ activeSessions: [liveA] });
+  it("stays at 40 px with multiple sessions and no session tab strip", () => {
+    renderHeader({ selectedSession: liveB });
     const header = screen.getByTestId("workbench-header");
     expect(header).toHaveAttribute("data-chrome-height", "40");
+    expect(header).toHaveTextContent("Codex review");
     expect(screen.queryByRole("toolbar", { name: "Session and layout controls" })).not.toBeInTheDocument();
-    expect(screen.getByText(liveA.title)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open launch menu" })).toBeInTheDocument();
+    expect(header.querySelector(".alfred-mark svg")).toBeInTheDocument();
   });
 
-  it("renders a 74-px contract and secondary row for two chrome sessions", () => {
-    renderHeader({ activeSessions: [liveA, liveB], workMode: "focus" });
-    const header = screen.getByTestId("workbench-header");
-    expect(header).toHaveAttribute("data-chrome-height", "74");
-    expect(screen.getByRole("toolbar", { name: "Session and layout controls" })).toBeInTheDocument();
-  });
-
-  it("renders the secondary row while arrange mode is active", () => {
-    renderHeader({ activeSessions: [liveA], arrangeMode: true });
-    expect(screen.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "74");
-    expect(screen.getByRole("toolbar", { name: "Session and layout controls" })).toBeInTheDocument();
-  });
-
-  it("uses the selected restored tile as Work identity instead of the unrelated live session", () => {
-    renderHeader({
-      activeSessions: [liveA, restoredCodex],
-      selectedSessionId: restoredCodex.id,
-      workMode: "focus",
-    });
-
-    const header = screen.getByTestId("workbench-header");
-    expect(header).toHaveAttribute("data-chrome-height", "74");
-    expect(within(header).getByText(restoredCodex.title)).toBeInTheDocument();
-    expect(within(header).queryByText(liveA.title)).not.toBeInTheDocument();
-    expect(screen.getByRole("toolbar", { name: "Session and layout controls" })).toBeInTheDocument();
-  });
-
-  it("does not carry Work session identity onto Observatory", () => {
-    renderHeader({ activeSessions: [liveA], activeSurface: "history" });
-    expect(screen.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "40");
+  it("shows surface identity outside Work without leaking the selected session", () => {
+    renderHeader({ activeSurface: "history", selectedSession: liveA });
+    expect(screen.getByTestId("workbench-header")).toHaveTextContent("Observatory");
     expect(screen.queryByText(liveA.title)).not.toBeInTheDocument();
   });
 
-  it("exposes Inbox Surfaces command palette and plus destinations", async () => {
+  it("exposes Inbox Surfaces command palette and the existing launch destinations", async () => {
     const user = userEvent.setup();
-    renderHeader({ activeSessions: [liveA] });
+    renderHeader();
     expect(screen.getByRole("button", { name: /Open Inbox/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Surfaces menu" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open command palette" })).toBeInTheDocument();
@@ -137,10 +91,10 @@ describe("WorkbenchHeader", () => {
     ]);
   });
 
-  it("renders the workspace switcher in the project zone", () => {
-    renderHeader();
-    const header = screen.getByTestId("workbench-header");
-    expect(within(header).getByTestId("switcher-slot")).toBeInTheDocument();
-    expect(header.querySelector(".workbench-project-zone")).toContainElement(screen.getByTestId("switcher-slot"));
+  it("passes the surfaces trigger ref through to the menu button", () => {
+    const surfacesTriggerRef = createRef<HTMLButtonElement>();
+    renderHeader({ surfacesTriggerRef });
+
+    expect(surfacesTriggerRef.current).toBe(screen.getByRole("button", { name: "Open Surfaces menu" }));
   });
 });
