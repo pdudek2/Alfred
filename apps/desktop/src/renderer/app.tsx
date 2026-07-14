@@ -548,18 +548,18 @@ export function App() {
   }, []);
 
   const handleRevealActivityFile = useCallback(async (filePath: string, cwd: string) => {
-    const result = await getDesktopWorkspaceApi()?.revealPath({ cwd, path: filePath });
-    if (!result?.ok) {
-      throw new Error(result?.error ?? "Workspace runtime is unavailable.");
-    }
-  }, []);
+    await runShellAction(
+      () => getDesktopWorkspaceApi()?.revealPath({ cwd, path: filePath }),
+      "Workspace runtime is unavailable.",
+    );
+  }, [runShellAction]);
 
   const handleOpenExternalTerminalForCwd = useCallback(async (cwd: string) => {
-    const result = await getDesktopWorkspaceApi()?.openExternalTerminal({ cwd });
-    if (!result?.ok) {
-      throw new Error(result?.error ?? "Workspace runtime is unavailable.");
-    }
-  }, []);
+    await runShellAction(
+      () => getDesktopWorkspaceApi()?.openExternalTerminal({ cwd }),
+      "Workspace runtime is unavailable.",
+    );
+  }, [runShellAction]);
 
   const handleCopySessionCwd = useCallback((cwd: string) => {
     void navigator.clipboard?.writeText(cwd);

@@ -4559,6 +4559,56 @@ describe("App integration", () => {
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
   });
 
+  it("surfaces Context reveal failures without contaminating Prepare Work", async () => {
+    const user = userEvent.setup();
+    const { revealPath } = installDesktopBridge(undefined, null, [liveSnapshot("context-reveal")]);
+    revealPath.mockResolvedValue({ ok: false, error: "Finder could not reveal the Context folder." });
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Codex · context-reveal/i });
+    await selectSurface(user, "Context");
+    await user.click(screen.getByRole("button", { name: "Reveal folder for Codex · context-reveal" }));
+
+    expect(revealPath).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred", path: "." });
+    const alert = await screen.findByRole("alert", { name: "Shell action failed" });
+    expect(alert).toHaveTextContent("Finder could not reveal the Context folder.");
+    expect(screen.getAllByRole("alert", { name: "Shell action failed" })).toHaveLength(1);
+
+    const composer = await openPrepareWork(user);
+    expect(within(composer).queryByRole("alert")).not.toBeInTheDocument();
+    expect(within(composer).getByRole("status")).toBeEmptyDOMElement();
+
+    await user.click(within(alert).getByRole("button", { name: "Dismiss action error" }));
+    expect(screen.queryByRole("alert", { name: "Shell action failed" })).not.toBeInTheDocument();
+  });
+
+  it("surfaces Context terminal failures without contaminating Prepare Work", async () => {
+    const user = userEvent.setup();
+    const { openExternalTerminal } = installDesktopBridge(undefined, null, [liveSnapshot("context-terminal")]);
+    openExternalTerminal.mockResolvedValue({ ok: false, error: "Ghostty could not open the Context cwd." });
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Codex · context-terminal/i });
+    await selectSurface(user, "Context");
+    await user.click(
+      screen.getByRole("button", { name: "Open external terminal for Codex · context-terminal" }),
+    );
+
+    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
+    const alert = await screen.findByRole("alert", { name: "Shell action failed" });
+    expect(alert).toHaveTextContent("Ghostty could not open the Context cwd.");
+    expect(screen.getAllByRole("alert", { name: "Shell action failed" })).toHaveLength(1);
+
+    const composer = await openPrepareWork(user);
+    expect(within(composer).queryByRole("alert")).not.toBeInTheDocument();
+    expect(within(composer).getByRole("status")).toBeEmptyDOMElement();
+
+    await user.click(within(alert).getByRole("button", { name: "Dismiss action error" }));
+    expect(screen.queryByRole("alert", { name: "Shell action failed" })).not.toBeInTheDocument();
+  });
+
   it("hands off a terminal tile to the external terminal without entering focus mode", async () => {
     const user = userEvent.setup();
     const { openExternalTerminal } = installDesktopBridge(undefined, null, [
