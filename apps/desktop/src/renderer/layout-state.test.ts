@@ -143,4 +143,24 @@ describe("layout-state", () => {
       rowSpan: 8,
     });
   });
+
+  it("keeps the selected session and its split companion in the first row", () => {
+    const sessions = [{ id: "one" }, { id: "two" }, { id: "three" }, { id: "four" }];
+    const layout = applyLayoutPreset(sessions, "two-up", "four");
+
+    expect(layout.four).toEqual({
+      tileId: "four",
+      col: 1,
+      row: 1,
+      colSpan: 6,
+      rowSpan: 8,
+    });
+    expect(layout.one).toEqual({
+      tileId: "one",
+      col: 7,
+      row: 1,
+      colSpan: 6,
+      rowSpan: 8,
+    });
+  });
 });

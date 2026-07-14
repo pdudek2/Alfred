@@ -91,7 +91,7 @@ export function applyLayoutPreset(
   switch (preset) {
     case "focus":
       return Object.fromEntries(
-        focusOrderedSessions(sessions, selectedSessionId).map((session, index) => [
+        selectedFirstSessions(sessions, selectedSessionId).map((session, index) => [
           session.id,
           normalizeLayout({
             tileId: session.id,
@@ -104,7 +104,7 @@ export function applyLayoutPreset(
       );
     case "two-up":
       return Object.fromEntries(
-        sessions.map((session, index) => [
+        selectedFirstSessions(sessions, selectedSessionId).map((session, index) => [
           session.id,
           normalizeLayout({
             tileId: session.id,
@@ -126,7 +126,7 @@ function defaultLayouts(sessions: LayoutSession[]): Record<string, TileLayout> {
   );
 }
 
-function focusOrderedSessions(sessions: LayoutSession[], selectedSessionId?: string | null): LayoutSession[] {
+function selectedFirstSessions(sessions: LayoutSession[], selectedSessionId?: string | null): LayoutSession[] {
   if (!selectedSessionId) return sessions;
   const selected = sessions.find((session) => session.id === selectedSessionId);
   if (!selected) return sessions;
