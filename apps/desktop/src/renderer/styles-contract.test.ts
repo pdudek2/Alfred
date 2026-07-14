@@ -823,6 +823,42 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".project-session-title", ["text-overflow: ellipsis", "white-space: nowrap"]);
   });
 
+  it("keeps one canonical owner for the Slice 2 shell", () => {
+    expectCanonicalBase(".project-navigator", ["width: 248px", "overflow: hidden"]);
+    expectCanonicalBase(".workbench-header", ["height: 40px"]);
+    expectCanonicalBase(".work-surface-toolbar", ["display: flex"]);
+    expectCanonicalBase(".context-column", ["position: absolute", "width: min(336px"]);
+    expectCanonicalBase(".workspace-layout.surface-inbox", [
+      "grid-template-columns: auto minmax(0, 1fr)",
+      "position: relative",
+    ]);
+    expectCanonicalBase(".workspace-layout.surface-history", [
+      "grid-template-columns: auto minmax(0, 1fr)",
+      "position: relative",
+    ]);
+    expect(topLevelExactRuleBodies(".workspace-layout.surface-inbox.preview-visible")).toHaveLength(1);
+    expect(topLevelExactRuleBodies(".workspace-layout.surface-history.preview-visible")).toHaveLength(1);
+
+    expect(topLevelExactRuleBodies(".workspace-layout:has(.context-column.open)")).toHaveLength(0);
+    expect(styles).not.toContain("grid-column: 3");
+    expect(styles).not.toContain(".context-compact-status");
+    expect(styles).not.toContain(".session-chrome-row");
+    expect(styles).not.toContain(".workspace-rail.embedded");
+  });
+
+  it("keeps terminal ancestors motionless and honors reduced motion", () => {
+    const terminalAncestorPattern = /^(?:\.terminal-stage|\.terminal-stage-body|\.terminal-grid-column|\.terminal-grid|\.terminal-tile|\.xterm-host)(?:$|[. :>])/;
+    const motionOwners = allRulesIn(styles).filter(({ selectors, body }) =>
+      selectors.some((selector) => terminalAncestorPattern.test(selector))
+      && /(?:animation|transition)\s*:/.test(body),
+    );
+    expect(motionOwners.map(({ selectors }) => selectors)).toEqual([]);
+
+    const reducedMotion = mediaExactRuleBodies("(prefers-reduced-motion: reduce)", "*");
+    expect(reducedMotion).toHaveLength(1);
+    expect(reducedMotion[0]).toContain("transition-duration: 0.001ms !important");
+  });
+
   it("keeps the forced narrow navigator peekable and its toggle honest", () => {
     const forcedRail = mediaExactRuleBodies("(max-width: 1180px)", ".project-navigator");
     expect(forcedRail).toHaveLength(1);
@@ -849,8 +885,8 @@ describe("renderer CSS contracts", () => {
   it("keeps narrow Inbox and History surfaces beside the 46px navigator", () => {
     for (const selector of [".workspace-layout.surface-inbox", ".workspace-layout.surface-history"]) {
       const layout = mediaExactRuleBodies("(max-width: 980px)", selector);
-      expect(layout.length).toBeGreaterThan(0);
-      expect(layout.at(-1)).toContain("grid-template-columns: 46px minmax(0, 1fr)");
+      expect(layout).toHaveLength(1);
+      expect(layout[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
     }
 
     const navigatorPlacement = mediaExactRuleBodies(
@@ -940,7 +976,7 @@ describe("renderer CSS contracts", () => {
     expectTopLevelOwnerWithin('.composer-bar[data-state="disabled"]', ["background: transparent"], composerStart, composerEnd);
     expectTopLevelOwnerWithin(".composer-input:focus-visible", ["border-color: var(--ink-6)", "box-shadow: none"], composerStart, composerEnd);
     expectTopLevelOwnerWithin(".dispatch-bar", ["grid-template-columns: minmax(0, 1fr)", "background: transparent"], composerStart, composerEnd);
-    expectTopLevelDeclarationOwnerWithin(".dispatch-bar .composer-input", ["grid-column: 3", "flex: 1 1 auto"], composerStart, composerEnd);
+    expectTopLevelDeclarationOwnerWithin(".dispatch-bar .composer-input", ["flex: 1 1 auto"], composerStart, composerEnd);
     expectTopLevelOwnerWithin(".dispatch-bar .composer-input:focus-visible", ["border: 0", "box-shadow: none"], composerStart, composerEnd);
     expectTopLevelDeclarationOwnerWithin(".dispatch-bar .composer-send", ["min-width: 76px", "background: var(--ink-2)"], composerStart, composerEnd);
     expectTopLevelOwnerWithin(".dispatch-bar .composer-send:disabled", ["color: var(--ink-5)"], composerStart, composerEnd);

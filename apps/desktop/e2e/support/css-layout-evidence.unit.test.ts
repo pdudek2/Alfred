@@ -14,7 +14,8 @@ describe("CSS layout evidence support", () => {
     expect(privacySafeScreenshotStyle).toContain(".session-location-value");
     expect(privacySafeScreenshotStyle).toContain(".composer-input");
     expect(privacySafeScreenshotStyle).toContain(".agent-context-essentials");
-    expect(privacySafeScreenshotStyle).toContain(".workspace-button-details > span");
+    expect(privacySafeScreenshotStyle).toContain(".project-row-label");
+    expect(privacySafeScreenshotStyle).toContain(".project-session-title");
     expect(privacySafeScreenshotStyle).toContain(".observatory-project-copy small");
     expect(privacySafeScreenshotStyle).not.toContain(".session-observatory-");
     expect(privacySafeScreenshotStyle).toContain(".command-palette-list button small");

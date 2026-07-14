@@ -63,7 +63,8 @@ export function ProjectNavigator({
     <aside
       className={`project-navigator${collapsed ? " is-collapsed" : ""}`}
       data-testid="project-navigator"
-      aria-label="Projects and sessions"
+      aria-label="Projects and Free Chats"
+      role="navigation"
     >
       <header className="project-navigator-header">
         <strong>Projects</strong>
@@ -93,6 +94,7 @@ export function ProjectNavigator({
                     aria-selected={active}
                     data-attention={hasAttention ? "true" : undefined}
                     data-label={workspace.label}
+                    data-project-destination={workspace.id}
                     onClick={() => onSelectWorkspace(workspace.id)}
                     onKeyDown={(event) =>
                       handleProjectKeyDown(event, visibleProjects, visibleIndex, onSelectWorkspace, tabRefs)
@@ -188,7 +190,7 @@ function NavigatorSessionButton({
       type="button"
       className={`project-session${active ? " is-active" : ""}`}
       aria-current={active ? "true" : undefined}
-      aria-label={`${session.title}, ${status.label}`}
+      aria-label={session.title}
       data-label={session.title}
       onClick={onClick}
       title={`${session.title} · ${status.label}`}

@@ -28,7 +28,7 @@ const frameProbes: CssOwnerProbe[] = [
     properties: ["display", "grid-template-rows", "overflow", "padding", "background-color", "border-radius"] },
   { name: "mission-bar", selector: ".mission-bar", required: true,
     properties: ["display", "min-height", "padding", "gap", "background-color", "border-bottom-width"] },
-  { name: "workspace-navigation", selector: ".workspace-navigation-panel", required: true,
+  { name: "project-navigator", selector: ".project-navigator", required: true,
     properties: ["display", "width", "min-width", "overflow", "background-color"] },
   { name: "workbench-shell", selector: "[data-testid='workbench-shell']", required: true,
     properties: ["display", "grid-template-columns", "min-width", "min-height", "overflow"] },
@@ -43,6 +43,8 @@ const extendedVisualProbes: CssOwnerProbe[] = [
 ];
 
 const terminalProbes: CssOwnerProbe[] = [
+  { name: "work-surface-toolbar", selector: ".work-surface-toolbar", required: true,
+    properties: ["display", "height", "min-width", "overflow", "background-color"] },
   { name: "workbench-surface", selector: "[data-testid='workbench-surface']", required: true,
     properties: ["display", "min-width", "min-height", "overflow", "background-color"] },
   { name: "terminal-stage", selector: "[data-testid='desk-runtime-surface']", required: true,
@@ -115,8 +117,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expect(page.getByTestId("xterm-host")).toHaveCount(1);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
   await expect(page.locator(".workspace-title-trigger strong")).toHaveText("Fixture Alpha");
-  await expect(page.getByTestId("workbench-header")).toHaveClass(/is-expanded/);
-  await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "74");
+  await expect(page.getByTestId("workbench-header")).toHaveClass("workbench-header");
+  await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "40");
   await recordPrivacyMaskCoverage();
 
   const firstHost = page.getByTestId("xterm-host").first();
@@ -136,8 +138,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await addManualTerminal(page);
   await expect(page.getByTestId("xterm-host")).toHaveCount(2);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
-  await expect(page.getByTestId("workbench-header")).toHaveClass(/is-expanded/);
-  await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "74");
+  await expect(page.getByTestId("workbench-header")).toHaveClass("workbench-header");
+  await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "40");
 
   await capture("work-grid", [...frameProbes, ...terminalProbes]);
 
@@ -183,8 +185,14 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Work restored after surfaces");
   await expect(firstHost).toContainText(marker);
-  await selectSurface(page, "Context");
-  await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
+  const beforeContext = await readShellOwnerGeometry(page);
+  await openContext(page);
+  const afterContext = await readShellOwnerGeometry(page);
+  expect(afterContext.workspaceGridColumns).toBe(beforeContext.workspaceGridColumns);
+  expect(Math.abs(afterContext.terminalGrid.width - beforeContext.terminalGrid.width)).toBeLessThanOrEqual(1);
+  expect(afterContext.context.position).toBe("absolute");
+  expect(afterContext.context.rightGap).toBeCloseTo(12, 0);
+  expect(afterContext.context.width).toBeLessThanOrEqual(336);
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Context");
   await capture("context", [...frameProbes, ...terminalProbes, ...contextProbes]);
 
@@ -258,6 +266,37 @@ async function selectSurface(
 ): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();
+}
+
+async function openContext(page: Page): Promise<void> {
+  await selectSurface(page, "Context");
+  await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
+}
+
+async function readShellOwnerGeometry(page: Page): Promise<{
+  workspaceGridColumns: string;
+  terminalGrid: { width: number };
+  context: { position: string; rightGap: number; width: number };
+}> {
+  return page.evaluate(() => {
+    const workspace = document.querySelector<HTMLElement>("[data-testid='workbench-shell']");
+    const terminalGrid = document.querySelector<HTMLElement>("[data-testid='terminal-grid']");
+    const context = document.querySelector<HTMLElement>("[data-testid='context-column']");
+    if (!workspace || !terminalGrid || !context) throw new Error("Shell geometry owner is missing.");
+
+    const workspaceBounds = workspace.getBoundingClientRect();
+    const terminalGridBounds = terminalGrid.getBoundingClientRect();
+    const contextBounds = context.getBoundingClientRect();
+    return {
+      workspaceGridColumns: getComputedStyle(workspace).gridTemplateColumns,
+      terminalGrid: { width: terminalGridBounds.width },
+      context: {
+        position: getComputedStyle(context).position,
+        rightGap: workspaceBounds.right - contextBounds.right,
+        width: contextBounds.width,
+      },
+    };
+  });
 }
 
 async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {

@@ -711,7 +711,7 @@ describe("App integration", () => {
     installDesktopBridge();
     render(<App />);
 
-    expect(await screen.findByLabelText("Projects and sessions")).toBeInTheDocument();
+    expect(await screen.findByRole("navigation", { name: "Projects and Free Chats" })).toBeInTheDocument();
     expect(screen.queryByText("Free Chats")).not.toBeInTheDocument();
     expect(screen.queryByText("No scratch chats yet.")).not.toBeInTheDocument();
   });
@@ -796,37 +796,50 @@ describe("App integration", () => {
     expect(screen.getByRole("tab", { name: /Workspace 14 workspace/i })).toBeInTheDocument();
   });
 
-  it("shows every active workspace session without a silent five-row cap", async () => {
-    installDesktopBridge(undefined, null, Array.from({ length: 6 }, (_, index) =>
-      liveSnapshot(`session-${index + 1}`, { title: `Manual · zsh ${index + 1}` }),
-    ));
+  it("keeps five deterministic project destinations while preserving long accessible names", async () => {
+    const longSessionTitle = "Manual session with a deliberately descriptive title exceeding sixty characters 1";
+    const workspaces = Array.from({ length: 7 }, (_, index) => ({
+      id: `W${index + 1}`,
+      label: `Workspace ${index + 1} with a deliberately descriptive label exceeding sixty characters`,
+      shortLabel: `W${index + 1}`,
+    }));
+    installDesktopBridge(
+      undefined,
+      null,
+      Array.from({ length: 6 }, (_, index) => liveSnapshot(`session-${index + 1}`, {
+        title: index === 0
+          ? longSessionTitle
+          : `Manual session with a deliberately descriptive title exceeding sixty characters ${index + 1}`,
+        workspaceId: "W1",
+      })),
+      undefined,
+      undefined,
+      { workspaces, activeWorkspaceId: "W1" },
+    );
 
     render(<App />);
 
-    const panel = await screen.findByTestId("project-navigator");
-    expect(within(panel).getByRole("button", { name: /Manual · zsh 6/i })).toBeInTheDocument();
-    expect(screen.queryByLabelText("Search sessions, chats, files")).not.toBeInTheDocument();
+    const navigator = await screen.findByRole("navigation", { name: "Projects and Free Chats" });
+    expect(within(navigator).getByRole("button", { name: longSessionTitle })).toHaveAccessibleName(longSessionTitle);
+    expect(within(navigator).getByRole("button", { name: "Show 2 more projects" })).toBeInTheDocument();
+    expect(document.querySelectorAll("[data-project-destination]")).toHaveLength(5);
+    expect(screen.queryByText("Search sessions, chats, files")).not.toBeInTheDocument();
   });
 
-  it("keeps the project navigator mounted across surface switches", async () => {
+  it("keeps the same project navigator across Inbox and Observatory switches", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
 
-    const panel = await screen.findByTestId("project-navigator");
-    const tablist = within(panel).getByRole("tablist", { name: /workspaces/i });
+    const navigator = await screen.findByRole("navigation", { name: "Projects and Free Chats" });
 
     await user.click(screen.getByRole("button", { name: /open inbox surface/i }));
     expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-inbox");
-    expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toBe(tablist);
-    await user.click(within(panel).getByRole("button", { name: /Manual · zsh 1/i }));
-    await waitFor(() => {
-      expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-work");
-    });
+    expect(screen.getByRole("navigation", { name: "Projects and Free Chats" })).toBe(navigator);
 
     await selectSurface(user, "Observatory");
     expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-history");
-    expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toBe(tablist);
+    expect(screen.getByRole("navigation", { name: "Projects and Free Chats" })).toBe(navigator);
   });
 
   it("opens Local Data & Privacy controls from the command palette", async () => {
@@ -2281,7 +2294,8 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(within(tile).getByText("unavailable")).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Alfred workspace" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Manual · zsh 1, unavailable/i })).toBeInTheDocument();
+      const navigatorSession = screen.getByRole("button", { name: "Manual · zsh 1" });
+      expect(navigatorSession).toHaveAttribute("title", "Manual · zsh 1 · unavailable");
     });
   });
 
