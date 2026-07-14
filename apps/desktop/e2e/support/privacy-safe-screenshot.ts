@@ -5,7 +5,7 @@ export const privacySafeScreenshotSelectors = [
   ".xterm-host *",
   ".session-location-value",
   ".workbench-session-context > small",
-  ".session-chrome-context",
+  ".work-surface-context",
   ".composer-input",
   ".agent-context-essentials",
   ".agent-session-pulse",

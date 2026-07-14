@@ -32,7 +32,7 @@ function isLiveSliceOneSelector(selector: string): boolean {
     ".agent-space-shell", ".desktop-frame", ".mission-bar", ".desktop-alert-stack",
     ".workspace-title", ".workspace-popover", ".workspace-rename-form", ".workspace-mission-form",
     ".workspace-layout", ".project-navigator", ".project-", ".free-chat-",
-    ".alfred-mark", ".workbench-", ".session-chrome-", ".chrome-menu", ".prepare-work-popover",
+    ".alfred-mark", ".workbench-", ".work-surface-", ".chrome-menu", ".prepare-work-popover",
     ".desktop-save-", ".recovery-",
     ".terminal-", ".tile-", ".tool-dot", ".session-status-", ".session-rename-form",
     ".split-empty-", ".staged-", ".arrange-", ".xterm-host", ".composer-", ".dispatch-",
@@ -464,10 +464,16 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".desktop-alert-stack", ["grid-row: 2", "min-height: 0"]);
     expectCanonicalBase(".workspace-layout", ["grid-row: 3"]);
     expect(styles).not.toContain(".desktop-alert-stack:empty");
-    expectCanonicalBase(".workbench-header.is-compact", ["height: 40px"]);
-    expectCanonicalBase(".workbench-header.is-expanded", ["height: 74px"]);
+    expectCanonicalBase(".workbench-header", ["height: 40px"]);
     expectCanonicalBase(".workbench-primary-row", ["height: 40px"]);
-    expectCanonicalBase(".session-chrome-row", ["height: 34px"]);
+    expectCanonicalBase(".desk-surface-panel", ["display: grid", "grid-template-rows: 36px minmax(0, 1fr)"]);
+    expectCanonicalBase(".work-surface-toolbar", [
+      "min-width: 0",
+      "border-bottom: 1px solid var(--ink-3)",
+      "background: var(--ink-0)",
+      "display: flex",
+      "align-items: center",
+    ]);
     expectCanonicalBase(".terminal-tile.chrome-headerless", ["grid-template-rows: minmax(0, 1fr)"]);
     expectCanonicalBase(".terminal-tile-header", ["height: 30px", "min-height: 30px"]);
   });
@@ -477,8 +483,7 @@ describe("renderer CSS contracts", () => {
 
     expect(topLevelOwner(".workbench-session-context > span")).toContain("var(--mono)");
     expect(topLevelOwner(".workbench-session-context > small")).toContain("var(--mono)");
-    expect(topLevelOwner(".session-chrome-tab > button > span:last-child")).toContain("var(--mono)");
-    expect(topLevelOwner(".session-chrome-context")).toContain("var(--mono)");
+    expect(topLevelOwner(".work-surface-context")).toContain("var(--mono)");
   });
 
   it("drops deleted navigation and migration-era selector families", () => {
@@ -488,6 +493,7 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toMatch(orphanClassTokenPattern("primary-nav-bottom"));
     expect(styles).not.toMatch(orphanClassTokenPattern("focus-session-strip"));
     expect(styles).not.toMatch(orphanClassTokenPattern("workbench-session-row"));
+    expect(styles).not.toMatch(/\.session-chrome-/);
     expect(styles).not.toMatch(orphanClassTokenPattern("terminal-host"));
   });
 
@@ -793,9 +799,9 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".workspace-title-menu", ["position: relative", "min-width: 0"]);
     expect(topLevelExactRuleBodies(".workspace-title-trigger")).toHaveLength(1);
     expect(mediaExactRuleBodies("(max-width: 980px)", ".workspace-title-trigger")).toHaveLength(1);
-    expectCanonicalBase(".workbench-header", ["width: 100%", "min-width: 0"]);
-    expectCanonicalBase(".workbench-primary-row", ["display: grid", "grid-template-columns: minmax(140px, auto) minmax(0, 1fr) auto"]);
-    expectCanonicalBase(".session-chrome-row", ["display: flex", "height: 34px"]);
+    expectCanonicalBase(".workbench-header", ["width: 100%", "min-width: 0", "height: 40px"]);
+    expectCanonicalBase(".workbench-primary-row", ["display: grid", "grid-template-columns: auto minmax(0, 1fr) auto"]);
+    expectCanonicalBase(".work-surface-toolbar", ["display: flex", "height: 36px"]);
     expectCanonicalBase(".chrome-menu-popover", ["z-index: 120", "box-shadow:"]);
     expectCanonicalBase(".prepare-work-popover", ["width: 560px", "max-width: calc(100vw - 24px)"]);
 
@@ -869,7 +875,7 @@ describe("renderer CSS contracts", () => {
     expect(workspaceNavFocus).toHaveLength(1);
     expect(workspaceNavHover[0]).toContain("background: var(--ink-2)");
     expectCanonicalBase(".workbench-primary-row button", ["max-height: 28px", "border-radius: 7px"]);
-    expectCanonicalBase('.session-chrome-row button[aria-pressed="true"]', ["font-weight: 700"]);
+    expectCanonicalBase('.work-surface-toolbar button[aria-pressed="true"]', ["font-weight: 700"]);
     expectCanonicalBase(".chrome-menu-popover button", ["width: 100%"]);
   });
 
@@ -1424,7 +1430,7 @@ describe("renderer CSS contracts", () => {
 
     expect(frame).toContain("grid-template-rows: auto auto minmax(0, 1fr)");
     expect(missionBar).toContain("display: flex");
-    expect(primaryRow).toContain("grid-template-columns: minmax(140px, auto) minmax(0, 1fr) auto");
+    expect(primaryRow).toContain("grid-template-columns: auto minmax(0, 1fr) auto");
   });
 
   it("drops deduped chrome selectors from the sheet", () => {
@@ -1459,7 +1465,7 @@ describe("renderer CSS contracts", () => {
   it("hides nonessential chrome labels at the 1120px breakpoint", () => {
     expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-session-context > span")).toHaveLength(1);
     expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-right-zone kbd")).toHaveLength(1);
-    expect(mediaExactRuleBodies("(max-width: 1120px)", ".session-chrome-context")).toHaveLength(1);
+    expect(mediaExactRuleBodies("(max-width: 1120px)", ".work-surface-context")).toHaveLength(1);
   });
 
   it("keeps workspace actions compact inside the active project row", () => {
@@ -1635,7 +1641,7 @@ describe("renderer CSS contracts", () => {
 
   it("keeps live workbench controls within the 7px radius ceiling", () => {
     const workbenchControl = exactBlockFor(".workbench-primary-row button");
-    const sessionControl = exactBlockFor(".session-chrome-row button");
+    const sessionControl = exactBlockFor(".work-surface-toolbar button");
 
     expect(workbenchControl).toContain("border-radius: 7px");
     expect(sessionControl).toContain("border-radius: 7px");
