@@ -90,7 +90,7 @@ export function ProjectNavigator({
                   <button
                     type="button"
                     className="project-row-button"
-                    aria-label={`${workspace.label} workspace`}
+                    aria-label={`${workspace.label} workspace${hasAttention ? ", needs review" : ""}`}
                     aria-selected={active}
                     data-attention={hasAttention ? "true" : undefined}
                     data-label={workspace.label}
@@ -136,7 +136,7 @@ export function ProjectNavigator({
           <button
             type="button"
             className="project-overflow-button"
-            aria-label={`Show ${hiddenProjects.length} more projects`}
+            aria-label={`Show ${hiddenProjects.length} more projects${hiddenAttention ? ", hidden project needs review" : ""}`}
             data-attention={hiddenAttention ? "true" : undefined}
             onClick={() => setShowAllProjects(true)}
           >
@@ -203,14 +203,18 @@ function NavigatorSessionButton({
 
 function isActiveNavigatorSession(session: SessionTile, workspaceId: string): boolean {
   return session.workspaceId === workspaceId
-    && session.stage === "live"
-    && session.runtimeStatus !== "restored"
-    && session.runtimeStatus !== "exited"
-    && session.runtimeStatus !== "error";
+    && isLiveNavigatorRuntime(session);
 }
 
 function isFreeChatSession(session: SessionTile): boolean {
-  return session.stage === "live" && session.cwd.includes("/Documents/Codex/");
+  return isLiveNavigatorRuntime(session) && session.cwd.includes("/Documents/Codex/");
+}
+
+function isLiveNavigatorRuntime(session: SessionTile): boolean {
+  return session.stage === "live"
+    && session.runtimeStatus !== "restored"
+    && session.runtimeStatus !== "exited"
+    && session.runtimeStatus !== "error";
 }
 
 function handleProjectKeyDown(

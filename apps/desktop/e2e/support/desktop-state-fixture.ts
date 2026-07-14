@@ -14,6 +14,7 @@ export type DesktopFixtureOptions = {
   activeWorkspaceId?: "A" | "B";
   inboxItems?: number;
   projectShell?: boolean;
+  restoredScratchSessions?: number;
   restoredSessions?: number;
 };
 
@@ -117,6 +118,23 @@ export async function createDesktopFixture(
           buffer: `restored fixture ${number}\n`,
         };
       },
+    );
+    restoredTerminalSessions.push(
+      ...Array.from({ length: options.restoredScratchSessions ?? 0 }, (_, index) => {
+        const number = index + 1;
+        return {
+          clientId: `restored-scratch-${number}`,
+          title: `Restored scratch fixture ${number}`,
+          source: "manual" as const,
+          workspaceId: "B",
+          cwd: path.join(paths.home, "Documents", "Codex", `restored-scratch-${number}`),
+          shell: "/bin/zsh",
+          command: "/usr/bin/printf",
+          args: [`restored scratch fixture ${number}\n`],
+          createdAt: 1_720_100_000_000 + number,
+          buffer: `restored scratch fixture ${number}\n`,
+        };
+      }),
     );
     const state: DesktopStateFile = {
       ...structuredClone(DEFAULT_DESKTOP_STATE),
