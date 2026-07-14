@@ -1120,7 +1120,7 @@ describe("App integration", () => {
     expect(screen.getByTestId("context-column")).toHaveClass("open");
   });
 
-  it("keeps workspace navigation focus when switching away from an open Context", async () => {
+  it("keeps workspace navigation focus across a round trip to a workspace with open Context", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [], undefined, undefined, {
       workspaces: [
@@ -1133,6 +1133,7 @@ describe("App integration", () => {
 
     await screen.findByTestId("project-navigator");
     await selectSurface(user, "Context");
+    const alfredWorkspace = screen.getByRole("tab", { name: "Alfred workspace" });
     const clientWorkspace = screen.getByRole("tab", { name: "ClientApp workspace" });
 
     await user.click(clientWorkspace);
@@ -1140,6 +1141,12 @@ describe("App integration", () => {
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
     await waitFor(() => expect(clientWorkspace).toHaveFocus());
     expect(screen.getByRole("button", { name: "Open Surfaces menu" })).not.toHaveFocus();
+
+    await user.click(alfredWorkspace);
+
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
+    await waitFor(() => expect(alfredWorkspace).toHaveFocus());
+    expect(screen.getByRole("button", { name: "Close Context panel" })).not.toHaveFocus();
   });
 
   it("keeps every xterm host mounted when Focus hides non-selected terminal tiles", async () => {

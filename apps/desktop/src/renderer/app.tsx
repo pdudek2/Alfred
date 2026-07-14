@@ -199,6 +199,7 @@ export function App() {
   const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const prepareWorkTriggerRef = useRef<HTMLButtonElement | null>(null);
   const surfacesTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const contextFocusRequestKeyRef = useRef(0);
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
   const worktreeActionPendingRef = useRef<Set<string>>(new Set());
@@ -413,14 +414,15 @@ export function App() {
   ]);
 
   const handleToggleContextDrawer = useCallback(() => {
+    const nextOpen = !activeContextDrawerOpen;
+    if (nextOpen) contextFocusRequestKeyRef.current += 1;
     setContextDrawerOpenByWorkspace((current) => {
-      const nextOpen = !(current[activeWorkspace.id] ?? false);
       return {
         ...current,
         [activeWorkspace.id]: nextOpen,
       };
     });
-  }, [activeWorkspace.id]);
+  }, [activeContextDrawerOpen, activeWorkspace.id]);
 
   const handleCloseContextDrawer = useCallback(() => {
     setContextDrawerOpenByWorkspace((current) => {
@@ -1525,6 +1527,7 @@ export function App() {
   }, [handleFocusSessionInWorkspace]);
 
   const handleReviewBlockedSession = useCallback((workspaceId: string, sessionId: string) => {
+    contextFocusRequestKeyRef.current += 1;
     handleFocusSessionInWorkspace(workspaceId, sessionId);
     setContextDrawerOpenByWorkspace((current) => ({
       ...current,
@@ -2045,6 +2048,7 @@ export function App() {
               workspaceMenuOpen ||
               pendingDiscardConfirmation !== null
             }
+            focusRequestKey={contextFocusRequestKeyRef.current}
             previewVisible={previewVisible}
             returnFocusRef={surfacesTriggerRef}
             onCloseContext={handleCloseContextDrawer}
