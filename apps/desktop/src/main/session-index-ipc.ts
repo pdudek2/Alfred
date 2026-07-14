@@ -53,10 +53,13 @@ export async function listExternalCodexSessions({
     .sort((left, right) => right.updatedAt - left.updatedAt)
     .slice(0, Math.max(limit * 4, limit));
   const sessions: ExternalCodexSessionSummary[] = [];
+  const indexedSessionIds = new Set<string>();
 
   for (const file of newestFiles) {
     const summary = await summarizeCodexSessionFile(file.path, file.updatedAt, titleIndex);
-    if (summary) sessions.push(summary);
+    if (!summary || indexedSessionIds.has(summary.id)) continue;
+    indexedSessionIds.add(summary.id);
+    sessions.push(summary);
     if (sessions.length >= limit) break;
   }
 

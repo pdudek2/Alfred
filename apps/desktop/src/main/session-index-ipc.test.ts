@@ -148,6 +148,36 @@ describe("session-index IPC", () => {
     expect(result.map((session) => session.title)).toEqual(["Code quality review", "Spec compliance review"]);
   });
 
+  it("deduplicates rollout files for the same Codex session and keeps the newest summary", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const olderDir = path.join(codexHome, "sessions", "2026", "06", "18");
+    const newerDir = path.join(codexHome, "sessions", "2026", "06", "19");
+    const sessionId = "019eee66-1111-7222-8333-444444444444";
+    const olderPath = path.join(olderDir, `rollout-older-${sessionId}.jsonl`);
+    const newerPath = path.join(newerDir, `rollout-newer-${sessionId}.jsonl`);
+    await mkdir(olderDir, { recursive: true });
+    await mkdir(newerDir, { recursive: true });
+    await writeFile(
+      olderPath,
+      codexSessionLines({ id: sessionId, cwd: "/Users/patryk/Desktop/Alfred", messages: ["Older title"] }),
+    );
+    await writeFile(
+      newerPath,
+      codexSessionLines({ id: sessionId, cwd: "/Users/patryk/Desktop/Alfred", messages: ["Newest title"] }),
+    );
+    await utimes(olderPath, new Date("2026-06-18T08:00:00.000Z"), new Date("2026-06-18T08:00:00.000Z"));
+    await utimes(newerPath, new Date("2026-06-19T08:00:00.000Z"), new Date("2026-06-19T08:00:00.000Z"));
+
+    const result = await listExternalCodexSessions({ codexHome });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      id: sessionId,
+      title: "Newest title",
+      transcriptPath: newerPath,
+    });
+  });
+
   it("finds the newest Codex session after scanning more than the legacy traversal cap", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
     const oldSessionDir = path.join(codexHome, "sessions", "2026", "06", "18");
