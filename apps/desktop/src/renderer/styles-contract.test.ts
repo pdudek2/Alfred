@@ -895,6 +895,25 @@ describe("renderer CSS contracts", () => {
     expect(focusPeek[0]).toContain("content: attr(data-label)");
   });
 
+  it("keeps the project session disclosure focusable in both 46px navigator modes", () => {
+    const manualRailDisclosure = topLevelExactRuleBodies(
+      ".project-navigator.is-collapsed .project-disclosure",
+    );
+    expect(manualRailDisclosure).toHaveLength(1);
+    expect(manualRailDisclosure[0]).toContain("display: flex");
+    expect(manualRailDisclosure[0]).toContain("width: 24px");
+    expect(manualRailDisclosure[0]).not.toContain("display: none");
+
+    const forcedRailDisclosure = mediaExactRuleBodies(
+      "(max-width: 1180px)",
+      ".project-navigator .project-disclosure",
+    );
+    expect(forcedRailDisclosure).toHaveLength(1);
+    expect(forcedRailDisclosure[0]).toContain("display: flex");
+    expect(forcedRailDisclosure[0]).toContain("width: 24px");
+    expect(forcedRailDisclosure[0]).not.toContain("display: none");
+  });
+
   it("keeps the single workspace actions owner operable in the forced narrow rail", () => {
     const actions = mediaExactRuleBodies(
       "(max-width: 1180px)",

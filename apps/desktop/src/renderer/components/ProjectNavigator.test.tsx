@@ -234,12 +234,27 @@ describe("ProjectNavigator", () => {
     );
   });
 
-  it("renders one destination tree in collapsed mode", () => {
+  it("keeps one destination tree and an operable session disclosure in collapsed mode", async () => {
+    const user = userEvent.setup();
     const { container } = renderNavigator({ collapsed: true });
 
     expect(container.querySelector(".project-navigator")).toHaveClass("is-collapsed");
     expect(screen.getAllByRole("tab")).toHaveLength(5);
     expect(container.querySelectorAll('[role="tablist"]')).toHaveLength(1);
+
+    const disclosure = screen.getByRole("button", { name: "Collapse Alfred sessions" });
+    expect(disclosure).toHaveAttribute("aria-expanded", "true");
+    disclosure.focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("button", { name: "Expand Alfred sessions" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    await user.keyboard(" ");
+    expect(screen.getByRole("button", { name: "Collapse Alfred sessions" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
   });
 
   it("omits Free Chats when there are no matching live sessions", () => {

@@ -970,7 +970,6 @@ button:focus-visible {
 .project-navigator.is-collapsed .project-navigator-header > strong,
 .project-navigator.is-collapsed .project-row-label,
 .project-navigator.is-collapsed .project-row-button kbd,
-.project-navigator.is-collapsed .project-disclosure,
 .project-navigator.is-collapsed .project-workspace-actions,
 .project-navigator.is-collapsed .project-session-title,
 .project-navigator.is-collapsed .project-overflow-button > span:first-child,
@@ -981,6 +980,13 @@ button:focus-visible {
 
 .project-navigator.is-collapsed .project-row {
   display: block;
+}
+
+.project-navigator.is-collapsed .project-disclosure {
+  width: 24px;
+  height: 24px;
+  margin: 0 auto 2px;
+  display: flex;
 }
 
 .project-navigator.is-collapsed .project-row-button {
@@ -1361,7 +1367,6 @@ button:focus-visible {
   .project-navigator .project-navigator-header > strong,
   .project-navigator .project-row-label,
   .project-navigator .project-row-button kbd,
-  .project-navigator .project-disclosure,
   .project-navigator .project-session-title,
   .project-navigator .project-overflow-button > span:first-child,
   .project-navigator .free-chat-section > header strong,
@@ -1371,6 +1376,13 @@ button:focus-visible {
 
   .project-navigator .project-row {
     display: block;
+  }
+
+  .project-navigator .project-disclosure {
+    width: 24px;
+    height: 24px;
+    margin: 0 auto 2px;
+    display: flex;
   }
 
   .project-navigator .project-workspace-actions {
