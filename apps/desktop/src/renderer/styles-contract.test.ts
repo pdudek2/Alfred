@@ -915,6 +915,12 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps the single workspace actions owner operable in the forced narrow rail", () => {
+    const widePopover = topLevelExactRuleBodies(
+      ".project-workspace-actions .workspace-popover",
+    );
+    expect(widePopover).toHaveLength(1);
+    expect(widePopover[0]).toContain("position: fixed");
+
     const actions = mediaExactRuleBodies(
       "(max-width: 1180px)",
       ".project-navigator .project-workspace-actions",
@@ -929,7 +935,7 @@ describe("renderer CSS contracts", () => {
     );
     expect(popover).toHaveLength(1);
     expect(popover[0]).toContain("position: fixed");
-    expect(popover[0]).toContain("left: 48px");
+    expect(popover[0]).not.toMatch(/\b(?:left|top):/);
   });
 
   it("keeps narrow Inbox and History surfaces beside the 46px navigator at the forced-rail breakpoint", () => {

@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceActionsMenu, type WorkspaceActionsMenuProps } from "./WorkspaceActionsMenu";
@@ -108,5 +108,42 @@ describe("WorkspaceActionsMenu", () => {
     render(<WorkspaceActionsMenu {...props({ canCloseWorkspace: false })} />);
 
     expect(screen.queryByRole("button", { name: "Close workspace" })).not.toBeInTheDocument();
+  });
+
+  it("closes on document Escape even when focus is outside the menu", () => {
+    const menuProps = props();
+    render(<WorkspaceActionsMenu {...menuProps} />);
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    outside.focus();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(menuProps.onClose).toHaveBeenCalledOnce();
+    outside.remove();
+  });
+
+  it("positions the open popover against its trigger in viewport coordinates", () => {
+    const menuProps = props({ menuOpen: false });
+    const { rerender } = render(<WorkspaceActionsMenu {...menuProps} />);
+    const trigger = screen.getByRole("button", { name: "Workspace menu for Alfred" });
+    vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue({
+      bottom: 72,
+      height: 28,
+      left: 220,
+      right: 248,
+      top: 44,
+      width: 28,
+      x: 220,
+      y: 44,
+      toJSON: () => ({}),
+    });
+
+    rerender(<WorkspaceActionsMenu {...menuProps} menuOpen />);
+
+    expect(screen.getByRole("dialog", { name: "Workspace actions" })).toHaveStyle({
+      left: "218px",
+      top: "80px",
+    });
   });
 });

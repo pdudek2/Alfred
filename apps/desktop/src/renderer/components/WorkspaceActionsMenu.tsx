@@ -1,5 +1,5 @@
 import { ChevronDown, FolderOpen, ListChecks, Pencil, SquareTerminal, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import type { WorkspaceMissionBrief } from "../../shared/workspace-ipc";
 import { shortenPath } from "../path-display";
 
@@ -45,6 +45,8 @@ export function WorkspaceActionsMenu({
   onToggleMenu,
 }: WorkspaceActionsMenuProps) {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const missionInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [missionEditing, setMissionEditing] = useState(false);
@@ -58,6 +60,10 @@ export function WorkspaceActionsMenu({
       : "Workspace actions";
   const missionActionLabel = missionBrief ? "Edit mission brief..." : "Add mission brief...";
   const missionSummary = missionBrief?.goal || missionBrief?.doneWhen[0] || "Give Alfred persistent context";
+  const handleMissionCancel = () => {
+    setMissionDraft(missionBriefToDraft(missionBrief));
+    setMissionEditing(false);
+  };
 
   useEffect(() => {
     if (!renameEditing) return;
@@ -96,26 +102,56 @@ export function WorkspaceActionsMenu({
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [menuOpen, onClose]);
 
-  const handleMissionCancel = () => {
-    setMissionDraft(missionBriefToDraft(missionBrief));
-    setMissionEditing(false);
-  };
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (renameEditing) onCancelRename();
+      else if (missionEditing) {
+        setMissionDraft(missionBriefToDraft(missionBrief));
+        setMissionEditing(false);
+      } else onClose();
+      triggerRef.current?.focus();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [menuOpen, missionBrief, missionEditing, onCancelRename, onClose, renameEditing]);
+
+  useLayoutEffect(() => {
+    if (!menuOpen) return;
+    const positionPopover = () => {
+      const trigger = triggerRef.current;
+      const popover = popoverRef.current;
+      if (!trigger || !popover) return;
+      const triggerRect = trigger.getBoundingClientRect();
+      const viewportPadding = 8;
+      const preferredLeft = triggerRect.left - 2;
+      const preferredTop = triggerRect.bottom + 8;
+      const maxLeft = Math.max(viewportPadding, window.innerWidth - popover.offsetWidth - viewportPadding);
+      const maxTop = Math.max(viewportPadding, window.innerHeight - popover.offsetHeight - viewportPadding);
+      popover.style.left = `${Math.max(viewportPadding, Math.min(preferredLeft, maxLeft))}px`;
+      popover.style.top = `${Math.max(viewportPadding, Math.min(preferredTop, maxTop))}px`;
+    };
+    positionPopover();
+    window.addEventListener("resize", positionPopover);
+    window.addEventListener("scroll", positionPopover, true);
+    return () => {
+      window.removeEventListener("resize", positionPopover);
+      window.removeEventListener("scroll", positionPopover, true);
+    };
+  }, [menuOpen]);
 
   return (
     <div
       className="workspace-title-menu"
       ref={surfaceRef}
-      onKeyDown={(event) => {
-        if (event.key !== "Escape") return;
-        event.preventDefault();
-        if (renameEditing) onCancelRename();
-        else if (missionEditing) handleMissionCancel();
-        else onClose();
-      }}
     >
       <button
         type="button"
         className="workspace-title-trigger"
+        ref={triggerRef}
         aria-haspopup="dialog"
         aria-expanded={menuOpen}
         aria-label={`Workspace menu for ${workspaceLabel}`}
@@ -128,7 +164,7 @@ export function WorkspaceActionsMenu({
         <ChevronDown size={14} aria-hidden="true" />
       </button>
       {menuOpen && (
-        <div className="workspace-popover" role="dialog" aria-label={popoverLabel}>
+        <div className="workspace-popover" ref={popoverRef} role="dialog" aria-label={popoverLabel}>
           {renameEditing ? (
             <form
               className="workspace-rename-form"
