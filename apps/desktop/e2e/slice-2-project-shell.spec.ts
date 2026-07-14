@@ -126,10 +126,13 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   expect(narrow.documentOverflow).toBe(0);
   expect(narrow.activeControlOverflow).toBeLessThanOrEqual(0.5);
   expect(narrow.visibleTileCount).toBe(6);
+  expect(narrow.visibleTileHeaderHeights.length).toBeGreaterThan(0);
+  expect(narrow.visibleTileHeaderHeights).toHaveLength(narrow.visibleTileCount);
   expect(narrow.visibleTileHeaderHeights.every((height) => height === 30)).toBe(true);
   expect(await isSameConnectedNode(before, alphaScreen)).toBe(true);
 
   const narrowWorkspaceActions = await operateNarrowWorkspaceActions(page, navigator);
+  harness.assertNoRuntimeErrors();
 
   const screenshotSha256 = {
     "project-shell-1120x720.png": await captureEvidence(page, "project-shell-1120x720.png"),
@@ -180,7 +183,6 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
     contentType: "image/png",
   });
 
-  harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();
 });
 
