@@ -6,6 +6,7 @@ import { WorkspacePreviewPanel, type WorkspacePreviewPanelProps } from "./Worksp
 export type ContextColumnProps = {
   contextOpen: boolean;
   dismissalSuspended?: boolean;
+  focusRequestKey: number;
   previewVisible: boolean;
   returnFocusRef: RefObject<HTMLButtonElement | null>;
   timelineProps: AgentTimelinePanelProps;
@@ -16,6 +17,7 @@ export type ContextColumnProps = {
 export function ContextColumn({
   contextOpen,
   dismissalSuspended = false,
+  focusRequestKey,
   previewVisible,
   returnFocusRef,
   timelineProps,
@@ -23,8 +25,9 @@ export function ContextColumn({
   onCloseContext,
 }: ContextColumnProps) {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const handledFocusRequestKeyRef = useRef(0);
   const restoreFocusOnCloseRef = useRef(false);
-  const wasOpenRef = useRef(false);
+  const wasOpenRef = useRef(contextOpen);
 
   const requestCloseContext = useCallback(() => {
     restoreFocusOnCloseRef.current = true;
@@ -44,18 +47,21 @@ export function ContextColumn({
   }, [contextOpen, dismissalSuspended, requestCloseContext]);
 
   useEffect(() => {
+    if (!contextOpen || focusRequestKey === handledFocusRequestKeyRef.current) return;
+    handledFocusRequestKeyRef.current = focusRequestKey;
+    if (dismissalSuspended) return;
+    const frame = requestAnimationFrame(() => closeButtonRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [contextOpen, dismissalSuspended, focusRequestKey]);
+
+  useEffect(() => {
     const wasOpen = wasOpenRef.current;
     wasOpenRef.current = contextOpen;
-    if (!wasOpen && contextOpen) {
-      if (dismissalSuspended) return;
-      const frame = requestAnimationFrame(() => closeButtonRef.current?.focus());
-      return () => cancelAnimationFrame(frame);
-    }
     if (!wasOpen || contextOpen || !restoreFocusOnCloseRef.current) return;
     restoreFocusOnCloseRef.current = false;
     const frame = requestAnimationFrame(() => returnFocusRef.current?.focus());
     return () => cancelAnimationFrame(frame);
-  }, [contextOpen, dismissalSuspended, returnFocusRef]);
+  }, [contextOpen, returnFocusRef]);
 
   return (
     <aside className={`context-column ${contextOpen ? "open" : "closed"}`} data-testid="context-column">

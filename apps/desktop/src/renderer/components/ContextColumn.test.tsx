@@ -23,6 +23,7 @@ const sessionB: SessionTile = {
 
 const baseProps = {
   contextOpen: true,
+  focusRequestKey: 0,
   previewVisible: false,
   returnFocusRef: { current: null },
   timelineProps: { session: sessionA },
@@ -94,7 +95,7 @@ describe("ContextColumn", () => {
   it("focuses the close control when Context opens", async () => {
     const { rerender } = renderContext({ contextOpen: false });
 
-    rerender(contextWith({ contextOpen: true }));
+    rerender(contextWith({ contextOpen: true, focusRequestKey: 1 }));
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Close Context panel" })).toHaveFocus());
   });
@@ -104,7 +105,7 @@ describe("ContextColumn", () => {
     const workspaceTrigger = document.createElement("button");
     document.body.append(surfacesTrigger, workspaceTrigger);
     const returnFocusRef = { current: surfacesTrigger };
-    const { rerender } = renderContext({ contextOpen: true, returnFocusRef });
+    const { rerender } = renderContext({ contextOpen: true, focusRequestKey: 1, returnFocusRef });
     await waitFor(() => expect(screen.getByRole("button", { name: "Close Context panel" })).toHaveFocus());
 
     workspaceTrigger.focus();
