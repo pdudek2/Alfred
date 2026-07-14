@@ -873,6 +873,12 @@ button:focus-visible {
   display: none;
 }
 
+.project-workspace-actions .workspace-popover {
+  position: fixed;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+}
+
 .project-session-list {
   position: relative;
   padding: 2px 0 6px 24px;
@@ -1393,8 +1399,6 @@ button:focus-visible {
 
   .project-workspace-actions .workspace-popover {
     position: fixed;
-    top: 52px;
-    left: 48px;
     width: min(390px, calc(100vw - 60px));
     max-height: calc(100vh - 64px);
     overflow-y: auto;
