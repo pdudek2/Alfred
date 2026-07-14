@@ -1816,7 +1816,7 @@ describe("renderer CSS contracts", () => {
     expect(navSectionHeader).toContain("color: var(--ink-5)");
     expect(navSectionHeader).toContain("var(--sans)");
     expect(navRow).toContain("background: transparent");
-    expect(navRow).toContain("grid-template-columns: 18px minmax(0, 1fr) auto auto auto");
+    expect(navRow).toContain("grid-template-columns: 18px minmax(0, 1fr) auto auto");
     expect(navRowTitle).toContain("text-overflow: ellipsis");
     expect(navRowTitle).toContain("white-space: nowrap");
     expect(activeWorkspace).toContain("background:");

@@ -115,6 +115,34 @@ describe("ProjectNavigator", () => {
     expect(within(screen.getByRole("group", { name: "Free Chats" })).getAllByRole("button")).toHaveLength(4);
   });
 
+  it("exposes the active project's sessions as a keyboard-operable disclosure", async () => {
+    const user = userEvent.setup();
+    renderNavigator();
+
+    const disclosure = screen.getByRole("button", { name: "Collapse Alfred sessions" });
+    const sessionGroup = screen.getByRole("group", { name: "Alfred sessions" });
+    expect(disclosure).toHaveAttribute("aria-expanded", "true");
+    expect(sessionGroup).toBeVisible();
+
+    disclosure.focus();
+    await user.keyboard("{Enter}");
+
+    expect(screen.getByRole("button", { name: "Expand Alfred sessions" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(sessionGroup).not.toBeVisible();
+
+    await user.keyboard(" ");
+
+    expect(screen.getByRole("button", { name: "Collapse Alfred sessions" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByRole("group", { name: "Alfred sessions" })).toBeVisible();
+    expect(screen.getAllByRole("tablist")).toHaveLength(1);
+  });
+
   it("routes every selection through the supplied callbacks", async () => {
     const user = userEvent.setup();
     const onSelectWorkspace = vi.fn();
@@ -163,6 +191,27 @@ describe("ProjectNavigator", () => {
     const { rerender } = renderNavigator();
     rerender(navigator({ activeWorkspaceId: "SEVEN" }));
 
+    expect(screen.getByRole("tab", { name: /SeventhProject workspace/i })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("collapses an expanded overflow when the active project remains visible", async () => {
+    const user = userEvent.setup();
+    renderNavigator();
+
+    await user.click(screen.getByRole("button", { name: "Show 2 more projects" }));
+    expect(screen.getAllByRole("tab")).toHaveLength(7);
+
+    await user.click(screen.getByRole("button", { name: "Show fewer projects" }));
+
+    expect(screen.getAllByRole("tab")).toHaveLength(5);
+    expect(screen.getByRole("button", { name: "Show 2 more projects" })).toBeInTheDocument();
+  });
+
+  it("keeps overflow expanded while it contains the active project", () => {
+    renderNavigator({ activeWorkspaceId: "SEVEN" });
+
+    expect(screen.getAllByRole("tab")).toHaveLength(7);
+    expect(screen.getByRole("button", { name: "Show fewer projects" })).toBeDisabled();
     expect(screen.getByRole("tab", { name: /SeventhProject workspace/i })).toHaveAttribute("aria-selected", "true");
   });
 
