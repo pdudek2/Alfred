@@ -14,7 +14,7 @@ import type { WorkMode } from "../terminal-desk-types";
 import type { WorkspaceReviewItem } from "../workspace-attention";
 import type { AgentKind } from "../../shared/alfred-ipc";
 import type { TerminalSessionIsolation } from "../../shared/terminal-ipc";
-import type { WorkspaceRailWorkspace } from "./WorkspaceRail";
+import type { ProjectNavigatorWorkspace } from "./ProjectNavigator";
 import { shortenPath } from "../path-display";
 
 type CommandPaletteItem = {
@@ -35,7 +35,7 @@ type CommandPaletteProps = {
   selectedSessionId: string | null;
   sessions: SessionTile[];
   shortcutModifier: string;
-  workspaces: WorkspaceRailWorkspace[];
+  workspaces: ProjectNavigatorWorkspace[];
   canCloseWorkspace: boolean;
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">, isolation?: TerminalSessionIsolation) => void;
   onAddManualSession: () => void;

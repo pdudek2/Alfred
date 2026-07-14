@@ -31,8 +31,7 @@ function isLiveSliceOneSelector(selector: string): boolean {
   return [
     ".agent-space-shell", ".desktop-frame", ".mission-bar", ".desktop-alert-stack",
     ".workspace-title", ".workspace-popover", ".workspace-rename-form", ".workspace-mission-form",
-    ".workspace-layout", ".workspace-navigation-panel", ".workspace-nav-", ".workspace-rail",
-    ".workspace-button", ".workspace-monogram", ".workspace-priority-chip", ".workspace-spacer",
+    ".workspace-layout", ".project-navigator", ".project-", ".free-chat-",
     ".alfred-mark", ".workbench-", ".session-chrome-", ".chrome-menu", ".prepare-work-popover",
     ".desktop-save-", ".recovery-",
     ".terminal-", ".tile-", ".tool-dot", ".session-status-", ".session-rename-form",
@@ -608,15 +607,15 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain("--workbench-control-height");
     expect(styles).not.toContain("--workbench-segment-height");
     expect(styles).not.toContain("--workbench-control-radius");
-    expect(styles).not.toContain(".workspace-layout.surface-inbox > .workspace-rail:not(.embedded)");
-    expect(styles).not.toContain(".workspace-layout.surface-history > .workspace-rail:not(.embedded)");
+    expect(styles).not.toContain(".workspace-rail");
+    expect(styles).not.toContain(".workspace-nav-");
   });
 
-  it("keeps one winning workspace button weight declaration", () => {
-    const workspaceButton = singleTopLevelRuleBodyIn(styles, ".workspace-button");
+  it("keeps one winning project row weight declaration", () => {
+    const workspaceButton = singleTopLevelRuleBodyIn(styles, ".project-row-button");
 
-    expect(workspaceButton.match(/font-weight:/g)).toHaveLength(1);
-    expect(workspaceButton).toContain("font-weight: 500");
+    expect(workspaceButton.match(/font:/g)).toHaveLength(1);
+    expect(workspaceButton).toContain("font: 600 12px/1.2 var(--sans)");
   });
 
   it("drops proven orphan compatibility families", () => {
@@ -800,35 +799,27 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".chrome-menu-popover", ["z-index: 120", "box-shadow:"]);
     expectCanonicalBase(".prepare-work-popover", ["width: 560px", "max-width: calc(100vw - 24px)"]);
 
-    expectCanonicalBase(".workspace-navigation-panel", [
+    expectCanonicalBase(".project-navigator", [
       "min-width: 0",
       "display: grid",
-      "grid-template-rows: auto minmax(0, 1fr)",
+      "grid-template-rows: auto minmax(0, 1fr) auto",
+      "width: 248px",
     ]);
-    expectCanonicalBase(".workspace-nav-head", ["display: grid", "align-items: center"]);
-    expectCanonicalBase(".workspace-nav-avatar", ["display: grid", "place-items: center"]);
-    const workspaceNavScrollBodies = exactRuleBodies(".workspace-nav-scroll");
+    expectCanonicalBase(".project-navigator.is-collapsed", ["width: 46px"]);
+    const workspaceNavScrollBodies = exactRuleBodies(".project-navigator-scroll");
     expect(workspaceNavScrollBodies).toHaveLength(1);
-    expect(workspaceNavScrollBodies[0]).toContain("overflow: auto");
+    expect(workspaceNavScrollBodies[0]).toContain("overflow-y: auto");
+    expect(workspaceNavScrollBodies[0]).toContain("overflow-x: hidden");
     expect(workspaceNavScrollBodies[0]).toContain("scrollbar-color: var(--ink-3) transparent");
-    expectCanonicalBase(".workspace-nav-section", ["display: grid", "gap: 7px"]);
-    expectCanonicalBase(".workspace-nav-section > header", ["text-transform: uppercase"]);
-    expectCanonicalBase(".workspace-nav-list", ["display: grid", "gap: 6px"]);
-    expectCanonicalBase(".workspace-nav-more-button", ["min-height: 32px"]);
-    expectCanonicalBase(".workspace-nav-row", ["display: grid", "width: 100%"]);
-    expectCanonicalBase(".workspace-nav-mark", ["display: grid", "place-items: center"]);
-    expectCanonicalBase(".workspace-nav-mark.codex", ["color: var(--ink-6)"]);
-    expectCanonicalBase(".workspace-nav-mark.claude", ["color: var(--ink-6)"]);
-    expectCanonicalBase(".workspace-nav-mark.alert", ["color: var(--ink-6)"]);
-    // Shared navigation microcopy typography plus the empty-state color owner.
-    const workspaceNavEmptyBodies = exactRuleBodies(".workspace-nav-empty");
-    expect(workspaceNavEmptyBodies).toHaveLength(2);
-    expect(workspaceNavEmptyBodies.some((body) => body.includes("color: var(--ink-5)"))).toBe(true);
+    expectCanonicalBase(".project-row-button", ["display: grid", "width: 100%"]);
+    expectCanonicalBase(".project-session", ["display: grid", "width: 100%"]);
+    expectCanonicalBase(".project-row-label", ["text-overflow: ellipsis", "white-space: nowrap"]);
+    expectCanonicalBase(".project-session-title", ["text-overflow: ellipsis", "white-space: nowrap"]);
   });
 
   it("keeps Slice A interaction winners adjacent to their canonical components", () => {
-    const workspaceNavHover = topLevelExactRuleBodies(".workspace-nav-row:hover");
-    const workspaceNavFocus = topLevelExactRuleBodies(".workspace-nav-row:focus-visible");
+    const workspaceNavHover = topLevelExactRuleBodies(".project-row-button:hover");
+    const workspaceNavFocus = topLevelExactRuleBodies(".project-row-button:focus-visible");
     expect(workspaceNavHover).toHaveLength(1);
     expect(workspaceNavFocus).toHaveLength(1);
     expect(workspaceNavHover[0]).toContain("background: var(--ink-2)");
@@ -886,7 +877,7 @@ describe("renderer CSS contracts", () => {
     expectTopLevelOwnerWithin(".context-drawer.open", ["display: flex"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-column.closed", ["display: none"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-column.open", ["pointer-events: auto"], contextStart, contextEnd);
-    expectCanonicalBase(".workspace-layout", ["grid-template-columns: minmax(196px, 232px) minmax(0, 1fr)"]);
+    expectCanonicalBase(".workspace-layout", ["grid-template-columns: auto minmax(0, 1fr)"]);
     expectCanonicalBase(".workspace-layout:has(.context-column.open)", ["minmax(304px, 340px)"]);
     expectTopLevelOwnerWithin(".workspace-layout > .context-column.open", ["position: static", "grid-column: 3", "display: flex"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".workspace-layout > .context-column.closed", ["display: none"], contextStart, contextEnd);
@@ -1334,7 +1325,7 @@ describe("renderer CSS contracts", () => {
   it("keeps legacy gradients out of the main clean flat surfaces", () => {
     const workspacePopover = blockFor(".workspace-popover");
     const terminalTile = exactBlockFor(".terminal-tile");
-    const activeWorkspace = exactBlockFor(".workspace-button.active");
+    const activeWorkspace = exactBlockFor('.project-row-button[aria-selected="true"]');
 
     expect(workspacePopover).toContain("background:");
     expect(workspacePopover).not.toContain("linear-gradient");
@@ -1352,8 +1343,8 @@ describe("renderer CSS contracts", () => {
     const openColumn = singleTopLevelRuleBodyIn(styles, ".workspace-layout > .context-column.open");
     const closedColumn = singleTopLevelRuleBodyIn(styles, ".workspace-layout > .context-column.closed");
 
-    expect(closedLayout).toContain("grid-template-columns: minmax(196px, 232px) minmax(0, 1fr)");
-    expect(openLayout).toContain("grid-template-columns: minmax(196px, 232px) minmax(0, 1fr) minmax(304px, 340px)");
+    expect(closedLayout).toContain("grid-template-columns: auto minmax(0, 1fr)");
+    expect(openLayout).toContain("grid-template-columns: auto minmax(0, 1fr) minmax(304px, 340px)");
     expect(openColumn).toContain("position: static");
     expect(closedColumn).toContain("display: none");
   });
@@ -1369,7 +1360,7 @@ describe("renderer CSS contracts", () => {
   });
 
   it("styles workspace scrollbars so native white rails do not dominate the shell", () => {
-    const workspaceScroll = exactBlockFor(".workspace-nav-scroll");
+    const workspaceScroll = exactBlockFor(".project-navigator-scroll");
     const inboxScroll = exactBlockFor(".inbox-section-stack");
     const observatoryScroll = exactBlockFor(".observatory-surface");
     const scrollbarThumb = blockFor(".inbox-section-stack::-webkit-scrollbar-thumb");
@@ -1426,15 +1417,12 @@ describe("renderer CSS contracts", () => {
     expect(mediaExactRuleBodies("(max-width: 1120px)", ".session-chrome-context")).toHaveLength(1);
   });
 
-  it("lays workspace title and detail out inline in the one bar", () => {
-    const workspaceTitle = blockFor(".workspace-title-trigger > span");
-    const sharedMissionText = exactRuleBodies(".mission-name span");
+  it("keeps workspace actions compact inside the active project row", () => {
+    const workspaceTitle = blockFor(".project-workspace-actions .workspace-title-trigger");
 
-    expect(workspaceTitle).toContain("display: flex");
-    expect(workspaceTitle).toContain("flex-direction: row");
-    expect(workspaceTitle).toContain("align-items: baseline");
-    expect(sharedMissionText).not.toHaveLength(0);
-    for (const body of sharedMissionText) expect(body).not.toContain("display: block");
+    expect(workspaceTitle).toContain("width: 28px");
+    expect(workspaceTitle).toContain("height: 28px");
+    expect(blockFor(".project-workspace-actions .workspace-title-trigger > span")).toContain("display: none");
   });
 
   it("uses only the disclosure caret marker for Inbox commands", () => {
@@ -1685,32 +1673,23 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain(".agent-section-heading");
   });
 
-  it("keeps sidebar radar hierarchy quiet but readable", () => {
-    const navPanel = exactBlockFor(".workspace-navigation-panel");
-    const navSectionHeader = blockFor(".workspace-nav-section > header");
-    const navRow = blockFor(".workspace-nav-row");
-    const navRowTitle = blockFor(".workspace-nav-row strong");
-    const navRowMeta = blockFor(".workspace-nav-row small");
-    const inactiveWorkspaceTitle = blockFor(".workspace-button:not(.active) .workspace-button-details strong");
-    const inactiveWorkspaceMeta = blockFor(".workspace-button:not(.active) .workspace-button-details span");
-    const activeWorkspace = blockFor(".workspace-button.active");
+  it("keeps project navigator hierarchy quiet but readable", () => {
+    const navPanel = singleTopLevelRuleBodyIn(styles, ".project-navigator");
+    const navSectionHeader = singleTopLevelRuleBodyIn(styles, ".free-chat-section > header");
+    const navRow = singleTopLevelRuleBodyIn(styles, ".project-row-button");
+    const navRowTitle = blockFor(".project-row-label,\n.project-session-title");
+    const activeWorkspace = blockFor('.project-row-button[aria-selected="true"]');
 
     expect(navPanel).toContain("background: var(--ink-1)");
     expect(navSectionHeader).toContain("color: var(--ink-5)");
     expect(navSectionHeader).toContain("var(--sans)");
     expect(navRow).toContain("background: transparent");
-    expect(navRow).toContain("grid-template-columns: 26px minmax(0, 1fr) auto");
-    expect(navRowTitle).toContain("color: var(--ink-6)");
-    expect(navRowTitle).toContain("font: 650 13px/1.22 var(--sans)");
+    expect(navRow).toContain("grid-template-columns: 18px minmax(0, 1fr) auto auto auto");
     expect(navRowTitle).toContain("text-overflow: ellipsis");
     expect(navRowTitle).toContain("white-space: nowrap");
-    expect(navRowMeta).toContain("color: var(--ink-5)");
-    expect(inactiveWorkspaceTitle).toContain("color: var(--ink-6)");
-    expect(inactiveWorkspaceTitle).toContain("font: 600 12px/1.2 var(--sans)");
-    expect(inactiveWorkspaceMeta).toContain("color: var(--ink-5)");
     expect(activeWorkspace).toContain("background:");
     expect(activeWorkspace).not.toContain("linear-gradient");
-    expect(activeWorkspace).toContain("box-shadow: none");
+    expect(activeWorkspace).toContain("color: var(--ink-7)");
   });
 
   it("keeps overlays opaque and tactical instead of glassy", () => {

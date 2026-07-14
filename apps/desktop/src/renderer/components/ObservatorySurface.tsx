@@ -8,7 +8,7 @@ import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import { shortenPath } from "../path-display";
 import { findWorkspaceForCwd } from "../workspace-path-matching";
-import type { WorkspaceRailWorkspace } from "./WorkspaceRail";
+import type { ProjectNavigatorWorkspace } from "./ProjectNavigator";
 
 type ObservatorySurfaceProps = {
   activeWorkspaceId: string;
@@ -17,7 +17,7 @@ type ObservatorySurfaceProps = {
   externalSessionsError?: string | null;
   loadingExternalSessions: boolean;
   sessions: SessionTile[];
-  workspaces: WorkspaceRailWorkspace[];
+  workspaces: ProjectNavigatorWorkspace[];
   onOpenManagedSession: (workspaceId: string, sessionId: string) => void;
   onRefreshExternalSessions: () => void;
   onResumeExternalCodexSession: (session: ExternalCodexSessionSummary) => void;
@@ -338,7 +338,7 @@ function buildObservatoryRows({
 }: {
   externalCodexSessions: ExternalCodexSessionSummary[];
   sessions: SessionTile[];
-  workspaces: WorkspaceRailWorkspace[];
+  workspaces: ProjectNavigatorWorkspace[];
 }): ObservatoryRow[] {
   const workspaceById = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
   const managedRows: ObservatoryRow[] = sessions.map((session) => {

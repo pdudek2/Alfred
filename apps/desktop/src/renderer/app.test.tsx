@@ -610,7 +610,7 @@ describe("App integration", () => {
     installDesktopBridge();
     render(<App />);
 
-    expect(await screen.findByTestId("workspace-navigation-panel")).toBeInTheDocument();
+    expect(await screen.findByTestId("project-navigator")).toBeInTheDocument();
     expect(screen.queryByTestId("primary-nav-rail")).not.toBeInTheDocument();
     const workbenchSurface = screen.getByTestId("workbench-surface");
     const workbenchHeader = screen.getByTestId("workbench-header");
@@ -645,18 +645,18 @@ describe("App integration", () => {
     expect(screen.getByRole("dialog", { name: "Local Data & Privacy" })).toBeInTheDocument();
   });
 
-  it("places current functionality inside the workspace navigation panel", async () => {
+  it("places projects and active sessions inside the project navigator", async () => {
     installDesktopBridge();
     render(<App />);
 
-    const panel = await screen.findByTestId("workspace-navigation-panel");
-    expect(within(panel).getByText("Terminals")).toBeInTheDocument();
-    expect(within(panel).getByText("Inbox")).toBeInTheDocument();
-    expect(within(panel).getByText("Workspaces")).toBeInTheDocument();
+    const panel = await screen.findByTestId("project-navigator");
+    expect(within(panel).getByText("Projects")).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toBeInTheDocument();
+    expect(within(panel).queryByText("Inbox")).not.toBeInTheDocument();
   });
 
-  it("keeps workspace navigation inbox copy concise instead of catch-all category text", async () => {
+  it("propagates review attention to the project and keeps the global Inbox count", async () => {
     installDesktopBridge(
       undefined,
       null,
@@ -680,11 +680,8 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const panel = await screen.findByTestId("workspace-navigation-panel");
-    expect(within(panel).getByText("1 item waiting")).toBeInTheDocument();
-    expect(within(panel).queryByText(/decisions, blocked runs, recovery/i)).not.toBeInTheDocument();
-    expect(within(panel).queryByText("Needs review")).not.toBeInTheDocument();
-    expect(panel.querySelector(".workspace-nav-mark.alert")).not.toBeNull();
+    const panel = await screen.findByTestId("project-navigator");
+    expect(within(panel).getByRole("tab", { name: /Alfred workspace/i })).toHaveAttribute("data-attention", "true");
 
     const inboxButton = screen.getByRole("button", { name: "Open Inbox surface, 1 item" });
     expect(inboxButton).toHaveAccessibleName("Open Inbox surface, 1 item");
@@ -692,30 +689,30 @@ describe("App integration", () => {
     expect(inboxButton.querySelector(".workbench-attention-count")).toHaveTextContent("1");
   });
 
-  it("keeps sidebar section headers free of count badges", async () => {
+  it("keeps the project heading free of count badges", async () => {
     installDesktopBridge();
     render(<App />);
 
-    const panel = await screen.findByTestId("workspace-navigation-panel");
-    expect(panel.querySelectorAll(".workspace-nav-section > header strong")).toHaveLength(0);
+    const panel = await screen.findByTestId("project-navigator");
+    expect(within(panel).getByText("Projects")).toHaveTextContent("Projects");
+    expect(within(panel).queryByText(/Projects \d/)).not.toBeInTheDocument();
   });
 
-  it("shows the inbox as a quiet single row when clear", async () => {
+  it("keeps project rows free of attention markers when the review queue is clear", async () => {
     installDesktopBridge();
     render(<App />);
 
-    const panel = await screen.findByTestId("workspace-navigation-panel");
-    const inboxRow = within(panel).getByRole("button", { name: /Inbox/ });
-    expect(within(inboxRow).getByText("Clear")).toBeInTheDocument();
-    expect(inboxRow.querySelector(".workspace-nav-mark.alert")).toBeNull();
+    const panel = await screen.findByTestId("project-navigator");
+    expect(within(panel).getByRole("tab", { name: /Alfred workspace/i })).not.toHaveAttribute("data-attention");
+    expect(panel.querySelector(".project-attention-dot")).toBeNull();
   });
 
   it("does not render an empty Free Chats section when there are no scratch chats", async () => {
     installDesktopBridge();
     render(<App />);
 
-    expect(await screen.findByLabelText("Runs and workspaces")).toBeInTheDocument();
-    expect(screen.queryByText("Free chats")).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("Projects and sessions")).toBeInTheDocument();
+    expect(screen.queryByText("Free Chats")).not.toBeInTheDocument();
     expect(screen.queryByText("No scratch chats yet.")).not.toBeInTheDocument();
   });
 
@@ -759,8 +756,8 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const panel = await screen.findByTestId("workspace-navigation-panel");
-    expect(panel.querySelectorAll(".workspace-nav-section > header strong")).toHaveLength(0);
+    const panel = await screen.findByTestId("project-navigator");
+    expect(within(panel).getByRole("group", { name: "Free Chats" })).toBeInTheDocument();
     expect(within(panel).queryByText(/~\/Documents\/Codex\//)).not.toBeInTheDocument();
     await user.click(within(panel).getByRole("button", { name: /Scratch API worker/i }));
 
@@ -795,7 +792,7 @@ describe("App integration", () => {
     render(<App />);
 
     expect(screen.queryByRole("tab", { name: /Workspace 14 workspace/i })).not.toBeInTheDocument();
-    await user.click(await screen.findByRole("button", { name: /Show .* more empty workspaces/i }));
+    await user.click(await screen.findByRole("button", { name: "Show 9 more projects" }));
     expect(screen.getByRole("tab", { name: /Workspace 14 workspace/i })).toBeInTheDocument();
   });
 
@@ -806,22 +803,22 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const panel = await screen.findByTestId("workspace-navigation-panel");
+    const panel = await screen.findByTestId("project-navigator");
     expect(within(panel).getByRole("button", { name: /Manual · zsh 6/i })).toBeInTheDocument();
     expect(screen.queryByLabelText("Search sessions, chats, files")).not.toBeInTheDocument();
   });
 
-  it("keeps the embedded workspace rail mounted in the navigation panel across surface switches", async () => {
+  it("keeps the project navigator mounted across surface switches", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
 
-    const panel = await screen.findByTestId("workspace-navigation-panel");
-    expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toHaveClass("embedded");
+    const panel = await screen.findByTestId("project-navigator");
+    const tablist = within(panel).getByRole("tablist", { name: /workspaces/i });
 
     await user.click(screen.getByRole("button", { name: /open inbox surface/i }));
     expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-inbox");
-    expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toHaveClass("embedded");
+    expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toBe(tablist);
     await user.click(within(panel).getByRole("button", { name: /Manual · zsh 1/i }));
     await waitFor(() => {
       expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-work");
@@ -829,7 +826,7 @@ describe("App integration", () => {
 
     await selectSurface(user, "Observatory");
     expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-history");
-    expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toHaveClass("embedded");
+    expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toBe(tablist);
   });
 
   it("opens Local Data & Privacy controls from the command palette", async () => {
@@ -933,7 +930,7 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledTimes(1);
     });
-    await screen.findByRole("tab", { name: "Alfred workspace, 1 idle" });
+    await screen.findByRole("tab", { name: "Alfred workspace" });
 
     const launchTrigger = screen.getByRole("button", { name: "Open launch menu" });
     const dispatch = await openPrepareWork(user);
@@ -1475,7 +1472,7 @@ describe("App integration", () => {
 
     const tile = await screen.findByTestId("terminal-tile");
     const collapseButton = within(tile).getByRole("button", { name: "Collapse Manual · zsh 1" });
-    await screen.findByRole("tab", { name: "Alfred workspace, 1 idle" });
+    await screen.findByRole("tab", { name: "Alfred workspace" });
 
     await act(async () => {
       tile.focus();
@@ -2278,8 +2275,8 @@ describe("App integration", () => {
     const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
     await waitFor(() => {
       expect(within(tile).getByText("unavailable")).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: "Alfred workspace, 1 unavailable" })).toBeInTheDocument();
-      expect(screen.queryByRole("tab", { name: "Alfred workspace, 1 starting" })).not.toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Alfred workspace" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Manual · zsh 1, unavailable/i })).toBeInTheDocument();
     });
   });
 
@@ -2289,15 +2286,15 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("tab", { name: "Alfred workspace, 1 idle" })).toBeInTheDocument();
-    expect(within(screen.getByTestId("workbench-header")).getByText("Alfred")).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Alfred workspace" })).toBeInTheDocument();
+    expect(within(screen.getByTestId("workbench-header")).queryByText("Alfred")).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Add workspace" }));
 
     expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
-    expect(screen.getByRole("tab", { name: "Workspace 2 workspace, empty" })).toHaveAttribute("aria-selected", "true");
-    expect(within(screen.getByTestId("workbench-header")).getByText("Workspace 2")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("status", { name: "Empty workspace" })).toHaveTextContent("Scratch workspace ready");
     expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
 
@@ -2309,7 +2306,7 @@ describe("App integration", () => {
       );
     });
 
-    await user.click(screen.getByRole("tab", { name: "Alfred workspace, 1 idle" }));
+    await user.click(screen.getByRole("tab", { name: "Alfred workspace" }));
 
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
@@ -2543,16 +2540,14 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Add workspace" }));
 
     expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
-    expect(
-      await within(screen.getByTestId("workbench-header")).findByText("Workspace 2"),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByRole("status", { name: "Empty workspace" })).toHaveTextContent("Workspace 2");
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "close current");
 
-    expect(within(screen.getByTestId("workbench-header")).queryByText("Workspace 2")).not.toBeInTheDocument();
-    expect(within(screen.getByTestId("workbench-header")).getByText("Alfred")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Workspace 2 workspace" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Alfred workspace" })).toHaveAttribute("aria-selected", "true");
     await waitFor(() => {
       expect(setWorkspaceState).toHaveBeenLastCalledWith({
         workspaces: [
@@ -2574,11 +2569,11 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("tab", { name: "Workspace 2 workspace, 1 idle" })).toHaveAttribute(
+    expect(await screen.findByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
-    expect(within(screen.getByTestId("workbench-header")).getByText("Workspace 2")).toBeInTheDocument();
+    expect(within(screen.getByTestId("workbench-header")).queryByText("Workspace 2")).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({ cwd: "/tmp/workspace-2" }));
@@ -2673,7 +2668,7 @@ describe("App integration", () => {
     expect(await screen.findByRole("status", { name: "Empty workspace" })).toHaveTextContent("Workspace 2");
     expect(createTerminal).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole("tab", { name: "Alfred workspace, 1 starting" }));
+    await user.click(screen.getByRole("tab", { name: "Alfred workspace" }));
 
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     expect(createTerminal).toHaveBeenCalledTimes(1);
@@ -3199,9 +3194,7 @@ describe("App integration", () => {
     await submitCommandPalette(user, "scratch");
 
     expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
-    expect(
-      await within(screen.getByTestId("workbench-header")).findByText("Workspace 2"),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute("aria-selected", "true");
     expect(setWorkspaceState).toHaveBeenLastCalledWith({
       workspaces: [
         { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
@@ -3214,7 +3207,7 @@ describe("App integration", () => {
     await submitCommandPalette(user, "alfred");
 
     await waitFor(() => {
-      expect(screen.getByRole("tab", { name: "Alfred workspace, 2 idle" })).toHaveAttribute(
+      expect(screen.getByRole("tab", { name: "Alfred workspace" })).toHaveAttribute(
         "aria-selected",
         "true",
       );
@@ -3856,7 +3849,7 @@ describe("App integration", () => {
     await user.click(clientItem!.querySelector<HTMLButtonElement>(".review-surface-primary")!);
 
     expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /ClientApp workspace, 1 waiting/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /ClientApp workspace/i })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
 

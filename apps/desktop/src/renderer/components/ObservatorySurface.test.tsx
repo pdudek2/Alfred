@@ -5,9 +5,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ExternalCodexSessionSummary } from "../../shared/session-index-ipc";
 import type { SessionTile } from "../session-state";
 import { ObservatorySurface } from "./ObservatorySurface";
-import type { WorkspaceRailWorkspace } from "./WorkspaceRail";
+import type { ProjectNavigatorWorkspace } from "./ProjectNavigator";
 
-const workspaces: WorkspaceRailWorkspace[] = [
+const workspaces: ProjectNavigatorWorkspace[] = [
   { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
   { id: "IRO", label: "IronLog", shortLabel: "IRO", rootPath: "/Users/patryk/Desktop/IronLog", gitBranch: "main" },
 ];
