@@ -2042,6 +2042,7 @@ export function App() {
               blockedReason={composerBlockedReason}
               dispatchTarget={activeDispatchTarget}
               lastDispatchDestination={lastDispatchDestination}
+              requestError={alfredStatus.kind === "error" ? alfredStatus.error.message : undefined}
               thinking={isThinking(alfredStatus)}
               disabled={commandPaletteOpen || privacyPanelOpen}
               onBlockedAction={

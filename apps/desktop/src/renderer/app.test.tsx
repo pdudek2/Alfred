@@ -3109,6 +3109,26 @@ describe("App integration", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Open Surfaces menu" })).toHaveFocus());
   });
 
+  it("lets Context consume Escape before a previously entered Focus mode", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await user.click(screen.getByRole("button", { name: "Focus" }));
+    expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
+
+    await selectSurface(user, "Context");
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
+    expect(screen.getByTestId("context-column")).toHaveClass("closed");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open Surfaces menu" })).toHaveFocus());
+  });
+
   it("focus mode isolates the selected session and keeps navigator selection available", async () => {
     const { setWorkspaceLayout } = installDesktopBridge(undefined, null, [
       {
@@ -5872,5 +5892,6 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
     expect(composer).toHaveValue("retry this plan");
+    expect(await screen.findByRole("alert")).toHaveTextContent("OpenRouter is unreachable.");
   });
 });
