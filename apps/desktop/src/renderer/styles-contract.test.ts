@@ -817,6 +817,51 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".project-session-title", ["text-overflow: ellipsis", "white-space: nowrap"]);
   });
 
+  it("keeps the forced narrow navigator peekable and its toggle honest", () => {
+    const forcedRail = mediaExactRuleBodies("(max-width: 1180px)", ".project-navigator");
+    expect(forcedRail).toHaveLength(1);
+    expect(forcedRail[0]).toContain("width: 46px");
+
+    const hiddenToggle = mediaExactRuleBodies("(max-width: 1180px)", ".project-navigator-collapse");
+    expect(hiddenToggle).toHaveLength(1);
+    expect(hiddenToggle[0]).toContain("display: none");
+
+    const hoverPeek = mediaExactRuleBodies(
+      "(max-width: 1180px)",
+      ".project-navigator .project-row-button:hover::after",
+    );
+    const focusPeek = mediaExactRuleBodies(
+      "(max-width: 1180px)",
+      ".project-navigator:focus-within .project-row-button:focus-visible::after",
+    );
+    expect(hoverPeek).toHaveLength(1);
+    expect(focusPeek).toHaveLength(1);
+    expect(hoverPeek[0]).toContain("content: attr(data-label)");
+    expect(focusPeek[0]).toContain("content: attr(data-label)");
+  });
+
+  it("keeps narrow Inbox and History surfaces beside the 46px navigator", () => {
+    for (const selector of [".workspace-layout.surface-inbox", ".workspace-layout.surface-history"]) {
+      const layout = mediaExactRuleBodies("(max-width: 980px)", selector);
+      expect(layout.length).toBeGreaterThan(0);
+      expect(layout.at(-1)).toContain("grid-template-columns: 46px minmax(0, 1fr)");
+    }
+
+    const navigatorPlacement = mediaExactRuleBodies(
+      "(max-width: 980px)",
+      ".workspace-layout.surface-inbox .project-navigator",
+    );
+    const surfacePlacement = mediaExactRuleBodies(
+      "(max-width: 980px)",
+      ".workspace-layout.surface-inbox > .orchestrator-surface",
+    );
+    expect(navigatorPlacement).toHaveLength(1);
+    expect(navigatorPlacement[0]).toContain("grid-column: 1");
+    expect(surfacePlacement).toHaveLength(1);
+    expect(surfacePlacement[0]).toContain("grid-column: 2");
+    expect(surfacePlacement[0]).toContain("min-width: 0");
+  });
+
   it("keeps Slice A interaction winners adjacent to their canonical components", () => {
     const workspaceNavHover = topLevelExactRuleBodies(".project-row-button:hover");
     const workspaceNavFocus = topLevelExactRuleBodies(".project-row-button:focus-visible");
