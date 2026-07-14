@@ -510,15 +510,18 @@ export function App() {
   const runShellAction = useCallback(async (
     action: () => Promise<ShellActionResult> | undefined,
     fallbackMessage: string,
-  ) => {
+  ): Promise<boolean> => {
     setShellActionError(null);
     try {
       const result = await action();
       if (!result?.ok) {
         setShellActionError(result?.error ?? fallbackMessage);
+        return false;
       }
+      return true;
     } catch (error) {
       setShellActionError(error instanceof Error ? error.message : fallbackMessage);
+      return false;
     }
   }, []);
 
@@ -548,17 +551,19 @@ export function App() {
   }, []);
 
   const handleRevealActivityFile = useCallback(async (filePath: string, cwd: string) => {
-    await runShellAction(
+    const succeeded = await runShellAction(
       () => getDesktopWorkspaceApi()?.revealPath({ cwd, path: filePath }),
       "Workspace runtime is unavailable.",
     );
+    if (!succeeded) throw new Error("Workspace runtime is unavailable.");
   }, [runShellAction]);
 
   const handleOpenExternalTerminalForCwd = useCallback(async (cwd: string) => {
-    await runShellAction(
+    const succeeded = await runShellAction(
       () => getDesktopWorkspaceApi()?.openExternalTerminal({ cwd }),
       "Workspace runtime is unavailable.",
     );
+    if (!succeeded) throw new Error("Workspace runtime is unavailable.");
   }, [runShellAction]);
 
   const handleCopySessionCwd = useCallback((cwd: string) => {

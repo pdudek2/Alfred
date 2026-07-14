@@ -4568,12 +4568,15 @@ describe("App integration", () => {
 
     await screen.findByRole("article", { name: /Codex · context-reveal/i });
     await selectSurface(user, "Context");
-    await user.click(screen.getByRole("button", { name: "Reveal folder for Codex · context-reveal" }));
+    const revealButton = screen.getByRole("button", { name: "Reveal folder for Codex · context-reveal" });
+    await user.click(revealButton);
 
     expect(revealPath).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred", path: "." });
     const alert = await screen.findByRole("alert", { name: "Shell action failed" });
     expect(alert).toHaveTextContent("Finder could not reveal the Context folder.");
     expect(screen.getAllByRole("alert", { name: "Shell action failed" })).toHaveLength(1);
+    await waitFor(() => expect(revealButton).toHaveTextContent("missing"));
+    expect(revealButton).not.toHaveTextContent("revealed");
 
     const composer = await openPrepareWork(user);
     expect(within(composer).queryByRole("alert")).not.toBeInTheDocument();
@@ -4592,14 +4595,18 @@ describe("App integration", () => {
 
     await screen.findByRole("article", { name: /Codex · context-terminal/i });
     await selectSurface(user, "Context");
-    await user.click(
-      screen.getByRole("button", { name: "Open external terminal for Codex · context-terminal" }),
+    const terminalButton = screen.getByRole(
+      "button",
+      { name: "Open external terminal for Codex · context-terminal" },
     );
+    await user.click(terminalButton);
 
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
     const alert = await screen.findByRole("alert", { name: "Shell action failed" });
     expect(alert).toHaveTextContent("Ghostty could not open the Context cwd.");
     expect(screen.getAllByRole("alert", { name: "Shell action failed" })).toHaveLength(1);
+    await waitFor(() => expect(terminalButton).toHaveTextContent("missing"));
+    expect(terminalButton).not.toHaveTextContent("opened");
 
     const composer = await openPrepareWork(user);
     expect(within(composer).queryByRole("alert")).not.toBeInTheDocument();
