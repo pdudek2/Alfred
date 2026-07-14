@@ -3319,6 +3319,27 @@ describe("App integration", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Open Surfaces menu" })).toHaveFocus());
   });
 
+  it("opens Context from the command palette and returns focus to its surviving trigger", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    const paletteTrigger = screen.getByRole("button", { name: "Open command palette" });
+    await user.click(paletteTrigger);
+    await submitCommandPalette(user, "open context");
+
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
+    const closeContext = screen.getByRole("button", { name: "Close Context panel" });
+    await waitFor(() => expect(closeContext).toHaveFocus());
+
+    await user.click(closeContext);
+
+    expect(screen.getByTestId("context-column")).toHaveClass("closed");
+    await waitFor(() => expect(paletteTrigger).toHaveFocus());
+  });
+
   it("focus mode isolates the selected session and keeps navigator selection available", async () => {
     const { setWorkspaceLayout } = installDesktopBridge(undefined, null, [
       {

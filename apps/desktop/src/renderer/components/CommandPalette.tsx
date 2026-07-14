@@ -54,6 +54,7 @@ type CommandPaletteProps = {
   onFocusSessionInWorkspace: (workspaceId: string, sessionId: string) => void;
   onFocusNextSession: () => void;
   onFocusPreviousSession: () => void;
+  onOpenContext: () => void;
   onOpenInbox: () => void;
   onOpenPrivacyControls: () => void;
   onRestartSession: (sessionId: string) => void;
@@ -90,6 +91,7 @@ export function CommandPalette({
   onFocusSessionInWorkspace,
   onFocusNextSession,
   onFocusPreviousSession,
+  onOpenContext,
   onOpenInbox,
   onOpenPrivacyControls,
   onRestartSession,
@@ -254,6 +256,12 @@ export function CommandPalette({
         run: onOpenPrivacyControls,
       },
       {
+        id: "open-context",
+        label: "Open Context",
+        detail: "Inspect the focused session",
+        run: onOpenContext,
+      },
+      {
         id: "open-inbox",
         label: "Open Inbox",
         detail: reviewQueuePreview
@@ -375,6 +383,7 @@ export function CommandPalette({
       onFocusSessionInWorkspace,
       onFocusNextSession,
       onFocusPreviousSession,
+      onOpenContext,
       onOpenInbox,
       onOpenPrivacyControls,
       onRestartSession,
