@@ -552,7 +552,7 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Open command palette" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open launch menu" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: /terminals/i })).toBeInTheDocument();
-    expect(screen.getByRole("complementary", { name: /alfred status/i })).toBeInTheDocument();
+    expect(screen.getByTestId("context-column")).toHaveClass("closed");
   });
 
   it("renders Prepare Work only on demand and restores focus to its launch trigger", async () => {
@@ -562,7 +562,7 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("region", { name: /terminals/i })).toBeInTheDocument();
-    expect(screen.getByRole("complementary", { name: /alfred status/i })).toBeInTheDocument();
+    expect(screen.getByTestId("context-column")).toHaveClass("closed");
     expect(screen.queryByTestId("primary-nav-rail")).not.toBeInTheDocument();
     expect(screen.queryByTestId("dispatch-bar")).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
@@ -1025,19 +1025,22 @@ describe("App integration", () => {
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeSurfaceSwitch);
   });
 
-  it("uses context as a summoned right column without removing the workbench", async () => {
+  it("uses Context as a floating inspector and restores focus to Surfaces when it closes", async () => {
+    const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
 
     const workbench = await screen.findByTestId("workbench-surface");
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
 
-    await selectSurface(userEvent.setup(), "Context");
+    const surfacesTrigger = screen.getByRole("button", { name: "Open Surfaces menu" });
+    await selectSurface(user, "Context");
     expect(screen.getByTestId("context-column")).toHaveClass("open");
     expect(workbench).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /close context panel/i }));
+    await user.click(screen.getByRole("button", { name: /close context panel/i }));
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
+    await waitFor(() => expect(surfacesTrigger).toHaveFocus());
     expect(workbench).toBeInTheDocument();
   });
 
@@ -2451,8 +2454,6 @@ describe("App integration", () => {
       });
     });
 
-    expect(screen.getByRole("region", { name: "Workspace mission brief" })).toHaveTextContent("Ship launcher v0 calmly");
-
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "prepare the next slice");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
@@ -2499,7 +2500,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("region", { name: "Workspace mission brief" })).toHaveTextContent("Ship the launcher.");
+    await screen.findByRole("button", { name: "Workspace menu for Alfred" });
     await user.click(screen.getByRole("button", { name: "Workspace menu for Alfred" }));
     await user.click(
       within(screen.getByRole("dialog", { name: "Workspace actions" })).getByRole("button", {
@@ -2521,8 +2522,6 @@ describe("App integration", () => {
         activeWorkspaceId: "A",
       });
     });
-    expect(screen.queryByRole("region", { name: "Workspace mission brief" })).not.toBeInTheDocument();
-
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "prepare cleanly");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
@@ -3105,8 +3104,9 @@ describe("App integration", () => {
 
     fireEvent.keyDown(window, { key: "Escape" });
 
-    expect(screen.getByLabelText("terminals")).toHaveClass("mode-desk");
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
+    expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
+    expect(screen.getByTestId("context-column")).toHaveClass("closed");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open Surfaces menu" })).toHaveFocus());
   });
 
   it("focus mode isolates the selected session and keeps navigator selection available", async () => {
@@ -3728,51 +3728,6 @@ describe("App integration", () => {
     });
   });
 
-  it("surfaces the next current-workspace decision in Alfred's rail and jumps to it", async () => {
-    const user = userEvent.setup();
-    installDesktopBridge(undefined, null, [
-      {
-        id: "runtime-manual",
-        clientId: "manual-a",
-        title: "Manual · zsh 1",
-        source: "manual",
-        workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
-        shell: "/bin/zsh",
-        buffer: "",
-      },
-      {
-        id: "runtime-codex",
-        clientId: "codex-a",
-        title: "Codex · review",
-        source: "alfred",
-        agentKind: "codex",
-        workspaceId: "A",
-        cwd: "/Users/patryk/Desktop/Alfred",
-        shell: "/bin/zsh",
-        buffer: "",
-        activityEvents: [
-          { id: "ask-1", kind: "approval", title: "Waiting for approval", detail: "Allow edit?", at: 100 },
-        ],
-      },
-    ]);
-
-    render(<App />);
-
-    const rail = await screen.findByLabelText("Alfred status");
-    expect(rail).toHaveTextContent("needs review");
-    const context = within(rail).getByRole("region", { name: "Review and recovery context" });
-    expect(context).toHaveTextContent("1 decision");
-    expect(context).toHaveTextContent("Allow edit?");
-
-    await openInboxFromCommandPalette(user);
-    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    await user.click(inbox.querySelector<HTMLButtonElement>(".review-surface-primary")!);
-
-    expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
-  });
-
   it("opens the global Inbox and focuses attention in another workspace", async () => {
     const user = userEvent.setup();
     installDesktopBridge(
@@ -3888,13 +3843,7 @@ describe("App integration", () => {
     render(<App />);
 
     await screen.findByRole("article", { name: /Codex · review/i });
-
-    expect(document.querySelector(".workspace-layout")).toHaveClass("alfred-expanded");
-    const rail = screen.getByLabelText("Alfred status");
-    expect(rail).not.toHaveClass("compact");
-    expect(rail).toHaveTextContent("needs review");
-    expect(rail).toHaveTextContent("Allow edit?");
-    expect(within(rail).queryByRole("button", { name: "Focus decision: Codex · review" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Inbox surface, 1 item" })).toBeInTheDocument();
 
     await openInboxFromCommandPalette(user);
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
@@ -3903,58 +3852,6 @@ describe("App integration", () => {
 
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
-  });
-
-  it("keeps current decisions visible when recovery is also available", async () => {
-    installDesktopBridge(
-      undefined,
-      null,
-      [
-        {
-          id: "runtime-codex",
-          clientId: "codex-a",
-          title: "Codex · review",
-          source: "manual",
-          agentKind: "codex",
-          workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
-          shell: "codex",
-          command: "codex",
-          args: [],
-          buffer: "",
-          activityEvents: [
-            { id: "ask-1", kind: "approval", title: "Waiting for approval", detail: "Allow edit?", at: 100 },
-          ],
-          lastActivityAt: 100,
-        },
-      ],
-      undefined,
-      undefined,
-      undefined,
-      [
-        {
-          clientId: "manual-restored",
-          title: "Manual · saved",
-          workspaceId: "A",
-          cwd: "/Users/patryk/Desktop/Alfred",
-          source: "manual",
-          shell: "/bin/zsh",
-          buffer: "saved output\n",
-        },
-      ],
-    );
-
-    render(<App />);
-
-    await screen.findByRole("article", { name: /Codex · review/i });
-    const rail = screen.getByLabelText("Alfred status");
-
-    expect(rail).toHaveTextContent("needs review");
-    const context = within(rail).getByRole("region", { name: "Review and recovery context" });
-    expect(context).toHaveTextContent("Allow edit?");
-    expect(context).toHaveTextContent("Manual · saved");
-    expect(context).not.toHaveTextContent("1 saved session ready");
-    expect(within(rail).queryByRole("button", { name: "Relaunch Manual · saved" })).not.toBeInTheDocument();
   });
 
   it("launches staged work from the global Inbox in its workspace", async () => {
@@ -4105,29 +4002,6 @@ describe("App integration", () => {
 
     expect(grid).toHaveClass("laid-out");
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toHaveStyle({ gridColumn: "1 / span 12" });
-  });
-
-  it("keeps Alfred compact while idle and expands when a plan is staged", async () => {
-    const user = userEvent.setup();
-    installDesktopBridge();
-
-    render(<App />);
-
-    await screen.findByRole("article", { name: /Manual · zsh 1/i });
-    expect(document.querySelector(".workspace-layout")).toHaveClass("alfred-compact");
-    expect(screen.getByLabelText("Alfred status")).toHaveClass("compact");
-    expect(screen.getByLabelText("Alfred status")).toHaveAttribute("title", "Alfred standing by");
-    expect(screen.queryByText("standing by")).not.toBeInTheDocument();
-    expect(screen.queryByText("no asks")).not.toBeInTheDocument();
-
-    await openPrepareWork(user);
-    await user.type(screen.getByLabelText("Dispatch instruction"), "prepare agents");
-    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
-
-    expect(await screen.findByRole("article", { name: /Staged Task A/i })).toBeInTheDocument();
-    expect(document.querySelector(".workspace-layout")).toHaveClass("alfred-expanded");
-    expect(screen.getByLabelText("Alfred status")).not.toHaveClass("compact");
-    expect(screen.getByLabelText("Alfred status")).not.toHaveAttribute("title");
   });
 
   it("closes a live terminal tile and kills its runtime session", async () => {
@@ -4700,11 +4574,7 @@ describe("App integration", () => {
         }),
       }),
     );
-    const rail = await screen.findByLabelText("Alfred status");
-    expect(rail).toHaveTextContent("ready to launch");
-    expect(rail).toHaveTextContent("2 staged");
-    expect(within(rail).queryByRole("region", { name: "Alfred review queue" })).not.toBeInTheDocument();
-    await user.click(within(rail).getByRole("button", { name: "Open Inbox" }));
+    await user.click(screen.getByRole("button", { name: "Open Inbox surface, 2 items" }));
     expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
     await selectSurface(user, "Work");
     expect(await screen.findByRole("article", { name: /Staged Task A/i })).toBeInTheDocument();
@@ -4858,7 +4728,6 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Staged Restored shell/i })).toBeInTheDocument();
     await openPrepareWork(user);
     expect(screen.getByRole("status")).toHaveTextContent("Resolve the current Alfred plan");
-    expect(screen.getByText('"restore this plan"')).toBeInTheDocument();
   });
 
   it("jumps from the composer to a workspace with staged Alfred work", async () => {
@@ -4942,8 +4811,6 @@ describe("App integration", () => {
     });
     expect(resumeButton).toBeVisible();
     expect(within(restored).getByTestId("xterm-host")).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Review and recovery context" })).toHaveTextContent("Codex · session 9");
-    expect(screen.getByLabelText("Alfred status")).not.toHaveClass("compact");
     expect(createTerminal).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole("button", { name: /Open Inbox surface/i }));
@@ -5095,7 +4962,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("region", { name: "Review and recovery context" })).toHaveTextContent("Manual · zsh 9");
+    expect(await screen.findByRole("button", { name: "Open Inbox surface, 1 item" })).toBeInTheDocument();
 
     await openInboxFromCommandPalette(userEvent.setup());
     const inbox = screen.getByRole("region", { name: "Inbox workspace" });
@@ -5389,7 +5256,7 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByLabelText("Session recovery")).toHaveTextContent("saved session");
-    expect(screen.getByRole("complementary", { name: /alfred status/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Inbox surface, 1 item" })).toBeInTheDocument();
   });
 
   it("keeps restored transcripts recoverable when relaunch all cannot start a process", async () => {
@@ -6004,7 +5871,6 @@ describe("App integration", () => {
     await user.type(composer, "retry this plan");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("OpenRouter is unreachable.");
     expect(composer).toHaveValue("retry this plan");
   });
 });

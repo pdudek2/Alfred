@@ -1,13 +1,13 @@
 import { X } from "lucide-react";
+import { useEffect, useRef, type RefObject } from "react";
 import { AgentTimelinePanel, type AgentTimelinePanelProps } from "./AgentTimelinePanel";
-import { AlfredControlRail, type AlfredControlRailProps } from "./AlfredControlRail";
 import { WorkspacePreviewPanel, type WorkspacePreviewPanelProps } from "./WorkspacePreviewPanel";
 
-type ContextColumnProps = {
+export type ContextColumnProps = {
   contextOpen: boolean;
   previewVisible: boolean;
+  returnFocusRef: RefObject<HTMLButtonElement | null>;
   timelineProps: AgentTimelinePanelProps;
-  railProps: AlfredControlRailProps;
   previewProps: WorkspacePreviewPanelProps;
   onCloseContext: () => void;
 };
@@ -15,11 +15,32 @@ type ContextColumnProps = {
 export function ContextColumn({
   contextOpen,
   previewVisible,
+  returnFocusRef,
   timelineProps,
-  railProps,
   previewProps,
   onCloseContext,
 }: ContextColumnProps) {
+  const wasOpenRef = useRef(contextOpen);
+
+  useEffect(() => {
+    if (!contextOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      onCloseContext();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [contextOpen, onCloseContext]);
+
+  useEffect(() => {
+    const wasOpen = wasOpenRef.current;
+    wasOpenRef.current = contextOpen;
+    if (!wasOpen || contextOpen) return;
+    const frame = requestAnimationFrame(() => returnFocusRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [contextOpen, returnFocusRef]);
+
   return (
     <aside className={`context-column ${contextOpen ? "open" : "closed"}`} data-testid="context-column">
       <div
@@ -38,13 +59,6 @@ export function ContextColumn({
         </header>
         {previewVisible && <WorkspacePreviewPanel {...previewProps} />}
         <AgentTimelinePanel {...timelineProps} />
-      </div>
-      <div
-        className={`context-compact-status ${contextOpen ? "hidden" : "visible"}`}
-        aria-hidden={contextOpen ? "true" : "false"}
-        inert={contextOpen || undefined}
-      >
-        <AlfredControlRail {...railProps} />
       </div>
     </aside>
   );
