@@ -1,10 +1,11 @@
 import { X } from "lucide-react";
-import { useEffect, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { AgentTimelinePanel, type AgentTimelinePanelProps } from "./AgentTimelinePanel";
 import { WorkspacePreviewPanel, type WorkspacePreviewPanelProps } from "./WorkspacePreviewPanel";
 
 export type ContextColumnProps = {
   contextOpen: boolean;
+  dismissalSuspended?: boolean;
   previewVisible: boolean;
   returnFocusRef: RefObject<HTMLButtonElement | null>;
   timelineProps: AgentTimelinePanelProps;
@@ -14,33 +15,47 @@ export type ContextColumnProps = {
 
 export function ContextColumn({
   contextOpen,
+  dismissalSuspended = false,
   previewVisible,
   returnFocusRef,
   timelineProps,
   previewProps,
   onCloseContext,
 }: ContextColumnProps) {
-  const wasOpenRef = useRef(contextOpen);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const restoreFocusOnCloseRef = useRef(false);
+  const wasOpenRef = useRef(false);
+
+  const requestCloseContext = useCallback(() => {
+    restoreFocusOnCloseRef.current = true;
+    onCloseContext();
+  }, [onCloseContext]);
 
   useEffect(() => {
-    if (!contextOpen) return;
+    if (!contextOpen || dismissalSuspended) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
       event.preventDefault();
       event.stopPropagation();
-      onCloseContext();
+      requestCloseContext();
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [contextOpen, onCloseContext]);
+  }, [contextOpen, dismissalSuspended, requestCloseContext]);
 
   useEffect(() => {
     const wasOpen = wasOpenRef.current;
     wasOpenRef.current = contextOpen;
-    if (!wasOpen || contextOpen) return;
+    if (!wasOpen && contextOpen) {
+      if (dismissalSuspended) return;
+      const frame = requestAnimationFrame(() => closeButtonRef.current?.focus());
+      return () => cancelAnimationFrame(frame);
+    }
+    if (!wasOpen || contextOpen || !restoreFocusOnCloseRef.current) return;
+    restoreFocusOnCloseRef.current = false;
     const frame = requestAnimationFrame(() => returnFocusRef.current?.focus());
     return () => cancelAnimationFrame(frame);
-  }, [contextOpen, returnFocusRef]);
+  }, [contextOpen, dismissalSuspended, returnFocusRef]);
 
   return (
     <aside className={`context-column ${contextOpen ? "open" : "closed"}`} data-testid="context-column">
@@ -54,7 +69,7 @@ export function ContextColumn({
           <div>
             <span>Context</span>
           </div>
-          <button type="button" onClick={onCloseContext} aria-label="Close Context panel">
+          <button ref={closeButtonRef} type="button" onClick={requestCloseContext} aria-label="Close Context panel">
             <X size={15} />
           </button>
         </header>
