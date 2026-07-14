@@ -766,7 +766,7 @@ button:focus-visible {
 .project-row {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
 }
 
@@ -792,7 +792,7 @@ button:focus-visible {
   color: var(--ink-6);
   cursor: pointer;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto auto auto;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 6px;
   font: 600 12px/1.2 var(--sans);
@@ -839,6 +839,27 @@ button:focus-visible {
 .project-workspace-actions {
   position: relative;
   min-width: 0;
+}
+
+.project-disclosure {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0;
+  background: transparent;
+  color: var(--ink-5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.project-disclosure:hover,
+.project-disclosure:focus-visible {
+  background: var(--ink-2);
+  color: var(--ink-7);
+  outline: none;
 }
 
 .project-workspace-actions .workspace-title-trigger {
@@ -908,6 +929,12 @@ button:focus-visible {
   outline: none;
 }
 
+.project-overflow-button:disabled {
+  color: var(--ink-5);
+  opacity: 0.6;
+  cursor: default;
+}
+
 .free-chat-section {
   margin-top: 14px;
   padding-top: 10px;
@@ -943,7 +970,7 @@ button:focus-visible {
 .project-navigator.is-collapsed .project-navigator-header > strong,
 .project-navigator.is-collapsed .project-row-label,
 .project-navigator.is-collapsed .project-row-button kbd,
-.project-navigator.is-collapsed .project-row-button > svg:last-child,
+.project-navigator.is-collapsed .project-disclosure,
 .project-navigator.is-collapsed .project-workspace-actions,
 .project-navigator.is-collapsed .project-session-title,
 .project-navigator.is-collapsed .project-overflow-button > span:first-child,
@@ -1334,7 +1361,7 @@ button:focus-visible {
   .project-navigator .project-navigator-header > strong,
   .project-navigator .project-row-label,
   .project-navigator .project-row-button kbd,
-  .project-navigator .project-row-button > svg:last-child,
+  .project-navigator .project-disclosure,
   .project-navigator .project-session-title,
   .project-navigator .project-overflow-button > span:first-child,
   .project-navigator .free-chat-section > header strong,

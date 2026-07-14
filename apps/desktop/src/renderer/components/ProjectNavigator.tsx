@@ -44,7 +44,9 @@ export function ProjectNavigator({
   const [showAllProjects, setShowAllProjects] = useState(
     () => workspaces.findIndex((workspace) => workspace.id === activeWorkspaceId) >= 5,
   );
+  const [collapsedProjectId, setCollapsedProjectId] = useState<string | null>(null);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const activeProjectIndex = workspaces.findIndex((workspace) => workspace.id === activeWorkspaceId);
   const visibleProjects = showAllProjects ? workspaces : workspaces.slice(0, 5);
   const hiddenProjects = showAllProjects ? [] : workspaces.slice(5);
   const activeSessions = sessions.filter((session) => isActiveNavigatorSession(session, activeWorkspaceId));
@@ -82,6 +84,8 @@ export function ProjectNavigator({
         <div className="project-list" role="tablist" aria-label="workspaces" aria-orientation="vertical">
           {visibleProjects.map((workspace, visibleIndex) => {
             const active = workspace.id === activeWorkspaceId;
+            const sessionsExpanded = active && collapsedProjectId !== workspace.id;
+            const sessionListId = `project-sessions-${encodeURIComponent(workspace.id)}`;
             const stableIndex = workspaces.findIndex((candidate) => candidate.id === workspace.id);
             const hasAttention = attentionWorkspaceIds.has(workspace.id);
             return (
@@ -110,13 +114,32 @@ export function ProjectNavigator({
                     <span className="project-row-label">{workspace.label}</span>
                     {stableIndex >= 0 && stableIndex < 5 && <kbd aria-hidden="true">⌘{stableIndex + 1}</kbd>}
                     {hasAttention && <span className="project-attention-dot" aria-label="Needs review" />}
-                    {active ? <ChevronDown aria-hidden="true" size={13} /> : <ChevronRight aria-hidden="true" size={13} />}
                   </button>
+                  {active && activeSessions.length > 0 && (
+                    <button
+                      type="button"
+                      className="project-disclosure"
+                      aria-controls={sessionListId}
+                      aria-expanded={sessionsExpanded}
+                      aria-label={`${sessionsExpanded ? "Collapse" : "Expand"} ${workspace.label} sessions`}
+                      onClick={() => setCollapsedProjectId(sessionsExpanded ? workspace.id : null)}
+                    >
+                      {sessionsExpanded
+                        ? <ChevronDown aria-hidden="true" size={13} />
+                        : <ChevronRight aria-hidden="true" size={13} />}
+                    </button>
+                  )}
                   {active && <div className="project-workspace-actions">{workspaceActions}</div>}
                 </div>
 
                 {active && activeSessions.length > 0 && (
-                  <div className="project-session-list" role="group" aria-label={`${workspace.label} sessions`}>
+                  <div
+                    id={sessionListId}
+                    className="project-session-list"
+                    role="group"
+                    aria-label={`${workspace.label} sessions`}
+                    hidden={!sessionsExpanded}
+                  >
                     {activeSessions.map((session) => (
                       <NavigatorSessionButton
                         active={session.id === activeSessionId}
@@ -142,6 +165,19 @@ export function ProjectNavigator({
           >
             <span>Show {hiddenProjects.length} more</span>
             {hiddenAttention && <span className="project-attention-dot" aria-label="Hidden project needs review" />}
+          </button>
+        )}
+
+        {showAllProjects && workspaces.length > 5 && (
+          <button
+            type="button"
+            className="project-overflow-button"
+            aria-label="Show fewer projects"
+            disabled={activeProjectIndex >= 5}
+            title={activeProjectIndex >= 5 ? "The active project must remain visible" : undefined}
+            onClick={() => setShowAllProjects(false)}
+          >
+            <span>Show fewer projects</span>
           </button>
         )}
 
