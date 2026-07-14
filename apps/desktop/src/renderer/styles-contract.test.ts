@@ -552,7 +552,7 @@ describe("renderer CSS contracts", () => {
     const terminalRegion = [{
       name: "canonical terminal scene",
       startMarker: "\n.terminal-stage {",
-      endMarker: ".alfred-dock {",
+      endMarker: "\n.composer-bar {",
     }];
     const composerRegion = [{
       name: "canonical composer/dispatch",
@@ -589,7 +589,7 @@ describe("renderer CSS contracts", () => {
     const source = withoutComments(styles);
     const shellStart = source.indexOf(".agent-space-shell {");
     const terminalStart = source.indexOf("\n.terminal-stage {");
-    const terminalEnd = source.indexOf(".alfred-dock {", terminalStart);
+    const terminalEnd = source.indexOf("\n.composer-bar {", terminalStart);
     const responsiveStarts = /@(media|container)\s*([^{}]+)\{/g;
     const misplaced: string[] = [];
 
@@ -917,23 +917,21 @@ describe("renderer CSS contracts", () => {
     expectTopLevelOwnerWithin(".terminal-tile.collapsed .terminal-viewport", ["min-height: 0"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.collapsed .xterm", ["min-height: 0"], terminalTileStart, terminalTileEnd);
 
-    const dockStart = ".alfred-dock {";
-    const dockEnd = ".alfred-dock-header {";
-    expectTopLevelOwnerWithin(".alfred-dock.compact", ["width: 44px", "place-items: center"], dockStart, dockEnd);
-    expectTopLevelOwnerWithin(".side-dock-stack > .alfred-dock.compact", ["align-self: flex-end"], dockStart, dockEnd);
-
     const contextStart = ".context-drawer {";
     const contextEnd = ".workspace-preview-panel,\n.agent-timeline-panel {";
     expectTopLevelOwnerWithin(".context-drawer.closed", ["display: none"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-drawer.open", ["display: flex"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-column.closed", ["display: none"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-column.open", ["pointer-events: auto"], contextStart, contextEnd);
-    expectCanonicalBase(".workspace-layout", ["grid-template-columns: auto minmax(0, 1fr)"]);
-    expectCanonicalBase(".workspace-layout:has(.context-column.open)", ["minmax(304px, 340px)"]);
-    expectTopLevelOwnerWithin(".workspace-layout > .context-column.open", ["position: static", "grid-column: 3", "display: flex"], contextStart, contextEnd);
-    expectTopLevelOwnerWithin(".workspace-layout > .context-column.closed", ["display: none"], contextStart, contextEnd);
-    expectTopLevelOwnerWithin(".context-column .context-compact-status", ["display: none"], contextStart, contextEnd);
-    expectTopLevelOwnerWithin(".context-compact-status.hidden", ["display: none"], contextStart, contextEnd);
+    expectCanonicalBase(".workspace-layout", ["grid-template-columns: 248px minmax(0, 1fr)", "position: relative"]);
+    expectTopLevelOwnerWithin(
+      ".context-column",
+      ["position: absolute", "top: 12px", "right: 12px", "bottom: 12px", "width: min(336px, calc(100% - 24px))"],
+      contextStart,
+      contextEnd,
+    );
+    expect(styles).not.toContain(":has(.context-column.open)");
+    expect(styles).not.toContain(".workspace-layout > .context-column.open");
 
     const composerStart = "\n.composer-bar {";
     const composerEnd = "/* Focus mode and inspector */";
@@ -964,7 +962,7 @@ describe("renderer CSS contracts", () => {
     const terminalTileRegion: CssOwnerRegion = {
       name: "terminal tile/xterm",
       startMarker: ".terminal-tile {",
-      endMarker: ".alfred-dock {",
+      endMarker: "\n.composer-bar {",
     };
     const terminalSemanticRoleRegion: CssOwnerRegion = {
       name: "terminal semantic role layer",
@@ -1058,10 +1056,6 @@ describe("renderer CSS contracts", () => {
 
     for (const [selector, expectedOccurrences] of [
       [".context-drawer-header", 1],
-      [".context-column .context-compact-status", 1],
-      [".context-compact-status", 2],
-      [".context-compact-status.hidden", 1],
-      [".context-compact-status > .alfred-dock", 1],
       [".context-drawer .workspace-preview-panel", 2],
       [".context-drawer .agent-timeline-panel", 2],
       [".context-drawer .agent-timeline-body", 1],
@@ -1110,7 +1104,7 @@ describe("renderer CSS contracts", () => {
       {
         name: "command palette overlay",
         startMarker: "/* Command palette and privacy modal */",
-        endMarker: "/* Alfred dock variants */",
+        endMarker: "@media (prefers-reduced-motion: reduce)",
       },
       {
         name: "shared overlay input typography",
@@ -1122,7 +1116,7 @@ describe("renderer CSS contracts", () => {
       {
         name: "privacy overlay",
         startMarker: "/* Command palette and privacy modal */",
-        endMarker: "/* Alfred dock variants */",
+        endMarker: "@media (prefers-reduced-motion: reduce)",
       },
     ];
     const surfaceResponsiveRegion = {
@@ -1284,8 +1278,10 @@ describe("renderer CSS contracts", () => {
     expect(contrastRatio(rootToken("--text-muted"), rootToken("--surface-panel"))).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(rootToken("--text-faint"), rootToken("--surface-panel"))).toBeGreaterThanOrEqual(4.0);
 
-    expect(styles).not.toMatch(/backdrop-filter:\s*blur/i);
-    expect(styles).not.toMatch(/-webkit-backdrop-filter:\s*blur/i);
+    expect(styles.match(/(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/gi)).toEqual([
+      "backdrop-filter: blur(18px)",
+      "-webkit-backdrop-filter: blur(18px)",
+    ]);
     expect(styles).not.toMatch(/--glass:/);
   });
 
@@ -1386,18 +1382,18 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain("--flat-");
   });
 
-  it("keeps the workbench shell close to the current layout", () => {
+  it("floats Context over the terminal scene without resizing the workbench", () => {
     const closedLayout = singleTopLevelRuleBodyIn(styles, ".workspace-layout");
-    const openLayout = blockFor(
-      ".workspace-layout:has(.context-column.open),\n.workspace-layout.alfred-compact:has(.context-column.open),\n.workspace-layout.preview-visible:has(.context-column.open),\n.workspace-layout.alfred-compact.preview-visible:has(.context-column.open)",
-    );
-    const openColumn = singleTopLevelRuleBodyIn(styles, ".workspace-layout > .context-column.open");
-    const closedColumn = singleTopLevelRuleBodyIn(styles, ".workspace-layout > .context-column.closed");
+    const contextColumn = singleTopLevelRuleBodyIn(styles, ".context-column");
+    const contextDrawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
 
-    expect(closedLayout).toContain("grid-template-columns: auto minmax(0, 1fr)");
-    expect(openLayout).toContain("grid-template-columns: auto minmax(0, 1fr) minmax(304px, 340px)");
-    expect(openColumn).toContain("position: static");
-    expect(closedColumn).toContain("display: none");
+    expect(closedLayout).toContain("grid-template-columns: 248px minmax(0, 1fr)");
+    expect(closedLayout).toContain("position: relative");
+    expect(contextColumn).toContain("position: absolute");
+    expect(contextColumn).toContain("width: min(336px, calc(100% - 24px))");
+    expect(contextDrawer).toContain("max-height: 100%");
+    expect(styles).not.toContain(":has(.context-column.open)");
+    expect(styles).not.toContain(".workspace-layout > .context-column.open");
   });
 
   it("keeps the Inbox empty state compact instead of a stretched dashboard card", () => {
@@ -1490,11 +1486,11 @@ describe("renderer CSS contracts", () => {
   });
 
   it("makes the context drawer itself scrollable instead of clipping the lower timeline", () => {
-    const contextColumn = singleTopLevelRuleBodyIn(styles, ".workspace-layout > .context-column.open");
-    const contextDrawer = blockFor(".context-drawer");
+    const contextColumn = singleTopLevelRuleBodyIn(styles, ".context-column");
+    const contextDrawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
     const timelinePanel = blockFor(".context-drawer .agent-timeline-panel");
 
-    expect(contextColumn).toContain("display: flex");
+    expect(contextColumn).toContain("display: block");
     expect(contextDrawer).toContain("overflow: hidden");
     expect(contextDrawer).toContain("flex-direction: column");
     expect(timelinePanel).toContain("overflow: auto");
@@ -1700,7 +1696,7 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps Context hierarchy quiet except selected session and key signal", () => {
-    const drawer = blockForContaining(".context-drawer", "background: var(--surface-panel)");
+    const drawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
     const essentials = blockFor(".agent-context-essentials");
     const essentialsCommand = blockFor(".agent-essentials-command");
     const disclosureToggle = blockFor(".agent-disclosure-toggle");
@@ -1710,7 +1706,8 @@ describe("renderer CSS contracts", () => {
     const pulseBody = blockFor(".agent-session-pulse p");
     const handoffButton = blockFor(".agent-handoff-buttons button");
 
-    expect(drawer).toContain("background: var(--surface-panel)");
+    expect(drawer).toContain("background: var(--ink-1)");
+    expect(drawer).toContain("background: color-mix(in oklab, var(--ink-1) 92%, transparent)");
     expect(essentials).toContain("background: var(--surface-control)");
     expect(essentialsCommand).toContain("var(--mono)");
     expect(disclosureToggle).toContain("var(--sans)");

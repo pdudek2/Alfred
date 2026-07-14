@@ -70,7 +70,7 @@ import {
 import { terminalSessionDisplayStatus } from "./session-status";
 import { recordPreviewUrlsFromText, type PreviewUrlCandidate } from "./preview-state";
 import type { WorkMode } from "./terminal-desk-types";
-import { workspaceReviewQueue, type WorkspaceReviewItem } from "./workspace-attention";
+import { workspaceReviewQueue } from "./workspace-attention";
 import { shortenPath } from "./path-display";
 import { findWorkspaceForCwd } from "./workspace-path-matching";
 import { sessionRelaunchSafety } from "./relaunch-safety";
@@ -227,25 +227,14 @@ export function App() {
     activeDispatchTargets.find((target) => dispatchTargetsEqual(target, savedDispatchTarget)) ??
     activeDispatchTargets[0] ??
     null;
-  const activePendingPlan = pendingPlan?.workspaceId === activeWorkspace.id ? pendingPlan : null;
   const canCloseActiveWorkspace =
     activeWorkspace.id !== DEFAULT_WORKSPACE_ID && workspaces.length > 1 && activeSessions.length === 0;
   const activeRecoverableSessions = activeSessions.filter((session) =>
     session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error",
   );
   const globalReviewItems = workspaceReviewQueue(workspaces, terminalSessions);
-  const activeWorkspaceReviewItems = globalReviewItems.filter((item) => item.workspaceId === activeWorkspace.id);
-  const activeDecisionItems = activeWorkspaceReviewItems.filter(isDecisionReviewItem);
   const reviewQueuePreview = globalReviewItems[0] ?? null;
-  const stagedCount = activeSessions.filter((s) => s.stage === "staged").length;
   const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
-  const blockedStagedCount = activeSessions.filter((s) => s.stage === "staged" && isLaunchBlocked(s)).length;
-  const liveAlfredCount = activeSessions.filter((s) => s.stage === "live" && s.source === "alfred").length;
-  const alfredExpanded =
-    alfredStatus.kind !== "idle" ||
-    activePendingPlan !== null ||
-    activeRecoverableSessions.length > 0 ||
-    activeDecisionItems.length > 0;
   const stagedWorkspaceLabel =
     pendingPlan && pendingPlan.workspaceId !== activeWorkspace.id
       ? workspaces.find((workspace) => workspace.id === pendingPlan.workspaceId)?.label ?? "another workspace"
@@ -398,7 +387,6 @@ export function App() {
   const persistActiveWorkspaceViewState = useCallback((patch: WorkspaceViewState = {}) => {
     const layoutApi = getDesktopLayoutApi();
     const collapsedSessionIds = collapsedSessionIdsByWorkspace[activeWorkspace.id] ?? [];
-    const contextDrawerOpen = contextDrawerOpenByWorkspace[activeWorkspace.id] ?? false;
     const dispatchTarget = dispatchTargetsByWorkspace[activeWorkspace.id];
     void layoutApi?.setWorkspaceViewState({
       workspaceId: activeWorkspace.id,
@@ -406,7 +394,6 @@ export function App() {
         workMode: activeWorkMode,
         ...(activeSelectedSessionId === null ? {} : { selectedSessionId: activeSelectedSessionId }),
         ...(collapsedSessionIds.length === 0 ? {} : { collapsedSessionIds }),
-        contextDrawerOpen,
         ...(dispatchTarget === undefined ? {} : { dispatchTarget }),
         ...patch,
       },
@@ -416,31 +403,28 @@ export function App() {
     activeWorkMode,
     activeWorkspace.id,
     collapsedSessionIdsByWorkspace,
-    contextDrawerOpenByWorkspace,
     dispatchTargetsByWorkspace,
   ]);
 
   const handleToggleContextDrawer = useCallback(() => {
     setContextDrawerOpenByWorkspace((current) => {
       const nextOpen = !(current[activeWorkspace.id] ?? false);
-      persistActiveWorkspaceViewState({ contextDrawerOpen: nextOpen });
       return {
         ...current,
         [activeWorkspace.id]: nextOpen,
       };
     });
-  }, [activeWorkspace.id, persistActiveWorkspaceViewState]);
+  }, [activeWorkspace.id]);
 
   const handleCloseContextDrawer = useCallback(() => {
     setContextDrawerOpenByWorkspace((current) => {
       if (current[activeWorkspace.id] === false) return current;
-      persistActiveWorkspaceViewState({ contextDrawerOpen: false });
       return {
         ...current,
         [activeWorkspace.id]: false,
       };
     });
-  }, [activeWorkspace.id, persistActiveWorkspaceViewState]);
+  }, [activeWorkspace.id]);
 
   const handleToggleCollapseSession = useCallback((sessionId: string) => {
     setCollapsedSessionIdsByWorkspace((current) => {
@@ -1406,10 +1390,6 @@ export function App() {
     setPendingPlan(toSquadPlan({ plan: response.plan, defaultWorkspaceId: activeWorkspace.id }));
   }, [activeSessions, activeWorkspace, pendingPlan?.id]);
 
-  const handleDismissError = useCallback(() => {
-    setAlfredStatus(idle());
-  }, []);
-
   const handleOpenCommandPalette = useCallback(() => {
     setPrivacyPanelOpen(false);
     setCommandQuery("");
@@ -1733,13 +1713,6 @@ export function App() {
             ),
           ),
         );
-        setContextDrawerOpenByWorkspace(
-          Object.fromEntries(
-            Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
-              viewState.contextDrawerOpen === undefined ? [] : [[workspaceId, viewState.contextDrawerOpen]],
-            ),
-          ),
-        );
         setDispatchTargetsByWorkspace(
           Object.fromEntries(
             Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
@@ -1893,9 +1866,7 @@ export function App() {
         </div>
 
         <div
-          className={`workspace-layout surface-${activeSurface} ${alfredExpanded ? "alfred-expanded" : "alfred-compact"} ${
-            previewVisible ? "preview-visible" : ""
-          }`}
+          className={`workspace-layout surface-${activeSurface}${previewVisible ? " preview-visible" : ""}`}
           data-testid="workbench-shell"
         >
           <ProjectNavigator
@@ -2034,6 +2005,7 @@ export function App() {
           <ContextColumn
             contextOpen={activeContextDrawerOpen}
             previewVisible={previewVisible}
+            returnFocusRef={surfacesTriggerRef}
             onCloseContext={handleCloseContextDrawer}
             previewProps={{
               candidates: activePreviewCandidates,
@@ -2051,18 +2023,6 @@ export function App() {
               onOpenExternalTerminal: handleOpenExternalTerminalForCwd,
               onRevealActivityFile: handleRevealActivityFile,
               onUpdateStagedSession: handleUpdateStagedSession,
-            }}
-            railProps={{
-              status: alfredStatus,
-              activeDecisionItems,
-              missionBrief: activeWorkspace.missionBrief,
-              pendingPlan: activePendingPlan,
-              recoverableSessions: activeRecoverableSessions,
-              stagedCount,
-              blockedStagedCount,
-              liveAlfredCount,
-              onDismissError: handleDismissError,
-              onOpenInbox: handleOpenInbox,
             }}
           />
         </div>
@@ -2732,8 +2692,4 @@ function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[])
   const additions = liveSessions.filter((session) => !existingIds.has(session.id));
 
   return [...merged, ...additions];
-}
-
-function isDecisionReviewItem(item: WorkspaceReviewItem): boolean {
-  return item.status.kind === "waiting" || item.status.kind === "blocked" || item.status.kind === "checking" || item.status.kind === "staged";
 }

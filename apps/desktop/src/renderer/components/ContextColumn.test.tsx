@@ -1,0 +1,89 @@
+import "@testing-library/jest-dom/vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { SessionTile } from "../session-state";
+import { ContextColumn, type ContextColumnProps } from "./ContextColumn";
+
+const sessionA: SessionTile = {
+  id: "session-a",
+  title: "Codex · session A",
+  workspaceId: "workspace-a",
+  cwd: "/workspace/a",
+  source: "manual",
+  stage: "live",
+  runtimeId: "runtime-a",
+};
+
+const sessionB: SessionTile = {
+  ...sessionA,
+  id: "session-b",
+  title: "Claude · session B",
+  runtimeId: "runtime-b",
+};
+
+const baseProps = {
+  contextOpen: true,
+  previewVisible: false,
+  returnFocusRef: { current: null },
+  timelineProps: { session: sessionA },
+  previewProps: {
+    candidates: [],
+    refreshKey: 0,
+    selectedUrl: null,
+    workspaceLabel: "Workspace A",
+    onCopyUrl: vi.fn(),
+    onOpenExternal: vi.fn(),
+    onRefresh: vi.fn(),
+    onSelectUrl: vi.fn(),
+  },
+  onCloseContext: vi.fn(),
+};
+
+function contextWith(overrides: Partial<ContextColumnProps> & { session?: SessionTile } = {}) {
+  const { session, ...props } = overrides;
+  const contextProps = {
+    ...baseProps,
+    ...props,
+    timelineProps: {
+      ...baseProps.timelineProps,
+      ...props.timelineProps,
+      session: session ?? props.timelineProps?.session ?? sessionA,
+    },
+  } as ContextColumnProps;
+  return <ContextColumn {...contextProps} />;
+}
+
+function renderContext(overrides: Partial<ContextColumnProps> & { session?: SessionTile } = {}) {
+  return render(contextWith(overrides));
+}
+
+afterEach(() => {
+  cleanup();
+  document.body.replaceChildren();
+});
+
+describe("ContextColumn", () => {
+  it("closes on Escape and restores focus to the Surfaces trigger", async () => {
+    const trigger = document.createElement("button");
+    document.body.append(trigger);
+    trigger.focus();
+    const returnFocusRef = { current: trigger };
+    const onCloseContext = vi.fn();
+    const { rerender } = renderContext({ contextOpen: true, returnFocusRef, onCloseContext });
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onCloseContext).toHaveBeenCalledOnce();
+    rerender(contextWith({ contextOpen: false, returnFocusRef, onCloseContext }));
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it("rebinds the visible timeline and preview to the selected session without a second status rail", () => {
+    const { rerender } = renderContext({ session: sessionA, contextOpen: true });
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent(sessionA.title);
+
+    rerender(contextWith({ session: sessionB, contextOpen: true }));
+
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent(sessionB.title);
+    expect(screen.getByTestId("context-column").children).toHaveLength(1);
+  });
+});
