@@ -1891,13 +1891,13 @@ export function App() {
     : activeWorkMode === "focus"
       ? Math.min(1, activeSessionCount)
       : Math.min(2, activeSessionCount);
-  const inboxRecoveryArmed = activeSurface === "inbox" && armedRecoverySessionIds.size > 0;
+  const inboxOwnsEscape = activeSurface === "inbox";
 
   return (
     <main
       className="agent-space-shell"
       onKeyDownCapture={(event) => {
-        if (!inboxRecoveryArmed || event.key !== "Escape") return;
+        if (!inboxOwnsEscape || event.key !== "Escape") return;
         event.preventDefault();
         event.stopPropagation();
         handleExitInboxToWork();
@@ -2125,7 +2125,7 @@ export function App() {
               prepareWorkOpen ||
               workspaceMenuOpen ||
               pendingDiscardConfirmation !== null ||
-              inboxRecoveryArmed
+              inboxOwnsEscape
             }
             focusRequestKey={contextFocusRequestKeyRef.current}
             previewVisible={previewVisible}

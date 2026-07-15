@@ -5363,6 +5363,14 @@ describe("App integration", () => {
     expect(within(inbox).queryByRole("button", { name: "Confirm relaunch Unsafe context recovery in Alfred" })).not.toBeInTheDocument();
     expect(within(inbox).getByRole("button", { name: "Review relaunch Unsafe context recovery in Alfred" })).toBeInTheDocument();
     expect(createTerminal).not.toHaveBeenCalled();
+
+    expect(closeContext).toHaveFocus();
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("desk-runtime-surface")).not.toHaveAttribute("aria-hidden");
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
+    expect(createTerminal).not.toHaveBeenCalled();
   });
 
   it("lets the command-palette shortcut bubble from a focused Recovery control", async () => {

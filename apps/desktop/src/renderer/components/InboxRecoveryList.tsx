@@ -34,13 +34,7 @@ export function InboxRecoveryList({
       className="inbox-section"
       aria-label="Recovery"
       onKeyDown={(event) => {
-        if (
-          !event.altKey &&
-          !event.ctrlKey &&
-          !event.metaKey &&
-          !event.shiftKey &&
-          RECOVERY_DOCKET_KEYS.has(event.key)
-        ) {
+        if (RECOVERY_DOCKET_KEYS.has(event.key)) {
           event.stopPropagation();
         }
       }}

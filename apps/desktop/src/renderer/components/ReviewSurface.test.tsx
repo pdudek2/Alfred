@@ -371,6 +371,28 @@ describe("ReviewSurface", () => {
     expect(screen.getByText("Saved shell")).toBeVisible();
   });
 
+  it("keeps modified Enter in Recovery from running the selected Needs You decision", async () => {
+    const user = userEvent.setup();
+    const recovery = decision({
+      id: "ALFRED:RECOVERY",
+      sessionId: "RECOVERY",
+      sessionTitle: "Saved shell",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Saved session can be relaunched.",
+      action: { kind: "relaunch", confirmation: "none" },
+    });
+    const handlers = renderSurface([STAGED, recovery]);
+    const recoveryToggle = screen.getByRole("button", { name: "Recovery · 1 saved session" });
+    recoveryToggle.focus();
+
+    await user.keyboard("{Control>}{Enter}{/Control}");
+
+    expect(handlers.onLaunch).not.toHaveBeenCalled();
+  });
+
   it("offers a blocked decision only Review / Edit and routes only that action", async () => {
     const user = userEvent.setup();
     const handlers = renderSurface([SAFETY]);
