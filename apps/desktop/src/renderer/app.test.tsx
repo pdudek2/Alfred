@@ -5320,6 +5320,85 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Clean Desktop");
   });
 
+  it("disarms unsafe Recovery before Context can consume Escape", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "unsafe-context",
+          title: "Unsafe context recovery",
+          cwd: "/repo",
+          source: "manual",
+          isolation: "shared",
+          shell: "rm",
+          command: "rm",
+          args: ["-rf", "/tmp/cache"],
+          buffer: "saved output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+    await openInboxFromCommandPalette(user);
+    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
+    await user.click(within(inbox).getByRole("button", { name: "Recovery · 1 saved session" }));
+    await user.click(within(inbox).getByRole("button", { name: "Review relaunch Unsafe context recovery in Alfred" }));
+    expect(within(inbox).getByRole("button", { name: "Confirm relaunch Unsafe context recovery in Alfred" })).toBeInTheDocument();
+
+    await selectSurface(user, "Context");
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
+    const closeContext = screen.getByRole("button", { name: "Close Context panel" });
+    closeContext.focus();
+    expect(closeContext).toHaveFocus();
+    await user.keyboard("{Escape}");
+
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
+    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
+    expect(within(inbox).queryByRole("button", { name: "Confirm relaunch Unsafe context recovery in Alfred" })).not.toBeInTheDocument();
+    expect(within(inbox).getByRole("button", { name: "Review relaunch Unsafe context recovery in Alfred" })).toBeInTheDocument();
+    expect(createTerminal).not.toHaveBeenCalled();
+  });
+
+  it("lets the command-palette shortcut bubble from a focused Recovery control", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "shortcut-recovery",
+          title: "Shortcut recovery",
+          cwd: "/repo",
+          source: "manual",
+          isolation: "shared",
+          shell: "zsh",
+          command: "zsh",
+          args: [],
+          buffer: "saved output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+    await openInboxFromCommandPalette(user);
+    const recoveryToggle = screen.getByRole("button", { name: "Recovery · 1 saved session" });
+    recoveryToggle.focus();
+
+    await user.keyboard("{Control>}k{/Control}");
+
+    expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
+  });
+
   it("keeps Recovery non-blocking and exposes Discard only after expansion", async () => {
     const { forgetTerminal } = installDesktopBridge(
       undefined,
@@ -5393,6 +5472,104 @@ describe("App integration", () => {
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-recovery" });
     expect(screen.getByRole("dialog", { name: "Discard isolated checkout" })).toBeInTheDocument();
     expect(forgetTerminal).not.toHaveBeenCalled();
+  });
+
+  it("clears armed Recovery state on immediate Discard so Escape exits Inbox", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, forgetTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "armed-shared",
+          title: "Armed shared recovery",
+          cwd: "/repo",
+          source: "manual",
+          isolation: "shared",
+          shell: "rm",
+          command: "rm",
+          args: ["-rf", "/tmp/cache"],
+          buffer: "saved output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+    await openInboxFromCommandPalette(user);
+    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
+    await user.click(within(inbox).getByRole("button", { name: "Recovery · 1 saved session" }));
+    await user.click(within(inbox).getByRole("button", { name: "Review relaunch Armed shared recovery in Alfred" }));
+    await user.click(within(inbox).getByRole("button", { name: "Discard Armed shared recovery" }));
+
+    expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "armed-shared", cleanupWorktree: true });
+    expect(createTerminal).not.toHaveBeenCalled();
+    inbox.focus();
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
+  });
+
+  it("clears armed Recovery state after confirmed worktree Discard before reusing the session ID", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "manual-1",
+          title: "Original risky recovery",
+          cwd: "/repo/.alfred-worktrees/manual-1",
+          baseCwd: "/repo",
+          branchName: "alfred-manual-1",
+          source: "manual",
+          shell: "rm",
+          command: "rm",
+          args: ["-rf", "/tmp/original"],
+          buffer: "saved output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+    await openInboxFromCommandPalette(user);
+    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
+    await user.click(within(inbox).getByRole("button", { name: "Recovery · 1 saved session" }));
+    await user.click(within(inbox).getByRole("button", { name: "Review relaunch Original risky recovery in Alfred" }));
+    await user.click(within(inbox).getByRole("button", { name: "Discard Original risky recovery" }));
+    await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
+    expect(bridge.forgetTerminal).toHaveBeenCalledWith({ clientId: "manual-1", cleanupWorktree: true });
+
+    bridge.createTerminal.mockResolvedValueOnce({
+      id: "runtime-reused-recovery",
+      clientId: "manual-1",
+      title: "Reused risky recovery",
+      source: "manual",
+      workspaceId: "A",
+      cwd: "/repo",
+      shell: "rm",
+      command: "rm",
+      args: ["-rf", "/tmp/reused"],
+    });
+    await user.click(screen.getByRole("button", { name: "Open launch menu" }));
+    await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("Reused risky recovery is now running.");
+    await bridge.emitExit({ id: "runtime-reused-recovery", exitCode: 1 });
+
+    const recoveryToggle = screen.getByRole("button", { name: "Recovery · 1 saved session" });
+    if (recoveryToggle.getAttribute("aria-expanded") !== "true") await user.click(recoveryToggle);
+    await user.click(within(inbox).getByRole("button", { name: "Review relaunch Reused risky recovery in Alfred" }));
+
+    expect(within(inbox).getByRole("button", { name: "Confirm relaunch Reused risky recovery in Alfred" })).toBeInTheDocument();
+    expect(bridge.createTerminal).toHaveBeenCalledTimes(1);
   });
 
   it("labels isolated recovery cleanup as discard checkout for legacy worktree snapshots and keeps forget wired", async () => {

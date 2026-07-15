@@ -850,6 +850,12 @@ export function App() {
   const closeSessionNow = useCallback((sessionId: string) => {
     const terminalApi = getDesktopTerminalApi();
     closingSessionIdsRef.current.add(sessionId);
+    setArmedRecoverySessionIds((current) => {
+      if (!current.has(sessionId)) return current;
+      const next = new Set(current);
+      next.delete(sessionId);
+      return next;
+    });
     setPreviewCandidates((candidates) => candidates.filter((candidate) => candidate.sessionId !== sessionId));
 
     setTerminalSessions((sessions) => {
@@ -1885,9 +1891,18 @@ export function App() {
     : activeWorkMode === "focus"
       ? Math.min(1, activeSessionCount)
       : Math.min(2, activeSessionCount);
+  const inboxRecoveryArmed = activeSurface === "inbox" && armedRecoverySessionIds.size > 0;
 
   return (
-    <main className="agent-space-shell">
+    <main
+      className="agent-space-shell"
+      onKeyDownCapture={(event) => {
+        if (!inboxRecoveryArmed || event.key !== "Escape") return;
+        event.preventDefault();
+        event.stopPropagation();
+        handleExitInboxToWork();
+      }}
+    >
       <div
         className="visually-hidden"
         aria-live="polite"
@@ -2109,7 +2124,8 @@ export function App() {
               privacyPanelOpen ||
               prepareWorkOpen ||
               workspaceMenuOpen ||
-              pendingDiscardConfirmation !== null
+              pendingDiscardConfirmation !== null ||
+              inboxRecoveryArmed
             }
             focusRequestKey={contextFocusRequestKeyRef.current}
             previewVisible={previewVisible}

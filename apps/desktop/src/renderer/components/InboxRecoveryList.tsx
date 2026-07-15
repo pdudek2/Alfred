@@ -3,6 +3,8 @@ import { useState } from "react";
 import type { AttentionProjection } from "../attention-projection";
 import type { SessionTile } from "../session-state";
 
+const RECOVERY_DOCKET_KEYS = new Set(["ArrowUp", "ArrowDown", "Home", "End", " ", "Enter"]);
+
 export type InboxRecoveryListProps = {
   items: readonly AttentionProjection[];
   sessionDetailsById: ReadonlyMap<
@@ -32,7 +34,15 @@ export function InboxRecoveryList({
       className="inbox-section"
       aria-label="Recovery"
       onKeyDown={(event) => {
-        if (event.key !== "Escape") event.stopPropagation();
+        if (
+          !event.altKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.shiftKey &&
+          RECOVERY_DOCKET_KEYS.has(event.key)
+        ) {
+          event.stopPropagation();
+        }
       }}
     >
       <header>
