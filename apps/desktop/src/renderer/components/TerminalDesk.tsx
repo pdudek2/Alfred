@@ -1099,7 +1099,7 @@ function ManualTerminalTile({
     }
 
     const removeDataListener = terminalApi.onData((event) => {
-      if (event.id === sessionIdRef.current) {
+      if (event.id === sessionIdRef.current || event.clientId === sessionKey) {
         if (snapshotHandshakePending) {
           snapshotHandshakeOutput += event.data;
         } else {

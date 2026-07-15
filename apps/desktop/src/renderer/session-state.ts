@@ -421,7 +421,9 @@ export function recordSessionOutputActivity(
   event: TerminalDataEvent,
   now = Date.now(),
 ): SessionTile[] {
-  const session = sessions.find((item) => item.runtimeId === event.id);
+  const session = sessions.find((item) =>
+    item.runtimeId === event.id || (event.clientId !== undefined && item.id === event.clientId),
+  );
   if (!session) return sessions;
   return sessions.map((item) => {
     if (item.id !== session.id) return item;
@@ -441,10 +443,11 @@ export function recordSessionOutputActivity(
     const lastActivityAt = acceptedLastActivityAt === undefined
       ? item.lastActivityAt
       : Math.max(item.lastActivityAt ?? acceptedLastActivityAt, acceptedLastActivityAt);
+    const outputAt = acceptedLastActivityAt ?? now;
 
     return {
       ...item,
-      lastOutputAt: now,
+      lastOutputAt: Math.max(item.lastOutputAt ?? outputAt, outputAt),
       ...(activityEvents.length === 0 ? {} : { activityEvents }),
       ...(lastActivityAt === undefined ? {} : { lastActivityAt }),
     };

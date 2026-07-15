@@ -260,7 +260,12 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         session.lastOutputAt = now;
         const activities = recordOutputActivity(session, data, now);
         rememberSessionSnapshot(session);
-        sendToSessionWindow(session, terminalChannels.data, { id, data, activities });
+        sendToSessionWindow(session, terminalChannels.data, {
+          id,
+          ...(session.clientId === undefined ? {} : { clientId: session.clientId }),
+          data,
+          activities,
+        });
       });
 
       pty.onExit(({ exitCode, signal }) => {

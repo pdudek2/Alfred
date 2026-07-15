@@ -123,6 +123,7 @@ export type TerminalExitEvent = {
 
 export type TerminalDataEvent = {
   id: TerminalSessionId;
+  clientId?: string;
   data: string;
   activities: SessionActivityEvent[];
 };

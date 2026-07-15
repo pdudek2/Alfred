@@ -1180,13 +1180,19 @@ export function App() {
     }
 
     startingSessionIdsRef.current.delete(tileId);
-    setTerminalSessions((sessions) =>
-      appendSessionActivity(attachRuntimeSession(sessions, tileId, runtime), tileId, {
+    setTerminalSessions((sessions) => {
+      const attached = attachRuntimeSession(sessions, tileId, runtime);
+      const attachmentAt = runtime.createdAt ?? Date.now();
+      const session = attached.find((candidate) => candidate.id === tileId);
+      if (session?.activityEvents?.some((event) => event.at >= attachmentAt)) {
+        return attached;
+      }
+      return appendSessionActivity(attached, tileId, {
         kind: "lifecycle",
         title: "Session attached",
         detail: `${runtime.shell} is running in ${runtime.cwd || "the workspace"}.`,
-      }, runtime.createdAt ?? Date.now()),
-    );
+      }, attachmentAt);
+    });
     if (runtime.source === "alfred") {
       void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
       setPendingPlan((plan) => {
@@ -1240,7 +1246,9 @@ export function App() {
   }, []);
 
   const handleRuntimeSessionOutput = useCallback((event: TerminalDataEvent) => {
-    const session = terminalSessionsRef.current.find((item) => item.runtimeId === event.id);
+    const session = terminalSessionsRef.current.find((item) =>
+      item.runtimeId === event.id || (event.clientId !== undefined && item.id === event.clientId),
+    );
     if (session) {
       setPreviewCandidates((candidates) =>
         recordPreviewUrlsFromText(candidates, {

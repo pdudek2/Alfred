@@ -4247,6 +4247,72 @@ describe("App integration", () => {
     })).toBeEnabled();
   });
 
+  it("routes approval output by client id before terminal creation resolves", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge(
+      undefined,
+      {
+        id: "plan-early-approval",
+        prompt: "wait for early approval",
+        sessions: [
+          {
+            id: "alfred-early-waiting",
+            kind: "shell",
+            title: "Early approval",
+            command: "/bin/cat",
+            args: [],
+            workspaceId: "A",
+          },
+        ],
+      },
+    );
+    const creation = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
+    bridge.createTerminal.mockImplementation(() => creation.promise);
+
+    render(<App />);
+    await openInboxFromCommandPalette(user);
+    await user.click(screen.getByRole("button", { name: "Launch Early approval in Alfred" }));
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
+
+    const earlyEvent: TerminalDataEvent & { clientId: string } = {
+      id: "runtime-early-approval",
+      clientId: "alfred-early-waiting",
+      data: "Approval required: continue?\n",
+      activities: [
+        {
+          id: "alfred-early-waiting-activity-101-1",
+          kind: "approval",
+          title: "Approval required",
+          detail: "Approval required: continue?",
+          payload: { type: "approval", prompt: "Approval required: continue?" },
+          at: 101,
+        },
+      ],
+    };
+    await bridge.emitData(earlyEvent);
+    expect(document.querySelector('[data-session-id="alfred-early-waiting"]')).toHaveAttribute(
+      "aria-label",
+      "Early approval, Approval required: Approval required: continue?",
+    );
+    creation.resolve({
+      id: "runtime-early-approval",
+      clientId: "alfred-early-waiting",
+      title: "Early approval",
+      source: "alfred",
+      agentKind: "shell",
+      workspaceId: "A",
+      cwd: "/Users/patryk/Desktop/Alfred",
+      createdAt: 100,
+      shell: "/bin/sh",
+      command: "/bin/cat",
+      args: [],
+    });
+    await creation.promise;
+
+    const waiting = await screen.findByTestId("inbox-decision-A:alfred-early-waiting");
+    expect(waiting).toHaveTextContent("Needs response · inferred");
+  });
+
   it("shows unsafe commands as blocked in the global Inbox", async () => {
     const user = userEvent.setup();
     const { createTerminal, resolveStagedPlan } = installDesktopBridge(

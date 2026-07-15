@@ -700,7 +700,8 @@ describe("desktop session state", () => {
       at: 1_234,
     };
     const terminalEvent: TerminalDataEvent = {
-      id: "pty-a",
+      id: "pty-before-create",
+      clientId: "manual-4",
       data: "Approval required: apply patch?",
       activities: [producerEvent],
     };

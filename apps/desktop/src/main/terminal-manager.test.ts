@@ -565,7 +565,7 @@ describe("terminal-manager IPC", () => {
     );
     expect(sentEvents).toContainEqual({
       channel: terminalChannels.data,
-      payload: { id: created.id, data: "hello\n", activities: [] },
+      payload: { id: created.id, clientId: "manual-1", data: "hello\n", activities: [] },
       windowId: 1,
     });
     expect(listed.sessions).toEqual([
