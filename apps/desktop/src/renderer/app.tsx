@@ -245,6 +245,17 @@ export function App() {
     session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error",
   );
   const attentionItems = buildAttentionProjection(workspaces, terminalSessions);
+  const sessionDetailsById: ReadonlyMap<
+    string,
+    Pick<SessionTile, "args" | "command" | "cwd">
+  > = new Map(terminalSessions.map((session) => [
+    session.id,
+    {
+      cwd: session.cwd,
+      ...(session.command === undefined ? {} : { command: session.command }),
+      ...(session.args === undefined ? {} : { args: session.args }),
+    },
+  ]));
   const needsYouCount = blockingAttentionCount(attentionItems);
   const attentionCountsByWorkspace = blockingAttentionCountByWorkspace(attentionItems);
   const reviewQueuePreview = attentionItems.find((item) => item.blocksAgent) ?? null;
@@ -1370,16 +1381,33 @@ export function App() {
     handleApproveTile(sessionId);
   }, [handleApproveTile]);
 
-  const handleRecoverInboxItem = useCallback((_workspaceId: string, sessionId: string) => {
+  const handleRecoverInboxItem = useCallback((workspaceId: string, sessionId: string) => {
     const session = terminalSessions.find((item) => item.id === sessionId);
+    if (!session) return;
+    const shouldFocusAfterRecovery = sessionRelaunchSafety(session).safe || armedRecoverySessionIds.has(sessionId);
     if (session?.runtimeStatus === "restored") {
       handleContinueRestoredSession(sessionId);
+    } else if (session?.runtimeStatus === "exited" || session?.runtimeStatus === "error") {
+      handleRestartSession(sessionId);
+    } else {
       return;
     }
-    if (session?.runtimeStatus === "exited" || session?.runtimeStatus === "error") {
-      handleRestartSession(sessionId);
+    if (shouldFocusAfterRecovery) handleFocusSessionInWorkspace(workspaceId, sessionId);
+  }, [
+    armedRecoverySessionIds,
+    handleContinueRestoredSession,
+    handleFocusSessionInWorkspace,
+    handleRestartSession,
+    terminalSessions,
+  ]);
+
+  const handleExitInboxToWork = useCallback(() => {
+    if (armedRecoverySessionIds.size > 0) {
+      setArmedRecoverySessionIds(new Set());
+      return;
     }
-  }, [handleContinueRestoredSession, handleRestartSession, terminalSessions]);
+    setActiveSurface("work");
+  }, [armedRecoverySessionIds]);
 
   const handleRejectTile = useCallback((tileId: string) => {
     const alfredApi = getDesktopAlfredApi();
@@ -2044,6 +2072,10 @@ export function App() {
               <div className="surface-panel active">
                 <ReviewSurface
                   attentionItems={attentionItems}
+                  armedRecoverySessionIds={armedRecoverySessionIds}
+                  sessionDetailsById={sessionDetailsById}
+                  onDiscardRecovery={handleCloseSession}
+                  onExitToWork={handleExitInboxToWork}
                   onLaunch={handleLaunchInboxItem}
                   onOpenInWork={handleFocusSessionInWorkspace}
                   onRecover={handleRecoverInboxItem}

@@ -4406,6 +4406,7 @@ describe("App integration", () => {
 
     await openInboxFromCommandPalette(user);
     const inbox = screen.getByRole("region", { name: "Inbox workspace" });
+    await user.click(within(inbox).getByRole("button", { name: "Recovery · 1 saved session" }));
     await user.click(within(inbox).getByRole("button", { name: "Relaunch Manual · zsh 9 in Alfred" }));
 
     expect(forgetTerminal).not.toHaveBeenCalled();
@@ -5169,6 +5170,7 @@ describe("App integration", () => {
     expect(createTerminal).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole("button", { name: /Open Inbox surface/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
     expect(screen.getByRole("button", { name: "Resume Codex · session 9 in Alfred" })).toBeInTheDocument();
     await selectSurface(userEvent.setup(), "Work");
 
@@ -5264,7 +5266,7 @@ describe("App integration", () => {
         {
           clientId: "clean-desktop",
           title: "Clean Desktop",
-          cwd: "/Users/patryk/Desktop",
+          cwd: "/Users/patryk/Desktop/Very Long Workspace",
           source: "manual",
           shell: "find",
           command: "find",
@@ -5283,19 +5285,42 @@ describe("App integration", () => {
 
     await openInboxFromCommandPalette(user);
     const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    expect(inbox).toHaveTextContent("find -exec mutates files when replayed");
-    expect(inbox).toHaveTextContent("find /Users/patryk/Desktop");
+    await user.click(within(inbox).getByRole("button", { name: "Recovery · 1 saved session" }));
+    expect(inbox).not.toHaveTextContent("/Users/patryk/Desktop/Very Long Workspace");
 
     await user.click(within(inbox).getByRole("button", { name: "Review relaunch Clean Desktop in Alfred" }));
 
     expect(createTerminal).not.toHaveBeenCalled();
+    expect(inbox).toHaveTextContent("find -exec mutates files when replayed");
+    expect(inbox).toHaveTextContent("/Users/patryk/Desktop/Very Long Workspace");
+    expect(inbox).toHaveTextContent("find /Users/patryk/Desktop -maxdepth 1 -exec mv {} /Users/patryk/Desktop/Alfred ;");
+    expect(within(inbox).getByRole("button", { name: "Confirm relaunch Clean Desktop in Alfred" })).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+
+    expect(createTerminal).not.toHaveBeenCalled();
+    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
+    expect(within(inbox).queryByRole("button", { name: "Confirm relaunch Clean Desktop in Alfred" })).not.toBeInTheDocument();
     expect(within(inbox).getByRole("button", { name: "Review relaunch Clean Desktop in Alfred" })).toBeInTheDocument();
-    await selectSurface(user, "Work");
-    const visibleTile = screen.getByRole("article", { name: /Clean Desktop/i });
-    expect(within(visibleTile).getByRole("button", { name: "Confirm relaunch Clean Desktop" })).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
+
+    await openInboxFromCommandPalette(user);
+    const reopenedInbox = screen.getByRole("region", { name: "Inbox workspace" });
+    await user.click(within(reopenedInbox).getByRole("button", { name: "Recovery · 1 saved session" }));
+    await user.click(within(reopenedInbox).getByRole("button", { name: "Review relaunch Clean Desktop in Alfred" }));
+    await user.click(within(reopenedInbox).getByRole("button", { name: "Confirm relaunch Clean Desktop in Alfred" }));
+
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "clean-desktop" }));
+    });
+    expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Clean Desktop");
   });
 
-  it("keeps Recovery non-blocking and does not invent a discard action", async () => {
+  it("keeps Recovery non-blocking and exposes Discard only after expansion", async () => {
     const { forgetTerminal } = installDesktopBridge(
       undefined,
       null,
@@ -5324,8 +5349,49 @@ describe("App integration", () => {
     await openInboxFromCommandPalette(userEvent.setup());
     const inbox = screen.getByRole("region", { name: "Inbox workspace" });
 
-    expect(inbox).toHaveTextContent("Manual · zsh 9");
+    expect(inbox).toHaveTextContent("Recovery · 1 saved session");
+    expect(inbox).not.toHaveTextContent("Manual · zsh 9");
     expect(within(inbox).queryByRole("button", { name: /Discard/i })).not.toBeInTheDocument();
+    await userEvent.click(within(inbox).getByRole("button", { name: "Recovery · 1 saved session" }));
+    expect(inbox).toHaveTextContent("Manual · zsh 9");
+    expect(within(inbox).getByRole("button", { name: "Discard Manual · zsh 9" })).toBeInTheDocument();
+    expect(forgetTerminal).not.toHaveBeenCalled();
+  });
+
+  it("routes Recovery Discard through the existing worktree inspection guard", async () => {
+    const user = userEvent.setup();
+    const { forgetTerminal, worktreeDiff } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "codex-recovery",
+          title: "Codex · guarded recovery",
+          cwd: "/repo/.alfred-worktrees/codex-recovery",
+          baseCwd: "/repo",
+          branchName: "alfred-codex-recovery",
+          source: "alfred",
+          agentKind: "codex",
+          command: "codex",
+          args: [],
+          shell: "codex",
+          buffer: "saved output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+    await openInboxFromCommandPalette(user);
+    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
+    await user.click(within(inbox).getByRole("button", { name: "Recovery · 1 saved session" }));
+    await user.click(within(inbox).getByRole("button", { name: "Discard Codex · guarded recovery" }));
+
+    expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-recovery" });
+    expect(screen.getByRole("dialog", { name: "Discard isolated checkout" })).toBeInTheDocument();
     expect(forgetTerminal).not.toHaveBeenCalled();
   });
 
@@ -5578,9 +5644,12 @@ describe("App integration", () => {
     const user = userEvent.setup();
     await user.click(within(recovery).getByRole("button", { name: "Review in Inbox" }));
     const inbox = await screen.findByRole("region", { name: "Inbox workspace" });
-    expect(screen.getByRole("button", { name: "Open Codex · session 9 in Alfred" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Recovery · 2 saved sessions" })).toHaveFocus();
     expect(recovery).toHaveTextContent("2 saved");
 
+    expect(inbox).not.toHaveTextContent("Manual · zsh 9");
+    expect(inbox).not.toHaveTextContent("Codex · session 9");
+    await user.click(within(inbox).getByRole("button", { name: "Recovery · 2 saved sessions" }));
     expect(inbox).toHaveTextContent("Manual · zsh 9");
     expect(inbox).toHaveTextContent("Codex · session 9");
     await user.click(within(inbox).getByRole("button", { name: "Resume Codex · session 9 in Alfred" }));
@@ -5657,7 +5726,7 @@ describe("App integration", () => {
     render(<App />);
 
     await openInboxFromCommandPalette(userEvent.setup());
-    await userEvent.click(screen.getByRole("button", { name: "Open Manual · zsh 9 in Alfred" }));
+    await userEvent.click(screen.getByRole("button", { name: "Recovery · 2 saved sessions" }));
     await userEvent.click(screen.getByRole("button", { name: "Relaunch Manual · zsh 9 in Alfred" }));
 
     await waitFor(() => {
@@ -5665,6 +5734,7 @@ describe("App integration", () => {
     });
     await openInboxFromCommandPalette(userEvent.setup());
     const reopenedInbox = screen.getByRole("region", { name: "Inbox workspace" });
+    await userEvent.click(within(reopenedInbox).getByRole("button", { name: "Recovery · 2 saved sessions" }));
     expect(reopenedInbox).toHaveTextContent("Manual · zsh 9");
     expect(reopenedInbox).toHaveTextContent("Manual · zsh 10");
     expect(forgetTerminal).not.toHaveBeenCalled();

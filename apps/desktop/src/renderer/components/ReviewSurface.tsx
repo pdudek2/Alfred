@@ -1,24 +1,35 @@
 import { CheckCircle2 } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { AttentionProjection } from "../attention-projection";
+import type { SessionTile } from "../session-state";
 import { InboxDecisionItem, attentionActionLabel } from "./InboxDecisionItem";
+import { InboxRecoveryList } from "./InboxRecoveryList";
 
 type ReviewSurfaceProps = {
   attentionItems: AttentionProjection[];
+  armedRecoverySessionIds: ReadonlySet<string>;
+  sessionDetailsById: ReadonlyMap<string, Pick<SessionTile, "args" | "command" | "cwd">>;
   onLaunch: (sessionId: string) => void;
   onOpenInWork: (workspaceId: string, sessionId: string) => void;
   onRecover: (workspaceId: string, sessionId: string) => void;
+  onDiscardRecovery: (sessionId: string) => void;
+  onExitToWork: () => void;
   onReviewEdit: (workspaceId: string, sessionId: string) => void;
 };
 
 export function ReviewSurface({
   attentionItems,
+  armedRecoverySessionIds,
+  sessionDetailsById,
   onLaunch,
   onOpenInWork,
   onRecover,
+  onDiscardRecovery,
+  onExitToWork,
   onReviewEdit,
 }: ReviewSurfaceProps) {
-  const decisions = attentionItems;
+  const decisions = attentionItems.filter((item) => item.section === "needs-you");
+  const recoveryItems = attentionItems.filter((item) => item.section === "recovery");
   const [selectedAttentionId, setSelectedAttentionId] = useState(
     () => decisions[0]?.id ?? null,
   );
@@ -74,7 +85,9 @@ export function ReviewSurface({
 
   useLayoutEffect(() => {
     if (!selectedAttentionId) {
-      surfaceRef.current?.focus();
+      const recoveryToggle = surfaceRef.current?.querySelector<HTMLButtonElement>("[data-inbox-recovery-toggle]");
+      if (recoveryToggle) recoveryToggle.focus();
+      else surfaceRef.current?.focus();
       return;
     }
     const escapedId = typeof CSS !== "undefined" && typeof CSS.escape === "function"
@@ -91,6 +104,11 @@ export function ReviewSurface({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onExitToWork();
+      return;
+    }
     if (!selectedItem) return;
     if (event.key === "Enter") {
       event.preventDefault();
@@ -108,21 +126,6 @@ export function ReviewSurface({
     moveSelection(nextIndex);
   };
 
-  const sections = [
-    {
-      id: "needs-you",
-      title: "Needs you",
-      detail: "Decisions that block an agent or a safe staged launch.",
-      items: decisions.filter((item) => item.section === "needs-you"),
-    },
-    {
-      id: "recovery",
-      title: "Recovery",
-      detail: "Saved and ended sessions with a concrete recovery path.",
-      items: decisions.filter((item) => item.section === "recovery"),
-    },
-  ];
-
   return (
     <section
       ref={surfaceRef}
@@ -139,44 +142,50 @@ export function ReviewSurface({
         {decisions.length > 0 && <span className="review-surface-waiting">{decisions.length} waiting</span>}
       </header>
 
-      {decisions.length === 0 ? (
-        <div className="review-surface-empty" role="status">
-          <div className="review-empty-lead">
-            <CheckCircle2 aria-hidden="true" size={20} />
-            <span>Queue clear</span>
-            <strong>No decisions waiting.</strong>
-            <p>New launch gates and recovery prompts will land here.</p>
+      <div className="inbox-section-stack" aria-label="Inbox sections">
+        {decisions.length === 0 ? (
+          <div className="review-surface-empty" role="status">
+            <div className="review-empty-lead">
+              <CheckCircle2 aria-hidden="true" size={20} />
+              <span>Queue clear</span>
+              <strong>No decisions waiting.</strong>
+              <p>New launch gates will land here.</p>
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="inbox-section-stack" aria-label="Inbox sections">
-          {sections.filter((section) => section.items.length > 0).map((section) => (
-            <section
-              className="inbox-section"
-              aria-label={section.title}
-              aria-describedby={`inbox-section-${section.id}-detail`}
-              key={section.id}
-            >
-              <header title={section.detail}>
-                <strong>{section.title}</strong>
-                <small>{section.items.length}</small>
-                <p className="visually-hidden" id={`inbox-section-${section.id}-detail`}>{section.detail}</p>
-              </header>
-              <ol className="review-surface-list" aria-label={`${section.title} items`}>
-                {section.items.map((item) => (
-                  <InboxDecisionItem
-                    item={item}
-                    key={item.id}
-                    selected={item.id === selectedAttentionId}
-                    onRunPrimaryAction={runPrimaryAction}
-                    onSelect={setSelectedAttentionId}
-                  />
-                ))}
-              </ol>
-            </section>
-          ))}
-        </div>
-      )}
+        ) : (
+          <section
+            className="inbox-section"
+            aria-label="Needs you"
+            aria-describedby="inbox-section-needs-you-detail"
+          >
+            <header title="Decisions that block an agent or a safe staged launch.">
+              <strong>Needs you</strong>
+              <small>{decisions.length}</small>
+              <p className="visually-hidden" id="inbox-section-needs-you-detail">
+                Decisions that block an agent or a safe staged launch.
+              </p>
+            </header>
+            <ol className="review-surface-list" aria-label="Needs you items">
+              {decisions.map((item) => (
+                <InboxDecisionItem
+                  item={item}
+                  key={item.id}
+                  selected={item.id === selectedAttentionId}
+                  onRunPrimaryAction={runPrimaryAction}
+                  onSelect={setSelectedAttentionId}
+                />
+              ))}
+            </ol>
+          </section>
+        )}
+        <InboxRecoveryList
+          armedRecoverySessionIds={armedRecoverySessionIds}
+          items={recoveryItems}
+          sessionDetailsById={sessionDetailsById}
+          onDiscard={onDiscardRecovery}
+          onRecover={onRecover}
+        />
+      </div>
 
       {selectedItem && (
         <footer className="review-surface-status" aria-live="polite">

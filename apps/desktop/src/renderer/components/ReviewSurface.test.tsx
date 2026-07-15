@@ -59,13 +59,22 @@ function renderSurface(attentionItems: AttentionProjection[] = DECISIONS) {
     onLaunch: vi.fn(),
     onOpenInWork: vi.fn(),
     onRecover: vi.fn(),
+    onDiscardRecovery: vi.fn(),
+    onExitToWork: vi.fn(),
     onReviewEdit: vi.fn(),
   };
-  const view = render(<ReviewSurface attentionItems={attentionItems} {...handlers} />);
+  const renderProps = {
+    armedRecoverySessionIds: new Set<string>(),
+    sessionDetailsById: new Map(),
+  };
+  const view = render(<ReviewSurface attentionItems={attentionItems} {...renderProps} {...handlers} />);
   return {
     ...handlers,
-    rerenderSurface: (nextItems: AttentionProjection[]) => {
-      view.rerender(<ReviewSurface attentionItems={nextItems} {...handlers} />);
+    rerenderSurface: (
+      nextItems: AttentionProjection[],
+      props: Partial<typeof renderProps> = {},
+    ) => {
+      view.rerender(<ReviewSurface attentionItems={nextItems} {...renderProps} {...props} {...handlers} />);
     },
   };
 }
@@ -165,10 +174,201 @@ describe("ReviewSurface", () => {
     expect(handlers.onLaunch).toHaveBeenCalledWith("STAGED");
     expect(handlers.onOpenInWork).not.toHaveBeenCalled();
 
-    await user.click(selectButton(recovery));
+    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
     await user.click(screen.getByRole("button", { name: "Resume Saved Codex in Alfred" }));
     expect(handlers.onRecover).toHaveBeenCalledWith("ALFRED", "RECOVERY");
     expect(handlers.onReviewEdit).not.toHaveBeenCalled();
+  });
+
+  it("keeps Recovery outside the waiting count and collapsed into one summary line", () => {
+    const recoveryItems = Array.from({ length: 7 }, (_, index) => decision({
+      id: `ALFRED:RECOVERY-${index + 1}`,
+      sessionId: `RECOVERY-${index + 1}`,
+      sessionTitle: `Saved session ${index + 1}`,
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Ended session can be relaunched.",
+      action: { kind: "relaunch", confirmation: "none" },
+    }));
+
+    renderSurface([STAGED, ...recoveryItems]);
+
+    expect(screen.getByText("1 waiting")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Recovery · 7 saved sessions" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByText("Saved session 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Saved session 7")).not.toBeInTheDocument();
+  });
+
+  it("shows every Recovery item after expansion without a five-item cap", async () => {
+    const user = userEvent.setup();
+    const recoveryItems = Array.from({ length: 7 }, (_, index) => decision({
+      id: `ALFRED:RECOVERY-${index + 1}`,
+      sessionId: `RECOVERY-${index + 1}`,
+      sessionTitle: `Saved session ${index + 1}`,
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Ended session can be relaunched.",
+      action: { kind: "relaunch", confirmation: "none" },
+    }));
+    renderSurface(recoveryItems);
+
+    await user.click(screen.getByRole("button", { name: "Recovery · 7 saved sessions" }));
+
+    expect(screen.getAllByTestId(/inbox-recovery-item-/)).toHaveLength(7);
+    expect(screen.getByText("Saved session 1")).toBeVisible();
+    expect(screen.getByText("Saved session 7")).toBeVisible();
+  });
+
+  it("routes safe resume and relaunch immediately through the existing recovery handler", async () => {
+    const user = userEvent.setup();
+    const resume = decision({
+      id: "ALFRED:RESUME",
+      sessionId: "RESUME",
+      sessionTitle: "Saved Codex",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Saved agent session can be resumed.",
+      action: { kind: "resume" },
+    });
+    const relaunch = decision({
+      id: "ALFRED:RELAUNCH",
+      sessionId: "RELAUNCH",
+      sessionTitle: "Safe shell",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Ended session can be relaunched.",
+      action: { kind: "relaunch", confirmation: "none" },
+    });
+    const handlers = renderSurface([resume, relaunch]);
+
+    await user.click(screen.getByRole("button", { name: "Recovery · 2 saved sessions" }));
+    await user.click(screen.getByRole("button", { name: "Resume Saved Codex in Alfred" }));
+    await user.click(screen.getByRole("button", { name: "Relaunch Safe shell in Alfred" }));
+
+    expect(handlers.onRecover).toHaveBeenNthCalledWith(1, "ALFRED", "RESUME");
+    expect(handlers.onRecover).toHaveBeenNthCalledWith(2, "ALFRED", "RELAUNCH");
+  });
+
+  it("reveals unsafe recovery details only while armed and confirms through the same handler", async () => {
+    const user = userEvent.setup();
+    const unsafe = decision({
+      id: "ALFRED:UNSAFE",
+      sessionId: "UNSAFE",
+      sessionTitle: "Clean Desktop",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "find -exec mutates files when replayed",
+      command: "find truncated",
+      action: { kind: "relaunch", confirmation: "required" },
+    });
+    const details = new Map([
+      ["UNSAFE", {
+        cwd: "/Users/patryk/Desktop/Very Long Workspace",
+        command: "find",
+        args: ["/Users/patryk/Desktop", "-exec", "mv", "{}", "/archive", ";"],
+      }],
+    ]);
+    const handlers = renderSurface([unsafe]);
+    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
+
+    expect(screen.queryByText("/Users/patryk/Desktop/Very Long Workspace")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Review relaunch Clean Desktop in Alfred" }));
+    expect(handlers.onRecover).toHaveBeenCalledOnce();
+
+    handlers.rerenderSurface([unsafe], {
+      armedRecoverySessionIds: new Set(["UNSAFE"]),
+      sessionDetailsById: details,
+    });
+    expect(screen.getByText("/Users/patryk/Desktop/Very Long Workspace")).toBeVisible();
+    expect(screen.getByText("find /Users/patryk/Desktop -exec mv {} /archive ;")).toBeVisible();
+    expect(screen.getByText("find -exec mutates files when replayed")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Confirm relaunch Clean Desktop in Alfred" }));
+    expect(handlers.onRecover).toHaveBeenCalledTimes(2);
+  });
+
+  it("routes Escape to canonical App safety handling before leaving Inbox", async () => {
+    const user = userEvent.setup();
+    const unsafe = decision({
+      id: "ALFRED:UNSAFE",
+      sessionId: "UNSAFE",
+      sessionTitle: "Clean Desktop",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "rm command mutates files when replayed",
+      action: { kind: "relaunch", confirmation: "required" },
+    });
+    const handlers = renderSurface([unsafe]);
+    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
+    handlers.rerenderSurface([unsafe], { armedRecoverySessionIds: new Set(["UNSAFE"]) });
+
+    await user.keyboard("{Escape}");
+
+    expect(handlers.onExitToWork).toHaveBeenCalledOnce();
+    expect(handlers.onRecover).not.toHaveBeenCalled();
+  });
+
+  it("offers Discard only as a secondary action inside expanded Recovery", async () => {
+    const user = userEvent.setup();
+    const recovery = decision({
+      id: "ALFRED:RECOVERY",
+      sessionId: "RECOVERY",
+      sessionTitle: "Saved shell",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Saved session can be relaunched.",
+      action: { kind: "relaunch", confirmation: "none" },
+    });
+    const handlers = renderSurface([SAFETY, recovery]);
+
+    expect(screen.queryByRole("button", { name: "Discard Saved shell" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Discard Safety cleanup" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
+    await user.click(screen.getByRole("button", { name: "Discard Saved shell" }));
+
+    expect(handlers.onDiscardRecovery).toHaveBeenCalledWith("RECOVERY");
+    expect(screen.queryByRole("button", { name: "Discard Safety cleanup" })).not.toBeInTheDocument();
+  });
+
+  it("keeps Recovery keyboard actions from running the selected Needs You decision", async () => {
+    const user = userEvent.setup();
+    const recovery = decision({
+      id: "ALFRED:RECOVERY",
+      sessionId: "RECOVERY",
+      sessionTitle: "Saved shell",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Saved session can be relaunched.",
+      action: { kind: "relaunch", confirmation: "none" },
+    });
+    const handlers = renderSurface([STAGED, recovery]);
+    const recoveryToggle = screen.getByRole("button", { name: "Recovery · 1 saved session" });
+    recoveryToggle.focus();
+
+    await user.keyboard("{Enter}");
+
+    expect(recoveryToggle).toHaveAttribute("aria-expanded", "true");
+    expect(handlers.onLaunch).not.toHaveBeenCalled();
+    expect(screen.getByText("Saved shell")).toBeVisible();
   });
 
   it("offers a blocked decision only Review / Edit and routes only that action", async () => {
@@ -232,7 +432,7 @@ describe("ReviewSurface", () => {
     expect(primaryAction).toHaveFocus();
   });
 
-  it("restores focus to a selected row remounted under a different section", () => {
+  it("restores focus to the Inbox surface when a selected decision moves to compact Recovery", () => {
     const movedToRecovery = decision({
       ...SAFETY,
       kind: "recovery",
@@ -250,8 +450,11 @@ describe("ReviewSurface", () => {
     primaryAction.focus();
     handlers.rerenderSurface([movedToRecovery]);
 
-    expect(selectButton(movedToRecovery)).toHaveFocus();
-    expect(selectButton(movedToRecovery)).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Recovery · 1 saved session" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Recovery · 1 saved session" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
   });
 
   it("keeps long reason and command values complete in details and accessible names", () => {
