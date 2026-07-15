@@ -1185,7 +1185,7 @@ export function App() {
         kind: "lifecycle",
         title: "Session attached",
         detail: `${runtime.shell} is running in ${runtime.cwd || "the workspace"}.`,
-      }),
+      }, runtime.createdAt ?? Date.now()),
     );
     if (runtime.source === "alfred") {
       void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });

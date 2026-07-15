@@ -4184,6 +4184,69 @@ describe("App integration", () => {
     });
   });
 
+  it("keeps an immediate approval prompt newer than the session attachment event", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge(
+      undefined,
+      {
+        id: "plan-immediate-approval",
+        prompt: "wait for approval",
+        sessions: [
+          {
+            id: "alfred-waiting",
+            kind: "shell",
+            title: "Immediate approval",
+            command: "/bin/cat",
+            args: [],
+            workspaceId: "A",
+          },
+        ],
+      },
+    );
+    bridge.createTerminal.mockImplementation(async (request) => {
+      const snapshot: TerminalSessionSnapshot = {
+        id: "runtime-immediate-approval",
+        clientId: request.clientId ?? "alfred-waiting",
+        title: request.title ?? "Immediate approval",
+        source: request.source ?? "alfred",
+        agentKind: request.agentKind,
+        workspaceId: request.workspaceId ?? "A",
+        cwd: request.cwd ?? "/Users/patryk/Desktop/Alfred",
+        createdAt: 100,
+        shell: "/bin/sh",
+        command: request.command,
+        args: request.args,
+        buffer: "Approval required: continue?\n",
+        activityEvents: [
+          {
+            id: "alfred-waiting-activity-101-1",
+            kind: "approval",
+            title: "Approval required",
+            detail: "Approval required: continue?",
+            payload: { type: "approval", prompt: "Approval required: continue?" },
+            at: 101,
+          },
+        ],
+        lastActivityAt: 101,
+        lastOutputAt: 101,
+      };
+      bridge.setTerminalSnapshots([snapshot]);
+      const { buffer: _buffer, activityEvents: _activityEvents, lastActivityAt: _lastActivityAt,
+        lastOutputAt: _lastOutputAt, ...runtime } = snapshot;
+      return runtime;
+    });
+
+    render(<App />);
+    await openInboxFromCommandPalette(user);
+    await user.click(screen.getByRole("button", { name: "Launch Immediate approval in Alfred" }));
+
+    const waiting = await screen.findByTestId("inbox-decision-A:alfred-waiting");
+    expect(waiting).toHaveTextContent("Needs response · inferred");
+    expect(within(waiting).getByRole("button", {
+      name: "Open in Work Immediate approval in Alfred",
+    })).toBeEnabled();
+  });
+
   it("shows unsafe commands as blocked in the global Inbox", async () => {
     const user = userEvent.setup();
     const { createTerminal, resolveStagedPlan } = installDesktopBridge(
