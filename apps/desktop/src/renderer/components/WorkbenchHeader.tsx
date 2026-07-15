@@ -68,7 +68,7 @@ export function WorkbenchHeader({
         <div className="workbench-product-signature"><AlfredMark /></div>
         <div className="workbench-session-context">
           <span>{surfaceTitle}</span>
-          <small>{activeSurface === "work" ? workspaceDetail : "Alfred"}</small>
+          <small>{activeSurface === "work" ? workspaceDetail : activeSurface === "inbox" ? "All projects" : "Alfred"}</small>
           <ChromeMenu
             {...(prepareWorkTriggerRef ? { triggerRef: prepareWorkTriggerRef } : {})}
             label="Open launch menu"

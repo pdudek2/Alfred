@@ -45,6 +45,33 @@ afterEach(() => {
 });
 
 describe("ObservatorySurface", () => {
+  it("uses the same 36px surface switcher slot without changing Observatory content", async () => {
+    const user = userEvent.setup();
+    const onSelectSurface = vi.fn();
+    render(
+      <ObservatorySurface
+        activeWorkspaceId="A"
+        externalCodexSessions={externalSessions}
+        loadingExternalSessions={false}
+        sessions={managedSessions}
+        workspaces={workspaces}
+        onOpenManagedSession={vi.fn()}
+        onRefreshExternalSessions={vi.fn()}
+        onResumeExternalCodexSession={vi.fn()}
+        onSelectSurface={onSelectSurface}
+        onSelectWorkspace={vi.fn()}
+      />,
+    );
+
+    const surface = screen.getByRole("region", { name: "History workspace" });
+    expect(surface).toHaveAttribute("data-secondary-chrome-height", "36");
+    const switcher = within(surface).getByRole("toolbar", { name: "Primary surfaces" });
+    expect(within(switcher).getByRole("button", { name: "Observatory" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(within(switcher).getByRole("button", { name: "Inbox" }));
+    expect(onSelectSurface).toHaveBeenCalledWith("inbox");
+    expect(within(surface).getByText("Sessions and project memory")).toBeInTheDocument();
+  });
+
   it("shows managed Alfred and external Codex sessions with separate actions", async () => {
     const user = userEvent.setup();
     const onOpenManagedSession = vi.fn();
@@ -60,6 +87,7 @@ describe("ObservatorySurface", () => {
         onOpenManagedSession={onOpenManagedSession}
         onRefreshExternalSessions={vi.fn()}
         onResumeExternalCodexSession={onResumeExternalCodexSession}
+        onSelectSurface={vi.fn()}
         onSelectWorkspace={vi.fn()}
       />,
     );
@@ -94,6 +122,7 @@ describe("ObservatorySurface", () => {
         onOpenManagedSession={vi.fn()}
         onRefreshExternalSessions={vi.fn()}
         onResumeExternalCodexSession={vi.fn()}
+        onSelectSurface={vi.fn()}
         onSelectWorkspace={vi.fn()}
       />,
     );
@@ -133,6 +162,7 @@ describe("ObservatorySurface", () => {
         onOpenManagedSession={vi.fn()}
         onRefreshExternalSessions={vi.fn()}
         onResumeExternalCodexSession={onResumeExternalCodexSession}
+        onSelectSurface={vi.fn()}
         onTrustExternalCodexWorkspace={onTrustExternalCodexWorkspace}
         onSelectWorkspace={vi.fn()}
       />,
@@ -172,6 +202,7 @@ describe("ObservatorySurface", () => {
         onOpenManagedSession={vi.fn()}
         onRefreshExternalSessions={vi.fn()}
         onResumeExternalCodexSession={onResumeExternalCodexSession}
+        onSelectSurface={vi.fn()}
         onSelectWorkspace={vi.fn()}
       />,
     );

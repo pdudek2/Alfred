@@ -1,6 +1,7 @@
-import { AlertTriangle, ArrowRight, Play, RotateCcw } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import type { AttentionProjection } from "../attention-projection";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
+import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 
 export type InboxDecisionItemProps = {
   item: AttentionProjection;
@@ -17,63 +18,98 @@ export function InboxDecisionItem({
 }: InboxDecisionItemProps) {
   const detailId = `inbox-decision-detail-${encodeURIComponent(item.id)}`;
   const actionLabel = attentionActionLabel(item);
+  const kindLabel = attentionKindLabel(item);
   const ageLabel = sessionAgeLabel(item.attentionAt);
+  const fullAccessibleName = `${kindLabel}: ${item.sessionTitle}, project ${item.workspaceLabel}, session ${item.sessionId}, ${item.provenance}, action ${actionLabel}`;
 
   return (
     <li
-      className={`review-surface-item tone-${item.kind}${selected ? " selected" : ""}`}
+      className={`inbox-docket__item inbox-docket__item--${item.kind}`}
+      aria-expanded={selected}
       data-testid={`inbox-decision-${item.id}`}
     >
       <button
         type="button"
-        className="review-surface-item-main"
+        className="inbox-docket__item-row"
         aria-controls={detailId}
         aria-current={selected ? "true" : undefined}
         aria-describedby={selected ? detailId : undefined}
         aria-expanded={selected}
-        aria-label={`Open ${item.sessionTitle} in ${item.workspaceLabel}`}
+        aria-label={fullAccessibleName}
         data-attention-id={item.id}
         data-testid={`inbox-decision-select-${item.id}`}
         onClick={() => onSelect(item.id)}
         tabIndex={selected ? 0 : -1}
       >
-        <span className="review-surface-workspace" role="img" aria-label={attentionKindLabel(item)}>
+        <span
+          className={`inbox-docket__glyph inbox-docket__glyph--${glyphTone(item)}`}
+          role="img"
+          aria-label={kindLabel}
+        >
           <AttentionGlyph item={item} />
         </span>
-        <span className="review-surface-copy">
+        <span className="inbox-docket__item-copy">
           <strong>{item.sessionTitle}</strong>
-          <small>{item.workspaceLabel} · {item.sessionId} · {item.provenance}</small>
+          <small>{item.sessionId} · {item.workspaceLabel}</small>
         </span>
         {ageLabel && (
           <time dateTime={new Date(item.attentionAt).toISOString()} title={sessionAgeTitle(item.attentionAt)}>
             {ageLabel}
           </time>
         )}
-        <ArrowRight aria-hidden="true" size={15} />
+        <span className="inbox-docket__disclosure" aria-hidden="true">
+          <ChevronRight size={12} />
+        </span>
       </button>
 
-      {selected && (
-        <div className="review-surface-note" id={detailId}>
-          <p title={item.reason}>{item.reason}</p>
-          {item.command && (
-            <div className="review-surface-command">
-              <span>Command</span>
-              <code title={item.command}>{item.command}</code>
+      <div
+        className="inbox-docket__detail"
+        id={detailId}
+        aria-hidden={selected ? undefined : "true"}
+        inert={!selected || undefined}
+      >
+        <div className="inbox-docket__detail-clip">
+          <div className="inbox-docket__detail-grid">
+            <div className="inbox-docket__detail-main">
+              <h3>{detailHeading(item)}</h3>
+              {item.command ? (
+                <code title={item.command}>{item.command}</code>
+              ) : (
+                <blockquote title={item.reason}>{item.reason}</blockquote>
+              )}
+              {item.command && <p title={item.reason}>{item.reason}</p>}
+              <button
+                type="button"
+                className="inbox-docket__primary"
+                aria-label={`${actionLabel} ${item.sessionTitle} in ${item.workspaceLabel}`}
+                onClick={() => onRunPrimaryAction(item)}
+              >
+                {actionLabel}
+              </button>
             </div>
-          )}
-          <small>{attentionKindLabel(item)} · {item.provenance}</small>
-          <button
-            type="button"
-            className={`review-surface-primary action-${item.kind}`}
-            aria-label={`${actionLabel} ${item.sessionTitle} in ${item.workspaceLabel}`}
-            onClick={() => onRunPrimaryAction(item)}
-          >
-            <ActionGlyph item={item} />
-            <span>{actionLabel}</span>
-          </button>
+            <dl className="inbox-docket__facts">
+              <Fact label="Project" value={item.workspaceLabel} />
+              <Fact label="Session" value={item.sessionTitle} />
+              <Fact label="Received" value={ageLabel ? `${ageLabel} ago` : "Now"} technical />
+              <Fact label="Provenance" value={item.provenance} technical />
+              <div className={`inbox-docket__state inbox-docket__state--${glyphTone(item)}`}>
+                <dt className="visually-hidden">State</dt>
+                <dd>{attentionStateLabel(item)}</dd>
+              </div>
+            </dl>
+          </div>
         </div>
-      )}
+      </div>
     </li>
+  );
+}
+
+function Fact({ label, value, technical = false }: { label: string; value: string; technical?: boolean }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd className={technical ? "inbox-docket__technical" : undefined} title={value}>{value}</dd>
+    </div>
   );
 }
 
@@ -92,6 +128,19 @@ export function attentionActionLabel(item: AttentionProjection): string {
   }
 }
 
+function detailHeading(item: AttentionProjection): string {
+  switch (item.kind) {
+    case "blocked-safety":
+      return "Why launch is blocked";
+    case "agent-waiting":
+      return "Latest signal";
+    case "staged-launch":
+      return "Staged command";
+    case "recovery":
+      return "Recovery";
+  }
+}
+
 function attentionKindLabel(item: AttentionProjection): string {
   switch (item.kind) {
     case "blocked-safety":
@@ -105,28 +154,53 @@ function attentionKindLabel(item: AttentionProjection): string {
   }
 }
 
-function AttentionGlyph({ item }: { item: AttentionProjection }) {
+function attentionStateLabel(item: AttentionProjection): string {
   switch (item.kind) {
     case "blocked-safety":
-      return <AlertTriangle aria-hidden="true" size={14} />;
+      return "Blocked · safety";
     case "agent-waiting":
-      return <ArrowRight aria-hidden="true" size={14} />;
+      return "Needs response · inferred";
     case "staged-launch":
-      return <Play aria-hidden="true" size={14} />;
+      return "Staged · structured";
     case "recovery":
-      return <RotateCcw aria-hidden="true" size={14} />;
+      return "Recovery · runtime";
   }
 }
 
-function ActionGlyph({ item }: { item: AttentionProjection }) {
-  switch (item.action.kind) {
-    case "open-in-work":
-    case "review-edit":
-      return <ArrowRight aria-hidden="true" size={14} />;
-    case "launch":
-      return <Play aria-hidden="true" size={14} />;
-    case "resume":
-    case "relaunch":
-      return <RotateCcw aria-hidden="true" size={14} />;
+function glyphTone(item: AttentionProjection): "blocked" | "waiting" | "staged" | "recovery" {
+  switch (item.kind) {
+    case "blocked-safety":
+      return "blocked";
+    case "agent-waiting":
+      return "waiting";
+    case "staged-launch":
+      return "staged";
+    case "recovery":
+      return "recovery";
+  }
+}
+
+function AttentionGlyph({ item }: { item: AttentionProjection }) {
+  switch (item.kind) {
+    case "blocked-safety":
+      return (
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M12 3 20 7v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7zM8 16l8-8" />
+        </svg>
+      );
+    case "agent-waiting":
+      return <AlfredSignalGlyph />;
+    case "staged-launch":
+      return (
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M5 7h14v12H5zM8 4h8v3M9 11l-2 2 2 2M15 11l2 2-2 2" />
+        </svg>
+      );
+    case "recovery":
+      return (
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="m9 6-5 5 5 5M5 11h8a6 6 0 1 1 0 12" />
+        </svg>
+      );
   }
 }

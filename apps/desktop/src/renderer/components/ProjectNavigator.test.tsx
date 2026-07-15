@@ -233,7 +233,10 @@ describe("ProjectNavigator", () => {
       "data-attention",
       "true",
     );
-    expect(within(client).getByLabelText("2 decisions need review")).toHaveTextContent("2");
+    const signal = within(client).getByLabelText("2 decisions need review");
+    expect(signal.querySelector(".alfred-signal-glyph")).toBeInTheDocument();
+    expect(signal).toHaveClass("project-attention-signal");
+    expect(signal).toHaveTextContent("2");
   });
 
   it("does not invent a signal for a recovery-only workspace omitted from the blocking map", () => {

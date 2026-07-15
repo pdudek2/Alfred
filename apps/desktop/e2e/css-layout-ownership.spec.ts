@@ -74,10 +74,12 @@ const prepareWorkProbes: CssOwnerProbe[] = [
 ];
 
 const inboxProbes: CssOwnerProbe[] = [
-  { name: "inbox", selector: ".inbox-surface", required: true,
+  { name: "inbox", selector: ".inbox-docket", required: true,
     properties: ["display", "min-height", "overflow", "background-color"] },
-  { name: "inbox-scroll-owner", selector: ".inbox-section-stack", required: true,
-    properties: ["display", "min-height", "overflow-x", "overflow-y", "padding", "gap"] },
+  { name: "inbox-scroll-owner", selector: ".inbox-docket__canvas", required: true,
+    properties: ["display", "min-height", "overflow-x", "overflow-y", "padding", "max-width"] },
+  { name: "inbox-detail", selector: ".inbox-docket__detail-grid", required: true,
+    properties: ["display", "grid-template-columns", "min-width", "overflow"] },
 ];
 
 const observatoryProbes: CssOwnerProbe[] = [
@@ -201,6 +203,17 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await setWindowSize(app, page, 1120, 720);
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow Grid");
   await capture("narrow", [...frameProbes, ...terminalProbes]);
+  await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
+  await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
+  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow Inbox");
+  expect(
+    await page.locator(".inbox-docket__detail-grid").evaluate((element) =>
+      getComputedStyle(element).gridTemplateColumns.trim().split(/\s+/),
+    ),
+  ).toHaveLength(1);
+  await capture("narrow-inbox", [...frameProbes, ...inboxProbes]);
+  await page.getByRole("toolbar", { name: "Primary surfaces" }).getByRole("button", { name: "Work" }).click();
+  await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
 
   await setWindowSize(app, page, 1440, 920);
   await page.getByRole("button", { name: "Open command palette" }).click();

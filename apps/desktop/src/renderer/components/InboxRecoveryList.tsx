@@ -31,7 +31,7 @@ export function InboxRecoveryList({
 
   return (
     <section
-      className="inbox-section"
+      className="inbox-docket__recovery"
       aria-label="Recovery"
       onKeyDown={(event) => {
         if (RECOVERY_DOCKET_KEYS.has(event.key)) {
@@ -39,20 +39,22 @@ export function InboxRecoveryList({
         }
       }}
     >
-      <header>
-        <button
-          type="button"
-          data-inbox-recovery-toggle
-          aria-expanded={expanded}
-          aria-controls="inbox-recovery-items"
-          onClick={() => setExpanded((current) => !current)}
-        >
-          <strong>{summaryLabel}</strong>
-        </button>
-      </header>
+      <button
+        type="button"
+        className="inbox-docket__recovery-toggle"
+        data-inbox-recovery-toggle
+        aria-label={summaryLabel}
+        aria-expanded={expanded}
+        aria-controls="inbox-recovery-items"
+        onClick={() => setExpanded((current) => !current)}
+      >
+        <RotateCcw aria-hidden="true" size={13} />
+        <strong>{summaryLabel}</strong>
+        <span>{expanded ? "Hide saved sessions" : `Show all ${items.length}`}</span>
+      </button>
 
       {expanded && (
-        <ol className="review-surface-list" aria-label="Recovery items" id="inbox-recovery-items">
+        <ol className="inbox-docket__recovery-list" aria-label="Recovery items" id="inbox-recovery-items">
           {items.map((item) => {
             const armed = armedRecoverySessionIds.has(item.sessionId);
             const unsafe = item.action.kind === "relaunch" && item.action.confirmation === "required";
@@ -62,42 +64,42 @@ export function InboxRecoveryList({
 
             return (
               <li
-                className="review-surface-item tone-recovery"
+                className="inbox-docket__recovery-item"
                 data-testid={`inbox-recovery-item-${item.id}`}
                 key={item.id}
               >
-                <div className="review-surface-item-main">
-                  <span className="review-surface-workspace" role="img" aria-label="Recovery">
+                <div className="inbox-docket__recovery-row">
+                  <span className="inbox-docket__glyph inbox-docket__glyph--recovery" role="img" aria-label="Recovery">
                     <RotateCcw aria-hidden="true" size={14} />
                   </span>
-                  <span className="review-surface-copy">
+                  <span className="inbox-docket__recovery-copy">
                     <strong>{item.sessionTitle}</strong>
                     <small>{item.workspaceLabel} · {item.sessionId}</small>
                   </span>
                 </div>
 
-                <div className="review-surface-note">
+                <div className="inbox-docket__recovery-detail">
                   {unsafe && armed && (
-                    <div>
+                    <div className="inbox-docket__recovery-warning">
                       <p>{item.reason}</p>
                       {details?.cwd && (
-                        <div className="review-surface-command">
+                        <div className="inbox-docket__technical-block">
                           <span>Working directory</span>
                           <code title={details.cwd}>{details.cwd}</code>
                         </div>
                       )}
                       {fullCommand && (
-                        <div className="review-surface-command">
+                        <div className="inbox-docket__technical-block">
                           <span>Command</span>
                           <code title={fullCommand}>{fullCommand}</code>
                         </div>
                       )}
                     </div>
                   )}
-                  <div className="review-surface-row">
+                  <div className="inbox-docket__recovery-actions">
                     <button
                       type="button"
-                      className="review-surface-primary action-recovery"
+                      className="inbox-docket__recovery-primary"
                       aria-label={`${actionLabel} ${item.sessionTitle} in ${item.workspaceLabel}`}
                       onClick={() => onRecover(item.workspaceId, item.sessionId)}
                     >
@@ -106,6 +108,7 @@ export function InboxRecoveryList({
                     </button>
                     <button
                       type="button"
+                      className="inbox-docket__recovery-secondary"
                       aria-label={`Discard ${item.sessionTitle}`}
                       onClick={() => onDiscard(item.sessionId)}
                     >

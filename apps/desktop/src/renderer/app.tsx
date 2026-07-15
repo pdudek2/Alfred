@@ -2115,6 +2115,7 @@ export function App() {
                   onOpenInWork={handleFocusSessionInWorkspace}
                   onRecover={handleRecoverInboxItem}
                   onReviewEdit={handleReviewBlockedSession}
+                  onSelectSurface={setActiveSurface}
                 />
               </div>
             )}
@@ -2131,6 +2132,7 @@ export function App() {
                   onOpenManagedSession={handleOpenManagedSessionFromObservatory}
                   onRefreshExternalSessions={handleRefreshExternalCodexSessions}
                   onResumeExternalCodexSession={handleResumeExternalCodexSession}
+                  onSelectSurface={setActiveSurface}
                   onTrustExternalCodexWorkspace={handleTrustExternalCodexWorkspace}
                   onSelectWorkspace={handleSelectWorkspace}
                 />

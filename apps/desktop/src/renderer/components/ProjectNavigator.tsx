@@ -4,6 +4,7 @@ import type { WorkspaceMissionBrief } from "../../shared/workspace-ipc";
 import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
+import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 
 export type ProjectNavigatorWorkspace = {
   id: string;
@@ -123,10 +124,11 @@ export function ProjectNavigator({
                     {stableIndex >= 0 && stableIndex < 5 && <kbd aria-hidden="true">⌘{stableIndex + 1}</kbd>}
                     {hasAttention && (
                       <span
-                        className="project-attention-dot"
+                        className="project-attention-signal"
                         aria-label={`${attentionCount} decision${attentionCount === 1 ? " needs" : "s need"} review`}
                       >
-                        {attentionCount}
+                        <AlfredSignalGlyph />
+                        {attentionCount > 1 && <span className="project-attention-count">{attentionCount}</span>}
                       </span>
                     )}
                   </button>
@@ -180,8 +182,11 @@ export function ProjectNavigator({
           >
             <span>Show {hiddenProjects.length} more</span>
             {hiddenAttentionCount > 0 && (
-              <span className="project-attention-dot" aria-label="Hidden project needs review">
-                {hiddenAttentionCount}
+              <span className="project-attention-signal" aria-label="Hidden project needs review">
+                <AlfredSignalGlyph />
+                {hiddenAttentionCount > 1 && (
+                  <span className="project-attention-count">{hiddenAttentionCount}</span>
+                )}
               </span>
             )}
           </button>

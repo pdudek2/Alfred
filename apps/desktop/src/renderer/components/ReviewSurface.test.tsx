@@ -62,6 +62,7 @@ function renderSurface(attentionItems: AttentionProjection[] = DECISIONS) {
     onDiscardRecovery: vi.fn(),
     onExitToWork: vi.fn(),
     onReviewEdit: vi.fn(),
+    onSelectSurface: vi.fn(),
   };
   const renderProps = {
     armedRecoverySessionIds: new Set<string>(),
@@ -92,6 +93,23 @@ afterEach(() => {
 });
 
 describe("ReviewSurface", () => {
+  it("uses the canonical docket and the existing secondary chrome slot", async () => {
+    const user = userEvent.setup();
+    const handlers = renderSurface();
+
+    const surface = screen.getByRole("region", { name: "Inbox workspace" });
+    expect(surface).toHaveClass("inbox-docket");
+    expect(surface).toHaveAttribute("data-secondary-chrome-height", "36");
+    expect(surface.querySelector(".review-surface")).not.toBeInTheDocument();
+    expect(surface.querySelector(".inbox-section")).not.toBeInTheDocument();
+    expect(surface.querySelector("[class*='avatar'], [class*='pill']")).not.toBeInTheDocument();
+
+    const switcher = screen.getByRole("toolbar", { name: "Primary surfaces" });
+    expect(within(switcher).getByRole("button", { name: "Inbox" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(within(switcher).getByRole("button", { name: "Work" }));
+    expect(handlers.onSelectSurface).toHaveBeenCalledWith("work");
+  });
+
   it("selects, expands, and focuses the first decision without running an action", () => {
     const handlers = renderSurface();
 
@@ -195,7 +213,7 @@ describe("ReviewSurface", () => {
 
     renderSurface([STAGED, ...recoveryItems]);
 
-    expect(screen.getByText("1 waiting")).toBeInTheDocument();
+    expect(screen.getByText("1 need you · 7 recovery")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Recovery · 7 saved sessions" })).toHaveAttribute(
       "aria-expanded",
       "false",

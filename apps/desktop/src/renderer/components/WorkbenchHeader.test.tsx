@@ -64,6 +64,16 @@ describe("WorkbenchHeader", () => {
     expect(screen.queryByText(liveA.title)).not.toBeInTheDocument();
   });
 
+  it("uses the frozen 40px title identity for the global Decision Inbox", () => {
+    renderHeader({ activeSurface: "inbox", selectedSession: liveA });
+
+    const header = screen.getByTestId("workbench-header");
+    expect(header).toHaveAttribute("data-chrome-height", "40");
+    expect(header).toHaveTextContent("Decision Inbox");
+    expect(within(header).getByText("All projects")).toBeInTheDocument();
+    expect(screen.queryByText(liveA.title)).not.toBeInTheDocument();
+  });
+
   it("exposes Inbox Surfaces command palette and the existing launch destinations", async () => {
     const user = userEvent.setup();
     renderHeader();

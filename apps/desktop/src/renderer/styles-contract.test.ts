@@ -424,6 +424,56 @@ function contrastRatio(foreground: string, background: string): number {
 }
 
 describe("renderer CSS contracts", () => {
+  it("implements the canonical B4 Inbox visual contract without selector residue", () => {
+    const root = singleTopLevelRuleBodyIn(styles, ".inbox-docket");
+    const canvas = singleTopLevelRuleBodyIn(styles, ".inbox-docket__canvas");
+    const row = singleTopLevelRuleBodyIn(styles, ".inbox-docket__item-row");
+    const disclosure = singleTopLevelRuleBodyIn(styles, ".inbox-docket__disclosure");
+    const detail = singleTopLevelRuleBodyIn(styles, ".inbox-docket__detail");
+    const statusbar = singleTopLevelRuleBodyIn(styles, ".inbox-docket__statusbar");
+
+    expect(root).toContain("font-family: var(--sans)");
+    expect(root).toContain("grid-template-rows: 36px minmax(0, 1fr) 30px");
+    expect(canvas).toContain("overflow-y: auto");
+    expect(canvas).toContain("overflow-x: hidden");
+    expect(canvas).toContain("max-width: 920px");
+    expect(row).toContain("min-height: 51px");
+    expect(disclosure).toMatch(/transition:\s*transform\s+(?:1[6-9]\d|20\d|210)ms\s+ease-out/);
+    expect(detail).toMatch(/transition:[^;]*(?:1[6-9]\d|20\d|210)ms/);
+    expect(statusbar).toContain("position: sticky");
+
+    expect(singleTopLevelRuleBodyIn(styles, ":root")).toContain(
+      '--sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif',
+    );
+    expect(singleTopLevelRuleBodyIn(styles, ":root")).toContain(
+      '--mono: ui-monospace, "SFMono-Regular", Menlo, monospace',
+    );
+
+    for (const selector of [".project-navigator", ".xterm-host", ".orchestrator-surface", ".surface-panel"]) {
+      expect(allRulesIn(styles).filter(({ selectors }) => selectors.includes(selector)).map(({ body }) => body).join("\n"))
+        .not.toMatch(/transition\s*:/);
+    }
+
+    expect(styles).not.toMatch(orphanClassTokenPattern(["project-attention", "dot"].join("-")));
+    expect(styles).not.toMatch(/\.(?:review-surface|inbox-section(?:-stack)?)\b/);
+    expect(styles).not.toMatch(/\.tone-(?:waiting|staged|blocked|restored|done|error)\b/);
+
+    const waitingSignal = ruleForSelectorContaining(".inbox-docket__glyph--waiting");
+    expect(waitingSignal.body).toContain("color: var(--signal)");
+    const inboxDangerRules = allRulesIn(styles).filter(({ selectors, body }) =>
+      selectors.some((selector) => selector.startsWith(".inbox-docket")) && body.includes("var(--signal-danger)"),
+    );
+    expect(inboxDangerRules.flatMap(({ selectors }) => selectors)).toEqual(expect.arrayContaining([
+      ".inbox-docket__glyph--blocked",
+      ".inbox-docket__state--blocked dd",
+    ]));
+    expect(inboxDangerRules.every(({ body }) => !/background(?:-color)?\s*:|button/.test(body))).toBe(true);
+
+    const reducedMotion = mediaExactRuleBodies("(prefers-reduced-motion: reduce)", ".inbox-docket *");
+    expect(reducedMotion).toHaveLength(1);
+    expect(reducedMotion[0]).toContain("transition-duration: 0.001ms !important");
+  });
+
   it("keeps the complete stylesheet compatible with Lightning CSS minification", async () => {
     const invalidFixture = `
       .fixture-one,
@@ -480,11 +530,11 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".terminal-tile-header", ["height: 30px", "min-height: 30px"]);
   });
 
-  it("uses the technical mono stack for session identity and workspace context", () => {
+  it("uses system type for chrome identity and mono only for technical workspace context", () => {
     const topLevelOwner = (selector: string) => topLevelExactRuleBodiesIn(styles, selector).at(-1) ?? "";
 
-    expect(topLevelOwner(".workbench-session-context > span")).toContain("var(--mono)");
-    expect(topLevelOwner(".workbench-session-context > small")).toContain("var(--mono)");
+    expect(topLevelOwner(".workbench-session-context > span")).toContain("var(--sans)");
+    expect(topLevelOwner(".workbench-session-context > small")).toContain("var(--sans)");
     expect(topLevelOwner(".work-surface-context")).toContain("var(--mono)");
   });
 
@@ -646,10 +696,9 @@ describe("renderer CSS contracts", () => {
     const rootRules = topLevelExactRuleBodies(":root");
 
     expect(rootRules).toHaveLength(1);
-    expect(rootRules[0]).toContain("--tone-error: #ee8f83");
     expect(rootRules[0]).toContain("--role-active: var(--signal-focus)");
     for (const token of [
-      "--type-region", "--type-panel-title", "--type-ui", "--tone-waiting", "--tone-active",
+      "--type-region", "--type-panel-title", "--type-ui", ["--tone", "waiting"].join("-"), "--tone-active",
       "--role-attention", "--role-success", "--role-neutral-marker", "--role-control", "--role-control-hover",
     ]) {
       expect(styles).not.toContain(`${token}:`);
@@ -1190,23 +1239,16 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps canonical owners for Inbox Observatory and overlays", () => {
-    const inboxRegions = [
-      {
-        name: "Inbox core",
-        startMarker: ".review-surface {",
-        endMarker: ".observatory-surface::-webkit-scrollbar,",
-      },
-      {
-        name: "Inbox compact row states",
-        startMarker: ".review-surface-header .review-surface-waiting {",
-        endMarker: ".agent-raw-toggle {",
-      },
-    ];
+    const inboxRegions = [{
+      name: "Inbox docket",
+      startMarker: ".inbox-docket {",
+      endMarker: ".observatory-surface {",
+    }];
     const observatoryRegions = [
       {
         name: "Observatory surface",
         startMarker: ".observatory-surface {",
-        endMarker: ".review-surface-header .review-surface-waiting {",
+        endMarker: ".agent-raw-toggle {",
       },
     ];
     const commandPaletteRegions = [
@@ -1230,38 +1272,32 @@ describe("renderer CSS contracts", () => {
     ];
     const surfaceResponsiveRegion = {
       name: "Inbox and Observatory responsive ownership",
-      startMarker: ".review-surface {",
+      startMarker: ".inbox-docket {",
       endMarker: ".agent-timeline-panel,\n.workspace-preview-panel {",
     };
 
-    expectCanonicalBase(".inbox-section-stack", ["overflow-y: auto"]);
+    expectCanonicalBase(".inbox-docket__canvas", ["overflow-y: auto", "overflow-x: hidden"]);
     expectCanonicalBase(".observatory-grid", ["display: grid"]);
-    const primaryInboxAction = singleTopLevelRuleBodyIn(styles, ".review-surface-primary");
-    expect(primaryInboxAction).toContain("background: color-mix(in oklab, var(--surface-raised) 72%, black 28%)");
-    expect(primaryInboxAction).toContain("border: 1px solid var(--border)");
-    expect(primaryInboxAction).toContain("color: var(--text-secondary)");
-    expect(primaryInboxAction).not.toContain("var(--signal-focus-strong)");
+    const primaryInboxAction = blockForContaining(".inbox-docket__primary", "background: var(--ink-6)");
+    expect(primaryInboxAction).toContain("background: var(--ink-6)");
+    expect(primaryInboxAction).toContain("border: 1px solid var(--ink-6)");
+    expect(primaryInboxAction).toContain("color: var(--ink-0)");
+    expect(primaryInboxAction).not.toContain("var(--signal-danger)");
     const inboxSelectors = expectAllFamilyTopLevelOccurrencesWithinSource(
       styles,
       "Inbox",
-      (selector) => selector.startsWith(".review-surface") || selector.startsWith(".inbox-"),
+      (selector) => selector.startsWith(".inbox-docket"),
       inboxRegions,
     );
     expect(inboxSelectors).toEqual(expect.arrayContaining([
-      ".inbox-section-stack",
-      ".inbox-section-stack::-webkit-scrollbar-thumb",
-      ".review-surface-item.tone-error",
-      ".review-surface-item.tone-blocked",
-      ".review-surface-item.selected",
-      ".review-surface-item-main:focus-visible",
-      ".review-surface-primary:hover",
-      ".review-surface-primary:focus-visible",
-      ".review-surface-primary:disabled",
-      ".review-surface-discard:hover",
-      ".review-surface-discard:focus-visible",
-      ".review-surface-command.is-disclosure",
-      ".review-surface-command.is-disclosure[open] code",
-      ".review-surface-command.is-disclosure[open] summary::before",
+      ".inbox-docket",
+      ".inbox-docket__canvas",
+      ".inbox-docket__item[aria-expanded=\"true\"]",
+      ".inbox-docket__item-row:focus-visible",
+      ".inbox-docket__glyph--waiting",
+      ".inbox-docket__glyph--blocked",
+      ".inbox-docket__primary:hover",
+      ".inbox-docket__statusbar",
     ]));
 
     const observatorySelectors = expectAllFamilyTopLevelOccurrencesWithinSource(
@@ -1294,15 +1330,16 @@ describe("renderer CSS contracts", () => {
     expectResponsiveFamilyOwnersWithinSource(
       styles,
       "Inbox and Observatory",
-      (selector) => selector.startsWith(".review-surface")
-        || selector.startsWith(".inbox-")
+      (selector) => selector.startsWith(".inbox-docket")
         || selector.startsWith(".observatory-"),
       [
         { atRule: "media", query: "(max-width: 1180px)", selector: ".observatory-grid", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1180px)", selector: ".observatory-detail", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 980px)", selector: ".review-surface-header", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1120px)", selector: ".inbox-docket__detail-grid", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1120px)", selector: ".inbox-docket__facts", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 980px)", selector: ".observatory-surface-header", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 980px)", selector: ".observatory-grid", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(prefers-reduced-motion: reduce)", selector: ".inbox-docket *", region: surfaceResponsiveRegion },
       ],
     );
 
@@ -1439,25 +1476,21 @@ describe("renderer CSS contracts", () => {
     expect(gridColumn).toContain("scrollbar-gutter: stable");
   });
 
-  it("keeps Inbox section titles quiet and inline", () => {
-    const inboxHeader = blockFor(".inbox-section > header");
+  it("keeps the B4 docket heading quiet and information-bearing", () => {
+    const inboxHeader = blockFor(".inbox-docket__header");
 
     expect(inboxHeader).toContain("display: flex");
-    expect(inboxHeader).toContain("align-items: baseline");
-    expect(inboxHeader).toContain("background: transparent");
+    expect(inboxHeader).toContain("justify-content: space-between");
+    expect(blockFor(".inbox-docket__header p")).toContain("white-space: nowrap");
   });
 
-  it("omits empty Inbox lane chrome because empty sections are not rendered", () => {
-    const inboxStack = blockFor(".inbox-section-stack");
-    const waitingCount = blockFor(".review-surface-header .review-surface-waiting");
+  it("keeps one Inbox scroll owner and no historical lane chrome", () => {
+    const canvas = blockFor(".inbox-docket__canvas");
 
-    expect(inboxStack).toContain("align-content: start");
-    expect(inboxStack).toContain("align-items: start");
-    expect(inboxStack).toContain("grid-auto-rows: max-content");
-    expect(waitingCount).toContain("font-size: 12.5px");
-    expect(waitingCount).toContain("color: var(--text-muted)");
-    expect(styles).not.toContain(".inbox-section.is-empty");
-    expect(styles).not.toContain('.inbox-section[data-state="empty"]');
+    expect(canvas).toContain("overflow-x: hidden");
+    expect(canvas).toContain("overflow-y: auto");
+    expect(styles).not.toContain(".inbox-section");
+    expect(styles).not.toContain(".review-surface");
   });
 
   it("keeps the adaptive workbench controls compact", () => {
@@ -1473,8 +1506,9 @@ describe("renderer CSS contracts", () => {
   it("keeps the live attention count compact", () => {
     const attentionCount = exactBlockFor(".workbench-attention-count");
 
-    expect(attentionCount).toContain("background: var(--signal)");
+    expect(attentionCount).toContain("background: var(--ink-2)");
     expect(attentionCount).toContain("border-radius: 7px");
+    expect(attentionCount).not.toContain("var(--signal)");
     expect(styles).not.toMatch(/\.quiet-count-(?:dot|mark)/);
   });
 
@@ -1505,21 +1539,20 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain(".workspace-layout > .context-column.open");
   });
 
-  it("keeps the Inbox empty state compact instead of a stretched dashboard card", () => {
-    const reviewEmpty = blockForContaining(".review-surface-empty", "align-self: start");
+  it("keeps the Inbox empty state as a compact line instead of a dashboard card", () => {
+    const inboxEmpty = blockFor(".inbox-docket__empty");
 
-    expect(reviewEmpty).toContain("align-self: start");
-    expect(reviewEmpty).toContain("min-height: 0");
-    expect(reviewEmpty).toContain("grid-template-columns: minmax(0, 1fr)");
-    expect(reviewEmpty).toContain("background-image: none");
-    expect(styles).not.toContain(".review-empty-lanes");
+    expect(inboxEmpty).toContain("min-height: 76px");
+    expect(inboxEmpty).toContain("border-top: 1px solid var(--ink-3)");
+    expect(inboxEmpty).not.toContain("border-radius");
+    expect(inboxEmpty).not.toContain("box-shadow");
   });
 
   it("styles workspace scrollbars so native white rails do not dominate the shell", () => {
     const workspaceScroll = exactBlockFor(".project-navigator-scroll");
-    const inboxScroll = exactBlockFor(".inbox-section-stack");
+    const inboxScroll = exactBlockFor(".inbox-docket__canvas");
     const observatoryScroll = exactBlockFor(".observatory-surface");
-    const scrollbarThumb = blockFor(".inbox-section-stack::-webkit-scrollbar-thumb");
+    const scrollbarThumb = blockFor(".inbox-docket__canvas::-webkit-scrollbar-thumb");
 
     expect(workspaceScroll).toContain("scrollbar-width: thin");
     expect(workspaceScroll).toContain("scrollbar-color:");
@@ -1549,26 +1582,26 @@ describe("renderer CSS contracts", () => {
   it("lays the one-bar chrome and inbox rows out on the approved grids", () => {
     expect(exactBlockFor(".mission-bar")).toContain("display: flex");
     expect(exactBlockFor(".workbench-header")).toContain("width: 100%");
-    expect(blockFor(".review-surface-row")).toContain("grid-template-columns: minmax(0, 1fr) auto");
-    expect(blockFor(".review-surface-row")).toContain("grid-column: 1 / -1");
+    expect(blockFor(".inbox-docket__item-row")).toContain("grid-template-columns: 18px minmax(0, 1fr) auto 16px");
+    expect(blockFor(".inbox-docket")).toContain("grid-template-rows: 36px minmax(0, 1fr) 30px");
     expect(blockFor(".recovery-workspace-strip")).toContain("background: transparent");
   });
 
-  it("keeps the final restart disclosure compact", () => {
-    const restartSummary = blockFor(".review-surface-command.is-disclosure summary");
+  it("keeps the Recovery disclosure compact and subordinate", () => {
+    const recoveryToggle = blockFor(".inbox-docket__recovery-toggle");
 
-    expect(restartSummary).toContain("justify-self: start");
-    expect(restartSummary).toContain("justify-content: flex-start");
-    expect(restartSummary).toContain("min-height: 0");
-    expect(restartSummary).toContain("padding: 0");
+    expect(recoveryToggle).toContain("min-height: 41px");
+    expect(recoveryToggle).toContain("background: transparent");
+    expect(recoveryToggle).toContain("grid-template-columns: 15px minmax(0, 1fr) auto");
   });
 
-  it("resets inherited height on the final Inbox section header", () => {
-    expect(blockFor(".inbox-section > header")).toContain("min-height: 0");
+  it("keeps the resting docket row at the B4 density", () => {
+    expect(blockFor(".inbox-docket__item-row")).toContain("min-height: 51px");
   });
 
-  it("hides nonessential chrome labels at the 1120px breakpoint", () => {
-    expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-session-context > span")).toHaveLength(1);
+  it("preserves surface identity while hiding nonessential technical chrome at 1120px", () => {
+    expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-session-context > span")).toHaveLength(0);
+    expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-session-context > small")).toHaveLength(0);
     expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-right-zone kbd")).toHaveLength(1);
     expect(mediaExactRuleBodies("(max-width: 1120px)", ".work-surface-context")).toHaveLength(1);
   });
@@ -1581,11 +1614,14 @@ describe("renderer CSS contracts", () => {
     expect(blockFor(".project-workspace-actions .workspace-title-trigger > span")).toContain("display: none");
   });
 
-  it("uses only the disclosure caret marker for Inbox commands", () => {
-    expect(styles).not.toContain(".review-surface-command summary::after");
-    expect(styles).not.toContain(".review-surface-command[open] summary::after");
-    expect(blockFor(".review-surface-command.is-disclosure summary::before")).toContain('content: "▸"');
-    expect(blockFor(".review-surface-command.is-disclosure[open] summary::before")).toContain('content: "▾"');
+  it("uses the real disclosure glyph without decorative pseudo-markers", () => {
+    expect(styles).not.toMatch(/\.inbox-docket__disclosure::(?:before|after)/);
+    expect(singleTopLevelRuleBodyIn(styles, ".inbox-docket__disclosure")).toContain(
+      "transition: transform 190ms ease-out",
+    );
+    expect(blockFor('.inbox-docket__item[aria-expanded="true"] .inbox-docket__disclosure')).toContain(
+      "transform: rotate(90deg)",
+    );
   });
 
   it("drops Inbox selectors for markup that is no longer rendered", () => {
@@ -1703,15 +1739,18 @@ describe("renderer CSS contracts", () => {
     expect(importantRules).toEqual([]);
   });
 
-  it("reserves the signal color for the waiting session glyph", () => {
+  it("reserves the signal color for Alfred's four-point waiting glyph", () => {
     const startingGlyphRule = ruleForSelectorContaining(".session-status-glyph.status-starting");
     const waitingGlyphRule = ruleForSelectorContaining(".session-status-glyph.status-waiting");
+    const inboxSignalRule = ruleForSelectorContaining(".inbox-docket__glyph--waiting");
+    const projectSignalRule = singleTopLevelRuleBodyIn(styles, ".project-attention-signal");
 
     expect(startingGlyphRule.selectors).toContain(".session-status-glyph.status-checking");
     expect(startingGlyphRule.selectors).toContain(".session-status-glyph.status-runtime");
     expect(startingGlyphRule.body).toContain("color: var(--ink-5)");
-    expect(waitingGlyphRule.body).toContain("color: var(--signal)");
-    expect(waitingGlyphRule.selectors).not.toContain(".session-status-glyph.status-starting");
+    expect(waitingGlyphRule.body).toContain("color: var(--ink-5)");
+    expect(inboxSignalRule.body).toContain("color: var(--signal)");
+    expect(projectSignalRule).toContain("color: var(--signal)");
   });
 
   it("keeps overlay surfaces flat instead of glassy", () => {
@@ -1793,15 +1832,11 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps chrome microcopy on a readable type floor", () => {
-    const disclosureMarker = blockFor(".review-surface-command.is-disclosure summary::before");
-    const textStyles = styles.replace(
-      /\.review-surface-command\.is-disclosure summary::before\s*\{[^}]*\}/,
-      "",
-    );
+    const summary = blockFor(".inbox-docket__summary");
 
     expect(styles).toContain("--type-micro: 10px");
-    expect(disclosureMarker).toContain("font-size: 9px");
-    expect(textStyles).not.toMatch(/font-size:\s*(?:8\.5|9)px/);
+    expect(summary).toContain("font: 500 9px/1 var(--mono)");
+    expect(styles).not.toMatch(/font-size:\s*(?:8|8\.5)px/);
   });
 
   it("keeps Context hierarchy quiet except selected session and key signal", () => {

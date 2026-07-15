@@ -12,6 +12,7 @@ export type CssEvidenceStateName =
   | "observatory"
   | "context"
   | "narrow"
+  | "narrow-inbox"
   | "command-palette"
   | "privacy";
 

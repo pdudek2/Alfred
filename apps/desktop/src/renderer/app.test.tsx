@@ -700,7 +700,7 @@ describe("App integration", () => {
 
     const panel = await screen.findByTestId("project-navigator");
     expect(within(panel).getByRole("tab", { name: /Alfred workspace/i })).not.toHaveAttribute("data-attention");
-    expect(panel.querySelector(".project-attention-dot")).toBeNull();
+    expect(panel.querySelector(".project-attention-signal")).toBeNull();
   });
 
   it("does not render an empty Free Chats section when there are no scratch chats", async () => {
@@ -2262,7 +2262,7 @@ describe("App integration", () => {
     await openInboxFromCommandPalette(user);
 
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveTextContent("No decisions waiting.");
+    expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveTextContent("Nothing needs you");
   });
 
   it("treats Observatory as the full session browser", async () => {
@@ -4027,7 +4027,7 @@ describe("App integration", () => {
     expect(inbox).toHaveTextContent("Alfred");
     expect(inbox).toHaveTextContent("Local Codex · review");
 
-    await user.click(within(inbox).getByRole("button", { name: "Open Codex · review in ClientApp" }));
+    await user.click(within(inbox).getByTestId("inbox-decision-select-W2:codex-w2"));
     await user.keyboard("{Enter}");
 
     expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
@@ -4075,7 +4075,7 @@ describe("App integration", () => {
     await openInboxFromCommandPalette(user);
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
     const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    await user.click(inbox.querySelector<HTMLButtonElement>(".review-surface-primary")!);
+    await user.click(inbox.querySelector<HTMLButtonElement>(".inbox-docket__primary")!);
 
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
@@ -6194,7 +6194,7 @@ describe("App integration", () => {
     expect(screen.getByRole("article", { name: /Staged Risky task/i })).toBeInTheDocument();
 
     await openInboxFromCommandPalette(user);
-    await user.click(screen.getByRole("button", { name: "Open Safe task in Alfred" }));
+    await user.click(screen.getByTestId("inbox-decision-select-A:alfred-1"));
     await user.click(screen.getByRole("button", { name: "Launch Safe task in Alfred" }));
 
     await waitFor(() => {
@@ -6241,7 +6241,7 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /Staged Risky cleanup/i });
 
     await openInboxFromCommandPalette(user);
-    const blockedItem = screen.getByRole("button", { name: "Open Risky cleanup in Alfred" }).closest("li");
+    const blockedItem = screen.getByTestId("inbox-decision-select-A:alfred-2").closest("li");
     if (!blockedItem) throw new Error("Expected blocked Inbox item");
 
     expect(blockedItem).toHaveTextContent("Review / Edit");
@@ -6324,7 +6324,7 @@ describe("App integration", () => {
 
     await openInboxFromCommandPalette(user);
 
-    await user.click(screen.getByRole("button", { name: "Open Safe task in Alfred" }));
+    await user.click(screen.getByTestId("inbox-decision-select-A:alfred-1"));
     await user.click(screen.getByRole("button", { name: "Launch Safe task in Alfred" }));
 
     await waitFor(() => {
@@ -6527,7 +6527,7 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /Staged Safe task/i });
 
     await openInboxFromCommandPalette(user);
-    await user.click(screen.getByRole("button", { name: "Open Safe task in Alfred" }));
+    await user.click(screen.getByTestId("inbox-decision-select-A:alfred-1"));
     await user.click(screen.getByRole("button", { name: "Launch Safe task in Alfred" }));
 
     await selectSurface(user, "Work");

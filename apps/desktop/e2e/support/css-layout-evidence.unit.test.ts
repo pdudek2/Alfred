@@ -23,7 +23,7 @@ describe("CSS layout evidence support", () => {
     expect(privacySafeScreenshotStyle).toContain(".staged-command");
     expect(privacySafeScreenshotStyle).toContain(".staged-cwd");
     expect(privacySafeScreenshotStyle).toContain(".agent-session-pulse");
-    expect(privacySafeScreenshotStyle).toContain(".review-surface-command code");
+    expect(privacySafeScreenshotStyle).toContain(".inbox-docket code");
     expect(privacySafeScreenshotStyle).toContain(".xterm-screen");
     expect(privacySafeScreenshotStyle).toContain("opacity: 0 !important");
     expect(privacySafeScreenshotSelectors).not.toContain("body *");

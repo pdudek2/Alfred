@@ -1,9 +1,10 @@
-import { CheckCircle2 } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { AttentionProjection } from "../attention-projection";
 import type { SessionTile } from "../session-state";
 import { InboxDecisionItem, attentionActionLabel } from "./InboxDecisionItem";
 import { InboxRecoveryList } from "./InboxRecoveryList";
+import { SurfaceSwitcher } from "./SurfaceSwitcher";
+import type { PrimarySurface } from "./WorkbenchHeader";
 
 type ReviewSurfaceProps = {
   attentionItems: AttentionProjection[];
@@ -15,6 +16,7 @@ type ReviewSurfaceProps = {
   onDiscardRecovery: (sessionId: string) => void;
   onExitToWork: () => void;
   onReviewEdit: (workspaceId: string, sessionId: string) => void;
+  onSelectSurface: (surface: PrimarySurface) => void;
 };
 
 export function ReviewSurface({
@@ -27,6 +29,7 @@ export function ReviewSurface({
   onDiscardRecovery,
   onExitToWork,
   onReviewEdit,
+  onSelectSurface,
 }: ReviewSurfaceProps) {
   const decisions = attentionItems.filter((item) => item.section === "needs-you");
   const recoveryItems = attentionItems.filter((item) => item.section === "recovery");
@@ -37,7 +40,6 @@ export function ReviewSurface({
   const surfaceRef = useRef<HTMLElement | null>(null);
   const selectedIndex = decisions.findIndex((item) => item.id === selectedAttentionId);
   const selectedItem = selectedIndex >= 0 ? decisions[selectedIndex] ?? null : null;
-  const selectedSection = selectedItem?.section ?? null;
 
   const runPrimaryAction = useCallback((item: AttentionProjection) => {
     const action = item.action;
@@ -96,7 +98,7 @@ export function ReviewSurface({
     surfaceRef.current
       ?.querySelector<HTMLButtonElement>(`[data-attention-id="${escapedId}"]`)
       ?.focus();
-  }, [selectedAttentionId, selectedSection]);
+  }, [selectedAttentionId]);
 
   const moveSelection = (nextIndex: number) => {
     const nextItem = decisions[nextIndex];
@@ -129,54 +131,42 @@ export function ReviewSurface({
   return (
     <section
       ref={surfaceRef}
-      className="review-surface inbox-surface"
+      className="inbox-docket"
       aria-label="Inbox workspace"
+      data-secondary-chrome-height="36"
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >
-      <header className="review-surface-header">
-        <div>
-          <strong>Decision inbox</strong>
-          <p>Review the oldest blocking decision first, then recover saved work.</p>
-        </div>
-        {decisions.length > 0 && <span className="review-surface-waiting">{decisions.length} waiting</span>}
-      </header>
+      <div className="inbox-docket__chrome">
+        <SurfaceSwitcher activeSurface="inbox" onSelectSurface={onSelectSurface} />
+        <span className="inbox-docket__summary">
+          {decisions.length} need you · {recoveryItems.length} recovery
+        </span>
+      </div>
 
-      <div className="inbox-section-stack" aria-label="Inbox sections">
+      <div className="inbox-docket__canvas">
+        <header className="inbox-docket__header">
+          <h2>Needs You <span>{decisions.length} decision{decisions.length === 1 ? "" : "s"}</span></h2>
+          <p>Sorted by <strong>impact, then age</strong></p>
+        </header>
+
         {decisions.length === 0 ? (
-          <div className="review-surface-empty" role="status">
-            <div className="review-empty-lead">
-              <CheckCircle2 aria-hidden="true" size={20} />
-              <span>Queue clear</span>
-              <strong>No decisions waiting.</strong>
-              <p>New launch gates will land here.</p>
-            </div>
+          <div className="inbox-docket__empty" role="status">
+            <strong>{recoveryItems.length > 0 ? "Queue clear" : "Nothing needs you"}</strong>
+            {recoveryItems.length > 0 && <span>No decisions are blocking work.</span>}
           </div>
         ) : (
-          <section
-            className="inbox-section"
-            aria-label="Needs you"
-            aria-describedby="inbox-section-needs-you-detail"
-          >
-            <header title="Decisions that block an agent or a safe staged launch.">
-              <strong>Needs you</strong>
-              <small>{decisions.length}</small>
-              <p className="visually-hidden" id="inbox-section-needs-you-detail">
-                Decisions that block an agent or a safe staged launch.
-              </p>
-            </header>
-            <ol className="review-surface-list" aria-label="Needs you items">
-              {decisions.map((item) => (
-                <InboxDecisionItem
-                  item={item}
-                  key={item.id}
-                  selected={item.id === selectedAttentionId}
-                  onRunPrimaryAction={runPrimaryAction}
-                  onSelect={setSelectedAttentionId}
-                />
-              ))}
-            </ol>
-          </section>
+          <ol className="inbox-docket__list" aria-label="Needs you items">
+            {decisions.map((item) => (
+              <InboxDecisionItem
+                item={item}
+                key={item.id}
+                selected={item.id === selectedAttentionId}
+                onRunPrimaryAction={runPrimaryAction}
+                onSelect={setSelectedAttentionId}
+              />
+            ))}
+          </ol>
         )}
         <InboxRecoveryList
           armedRecoverySessionIds={armedRecoverySessionIds}
@@ -187,13 +177,14 @@ export function ReviewSurface({
         />
       </div>
 
-      {selectedItem && (
-        <footer className="review-surface-status" aria-live="polite">
-          <span>{selectedItem.sessionTitle}</span>
-          <strong data-testid="inbox-status-action">{attentionActionLabel(selectedItem)}</strong>
-          <small>Enter to run · ↑/↓ to select</small>
-        </footer>
-      )}
+      <footer className="inbox-docket__statusbar" aria-live="polite">
+        <span><kbd>↑↓</kbd>Select</span>
+        <span><kbd>Space</kbd>Expand</span>
+        {selectedItem && (
+          <strong data-testid="inbox-status-action"><kbd>↵</kbd>{attentionActionLabel(selectedItem)}</strong>
+        )}
+        <span><kbd>Esc</kbd>Back to Work</span>
+      </footer>
     </section>
   );
 }
