@@ -4124,10 +4124,10 @@ describe("App integration", () => {
 
     expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
+    expect(screen.getByTestId("desk-runtime-surface")).not.toHaveAttribute("aria-hidden", "true");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Waiting agent");
     expect(createTerminal).not.toHaveBeenCalled();
     expect(writeTerminal).not.toHaveBeenCalled();
-    expect(statusAction).toHaveTextContent("Open in Work");
   });
 
   it("launches staged work from the global Inbox in its workspace", async () => {

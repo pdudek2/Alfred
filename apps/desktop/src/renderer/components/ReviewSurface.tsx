@@ -58,8 +58,17 @@ export function ReviewSurface({
     if (decisions.some((item) => item.id === selectedAttentionId)) return;
 
     const previousIndex = previousDecisions.findIndex((item) => item.id === selectedAttentionId);
-    const fallbackIndex = previousIndex < 0 ? 0 : Math.min(previousIndex, decisions.length - 1);
-    setSelectedAttentionId(decisions[fallbackIndex]?.id ?? null);
+    const nextIds = new Set(decisions.map((item) => item.id));
+    const nextSurvivor = previousDecisions
+      .slice(previousIndex + 1)
+      .find((item) => nextIds.has(item.id));
+    const previousSurvivor = previousIndex > 0
+      ? previousDecisions
+          .slice(0, previousIndex)
+          .reverse()
+          .find((item) => nextIds.has(item.id))
+      : undefined;
+    setSelectedAttentionId(nextSurvivor?.id ?? previousSurvivor?.id ?? decisions[0]?.id ?? null);
   }, [decisions, selectedAttentionId]);
 
   useLayoutEffect(() => {
@@ -73,7 +82,7 @@ export function ReviewSurface({
     surfaceRef.current
       ?.querySelector<HTMLButtonElement>(`[data-attention-id="${escapedId}"]`)
       ?.focus();
-  }, [decisions, selectedAttentionId]);
+  }, [selectedAttentionId]);
 
   const moveSelection = (nextIndex: number) => {
     const nextItem = decisions[nextIndex];

@@ -178,6 +178,7 @@ describe("ReviewSurface", () => {
     expect(screen.queryByText("Run anyway", { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText("Discard", { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Launch/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Discard/i })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Review / Edit Safety cleanup in Alfred" }));
     expect(handlers.onReviewEdit).toHaveBeenCalledWith("ALFRED", "SAFETY");
@@ -198,6 +199,36 @@ describe("ReviewSurface", () => {
     handlers.rerenderSurface([SAFETY]);
     expect(expandedItems()).toEqual([selectButton(SAFETY)]);
     expect(selectButton(SAFETY)).toHaveFocus();
+  });
+
+  it("uses previous decision order when insert, reorder, and removal happen together", async () => {
+    const user = userEvent.setup();
+    const inserted = decision({
+      ...SAFETY,
+      id: "ALFRED:INSERTED",
+      sessionId: "INSERTED",
+      sessionTitle: "New blocker",
+    });
+    const handlers = renderSurface();
+
+    await user.click(selectButton(WAITING));
+    handlers.rerenderSurface([inserted, SAFETY, STAGED]);
+
+    expect(expandedItems()).toEqual([selectButton(STAGED)]);
+    expect(selectButton(STAGED)).toHaveFocus();
+  });
+
+  it("keeps focus on the primary action across a semantically unchanged rerender", () => {
+    const handlers = renderSurface();
+    const primaryAction = screen.getByRole("button", {
+      name: "Review / Edit Safety cleanup in Alfred",
+    });
+
+    primaryAction.focus();
+    expect(primaryAction).toHaveFocus();
+    handlers.rerenderSurface([...DECISIONS]);
+
+    expect(primaryAction).toHaveFocus();
   });
 
   it("keeps long reason and command values complete in details and accessible names", () => {
