@@ -5417,6 +5417,68 @@ describe("App integration", () => {
     expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
   });
 
+  it("lets workspace actions consume Escape over Inbox when focus remains on its trigger", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "workspace-overlay-recovery",
+          title: "Workspace overlay recovery",
+          cwd: "/repo",
+          source: "manual",
+          isolation: "shared",
+          shell: "rm",
+          command: "rm",
+          args: ["-rf", "/tmp/cache"],
+          buffer: "saved output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+    await openInboxFromCommandPalette(user);
+    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
+    await user.click(within(inbox).getByRole("button", { name: "Recovery · 1 saved session" }));
+    await user.click(within(inbox).getByRole("button", { name: "Review relaunch Workspace overlay recovery in Alfred" }));
+    expect(within(inbox).getByRole("button", { name: "Confirm relaunch Workspace overlay recovery in Alfred" })).toBeInTheDocument();
+
+    const workspaceMenuTrigger = screen.getByRole("button", { name: "Workspace menu for Alfred" });
+    await user.click(workspaceMenuTrigger);
+    expect(screen.getByRole("dialog", { name: "Workspace actions" })).toBeInTheDocument();
+    expect(workspaceMenuTrigger).toHaveFocus();
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Workspace actions" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
+    expect(within(inbox).getByRole("button", { name: "Confirm relaunch Workspace overlay recovery in Alfred" })).toBeInTheDocument();
+    expect(createTerminal).not.toHaveBeenCalled();
+  });
+
+  it("lets Privacy consume Escape over Inbox without forcing focus into the dialog", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+
+    render(<App />);
+    await openInboxFromCommandPalette(user);
+    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
+
+    await selectSurface(user, "Local Data & Privacy");
+    expect(screen.getByRole("dialog", { name: "Local Data & Privacy" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Surfaces menu" })).toHaveFocus();
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Local Data & Privacy" })).not.toBeInTheDocument();
+    expect(inbox).toBeVisible();
+  });
+
   it("keeps Recovery non-blocking and exposes Discard only after expansion", async () => {
     const { forgetTerminal } = installDesktopBridge(
       undefined,

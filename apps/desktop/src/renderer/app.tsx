@@ -123,6 +123,9 @@ type PendingDiscardConfirmation = {
   title: string;
 };
 
+const ACCESSIBLE_DISMISSAL_OWNER_SELECTOR =
+  'dialog[open], [role="dialog"], [role="alertdialog"], [role="menu"]';
+
 const DEFAULT_WORKSPACE_ID = "A";
 const DEFAULT_WORKSPACE: Workspace = { id: DEFAULT_WORKSPACE_ID, label: "Alfred", shortLabel: "A" };
 const DEFAULT_WORKSPACES: Workspace[] = [DEFAULT_WORKSPACE];
@@ -1898,10 +1901,21 @@ export function App() {
       className="agent-space-shell"
       onKeyDownCapture={(event) => {
         if (!inboxOwnsEscape || event.key !== "Escape") return;
-        if (
-          event.target instanceof Element &&
-          event.target.closest('[role="dialog"], [role="alertdialog"], [role="menu"]')
-        ) {
+        const dismissalOwner = activeAccessibleDismissalOwner(event.currentTarget);
+        if (dismissalOwner) {
+          if (event.target instanceof Node && dismissalOwner.contains(event.target)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          dismissalOwner.dispatchEvent(new KeyboardEvent("keydown", {
+            key: event.key,
+            code: event.code,
+            bubbles: true,
+            cancelable: true,
+            altKey: event.altKey,
+            ctrlKey: event.ctrlKey,
+            metaKey: event.metaKey,
+            shiftKey: event.shiftKey,
+          }));
           return;
         }
         event.preventDefault();
@@ -2801,6 +2815,15 @@ function workspacePlanContext(
 function workspaceDetail(workspace: Workspace): string {
   const location = workspace.rootPath ? shortenPath(workspace.rootPath) : "local desk";
   return workspace.gitBranch ? `${location} · ${workspace.gitBranch}` : location;
+}
+
+function activeAccessibleDismissalOwner(root: HTMLElement): HTMLElement | null {
+  const owners = Array.from(root.querySelectorAll<HTMLElement>(ACCESSIBLE_DISMISSAL_OWNER_SELECTOR));
+  return owners.filter((owner) => {
+    if (owner.closest('[hidden], [aria-hidden="true"], [inert]')) return false;
+    const style = window.getComputedStyle(owner);
+    return style.display !== "none" && style.visibility !== "hidden" && style.visibility !== "collapse";
+  }).at(-1) ?? null;
 }
 
 function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[]): SessionTile[] {
