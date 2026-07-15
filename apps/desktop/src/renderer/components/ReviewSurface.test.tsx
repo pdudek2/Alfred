@@ -143,6 +143,7 @@ describe("ReviewSurface", () => {
     expect(handlers.onLaunch).not.toHaveBeenCalled();
     expect(handlers.onRecover).not.toHaveBeenCalled();
     expect(handlers.onReviewEdit).not.toHaveBeenCalled();
+    expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Open in Work");
   });
 
   it("routes staged and recovery actions through their canonical handlers", async () => {
@@ -229,6 +230,28 @@ describe("ReviewSurface", () => {
     handlers.rerenderSurface([...DECISIONS]);
 
     expect(primaryAction).toHaveFocus();
+  });
+
+  it("restores focus to a selected row remounted under a different section", () => {
+    const movedToRecovery = decision({
+      ...SAFETY,
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Saved session can be resumed.",
+      action: { kind: "resume" },
+    });
+    const handlers = renderSurface([SAFETY]);
+    const primaryAction = screen.getByRole("button", {
+      name: "Review / Edit Safety cleanup in Alfred",
+    });
+
+    primaryAction.focus();
+    handlers.rerenderSurface([movedToRecovery]);
+
+    expect(selectButton(movedToRecovery)).toHaveFocus();
+    expect(selectButton(movedToRecovery)).toHaveAttribute("aria-expanded", "true");
   });
 
   it("keeps long reason and command values complete in details and accessible names", () => {

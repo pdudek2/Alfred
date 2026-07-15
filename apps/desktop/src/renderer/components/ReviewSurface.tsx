@@ -26,6 +26,7 @@ export function ReviewSurface({
   const surfaceRef = useRef<HTMLElement | null>(null);
   const selectedIndex = decisions.findIndex((item) => item.id === selectedAttentionId);
   const selectedItem = selectedIndex >= 0 ? decisions[selectedIndex] ?? null : null;
+  const selectedSection = selectedItem?.section ?? null;
 
   const runPrimaryAction = useCallback((item: AttentionProjection) => {
     const action = item.action;
@@ -82,7 +83,7 @@ export function ReviewSurface({
     surfaceRef.current
       ?.querySelector<HTMLButtonElement>(`[data-attention-id="${escapedId}"]`)
       ?.focus();
-  }, [selectedAttentionId]);
+  }, [selectedAttentionId, selectedSection]);
 
   const moveSelection = (nextIndex: number) => {
     const nextItem = decisions[nextIndex];
