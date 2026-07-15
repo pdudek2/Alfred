@@ -17,7 +17,7 @@ export type ProjectNavigatorWorkspace = {
 export type ProjectNavigatorProps = {
   activeSessionId: string | null;
   activeWorkspaceId: string;
-  attentionWorkspaceIds: ReadonlySet<string>;
+  attentionCountsByWorkspace: ReadonlyMap<string, number>;
   collapsed: boolean;
   sessions: SessionTile[];
   workspaces: ProjectNavigatorWorkspace[];
@@ -31,7 +31,7 @@ export type ProjectNavigatorProps = {
 export function ProjectNavigator({
   activeSessionId,
   activeWorkspaceId,
-  attentionWorkspaceIds,
+  attentionCountsByWorkspace,
   collapsed,
   sessions,
   workspaces,
@@ -53,7 +53,10 @@ export function ProjectNavigator({
   const freeChats = sessions.filter(
     (session) => session.workspaceId !== activeWorkspaceId && isFreeChatSession(session),
   );
-  const hiddenAttention = hiddenProjects.some((workspace) => attentionWorkspaceIds.has(workspace.id));
+  const hiddenAttentionCount = hiddenProjects.reduce(
+    (count, workspace) => count + (attentionCountsByWorkspace.get(workspace.id) ?? 0),
+    0,
+  );
 
   useEffect(() => {
     if (workspaces.findIndex((workspace) => workspace.id === activeWorkspaceId) >= 5) {
@@ -87,14 +90,19 @@ export function ProjectNavigator({
             const sessionsExpanded = active && collapsedProjectId !== workspace.id;
             const sessionListId = `project-sessions-${encodeURIComponent(workspace.id)}`;
             const stableIndex = workspaces.findIndex((candidate) => candidate.id === workspace.id);
-            const hasAttention = attentionWorkspaceIds.has(workspace.id);
+            const attentionCount = attentionCountsByWorkspace.get(workspace.id) ?? 0;
+            const hasAttention = attentionCount > 0;
             return (
               <section className={`project-item${active ? " is-active" : ""}`} key={workspace.id}>
                 <div className="project-row">
                   <button
                     type="button"
                     className="project-row-button"
-                    aria-label={`${workspace.label} workspace${hasAttention ? ", needs review" : ""}`}
+                    aria-label={`${workspace.label} workspace${
+                      hasAttention
+                        ? `, ${attentionCount} decision${attentionCount === 1 ? " needs" : "s need"} review`
+                        : ""
+                    }`}
                     aria-selected={active}
                     data-attention={hasAttention ? "true" : undefined}
                     data-label={workspace.label}
@@ -113,7 +121,14 @@ export function ProjectNavigator({
                     <Folder className="project-folder-icon" aria-hidden="true" size={15} />
                     <span className="project-row-label">{workspace.label}</span>
                     {stableIndex >= 0 && stableIndex < 5 && <kbd aria-hidden="true">⌘{stableIndex + 1}</kbd>}
-                    {hasAttention && <span className="project-attention-dot" aria-label="Needs review" />}
+                    {hasAttention && (
+                      <span
+                        className="project-attention-dot"
+                        aria-label={`${attentionCount} decision${attentionCount === 1 ? " needs" : "s need"} review`}
+                      >
+                        {attentionCount}
+                      </span>
+                    )}
                   </button>
                   {active && activeSessions.length > 0 && (
                     <button
@@ -159,12 +174,16 @@ export function ProjectNavigator({
           <button
             type="button"
             className="project-overflow-button"
-            aria-label={`Show ${hiddenProjects.length} more projects${hiddenAttention ? ", hidden project needs review" : ""}`}
-            data-attention={hiddenAttention ? "true" : undefined}
+            aria-label={`Show ${hiddenProjects.length} more projects${hiddenAttentionCount > 0 ? ", hidden project needs review" : ""}`}
+            data-attention={hiddenAttentionCount > 0 ? "true" : undefined}
             onClick={() => setShowAllProjects(true)}
           >
             <span>Show {hiddenProjects.length} more</span>
-            {hiddenAttention && <span className="project-attention-dot" aria-label="Hidden project needs review" />}
+            {hiddenAttentionCount > 0 && (
+              <span className="project-attention-dot" aria-label="Hidden project needs review">
+                {hiddenAttentionCount}
+              </span>
+            )}
           </button>
         )}
 

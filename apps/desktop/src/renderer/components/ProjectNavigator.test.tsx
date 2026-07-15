@@ -54,7 +54,7 @@ function navigator(props: Partial<ProjectNavigatorProps> = {}) {
     <ProjectNavigator
       activeSessionId="codex-live"
       activeWorkspaceId="A"
-      attentionWorkspaceIds={new Set()}
+      attentionCountsByWorkspace={new Map()}
       collapsed={false}
       sessions={sessions}
       workspaces={workspaces}
@@ -74,7 +74,7 @@ function renderNavigator(props: Partial<ProjectNavigatorProps> = {}) {
 
 function navigatorWithWaitingSessionInClientApp() {
   return navigator({
-    attentionWorkspaceIds: new Set(["CLIENT"]),
+    attentionCountsByWorkspace: new Map([["CLIENT", 1]]),
     sessions: [
       ...sessions,
       {
@@ -157,9 +157,9 @@ describe("ProjectNavigator", () => {
 
   it("keeps project order stable when attention changes and supports roving focus", async () => {
     const { rerender } = renderNavigator();
-    const before = screen.getAllByRole("tab").map((node) => node.textContent);
+    const before = screen.getAllByRole("tab").map((node) => node.getAttribute("data-label"));
     rerender(navigatorWithWaitingSessionInClientApp());
-    expect(screen.getAllByRole("tab").map((node) => node.textContent)).toEqual(before);
+    expect(screen.getAllByRole("tab").map((node) => node.getAttribute("data-label"))).toEqual(before);
 
     screen.getByRole("tab", { name: /Alfred workspace/i }).focus();
     await userEvent.keyboard("{ArrowDown}{End}{Home}{ArrowUp}");
@@ -216,7 +216,7 @@ describe("ProjectNavigator", () => {
   });
 
   it("propagates a hidden project's honest review marker to the overflow control", () => {
-    renderNavigator({ attentionWorkspaceIds: new Set(["SEVEN"]) });
+    renderNavigator({ attentionCountsByWorkspace: new Map([["SEVEN", 1]]) });
 
     expect(screen.getAllByRole("tab")).toHaveLength(5);
     expect(
@@ -224,14 +224,24 @@ describe("ProjectNavigator", () => {
     ).toHaveAttribute("data-attention", "true");
   });
 
-  it("includes review attention in the accessible project label", () => {
-    renderNavigator({ attentionWorkspaceIds: new Set(["CLIENT"]) });
+  it("includes the exact blocking decision count in the accessible project row", () => {
+    renderNavigator({ attentionCountsByWorkspace: new Map([["CLIENT", 2]]) });
 
     expect(screen.getAllByRole("tab")).toHaveLength(5);
-    expect(screen.getByRole("tab", { name: "ClientApp workspace, needs review" })).toHaveAttribute(
+    const client = screen.getByRole("tab", { name: "ClientApp workspace, 2 decisions need review" });
+    expect(client).toHaveAttribute(
       "data-attention",
       "true",
     );
+    expect(within(client).getByLabelText("2 decisions need review")).toHaveTextContent("2");
+  });
+
+  it("does not invent a signal for a recovery-only workspace omitted from the blocking map", () => {
+    renderNavigator({ attentionCountsByWorkspace: new Map() });
+
+    const client = screen.getByRole("tab", { name: "ClientApp workspace" });
+    expect(client).not.toHaveAttribute("data-attention");
+    expect(within(client).queryByLabelText(/need review/i)).not.toBeInTheDocument();
   });
 
   it("keeps one destination tree and an operable session disclosure in collapsed mode", async () => {

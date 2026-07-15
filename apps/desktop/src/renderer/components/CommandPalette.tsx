@@ -11,7 +11,7 @@ import {
 import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import type { WorkMode } from "../terminal-desk-types";
-import type { WorkspaceReviewItem } from "../workspace-attention";
+import type { AttentionProjection } from "../attention-projection";
 import type { AgentKind } from "../../shared/alfred-ipc";
 import type { TerminalSessionIsolation } from "../../shared/terminal-ipc";
 import type { ProjectNavigatorWorkspace } from "./ProjectNavigator";
@@ -31,7 +31,7 @@ type CommandPaletteProps = {
   arrangeMode: boolean;
   allSessions: SessionTile[];
   query: string;
-  reviewQueuePreview: WorkspaceReviewItem | null;
+  reviewQueuePreview: AttentionProjection | null;
   selectedSessionId: string | null;
   sessions: SessionTile[];
   shortcutModifier: string;
@@ -265,7 +265,7 @@ export function CommandPalette({
         id: "open-inbox",
         label: "Open Inbox",
         detail: reviewQueuePreview
-          ? `${reviewQueuePreview.workspaceLabel} · ${reviewQueuePreview.status.label} · ${reviewQueuePreview.session.title}`
+          ? `${reviewQueuePreview.workspaceLabel} · ${reviewQueuePreview.sessionTitle}`
           : "No queued decisions",
         run: onOpenInbox,
       },

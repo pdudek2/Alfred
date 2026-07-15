@@ -77,6 +77,14 @@ describe("WorkbenchHeader", () => {
     expect(screen.getByRole("menuitem", { name: "New manual terminal" })).toBeInTheDocument();
   });
 
+  it("announces the exact blocking Inbox count", () => {
+    renderHeader({ inboxCount: 2 });
+
+    const inbox = screen.getByRole("button", { name: "Open Inbox surface, 2 items" });
+    expect(inbox).toHaveTextContent("2");
+    expect(inbox.querySelector(".workbench-attention-count")).toHaveTextContent("2");
+  });
+
   it("exposes every replaced rail destination from the primary row", async () => {
     const user = userEvent.setup();
     renderHeader();

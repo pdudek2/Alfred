@@ -26,6 +26,11 @@ import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHead
 import { WorkSurfaceToolbar } from "./components/WorkSurfaceToolbar";
 import { WorkspaceActionsMenu } from "./components/WorkspaceActionsMenu";
 import {
+  blockingAttentionCount,
+  blockingAttentionCountByWorkspace,
+  buildAttentionProjection,
+} from "./attention-projection";
+import {
   applyLayoutPreset,
   ensureTileLayouts,
   moveTileLayout,
@@ -70,7 +75,6 @@ import {
 import { terminalSessionDisplayStatus } from "./session-status";
 import { recordPreviewUrlsFromText, type PreviewUrlCandidate } from "./preview-state";
 import type { WorkMode } from "./terminal-desk-types";
-import { workspaceReviewQueue } from "./workspace-attention";
 import { shortenPath } from "./path-display";
 import { findWorkspaceForCwd } from "./workspace-path-matching";
 import { sessionRelaunchSafety } from "./relaunch-safety";
@@ -240,8 +244,10 @@ export function App() {
   const activeRecoverableSessions = activeSessions.filter((session) =>
     session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error",
   );
-  const globalReviewItems = workspaceReviewQueue(workspaces, terminalSessions);
-  const reviewQueuePreview = globalReviewItems[0] ?? null;
+  const attentionItems = buildAttentionProjection(workspaces, terminalSessions);
+  const needsYouCount = blockingAttentionCount(attentionItems);
+  const attentionCountsByWorkspace = blockingAttentionCountByWorkspace(attentionItems);
+  const reviewQueuePreview = attentionItems.find((item) => item.blocksAgent) ?? null;
   const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
   const stagedWorkspaceLabel =
     pendingPlan && pendingPlan.workspaceId !== activeWorkspace.id
@@ -1360,10 +1366,20 @@ export function App() {
     );
   }, [terminalSessions]);
 
-  const handleLaunchInboxItem = useCallback((workspaceId: string, sessionId: string) => {
+  const handleLaunchInboxItem = useCallback((sessionId: string) => {
     handleApproveTile(sessionId);
-    handleFocusSessionInWorkspace(workspaceId, sessionId);
-  }, [handleApproveTile, handleFocusSessionInWorkspace]);
+  }, [handleApproveTile]);
+
+  const handleRecoverInboxItem = useCallback((_workspaceId: string, sessionId: string) => {
+    const session = terminalSessions.find((item) => item.id === sessionId);
+    if (session?.runtimeStatus === "restored") {
+      handleContinueRestoredSession(sessionId);
+      return;
+    }
+    if (session?.runtimeStatus === "exited" || session?.runtimeStatus === "error") {
+      handleRestartSession(sessionId);
+    }
+  }, [handleContinueRestoredSession, handleRestartSession, terminalSessions]);
 
   const handleRejectTile = useCallback((tileId: string) => {
     const alfredApi = getDesktopAlfredApi();
@@ -1860,7 +1876,7 @@ export function App() {
           <WorkbenchHeader
             activeSurface={activeSurface}
             commandPaletteTriggerRef={commandPaletteTriggerRef}
-            inboxCount={globalReviewItems.length}
+            inboxCount={needsYouCount}
             prepareWorkTriggerRef={prepareWorkTriggerRef}
             selectedSession={activeSelectedSession}
             shortcutModifier={shortcutModifier}
@@ -1928,7 +1944,7 @@ export function App() {
           <ProjectNavigator
             activeSessionId={activeSelectedSessionId}
             activeWorkspaceId={activeWorkspace.id}
-            attentionWorkspaceIds={new Set(globalReviewItems.map((item) => item.workspaceId))}
+            attentionCountsByWorkspace={attentionCountsByWorkspace}
             collapsed={projectNavigatorCollapsed}
             sessions={terminalSessions}
             workspaces={workspaces}
@@ -2027,15 +2043,11 @@ export function App() {
             {activeSurface === "inbox" && (
               <div className="surface-panel active">
                 <ReviewSurface
-                  armedRecoverySessionIds={armedRecoverySessionIds}
-                  items={globalReviewItems}
-                  selectedSessionId={activeSelectedSessionId}
-                  onContinueRestoredSession={handleContinueRestoredSession}
-                  onDiscardSession={handleCloseSession}
-                  onFocusItem={handleOpenManagedSessionFromObservatory}
-                  onLaunchItem={handleLaunchInboxItem}
-                  onRestartSession={handleRestartSession}
-                  onReviewBlockedItem={handleReviewBlockedSession}
+                  attentionItems={attentionItems}
+                  onLaunch={handleLaunchInboxItem}
+                  onOpenInWork={handleFocusSessionInWorkspace}
+                  onRecover={handleRecoverInboxItem}
+                  onReviewEdit={handleReviewBlockedSession}
                 />
               </div>
             )}

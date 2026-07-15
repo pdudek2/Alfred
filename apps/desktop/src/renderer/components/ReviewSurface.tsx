@@ -1,302 +1,184 @@
-import { AlertTriangle, ArrowRight, CheckCircle2, Play, RotateCcw, X } from "lucide-react";
-import { useLayoutEffect, useRef } from "react";
-import { isLaunchBlocked } from "../session-state";
-import { terminalSessionDisplayStatus } from "../session-status";
-import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
-import { formatCommand } from "../command-display";
-import { sessionRelaunchSafety } from "../relaunch-safety";
-import { restoredSessionActionLabel } from "../restored-session-action";
-import type { WorkspaceReviewItem } from "../workspace-attention";
+import { CheckCircle2 } from "lucide-react";
+import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import type { AttentionProjection } from "../attention-projection";
+import { InboxDecisionItem, attentionActionLabel } from "./InboxDecisionItem";
 
 type ReviewSurfaceProps = {
-  armedRecoverySessionIds: Set<string>;
-  items: WorkspaceReviewItem[];
-  selectedSessionId: string | null;
-  onContinueRestoredSession: (tileId: string) => void;
-  onDiscardSession: (tileId: string) => void;
-  onFocusItem: (workspaceId: string, sessionId: string) => void;
-  onLaunchItem: (workspaceId: string, sessionId: string) => void;
-  onRestartSession: (tileId: string) => void;
-  onReviewBlockedItem: (workspaceId: string, sessionId: string) => void;
+  attentionItems: AttentionProjection[];
+  onLaunch: (sessionId: string) => void;
+  onOpenInWork: (workspaceId: string, sessionId: string) => void;
+  onRecover: (workspaceId: string, sessionId: string) => void;
+  onReviewEdit: (workspaceId: string, sessionId: string) => void;
 };
 
 export function ReviewSurface({
-  armedRecoverySessionIds,
-  items,
-  selectedSessionId,
-  onContinueRestoredSession,
-  onDiscardSession,
-  onFocusItem,
-  onLaunchItem,
-  onRestartSession,
-  onReviewBlockedItem,
+  attentionItems,
+  onLaunch,
+  onOpenInWork,
+  onRecover,
+  onReviewEdit,
 }: ReviewSurfaceProps) {
+  const decisions = attentionItems;
+  const [selectedAttentionId, setSelectedAttentionId] = useState(
+    () => decisions[0]?.id ?? null,
+  );
+  const previousDecisionsRef = useRef(decisions);
   const surfaceRef = useRef<HTMLElement | null>(null);
+  const selectedIndex = decisions.findIndex((item) => item.id === selectedAttentionId);
+  const selectedItem = selectedIndex >= 0 ? decisions[selectedIndex] ?? null : null;
+
+  const runPrimaryAction = useCallback((item: AttentionProjection) => {
+    const action = item.action;
+    switch (action.kind) {
+      case "open-in-work":
+        onOpenInWork(item.workspaceId, item.sessionId);
+        break;
+      case "launch":
+        onLaunch(item.sessionId);
+        break;
+      case "review-edit":
+        onReviewEdit(item.workspaceId, item.sessionId);
+        break;
+      case "resume":
+      case "relaunch":
+        onRecover(item.workspaceId, item.sessionId);
+        break;
+      default:
+        assertNever(action);
+    }
+  }, [onLaunch, onOpenInWork, onRecover, onReviewEdit]);
 
   useLayoutEffect(() => {
-    surfaceRef.current?.focus();
-  }, []);
+    const previousDecisions = previousDecisionsRef.current;
+    previousDecisionsRef.current = decisions;
+    if (decisions.length === 0) {
+      if (selectedAttentionId !== null) setSelectedAttentionId(null);
+      return;
+    }
+    if (decisions.some((item) => item.id === selectedAttentionId)) return;
+
+    const previousIndex = previousDecisions.findIndex((item) => item.id === selectedAttentionId);
+    const fallbackIndex = previousIndex < 0 ? 0 : Math.min(previousIndex, decisions.length - 1);
+    setSelectedAttentionId(decisions[fallbackIndex]?.id ?? null);
+  }, [decisions, selectedAttentionId]);
+
+  useLayoutEffect(() => {
+    if (!selectedAttentionId) {
+      surfaceRef.current?.focus();
+      return;
+    }
+    const escapedId = typeof CSS !== "undefined" && typeof CSS.escape === "function"
+      ? CSS.escape(selectedAttentionId)
+      : selectedAttentionId.replace(/["\\]/g, "\\$&");
+    surfaceRef.current
+      ?.querySelector<HTMLButtonElement>(`[data-attention-id="${escapedId}"]`)
+      ?.focus();
+  }, [decisions, selectedAttentionId]);
+
+  const moveSelection = (nextIndex: number) => {
+    const nextItem = decisions[nextIndex];
+    if (nextItem) setSelectedAttentionId(nextItem.id);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (!selectedItem) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      runPrimaryAction(selectedItem);
+      return;
+    }
+
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowDown") nextIndex = Math.min(selectedIndex + 1, decisions.length - 1);
+    if (event.key === "ArrowUp") nextIndex = Math.max(selectedIndex - 1, 0);
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = decisions.length - 1;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    moveSelection(nextIndex);
+  };
 
   const sections = [
     {
-      id: "needs-decision",
-      title: "Needs decision",
-      detail: "Launch approvals and edited staged commands.",
-      items: items.filter((item) => inboxSectionForItem(item) === "needs-decision"),
-    },
-    {
-      id: "blocked-safety",
-      title: "Blocked & safety",
-      detail: "Preflight failures, unsafe relaunches and discard gates.",
-      items: items.filter((item) => inboxSectionForItem(item) === "blocked-safety"),
+      id: "needs-you",
+      title: "Needs you",
+      detail: "Decisions that block an agent or a safe staged launch.",
+      items: decisions.filter((item) => item.section === "needs-you"),
     },
     {
       id: "recovery",
       title: "Recovery",
-      detail: "Restored, exited and failed sessions that need a restart or discard.",
-      items: items.filter((item) => inboxSectionForItem(item) === "recovery"),
+      detail: "Saved and ended sessions with a concrete recovery path.",
+      items: decisions.filter((item) => item.section === "recovery"),
     },
   ];
 
   return (
-    <section ref={surfaceRef} className="review-surface inbox-surface" aria-label="Inbox workspace" tabIndex={-1}>
+    <section
+      ref={surfaceRef}
+      className="review-surface inbox-surface"
+      aria-label="Inbox workspace"
+      onKeyDown={handleKeyDown}
+      tabIndex={-1}
+    >
       <header className="review-surface-header">
         <div>
           <strong>Decision inbox</strong>
-          <p>Launch, restart, resume, or discard queued work.</p>
+          <p>Review the oldest blocking decision first, then recover saved work.</p>
         </div>
-        {items.length > 0 && <span className="review-surface-waiting">{items.length} waiting</span>}
+        {decisions.length > 0 && <span className="review-surface-waiting">{decisions.length} waiting</span>}
       </header>
 
-      {items.length === 0 ? (
+      {decisions.length === 0 ? (
         <div className="review-surface-empty" role="status">
           <div className="review-empty-lead">
-            <CheckCircle2 size={20} aria-hidden="true" />
+            <CheckCircle2 aria-hidden="true" size={20} />
             <span>Queue clear</span>
             <strong>No decisions waiting.</strong>
-            <p>New launch gates and recovery prompts will land here while Work stays focused on active terminals.</p>
+            <p>New launch gates and recovery prompts will land here.</p>
           </div>
         </div>
       ) : (
         <div className="inbox-section-stack" aria-label="Inbox sections">
-          {sections
-            .filter((section) => section.items.length > 0)
-            .map((section) => (
-              <section
-                className="inbox-section"
-                aria-label={section.title}
-                aria-describedby={`inbox-section-${section.id}-detail`}
-                key={section.id}
-              >
-                <header title={section.detail}>
-                  <strong>{section.title}</strong>
-                  <small>{section.items.length}</small>
-                  <p className="visually-hidden" id={`inbox-section-${section.id}-detail`}>
-                    {section.detail}
-                  </p>
-                </header>
-                <ol className="review-surface-list" aria-label={`${section.title} items`}>
-                  {section.items.map((item) => (
-                    <ReviewSurfaceItem
-                      armed={
-                        (item.status.kind === "restored" || item.status.kind === "done" || item.status.kind === "error") &&
-                        armedRecoverySessionIds.has(item.session.id)
-                      }
-                      item={item}
-                      key={item.id}
-                      selected={item.session.id === selectedSessionId}
-                      onContinueRestoredSession={onContinueRestoredSession}
-                      onDiscardSession={onDiscardSession}
-                      onFocusItem={onFocusItem}
-                      onLaunchItem={onLaunchItem}
-                      onRestartSession={onRestartSession}
-                      onReviewBlockedItem={onReviewBlockedItem}
-                    />
-                  ))}
-                </ol>
-              </section>
-            ))}
+          {sections.filter((section) => section.items.length > 0).map((section) => (
+            <section
+              className="inbox-section"
+              aria-label={section.title}
+              aria-describedby={`inbox-section-${section.id}-detail`}
+              key={section.id}
+            >
+              <header title={section.detail}>
+                <strong>{section.title}</strong>
+                <small>{section.items.length}</small>
+                <p className="visually-hidden" id={`inbox-section-${section.id}-detail`}>{section.detail}</p>
+              </header>
+              <ol className="review-surface-list" aria-label={`${section.title} items`}>
+                {section.items.map((item) => (
+                  <InboxDecisionItem
+                    item={item}
+                    key={item.id}
+                    selected={item.id === selectedAttentionId}
+                    onRunPrimaryAction={runPrimaryAction}
+                    onSelect={setSelectedAttentionId}
+                  />
+                ))}
+              </ol>
+            </section>
+          ))}
         </div>
+      )}
+
+      {selectedItem && (
+        <footer className="review-surface-status" aria-live="polite">
+          <span>{selectedItem.sessionTitle}</span>
+          <strong data-testid="inbox-status-action">{attentionActionLabel(selectedItem)}</strong>
+          <small>Enter to run · ↑/↓ to select</small>
+        </footer>
       )}
     </section>
   );
 }
 
-function inboxSectionForItem(item: WorkspaceReviewItem): "needs-decision" | "blocked-safety" | "recovery" {
-  if (item.status.kind === "restored" || item.status.kind === "done" || item.status.kind === "error") {
-    return "recovery";
-  }
-  if (item.status.kind === "blocked" || item.session.safetyNote || isLaunchBlocked(item.session)) {
-    return "blocked-safety";
-  }
-  return "needs-decision";
-}
-
-function ReviewSurfaceItem({
-  armed,
-  item,
-  selected,
-  onContinueRestoredSession,
-  onDiscardSession,
-  onFocusItem,
-  onLaunchItem,
-  onRestartSession,
-  onReviewBlockedItem,
-}: {
-  armed: boolean;
-  item: WorkspaceReviewItem;
-  selected: boolean;
-  onContinueRestoredSession: (tileId: string) => void;
-  onDiscardSession: (tileId: string) => void;
-  onFocusItem: (workspaceId: string, sessionId: string) => void;
-  onLaunchItem: (workspaceId: string, sessionId: string) => void;
-  onRestartSession: (tileId: string) => void;
-  onReviewBlockedItem: (workspaceId: string, sessionId: string) => void;
-}) {
-  const status = terminalSessionDisplayStatus(item.session);
-  const command = formatCommand(item.session);
-  const hardBlocked = isLaunchBlocked(item.session);
-  const checking = item.status.kind === "checking";
-  const recoveryAction = item.status.kind === "restored" || item.status.kind === "done" || item.status.kind === "error";
-  const stagedAction = item.status.kind === "staged" || item.status.kind === "blocked" || item.status.kind === "checking";
-  const relaunchSafety = recoveryAction ? sessionRelaunchSafety(item.session) : { safe: true as const };
-  const relaunchNeedsReview = recoveryAction && !relaunchSafety.safe;
-  const ageSource = item.session.lastActivityAt ?? item.session.createdAt;
-  const ageLabel = sessionAgeLabel(ageSource);
-  const action = reviewSurfaceAction(item, relaunchNeedsReview, armed);
-
-  const runAction = () => {
-    if (checking) return;
-    if (hardBlocked) {
-      onReviewBlockedItem(item.workspaceId, item.session.id);
-      return;
-    }
-    if (item.status.kind === "waiting") {
-      onFocusItem(item.workspaceId, item.session.id);
-      return;
-    }
-    if (item.status.kind === "staged") {
-      onLaunchItem(item.workspaceId, item.session.id);
-      return;
-    }
-    if (item.status.kind === "restored") {
-      onContinueRestoredSession(item.session.id);
-      if (relaunchNeedsReview && !armed) return;
-      onFocusItem(item.workspaceId, item.session.id);
-      return;
-    }
-    if (item.status.kind === "done" || item.status.kind === "error") {
-      onRestartSession(item.session.id);
-      if (relaunchNeedsReview && !armed) return;
-      onFocusItem(item.workspaceId, item.session.id);
-    }
-  };
-
-  return (
-    <li className={`review-surface-item tone-${item.status.kind} ${selected ? "selected" : ""}`}>
-      <div className="review-surface-row">
-        <button
-          type="button"
-          className="review-surface-item-main"
-          onClick={() => onFocusItem(item.workspaceId, item.session.id)}
-          aria-label={`Open ${item.session.title} in ${item.workspaceLabel}`}
-        >
-          <span className="review-surface-workspace">{item.workspaceShortLabel}</span>
-          <span className="review-surface-copy">
-            <strong>{item.session.title}</strong>
-            <small title={`${item.workspaceLabel} · ${status.label} · ${item.detail}`}>
-              {item.workspaceLabel} · {status.label} · {item.detail}
-            </small>
-          </span>
-          {ageLabel && (
-            <time dateTime={new Date(ageSource ?? Date.now()).toISOString()} title={sessionAgeTitle(ageSource)}>
-              {ageLabel}
-            </time>
-          )}
-          <ArrowRight size={15} />
-        </button>
-        <div className="review-surface-actions">
-          {action !== null && (
-            <button
-              type="button"
-              className={`review-surface-primary action-${item.status.kind} ${armed ? "armed" : ""}`}
-              disabled={checking}
-              onClick={runAction}
-              aria-label={`${action} ${item.session.title} in ${item.workspaceLabel}`}
-            >
-              {recoveryAction
-                ? <RotateCcw size={14} />
-                : item.status.kind === "waiting"
-                  ? <ArrowRight size={14} />
-                  : <Play size={14} />}
-              <span>{action}</span>
-            </button>
-          )}
-          {(stagedAction || recoveryAction) && (
-            <button
-              type="button"
-              className="review-surface-discard"
-              title="Discard"
-              aria-label={`Discard ${item.session.title} from ${item.workspaceLabel}`}
-              onClick={() => onDiscardSession(item.session.id)}
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {(hardBlocked || checking || item.session.safetyNote || relaunchNeedsReview) && (
-        <div className="review-surface-note" role="note">
-          <AlertTriangle size={14} />
-          <span>
-            {checking
-              ? "Alfred is rechecking this edited command."
-              : item.session.launchPreflight?.status === "blocked"
-                ? item.session.launchPreflight.reason
-                : item.session.safetyNote ?? (!relaunchSafety.safe ? relaunchSafety.reason : "This launch needs review.")}
-          </span>
-        </div>
-      )}
-
-      {stagedAction && (
-        <div className="review-surface-command">
-          <span>Launch command</span>
-          <code>{command}</code>
-        </div>
-      )}
-
-      {recoveryAction && (
-        <details className="review-surface-command is-disclosure">
-          <summary>
-            <span>Restart command</span>
-          </summary>
-          <code>{command}</code>
-        </details>
-      )}
-    </li>
-  );
-}
-
-function reviewSurfaceAction(item: WorkspaceReviewItem, unsafe: boolean, armed: boolean): string | null {
-  switch (item.status.kind) {
-    case "waiting":
-      return "Open";
-    case "staged":
-      return "Launch";
-    case "blocked":
-      return item.session.safetyNote ? "Review and edit" : "Review details";
-    case "checking":
-      return "Checking";
-    case "restored":
-      return restoredSessionActionLabel(item.session, unsafe, armed);
-    case "done":
-    case "error":
-      return unsafe ? (armed ? "Confirm restart" : "Review restart") : "Restart";
-    case "active":
-    case "idle":
-    case "runtime":
-    case "starting":
-      return null;
-  }
+function assertNever(value: never): never {
+  throw new Error(`Unsupported attention action: ${JSON.stringify(value)}`);
 }
