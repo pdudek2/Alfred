@@ -1898,6 +1898,12 @@ export function App() {
       className="agent-space-shell"
       onKeyDownCapture={(event) => {
         if (!inboxOwnsEscape || event.key !== "Escape") return;
+        if (
+          event.target instanceof Element &&
+          event.target.closest('[role="dialog"], [role="alertdialog"], [role="menu"]')
+        ) {
+          return;
+        }
         event.preventDefault();
         event.stopPropagation();
         handleExitInboxToWork();

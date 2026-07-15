@@ -5405,6 +5405,16 @@ describe("App integration", () => {
     await user.keyboard("{Control>}k{/Control}");
 
     expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
+
+    recoveryToggle.focus();
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
   });
 
   it("keeps Recovery non-blocking and exposes Discard only after expansion", async () => {
@@ -5480,6 +5490,52 @@ describe("App integration", () => {
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-recovery" });
     expect(screen.getByRole("dialog", { name: "Discard isolated checkout" })).toBeInTheDocument();
     expect(forgetTerminal).not.toHaveBeenCalled();
+  });
+
+  it("lets discard confirmation consume Escape without changing armed Recovery", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, forgetTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          clientId: "guarded-armed-recovery",
+          title: "Guarded armed recovery",
+          cwd: "/repo/.alfred-worktrees/guarded-armed-recovery",
+          baseCwd: "/repo",
+          branchName: "alfred-guarded-armed-recovery",
+          source: "manual",
+          shell: "rm",
+          command: "rm",
+          args: ["-rf", "/tmp/cache"],
+          buffer: "saved output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+    await openInboxFromCommandPalette(user);
+    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
+    await user.click(within(inbox).getByRole("button", { name: "Recovery · 1 saved session" }));
+    await user.click(within(inbox).getByRole("button", { name: "Review relaunch Guarded armed recovery in Alfred" }));
+    expect(within(inbox).getByRole("button", { name: "Confirm relaunch Guarded armed recovery in Alfred" })).toBeInTheDocument();
+
+    await user.click(within(inbox).getByRole("button", { name: "Discard Guarded armed recovery" }));
+    expect(await screen.findByRole("dialog", { name: "Discard isolated checkout" })).toBeInTheDocument();
+    expect(forgetTerminal).not.toHaveBeenCalled();
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
+    expect(within(inbox).getByRole("button", { name: "Confirm relaunch Guarded armed recovery in Alfred" })).toBeInTheDocument();
+    expect(within(inbox).getByText("Guarded armed recovery")).toBeVisible();
+    expect(forgetTerminal).not.toHaveBeenCalled();
+    expect(createTerminal).not.toHaveBeenCalled();
   });
 
   it("clears armed Recovery state on immediate Discard so Escape exits Inbox", async () => {
