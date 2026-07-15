@@ -5320,6 +5320,64 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Clean Desktop");
   });
 
+  it.each(["Work", "Observatory"] as const)(
+    "disarms unsafe Recovery before the Inbox switcher can open %s",
+    async (surfaceLabel) => {
+      const user = userEvent.setup();
+      const { createTerminal } = installDesktopBridge(
+        undefined,
+        null,
+        [],
+        undefined,
+        undefined,
+        undefined,
+        [
+          {
+            clientId: `unsafe-switch-${surfaceLabel.toLowerCase()}`,
+            title: `Unsafe ${surfaceLabel} switch`,
+            cwd: "/repo",
+            source: "manual",
+            isolation: "shared",
+            shell: "rm",
+            command: "rm",
+            args: ["-rf", "/tmp/cache"],
+            buffer: "saved output\n",
+          },
+        ],
+      );
+
+      render(<App />);
+      await openInboxFromCommandPalette(user);
+      const inbox = screen.getByRole("region", { name: "Inbox workspace" });
+      await user.click(within(inbox).getByRole("button", { name: "Recovery · 1 saved session" }));
+      await user.click(within(inbox).getByRole("button", {
+        name: `Review relaunch Unsafe ${surfaceLabel} switch in Alfred`,
+      }));
+      expect(within(inbox).getByRole("button", {
+        name: `Confirm relaunch Unsafe ${surfaceLabel} switch in Alfred`,
+      })).toBeInTheDocument();
+
+      const switcherButton = within(inbox).getByRole("button", { name: surfaceLabel });
+      await user.click(switcherButton);
+
+      expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
+      expect(within(inbox).getByRole("button", {
+        name: `Review relaunch Unsafe ${surfaceLabel} switch in Alfred`,
+      })).toBeInTheDocument();
+      expect(createTerminal).not.toHaveBeenCalled();
+
+      await user.click(switcherButton);
+
+      if (surfaceLabel === "Work") {
+        expect(screen.getByTestId("desk-runtime-surface")).not.toHaveAttribute("aria-hidden");
+      } else {
+        expect(screen.getByRole("region", { name: "History workspace" })).toBeVisible();
+      }
+      expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
+      expect(createTerminal).not.toHaveBeenCalled();
+    },
+  );
+
   it("disarms unsafe Recovery before Context can consume Escape", async () => {
     const user = userEvent.setup();
     const { createTerminal } = installDesktopBridge(

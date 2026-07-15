@@ -110,6 +110,50 @@ describe("ReviewSurface", () => {
     expect(handlers.onSelectSurface).toHaveBeenCalledWith("work");
   });
 
+  it.each([
+    ["Work", "{Enter}", "work"],
+    ["Observatory", " ", "history"],
+  ] as const)(
+    "lets the %s switcher button handle %s without running the selected decision",
+    async (label, key, surface) => {
+      const user = userEvent.setup();
+      const handlers = renderSurface();
+      const switcherButton = within(screen.getByRole("toolbar", { name: "Primary surfaces" }))
+        .getByRole("button", { name: label });
+
+      switcherButton.focus();
+      await user.keyboard(key);
+
+      expect(handlers.onSelectSurface).toHaveBeenCalledOnce();
+      expect(handlers.onSelectSurface).toHaveBeenCalledWith(surface);
+      expect(handlers.onReviewEdit).not.toHaveBeenCalled();
+      expect(handlers.onOpenInWork).not.toHaveBeenCalled();
+      expect(handlers.onLaunch).not.toHaveBeenCalled();
+      expect(handlers.onRecover).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["{ArrowDown}", "{ArrowUp}", "{Home}", "{End}"])(
+    "keeps %s inside the surface switcher without moving or acting on the docket",
+    async (key) => {
+      const user = userEvent.setup();
+      const handlers = renderSurface();
+      const workButton = within(screen.getByRole("toolbar", { name: "Primary surfaces" }))
+        .getByRole("button", { name: "Work" });
+
+      workButton.focus();
+      await user.keyboard(key);
+
+      expect(workButton).toHaveFocus();
+      expect(expandedItems()).toEqual([selectButton(SAFETY)]);
+      expect(handlers.onSelectSurface).not.toHaveBeenCalled();
+      expect(handlers.onReviewEdit).not.toHaveBeenCalled();
+      expect(handlers.onOpenInWork).not.toHaveBeenCalled();
+      expect(handlers.onLaunch).not.toHaveBeenCalled();
+      expect(handlers.onRecover).not.toHaveBeenCalled();
+    },
+  );
+
   it("selects, expands, and focuses the first decision without running an action", () => {
     const handlers = renderSurface();
 
@@ -120,6 +164,8 @@ describe("ReviewSurface", () => {
     expect(selectButton(SAFETY)).toHaveFocus();
     expect(expandedItems()).toEqual([selectButton(SAFETY)]);
     expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Review / Edit");
+    expect(screen.getByRole("contentinfo")).not.toHaveTextContent("Space");
+    expect(screen.getByRole("contentinfo")).not.toHaveTextContent("Expand");
     expect(handlers.onLaunch).not.toHaveBeenCalled();
     expect(handlers.onOpenInWork).not.toHaveBeenCalled();
     expect(handlers.onRecover).not.toHaveBeenCalled();

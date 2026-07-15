@@ -111,6 +111,7 @@ export function ReviewSurface({
       onExitToWork();
       return;
     }
+    if (event.target instanceof Element && event.target.closest(".surface-switcher")) return;
     if (!selectedItem) return;
     if (event.key === "Enter") {
       event.preventDefault();
@@ -179,7 +180,6 @@ export function ReviewSurface({
 
       <footer className="inbox-docket__statusbar" aria-live="polite">
         <span><kbd>↑↓</kbd>Select</span>
-        <span><kbd>Space</kbd>Expand</span>
         {selectedItem && (
           <strong data-testid="inbox-status-action"><kbd>↵</kbd>{attentionActionLabel(selectedItem)}</strong>
         )}

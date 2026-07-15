@@ -1410,13 +1410,21 @@ export function App() {
     terminalSessions,
   ]);
 
-  const handleExitInboxToWork = useCallback(() => {
-    if (armedRecoverySessionIds.size > 0) {
+  const handleSelectPrimarySurface = useCallback((nextSurface: PrimarySurface) => {
+    if (
+      activeSurface === "inbox" &&
+      nextSurface !== "inbox" &&
+      armedRecoverySessionIds.size > 0
+    ) {
       setArmedRecoverySessionIds(new Set());
       return;
     }
-    setActiveSurface("work");
-  }, [armedRecoverySessionIds]);
+    setActiveSurface(nextSurface);
+  }, [activeSurface, armedRecoverySessionIds]);
+
+  const handleExitInboxToWork = useCallback(() => {
+    handleSelectPrimarySurface("work");
+  }, [handleSelectPrimarySurface]);
 
   const handleRejectTile = useCallback((tileId: string) => {
     const alfredApi = getDesktopAlfredApi();
@@ -1951,7 +1959,7 @@ export function App() {
             onOpenInbox={handleOpenInbox}
             onOpenPrepareWork={() => setPrepareWorkOpen(true)}
             onOpenPrivacyControls={handleOpenPrivacyPanel}
-            onSelectSurface={setActiveSurface}
+            onSelectSurface={handleSelectPrimarySurface}
             onToggleContext={handleToggleContextDrawer}
           />
         </div>
@@ -2115,7 +2123,7 @@ export function App() {
                   onOpenInWork={handleFocusSessionInWorkspace}
                   onRecover={handleRecoverInboxItem}
                   onReviewEdit={handleReviewBlockedSession}
-                  onSelectSurface={setActiveSurface}
+                  onSelectSurface={handleSelectPrimarySurface}
                 />
               </div>
             )}
@@ -2132,7 +2140,7 @@ export function App() {
                   onOpenManagedSession={handleOpenManagedSessionFromObservatory}
                   onRefreshExternalSessions={handleRefreshExternalCodexSessions}
                   onResumeExternalCodexSession={handleResumeExternalCodexSession}
-                  onSelectSurface={setActiveSurface}
+                  onSelectSurface={handleSelectPrimarySurface}
                   onTrustExternalCodexWorkspace={handleTrustExternalCodexWorkspace}
                   onSelectWorkspace={handleSelectWorkspace}
                 />

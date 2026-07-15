@@ -211,7 +211,11 @@ test("captures deterministic CSS ownership evidence across core states and overl
       getComputedStyle(element).gridTemplateColumns.trim().split(/\s+/),
     ),
   ).toHaveLength(1);
-  await capture("narrow-inbox", [...frameProbes, ...inboxProbes]);
+  const narrowInboxEvidence = await capture("narrow-inbox", [...frameProbes, ...inboxProbes]);
+  expect(
+    narrowInboxEvidence.documentOverflowX,
+    "Narrow Inbox must not create horizontal document overflow",
+  ).toBeLessThanOrEqual(0);
   await page.getByRole("toolbar", { name: "Primary surfaces" }).getByRole("button", { name: "Work" }).click();
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
 
@@ -238,7 +242,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();
 
-  async function capture(state: CssEvidenceStateName, probes: CssOwnerProbe[]): Promise<void> {
+  async function capture(state: CssEvidenceStateName, probes: CssOwnerProbe[]): Promise<CssStateEvidence> {
     await page.mouse.move(neutralScreenshotPointer.x, neutralScreenshotPointer.y);
     await page.evaluate(() => new Promise<void>((resolve) => {
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
@@ -251,12 +255,14 @@ test("captures deterministic CSS ownership evidence across core states and overl
     const captureProbes = process.env.ALFRED_CSS_EXTENDED_VISUAL_PROBES === "1"
       ? [...probes, ...extendedVisualProbes]
       : probes;
-    states.push(await captureCssEvidence(page, state, captureProbes));
+    const evidence = await captureCssEvidence(page, state, captureProbes);
+    states.push(evidence);
     await recordPrivacyMaskCoverage();
     await page.screenshot({
       path: join(evidenceDir, `${state}.png`),
       style: privacySafeScreenshotStyle,
     });
+    return evidence;
   }
 
   async function recordPrivacyMaskCoverage(): Promise<void> {
