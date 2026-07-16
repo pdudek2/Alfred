@@ -80,6 +80,7 @@ type TerminalIpcOptions = {
 type LaunchTicket = {
   expiresAt: number;
   fingerprint: string;
+  restoredClientId?: string;
 };
 
 type TerminalSession = {
@@ -118,6 +119,9 @@ const MAX_BUFFER_LENGTH = 200_000;
 const MAX_PERSISTED_BUFFER_LENGTH = 80_000;
 let persistedStateStore: PersistedDesktopStateStore | null = null;
 let persistenceHydrated = false;
+let persistenceHydration: Promise<void> | null = null;
+let persistenceHydrationMutations: Set<string> | null = null;
+let persistenceGeneration = 0;
 let persistDebounceMs = 250;
 let persistTimer: NodeJS.Timeout | null = null;
 
@@ -127,6 +131,9 @@ export function configureTerminalPersistence(
 ): void {
   persistedStateStore = store;
   persistenceHydrated = false;
+  persistenceHydration = null;
+  persistenceHydrationMutations = null;
+  persistenceGeneration += 1;
   restoredSessionSnapshots.clear();
   forgottenClientIds.clear();
   persistDebounceMs = options.debounceMs ?? 250;
@@ -139,6 +146,9 @@ export function resetTerminalPersistenceForTests(): void {
   }
   persistedStateStore = null;
   persistenceHydrated = false;
+  persistenceHydration = null;
+  persistenceHydrationMutations = null;
+  persistenceGeneration += 1;
   restoredSessionSnapshots.clear();
   forgottenClientIds.clear();
   persistDebounceMs = 250;
@@ -146,6 +156,8 @@ export function resetTerminalPersistenceForTests(): void {
 
 export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
   const launchTickets = new Map<string, LaunchTicket>();
+  const restoredLaunchReservations = new Map<string, string>();
+  const restoredLaunchesInFlight = new Set<string>();
 
   ipcMain.handle(terminalChannels.list, async (event): Promise<TerminalListResult> => {
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -184,16 +196,27 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     terminalChannels.prepareLaunch,
     async (_event, request: TerminalCreateRequest) => {
       const safeRequest = validateTerminalCreateRequest(request);
-      await validateTerminalCommandApproval(safeRequest, options.isStagedCommandAllowed, {
+      const isPersistedRestoredLaunch = await validateTerminalCommandApproval(safeRequest, options.isStagedCommandAllowed, {
         allowPersistedRestoredLaunch: true,
       });
       await resolveValidatedTerminalCwd(safeRequest, options);
       const launchTicketId = randomUUID();
       const expiresAt = Date.now() + (options.launchTicketTtlMs ?? 2 * 60 * 1000);
-      launchTickets.set(launchTicketId, {
+      const ticket: LaunchTicket = {
         expiresAt,
         fingerprint: launchFingerprint(safeRequest, options),
-      });
+        ...(isPersistedRestoredLaunch && safeRequest.clientId
+          ? { restoredClientId: safeRequest.clientId }
+          : {}),
+      };
+      if (ticket.restoredClientId) {
+        const previousTicketId = restoredLaunchReservations.get(ticket.restoredClientId);
+        if (previousTicketId) {
+          launchTickets.delete(previousTicketId);
+        }
+        restoredLaunchReservations.set(ticket.restoredClientId, launchTicketId);
+      }
+      launchTickets.set(launchTicketId, ticket);
       return { launchTicketId, expiresAt };
     },
   );
@@ -208,77 +231,97 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       }
 
       const safeRequest = validateTerminalCreateRequest(request);
+      let restoredLaunchClientId: string | undefined;
       if (options.requireLaunchTickets && requestRequiresLaunchTicket(safeRequest)) {
-        consumeLaunchTicket(safeRequest, launchTickets, options);
+        restoredLaunchClientId = consumeLaunchTicket(
+          safeRequest,
+          launchTickets,
+          restoredLaunchReservations,
+          restoredLaunchesInFlight,
+          options,
+        ).restoredClientId;
       } else {
         await validateTerminalCommandApproval(safeRequest, options.isStagedCommandAllowed);
       }
-      const canonicalCwd = await resolveValidatedTerminalCwd(safeRequest, options);
-      const launchCwd = await resolveLaunchCwd(
-        safeRequest,
-        options.prepareAgentWorktree ?? defaultPrepareAgentWorktree,
-        {
-          ...terminalWorktreeOptions(options),
-          ...(options.scratchRootPath === undefined ? {} : { scratchRootPath: options.scratchRootPath }),
-        },
-        canonicalCwd,
-      );
-      const cwd = typeof launchCwd === "string" ? launchCwd : launchCwd.cwd;
-      await ensureScratchCwdExists(cwd, options.scratchRootPath);
-      const nodePty = await (options.loadNodePty ?? loadNodePty)();
-      const resolved = resolveCommand(safeRequest);
-      const id = randomUUID();
-      const metadata = sessionMetadata(id, safeRequest, launchCwd, resolved.command, Date.now());
-      const pty = nodePty.spawn(resolved.command, resolved.args, {
-        name: "xterm-256color",
-        cols: normalizeDimension(request.cols, 80),
-        rows: normalizeDimension(request.rows, 24),
-        cwd,
-        env: {
-          ...process.env,
-          TERM: "xterm-256color",
-          COLORTERM: "truecolor",
-        },
-      });
-      const session: TerminalSession = {
-        ...metadata,
-        buffer: "",
-        activityEvents: [],
-        activityStream: { carry: "" },
-        ownerWindowId: window.id,
-        pty,
-        window,
-      };
+      let session: TerminalSession;
+      try {
+        const canonicalCwd = await resolveValidatedTerminalCwd(safeRequest, options);
+        const launchCwd = await resolveLaunchCwd(
+          safeRequest,
+          options.prepareAgentWorktree ?? defaultPrepareAgentWorktree,
+          {
+            ...terminalWorktreeOptions(options),
+            ...(options.scratchRootPath === undefined ? {} : { scratchRootPath: options.scratchRootPath }),
+          },
+          canonicalCwd,
+        );
+        const cwd = typeof launchCwd === "string" ? launchCwd : launchCwd.cwd;
+        await ensureScratchCwdExists(cwd, options.scratchRootPath);
+        const nodePty = await (options.loadNodePty ?? loadNodePty)();
+        const resolved = resolveCommand(safeRequest);
+        const id = randomUUID();
+        const metadata = sessionMetadata(id, safeRequest, launchCwd, resolved.command, Date.now());
+        const pty = nodePty.spawn(resolved.command, resolved.args, {
+          name: "xterm-256color",
+          cols: normalizeDimension(request.cols, 80),
+          rows: normalizeDimension(request.rows, 24),
+          cwd,
+          env: {
+            ...process.env,
+            TERM: "xterm-256color",
+            COLORTERM: "truecolor",
+          },
+        });
+        session = {
+          ...metadata,
+          buffer: "",
+          activityEvents: [],
+          activityStream: { carry: "" },
+          ownerWindowId: window.id,
+          pty,
+          window,
+        };
 
-      sessions.set(id, session);
+        sessions.set(id, session);
+      } catch (error) {
+        if (restoredLaunchClientId) {
+          restoredLaunchesInFlight.delete(restoredLaunchClientId);
+        }
+        throw error;
+      }
+      if (restoredLaunchClientId) {
+        restoredLaunchesInFlight.delete(restoredLaunchClientId);
+      }
       if (session.clientId) {
         forgottenClientIds.delete(session.clientId);
       }
       rememberSessionSnapshot(session);
 
-      pty.onData((data) => {
+      session.pty.onData((data) => {
         const now = Date.now();
         appendToBuffer(session, data);
         session.lastOutputAt = now;
         const activities = recordOutputActivity(session, data, now);
         rememberSessionSnapshot(session);
         sendToSessionWindow(session, terminalChannels.data, {
-          id,
+          id: session.id,
           ...(session.clientId === undefined ? {} : { clientId: session.clientId }),
           data,
           activities,
         });
       });
 
-      pty.onExit(({ exitCode, signal }) => {
+      session.pty.onExit(({ exitCode, signal }) => {
         recordSessionActivity(session, {
           kind: "lifecycle",
           title: "Process exited",
           detail: `The terminal process exited with code ${exitCode}.`,
         });
         rememberSessionSnapshot(session);
-        disposeSession(id);
-        const payload: TerminalExitEvent = signal === undefined ? { id, exitCode } : { id, exitCode, signal };
+        disposeSession(session.id);
+        const payload: TerminalExitEvent = signal === undefined
+          ? { id: session.id, exitCode }
+          : { id: session.id, exitCode, signal };
         sendToSessionWindow(session, terminalChannels.exit, payload);
       });
 
@@ -521,13 +564,40 @@ async function hydratePersistedTerminalSessions(): Promise<void> {
   if (persistenceHydrated || !persistedStateStore) {
     return;
   }
-
-  const state = await persistedStateStore.getState();
-  restoredSessionSnapshots.clear();
-  for (const session of state.restoredTerminalSessions) {
-    restoredSessionSnapshots.set(session.clientId, clonePersistedSession(session));
+  if (persistenceHydration) {
+    return persistenceHydration;
   }
-  persistenceHydrated = true;
+
+  const store = persistedStateStore;
+  const generation = persistenceGeneration;
+  const hydrationMutations = new Set<string>();
+  persistenceHydrationMutations = hydrationMutations;
+  const hydration = (async () => {
+    const state = await store.getState();
+    if (persistedStateStore !== store || persistenceGeneration !== generation) return;
+
+    const locallyRemembered = new Map(
+      [...restoredSessionSnapshots].filter(([clientId]) => hydrationMutations.has(clientId)),
+    );
+    restoredSessionSnapshots.clear();
+    for (const session of state.restoredTerminalSessions) {
+      if (forgottenClientIds.has(session.clientId) || locallyRemembered.has(session.clientId)) continue;
+      restoredSessionSnapshots.set(session.clientId, clonePersistedSession(session));
+    }
+    for (const [clientId, session] of locallyRemembered) {
+      restoredSessionSnapshots.set(clientId, session);
+    }
+    persistenceHydrated = true;
+  })();
+  persistenceHydration = hydration;
+  try {
+    await hydration;
+  } finally {
+    if (persistenceHydration === hydration) {
+      persistenceHydration = null;
+      persistenceHydrationMutations = null;
+    }
+  }
 }
 
 function rememberSessionSnapshot(session: TerminalSession): void {
@@ -535,12 +605,14 @@ function rememberSessionSnapshot(session: TerminalSession): void {
   if (!snapshot) return;
   if (forgottenClientIds.has(snapshot.clientId)) return;
 
+  persistenceHydrationMutations?.add(snapshot.clientId);
   restoredSessionSnapshots.set(snapshot.clientId, snapshot);
   scheduleTerminalPersistence();
 }
 
 function forgetPersistedSession(clientId: string): void {
   if (!clientId) return;
+  persistenceHydrationMutations?.add(clientId);
   forgottenClientIds.add(clientId);
   restoredSessionSnapshots.delete(clientId);
   scheduleTerminalPersistence();
@@ -973,17 +1045,17 @@ async function validateTerminalCommandApproval(
   request: TerminalCreateRequest,
   isStagedCommandAllowed: TerminalIpcOptions["isStagedCommandAllowed"],
   options: { allowPersistedRestoredLaunch?: boolean } = {},
-): Promise<void> {
-  if (!request.command) return;
+): Promise<boolean> {
+  if (!request.command) return false;
 
-  if (isTrustedAgentLaunch(request)) return;
-  if (!isStagedCommandAllowed) return;
+  if (isTrustedAgentLaunch(request)) return false;
+  if (!isStagedCommandAllowed) return false;
 
   if (request.source === "alfred" && await isStagedCommandAllowed?.(request)) {
-    return;
+    return false;
   }
   if (options.allowPersistedRestoredLaunch && await isExactPersistedRestoredLaunch(request)) {
-    return;
+    return true;
   }
 
   throw new Error("Terminal command is not approved for launch.");
@@ -1096,20 +1168,47 @@ function requestRequiresLaunchTicket(request: TerminalCreateRequest): boolean {
 function consumeLaunchTicket(
   request: TerminalCreateRequest,
   launchTickets: Map<string, LaunchTicket>,
+  restoredLaunchReservations: Map<string, string>,
+  restoredLaunchesInFlight: Set<string>,
   options: Pick<TerminalIpcOptions, "scratchRootPath">,
-): void {
+): LaunchTicket {
   if (!request.launchTicketId) {
     throw new Error("Terminal launch ticket is required.");
   }
 
-  const ticket = launchTickets.get(request.launchTicketId);
+  const launchTicketId = request.launchTicketId;
+  const ticket = launchTickets.get(launchTicketId);
   launchTickets.delete(request.launchTicketId);
   if (!ticket || ticket.expiresAt < Date.now()) {
     throw new Error("Terminal launch ticket is invalid or expired.");
   }
 
   if (ticket.fingerprint !== launchFingerprint(request, options)) {
+    clearRestoredLaunchReservation(ticket, launchTicketId, restoredLaunchReservations);
     throw new Error("Terminal launch ticket does not match this request.");
+  }
+
+  if (ticket.restoredClientId) {
+    const isCurrentReservation = restoredLaunchReservations.get(ticket.restoredClientId) === launchTicketId;
+    if (!isCurrentReservation
+      || restoredLaunchesInFlight.has(ticket.restoredClientId)
+      || findLiveSessionByClientId(ticket.restoredClientId)) {
+      clearRestoredLaunchReservation(ticket, launchTicketId, restoredLaunchReservations);
+      throw new Error("Terminal launch ticket is invalid or expired.");
+    }
+    restoredLaunchReservations.delete(ticket.restoredClientId);
+    restoredLaunchesInFlight.add(ticket.restoredClientId);
+  }
+  return ticket;
+}
+
+function clearRestoredLaunchReservation(
+  ticket: LaunchTicket,
+  launchTicketId: string,
+  restoredLaunchReservations: Map<string, string>,
+): void {
+  if (ticket.restoredClientId && restoredLaunchReservations.get(ticket.restoredClientId) === launchTicketId) {
+    restoredLaunchReservations.delete(ticket.restoredClientId);
   }
 }
 

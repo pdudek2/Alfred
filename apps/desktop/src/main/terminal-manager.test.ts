@@ -95,6 +95,16 @@ function fakeNodePty(pty: FakePty) {
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
+}
+
 function defaultAllowedCwdRoots(): string[] {
   return [
     "/repo",
@@ -110,10 +120,7 @@ function defaultAllowedCwdRoots(): string[] {
 function storeWithRestoredSessions(
   restoredTerminalSessions: PersistedTerminalSessionSnapshot[],
 ): PersistedDesktopStateStore {
-  let state: DesktopStateSnapshot = {
-    ...DEFAULT_DESKTOP_STATE,
-    restoredTerminalSessions,
-  };
+  let state = stateWithRestoredSessions(restoredTerminalSessions);
   return {
     getState: vi.fn(async () => state),
     setState: vi.fn(async (next) => {
@@ -124,6 +131,15 @@ function storeWithRestoredSessions(
       state = await updater(state);
       return state;
     }),
+  };
+}
+
+function stateWithRestoredSessions(
+  restoredTerminalSessions: PersistedTerminalSessionSnapshot[],
+): DesktopStateSnapshot {
+  return {
+    ...DEFAULT_DESKTOP_STATE,
+    restoredTerminalSessions,
   };
 }
 
@@ -485,6 +501,87 @@ describe("terminal-manager IPC", () => {
     await flushTerminalPersistence();
 
     expect(state.restoredTerminalSessions).toEqual([]);
+  });
+
+  it("hydrates persisted terminal snapshots once across concurrent readers", async () => {
+    const hydration = deferred<DesktopStateSnapshot>();
+    const store = storeWithRestoredSessions([]);
+    vi.mocked(store.getState).mockReturnValue(hydration.promise);
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc();
+
+    const firstList = invoke<TerminalListResult>(terminalChannels.list);
+    const secondList = invoke<TerminalListResult>(terminalChannels.list);
+
+    expect(store.getState).toHaveBeenCalledTimes(1);
+    hydration.resolve(stateWithRestoredSessions([]));
+    await expect(Promise.all([firstList, secondList])).resolves.toHaveLength(2);
+  });
+
+  it("does not resurrect a forgotten snapshot when in-flight hydration completes", async () => {
+    const hydration = deferred<DesktopStateSnapshot>();
+    const snapshot: PersistedTerminalSessionSnapshot = {
+      clientId: "forgotten-during-hydration",
+      title: "Forget me",
+      source: "manual",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+      buffer: "stale\n",
+    };
+    const store = storeWithRestoredSessions([]);
+    vi.mocked(store.getState).mockReturnValue(hydration.promise);
+    configureTerminalPersistence(store, { debounceMs: 60_000 });
+    registerTerminalIpc();
+
+    const pendingList = invoke<TerminalListResult>(terminalChannels.list);
+    emit(terminalChannels.forget, { clientId: snapshot.clientId });
+    hydration.resolve(stateWithRestoredSessions([snapshot]));
+
+    await expect(pendingList).resolves.toEqual(expect.objectContaining({ restoredSessions: [] }));
+  });
+
+  it("does not erase a locally remembered snapshot when in-flight hydration completes", async () => {
+    const hydration = deferred<DesktopStateSnapshot>();
+    const staleSnapshot: PersistedTerminalSessionSnapshot = {
+      clientId: "remembered-during-hydration",
+      title: "Stale title",
+      source: "manual",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+      buffer: "stale\n",
+    };
+    let persistedState = stateWithRestoredSessions([]);
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(() => hydration.promise),
+      setState: vi.fn(async (next) => {
+        persistedState = next;
+        return persistedState;
+      }),
+      updateState: vi.fn(async (updater) => {
+        persistedState = await updater(persistedState);
+        return persistedState;
+      }),
+    };
+    const pty = new FakePty();
+    configureTerminalPersistence(store, { debounceMs: 60_000 });
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+
+    const pendingList = invoke<TerminalListResult>(terminalChannels.list);
+    await invoke(terminalChannels.create, {
+      clientId: staleSnapshot.clientId,
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+      title: "Fresh title",
+    });
+    persistedState = stateWithRestoredSessions([staleSnapshot]);
+    hydration.resolve(persistedState);
+    await pendingList;
+    await flushTerminalPersistence();
+
+    expect(persistedState.restoredTerminalSessions).toEqual([
+      expect.objectContaining({ clientId: staleSnapshot.clientId, title: "Fresh title" }),
+    ]);
   });
 
   it("flushes pending terminal snapshots without waiting for the debounce timer", async () => {
@@ -862,6 +959,92 @@ describe("terminal-manager IPC", () => {
       snapshot.args,
       expect.objectContaining({ cwd: "/repo" }),
     );
+  });
+
+  it("keeps only one concurrent prepared authorization redeemable for one restored client", async () => {
+    const nodePty = fakeNodePty(new FakePty());
+    const snapshot: PersistedTerminalSessionSnapshot = {
+      clientId: "restored-manual",
+      title: "Restored manual",
+      source: "manual",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+      command: "/bin/sh",
+      args: ["-c", "/usr/bin/printf 'confirmed restore\\n'"],
+      buffer: "saved transcript\n",
+    };
+    configureTerminalPersistence(storeWithRestoredSessions([snapshot]), { debounceMs: 0 });
+    registerTerminalIpc({
+      isStagedCommandAllowed: async () => false,
+      loadNodePty: async () => nodePty as never,
+      requireLaunchTickets: true,
+    });
+    const request: TerminalCreateRequest = {
+      clientId: snapshot.clientId,
+      command: snapshot.command,
+      args: snapshot.args,
+      cols: 80,
+      cwd: snapshot.cwd,
+      rows: 24,
+      source: "manual",
+    };
+
+    const [first, second] = await Promise.all([
+      invoke<{ launchTicketId: string }>(terminalChannels.prepareLaunch, request),
+      invoke<{ launchTicketId: string }>(terminalChannels.prepareLaunch, request),
+    ]);
+
+    const redemptions = await Promise.allSettled([
+      invoke(terminalChannels.create, { ...request, launchTicketId: first.launchTicketId }),
+      invoke(terminalChannels.create, { ...request, launchTicketId: second.launchTicketId }),
+    ]);
+
+    expect(redemptions.map(({ status }) => status).sort()).toEqual(["fulfilled", "rejected"]);
+    expect(redemptions.find(({ status }) => status === "rejected")).toEqual(expect.objectContaining({
+      reason: expect.objectContaining({ message: "Terminal launch ticket is invalid or expired." }),
+    }));
+    expect(nodePty.spawn).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a restored authorization redeemed after that client becomes live", async () => {
+    const loadPty = deferred<ReturnType<typeof fakeNodePty>>();
+    const nodePty = fakeNodePty(new FakePty());
+    const snapshot: PersistedTerminalSessionSnapshot = {
+      clientId: "restored-manual",
+      title: "Restored manual",
+      source: "manual",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+      command: "/bin/sh",
+      args: ["-c", "/usr/bin/printf 'confirmed restore\\n'"],
+      buffer: "saved transcript\n",
+    };
+    configureTerminalPersistence(storeWithRestoredSessions([snapshot]), { debounceMs: 0 });
+    registerTerminalIpc({
+      isStagedCommandAllowed: async () => false,
+      loadNodePty: async () => loadPty.promise as never,
+      requireLaunchTickets: true,
+    });
+    const request: TerminalCreateRequest = {
+      clientId: snapshot.clientId,
+      command: snapshot.command,
+      args: snapshot.args,
+      cols: 80,
+      cwd: snapshot.cwd,
+      rows: 24,
+      source: "manual",
+    };
+
+    const first = await invoke<{ launchTicketId: string }>(terminalChannels.prepareLaunch, request);
+    const firstCreate = invoke(terminalChannels.create, { ...request, launchTicketId: first.launchTicketId });
+    const second = await invoke<{ launchTicketId: string }>(terminalChannels.prepareLaunch, request);
+    loadPty.resolve(nodePty);
+    await firstCreate;
+
+    await expect(
+      invoke(terminalChannels.create, { ...request, launchTicketId: second.launchTicketId }),
+    ).rejects.toThrow("Terminal launch ticket is invalid or expired.");
+    expect(nodePty.spawn).toHaveBeenCalledTimes(1);
   });
 
   it.each([
