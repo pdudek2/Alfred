@@ -15,7 +15,7 @@ import {
 import type { TerminalApi } from "../../src/shared/terminal-ipc";
 import {
   createDesktopFixture,
-  type DesktopFixtureOptions,
+  type DesktopStateFixtureOptions,
   type DesktopFixturePaths,
 } from "./desktop-state-fixture";
 import {
@@ -48,7 +48,7 @@ export type ElectronHarness = {
 };
 
 type Fixtures = {
-  fixtureOptions: DesktopFixtureOptions;
+  fixtureOptions: DesktopStateFixtureOptions;
   harness: ElectronHarness;
 };
 

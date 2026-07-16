@@ -10,12 +10,15 @@ import {
 import type { AlfredStagedPlanSnapshot } from "../../src/shared/alfred-ipc";
 import type { PersistedTerminalSessionSnapshot } from "../../src/shared/terminal-ipc";
 
-export type DesktopFixtureOptions = {
+export type DesktopStateFixtureOptions = {
   activeWorkspaceId?: "A" | "B";
   inboxItems?: number;
+  blockedInboxItem?: number;
+  waitingInboxItem?: number;
   projectShell?: boolean;
   restoredScratchSessions?: number;
   restoredSessions?: number;
+  unsafeRecoveryItem?: number;
 };
 
 export type DesktopFixturePaths = {
@@ -28,7 +31,7 @@ export type DesktopFixturePaths = {
 };
 
 export async function createDesktopFixture(
-  options: DesktopFixtureOptions = {},
+  options: DesktopStateFixtureOptions = {},
 ): Promise<{ paths: DesktopFixturePaths; state: DesktopStateFile }> {
   const root = await mkdtemp(path.join(tmpdir(), "alfred-electron-"));
   try {
@@ -70,6 +73,16 @@ export async function createDesktopFixture(
         : []),
     ];
     const inboxItems = options.inboxItems ?? 0;
+    const restoredSessions = options.restoredSessions ?? 0;
+    assertFixtureIndex("blockedInboxItem", options.blockedInboxItem, inboxItems);
+    assertFixtureIndex("waitingInboxItem", options.waitingInboxItem, inboxItems);
+    assertFixtureIndex("unsafeRecoveryItem", options.unsafeRecoveryItem, restoredSessions);
+    if (
+      options.blockedInboxItem !== undefined &&
+      options.blockedInboxItem === options.waitingInboxItem
+    ) {
+      throw new Error("blockedInboxItem and waitingInboxItem must identify different items.");
+    }
     const stagedPlan: AlfredStagedPlanSnapshot | null =
       inboxItems === 0
         ? null
@@ -81,30 +94,48 @@ export async function createDesktopFixture(
               const number = index + 1;
               const workspaceId = number % 2 === 0 ? "B" : "A";
               const cwd = workspaceId === "A" ? paths.workspaceA : paths.workspaceB;
+              const waiting = number === options.waitingInboxItem;
+              const blocked = number === options.blockedInboxItem;
               return {
                 id: `fixture-item-${number}`,
                 workspaceId,
                 kind: "shell" as const,
                 title: `Fixture item ${number}`,
                 cwd,
-                command: "/usr/bin/printf",
-                args: [`fixture item ${number}\n`],
+                command: waiting ? "/bin/sh" : "/usr/bin/printf",
+                args: waiting
+                  ? [
+                      "-c",
+                      "/bin/echo 'Approval required: allow deterministic fixture?'; exec /bin/cat",
+                    ]
+                  : [`fixture item ${number}\n`],
                 isolation: "shared" as const,
-                launchPreflight: {
-                  status: "ready" as const,
-                  label: "Ready",
-                  detail: "Deterministic local fixture command.",
-                  isolation: "shared" as const,
-                  cwd,
-                },
+                launchPreflight: blocked
+                  ? {
+                      status: "blocked" as const,
+                      code: "cwd_outside_workspace" as const,
+                      label: "Blocked",
+                      reason: "Fixture safety policy blocks launch outside the approved root.",
+                      detail: "Edit the working directory before launch.",
+                    }
+                  : {
+                      status: "ready" as const,
+                      label: "Ready",
+                      detail: waiting
+                        ? "Deterministic PTY waits for explicit input."
+                        : "Deterministic local fixture command.",
+                      isolation: "shared" as const,
+                      cwd,
+                    },
               };
             }),
           };
     const restoredTerminalSessions: PersistedTerminalSessionSnapshot[] = Array.from(
-      { length: options.restoredSessions ?? 0 },
+      { length: restoredSessions },
       (_, index) => {
         const number = index + 1;
         const workspaceId = number % 2 === 0 ? "B" : "A";
+        const unsafe = number === options.unsafeRecoveryItem;
         return {
           clientId: `restored-${number}`,
           title: `Restored fixture ${number}`,
@@ -112,8 +143,10 @@ export async function createDesktopFixture(
           workspaceId,
           cwd: workspaceId === "A" ? paths.workspaceA : paths.workspaceB,
           shell: "/bin/zsh",
-          command: "/usr/bin/printf",
-          args: [`restored fixture ${number}\n`],
+          command: unsafe ? "/bin/sh" : "/usr/bin/printf",
+          args: unsafe
+            ? ["-c", "/usr/bin/printf 'unsafe recovery confirmed\\n'"]
+            : [`restored fixture ${number}\n`],
           createdAt: 1_720_000_000_000 + number,
           buffer: `restored fixture ${number}\n`,
         };
@@ -163,5 +196,16 @@ export async function createDesktopFixture(
   } catch (error) {
     await rm(root, { recursive: true, force: true });
     throw error;
+  }
+}
+
+function assertFixtureIndex(
+  option: string,
+  index: number | undefined,
+  itemCount: number,
+): void {
+  if (index === undefined) return;
+  if (!Number.isInteger(index) || index < 1 || index > itemCount) {
+    throw new Error(`${option} must be an integer between 1 and ${itemCount}.`);
   }
 }

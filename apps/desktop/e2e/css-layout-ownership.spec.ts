@@ -74,10 +74,12 @@ const prepareWorkProbes: CssOwnerProbe[] = [
 ];
 
 const inboxProbes: CssOwnerProbe[] = [
-  { name: "inbox", selector: ".inbox-surface", required: true,
+  { name: "inbox", selector: ".inbox-docket", required: true,
     properties: ["display", "min-height", "overflow", "background-color"] },
-  { name: "inbox-scroll-owner", selector: ".inbox-section-stack", required: true,
-    properties: ["display", "min-height", "overflow-x", "overflow-y", "padding", "gap"] },
+  { name: "inbox-scroll-owner", selector: ".inbox-docket__canvas", required: true,
+    properties: ["display", "min-height", "overflow-x", "overflow-y", "padding", "max-width"] },
+  { name: "inbox-detail", selector: ".inbox-docket__detail-grid", required: true,
+    properties: ["display", "grid-template-columns", "min-width", "overflow"] },
 ];
 
 const observatoryProbes: CssOwnerProbe[] = [
@@ -201,6 +203,21 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await setWindowSize(app, page, 1120, 720);
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow Grid");
   await capture("narrow", [...frameProbes, ...terminalProbes]);
+  await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
+  await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
+  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow Inbox");
+  expect(
+    await page.locator(".inbox-docket__detail-grid").evaluate((element) =>
+      getComputedStyle(element).gridTemplateColumns.trim().split(/\s+/),
+    ),
+  ).toHaveLength(1);
+  const narrowInboxEvidence = await capture("narrow-inbox", [...frameProbes, ...inboxProbes]);
+  expect(
+    narrowInboxEvidence.documentOverflowX,
+    "Narrow Inbox must not create horizontal document overflow",
+  ).toBeLessThanOrEqual(0);
+  await page.getByRole("navigation", { name: "Primary surfaces" }).getByRole("button", { name: "Work" }).click();
+  await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
 
   await setWindowSize(app, page, 1440, 920);
   await page.getByRole("button", { name: "Open command palette" }).click();
@@ -225,7 +242,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();
 
-  async function capture(state: CssEvidenceStateName, probes: CssOwnerProbe[]): Promise<void> {
+  async function capture(state: CssEvidenceStateName, probes: CssOwnerProbe[]): Promise<CssStateEvidence> {
     await page.mouse.move(neutralScreenshotPointer.x, neutralScreenshotPointer.y);
     await page.evaluate(() => new Promise<void>((resolve) => {
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
@@ -238,12 +255,14 @@ test("captures deterministic CSS ownership evidence across core states and overl
     const captureProbes = process.env.ALFRED_CSS_EXTENDED_VISUAL_PROBES === "1"
       ? [...probes, ...extendedVisualProbes]
       : probes;
-    states.push(await captureCssEvidence(page, state, captureProbes));
+    const evidence = await captureCssEvidence(page, state, captureProbes);
+    states.push(evidence);
     await recordPrivacyMaskCoverage();
     await page.screenshot({
       path: join(evidenceDir, `${state}.png`),
       style: privacySafeScreenshotStyle,
     });
+    return evidence;
   }
 
   async function recordPrivacyMaskCoverage(): Promise<void> {

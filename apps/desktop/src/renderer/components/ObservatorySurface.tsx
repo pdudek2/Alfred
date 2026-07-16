@@ -9,6 +9,8 @@ import { TileKindIcon } from "../tile-kind-icon";
 import { shortenPath } from "../path-display";
 import { findWorkspaceForCwd } from "../workspace-path-matching";
 import type { ProjectNavigatorWorkspace } from "./ProjectNavigator";
+import { SurfaceSwitcher } from "./SurfaceSwitcher";
+import type { PrimarySurface } from "./WorkbenchHeader";
 
 type ObservatorySurfaceProps = {
   activeWorkspaceId: string;
@@ -22,6 +24,7 @@ type ObservatorySurfaceProps = {
   onRefreshExternalSessions: () => void;
   onResumeExternalCodexSession: (session: ExternalCodexSessionSummary) => void;
   onSelectWorkspace: (workspaceId: string) => void;
+  onSelectSurface: (surface: PrimarySurface) => void;
   onTrustExternalCodexWorkspace?: (session: ExternalCodexSessionSummary) => void;
 };
 
@@ -68,6 +71,7 @@ export function ObservatorySurface({
   onRefreshExternalSessions,
   onResumeExternalCodexSession,
   onSelectWorkspace,
+  onSelectSurface,
   onTrustExternalCodexWorkspace,
 }: ObservatorySurfaceProps) {
   const [query, setQuery] = useState("");
@@ -91,7 +95,14 @@ export function ObservatorySurface({
   const activeWorkspace = workspaceById.get(activeWorkspaceId);
 
   return (
-    <section className="observatory-surface history-surface" aria-label="History workspace">
+    <section
+      className="observatory-surface history-surface"
+      aria-label="History workspace"
+      data-secondary-chrome-height="36"
+    >
+      <div className="surface-switcher-slot">
+        <SurfaceSwitcher activeSurface="history" onSelectSurface={onSelectSurface} />
+      </div>
       <header className="observatory-surface-header">
         <div>
           <span>History</span>

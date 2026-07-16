@@ -26,6 +26,11 @@ import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHead
 import { WorkSurfaceToolbar } from "./components/WorkSurfaceToolbar";
 import { WorkspaceActionsMenu } from "./components/WorkspaceActionsMenu";
 import {
+  blockingAttentionCount,
+  blockingAttentionCountByWorkspace,
+  buildAttentionProjection,
+} from "./attention-projection";
+import {
   applyLayoutPreset,
   ensureTileLayouts,
   moveTileLayout,
@@ -64,13 +69,13 @@ import {
   renameSession,
   restartSession,
   sessionInstanceKey,
+  terminalEventMatchesSession,
   type SessionActivityEvent,
   type SessionTile,
 } from "./session-state";
 import { terminalSessionDisplayStatus } from "./session-status";
 import { recordPreviewUrlsFromText, type PreviewUrlCandidate } from "./preview-state";
 import type { WorkMode } from "./terminal-desk-types";
-import { workspaceReviewQueue } from "./workspace-attention";
 import { shortenPath } from "./path-display";
 import { findWorkspaceForCwd } from "./workspace-path-matching";
 import { sessionRelaunchSafety } from "./relaunch-safety";
@@ -93,6 +98,7 @@ import type {
 import type {
   TerminalCreateResult,
   TerminalDataEvent,
+  TerminalExitEvent,
   TerminalSessionIsolation,
   TerminalSessionSnapshot,
 } from "../shared/terminal-ipc";
@@ -118,6 +124,9 @@ type PendingDiscardConfirmation = {
   summary: string;
   title: string;
 };
+
+const ACCESSIBLE_DISMISSAL_OWNER_SELECTOR =
+  'dialog[open], [role="dialog"], [role="alertdialog"], [role="menu"]';
 
 const DEFAULT_WORKSPACE_ID = "A";
 const DEFAULT_WORKSPACE: Workspace = { id: DEFAULT_WORKSPACE_ID, label: "Alfred", shortLabel: "A" };
@@ -237,11 +246,27 @@ export function App() {
     null;
   const canCloseActiveWorkspace =
     activeWorkspace.id !== DEFAULT_WORKSPACE_ID && workspaces.length > 1 && activeSessions.length === 0;
-  const activeRecoverableSessions = activeSessions.filter((session) =>
-    session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error",
+  const attentionItems = buildAttentionProjection(workspaces, terminalSessions);
+  const recoverySessionIds = new Set(
+    attentionItems
+      .filter((item) => item.section === "recovery" && item.workspaceId === activeWorkspace.id)
+      .map((item) => item.sessionId),
   );
-  const globalReviewItems = workspaceReviewQueue(workspaces, terminalSessions);
-  const reviewQueuePreview = globalReviewItems[0] ?? null;
+  const activeRecoverableSessions = activeSessions.filter((session) => recoverySessionIds.has(session.id));
+  const sessionDetailsById: ReadonlyMap<
+    string,
+    Pick<SessionTile, "args" | "command" | "cwd">
+  > = new Map(terminalSessions.map((session) => [
+    session.id,
+    {
+      cwd: session.cwd,
+      ...(session.command === undefined ? {} : { command: session.command }),
+      ...(session.args === undefined ? {} : { args: session.args }),
+    },
+  ]));
+  const needsYouCount = blockingAttentionCount(attentionItems);
+  const attentionCountsByWorkspace = blockingAttentionCountByWorkspace(attentionItems);
+  const reviewQueuePreview = attentionItems.find((item) => item.blocksAgent) ?? null;
   const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
   const stagedWorkspaceLabel =
     pendingPlan && pendingPlan.workspaceId !== activeWorkspace.id
@@ -833,6 +858,12 @@ export function App() {
   const closeSessionNow = useCallback((sessionId: string) => {
     const terminalApi = getDesktopTerminalApi();
     closingSessionIdsRef.current.add(sessionId);
+    setArmedRecoverySessionIds((current) => {
+      if (!current.has(sessionId)) return current;
+      const next = new Set(current);
+      next.delete(sessionId);
+      return next;
+    });
     setPreviewCandidates((candidates) => candidates.filter((candidate) => candidate.sessionId !== sessionId));
 
     setTerminalSessions((sessions) => {
@@ -1154,13 +1185,19 @@ export function App() {
     }
 
     startingSessionIdsRef.current.delete(tileId);
-    setTerminalSessions((sessions) =>
-      appendSessionActivity(attachRuntimeSession(sessions, tileId, runtime), tileId, {
+    setTerminalSessions((sessions) => {
+      const attached = attachRuntimeSession(sessions, tileId, runtime);
+      const attachmentAt = runtime.createdAt ?? Date.now();
+      const session = attached.find((candidate) => candidate.id === tileId);
+      if (session?.activityEvents?.some((event) => event.at >= attachmentAt)) {
+        return attached;
+      }
+      return appendSessionActivity(attached, tileId, {
         kind: "lifecycle",
         title: "Session attached",
         detail: `${runtime.shell} is running in ${runtime.cwd || "the workspace"}.`,
-      }),
-    );
+      }, attachmentAt);
+    });
     if (runtime.source === "alfred") {
       void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
       setPendingPlan((plan) => {
@@ -1193,28 +1230,28 @@ export function App() {
     );
   }, []);
 
-  const handleRuntimeSessionExited = useCallback((runtimeId: TerminalCreateResult["id"], exitCode = 0) => {
-    const exitedSession = terminalSessionsRef.current.find((item) => item.runtimeId === runtimeId);
+  const handleRuntimeSessionExited = useCallback((event: TerminalExitEvent) => {
+    const exitedSession = terminalSessionsRef.current.find((item) => terminalEventMatchesSession(item, event));
     if (exitedSession) {
       setPreviewCandidates((candidates) => candidates.filter((candidate) => candidate.sessionId !== exitedSession.id));
     }
     setTerminalSessions((sessions) => {
-      const session = sessions.find((item) => item.runtimeId === runtimeId);
-      const failed = exitCode !== 0;
-      const next = markSessionExited(sessions, runtimeId, exitCode);
+      const session = sessions.find((item) => terminalEventMatchesSession(item, event));
+      const failed = event.exitCode !== 0;
+      const next = markSessionExited(sessions, event.id, event.exitCode, event.clientId);
       if (!session) return next;
       return appendSessionActivity(next, session.id, {
         kind: failed ? "error" : "lifecycle",
         title: failed ? "Process failed" : "Process exited",
         detail: failed
-          ? `The terminal process exited with code ${exitCode}.`
+          ? `The terminal process exited with code ${event.exitCode}.`
           : "The terminal process ended; scrollback remains available.",
       });
     });
   }, []);
 
   const handleRuntimeSessionOutput = useCallback((event: TerminalDataEvent) => {
-    const session = terminalSessionsRef.current.find((item) => item.runtimeId === event.id);
+    const session = terminalSessionsRef.current.find((item) => terminalEventMatchesSession(item, event));
     if (session) {
       setPreviewCandidates((candidates) =>
         recordPreviewUrlsFromText(candidates, {
@@ -1360,10 +1397,45 @@ export function App() {
     );
   }, [terminalSessions]);
 
-  const handleLaunchInboxItem = useCallback((workspaceId: string, sessionId: string) => {
+  const handleLaunchInboxItem = useCallback((sessionId: string) => {
     handleApproveTile(sessionId);
-    handleFocusSessionInWorkspace(workspaceId, sessionId);
-  }, [handleApproveTile, handleFocusSessionInWorkspace]);
+  }, [handleApproveTile]);
+
+  const handleRecoverInboxItem = useCallback((workspaceId: string, sessionId: string) => {
+    const session = terminalSessions.find((item) => item.id === sessionId);
+    if (!session) return;
+    const shouldFocusAfterRecovery = sessionRelaunchSafety(session).safe || armedRecoverySessionIds.has(sessionId);
+    if (session?.runtimeStatus === "restored") {
+      handleContinueRestoredSession(sessionId);
+    } else if (session?.runtimeStatus === "exited" || session?.runtimeStatus === "error") {
+      handleRestartSession(sessionId);
+    } else {
+      return;
+    }
+    if (shouldFocusAfterRecovery) handleFocusSessionInWorkspace(workspaceId, sessionId);
+  }, [
+    armedRecoverySessionIds,
+    handleContinueRestoredSession,
+    handleFocusSessionInWorkspace,
+    handleRestartSession,
+    terminalSessions,
+  ]);
+
+  const handleSelectPrimarySurface = useCallback((nextSurface: PrimarySurface) => {
+    if (
+      activeSurface === "inbox" &&
+      nextSurface !== "inbox" &&
+      armedRecoverySessionIds.size > 0
+    ) {
+      setArmedRecoverySessionIds(new Set());
+      return;
+    }
+    setActiveSurface(nextSurface);
+  }, [activeSurface, armedRecoverySessionIds]);
+
+  const handleExitInboxToWork = useCallback(() => {
+    handleSelectPrimarySurface("work");
+  }, [handleSelectPrimarySurface]);
 
   const handleRejectTile = useCallback((tileId: string) => {
     const alfredApi = getDesktopAlfredApi();
@@ -1776,18 +1848,19 @@ export function App() {
         const restoredSessions = hydratePersistedTerminalSessions(terminalResult.restoredSessions ?? []).filter(
           (session) => !liveClientIds.has(session.id),
         );
+        const restoredClientIds = new Set(restoredSessions.map((session) => session.id));
         const stagedSessions = hydrateStagedPlanSessions(
           stagedPlanResult.plan,
           workspaceRootPath(workspaceStateResult, workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID),
         ).filter(
-          (session) => !liveClientIds.has(session.id),
+          (session) => !liveClientIds.has(session.id) && !restoredClientIds.has(session.id),
         );
-        const alreadyLiveStagedIds =
+        const alreadyLaunchedStagedIds =
           stagedPlanResult.plan?.sessions
             .map((session) => session.id)
-            .filter((id) => liveClientIds.has(id)) ?? [];
-        if (alreadyLiveStagedIds.length > 0) {
-          void alfredApi?.resolveStagedPlan({ sessionIds: alreadyLiveStagedIds });
+            .filter((id) => liveClientIds.has(id) || restoredClientIds.has(id)) ?? [];
+        if (alreadyLaunchedStagedIds.length > 0) {
+          void alfredApi?.resolveStagedPlan({ sessionIds: alreadyLaunchedStagedIds });
         }
         const hydratedSessions =
           liveSessions.length + restoredSessions.length + stagedSessions.length > 0
@@ -1803,7 +1876,7 @@ export function App() {
         );
         setTerminalSessions(hydratedSessions);
         setPreviewCandidates(previewCandidatesFromSessions(hydratedSessions));
-        setPendingPlan(toSquadPlan({ plan: stagedPlanResult.plan, omittedSessionIds: alreadyLiveStagedIds }));
+        setPendingPlan(toSquadPlan({ plan: stagedPlanResult.plan, omittedSessionIds: alreadyLaunchedStagedIds }));
         workspaceStateHydratedRef.current = true;
         setWorkspaceHydrationStatus({ status: "ready" });
       })
@@ -1841,9 +1914,35 @@ export function App() {
     : activeWorkMode === "focus"
       ? Math.min(1, activeSessionCount)
       : Math.min(2, activeSessionCount);
+  const inboxOwnsEscape = activeSurface === "inbox";
 
   return (
-    <main className="agent-space-shell">
+    <main
+      className="agent-space-shell"
+      onKeyDownCapture={(event) => {
+        if (!inboxOwnsEscape || event.key !== "Escape") return;
+        const dismissalOwner = activeAccessibleDismissalOwner(event.currentTarget);
+        if (dismissalOwner) {
+          if (event.target instanceof Node && dismissalOwner.contains(event.target)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          dismissalOwner.dispatchEvent(new KeyboardEvent("keydown", {
+            key: event.key,
+            code: event.code,
+            bubbles: true,
+            cancelable: true,
+            altKey: event.altKey,
+            ctrlKey: event.ctrlKey,
+            metaKey: event.metaKey,
+            shiftKey: event.shiftKey,
+          }));
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        handleExitInboxToWork();
+      }}
+    >
       <div
         className="visually-hidden"
         aria-live="polite"
@@ -1860,7 +1959,7 @@ export function App() {
           <WorkbenchHeader
             activeSurface={activeSurface}
             commandPaletteTriggerRef={commandPaletteTriggerRef}
-            inboxCount={globalReviewItems.length}
+            inboxCount={needsYouCount}
             prepareWorkTriggerRef={prepareWorkTriggerRef}
             selectedSession={activeSelectedSession}
             shortcutModifier={shortcutModifier}
@@ -1872,7 +1971,7 @@ export function App() {
             onOpenInbox={handleOpenInbox}
             onOpenPrepareWork={() => setPrepareWorkOpen(true)}
             onOpenPrivacyControls={handleOpenPrivacyPanel}
-            onSelectSurface={setActiveSurface}
+            onSelectSurface={handleSelectPrimarySurface}
             onToggleContext={handleToggleContextDrawer}
           />
         </div>
@@ -1928,7 +2027,7 @@ export function App() {
           <ProjectNavigator
             activeSessionId={activeSelectedSessionId}
             activeWorkspaceId={activeWorkspace.id}
-            attentionWorkspaceIds={new Set(globalReviewItems.map((item) => item.workspaceId))}
+            attentionCountsByWorkspace={attentionCountsByWorkspace}
             collapsed={projectNavigatorCollapsed}
             sessions={terminalSessions}
             workspaces={workspaces}
@@ -1991,6 +2090,7 @@ export function App() {
                 recoverableSessions={activeRecoverableSessions}
                 selectedSessionId={activeSelectedSessionId}
                 sessions={terminalSessions}
+                surfaceActive={!workSurfaceHidden}
                 workMode={activeWorkMode}
                 worktreeActionPending={worktreeActionPending}
                 workspaceGitBranch={activeWorkspace.gitBranch}
@@ -2027,15 +2127,15 @@ export function App() {
             {activeSurface === "inbox" && (
               <div className="surface-panel active">
                 <ReviewSurface
+                  attentionItems={attentionItems}
                   armedRecoverySessionIds={armedRecoverySessionIds}
-                  items={globalReviewItems}
-                  selectedSessionId={activeSelectedSessionId}
-                  onContinueRestoredSession={handleContinueRestoredSession}
-                  onDiscardSession={handleCloseSession}
-                  onFocusItem={handleOpenManagedSessionFromObservatory}
-                  onLaunchItem={handleLaunchInboxItem}
-                  onRestartSession={handleRestartSession}
-                  onReviewBlockedItem={handleReviewBlockedSession}
+                  sessionDetailsById={sessionDetailsById}
+                  onDiscardRecovery={handleCloseSession}
+                  onLaunch={handleLaunchInboxItem}
+                  onOpenInWork={handleFocusSessionInWorkspace}
+                  onRecover={handleRecoverInboxItem}
+                  onReviewEdit={handleReviewBlockedSession}
+                  onSelectSurface={handleSelectPrimarySurface}
                 />
               </div>
             )}
@@ -2052,6 +2152,7 @@ export function App() {
                   onOpenManagedSession={handleOpenManagedSessionFromObservatory}
                   onRefreshExternalSessions={handleRefreshExternalCodexSessions}
                   onResumeExternalCodexSession={handleResumeExternalCodexSession}
+                  onSelectSurface={handleSelectPrimarySurface}
                   onTrustExternalCodexWorkspace={handleTrustExternalCodexWorkspace}
                   onSelectWorkspace={handleSelectWorkspace}
                 />
@@ -2065,7 +2166,8 @@ export function App() {
               privacyPanelOpen ||
               prepareWorkOpen ||
               workspaceMenuOpen ||
-              pendingDiscardConfirmation !== null
+              pendingDiscardConfirmation !== null ||
+              inboxOwnsEscape
             }
             focusRequestKey={contextFocusRequestKeyRef.current}
             previewVisible={previewVisible}
@@ -2735,6 +2837,15 @@ function workspacePlanContext(
 function workspaceDetail(workspace: Workspace): string {
   const location = workspace.rootPath ? shortenPath(workspace.rootPath) : "local desk";
   return workspace.gitBranch ? `${location} · ${workspace.gitBranch}` : location;
+}
+
+function activeAccessibleDismissalOwner(root: HTMLElement): HTMLElement | null {
+  const owners = Array.from(root.querySelectorAll<HTMLElement>(ACCESSIBLE_DISMISSAL_OWNER_SELECTOR));
+  return owners.filter((owner) => {
+    if (owner.closest('[hidden], [aria-hidden="true"], [inert]')) return false;
+    const style = window.getComputedStyle(owner);
+    return style.display !== "none" && style.visibility !== "hidden" && style.visibility !== "collapse";
+  }).at(-1) ?? null;
 }
 
 function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[]): SessionTile[] {

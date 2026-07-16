@@ -64,6 +64,16 @@ describe("WorkbenchHeader", () => {
     expect(screen.queryByText(liveA.title)).not.toBeInTheDocument();
   });
 
+  it("uses the frozen 40px title identity for the global Decision Inbox", () => {
+    renderHeader({ activeSurface: "inbox", selectedSession: liveA });
+
+    const header = screen.getByTestId("workbench-header");
+    expect(header).toHaveAttribute("data-chrome-height", "40");
+    expect(header).toHaveTextContent("Decision Inbox");
+    expect(within(header).getByText("All projects")).toBeInTheDocument();
+    expect(screen.queryByText(liveA.title)).not.toBeInTheDocument();
+  });
+
   it("exposes Inbox Surfaces command palette and the existing launch destinations", async () => {
     const user = userEvent.setup();
     renderHeader();
@@ -75,6 +85,14 @@ describe("WorkbenchHeader", () => {
     expect(screen.getByRole("menuitem", { name: "New Codex session" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "New Claude session" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "New manual terminal" })).toBeInTheDocument();
+  });
+
+  it("announces the exact blocking Inbox count", () => {
+    renderHeader({ inboxCount: 2 });
+
+    const inbox = screen.getByRole("button", { name: "Open Inbox surface, 2 items" });
+    expect(inbox).toHaveTextContent("2");
+    expect(inbox.querySelector(".workbench-attention-count")).toHaveTextContent("2");
   });
 
   it("exposes every replaced rail destination from the primary row", async () => {
