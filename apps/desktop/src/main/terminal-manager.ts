@@ -184,7 +184,9 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     terminalChannels.prepareLaunch,
     async (_event, request: TerminalCreateRequest) => {
       const safeRequest = validateTerminalCreateRequest(request);
-      await validateTerminalCommandApproval(safeRequest, options.isStagedCommandAllowed);
+      await validateTerminalCommandApproval(safeRequest, options.isStagedCommandAllowed, {
+        allowPersistedRestoredLaunch: true,
+      });
       await resolveValidatedTerminalCwd(safeRequest, options);
       const launchTicketId = randomUUID();
       const expiresAt = Date.now() + (options.launchTicketTtlMs ?? 2 * 60 * 1000);
@@ -970,6 +972,7 @@ function validateTerminalCreateRequest(request: TerminalCreateRequest): Terminal
 async function validateTerminalCommandApproval(
   request: TerminalCreateRequest,
   isStagedCommandAllowed: TerminalIpcOptions["isStagedCommandAllowed"],
+  options: { allowPersistedRestoredLaunch?: boolean } = {},
 ): Promise<void> {
   if (!request.command) return;
 
@@ -979,8 +982,25 @@ async function validateTerminalCommandApproval(
   if (request.source === "alfred" && await isStagedCommandAllowed?.(request)) {
     return;
   }
+  if (options.allowPersistedRestoredLaunch && await isExactPersistedRestoredLaunch(request)) {
+    return;
+  }
 
   throw new Error("Terminal command is not approved for launch.");
+}
+
+async function isExactPersistedRestoredLaunch(request: TerminalCreateRequest): Promise<boolean> {
+  if (request.source !== "manual" || !request.clientId || !request.command) return false;
+  await hydratePersistedTerminalSessions();
+  if (findLiveSessionByClientId(request.clientId)) return false;
+
+  const snapshot = restoredSessionSnapshots.get(request.clientId);
+  if (snapshot?.source !== "manual" || snapshot.command !== request.command) return false;
+
+  const requestedArgs = request.args ?? [];
+  const persistedArgs = snapshot.args ?? [];
+  return requestedArgs.length === persistedArgs.length
+    && requestedArgs.every((arg, index) => arg === persistedArgs[index]);
 }
 
 function isTrustedAgentLaunch(request: TerminalCreateRequest): boolean {

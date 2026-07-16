@@ -13,7 +13,12 @@ import {
   resetTerminalPersistenceForTests,
 } from "./terminal-manager.js";
 import { terminalChannels } from "../shared/terminal-ipc.js";
-import type { TerminalCreateRequest, TerminalDataEvent, TerminalListResult } from "../shared/terminal-ipc.js";
+import type {
+  PersistedTerminalSessionSnapshot,
+  TerminalCreateRequest,
+  TerminalDataEvent,
+  TerminalListResult,
+} from "../shared/terminal-ipc.js";
 import type { TerminalSnapshotResult } from "../shared/terminal-ipc.js";
 import type { AgentWorktreeCleanupRequest } from "./git-worktree.js";
 import { DEFAULT_DESKTOP_STATE, type DesktopStateSnapshot, type PersistedDesktopStateStore } from "./persisted-desktop-state.js";
@@ -100,6 +105,26 @@ function defaultAllowedCwdRoots(): string[] {
     path.join(os.homedir(), "Desktop"),
     os.homedir(),
   ];
+}
+
+function storeWithRestoredSessions(
+  restoredTerminalSessions: PersistedTerminalSessionSnapshot[],
+): PersistedDesktopStateStore {
+  let state: DesktopStateSnapshot = {
+    ...DEFAULT_DESKTOP_STATE,
+    restoredTerminalSessions,
+  };
+  return {
+    getState: vi.fn(async () => state),
+    setState: vi.fn(async (next) => {
+      state = next;
+      return state;
+    }),
+    updateState: vi.fn(async (updater) => {
+      state = await updater(state);
+      return state;
+    }),
+  };
 }
 
 function registerTerminalIpc(options: Parameters<typeof registerTerminalIpcBase>[0] = {}): void {
@@ -793,6 +818,116 @@ describe("terminal-manager IPC", () => {
       }),
     ).rejects.toThrow("Terminal command is not approved for launch.");
 
+    expect(nodePty.spawn).not.toHaveBeenCalled();
+  });
+
+  it("prepares an exact persisted restored command and consumes its launch ticket once", async () => {
+    const pty = new FakePty();
+    const nodePty = fakeNodePty(pty);
+    const snapshot: PersistedTerminalSessionSnapshot = {
+      clientId: "restored-manual",
+      title: "Restored manual",
+      source: "manual",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+      command: "/bin/sh",
+      args: ["-c", "/usr/bin/printf 'confirmed restore\\n'"],
+      buffer: "saved transcript\n",
+    };
+    configureTerminalPersistence(storeWithRestoredSessions([snapshot]), { debounceMs: 0 });
+    registerTerminalIpc({
+      isStagedCommandAllowed: async () => false,
+      loadNodePty: async () => nodePty as never,
+      requireLaunchTickets: true,
+    });
+    const request: TerminalCreateRequest = {
+      clientId: snapshot.clientId,
+      command: snapshot.command,
+      args: snapshot.args,
+      cols: 80,
+      cwd: snapshot.cwd,
+      rows: 24,
+      source: "manual",
+    };
+
+    const prepared = await invoke<{ launchTicketId: string }>(terminalChannels.prepareLaunch, request);
+    await invoke(terminalChannels.create, { ...request, launchTicketId: prepared.launchTicketId });
+    await expect(
+      invoke(terminalChannels.create, { ...request, launchTicketId: prepared.launchTicketId }),
+    ).rejects.toThrow("Terminal launch ticket is invalid or expired.");
+
+    expect(nodePty.spawn).toHaveBeenCalledTimes(1);
+    expect(nodePty.spawn).toHaveBeenCalledWith(
+      snapshot.command,
+      snapshot.args,
+      expect.objectContaining({ cwd: "/repo" }),
+    );
+  });
+
+  it.each([
+    {
+      name: "command",
+      request: { command: "/usr/bin/printf", args: ["persisted\\n"], clientId: "restored-manual" },
+    },
+    {
+      name: "args",
+      request: { command: "/bin/sh", args: ["-c", "/usr/bin/printf 'changed\\n'"], clientId: "restored-manual" },
+    },
+    {
+      name: "clientId",
+      request: { command: "/bin/sh", args: ["-c", "/usr/bin/printf 'persisted\\n'"], clientId: "other" },
+    },
+  ])("rejects a persisted restored launch with mismatched $name", async ({ request }) => {
+    const snapshot: PersistedTerminalSessionSnapshot = {
+      clientId: "restored-manual",
+      title: "Restored manual",
+      source: "manual",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+      command: "/bin/sh",
+      args: ["-c", "/usr/bin/printf 'persisted\\n'"],
+      buffer: "saved transcript\n",
+    };
+    const nodePty = fakeNodePty(new FakePty());
+    configureTerminalPersistence(storeWithRestoredSessions([snapshot]), { debounceMs: 0 });
+    registerTerminalIpc({
+      isStagedCommandAllowed: async () => false,
+      loadNodePty: async () => nodePty as never,
+      requireLaunchTickets: true,
+    });
+
+    await expect(
+      invoke(terminalChannels.prepareLaunch, {
+        ...request,
+        cols: 80,
+        cwd: "/repo",
+        rows: 24,
+        source: "manual",
+      }),
+    ).rejects.toThrow("Terminal command is not approved for launch.");
+    expect(nodePty.spawn).not.toHaveBeenCalled();
+  });
+
+  it("rejects a restored-looking launch when main has no persisted snapshot", async () => {
+    const nodePty = fakeNodePty(new FakePty());
+    configureTerminalPersistence(storeWithRestoredSessions([]), { debounceMs: 0 });
+    registerTerminalIpc({
+      isStagedCommandAllowed: async () => false,
+      loadNodePty: async () => nodePty as never,
+      requireLaunchTickets: true,
+    });
+
+    await expect(
+      invoke(terminalChannels.prepareLaunch, {
+        clientId: "restored-manual",
+        command: "/bin/sh",
+        args: ["-c", "/usr/bin/printf 'persisted\\n'"],
+        cols: 80,
+        cwd: "/repo",
+        rows: 24,
+        source: "manual",
+      }),
+    ).rejects.toThrow("Terminal command is not approved for launch.");
     expect(nodePty.spawn).not.toHaveBeenCalled();
   });
 
