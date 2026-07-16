@@ -6330,7 +6330,7 @@ describe("App integration", () => {
     expect(screen.queryByText("Resolve the current Alfred plan")).not.toBeInTheDocument();
   });
 
-  it("hydrates one staged tile when a restored snapshot has the same client identity", async () => {
+  it("keeps one restored runtime and resolves a stale staged plan with the same client identity", async () => {
     const stagedPlan: AlfredStagedPlanSnapshot = {
       id: "plan-collision",
       prompt: "review the actionable staged plan",
@@ -6340,8 +6340,9 @@ describe("App integration", () => {
     };
     const restored: PersistedTerminalSessionSnapshot = {
       clientId: "shared-client",
-      title: "Stale restored transcript",
-      source: "manual",
+      title: "Persisted launched runtime",
+      source: "alfred",
+      agentKind: "shell",
       workspaceId: "A",
       cwd: "/Users/patryk/Desktop/Alfred",
       shell: "/bin/zsh",
@@ -6349,14 +6350,26 @@ describe("App integration", () => {
       args: ["old"],
       buffer: "stale restored output",
     };
-    installDesktopBridge(undefined, stagedPlan, [], undefined, undefined, undefined, [restored]);
+    const { resolveStagedPlan } = installDesktopBridge(
+      undefined,
+      stagedPlan,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [restored],
+    );
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Staged Actionable staged command/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /Persisted launched runtime/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["shared-client"] });
+    });
     expect(screen.getAllByTestId("terminal-tile")).toHaveLength(1);
-    expect(screen.queryByRole("article", { name: /Stale restored transcript/i })).not.toBeInTheDocument();
-    expect(screen.queryByText("stale restored output")).not.toBeInTheDocument();
+    expect(screen.getByText("stale restored output")).toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: /Staged Actionable staged command/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Launch Actionable staged command/i })).not.toBeInTheDocument();
   });
 
   it("blocks a second Alfred prompt while staged tiles exist", async () => {

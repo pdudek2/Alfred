@@ -1845,26 +1845,26 @@ export function App() {
         const liveClientIds = new Set(
           terminalResult.sessions.map((session) => session.clientId).filter((id): id is string => Boolean(id)),
         );
-        const stagedClientIds = new Set(stagedPlanResult.plan?.sessions.map((session) => session.id) ?? []);
         const restoredSessions = hydratePersistedTerminalSessions(terminalResult.restoredSessions ?? []).filter(
-          (session) => !liveClientIds.has(session.id) && !stagedClientIds.has(session.id),
+          (session) => !liveClientIds.has(session.id),
         );
+        const restoredClientIds = new Set(restoredSessions.map((session) => session.id));
         const stagedSessions = hydrateStagedPlanSessions(
           stagedPlanResult.plan,
           workspaceRootPath(workspaceStateResult, workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID),
         ).filter(
-          (session) => !liveClientIds.has(session.id),
+          (session) => !liveClientIds.has(session.id) && !restoredClientIds.has(session.id),
         );
-        const alreadyLiveStagedIds =
+        const alreadyLaunchedStagedIds =
           stagedPlanResult.plan?.sessions
             .map((session) => session.id)
-            .filter((id) => liveClientIds.has(id)) ?? [];
-        if (alreadyLiveStagedIds.length > 0) {
-          void alfredApi?.resolveStagedPlan({ sessionIds: alreadyLiveStagedIds });
+            .filter((id) => liveClientIds.has(id) || restoredClientIds.has(id)) ?? [];
+        if (alreadyLaunchedStagedIds.length > 0) {
+          void alfredApi?.resolveStagedPlan({ sessionIds: alreadyLaunchedStagedIds });
         }
         const hydratedSessions =
           liveSessions.length + restoredSessions.length + stagedSessions.length > 0
-            ? [...liveSessions, ...stagedSessions, ...restoredSessions]
+            ? [...liveSessions, ...restoredSessions, ...stagedSessions]
             : workspaceRootPath(workspaceStateResult, workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID)
               ? createInitialSessions(
                   workspaceRootPath(workspaceStateResult, workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID),
@@ -1876,7 +1876,7 @@ export function App() {
         );
         setTerminalSessions(hydratedSessions);
         setPreviewCandidates(previewCandidatesFromSessions(hydratedSessions));
-        setPendingPlan(toSquadPlan({ plan: stagedPlanResult.plan, omittedSessionIds: alreadyLiveStagedIds }));
+        setPendingPlan(toSquadPlan({ plan: stagedPlanResult.plan, omittedSessionIds: alreadyLaunchedStagedIds }));
         workspaceStateHydratedRef.current = true;
         setWorkspaceHydrationStatus({ status: "ready" });
       })
