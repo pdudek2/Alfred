@@ -104,8 +104,9 @@ describe("ReviewSurface", () => {
     expect(surface.querySelector(".inbox-section")).not.toBeInTheDocument();
     expect(surface.querySelector("[class*='avatar'], [class*='pill']")).not.toBeInTheDocument();
 
-    const switcher = screen.getByRole("toolbar", { name: "Primary surfaces" });
-    expect(within(switcher).getByRole("button", { name: "Inbox" })).toHaveAttribute("aria-pressed", "true");
+    const switcher = screen.getByRole("navigation", { name: "Primary surfaces" });
+    expect(within(switcher).getByRole("button", { name: "Inbox" })).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByRole("toolbar", { name: "Primary surfaces" })).not.toBeInTheDocument();
     await user.click(within(switcher).getByRole("button", { name: "Work" }));
     expect(handlers.onSelectSurface).toHaveBeenCalledWith("work");
   });
@@ -118,7 +119,7 @@ describe("ReviewSurface", () => {
     async (label, key, surface) => {
       const user = userEvent.setup();
       const handlers = renderSurface();
-      const switcherButton = within(screen.getByRole("toolbar", { name: "Primary surfaces" }))
+      const switcherButton = within(screen.getByRole("navigation", { name: "Primary surfaces" }))
         .getByRole("button", { name: label });
 
       switcherButton.focus();
@@ -138,7 +139,7 @@ describe("ReviewSurface", () => {
     async (key) => {
       const user = userEvent.setup();
       const handlers = renderSurface();
-      const workButton = within(screen.getByRole("toolbar", { name: "Primary surfaces" }))
+      const workButton = within(screen.getByRole("navigation", { name: "Primary surfaces" }))
         .getByRole("button", { name: "Work" });
 
       workButton.focus();
@@ -457,6 +458,31 @@ describe("ReviewSurface", () => {
     expect(handlers.onLaunch).not.toHaveBeenCalled();
   });
 
+  it("shows the focused Recovery primary action in the status bar", async () => {
+    const user = userEvent.setup();
+    const recovery = decision({
+      id: "ALFRED:RECOVERY",
+      sessionId: "RECOVERY",
+      sessionTitle: "Saved Codex",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Saved agent session can be resumed.",
+      action: { kind: "resume" },
+    });
+    renderSurface([STAGED, recovery]);
+
+    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
+    expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Launch");
+
+    await user.tab();
+
+    expect(screen.getByRole("button", { name: "Resume Saved Codex in Alfred" })).toHaveFocus();
+    expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Resume");
+    expect(screen.getByTestId("inbox-status-action")).not.toHaveTextContent("Launch");
+  });
+
   it("offers a blocked decision only Review / Edit and routes only that action", async () => {
     const user = userEvent.setup();
     const handlers = renderSurface([SAFETY]);
@@ -561,5 +587,21 @@ describe("ReviewSurface", () => {
     expect(within(decisionItem).getByText(longCommand)).toBeInTheDocument();
     expect(selectButton(item)).toHaveAccessibleDescription(expect.stringContaining(longReason));
     expect(selectButton(item)).toHaveAccessibleDescription(expect.stringContaining(longCommand));
+  });
+
+  it("omits age and received metadata when the attention timestamp is unknown", () => {
+    const item = decision({
+      ...STAGED,
+      id: "ALFRED:UNKNOWN-TIME",
+      sessionId: "UNKNOWN-TIME",
+      sessionTitle: "Untimestamped staged command",
+      attentionAt: undefined,
+    });
+    renderSurface([item]);
+
+    const decisionItem = screen.getByTestId(`inbox-decision-${item.id}`);
+    expect(decisionItem.querySelector("time")).not.toBeInTheDocument();
+    expect(within(decisionItem).queryByText("Received")).not.toBeInTheDocument();
+    expect(within(decisionItem).queryByText("Now")).not.toBeInTheDocument();
   });
 });

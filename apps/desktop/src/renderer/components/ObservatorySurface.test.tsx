@@ -65,8 +65,8 @@ describe("ObservatorySurface", () => {
 
     const surface = screen.getByRole("region", { name: "History workspace" });
     expect(surface).toHaveAttribute("data-secondary-chrome-height", "36");
-    const switcher = within(surface).getByRole("toolbar", { name: "Primary surfaces" });
-    expect(within(switcher).getByRole("button", { name: "Observatory" })).toHaveAttribute("aria-pressed", "true");
+    const switcher = within(surface).getByRole("navigation", { name: "Primary surfaces" });
+    expect(within(switcher).getByRole("button", { name: "Observatory" })).toHaveAttribute("aria-current", "page");
     await user.click(within(switcher).getByRole("button", { name: "Inbox" }));
     expect(onSelectSurface).toHaveBeenCalledWith("inbox");
     expect(within(surface).getByText("Sessions and project memory")).toBeInTheDocument();

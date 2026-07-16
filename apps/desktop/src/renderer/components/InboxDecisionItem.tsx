@@ -52,7 +52,7 @@ export function InboxDecisionItem({
           <strong>{item.sessionTitle}</strong>
           <small>{item.sessionId} · {item.workspaceLabel}</small>
         </span>
-        {ageLabel && (
+        {item.attentionAt !== undefined && ageLabel && (
           <time dateTime={new Date(item.attentionAt).toISOString()} title={sessionAgeTitle(item.attentionAt)}>
             {ageLabel}
           </time>
@@ -90,7 +90,7 @@ export function InboxDecisionItem({
             <dl className="inbox-docket__facts">
               <Fact label="Project" value={item.workspaceLabel} />
               <Fact label="Session" value={item.sessionTitle} />
-              <Fact label="Received" value={ageLabel ? `${ageLabel} ago` : "Now"} technical />
+              {ageLabel && <Fact label="Received" value={`${ageLabel} ago`} technical />}
               <Fact label="Provenance" value={item.provenance} technical />
               <div className={`inbox-docket__state inbox-docket__state--${glyphTone(item)}`}>
                 <dt className="visually-hidden">State</dt>

@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
 import type { AttentionProjection } from "../attention-projection";
 import type { SessionTile } from "../session-state";
 import { InboxDecisionItem, attentionActionLabel } from "./InboxDecisionItem";
@@ -36,6 +36,7 @@ export function ReviewSurface({
   const [selectedAttentionId, setSelectedAttentionId] = useState(
     () => decisions[0]?.id ?? null,
   );
+  const [focusedPrimaryActionLabel, setFocusedPrimaryActionLabel] = useState<string | null>(null);
   const previousDecisionsRef = useRef(decisions);
   const surfaceRef = useRef<HTMLElement | null>(null);
   const selectedIndex = decisions.findIndex((item) => item.id === selectedAttentionId);
@@ -129,12 +130,21 @@ export function ReviewSurface({
     moveSelection(nextIndex);
   };
 
+  const handleFocusCapture = (event: FocusEvent<HTMLElement>) => {
+    const actionOwner = event.target instanceof Element
+      ? event.target.closest<HTMLElement>("[data-inbox-primary-action]")
+      : null;
+    const nextLabel = actionOwner?.dataset.inboxPrimaryAction ?? null;
+    if (nextLabel !== focusedPrimaryActionLabel) setFocusedPrimaryActionLabel(nextLabel);
+  };
+
   return (
     <section
       ref={surfaceRef}
       className="inbox-docket"
       aria-label="Inbox workspace"
       data-secondary-chrome-height="36"
+      onFocusCapture={handleFocusCapture}
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >
@@ -180,8 +190,10 @@ export function ReviewSurface({
 
       <footer className="inbox-docket__statusbar" aria-live="polite">
         <span><kbd>↑↓</kbd>Select</span>
-        {selectedItem && (
-          <strong data-testid="inbox-status-action"><kbd>↵</kbd>{attentionActionLabel(selectedItem)}</strong>
+        {(focusedPrimaryActionLabel || selectedItem) && (
+          <strong data-testid="inbox-status-action">
+            <kbd>↵</kbd>{focusedPrimaryActionLabel ?? (selectedItem ? attentionActionLabel(selectedItem) : null)}
+          </strong>
         )}
         <span><kbd>Esc</kbd>Back to Work</span>
       </footer>

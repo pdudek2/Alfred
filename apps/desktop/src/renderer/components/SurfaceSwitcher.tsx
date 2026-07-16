@@ -13,17 +13,17 @@ const SURFACES: Array<{ id: PrimarySurface; label: string }> = [
 
 export function SurfaceSwitcher({ activeSurface, onSelectSurface }: SurfaceSwitcherProps) {
   return (
-    <div className="surface-switcher" role="toolbar" aria-label="Primary surfaces">
+    <nav className="surface-switcher" aria-label="Primary surfaces">
       {SURFACES.map((surface) => (
         <button
           type="button"
-          aria-pressed={activeSurface === surface.id}
+          aria-current={activeSurface === surface.id ? "page" : undefined}
           key={surface.id}
           onClick={() => onSelectSurface(surface.id)}
         >
           {surface.label}
         </button>
       ))}
-    </div>
+    </nav>
   );
 }

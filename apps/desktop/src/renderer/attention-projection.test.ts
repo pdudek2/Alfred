@@ -221,7 +221,7 @@ describe("buildAttentionProjection", () => {
     expect(projectionIds(items)).toEqual(["older", "newer"]);
   });
 
-  it("uses workspace label, session title, and stable id as deterministic timestamp fallbacks", () => {
+  it("keeps missing staged timestamps unknown and sorts them by stable identity", () => {
     const items = buildAttentionProjection(
       [
         { id: "B", label: "Beta" },
@@ -236,8 +236,42 @@ describe("buildAttentionProjection", () => {
       NOW,
     );
 
-    expect(items.every((item) => item.attentionAt === 0)).toBe(true);
+    expect(items.every((item) => item.attentionAt === undefined)).toBe(true);
     expect(projectionIds(items)).toEqual(["alpha", "a-id", "z-id", "beta"]);
+  });
+
+  it("emits one deterministic projection per stable id using attention precedence", () => {
+    const lowerPrecedence = session({
+      id: "duplicate",
+      title: "Duplicate session",
+      source: "alfred",
+      stage: "staged",
+      command: "pnpm",
+      args: ["test"],
+      createdAt: 100,
+    });
+    const higherPrecedence = session({
+      id: "duplicate",
+      title: "Duplicate session",
+      source: "alfred",
+      stage: "staged",
+      command: "rm",
+      args: ["-rf", "dist"],
+      safetyNote: "Review destructive command",
+      createdAt: 200,
+    });
+
+    const forward = buildAttentionProjection(workspaces, [lowerPrecedence, higherPrecedence], NOW);
+    const reversed = buildAttentionProjection(workspaces, [higherPrecedence, lowerPrecedence], NOW);
+
+    expect(forward).toHaveLength(1);
+    expect(reversed).toEqual(forward);
+    expect(forward[0]).toMatchObject({
+      id: "ALFRED:duplicate",
+      kind: "blocked-safety",
+      reason: "Review destructive command",
+      action: { kind: "review-edit" },
+    });
   });
 
   it("requires confirmation only for unsafe concrete recovery commands", () => {

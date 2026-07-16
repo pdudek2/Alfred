@@ -101,6 +101,7 @@ export function InboxRecoveryList({
                       type="button"
                       className="inbox-docket__recovery-primary"
                       aria-label={`${actionLabel} ${item.sessionTitle} in ${item.workspaceLabel}`}
+                      data-inbox-primary-action={actionLabel}
                       onClick={() => onRecover(item.workspaceId, item.sessionId)}
                     >
                       <RotateCcw aria-hidden="true" size={14} />
