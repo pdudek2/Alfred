@@ -2,7 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState, type FocusEvent, type K
 import type { AttentionProjection } from "../attention-projection";
 import type { SessionTile } from "../session-state";
 import { InboxDecisionItem, attentionActionLabel } from "./InboxDecisionItem";
-import { InboxRecoveryList } from "./InboxRecoveryList";
+import { InboxRecoveryList, recoveryActionLabel } from "./InboxRecoveryList";
 import { SurfaceSwitcher } from "./SurfaceSwitcher";
 import type { PrimarySurface } from "./WorkbenchHeader";
 
@@ -35,10 +35,17 @@ export function ReviewSurface({
     () => decisions[0]?.id ?? null,
   );
   const [focusedPrimaryActionLabel, setFocusedPrimaryActionLabel] = useState<string | null>(null);
+  const [focusedRecoverySessionId, setFocusedRecoverySessionId] = useState<string | null>(null);
   const previousDecisionsRef = useRef(decisions);
   const surfaceRef = useRef<HTMLElement | null>(null);
   const selectedIndex = decisions.findIndex((item) => item.id === selectedAttentionId);
   const selectedItem = selectedIndex >= 0 ? decisions[selectedIndex] ?? null : null;
+  const focusedRecoveryItem = focusedRecoverySessionId
+    ? recoveryItems.find((item) => item.sessionId === focusedRecoverySessionId) ?? null
+    : null;
+  const statusActionLabel = focusedRecoveryItem
+    ? recoveryActionLabel(focusedRecoveryItem, armedRecoverySessionIds.has(focusedRecoveryItem.sessionId))
+    : focusedPrimaryActionLabel ?? (selectedItem ? attentionActionLabel(selectedItem) : null);
 
   const runPrimaryAction = useCallback((item: AttentionProjection) => {
     const action = item.action;
@@ -128,7 +135,9 @@ export function ReviewSurface({
       ? event.target.closest<HTMLElement>("[data-inbox-primary-action]")
       : null;
     const nextLabel = actionOwner?.dataset.inboxPrimaryAction ?? null;
+    const nextRecoverySessionId = actionOwner?.dataset.inboxRecoverySessionId ?? null;
     if (nextLabel !== focusedPrimaryActionLabel) setFocusedPrimaryActionLabel(nextLabel);
+    if (nextRecoverySessionId !== focusedRecoverySessionId) setFocusedRecoverySessionId(nextRecoverySessionId);
   };
 
   return (
@@ -183,9 +192,9 @@ export function ReviewSurface({
 
       <footer className="inbox-docket__statusbar" aria-live="polite">
         <span><kbd>↑↓</kbd>Select</span>
-        {(focusedPrimaryActionLabel || selectedItem) && (
+        {statusActionLabel && (
           <strong data-testid="inbox-status-action">
-            <kbd>↵</kbd>{focusedPrimaryActionLabel ?? (selectedItem ? attentionActionLabel(selectedItem) : null)}
+            <kbd>↵</kbd>{statusActionLabel}
           </strong>
         )}
         <span><kbd>Esc</kbd>Back to Work</span>

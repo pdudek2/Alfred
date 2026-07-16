@@ -102,6 +102,7 @@ export function InboxRecoveryList({
                       className="inbox-docket__recovery-primary"
                       aria-label={`${actionLabel} ${item.sessionTitle} in ${item.workspaceLabel}`}
                       data-inbox-primary-action={actionLabel}
+                      data-inbox-recovery-session-id={item.sessionId}
                       onClick={() => onRecover(item.workspaceId, item.sessionId)}
                     >
                       <RotateCcw aria-hidden="true" size={14} />
@@ -127,7 +128,7 @@ export function InboxRecoveryList({
   );
 }
 
-function recoveryActionLabel(item: AttentionProjection, armed: boolean): string {
+export function recoveryActionLabel(item: AttentionProjection, armed: boolean): string {
   if (item.action.kind === "resume") return "Resume";
   if (item.action.kind === "relaunch") {
     if (item.action.confirmation === "required") return armed ? "Confirm relaunch" : "Review relaunch";

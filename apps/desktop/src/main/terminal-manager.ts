@@ -798,6 +798,10 @@ async function persistTerminalSnapshots(): Promise<void> {
   const store = persistedStateStore;
   if (!store) return;
 
+  const hydration = persistenceHydration;
+  if (hydration) await hydration;
+  if (persistedStateStore !== store) return;
+
   await store.updateState((current) => {
     const restoredTerminalSessions = [...restoredSessionSnapshots.values()].map((session) =>
       preparePersistedSessionForPrivacy(session, current.privacySettings),
@@ -1080,6 +1084,7 @@ async function isExactPersistedRestoredLaunch(request: TerminalCreateRequest): P
 
   const snapshot = restoredSessionSnapshots.get(request.clientId);
   if (snapshot?.source !== "manual" || snapshot.command !== request.command) return false;
+  if (path.resolve(snapshot.cwd) !== path.resolve(request.cwd ?? "")) return false;
 
   const requestedArgs = request.args ?? [];
   const persistedArgs = snapshot.args ?? [];

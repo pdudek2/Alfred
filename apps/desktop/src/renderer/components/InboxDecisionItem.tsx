@@ -1,6 +1,6 @@
 import { ChevronRight } from "lucide-react";
 import type { AttentionProjection } from "../attention-projection";
-import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
+import { sessionAgeLabel } from "../session-time";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 
 export type InboxDecisionItemProps = {
@@ -19,7 +19,7 @@ export function InboxDecisionItem({
   const detailId = `inbox-decision-detail-${encodeURIComponent(item.id)}`;
   const actionLabel = attentionActionLabel(item);
   const kindLabel = attentionKindLabel(item);
-  const ageLabel = sessionAgeLabel(item.attentionAt);
+  const ageLabel = item.attentionAt > 0 ? sessionAgeLabel(item.attentionAt) : null;
   const fullAccessibleName = `${kindLabel}: ${item.sessionTitle}, project ${item.workspaceLabel}, session ${item.sessionId}, ${item.provenance}, action ${actionLabel}`;
 
   return (
@@ -52,8 +52,8 @@ export function InboxDecisionItem({
           <strong>{item.sessionTitle}</strong>
           <small>{item.sessionId} · {item.workspaceLabel}</small>
         </span>
-        {item.attentionAt !== undefined && ageLabel && (
-          <time dateTime={new Date(item.attentionAt).toISOString()} title={sessionAgeTitle(item.attentionAt)}>
+        {item.attentionAt > 0 && ageLabel && (
+          <time dateTime={new Date(item.attentionAt).toISOString()} title={attentionReceivedTitle(item.attentionAt)}>
             {ageLabel}
           </time>
         )}
@@ -90,7 +90,7 @@ export function InboxDecisionItem({
             <dl className="inbox-docket__facts">
               <Fact label="Project" value={item.workspaceLabel} />
               <Fact label="Session" value={item.sessionTitle} />
-              {ageLabel && <Fact label="Received" value={`${ageLabel} ago`} technical />}
+              {ageLabel && <Fact label="Received" value={ageLabel === "now" ? ageLabel : `${ageLabel} ago`} technical />}
               <Fact label="Provenance" value={item.provenance} technical />
               <div className={`inbox-docket__state inbox-docket__state--${glyphTone(item)}`}>
                 <dt className="visually-hidden">State</dt>
@@ -102,6 +102,13 @@ export function InboxDecisionItem({
       </div>
     </li>
   );
+}
+
+function attentionReceivedTitle(attentionAt: number): string {
+  return `Received ${new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(attentionAt)}`;
 }
 
 function Fact({ label, value, technical = false }: { label: string; value: string; technical?: boolean }) {

@@ -6330,6 +6330,35 @@ describe("App integration", () => {
     expect(screen.queryByText("Resolve the current Alfred plan")).not.toBeInTheDocument();
   });
 
+  it("hydrates one staged tile when a restored snapshot has the same client identity", async () => {
+    const stagedPlan: AlfredStagedPlanSnapshot = {
+      id: "plan-collision",
+      prompt: "review the actionable staged plan",
+      sessions: [
+        { id: "shared-client", kind: "shell", title: "Actionable staged command", command: "echo", args: ["new"] },
+      ],
+    };
+    const restored: PersistedTerminalSessionSnapshot = {
+      clientId: "shared-client",
+      title: "Stale restored transcript",
+      source: "manual",
+      workspaceId: "A",
+      cwd: "/Users/patryk/Desktop/Alfred",
+      shell: "/bin/zsh",
+      command: "echo",
+      args: ["old"],
+      buffer: "stale restored output",
+    };
+    installDesktopBridge(undefined, stagedPlan, [], undefined, undefined, undefined, [restored]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Staged Actionable staged command/i })).toBeInTheDocument();
+    expect(screen.getAllByTestId("terminal-tile")).toHaveLength(1);
+    expect(screen.queryByRole("article", { name: /Stale restored transcript/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("stale restored output")).not.toBeInTheDocument();
+  });
+
   it("blocks a second Alfred prompt while staged tiles exist", async () => {
     const user = userEvent.setup();
     const { requestPlan } = installDesktopBridge();

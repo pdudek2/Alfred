@@ -216,7 +216,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
     narrowInboxEvidence.documentOverflowX,
     "Narrow Inbox must not create horizontal document overflow",
   ).toBeLessThanOrEqual(0);
-  await page.getByRole("toolbar", { name: "Primary surfaces" }).getByRole("button", { name: "Work" }).click();
+  await page.getByRole("navigation", { name: "Primary surfaces" }).getByRole("button", { name: "Work" }).click();
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
 
   await setWindowSize(app, page, 1440, 920);

@@ -29,7 +29,7 @@ export type AttentionProjection = {
   section: "needs-you" | "recovery";
   blocksAgent: boolean;
   rank: 0 | 1 | 2 | null;
-  attentionAt: number | undefined;
+  attentionAt: number;
   reason: string;
   provenance: AttentionProvenance;
   command?: string;
@@ -215,8 +215,8 @@ function projectionCommand(session: SessionTile): Pick<AttentionProjection, "com
   return session.command?.trim() ? { command: formatCommand(session) } : {};
 }
 
-function fallbackAttentionAt(session: SessionTile): number | undefined {
-  return session.lastActivityAt ?? session.lastOutputAt ?? session.createdAt;
+function fallbackAttentionAt(session: SessionTile): number {
+  return session.lastActivityAt ?? session.lastOutputAt ?? session.createdAt ?? 0;
 }
 
 function isResumableAgent(session: SessionTile): boolean {
@@ -229,11 +229,7 @@ function isResumableAgent(session: SessionTile): boolean {
 function compareAttention(a: AttentionProjection, b: AttentionProjection): number {
   if (a.section !== b.section) return a.section === "needs-you" ? -1 : 1;
   if (a.rank !== b.rank) return (a.rank ?? 3) - (b.rank ?? 3);
-  if (a.attentionAt !== b.attentionAt) {
-    if (a.attentionAt === undefined) return 1;
-    if (b.attentionAt === undefined) return -1;
-    return a.attentionAt - b.attentionAt;
-  }
+  if (a.attentionAt !== b.attentionAt) return a.attentionAt - b.attentionAt;
   return a.workspaceLabel.localeCompare(b.workspaceLabel)
     || a.sessionTitle.localeCompare(b.sessionTitle)
     || a.id.localeCompare(b.id);

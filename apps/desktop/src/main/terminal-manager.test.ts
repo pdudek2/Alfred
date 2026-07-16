@@ -584,6 +584,51 @@ describe("terminal-manager IPC", () => {
     ]);
   });
 
+  it("does not flush a partial snapshot map while zero-debounce hydration is in flight", async () => {
+    const hydration = deferred<DesktopStateSnapshot>();
+    const persistedSnapshot: PersistedTerminalSessionSnapshot = {
+      clientId: "persisted-before-hydration",
+      title: "Persisted before hydration",
+      source: "manual",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+      buffer: "persisted\n",
+    };
+    let persistedState = stateWithRestoredSessions([persistedSnapshot]);
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(() => hydration.promise),
+      setState: vi.fn(async (next) => {
+        persistedState = next;
+        return persistedState;
+      }),
+      updateState: vi.fn(async (updater) => {
+        persistedState = await updater(persistedState);
+        return persistedState;
+      }),
+    };
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(new FakePty()) as never });
+
+    const pendingList = invoke<TerminalListResult>(terminalChannels.list);
+    await invoke(terminalChannels.create, {
+      clientId: "remembered-during-hydration",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+      title: "Fresh title",
+    });
+    await Promise.resolve();
+    expect(store.updateState).not.toHaveBeenCalled();
+    hydration.resolve(stateWithRestoredSessions([persistedSnapshot]));
+    await pendingList;
+    await flushTerminalPersistence();
+
+    expect(persistedState.restoredTerminalSessions.map((session) => session.clientId).sort()).toEqual([
+      "persisted-before-hydration",
+      "remembered-during-hydration",
+    ]);
+  });
+
   it("flushes pending terminal snapshots without waiting for the debounce timer", async () => {
     let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
     const store: PersistedDesktopStateStore = {
@@ -987,6 +1032,36 @@ describe("terminal-manager IPC", () => {
       snapshot.args,
       expect.objectContaining({ cwd: "/repo" }),
     );
+  });
+
+  it("rejects an exact persisted restored command when the cwd differs", async () => {
+    const snapshot: PersistedTerminalSessionSnapshot = {
+      clientId: "restored-manual",
+      title: "Restored manual",
+      source: "manual",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+      command: "/bin/sh",
+      args: ["-c", "/usr/bin/printf 'confirmed restore\\n'"],
+      buffer: "saved transcript\n",
+    };
+    configureTerminalPersistence(storeWithRestoredSessions([snapshot]), { debounceMs: 0 });
+    registerTerminalIpc({
+      isStagedCommandAllowed: async () => false,
+      requireLaunchTickets: true,
+    });
+
+    await expect(
+      invoke(terminalChannels.prepareLaunch, {
+        clientId: snapshot.clientId,
+        command: snapshot.command,
+        args: snapshot.args,
+        cols: 80,
+        cwd: "/tmp/alfred-scratch",
+        rows: 24,
+        source: "manual",
+      }),
+    ).rejects.toThrow("Terminal command is not approved for launch.");
   });
 
   it("keeps only one concurrent prepared authorization redeemable for one restored client", async () => {

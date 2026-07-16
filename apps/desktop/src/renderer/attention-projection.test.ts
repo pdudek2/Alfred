@@ -221,7 +221,7 @@ describe("buildAttentionProjection", () => {
     expect(projectionIds(items)).toEqual(["older", "newer"]);
   });
 
-  it("keeps missing staged timestamps unknown and sorts them by stable identity", () => {
+  it("keeps missing staged timestamps at the canonical zero fallback and sorts them by stable identity", () => {
     const items = buildAttentionProjection(
       [
         { id: "B", label: "Beta" },
@@ -236,7 +236,7 @@ describe("buildAttentionProjection", () => {
       NOW,
     );
 
-    expect(items.every((item) => item.attentionAt === undefined)).toBe(true);
+    expect(items.every((item) => item.attentionAt === 0)).toBe(true);
     expect(projectionIds(items)).toEqual(["alpha", "a-id", "z-id", "beta"]);
   });
 

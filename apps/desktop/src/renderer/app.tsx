@@ -1845,8 +1845,9 @@ export function App() {
         const liveClientIds = new Set(
           terminalResult.sessions.map((session) => session.clientId).filter((id): id is string => Boolean(id)),
         );
+        const stagedClientIds = new Set(stagedPlanResult.plan?.sessions.map((session) => session.id) ?? []);
         const restoredSessions = hydratePersistedTerminalSessions(terminalResult.restoredSessions ?? []).filter(
-          (session) => !liveClientIds.has(session.id),
+          (session) => !liveClientIds.has(session.id) && !stagedClientIds.has(session.id),
         );
         const stagedSessions = hydrateStagedPlanSessions(
           stagedPlanResult.plan,
@@ -1863,7 +1864,7 @@ export function App() {
         }
         const hydratedSessions =
           liveSessions.length + restoredSessions.length + stagedSessions.length > 0
-            ? [...liveSessions, ...restoredSessions, ...stagedSessions]
+            ? [...liveSessions, ...stagedSessions, ...restoredSessions]
             : workspaceRootPath(workspaceStateResult, workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID)
               ? createInitialSessions(
                   workspaceRootPath(workspaceStateResult, workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID),

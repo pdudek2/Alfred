@@ -304,12 +304,12 @@ test.describe("long Decision Inbox", () => {
     await expect(page.getByRole("dialog", { name: "Command palette" })).toHaveCount(0);
     await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
 
-    const observatory = page.getByRole("toolbar", { name: "Primary surfaces" })
+    const observatory = page.getByRole("navigation", { name: "Primary surfaces" })
       .getByRole("button", { name: "Observatory" });
     await observatory.focus();
     await page.keyboard.press("Space");
     await expect(page.getByRole("region", { name: "History workspace" })).toBeVisible();
-    const inboxSwitcher = page.getByRole("toolbar", { name: "Primary surfaces" })
+    const inboxSwitcher = page.getByRole("navigation", { name: "Primary surfaces" })
       .getByRole("button", { name: "Inbox" });
     await inboxSwitcher.focus();
     await page.keyboard.press("Enter");

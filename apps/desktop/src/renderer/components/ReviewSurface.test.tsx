@@ -459,6 +459,38 @@ describe("ReviewSurface", () => {
     expect(screen.getByTestId("inbox-status-action")).not.toHaveTextContent("Launch");
   });
 
+  it("updates the focused Recovery action after arming and Enter runs the visible confirmation", async () => {
+    const user = userEvent.setup();
+    const recovery = decision({
+      id: "ALFRED:UNSAFE",
+      sessionId: "UNSAFE",
+      sessionTitle: "Saved shell",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Review the exact command before relaunching.",
+      action: { kind: "relaunch", confirmation: "required" },
+    });
+    const handlers = renderSurface([STAGED, recovery]);
+
+    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
+    const reviewButton = screen.getByRole("button", { name: "Review relaunch Saved shell in Alfred" });
+    await user.click(reviewButton);
+    handlers.rerenderSurface([STAGED, recovery], {
+      armedRecoverySessionIds: new Set(["UNSAFE"]),
+    });
+
+    const confirmButton = screen.getByRole("button", { name: "Confirm relaunch Saved shell in Alfred" });
+    expect(confirmButton).toHaveFocus();
+    expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Confirm relaunch");
+    expect(screen.getByTestId("inbox-status-action")).not.toHaveTextContent("Review relaunch");
+
+    await user.keyboard("{Enter}");
+    expect(handlers.onRecover).toHaveBeenLastCalledWith("ALFRED", "UNSAFE");
+    expect(handlers.onRecover).toHaveBeenCalledTimes(2);
+  });
+
   it("offers a blocked decision only Review / Edit and routes only that action", async () => {
     const user = userEvent.setup();
     const handlers = renderSurface([SAFETY]);
@@ -571,7 +603,7 @@ describe("ReviewSurface", () => {
       id: "ALFRED:UNKNOWN-TIME",
       sessionId: "UNKNOWN-TIME",
       sessionTitle: "Untimestamped staged command",
-      attentionAt: undefined,
+      attentionAt: 0,
     });
     renderSurface([item]);
 
@@ -579,5 +611,22 @@ describe("ReviewSurface", () => {
     expect(decisionItem.querySelector("time")).not.toBeInTheDocument();
     expect(within(decisionItem).queryByText("Received")).not.toBeInTheDocument();
     expect(within(decisionItem).queryByText("Now")).not.toBeInTheDocument();
+  });
+
+  it("renders a fresh attention timestamp as now without contradictory age copy", () => {
+    const now = Date.now();
+    const item = decision({
+      ...STAGED,
+      id: "ALFRED:FRESH",
+      sessionId: "FRESH",
+      sessionTitle: "Fresh staged command",
+      attentionAt: now,
+    });
+    renderSurface([item]);
+
+    const decisionItem = screen.getByTestId(`inbox-decision-${item.id}`);
+    expect(within(decisionItem).getAllByText("now").length).toBeGreaterThan(0);
+    expect(within(decisionItem).queryByText("now ago")).not.toBeInTheDocument();
+    expect(decisionItem.querySelector("time")).toHaveAttribute("title", expect.stringMatching(/^Received /));
   });
 });
