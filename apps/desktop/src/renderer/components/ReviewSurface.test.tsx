@@ -60,7 +60,6 @@ function renderSurface(attentionItems: AttentionProjection[] = DECISIONS) {
     onOpenInWork: vi.fn(),
     onRecover: vi.fn(),
     onDiscardRecovery: vi.fn(),
-    onExitToWork: vi.fn(),
     onReviewEdit: vi.fn(),
     onSelectSurface: vi.fn(),
   };
@@ -363,29 +362,6 @@ describe("ReviewSurface", () => {
 
     await user.click(screen.getByRole("button", { name: "Confirm relaunch Clean Desktop in Alfred" }));
     expect(handlers.onRecover).toHaveBeenCalledTimes(2);
-  });
-
-  it("routes Escape to canonical App safety handling before leaving Inbox", async () => {
-    const user = userEvent.setup();
-    const unsafe = decision({
-      id: "ALFRED:UNSAFE",
-      sessionId: "UNSAFE",
-      sessionTitle: "Clean Desktop",
-      kind: "recovery",
-      section: "recovery",
-      blocksAgent: false,
-      rank: null,
-      reason: "rm command mutates files when replayed",
-      action: { kind: "relaunch", confirmation: "required" },
-    });
-    const handlers = renderSurface([unsafe]);
-    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
-    handlers.rerenderSurface([unsafe], { armedRecoverySessionIds: new Set(["UNSAFE"]) });
-
-    await user.keyboard("{Escape}");
-
-    expect(handlers.onExitToWork).toHaveBeenCalledOnce();
-    expect(handlers.onRecover).not.toHaveBeenCalled();
   });
 
   it("offers Discard only as a secondary action inside expanded Recovery", async () => {

@@ -4319,6 +4319,59 @@ describe("App integration", () => {
     expect(waiting).toHaveTextContent("Needs response · inferred");
   });
 
+  it("routes an early exit by client id without reviving the finished runtime when create resolves", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge(
+      undefined,
+      {
+        id: "plan-early-exit",
+        prompt: "exit before create resolves",
+        sessions: [{
+          id: "alfred-early-exit",
+          kind: "shell",
+          title: "Early exit",
+          command: "/usr/bin/printf",
+          args: ["done\\n"],
+          workspaceId: "A",
+        }],
+      },
+    );
+    const creation = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
+    bridge.createTerminal.mockImplementation(() => creation.promise);
+
+    render(<App />);
+    await openInboxFromCommandPalette(user);
+    await user.click(screen.getByRole("button", { name: "Launch Early exit in Alfred" }));
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
+
+    await bridge.emitExit({
+      id: "runtime-early-exit",
+      clientId: "alfred-early-exit",
+      exitCode: 0,
+    });
+    await openInboxFromCommandPalette(user);
+    expect(screen.getByRole("button", { name: "Recovery · 1 saved session" })).toBeInTheDocument();
+
+    await act(async () => {
+      creation.resolve({
+        id: "runtime-early-exit",
+        clientId: "alfred-early-exit",
+        title: "Early exit",
+        source: "alfred",
+        agentKind: "shell",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        createdAt: 100,
+        shell: "/usr/bin/printf",
+        command: "/usr/bin/printf",
+        args: ["done\\n"],
+      });
+      await creation.promise;
+    });
+
+    expect(screen.getByRole("button", { name: "Recovery · 1 saved session" })).toBeInTheDocument();
+  });
+
   it("shows unsafe commands as blocked in the global Inbox", async () => {
     const user = userEvent.setup();
     const { createTerminal, resolveStagedPlan } = installDesktopBridge(
@@ -5473,9 +5526,9 @@ describe("App integration", () => {
             cwd: "/repo",
             source: "manual",
             isolation: "shared",
-            shell: "rm",
-            command: "rm",
-            args: ["-rf", "/tmp/cache"],
+            shell: "/bin/sh",
+            command: "/bin/sh",
+            args: ["-c", "/usr/bin/printf 'confirmed restore\\n'"],
             buffer: "saved output\n",
           },
         ],
@@ -5529,9 +5582,9 @@ describe("App integration", () => {
           cwd: "/repo",
           source: "manual",
           isolation: "shared",
-          shell: "rm",
-          command: "rm",
-          args: ["-rf", "/tmp/cache"],
+          shell: "/bin/sh",
+          command: "/bin/sh",
+          args: ["-c", "/usr/bin/printf 'confirmed restore\\n'"],
           buffer: "saved output\n",
         },
       ],
@@ -5626,9 +5679,9 @@ describe("App integration", () => {
           cwd: "/repo",
           source: "manual",
           isolation: "shared",
-          shell: "rm",
-          command: "rm",
-          args: ["-rf", "/tmp/cache"],
+          shell: "/bin/sh",
+          command: "/bin/sh",
+          args: ["-c", "/usr/bin/printf 'confirmed restore\\n'"],
           buffer: "saved output\n",
         },
       ],
@@ -5764,9 +5817,9 @@ describe("App integration", () => {
           baseCwd: "/repo",
           branchName: "alfred-guarded-armed-recovery",
           source: "manual",
-          shell: "rm",
-          command: "rm",
-          args: ["-rf", "/tmp/cache"],
+          shell: "/bin/sh",
+          command: "/bin/sh",
+          args: ["-c", "/usr/bin/printf 'confirmed restore\\n'"],
           buffer: "saved output\n",
         },
       ],
@@ -5809,9 +5862,9 @@ describe("App integration", () => {
           cwd: "/repo",
           source: "manual",
           isolation: "shared",
-          shell: "rm",
-          command: "rm",
-          args: ["-rf", "/tmp/cache"],
+          shell: "/bin/sh",
+          command: "/bin/sh",
+          args: ["-c", "/usr/bin/printf 'confirmed restore\\n'"],
           buffer: "saved output\n",
         },
       ],
@@ -5849,9 +5902,9 @@ describe("App integration", () => {
           baseCwd: "/repo",
           branchName: "alfred-manual-1",
           source: "manual",
-          shell: "rm",
-          command: "rm",
-          args: ["-rf", "/tmp/original"],
+          shell: "/bin/sh",
+          command: "/bin/sh",
+          args: ["-c", "/usr/bin/printf 'confirmed restore\\n'"],
           buffer: "saved output\n",
         },
       ],
@@ -5873,9 +5926,9 @@ describe("App integration", () => {
       source: "manual",
       workspaceId: "A",
       cwd: "/repo",
-      shell: "rm",
-      command: "rm",
-      args: ["-rf", "/tmp/reused"],
+      shell: "/bin/sh",
+      command: "/bin/sh",
+      args: ["-c", "/usr/bin/printf 'reused restore\\n'"],
     });
     await user.click(screen.getByRole("button", { name: "Open launch menu" }));
     await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
@@ -6127,6 +6180,16 @@ describe("App integration", () => {
           command: "codex",
           args: [],
           shell: "codex",
+          buffer: "saved output\n",
+        },
+        {
+          clientId: "hard-blocked-9",
+          title: "Destructive restored shell",
+          cwd: "/repo",
+          source: "manual",
+          command: "rm",
+          args: ["-rf", "dist"],
+          shell: "/bin/zsh",
           buffer: "saved output\n",
         },
       ],

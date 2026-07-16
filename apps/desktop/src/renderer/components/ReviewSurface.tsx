@@ -14,7 +14,6 @@ type ReviewSurfaceProps = {
   onOpenInWork: (workspaceId: string, sessionId: string) => void;
   onRecover: (workspaceId: string, sessionId: string) => void;
   onDiscardRecovery: (sessionId: string) => void;
-  onExitToWork: () => void;
   onReviewEdit: (workspaceId: string, sessionId: string) => void;
   onSelectSurface: (surface: PrimarySurface) => void;
 };
@@ -27,7 +26,6 @@ export function ReviewSurface({
   onOpenInWork,
   onRecover,
   onDiscardRecovery,
-  onExitToWork,
   onReviewEdit,
   onSelectSurface,
 }: ReviewSurfaceProps) {
@@ -107,11 +105,6 @@ export function ReviewSurface({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      onExitToWork();
-      return;
-    }
     if (event.target instanceof Element && event.target.closest(".surface-switcher")) return;
     if (!selectedItem) return;
     if (event.key === "Enter") {

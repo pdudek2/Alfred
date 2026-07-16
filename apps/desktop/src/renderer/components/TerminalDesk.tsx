@@ -25,6 +25,7 @@ import type {
   TerminalCreateRequest,
   TerminalCreateResult,
   TerminalDataEvent,
+  TerminalExitEvent,
   TerminalSessionId,
   TerminalSessionSnapshot,
 } from "../../shared/terminal-ipc";
@@ -68,7 +69,7 @@ type TerminalDeskProps = {
   onApplyWorkMode: (mode: WorkMode) => void;
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
-  onRuntimeSessionExited: (runtimeId: TerminalSessionId, exitCode: number) => void;
+  onRuntimeSessionExited: (event: TerminalExitEvent) => void;
   onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
   onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
   onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
@@ -732,7 +733,7 @@ function ManualTerminalTile({
   onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
-  onRuntimeSessionExited: (runtimeId: TerminalSessionId, exitCode: number) => void;
+  onRuntimeSessionExited: (event: TerminalExitEvent) => void;
   onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
   onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
   onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
@@ -1104,7 +1105,8 @@ function ManualTerminalTile({
     }
 
     const removeDataListener = terminalApi.onData((event) => {
-      if (event.id === sessionIdRef.current || event.clientId === sessionKey) {
+      const resolvedRuntimeId = sessionIdRef.current;
+      if (resolvedRuntimeId ? event.id === resolvedRuntimeId : event.clientId === sessionKey) {
         if (snapshotHandshakePending) {
           snapshotHandshakeOutput += event.data;
         } else {
@@ -1114,8 +1116,9 @@ function ManualTerminalTile({
       }
     });
     const removeExitListener = terminalApi.onExit((event) => {
-      if (event.id === sessionIdRef.current) {
-        runtimeCallbacksRef.current.onRuntimeSessionExited(event.id, event.exitCode);
+      const resolvedRuntimeId = sessionIdRef.current;
+      if (resolvedRuntimeId ? event.id === resolvedRuntimeId : event.clientId === sessionKey) {
+        runtimeCallbacksRef.current.onRuntimeSessionExited(event);
         setTileStatus(event.exitCode === 0 ? "exited" : "error");
         terminal.writeln("");
         terminal.writeln(`[process exited with code ${event.exitCode}]`);

@@ -69,6 +69,7 @@ import {
   renameSession,
   restartSession,
   sessionInstanceKey,
+  terminalEventMatchesSession,
   type SessionActivityEvent,
   type SessionTile,
 } from "./session-state";
@@ -97,6 +98,7 @@ import type {
 import type {
   TerminalCreateResult,
   TerminalDataEvent,
+  TerminalExitEvent,
   TerminalSessionIsolation,
   TerminalSessionSnapshot,
 } from "../shared/terminal-ipc";
@@ -244,10 +246,13 @@ export function App() {
     null;
   const canCloseActiveWorkspace =
     activeWorkspace.id !== DEFAULT_WORKSPACE_ID && workspaces.length > 1 && activeSessions.length === 0;
-  const activeRecoverableSessions = activeSessions.filter((session) =>
-    session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error",
-  );
   const attentionItems = buildAttentionProjection(workspaces, terminalSessions);
+  const recoverySessionIds = new Set(
+    attentionItems
+      .filter((item) => item.section === "recovery" && item.workspaceId === activeWorkspace.id)
+      .map((item) => item.sessionId),
+  );
+  const activeRecoverableSessions = activeSessions.filter((session) => recoverySessionIds.has(session.id));
   const sessionDetailsById: ReadonlyMap<
     string,
     Pick<SessionTile, "args" | "command" | "cwd">
@@ -1225,30 +1230,28 @@ export function App() {
     );
   }, []);
 
-  const handleRuntimeSessionExited = useCallback((runtimeId: TerminalCreateResult["id"], exitCode = 0) => {
-    const exitedSession = terminalSessionsRef.current.find((item) => item.runtimeId === runtimeId);
+  const handleRuntimeSessionExited = useCallback((event: TerminalExitEvent) => {
+    const exitedSession = terminalSessionsRef.current.find((item) => terminalEventMatchesSession(item, event));
     if (exitedSession) {
       setPreviewCandidates((candidates) => candidates.filter((candidate) => candidate.sessionId !== exitedSession.id));
     }
     setTerminalSessions((sessions) => {
-      const session = sessions.find((item) => item.runtimeId === runtimeId);
-      const failed = exitCode !== 0;
-      const next = markSessionExited(sessions, runtimeId, exitCode);
+      const session = sessions.find((item) => terminalEventMatchesSession(item, event));
+      const failed = event.exitCode !== 0;
+      const next = markSessionExited(sessions, event.id, event.exitCode, event.clientId);
       if (!session) return next;
       return appendSessionActivity(next, session.id, {
         kind: failed ? "error" : "lifecycle",
         title: failed ? "Process failed" : "Process exited",
         detail: failed
-          ? `The terminal process exited with code ${exitCode}.`
+          ? `The terminal process exited with code ${event.exitCode}.`
           : "The terminal process ended; scrollback remains available.",
       });
     });
   }, []);
 
   const handleRuntimeSessionOutput = useCallback((event: TerminalDataEvent) => {
-    const session = terminalSessionsRef.current.find((item) =>
-      item.runtimeId === event.id || (event.clientId !== undefined && item.id === event.clientId),
-    );
+    const session = terminalSessionsRef.current.find((item) => terminalEventMatchesSession(item, event));
     if (session) {
       setPreviewCandidates((candidates) =>
         recordPreviewUrlsFromText(candidates, {
@@ -2127,7 +2130,6 @@ export function App() {
                   armedRecoverySessionIds={armedRecoverySessionIds}
                   sessionDetailsById={sessionDetailsById}
                   onDiscardRecovery={handleCloseSession}
-                  onExitToWork={handleExitInboxToWork}
                   onLaunch={handleLaunchInboxItem}
                   onOpenInWork={handleFocusSessionInWorkspace}
                   onRecover={handleRecoverInboxItem}

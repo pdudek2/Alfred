@@ -157,7 +157,7 @@ export function resetTerminalPersistenceForTests(): void {
 export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
   const launchTickets = new Map<string, LaunchTicket>();
   const restoredLaunchReservations = new Map<string, string>();
-  const restoredLaunchesInFlight = new Set<string>();
+  const clientIdsInFlight = new Set<string>();
 
   ipcMain.handle(terminalChannels.list, async (event): Promise<TerminalListResult> => {
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -231,17 +231,29 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       }
 
       const safeRequest = validateTerminalCreateRequest(request);
-      let restoredLaunchClientId: string | undefined;
-      if (options.requireLaunchTickets && requestRequiresLaunchTicket(safeRequest)) {
-        restoredLaunchClientId = consumeLaunchTicket(
+      const requiresLaunchTicket = Boolean(options.requireLaunchTickets && requestRequiresLaunchTicket(safeRequest));
+      if (requiresLaunchTicket) {
+        consumeLaunchTicket(
           safeRequest,
           launchTickets,
           restoredLaunchReservations,
-          restoredLaunchesInFlight,
           options,
-        ).restoredClientId;
-      } else {
-        await validateTerminalCommandApproval(safeRequest, options.isStagedCommandAllowed);
+        );
+      }
+      const reservedClientId = safeRequest.clientId;
+      if (reservedClientId) {
+        if (clientIdsInFlight.has(reservedClientId) || findLiveSessionByClientId(reservedClientId)) {
+          throw new Error("Terminal client id is already active.");
+        }
+        clientIdsInFlight.add(reservedClientId);
+      }
+      try {
+        if (!requiresLaunchTicket) {
+          await validateTerminalCommandApproval(safeRequest, options.isStagedCommandAllowed);
+        }
+      } catch (error) {
+        if (reservedClientId) clientIdsInFlight.delete(reservedClientId);
+        throw error;
       }
       let session: TerminalSession;
       try {
@@ -284,14 +296,10 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
 
         sessions.set(id, session);
       } catch (error) {
-        if (restoredLaunchClientId) {
-          restoredLaunchesInFlight.delete(restoredLaunchClientId);
-        }
+        if (reservedClientId) clientIdsInFlight.delete(reservedClientId);
         throw error;
       }
-      if (restoredLaunchClientId) {
-        restoredLaunchesInFlight.delete(restoredLaunchClientId);
-      }
+      if (reservedClientId) clientIdsInFlight.delete(reservedClientId);
       if (session.clientId) {
         forgottenClientIds.delete(session.clientId);
       }
@@ -319,9 +327,13 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         });
         rememberSessionSnapshot(session);
         disposeSession(session.id);
+        const identity = {
+          id: session.id,
+          ...(session.clientId === undefined ? {} : { clientId: session.clientId }),
+        };
         const payload: TerminalExitEvent = signal === undefined
-          ? { id: session.id, exitCode }
-          : { id: session.id, exitCode, signal };
+          ? { ...identity, exitCode }
+          : { ...identity, exitCode, signal };
         sendToSessionWindow(session, terminalChannels.exit, payload);
       });
 
@@ -1169,7 +1181,6 @@ function consumeLaunchTicket(
   request: TerminalCreateRequest,
   launchTickets: Map<string, LaunchTicket>,
   restoredLaunchReservations: Map<string, string>,
-  restoredLaunchesInFlight: Set<string>,
   options: Pick<TerminalIpcOptions, "scratchRootPath">,
 ): LaunchTicket {
   if (!request.launchTicketId) {
@@ -1191,13 +1202,11 @@ function consumeLaunchTicket(
   if (ticket.restoredClientId) {
     const isCurrentReservation = restoredLaunchReservations.get(ticket.restoredClientId) === launchTicketId;
     if (!isCurrentReservation
-      || restoredLaunchesInFlight.has(ticket.restoredClientId)
       || findLiveSessionByClientId(ticket.restoredClientId)) {
       clearRestoredLaunchReservation(ticket, launchTicketId, restoredLaunchReservations);
       throw new Error("Terminal launch ticket is invalid or expired.");
     }
     restoredLaunchReservations.delete(ticket.restoredClientId);
-    restoredLaunchesInFlight.add(ticket.restoredClientId);
   }
   return ticket;
 }

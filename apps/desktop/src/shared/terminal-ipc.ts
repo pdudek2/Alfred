@@ -117,6 +117,7 @@ export type TerminalWorktreeApplyResult =
 
 export type TerminalExitEvent = {
   id: TerminalSessionId;
+  clientId?: string;
   exitCode: number;
   signal?: number;
 };

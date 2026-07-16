@@ -677,6 +677,7 @@ describe("terminal-manager IPC", () => {
 
     const created = await invoke<{ id: string }>(terminalChannels.create, request);
     pty.onDataHandler?.("hello\n");
+    pty.onExitHandler?.({ exitCode: 0 });
     const listed = await invoke<{ sessions: Array<{ id: string; buffer: string }> }>(terminalChannels.list);
 
     expect(ipcMain.handle).toHaveBeenCalledWith(terminalChannels.create, expect.any(Function));
@@ -690,9 +691,36 @@ describe("terminal-manager IPC", () => {
       payload: { id: created.id, clientId: "manual-1", data: "hello\n", activities: [] },
       windowId: 1,
     });
-    expect(listed.sessions).toEqual([
-      expect.objectContaining({ id: created.id, buffer: "hello\n", clientId: "manual-1" }),
-    ]);
+    expect(sentEvents).toContainEqual({
+      channel: terminalChannels.exit,
+      payload: { id: created.id, clientId: "manual-1", exitCode: 0 },
+      windowId: 1,
+    });
+    expect(listed.sessions).toEqual([]);
+  });
+
+  it("reserves a client id while terminal creation is in flight", async () => {
+    const loadPty = deferred<ReturnType<typeof fakeNodePty>>();
+    const nodePty = fakeNodePty(new FakePty());
+    registerTerminalIpc({ loadNodePty: async () => loadPty.promise as never });
+    const request: TerminalCreateRequest = {
+      clientId: "one-generation",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+      source: "manual",
+    };
+
+    const first = invoke(terminalChannels.create, request);
+    const second = invoke(terminalChannels.create, request);
+    loadPty.resolve(nodePty);
+
+    const results = await Promise.allSettled([first, second]);
+    expect(results.map((result) => result.status).sort()).toEqual(["fulfilled", "rejected"]);
+    expect(results.find((result) => result.status === "rejected")).toEqual(expect.objectContaining({
+      reason: expect.objectContaining({ message: "Terminal client id is already active." }),
+    }));
+    expect(nodePty.spawn).toHaveBeenCalledTimes(1);
   });
 
   it("classifies a split approval once and sends the persisted event with terminal data", async () => {

@@ -18,6 +18,7 @@ import {
   relaunchRestoredSession,
   renameSession,
   restartSession,
+  type SessionTile,
 } from "./session-state";
 import type { AlfredPlanSession } from "../shared/alfred-ipc";
 import type { AlfredStagedPlanSnapshot } from "../shared/alfred-ipc";
@@ -680,17 +681,15 @@ describe("desktop session state", () => {
   });
 
   it("preserves producer event identity and ignores repeated delivery by id", () => {
-    const hydrated = hydrateLiveTerminalSessions([
-      {
-        id: "pty-a",
-        clientId: "manual-4",
-        title: "Manual · zsh 4",
-        cwd: "/repo",
-        source: "manual",
-        shell: "/bin/zsh",
-        buffer: "",
-      },
-    ]);
+    const hydrated: SessionTile[] = [{
+      id: "manual-4",
+      title: "Manual · zsh 4",
+      workspaceId: "A",
+      cwd: "/repo",
+      source: "manual",
+      stage: "live",
+      runtimeStatus: "starting",
+    }];
     const producerEvent = {
       id: "manual-4-activity-1234-1",
       kind: "approval" as const,
@@ -713,6 +712,51 @@ describe("desktop session state", () => {
     expect(repeated[0]?.activityEvents?.[0]).toBe(producerEvent);
     expect(repeated[0]?.lastActivityAt).toBe(producerEvent.at);
     expect(repeated[0]?.lastOutputAt).toBe(3_000);
+  });
+
+  it("rejects client-id data and exit events from an older runtime generation", () => {
+    const hydrated = hydrateLiveTerminalSessions([
+      {
+        id: "pty-current",
+        clientId: "manual-4",
+        title: "Manual · zsh 4",
+        cwd: "/repo",
+        source: "manual",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+    const staleData: TerminalDataEvent = {
+      id: "pty-stale",
+      clientId: "manual-4",
+      data: "Approval required: stale generation",
+      activities: [{
+        id: "stale-activity",
+        kind: "approval",
+        title: "Stale approval",
+        detail: "Must not attach",
+        at: 500,
+      }],
+    };
+
+    expect(recordSessionOutputActivity(hydrated, staleData, 500)).toBe(hydrated);
+    expect(markSessionExited(hydrated, "pty-stale", 1, "manual-4")).toEqual(hydrated);
+  });
+
+  it("correlates exit by client id only until the runtime id resolves", () => {
+    const unresolved: SessionTile[] = [{
+      id: "manual-4",
+      title: "Manual · zsh 4",
+      workspaceId: "A",
+      cwd: "/repo",
+      source: "manual",
+      stage: "live",
+      runtimeStatus: "starting",
+    }];
+
+    expect(markSessionExited(unresolved, "pty-new", 1, "manual-4")).toEqual([
+      expect.objectContaining({ id: "manual-4", runtimeId: "pty-new", runtimeStatus: "error" }),
+    ]);
   });
 
   it("keeps the latest visible activity last after notable output", () => {

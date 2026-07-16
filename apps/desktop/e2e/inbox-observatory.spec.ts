@@ -153,10 +153,24 @@ test.describe("deterministic mixed Decision Inbox", () => {
   test("terminal continuity and geometry preserve one xterm node and restore focus", async ({ harness }) => {
     const { app, page } = harness;
     await setWindowSize(app, page, 1440, 900);
+    const preservedAlphaScreen = page.locator('[data-session-id="restored-1"] .xterm-screen');
+    await expect(preservedAlphaScreen).toBeAttached();
+    const preservedAlphaHandle = await requiredHandle(
+      preservedAlphaScreen,
+      "pre-transition Fixture Alpha xterm screen",
+    );
     let inbox = await bootstrapMixedInbox(page);
     await inbox.getByTestId("inbox-decision-select-B:fixture-item-2").click();
     await inbox.getByRole("button", { name: "Open in Work Fixture item 2 in Fixture Beta" }).click();
     await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
+
+    const projectNavigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
+    await projectNavigator.getByRole("tab", { name: /Fixture Alpha workspace/ }).click();
+    expect(await preservedAlphaScreen.evaluate(
+      (node, previousNode) => node.isSameNode(previousNode) && node.isConnected,
+      preservedAlphaHandle,
+    ), "Work→Inbox→Fixture Beta Work→Fixture Alpha changed the original xterm screen").toBe(true);
+    await projectNavigator.getByRole("tab", { name: /Fixture Beta workspace/ }).click();
 
     const terminalScreen = page.locator('[data-session-id="fixture-item-2"] .xterm-screen');
     await expect(terminalScreen).toBeAttached();

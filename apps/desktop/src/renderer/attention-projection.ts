@@ -2,6 +2,7 @@ import { formatCommand } from "./command-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { terminalSessionDisplayStatus, type SessionDisplayStatus } from "./session-status";
 import { isLaunchBlocked, type SessionTile } from "./session-state";
+import { checkSafety } from "../shared/terminal-command-safety";
 
 export type AttentionKind =
   | "agent-waiting"
@@ -169,6 +170,7 @@ function projectRecovery(
 
   const resumable = status.kind === "restored" && isResumableAgent(session);
   if (!resumable && !session.command?.trim()) return null;
+  if (!resumable && checkSafety(session.command!, session.args ?? []).unsafe) return null;
 
   const safety = sessionRelaunchSafety(session);
   const action: AttentionAction = resumable

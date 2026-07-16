@@ -274,7 +274,7 @@ describe("buildAttentionProjection", () => {
     });
   });
 
-  it("requires confirmation only for unsafe concrete recovery commands", () => {
+  it("requires confirmation only for untrusted concrete recovery commands", () => {
     const items = buildAttentionProjection(
       workspaces,
       [
@@ -282,8 +282,8 @@ describe("buildAttentionProjection", () => {
           id: "unsafe-relaunch",
           title: "Unsafe relaunch",
           runtimeStatus: "exited",
-          command: "rm",
-          args: ["-rf", "dist"],
+          command: "/bin/sh",
+          args: ["-c", "/usr/bin/printf 'confirmed restore\\n'"],
         }),
         session({
           id: "safe-relaunch",
@@ -299,6 +299,36 @@ describe("buildAttentionProjection", () => {
     expect(items.map(({ sessionId, action }) => ({ sessionId, action }))).toEqual([
       { sessionId: "safe-relaunch", action: { kind: "relaunch", confirmation: "none" } },
       { sessionId: "unsafe-relaunch", action: { kind: "relaunch", confirmation: "required" } },
+    ]);
+  });
+
+  it("omits Recovery commands that the main process safety gate will always block", () => {
+    const items = buildAttentionProjection(
+      workspaces,
+      [
+        session({
+          id: "hard-blocked-relaunch",
+          title: "Destructive relaunch",
+          runtimeStatus: "restored",
+          command: "rm",
+          args: ["-rf", "dist"],
+        }),
+        session({
+          id: "confirmable-shell-relaunch",
+          title: "Review shell relaunch",
+          runtimeStatus: "restored",
+          command: "/bin/sh",
+          args: ["-c", "/usr/bin/printf 'confirmed restore\\n'"],
+        }),
+      ],
+      NOW,
+    );
+
+    expect(items.map(({ sessionId, action }) => ({ sessionId, action }))).toEqual([
+      {
+        sessionId: "confirmable-shell-relaunch",
+        action: { kind: "relaunch", confirmation: "required" },
+      },
     ]);
   });
 });

@@ -7,6 +7,7 @@ import {
 import type {
   TerminalCreateResult,
   TerminalDataEvent,
+  TerminalExitEvent,
   PersistedTerminalSessionSnapshot,
   TerminalSessionSnapshot,
   TerminalSessionId,
@@ -125,10 +126,14 @@ export function attachRuntimeSession(
       ...attachedSession
     } = session;
 
+    const exitedBeforeAttachStatus = session.runtimeId === runtime.id
+      && (session.runtimeStatus === "exited" || session.runtimeStatus === "error")
+      ? session.runtimeStatus
+      : null;
     return {
       ...attachedSession,
       runtimeId: runtime.id,
-      runtimeStatus: "live",
+      runtimeStatus: exitedBeforeAttachStatus ?? "live",
       title: runtime.title,
       cwd: runtime.cwd,
       ...(runtime.isolation === undefined ? {} : { isolation: runtime.isolation }),
@@ -165,10 +170,20 @@ export function markSessionUnavailable(sessions: SessionTile[], tileId: string):
   });
 }
 
-export function markSessionExited(sessions: SessionTile[], runtimeId: TerminalSessionId, exitCode = 0): SessionTile[] {
+export function markSessionExited(
+  sessions: SessionTile[],
+  runtimeId: TerminalSessionId,
+  exitCode = 0,
+  clientId?: string,
+): SessionTile[] {
   const runtimeStatus = exitCode === 0 ? "exited" : "error";
   return sessions.map((session) =>
-    session.runtimeId === runtimeId ? { ...session, runtimeStatus } : session,
+    terminalEventMatchesSession(session, {
+      id: runtimeId,
+      ...(clientId === undefined ? {} : { clientId }),
+    })
+      ? { ...session, runtimeId, runtimeStatus }
+      : session,
   );
 }
 
@@ -421,9 +436,7 @@ export function recordSessionOutputActivity(
   event: TerminalDataEvent,
   now = Date.now(),
 ): SessionTile[] {
-  const session = sessions.find((item) =>
-    item.runtimeId === event.id || (event.clientId !== undefined && item.id === event.clientId),
-  );
+  const session = sessions.find((item) => terminalEventMatchesSession(item, event));
   if (!session) return sessions;
   return sessions.map((item) => {
     if (item.id !== session.id) return item;
@@ -452,6 +465,15 @@ export function recordSessionOutputActivity(
       ...(lastActivityAt === undefined ? {} : { lastActivityAt }),
     };
   });
+}
+
+export function terminalEventMatchesSession(
+  session: Pick<SessionTile, "id" | "runtimeId">,
+  event: Pick<TerminalDataEvent | TerminalExitEvent, "clientId" | "id">,
+): boolean {
+  return session.runtimeId !== undefined
+    ? session.runtimeId === event.id
+    : event.clientId !== undefined && session.id === event.clientId;
 }
 
 function nextAlfredSessionIndex(sessions: SessionTile[]): number {
