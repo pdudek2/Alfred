@@ -2086,6 +2086,7 @@ export function App() {
                 recoverableSessions={activeRecoverableSessions}
                 selectedSessionId={activeSelectedSessionId}
                 sessions={terminalSessions}
+                surfaceActive={!workSurfaceHidden}
                 workMode={activeWorkMode}
                 worktreeActionPending={worktreeActionPending}
                 workspaceGitBranch={activeWorkspace.gitBranch}

@@ -51,6 +51,7 @@ type TerminalDeskProps = {
   armedRecoverySessionIds: Set<string>;
   selectedSessionId: string | null;
   sessions: SessionTile[];
+  surfaceActive: boolean;
   workMode: WorkMode;
   worktreeActionPending: Record<string, WorktreeActionKind | undefined>;
   workspaceGitBranch?: string | undefined;
@@ -93,6 +94,7 @@ export function TerminalDesk({
   armedRecoverySessionIds,
   selectedSessionId,
   sessions,
+  surfaceActive,
   workMode,
   worktreeActionPending,
   workspaceGitBranch,
@@ -366,6 +368,7 @@ export function TerminalDesk({
                 lastOutputAt={session.lastOutputAt}
                 collapsed={collapsedSessionIds.has(session.id)}
                 selected={inspectedSession?.id === session.id}
+                surfaceActive={surfaceActive}
                 showHeader={
                   arrangeMode ||
                   workMode !== "focus" ||
@@ -691,6 +694,7 @@ function ManualTerminalTile({
   onRenameSession,
   onToggleCollapse,
   selected,
+  surfaceActive,
   showHeader,
   runtimeId,
   runtimeStatus,
@@ -739,6 +743,7 @@ function ManualTerminalTile({
   onRenameSession: (sessionId: string, title: string) => void;
   onToggleCollapse: () => void;
   selected: boolean;
+  surfaceActive: boolean;
   showHeader: boolean;
   runtimeId?: TerminalSessionId | undefined;
   runtimeStatus?: SessionTile["runtimeStatus"] | undefined;
@@ -1258,9 +1263,9 @@ function ManualTerminalTile({
   }, [runtimeBindingKey, runtimeId, sessionKey, setTileStatus]);
 
   useEffect(() => {
-    if (!selected || status !== "ready") return;
+    if (!surfaceActive || !selected || status !== "ready") return;
     terminalRef.current?.focus();
-  }, [selected, status]);
+  }, [selected, status, surfaceActive]);
 
   return (
     <article

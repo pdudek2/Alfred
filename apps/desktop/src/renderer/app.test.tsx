@@ -474,6 +474,7 @@ function renderTerminalDeskForSessions(
       recoverableSessions={[]}
       selectedSessionId={nextSessions[0]?.id ?? null}
       sessions={nextSessions}
+      surfaceActive
       workMode="desk"
       worktreeActionPending={{}}
       workspaceGitBranch="main"
@@ -4116,6 +4117,9 @@ describe("App integration", () => {
 
     render(<App />);
     await openInboxFromCommandPalette(user);
+    const terminalHost = screen.getByTestId("xterm-host");
+    const terminalFocus = vi.fn();
+    terminalHost.addEventListener("focusin", terminalFocus);
 
     const statusAction = screen.getByTestId("inbox-status-action");
     expect(statusAction).toHaveTextContent("Open in Work");
@@ -4125,6 +4129,8 @@ describe("App integration", () => {
     expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(screen.getByTestId("desk-runtime-surface")).not.toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByTestId("xterm-host")).toBe(terminalHost);
+    expect(terminalFocus).toHaveBeenCalledOnce();
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Waiting agent");
     expect(createTerminal).not.toHaveBeenCalled();
     expect(writeTerminal).not.toHaveBeenCalled();
