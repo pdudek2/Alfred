@@ -25,6 +25,7 @@ import type {
   TerminalCreateRequest,
   TerminalCreateResult,
   TerminalDataEvent,
+  TerminalExitEvent,
   TerminalSessionId,
   TerminalSessionSnapshot,
 } from "../../shared/terminal-ipc";
@@ -51,6 +52,7 @@ type TerminalDeskProps = {
   armedRecoverySessionIds: Set<string>;
   selectedSessionId: string | null;
   sessions: SessionTile[];
+  surfaceActive: boolean;
   workMode: WorkMode;
   worktreeActionPending: Record<string, WorktreeActionKind | undefined>;
   workspaceGitBranch?: string | undefined;
@@ -67,7 +69,7 @@ type TerminalDeskProps = {
   onApplyWorkMode: (mode: WorkMode) => void;
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
-  onRuntimeSessionExited: (runtimeId: TerminalSessionId, exitCode: number) => void;
+  onRuntimeSessionExited: (event: TerminalExitEvent) => void;
   onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
   onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
   onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
@@ -93,6 +95,7 @@ export function TerminalDesk({
   armedRecoverySessionIds,
   selectedSessionId,
   sessions,
+  surfaceActive,
   workMode,
   worktreeActionPending,
   workspaceGitBranch,
@@ -366,6 +369,7 @@ export function TerminalDesk({
                 lastOutputAt={session.lastOutputAt}
                 collapsed={collapsedSessionIds.has(session.id)}
                 selected={inspectedSession?.id === session.id}
+                surfaceActive={surfaceActive}
                 showHeader={
                   arrangeMode ||
                   workMode !== "focus" ||
@@ -691,6 +695,7 @@ function ManualTerminalTile({
   onRenameSession,
   onToggleCollapse,
   selected,
+  surfaceActive,
   showHeader,
   runtimeId,
   runtimeStatus,
@@ -728,7 +733,7 @@ function ManualTerminalTile({
   onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
-  onRuntimeSessionExited: (runtimeId: TerminalSessionId, exitCode: number) => void;
+  onRuntimeSessionExited: (event: TerminalExitEvent) => void;
   onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
   onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
   onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
@@ -739,6 +744,7 @@ function ManualTerminalTile({
   onRenameSession: (sessionId: string, title: string) => void;
   onToggleCollapse: () => void;
   selected: boolean;
+  surfaceActive: boolean;
   showHeader: boolean;
   runtimeId?: TerminalSessionId | undefined;
   runtimeStatus?: SessionTile["runtimeStatus"] | undefined;
@@ -1099,7 +1105,8 @@ function ManualTerminalTile({
     }
 
     const removeDataListener = terminalApi.onData((event) => {
-      if (event.id === sessionIdRef.current) {
+      const resolvedRuntimeId = sessionIdRef.current;
+      if (resolvedRuntimeId ? event.id === resolvedRuntimeId : event.clientId === sessionKey) {
         if (snapshotHandshakePending) {
           snapshotHandshakeOutput += event.data;
         } else {
@@ -1109,8 +1116,9 @@ function ManualTerminalTile({
       }
     });
     const removeExitListener = terminalApi.onExit((event) => {
-      if (event.id === sessionIdRef.current) {
-        runtimeCallbacksRef.current.onRuntimeSessionExited(event.id, event.exitCode);
+      const resolvedRuntimeId = sessionIdRef.current;
+      if (resolvedRuntimeId ? event.id === resolvedRuntimeId : event.clientId === sessionKey) {
+        runtimeCallbacksRef.current.onRuntimeSessionExited(event);
         setTileStatus(event.exitCode === 0 ? "exited" : "error");
         terminal.writeln("");
         terminal.writeln(`[process exited with code ${event.exitCode}]`);
@@ -1258,9 +1266,9 @@ function ManualTerminalTile({
   }, [runtimeBindingKey, runtimeId, sessionKey, setTileStatus]);
 
   useEffect(() => {
-    if (!selected || status !== "ready") return;
+    if (!surfaceActive || !selected || status !== "ready") return;
     terminalRef.current?.focus();
-  }, [selected, status]);
+  }, [selected, status, surfaceActive]);
 
   return (
     <article

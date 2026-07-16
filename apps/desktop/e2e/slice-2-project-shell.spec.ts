@@ -86,10 +86,9 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await expect(activeSessionGroup.getByRole("button", { name: "Restored scratch fixture 1" })).toHaveCount(0);
   await expect(freeChats.getByRole("button", { name: "Restored scratch fixture 1" })).toHaveCount(0);
   await expect((await listMainProcessTerminals(page)).restoredSessions).toHaveLength(1);
-  await expect(header.getByRole("button", { name: "Open Inbox surface, 1 item" })).toBeVisible();
-  await expect(navigator.getByRole("tab", { name: "Fixture Beta workspace, needs review" })).toHaveAttribute(
+  await expect(header.getByRole("button", { name: "Open Inbox surface" })).toBeVisible();
+  await expect(navigator.getByRole("tab", { name: "Fixture Beta workspace" })).not.toHaveAttribute(
     "data-attention",
-    "true",
   );
 
   const alphaScreen = page.locator('article[data-session-id="manual-1"] .xterm-screen');
@@ -153,8 +152,8 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
       restoredSessionsExcluded: 1,
       restoredScratchExcludedFromActiveRows: true,
       restoredScratchExcludedFromFreeChats: true,
-      currentReviewItemCount: 1,
-      reviewAttentionWorkspace: "Fixture Beta",
+      currentReviewItemCount: 0,
+      reviewAttentionWorkspace: null,
       longProjectLabelPreserved: true,
       longSessionLabelPreserved: true,
     },
@@ -255,9 +254,7 @@ async function openContext(page: Page): Promise<void> {
 
 async function switchProject(page: Page, label: "Fixture Alpha" | "Fixture Beta"): Promise<void> {
   const destination = page.getByRole("navigation", { name: "Projects and Free Chats" })
-    .getByRole("tab", {
-      name: label === "Fixture Beta" ? `${label} workspace, needs review` : `${label} workspace`,
-    });
+    .getByRole("tab", { name: `${label} workspace` });
   await destination.click();
   await expect(destination).toHaveAttribute("aria-selected", "true");
 }

@@ -1,167 +1,356 @@
-import type { Locator, Page } from "@playwright/test";
-import type { TerminalApi, TerminalListResult } from "../src/shared/terminal-ipc";
+import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
+import { realpath } from "node:fs/promises";
+import { terminalChannels, type TerminalListResult } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
 
 type DesktopTerminalWindow = Window & {
-  alfredDesktop?: { terminal: TerminalApi };
+  alfredDesktop?: { terminal: { list(): Promise<TerminalListResult> } };
 };
 
-test.use({ fixtureOptions: { inboxItems: 14, restoredSessions: 2 } });
+const mixedFixture = {
+  inboxItems: 4,
+  blockedInboxItem: 1,
+  waitingInboxItem: 2,
+  restoredSessions: 6,
+  unsafeRecoveryItem: 1,
+} as const;
 
-test("inbox scrolls, executes a real action, and opens Observatory history", async ({ harness }) => {
-  const { page } = harness;
-  await expect(page.getByRole("article", { name: /Restored fixture 1/i })).toBeVisible();
-  await selectSurface(page, "Context");
-  await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
-  await expect(page.getByRole("region", { name: "Alfred review queue" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Close Context panel" }).click();
-  await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
+test.describe("deterministic mixed Decision Inbox", () => {
+  test.use({ fixtureOptions: mixedFixture });
 
-  const inbox = page.getByRole("region", { name: "Inbox workspace" });
-  await expect(inbox).toBeVisible();
-  const scrollOwner = inbox.getByLabel("Inbox sections");
-  const lastItem = page.getByText("Fixture item 14", { exact: true }).first();
-  const beforeScroll = await readScrollGeometry(scrollOwner, lastItem);
-  expect(beforeScroll.scrollTop, scrollEvidence("before", beforeScroll)).toBe(0);
-  expect(beforeScroll.scrollHeight, scrollEvidence("before", beforeScroll)).toBeGreaterThan(
-    beforeScroll.clientHeight,
-  );
-  expect(beforeScroll.itemBottomOverflow, scrollEvidence("before", beforeScroll)).toBeGreaterThan(2);
+  test("canonical counts and actions share blockers and use real handlers", async ({ harness }) => {
+    const { app, page } = harness;
+    const inbox = await bootstrapMixedInbox(page);
 
-  const scrollDelta = Math.ceil(beforeScroll.itemBottomOverflow + 2);
-  const afterScroll = await wheelUntil(
-    page,
-    scrollOwner,
-    lastItem,
-    scrollDelta,
-    (geometry) =>
-      geometry.itemTop >= geometry.ownerTop - 2 && geometry.itemBottom <= geometry.ownerBottom + 2,
-    "scroll Fixture item 14 into view",
-    beforeScroll,
-  );
-  expect(afterScroll.scrollTop, scrollEvidence("after", afterScroll)).toBeGreaterThan(0);
-  expect(afterScroll.itemTop, scrollEvidence("after", afterScroll)).toBeGreaterThanOrEqual(
-    afterScroll.ownerTop - 2,
-  );
-  expect(afterScroll.itemBottom, scrollEvidence("after", afterScroll)).toBeLessThanOrEqual(
-    afterScroll.ownerBottom + 2,
-  );
-  expect(afterScroll.itemTopUnderflow, scrollEvidence("after", afterScroll)).toBeLessThanOrEqual(2);
-  expect(afterScroll.itemBottomOverflow, scrollEvidence("after", afterScroll)).toBeLessThanOrEqual(2);
+    await expect(page.getByRole("button", { name: "Open Inbox surface, 4 items" })).toBeVisible();
+    await expect(page.getByRole("tab", {
+      name: "Fixture Alpha workspace, 2 decisions need review",
+    })).toBeVisible();
+    await expect(page.getByRole("tab", {
+      name: "Fixture Beta workspace, 2 decisions need review",
+    })).toBeVisible();
+    await expect(inbox.getByText("4 need you · 6 recovery", { exact: true })).toBeVisible();
+    await expect(inbox.getByRole("list", { name: "Needs you items" }).locator(":scope > li")).toHaveCount(4);
+    await expect(inbox.getByRole("button", { name: "Recovery · 6 saved sessions" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
 
-  const restoredScroll = afterScroll.scrollTop === 0
-    ? afterScroll
-    : await wheelUntil(
-        page,
-        scrollOwner,
-        lastItem,
-        -Math.ceil(afterScroll.scrollHeight),
-        (geometry) => geometry.scrollTop === 0,
-        "restore Inbox scroll position",
-        afterScroll,
+    const blockerIds = await inbox
+      .getByRole("list", { name: "Needs you items" })
+      .locator(":scope > li")
+      .evaluateAll((items) => items.map((item) => item.getAttribute("data-testid")));
+    expect(blockerIds).toEqual([
+      "inbox-decision-A:fixture-item-1",
+      "inbox-decision-B:fixture-item-2",
+      "inbox-decision-A:fixture-item-3",
+      "inbox-decision-B:fixture-item-4",
+    ]);
+
+    const blocked = inbox.getByTestId("inbox-decision-A:fixture-item-1");
+    await expect(blocked.locator(".inbox-docket__primary")).toHaveText("Review / Edit");
+    await expect(blocked.locator(".inbox-docket__primary")).toHaveCount(1);
+    await expect(blocked.getByText("Run anyway", { exact: true })).toHaveCount(0);
+    await expect(blocked.getByText("Launch", { exact: true })).toHaveCount(0);
+    await expect(blocked.getByText("Discard", { exact: true })).toHaveCount(0);
+
+    const waiting = inbox.getByTestId("inbox-decision-B:fixture-item-2");
+    await waiting.getByTestId("inbox-decision-select-B:fixture-item-2").click();
+    await expect(waiting.locator(".inbox-docket__primary")).toHaveText("Open in Work");
+    await installTerminalWriteProbe(app);
+    expect(await terminalWriteCount(app)).toBe(0);
+    await waiting.getByRole("button", { name: "Open in Work Fixture item 2 in Fixture Beta" }).click();
+    await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
+    expect(await terminalWriteCount(app)).toBe(0);
+
+    await openInbox(page);
+    const staged = inbox.getByTestId("inbox-decision-A:fixture-item-3");
+    await staged.getByTestId("inbox-decision-select-A:fixture-item-3").click();
+    await staged.getByRole("button", { name: "Launch Fixture item 3 in Fixture Alpha" }).click();
+    await expect(staged).toHaveCount(0);
+    await expect.poll(async () => {
+      const listed = await listMainProcessTerminals(page);
+      const snapshot = [...listed.sessions, ...(listed.restoredSessions ?? [])].find(
+        (session) => session.clientId === "fixture-item-3",
       );
-  expect(restoredScroll.scrollTop, scrollEvidence("restored", restoredScroll)).toBe(0);
+      return snapshot
+        ? { args: snapshot.args, command: snapshot.command, workspaceId: snapshot.workspaceId }
+        : null;
+    }).toEqual({
+      args: ["fixture item 3\n"],
+      command: "/usr/bin/printf",
+      workspaceId: "A",
+    });
+    await expect(page.getByRole("button", { name: "Open Inbox surface, 3 items" })).toBeVisible();
 
-  await expect(page.getByRole("article", { name: /Fixture item 1/i })).toHaveCount(0);
-  await page.getByRole("button", {
-    name: "Launch Fixture item 1 in Fixture Alpha",
-  }).click();
-
-  const runtimeSurface = page.getByTestId("desk-runtime-surface");
-  await expect(runtimeSurface).toBeVisible();
-  const launchedItem = runtimeSurface.getByRole("article", { name: /Fixture item 1/i });
-  await expect(launchedItem).toBeVisible();
-  const launchedHost = launchedItem.getByTestId("xterm-host");
-  // The fixture launches /usr/bin/printf directly, so this text is PTY output rather than typed command echo.
-  await expect(launchedHost).toContainText("fixture item 1");
-  await expect(launchedHost).toContainText("[process exited with code 0]");
-  await expect.poll(async () => {
-    const listed = await listMainProcessTerminals(page);
-    const snapshot = listed.restoredSessions?.find((session) => session.clientId === "fixture-item-1");
-    return snapshot
-      ? { args: snapshot.args, buffer: snapshot.buffer, command: snapshot.command }
-      : null;
-  }).toEqual({
-    args: ["fixture item 1\n"],
-    buffer: expect.stringContaining("fixture item 1"),
-    command: "/usr/bin/printf",
+    harness.assertNoRuntimeErrors();
+    await harness.closeActiveTerminals();
   });
 
-  await selectSurface(page, "Observatory");
-  const history = page.getByRole("region", { name: "History workspace" });
-  await expect(history).toBeVisible();
-  await expect(history.getByText("Sessions and project memory", { exact: true })).toBeVisible();
-  await expect(history.getByRole("textbox", { name: "Search History sessions" })).toBeVisible();
-  await expect(history.getByRole("complementary", { name: "Projects" })).toBeVisible();
-  await expect(history.getByLabel("Sessions", { exact: true })).toBeVisible();
-  await expect(history.getByRole("complementary", { name: "Session detail" })).toBeVisible();
-  await expect(
-    history.getByLabel("Sessions", { exact: true }).getByText("Fixture item 1", { exact: true }),
-  ).toBeVisible();
+  test("recovery safety requires review, supports Escape disarm, and starts only on confirm", async ({
+    harness,
+  }) => {
+    const { page, paths } = harness;
+    const inbox = await bootstrapMixedInbox(page);
+    const recoveryToggle = inbox.getByRole("button", { name: "Recovery · 6 saved sessions" });
+    await recoveryToggle.click();
+    await expect(inbox.getByRole("list", { name: "Recovery items" }).locator(":scope > li")).toHaveCount(6);
 
-  await selectSurface(page, "Work");
-  await expect(runtimeSurface).toBeVisible();
-  harness.assertNoRuntimeErrors();
-  await harness.closeActiveTerminals();
+    const unsafeAction = inbox.getByRole("button", {
+      name: "Review relaunch Restored fixture 1 in Fixture Alpha",
+    });
+    const beforeReview = await listMainProcessTerminals(page);
+    expect(beforeReview.sessions.some((session) => session.clientId === "restored-1")).toBe(false);
+    expect(beforeReview.restoredSessions?.find((session) => session.clientId === "restored-1")?.buffer)
+      .not.toContain("unsafe recovery confirmed");
+    await unsafeAction.click();
+
+    const confirm = inbox.getByRole("button", {
+      name: "Confirm relaunch Restored fixture 1 in Fixture Alpha",
+    });
+    await expect(confirm).toBeVisible();
+    await expect(inbox.getByText("shell command replay needs review", { exact: true })).toBeVisible();
+    await expect(inbox.getByText(paths.workspaceA, { exact: true })).toBeVisible();
+    await expect(
+      inbox.getByText(
+        "/bin/sh -c /usr/bin/printf 'unsafe recovery confirmed\\n'",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    const armedSnapshot = await listMainProcessTerminals(page);
+    expect(armedSnapshot.sessions.some((session) => session.clientId === "restored-1")).toBe(false);
+    expect(armedSnapshot.restoredSessions?.find((session) => session.clientId === "restored-1")?.buffer)
+      .not.toContain("unsafe recovery confirmed");
+
+    await page.keyboard.press("Escape");
+    await expect(inbox).toBeVisible();
+    await expect(confirm).toHaveCount(0);
+    await expect(inbox.getByRole("button", {
+      name: "Review relaunch Restored fixture 1 in Fixture Alpha",
+    })).toBeVisible();
+    await expect(inbox.getByText(paths.workspaceA, { exact: true })).toHaveCount(0);
+
+    await inbox.getByRole("button", {
+      name: "Review relaunch Restored fixture 1 in Fixture Alpha",
+    }).click();
+    await expect(confirm).toBeVisible();
+    await confirm.click();
+    await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
+    const canonicalWorkspaceA = await realpath(paths.workspaceA);
+    await expect.poll(async () => {
+      const listed = await listMainProcessTerminals(page);
+      const session = [...listed.sessions, ...(listed.restoredSessions ?? [])].find(
+        (candidate) => candidate.clientId === "restored-1",
+      );
+      const sentinelCount = session?.buffer.match(/unsafe recovery confirmed/g)?.length ?? 0;
+      return session ? { command: session.command, cwd: session.cwd, sentinelCount } : null;
+    }).toEqual({ command: "/bin/sh", cwd: canonicalWorkspaceA, sentinelCount: 1 });
+
+    harness.assertNoRuntimeErrors();
+    await harness.closeActiveTerminals();
+  });
+
+  test("terminal continuity and geometry preserve one xterm node and restore focus", async ({ harness }) => {
+    const { app, page } = harness;
+    await setWindowSize(app, page, 1440, 900);
+    const preservedAlphaScreen = page.locator('[data-session-id="restored-1"] .xterm-screen');
+    await expect(preservedAlphaScreen).toBeAttached();
+    const preservedAlphaHandle = await requiredHandle(
+      preservedAlphaScreen,
+      "pre-transition Fixture Alpha xterm screen",
+    );
+    let inbox = await bootstrapMixedInbox(page);
+    await inbox.getByTestId("inbox-decision-select-B:fixture-item-2").click();
+    await inbox.getByRole("button", { name: "Open in Work Fixture item 2 in Fixture Beta" }).click();
+    await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
+
+    const projectNavigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
+    await projectNavigator.getByRole("tab", { name: /Fixture Alpha workspace/ }).click();
+    expect(await preservedAlphaScreen.evaluate(
+      (node, previousNode) => node.isSameNode(previousNode) && node.isConnected,
+      preservedAlphaHandle,
+    ), "Work→Inbox→Fixture Beta Work→Fixture Alpha changed the original xterm screen").toBe(true);
+    await projectNavigator.getByRole("tab", { name: /Fixture Beta workspace/ }).click();
+
+    const terminalScreen = page.locator('[data-session-id="fixture-item-2"] .xterm-screen');
+    await expect(terminalScreen).toBeAttached();
+    const beforeHandle = await requiredHandle(terminalScreen, "waiting runtime xterm screen");
+
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 1120, height: 720 },
+    ]) {
+      await setWindowSize(app, page, size.width, size.height);
+      const activeTile = page.locator(
+        '[data-testid="terminal-tile"][data-session-id="fixture-item-2"]',
+      );
+      await assertNoHorizontalOverflow(page, "Work", [
+        page.getByTestId("workbench-header"),
+        activeTile.getByRole("textbox", { name: "Terminal input" }),
+      ]);
+
+      await openInbox(page);
+      inbox = page.getByRole("region", { name: "Inbox workspace" });
+      await assertNoHorizontalOverflow(page, "Inbox", [
+        inbox.getByTestId("inbox-decision-select-B:fixture-item-2"),
+        inbox.getByRole("button", { name: "Recovery · 6 saved sessions" }),
+        inbox.locator(".inbox-docket__statusbar"),
+      ]);
+      await inbox.getByTestId("inbox-decision-select-B:fixture-item-2").click();
+      await inbox.getByRole("button", { name: "Open in Work Fixture item 2 in Fixture Beta" }).click();
+      await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
+
+      expect(await terminalScreen.evaluate(
+        (node, previousNode) => node.isSameNode(previousNode) && node.isConnected,
+        beforeHandle,
+      ), `${size.width}x${size.height}: .xterm-screen identity changed`).toBe(true);
+      await expect.poll(
+        () => terminalScreen.evaluate((screen) => screen.contains(document.activeElement)),
+        { message: `${size.width}x${size.height}: terminal focus was not restored` },
+      ).toBe(true);
+      await assertNoHorizontalOverflow(page, "Work restored", [
+        page.getByTestId("workbench-header"),
+        activeTile.getByRole("textbox", { name: "Terminal input" }),
+      ]);
+    }
+
+    harness.assertNoRuntimeErrors();
+    await harness.closeActiveTerminals();
+  });
 });
 
-async function selectSurface(page: Page, surface: "Work" | "Observatory" | "Context"): Promise<void> {
-  await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-  await page.getByRole("menuitem", { name: surface }).click();
+test.describe("long Decision Inbox", () => {
+  test.use({
+    fixtureOptions: {
+      inboxItems: 18,
+      blockedInboxItem: 1,
+      waitingInboxItem: 2,
+      restoredSessions: 6,
+      unsafeRecoveryItem: 1,
+    },
+  });
+
+  test("keyboard navigation keeps selection, scroll, sticky status, and reduced motion deterministic", async ({
+    harness,
+  }) => {
+    const { page } = harness;
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    let inbox = await bootstrapMixedInbox(page);
+    const scrollOwner = inbox.locator(".inbox-docket__canvas");
+
+    const initiallySelected = inbox.getByTestId("inbox-decision-select-B:fixture-item-2");
+    await initiallySelected.press("End");
+    const last = inbox
+      .getByRole("list", { name: "Needs you items" })
+      .locator(":scope > li")
+      .last()
+      .locator(".inbox-docket__item-row");
+    await expect(last).toBeFocused();
+    await expect(last).toHaveAttribute("aria-expanded", "true");
+    await expect(inbox.getByTestId("inbox-status-action")).toHaveText(/Launch/);
+    const endGeometry = await selectedScrollGeometry(scrollOwner, last);
+    expect(endGeometry.scrollTop).toBeGreaterThan(0);
+    expect(endGeometry.itemTop).toBeGreaterThanOrEqual(endGeometry.ownerTop - 1);
+    expect(endGeometry.itemBottom).toBeLessThanOrEqual(endGeometry.ownerBottom + 1);
+
+    const stickyGeometry = await inbox.locator(".inbox-docket__statusbar").evaluate((footer) => {
+      const bounds = footer.getBoundingClientRect();
+      const surface = footer.closest(".inbox-docket")?.getBoundingClientRect();
+      return {
+        bottom: getComputedStyle(footer).bottom,
+        position: getComputedStyle(footer).position,
+        footerBottom: bounds.bottom,
+        surfaceBottom: surface?.bottom ?? Number.NaN,
+      };
+    });
+    expect(stickyGeometry.position).toBe("sticky");
+    expect(stickyGeometry.bottom).toBe("0px");
+    expect(Math.abs(stickyGeometry.footerBottom - stickyGeometry.surfaceBottom)).toBeLessThanOrEqual(1);
+
+    await last.press("Home");
+    const first = inbox.getByTestId("inbox-decision-select-A:fixture-item-1");
+    await expect(first).toBeFocused();
+    await expect(inbox.getByTestId("inbox-status-action")).toHaveText(/Review \/ Edit/);
+    await first.press("ArrowDown");
+    const waiting = inbox.getByTestId("inbox-decision-select-B:fixture-item-2");
+    await expect(waiting).toBeFocused();
+    await expect(inbox.getByTestId("inbox-status-action")).toHaveText(/Open in Work/);
+    await waiting.press("ArrowUp");
+    await expect(first).toBeFocused();
+
+    const tenth = inbox.getByTestId("inbox-decision-select-B:fixture-item-10");
+    await tenth.focus();
+    await page.keyboard.press("Space");
+    await expect(tenth).toBeFocused();
+    await expect(tenth).toHaveAttribute("aria-expanded", "true");
+    await expect(inbox.getByTestId("inbox-status-action")).toHaveText(/Launch/);
+
+    const transitionDurations = await inbox.locator(".inbox-docket__detail").first().evaluate((detail) =>
+      getComputedStyle(detail).transitionDuration.split(",").map((value) => Number.parseFloat(value)),
+    );
+    expect(Math.max(...transitionDurations)).toBeLessThanOrEqual(0.001);
+    await expect(scrollOwner).toHaveCSS("scroll-behavior", "auto");
+
+    await tenth.press("Home");
+    await first.press("ArrowDown");
+    await waiting.press("Enter");
+    await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
+    await expect(page.locator('[data-session-id="fixture-item-2"] .xterm-screen')).toBeAttached();
+
+    await openInbox(page);
+    await page.getByRole("button", { name: "Open command palette" }).click();
+    await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Command palette" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
+
+    const observatory = page.getByRole("navigation", { name: "Primary surfaces" })
+      .getByRole("button", { name: "Observatory" });
+    await observatory.focus();
+    await page.keyboard.press("Space");
+    await expect(page.getByRole("region", { name: "History workspace" })).toBeVisible();
+    const inboxSwitcher = page.getByRole("navigation", { name: "Primary surfaces" })
+      .getByRole("button", { name: "Inbox" });
+    await inboxSwitcher.focus();
+    await page.keyboard.press("Enter");
+    inbox = page.getByRole("region", { name: "Inbox workspace" });
+    await expect(inbox).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
+
+    harness.assertNoRuntimeErrors();
+    await harness.closeActiveTerminals();
+  });
+});
+
+async function bootstrapMixedInbox(page: Page): Promise<Locator> {
+  await expect(page.getByRole("article", { name: /Restored fixture 1/i })).toBeVisible();
+  await openInbox(page);
+  const inbox = page.getByRole("region", { name: "Inbox workspace" });
+  await inbox.getByTestId("inbox-decision-select-B:fixture-item-2").click();
+  await inbox.getByRole("button", { name: "Launch Fixture item 2 in Fixture Beta" }).click();
+  await expect(page.locator('[data-session-id="fixture-item-2"] .xterm-screen')).toBeAttached();
+  await expect.poll(async () => {
+    const session = (await listMainProcessTerminals(page)).sessions.find(
+      (candidate) => candidate.clientId === "fixture-item-2",
+    );
+    return session
+      ? {
+          buffer: session.buffer,
+          lastKind: session.activityEvents?.at(-1)?.kind ?? null,
+        }
+      : null;
+  }).toEqual({
+    buffer: expect.stringContaining("Approval required: allow deterministic fixture?"),
+    lastKind: "approval",
+  });
+  await expect(inbox.getByTestId("inbox-decision-B:fixture-item-2")).toContainText("Needs response · inferred");
+  return inbox;
 }
 
-async function readScrollGeometry(scrollOwner: Locator, item: Locator) {
-  const [ownerBox, itemBox, dimensions] = await Promise.all([
-    scrollOwner.boundingBox(),
-    item.boundingBox(),
-    scrollOwner.evaluate((node) => ({
-      clientHeight: node.clientHeight,
-      scrollHeight: node.scrollHeight,
-      scrollTop: node.scrollTop,
-    })),
-  ]);
-  if (ownerBox === null || itemBox === null) throw new Error("Inbox scroll geometry is unavailable.");
-  return {
-    ...dimensions,
-    ownerTop: ownerBox.y,
-    ownerBottom: ownerBox.y + ownerBox.height,
-    itemTop: itemBox.y,
-    itemBottom: itemBox.y + itemBox.height,
-    itemTopUnderflow: ownerBox.y - itemBox.y,
-    itemBottomOverflow: itemBox.y + itemBox.height - (ownerBox.y + ownerBox.height),
-  };
-}
-
-async function wheelUntil(
-  page: Page,
-  scrollOwner: Locator,
-  item: Locator,
-  deltaY: number,
-  done: (geometry: Awaited<ReturnType<typeof readScrollGeometry>>) => boolean,
-  action: string,
-  initial: Awaited<ReturnType<typeof readScrollGeometry>>,
-) {
-  const maxAttempts = 3;
-  let geometry = initial;
-  if (!Number.isInteger(deltaY)) throw new Error(`Inbox wheel delta must be an integer, received ${deltaY}.`);
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    await scrollOwner.hover();
-    await page.mouse.wheel(0, deltaY);
-    geometry = await readScrollGeometry(scrollOwner, item);
-    if (done(geometry)) return geometry;
-  }
-
-  throw new Error(
-    `Public wheel input did not ${action} after ${maxAttempts} attempts. ${scrollEvidence("initial", initial)}; ${scrollEvidence("last", geometry)}`,
-  );
-}
-
-function scrollEvidence(
-  phase: string,
-  geometry: Awaited<ReturnType<typeof readScrollGeometry>>,
-): string {
-  return `${phase} Inbox scroll geometry: ${JSON.stringify(geometry)}`;
+async function openInbox(page: Page): Promise<void> {
+  await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
+  await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
 }
 
 async function listMainProcessTerminals(page: Page): Promise<TerminalListResult> {
@@ -170,4 +359,95 @@ async function listMainProcessTerminals(page: Page): Promise<TerminalListResult>
     if (!terminalApi) throw new Error("Desktop terminal API is unavailable.");
     return terminalApi.list();
   });
+}
+
+async function installTerminalWriteProbe(app: ElectronApplication): Promise<void> {
+  await app.evaluate(({ ipcMain }, channel) => {
+    const probe = globalThis as typeof globalThis & { __alfredE2ETerminalWriteCount?: number };
+    probe.__alfredE2ETerminalWriteCount = 0;
+    ipcMain.on(channel, () => {
+      probe.__alfredE2ETerminalWriteCount = (probe.__alfredE2ETerminalWriteCount ?? 0) + 1;
+    });
+  }, terminalChannels.write);
+}
+
+async function terminalWriteCount(app: ElectronApplication): Promise<number> {
+  return app.evaluate(() => {
+    const probe = globalThis as typeof globalThis & { __alfredE2ETerminalWriteCount?: number };
+    return probe.__alfredE2ETerminalWriteCount ?? 0;
+  });
+}
+
+async function requiredHandle(
+  locator: Locator,
+  label: string,
+): Promise<ElementHandle<HTMLElement>> {
+  const handle = await locator.elementHandle();
+  if (!handle) throw new Error(`${label} is not mounted.`);
+  return handle as ElementHandle<HTMLElement>;
+}
+
+async function setWindowSize(
+  app: ElectronApplication,
+  page: Page,
+  width: number,
+  height: number,
+): Promise<void> {
+  await app.evaluate(({ BrowserWindow }, size) => {
+    const [window] = BrowserWindow.getAllWindows();
+    if (!window) throw new Error("Electron window is missing.");
+    window.setBounds({ ...window.getBounds(), ...size });
+  }, { width, height });
+  await expect.poll(async () => app.evaluate(({ BrowserWindow }) => {
+    const [window] = BrowserWindow.getAllWindows();
+    const bounds = window?.getBounds();
+    return bounds ? { width: bounds.width, height: bounds.height } : null;
+  })).toEqual({ width, height });
+  await expect.poll(() => page.evaluate(() => ({ width: innerWidth, height: innerHeight }))).toEqual({
+    width,
+    height,
+  });
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  }));
+}
+
+async function assertNoHorizontalOverflow(
+  page: Page,
+  state: string,
+  activeControls: Locator[],
+): Promise<void> {
+  const overflow = await page.evaluate(() => ({
+    body: document.body.scrollWidth - document.body.clientWidth,
+    document: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  }));
+  expect(overflow.body, `${state}: body horizontal overflow`).toBeLessThanOrEqual(0);
+  expect(overflow.document, `${state}: document horizontal overflow`).toBeLessThanOrEqual(0);
+
+  for (const control of activeControls) {
+    await expect(control).toBeVisible();
+    const bounds = await control.boundingBox();
+    if (!bounds) throw new Error(`${state}: active control has no bounding box.`);
+    const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+    expect(bounds.x, `${state}: active control clips left`).toBeGreaterThanOrEqual(0);
+    expect(bounds.y, `${state}: active control clips top`).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width, `${state}: active control clips right`).toBeLessThanOrEqual(viewport.width);
+    expect(bounds.y + bounds.height, `${state}: active control clips bottom`).toBeLessThanOrEqual(viewport.height);
+  }
+}
+
+async function selectedScrollGeometry(scrollOwner: Locator, item: Locator) {
+  const [ownerBox, itemBox, scrollTop] = await Promise.all([
+    scrollOwner.boundingBox(),
+    item.boundingBox(),
+    scrollOwner.evaluate((element) => element.scrollTop),
+  ]);
+  if (!ownerBox || !itemBox) throw new Error("Inbox selection geometry is unavailable.");
+  return {
+    scrollTop,
+    ownerTop: ownerBox.y,
+    ownerBottom: ownerBox.y + ownerBox.height,
+    itemTop: itemBox.y,
+    itemBottom: itemBox.y + itemBox.height,
+  };
 }

@@ -2,432 +2,631 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { SessionTile } from "../session-state";
-import type { WorkspaceReviewItem } from "../workspace-attention";
+import type { AttentionProjection } from "../attention-projection";
 import { ReviewSurface } from "./ReviewSurface";
+
+const SAFETY = decision({
+  id: "ALFRED:SAFETY",
+  sessionId: "SAFETY",
+  sessionTitle: "Safety cleanup",
+  kind: "blocked-safety",
+  rank: 0,
+  reason: "Review destructive command",
+  action: { kind: "review-edit" },
+});
+
+const WAITING = decision({
+  id: "ALFRED:WAITING",
+  sessionId: "WAITING",
+  sessionTitle: "Waiting agent",
+  kind: "agent-waiting",
+  rank: 1,
+  reason: "Allow edit in app.tsx?",
+  provenance: "inferred",
+  action: { kind: "open-in-work" },
+});
+
+const STAGED = decision({
+  id: "ALFRED:STAGED",
+  sessionId: "STAGED",
+  sessionTitle: "Run checks",
+  kind: "staged-launch",
+  rank: 2,
+  reason: "pnpm test",
+  command: "pnpm test",
+  provenance: "structured",
+  action: { kind: "launch" },
+});
+
+const DECISIONS = [SAFETY, WAITING, STAGED];
+
+function decision(
+  overrides: Partial<AttentionProjection> & Pick<AttentionProjection, "id" | "sessionId" | "sessionTitle" | "kind" | "rank" | "reason" | "action">,
+): AttentionProjection {
+  return {
+    workspaceId: "ALFRED",
+    workspaceLabel: "Alfred",
+    section: "needs-you",
+    blocksAgent: true,
+    attentionAt: 1_000,
+    provenance: "runtime",
+    ...overrides,
+  };
+}
+
+function renderSurface(attentionItems: AttentionProjection[] = DECISIONS) {
+  const handlers = {
+    onLaunch: vi.fn(),
+    onOpenInWork: vi.fn(),
+    onRecover: vi.fn(),
+    onDiscardRecovery: vi.fn(),
+    onReviewEdit: vi.fn(),
+    onSelectSurface: vi.fn(),
+  };
+  const renderProps = {
+    armedRecoverySessionIds: new Set<string>(),
+    sessionDetailsById: new Map(),
+  };
+  const view = render(<ReviewSurface attentionItems={attentionItems} {...renderProps} {...handlers} />);
+  return {
+    ...handlers,
+    rerenderSurface: (
+      nextItems: AttentionProjection[],
+      props: Partial<typeof renderProps> = {},
+    ) => {
+      view.rerender(<ReviewSurface attentionItems={nextItems} {...renderProps} {...props} {...handlers} />);
+    },
+  };
+}
+
+function selectButton(item: AttentionProjection): HTMLElement {
+  return screen.getByTestId(`inbox-decision-select-${item.id}`);
+}
+
+function expandedItems(): HTMLElement[] {
+  return screen.getAllByTestId(/inbox-decision-select-/).filter((item) => item.getAttribute("aria-expanded") === "true");
+}
 
 afterEach(() => {
   cleanup();
 });
 
-function reviewItem(
-  session: SessionTile,
-  status: WorkspaceReviewItem["status"],
-  detail = "Stopped on quit: Alfred stopped this terminal while quitting.",
-  workspace = { label: "CodexPulse", shortLabel: "COD" },
-): WorkspaceReviewItem {
-  return {
-    id: `${session.workspaceId}:${session.id}`,
-    priority: 4,
-    session,
-    status,
-    detail,
-    workspaceId: session.workspaceId,
-    workspaceLabel: workspace.label,
-    workspaceShortLabel: workspace.shortLabel,
-  };
-}
+describe("ReviewSurface", () => {
+  it("uses the canonical docket and the existing secondary chrome slot", async () => {
+    const user = userEvent.setup();
+    const handlers = renderSurface();
 
-function renderSurface(
-  items: WorkspaceReviewItem[],
-  armedRecoverySessionIds = new Set<string>(),
-) {
-  const handlers = {
-    onContinueRestoredSession: vi.fn(),
-    onDiscardSession: vi.fn(),
-    onFocusItem: vi.fn(),
-    onLaunchItem: vi.fn(),
-    onRestartSession: vi.fn(),
-    onReviewBlockedItem: vi.fn(),
-  };
+    const surface = screen.getByRole("region", { name: "Inbox workspace" });
+    expect(surface).toHaveClass("inbox-docket");
+    expect(surface).toHaveAttribute("data-secondary-chrome-height", "36");
+    expect(surface.querySelector(".review-surface")).not.toBeInTheDocument();
+    expect(surface.querySelector(".inbox-section")).not.toBeInTheDocument();
+    expect(surface.querySelector("[class*='avatar'], [class*='pill']")).not.toBeInTheDocument();
 
-  render(
-    <ReviewSurface
-      armedRecoverySessionIds={armedRecoverySessionIds}
-      items={items}
-      selectedSessionId={null}
-      {...handlers}
-    />,
+    const switcher = screen.getByRole("navigation", { name: "Primary surfaces" });
+    expect(within(switcher).getByRole("button", { name: "Inbox" })).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByRole("toolbar", { name: "Primary surfaces" })).not.toBeInTheDocument();
+    await user.click(within(switcher).getByRole("button", { name: "Work" }));
+    expect(handlers.onSelectSurface).toHaveBeenCalledWith("work");
+  });
+
+  it.each([
+    ["Work", "{Enter}", "work"],
+    ["Observatory", " ", "history"],
+  ] as const)(
+    "lets the %s switcher button handle %s without running the selected decision",
+    async (label, key, surface) => {
+      const user = userEvent.setup();
+      const handlers = renderSurface();
+      const switcherButton = within(screen.getByRole("navigation", { name: "Primary surfaces" }))
+        .getByRole("button", { name: label });
+
+      switcherButton.focus();
+      await user.keyboard(key);
+
+      expect(handlers.onSelectSurface).toHaveBeenCalledOnce();
+      expect(handlers.onSelectSurface).toHaveBeenCalledWith(surface);
+      expect(handlers.onReviewEdit).not.toHaveBeenCalled();
+      expect(handlers.onOpenInWork).not.toHaveBeenCalled();
+      expect(handlers.onLaunch).not.toHaveBeenCalled();
+      expect(handlers.onRecover).not.toHaveBeenCalled();
+    },
   );
 
-  return handlers;
-}
+  it.each(["{ArrowDown}", "{ArrowUp}", "{Home}", "{End}"])(
+    "keeps %s inside the surface switcher without moving or acting on the docket",
+    async (key) => {
+      const user = userEvent.setup();
+      const handlers = renderSurface();
+      const workButton = within(screen.getByRole("navigation", { name: "Primary surfaces" }))
+        .getByRole("button", { name: "Work" });
 
-describe("ReviewSurface", () => {
-  it("renders only populated sections with a single waiting count", () => {
-    renderSurface([
-      reviewItem(
-        {
-          id: "codex-1",
-          title: "Codex · session 1",
-          workspaceId: "COD",
-          cwd: "/Users/patryk/Desktop/CodexPulse",
-          source: "alfred",
-          stage: "live",
-          runtimeStatus: "restored",
-          command: "codex",
-          args: ["resume", "--last"],
-          agentKind: "codex",
-        },
-        { kind: "restored", label: "restored" },
-      ),
-    ]);
+      workButton.focus();
+      await user.keyboard(key);
 
-    expect(screen.queryByRole("region", { name: "Needs decision" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Blocked & safety" })).not.toBeInTheDocument();
-    const recovery = screen.getByRole("region", { name: "Recovery" });
-    expect(within(recovery).getByText("1")).toBeInTheDocument();
-    expect(screen.getByText("1 waiting")).toBeInTheDocument();
-    expect(document.querySelector(".review-surface-stats")).toBeNull();
+      expect(workButton).toHaveFocus();
+      expect(expandedItems()).toEqual([selectButton(SAFETY)]);
+      expect(handlers.onSelectSurface).not.toHaveBeenCalled();
+      expect(handlers.onReviewEdit).not.toHaveBeenCalled();
+      expect(handlers.onOpenInWork).not.toHaveBeenCalled();
+      expect(handlers.onLaunch).not.toHaveBeenCalled();
+      expect(handlers.onRecover).not.toHaveBeenCalled();
+    },
+  );
+
+  it("selects, expands, and focuses the first decision without running an action", () => {
+    const handlers = renderSurface();
+
+    expect(selectButton(SAFETY)).toHaveAttribute("aria-expanded", "true");
+    expect(selectButton(SAFETY)).toHaveAttribute("aria-current", "true");
+    expect(selectButton(SAFETY)).toHaveAttribute("tabindex", "0");
+    expect(selectButton(WAITING)).toHaveAttribute("tabindex", "-1");
+    expect(selectButton(SAFETY)).toHaveFocus();
+    expect(expandedItems()).toEqual([selectButton(SAFETY)]);
+    expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Review / Edit");
+    expect(screen.getByRole("contentinfo")).not.toHaveTextContent("Space");
+    expect(screen.getByRole("contentinfo")).not.toHaveTextContent("Expand");
+    expect(handlers.onLaunch).not.toHaveBeenCalled();
+    expect(handlers.onOpenInWork).not.toHaveBeenCalled();
+    expect(handlers.onRecover).not.toHaveBeenCalled();
+    expect(handlers.onReviewEdit).not.toHaveBeenCalled();
   });
 
-  it("exposes section detail as a visually hidden accessible description", () => {
-    renderSurface([
-      reviewItem(
-        {
-          id: "codex-1",
-          title: "Codex · session 1",
-          workspaceId: "COD",
-          cwd: "/Users/patryk/Desktop/CodexPulse",
-          source: "alfred",
-          stage: "live",
-          runtimeStatus: "restored",
-          command: "codex",
-          args: ["resume", "--last"],
-          agentKind: "codex",
-        },
-        { kind: "restored", label: "restored" },
-      ),
-    ]);
+  it("expands exactly one decision by click or Space", async () => {
+    const user = userEvent.setup();
+    renderSurface();
 
-    const recovery = screen.getByRole("region", { name: "Recovery" });
-    const detail = document.getElementById("inbox-section-recovery-detail");
+    await user.click(selectButton(WAITING));
+    expect(expandedItems()).toEqual([selectButton(WAITING)]);
+    expect(selectButton(WAITING)).toHaveFocus();
 
-    expect(recovery).toHaveAttribute("aria-describedby", "inbox-section-recovery-detail");
-    expect(recovery).toHaveAccessibleDescription(
-      "Restored, exited and failed sessions that need a restart or discard.",
+    selectButton(STAGED).focus();
+    await user.keyboard(" ");
+    expect(expandedItems()).toEqual([selectButton(STAGED)]);
+    expect(selectButton(STAGED)).toHaveFocus();
+  });
+
+  it("moves selection, expansion, and focus together with ArrowUp, ArrowDown, Home, and End", async () => {
+    const user = userEvent.setup();
+    renderSurface();
+
+    await user.keyboard("{ArrowDown}");
+    expect(expandedItems()).toEqual([selectButton(WAITING)]);
+    expect(selectButton(WAITING)).toHaveFocus();
+
+    await user.keyboard("{End}");
+    expect(expandedItems()).toEqual([selectButton(STAGED)]);
+    expect(selectButton(STAGED)).toHaveFocus();
+
+    await user.keyboard("{ArrowUp}{Home}");
+    expect(expandedItems()).toEqual([selectButton(SAFETY)]);
+    expect(selectButton(SAFETY)).toHaveFocus();
+  });
+
+  it("runs the selected waiting decision's status-bar action on Enter", async () => {
+    const user = userEvent.setup();
+    const handlers = renderSurface();
+
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Open in Work");
+    await user.keyboard("{Enter}");
+
+    expect(handlers.onOpenInWork).toHaveBeenCalledOnce();
+    expect(handlers.onOpenInWork).toHaveBeenCalledWith("ALFRED", "WAITING");
+    expect(handlers.onLaunch).not.toHaveBeenCalled();
+    expect(handlers.onRecover).not.toHaveBeenCalled();
+    expect(handlers.onReviewEdit).not.toHaveBeenCalled();
+    expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Open in Work");
+  });
+
+  it("routes staged and recovery actions through their canonical handlers", async () => {
+    const user = userEvent.setup();
+    const recovery = decision({
+      id: "ALFRED:RECOVERY",
+      sessionId: "RECOVERY",
+      sessionTitle: "Saved Codex",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Saved agent session can be resumed.",
+      action: { kind: "resume" },
+    });
+    const handlers = renderSurface([STAGED, recovery]);
+
+    await user.click(screen.getByRole("button", { name: "Launch Run checks in Alfred" }));
+    expect(handlers.onLaunch).toHaveBeenCalledWith("STAGED");
+    expect(handlers.onOpenInWork).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
+    await user.click(screen.getByRole("button", { name: "Resume Saved Codex in Alfred" }));
+    expect(handlers.onRecover).toHaveBeenCalledWith("ALFRED", "RECOVERY");
+    expect(handlers.onReviewEdit).not.toHaveBeenCalled();
+  });
+
+  it("keeps Recovery outside the waiting count and collapsed into one summary line", () => {
+    const recoveryItems = Array.from({ length: 7 }, (_, index) => decision({
+      id: `ALFRED:RECOVERY-${index + 1}`,
+      sessionId: `RECOVERY-${index + 1}`,
+      sessionTitle: `Saved session ${index + 1}`,
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Ended session can be relaunched.",
+      action: { kind: "relaunch", confirmation: "none" },
+    }));
+
+    renderSurface([STAGED, ...recoveryItems]);
+
+    expect(screen.getByText("1 need you · 7 recovery")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Recovery · 7 saved sessions" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
     );
-    expect(detail).toHaveClass("visually-hidden");
+    expect(screen.queryByText("Saved session 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Saved session 7")).not.toBeInTheDocument();
   });
 
-  it("shows the full workspace identity in metadata and action labels", () => {
-    renderSurface([
-      reviewItem(
-        {
-          id: "codex-1",
-          title: "Codex · session 1",
-          workspaceId: "COD",
-          cwd: "/Users/patryk/Desktop/CodexPulse",
-          source: "alfred",
-          stage: "live",
-          runtimeStatus: "restored",
-          command: "codex",
-          args: ["resume", "--last"],
-          agentKind: "codex",
-        },
-        { kind: "restored", label: "restored" },
-        "Stopped on quit: Alfred stopped this terminal while quitting.",
-        { label: "ClientApp", shortLabel: "CLI" },
-      ),
-    ]);
-
-    expect(screen.getByText(/ClientApp · restored/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Resume latest Codex · session 1 in ClientApp" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Discard Codex · session 1 from ClientApp" })).toBeInTheDocument();
-  });
-
-  it("tucks recovery commands behind an explicit disclosure instead of a prominent debug block", () => {
-    renderSurface([
-      reviewItem(
-        {
-          id: "codex-1",
-          title: "Codex · session 1",
-          workspaceId: "COD",
-          cwd: "/Users/patryk/Desktop/CodexPulse",
-          source: "alfred",
-          stage: "live",
-          runtimeStatus: "restored",
-          command: "codex",
-          args: ["resume", "--last"],
-          agentKind: "codex",
-        },
-        { kind: "restored", label: "restored" },
-      ),
-    ]);
-
-    const summary = screen.getByText("Restart command");
-    const disclosure = summary.closest("details");
-
-    expect(disclosure).toHaveClass("review-surface-command");
-    expect(disclosure).not.toHaveAttribute("open");
-    expect(disclosure).toHaveTextContent("codex resume --last");
-  });
-
-  it("opens a waiting session without launching or restarting it", async () => {
+  it("shows every Recovery item after expansion without a five-item cap", async () => {
     const user = userEvent.setup();
-    const handlers = renderSurface([
-      reviewItem(
-        {
-          id: "waiting-agent",
-          title: "Waiting agent",
-          workspaceId: "W2",
-          cwd: "/repo/client",
-          source: "manual",
-          stage: "live",
-          runtimeStatus: "live",
-          activityEvents: [
-            { id: "ask-1", kind: "approval", title: "Approval needed", detail: "Approve command?", at: 100 },
-          ],
-        },
-        { kind: "waiting", label: "waiting" },
-        "Approve command?",
-        { label: "ClientApp", shortLabel: "CLI" },
-      ),
-    ]);
+    const recoveryItems = Array.from({ length: 7 }, (_, index) => decision({
+      id: `ALFRED:RECOVERY-${index + 1}`,
+      sessionId: `RECOVERY-${index + 1}`,
+      sessionTitle: `Saved session ${index + 1}`,
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Ended session can be relaunched.",
+      action: { kind: "relaunch", confirmation: "none" },
+    }));
+    renderSurface(recoveryItems);
 
-    const action = document.querySelector<HTMLButtonElement>(".review-surface-primary");
-    expect(action).toHaveAccessibleName("Open Waiting agent in ClientApp");
-    expect(action).toBeEnabled();
-    await user.click(action!);
+    await user.click(screen.getByRole("button", { name: "Recovery · 7 saved sessions" }));
 
-    expect(handlers.onFocusItem).toHaveBeenCalledOnce();
-    expect(handlers.onFocusItem).toHaveBeenCalledWith("W2", "waiting-agent");
-    expect(handlers.onLaunchItem).not.toHaveBeenCalled();
-    expect(handlers.onRestartSession).not.toHaveBeenCalled();
+    expect(screen.getAllByTestId(/inbox-recovery-item-/)).toHaveLength(7);
+    expect(screen.getByText("Saved session 1")).toBeVisible();
+    expect(screen.getByText("Saved session 7")).toBeVisible();
   });
 
-  it("does not invent a primary action for an active session", () => {
-    renderSurface([
-      reviewItem(
-        {
-          id: "active-agent",
-          title: "Active agent",
-          workspaceId: "W2",
-          cwd: "/repo/client",
-          source: "manual",
-          stage: "live",
-          runtimeStatus: "live",
-        },
-        { kind: "active", label: "active" },
-        "is working",
-        { label: "ClientApp", shortLabel: "CLI" },
-      ),
-    ]);
-
-    expect(document.querySelector(".review-surface-primary")).toBeNull();
-  });
-
-  it("keeps unsafe restored relaunches in Inbox until explicit confirmation", async () => {
+  it("routes safe resume and relaunch immediately through the existing recovery handler", async () => {
     const user = userEvent.setup();
-    const item = reviewItem(
-      {
-        id: "clean-desktop",
-        title: "Clean Desktop",
-        workspaceId: "A",
-        cwd: "/Users/patryk/Desktop",
-        source: "manual",
-        stage: "live",
-        runtimeStatus: "restored",
+    const resume = decision({
+      id: "ALFRED:RESUME",
+      sessionId: "RESUME",
+      sessionTitle: "Saved Codex",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Saved agent session can be resumed.",
+      action: { kind: "resume" },
+    });
+    const relaunch = decision({
+      id: "ALFRED:RELAUNCH",
+      sessionId: "RELAUNCH",
+      sessionTitle: "Safe shell",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Ended session can be relaunched.",
+      action: { kind: "relaunch", confirmation: "none" },
+    });
+    const handlers = renderSurface([resume, relaunch]);
+
+    await user.click(screen.getByRole("button", { name: "Recovery · 2 saved sessions" }));
+    await user.click(screen.getByRole("button", { name: "Resume Saved Codex in Alfred" }));
+    await user.click(screen.getByRole("button", { name: "Relaunch Safe shell in Alfred" }));
+
+    expect(handlers.onRecover).toHaveBeenNthCalledWith(1, "ALFRED", "RESUME");
+    expect(handlers.onRecover).toHaveBeenNthCalledWith(2, "ALFRED", "RELAUNCH");
+  });
+
+  it("reveals unsafe recovery details only while armed and confirms through the same handler", async () => {
+    const user = userEvent.setup();
+    const unsafe = decision({
+      id: "ALFRED:UNSAFE",
+      sessionId: "UNSAFE",
+      sessionTitle: "Clean Desktop",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "find -exec mutates files when replayed",
+      command: "find truncated",
+      action: { kind: "relaunch", confirmation: "required" },
+    });
+    const details = new Map([
+      ["UNSAFE", {
+        cwd: "/Users/patryk/Desktop/Very Long Workspace",
         command: "find",
-        args: ["/Users/patryk/Desktop", "-maxdepth", "1", "-exec", "mv", "{}", "/Users/patryk/Desktop/Alfred", ";"],
-      },
-      { kind: "restored", label: "restored" },
-      "can be relaunched",
-      { label: "Alfred", shortLabel: "A" },
-    );
-    const handlers = renderSurface([item]);
+        args: ["/Users/patryk/Desktop", "-exec", "mv", "{}", "/archive", ";"],
+      }],
+    ]);
+    const handlers = renderSurface([unsafe]);
+    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
 
-    expect(screen.getByText("find -exec mutates files when replayed")).toBeInTheDocument();
+    expect(screen.queryByText("/Users/patryk/Desktop/Very Long Workspace")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Review relaunch Clean Desktop in Alfred" }));
+    expect(handlers.onRecover).toHaveBeenCalledOnce();
 
-    expect(handlers.onContinueRestoredSession).toHaveBeenCalledWith("clean-desktop");
-    expect(handlers.onFocusItem).not.toHaveBeenCalled();
+    handlers.rerenderSurface([unsafe], {
+      armedRecoverySessionIds: new Set(["UNSAFE"]),
+      sessionDetailsById: details,
+    });
+    expect(screen.getByText("/Users/patryk/Desktop/Very Long Workspace")).toBeVisible();
+    expect(screen.getByText("find /Users/patryk/Desktop -exec mv {} /archive ;")).toBeVisible();
+    expect(screen.getByText("find -exec mutates files when replayed")).toBeVisible();
 
-    cleanup();
-    const armedHandlers = renderSurface([item], new Set(["clean-desktop"]));
     await user.click(screen.getByRole("button", { name: "Confirm relaunch Clean Desktop in Alfred" }));
-
-    expect(armedHandlers.onContinueRestoredSession).toHaveBeenCalledWith("clean-desktop");
-    expect(armedHandlers.onFocusItem).toHaveBeenCalledWith("A", "clean-desktop");
+    expect(handlers.onRecover).toHaveBeenCalledTimes(2);
   });
 
-  it("requires review before restarting an unsafe ended session", async () => {
+  it("offers Discard only as a secondary action inside expanded Recovery", async () => {
     const user = userEvent.setup();
-    const item = reviewItem(
-      {
-        id: "cleanup",
-        title: "Cleanup",
-        workspaceId: "A",
-        cwd: "/repo",
-        source: "manual",
-        stage: "live",
-        runtimeStatus: "exited",
-        command: "rm",
-        args: ["-rf", "tmp/build"],
-      },
-      { kind: "done", label: "done" },
-      "can be restarted",
-      { label: "Alfred", shortLabel: "A" },
+    const recovery = decision({
+      id: "ALFRED:RECOVERY",
+      sessionId: "RECOVERY",
+      sessionTitle: "Saved shell",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Saved session can be relaunched.",
+      action: { kind: "relaunch", confirmation: "none" },
+    });
+    const handlers = renderSurface([SAFETY, recovery]);
+
+    expect(screen.queryByRole("button", { name: "Discard Saved shell" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Discard Safety cleanup" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
+    await user.click(screen.getByRole("button", { name: "Discard Saved shell" }));
+
+    expect(handlers.onDiscardRecovery).toHaveBeenCalledWith("RECOVERY");
+    expect(screen.queryByRole("button", { name: "Discard Safety cleanup" })).not.toBeInTheDocument();
+  });
+
+  it("keeps Recovery keyboard actions from running the selected Needs You decision", async () => {
+    const user = userEvent.setup();
+    const recovery = decision({
+      id: "ALFRED:RECOVERY",
+      sessionId: "RECOVERY",
+      sessionTitle: "Saved shell",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Saved session can be relaunched.",
+      action: { kind: "relaunch", confirmation: "none" },
+    });
+    const handlers = renderSurface([STAGED, recovery]);
+    const recoveryToggle = screen.getByRole("button", { name: "Recovery · 1 saved session" });
+    recoveryToggle.focus();
+
+    await user.keyboard("{Enter}");
+
+    expect(recoveryToggle).toHaveAttribute("aria-expanded", "true");
+    expect(handlers.onLaunch).not.toHaveBeenCalled();
+    expect(screen.getByText("Saved shell")).toBeVisible();
+  });
+
+  it("keeps modified Enter in Recovery from running the selected Needs You decision", async () => {
+    const user = userEvent.setup();
+    const recovery = decision({
+      id: "ALFRED:RECOVERY",
+      sessionId: "RECOVERY",
+      sessionTitle: "Saved shell",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Saved session can be relaunched.",
+      action: { kind: "relaunch", confirmation: "none" },
+    });
+    const handlers = renderSurface([STAGED, recovery]);
+    const recoveryToggle = screen.getByRole("button", { name: "Recovery · 1 saved session" });
+    recoveryToggle.focus();
+
+    await user.keyboard("{Control>}{Enter}{/Control}");
+
+    expect(handlers.onLaunch).not.toHaveBeenCalled();
+  });
+
+  it("shows the focused Recovery primary action in the status bar", async () => {
+    const user = userEvent.setup();
+    const recovery = decision({
+      id: "ALFRED:RECOVERY",
+      sessionId: "RECOVERY",
+      sessionTitle: "Saved Codex",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Saved agent session can be resumed.",
+      action: { kind: "resume" },
+    });
+    renderSurface([STAGED, recovery]);
+
+    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
+    expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Launch");
+
+    await user.tab();
+
+    expect(screen.getByRole("button", { name: "Resume Saved Codex in Alfred" })).toHaveFocus();
+    expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Resume");
+    expect(screen.getByTestId("inbox-status-action")).not.toHaveTextContent("Launch");
+  });
+
+  it("updates the focused Recovery action after arming and Enter runs the visible confirmation", async () => {
+    const user = userEvent.setup();
+    const recovery = decision({
+      id: "ALFRED:UNSAFE",
+      sessionId: "UNSAFE",
+      sessionTitle: "Saved shell",
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Review the exact command before relaunching.",
+      action: { kind: "relaunch", confirmation: "required" },
+    });
+    const handlers = renderSurface([STAGED, recovery]);
+
+    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
+    const reviewButton = screen.getByRole("button", { name: "Review relaunch Saved shell in Alfred" });
+    await user.click(reviewButton);
+    handlers.rerenderSurface([STAGED, recovery], {
+      armedRecoverySessionIds: new Set(["UNSAFE"]),
+    });
+
+    const confirmButton = screen.getByRole("button", { name: "Confirm relaunch Saved shell in Alfred" });
+    expect(confirmButton).toHaveFocus();
+    expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Confirm relaunch");
+    expect(screen.getByTestId("inbox-status-action")).not.toHaveTextContent("Review relaunch");
+
+    await user.keyboard("{Enter}");
+    expect(handlers.onRecover).toHaveBeenLastCalledWith("ALFRED", "UNSAFE");
+    expect(handlers.onRecover).toHaveBeenCalledTimes(2);
+  });
+
+  it("offers a blocked decision only Review / Edit and routes only that action", async () => {
+    const user = userEvent.setup();
+    const handlers = renderSurface([SAFETY]);
+
+    expect(screen.queryByText("Launch", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText("Run anyway", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText("Discard", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Launch/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Discard/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Review / Edit Safety cleanup in Alfred" }));
+    expect(handlers.onReviewEdit).toHaveBeenCalledWith("ALFRED", "SAFETY");
+    expect(handlers.onLaunch).not.toHaveBeenCalled();
+    expect(handlers.onOpenInWork).not.toHaveBeenCalled();
+    expect(handlers.onRecover).not.toHaveBeenCalled();
+  });
+
+  it("reconciles a removed selection to the next decision and then the previous decision", async () => {
+    const user = userEvent.setup();
+    const handlers = renderSurface();
+
+    await user.click(selectButton(WAITING));
+    handlers.rerenderSurface([SAFETY, STAGED]);
+    expect(expandedItems()).toEqual([selectButton(STAGED)]);
+    expect(selectButton(STAGED)).toHaveFocus();
+
+    handlers.rerenderSurface([SAFETY]);
+    expect(expandedItems()).toEqual([selectButton(SAFETY)]);
+    expect(selectButton(SAFETY)).toHaveFocus();
+  });
+
+  it("uses previous decision order when insert, reorder, and removal happen together", async () => {
+    const user = userEvent.setup();
+    const inserted = decision({
+      ...SAFETY,
+      id: "ALFRED:INSERTED",
+      sessionId: "INSERTED",
+      sessionTitle: "New blocker",
+    });
+    const handlers = renderSurface();
+
+    await user.click(selectButton(WAITING));
+    handlers.rerenderSurface([inserted, SAFETY, STAGED]);
+
+    expect(expandedItems()).toEqual([selectButton(STAGED)]);
+    expect(selectButton(STAGED)).toHaveFocus();
+  });
+
+  it("keeps focus on the primary action across a semantically unchanged rerender", () => {
+    const handlers = renderSurface();
+    const primaryAction = screen.getByRole("button", {
+      name: "Review / Edit Safety cleanup in Alfred",
+    });
+
+    primaryAction.focus();
+    expect(primaryAction).toHaveFocus();
+    handlers.rerenderSurface([...DECISIONS]);
+
+    expect(primaryAction).toHaveFocus();
+  });
+
+  it("restores focus to the Inbox surface when a selected decision moves to compact Recovery", () => {
+    const movedToRecovery = decision({
+      ...SAFETY,
+      kind: "recovery",
+      section: "recovery",
+      blocksAgent: false,
+      rank: null,
+      reason: "Saved session can be resumed.",
+      action: { kind: "resume" },
+    });
+    const handlers = renderSurface([SAFETY]);
+    const primaryAction = screen.getByRole("button", {
+      name: "Review / Edit Safety cleanup in Alfred",
+    });
+
+    primaryAction.focus();
+    handlers.rerenderSurface([movedToRecovery]);
+
+    expect(screen.getByRole("button", { name: "Recovery · 1 saved session" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Recovery · 1 saved session" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
     );
-    const handlers = renderSurface([item]);
-
-    await user.click(screen.getByRole("button", { name: "Review restart Cleanup in Alfred" }));
-
-    expect(handlers.onRestartSession).toHaveBeenCalledWith("cleanup");
-    expect(handlers.onFocusItem).not.toHaveBeenCalled();
-
-    cleanup();
-    renderSurface([item], new Set(["cleanup"]));
-    expect(screen.getByRole("button", { name: "Confirm restart Cleanup in Alfred" })).toBeEnabled();
   });
 
-  it("restarts safe ended sessions and then focuses their workspace", async () => {
-    const user = userEvent.setup();
-    const handlers = renderSurface([
-      reviewItem(
-        {
-          id: "client-shell",
-          title: "Client shell",
-          workspaceId: "W2",
-          cwd: "/repo/client",
-          source: "manual",
-          stage: "live",
-          runtimeStatus: "exited",
-        },
-        { kind: "done", label: "done" },
-        "can be restarted",
-        { label: "ClientApp", shortLabel: "CLI" },
-      ),
-    ]);
-
-    await user.click(screen.getByRole("button", { name: "Restart Client shell in ClientApp" }));
-
-    expect(handlers.onRestartSession).toHaveBeenCalledWith("client-shell");
-    expect(handlers.onFocusItem).toHaveBeenCalledWith("W2", "client-shell");
-  });
-
-  it("distinguishes exact Codex resume from latest fallback", () => {
-    renderSurface([
-      reviewItem(
-        {
-          id: "codex-exact",
-          title: "Codex · exact session",
-          workspaceId: "A",
-          cwd: "/repo",
-          source: "alfred",
-          stage: "live",
-          runtimeStatus: "restored",
-          command: "codex",
-          args: [],
-          agentKind: "codex",
-          resumeTarget: {
-            agentKind: "codex",
-            sessionId: "019edc4b-99a7-7781-beb2-b3a2e7d7ff1f",
-            source: "codex-session-index",
-          },
-        },
-        { kind: "restored", label: "restored" },
-        "can be resumed",
-        { label: "Alfred", shortLabel: "A" },
-      ),
-      reviewItem(
-        {
-          id: "codex-latest",
-          title: "Codex · latest session",
-          workspaceId: "W2",
-          cwd: "/repo/client",
-          source: "alfred",
-          stage: "live",
-          runtimeStatus: "restored",
-          command: "codex",
-          args: [],
-          agentKind: "codex",
-        },
-        { kind: "restored", label: "restored" },
-        "can be resumed",
-        { label: "ClientApp", shortLabel: "CLI" },
-      ),
-    ]);
-
-    expect(screen.getByRole("button", { name: "Resume Codex · exact session in Alfred" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Resume latest Codex · latest session in ClientApp" })).toBeInTheDocument();
-  });
-
-  it("keeps blocked staged commands reviewable and independently discardable", async () => {
-    const user = userEvent.setup();
-    const handlers = renderSurface([
-      reviewItem(
-        {
-          id: "claude-review",
-          title: "UI/UX Deep Analysis",
-          workspaceId: "A",
-          cwd: "/repo",
-          source: "alfred",
-          stage: "staged",
-          command: "claude",
-          args: ["--print", "review UI"],
-          agentKind: "claude",
-          launchPreflight: {
-            status: "blocked",
-            code: "command_missing",
-            label: "Launch blocked",
-            reason: "Command \"claude\" is not available on PATH.",
-          },
-        },
-        { kind: "blocked", label: "blocked" },
-        "Command is unavailable",
-        { label: "Alfred", shortLabel: "A" },
-      ),
-    ]);
-
-    const reviewDetails = screen.getByRole("button", {
-      name: "Review details UI/UX Deep Analysis in Alfred",
+  it("keeps long reason and command values complete in details and accessible names", () => {
+    const longReason = `Approval reason ${"very long ".repeat(30)}final reason`;
+    const longCommand = `pnpm exec ${"--filter package-name ".repeat(24)}test`;
+    const item = decision({
+      ...STAGED,
+      id: "ALFRED:LONG",
+      sessionId: "LONG",
+      sessionTitle: "Long command",
+      reason: longReason,
+      command: longCommand,
     });
-    expect(reviewDetails).toBeEnabled();
+    renderSurface([item]);
 
-    await user.click(reviewDetails);
-
-    expect(handlers.onReviewBlockedItem).toHaveBeenCalledWith("A", "claude-review");
-    expect(handlers.onLaunchItem).not.toHaveBeenCalled();
-    expect(handlers.onRestartSession).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole("button", { name: "Discard UI/UX Deep Analysis from Alfred" }));
-
-    expect(handlers.onDiscardSession).toHaveBeenCalledWith("claude-review");
-    expect(handlers.onLaunchItem).not.toHaveBeenCalled();
+    const decisionItem = screen.getByTestId(`inbox-decision-${item.id}`);
+    expect(within(decisionItem).getByText(longReason)).toBeInTheDocument();
+    expect(within(decisionItem).getByText(longCommand)).toBeInTheDocument();
+    expect(selectButton(item)).toHaveAccessibleDescription(expect.stringContaining(longReason));
+    expect(selectButton(item)).toHaveAccessibleDescription(expect.stringContaining(longCommand));
   });
 
-  it("routes a safety-blocked staged command to editing without exposing confirm or launch", async () => {
-    const user = userEvent.setup();
-    const handlers = renderSurface([
-      reviewItem(
-        {
-          id: "risky-cleanup",
-          title: "Risky cleanup",
-          workspaceId: "A",
-          cwd: "/repo",
-          source: "alfred",
-          stage: "staged",
-          command: "rm",
-          args: ["-rf", "dist"],
-          safetyNote: "rm -rf detected",
-        },
-        { kind: "blocked", label: "blocked" },
-        "rm -rf detected",
-        { label: "Alfred", shortLabel: "A" },
-      ),
-    ]);
-
-    const action = screen.getByRole("button", {
-      name: "Review and edit Risky cleanup in Alfred",
+  it("omits age and received metadata when the attention timestamp is unknown", () => {
+    const item = decision({
+      ...STAGED,
+      id: "ALFRED:UNKNOWN-TIME",
+      sessionId: "UNKNOWN-TIME",
+      sessionTitle: "Untimestamped staged command",
+      attentionAt: 0,
     });
-    expect(action).toBeEnabled();
-    expect(screen.queryByRole("button", { name: /Confirm unsafe\scommand/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Launch Risky cleanup/i })).not.toBeInTheDocument();
+    renderSurface([item]);
 
-    await user.click(action);
+    const decisionItem = screen.getByTestId(`inbox-decision-${item.id}`);
+    expect(decisionItem.querySelector("time")).not.toBeInTheDocument();
+    expect(within(decisionItem).queryByText("Received")).not.toBeInTheDocument();
+    expect(within(decisionItem).queryByText("Now")).not.toBeInTheDocument();
+  });
 
-    expect(handlers.onReviewBlockedItem).toHaveBeenCalledWith("A", "risky-cleanup");
-    expect(handlers.onLaunchItem).not.toHaveBeenCalled();
+  it("renders a fresh attention timestamp as now without contradictory age copy", () => {
+    const now = Date.now();
+    const item = decision({
+      ...STAGED,
+      id: "ALFRED:FRESH",
+      sessionId: "FRESH",
+      sessionTitle: "Fresh staged command",
+      attentionAt: now,
+    });
+    renderSurface([item]);
+
+    const decisionItem = screen.getByTestId(`inbox-decision-${item.id}`);
+    expect(within(decisionItem).getAllByText("now").length).toBeGreaterThan(0);
+    expect(within(decisionItem).queryByText("now ago")).not.toBeInTheDocument();
+    expect(decisionItem.querySelector("time")).toHaveAttribute("title", expect.stringMatching(/^Received /));
   });
 });
