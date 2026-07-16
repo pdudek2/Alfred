@@ -1473,6 +1473,77 @@ describe("App integration", () => {
     expect(screen.queryByRole("button", { name: "Grid" })).not.toBeInTheDocument();
   });
 
+  it("routes secondary terminal actions through one accessible overflow menu", async () => {
+    const user = userEvent.setup();
+    const { openExternalTerminal } = installDesktopBridge();
+    const session: SessionTile = {
+      id: "manual-menu",
+      runtimeId: "runtime-manual-menu",
+      title: "Manual · menu",
+      source: "manual",
+      workspaceId: "A",
+      cwd: "/Users/patryk/Desktop/Alfred",
+      stage: "live",
+      runtimeStatus: "live",
+      initialBuffer: "",
+    };
+    const { callbacks } = renderTerminalDeskForSessions([session]);
+    const tile = screen.getByRole("article", { name: /Manual · menu/i });
+    const trigger = within(tile).getByRole("button", {
+      name: "More actions for Manual · menu",
+    });
+
+    await user.click(trigger);
+    const menu = screen.getByRole("menu", { name: "Manual · menu actions" });
+    expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
+      "Collapse terminal body",
+      expect.stringContaining("Open in external terminal"),
+      "Rename session",
+      expect.stringContaining("Close"),
+    ]);
+
+    await user.click(within(menu).getByRole("menuitem", { name: "Collapse terminal body" }));
+    expect(callbacks.onToggleCollapseSession).toHaveBeenCalledWith("manual-menu");
+
+    await user.click(trigger);
+    await user.click(screen.getByRole("menuitem", { name: /Open in external terminal/ }));
+    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
+
+    await user.click(trigger);
+    await user.click(screen.getByRole("menuitem", { name: "Rename session" }));
+    expect(within(tile).getByRole("textbox", { name: "Rename Manual · menu" }))
+      .toHaveValue("Manual · menu");
+
+    await user.keyboard("{Escape}");
+    await user.click(trigger);
+    await user.click(screen.getByRole("menuitem", { name: /Close/ }));
+    expect(callbacks.onCloseSession).toHaveBeenCalledWith("manual-menu");
+  });
+
+  it("closes terminal overflow actions on Escape and restores trigger focus", async () => {
+    const user = userEvent.setup();
+    const session: SessionTile = {
+      id: "manual-menu",
+      runtimeId: "runtime-manual-menu",
+      title: "Manual · menu",
+      source: "manual",
+      workspaceId: "A",
+      cwd: "/Users/patryk/Desktop/Alfred",
+      stage: "live",
+      runtimeStatus: "live",
+      initialBuffer: "",
+    };
+    renderTerminalDeskForSessions([session]);
+    const trigger = screen.getByRole("button", { name: "More actions for Manual · menu" });
+
+    await user.click(trigger);
+    expect(screen.getByRole("menuitem", { name: "Collapse terminal body" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("menu", { name: "Manual · menu actions" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
   it("keeps non-visible Split terminals mounted and replayable when returning to Grid", async () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge(undefined, null, [

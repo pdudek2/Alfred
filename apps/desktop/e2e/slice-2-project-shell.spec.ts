@@ -33,7 +33,13 @@ type GridRect = {
 };
 
 type NarrowProjectShell = {
-  activeControlOverflow: number;
+  activeControlOverflows: Array<{
+    label: string;
+    className: string;
+    left: number;
+    right: number;
+    overflow: number;
+  }>;
   documentOverflow: number;
   gridTemplateColumns: string;
   layoutX: number;
@@ -123,7 +129,10 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   expect(narrow.orchestratorX - narrow.layoutX).toBe(46);
   expect(narrow.orchestratorX).toBe(narrow.navigatorRight);
   expect(narrow.documentOverflow).toBe(0);
-  expect(narrow.activeControlOverflow).toBeLessThanOrEqual(0.5);
+  expect(
+    narrow.activeControlOverflows,
+    `Narrow controls outside viewport: ${JSON.stringify(narrow.activeControlOverflows)}`,
+  ).toEqual([]);
   expect(narrow.visibleTileCount).toBe(6);
   expect(narrow.visibleTileHeaderHeights.length).toBeGreaterThan(0);
   expect(narrow.visibleTileHeaderHeights).toHaveLength(narrow.visibleTileCount);
@@ -344,10 +353,18 @@ async function readNarrowProjectShell(page: Page): Promise<NarrowProjectShell> {
       );
     });
     return {
-      activeControlOverflow: controls.reduce((maximum, control) => {
+      activeControlOverflows: controls.flatMap((control) => {
         const rect = control.getBoundingClientRect();
-        return Math.max(maximum, Math.max(0, -rect.left, rect.right - innerWidth));
-      }, 0),
+        const overflow = Math.max(0, -rect.left, rect.right - innerWidth);
+        if (overflow <= 0.5) return [];
+        return [{
+          label: control.getAttribute("aria-label") ?? control.getAttribute("title") ?? control.textContent?.trim() ?? "",
+          className: control.className,
+          left: rect.left,
+          right: rect.right,
+          overflow,
+        }];
+      }),
       documentOverflow: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth),
       gridTemplateColumns: getComputedStyle(layout).gridTemplateColumns,
       layoutX: layoutRect.x,

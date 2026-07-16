@@ -1,6 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { AlertTriangle, Check, ChevronDown, ChevronUp, Pencil, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronUp, Ellipsis, Pencil, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -35,6 +35,7 @@ import { sessionRelaunchSafety } from "../relaunch-safety";
 import { restoredSessionActionLabel, restoredSessionActionTitle } from "../restored-session-action";
 import { normalizeSessionTitle } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
+import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 
 const ARRANGE_GRID_ROW_HEIGHT = 84;
@@ -944,6 +945,27 @@ function ManualTerminalTile({
     }
     setRenaming(false);
   };
+  const beginRename = () => {
+    setRenameDraft(title);
+    setRenaming(true);
+  };
+  const compactActionItems: ChromeMenuItem[] = [
+    {
+      id: "collapse",
+      label: collapsed ? "Expand terminal body" : "Collapse terminal body",
+      run: onToggleCollapse,
+    },
+    ...(externalTerminalCwd
+      ? [{
+          id: "external-terminal",
+          label: "Open in external terminal",
+          detail: shortenPath(externalTerminalCwd),
+          run: () => void onOpenExternalTerminal(externalTerminalCwd),
+        } satisfies ChromeMenuItem]
+      : []),
+    { id: "rename", label: "Rename session", run: beginRename },
+    { id: "close", label: closeActionLabel, detail: closeActionTitle, run: onClose },
+  ];
 
   useEffect(() => {
     const container = containerRef.current;
@@ -1431,10 +1453,7 @@ function ManualTerminalTile({
               type="button"
               className="rename-session-button"
               aria-label={`Rename ${title}`}
-              onClick={() => {
-                setRenameDraft(title);
-                setRenaming(true);
-              }}
+              onClick={beginRename}
               onPointerDown={(event) => event.stopPropagation()}
               title="Rename session"
             >
@@ -1453,6 +1472,15 @@ function ManualTerminalTile({
               <X size={14} />
               {discardableSession && <span>{closeActionLabel}</span>}
             </button>
+          </div>
+          <div className="tile-action-group tile-overflow-menu">
+            <ChromeMenu
+              label={`More actions for ${title}`}
+              title={`${title} actions`}
+              items={compactActionItems}
+            >
+              <Ellipsis size={14} />
+            </ChromeMenu>
           </div>
         </div>
         </header>

@@ -2471,6 +2471,10 @@ body.arranging-pointer {
   pointer-events: auto;
 }
 
+.tile-overflow-menu {
+  display: none;
+}
+
 .tile-utility-actions {
   gap: 4px;
   padding-left: 12px;
@@ -2797,6 +2801,26 @@ body.arranging-pointer {
     min-width: 32px;
     padding: 0;
   }
+}
+
+@container terminal-tile (max-width: 620px) {
+  .tile-utility-actions,
+  .tile-danger-actions {
+    display: none;
+  }
+
+  .tile-overflow-menu {
+    display: inline-flex;
+  }
+}
+
+.terminal-tile:has(.tile-overflow-menu .chrome-menu-popover),
+.terminal-tile-header .tile-actions:has(.tile-overflow-menu .chrome-menu-popover) {
+  overflow: visible;
+}
+
+.terminal-tile:has(.tile-overflow-menu .chrome-menu-popover) {
+  z-index: 12;
 }
 
 @container terminal-tile (max-width: 520px) {

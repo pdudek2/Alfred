@@ -53,6 +53,9 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     r0.frameHeight - r0.headerHeight - r0.alertStackHeight,
     `R0 shell geometry: ${JSON.stringify(r0)}`,
   ).toBe(r0.workspaceLayoutHeight);
+  const wideTile = visibleTerminalTiles(page).first();
+  await expect(wideTile.getByRole("button", { name: "Collapse Manual · zsh 1" })).toBeVisible();
+  await expect(wideTile.locator(".tile-overflow-menu")).toBeHidden();
   const bannerAlert = await proveBannerAlertGeometry(page);
   expect(bannerAlert.alertStackHeight).toBeGreaterThan(0);
   expect(
@@ -143,11 +146,24 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await expect(workToolbar.getByRole("button", { name: "Grid", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(visibleTerminalTiles(page)).toHaveCount(2);
   await setWindowSize(app, page, 1120, 720);
+  const narrowTile = visibleTerminalTiles(page).first();
+  const compactActionsTrigger = narrowTile.locator(".tile-overflow-menu .chrome-menu-trigger");
+  await expect(compactActionsTrigger).toBeVisible();
+  await expect(narrowTile.locator(".tile-utility-actions .collapse-session-button")).toBeHidden();
+  await compactActionsTrigger.click();
+  await expect(
+    narrowTile.getByRole("menuitem", { name: "Collapse terminal body" }),
+  ).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(compactActionsTrigger).toBeFocused();
   const narrow = await readNarrowGeometry(page);
   expect(narrow.layout).toBe("Grid");
   expect(narrow.visibleTileCount).toBe(2);
   expect(narrow.documentOverflow).toBe(0);
-  expect(narrow.activeControlOverflow).toBeLessThanOrEqual(0.5);
+  expect(
+    narrow.activeControlOverflows,
+    `Narrow controls outside viewport: ${JSON.stringify(narrow.activeControlOverflows)}`,
+  ).toEqual([]);
   diagnosticScreenshotHashes["narrow-1120x720.png"] = await captureEvidence(page, "narrow-1120x720.png");
   identityTransitions["Context→narrow Grid"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
   expect(identityTransitions["Context→narrow Grid"]).toBe(true);
@@ -271,7 +287,13 @@ async function readNarrowGeometry(page: Page): Promise<{
   layout: string;
   visibleTileCount: number;
   documentOverflow: number;
-  activeControlOverflow: number;
+  activeControlOverflows: Array<{
+    label: string;
+    className: string;
+    left: number;
+    right: number;
+    overflow: number;
+  }>;
 }> {
   return page.evaluate(() => {
     const controls = Array.from(
@@ -289,17 +311,25 @@ async function readNarrowGeometry(page: Page): Promise<{
         !control.closest('[aria-hidden="true"], [inert]')
       );
     });
-    const activeControlOverflow = controls.reduce((maximum, control) => {
+    const activeControlOverflows = controls.flatMap((control) => {
       const rect = control.getBoundingClientRect();
-      return Math.max(maximum, Math.max(0, -rect.left, rect.right - window.innerWidth));
-    }, 0);
+      const overflow = Math.max(0, -rect.left, rect.right - window.innerWidth);
+      if (overflow <= 0.5) return [];
+      return [{
+        label: control.getAttribute("aria-label") ?? control.getAttribute("title") ?? control.textContent?.trim() ?? "",
+        className: control.className,
+        left: rect.left,
+        right: rect.right,
+        overflow,
+      }];
+    });
     return {
       layout: document.querySelector('.work-surface-layout button[aria-pressed="true"]')?.textContent?.trim() ?? "",
       visibleTileCount: document.querySelectorAll(
         '[data-testid="terminal-tile"]:not([aria-hidden="true"])',
       ).length,
       documentOverflow: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth),
-      activeControlOverflow,
+      activeControlOverflows,
     };
   });
 }
