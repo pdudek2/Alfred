@@ -1238,6 +1238,32 @@ describe("renderer CSS contracts", () => {
     }
   });
 
+  it("switches terminal secondary actions by tile width", () => {
+    const baseOverflowMenu = topLevelExactRuleBodies(".tile-overflow-menu");
+    const compactUtilityActions = containerExactRuleBodies(
+      "terminal-tile (max-width: 620px)",
+      ".tile-utility-actions",
+    );
+    const compactDangerActions = containerExactRuleBodies(
+      "terminal-tile (max-width: 620px)",
+      ".tile-danger-actions",
+    );
+    const compactOverflowMenu = containerExactRuleBodies(
+      "terminal-tile (max-width: 620px)",
+      ".tile-overflow-menu",
+    );
+
+    expect(exactBlockFor(".terminal-tile")).toContain("container: terminal-tile / inline-size");
+    expect(baseOverflowMenu).toHaveLength(1);
+    expect(baseOverflowMenu[0]).toContain("display: none");
+    expect(compactUtilityActions).toHaveLength(1);
+    expect(compactUtilityActions[0]).toContain("display: none");
+    expect(compactDangerActions).toHaveLength(1);
+    expect(compactDangerActions[0]).toContain("display: none");
+    expect(compactOverflowMenu).toHaveLength(1);
+    expect(compactOverflowMenu[0]).toContain("display: inline-flex");
+  });
+
   it("keeps canonical owners for Inbox Observatory and overlays", () => {
     const inboxRegions = [{
       name: "Inbox docket",
