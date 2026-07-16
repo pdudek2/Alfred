@@ -1426,15 +1426,6 @@ function ManualTerminalTile({
               )}
             </div>
           )}
-          <div className="tile-action-group tile-overflow-menu">
-            <ChromeMenu
-              label={`More actions for ${title}`}
-              title={`${title} actions`}
-              items={compactActionItems}
-            >
-              <Ellipsis size={14} />
-            </ChromeMenu>
-          </div>
           <div className="tile-action-group tile-utility-actions">
             <button
               type="button"
@@ -1481,6 +1472,15 @@ function ManualTerminalTile({
               <X size={14} />
               {discardableSession && <span>{closeActionLabel}</span>}
             </button>
+          </div>
+          <div className="tile-action-group tile-overflow-menu">
+            <ChromeMenu
+              label={`More actions for ${title}`}
+              title={`${title} actions`}
+              items={compactActionItems}
+            >
+              <Ellipsis size={14} />
+            </ChromeMenu>
           </div>
         </div>
         </header>
