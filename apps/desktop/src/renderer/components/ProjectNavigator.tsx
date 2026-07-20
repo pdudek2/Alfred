@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronRight, Folder, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import type { WorkspaceMissionBrief } from "../../shared/workspace-ipc";
+import { isFreeChatSession, isNavigableLiveSession } from "../session-scope";
 import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
@@ -263,18 +264,7 @@ function NavigatorSessionButton({
 
 function isActiveNavigatorSession(session: SessionTile, workspaceId: string): boolean {
   return session.workspaceId === workspaceId
-    && isLiveNavigatorRuntime(session);
-}
-
-function isFreeChatSession(session: SessionTile): boolean {
-  return isLiveNavigatorRuntime(session) && session.cwd.includes("/Documents/Codex/");
-}
-
-function isLiveNavigatorRuntime(session: SessionTile): boolean {
-  return session.stage === "live"
-    && session.runtimeStatus !== "restored"
-    && session.runtimeStatus !== "exited"
-    && session.runtimeStatus !== "error";
+    && isNavigableLiveSession(session);
 }
 
 function handleProjectKeyDown(
