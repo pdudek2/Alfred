@@ -16,8 +16,10 @@ type SessionsNavigatorProps = {
   state: SessionsViewState;
   onActiveSessionKeyChange: (sessionKey: string | null) => void;
   onBackToWork: () => void;
+  onOpenPrivacySettings: (() => void) | undefined;
   onRefreshExternalSessions: () => void;
   onSelectSession: (session: SessionSummary) => void;
+  onFocusTargetChange: (target: "search" | "results") => void;
   onStatePatch: (patch: Partial<SessionsViewState>) => void;
 };
 
@@ -32,8 +34,10 @@ export function SessionsNavigator({
   state,
   onActiveSessionKeyChange,
   onBackToWork,
+  onOpenPrivacySettings,
   onRefreshExternalSessions,
   onSelectSession,
+  onFocusTargetChange,
   onStatePatch,
 }: SessionsNavigatorProps) {
   const activeIndex = Math.max(0, projection.items.findIndex((item) => item.sessionKey === activeSessionKey));
@@ -89,6 +93,7 @@ export function SessionsNavigator({
           placeholder="Search sessions…"
           value={state.query}
           onChange={updateQuery}
+          onFocus={() => onFocusTargetChange("search")}
         />
       </label>
       <div className="sessions-navigator__filters">
@@ -140,7 +145,12 @@ export function SessionsNavigator({
       </div>
 
       {!externalSessionIndexingEnabled && (
-        <p className="sessions-navigator__notice"><strong>External Codex indexing is off.</strong></p>
+        <p className="sessions-navigator__notice">
+          <strong>External Codex indexing is off.</strong>
+          {onOpenPrivacySettings && (
+            <button type="button" onClick={onOpenPrivacySettings}>Open Local Data &amp; Privacy</button>
+          )}
+        </p>
       )}
       {externalSessionIndexingEnabled && externalSessionsError && (
         <p className="sessions-navigator__notice">
@@ -159,6 +169,7 @@ export function SessionsNavigator({
         aria-label="Session results"
         aria-activedescendant={selectedDomId}
         tabIndex={0}
+        onFocus={() => onFocusTargetChange("results")}
         onKeyDown={handleListKeyDown}
         onScroll={(event) => onStatePatch({ navigatorScrollTop: event.currentTarget.scrollTop })}
       >
@@ -166,6 +177,9 @@ export function SessionsNavigator({
           <div className="sessions-navigator__empty">
             <strong>No sessions found.</strong>
             <span>Try another title, project, source, or time range.</span>
+            {state.query && (
+              <button type="button" onClick={() => onStatePatch({ query: "", pageIndex: 0 })}>Clear search</button>
+            )}
           </div>
         ) : projection.groups.map((group) => (
           <section role="group" aria-label={group.label} key={group.id}>

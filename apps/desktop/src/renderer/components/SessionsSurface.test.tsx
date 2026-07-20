@@ -233,6 +233,33 @@ describe("SessionsSurface", () => {
     });
   });
 
+  it("keeps loaded transcript blocks visible when a later page fails and can restart reading", async () => {
+    const user = userEvent.setup();
+    const sessionsApi = createSessionsApi();
+    vi.mocked(sessionsApi.readTranscriptPage)
+      .mockResolvedValueOnce(transcriptPage(
+        "external-codex:content-0",
+        [{ id: "first", kind: "message", role: "assistant", text: "Stable first page" }],
+        { nextCursor: "stale-cursor" },
+      ))
+      .mockRejectedValueOnce(new Error("stale cursor"))
+      .mockResolvedValueOnce(transcriptPage(
+        "external-codex:content-0",
+        [{ id: "fresh", kind: "message", role: "assistant", text: "Fresh transcript" }],
+      ));
+    renderSurface({ externalSessions: [externalSession(0)], sessionsApi });
+
+    await user.click(screen.getByRole("option", { name: /External session 0/ }));
+    expect(await screen.findByText("Stable first page")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Load more transcript" }));
+
+    expect(await screen.findByText("The next transcript page could not be loaded.")).toBeInTheDocument();
+    expect(screen.getByText("Stable first page")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Refresh transcript" }));
+    expect(await screen.findByText("Fresh transcript")).toBeInTheDocument();
+    expect(screen.queryByText("Stable first page")).not.toBeInTheDocument();
+  });
+
   it("reads a live managed snapshot on selection as raw terminal blocks without invented roles", async () => {
     const user = userEvent.setup();
     const session = managedSession(4, { title: "Manual deploy", command: "zsh" });
@@ -356,8 +383,27 @@ describe("SessionsSurface", () => {
     expect(block).not.toHaveTextContent("1;1;1");
   });
 
+  it("bounds managed transcript text by UTF-8 bytes without splitting a code point", async () => {
+    const user = userEvent.setup();
+    const { runtimeId: _runtimeId, ...restoredSession } = managedSession(9, {
+      runtimeStatus: "restored",
+      title: "Unicode transcript",
+      initialBuffer: "🙂".repeat(TRANSCRIPT_TEXT_LIMIT),
+    });
+    renderSurface({ sessions: [restoredSession] });
+
+    await user.click(screen.getByRole("option", { name: /Unicode transcript/ }));
+    const block = (await screen.findByRole("article", { name: /Unicode transcript/ }))
+      .querySelector("[data-testid='transcript-block']");
+    const renderedText = block?.textContent ?? "";
+    const transcriptText = renderedText.endsWith("\n") ? renderedText.slice(0, -1) : renderedText;
+    expect(new TextEncoder().encode(transcriptText).byteLength).toBeLessThanOrEqual(TRANSCRIPT_TEXT_LIMIT);
+    expect(transcriptText).not.toContain("�");
+  });
+
   it("shows loading, no-result, disabled-indexing, and stale-refresh states without hiding managed sessions", async () => {
     const user = userEvent.setup();
+    const onOpenPrivacySettings = vi.fn();
     const view = renderSurface({ loadingExternalSessions: true });
     expect(screen.getByRole("status")).toHaveTextContent("Loading sessions");
 
@@ -367,12 +413,17 @@ describe("SessionsSurface", () => {
       externalSessions: [],
       externalSessionsError: "Refresh failed.",
       sessions: [managedSession(1)],
+      onOpenPrivacySettings,
     });
     expect(screen.getByText("External Codex indexing is off.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open Local Data & Privacy" }));
+    expect(onOpenPrivacySettings).toHaveBeenCalledOnce();
     expect(screen.getByRole("option", { name: /Managed session 1/ })).toBeInTheDocument();
 
     await user.type(screen.getByRole("searchbox", { name: "Search sessions" }), "no such session");
     expect(screen.getByText("No sessions found.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(screen.getByRole("option", { name: /Managed session 1/ })).toBeInTheDocument();
 
     cleanup();
     renderSurface({
@@ -496,6 +547,28 @@ describe("SessionsSurface", () => {
 
     fireEvent.keyDown(screen.getByRole("region", { name: "Sessions workspace" }), { key: "Escape" });
     expect(onBackToWork).toHaveBeenCalledOnce();
+  });
+
+  it("restores the previous Sessions focus target instead of always stealing focus to search", () => {
+    const resultView = renderSurface(
+      { sessions: [managedSession(0)] },
+      { ...createInitialSessionsViewState(), focusTarget: "results" },
+    );
+    expect(screen.getByRole("listbox", { name: "Session results" })).toHaveFocus();
+
+    resultView.unmount();
+    renderSurface(
+      { sessions: [managedSession(0)] },
+      {
+        ...createInitialSessionsViewState(),
+        focusTarget: "reader",
+        selectedSessionKey: "managed:managed-0",
+        readerPages: [transcriptPage("managed:managed-0", [
+          { id: "saved", kind: "terminal", text: "saved" },
+        ])],
+      },
+    );
+    expect(document.querySelector(".sessions-reader__scroll")).toHaveFocus();
   });
 
   it("renders truthful lifecycle actions", async () => {

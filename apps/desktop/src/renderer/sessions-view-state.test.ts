@@ -29,6 +29,7 @@ describe("SessionsViewState", () => {
       selectedSessionKey: null,
       navigatorScrollTop: 0,
       readerScrollTop: 0,
+      focusTarget: "search",
       readerPages: [],
     });
   });

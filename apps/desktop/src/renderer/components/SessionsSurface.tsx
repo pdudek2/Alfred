@@ -30,6 +30,7 @@ export type SessionsSurfaceProps = {
   terminalApi: Pick<TerminalApi, "snapshot"> | null;
   workspaces: SessionsProjectInput[];
   onBackToWork: () => void;
+  onOpenPrivacySettings?: () => void;
   onPrimaryAction: ((request: SessionsPrimaryActionRequest) => void) | undefined;
   onRefreshExternalSessions: () => void;
   onStateChange: Dispatch<SetStateAction<SessionsViewState>>;
@@ -46,6 +47,7 @@ export function SessionsSurface({
   terminalApi,
   workspaces,
   onBackToWork,
+  onOpenPrivacySettings,
   onPrimaryAction,
   onRefreshExternalSessions,
   onStateChange,
@@ -58,6 +60,7 @@ export function SessionsSurface({
   const [readerStatus, setReaderStatus] = useState<SessionsReaderStatus>(
     state.readerPages.length > 0 ? "ready" : state.selectedSessionKey ? "missing" : "idle",
   );
+  const [readerPageError, setReaderPageError] = useState<string | null>(null);
   const filteredSessions = useMemo(
     () => filterManagedSessions(sessions, state.source, state.timeRange),
     [sessions, state.source, state.timeRange],
@@ -98,8 +101,13 @@ export function SessionsSurface({
   }, [onStateChange]);
 
   useEffect(() => {
-    searchRef.current?.focus();
-  }, []);
+    const target = state.focusTarget === "results"
+      ? navigatorRef.current
+      : state.focusTarget === "reader"
+        ? readerRef.current
+        : searchRef.current;
+    target?.focus();
+  }, [state.focusTarget]);
 
   useEffect(() => {
     if (!projection.items.some((item) => item.sessionKey === activeSessionKey)) {
@@ -155,6 +163,7 @@ export function SessionsSurface({
       readerScrollTop: 0,
     }));
     setReaderStatus("loading");
+    setReaderPageError(null);
 
     try {
       if (summary.source === "external-codex" || summary.contentSessionKey) {
@@ -204,6 +213,7 @@ export function SessionsSurface({
     if (!cursor) return;
     const requestSequence = requestSequenceRef.current + 1;
     requestSequenceRef.current = requestSequence;
+    setReaderPageError(null);
     try {
       const page = await sessionsApi.readTranscriptPage({
         sessionKey: selected.contentSessionKey ?? selected.sessionKey,
@@ -213,7 +223,10 @@ export function SessionsSurface({
       onStateChange((current) => appendTranscriptPage(current, page));
       setReaderStatus("ready");
     } catch {
-      if (requestSequenceRef.current === requestSequence) setReaderStatus("error");
+      if (requestSequenceRef.current === requestSequence) {
+        setReaderStatus("ready");
+        setReaderPageError("The next transcript page could not be loaded.");
+      }
     }
   }, [onStateChange, selected, sessionsApi, state.readerPages]);
 
@@ -240,8 +253,10 @@ export function SessionsSurface({
         state={state}
         onActiveSessionKeyChange={setActiveSessionKey}
         onBackToWork={onBackToWork}
+        onOpenPrivacySettings={onOpenPrivacySettings}
         onRefreshExternalSessions={onRefreshExternalSessions}
         onSelectSession={(summary) => void selectSession(summary)}
+        onFocusTargetChange={(focusTarget) => patchState({ focusTarget })}
         onStatePatch={patchState}
       />
       <SessionsReader
@@ -250,11 +265,16 @@ export function SessionsSurface({
         readerRef={readerRef}
         selected={selected}
         status={readerStatus}
+        pageError={readerPageError}
         onLoadMore={() => void loadMore()}
+        onRetryTranscript={() => {
+          if (selected) void selectSession(selected);
+        }}
         onPrimaryAction={() => {
           if (primaryActionRequest) onPrimaryAction?.(primaryActionRequest);
         }}
         onScrollTopChange={(readerScrollTop) => patchState({ readerScrollTop })}
+        onFocus={() => patchState({ focusTarget: "reader" })}
       />
     </section>
   );
@@ -277,12 +297,10 @@ function terminalTranscriptPage(
   rawText: string,
   session: SessionTile | null,
 ): TranscriptPage {
-  const textWasTruncated = rawText.length > TRANSCRIPT_TEXT_LIMIT;
   // Terminal manager bounds live and persisted snapshots below this reader's text ceiling,
   // so stripping CSI first cannot create an unbounded renderer copy or split a sequence.
-  const boundedText = stripAnsiTerminalText(rawText)
-    .slice(-TRANSCRIPT_TEXT_LIMIT)
-    .replace(/\r\n/g, "\n");
+  const bounded = tailUtf8(stripAnsiTerminalText(rawText), TRANSCRIPT_TEXT_LIMIT);
+  const boundedText = bounded.text.replace(/\r\n/g, "\n");
   const lines = boundedText.split("\n");
   if (lines.at(-1) === "") lines.pop();
   const boundedLines = lines.slice(-120);
@@ -296,7 +314,18 @@ function terminalTranscriptPage(
     blocks,
     nextCursor: null,
     revision: `managed:${session?.runtimeId ?? session?.id ?? sessionKey}:${session?.lastOutputAt ?? session?.lastActivityAt ?? 0}`,
-    partial: lines.length > boundedLines.length || textWasTruncated,
+    partial: lines.length > boundedLines.length || bounded.truncated,
+  };
+}
+
+function tailUtf8(value: string, byteLimit: number): { text: string; truncated: boolean } {
+  const encoded = new TextEncoder().encode(value);
+  if (encoded.byteLength <= byteLimit) return { text: value, truncated: false };
+  let start = encoded.byteLength - byteLimit;
+  while (start < encoded.byteLength && (encoded[start]! & 0xc0) === 0x80) start += 1;
+  return {
+    text: new TextDecoder().decode(encoded.subarray(start)),
+    truncated: true,
   };
 }
 
