@@ -85,3 +85,5 @@ export const sessionsChannels = {
   getDiagnostics: "alfred:sessions:get-diagnostics",
   clearCaches: "alfred:sessions:clear-caches",
 } as const;
+
+export type SessionsChannels = typeof sessionsChannels;

@@ -3,7 +3,7 @@ import type { IpcRendererEvent } from "electron";
 import type { TerminalApi, TerminalDataEvent, TerminalExitEvent } from "../shared/terminal-ipc.js";
 import type { AlfredApi } from "../shared/alfred-ipc.js";
 import type { LayoutApi } from "../shared/layout-ipc.js";
-import { sessionsChannels, type SessionsApi } from "../shared/sessions-ipc.js";
+import type { SessionsApi, SessionsChannels } from "../shared/sessions-ipc.js";
 import type { DesktopStateApi, DesktopSaveStatus } from "../shared/desktop-state-ipc.js";
 import type { WorkspaceApi } from "../shared/workspace-ipc.js";
 
@@ -48,6 +48,14 @@ const workspaceChannels = {
   revealPath: "alfred:workspace:reveal-path",
   set: "alfred:workspace:set",
 } as const;
+
+const sessionsChannels = {
+  listExternal: "alfred:sessions:list-external",
+  resolveExternal: "alfred:sessions:resolve-external",
+  readTranscriptPage: "alfred:sessions:read-transcript-page",
+  getDiagnostics: "alfred:sessions:get-diagnostics",
+  clearCaches: "alfred:sessions:clear-caches",
+} as const satisfies SessionsChannels;
 
 const desktopStateChannels = {
   getPrivacySettings: "alfred:desktop-state:get-privacy-settings",
