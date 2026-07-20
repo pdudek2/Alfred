@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { captureReadinessForState } from "./css-layout-evidence";
+import { captureReadinessForState, cssEvidenceStateNames } from "./css-layout-evidence";
 import {
   neutralScreenshotPointer,
   privacySafeHiddenScreenshotSelectors,
@@ -8,6 +8,11 @@ import {
 } from "./privacy-safe-screenshot";
 
 describe("CSS layout evidence support", () => {
+  it("uses Sessions as the only session-reader evidence state", () => {
+    expect(cssEvidenceStateNames).toContain("sessions");
+    expect(cssEvidenceStateNames).not.toContain("observatory");
+  });
+
   it("keeps deterministic fixture text visible while masking sensitive runtime fields", () => {
     expect(privacySafeScreenshotStyle).not.toMatch(/body\s+\*/);
     expect(privacySafeScreenshotStyle).toContain(".xterm-host");
