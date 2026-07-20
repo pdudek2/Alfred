@@ -217,6 +217,7 @@ export function App() {
   const prepareWorkTriggerRef = useRef<HTMLButtonElement | null>(null);
   const surfacesTriggerRef = useRef<HTMLButtonElement | null>(null);
   const workReturnFocusRef = useRef<HTMLElement | null>(null);
+  const workReturnFocusLabelRef = useRef<string | null>(null);
   const restoreWorkFocusPendingRef = useRef(false);
   const contextReturnFocusRef = useRef<HTMLButtonElement | null>(null);
   const contextFocusRequestKeyRef = useRef(0);
@@ -1816,7 +1817,20 @@ export function App() {
       restoreWorkFocusPendingRef.current = false;
       requestAnimationFrame(() => {
         queueMicrotask(() => {
-          if (workReturnFocusRef.current?.isConnected) workReturnFocusRef.current.focus();
+          if (workReturnFocusRef.current?.isConnected) {
+            workReturnFocusRef.current.focus();
+            return;
+          }
+          const shell = document.querySelector<HTMLElement>("[data-testid='workbench-shell']");
+          const labeledFallback = workReturnFocusLabelRef.current
+            ? Array.from(shell?.querySelectorAll<HTMLElement>("[aria-label]") ?? []).find(
+              (element) => element.getAttribute("aria-label") === workReturnFocusLabelRef.current,
+            )
+            : null;
+          const fallback = shell?.querySelector<HTMLElement>(
+            ".project-session[aria-current='true'], .project-row-button[aria-selected='true'], [data-testid='terminal-input']",
+          );
+          (labeledFallback ?? fallback)?.focus();
         });
       });
     }
@@ -2067,6 +2081,7 @@ export function App() {
           && event.target.closest("[data-testid='workbench-shell']")
         ) {
           workReturnFocusRef.current = event.target;
+          workReturnFocusLabelRef.current = event.target.getAttribute("aria-label");
         }
       }}
       onKeyDownCapture={(event) => {
@@ -2174,46 +2189,48 @@ export function App() {
           className={`workspace-layout surface-${activeSurface}${previewVisible ? " preview-visible" : ""}`}
           data-testid="workbench-shell"
         >
-          <ProjectNavigator
-            activeSessionId={activeSelectedSessionId}
-            activeWorkspaceId={activeWorkspace.id}
-            attentionCountsByWorkspace={attentionCountsByWorkspace}
-            collapsed={projectNavigatorCollapsed}
-            sessions={terminalSessions}
-            workspaces={workspaces}
-            workspaceActions={(
-              <WorkspaceActionsMenu
-                canCloseWorkspace={canCloseActiveWorkspace}
-                detail={workspaceDetail(activeWorkspace)}
-                menuOpen={workspaceMenuOpen}
-                missionBrief={activeWorkspace.missionBrief}
-                renameDraft={workspaceRenameDraft}
-                renameEditing={workspaceRenameEditing}
-                {...(activeWorkspace.rootPath ? { rootPath: activeWorkspace.rootPath } : {})}
-                workspaceLabel={activeWorkspace.label}
-                onCancelRename={handleCancelWorkspaceRename}
-                onChangeRenameDraft={setWorkspaceRenameDraft}
-                onClose={() => {
-                  setWorkspaceMenuOpen(false);
-                  setWorkspaceRenameEditing(false);
-                }}
-                onCloseWorkspace={handleCloseActiveWorkspace}
-                onOpenExternalTerminal={() => void handleOpenActiveWorkspaceTerminal()}
-                onRevealFolder={() => void handleRevealActiveWorkspace()}
-                onSaveMissionBrief={handleSaveWorkspaceMissionBrief}
-                onSaveRename={handleSaveWorkspaceRename}
-                onStartRename={handleBeginRenameActiveWorkspace}
-                onToggleMenu={() => {
-                  setWorkspaceMenuOpen((open) => !open);
-                  setWorkspaceRenameEditing(false);
-                }}
-              />
-            )}
-            onAddWorkspace={handleAddWorkspace}
-            onFocusSessionInWorkspace={handleFocusSessionInWorkspace}
-            onSelectWorkspace={handleSelectWorkspace}
-            onToggleCollapsed={() => setProjectNavigatorCollapsed((collapsed) => !collapsed)}
-          />
+          {activeSurface !== "sessions" && (
+            <ProjectNavigator
+              activeSessionId={activeSelectedSessionId}
+              activeWorkspaceId={activeWorkspace.id}
+              attentionCountsByWorkspace={attentionCountsByWorkspace}
+              collapsed={projectNavigatorCollapsed}
+              sessions={terminalSessions}
+              workspaces={workspaces}
+              workspaceActions={(
+                <WorkspaceActionsMenu
+                  canCloseWorkspace={canCloseActiveWorkspace}
+                  detail={workspaceDetail(activeWorkspace)}
+                  menuOpen={workspaceMenuOpen}
+                  missionBrief={activeWorkspace.missionBrief}
+                  renameDraft={workspaceRenameDraft}
+                  renameEditing={workspaceRenameEditing}
+                  {...(activeWorkspace.rootPath ? { rootPath: activeWorkspace.rootPath } : {})}
+                  workspaceLabel={activeWorkspace.label}
+                  onCancelRename={handleCancelWorkspaceRename}
+                  onChangeRenameDraft={setWorkspaceRenameDraft}
+                  onClose={() => {
+                    setWorkspaceMenuOpen(false);
+                    setWorkspaceRenameEditing(false);
+                  }}
+                  onCloseWorkspace={handleCloseActiveWorkspace}
+                  onOpenExternalTerminal={() => void handleOpenActiveWorkspaceTerminal()}
+                  onRevealFolder={() => void handleRevealActiveWorkspace()}
+                  onSaveMissionBrief={handleSaveWorkspaceMissionBrief}
+                  onSaveRename={handleSaveWorkspaceRename}
+                  onStartRename={handleBeginRenameActiveWorkspace}
+                  onToggleMenu={() => {
+                    setWorkspaceMenuOpen((open) => !open);
+                    setWorkspaceRenameEditing(false);
+                  }}
+                />
+              )}
+              onAddWorkspace={handleAddWorkspace}
+              onFocusSessionInWorkspace={handleFocusSessionInWorkspace}
+              onSelectWorkspace={handleSelectWorkspace}
+              onToggleCollapsed={() => setProjectNavigatorCollapsed((collapsed) => !collapsed)}
+            />
+          )}
           <div className="orchestrator-surface" data-testid="workbench-surface">
             <div
               className={`surface-panel desk-surface-panel ${workSurfaceHidden ? "inactive" : "active"}`}

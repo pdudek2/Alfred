@@ -5080,15 +5080,23 @@ body.arranging-pointer {
 /* ============================================================
    Native Sessions navigator
    Sessions keeps search and source-faithful reading in one flat,
-   achromatic instrument beside the persistent project navigator.
+   achromatic instrument without reusing the Work project navigator.
    ============================================================ */
 
 .workspace-layout.surface-inbox,
-.workspace-layout.surface-sessions,
 .workspace-layout.surface-inbox.preview-visible,
 .workspace-layout.surface-sessions.preview-visible {
   position: relative;
   grid-template-columns: auto minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+  background: var(--ink-0);
+}
+
+.workspace-layout.surface-sessions,
+.workspace-layout.surface-sessions.preview-visible {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0;
   padding: 0;
   background: var(--ink-0);
@@ -6284,6 +6292,10 @@ body.arranging-pointer {
   .workspace-layout.surface-sessions > .orchestrator-surface {
     grid-column: 2;
     min-width: 0;
+  }
+
+  .workspace-layout.surface-sessions > .orchestrator-surface {
+    grid-column: 1;
   }
 }
 
