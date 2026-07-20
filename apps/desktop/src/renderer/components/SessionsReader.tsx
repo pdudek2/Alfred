@@ -10,9 +10,12 @@ type SessionsReaderProps = {
   readerRef: RefObject<HTMLDivElement | null>;
   selected: SessionSummary | null;
   status: SessionsReaderStatus;
+  pageError: string | null;
   onLoadMore: () => void;
+  onRetryTranscript: () => void;
   onPrimaryAction: () => void;
   onScrollTopChange: (scrollTop: number) => void;
+  onFocus: () => void;
 };
 
 export function SessionsReader({
@@ -21,9 +24,12 @@ export function SessionsReader({
   readerRef,
   selected,
   status,
+  pageError,
   onLoadMore,
+  onRetryTranscript,
   onPrimaryAction,
   onScrollTopChange,
+  onFocus,
 }: SessionsReaderProps) {
   const blocks = pages.flatMap((page) => page.blocks);
   const nextCursor = pages.at(-1)?.nextCursor ?? null;
@@ -44,6 +50,8 @@ export function SessionsReader({
       <div
         ref={readerRef}
         className="sessions-reader__scroll"
+        tabIndex={-1}
+        onFocus={onFocus}
         onScroll={(event) => onScrollTopChange(event.currentTarget.scrollTop)}
       >
         {!selected ? (
@@ -60,11 +68,19 @@ export function SessionsReader({
             {status === "loading" ? (
               <div className="sessions-reader__empty"><strong>Loading transcript…</strong></div>
             ) : status === "missing" || status === "error" ? (
-              <div className="sessions-reader__empty"><strong>Transcript is unavailable.</strong></div>
+              <div className="sessions-reader__empty">
+                <strong>Transcript is unavailable.</strong>
+                {status === "error" && <button type="button" onClick={onRetryTranscript}>Refresh transcript</button>}
+              </div>
             ) : (
               <>
                 {partial && <p className="sessions-transcript__partial">Transcript is incomplete.</p>}
                 <TranscriptBlocks blocks={blocks} />
+                {pageError && (
+                  <p className="sessions-transcript__partial">
+                    {pageError} <button type="button" onClick={onRetryTranscript}>Refresh transcript</button>
+                  </p>
+                )}
                 {nextCursor && (
                   <button type="button" onClick={onLoadMore}>Load more transcript</button>
                 )}
