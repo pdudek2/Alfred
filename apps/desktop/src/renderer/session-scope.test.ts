@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SessionTile } from "./session-state";
-import { isFreeChatSession, isNavigableLiveSession } from "./session-scope";
+import { isFreeChatScope, isFreeChatSession, isNavigableLiveSession } from "./session-scope";
 
 function session(overrides: Partial<SessionTile> = {}): SessionTile {
   return {
@@ -44,6 +44,7 @@ describe("session scope", () => {
 
       expect(isNavigableLiveSession(inactiveFreeChat)).toBe(false);
       expect(isFreeChatSession(inactiveFreeChat)).toBe(false);
+      expect(isFreeChatScope(inactiveFreeChat)).toBe(true);
     },
   );
 });

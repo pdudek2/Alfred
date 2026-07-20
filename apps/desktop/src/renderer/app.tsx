@@ -2309,6 +2309,7 @@ export function App() {
             {activeSurface === "sessions" && (
               <div className="surface-panel active">
                 <SessionsSurface
+                  armedRecoverySessionIds={armedRecoverySessionIds}
                   externalSessionIndexingEnabled={privacySettings.externalSessionIndexingEnabled}
                   externalSessions={externalCodexSessions}
                   externalSessionsError={externalCodexSessionsError}
@@ -2319,6 +2320,7 @@ export function App() {
                   terminalApi={getDesktopTerminalApi()}
                   workspaces={workspaces}
                   onBackToWork={handleExitSessionsToWork}
+                  onOpenPrivacySettings={() => setPrivacyPanelOpen(true)}
                   onPrimaryAction={handleSessionsPrimaryAction}
                   onRefreshExternalSessions={handleRefreshExternalCodexSessions}
                   onStateChange={setSessionsViewState}

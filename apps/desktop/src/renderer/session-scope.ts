@@ -7,6 +7,10 @@ export function isNavigableLiveSession(session: SessionTile): boolean {
     && session.runtimeStatus !== "error";
 }
 
+export function isFreeChatScope(session: Pick<SessionTile, "cwd">): boolean {
+  return session.cwd.includes("/Documents/Codex/");
+}
+
 export function isFreeChatSession(session: SessionTile): boolean {
-  return isNavigableLiveSession(session) && session.cwd.includes("/Documents/Codex/");
+  return isNavigableLiveSession(session) && isFreeChatScope(session);
 }

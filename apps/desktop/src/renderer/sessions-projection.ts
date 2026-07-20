@@ -6,13 +6,13 @@ import {
   type SessionSummary,
   type SessionsProjectInput,
 } from "../shared/sessions-ipc";
-import { isFreeChatSession } from "./session-scope";
+import { isFreeChatScope } from "./session-scope";
 import type { SessionTile } from "./session-state";
 
 export type ManagedSessionTarget = { workspaceId: string; sessionId: string };
 export type SessionsPrimaryAction =
   | { kind: "reveal"; label: "Reveal in Work" }
-  | { kind: "recover"; label: "Resume in Work" | "Relaunch" }
+  | { kind: "recover"; label: "Resume in Work" | "Relaunch" | "Review relaunch" | "Confirm relaunch" }
   | { kind: "resume-external"; label: "Resume in Work" }
   | { kind: "add-project"; label: "Add Project…" }
   | { kind: "open-project"; label: "Open Project" };
@@ -151,7 +151,7 @@ function normalizeManagedSession(
     id: workspace?.id ?? session.workspaceId,
     label: workspace?.label ?? session.workspaceId,
   };
-  const freeChat = isFreeChatSession(session);
+  const freeChat = isFreeChatScope(session);
   const summary: SessionSummary = {
     sessionKey: `managed:${session.id}`,
     lineageKey: managedLineageKey(session),
