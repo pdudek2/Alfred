@@ -1447,8 +1447,8 @@ export function App() {
 
   const handleSelectPrimarySurface = useCallback((nextSurface: PrimarySurface) => {
     if (
-      activeSurface === "inbox" &&
-      nextSurface !== "inbox" &&
+      (activeSurface === "inbox" || activeSurface === "sessions") &&
+      nextSurface !== activeSurface &&
       armedRecoverySessionIds.size > 0
     ) {
       setArmedRecoverySessionIds(new Set());
@@ -1462,9 +1462,21 @@ export function App() {
   }, [handleSelectPrimarySurface]);
 
   const handleExitSessionsToWork = useCallback(() => {
+    if (armedRecoverySessionIds.size > 0) {
+      setArmedRecoverySessionIds(new Set());
+      return;
+    }
     restoreWorkFocusPendingRef.current = true;
     setActiveSurface("work");
-  }, []);
+  }, [armedRecoverySessionIds]);
+
+  useEffect(() => {
+    if (
+      (activeSurface === "inbox" || activeSurface === "sessions")
+      || armedRecoverySessionIds.size === 0
+    ) return;
+    setArmedRecoverySessionIds(new Set());
+  }, [activeSurface, armedRecoverySessionIds]);
 
   const handleRejectTile = useCallback((tileId: string) => {
     const alfredApi = getDesktopAlfredApi();
@@ -1555,7 +1567,7 @@ export function App() {
     setCommandQuery("");
   }, []);
 
-  const handleRefreshExternalCodexSessions = useCallback(async () => {
+  const handleRefreshExternalCodexSessions = useCallback(async (query: string) => {
     if (!privacySettings.externalSessionIndexingEnabled) {
       externalSessionsRequestGenerationRef.current += 1;
       setExternalCodexSessions([]);
@@ -1574,6 +1586,8 @@ export function App() {
     externalSessionsRequestGenerationRef.current = requestGeneration;
     setExternalCodexSessionsLoading(true);
     setExternalCodexSessionsError(null);
+    const normalizedQuery = query.trim();
+    let snapshotCursorToRelease: string | undefined;
     try {
       const accumulated: ExternalSessionSummary[] = [];
       const seenSessionKeys = new Set<string>();
@@ -1581,11 +1595,14 @@ export function App() {
       let cursor: string | undefined;
 
       for (let requestCount = 0; requestCount < SUMMARY_CACHE_COUNT_LIMIT; requestCount += 1) {
+        snapshotCursorToRelease = cursor;
         const result = await sessionsApi.listExternalSessions({
           projects: workspaces,
           limit: Math.min(SESSIONS_PAGE_SIZE, SUMMARY_CACHE_COUNT_LIMIT - accumulated.length),
+          ...(normalizedQuery ? { query: normalizedQuery } : {}),
           ...(cursor ? { cursor } : {}),
         });
+        snapshotCursorToRelease = result.nextCursor ?? undefined;
         if (externalSessionsRequestGenerationRef.current !== requestGeneration) return;
 
         const previousCount = accumulated.length;
@@ -1620,6 +1637,9 @@ export function App() {
       if (externalSessionsRequestGenerationRef.current !== requestGeneration) return;
       setExternalCodexSessionsError("Refresh failed. Retry when the local session index is available.");
     } finally {
+      if (snapshotCursorToRelease) {
+        await sessionsApi.releaseListSnapshot({ cursor: snapshotCursorToRelease }).catch(() => {});
+      }
       if (externalSessionsRequestGenerationRef.current === requestGeneration) setExternalCodexSessionsLoading(false);
     }
   }, [privacySettings.externalSessionIndexingEnabled, workspaces]);
@@ -1808,8 +1828,16 @@ export function App() {
   useEffect(() => {
     if (activeSurface !== "sessions") return;
     if (!privacySettings.externalSessionIndexingEnabled) return;
-    void handleRefreshExternalCodexSessions();
-  }, [activeSurface, handleRefreshExternalCodexSessions, privacySettings.externalSessionIndexingEnabled]);
+    const query = sessionsViewState.query.trim();
+    if (!query) {
+      void handleRefreshExternalCodexSessions("");
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      void handleRefreshExternalCodexSessions(query);
+    }, 150);
+    return () => window.clearTimeout(timeout);
+  }, [activeSurface, handleRefreshExternalCodexSessions, privacySettings.externalSessionIndexingEnabled, sessionsViewState.query]);
 
   useEffect(() => {
     if (activeSurface !== "work") return;
@@ -2322,7 +2350,7 @@ export function App() {
                   onBackToWork={handleExitSessionsToWork}
                   onOpenPrivacySettings={() => setPrivacyPanelOpen(true)}
                   onPrimaryAction={handleSessionsPrimaryAction}
-                  onRefreshExternalSessions={handleRefreshExternalCodexSessions}
+                  onRefreshExternalSessions={() => void handleRefreshExternalCodexSessions(sessionsViewState.query)}
                   onStateChange={setSessionsViewState}
                 />
               </div>
