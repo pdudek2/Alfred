@@ -4,6 +4,10 @@ import path from "node:path";
 import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
 import {
+  collectControlOverflowEvidence,
+  type ControlOverflowViolation,
+} from "./support/control-overflow-evidence";
+import {
   neutralScreenshotPointer,
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
@@ -287,51 +291,27 @@ async function readNarrowGeometry(page: Page): Promise<{
   layout: string;
   visibleTileCount: number;
   documentOverflow: number;
-  activeControlOverflows: Array<{
-    label: string;
-    className: string;
-    left: number;
-    right: number;
-    overflow: number;
-  }>;
+  activeControlOverflows: ControlOverflowViolation[];
 }> {
-  return page.evaluate(() => {
-    const controls = Array.from(
-      document.querySelectorAll<HTMLElement>(
-        'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [role="tab"], [role="menuitem"]',
-      ),
-    ).filter((control) => {
-      const style = getComputedStyle(control);
-      const rect = control.getBoundingClientRect();
-      return (
-        style.display !== "none" &&
-        style.visibility !== "hidden" &&
-        rect.width > 0 &&
-        rect.height > 0 &&
-        !control.closest('[aria-hidden="true"], [inert]')
-      );
-    });
-    const activeControlOverflows = controls.flatMap((control) => {
-      const rect = control.getBoundingClientRect();
-      const overflow = Math.max(0, -rect.left, rect.right - window.innerWidth);
-      if (overflow <= 0.5) return [];
-      return [{
-        label: control.getAttribute("aria-label") ?? control.getAttribute("title") ?? control.textContent?.trim() ?? "",
-        className: control.className,
-        left: rect.left,
-        right: rect.right,
-        overflow,
-      }];
-    });
-    return {
+  const [geometry, activeControlOverflows] = await Promise.all([
+    page.evaluate(() => ({
       layout: document.querySelector('.work-surface-layout button[aria-pressed="true"]')?.textContent?.trim() ?? "",
       visibleTileCount: document.querySelectorAll(
         '[data-testid="terminal-tile"]:not([aria-hidden="true"])',
       ).length,
       documentOverflow: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth),
-      activeControlOverflows,
-    };
-  });
+    })),
+    collectControlOverflowEvidence(page, {
+      controlSelector:
+        'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [role="tab"], [role="menuitem"]',
+      verticalScrollOwners: [{
+        id: "terminal-grid-column",
+        label: "Terminal grid column",
+        selector: ".terminal-grid-column",
+      }],
+    }),
+  ]);
+  return { ...geometry, activeControlOverflows };
 }
 
 async function proveBannerAlertGeometry(page: Page): Promise<ShellGeometry> {
