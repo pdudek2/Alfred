@@ -9,7 +9,11 @@ import {
   type TranscriptPage,
 } from "../../shared/sessions-ipc";
 import type { TerminalApi } from "../../shared/terminal-ipc";
-import { buildSessionsProjection } from "../sessions-projection";
+import {
+  buildSessionsProjection,
+  sessionsPrimaryAction,
+  type SessionsPrimaryActionRequest,
+} from "../sessions-projection";
 import type { SessionTile } from "../session-state";
 import { appendTranscriptPage, type SessionsViewState } from "../sessions-view-state";
 import { SessionsNavigator } from "./SessionsNavigator";
@@ -26,11 +30,9 @@ export type SessionsSurfaceProps = {
   terminalApi: Pick<TerminalApi, "snapshot"> | null;
   workspaces: SessionsProjectInput[];
   onBackToWork: () => void;
-  onOpenManagedSession: (workspaceId: string, sessionId: string) => void;
+  onPrimaryAction: ((request: SessionsPrimaryActionRequest) => void) | undefined;
   onRefreshExternalSessions: () => void;
-  onResumeExternalCodexSession: (sessionKey: string) => void;
   onStateChange: Dispatch<SetStateAction<SessionsViewState>>;
-  onTrustExternalCodexWorkspace?: (sessionKey: string) => void;
 };
 
 export function SessionsSurface({
@@ -44,11 +46,9 @@ export function SessionsSurface({
   terminalApi,
   workspaces,
   onBackToWork,
-  onOpenManagedSession,
+  onPrimaryAction,
   onRefreshExternalSessions,
-  onResumeExternalCodexSession,
   onStateChange,
-  onTrustExternalCodexWorkspace,
 }: SessionsSurfaceProps) {
   const searchRef = useRef<HTMLInputElement | null>(null);
   const navigatorRef = useRef<HTMLDivElement | null>(null);
@@ -80,6 +80,18 @@ export function SessionsSurface({
     state.selectedSessionKey ?? projection.items[0]?.sessionKey ?? null,
   );
   const selected = projection.items.find((item) => item.sessionKey === state.selectedSessionKey) ?? null;
+  const primaryActionRequest = useMemo<SessionsPrimaryActionRequest | null>(() => {
+    if (!selected || !onPrimaryAction) return null;
+    const action = sessionsPrimaryAction(selected);
+    if (!action) return null;
+    const target = projection.managedTargets.get(selected.sessionKey) ?? null;
+    if (selected.source === "managed" && !target) return null;
+    return {
+      action,
+      summary: { ...selected, project: { ...selected.project } },
+      target,
+    };
+  }, [onPrimaryAction, projection.managedTargets, selected]);
 
   const patchState = useCallback((patch: Partial<SessionsViewState>) => {
     onStateChange((current) => ({ ...current, ...patch }));
@@ -201,19 +213,6 @@ export function SessionsSurface({
     }
   }, [onStateChange, selected, sessionsApi, state.readerPages]);
 
-  const runPrimaryAction = useCallback((summary: SessionSummary) => {
-    if (summary.source === "managed") {
-      const target = projection.managedTargets.get(summary.sessionKey);
-      if (target) onOpenManagedSession(target.workspaceId, target.sessionId);
-      return;
-    }
-    if (summary.lifecycle === "resumable") {
-      onResumeExternalCodexSession(summary.sessionKey);
-    } else {
-      onTrustExternalCodexWorkspace?.(summary.sessionKey);
-    }
-  }, [onOpenManagedSession, onResumeExternalCodexSession, onTrustExternalCodexWorkspace, projection.managedTargets]);
-
   return (
     <section
       className={`sessions-surface${reducedMotion ? " sessions-surface--reduced-motion" : ""}`}
@@ -243,11 +242,14 @@ export function SessionsSurface({
       />
       <SessionsReader
         pages={state.readerPages}
+        primaryAction={primaryActionRequest?.action ?? null}
         readerRef={readerRef}
         selected={selected}
         status={readerStatus}
         onLoadMore={() => void loadMore()}
-        onPrimaryAction={runPrimaryAction}
+        onPrimaryAction={() => {
+          if (primaryActionRequest) onPrimaryAction?.(primaryActionRequest);
+        }}
         onScrollTopChange={(readerScrollTop) => patchState({ readerScrollTop })}
       />
     </section>

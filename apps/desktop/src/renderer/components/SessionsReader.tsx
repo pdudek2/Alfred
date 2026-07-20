@@ -1,21 +1,23 @@
 import type { RefObject } from "react";
 import type { SessionSummary, TranscriptBlock, TranscriptPage } from "../../shared/sessions-ipc";
-import { sessionsPrimaryAction } from "../sessions-projection";
+import type { SessionsPrimaryAction } from "../sessions-projection";
 
 export type SessionsReaderStatus = "idle" | "loading" | "ready" | "missing" | "error";
 
 type SessionsReaderProps = {
   pages: TranscriptPage[];
+  primaryAction: SessionsPrimaryAction | null;
   readerRef: RefObject<HTMLDivElement | null>;
   selected: SessionSummary | null;
   status: SessionsReaderStatus;
   onLoadMore: () => void;
-  onPrimaryAction: (session: SessionSummary) => void;
+  onPrimaryAction: () => void;
   onScrollTopChange: (scrollTop: number) => void;
 };
 
 export function SessionsReader({
   pages,
+  primaryAction,
   readerRef,
   selected,
   status,
@@ -26,7 +28,6 @@ export function SessionsReader({
   const blocks = pages.flatMap((page) => page.blocks);
   const nextCursor = pages.at(-1)?.nextCursor ?? null;
   const partial = pages.some((page) => page.partial);
-  const primaryAction = selected ? sessionsPrimaryAction(selected) : null;
 
   return (
     <main className="sessions-reader">
@@ -35,7 +36,7 @@ export function SessionsReader({
         {selected && <span>{selected.project.label} · {selected.locationLabel}</span>}
         <span className="sessions-reader__toolbar-spacer" />
         {selected && primaryAction && (
-          <button type="button" onClick={() => onPrimaryAction(selected)}>
+          <button type="button" onClick={onPrimaryAction}>
             {primaryAction.label}
           </button>
         )}

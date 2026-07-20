@@ -5,7 +5,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   getDesktopAlfredApi,
   getDesktopLayoutApi,
@@ -80,6 +80,7 @@ import type { WorkMode } from "./terminal-desk-types";
 import { shortenPath } from "./path-display";
 import { findWorkspaceForCwd } from "./workspace-path-matching";
 import { sessionRelaunchSafety } from "./relaunch-safety";
+import type { SessionsPrimaryActionRequest } from "./sessions-projection";
 import { normalizeSessionTitle } from "../shared/session-title";
 import { shortLabelForWorkspace } from "../shared/workspace-label";
 import type {
@@ -105,7 +106,7 @@ import type {
 } from "../shared/terminal-ipc";
 import type { DispatchTargetSnapshot, WorkspaceViewState } from "../shared/layout-ipc";
 import type { WorkspaceMissionBrief, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
-import type { ExternalSessionSummary } from "../shared/sessions-ipc";
+import type { ExternalSessionSummary, SessionSummary } from "../shared/sessions-ipc";
 import "@xterm/xterm/css/xterm.css";
 
 type Workspace = ProjectNavigatorWorkspace;
@@ -218,6 +219,7 @@ export function App() {
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
   const resumingExternalSessionKeysRef = useRef<Set<string>>(new Set());
+  const externalResumeReservationsRef = useRef<Map<string, { tileId: string; workspaceId: string }>>(new Map());
   const worktreeActionPendingRef = useRef<Set<string>>(new Set());
   const terminalSessionsRef = useRef<SessionTile[]>([]);
   const announcedSessionStatusesRef = useRef<Map<string, string>>(new Map());
@@ -289,7 +291,7 @@ export function App() {
         ? "Set OPENROUTER_API_KEY in repo .env to use Alfred."
         : undefined;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     terminalSessionsRef.current = terminalSessions;
   }, [terminalSessions]);
 
@@ -791,7 +793,7 @@ export function App() {
   }, [refreshLiveSessions]);
 
   const handleFocusSessionInWorkspace = useCallback((workspaceId: string, sessionId: string) => {
-    const targetSessions = terminalSessions.filter((session) => session.workspaceId === workspaceId);
+    const targetSessions = terminalSessionsRef.current.filter((session) => session.workspaceId === workspaceId);
     if (!targetSessions.some((session) => session.id === sessionId)) return;
 
     const layoutApi = getDesktopLayoutApi();
@@ -838,9 +840,20 @@ export function App() {
     activeWorkspaceId,
     refreshLiveSessions,
     selectedSessionIdsByWorkspace,
-    terminalSessions,
     workModesByWorkspace,
   ]);
+
+  useEffect(() => {
+    for (const [codexSessionId] of externalResumeReservationsRef.current) {
+      const actual = terminalSessions.find((session) => (
+        session.resumeTarget?.agentKind === "codex"
+        && session.resumeTarget.sessionId === codexSessionId
+      ));
+      if (!actual) continue;
+      externalResumeReservationsRef.current.delete(codexSessionId);
+      handleFocusSessionInWorkspace(actual.workspaceId, actual.id);
+    }
+  }, [handleFocusSessionInWorkspace, terminalSessions]);
 
   useEffect(() => {
     setSelectedSessionIdsByWorkspace((current) => {
@@ -1629,31 +1642,6 @@ export function App() {
     setWorkspaceHydrationRetryIndex((index) => index + 1);
   }, []);
 
-  const handleOpenManagedSessionFromSessions = useCallback((workspaceId: string, sessionId: string) => {
-    const session = terminalSessions.find((item) => item.workspaceId === workspaceId && item.id === sessionId);
-    if (!session) return;
-    if (session.runtimeStatus === "live" || session.runtimeStatus === "starting") {
-      handleFocusSessionInWorkspace(workspaceId, sessionId);
-      return;
-    }
-    if (
-      session.runtimeStatus === "restored"
-      || session.runtimeStatus === "exited"
-      || session.runtimeStatus === "error"
-    ) {
-      const resumableAgent = session.agentKind === "codex"
-        || session.agentKind === "claude"
-        || session.command === "codex"
-        || session.command === "claude";
-      if (session.command?.trim() || (session.runtimeStatus === "restored" && resumableAgent)) {
-        handleRecoverInboxItem(workspaceId, sessionId);
-        return;
-      }
-    }
-    setActiveWorkspaceId(workspaceId);
-    setActiveSurface("work");
-  }, [handleFocusSessionInWorkspace, handleRecoverInboxItem, terminalSessions]);
-
   const handleReviewBlockedSession = useCallback((workspaceId: string, sessionId: string) => {
     contextReturnFocusRef.current = null;
     contextFocusRequestKeyRef.current += 1;
@@ -1664,11 +1652,11 @@ export function App() {
     }));
   }, [handleFocusSessionInWorkspace]);
 
-  const handleResumeExternalCodexSession = useCallback(async (sessionKey: string) => {
+  const handleResumeExternalCodexSession = useCallback(async (summary: SessionSummary) => {
+    const sessionKey = summary.sessionKey;
     if (resumingExternalSessionKeysRef.current.has(sessionKey)) return;
     resumingExternalSessionKeysRef.current.add(sessionKey);
     const now = Date.now();
-    const workspaceApi = getDesktopWorkspaceApi();
     const sessionsApi = getDesktopSessionsApi();
     try {
       if (!sessionsApi) return;
@@ -1676,20 +1664,16 @@ export function App() {
       if (resolved.kind !== "resume") return;
       const targetWorkspace = workspaces.find((workspace) => workspace.id === resolved.projectId);
       if (!targetWorkspace) return;
-      const alreadyManaged = terminalSessionsRef.current.some((session) => (
+      const alreadyManaged = terminalSessionsRef.current.find((session) => (
         session.resumeTarget?.agentKind === "codex"
         && session.resumeTarget.sessionId === resolved.sessionId
       ));
       if (alreadyManaged) {
-        const existing = terminalSessionsRef.current.find((session) => (
-          session.resumeTarget?.agentKind === "codex"
-          && session.resumeTarget.sessionId === resolved.sessionId
-        ));
-        if (existing) handleFocusSessionInWorkspace(existing.workspaceId, existing.id);
+        handleFocusSessionInWorkspace(alreadyManaged.workspaceId, alreadyManaged.id);
         return;
       }
-      const summary = externalCodexSessions.find((session) => session.sessionKey === sessionKey);
-      const title = normalizeSessionTitle(summary?.title ? `Codex · ${summary.title}` : "Codex resume") ?? "Codex resume";
+      if (externalResumeReservationsRef.current.has(resolved.sessionId)) return;
+      const title = normalizeSessionTitle(summary.title ? `Codex · ${summary.title}` : "Codex resume") ?? "Codex resume";
       const tile: SessionTile = {
         id: `external-codex-${resolved.sessionId.slice(0, 8)}-${now}`,
         title,
@@ -1716,17 +1700,10 @@ export function App() {
         ],
         lastActivityAt: now,
       };
-
-      setActiveWorkspaceId(targetWorkspace.id);
-      setActiveSurface("work");
-      setSelectedSessionIdsByWorkspace((current) => ({ ...current, [targetWorkspace.id]: tile.id }));
-      setWorkModesByWorkspace((current) => ({ ...current, [targetWorkspace.id]: "focus" }));
-      const targetSessions = [
-        ...terminalSessionsRef.current.filter((session) => session.workspaceId === targetWorkspace.id),
-        tile,
-      ];
-      const workspaceLayouts = applyLayoutPreset(targetSessions, "focus", tile.id);
-      setTileLayoutsByWorkspace((current) => ({ ...current, [targetWorkspace.id]: workspaceLayouts }));
+      externalResumeReservationsRef.current.set(resolved.sessionId, {
+        tileId: tile.id,
+        workspaceId: targetWorkspace.id,
+      });
       setTerminalSessions((sessions) => {
         if (sessions.some((session) => (
           session.resumeTarget?.agentKind === "codex"
@@ -1734,33 +1711,55 @@ export function App() {
         ))) return sessions;
         return [...sessions, tile];
       });
-      void getDesktopLayoutApi()?.setWorkspaceLayout({ workspaceId: targetWorkspace.id, layouts: workspaceLayouts });
-      void getDesktopLayoutApi()?.setWorkspaceViewState({
-        workspaceId: targetWorkspace.id,
-        viewState: { workMode: "focus", selectedSessionId: tile.id },
-      });
-      void workspaceApi?.setWorkspaceState({ workspaces, activeWorkspaceId: targetWorkspace.id });
     } finally {
       resumingExternalSessionKeysRef.current.delete(sessionKey);
     }
-  }, [externalCodexSessions, handleFocusSessionInWorkspace, workspaces]);
+  }, [handleFocusSessionInWorkspace, workspaces]);
 
-  const handleTrustExternalCodexWorkspace = useCallback(async (sessionKey: string) => {
+  const handleAddExternalCodexProject = useCallback(async () => {
     const workspaceApi = getDesktopWorkspaceApi();
     if (!workspaceApi) return;
-    const summary = externalCodexSessions.find((session) => session.sessionKey === sessionKey);
-    if (!summary) return;
-    if (summary.project.id) {
-      if (!workspaces.some((workspace) => workspace.id === summary.project.id)) return;
-      setActiveWorkspaceId(summary.project.id);
-      setActiveSurface("work");
-      return;
-    }
 
     const snapshot = await workspaceApi.createWorkspaceFromFolder();
     setWorkspaces(snapshot.workspaces);
     setActiveWorkspaceId(snapshot.activeWorkspaceId);
-  }, [externalCodexSessions, workspaces]);
+  }, []);
+
+  const handleSessionsPrimaryAction = useCallback((request: SessionsPrimaryActionRequest) => {
+    switch (request.action.kind) {
+      case "reveal":
+        if (request.target) handleFocusSessionInWorkspace(request.target.workspaceId, request.target.sessionId);
+        return;
+      case "recover":
+        if (request.target) handleRecoverInboxItem(request.target.workspaceId, request.target.sessionId);
+        return;
+      case "resume-external":
+        void handleResumeExternalCodexSession(request.summary);
+        return;
+      case "add-project":
+        void handleAddExternalCodexProject();
+        return;
+      case "open-project": {
+        const workspaceId = request.summary.project.id;
+        if (!workspaceId || !workspaces.some((workspace) => workspace.id === workspaceId)) return;
+        const sessionId = selectedSessionIdsByWorkspace[workspaceId]
+          ?? terminalSessionsRef.current.find((session) => session.workspaceId === workspaceId)?.id;
+        if (sessionId) {
+          handleFocusSessionInWorkspace(workspaceId, sessionId);
+        } else {
+          setActiveWorkspaceId(workspaceId);
+          setActiveSurface("work");
+        }
+      }
+    }
+  }, [
+    handleAddExternalCodexProject,
+    handleFocusSessionInWorkspace,
+    handleRecoverInboxItem,
+    handleResumeExternalCodexSession,
+    selectedSessionIdsByWorkspace,
+    workspaces,
+  ]);
 
   useEffect(() => {
     if (activeSurface !== "sessions") return;
@@ -2260,11 +2259,9 @@ export function App() {
                   terminalApi={getDesktopTerminalApi()}
                   workspaces={workspaces}
                   onBackToWork={handleExitSessionsToWork}
-                  onOpenManagedSession={handleOpenManagedSessionFromSessions}
+                  onPrimaryAction={handleSessionsPrimaryAction}
                   onRefreshExternalSessions={handleRefreshExternalCodexSessions}
-                  onResumeExternalCodexSession={handleResumeExternalCodexSession}
                   onStateChange={setSessionsViewState}
-                  onTrustExternalCodexWorkspace={handleTrustExternalCodexWorkspace}
                 />
               </div>
             )}

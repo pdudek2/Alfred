@@ -27,9 +27,10 @@ import type { ExternalSessionSummary, SessionsApi } from "../shared/sessions-ipc
 import type { DesktopPrivacySettings, DesktopSaveStatus, DesktopStateApi } from "../shared/desktop-state-ipc";
 import { appendActivityEvent, type SessionActivityEvent } from "../shared/session-activity";
 
-const { terminalConstructorOptions, terminalDisposeCalls } = vi.hoisted(() => ({
+const { terminalConstructorOptions, terminalDisposeCalls, terminalFocusSessionIds } = vi.hoisted(() => ({
   terminalConstructorOptions: [] as unknown[],
   terminalDisposeCalls: [] as unknown[],
+  terminalFocusSessionIds: [] as string[],
 }));
 
 const rendererStyles = readFileSync(resolve(process.cwd(), "src/renderer/styles.css"), "utf8");
@@ -47,6 +48,8 @@ vi.mock("@xterm/xterm", () => ({
       }
     });
     focus = vi.fn(() => {
+      const sessionId = this.element?.dataset.sessionId;
+      if (sessionId) terminalFocusSessionIds.push(sessionId);
       this.element?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
     });
     loadAddon = vi.fn((addon: { activate?: (terminal: unknown) => void }) => {
@@ -441,6 +444,7 @@ function deferred<T>() {
 beforeEach(() => {
   terminalConstructorOptions.length = 0;
   terminalDisposeCalls.length = 0;
+  terminalFocusSessionIds.length = 0;
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
@@ -2358,6 +2362,109 @@ describe("App integration", () => {
     expect(writeTerminal).not.toHaveBeenCalled();
   });
 
+  it("atomically resumes one Codex lineage from two opaque keys that resolve concurrently", async () => {
+    const user = userEvent.setup();
+    const sharedSessionId = "019edc4b-0000-7000-9000-shared";
+    const firstResolution = deferred<Awaited<ReturnType<SessionsApi["resolveExternalSession"]>>>();
+    const secondResolution = deferred<Awaited<ReturnType<SessionsApi["resolveExternalSession"]>>>();
+    const firstKey = "opaque-concurrent-first";
+    const secondKey = "opaque-concurrent-second";
+    const {
+      createTerminal,
+      resolveExternalSession,
+      setWorkspaceLayout,
+      setWorkspaceViewState,
+      writeTerminal,
+    } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [],
+      [
+        {
+          sessionKey: firstKey,
+          lineageKey: "external-codex:concurrent-first",
+          contentSessionKey: "external-codex:concurrent-first",
+          source: "external-codex",
+          kind: "codex",
+          title: "Concurrent first",
+          project: { id: "A", label: "Alfred" },
+          locationLabel: "Alfred",
+          updatedAt: 201,
+          lifecycle: "resumable",
+        },
+        {
+          sessionKey: secondKey,
+          lineageKey: "external-codex:concurrent-second",
+          contentSessionKey: "external-codex:concurrent-second",
+          source: "external-codex",
+          kind: "codex",
+          title: "Concurrent second",
+          project: { id: "A", label: "Alfred" },
+          locationLabel: "Alfred",
+          updatedAt: 200,
+          lifecycle: "resumable",
+        },
+      ],
+    );
+    resolveExternalSession.mockImplementation(({ sessionKey }: { sessionKey: string }) => (
+      sessionKey === firstKey ? firstResolution.promise : secondResolution.promise
+    ));
+
+    render(<App />);
+
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(1));
+    createTerminal.mockClear();
+    setWorkspaceLayout.mockClear();
+    setWorkspaceViewState.mockClear();
+    await selectSurface(user, "Sessions");
+
+    await user.click(await screen.findByRole("option", { name: /Concurrent first/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Resume in Work" }));
+    await user.click(screen.getByRole("option", { name: /Concurrent second/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Resume in Work" }));
+    await waitFor(() => expect(resolveExternalSession).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      secondResolution.resolve({
+        kind: "resume",
+        projectId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        sessionId: sharedSessionId,
+      });
+      firstResolution.resolve({
+        kind: "resume",
+        projectId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        sessionId: sharedSessionId,
+      });
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(createTerminal.mock.calls.filter(([request]) => request.args?.[1] === sharedSessionId)).toHaveLength(1);
+    });
+    const resumeRequest = createTerminal.mock.calls.find(([request]) => request.args?.[1] === sharedSessionId)?.[0];
+    expect(resumeRequest).toBeDefined();
+    const actualTileId = resumeRequest.clientId;
+    const persistedView = setWorkspaceViewState.mock.calls.at(-1)?.[0];
+    const persistedLayout = setWorkspaceLayout.mock.calls.at(-1)?.[0];
+    const renderedTileIds = screen.getAllByTestId("terminal-tile").map((tile) => tile.dataset.sessionId);
+
+    expect(persistedView).toEqual({
+      workspaceId: "A",
+      viewState: { workMode: "focus", selectedSessionId: actualTileId },
+    });
+    expect(Object.keys(persistedLayout.layouts)).toContain(actualTileId);
+    expect(Object.keys(persistedLayout.layouts).every((tileId) => renderedTileIds.includes(tileId))).toBe(true);
+    expect(renderedTileIds.filter((tileId) => tileId?.startsWith("external-codex-"))).toEqual([actualTileId]);
+    expect(terminalFocusSessionIds.at(-1)).toBe(actualTileId);
+    expect(writeTerminal).not.toHaveBeenCalled();
+  });
+
   it("reveals a live managed session in Work without creating a terminal or writing to its PTY", async () => {
     const user = userEvent.setup();
     const { createTerminal, writeTerminal } = installDesktopBridge(
@@ -2376,6 +2483,7 @@ describe("App integration", () => {
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(screen.getByRole("article", { name: /Reveal target/i })).toBeInTheDocument();
     expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
+    await waitFor(() => expect(terminalFocusSessionIds.at(-1)).toBe("reveal"));
     expect(createTerminal).not.toHaveBeenCalled();
     expect(writeTerminal).not.toHaveBeenCalled();
   });
@@ -2456,6 +2564,7 @@ describe("App integration", () => {
 
     expect(screen.queryByRole("region", { name: "Sessions workspace" })).not.toBeInTheDocument();
     expect(screen.getByTestId("desk-runtime-surface")).not.toHaveAttribute("aria-hidden");
+    await waitFor(() => expect(terminalFocusSessionIds.at(-1)).toBe("manual-1"));
     expect(resolveExternalSession).not.toHaveBeenCalled();
     expect(createTerminal).not.toHaveBeenCalled();
     expect(writeTerminal).not.toHaveBeenCalled();

@@ -16,6 +16,11 @@ export type SessionsPrimaryAction =
   | { kind: "resume-external"; label: "Resume in Work" }
   | { kind: "add-project"; label: "Add Project…" }
   | { kind: "open-project"; label: "Open Project" };
+export type SessionsPrimaryActionRequest = {
+  action: SessionsPrimaryAction;
+  summary: SessionSummary;
+  target: ManagedSessionTarget | null;
+};
 export type SessionsProjectionPage = {
   groups: Array<{ id: string; label: string; items: SessionSummary[] }>;
   items: SessionSummary[];

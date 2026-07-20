@@ -109,10 +109,8 @@ const baseProps = {
   terminalApi: createTerminalApi(),
   workspaces,
   onBackToWork: vi.fn(),
-  onOpenManagedSession: vi.fn(),
+  onPrimaryAction: vi.fn(),
   onRefreshExternalSessions: vi.fn(),
-  onResumeExternalCodexSession: vi.fn(),
-  onTrustExternalCodexWorkspace: vi.fn(),
 } satisfies Omit<SessionsSurfaceProps, "state" | "onStateChange">;
 
 function renderSurface(
@@ -456,9 +454,7 @@ describe("SessionsSurface", () => {
 
   it("renders truthful lifecycle actions", async () => {
     const user = userEvent.setup();
-    const onOpenManagedSession = vi.fn();
-    const onResumeExternalCodexSession = vi.fn();
-    const onTrustExternalCodexWorkspace = vi.fn();
+    const onPrimaryAction = vi.fn();
     const live = managedSession(0, { title: "Live managed" });
     const restored = managedSession(1, {
       title: "Restored managed",
@@ -477,28 +473,78 @@ describe("SessionsSurface", () => {
     renderSurface({
       sessions: [live, restored],
       externalSessions: [mappedExternal, untrustedExternal, endedMapped],
-      onOpenManagedSession,
-      onResumeExternalCodexSession,
-      onTrustExternalCodexWorkspace,
+      onPrimaryAction,
     });
 
     await user.click(screen.getByRole("option", { name: /Live managed/ }));
     await user.click(screen.getByRole("button", { name: "Reveal in Work" }));
-    expect(onOpenManagedSession).toHaveBeenLastCalledWith("A", "managed-0");
+    expect(onPrimaryAction).toHaveBeenLastCalledWith(expect.objectContaining({
+      action: { kind: "reveal", label: "Reveal in Work" },
+      target: { workspaceId: "A", sessionId: "managed-0" },
+    }));
 
     await user.click(screen.getByRole("option", { name: /Restored managed/ }));
-    expect(screen.getByRole("button", { name: "Resume in Work" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Resume in Work" }));
+    expect(onPrimaryAction).toHaveBeenLastCalledWith(expect.objectContaining({
+      action: { kind: "recover", label: "Resume in Work" },
+      target: { workspaceId: "A", sessionId: "managed-1" },
+    }));
 
     await user.click(screen.getByRole("option", { name: /Mapped external/ }));
     await user.click(screen.getByRole("button", { name: "Resume in Work" }));
-    expect(onResumeExternalCodexSession).toHaveBeenLastCalledWith(mappedExternal.sessionKey);
+    expect(onPrimaryAction).toHaveBeenLastCalledWith(expect.objectContaining({
+      action: { kind: "resume-external", label: "Resume in Work" },
+      summary: expect.objectContaining({ sessionKey: mappedExternal.sessionKey }),
+    }));
 
     await user.click(screen.getByRole("option", { name: /Untrusted external/ }));
     await user.click(screen.getByRole("button", { name: "Add Project…" }));
-    expect(onTrustExternalCodexWorkspace).toHaveBeenLastCalledWith(untrustedExternal.sessionKey);
+    expect(onPrimaryAction).toHaveBeenLastCalledWith(expect.objectContaining({
+      action: { kind: "add-project", label: "Add Project…" },
+      summary: expect.objectContaining({ sessionKey: untrustedExternal.sessionKey }),
+    }));
 
     await user.click(screen.getByRole("option", { name: /Ended mapped external/ }));
-    expect(screen.getByRole("button", { name: "Open Project" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Open Project" }));
+    expect(onPrimaryAction).toHaveBeenLastCalledWith(expect.objectContaining({
+      action: { kind: "open-project", label: "Open Project" },
+      summary: expect.objectContaining({ sessionKey: endedMapped.sessionKey }),
+    }));
+  });
+
+  it("dispatches the action captured for the selected summary even if the source object mutates later", async () => {
+    const user = userEvent.setup();
+    const onPrimaryAction = vi.fn();
+    const untrusted = externalSession(7, {
+      title: "Mutable external",
+      project: { id: null, label: "External Codex" },
+      lifecycle: "read-only",
+    });
+    renderSurface({ externalSessions: [untrusted], onPrimaryAction });
+
+    await user.click(screen.getByRole("option", { name: /Mutable external/ }));
+    const actionButton = screen.getByRole("button", { name: "Add Project…" });
+    untrusted.project.id = "A";
+    untrusted.lifecycle = "resumable";
+    await user.click(actionButton);
+
+    expect(onPrimaryAction).toHaveBeenCalledWith(expect.objectContaining({
+      action: { kind: "add-project", label: "Add Project…" },
+      summary: expect.objectContaining({
+        sessionKey: untrusted.sessionKey,
+        project: { id: null, label: "External Codex" },
+        lifecycle: "read-only",
+      }),
+    }));
+  });
+
+  it("does not render an enabled lifecycle action without a handler", async () => {
+    const user = userEvent.setup();
+    renderSurface({ sessions: [managedSession(0)], onPrimaryAction: undefined });
+
+    await user.click(screen.getByRole("option", { name: /Phase I navigator/ }));
+
+    expect(screen.queryByRole("button", { name: "Reveal in Work" })).not.toBeInTheDocument();
   });
 
   it("restores scroll offsets and marks reduced motion without making transcript live", async () => {
