@@ -9,6 +9,11 @@ import {
 } from "../../src/main/persisted-desktop-state";
 import type { AlfredStagedPlanSnapshot } from "../../src/shared/alfred-ipc";
 import type { PersistedTerminalSessionSnapshot } from "../../src/shared/terminal-ipc";
+import {
+  writeCodexSummaryFixtures,
+  writeLargeCodexTranscriptFixture,
+  writeMixedCodexSessionFixtures,
+} from "../../src/test-support/codex-session-fixtures";
 
 export type DesktopStateFixtureOptions = {
   activeWorkspaceId?: "A" | "B";
@@ -19,6 +24,9 @@ export type DesktopStateFixtureOptions = {
   restoredScratchSessions?: number;
   restoredSessions?: number;
   unsafeRecoveryItem?: number;
+  externalSessionFixture?: "mixed";
+  externalSessionSummaryCount?: number;
+  largeExternalTranscript?: boolean;
 };
 
 export type DesktopFixturePaths = {
@@ -178,9 +186,27 @@ export async function createDesktopFixture(
       restoredTerminalSessions,
       privacySettings: {
         terminalScrollbackRetention: "redactedTail",
-        externalSessionIndexingEnabled: false,
+        externalSessionIndexingEnabled:
+          options.externalSessionFixture !== undefined
+          || options.externalSessionSummaryCount !== undefined
+          || options.largeExternalTranscript === true,
       },
     };
+
+    const codexHome = path.join(paths.home, ".codex");
+    if (options.externalSessionFixture === "mixed") {
+      await writeMixedCodexSessionFixtures(codexHome, {
+        workspaceA: paths.workspaceA,
+        workspaceB: paths.workspaceB,
+        freeChatRoot: path.join(paths.home, "Documents", "Codex"),
+      });
+    }
+    if (options.externalSessionSummaryCount !== undefined) {
+      await writeCodexSummaryFixtures(codexHome, options.externalSessionSummaryCount, paths.workspaceA);
+    }
+    if (options.largeExternalTranscript) {
+      await writeLargeCodexTranscriptFixture(codexHome);
+    }
 
     if (state.version !== DESKTOP_STATE_VERSION) throw new Error("Fixture state version drifted.");
     const expectedWorkspaceCount = options.projectShell ? 7 : 2;

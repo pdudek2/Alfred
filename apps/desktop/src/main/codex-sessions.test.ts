@@ -1,10 +1,14 @@
-import { mkdir, stat, unlink, utimes, writeFile } from "node:fs/promises";
+import { mkdir, unlink, utimes, writeFile } from "node:fs/promises";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createCodexSessionsReader } from "./codex-sessions.js";
 import { SUMMARY_CACHE_COUNT_LIMIT } from "../shared/sessions-ipc.js";
+import {
+  writeCodexSummaryFixtures,
+  writeLargeCodexTranscriptFixture,
+} from "../test-support/codex-session-fixtures.js";
 
 describe("Codex sessions reader", () => {
   it("returns display-safe opaque summaries in cursor pages and resolves selected keys", async () => {
@@ -414,25 +418,56 @@ describe("Codex sessions reader", () => {
     }
   });
 
+  it("indexes 5,000 deterministic summaries while keeping summary diagnostics capped", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    await writeCodexSummaryFixtures(codexHome, 5_000, "/fixture/project");
+    const reader = createCodexSessionsReader({ codexHome });
+
+    const listed = await reader.listExternalSessions({
+      projects: [{ id: "A", label: "Fixture project", rootPath: "/fixture/project" }],
+      limit: 1,
+    });
+    const diagnostics = reader.getDiagnostics();
+
+    expect(listed.total).toBe(5_000);
+    expect(listed.sessions).toHaveLength(1);
+    expect(diagnostics.summaryCount).toBe(SUMMARY_CACHE_COUNT_LIMIT);
+    expect(diagnostics.summaryBytes).toBeLessThanOrEqual(10 * 1024 * 1024);
+    console.info(JSON.stringify({
+      evidence: "sessions-summary-resource",
+      listedTotal: listed.total,
+      summaryBytes: diagnostics.summaryBytes,
+      summaryCount: diagnostics.summaryCount,
+    }));
+  });
+
   it("streams the first page of a 10 MiB 100k-line transcript without reading to EOF", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
-    const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
-    await mkdir(sessionDir, { recursive: true });
-    const largeFile = path.join(sessionDir, "large.jsonl");
-    await writeFile(largeFile, [
-      JSON.stringify({ type: "session_meta", payload: { id: "large", cwd: "/repo" } }),
-      ...Array.from({ length: 100_000 }, (_, index) => JSON.stringify({ type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: `${index}:${"x".repeat(40)}` }] } })),
-    ].join("\n"));
-    const fileSize = (await stat(largeFile)).size;
+    const resource = await writeLargeCodexTranscriptFixture(codexHome);
     const reader = createCodexSessionsReader({ codexHome });
-    const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }], limit: 1 });
-    const large = listed.sessions.find((session) => session.contentSessionKey === "external-codex:large")!;
+    const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/fixture/project" }], limit: 1 });
+    const large = listed.sessions.find((session) => session.contentSessionKey === "external-codex:resource-100k-lines")!;
+    const startedAt = performance.now();
     const first = await reader.readTranscriptPage({ sessionKey: large.sessionKey });
+    const firstPageMs = performance.now() - startedAt;
 
-    expect(fileSize).toBeGreaterThanOrEqual(10 * 1024 * 1024);
+    expect(resource.lineCount).toBe(100_000);
+    expect(resource.size).toBeGreaterThanOrEqual(10 * 1024 * 1024);
     expect(first.blocks).toHaveLength(50);
     expect(first.nextCursor).toEqual(expect.any(String));
-    expect(decodeCursor(first.nextCursor!).offset).toBeLessThan(fileSize / 100);
+    expect(decodeCursor(first.nextCursor!).offset).toBeLessThan(resource.size / 100);
+    if (process.env.ALFRED_ENFORCE_SESSIONS_REFERENCE_TIMING === "1") {
+      expect(firstPageMs).toBeLessThanOrEqual(750);
+    }
+    console.info(JSON.stringify({
+      evidence: "sessions-first-page-resource",
+      fileBytes: resource.size,
+      firstPageMs: Number(firstPageMs.toFixed(3)),
+      firstCursorOffset: decodeCursor(first.nextCursor!).offset,
+      lineCount: resource.lineCount,
+      referenceBudgetMs: 750,
+      timingEnforced: process.env.ALFRED_ENFORCE_SESSIONS_REFERENCE_TIMING === "1",
+    }));
   });
 });
 

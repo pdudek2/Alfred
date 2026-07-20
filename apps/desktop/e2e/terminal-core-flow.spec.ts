@@ -39,16 +39,16 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   identityTransitions.push("Work→Inbox");
   surfaceGeometries.push(await readActiveSurfaceGeometry(page, "Inbox"));
 
-  await selectSurface(page, "Observatory");
-  await expect(page.getByRole("region", { name: "History workspace" })).toBeVisible();
-  await expectTerminalNodes(terminalNodes, page, "History");
-  identityTransitions.push("Inbox→History");
-  surfaceGeometries.push(await readActiveSurfaceGeometry(page, "History"));
+  await selectSurface(page, "Sessions");
+  await expect(page.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
+  await expectTerminalNodes(terminalNodes, page, "Sessions");
+  identityTransitions.push("Inbox→Sessions");
+  surfaceGeometries.push(await readActiveSurfaceGeometry(page, "Sessions"));
 
   await selectSurface(page, "Work");
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
   await expectTerminalNodes(terminalNodes, page, "Work restored");
-  identityTransitions.push("History→Work");
+  identityTransitions.push("Sessions→Work");
   surfaceGeometries.push(await readActiveSurfaceGeometry(page, "Work restored"));
   await expect(page.getByTestId("xterm-host").first()).toContainText(marker);
 
@@ -118,7 +118,7 @@ async function addManualTerminal(page: Page): Promise<void> {
   await page.getByRole("menuitem", { name: "New manual terminal" }).click();
 }
 
-async function selectSurface(page: Page, surface: "Work" | "Observatory"): Promise<void> {
+async function selectSurface(page: Page, surface: "Work" | "Sessions"): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();
 }
