@@ -66,6 +66,29 @@ describe("sessions IPC", () => {
 
     await expect(reader.resolveExternalSession({ sessionKey: populated.sessions[0]!.sessionKey })).resolves.toEqual({ kind: "none" });
   });
+
+  it("discards a list that repopulates reader sources after clearCaches while indexing remains enabled", async () => {
+    let populated = false;
+    const listing = deferred<{ sessions: Array<{ sessionKey: string }>; nextCursor: null; total: number }>();
+    const reader = {
+      listExternalSessions: vi.fn(() => listing.promise.then((result) => {
+        populated = true;
+        return result;
+      })),
+      resolveExternalSession: vi.fn(() => Promise.resolve(populated ? { kind: "resume" as const, projectId: "A", cwd: "/repo", sessionId: "stale" } : { kind: "none" as const })),
+      clear: vi.fn(() => { populated = false; }),
+    };
+    registerSessionsIpc({ reader, isExternalSessionIndexingEnabled: () => true });
+
+    const response = handlers.get(sessionsChannels.listExternal)?.({}, { projects: [] });
+    await vi.waitFor(() => expect(reader.listExternalSessions).toHaveBeenCalledOnce());
+    await handlers.get(sessionsChannels.clearCaches)?.({}, undefined);
+    listing.resolve({ sessions: [{ sessionKey: "stale" }], nextCursor: null, total: 1 });
+
+    await expect(response).resolves.toEqual({ sessions: [], nextCursor: null, total: 0 });
+    await expect(reader.resolveExternalSession({ sessionKey: "stale" })).resolves.toEqual({ kind: "none" });
+    expect(reader.clear).toHaveBeenCalledTimes(2);
+  });
 });
 
 function deferred<T>() {
