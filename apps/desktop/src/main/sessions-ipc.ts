@@ -2,6 +2,7 @@ import { app, ipcMain } from "electron";
 import os from "node:os";
 import path from "node:path";
 import { createCodexSessionsReader } from "./codex-sessions.js";
+import { isAllowedWorkspacePath } from "./workspace-path.js";
 import { sessionsChannels, type ResolveExternalSessionResult, type TranscriptPage } from "../shared/sessions-ipc.js";
 import type { SessionsProjectInput } from "../shared/sessions-ipc.js";
 import type { WorkspaceStore } from "./workspace-store.js";
@@ -50,13 +51,17 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
     if (!(await isEnabled())) { await invalidateCaches(); return { sessions: [], nextCursor: null, total: 0 }; }
     return result;
   });
+  ipcMain.handle(sessionsChannels.releaseListSnapshot, (_event, request) => {
+    if (!isListSnapshotReleaseRequest(request)) throw new Error("Invalid external sessions snapshot release request.");
+    return queueMutation(() => reader.releaseListSnapshot(request));
+  });
   ipcMain.handle(sessionsChannels.resolveExternal, async (_event, request): Promise<ResolveExternalSessionResult> => {
     if (!(await isEnabled())) { await invalidateCaches(); return { kind: "none" }; }
     const result = await reader.resolveExternalSession(request);
     if (result.kind !== "resume" || !options.workspaceStore) return result;
     const state = await options.workspaceStore.getWorkspaceState();
     const workspace = state.workspaces.find((candidate) => candidate.id === result.projectId);
-    return pathMatchesWorkspace(result.cwd, workspace?.rootPath) ? result : { kind: "add-project" };
+    return await pathMatchesWorkspace(result.cwd, workspace?.rootPath) ? result : { kind: "add-project" };
   });
   ipcMain.handle(sessionsChannels.readTranscriptPage, async (_event, request): Promise<TranscriptPage> => {
     if (!isTranscriptPageRequest(request)) throw new Error("Invalid transcript page request.");
@@ -74,6 +79,12 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
   ipcMain.handle(sessionsChannels.clearCaches, () => {
     return invalidateCaches();
   });
+}
+
+function isListSnapshotReleaseRequest(value: unknown): value is { cursor: string } {
+  return typeof value === "object" && value !== null
+    && typeof (value as { cursor?: unknown }).cursor === "string"
+    && (value as { cursor: string }).cursor.length > 0;
 }
 
 function isTranscriptPageRequest(value: unknown): value is { sessionKey: string; cursor?: string } {
@@ -120,9 +131,9 @@ function sanitizeProjectsFromRequest(request: unknown): SessionsProjectInput[] {
   });
 }
 
-function pathMatchesWorkspace(cwd: string, rootPath: string | undefined): boolean {
+async function pathMatchesWorkspace(cwd: string, rootPath: string | undefined): Promise<boolean> {
   const root = rootPath?.replace(/\/+$/, "");
   if (!cwd || !root) return false;
   const legacyRoot = `${path.dirname(root)}/.alfred-worktrees/${path.basename(root)}`;
-  return cwd === root || cwd.startsWith(`${root}/`) || cwd === legacyRoot || cwd.startsWith(`${legacyRoot}/`);
+  return isAllowedWorkspacePath(cwd, [root, legacyRoot]);
 }
