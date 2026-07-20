@@ -142,7 +142,7 @@ export function SessionsNavigator({
       )}
       {externalSessionIndexingEnabled && externalSessionsError && (
         <p className="sessions-navigator__notice">
-          <strong>Showing last successful results.</strong>
+          <strong>External sessions may be incomplete.</strong>
           <span>{externalSessionsError}</span>
         </p>
       )}

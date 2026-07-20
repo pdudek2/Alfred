@@ -360,7 +360,7 @@ describe("SessionsSurface", () => {
       externalSessions: [externalSession(1, { title: "Retained external result" })],
       externalSessionsError: "Refresh failed.",
     });
-    expect(screen.getByText("Showing last successful results.")).toBeInTheDocument();
+    expect(screen.getByText("External sessions may be incomplete.")).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Retained external result/ })).toBeInTheDocument();
   });
 
