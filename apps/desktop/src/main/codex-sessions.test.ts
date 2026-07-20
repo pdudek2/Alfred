@@ -80,6 +80,60 @@ describe("Codex sessions reader", () => {
     await expect(reader.listExternalSessions({ projects: [], limit: 101 })).resolves.toMatchObject({ sessions: expect.any(Array) });
     expect((await reader.listExternalSessions({ projects: [], limit: 101 })).sessions).toHaveLength(100);
   });
+
+  it("keeps oversized metadata pages within the 512 KiB response ceiling", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
+    await mkdir(sessionDir, { recursive: true });
+    await writeFile(
+      path.join(sessionDir, "oversized.jsonl"),
+      [
+        JSON.stringify({
+          type: "session_meta",
+          payload: {
+            id: "oversized-session",
+            cwd: "/workspaces/alfred",
+            model: "m".repeat(600 * 1024),
+            originator: "o".repeat(600 * 1024),
+          },
+        }),
+        JSON.stringify({ type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "Large metadata" }] } }),
+      ].join("\n"),
+    );
+
+    const result = await createCodexSessionsReader({ codexHome }).listExternalSessions({
+      projects: [{ id: "A", label: "p".repeat(600 * 1024), rootPath: "/workspaces/alfred" }],
+    });
+
+    expect(result.sessions).toHaveLength(1);
+    expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThanOrEqual(512 * 1024);
+    expect(result.sessions[0]?.contentSessionKey).toBe("external-codex:oversized-session");
+  });
+
+  it("advances the cursor when the byte ceiling shortens a metadata page", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
+    const largeMetadata = "ࠀ".repeat(512);
+    await mkdir(sessionDir, { recursive: true });
+    await Promise.all(Array.from({ length: 100 }, (_, index) => writeFile(
+      path.join(sessionDir, `metadata-${index}.jsonl`),
+      JSON.stringify({
+        type: "session_meta",
+        payload: { id: `metadata-${index}`, cwd: "/workspaces/alfred", model: largeMetadata, originator: largeMetadata },
+      }),
+    )));
+    const reader = createCodexSessionsReader({ codexHome });
+    const request = { projects: [{ id: "A", label: largeMetadata, rootPath: "/workspaces/alfred" }], limit: 100 };
+
+    const first = await reader.listExternalSessions(request);
+    const second = await reader.listExternalSessions({ ...request, cursor: first.nextCursor! });
+
+    expect(Buffer.byteLength(JSON.stringify(first))).toBeLessThanOrEqual(512 * 1024);
+    expect(first.sessions).not.toHaveLength(100);
+    expect(first.nextCursor).toEqual(expect.any(String));
+    expect(second.sessions).not.toHaveLength(0);
+    expect(second.sessions.some((session) => first.sessions.some((firstSession) => firstSession.sessionKey === session.sessionKey))).toBe(false);
+  });
 });
 
 function codexLines({ cwd, id, title }: { cwd: string; id: string; title: string }): string {

@@ -15,6 +15,9 @@ import {
 
 const MAX_TITLE_LENGTH = 92;
 const MAX_TRANSCRIPT_PREFIX_LINES = 140;
+const MAX_DISPLAY_TEXT_LENGTH = 512;
+const MAX_SESSION_ID_LENGTH = 512;
+const MAX_LIST_RESPONSE_BYTES = 512 * 1024;
 
 type SessionMetaPayload = { cwd?: unknown; id?: unknown; model?: unknown; originator?: unknown; parent_thread_id?: unknown; timestamp?: unknown };
 type CodexSessionSource = { path: string; id: string; cwd: string; revision: number; projectId: string | null };
@@ -29,7 +32,7 @@ export function createCodexSessionsReader(options: { codexHome: string; summaryL
       const summaries = await discoverCodexSummaries(options.codexHome, request.projects);
       const filtered = filterSummaryMetadata(summaries, request.query ?? "");
       const offset = decodeListCursor(request.cursor, filtered.length);
-      const page = filtered.slice(offset, offset + limit);
+      const page = pageWithinResponseCeiling(filtered, offset, limit);
       for (const item of page) sourceBySessionKey.set(item.summary.sessionKey, item.source);
       return {
         sessions: page.map((item) => item.summary),
@@ -87,23 +90,25 @@ async function summarizeCodexSessionFile(
   const id = stringValue(meta?.id) ?? idFromFilename(transcriptPath);
   const cwd = stringValue(meta?.cwd) ?? "";
   const project = projectForCwd(cwd, projects);
-  const title = titleIndex.get(id) || titleFromText(titleText) || fallbackTitle(cwd, id);
+  const title = titleFromText(titleIndex.get(id) ?? "") || titleFromText(titleText) || titleFromText(fallbackTitle(cwd, id));
   const model = stringValue(meta?.model);
   const originator = stringValue(meta?.originator);
   const sessionKey = `external-codex:${opaqueSessionToken(id, updatedAt)}`;
+  const contentId = boundedSessionIdentity(id);
+  const parentThreadId = stringValue(meta?.parent_thread_id);
   const summary: ExternalSessionSummary = {
     sessionKey,
-    lineageKey: stringValue(meta?.parent_thread_id) ?? `external-codex:${id}`,
-    contentSessionKey: `external-codex:${id}`,
+    lineageKey: `external-codex:${boundedSessionIdentity(parentThreadId ?? id)}`,
+    contentSessionKey: `external-codex:${contentId}`,
     source: "external-codex",
     kind: "codex",
     title,
     project,
-    locationLabel: project.id ? project.label : (cwd ? path.basename(cwd) : "Unknown workspace"),
+    locationLabel: boundedDisplayText(project.id ? project.label : (cwd ? path.basename(cwd) : "Unknown workspace")),
     updatedAt,
     lifecycle: project.id ? "resumable" : "read-only",
-    ...(model ? { model } : {}),
-    ...(originator ? { originator } : {}),
+    ...(model ? { model: boundedDisplayText(model) } : {}),
+    ...(originator ? { originator: boundedDisplayText(originator) } : {}),
   };
   return { summary, source: { path: transcriptPath, id, cwd, revision: updatedAt, projectId: project.id } };
 }
@@ -112,6 +117,22 @@ function filterSummaryMetadata(summaries: CodexSummary[], query: string): CodexS
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length) return summaries;
   return summaries.filter(({ summary }) => terms.every((term) => [summary.title, summary.project.label, summary.locationLabel, summary.model, summary.originator].filter(Boolean).join(" ").toLowerCase().includes(term)));
+}
+
+function pageWithinResponseCeiling(summaries: CodexSummary[], offset: number, limit: number): CodexSummary[] {
+  const page: CodexSummary[] = [];
+  for (const item of summaries.slice(offset, offset + limit)) {
+    const candidate = [...page, item];
+    const candidateOffset = offset + candidate.length;
+    const result = {
+      sessions: candidate.map((entry) => entry.summary),
+      nextCursor: candidateOffset < summaries.length ? encodeListCursor(candidateOffset) : null,
+      total: summaries.length,
+    };
+    if (Buffer.byteLength(JSON.stringify(result)) > MAX_LIST_RESPONSE_BYTES) break;
+    page.push(item);
+  }
+  return page;
 }
 
 function encodeListCursor(offset: number): string { return Buffer.from(JSON.stringify({ offset }), "utf8").toString("base64url"); }
@@ -128,7 +149,7 @@ function decodeListCursor(cursor: string | undefined, total: number): number {
 
 function projectForCwd(cwd: string, projects: SessionsProjectInput[]): SessionProjectRef {
   const project = projects.filter((candidate) => pathMatchesWorkspace(cwd, candidate.rootPath)).sort((left, right) => (right.rootPath?.length ?? 0) - (left.rootPath?.length ?? 0))[0];
-  return project ? { id: project.id, label: project.label } : { id: null, label: "External Codex" };
+  return project ? { id: project.id, label: boundedDisplayText(project.label) } : { id: null, label: "External Codex" };
 }
 function pathMatchesWorkspace(cwd: string, rootPath: string | undefined): boolean {
   const root = rootPath?.replace(/\/+$/, "");
@@ -164,7 +185,9 @@ function extractUserText(record: Record<string, unknown>): string {
   return record.payload.content.flatMap((item) => isRecord(item) ? [stringValue(item.text) ?? stringValue(item.input_text) ?? ""] : []).join(" ").trim();
 }
 function titleFromText(value: string): string { const text = value.replace(/\s+/g, " ").trim(); return !text ? "" : text.length > MAX_TITLE_LENGTH ? `${text.slice(0, MAX_TITLE_LENGTH - 1)}...` : text; }
+function boundedDisplayText(value: string): string { const text = value.replace(/\s+/g, " ").trim(); return text.length > MAX_DISPLAY_TEXT_LENGTH ? `${text.slice(0, MAX_DISPLAY_TEXT_LENGTH - 1)}...` : text; }
 function isInjectedSessionContext(value: string): boolean { return /^#\s*AGENTS\.md instructions\b/i.test(value.trim()); }
 function fallbackTitle(cwd: string, id: string): string { return cwd ? `${path.basename(cwd)} Codex session` : id; }
 function idFromFilename(filePath: string): string { const basename = path.basename(filePath, ".jsonl"); return basename.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)?.[0] ?? basename; }
 function opaqueSessionToken(id: string, revision: number): string { return createHash("sha256").update(`${id}:${revision}`).digest("base64url"); }
+function boundedSessionIdentity(id: string): string { return id.length <= MAX_SESSION_ID_LENGTH ? id : opaqueSessionToken(id, 0); }
