@@ -197,6 +197,7 @@ export function App() {
   const [externalCodexSessionsError, setExternalCodexSessionsError] = useState<string | null>(null);
   const [externalCodexSessionsLoading, setExternalCodexSessionsLoading] = useState<boolean>(false);
   const externalSessionsRequestGenerationRef = useRef(0);
+  const externalSessionsQueryRefreshTimeoutRef = useRef<number | null>(null);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState<boolean>(false);
   const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState<string>("");
   const [workspaceRenameEditing, setWorkspaceRenameEditing] = useState<boolean>(false);
@@ -1568,6 +1569,10 @@ export function App() {
   }, []);
 
   const handleRefreshExternalCodexSessions = useCallback(async (query: string) => {
+    if (externalSessionsQueryRefreshTimeoutRef.current !== null) {
+      window.clearTimeout(externalSessionsQueryRefreshTimeoutRef.current);
+      externalSessionsQueryRefreshTimeoutRef.current = null;
+    }
     if (!privacySettings.externalSessionIndexingEnabled) {
       externalSessionsRequestGenerationRef.current += 1;
       setExternalCodexSessions([]);
@@ -1834,9 +1839,16 @@ export function App() {
       return;
     }
     const timeout = window.setTimeout(() => {
+      externalSessionsQueryRefreshTimeoutRef.current = null;
       void handleRefreshExternalCodexSessions(query);
     }, 150);
-    return () => window.clearTimeout(timeout);
+    externalSessionsQueryRefreshTimeoutRef.current = timeout;
+    return () => {
+      window.clearTimeout(timeout);
+      if (externalSessionsQueryRefreshTimeoutRef.current === timeout) {
+        externalSessionsQueryRefreshTimeoutRef.current = null;
+      }
+    };
   }, [activeSurface, handleRefreshExternalCodexSessions, privacySettings.externalSessionIndexingEnabled, sessionsViewState.query]);
 
   useEffect(() => {
