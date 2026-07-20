@@ -14,10 +14,12 @@ type RegisterSessionsOptions = {
 export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void {
   const reader = options.reader ?? createCodexSessionsReader({ codexHome: options.codexHome ?? defaultCodexHome() });
   const isEnabled = async () => options.isExternalSessionIndexingEnabled?.() ?? true;
+  let cacheGeneration = 0;
   ipcMain.handle(sessionsChannels.listExternal, async (_event, request) => {
     if (!(await isEnabled())) { reader.clear(); return { sessions: [], nextCursor: null, total: 0 }; }
+    const requestGeneration = cacheGeneration;
     const result = await reader.listExternalSessions(request);
-    if (!(await isEnabled())) { reader.clear(); return { sessions: [], nextCursor: null, total: 0 }; }
+    if (requestGeneration !== cacheGeneration || !(await isEnabled())) { reader.clear(); return { sessions: [], nextCursor: null, total: 0 }; }
     return result;
   });
   ipcMain.handle(sessionsChannels.resolveExternal, async (_event, request): Promise<ResolveExternalSessionResult> => {
@@ -25,6 +27,7 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
     return reader.resolveExternalSession(request);
   });
   ipcMain.handle(sessionsChannels.clearCaches, () => {
+    cacheGeneration += 1;
     reader.clear();
   });
 }
