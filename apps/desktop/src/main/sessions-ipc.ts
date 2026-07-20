@@ -2,7 +2,7 @@ import { app, ipcMain } from "electron";
 import os from "node:os";
 import path from "node:path";
 import { createCodexSessionsReader } from "./codex-sessions.js";
-import { sessionsChannels, type ResolveExternalSessionResult } from "../shared/sessions-ipc.js";
+import { sessionsChannels, type ResolveExternalSessionResult, type TranscriptPage } from "../shared/sessions-ipc.js";
 
 type SessionsReader = ReturnType<typeof createCodexSessionsReader>;
 type RegisterSessionsOptions = {
@@ -24,7 +24,7 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
   };
   const invalidateCaches = (): Promise<void> => {
     cacheGeneration += 1;
-    return queueMutation(() => reader.clear());
+    return queueMutation(() => reader.clearCaches());
   };
 
   ipcMain.handle(sessionsChannels.listExternal, async (_event, request) => {
@@ -39,9 +39,33 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
     if (!(await isEnabled())) { await invalidateCaches(); return { kind: "none" }; }
     return reader.resolveExternalSession(request);
   });
+  ipcMain.handle(sessionsChannels.readTranscriptPage, async (_event, request): Promise<TranscriptPage> => {
+    if (!isTranscriptPageRequest(request)) throw new Error("Invalid transcript page request.");
+    if (!(await isEnabled())) { await invalidateCaches(); return emptyTranscriptPage(request.sessionKey); }
+    const requestGeneration = cacheGeneration;
+    const result = await queueMutation(() => reader.readTranscriptPage(request));
+    if (requestGeneration !== cacheGeneration) return emptyTranscriptPage(request.sessionKey);
+    if (!(await isEnabled())) { await invalidateCaches(); return emptyTranscriptPage(request.sessionKey); }
+    return result;
+  });
+  ipcMain.handle(sessionsChannels.getDiagnostics, async () => {
+    if (!(await isEnabled())) await invalidateCaches();
+    return queueMutation(() => reader.getDiagnostics());
+  });
   ipcMain.handle(sessionsChannels.clearCaches, () => {
     return invalidateCaches();
   });
+}
+
+function isTranscriptPageRequest(value: unknown): value is { sessionKey: string; cursor?: string } {
+  return typeof value === "object" && value !== null
+    && typeof (value as { sessionKey?: unknown }).sessionKey === "string"
+    && (value as { sessionKey: string }).sessionKey.length > 0
+    && ((value as { cursor?: unknown }).cursor === undefined || typeof (value as { cursor?: unknown }).cursor === "string");
+}
+
+function emptyTranscriptPage(sessionKey: string): TranscriptPage {
+  return { sessionKey, blocks: [], nextCursor: null, revision: "", partial: false };
 }
 
 function defaultCodexHome(): string { return process.env.CODEX_HOME ?? path.join(app?.getPath?.("home") ?? os.homedir(), ".codex"); }

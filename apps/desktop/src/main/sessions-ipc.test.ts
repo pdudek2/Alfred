@@ -18,7 +18,7 @@ describe("sessions IPC", () => {
     const reader = {
       listExternalSessions: vi.fn(),
       resolveExternalSession: vi.fn(),
-      clear: vi.fn(),
+      clearCaches: vi.fn(),
     };
     registerSessionsIpc({ reader, isExternalSessionIndexingEnabled: () => false });
 
@@ -27,7 +27,7 @@ describe("sessions IPC", () => {
       nextCursor: null,
       total: 0,
     });
-    expect(reader.clear).toHaveBeenCalledOnce();
+    expect(reader.clearCaches).toHaveBeenCalledOnce();
   });
 
   it("returns an empty page when indexing is disabled while a refresh is in flight", async () => {
@@ -36,7 +36,7 @@ describe("sessions IPC", () => {
     const reader = {
       listExternalSessions: vi.fn(() => listing.promise),
       resolveExternalSession: vi.fn(),
-      clear: vi.fn(),
+      clearCaches: vi.fn(),
     };
     registerSessionsIpc({ reader, isExternalSessionIndexingEnabled: () => enabled });
 
@@ -45,7 +45,7 @@ describe("sessions IPC", () => {
     listing.resolve({ sessions: [{ sessionKey: "stale" }], nextCursor: null, total: 1 });
 
     await expect(response).resolves.toEqual({ sessions: [], nextCursor: null, total: 0 });
-    expect(reader.clear).toHaveBeenCalledOnce();
+    expect(reader.clearCaches).toHaveBeenCalledOnce();
   });
 
   it("clears populated reader sources when the privacy transition requests cache clearing", async () => {
@@ -76,7 +76,7 @@ describe("sessions IPC", () => {
         return result;
       })),
       resolveExternalSession: vi.fn(() => Promise.resolve(populated ? { kind: "resume" as const, projectId: "A", cwd: "/repo", sessionId: "stale" } : { kind: "none" as const })),
-      clear: vi.fn(() => { populated = false; }),
+      clearCaches: vi.fn(() => { populated = false; }),
     };
     registerSessionsIpc({ reader, isExternalSessionIndexingEnabled: () => true });
 
@@ -88,7 +88,7 @@ describe("sessions IPC", () => {
     await clearPromise;
     await expect(response).resolves.toEqual({ sessions: [], nextCursor: null, total: 0 });
     await expect(reader.resolveExternalSession({ sessionKey: "stale" })).resolves.toEqual({ kind: "none" });
-    expect(reader.clear).toHaveBeenCalledOnce();
+    expect(reader.clearCaches).toHaveBeenCalledOnce();
   });
 
   it("keeps a newer list source resolvable after an older generation completes", async () => {
@@ -105,7 +105,7 @@ describe("sessions IPC", () => {
           ? { kind: "resume" as const, projectId: "A", cwd: "/repo", sessionId: sessionKey }
           : { kind: "none" as const },
       )),
-      clear: vi.fn(() => { sources.clear(); }),
+      clearCaches: vi.fn(() => { sources.clear(); }),
     };
     registerSessionsIpc({ reader, isExternalSessionIndexingEnabled: () => true });
 
@@ -124,6 +124,24 @@ describe("sessions IPC", () => {
     await expect(newerResponse).resolves.toEqual({ sessions: [{ sessionKey: "newer" }], nextCursor: null, total: 1 });
     await clearPromise;
     await expect(reader.resolveExternalSession({ sessionKey: "newer" })).resolves.toMatchObject({ kind: "resume", sessionId: "newer" });
+  });
+
+  it("validates transcript page requests and clears all reader caches when indexing becomes disabled", async () => {
+    let enabled = true;
+    const reader = {
+      listExternalSessions: vi.fn(),
+      resolveExternalSession: vi.fn(),
+      readTranscriptPage: vi.fn(() => Promise.resolve({ sessionKey: "known", blocks: [], nextCursor: null, revision: "1", partial: false })),
+      getDiagnostics: vi.fn(() => ({ cachedSessionCount: 0, decodedTranscriptBytes: 0, summaryCount: 0, summaryBytes: 0 })),
+      clearCaches: vi.fn(),
+    };
+    registerSessionsIpc({ reader, isExternalSessionIndexingEnabled: () => enabled });
+
+    await expect(handlers.get(sessionsChannels.readTranscriptPage)?.({}, { sessionKey: "known", cursor: 12 })).rejects.toThrow("Invalid transcript page request.");
+    await expect(handlers.get(sessionsChannels.getDiagnostics)?.({}, undefined)).resolves.toMatchObject({ cachedSessionCount: 0 });
+    enabled = false;
+    await expect(handlers.get(sessionsChannels.readTranscriptPage)?.({}, { sessionKey: "known" })).resolves.toEqual({ sessionKey: "known", blocks: [], nextCursor: null, revision: "", partial: false });
+    expect(reader.clearCaches).toHaveBeenCalledOnce();
   });
 });
 

@@ -143,7 +143,113 @@ describe("Codex sessions reader", () => {
       projects: [{ id: "x".repeat(512 * 1024), label: "Alfred", rootPath: "/workspaces/alfred" }],
     })).rejects.toThrow("Invalid external sessions project id.");
   });
+
+  it("reads only known Codex message roles and marks malformed transcript data as partial", async () => {
+    const { codexHome, file } = await transcriptFixture("roles", [
+      { type: "session_meta", payload: { id: "roles", cwd: "/repo" } },
+      { type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "Question" }] } },
+      { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "Answer" }] } },
+      { type: "response_item", payload: { type: "message", role: "system", content: [{ type: "output_text", text: "Instruction" }] } },
+      { type: "response_item", payload: { type: "message", role: "tool", content: [{ type: "output_text", text: "Do not show" }] } },
+      { type: "response_item", payload: { type: "function_call", name: "exec_command", arguments: "{}" } },
+      "{ not json",
+    ]);
+    const reader = createCodexSessionsReader({ codexHome });
+    const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
+
+    const page = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey });
+
+    expect(page.blocks.filter((block) => block.kind === "message").map((block) => block.text)).toEqual(["Question", "Answer", "Instruction"]);
+    expect(page.blocks.every((block) => block.kind !== "message" || ["user", "assistant", "system"].includes(block.role))).toBe(true);
+    expect(page.blocks.some((block) => block.kind === "notice")).toBe(true);
+    expect(page.partial).toBe(true);
+    expect(file).toContain("roles.jsonl");
+  });
+
+  it("bounds transcript pages by 50 blocks and 256 KiB and rejects opaque or stale cursors", async () => {
+    const records = [{ type: "session_meta", payload: { id: "bounded", cwd: "/repo" } }];
+    for (let index = 0; index < 60; index += 1) {
+      records.push({ type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: `message-${index}` }] } });
+    }
+    const { codexHome, file } = await transcriptFixture("bounded", records);
+    const reader = createCodexSessionsReader({ codexHome });
+    const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
+    const first = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey });
+
+    expect(first.blocks).toHaveLength(50);
+    expect(first.blocks.reduce((sum, block) => sum + Buffer.byteLength(block.text), 0)).toBeLessThanOrEqual(256 * 1024);
+    expect(first.nextCursor).toEqual(expect.any(String));
+    await expect(reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey, cursor: "opaque-path" })).rejects.toThrow("Transcript cursor is invalid or stale.");
+    await writeFile(file, `${await readText(file)}\n${JSON.stringify({ type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "changed" }] } })}`);
+    await expect(reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey, cursor: first.nextCursor! })).rejects.toThrow("Transcript cursor is invalid or stale.");
+
+    const huge = await transcriptFixture("large-block", [
+      { type: "session_meta", payload: { id: "large-block", cwd: "/repo" } },
+      { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "x".repeat(300 * 1024) }] } },
+    ]);
+    const hugeReader = createCodexSessionsReader({ codexHome: huge.codexHome });
+    const hugeListed = await hugeReader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
+    const hugePage = await hugeReader.readTranscriptPage({ sessionKey: hugeListed.sessions[0]!.sessionKey });
+    expect(Buffer.byteLength(hugePage.blocks[0]!.text)).toBe(256 * 1024);
+    expect(hugePage.nextCursor).toEqual(expect.any(String));
+  });
+
+  it("evicts transcript pages by session LRU and respects decoded byte diagnostics", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
+    await mkdir(sessionDir, { recursive: true });
+    for (let index = 0; index < 4; index += 1) {
+      await writeFile(path.join(sessionDir, `session-${index}.jsonl`), codexLines({ id: `session-${index}`, cwd: "/repo", title: "x".repeat(64 * 1024) }));
+    }
+    const reader = createCodexSessionsReader({ codexHome });
+    const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
+    for (const session of listed.sessions) await reader.readTranscriptPage({ sessionKey: session.sessionKey });
+
+    expect(reader.getDiagnostics()).toMatchObject({ cachedSessionCount: 3 });
+    expect(reader.getDiagnostics().decodedTranscriptBytes).toBeLessThanOrEqual(16 * 1024 * 1024);
+  });
+
+  it("bounds summary diagnostics and streams a 10 MiB transcript without reading it to EOF", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
+    await mkdir(sessionDir, { recursive: true });
+    const largeMetadata = "m".repeat(600);
+    for (let index = 0; index < 5_002; index += 1) {
+      await writeFile(path.join(sessionDir, `summary-${index}.jsonl`), [
+        JSON.stringify({ type: "session_meta", payload: { id: `summary-${index}`, cwd: "/repo", model: largeMetadata, originator: largeMetadata } }),
+        JSON.stringify({ type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: `Summary ${index}` }] } }),
+      ].join("\n"));
+    }
+    const largeFile = path.join(sessionDir, "large.jsonl");
+    await writeFile(largeFile, [
+      JSON.stringify({ type: "session_meta", payload: { id: "large", cwd: "/repo" } }),
+      ...Array.from({ length: 5_000 }, (_, index) => JSON.stringify({ type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: `${index}:${"x".repeat(2_048)}` }] } })),
+    ].join("\n"));
+    const reader = createCodexSessionsReader({ codexHome });
+    const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: largeMetadata, rootPath: "/repo" }], limit: 100 });
+    const large = listed.sessions.find((session) => session.contentSessionKey === "external-codex:large")!;
+    const first = await reader.readTranscriptPage({ sessionKey: large.sessionKey });
+
+    expect(first.blocks).toHaveLength(50);
+    expect(first.nextCursor).toEqual(expect.any(String));
+    expect(reader.getDiagnostics().summaryCount).toBeLessThan(5_000);
+    expect(reader.getDiagnostics().summaryBytes).toBeLessThanOrEqual(10 * 1024 * 1024);
+  });
 });
+
+async function transcriptFixture(id: string, records: Array<unknown>): Promise<{ codexHome: string; file: string }> {
+  const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+  const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
+  await mkdir(sessionDir, { recursive: true });
+  const file = path.join(sessionDir, `${id}.jsonl`);
+  await writeFile(file, records.map((record) => typeof record === "string" ? record : JSON.stringify(record)).join("\n"));
+  return { codexHome, file };
+}
+
+async function readText(file: string): Promise<string> {
+  const { readFile } = await import("node:fs/promises");
+  return readFile(file, "utf8");
+}
 
 function codexLines({ cwd, id, title }: { cwd: string; id: string; title: string }): string {
   return [
