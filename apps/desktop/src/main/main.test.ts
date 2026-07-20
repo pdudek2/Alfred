@@ -54,7 +54,7 @@ const mocks = vi.hoisted(() => {
     registerAlfredIpc: vi.fn(),
     registerDesktopStateIpc: vi.fn(),
     registerLayoutIpc: vi.fn(),
-    registerSessionIndexIpc: vi.fn(),
+    registerSessionsIpc: vi.fn(),
     registerTerminalIpc: vi.fn(),
     registerWorkspaceIpc: vi.fn(),
     resolveDefaultWorkspaceRootPath: vi.fn(() => "/Users/patryk/Desktop/Alfred"),
@@ -105,8 +105,8 @@ vi.mock("./quit-guard.js", () => ({
   shouldConfirmTerminalQuit: mocks.shouldConfirmTerminalQuit,
 }));
 
-vi.mock("./session-index-ipc.js", () => ({
-  registerSessionIndexIpc: mocks.registerSessionIndexIpc,
+vi.mock("./sessions-ipc.js", () => ({
+  registerSessionsIpc: mocks.registerSessionsIpc,
 }));
 
 vi.mock("./staged-plan-store.js", () => ({

@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ExternalCodexSessionSummary } from "../../shared/session-index-ipc";
+import type { ExternalSessionSummary } from "../../shared/sessions-ipc";
 import type { SessionTile } from "../session-state";
 import { ObservatorySurface } from "./ObservatorySurface";
 import type { ProjectNavigatorWorkspace } from "./ProjectNavigator";
@@ -27,14 +27,18 @@ const managedSessions: SessionTile[] = [
   },
 ];
 
-const externalSessions: ExternalCodexSessionSummary[] = [
+const externalSessions: ExternalSessionSummary[] = [
   {
-    id: "019eee11-1111-7222-8333-444444444444",
+    sessionKey: "external-codex:019eee11-1111-7222-8333-444444444444:2000",
+    lineageKey: "external-codex:019eee11-1111-7222-8333-444444444444",
+    contentSessionKey: "external-codex:019eee11-1111-7222-8333-444444444444",
+    source: "external-codex",
+    kind: "codex",
     title: "Codex App redesign thread",
-    cwd: "/Users/patryk/Desktop/IronLog",
-    createdAt: 1_000,
+    project: { id: "IRO", label: "IronLog" },
+    locationLabel: "IronLog",
     updatedAt: 2_000,
-    transcriptPath: "/Users/patryk/.codex/sessions/hidden.jsonl",
+    lifecycle: "resumable",
     model: "gpt-5.5",
     originator: "Codex Desktop",
   },
@@ -102,7 +106,7 @@ describe("ObservatorySurface", () => {
     expect(within(detail).getByText("gpt-5.5")).toBeInTheDocument();
 
     await user.click(within(detail).getByRole("button", { name: "Resume in Alfred" }));
-    expect(onResumeExternalCodexSession).toHaveBeenCalledWith(externalSessions[0]);
+    expect(onResumeExternalCodexSession).toHaveBeenCalledWith(externalSessions[0]!.sessionKey);
 
     await user.click(screen.getByRole("button", { name: /Managed code audit/i }));
     await user.click(within(detail).getByRole("button", { name: "Open in Work" }));
@@ -143,13 +147,17 @@ describe("ObservatorySurface", () => {
     const user = userEvent.setup();
     const onResumeExternalCodexSession = vi.fn();
     const onTrustExternalCodexWorkspace = vi.fn();
-    const untrustedSession: ExternalCodexSessionSummary = {
-      id: "019eee11-5555-7222-8333-444444444444",
+    const untrustedSession: ExternalSessionSummary = {
+      sessionKey: "external-codex:019eee11-5555-7222-8333-444444444444:2100",
+      lineageKey: "external-codex:019eee11-5555-7222-8333-444444444444",
+      contentSessionKey: "external-codex:019eee11-5555-7222-8333-444444444444",
+      source: "external-codex",
+      kind: "codex",
       title: "External unknown workspace",
-      cwd: "/Users/patryk/Downloads/UnknownProject",
-      createdAt: 1_000,
+      project: { id: null, label: "External Codex" },
+      locationLabel: "Unknown workspace",
       updatedAt: 2_100,
-      transcriptPath: "/Users/patryk/.codex/sessions/unknown.jsonl",
+      lifecycle: "read-only",
     };
 
     render(
@@ -177,19 +185,23 @@ describe("ObservatorySurface", () => {
 
     await user.click(resume);
     expect(onResumeExternalCodexSession).not.toHaveBeenCalled();
-    expect(onTrustExternalCodexWorkspace).toHaveBeenCalledWith(untrustedSession);
+    expect(onTrustExternalCodexWorkspace).toHaveBeenCalledWith(untrustedSession.sessionKey);
   });
 
   it("attributes external Codex sessions in legacy Alfred worktrees to the base workspace", async () => {
     const user = userEvent.setup();
     const onResumeExternalCodexSession = vi.fn();
-    const worktreeSession: ExternalCodexSessionSummary = {
-      id: "019eee11-6666-7222-8333-444444444444",
+    const worktreeSession: ExternalSessionSummary = {
+      sessionKey: "external-codex:019eee11-6666-7222-8333-444444444444:2200",
+      lineageKey: "external-codex:019eee11-6666-7222-8333-444444444444",
+      contentSessionKey: "external-codex:019eee11-6666-7222-8333-444444444444",
+      source: "external-codex",
+      kind: "codex",
       title: "Legacy worktree session",
-      cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/audit-hardening",
-      createdAt: 1_000,
+      project: { id: "A", label: "Alfred" },
+      locationLabel: "Alfred worktree",
       updatedAt: 2_200,
-      transcriptPath: "/Users/patryk/.codex/sessions/worktree.jsonl",
+      lifecycle: "resumable",
     };
 
     render(
@@ -216,7 +228,7 @@ describe("ObservatorySurface", () => {
 
     expect(within(detail).getByText("Alfred")).toBeInTheDocument();
     await user.click(within(detail).getByRole("button", { name: "Resume in Alfred" }));
-    expect(onResumeExternalCodexSession).toHaveBeenCalledWith(worktreeSession);
+    expect(onResumeExternalCodexSession).toHaveBeenCalledWith(worktreeSession.sessionKey);
   });
 
 });

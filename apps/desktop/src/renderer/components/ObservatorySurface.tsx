@@ -1,6 +1,6 @@
 import { ChevronRight, ExternalLink, FolderGit2, Layers3, Play, RefreshCcw, Search } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { ExternalCodexSessionSummary } from "../../shared/session-index-ipc";
+import type { ExternalSessionSummary } from "../../shared/sessions-ipc";
 import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
@@ -14,7 +14,7 @@ import type { PrimarySurface } from "./WorkbenchHeader";
 
 type ObservatorySurfaceProps = {
   activeWorkspaceId: string;
-  externalCodexSessions: ExternalCodexSessionSummary[];
+  externalCodexSessions: ExternalSessionSummary[];
   externalSessionIndexingEnabled?: boolean;
   externalSessionsError?: string | null;
   loadingExternalSessions: boolean;
@@ -22,10 +22,10 @@ type ObservatorySurfaceProps = {
   workspaces: ProjectNavigatorWorkspace[];
   onOpenManagedSession: (workspaceId: string, sessionId: string) => void;
   onRefreshExternalSessions: () => void;
-  onResumeExternalCodexSession: (session: ExternalCodexSessionSummary) => void;
+  onResumeExternalCodexSession: (sessionKey: string) => void;
   onSelectWorkspace: (workspaceId: string) => void;
   onSelectSurface: (surface: PrimarySurface) => void;
-  onTrustExternalCodexWorkspace?: (session: ExternalCodexSessionSummary) => void;
+  onTrustExternalCodexWorkspace?: (sessionKey: string) => void;
 };
 
 type ObservatoryRow =
@@ -56,7 +56,7 @@ type ObservatoryRow =
       kindLabel: string;
       kindClassName: string;
       rawSearchText: string;
-      session: ExternalCodexSessionSummary;
+      session: ExternalSessionSummary;
     };
 
 export function ObservatorySurface({
@@ -273,8 +273,8 @@ function ObservatoryDetail({
 }: {
   row: ObservatoryRow;
   onOpenManagedSession: (workspaceId: string, sessionId: string) => void;
-  onResumeExternalCodexSession: (session: ExternalCodexSessionSummary) => void;
-  onTrustExternalCodexWorkspace?: (session: ExternalCodexSessionSummary) => void;
+  onResumeExternalCodexSession: (sessionKey: string) => void;
+  onTrustExternalCodexWorkspace?: (sessionKey: string) => void;
 }) {
   return (
     <div className={`observatory-detail-card source-${row.source}`}>
@@ -322,10 +322,10 @@ function ObservatoryDetail({
           disabled={!row.workspaceId && !onTrustExternalCodexWorkspace}
           onClick={() => {
             if (row.workspaceId) {
-              onResumeExternalCodexSession(row.session);
+              onResumeExternalCodexSession(row.session.sessionKey);
               return;
             }
-            onTrustExternalCodexWorkspace?.(row.session);
+            onTrustExternalCodexWorkspace?.(row.session.sessionKey);
           }}
         >
           <Play size={15} />
@@ -347,7 +347,7 @@ function buildObservatoryRows({
   sessions,
   workspaces,
 }: {
-  externalCodexSessions: ExternalCodexSessionSummary[];
+  externalCodexSessions: ExternalSessionSummary[];
   sessions: SessionTile[];
   workspaces: ProjectNavigatorWorkspace[];
 }): ObservatoryRow[] {
@@ -390,22 +390,21 @@ function buildObservatoryRows({
     };
   });
   const externalRows: ObservatoryRow[] = externalCodexSessions.map((session) => {
-    const workspace = findWorkspaceForCwd(session.cwd, workspaces);
     return {
-      id: `external-codex:${session.id}`,
+      id: session.sessionKey,
       source: "external-codex",
       title: session.title || "Untitled Codex session",
-      workspaceId: workspace?.id ?? null,
-      workspaceLabel: workspace?.label ?? "External Codex",
-      location: shortenPath(session.cwd || "unknown cwd"),
+      workspaceId: session.project.id,
+      workspaceLabel: session.project.label,
+      location: session.locationLabel,
       updatedAt: session.updatedAt,
-      status: workspace ? "read-only" : "untrusted cwd",
+      status: session.lifecycle === "resumable" ? "read-only" : "untrusted cwd",
       kindLabel: "Cx",
       kindClassName: "codex",
       rawSearchText: [
         session.title,
-        session.cwd,
-        workspace?.label,
+        session.locationLabel,
+        session.project.label,
         session.model,
         session.originator,
         "external codex read-only resume",

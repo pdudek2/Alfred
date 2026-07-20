@@ -12,7 +12,7 @@ import {
 } from "./terminal-manager.js";
 import { registerAlfredIpc } from "./alfred-orchestrator.js";
 import { registerLayoutIpc } from "./layout-ipc.js";
-import { registerSessionIndexIpc } from "./session-index-ipc.js";
+import { registerSessionsIpc } from "./sessions-ipc.js";
 import { codexScratchRootPath } from "./codex-scratch.js";
 import { registerDesktopStateIpc } from "./desktop-state-ipc.js";
 import { configureLayoutPersistence } from "./layout-store.js";
@@ -131,7 +131,7 @@ if (!hasSingleInstanceLock) {
     configureStagedPlanPersistence(persistedDesktopStateStore);
     configureTerminalPersistence(persistedDesktopStateStore);
     registerDesktopStateIpc(persistedDesktopStateStore);
-    registerSessionIndexIpc({
+    registerSessionsIpc({
       isExternalSessionIndexingEnabled: async () =>
         (await persistedDesktopStateStore.getState()).privacySettings.externalSessionIndexingEnabled,
     });

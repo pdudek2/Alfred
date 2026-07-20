@@ -23,7 +23,7 @@ import type {
   TerminalSessionSnapshot,
 } from "../shared/terminal-ipc";
 import type { WorkspaceApi, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
-import type { ExternalCodexSessionSummary, SessionIndexApi } from "../shared/session-index-ipc";
+import type { ExternalSessionSummary, SessionsApi } from "../shared/sessions-ipc";
 import type { DesktopPrivacySettings, DesktopSaveStatus, DesktopStateApi } from "../shared/desktop-state-ipc";
 import { appendActivityEvent, type SessionActivityEvent } from "../shared/session-activity";
 
@@ -98,7 +98,7 @@ type DesktopBridge = {
   alfred: AlfredApi;
   desktopState?: DesktopStateApi;
   layout: LayoutApi;
-  sessionIndex?: SessionIndexApi;
+  sessions?: SessionsApi;
   terminal: TerminalApi;
   workspace: WorkspaceApi;
   version: string;
@@ -129,7 +129,7 @@ function installDesktopBridge(
     activeWorkspaceId: "A",
   },
   restoredTerminalSessions: PersistedTerminalSessionSnapshot[] = [],
-  externalCodexSessions: ExternalCodexSessionSummary[] = [],
+  externalCodexSessions: ExternalSessionSummary[] = [],
   desktopPrivacySettings: DesktopPrivacySettings = {
     terminalScrollbackRetention: "redactedTail",
     externalSessionIndexingEnabled: true,
@@ -161,7 +161,8 @@ function installDesktopBridge(
   worktreeApply: ReturnType<typeof vi.fn>;
   worktreeDiff: ReturnType<typeof vi.fn>;
   openExternalUrl: ReturnType<typeof vi.fn>;
-  listExternalCodexSessions: ReturnType<typeof vi.fn>;
+  listExternalSessions: ReturnType<typeof vi.fn>;
+  resolveExternalSession: ReturnType<typeof vi.fn>;
   clearSavedTerminalData: ReturnType<typeof vi.fn>;
   getPrivacySettings: ReturnType<typeof vi.fn>;
   revealStateFile: ReturnType<typeof vi.fn>;
@@ -206,7 +207,17 @@ function installDesktopBridge(
     .mockImplementation((request: Parameters<WorkspaceApi["openExternalUrl"]>[0]) =>
       Promise.resolve({ ok: true, url: request.url }),
     );
-  const listExternalCodexSessions = vi.fn().mockResolvedValue({ sessions: externalCodexSessions });
+  const listExternalSessions = vi.fn().mockResolvedValue({ sessions: externalCodexSessions, nextCursor: null, total: externalCodexSessions.length });
+  const resolveExternalSession = vi.fn().mockImplementation(({ sessionKey }: { sessionKey: string }) => {
+    const session = externalCodexSessions.find((candidate) => candidate.sessionKey === sessionKey);
+    if (!session?.project.id) return Promise.resolve({ kind: "add-project" as const });
+    return Promise.resolve({
+      kind: "resume" as const,
+      projectId: session.project.id,
+      cwd: session.project.id === "A" ? "/Users/patryk/Desktop/Alfred" : "/Users/patryk/Desktop/IronLog",
+      sessionId: session.contentSessionKey.replace("external-codex:", ""),
+    });
+  });
   let currentPrivacySettings = desktopPrivacySettings;
   const getPrivacySettings = vi.fn().mockImplementation(() => Promise.resolve(currentPrivacySettings));
   const updatePrivacySettings = vi.fn().mockImplementation((settings: DesktopPrivacySettings) => {
@@ -316,7 +327,7 @@ function installDesktopBridge(
       updatePrivacySettings,
     },
     layout: { getLayouts, setWorkspaceLayout, setWorkspaceViewState },
-    sessionIndex: { listExternalCodexSessions },
+    sessions: { listExternalSessions, resolveExternalSession },
     terminal,
     workspace: {
       bindFolderToWorkspace,
@@ -358,7 +369,8 @@ function installDesktopBridge(
     worktreeApply,
     worktreeDiff,
     openExternalUrl,
-    listExternalCodexSessions,
+    listExternalSessions,
+    resolveExternalSession,
     clearSavedTerminalData,
     getPrivacySettings,
     revealStateFile,
@@ -882,7 +894,7 @@ describe("App integration", () => {
 
   it("does not refresh external Codex sessions when indexing is disabled", async () => {
     const user = userEvent.setup();
-    const { listExternalCodexSessions } = installDesktopBridge(
+    const { listExternalSessions } = installDesktopBridge(
       undefined,
       null,
       [],
@@ -892,12 +904,16 @@ describe("App integration", () => {
       [],
       [
         {
-          id: "019edc4b-0000-7000-9000-disabled",
+          sessionKey: "external-codex:019edc4b-0000-7000-9000-disabled:200",
+          lineageKey: "external-codex:019edc4b-0000-7000-9000-disabled",
+          contentSessionKey: "external-codex:019edc4b-0000-7000-9000-disabled",
+          source: "external-codex",
+          kind: "codex",
           title: "Hidden external session",
-          cwd: "/Users/patryk/Desktop/Alfred",
-          createdAt: 100,
+          project: { id: "A", label: "Alfred" },
+          locationLabel: "Alfred",
           updatedAt: 200,
-          transcriptPath: "/Users/patryk/.codex/sessions/hidden.jsonl",
+          lifecycle: "resumable",
         },
       ],
       {
@@ -913,7 +929,7 @@ describe("App integration", () => {
 
     expect(await screen.findByText("External Codex indexing is off.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Disabled/i })).toBeDisabled();
-    expect(listExternalCodexSessions).not.toHaveBeenCalled();
+    expect(listExternalSessions).not.toHaveBeenCalled();
   });
 
   it("shows a state-not-saved warning and retries the failed save", async () => {
@@ -2183,12 +2199,16 @@ describe("App integration", () => {
       [],
       [
         {
-          id: externalSessionId,
+          sessionKey: `external-codex:${externalSessionId}:200`,
+          lineageKey: `external-codex:${externalSessionId}`,
+          contentSessionKey: `external-codex:${externalSessionId}`,
+          source: "external-codex",
+          kind: "codex",
           title: "Load Alfred memory",
-          cwd: "/Users/patryk/Desktop/Alfred",
-          createdAt: 100,
+          project: { id: "A", label: "Alfred" },
+          locationLabel: "Alfred",
           updatedAt: 200,
-          transcriptPath: "/Users/patryk/.codex/sessions/session.jsonl",
+          lifecycle: "resumable",
           model: "gpt-5",
           originator: "codex",
         },
@@ -2227,12 +2247,16 @@ describe("App integration", () => {
       [],
       [
         {
-          id: externalSessionId,
+          sessionKey: `external-codex:${externalSessionId}:200`,
+          lineageKey: `external-codex:${externalSessionId}`,
+          contentSessionKey: `external-codex:${externalSessionId}`,
+          source: "external-codex",
+          kind: "codex",
           title: "Unknown external workspace",
-          cwd: "/Users/patryk/Downloads/UnknownProject",
-          createdAt: 100,
+          project: { id: null, label: "External Codex" },
+          locationLabel: "Unknown workspace",
           updatedAt: 200,
-          transcriptPath: "/Users/patryk/.codex/sessions/unknown.jsonl",
+          lifecycle: "read-only",
         },
       ],
     );
@@ -2265,15 +2289,19 @@ describe("App integration", () => {
 
   it("keeps stale external Codex rows when History refresh fails", async () => {
     const user = userEvent.setup();
-    const externalSession: ExternalCodexSessionSummary = {
-      id: "019edc4b-0000-7000-9000-stale",
+    const externalSession: ExternalSessionSummary = {
+      sessionKey: "external-codex:019edc4b-0000-7000-9000-stale:200",
+      lineageKey: "external-codex:019edc4b-0000-7000-9000-stale",
+      contentSessionKey: "external-codex:019edc4b-0000-7000-9000-stale",
+      source: "external-codex",
+      kind: "codex",
       title: "Previously indexed Codex",
-      cwd: "/Users/patryk/Desktop/Alfred",
-      createdAt: 100,
+      project: { id: "A", label: "Alfred" },
+      locationLabel: "Alfred",
       updatedAt: 200,
-      transcriptPath: "/Users/patryk/.codex/sessions/stale.jsonl",
+      lifecycle: "resumable",
     };
-    const { listExternalCodexSessions } = installDesktopBridge(
+    const { listExternalSessions } = installDesktopBridge(
       undefined,
       null,
       [],
@@ -2289,10 +2317,10 @@ describe("App integration", () => {
     await selectSurface(user, "Observatory");
     expect(await screen.findByRole("button", { name: /Previously indexed Codex/i })).toBeInTheDocument();
     await waitFor(() => {
-      expect(listExternalCodexSessions).toHaveBeenCalledTimes(1);
+      expect(listExternalSessions).toHaveBeenCalledTimes(1);
     });
 
-    listExternalCodexSessions.mockRejectedValueOnce(new Error("index unavailable"));
+    listExternalSessions.mockRejectedValueOnce(new Error("index unavailable"));
     await user.click(screen.getByRole("button", { name: "Refresh" }));
 
     expect(await screen.findByText("Showing last successful results.")).toBeInTheDocument();
