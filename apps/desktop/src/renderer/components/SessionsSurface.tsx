@@ -274,7 +274,7 @@ function terminalTranscriptPage(
   session: SessionTile | null,
 ): TranscriptPage {
   const textWasTruncated = rawText.length > TRANSCRIPT_TEXT_LIMIT;
-  const boundedText = rawText.slice(-TRANSCRIPT_TEXT_LIMIT).replace(/\r\n/g, "\n");
+  const boundedText = stripAnsiTerminalText(rawText.slice(-TRANSCRIPT_TEXT_LIMIT)).replace(/\r\n/g, "\n");
   const lines = boundedText.split("\n");
   if (lines.at(-1) === "") lines.pop();
   const boundedLines = lines.slice(-120);
@@ -290,6 +290,12 @@ function terminalTranscriptPage(
     revision: `managed:${session?.runtimeId ?? session?.id ?? sessionKey}:${session?.lastOutputAt ?? session?.lastActivityAt ?? 0}`,
     partial: lines.length > boundedLines.length || textWasTruncated,
   };
+}
+
+function stripAnsiTerminalText(value: string): string {
+  // Terminal snapshot buffers contain ESC control bytes by protocol; removing them is intentional.
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "");
 }
 
 function filterManagedSessions(

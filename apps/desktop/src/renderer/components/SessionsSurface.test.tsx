@@ -315,6 +315,28 @@ describe("SessionsSurface", () => {
     expect(terminalApi.snapshot).not.toHaveBeenCalled();
   });
 
+  it("strips ANSI escape sequences from managed transcript buffers", async () => {
+    const user = userEvent.setup();
+    const terminalApi = createTerminalApi();
+    const { runtimeId: _runtimeId, ...restoredSession } = managedSession(7, {
+      runtimeStatus: "restored",
+      title: "ANSI transcript",
+      initialBuffer: "\u001b[1m\u001b[7m% \u001b[27m\u001b[1m\u001b[0mpnpm dev\nready\n",
+    });
+
+    renderSurface({
+      sessions: [restoredSession],
+      terminalApi,
+    });
+
+    await user.click(within(screen.getByRole("listbox", { name: "Session results" })).getByRole("option"));
+    const article = await screen.findByRole("article", { name: /ANSI transcript/ });
+    expect(article).toHaveTextContent("% pnpm dev");
+    expect(article).toHaveTextContent("ready");
+    expect(article).not.toHaveTextContent("[1m");
+    expect(article).not.toHaveTextContent("[7m");
+  });
+
   it("shows loading, no-result, disabled-indexing, and stale-refresh states without hiding managed sessions", async () => {
     const user = userEvent.setup();
     const view = renderSurface({ loadingExternalSessions: true });
