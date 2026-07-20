@@ -28,11 +28,12 @@ const MAX_DISPLAY_TEXT_LENGTH = 512;
 const MAX_SESSION_ID_LENGTH = 512;
 const MAX_PROJECT_ID_BYTES = 256;
 const MAX_LIST_RESPONSE_BYTES = 512 * 1024;
-const PARTIAL_NOTICE = "Some malformed transcript records were omitted.";
+const MALFORMED_NOTICE = "Some malformed transcript records were omitted.";
+const TRUNCATED_NOTICE = "Some transcript content was truncated to fit this page.";
 
 type SessionMetaPayload = { cwd?: unknown; id?: unknown; model?: unknown; originator?: unknown; parent_thread_id?: unknown; timestamp?: unknown };
 type CodexSessionSource = { path: string; id: string; cwd: string; revision: string; projectId: string | null };
-type CodexSummary = { summary: ExternalSessionSummary; source: CodexSessionSource };
+type CodexSummary = { summary: ExternalSessionSummary; source: CodexSessionSource; fallbackTitle: string };
 type SessionFile = { path: string; updatedAt: number; size: number };
 type SummaryCacheEntry = { summary: CodexSummary; bytes: number };
 type TranscriptCursor = { offset: number; revision: string };
@@ -186,12 +187,13 @@ function remapProject(value: CodexSummary, projects: SessionsProjectInput[], tit
   return {
     summary: {
       ...value.summary,
-      title: titleFromText(titleIndex.get(value.source.id) ?? "") || value.summary.title,
+      title: titleFromText(titleIndex.get(value.source.id) ?? "") || value.fallbackTitle,
       project,
       locationLabel: boundedDisplayText(project.id ? project.label : (value.source.cwd ? path.basename(value.source.cwd) : "Unknown workspace")),
       lifecycle: project.id ? "resumable" : "read-only",
     },
     source: { ...value.source, projectId: project.id },
+    fallbackTitle: value.fallbackTitle,
   };
 }
 
@@ -217,7 +219,8 @@ async function summarizeCodexSessionFile(
   const id = stringValue(meta?.id) ?? idFromFilename(file.path);
   const cwd = stringValue(meta?.cwd) ?? "";
   const project = projectForCwd(cwd, projects);
-  const title = titleFromText(titleIndex.get(id) ?? "") || titleFromText(titleText) || titleFromText(fallbackTitle(cwd, id));
+  const fallback = titleFromText(titleText) || titleFromText(fallbackTitle(cwd, id));
+  const title = titleFromText(titleIndex.get(id) ?? "") || fallback;
   const model = stringValue(meta?.model);
   const originator = stringValue(meta?.originator);
   const sessionKey = `external-codex:${opaqueSessionToken(id, file.updatedAt)}`;
@@ -237,33 +240,36 @@ async function summarizeCodexSessionFile(
     ...(model ? { model: boundedDisplayText(model) } : {}),
     ...(originator ? { originator: boundedDisplayText(originator) } : {}),
   };
-  return { summary, source: { path: file.path, id, cwd, revision: revisionFrom(file.updatedAt, file.size), projectId: project.id } };
+  return { summary, source: { path: file.path, id, cwd, revision: revisionFrom(file.updatedAt, file.size), projectId: project.id }, fallbackTitle: fallback };
 }
 
 async function streamTranscriptPage(source: CodexSessionSource, sessionKey: string, cursor: TranscriptCursor): Promise<TranscriptPage> {
   const blocks: TranscriptBlock[] = [];
   let textBytes = 0;
-  let malformedCount = 0;
-  let partial = false;
-  const pageLimit = (): number => TRANSCRIPT_BLOCK_LIMIT - (malformedCount > 0 ? 1 : 0);
+  let partialNotice: string | null = null;
+  const pageLimit = (): number => TRANSCRIPT_BLOCK_LIMIT - (partialNotice ? 1 : 0);
   const makePage = (nextOffset: number | null): TranscriptPage => ({
     sessionKey,
-    blocks: partial || malformedCount > 0 ? appendPartialNotice(blocks, textBytes) : blocks,
+    blocks: partialNotice ? appendPartialNotice(blocks, textBytes, partialNotice) : blocks,
     nextCursor: nextOffset === null ? null : encodeTranscriptCursor({ offset: nextOffset, revision: cursor.revision }),
     revision: cursor.revision,
-    partial: partial || malformedCount > 0,
+    partial: Boolean(partialNotice),
   });
   for await (const line of rawTranscriptLines(source.path, cursor.offset)) {
     const parsed = parseTranscriptRecord(line.text, `${sessionKey}:${line.start}`);
-    if (parsed.kind === "malformed") { malformedCount += 1; continue; }
+    if (parsed.kind === "malformed") {
+      if (!partialNotice && !canAppendNotice(blocks, textBytes, MALFORMED_NOTICE)) return makePage(line.start);
+      partialNotice = MALFORMED_NOTICE;
+      continue;
+    }
     if (!parsed.block) continue;
     const block = parsed.block;
     const blockBytes = Buffer.byteLength(block.text, "utf8");
     if (blocks.length >= pageLimit()) return makePage(line.start);
     if (textBytes + blockBytes + (blocks.length ? 1 : 0) > TRANSCRIPT_TEXT_LIMIT) {
       if (!blocks.length) {
-        partial = true;
-        const text = truncateUtf8(block.text, TRANSCRIPT_TEXT_LIMIT - Buffer.byteLength(PARTIAL_NOTICE, "utf8") - 1);
+        partialNotice = TRUNCATED_NOTICE;
+        const text = truncateUtf8(block.text, TRANSCRIPT_TEXT_LIMIT - Buffer.byteLength(TRUNCATED_NOTICE, "utf8") - 1);
         blocks.push({ ...block, text });
         textBytes = Buffer.byteLength(text, "utf8");
         return makePage(line.nextOffset);
@@ -303,16 +309,15 @@ async function* rawTranscriptLines(filePath: string, start: number): AsyncGenera
   }
 }
 
-function appendPartialNotice(blocks: TranscriptBlock[], textBytes: number): TranscriptBlock[] {
-  const noticeBytes = Buffer.byteLength(PARTIAL_NOTICE, "utf8");
-  if (blocks.length >= TRANSCRIPT_BLOCK_LIMIT) return blocks;
-  const requiredBytes = noticeBytes + (blocks.length ? 1 : 0);
-  if (textBytes + requiredBytes > TRANSCRIPT_TEXT_LIMIT && blocks.length) {
-    const last = blocks.at(-1)!;
-    const shortage = textBytes + requiredBytes - TRANSCRIPT_TEXT_LIMIT;
-    blocks = [...blocks.slice(0, -1), { ...last, text: truncateUtf8(last.text, Math.max(0, Buffer.byteLength(last.text, "utf8") - shortage)) }];
-  }
-  return [...blocks, { id: `notice:${blocks.length}`, kind: "notice", text: PARTIAL_NOTICE }];
+function canAppendNotice(blocks: TranscriptBlock[], textBytes: number, notice: string): boolean {
+  return blocks.length < TRANSCRIPT_BLOCK_LIMIT
+    && textBytes + Buffer.byteLength(notice, "utf8") + (blocks.length ? 1 : 0) <= TRANSCRIPT_TEXT_LIMIT;
+}
+
+function appendPartialNotice(blocks: TranscriptBlock[], textBytes: number, notice: string): TranscriptBlock[] {
+  return canAppendNotice(blocks, textBytes, notice)
+    ? [...blocks, { id: `notice:${blocks.length}`, kind: "notice", text: notice }]
+    : blocks;
 }
 
 function parseTranscriptRecord(line: string, id: string): { block?: TranscriptBlock; kind: "known" | "unknown" | "malformed" } {
