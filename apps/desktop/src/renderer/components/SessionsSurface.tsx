@@ -15,12 +15,14 @@ import {
   type SessionsPrimaryActionRequest,
 } from "../sessions-projection";
 import type { SessionTile } from "../session-state";
+import { sessionRelaunchSafety } from "../relaunch-safety";
 import { appendTranscriptPage, type SessionsViewState } from "../sessions-view-state";
 import { SessionsNavigator } from "./SessionsNavigator";
 import { SessionsReader, type SessionsReaderStatus } from "./SessionsReader";
 
 export type SessionsSurfaceProps = {
   externalSessionIndexingEnabled: boolean;
+  armedRecoverySessionIds: ReadonlySet<string>;
   externalSessions: ExternalSessionSummary[];
   externalSessionsError: string | null;
   loadingExternalSessions: boolean;
@@ -38,6 +40,7 @@ export type SessionsSurfaceProps = {
 
 export function SessionsSurface({
   externalSessionIndexingEnabled,
+  armedRecoverySessionIds,
   externalSessions,
   externalSessionsError,
   loadingExternalSessions,
@@ -55,6 +58,7 @@ export function SessionsSurface({
   const searchRef = useRef<HTMLInputElement | null>(null);
   const navigatorRef = useRef<HTMLDivElement | null>(null);
   const readerRef = useRef<HTMLDivElement | null>(null);
+  const initialFocusTargetRef = useRef(state.focusTarget);
   const requestSequenceRef = useRef(0);
   const reducedMotion = usePrefersReducedMotion();
   const [readerStatus, setReaderStatus] = useState<SessionsReaderStatus>(
@@ -83,31 +87,50 @@ export function SessionsSurface({
     state.selectedSessionKey ?? projection.items[0]?.sessionKey ?? null,
   );
   const selected = projection.items.find((item) => item.sessionKey === state.selectedSessionKey) ?? null;
+  const selectedManagedTarget = selected ? projection.managedTargets.get(selected.sessionKey) ?? null : null;
+  const selectedManagedSession = selectedManagedTarget
+    ? sessions.find((item) => (
+        item.id === selectedManagedTarget.sessionId
+        && item.workspaceId === selectedManagedTarget.workspaceId
+      )) ?? null
+    : null;
+  const selectedRecoverySafety = selected?.lifecycle === "recoverable" && selectedManagedSession
+    ? sessionRelaunchSafety(selectedManagedSession)
+    : null;
+  const selectedRecoveryArmed = Boolean(
+    selectedManagedTarget && armedRecoverySessionIds.has(selectedManagedTarget.sessionId),
+  );
   const primaryActionRequest = useMemo<SessionsPrimaryActionRequest | null>(() => {
     if (!selected || !onPrimaryAction) return null;
-    const action = sessionsPrimaryAction(selected);
+    let action = sessionsPrimaryAction(selected);
     if (!action) return null;
-    const target = projection.managedTargets.get(selected.sessionKey) ?? null;
+    const target = selectedManagedTarget;
     if (selected.source === "managed" && !target) return null;
+    if (action.kind === "recover" && selectedRecoverySafety && !selectedRecoverySafety.safe) {
+      action = {
+        kind: "recover",
+        label: selectedRecoveryArmed ? "Confirm relaunch" : "Review relaunch",
+      };
+    }
     return {
       action,
       summary: { ...selected, project: { ...selected.project } },
       target,
     };
-  }, [onPrimaryAction, projection.managedTargets, selected]);
+  }, [onPrimaryAction, selected, selectedManagedTarget, selectedRecoveryArmed, selectedRecoverySafety]);
 
   const patchState = useCallback((patch: Partial<SessionsViewState>) => {
     onStateChange((current) => ({ ...current, ...patch }));
   }, [onStateChange]);
 
   useEffect(() => {
-    const target = state.focusTarget === "results"
+    const target = initialFocusTargetRef.current === "results"
       ? navigatorRef.current
-      : state.focusTarget === "reader"
+      : initialFocusTargetRef.current === "reader"
         ? readerRef.current
         : searchRef.current;
     target?.focus();
-  }, [state.focusTarget]);
+  }, []);
 
   useEffect(() => {
     if (!projection.items.some((item) => item.sessionKey === activeSessionKey)) {
@@ -262,6 +285,17 @@ export function SessionsSurface({
       <SessionsReader
         pages={state.readerPages}
         primaryAction={primaryActionRequest?.action ?? null}
+        recoveryReview={
+          selectedRecoveryArmed && selectedManagedSession && selectedRecoverySafety && !selectedRecoverySafety.safe
+            ? {
+                command: [selectedManagedSession.command, ...(selectedManagedSession.args ?? [])]
+                  .filter(Boolean)
+                  .join(" "),
+                cwd: selectedManagedSession.cwd,
+                reason: selectedRecoverySafety.reason,
+              }
+            : null
+        }
         readerRef={readerRef}
         selected={selected}
         status={readerStatus}

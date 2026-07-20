@@ -7,6 +7,11 @@ export type SessionsReaderStatus = "idle" | "loading" | "ready" | "missing" | "e
 type SessionsReaderProps = {
   pages: TranscriptPage[];
   primaryAction: SessionsPrimaryAction | null;
+  recoveryReview: {
+    command: string;
+    cwd: string;
+    reason: string;
+  } | null;
   readerRef: RefObject<HTMLDivElement | null>;
   selected: SessionSummary | null;
   status: SessionsReaderStatus;
@@ -21,6 +26,7 @@ type SessionsReaderProps = {
 export function SessionsReader({
   pages,
   primaryAction,
+  recoveryReview,
   readerRef,
   selected,
   status,
@@ -36,7 +42,7 @@ export function SessionsReader({
   const partial = pages.some((page) => page.partial);
 
   return (
-    <main className="sessions-reader">
+    <main className="sessions-reader" onFocusCapture={onFocus}>
       <header className="sessions-reader__toolbar">
         <strong>{selected?.title ?? "Select a session"}</strong>
         {selected && <span>{selected.project.label} · {selected.locationLabel}</span>}
@@ -51,7 +57,6 @@ export function SessionsReader({
         ref={readerRef}
         className="sessions-reader__scroll"
         tabIndex={-1}
-        onFocus={onFocus}
         onScroll={(event) => onScrollTopChange(event.currentTarget.scrollTop)}
       >
         {!selected ? (
@@ -65,6 +70,14 @@ export function SessionsReader({
               <h1>{selected.title}</h1>
               <p>{selected.project.label} · {selected.source === "managed" ? "Managed session" : "External Codex"}</p>
             </header>
+            {recoveryReview && (
+              <section className="sessions-recovery-review" aria-label="Relaunch review">
+                <strong>Confirm relaunch</strong>
+                <span>{recoveryReview.reason}</span>
+                <code>{recoveryReview.command}</code>
+                <span>{recoveryReview.cwd}</span>
+              </section>
+            )}
             {status === "loading" ? (
               <div className="sessions-reader__empty"><strong>Loading transcript…</strong></div>
             ) : status === "missing" || status === "error" ? (

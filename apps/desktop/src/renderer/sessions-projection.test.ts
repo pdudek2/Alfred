@@ -120,14 +120,28 @@ describe("buildSessionsProjection", () => {
       cwd: "/Users/patryk/Documents/Codex/idea",
       lastActivityAt: 250,
     });
+    const restoredFreeChat = managedSession({
+      id: "restored-free-chat",
+      title: "Codex · saved scratch idea",
+      workspaceId: "FREE",
+      cwd: "/Users/patryk/Documents/Codex/saved-idea",
+      runtimeStatus: "restored",
+      lastActivityAt: 240,
+    });
 
     const projection = buildSessionsProjection({
-      sessions: [liveCodex, restoredClaude, exitedManual, freeChat],
+      sessions: [liveCodex, restoredClaude, exitedManual, freeChat, restoredFreeChat],
       workspaces,
       externalSessions: [externalSession(externalId)],
     });
 
-    expect(projection.groups.find((group) => group.id === "free-chats")?.items).toHaveLength(1);
+    expect(projection.groups.find((group) => group.id === "free-chats")?.items).toHaveLength(2);
+    expect(projection.groups.find((group) => group.id === "free-chats")?.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sessionKey: "managed:free-chat" }),
+        expect.objectContaining({ sessionKey: "managed:restored-free-chat", lifecycle: "recoverable" }),
+      ]),
+    );
     expect(projection.items.filter((item) => item.lineageKey === `codex:${externalId}`)).toHaveLength(1);
     expect(projection.items.find((item) => item.lineageKey === `codex:${externalId}`)).toMatchObject({
       sessionKey: "managed:managed-codex",

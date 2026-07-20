@@ -82,6 +82,7 @@ function deferred<T>() {
 function createSessionsApi(): SessionsApi {
   return {
     listExternalSessions: vi.fn().mockResolvedValue({ sessions: [], nextCursor: null, total: 0 }),
+    releaseListSnapshot: vi.fn().mockResolvedValue(undefined),
     resolveExternalSession: vi.fn().mockResolvedValue({ kind: "none" }),
     readTranscriptPage: vi.fn().mockResolvedValue(transcriptPage("empty", [])),
     getDiagnostics: vi.fn().mockResolvedValue({
@@ -101,6 +102,7 @@ function createTerminalApi(snapshots: TerminalSessionSnapshot[] = []): Pick<Term
 }
 
 const baseProps = {
+  armedRecoverySessionIds: new Set<string>(),
   externalSessionIndexingEnabled: true,
   externalSessions: [],
   externalSessionsError: null,
@@ -513,7 +515,7 @@ describe("SessionsSurface", () => {
   it("supports Cmd/Ctrl+F, list navigation, Enter, Escape, and an untrapped Tab path", async () => {
     const user = userEvent.setup();
     const onBackToWork = vi.fn();
-    renderSurface({
+    const view = renderSurface({
       onBackToWork,
       sessions: [managedSession(0), managedSession(1), managedSession(2)],
       terminalApi: createTerminalApi(),
@@ -537,6 +539,7 @@ describe("SessionsSurface", () => {
 
     await user.tab();
     expect(screen.getByRole("button", { name: "Reveal in Work" })).toHaveFocus();
+    expect(view.getState().focusTarget).toBe("reader");
 
     fireEvent.keyDown(window, { key: "f", metaKey: true });
     expect(search).toHaveFocus();
@@ -629,6 +632,51 @@ describe("SessionsSurface", () => {
       action: { kind: "open-project", label: "Open Project" },
       summary: expect.objectContaining({ sessionKey: endedMapped.sessionKey }),
     }));
+  });
+
+  it("makes an unsafe recovery review and confirmation visible in Sessions", async () => {
+    const user = userEvent.setup();
+    const onPrimaryAction = vi.fn();
+    const unsafeWithAgent = managedSession(10, {
+      args: ["-rf", "dist"],
+      command: "rm",
+      cwd: "/Users/patryk/Desktop/Alfred",
+      initialBuffer: "saved output\n",
+      runtimeStatus: "restored",
+      title: "Unsafe recovery",
+    });
+    const { agentKind: _agentKind, ...unsafe } = unsafeWithAgent;
+
+    const initial = renderSurface({ sessions: [unsafe], onPrimaryAction });
+    await user.click(screen.getByRole("option", { name: /Unsafe recovery/ }));
+    expect(screen.queryByRole("region", { name: "Relaunch review" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Review relaunch" }));
+    expect(onPrimaryAction).toHaveBeenLastCalledWith(expect.objectContaining({
+      action: { kind: "recover", label: "Review relaunch" },
+      target: { workspaceId: "A", sessionId: "managed-10" },
+    }));
+
+    initial.unmount();
+    renderSurface(
+      {
+        armedRecoverySessionIds: new Set(["managed-10"]),
+        sessions: [unsafe],
+        onPrimaryAction,
+      },
+      {
+        ...createInitialSessionsViewState(),
+        selectedSessionKey: "managed:managed-10",
+        readerPages: [transcriptPage("managed:managed-10", [
+          { id: "saved", kind: "terminal", text: "saved output" },
+        ])],
+      },
+    );
+
+    expect(screen.getByRole("button", { name: "Confirm relaunch" })).toBeInTheDocument();
+    const review = screen.getByRole("region", { name: "Relaunch review" });
+    expect(review).toHaveTextContent("rm -rf dist");
+    expect(review).toHaveTextContent("/Users/patryk/Desktop/Alfred");
+    expect(review).toHaveTextContent("rm -rf would be replayed");
   });
 
   it("dispatches the action captured for the selected summary even if the source object mutates later", async () => {

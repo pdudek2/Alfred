@@ -6156,6 +6156,28 @@ body.arranging-pointer {
   font: 500 11px/1.4 var(--sans);
 }
 
+.sessions-recovery-review {
+  margin-top: 18px;
+  border-left: 2px solid var(--signal);
+  padding: 10px 12px;
+  background: color-mix(in oklab, var(--signal) 6%, var(--surface-work, #090b0d));
+  color: var(--ink-5);
+  display: grid;
+  gap: 6px;
+  font: 500 11px/1.45 var(--sans);
+}
+
+.sessions-recovery-review strong {
+  color: var(--ink-7);
+  font-weight: 630;
+}
+
+.sessions-recovery-review code {
+  color: var(--ink-6);
+  font: 500 11px/1.45 var(--mono);
+  overflow-wrap: anywhere;
+}
+
 .sessions-transcript__partial,
 .sessions-transcript__notice {
   border-left: 2px solid var(--signal);
@@ -6248,10 +6270,17 @@ body.arranging-pointer {
 
 @media (max-width: 1180px) {
   .workspace-layout.surface-inbox,
-  .workspace-layout.surface-sessions,
-  .workspace-layout.surface-inbox.preview-visible,
-  .workspace-layout.surface-sessions.preview-visible {
+  .workspace-layout.surface-inbox.preview-visible {
     grid-template-columns: 46px minmax(0, 1fr);
+  }
+
+  .workspace-layout.surface-sessions,
+  .workspace-layout.surface-sessions.preview-visible {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workspace-layout.surface-sessions > .orchestrator-surface {
+    grid-column: 1;
   }
 
   .sessions-surface {

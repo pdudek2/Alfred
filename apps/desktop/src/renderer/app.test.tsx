@@ -230,6 +230,7 @@ function installDesktopBridge(
   const readTranscriptPage = vi.fn().mockResolvedValue({ sessionKey: "test", blocks: [], nextCursor: null, revision: "", partial: false });
   const getSessionsDiagnostics = vi.fn().mockResolvedValue({ cachedSessionCount: 0, decodedTranscriptBytes: 0, summaryCount: 0, summaryBytes: 0 });
   const clearSessionsCaches = vi.fn().mockResolvedValue(undefined);
+  const releaseListSnapshot = vi.fn().mockResolvedValue(undefined);
   const resolveExternalSession = vi.fn().mockImplementation(({ sessionKey }: { sessionKey: string }) => {
     const session = externalCodexSessions.find((candidate) => candidate.sessionKey === sessionKey);
     if (!session?.project.id) return Promise.resolve({ kind: "add-project" as const });
@@ -349,7 +350,14 @@ function installDesktopBridge(
       updatePrivacySettings,
     },
     layout: { getLayouts, setWorkspaceLayout, setWorkspaceViewState },
-    sessions: { listExternalSessions, resolveExternalSession, readTranscriptPage, getDiagnostics: getSessionsDiagnostics, clearCaches: clearSessionsCaches },
+    sessions: {
+      listExternalSessions,
+      releaseListSnapshot,
+      resolveExternalSession,
+      readTranscriptPage,
+      getDiagnostics: getSessionsDiagnostics,
+      clearCaches: clearSessionsCaches,
+    },
     terminal,
     workspace: {
       bindFolderToWorkspace,
@@ -1006,6 +1014,8 @@ describe("App integration", () => {
 
     expect(await screen.findByText("External Codex indexing is off.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Refresh external sessions" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Open Local Data & Privacy" }));
+    expect(screen.getByRole("dialog", { name: "Local Data & Privacy" })).toBeInTheDocument();
     expect(listExternalSessions).not.toHaveBeenCalled();
   });
 
@@ -2565,6 +2575,45 @@ describe("App integration", () => {
     expect(screen.getByRole("article", { name: /Restored Sessions action/i })).toBe(tile);
     expect(within(tile).getByTestId("xterm-host")).toBe(xtermHost);
     expect(writeTerminal).not.toHaveBeenCalled();
+  });
+
+  it("keeps unsafe Sessions recovery in a visible review state until explicit confirmation", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [{
+        clientId: "unsafe-sessions-action",
+        title: "Unsafe Sessions action",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        source: "manual",
+        isolation: "shared",
+        shell: "/bin/zsh",
+        command: "/bin/sh",
+        args: ["-c", "rm -rf dist"],
+        buffer: "saved output\n",
+      }],
+    );
+
+    render(<App />);
+    await screen.findByRole("article", { name: /Unsafe Sessions action/i });
+    await selectSurface(user, "Sessions");
+    await user.click(await screen.findByRole("option", { name: /Unsafe Sessions action/i }));
+
+    await user.click(screen.getByRole("button", { name: "Review relaunch" }));
+    expect(createTerminal).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Confirm relaunch" })).toBeInTheDocument();
+    const review = screen.getByRole("region", { name: "Relaunch review" });
+    expect(review).toHaveTextContent("/bin/sh -c rm -rf dist");
+    expect(review).toHaveTextContent("/Users/patryk/Desktop/Alfred");
+
+    await user.click(screen.getByRole("button", { name: "Confirm relaunch" }));
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("region", { name: "Sessions workspace" })).not.toBeInTheDocument();
   });
 
   it("opens a mapped read-only external session project without creating or writing to a terminal", async () => {
