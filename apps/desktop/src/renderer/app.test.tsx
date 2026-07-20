@@ -2570,6 +2570,150 @@ describe("App integration", () => {
     expect(writeTerminal).not.toHaveBeenCalled();
   });
 
+  it("falls back from a stale inactive-workspace selection to a real tile for Open Project", async () => {
+    const user = userEvent.setup();
+    const externalSessionId = "019edc4b-0000-7000-9000-stale-project";
+    const {
+      createTerminal,
+      resolveExternalSession,
+      setWorkspaceLayout,
+      setWorkspaceViewState,
+      writeTerminal,
+    } = installDesktopBridge(
+      undefined,
+      null,
+      [
+        liveSnapshot("active-a", { title: "Active Alfred", workspaceId: "A" }),
+        liveSnapshot("real-b", {
+          title: "Real IronLog tile",
+          workspaceId: "B",
+          cwd: "/Users/patryk/Desktop/IronLog",
+        }),
+      ],
+      undefined,
+      {
+        layoutsByWorkspace: {},
+        viewStateByWorkspace: {
+          A: { workMode: "desk", selectedSessionId: "active-a" },
+          B: { workMode: "focus", selectedSessionId: "stale-b" },
+        },
+      },
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "B", label: "IronLog", shortLabel: "I", rootPath: "/Users/patryk/Desktop/IronLog" },
+        ],
+        activeWorkspaceId: "A",
+      },
+      [],
+      [{
+        sessionKey: `external-codex:${externalSessionId}:200`,
+        lineageKey: `external-codex:${externalSessionId}`,
+        contentSessionKey: `external-codex:${externalSessionId}`,
+        source: "external-codex",
+        kind: "codex",
+        title: "Mapped IronLog history",
+        project: { id: "B", label: "IronLog" },
+        locationLabel: "IronLog",
+        updatedAt: 200,
+        lifecycle: "read-only",
+      }],
+    );
+
+    render(<App />);
+
+    const backgroundHost = await screen.findByTestId("background-xterm-host");
+    expect(backgroundHost).toHaveAttribute("data-session-id", "real-b");
+    setWorkspaceLayout.mockClear();
+    setWorkspaceViewState.mockClear();
+    terminalFocusSessionIds.length = 0;
+    await selectSurface(user, "Sessions");
+    await user.click(await screen.findByRole("option", { name: /Mapped IronLog history/i }));
+    await user.click(screen.getByRole("button", { name: "Open Project" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "IronLog workspace" })).toHaveAttribute("aria-selected", "true");
+      expect(terminalFocusSessionIds.at(-1)).toBe("real-b");
+    });
+    const realTile = screen.getByRole("article", { name: /Real IronLog tile/i });
+    expect(within(realTile).getByTestId("xterm-host")).toBe(backgroundHost);
+    expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
+      workspaceId: "B",
+      viewState: { workMode: "focus", selectedSessionId: "real-b" },
+    });
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+      workspaceId: "B",
+      layouts: expect.objectContaining({ "real-b": expect.objectContaining({ tileId: "real-b" }) }),
+    });
+    expect(createTerminal).not.toHaveBeenCalled();
+    expect(resolveExternalSession).not.toHaveBeenCalled();
+    expect(writeTerminal).not.toHaveBeenCalled();
+  });
+
+  it("opens an empty mapped project without persisting its stale session selection", async () => {
+    const user = userEvent.setup();
+    const externalSessionId = "019edc4b-0000-7000-9000-empty-project";
+    const {
+      createTerminal,
+      resolveExternalSession,
+      setWorkspaceViewState,
+      writeTerminal,
+    } = installDesktopBridge(
+      undefined,
+      null,
+      [liveSnapshot("active-a", { title: "Active Alfred", workspaceId: "A" })],
+      undefined,
+      {
+        layoutsByWorkspace: {},
+        viewStateByWorkspace: {
+          A: { workMode: "desk", selectedSessionId: "active-a" },
+          B: { workMode: "focus", selectedSessionId: "stale-empty-b" },
+        },
+      },
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "B", label: "Empty", shortLabel: "E", rootPath: "/Users/patryk/Desktop/Empty" },
+        ],
+        activeWorkspaceId: "A",
+      },
+      [],
+      [{
+        sessionKey: `external-codex:${externalSessionId}:200`,
+        lineageKey: `external-codex:${externalSessionId}`,
+        contentSessionKey: `external-codex:${externalSessionId}`,
+        source: "external-codex",
+        kind: "codex",
+        title: "Mapped empty history",
+        project: { id: "B", label: "Empty" },
+        locationLabel: "Empty",
+        updatedAt: 200,
+        lifecycle: "read-only",
+      }],
+    );
+
+    render(<App />);
+
+    setWorkspaceViewState.mockClear();
+    terminalFocusSessionIds.length = 0;
+    await selectSurface(user, "Sessions");
+    await user.click(await screen.findByRole("option", { name: /Mapped empty history/i }));
+    await user.click(screen.getByRole("button", { name: "Open Project" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Empty workspace" })).toHaveAttribute("aria-selected", "true");
+    });
+    expect(screen.queryByRole("region", { name: "Sessions workspace" })).not.toBeInTheDocument();
+    expect(setWorkspaceViewState).not.toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId: "B",
+      viewState: expect.objectContaining({ selectedSessionId: "stale-empty-b" }),
+    }));
+    expect(terminalFocusSessionIds).not.toContain("stale-empty-b");
+    expect(createTerminal).not.toHaveBeenCalled();
+    expect(resolveExternalSession).not.toHaveBeenCalled();
+    expect(writeTerminal).not.toHaveBeenCalled();
+  });
+
   it("adds an unknown external Codex project through the folder picker and refreshes summaries", async () => {
     const user = userEvent.setup();
     const externalSessionId = "019edc4b-0000-7000-9000-untrusted";

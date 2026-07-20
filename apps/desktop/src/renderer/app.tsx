@@ -1742,10 +1742,12 @@ export function App() {
       case "open-project": {
         const workspaceId = request.summary.project.id;
         if (!workspaceId || !workspaces.some((workspace) => workspace.id === workspaceId)) return;
-        const sessionId = selectedSessionIdsByWorkspace[workspaceId]
-          ?? terminalSessionsRef.current.find((session) => session.workspaceId === workspaceId)?.id;
-        if (sessionId) {
-          handleFocusSessionInWorkspace(workspaceId, sessionId);
+        const workspaceSessions = terminalSessionsRef.current.filter((session) => session.workspaceId === workspaceId);
+        const savedSessionId = selectedSessionIdsByWorkspace[workspaceId];
+        const targetSession = workspaceSessions.find((session) => session.id === savedSessionId)
+          ?? workspaceSessions[0];
+        if (targetSession) {
+          handleFocusSessionInWorkspace(workspaceId, targetSession.id);
         } else {
           setActiveWorkspaceId(workspaceId);
           setActiveSurface("work");
