@@ -3,12 +3,13 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  ExternalSessionSummary,
-  SessionsApi,
-  SessionsProjectInput,
-  TranscriptBlock,
-  TranscriptPage,
+import {
+  TRANSCRIPT_TEXT_LIMIT,
+  type ExternalSessionSummary,
+  type SessionsApi,
+  type SessionsProjectInput,
+  type TranscriptBlock,
+  type TranscriptPage,
 } from "../../shared/sessions-ipc";
 import type { TerminalApi, TerminalSessionSnapshot } from "../../shared/terminal-ipc";
 import type { SessionTile } from "../session-state";
@@ -335,6 +336,21 @@ describe("SessionsSurface", () => {
     expect(article).toHaveTextContent("ready");
     expect(article).not.toHaveTextContent("[1m");
     expect(article).not.toHaveTextContent("[7m");
+  });
+
+  it("strips a CSI sequence that crosses the managed transcript limit", async () => {
+    const user = userEvent.setup();
+    const { runtimeId: _runtimeId, ...restoredSession } = managedSession(8, {
+      runtimeStatus: "restored",
+      title: "Boundary ANSI transcript",
+      initialBuffer: `\u001b[1m${"x".repeat(TRANSCRIPT_TEXT_LIMIT - 3)}`,
+    });
+
+    renderSurface({ sessions: [restoredSession] });
+
+    await user.click(within(screen.getByRole("listbox", { name: "Session results" })).getByRole("option"));
+    const article = await screen.findByRole("article", { name: /Boundary ANSI transcript/ });
+    expect(article).not.toHaveTextContent("[1m");
   });
 
   it("shows loading, no-result, disabled-indexing, and stale-refresh states without hiding managed sessions", async () => {

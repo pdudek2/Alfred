@@ -19,6 +19,8 @@ import { appendTranscriptPage, type SessionsViewState } from "../sessions-view-s
 import { SessionsNavigator } from "./SessionsNavigator";
 import { SessionsReader, type SessionsReaderStatus } from "./SessionsReader";
 
+const CSI_BOUNDARY_OVERLAP = 256;
+
 export type SessionsSurfaceProps = {
   externalSessionIndexingEnabled: boolean;
   externalSessions: ExternalSessionSummary[];
@@ -274,7 +276,12 @@ function terminalTranscriptPage(
   session: SessionTile | null,
 ): TranscriptPage {
   const textWasTruncated = rawText.length > TRANSCRIPT_TEXT_LIMIT;
-  const boundedText = stripAnsiTerminalText(rawText.slice(-TRANSCRIPT_TEXT_LIMIT)).replace(/\r\n/g, "\n");
+  // Include a small bounded overlap so a CSI sequence starting just before the tail limit
+  // is still complete when sanitized; the final slice preserves the transcript memory bound.
+  const sliceStart = Math.max(0, rawText.length - TRANSCRIPT_TEXT_LIMIT - CSI_BOUNDARY_OVERLAP);
+  const boundedText = stripAnsiTerminalText(rawText.slice(sliceStart))
+    .slice(-TRANSCRIPT_TEXT_LIMIT)
+    .replace(/\r\n/g, "\n");
   const lines = boundedText.split("\n");
   if (lines.at(-1) === "") lines.pop();
   const boundedLines = lines.slice(-120);
@@ -293,7 +300,7 @@ function terminalTranscriptPage(
 }
 
 function stripAnsiTerminalText(value: string): string {
-  // Terminal snapshot buffers contain ESC control bytes by protocol; removing them is intentional.
+  // Managed terminal snapshots may contain CSI control sequences (`ESC [` through the final byte).
   // eslint-disable-next-line no-control-regex
   return value.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "");
 }
