@@ -879,6 +879,39 @@ describe("App integration", () => {
     await waitFor(() => expect(workTarget).toHaveFocus());
   });
 
+  it("round-trips Sessions state without retaining its transcript DOM or remounting xterm", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [liveSnapshot("round-trip", {
+      title: "Round trip session",
+      buffer: "round trip transcript\n",
+    })]);
+    render(<App />);
+
+    const xtermHost = await screen.findByTestId("xterm-host");
+    await selectSurface(user, "Sessions");
+    const search = screen.getByRole("searchbox", { name: "Search sessions" });
+    await user.type(search, "round trip");
+    await user.click(await screen.findByRole("option", { name: /Round trip session/i }));
+    const transcript = await screen.findByRole("article", { name: /Round trip session/i });
+    const navigator = screen.getByRole("listbox", { name: "Session results" });
+    const reader = document.querySelector<HTMLElement>(".sessions-reader__scroll");
+    expect(reader).not.toBeNull();
+    fireEvent.scroll(navigator, { target: { scrollTop: 37 } });
+    fireEvent.scroll(reader!, { target: { scrollTop: 53 } });
+
+    await user.keyboard("{Escape}");
+    expect(transcript.isConnected).toBe(false);
+    expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
+
+    await selectSurface(user, "Sessions");
+    expect(screen.getByRole("searchbox", { name: "Search sessions" })).toHaveValue("round trip");
+    const restoredTranscript = screen.getByRole("article", { name: /Round trip session/i });
+    expect(restoredTranscript).not.toBe(transcript);
+    expect(screen.getByRole("listbox", { name: "Session results" })).toHaveProperty("scrollTop", 37);
+    expect(document.querySelector(".sessions-reader__scroll")).toHaveProperty("scrollTop", 53);
+    expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
+  });
+
   it("opens Local Data & Privacy controls from the command palette", async () => {
     const user = userEvent.setup();
     const { clearSavedTerminalData, revealStateFile, updatePrivacySettings } = installDesktopBridge();
@@ -2261,10 +2294,10 @@ describe("App integration", () => {
     expect(resizeTerminal).toHaveBeenCalledTimes(1);
   });
 
-  it("resumes an external Codex Sessions row with the selected session id", async () => {
+  it("resumes an external Codex Sessions row exactly once through its opaque summary key without PTY writes", async () => {
     const user = userEvent.setup();
     const externalSessionId = "019edc4b-0000-7000-9000-sessions";
-    const { createTerminal } = installDesktopBridge(
+    const { createTerminal, resolveExternalSession, writeTerminal } = installDesktopBridge(
       undefined,
       null,
       [],
@@ -2292,27 +2325,153 @@ describe("App integration", () => {
 
     render(<App />);
 
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(1));
+    createTerminal.mockClear();
+
     await selectSurface(user, "Sessions");
     await user.click(await screen.findByRole("option", { name: /Load Alfred memory/i }));
-    await user.click(screen.getByRole("button", { name: "Resume in Alfred" }));
+    const resume = screen.getByRole("button", { name: "Resume in Work" });
+    fireEvent.click(resume);
+    fireEvent.click(resume);
 
     await waitFor(() => {
-      expect(createTerminal).toHaveBeenCalledWith(
-        expect.objectContaining({
+      expect(createTerminal.mock.calls.filter(([request]) => (
+        request.command === "codex" && request.args?.[0] === "resume"
+      ))).toEqual([[expect.objectContaining({
           agentKind: "codex",
           command: "codex",
           args: ["resume", externalSessionId],
+          resumeTarget: { agentKind: "codex", sessionId: externalSessionId, source: "external-session-index" },
+          isolation: "shared",
           cwd: "/Users/patryk/Desktop/Alfred",
           workspaceId: "A",
-        }),
-      );
+      })]]);
+      expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     });
+    expect(resolveExternalSession).toHaveBeenCalledWith({
+      sessionKey: `external-codex:${externalSessionId}:200`,
+    });
+    expect(resolveExternalSession).toHaveBeenCalledTimes(1);
+    expect(resolveExternalSession).not.toHaveBeenCalledWith({
+      sessionKey: `external-codex:${externalSessionId}`,
+    });
+    expect(writeTerminal).not.toHaveBeenCalled();
   });
 
-  it("opens a bind/trust workspace dialog for an unknown external Codex cwd", async () => {
+  it("reveals a live managed session in Work without creating a terminal or writing to its PTY", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, writeTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [liveSnapshot("reveal", { title: "Reveal target" })],
+    );
+
+    render(<App />);
+
+    const xtermHost = await screen.findByTestId("xterm-host");
+    await selectSurface(user, "Sessions");
+    await user.click(await screen.findByRole("option", { name: /Reveal target/i }));
+    await user.click(screen.getByRole("button", { name: "Reveal in Work" }));
+
+    expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
+    expect(screen.getByRole("article", { name: /Reveal target/i })).toBeInTheDocument();
+    expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
+    expect(createTerminal).not.toHaveBeenCalled();
+    expect(writeTerminal).not.toHaveBeenCalled();
+  });
+
+  it("recovers a restored managed session through the existing safe lifecycle path and preserves its tile", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, writeTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [{
+        clientId: "restored-sessions-action",
+        title: "Restored Sessions action",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        source: "manual",
+        agentKind: "codex",
+        isolation: "shared",
+        shell: "/bin/zsh",
+        command: "codex",
+        args: [],
+        buffer: "saved output\n",
+      }],
+    );
+
+    render(<App />);
+
+    const tile = await screen.findByRole("article", { name: /Restored Sessions action/i });
+    const xtermHost = within(tile).getByTestId("xterm-host");
+    await selectSurface(user, "Sessions");
+    await user.click(await screen.findByRole("option", { name: /Restored Sessions action/i }));
+    await user.click(screen.getByRole("button", { name: "Resume in Work" }));
+
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledTimes(1);
+      expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
+    });
+    expect(screen.getByRole("article", { name: /Restored Sessions action/i })).toBe(tile);
+    expect(within(tile).getByTestId("xterm-host")).toBe(xtermHost);
+    expect(writeTerminal).not.toHaveBeenCalled();
+  });
+
+  it("opens a mapped read-only external session project without creating or writing to a terminal", async () => {
+    const user = userEvent.setup();
+    const externalSessionId = "019edc4b-0000-7000-9000-ended";
+    const { createTerminal, resolveExternalSession, writeTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [],
+      [{
+        sessionKey: `external-codex:${externalSessionId}:200`,
+        lineageKey: `external-codex:${externalSessionId}`,
+        contentSessionKey: `external-codex:${externalSessionId}`,
+        source: "external-codex",
+        kind: "codex",
+        title: "Ended mapped session",
+        project: { id: "A", label: "Alfred" },
+        locationLabel: "Alfred",
+        updatedAt: 200,
+        lifecycle: "read-only",
+      }],
+    );
+
+    render(<App />);
+
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(1));
+    createTerminal.mockClear();
+
+    await selectSurface(user, "Sessions");
+    await user.click(await screen.findByRole("option", { name: /Ended mapped session/i }));
+    await user.click(screen.getByRole("button", { name: "Open Project" }));
+
+    expect(screen.queryByRole("region", { name: "Sessions workspace" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("desk-runtime-surface")).not.toHaveAttribute("aria-hidden");
+    expect(resolveExternalSession).not.toHaveBeenCalled();
+    expect(createTerminal).not.toHaveBeenCalled();
+    expect(writeTerminal).not.toHaveBeenCalled();
+  });
+
+  it("adds an unknown external Codex project through the folder picker and refreshes summaries", async () => {
     const user = userEvent.setup();
     const externalSessionId = "019edc4b-0000-7000-9000-untrusted";
-    const { bindFolderToWorkspace, createTerminal, setWorkspaceState } = installDesktopBridge(
+    const {
+      bindFolderToWorkspace,
+      createTerminal,
+      createWorkspaceFromFolder,
+      listExternalSessions,
+      setWorkspaceState,
+      writeTerminal,
+    } = installDesktopBridge(
       undefined,
       null,
       [],
@@ -2346,12 +2505,19 @@ describe("App integration", () => {
     await selectSurface(user, "Sessions");
     await user.click(await screen.findByRole("option", { name: /Unknown external workspace/i }));
 
-    const resume = screen.getByRole("button", { name: "Trust workspace first" });
+    const resume = screen.getByRole("button", { name: "Add Project…" });
     expect(resume).toBeEnabled();
 
     await user.click(resume);
     expect(createTerminal).toHaveBeenCalledTimes(1);
-    expect(bindFolderToWorkspace).toHaveBeenCalledWith({ workspaceId: "A" });
+    expect(createWorkspaceFromFolder).toHaveBeenCalledOnce();
+    expect(bindFolderToWorkspace).not.toHaveBeenCalled();
+    await waitFor(() => expect(listExternalSessions).toHaveBeenCalledTimes(2));
+    expect(listExternalSessions).toHaveBeenLastCalledWith({
+      projects: expect.arrayContaining([expect.objectContaining({ id: "CLIENTAPP" })]),
+      limit: 80,
+    });
+    expect(writeTerminal).not.toHaveBeenCalled();
     expect(setWorkspaceState).not.toHaveBeenCalledWith(
       expect.objectContaining({
         workspaces: expect.arrayContaining([

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { ExternalSessionSummary, SessionsProjectInput } from "../shared/sessions-ipc";
+import type { ExternalSessionSummary, SessionSummary, SessionsProjectInput } from "../shared/sessions-ipc";
 import type { SessionTile } from "./session-state";
-import { buildSessionsProjection } from "./sessions-projection";
+import { buildSessionsProjection, sessionsPrimaryAction } from "./sessions-projection";
 
 const workspaces: SessionsProjectInput[] = [
   { id: "A", label: "Alfred", rootPath: "/Users/patryk/Desktop/Alfred" },
@@ -40,6 +40,56 @@ function externalSession(id: string, overrides: Partial<ExternalSessionSummary> 
     ...overrides,
   };
 }
+
+function summary(overrides: Partial<SessionSummary> = {}): SessionSummary {
+  return {
+    sessionKey: "managed:summary",
+    lineageKey: "managed:summary",
+    contentSessionKey: null,
+    source: "managed",
+    kind: "codex",
+    title: "Summary",
+    project: { id: "A", label: "Alfred" },
+    locationLabel: "Alfred",
+    updatedAt: 100,
+    lifecycle: "live",
+    ...overrides,
+  };
+}
+
+describe("sessionsPrimaryAction", () => {
+  it("maps lifecycle and project trust to truthful primary actions", () => {
+    const live = summary();
+    const restored = summary({ lifecycle: "recoverable" });
+    const mappedExternal = summary({
+      sessionKey: "external:opaque-resume",
+      source: "external-codex",
+      lifecycle: "resumable",
+    });
+    const untrustedExternal = summary({
+      sessionKey: "external:opaque-untrusted",
+      source: "external-codex",
+      project: { id: null, label: "External Codex" },
+      lifecycle: "read-only",
+    });
+    const endedMapped = summary({
+      sessionKey: "external:opaque-ended",
+      source: "external-codex",
+      lifecycle: "read-only",
+    });
+    const readOnlyUnknown = summary({
+      project: { id: null, label: "Unknown" },
+      lifecycle: "read-only",
+    });
+
+    expect(sessionsPrimaryAction(live)).toEqual({ kind: "reveal", label: "Reveal in Work" });
+    expect(sessionsPrimaryAction(restored)).toMatchObject({ kind: "recover", label: "Resume in Work" });
+    expect(sessionsPrimaryAction(mappedExternal)).toEqual({ kind: "resume-external", label: "Resume in Work" });
+    expect(sessionsPrimaryAction(untrustedExternal)).toEqual({ kind: "add-project", label: "Add Project…" });
+    expect(sessionsPrimaryAction(endedMapped)).toEqual({ kind: "open-project", label: "Open Project" });
+    expect(sessionsPrimaryAction(readOnlyUnknown)).toBeNull();
+  });
+});
 
 describe("buildSessionsProjection", () => {
   it("normalizes lifecycle state, groups Free Chats, and merges a resumed Codex lineage", () => {

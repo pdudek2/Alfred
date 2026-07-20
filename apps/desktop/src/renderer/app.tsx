@@ -217,6 +217,7 @@ export function App() {
   const contextFocusRequestKeyRef = useRef(0);
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
+  const resumingExternalSessionKeysRef = useRef<Set<string>>(new Set());
   const worktreeActionPendingRef = useRef<Set<string>>(new Set());
   const terminalSessionsRef = useRef<SessionTile[]>([]);
   const announcedSessionStatusesRef = useRef<Map<string, string>>(new Map());
@@ -1629,9 +1630,29 @@ export function App() {
   }, []);
 
   const handleOpenManagedSessionFromSessions = useCallback((workspaceId: string, sessionId: string) => {
+    const session = terminalSessions.find((item) => item.workspaceId === workspaceId && item.id === sessionId);
+    if (!session) return;
+    if (session.runtimeStatus === "live" || session.runtimeStatus === "starting") {
+      handleFocusSessionInWorkspace(workspaceId, sessionId);
+      return;
+    }
+    if (
+      session.runtimeStatus === "restored"
+      || session.runtimeStatus === "exited"
+      || session.runtimeStatus === "error"
+    ) {
+      const resumableAgent = session.agentKind === "codex"
+        || session.agentKind === "claude"
+        || session.command === "codex"
+        || session.command === "claude";
+      if (session.command?.trim() || (session.runtimeStatus === "restored" && resumableAgent)) {
+        handleRecoverInboxItem(workspaceId, sessionId);
+        return;
+      }
+    }
+    setActiveWorkspaceId(workspaceId);
     setActiveSurface("work");
-    handleFocusSessionInWorkspace(workspaceId, sessionId);
-  }, [handleFocusSessionInWorkspace]);
+  }, [handleFocusSessionInWorkspace, handleRecoverInboxItem, terminalSessions]);
 
   const handleReviewBlockedSession = useCallback((workspaceId: string, sessionId: string) => {
     contextReturnFocusRef.current = null;
@@ -1644,61 +1665,102 @@ export function App() {
   }, [handleFocusSessionInWorkspace]);
 
   const handleResumeExternalCodexSession = useCallback(async (sessionKey: string) => {
+    if (resumingExternalSessionKeysRef.current.has(sessionKey)) return;
+    resumingExternalSessionKeysRef.current.add(sessionKey);
     const now = Date.now();
     const workspaceApi = getDesktopWorkspaceApi();
     const sessionsApi = getDesktopSessionsApi();
-    if (!sessionsApi) return;
-    const resolved = await sessionsApi.resolveExternalSession({ sessionKey });
-    if (resolved.kind !== "resume") return;
-    const targetWorkspace = workspaces.find((workspace) => workspace.id === resolved.projectId);
-    if (!targetWorkspace) return;
-    const summary = externalCodexSessions.find((session) => session.sessionKey === sessionKey);
-    const title = normalizeSessionTitle(summary?.title ? `Codex · ${summary.title}` : "Codex resume") ?? "Codex resume";
-    const tile: SessionTile = {
-      id: `external-codex-${resolved.sessionId.slice(0, 8)}-${now}`,
-      title,
-      workspaceId: targetWorkspace.id,
-      cwd: resolved.cwd,
-      source: "manual",
-      stage: "live",
-      runtimeStatus: "starting",
-      agentKind: "codex",
-      command: "codex",
-      args: ["resume", resolved.sessionId],
-      resumeTarget: { agentKind: "codex", sessionId: resolved.sessionId, source: "external-session-index" },
-      resumeMode: "exact",
-      isolation: "shared",
-      createdAt: now,
-      activityEvents: [
-        {
-          id: `external-codex-${resolved.sessionId.slice(0, 8)}-${now}-resume`,
-          kind: "approval",
-          title: "External Codex session resumed",
-          detail: "Alfred is opening this Codex transcript in a managed terminal.",
-          at: now,
-        },
-      ],
-      lastActivityAt: now,
-    };
+    try {
+      if (!sessionsApi) return;
+      const resolved = await sessionsApi.resolveExternalSession({ sessionKey });
+      if (resolved.kind !== "resume") return;
+      const targetWorkspace = workspaces.find((workspace) => workspace.id === resolved.projectId);
+      if (!targetWorkspace) return;
+      const alreadyManaged = terminalSessionsRef.current.some((session) => (
+        session.resumeTarget?.agentKind === "codex"
+        && session.resumeTarget.sessionId === resolved.sessionId
+      ));
+      if (alreadyManaged) {
+        const existing = terminalSessionsRef.current.find((session) => (
+          session.resumeTarget?.agentKind === "codex"
+          && session.resumeTarget.sessionId === resolved.sessionId
+        ));
+        if (existing) handleFocusSessionInWorkspace(existing.workspaceId, existing.id);
+        return;
+      }
+      const summary = externalCodexSessions.find((session) => session.sessionKey === sessionKey);
+      const title = normalizeSessionTitle(summary?.title ? `Codex · ${summary.title}` : "Codex resume") ?? "Codex resume";
+      const tile: SessionTile = {
+        id: `external-codex-${resolved.sessionId.slice(0, 8)}-${now}`,
+        title,
+        workspaceId: targetWorkspace.id,
+        cwd: resolved.cwd,
+        source: "manual",
+        stage: "live",
+        runtimeStatus: "starting",
+        agentKind: "codex",
+        command: "codex",
+        args: ["resume", resolved.sessionId],
+        resumeTarget: { agentKind: "codex", sessionId: resolved.sessionId, source: "external-session-index" },
+        resumeMode: "exact",
+        isolation: "shared",
+        createdAt: now,
+        activityEvents: [
+          {
+            id: `external-codex-${resolved.sessionId.slice(0, 8)}-${now}-resume`,
+            kind: "approval",
+            title: "External Codex session resumed",
+            detail: "Alfred is opening this Codex transcript in a managed terminal.",
+            at: now,
+          },
+        ],
+        lastActivityAt: now,
+      };
 
-    setActiveWorkspaceId(targetWorkspace.id);
-    setActiveSurface("work");
-    setSelectedSessionIdsByWorkspace((current) => ({ ...current, [targetWorkspace.id]: tile.id }));
-    setTerminalSessions((sessions) => [...sessions, tile]);
-    void workspaceApi?.setWorkspaceState({ workspaces, activeWorkspaceId: targetWorkspace.id });
-  }, [externalCodexSessions, workspaces]);
+      setActiveWorkspaceId(targetWorkspace.id);
+      setActiveSurface("work");
+      setSelectedSessionIdsByWorkspace((current) => ({ ...current, [targetWorkspace.id]: tile.id }));
+      setWorkModesByWorkspace((current) => ({ ...current, [targetWorkspace.id]: "focus" }));
+      const targetSessions = [
+        ...terminalSessionsRef.current.filter((session) => session.workspaceId === targetWorkspace.id),
+        tile,
+      ];
+      const workspaceLayouts = applyLayoutPreset(targetSessions, "focus", tile.id);
+      setTileLayoutsByWorkspace((current) => ({ ...current, [targetWorkspace.id]: workspaceLayouts }));
+      setTerminalSessions((sessions) => {
+        if (sessions.some((session) => (
+          session.resumeTarget?.agentKind === "codex"
+          && session.resumeTarget.sessionId === resolved.sessionId
+        ))) return sessions;
+        return [...sessions, tile];
+      });
+      void getDesktopLayoutApi()?.setWorkspaceLayout({ workspaceId: targetWorkspace.id, layouts: workspaceLayouts });
+      void getDesktopLayoutApi()?.setWorkspaceViewState({
+        workspaceId: targetWorkspace.id,
+        viewState: { workMode: "focus", selectedSessionId: tile.id },
+      });
+      void workspaceApi?.setWorkspaceState({ workspaces, activeWorkspaceId: targetWorkspace.id });
+    } finally {
+      resumingExternalSessionKeysRef.current.delete(sessionKey);
+    }
+  }, [externalCodexSessions, handleFocusSessionInWorkspace, workspaces]);
 
   const handleTrustExternalCodexWorkspace = useCallback(async (sessionKey: string) => {
     const workspaceApi = getDesktopWorkspaceApi();
     if (!workspaceApi) return;
+    const summary = externalCodexSessions.find((session) => session.sessionKey === sessionKey);
+    if (!summary) return;
+    if (summary.project.id) {
+      if (!workspaces.some((workspace) => workspace.id === summary.project.id)) return;
+      setActiveWorkspaceId(summary.project.id);
+      setActiveSurface("work");
+      return;
+    }
 
-    const sessionsApi = getDesktopSessionsApi();
-    if (!sessionsApi || (await sessionsApi.resolveExternalSession({ sessionKey })).kind !== "add-project") return;
-
-    const snapshot = await workspaceApi.bindFolderToWorkspace({ workspaceId: activeWorkspace.id });
+    const snapshot = await workspaceApi.createWorkspaceFromFolder();
     setWorkspaces(snapshot.workspaces);
     setActiveWorkspaceId(snapshot.activeWorkspaceId);
-  }, [activeWorkspace.id]);
+  }, [externalCodexSessions, workspaces]);
 
   useEffect(() => {
     if (activeSurface !== "sessions") return;
