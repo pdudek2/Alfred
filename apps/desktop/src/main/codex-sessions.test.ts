@@ -194,9 +194,30 @@ describe("Codex sessions reader", () => {
     expect(Buffer.byteLength(hugePage.blocks[0]!.text)).toBeLessThan(256 * 1024);
     expect(hugePage.nextCursor).toEqual(expect.any(String));
     expect(hugePage.partial).toBe(true);
-    expect(hugePage.blocks.some((block) => block.kind === "notice")).toBe(true);
+    expect(hugePage.blocks.some((block) => block.kind === "notice" && block.text === "Some transcript content was truncated to fit this page.")).toBe(true);
     const afterHuge = await hugeReader.readTranscriptPage({ sessionKey: hugeListed.sessions[0]!.sessionKey, cursor: hugePage.nextCursor! });
     expect(afterHuge.blocks.filter((block) => block.kind === "message").map((block) => block.text)).toEqual(["After oversized record"]);
+  });
+
+  it("keeps a near-limit valid message intact and reports a following malformed record on the next page", async () => {
+    const intact = "n".repeat(256 * 1024 - 8);
+    const { codexHome } = await transcriptFixture("notice-boundary", [
+      { type: "session_meta", payload: { id: "notice-boundary", cwd: "/repo" } },
+      { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: intact }] } },
+      "{ malformed",
+      { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "After malformed" }] } },
+    ]);
+    const reader = createCodexSessionsReader({ codexHome });
+    const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
+    const first = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey });
+    const second = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey, cursor: first.nextCursor! });
+
+    expect(first.partial).toBe(false);
+    expect(first.blocks.filter((block) => block.kind === "message").map((block) => block.text)).toEqual([intact]);
+    expect(Buffer.byteLength(first.blocks[0]!.text)).toBe(Buffer.byteLength(intact));
+    expect(second.partial).toBe(true);
+    expect(second.blocks.some((block) => block.kind === "notice" && block.text === "Some malformed transcript records were omitted.")).toBe(true);
+    expect(second.blocks.filter((block) => block.kind === "message").map((block) => block.text)).toEqual(["After malformed"]);
   });
 
   it("uses UTF-8 byte cursors and returns every source message exactly once across byte-limited pages", async () => {
@@ -237,6 +258,9 @@ describe("Codex sessions reader", () => {
 
     await writeFile(index, JSON.stringify({ id: "indexed", thread_name: "Updated indexed title" }));
     expect((await reader.listExternalSessions({ projects: [] })).sessions[0]?.title).toBe("Updated indexed title");
+
+    await writeFile(index, "");
+    expect((await reader.listExternalSessions({ projects: [] })).sessions[0]?.title).toBe("Fallback");
   });
 
   it("accounts for private source data when evicting summary cache entries", async () => {
