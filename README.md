@@ -8,16 +8,17 @@ Alfred is terminal-first. The desktop app keeps agent terminals at the center of
 the workspace, lets the user switch between projects and sessions, and makes
 session state visible without replacing the underlying command-line tools.
 
-The Inbox contains only work that needs a decision. The Observatory is a
-secondary surface for status and detail, not the primary place to operate
-agents. There is no supported standalone browser client.
+The Inbox contains only work that needs a decision. Sessions is a secondary
+surface for finding and reading local or external agent sessions, not the
+primary place to operate agents. There is no supported standalone browser
+client.
 
 ## Architecture
 
 The desktop runtime has three layers:
 
 - The React/Vite renderer presents projects, sessions, terminal desks, the
-  decision-only Inbox, and the secondary Observatory.
+  decision-only Inbox, and the secondary Sessions navigator.
 - The Electron main process owns trusted operating-system work: terminal
   processes, workspaces, persisted desktop state, session orchestration, and
   external navigation.
