@@ -74,6 +74,7 @@ export type SessionsDiagnostics = {
 
 export type SessionsApi = {
   listExternalSessions(request: ListExternalSessionsRequest): Promise<ListExternalSessionsResult>;
+  releaseListSnapshot(request: { cursor: string }): Promise<void>;
   resolveExternalSession(request: { sessionKey: string }): Promise<ResolveExternalSessionResult>;
   readTranscriptPage(request: { sessionKey: string; cursor?: string }): Promise<TranscriptPage>;
   getDiagnostics(): Promise<SessionsDiagnostics>;
@@ -82,6 +83,7 @@ export type SessionsApi = {
 
 export const sessionsChannels = {
   listExternal: "alfred:sessions:list-external",
+  releaseListSnapshot: "alfred:sessions:release-list-snapshot",
   resolveExternal: "alfred:sessions:resolve-external",
   readTranscriptPage: "alfred:sessions:read-transcript-page",
   getDiagnostics: "alfred:sessions:get-diagnostics",

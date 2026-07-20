@@ -39,6 +39,23 @@ describe("sessions IPC", () => {
     });
   });
 
+  it("releases only the unfinished list snapshot through IPC", async () => {
+    const reader = {
+      listExternalSessions: vi.fn(),
+      releaseListSnapshot: vi.fn(),
+      resolveExternalSession: vi.fn(),
+      clearCaches: vi.fn(),
+    };
+    registerSessionsIpc({ reader });
+    const releaseHandler = handlers.get("alfred:sessions:release-list-snapshot");
+
+    expect(releaseHandler).toBeTypeOf("function");
+    await releaseHandler?.({}, { cursor: "opaque-list-cursor" });
+
+    expect(reader.releaseListSnapshot).toHaveBeenCalledWith({ cursor: "opaque-list-cursor" });
+    expect(reader.clearCaches).not.toHaveBeenCalled();
+  });
+
   it("rejects a resumable result when the authoritative workspace roots no longer match", async () => {
     const reader = {
       listExternalSessions: vi.fn(),
@@ -51,6 +68,28 @@ describe("sessions IPC", () => {
     });
 
     await expect(handlers.get(sessionsChannels.resolveExternal)?.({}, { sessionKey: "stale" })).resolves.toEqual({ kind: "add-project" });
+  });
+
+  it("rejects a resumable cwd that escapes an authoritative workspace through dot segments", async () => {
+    const root = path.join(tmpdir(), "authoritative-root");
+    const reader = {
+      listExternalSessions: vi.fn(),
+      releaseListSnapshot: vi.fn(),
+      resolveExternalSession: vi.fn(async () => ({
+        kind: "resume" as const,
+        projectId: "A",
+        cwd: `${root}/../outside`,
+        sessionId: "escaped",
+      })),
+      clearCaches: vi.fn(),
+    };
+    registerSessionsIpc({
+      reader,
+      workspaceStore: fakeWorkspaceStore([{ id: "A", label: "Authoritative", shortLabel: "AU", rootPath: root }]),
+    });
+
+    await expect(handlers.get(sessionsChannels.resolveExternal)?.({}, { sessionKey: "escaped" }))
+      .resolves.toEqual({ kind: "add-project" });
   });
 
   it("returns an empty page and clears cached sources when indexing is disabled", async () => {

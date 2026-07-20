@@ -21,6 +21,7 @@ import {
   type TranscriptBlock,
   type TranscriptPage,
 } from "../shared/sessions-ipc.js";
+import { canonicalWorkspacePath } from "./workspace-path.js";
 
 const MAX_TITLE_LENGTH = 92;
 const MAX_TRANSCRIPT_PREFIX_LINES = 140;
@@ -39,6 +40,7 @@ type SummaryCacheEntry = { summary: CodexSummary; bytes: number };
 type TranscriptCursor = { offset: number; revision: string };
 type ListCursor = { offset: number; snapshot: number };
 type ListSnapshot = { id: number; requestSignature: string; summaries: CodexSummary[] };
+type CanonicalSessionsProject = SessionsProjectInput & { canonicalRoots: string[] };
 
 export function createCodexSessionsReader(options: {
   codexHome: string;
@@ -183,6 +185,11 @@ export function createCodexSessionsReader(options: {
         total: snapshot.summaries.length,
       };
     },
+    releaseListSnapshot(request: { cursor: string }): void {
+      if (!listSnapshot) return;
+      const cursor = decodeListCursor(request.cursor);
+      if (cursor.snapshot === listSnapshot.id) listSnapshot = null;
+    },
     async resolveExternalSession(request: { sessionKey: string } | string): Promise<ResolveExternalSessionResult> {
       const sessionKey = typeof request === "string" ? request : request.sessionKey;
       const source = sourceBySessionKey.get(sessionKey);
@@ -226,13 +233,16 @@ async function discoverCodexSummaries(
   cacheSummary: (key: string, summary: CodexSummary) => void,
 ): Promise<CodexSummary[]> {
   const titleIndex = await readCodexSessionTitleIndex(codexHome);
+  const canonicalProjects = await canonicalizeProjects(projects);
   const files = (await findJsonlFiles(path.join(codexHome, "sessions"))).sort((left, right) => right.updatedAt - left.updatedAt);
   const summaries: CodexSummary[] = [];
   const ids = new Set<string>();
   for (const file of files) {
     const cacheKey = `${file.path}:${file.updatedAt}:${file.size}`;
     const cached = cache.get(cacheKey);
-    const parsed = cached ? (touch(cacheKey), remapProject(cached.summary, projects, titleIndex)) : await summarizeCodexSessionFile(file, titleIndex, projects);
+    const parsed = cached
+      ? (touch(cacheKey), await remapProject(cached.summary, canonicalProjects, titleIndex))
+      : await summarizeCodexSessionFile(file, titleIndex, canonicalProjects);
     if (!cached && parsed) cacheSummary(cacheKey, parsed);
     if (!parsed || ids.has(parsed.source.id)) continue;
     ids.add(parsed.source.id);
@@ -241,8 +251,8 @@ async function discoverCodexSummaries(
   return summaries.sort((left, right) => right.summary.updatedAt - left.summary.updatedAt);
 }
 
-function remapProject(value: CodexSummary, projects: SessionsProjectInput[], titleIndex: Map<string, string>): CodexSummary {
-  const project = projectForCwd(value.source.cwd, projects);
+async function remapProject(value: CodexSummary, projects: CanonicalSessionsProject[], titleIndex: Map<string, string>): Promise<CodexSummary> {
+  const project = await projectForCwd(value.source.cwd, projects);
   return {
     summary: {
       ...value.summary,
@@ -259,7 +269,7 @@ function remapProject(value: CodexSummary, projects: SessionsProjectInput[], tit
 async function summarizeCodexSessionFile(
   file: SessionFile,
   titleIndex: Map<string, string>,
-  projects: SessionsProjectInput[],
+  projects: CanonicalSessionsProject[],
 ): Promise<CodexSummary | null> {
   let lines: string[];
   try { lines = await readTranscriptPrefixLines(file.path, MAX_TRANSCRIPT_PREFIX_LINES); } catch { return null; }
@@ -277,7 +287,7 @@ async function summarizeCodexSessionFile(
   }
   const id = stringValue(meta?.id) ?? idFromFilename(file.path);
   const cwd = stringValue(meta?.cwd) ?? "";
-  const project = projectForCwd(cwd, projects);
+  const project = await projectForCwd(cwd, projects);
   const fallback = titleFromText(titleText) || titleFromText(fallbackTitle(cwd, id));
   const title = titleFromText(titleIndex.get(id) ?? "") || fallback;
   const model = stringValue(meta?.model);
@@ -457,11 +467,30 @@ function invalidListCursor(): Error { return new Error("Invalid external session
 function listRequestSignature(request: ListExternalSessionsRequest): string {
   return JSON.stringify({ projects: request.projects, query: request.query ?? "" });
 }
-function projectForCwd(cwd: string, projects: SessionsProjectInput[]): SessionProjectRef {
-  const project = projects.filter((candidate) => pathMatchesWorkspace(cwd, candidate.rootPath)).sort((left, right) => (right.rootPath?.length ?? 0) - (left.rootPath?.length ?? 0))[0];
+async function canonicalizeProjects(projects: SessionsProjectInput[]): Promise<CanonicalSessionsProject[]> {
+  return Promise.all(projects.map(async (project) => {
+    if (!project.rootPath) return { ...project, canonicalRoots: [] };
+    const root = project.rootPath.replace(/\/+$/, "");
+    const legacyRoot = `${path.dirname(root)}/.alfred-worktrees/${path.basename(root)}`;
+    return {
+      ...project,
+      canonicalRoots: await Promise.all([root, legacyRoot].map((value) => canonicalWorkspacePath(value))),
+    };
+  }));
+}
+async function projectForCwd(cwd: string, projects: CanonicalSessionsProject[]): Promise<SessionProjectRef> {
+  const canonicalCwd = cwd ? await canonicalWorkspacePath(cwd) : "";
+  const project = projects
+    .filter((candidate) => candidate.canonicalRoots.some((root) => pathMatchesWorkspace(canonicalCwd, root)))
+    .sort((left, right) => longestRoot(right) - longestRoot(left))[0];
   return project ? { id: project.id, label: boundedDisplayText(project.label) } : { id: null, label: "External Codex" };
 }
-function pathMatchesWorkspace(cwd: string, rootPath: string | undefined): boolean { const root = rootPath?.replace(/\/+$/, ""); if (!cwd || !root) return false; const legacyRoot = `${path.dirname(root)}/.alfred-worktrees/${path.basename(root)}`; return cwd === root || cwd.startsWith(`${root}/`) || cwd === legacyRoot || cwd.startsWith(`${legacyRoot}/`); }
+function longestRoot(project: CanonicalSessionsProject): number {
+  return project.canonicalRoots.reduce((longest, root) => Math.max(longest, root.length), 0);
+}
+function pathMatchesWorkspace(cwd: string, root: string): boolean {
+  return Boolean(cwd && root && (cwd === root || cwd.startsWith(`${root}${path.sep}`)));
+}
 async function readCodexSessionTitleIndex(codexHome: string): Promise<Map<string, string>> { let content: string; try { content = await readFile(path.join(codexHome, "session_index.jsonl"), "utf8"); } catch { return new Map(); } const titles = new Map<string, string>(); for (const line of content.split(/\r?\n/)) { const record = parseJsonRecord(line); const id = stringValue(record?.id); const title = titleFromText(stringValue(record?.thread_name) ?? ""); if (id && title) titles.set(id, title); } return titles; }
 async function findJsonlFiles(root: string): Promise<SessionFile[]> { const files: SessionFile[] = []; async function visit(dir: string): Promise<void> { let handle: Awaited<ReturnType<typeof opendir>>; try { handle = await opendir(dir); } catch { return; } for await (const entry of handle) { const entryPath = path.join(dir, entry.name); if (entry.isDirectory()) await visit(entryPath); else if (entry.isFile() && entry.name.endsWith(".jsonl")) try { const details = await stat(entryPath); files.push({ path: entryPath, updatedAt: details.mtimeMs, size: details.size }); } catch { /* File changed while Codex was writing it. */ } } } await visit(root); return files; }
 async function readTranscriptPrefixLines(filePath: string, maxLines: number): Promise<string[]> { const stream = createReadStream(filePath, { encoding: "utf8" }); const reader = createInterface({ input: stream, crlfDelay: Infinity }); const lines: string[] = []; try { for await (const line of reader) { lines.push(line); if (lines.length >= maxLines) { reader.close(); stream.destroy(); break; } } } finally { reader.close(); stream.destroy(); } return lines; }

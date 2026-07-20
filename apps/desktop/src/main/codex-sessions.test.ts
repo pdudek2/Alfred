@@ -1,4 +1,4 @@
-import { mkdir, unlink, utimes, writeFile } from "node:fs/promises";
+import { mkdir, symlink, unlink, utimes, writeFile } from "node:fs/promises";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -49,6 +49,38 @@ describe("Codex sessions reader", () => {
     });
   });
 
+  it("classifies dot-segment and symlink escapes outside a project as read-only", async () => {
+    const temporaryRoot = mkdtempSync(path.join(tmpdir(), "alfred-session-trust-"));
+    const workspaceRoot = path.join(temporaryRoot, "workspace");
+    const outsideRoot = path.join(temporaryRoot, "outside");
+    const symlinkEscape = path.join(workspaceRoot, "linked-outside");
+    const codexHome = path.join(temporaryRoot, "codex-home");
+    const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
+    await mkdir(workspaceRoot, { recursive: true });
+    await mkdir(outsideRoot, { recursive: true });
+    await mkdir(sessionDir, { recursive: true });
+    await symlink(outsideRoot, symlinkEscape, "dir");
+    await writeFile(
+      path.join(sessionDir, "dot-escape.jsonl"),
+      codexLines({ id: "dot-escape", cwd: `${workspaceRoot}/../outside`, title: "Dot escape" }),
+    );
+    await writeFile(
+      path.join(sessionDir, "symlink-escape.jsonl"),
+      codexLines({ id: "symlink-escape", cwd: symlinkEscape, title: "Symlink escape" }),
+    );
+
+    const reader = createCodexSessionsReader({ codexHome });
+    const listed = await reader.listExternalSessions({
+      projects: [{ id: "A", label: "Workspace", rootPath: workspaceRoot }],
+    });
+
+    expect(listed.sessions).toHaveLength(2);
+    expect(listed.sessions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ title: "Dot escape", lifecycle: "read-only", project: { id: null, label: "External Codex" } }),
+      expect.objectContaining({ title: "Symlink escape", lifecycle: "read-only", project: { id: null, label: "External Codex" } }),
+    ]));
+  });
+
   it("discovers summaries once for a multi-page cursor snapshot and rediscovers on refresh", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
     await writeCodexSummaryFixtures(codexHome, 120, "/fixture/project");
@@ -77,6 +109,25 @@ describe("Codex sessions reader", () => {
     reader.clearCaches();
     await expect(reader.listExternalSessions({ ...request, cursor: refreshed.nextCursor! }))
       .rejects.toThrow("Invalid external sessions cursor.");
+  });
+
+  it("releases an unfinished list snapshot without clearing aliases for published rows", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    await writeCodexSummaryFixtures(codexHome, 120, "/fixture/project");
+    const reader = createCodexSessionsReader({ codexHome });
+    const request = {
+      projects: [{ id: "A", label: "Fixture project", rootPath: "/fixture/project" }],
+      limit: 80,
+    };
+    const first = await reader.listExternalSessions(request);
+    reader.releaseListSnapshot({ cursor: first.nextCursor! });
+
+    await expect(reader.listExternalSessions({ ...request, cursor: first.nextCursor! }))
+      .rejects.toThrow("Invalid external sessions cursor.");
+    await expect(reader.resolveExternalSession(first.sessions[0]!.sessionKey)).resolves.toMatchObject({
+      kind: "resume",
+      projectId: "A",
+    });
   });
 
   it("reads a listed external transcript through its content session key without making that key resumable", async () => {

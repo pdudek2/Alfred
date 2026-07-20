@@ -51,6 +51,7 @@ const workspaceChannels = {
 
 const sessionsChannels = {
   listExternal: "alfred:sessions:list-external",
+  releaseListSnapshot: "alfred:sessions:release-list-snapshot",
   resolveExternal: "alfred:sessions:resolve-external",
   readTranscriptPage: "alfred:sessions:read-transcript-page",
   getDiagnostics: "alfred:sessions:get-diagnostics",
@@ -154,6 +155,8 @@ const workspace: WorkspaceApi = {
 const sessions: SessionsApi = {
   listExternalSessions: (request) =>
     ipcRenderer.invoke(sessionsChannels.listExternal, request) as ReturnType<SessionsApi["listExternalSessions"]>,
+  releaseListSnapshot: (request) =>
+    ipcRenderer.invoke(sessionsChannels.releaseListSnapshot, request) as ReturnType<SessionsApi["releaseListSnapshot"]>,
   resolveExternalSession: (request) =>
     ipcRenderer.invoke(sessionsChannels.resolveExternal, request) as ReturnType<SessionsApi["resolveExternalSession"]>,
   readTranscriptPage: (request) =>
