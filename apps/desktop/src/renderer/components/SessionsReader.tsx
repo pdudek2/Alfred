@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
 import type { SessionSummary, TranscriptBlock, TranscriptPage } from "../../shared/sessions-ipc";
+import { sessionsPrimaryAction } from "../sessions-projection";
 
 export type SessionsReaderStatus = "idle" | "loading" | "ready" | "missing" | "error";
 
@@ -25,6 +26,7 @@ export function SessionsReader({
   const blocks = pages.flatMap((page) => page.blocks);
   const nextCursor = pages.at(-1)?.nextCursor ?? null;
   const partial = pages.some((page) => page.partial);
+  const primaryAction = selected ? sessionsPrimaryAction(selected) : null;
 
   return (
     <main className="sessions-reader">
@@ -32,9 +34,9 @@ export function SessionsReader({
         <strong>{selected?.title ?? "Select a session"}</strong>
         {selected && <span>{selected.project.label} · {selected.locationLabel}</span>}
         <span className="sessions-reader__toolbar-spacer" />
-        {selected && (
+        {selected && primaryAction && (
           <button type="button" onClick={() => onPrimaryAction(selected)}>
-            {primaryActionLabel(selected)}
+            {primaryAction.label}
           </button>
         )}
       </header>
@@ -114,9 +116,4 @@ function roleLabel(role: Extract<TranscriptBlock, { kind: "message" }>["role"]):
   if (role === "user") return "You";
   if (role === "assistant") return "Assistant";
   return "System";
-}
-
-function primaryActionLabel(session: SessionSummary): string {
-  if (session.source === "managed") return "Open in Work";
-  return session.lifecycle === "resumable" ? "Resume in Alfred" : "Trust workspace first";
 }

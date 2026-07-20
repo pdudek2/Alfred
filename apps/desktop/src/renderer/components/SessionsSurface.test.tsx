@@ -441,7 +441,7 @@ describe("SessionsSurface", () => {
     await waitFor(() => expect(screen.getByRole("article", { name: /Managed session 1/ })).toBeInTheDocument());
 
     await user.tab();
-    expect(screen.getByRole("button", { name: "Open in Work" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Reveal in Work" })).toHaveFocus();
 
     fireEvent.keyDown(window, { key: "f", metaKey: true });
     expect(search).toHaveFocus();
@@ -452,6 +452,53 @@ describe("SessionsSurface", () => {
 
     fireEvent.keyDown(screen.getByRole("region", { name: "Sessions workspace" }), { key: "Escape" });
     expect(onBackToWork).toHaveBeenCalledOnce();
+  });
+
+  it("renders truthful lifecycle actions", async () => {
+    const user = userEvent.setup();
+    const onOpenManagedSession = vi.fn();
+    const onResumeExternalCodexSession = vi.fn();
+    const onTrustExternalCodexWorkspace = vi.fn();
+    const live = managedSession(0, { title: "Live managed" });
+    const restored = managedSession(1, {
+      title: "Restored managed",
+      runtimeStatus: "restored",
+    });
+    const mappedExternal = externalSession(0, { title: "Mapped external" });
+    const untrustedExternal = externalSession(1, {
+      title: "Untrusted external",
+      project: { id: null, label: "External Codex" },
+      lifecycle: "read-only",
+    });
+    const endedMapped = externalSession(2, {
+      title: "Ended mapped external",
+      lifecycle: "read-only",
+    });
+    renderSurface({
+      sessions: [live, restored],
+      externalSessions: [mappedExternal, untrustedExternal, endedMapped],
+      onOpenManagedSession,
+      onResumeExternalCodexSession,
+      onTrustExternalCodexWorkspace,
+    });
+
+    await user.click(screen.getByRole("option", { name: /Live managed/ }));
+    await user.click(screen.getByRole("button", { name: "Reveal in Work" }));
+    expect(onOpenManagedSession).toHaveBeenLastCalledWith("A", "managed-0");
+
+    await user.click(screen.getByRole("option", { name: /Restored managed/ }));
+    expect(screen.getByRole("button", { name: "Resume in Work" })).toBeEnabled();
+
+    await user.click(screen.getByRole("option", { name: /Mapped external/ }));
+    await user.click(screen.getByRole("button", { name: "Resume in Work" }));
+    expect(onResumeExternalCodexSession).toHaveBeenLastCalledWith(mappedExternal.sessionKey);
+
+    await user.click(screen.getByRole("option", { name: /Untrusted external/ }));
+    await user.click(screen.getByRole("button", { name: "Add Project…" }));
+    expect(onTrustExternalCodexWorkspace).toHaveBeenLastCalledWith(untrustedExternal.sessionKey);
+
+    await user.click(screen.getByRole("option", { name: /Ended mapped external/ }));
+    expect(screen.getByRole("button", { name: "Open Project" })).toBeEnabled();
   });
 
   it("restores scroll offsets and marks reduced motion without making transcript live", async () => {

@@ -10,12 +10,37 @@ import { isFreeChatSession } from "./session-scope";
 import type { SessionTile } from "./session-state";
 
 export type ManagedSessionTarget = { workspaceId: string; sessionId: string };
+export type SessionsPrimaryAction =
+  | { kind: "reveal"; label: "Reveal in Work" }
+  | { kind: "recover"; label: "Resume in Work" | "Relaunch" }
+  | { kind: "resume-external"; label: "Resume in Work" }
+  | { kind: "add-project"; label: "Add Project…" }
+  | { kind: "open-project"; label: "Open Project" };
 export type SessionsProjectionPage = {
   groups: Array<{ id: string; label: string; items: SessionSummary[] }>;
   items: SessionSummary[];
   managedTargets: Map<string, ManagedSessionTarget>;
   total: number;
 };
+
+export function sessionsPrimaryAction(summary: SessionSummary): SessionsPrimaryAction | null {
+  if (summary.source === "managed" && summary.lifecycle === "live") {
+    return { kind: "reveal", label: "Reveal in Work" };
+  }
+  if (summary.source === "managed" && summary.lifecycle === "recoverable") {
+    return { kind: "recover", label: "Resume in Work" };
+  }
+  if (summary.source === "external-codex" && summary.lifecycle === "resumable" && summary.project.id) {
+    return { kind: "resume-external", label: "Resume in Work" };
+  }
+  if (summary.source === "external-codex" && !summary.project.id) {
+    return { kind: "add-project", label: "Add Project…" };
+  }
+  if (summary.lifecycle === "read-only" && summary.project.id) {
+    return { kind: "open-project", label: "Open Project" };
+  }
+  return null;
+}
 
 export type BuildSessionsProjectionInput = {
   sessions: SessionTile[];
@@ -108,7 +133,7 @@ function normalizeExternalSession(session: ExternalSessionSummary): SessionSumma
   return {
     ...session,
     lineageKey: codexLineageKey(session.contentSessionKey) ?? session.lineageKey,
-    lifecycle: session.project.id ? "resumable" : "read-only",
+    lifecycle: session.project.id ? session.lifecycle : "read-only",
   };
 }
 
