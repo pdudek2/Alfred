@@ -63,7 +63,7 @@ export function createCodexSessionsReader(options: {
     summaryOrder.push(key);
   };
   const cacheSummary = (key: string, summary: CodexSummary): void => {
-    const bytes = Buffer.byteLength(key, "utf8") + Buffer.byteLength(JSON.stringify(summary), "utf8");
+    const bytes = summaryEntryBytes(key, summary);
     const existing = summaryCache.get(key);
     if (existing) summaryBytes -= existing.bytes;
     summaryCache.set(key, { summary, bytes });
@@ -142,10 +142,15 @@ export function createCodexSessionsReader(options: {
       } else {
         options.onSummaryDiscovery?.();
         const summaries = await discoverCodexSummaries(options.codexHome, request.projects, summaryCache, touchSummary, cacheSummary);
+        const boundedSummaries = boundSummarySnapshot(summaries);
+        summaryCache.clear();
+        summaryOrder.splice(0);
+        summaryBytes = 0;
+        for (const summary of boundedSummaries) cacheSummary(summaryCacheKey(summary), summary);
         snapshot = {
           id: listSnapshotGeneration + 1,
           requestSignature,
-          summaries: filterSummaryMetadata(summaries, request.query ?? ""),
+          summaries: filterSummaryMetadata(boundedSummaries, request.query ?? ""),
         };
         listSnapshotGeneration = snapshot.id;
         listSnapshot = snapshot;
@@ -401,6 +406,26 @@ function filterSummaryMetadata(summaries: CodexSummary[], query: string): CodexS
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length) return summaries;
   return summaries.filter(({ summary }) => terms.every((term) => [summary.title, summary.project.label, summary.locationLabel, summary.model, summary.originator].filter(Boolean).join(" ").toLowerCase().includes(term)));
+}
+function boundSummarySnapshot(summaries: CodexSummary[]): CodexSummary[] {
+  const bounded: CodexSummary[] = [];
+  let bytes = 0;
+  for (const summary of summaries) {
+    const entryBytes = summaryEntryBytes(summaryCacheKey(summary), summary);
+    if (
+      bounded.length === SUMMARY_CACHE_COUNT_LIMIT
+      || bytes + entryBytes > SUMMARY_CACHE_TEXT_LIMIT
+    ) break;
+    bounded.push(summary);
+    bytes += entryBytes;
+  }
+  return bounded;
+}
+function summaryCacheKey(summary: CodexSummary): string {
+  return `${summary.source.path}:${summary.source.revision}`;
+}
+function summaryEntryBytes(key: string, summary: CodexSummary): number {
+  return Buffer.byteLength(key, "utf8") + Buffer.byteLength(JSON.stringify(summary), "utf8");
 }
 function validateProjects(projects: SessionsProjectInput[]): void { for (const project of projects) if (!project.id.trim() || Buffer.byteLength(project.id, "utf8") > MAX_PROJECT_ID_BYTES) throw new Error("Invalid external sessions project id."); }
 function pageWithinResponseCeiling(summaries: CodexSummary[], offset: number, limit: number, snapshot: number): CodexSummary[] {
