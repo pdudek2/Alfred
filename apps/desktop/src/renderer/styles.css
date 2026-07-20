@@ -5084,8 +5084,7 @@ body.arranging-pointer {
    ============================================================ */
 
 .workspace-layout.surface-inbox,
-.workspace-layout.surface-inbox.preview-visible,
-.workspace-layout.surface-sessions.preview-visible {
+.workspace-layout.surface-inbox.preview-visible {
   position: relative;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 0;

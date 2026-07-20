@@ -884,7 +884,7 @@ describe("renderer CSS contracts", () => {
       "position: relative",
     ]);
     expectCanonicalBase(".workspace-layout.surface-sessions", [
-      "grid-template-columns: auto minmax(0, 1fr)",
+      "grid-template-columns: minmax(0, 1fr)",
       "position: relative",
     ]);
     expect(topLevelExactRuleBodies(".workspace-layout.surface-inbox.preview-visible")).toHaveLength(1);
@@ -987,12 +987,21 @@ describe("renderer CSS contracts", () => {
     expect(popover[0]).not.toMatch(/\b(?:left|top):/);
   });
 
-  it("keeps narrow Inbox and Sessions surfaces beside the 46px navigator at the forced-rail breakpoint", () => {
-    for (const selector of [".workspace-layout.surface-inbox", ".workspace-layout.surface-sessions"]) {
-      const layout = mediaExactRuleBodies("(max-width: 1180px)", selector);
-      expect(layout).toHaveLength(1);
-      expect(layout[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
-    }
+  it("keeps narrow Inbox beside its rail and lets Sessions replace that rail", () => {
+    const inboxLayout = mediaExactRuleBodies("(max-width: 1180px)", ".workspace-layout.surface-inbox");
+    expect(inboxLayout).toHaveLength(1);
+    expect(inboxLayout[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
+
+    const sessionsLayout = mediaExactRuleBodies("(max-width: 1180px)", ".workspace-layout.surface-sessions");
+    expect(sessionsLayout).toHaveLength(1);
+    expect(sessionsLayout[0]).toContain("grid-template-columns: minmax(0, 1fr)");
+
+    const sessionsSurfacePlacement = mediaExactRuleBodies(
+      "(max-width: 1180px)",
+      ".workspace-layout.surface-sessions > .orchestrator-surface",
+    );
+    expect(sessionsSurfacePlacement).toHaveLength(1);
+    expect(sessionsSurfacePlacement[0]).toContain("grid-column: 1");
 
     const navigatorPlacement = mediaExactRuleBodies(
       "(max-width: 980px)",
