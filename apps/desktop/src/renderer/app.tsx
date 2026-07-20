@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getDesktopAlfredApi,
   getDesktopLayoutApi,
-  getDesktopSessionIndexApi,
+  getDesktopSessionsApi,
   getDesktopStateApi,
   getDesktopTerminalApi,
   getDesktopWorkspaceApi,
@@ -104,7 +104,7 @@ import type {
 } from "../shared/terminal-ipc";
 import type { DispatchTargetSnapshot, WorkspaceViewState } from "../shared/layout-ipc";
 import type { WorkspaceMissionBrief, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
-import type { ExternalCodexSessionSummary } from "../shared/session-index-ipc";
+import type { ExternalSessionSummary } from "../shared/sessions-ipc";
 import "@xterm/xterm/css/xterm.css";
 
 type Workspace = ProjectNavigatorWorkspace;
@@ -186,7 +186,7 @@ export function App() {
     status: "loading",
   });
   const [workspaceHydrationRetryIndex, setWorkspaceHydrationRetryIndex] = useState<number>(0);
-  const [externalCodexSessions, setExternalCodexSessions] = useState<ExternalCodexSessionSummary[]>([]);
+  const [externalCodexSessions, setExternalCodexSessions] = useState<ExternalSessionSummary[]>([]);
   const [externalCodexSessionsError, setExternalCodexSessionsError] = useState<string | null>(null);
   const [externalCodexSessionsLoading, setExternalCodexSessionsLoading] = useState<boolean>(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState<boolean>(false);
@@ -1534,8 +1534,8 @@ export function App() {
       return;
     }
 
-    const sessionIndexApi = getDesktopSessionIndexApi();
-    if (!sessionIndexApi) {
+    const sessionsApi = getDesktopSessionsApi();
+    if (!sessionsApi) {
       setExternalCodexSessionsError("External Codex indexing is unavailable in this build.");
       return;
     }
@@ -1543,7 +1543,7 @@ export function App() {
     setExternalCodexSessionsLoading(true);
     setExternalCodexSessionsError(null);
     try {
-      const result = await sessionIndexApi.listExternalCodexSessions();
+      const result = await sessionsApi.listExternalSessions({ projects: workspaces });
       setExternalCodexSessions(result.sessions);
       setExternalCodexSessionsError(null);
     } catch {
@@ -1551,7 +1551,7 @@ export function App() {
     } finally {
       setExternalCodexSessionsLoading(false);
     }
-  }, [privacySettings.externalSessionIndexingEnabled]);
+  }, [privacySettings.externalSessionIndexingEnabled, workspaces]);
 
   const handleUpdatePrivacySettings = useCallback(async (nextSettings: DesktopPrivacySettings) => {
     const desktopStateApi = getDesktopStateApi();
@@ -1626,30 +1626,35 @@ export function App() {
     }));
   }, [handleFocusSessionInWorkspace]);
 
-  const handleResumeExternalCodexSession = useCallback((session: ExternalCodexSessionSummary) => {
+  const handleResumeExternalCodexSession = useCallback(async (sessionKey: string) => {
     const now = Date.now();
     const workspaceApi = getDesktopWorkspaceApi();
-    const targetWorkspace = workspaceForCwd(session.cwd, workspaces);
+    const sessionsApi = getDesktopSessionsApi();
+    if (!sessionsApi) return;
+    const resolved = await sessionsApi.resolveExternalSession({ sessionKey });
+    if (resolved.kind !== "resume") return;
+    const targetWorkspace = workspaces.find((workspace) => workspace.id === resolved.projectId);
     if (!targetWorkspace) return;
-    const title = normalizeSessionTitle(session.title ? `Codex · ${session.title}` : "Codex resume") ?? "Codex resume";
+    const summary = externalCodexSessions.find((session) => session.sessionKey === sessionKey);
+    const title = normalizeSessionTitle(summary?.title ? `Codex · ${summary.title}` : "Codex resume") ?? "Codex resume";
     const tile: SessionTile = {
-      id: `external-codex-${session.id.slice(0, 8)}-${now}`,
+      id: `external-codex-${resolved.sessionId.slice(0, 8)}-${now}`,
       title,
       workspaceId: targetWorkspace.id,
-      cwd: session.cwd || targetWorkspace.rootPath || activeWorkspace.rootPath || "",
+      cwd: resolved.cwd,
       source: "manual",
       stage: "live",
       runtimeStatus: "starting",
       agentKind: "codex",
       command: "codex",
-      args: ["resume", session.id],
-      resumeTarget: { agentKind: "codex", sessionId: session.id, source: "external-session-index" },
+      args: ["resume", resolved.sessionId],
+      resumeTarget: { agentKind: "codex", sessionId: resolved.sessionId, source: "external-session-index" },
       resumeMode: "exact",
       isolation: "shared",
       createdAt: now,
       activityEvents: [
         {
-          id: `external-codex-${session.id.slice(0, 8)}-${now}-resume`,
+          id: `external-codex-${resolved.sessionId.slice(0, 8)}-${now}-resume`,
           kind: "approval",
           title: "External Codex session resumed",
           detail: "Alfred is opening this Codex transcript in a managed terminal.",
@@ -1664,11 +1669,14 @@ export function App() {
     setSelectedSessionIdsByWorkspace((current) => ({ ...current, [targetWorkspace.id]: tile.id }));
     setTerminalSessions((sessions) => [...sessions, tile]);
     void workspaceApi?.setWorkspaceState({ workspaces, activeWorkspaceId: targetWorkspace.id });
-  }, [activeWorkspace.rootPath, workspaces]);
+  }, [externalCodexSessions, workspaces]);
 
-  const handleTrustExternalCodexWorkspace = useCallback(async (_session: ExternalCodexSessionSummary) => {
+  const handleTrustExternalCodexWorkspace = useCallback(async (sessionKey: string) => {
     const workspaceApi = getDesktopWorkspaceApi();
     if (!workspaceApi) return;
+
+    const sessionsApi = getDesktopSessionsApi();
+    if (!sessionsApi || (await sessionsApi.resolveExternalSession({ sessionKey })).kind !== "add-project") return;
 
     const snapshot = await workspaceApi.bindFolderToWorkspace({ workspaceId: activeWorkspace.id });
     setWorkspaces(snapshot.workspaces);
