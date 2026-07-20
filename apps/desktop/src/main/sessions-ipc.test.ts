@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { mkdtempSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { registerSessionsIpc } from "./sessions-ipc.js";
+import { createCodexSessionsReader } from "./codex-sessions.js";
 import { sessionsChannels } from "../shared/sessions-ipc.js";
 
 const handlers = new Map<string, (event: unknown, request: unknown) => unknown>();
@@ -41,6 +46,25 @@ describe("sessions IPC", () => {
 
     await expect(response).resolves.toEqual({ sessions: [], nextCursor: null, total: 0 });
     expect(reader.clear).toHaveBeenCalledOnce();
+  });
+
+  it("clears populated reader sources when the privacy transition requests cache clearing", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const cwd = "/repo";
+    const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
+    await mkdir(sessionDir, { recursive: true });
+    await writeFile(path.join(sessionDir, "stale.jsonl"), JSON.stringify({ type: "session_meta", payload: { id: "stale", cwd } }));
+    const reader = createCodexSessionsReader({ codexHome });
+    let indexingEnabled = true;
+    registerSessionsIpc({ reader, isExternalSessionIndexingEnabled: () => indexingEnabled });
+
+    const populated = await handlers.get(sessionsChannels.listExternal)?.({}, { projects: [{ id: "A", label: "Alfred", rootPath: cwd }] }) as {
+      sessions: Array<{ sessionKey: string }>;
+    };
+    indexingEnabled = false;
+    await handlers.get(sessionsChannels.clearCaches)?.({}, undefined);
+
+    await expect(reader.resolveExternalSession({ sessionKey: populated.sessions[0]!.sessionKey })).resolves.toEqual({ kind: "none" });
   });
 });
 

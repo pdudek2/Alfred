@@ -47,9 +47,11 @@ export type ResolveExternalSessionResult =
 export type SessionsApi = {
   listExternalSessions(request: ListExternalSessionsRequest): Promise<ListExternalSessionsResult>;
   resolveExternalSession(request: { sessionKey: string }): Promise<ResolveExternalSessionResult>;
+  clearCaches(): Promise<void>;
 };
 
 export const sessionsChannels = {
   listExternal: "alfred:sessions:list-external",
   resolveExternal: "alfred:sessions:resolve-external",
+  clearCaches: "alfred:sessions:clear-caches",
 } as const;

@@ -1567,6 +1567,7 @@ export function App() {
       setExternalCodexSessions([]);
       setExternalCodexSessionsLoading(false);
       setExternalCodexSessionsError(null);
+      void getDesktopSessionsApi()?.clearCaches().catch(() => {});
     }
 
     if (!desktopStateApi) return;

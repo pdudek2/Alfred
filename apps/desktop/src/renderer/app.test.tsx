@@ -163,6 +163,7 @@ function installDesktopBridge(
   openExternalUrl: ReturnType<typeof vi.fn>;
   listExternalSessions: ReturnType<typeof vi.fn>;
   resolveExternalSession: ReturnType<typeof vi.fn>;
+  clearSessionsCaches: ReturnType<typeof vi.fn>;
   clearSavedTerminalData: ReturnType<typeof vi.fn>;
   getPrivacySettings: ReturnType<typeof vi.fn>;
   revealStateFile: ReturnType<typeof vi.fn>;
@@ -208,6 +209,7 @@ function installDesktopBridge(
       Promise.resolve({ ok: true, url: request.url }),
     );
   const listExternalSessions = vi.fn().mockResolvedValue({ sessions: externalCodexSessions, nextCursor: null, total: externalCodexSessions.length });
+  const clearSessionsCaches = vi.fn().mockResolvedValue(undefined);
   const resolveExternalSession = vi.fn().mockImplementation(({ sessionKey }: { sessionKey: string }) => {
     const session = externalCodexSessions.find((candidate) => candidate.sessionKey === sessionKey);
     if (!session?.project.id) return Promise.resolve({ kind: "add-project" as const });
@@ -327,7 +329,7 @@ function installDesktopBridge(
       updatePrivacySettings,
     },
     layout: { getLayouts, setWorkspaceLayout, setWorkspaceViewState },
-    sessions: { listExternalSessions, resolveExternalSession },
+    sessions: { listExternalSessions, resolveExternalSession, clearCaches: clearSessionsCaches },
     terminal,
     workspace: {
       bindFolderToWorkspace,
@@ -371,6 +373,7 @@ function installDesktopBridge(
     openExternalUrl,
     listExternalSessions,
     resolveExternalSession,
+    clearSessionsCaches,
     clearSavedTerminalData,
     getPrivacySettings,
     revealStateFile,
@@ -930,6 +933,18 @@ describe("App integration", () => {
     expect(await screen.findByText("External Codex indexing is off.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Disabled/i })).toBeDisabled();
     expect(listExternalSessions).not.toHaveBeenCalled();
+  });
+
+  it("clears main sessions caches when external indexing is disabled without a refresh in flight", async () => {
+    const user = userEvent.setup();
+    const { clearSessionsCaches } = installDesktopBridge();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
+    await user.click(screen.getByRole("checkbox", { name: /On/i }));
+
+    await waitFor(() => expect(clearSessionsCaches).toHaveBeenCalledOnce());
   });
 
   it("discards an external sessions refresh that resolves after indexing is disabled", async () => {
