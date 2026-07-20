@@ -2,19 +2,22 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Page, TestInfo } from "@playwright/test";
 
-export type CssEvidenceStateName =
-  | "work-grid"
-  | "prepare-work"
-  | "focus"
-  | "split"
-  | "arrange"
-  | "inbox"
-  | "observatory"
-  | "context"
-  | "narrow"
-  | "narrow-inbox"
-  | "command-palette"
-  | "privacy";
+export const cssEvidenceStateNames = [
+  "work-grid",
+  "prepare-work",
+  "focus",
+  "split",
+  "arrange",
+  "inbox",
+  "sessions",
+  "context",
+  "narrow",
+  "narrow-inbox",
+  "command-palette",
+  "privacy",
+] as const;
+
+export type CssEvidenceStateName = (typeof cssEvidenceStateNames)[number];
 
 export function captureReadinessForState(
   state: CssEvidenceStateName,

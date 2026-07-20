@@ -189,7 +189,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await page.getByRole("option").first().click();
   await expect(page.getByRole("article")).toBeVisible();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Sessions");
-  await capture("observatory", [...frameProbes, ...sessionsProbes]);
+  await capture("sessions", [...frameProbes, ...sessionsProbes]);
 
   await selectSurface(page, "Work");
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
