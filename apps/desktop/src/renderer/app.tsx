@@ -189,6 +189,7 @@ export function App() {
   const [externalCodexSessions, setExternalCodexSessions] = useState<ExternalSessionSummary[]>([]);
   const [externalCodexSessionsError, setExternalCodexSessionsError] = useState<string | null>(null);
   const [externalCodexSessionsLoading, setExternalCodexSessionsLoading] = useState<boolean>(false);
+  const externalSessionsRequestGenerationRef = useRef(0);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState<boolean>(false);
   const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState<string>("");
   const [workspaceRenameEditing, setWorkspaceRenameEditing] = useState<boolean>(false);
@@ -1528,6 +1529,7 @@ export function App() {
 
   const handleRefreshExternalCodexSessions = useCallback(async () => {
     if (!privacySettings.externalSessionIndexingEnabled) {
+      externalSessionsRequestGenerationRef.current += 1;
       setExternalCodexSessions([]);
       setExternalCodexSessionsLoading(false);
       setExternalCodexSessionsError(null);
@@ -1540,16 +1542,20 @@ export function App() {
       return;
     }
 
+    const requestGeneration = externalSessionsRequestGenerationRef.current + 1;
+    externalSessionsRequestGenerationRef.current = requestGeneration;
     setExternalCodexSessionsLoading(true);
     setExternalCodexSessionsError(null);
     try {
       const result = await sessionsApi.listExternalSessions({ projects: workspaces });
+      if (externalSessionsRequestGenerationRef.current !== requestGeneration) return;
       setExternalCodexSessions(result.sessions);
       setExternalCodexSessionsError(null);
     } catch {
+      if (externalSessionsRequestGenerationRef.current !== requestGeneration) return;
       setExternalCodexSessionsError("Refresh failed. Retry when the local session index is available.");
     } finally {
-      setExternalCodexSessionsLoading(false);
+      if (externalSessionsRequestGenerationRef.current === requestGeneration) setExternalCodexSessionsLoading(false);
     }
   }, [privacySettings.externalSessionIndexingEnabled, workspaces]);
 
@@ -1557,6 +1563,7 @@ export function App() {
     const desktopStateApi = getDesktopStateApi();
     setPrivacySettings(nextSettings);
     if (!nextSettings.externalSessionIndexingEnabled) {
+      externalSessionsRequestGenerationRef.current += 1;
       setExternalCodexSessions([]);
       setExternalCodexSessionsLoading(false);
       setExternalCodexSessionsError(null);

@@ -932,6 +932,43 @@ describe("App integration", () => {
     expect(listExternalSessions).not.toHaveBeenCalled();
   });
 
+  it("discards an external sessions refresh that resolves after indexing is disabled", async () => {
+    const user = userEvent.setup();
+    const pending = deferred<{ sessions: ExternalSessionSummary[]; nextCursor: null; total: number }>();
+    const { listExternalSessions } = installDesktopBridge();
+    listExternalSessions.mockImplementationOnce(() => pending.promise);
+
+    render(<App />);
+    await selectSurface(user, "Observatory");
+    await waitFor(() => expect(listExternalSessions).toHaveBeenCalledOnce());
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
+    await user.click(screen.getByRole("checkbox", { name: /On/i }));
+
+    await act(async () => {
+      pending.resolve({
+        sessions: [{
+          sessionKey: "external-codex:stale",
+          lineageKey: "external-codex:stale",
+          contentSessionKey: "external-codex:stale",
+          source: "external-codex",
+          kind: "codex",
+          title: "Stale external session",
+          project: { id: "A", label: "Alfred" },
+          locationLabel: "Alfred",
+          updatedAt: 200,
+          lifecycle: "resumable",
+        }],
+        nextCursor: null,
+        total: 1,
+      });
+    });
+
+    expect(await screen.findByText("External Codex indexing is off.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Stale external session/i })).not.toBeInTheDocument();
+  });
+
   it("shows a state-not-saved warning and retries the failed save", async () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge();

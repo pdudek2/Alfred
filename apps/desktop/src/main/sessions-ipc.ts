@@ -16,7 +16,9 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
   const isEnabled = async () => options.isExternalSessionIndexingEnabled?.() ?? true;
   ipcMain.handle(sessionsChannels.listExternal, async (_event, request) => {
     if (!(await isEnabled())) { reader.clear(); return { sessions: [], nextCursor: null, total: 0 }; }
-    return reader.listExternalSessions(request);
+    const result = await reader.listExternalSessions(request);
+    if (!(await isEnabled())) { reader.clear(); return { sessions: [], nextCursor: null, total: 0 }; }
+    return result;
   });
   ipcMain.handle(sessionsChannels.resolveExternal, async (_event, request): Promise<ResolveExternalSessionResult> => {
     if (!(await isEnabled())) { reader.clear(); return { kind: "none" }; }
