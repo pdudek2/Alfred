@@ -24,6 +24,9 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
     if (!(await isEnabled())) { reader.clear(); return { kind: "none" }; }
     return reader.resolveExternalSession(request);
   });
+  ipcMain.handle(sessionsChannels.clearCaches, () => {
+    reader.clear();
+  });
 }
 
 function defaultCodexHome(): string { return process.env.CODEX_HOME ?? path.join(app?.getPath?.("home") ?? os.homedir(), ".codex"); }

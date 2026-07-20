@@ -17,6 +17,7 @@ const MAX_TITLE_LENGTH = 92;
 const MAX_TRANSCRIPT_PREFIX_LINES = 140;
 const MAX_DISPLAY_TEXT_LENGTH = 512;
 const MAX_SESSION_ID_LENGTH = 512;
+const MAX_PROJECT_ID_BYTES = 256;
 const MAX_LIST_RESPONSE_BYTES = 512 * 1024;
 
 type SessionMetaPayload = { cwd?: unknown; id?: unknown; model?: unknown; originator?: unknown; parent_thread_id?: unknown; timestamp?: unknown };
@@ -28,6 +29,7 @@ export function createCodexSessionsReader(options: { codexHome: string; summaryL
 
   return {
     async listExternalSessions(request: ListExternalSessionsRequest): Promise<ListExternalSessionsResult> {
+      validateProjects(request.projects);
       const limit = Math.min(Math.max(request.limit ?? options.summaryLimit ?? SESSIONS_PAGE_SIZE, 1), 100);
       const summaries = await discoverCodexSummaries(options.codexHome, request.projects);
       const filtered = filterSummaryMetadata(summaries, request.query ?? "");
@@ -117,6 +119,14 @@ function filterSummaryMetadata(summaries: CodexSummary[], query: string): CodexS
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length) return summaries;
   return summaries.filter(({ summary }) => terms.every((term) => [summary.title, summary.project.label, summary.locationLabel, summary.model, summary.originator].filter(Boolean).join(" ").toLowerCase().includes(term)));
+}
+
+function validateProjects(projects: SessionsProjectInput[]): void {
+  for (const project of projects) {
+    if (!project.id.trim() || Buffer.byteLength(project.id, "utf8") > MAX_PROJECT_ID_BYTES) {
+      throw new Error("Invalid external sessions project id.");
+    }
+  }
 }
 
 function pageWithinResponseCeiling(summaries: CodexSummary[], offset: number, limit: number): CodexSummary[] {

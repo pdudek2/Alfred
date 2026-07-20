@@ -134,6 +134,15 @@ describe("Codex sessions reader", () => {
     expect(second.sessions).not.toHaveLength(0);
     expect(second.sessions.some((session) => first.sessions.some((firstSession) => firstSession.sessionKey === session.sessionKey))).toBe(false);
   });
+
+  it("rejects an oversized project id before it can stall a byte-limited cursor", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const reader = createCodexSessionsReader({ codexHome });
+
+    await expect(reader.listExternalSessions({
+      projects: [{ id: "x".repeat(512 * 1024), label: "Alfred", rootPath: "/workspaces/alfred" }],
+    })).rejects.toThrow("Invalid external sessions project id.");
+  });
 });
 
 function codexLines({ cwd, id, title }: { cwd: string; id: string; title: string }): string {

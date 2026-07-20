@@ -148,6 +148,7 @@ const sessions: SessionsApi = {
     ipcRenderer.invoke(sessionsChannels.listExternal, request) as ReturnType<SessionsApi["listExternalSessions"]>,
   resolveExternalSession: (request) =>
     ipcRenderer.invoke(sessionsChannels.resolveExternal, request) as ReturnType<SessionsApi["resolveExternalSession"]>,
+  clearCaches: () => ipcRenderer.invoke(sessionsChannels.clearCaches) as ReturnType<SessionsApi["clearCaches"]>,
 };
 
 const desktopState: DesktopStateApi = {
