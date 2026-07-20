@@ -1,0 +1,31 @@
+import type { TranscriptPage } from "../shared/sessions-ipc";
+
+export type SessionsViewState = {
+  query: string;
+  source: "all" | "managed" | "external-codex";
+  timeRange: "any" | "day" | "week" | "month";
+  pageIndex: number;
+  selectedSessionKey: string | null;
+  navigatorScrollTop: number;
+  readerScrollTop: number;
+  readerPages: TranscriptPage[];
+};
+
+export function createInitialSessionsViewState(): SessionsViewState {
+  return {
+    query: "",
+    source: "all",
+    timeRange: "any",
+    pageIndex: 0,
+    selectedSessionKey: null,
+    navigatorScrollTop: 0,
+    readerScrollTop: 0,
+    readerPages: [],
+  };
+}
+
+export function appendTranscriptPage(state: SessionsViewState, page: TranscriptPage): SessionsViewState {
+  const pages = [...state.readerPages.filter((item) => item.revision === page.revision), page];
+  while (pages.reduce((sum, item) => sum + item.blocks.length, 0) > 120) pages.shift();
+  return { ...state, readerPages: pages };
+}

@@ -526,7 +526,7 @@ async function openPrepareWork(user: ReturnType<typeof userEvent.setup>) {
   return screen.getByTestId("dispatch-bar");
 }
 
-async function selectSurface(user: ReturnType<typeof userEvent.setup>, label: "Work" | "Observatory" | "Context" | "Local Data & Privacy") {
+async function selectSurface(user: ReturnType<typeof userEvent.setup>, label: "Work" | "Sessions" | "Context" | "Local Data & Privacy") {
   await user.click(screen.getByRole("button", { name: "Open Surfaces menu" }));
   await user.click(screen.getByRole("menuitem", { name: label }));
 }
@@ -657,8 +657,8 @@ describe("App integration", () => {
     await selectSurface(user, "Work");
     expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-work");
 
-    await selectSurface(user, "Observatory");
-    expect(screen.getByRole("region", { name: "History workspace" })).toBeVisible();
+    await selectSurface(user, "Sessions");
+    expect(screen.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
 
     await selectSurface(user, "Context");
     expect(screen.getByTestId("context-drawer")).toHaveClass("open");
@@ -846,7 +846,7 @@ describe("App integration", () => {
     expect(screen.queryByText("Search sessions, chats, files")).not.toBeInTheDocument();
   });
 
-  it("keeps the same project navigator across Inbox and Observatory switches", async () => {
+  it("keeps the same project navigator across Inbox and Sessions switches", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
@@ -857,9 +857,26 @@ describe("App integration", () => {
     expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-inbox");
     expect(screen.getByRole("navigation", { name: "Projects and Free Chats" })).toBe(navigator);
 
-    await selectSurface(user, "Observatory");
-    expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-history");
+    await selectSurface(user, "Sessions");
+    expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-sessions");
     expect(screen.getByRole("navigation", { name: "Projects and Free Chats" })).toBe(navigator);
+  });
+
+  it("unmounts Sessions on Escape and restores the previously focused Work target", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+    render(<App />);
+
+    const workTarget = await screen.findByRole("button", { name: "Manual · zsh 1" });
+    workTarget.focus();
+    expect(workTarget).toHaveFocus();
+
+    await selectSurface(user, "Sessions");
+    expect(screen.getByRole("searchbox", { name: "Search sessions" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("region", { name: "Sessions workspace" })).not.toBeInTheDocument();
+    await waitFor(() => expect(workTarget).toHaveFocus());
   });
 
   it("opens Local Data & Privacy controls from the command palette", async () => {
@@ -934,10 +951,10 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
-    await selectSurface(user, "Observatory");
+    await selectSurface(user, "Sessions");
 
     expect(await screen.findByText("External Codex indexing is off.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Disabled/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Refresh external sessions" })).toBeDisabled();
     expect(listExternalSessions).not.toHaveBeenCalled();
   });
 
@@ -960,7 +977,7 @@ describe("App integration", () => {
     listExternalSessions.mockImplementationOnce(() => pending.promise);
 
     render(<App />);
-    await selectSurface(user, "Observatory");
+    await selectSurface(user, "Sessions");
     await waitFor(() => expect(listExternalSessions).toHaveBeenCalledOnce());
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
@@ -1073,7 +1090,7 @@ describe("App integration", () => {
     expect(launchTrigger).not.toHaveFocus();
   });
 
-  it("keeps the xterm renderer mounted while moving from Work to Inbox and History and back", async () => {
+  it("keeps the xterm renderer mounted while moving from Work to Inbox and Sessions and back", async () => {
     const user = userEvent.setup();
     const { createTerminal } = installDesktopBridge();
 
@@ -1096,9 +1113,9 @@ describe("App integration", () => {
     expect(xtermHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeSurfaceSwitch);
 
-    await selectSurface(user, "Observatory");
+    await selectSurface(user, "Sessions");
 
-    expect(await screen.findByRole("region", { name: "History workspace" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Sessions workspace" })).toBeInTheDocument();
     expect(xtermHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeSurfaceSwitch);
 
@@ -1270,7 +1287,7 @@ describe("App integration", () => {
     expect(document.querySelectorAll(".terminal-tile.focus-hidden [data-testid='xterm-host']")).toHaveLength(1);
   });
 
-  it("keeps xterm hosts mounted across Work, Inbox, History, Context, and Focus", async () => {
+  it("keeps xterm hosts mounted across Work, Inbox, Sessions, Context, and Focus", async () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge();
     render(<App />);
@@ -1291,7 +1308,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: /open inbox surface/i }));
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
-    await selectSurface(user, "Observatory");
+    await selectSurface(user, "Sessions");
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
     await selectSurface(user, "Work");
@@ -2244,9 +2261,9 @@ describe("App integration", () => {
     expect(resizeTerminal).toHaveBeenCalledTimes(1);
   });
 
-  it("resumes an external Codex History row with the selected session id", async () => {
+  it("resumes an external Codex Sessions row with the selected session id", async () => {
     const user = userEvent.setup();
-    const externalSessionId = "019edc4b-0000-7000-9000-observatory";
+    const externalSessionId = "019edc4b-0000-7000-9000-sessions";
     const { createTerminal } = installDesktopBridge(
       undefined,
       null,
@@ -2275,8 +2292,8 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await selectSurface(user, "Observatory");
-    await user.click(await screen.findByRole("button", { name: /Load Alfred memory/i }));
+    await selectSurface(user, "Sessions");
+    await user.click(await screen.findByRole("option", { name: /Load Alfred memory/i }));
     await user.click(screen.getByRole("button", { name: "Resume in Alfred" }));
 
     await waitFor(() => {
@@ -2326,8 +2343,8 @@ describe("App integration", () => {
     });
     setWorkspaceState.mockClear();
 
-    await selectSurface(user, "Observatory");
-    await user.click(await screen.findByRole("button", { name: /Unknown external workspace/i }));
+    await selectSurface(user, "Sessions");
+    await user.click(await screen.findByRole("option", { name: /Unknown external workspace/i }));
 
     const resume = screen.getByRole("button", { name: "Trust workspace first" });
     expect(resume).toBeEnabled();
@@ -2345,7 +2362,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("tab", { name: /UnknownProject workspace/i })).not.toBeInTheDocument();
   });
 
-  it("keeps stale external Codex rows when History refresh fails", async () => {
+  it("keeps stale external Codex rows when Sessions refresh fails", async () => {
     const user = userEvent.setup();
     const externalSession: ExternalSessionSummary = {
       sessionKey: "external-codex:019edc4b-0000-7000-9000-stale:200",
@@ -2372,17 +2389,17 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await selectSurface(user, "Observatory");
-    expect(await screen.findByRole("button", { name: /Previously indexed Codex/i })).toBeInTheDocument();
+    await selectSurface(user, "Sessions");
+    expect(await screen.findByRole("option", { name: /Previously indexed Codex/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(listExternalSessions).toHaveBeenCalledTimes(1);
     });
 
     listExternalSessions.mockRejectedValueOnce(new Error("index unavailable"));
-    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    await user.click(screen.getByRole("button", { name: "Refresh external sessions" }));
 
     expect(await screen.findByText("Showing last successful results.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Previously indexed Codex/i })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Previously indexed Codex/i })).toBeInTheDocument();
   });
 
   it("keeps only one global modal open at a time", async () => {
@@ -2423,20 +2440,17 @@ describe("App integration", () => {
     expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveTextContent("Nothing needs you");
   });
 
-  it("treats Observatory as the full session browser", async () => {
+  it("treats Sessions as the bounded session navigator and reader", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
 
     render(<App />);
 
-    await selectSurface(user, "Observatory");
-    const history = await screen.findByRole("region", { name: "History workspace" });
-    expect(history).toBeInTheDocument();
-    const historyHeader = history.querySelector(".observatory-surface-header");
-    expect(historyHeader?.querySelectorAll("p")).toHaveLength(1);
-    expect(historyHeader).toHaveTextContent(
-      "Browse Alfred-managed sessions and external Codex transcripts. External sessions stay read-only until resumed.",
-    );
+    await selectSurface(user, "Sessions");
+    const sessions = await screen.findByRole("region", { name: "Sessions workspace" });
+    expect(sessions).toBeInTheDocument();
+    expect(within(sessions).getByRole("searchbox", { name: "Search sessions" })).toHaveFocus();
+    expect(within(sessions).getAllByRole("option")).toHaveLength(2);
   });
 
   it("surfaces detected localhost URLs in the workspace preview dock", async () => {
@@ -5665,7 +5679,7 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Clean Desktop");
   });
 
-  it.each(["Work", "Observatory"] as const)(
+  it.each(["Work", "Sessions"] as const)(
     "disarms unsafe Recovery before the Inbox switcher can open %s",
     async (surfaceLabel) => {
       const user = userEvent.setup();
@@ -5716,7 +5730,7 @@ describe("App integration", () => {
       if (surfaceLabel === "Work") {
         expect(screen.getByTestId("desk-runtime-surface")).not.toHaveAttribute("aria-hidden");
       } else {
-        expect(screen.getByRole("region", { name: "History workspace" })).toBeVisible();
+        expect(screen.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
       }
       expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
       expect(createTerminal).not.toHaveBeenCalled();

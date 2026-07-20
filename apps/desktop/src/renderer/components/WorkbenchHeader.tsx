@@ -4,7 +4,7 @@ import type { SessionTile } from "../session-state";
 import { AlfredMark } from "./AlfredMark";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 
-export type PrimarySurface = "work" | "inbox" | "history";
+export type PrimarySurface = "work" | "inbox" | "sessions";
 
 export type WorkbenchHeaderProps = {
   activeSurface: PrimarySurface;
@@ -45,8 +45,8 @@ export function WorkbenchHeader({
 }: WorkbenchHeaderProps) {
   const surfaceTitle = activeSurface === "inbox"
     ? "Decision Inbox"
-    : activeSurface === "history"
-      ? "Observatory"
+    : activeSurface === "sessions"
+      ? "Sessions"
       : selectedSession?.title ?? "Work";
   const inboxLabel = `Open Inbox surface${inboxCount > 0 ? `, ${inboxCount} item${inboxCount === 1 ? "" : "s"}` : ""}`;
   const launchItems: ChromeMenuItem[] = [
@@ -57,7 +57,7 @@ export function WorkbenchHeader({
   ];
   const surfaceItems: ChromeMenuItem[] = [
     { id: "work", label: "Work", run: () => onSelectSurface("work") },
-    { id: "observatory", label: "Observatory", run: () => onSelectSurface("history") },
+    { id: "sessions", label: "Sessions", run: () => onSelectSurface("sessions") },
     { id: "context", label: "Context", run: onToggleContext },
     { id: "privacy", label: "Local Data & Privacy", run: onOpenPrivacyControls },
   ];

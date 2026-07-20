@@ -59,8 +59,8 @@ describe("WorkbenchHeader", () => {
   });
 
   it("shows surface identity outside Work without leaking the selected session", () => {
-    renderHeader({ activeSurface: "history", selectedSession: liveA });
-    expect(screen.getByTestId("workbench-header")).toHaveTextContent("Observatory");
+    renderHeader({ activeSurface: "sessions", selectedSession: liveA });
+    expect(screen.getByTestId("workbench-header")).toHaveTextContent("Sessions");
     expect(screen.queryByText(liveA.title)).not.toBeInTheDocument();
   });
 
@@ -103,7 +103,7 @@ describe("WorkbenchHeader", () => {
     const menu = screen.getByRole("menu", { name: "Surfaces" });
     expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
       "Work",
-      "Observatory",
+      "Sessions",
       "Context",
       "Local Data & Privacy",
     ]);
