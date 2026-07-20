@@ -1,9 +1,10 @@
-import { mkdir, unlink, utimes, writeFile } from "node:fs/promises";
+import { mkdir, stat, unlink, utimes, writeFile } from "node:fs/promises";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createCodexSessionsReader } from "./codex-sessions.js";
+import { SUMMARY_CACHE_COUNT_LIMIT } from "../shared/sessions-ipc.js";
 
 describe("Codex sessions reader", () => {
   it("returns display-safe opaque summaries in cursor pages and resolves selected keys", async () => {
@@ -333,31 +334,52 @@ describe("Codex sessions reader", () => {
     expect(reader.getDiagnostics().decodedTranscriptBytes).toBeLessThanOrEqual(16 * 1024 * 1024);
   });
 
-  it("bounds summary diagnostics and streams a 10 MiB transcript without reading it to EOF", async () => {
+  it("bounds summary cache diagnostics beyond the configured entry limit", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
     await mkdir(sessionDir, { recursive: true });
-    const largeMetadata = "m".repeat(600);
-    for (let index = 0; index < 5_002; index += 1) {
-      await writeFile(path.join(sessionDir, `summary-${index}.jsonl`), [
-        JSON.stringify({ type: "session_meta", payload: { id: `summary-${index}`, cwd: "/repo", model: largeMetadata, originator: largeMetadata } }),
-        JSON.stringify({ type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: `Summary ${index}` }] } }),
-      ].join("\n"));
+    await Promise.all(Array.from({ length: 5 }, (_, index) => writeFile(
+      path.join(sessionDir, `summary-${index}.jsonl`),
+      JSON.stringify({ type: "session_meta", payload: { id: `summary-${index}` } }),
+    )));
+    expect(SUMMARY_CACHE_COUNT_LIMIT).toBe(5_000);
+    vi.resetModules();
+    vi.doMock("../shared/sessions-ipc.js", async (importOriginal) => ({
+      ...await importOriginal<typeof import("../shared/sessions-ipc.js")>(),
+      SUMMARY_CACHE_COUNT_LIMIT: 3,
+    }));
+    try {
+      const { createCodexSessionsReader: createReaderWithSmallCache } = await import("./codex-sessions.js");
+      const reader = createReaderWithSmallCache({ codexHome });
+      await reader.listExternalSessions({ projects: [], limit: 1 });
+
+      expect(reader.getDiagnostics().summaryCount).toBe(3);
+      expect(reader.getDiagnostics().summaryBytes).toBeLessThanOrEqual(10 * 1024 * 1024);
+    } finally {
+      vi.doUnmock("../shared/sessions-ipc.js");
+      vi.resetModules();
     }
+  });
+
+  it("streams the first page of a 10 MiB 100k-line transcript without reading to EOF", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
+    await mkdir(sessionDir, { recursive: true });
     const largeFile = path.join(sessionDir, "large.jsonl");
     await writeFile(largeFile, [
       JSON.stringify({ type: "session_meta", payload: { id: "large", cwd: "/repo" } }),
-      ...Array.from({ length: 5_000 }, (_, index) => JSON.stringify({ type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: `${index}:${"x".repeat(2_048)}` }] } })),
+      ...Array.from({ length: 100_000 }, (_, index) => JSON.stringify({ type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: `${index}:${"x".repeat(40)}` }] } })),
     ].join("\n"));
+    const fileSize = (await stat(largeFile)).size;
     const reader = createCodexSessionsReader({ codexHome });
-    const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: largeMetadata, rootPath: "/repo" }], limit: 100 });
+    const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }], limit: 1 });
     const large = listed.sessions.find((session) => session.contentSessionKey === "external-codex:large")!;
     const first = await reader.readTranscriptPage({ sessionKey: large.sessionKey });
 
+    expect(fileSize).toBeGreaterThanOrEqual(10 * 1024 * 1024);
     expect(first.blocks).toHaveLength(50);
     expect(first.nextCursor).toEqual(expect.any(String));
-    expect(reader.getDiagnostics().summaryCount).toBeLessThan(5_000);
-    expect(reader.getDiagnostics().summaryBytes).toBeLessThanOrEqual(10 * 1024 * 1024);
+    expect(decodeCursor(first.nextCursor!).offset).toBeLessThan(fileSize / 100);
   });
 });
 
