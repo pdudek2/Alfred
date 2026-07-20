@@ -33,6 +33,7 @@ const frameProbes: CssOwnerProbe[] = [
   { name: "workbench-shell", selector: "[data-testid='workbench-shell']", required: true,
     properties: ["display", "grid-template-columns", "min-width", "min-height", "overflow"] },
 ];
+const sessionsFrameProbes = frameProbes.filter((probe) => probe.name !== "project-navigator");
 
 const extendedVisualProbes: CssOwnerProbe[] = [
   { name: "workspace-title-trigger", selector: ".workspace-title-trigger", required: true,
@@ -186,10 +187,11 @@ test("captures deterministic CSS ownership evidence across core states and overl
 
   await selectSurface(page, "Sessions");
   await expect(page.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
+  await expect(page.locator(".project-navigator")).toHaveCount(0);
   await page.getByRole("option").first().click();
   await expect(page.getByRole("article")).toBeVisible();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Sessions");
-  await capture("sessions", [...frameProbes, ...sessionsProbes]);
+  await capture("sessions", [...sessionsFrameProbes, ...sessionsProbes]);
 
   await selectSurface(page, "Work");
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
