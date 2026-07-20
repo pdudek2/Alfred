@@ -5101,6 +5101,10 @@ body.arranging-pointer {
   background: var(--ink-0);
 }
 
+.workspace-layout.surface-sessions > .orchestrator-surface {
+  grid-column: 1;
+}
+
 .workspace-layout.surface-inbox .orchestrator-surface,
 .workspace-layout.surface-sessions .orchestrator-surface {
   min-height: 0;

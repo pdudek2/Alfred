@@ -887,6 +887,11 @@ describe("renderer CSS contracts", () => {
       "grid-template-columns: minmax(0, 1fr)",
       "position: relative",
     ]);
+    const sessionsSurfacePlacement = topLevelExactRuleBodies(
+      ".workspace-layout.surface-sessions > .orchestrator-surface",
+    );
+    expect(sessionsSurfacePlacement).toHaveLength(1);
+    expect(sessionsSurfacePlacement[0]).toContain("grid-column: 1");
     expect(topLevelExactRuleBodies(".workspace-layout.surface-inbox.preview-visible")).toHaveLength(1);
     expect(topLevelExactRuleBodies(".workspace-layout.surface-sessions.preview-visible")).toHaveLength(1);
 
