@@ -27,6 +27,7 @@ const MAX_TITLE_LENGTH = 92;
 const MAX_TRANSCRIPT_PREFIX_LINES = 140;
 const MAX_DISPLAY_TEXT_LENGTH = 512;
 const MAX_SESSION_ID_LENGTH = 512;
+const MAX_SESSION_CWD_BYTES = 4 * 1024;
 const MAX_PROJECT_ID_BYTES = 256;
 const MAX_LIST_RESPONSE_BYTES = 512 * 1024;
 const MALFORMED_NOTICE = "Some malformed transcript records were omitted.";
@@ -296,6 +297,7 @@ async function summarizeCodexSessionFile(
   const id = stringValue(meta?.id) ?? idFromFilename(file.path);
   if (id.length > MAX_SESSION_ID_LENGTH) return null;
   const cwd = stringValue(meta?.cwd) ?? "";
+  if (Buffer.byteLength(cwd, "utf8") > MAX_SESSION_CWD_BYTES) return null;
   const project = await projectForCwd(cwd, projects, canonicalCwds);
   const fallback = titleFromText(titleText) || titleFromText(fallbackTitle(cwd, id));
   const title = titleFromText(titleIndex.get(id) ?? "") || fallback;
