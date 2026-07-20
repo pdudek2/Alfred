@@ -82,12 +82,48 @@ describe("sessions IPC", () => {
 
     const response = handlers.get(sessionsChannels.listExternal)?.({}, { projects: [] });
     await vi.waitFor(() => expect(reader.listExternalSessions).toHaveBeenCalledOnce());
-    await handlers.get(sessionsChannels.clearCaches)?.({}, undefined);
+    const clearPromise = handlers.get(sessionsChannels.clearCaches)?.({}, undefined);
     listing.resolve({ sessions: [{ sessionKey: "stale" }], nextCursor: null, total: 1 });
 
+    await clearPromise;
     await expect(response).resolves.toEqual({ sessions: [], nextCursor: null, total: 0 });
     await expect(reader.resolveExternalSession({ sessionKey: "stale" })).resolves.toEqual({ kind: "none" });
-    expect(reader.clear).toHaveBeenCalledTimes(2);
+    expect(reader.clear).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a newer list source resolvable after an older generation completes", async () => {
+    const older = deferred<{ sessions: Array<{ sessionKey: string }>; nextCursor: null; total: number }>();
+    const newer = deferred<{ sessions: Array<{ sessionKey: string }>; nextCursor: null; total: number }>();
+    const sources = new Set<string>();
+    const reader = {
+      listExternalSessions: vi
+        .fn()
+        .mockImplementationOnce(() => older.promise.then((result) => { result.sessions.forEach((session) => sources.add(session.sessionKey)); return result; }))
+        .mockImplementationOnce(() => newer.promise.then((result) => { result.sessions.forEach((session) => sources.add(session.sessionKey)); return result; })),
+      resolveExternalSession: vi.fn(({ sessionKey }: { sessionKey: string }) => Promise.resolve(
+        sources.has(sessionKey)
+          ? { kind: "resume" as const, projectId: "A", cwd: "/repo", sessionId: sessionKey }
+          : { kind: "none" as const },
+      )),
+      clear: vi.fn(() => { sources.clear(); }),
+    };
+    registerSessionsIpc({ reader, isExternalSessionIndexingEnabled: () => true });
+
+    const olderResponse = handlers.get(sessionsChannels.listExternal)?.({}, { projects: [] });
+    await vi.waitFor(() => expect(reader.listExternalSessions).toHaveBeenCalledOnce());
+    const clearPromise = handlers.get(sessionsChannels.clearCaches)?.({}, undefined);
+    const newerResponse = handlers.get(sessionsChannels.listExternal)?.({}, { projects: [] });
+
+    await Promise.resolve();
+    expect(reader.listExternalSessions).toHaveBeenCalledOnce();
+    older.resolve({ sessions: [{ sessionKey: "older" }], nextCursor: null, total: 1 });
+    await vi.waitFor(() => expect(reader.listExternalSessions).toHaveBeenCalledTimes(2));
+    newer.resolve({ sessions: [{ sessionKey: "newer" }], nextCursor: null, total: 1 });
+
+    await expect(olderResponse).resolves.toEqual({ sessions: [], nextCursor: null, total: 0 });
+    await expect(newerResponse).resolves.toEqual({ sessions: [{ sessionKey: "newer" }], nextCursor: null, total: 1 });
+    await clearPromise;
+    await expect(reader.resolveExternalSession({ sessionKey: "newer" })).resolves.toMatchObject({ kind: "resume", sessionId: "newer" });
   });
 });
 

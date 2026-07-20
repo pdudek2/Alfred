@@ -15,20 +15,32 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
   const reader = options.reader ?? createCodexSessionsReader({ codexHome: options.codexHome ?? defaultCodexHome() });
   const isEnabled = async () => options.isExternalSessionIndexingEnabled?.() ?? true;
   let cacheGeneration = 0;
+  let mutationQueue = Promise.resolve();
+
+  const queueMutation = <T>(mutation: () => Promise<T> | T): Promise<T> => {
+    const operation = mutationQueue.then(mutation, mutation);
+    mutationQueue = operation.then(() => undefined, () => undefined);
+    return operation;
+  };
+  const invalidateCaches = (): Promise<void> => {
+    cacheGeneration += 1;
+    return queueMutation(() => reader.clear());
+  };
+
   ipcMain.handle(sessionsChannels.listExternal, async (_event, request) => {
-    if (!(await isEnabled())) { reader.clear(); return { sessions: [], nextCursor: null, total: 0 }; }
+    if (!(await isEnabled())) { await invalidateCaches(); return { sessions: [], nextCursor: null, total: 0 }; }
     const requestGeneration = cacheGeneration;
-    const result = await reader.listExternalSessions(request);
-    if (requestGeneration !== cacheGeneration || !(await isEnabled())) { reader.clear(); return { sessions: [], nextCursor: null, total: 0 }; }
+    const result = await queueMutation(() => reader.listExternalSessions(request));
+    if (requestGeneration !== cacheGeneration) return { sessions: [], nextCursor: null, total: 0 };
+    if (!(await isEnabled())) { await invalidateCaches(); return { sessions: [], nextCursor: null, total: 0 }; }
     return result;
   });
   ipcMain.handle(sessionsChannels.resolveExternal, async (_event, request): Promise<ResolveExternalSessionResult> => {
-    if (!(await isEnabled())) { reader.clear(); return { kind: "none" }; }
+    if (!(await isEnabled())) { await invalidateCaches(); return { kind: "none" }; }
     return reader.resolveExternalSession(request);
   });
   ipcMain.handle(sessionsChannels.clearCaches, () => {
-    cacheGeneration += 1;
-    reader.clear();
+    return invalidateCaches();
   });
 }
 
