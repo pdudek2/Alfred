@@ -225,11 +225,23 @@ async function assertSessionsGeometry(page: Page, label: string) {
     page.evaluate(() => {
       const navigatorOwners = Array.from(document.querySelectorAll<HTMLElement>(".sessions-results"));
       const readerOwners = Array.from(document.querySelectorAll<HTMLElement>(".sessions-reader__scroll"));
+      const sessionsLayout = document.querySelector<HTMLElement>(".workspace-layout.surface-sessions");
+      const sessionsSurface = document.querySelector<HTMLElement>(
+        ".workspace-layout.surface-sessions > .orchestrator-surface",
+      );
+      const layoutRect = sessionsLayout?.getBoundingClientRect();
+      const surfaceRect = sessionsSurface?.getBoundingClientRect();
       return {
         documentOverflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         bodyOverflowX: document.body.scrollWidth - document.body.clientWidth,
         navigatorOwners: navigatorOwners.map((node) => getComputedStyle(node).overflowY),
         readerOwners: readerOwners.map((node) => getComputedStyle(node).overflowY),
+        surfaceOffsetLeft: layoutRect && surfaceRect
+          ? Math.abs(surfaceRect.left - layoutRect.left)
+          : Number.POSITIVE_INFINITY,
+        surfaceWidthDelta: layoutRect && surfaceRect
+          ? Math.abs(layoutRect.width - surfaceRect.width)
+          : Number.POSITIVE_INFINITY,
       };
     }),
     collectControlOverflowEvidence(page, {
@@ -247,5 +259,7 @@ async function assertSessionsGeometry(page: Page, label: string) {
   expect(evidence.controlOverflowEvidence, `${label}: control overflow by side`).toEqual([]);
   expect(evidence.navigatorOwners, `${label}: navigator scroll owners`).toEqual(["auto"]);
   expect(evidence.readerOwners, `${label}: reader scroll owners`).toEqual(["auto"]);
+  expect(evidence.surfaceOffsetLeft, `${label}: Sessions surface left edge`).toBeLessThanOrEqual(1);
+  expect(evidence.surfaceWidthDelta, `${label}: Sessions surface width`).toBeLessThanOrEqual(1);
   return evidence;
 }
