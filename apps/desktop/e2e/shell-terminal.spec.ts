@@ -128,14 +128,14 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     visibleTileCount: 1,
   };
 
-  await selectSurface(page, "Observatory");
-  await expect(page.getByRole("region", { name: "History workspace" })).toBeVisible();
-  identityTransitions["Focus→Observatory"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
-  expect(identityTransitions["Focus→Observatory"]).toBe(true);
+  await selectSurface(page, "Sessions");
+  await expect(page.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
+  identityTransitions["Focus→Sessions"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
+  expect(identityTransitions["Focus→Sessions"]).toBe(true);
   await selectSurface(page, "Work");
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
-  identityTransitions["Observatory→Work"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
-  expect(identityTransitions["Observatory→Work"]).toBe(true);
+  identityTransitions["Sessions→Work"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
+  expect(identityTransitions["Sessions→Work"]).toBe(true);
   await selectSurface(page, "Context");
   await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
   identityTransitions["Work→Context"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
@@ -197,7 +197,7 @@ async function addManualTerminal(page: Page): Promise<void> {
   await page.getByRole("menuitem", { name: "New manual terminal" }).click();
 }
 
-async function selectSurface(page: Page, surface: "Work" | "Observatory" | "Context"): Promise<void> {
+async function selectSurface(page: Page, surface: "Work" | "Sessions" | "Context"): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();
 }

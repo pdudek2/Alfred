@@ -2872,6 +2872,49 @@ describe("App integration", () => {
     expect(within(sessions).getAllByRole("option")).toHaveLength(2);
   });
 
+  it("keeps an external Sessions result page capped at 80 while search retains focus", async () => {
+    const user = userEvent.setup();
+    const externalSessions = Array.from({ length: 81 }, (_, index): ExternalSessionSummary => {
+      const suffix = String(index + 1).padStart(3, "0");
+      return {
+        sessionKey: `opaque-session-${suffix}`,
+        lineageKey: `external-codex:fixture-${suffix}`,
+        contentSessionKey: `external-codex:fixture-${suffix}`,
+        source: "external-codex",
+        kind: "codex",
+        title: `Bounded external session ${suffix}`,
+        project: { id: "A", label: "Alfred" },
+        locationLabel: "Alfred",
+        updatedAt: 1_720_000_000_000 - index,
+        lifecycle: "resumable",
+      };
+    });
+    installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [],
+      externalSessions,
+    );
+
+    render(<App />);
+    await selectSurface(user, "Sessions");
+    const sessions = await screen.findByRole("region", { name: "Sessions workspace" });
+    const search = within(sessions).getByRole("searchbox", { name: "Search sessions" });
+    expect(search).toHaveFocus();
+    await user.click(within(within(sessions).getByRole("group", { name: "Session source" }))
+      .getByText("External Codex", { exact: true }));
+    expect(within(sessions).getAllByRole("option")).toHaveLength(80);
+
+    await user.type(search, "081");
+    expect(search).toHaveFocus();
+    expect(within(sessions).getAllByRole("option")).toHaveLength(1);
+    expect(within(sessions).getByRole("option", { name: /Bounded external session 081/i })).toBeVisible();
+  });
+
   it("surfaces detected localhost URLs in the workspace preview dock", async () => {
     const user = userEvent.setup();
     const { openExternalUrl } = installDesktopBridge(undefined, null, [

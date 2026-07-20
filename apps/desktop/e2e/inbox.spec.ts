@@ -304,15 +304,16 @@ test.describe("long Decision Inbox", () => {
     await expect(page.getByRole("dialog", { name: "Command palette" })).toHaveCount(0);
     await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
 
-    const observatory = page.getByRole("navigation", { name: "Primary surfaces" })
-      .getByRole("button", { name: "Observatory" });
-    await observatory.focus();
+    const sessions = page.getByRole("navigation", { name: "Primary surfaces" })
+      .getByRole("button", { name: "Sessions" });
+    await sessions.focus();
     await page.keyboard.press("Space");
-    await expect(page.getByRole("region", { name: "History workspace" })).toBeVisible();
-    const inboxSwitcher = page.getByRole("navigation", { name: "Primary surfaces" })
-      .getByRole("button", { name: "Inbox" });
-    await inboxSwitcher.focus();
-    await page.keyboard.press("Enter");
+    await expect(page.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
+    const inboxSwitcher = page.getByTestId("workbench-header")
+      .getByRole("button", { name: /Open Inbox surface/i });
+    await inboxSwitcher.click();
     inbox = page.getByRole("region", { name: "Inbox workspace" });
     await expect(inbox).toBeVisible();
     await page.keyboard.press("Escape");
