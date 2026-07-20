@@ -29,6 +29,9 @@ type ProjectedSession = {
   summary: SessionSummary;
   group: { id: string; label: string };
   target?: ManagedSessionTarget;
+  managedActivityAt?: number;
+  externalContentSessionKey?: string;
+  externalUpdatedAt?: number;
 };
 
 export function buildSessionsProjection({
@@ -46,11 +49,13 @@ export function buildSessionsProjection({
     const projected: ProjectedSession = {
       summary,
       group: projectGroup(summary.project),
+      externalContentSessionKey: external.contentSessionKey,
+      externalUpdatedAt: summary.updatedAt,
     };
     const existing = byLineage.get(summary.lineageKey);
     if (
       !existing
-      || (existing.summary.source === "external-codex" && existing.summary.updatedAt < summary.updatedAt)
+      || (existing.managedActivityAt === undefined && compareExternalSessions(projected, existing) < 0)
     ) {
       byLineage.set(summary.lineageKey, projected);
     }
@@ -59,15 +64,19 @@ export function buildSessionsProjection({
   for (const session of sessions) {
     const projected = normalizeManagedSession(session, workspacesById);
     const existing = byLineage.get(projected.summary.lineageKey);
-    if (existing?.summary.source === "managed" && existing.summary.updatedAt > projected.summary.updatedAt) {
+    if (existing?.managedActivityAt !== undefined && compareManagedSessions(existing, projected) <= 0) {
       continue;
     }
-    if (existing?.summary.contentSessionKey) {
+    if (existing?.externalContentSessionKey) {
       projected.summary = {
         ...projected.summary,
-        contentSessionKey: existing.summary.contentSessionKey,
-        updatedAt: Math.max(projected.summary.updatedAt, existing.summary.updatedAt),
+        contentSessionKey: existing.externalContentSessionKey,
+        updatedAt: Math.max(projected.summary.updatedAt, existing.externalUpdatedAt ?? 0),
       };
+      projected.externalContentSessionKey = existing.externalContentSessionKey;
+      if (existing.externalUpdatedAt !== undefined) {
+        projected.externalUpdatedAt = existing.externalUpdatedAt;
+      }
     }
     byLineage.set(projected.summary.lineageKey, projected);
   }
@@ -131,6 +140,7 @@ function normalizeManagedSession(
     summary,
     group: freeChat ? { id: "free-chats", label: "Free Chats" } : projectGroup(project),
     target: { workspaceId: session.workspaceId, sessionId: session.id },
+    managedActivityAt: summary.updatedAt,
   };
 }
 
@@ -187,9 +197,9 @@ function projectGroup(project: SessionProjectRef): { id: string; label: string }
 }
 
 function summaryMatchesQuery(summary: SessionSummary, groupLabel: string, query: string): boolean {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) return true;
-  return [
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  const searchableMetadata = [
     summary.title,
     groupLabel,
     summary.source,
@@ -198,7 +208,18 @@ function summaryMatchesQuery(summary: SessionSummary, groupLabel: string, query:
     summary.model,
     summary.locationLabel,
     summary.snippet,
-  ].some((field) => field?.toLowerCase().includes(normalizedQuery));
+  ].filter((field): field is string => Boolean(field)).join("\n").toLowerCase();
+  return tokens.every((token) => searchableMetadata.includes(token));
+}
+
+function compareManagedSessions(a: ProjectedSession, b: ProjectedSession): number {
+  return (b.managedActivityAt ?? 0) - (a.managedActivityAt ?? 0)
+    || a.summary.sessionKey.localeCompare(b.summary.sessionKey);
+}
+
+function compareExternalSessions(a: ProjectedSession, b: ProjectedSession): number {
+  return (b.externalUpdatedAt ?? 0) - (a.externalUpdatedAt ?? 0)
+    || a.summary.sessionKey.localeCompare(b.summary.sessionKey);
 }
 
 function compareProjectedSessions(a: ProjectedSession, b: ProjectedSession): number {

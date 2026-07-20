@@ -158,4 +158,117 @@ describe("buildSessionsProjection", () => {
       sessionId: "managed-newest",
     });
   });
+
+  it("chooses a managed lineage representative independently of input order or external activity", () => {
+    const externalId = "019fff00-7777-7222-8333-444444444444";
+    const external = externalSession(externalId, { updatedAt: 1_000 });
+    const newest = managedSession({
+      id: "managed-newest",
+      runtimeStatus: "live",
+      lastActivityAt: 500,
+      resumeTarget: { agentKind: "codex", sessionId: externalId, source: "codex-session-index" },
+    });
+    const older = managedSession({
+      id: "managed-older",
+      runtimeStatus: "restored",
+      lastActivityAt: 100,
+      resumeTarget: { agentKind: "codex", sessionId: externalId, source: "codex-session-index" },
+    });
+    const equalAlpha = managedSession({
+      id: "managed-alpha",
+      runtimeStatus: "live",
+      lastActivityAt: 300,
+      resumeTarget: { agentKind: "codex", sessionId: externalId, source: "codex-session-index" },
+    });
+    const equalBeta = managedSession({
+      id: "managed-beta",
+      runtimeStatus: "restored",
+      lastActivityAt: 300,
+      resumeTarget: { agentKind: "codex", sessionId: externalId, source: "codex-session-index" },
+    });
+
+    const newestFirst = buildSessionsProjection({
+      sessions: [newest, older],
+      workspaces,
+      externalSessions: [external],
+    });
+    const newestLast = buildSessionsProjection({
+      sessions: [older, newest],
+      workspaces,
+      externalSessions: [external],
+    });
+    const alphaFirst = buildSessionsProjection({
+      sessions: [equalAlpha, equalBeta],
+      workspaces,
+      externalSessions: [external],
+    });
+    const alphaLast = buildSessionsProjection({
+      sessions: [equalBeta, equalAlpha],
+      workspaces,
+      externalSessions: [external],
+    });
+
+    for (const projection of [newestFirst, newestLast]) {
+      expect(projection.items).toMatchObject([{
+        sessionKey: "managed:managed-newest",
+        lifecycle: "live",
+        contentSessionKey: `external-codex:${externalId}`,
+      }]);
+      expect(projection.managedTargets.get("managed:managed-newest")).toEqual({
+        workspaceId: "A",
+        sessionId: "managed-newest",
+      });
+    }
+
+    for (const projection of [alphaFirst, alphaLast]) {
+      expect(projection.items).toMatchObject([{
+        sessionKey: "managed:managed-alpha",
+        lifecycle: "live",
+        contentSessionKey: `external-codex:${externalId}`,
+      }]);
+      expect(projection.managedTargets.get("managed:managed-alpha")).toEqual({
+        workspaceId: "A",
+        sessionId: "managed-alpha",
+      });
+    }
+  });
+
+  it("matches every normalized search token across approved display metadata only", () => {
+    const session = managedSession({
+      id: "hidden-managed-id",
+      title: "Codex · visible title",
+      workspaceId: "SECRET-WORKSPACE-ID",
+      cwd: "/private/secret-location",
+      resumeTarget: {
+        agentKind: "codex",
+        sessionId: "hidden-external-content-id",
+        source: "codex-session-index",
+      },
+    });
+    const searchableWorkspaces = [{ id: "SECRET-WORKSPACE-ID", label: "Alfred", rootPath: "/private" }];
+
+    const positive = buildSessionsProjection({
+      sessions: [session],
+      workspaces: searchableWorkspaces,
+      externalSessions: [],
+      query: "  ALFRED    codex ",
+    });
+    const missingToken = buildSessionsProjection({
+      sessions: [session],
+      workspaces: searchableWorkspaces,
+      externalSessions: [],
+      query: "alfred unavailable",
+    });
+
+    expect(positive.items).toHaveLength(1);
+    expect(missingToken.items).toHaveLength(0);
+    for (const query of ["hidden-managed-id", "SECRET-WORKSPACE-ID", "/private/secret-location", "hidden-external-content-id"]) {
+      expect(buildSessionsProjection({
+        sessions: [session],
+        workspaces: searchableWorkspaces,
+        externalSessions: [],
+        query,
+      }).items).toHaveLength(0);
+    }
+  });
 });
