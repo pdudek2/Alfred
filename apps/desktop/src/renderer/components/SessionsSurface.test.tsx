@@ -340,17 +340,20 @@ describe("SessionsSurface", () => {
 
   it("strips a CSI sequence that crosses the managed transcript limit", async () => {
     const user = userEvent.setup();
+    const longCsi = `\u001b[${"1;".repeat(140)}1m`;
     const { runtimeId: _runtimeId, ...restoredSession } = managedSession(8, {
       runtimeStatus: "restored",
       title: "Boundary ANSI transcript",
-      initialBuffer: `\u001b[1m${"x".repeat(TRANSCRIPT_TEXT_LIMIT - 3)}`,
+      initialBuffer: `${longCsi}${"x".repeat(TRANSCRIPT_TEXT_LIMIT - 20)}`,
     });
 
     renderSurface({ sessions: [restoredSession] });
 
     await user.click(within(screen.getByRole("listbox", { name: "Session results" })).getByRole("option"));
     const article = await screen.findByRole("article", { name: /Boundary ANSI transcript/ });
-    expect(article).not.toHaveTextContent("[1m");
+    const block = article.querySelector("[data-testid='transcript-block']");
+    expect(block).toHaveTextContent("x".repeat(100));
+    expect(block).not.toHaveTextContent("1;1;1");
   });
 
   it("shows loading, no-result, disabled-indexing, and stale-refresh states without hiding managed sessions", async () => {
