@@ -10,6 +10,10 @@ import {
   writeLargeCodexTranscriptFixture,
 } from "../test-support/codex-session-fixtures.js";
 
+// Resource tests intentionally create thousands of files or a 10 MiB transcript;
+// the default 5s timeout is too tight when the full suite contends for disk I/O.
+const RESOURCE_TEST_TIMEOUT_MS = 15_000;
+
 describe("Codex sessions reader", () => {
   it("returns display-safe opaque summaries in cursor pages and resolves selected keys", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
@@ -593,7 +597,7 @@ describe("Codex sessions reader", () => {
       summaryBytes: diagnostics.summaryBytes,
       summaryCount: diagnostics.summaryCount,
     }));
-  });
+  }, RESOURCE_TEST_TIMEOUT_MS);
 
   it("bounds and releases a renderer-consumed snapshot when discovery exceeds the 5,000 summary cap", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
@@ -641,7 +645,7 @@ describe("Codex sessions reader", () => {
       pageCount,
       ...reader.getDiagnostics(),
     }));
-  });
+  }, RESOURCE_TEST_TIMEOUT_MS);
 
   it("keeps summaries beyond the cache cap reachable through a fresh query", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
@@ -664,7 +668,7 @@ describe("Codex sessions reader", () => {
     expect(queried.sessions).toHaveLength(1);
     expect(queried.sessions[0]?.title).toBe("Late unique query target");
     expect(reader.getDiagnostics().summaryCount).toBeLessThanOrEqual(SUMMARY_CACHE_COUNT_LIMIT);
-  });
+  }, RESOURCE_TEST_TIMEOUT_MS);
 
   it("bounds revision-driven resume aliases across repeated refreshes", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
@@ -751,7 +755,7 @@ describe("Codex sessions reader", () => {
       referenceBudgetMs: 750,
       timingEnforced: process.env.ALFRED_ENFORCE_SESSIONS_REFERENCE_TIMING === "1",
     }));
-  });
+  }, RESOURCE_TEST_TIMEOUT_MS);
 });
 
 async function transcriptFixture(id: string, records: Array<unknown>): Promise<{ codexHome: string; file: string }> {
