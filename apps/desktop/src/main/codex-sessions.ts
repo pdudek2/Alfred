@@ -294,6 +294,7 @@ async function summarizeCodexSessionFile(
     if (meta && titleText) break;
   }
   const id = stringValue(meta?.id) ?? idFromFilename(file.path);
+  if (id.length > MAX_SESSION_ID_LENGTH) return null;
   const cwd = stringValue(meta?.cwd) ?? "";
   const project = await projectForCwd(cwd, projects, canonicalCwds);
   const fallback = titleFromText(titleText) || titleFromText(fallbackTitle(cwd, id));
