@@ -249,6 +249,42 @@ describe("Codex sessions reader", () => {
     expect(result.sessions[0]?.contentSessionKey).toBe("external-codex:oversized-session");
   });
 
+  it("skips an oversized session id without hiding the next valid session", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
+    const oversizedFile = path.join(sessionDir, "oversized-id.jsonl");
+    const validFile = path.join(sessionDir, "valid-id.jsonl");
+    await mkdir(sessionDir, { recursive: true });
+    await writeFile(oversizedFile, codexLines({
+      id: "x".repeat(600 * 1024),
+      cwd: "/workspaces/alfred",
+      title: "Oversized id",
+    }));
+    await writeFile(validFile, codexLines({
+      id: "valid-session",
+      cwd: "/workspaces/alfred",
+      title: "Valid session",
+    }));
+    await utimes(oversizedFile, new Date("2026-07-20T12:00:00.000Z"), new Date("2026-07-20T12:00:00.000Z"));
+    await utimes(validFile, new Date("2026-07-20T11:00:00.000Z"), new Date("2026-07-20T11:00:00.000Z"));
+
+    const reader = createCodexSessionsReader({ codexHome });
+    const result = await reader.listExternalSessions({
+      projects: [{ id: "A", label: "Alfred", rootPath: "/workspaces/alfred" }],
+      limit: 1,
+    });
+
+    expect(result.sessions).toEqual([
+      expect.objectContaining({ title: "Valid session", contentSessionKey: "external-codex:valid-session" }),
+    ]);
+    expect(result.total).toBe(1);
+    expect(result.nextCursor).toBeNull();
+    await expect(reader.resolveExternalSession(result.sessions[0]!.sessionKey)).resolves.toMatchObject({
+      kind: "resume",
+      sessionId: "valid-session",
+    });
+  });
+
   it("advances the cursor when the byte ceiling shortens a metadata page", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
