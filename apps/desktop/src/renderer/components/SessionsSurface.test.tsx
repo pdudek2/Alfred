@@ -184,6 +184,51 @@ describe("SessionsSurface", () => {
     expect(sessionsApi.readTranscriptPage).toHaveBeenCalledWith({ sessionKey: "external-codex:content-0" });
   });
 
+  it("reads a managed and external merged session through one content key across pagination", async () => {
+    const user = userEvent.setup();
+    const sessionsApi = createSessionsApi();
+    const terminalApi = createTerminalApi();
+    vi.mocked(sessionsApi.readTranscriptPage)
+      .mockResolvedValueOnce(transcriptPage(
+        "external-codex:content-0",
+        [{ id: "user-1", kind: "message", role: "user", text: "Merged question" }],
+        { nextCursor: "cursor-1" },
+      ))
+      .mockResolvedValueOnce(transcriptPage(
+        "external-codex:content-0",
+        [{ id: "assistant-1", kind: "message", role: "assistant", text: "Merged answer" }],
+      ));
+    renderSurface({
+      externalSessions: [externalSession(0)],
+      sessions: [managedSession(0, {
+        title: "Merged managed session",
+        resumeTarget: {
+          agentKind: "codex",
+          sessionId: "content-0",
+          source: "codex-session-index",
+        },
+      })],
+      sessionsApi,
+      terminalApi,
+    });
+
+    await user.click(screen.getByRole("option", { name: /Merged managed session/ }));
+    const article = await screen.findByRole("article", { name: /Merged managed session/ });
+    expect(article).toHaveTextContent("Merged question");
+    expect(article).toHaveTextContent("You");
+    expect(terminalApi.snapshot).not.toHaveBeenCalled();
+    expect(sessionsApi.readTranscriptPage).toHaveBeenNthCalledWith(1, {
+      sessionKey: "external-codex:content-0",
+    });
+
+    await user.click(screen.getByRole("button", { name: "Load more transcript" }));
+    expect(await screen.findByText("Merged answer")).toBeInTheDocument();
+    expect(sessionsApi.readTranscriptPage).toHaveBeenNthCalledWith(2, {
+      sessionKey: "external-codex:content-0",
+      cursor: "cursor-1",
+    });
+  });
+
   it("reads a live managed snapshot on selection as raw terminal blocks without invented roles", async () => {
     const user = userEvent.setup();
     const session = managedSession(4, { title: "Manual deploy", command: "zsh" });
@@ -292,6 +337,35 @@ describe("SessionsSurface", () => {
     });
     expect(screen.getByText("Showing last successful results.")).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Retained external result/ })).toBeInTheDocument();
+  });
+
+  it("drops retained external transcript pages when indexing is disabled without hiding a merged managed session", async () => {
+    const session = managedSession(0, {
+      title: "Managed privacy boundary",
+      resumeTarget: {
+        agentKind: "codex",
+        sessionId: "content-0",
+        source: "codex-session-index",
+      },
+    });
+    const initialState: SessionsViewState = {
+      ...createInitialSessionsViewState(),
+      selectedSessionKey: "managed:managed-0",
+      readerPages: [transcriptPage(
+        "external-codex:content-0",
+        [{ id: "private", kind: "message", role: "assistant", text: "Private external content" }],
+      )],
+    };
+    const view = renderSurface({
+      externalSessionIndexingEnabled: false,
+      externalSessions: [],
+      sessions: [session],
+    }, initialState);
+
+    await waitFor(() => expect(screen.queryByText("Private external content")).not.toBeInTheDocument());
+    expect(screen.getByRole("option", { name: /Managed privacy boundary/ })).toBeInTheDocument();
+    expect(view.getState().selectedSessionKey).toBe("managed:managed-0");
+    expect(view.getState().readerPages).toEqual([]);
   });
 
   it("renders missing and malformed partial transcript states", async () => {
