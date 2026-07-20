@@ -106,7 +106,12 @@ import type {
 } from "../shared/terminal-ipc";
 import type { DispatchTargetSnapshot, WorkspaceViewState } from "../shared/layout-ipc";
 import type { WorkspaceMissionBrief, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
-import type { ExternalSessionSummary, SessionSummary } from "../shared/sessions-ipc";
+import {
+  SESSIONS_PAGE_SIZE,
+  SUMMARY_CACHE_COUNT_LIMIT,
+  type ExternalSessionSummary,
+  type SessionSummary,
+} from "../shared/sessions-ipc";
 import "@xterm/xterm/css/xterm.css";
 
 type Workspace = ProjectNavigatorWorkspace;
@@ -1570,9 +1575,46 @@ export function App() {
     setExternalCodexSessionsLoading(true);
     setExternalCodexSessionsError(null);
     try {
-      const result = await sessionsApi.listExternalSessions({ projects: workspaces, limit: 80 });
+      const accumulated: ExternalSessionSummary[] = [];
+      const seenSessionKeys = new Set<string>();
+      const seenCursors = new Set<string>();
+      let cursor: string | undefined;
+
+      for (let requestCount = 0; requestCount < SUMMARY_CACHE_COUNT_LIMIT; requestCount += 1) {
+        const result = await sessionsApi.listExternalSessions({
+          projects: workspaces,
+          limit: Math.min(SESSIONS_PAGE_SIZE, SUMMARY_CACHE_COUNT_LIMIT - accumulated.length),
+          ...(cursor ? { cursor } : {}),
+        });
+        if (externalSessionsRequestGenerationRef.current !== requestGeneration) return;
+
+        const previousCount = accumulated.length;
+        for (const session of result.sessions) {
+          if (seenSessionKeys.has(session.sessionKey)) continue;
+          seenSessionKeys.add(session.sessionKey);
+          accumulated.push(session);
+          if (accumulated.length === SUMMARY_CACHE_COUNT_LIMIT) break;
+        }
+        setExternalCodexSessions((current) => {
+          const merged = new Map(current.map((session) => [session.sessionKey, session]));
+          for (const session of accumulated) merged.set(session.sessionKey, session);
+          return [...merged.values()];
+        });
+
+        const nextCursor = result.nextCursor;
+        if (
+          !nextCursor
+          || accumulated.length === SUMMARY_CACHE_COUNT_LIMIT
+          || accumulated.length === previousCount
+          || nextCursor === cursor
+          || seenCursors.has(nextCursor)
+        ) break;
+        if (cursor) seenCursors.add(cursor);
+        cursor = nextCursor;
+      }
+
       if (externalSessionsRequestGenerationRef.current !== requestGeneration) return;
-      setExternalCodexSessions(result.sessions);
+      setExternalCodexSessions(accumulated);
       setExternalCodexSessionsError(null);
     } catch {
       if (externalSessionsRequestGenerationRef.current !== requestGeneration) return;
