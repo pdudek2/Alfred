@@ -148,6 +148,9 @@ const sessions: SessionsApi = {
     ipcRenderer.invoke(sessionsChannels.listExternal, request) as ReturnType<SessionsApi["listExternalSessions"]>,
   resolveExternalSession: (request) =>
     ipcRenderer.invoke(sessionsChannels.resolveExternal, request) as ReturnType<SessionsApi["resolveExternalSession"]>,
+  readTranscriptPage: (request) =>
+    ipcRenderer.invoke(sessionsChannels.readTranscriptPage, request) as ReturnType<SessionsApi["readTranscriptPage"]>,
+  getDiagnostics: () => ipcRenderer.invoke(sessionsChannels.getDiagnostics) as ReturnType<SessionsApi["getDiagnostics"]>,
   clearCaches: () => ipcRenderer.invoke(sessionsChannels.clearCaches) as ReturnType<SessionsApi["clearCaches"]>,
 };
 

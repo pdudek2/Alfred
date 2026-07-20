@@ -163,6 +163,8 @@ function installDesktopBridge(
   openExternalUrl: ReturnType<typeof vi.fn>;
   listExternalSessions: ReturnType<typeof vi.fn>;
   resolveExternalSession: ReturnType<typeof vi.fn>;
+  readTranscriptPage: ReturnType<typeof vi.fn>;
+  getSessionsDiagnostics: ReturnType<typeof vi.fn>;
   clearSessionsCaches: ReturnType<typeof vi.fn>;
   clearSavedTerminalData: ReturnType<typeof vi.fn>;
   getPrivacySettings: ReturnType<typeof vi.fn>;
@@ -209,6 +211,8 @@ function installDesktopBridge(
       Promise.resolve({ ok: true, url: request.url }),
     );
   const listExternalSessions = vi.fn().mockResolvedValue({ sessions: externalCodexSessions, nextCursor: null, total: externalCodexSessions.length });
+  const readTranscriptPage = vi.fn().mockResolvedValue({ sessionKey: "test", blocks: [], nextCursor: null, revision: "", partial: false });
+  const getSessionsDiagnostics = vi.fn().mockResolvedValue({ cachedSessionCount: 0, decodedTranscriptBytes: 0, summaryCount: 0, summaryBytes: 0 });
   const clearSessionsCaches = vi.fn().mockResolvedValue(undefined);
   const resolveExternalSession = vi.fn().mockImplementation(({ sessionKey }: { sessionKey: string }) => {
     const session = externalCodexSessions.find((candidate) => candidate.sessionKey === sessionKey);
@@ -329,7 +333,7 @@ function installDesktopBridge(
       updatePrivacySettings,
     },
     layout: { getLayouts, setWorkspaceLayout, setWorkspaceViewState },
-    sessions: { listExternalSessions, resolveExternalSession, clearCaches: clearSessionsCaches },
+    sessions: { listExternalSessions, resolveExternalSession, readTranscriptPage, getDiagnostics: getSessionsDiagnostics, clearCaches: clearSessionsCaches },
     terminal,
     workspace: {
       bindFolderToWorkspace,
@@ -373,6 +377,8 @@ function installDesktopBridge(
     openExternalUrl,
     listExternalSessions,
     resolveExternalSession,
+    readTranscriptPage,
+    getSessionsDiagnostics,
     clearSessionsCaches,
     clearSavedTerminalData,
     getPrivacySettings,
