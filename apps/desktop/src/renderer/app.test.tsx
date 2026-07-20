@@ -3102,6 +3102,26 @@ describe("App integration", () => {
     }));
   });
 
+  it("cancels a pending Sessions query reload when refreshed manually", async () => {
+    const user = userEvent.setup();
+    const { listExternalSessions } = installDesktopBridge();
+
+    render(<App />);
+    await selectSurface(user, "Sessions");
+    const search = screen.getByRole("searchbox", { name: "Search sessions" });
+    await waitFor(() => expect(listExternalSessions).toHaveBeenCalledOnce());
+    listExternalSessions.mockClear();
+
+    fireEvent.change(search, { target: { value: "pending query" } });
+    fireEvent.click(screen.getByRole("button", { name: "Refresh external sessions" }));
+    await waitFor(() => expect(listExternalSessions).toHaveBeenCalledOnce());
+
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 200));
+    });
+    expect(listExternalSessions).toHaveBeenCalledOnce();
+  });
+
   it("releases the unfinished main snapshot when the renderer stops before exhausting its cursor", async () => {
     const user = userEvent.setup();
     const { listExternalSessions, releaseListSnapshot } = installDesktopBridge();
