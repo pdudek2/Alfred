@@ -41,6 +41,7 @@ type TranscriptCursor = { offset: number; revision: string };
 type ListCursor = { offset: number; snapshot: number };
 type ListSnapshot = { id: number; requestSignature: string; summaries: CodexSummary[] };
 type CanonicalSessionsProject = SessionsProjectInput & { canonicalRoots: string[] };
+type CanonicalCwdCache = Map<string, Promise<string>>;
 
 export function createCodexSessionsReader(options: {
   codexHome: string;
@@ -167,7 +168,7 @@ export function createCodexSessionsReader(options: {
         snapshot = {
           id: listSnapshotGeneration + 1,
           requestSignature,
-          summaries: filterSummaryMetadata(summaries, request.query ?? ""),
+          summaries: boundSummarySnapshot(filterSummaryMetadata(summaries, request.query ?? "")),
         };
         listSnapshotGeneration = snapshot.id;
         listSnapshot = snapshot;
@@ -234,6 +235,7 @@ async function discoverCodexSummaries(
 ): Promise<CodexSummary[]> {
   const titleIndex = await readCodexSessionTitleIndex(codexHome);
   const canonicalProjects = await canonicalizeProjects(projects);
+  const canonicalCwds: CanonicalCwdCache = new Map();
   const files = (await findJsonlFiles(path.join(codexHome, "sessions"))).sort((left, right) => right.updatedAt - left.updatedAt);
   const summaries: CodexSummary[] = [];
   const ids = new Set<string>();
@@ -241,8 +243,8 @@ async function discoverCodexSummaries(
     const cacheKey = `${file.path}:${file.updatedAt}:${file.size}`;
     const cached = cache.get(cacheKey);
     const parsed = cached
-      ? (touch(cacheKey), await remapProject(cached.summary, canonicalProjects, titleIndex))
-      : await summarizeCodexSessionFile(file, titleIndex, canonicalProjects);
+      ? (touch(cacheKey), await remapProject(cached.summary, canonicalProjects, canonicalCwds, titleIndex))
+      : await summarizeCodexSessionFile(file, titleIndex, canonicalProjects, canonicalCwds);
     if (!cached && parsed) cacheSummary(cacheKey, parsed);
     if (!parsed || ids.has(parsed.source.id)) continue;
     ids.add(parsed.source.id);
@@ -251,8 +253,13 @@ async function discoverCodexSummaries(
   return summaries.sort((left, right) => right.summary.updatedAt - left.summary.updatedAt);
 }
 
-async function remapProject(value: CodexSummary, projects: CanonicalSessionsProject[], titleIndex: Map<string, string>): Promise<CodexSummary> {
-  const project = await projectForCwd(value.source.cwd, projects);
+async function remapProject(
+  value: CodexSummary,
+  projects: CanonicalSessionsProject[],
+  canonicalCwds: CanonicalCwdCache,
+  titleIndex: Map<string, string>,
+): Promise<CodexSummary> {
+  const project = await projectForCwd(value.source.cwd, projects, canonicalCwds);
   return {
     summary: {
       ...value.summary,
@@ -270,6 +277,7 @@ async function summarizeCodexSessionFile(
   file: SessionFile,
   titleIndex: Map<string, string>,
   projects: CanonicalSessionsProject[],
+  canonicalCwds: CanonicalCwdCache,
 ): Promise<CodexSummary | null> {
   let lines: string[];
   try { lines = await readTranscriptPrefixLines(file.path, MAX_TRANSCRIPT_PREFIX_LINES); } catch { return null; }
@@ -287,7 +295,7 @@ async function summarizeCodexSessionFile(
   }
   const id = stringValue(meta?.id) ?? idFromFilename(file.path);
   const cwd = stringValue(meta?.cwd) ?? "";
-  const project = await projectForCwd(cwd, projects);
+  const project = await projectForCwd(cwd, projects, canonicalCwds);
   const fallback = titleFromText(titleText) || titleFromText(fallbackTitle(cwd, id));
   const title = titleFromText(titleIndex.get(id) ?? "") || fallback;
   const model = stringValue(meta?.model);
@@ -431,6 +439,20 @@ function filterSummaryMetadata(summaries: CodexSummary[], query: string): CodexS
   if (!terms.length) return summaries;
   return summaries.filter(({ summary }) => terms.every((term) => [summary.title, summary.project.label, summary.locationLabel, summary.model, summary.originator].filter(Boolean).join(" ").toLowerCase().includes(term)));
 }
+function boundSummarySnapshot(summaries: CodexSummary[]): CodexSummary[] {
+  const bounded: CodexSummary[] = [];
+  let bytes = 0;
+  for (const summary of summaries) {
+    const entryBytes = summaryEntryBytes(summaryCacheKey(summary), summary);
+    if (bounded.length >= SUMMARY_CACHE_COUNT_LIMIT || bytes + entryBytes > SUMMARY_CACHE_TEXT_LIMIT) break;
+    bounded.push(summary);
+    bytes += entryBytes;
+  }
+  return bounded;
+}
+function summaryCacheKey(summary: CodexSummary): string {
+  return `${summary.source.path}:${summary.source.revision}`;
+}
 function summaryEntryBytes(key: string, summary: CodexSummary): number {
   return Buffer.byteLength(key, "utf8") + Buffer.byteLength(JSON.stringify(summary), "utf8");
 }
@@ -478,8 +500,20 @@ async function canonicalizeProjects(projects: SessionsProjectInput[]): Promise<C
     };
   }));
 }
-async function projectForCwd(cwd: string, projects: CanonicalSessionsProject[]): Promise<SessionProjectRef> {
-  const canonicalCwd = cwd ? await canonicalWorkspacePath(cwd) : "";
+async function projectForCwd(
+  cwd: string,
+  projects: CanonicalSessionsProject[],
+  canonicalCwds: CanonicalCwdCache,
+): Promise<SessionProjectRef> {
+  let canonicalCwd = "";
+  if (cwd) {
+    let canonical = canonicalCwds.get(cwd);
+    if (!canonical) {
+      canonical = canonicalWorkspacePath(cwd);
+      canonicalCwds.set(cwd, canonical);
+    }
+    canonicalCwd = await canonical;
+  }
   const project = projects
     .filter((candidate) => candidate.canonicalRoots.some((root) => pathMatchesWorkspace(canonicalCwd, root)))
     .sort((left, right) => longestRoot(right) - longestRoot(left))[0];

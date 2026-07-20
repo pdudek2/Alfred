@@ -436,8 +436,9 @@ describe("Codex sessions reader", () => {
     }
 
     const reader = createCodexSessionsReader({ codexHome });
-    await reader.listExternalSessions({ projects: [] });
+    const listed = await reader.listExternalSessions({ projects: [] });
 
+    expect(listed.total).toBeLessThan(4);
     expect(reader.getDiagnostics().summaryCount).toBeLessThan(4);
     expect(reader.getDiagnostics().summaryBytes).toBeLessThanOrEqual(10 * 1024 * 1024);
   });
@@ -543,15 +544,15 @@ describe("Codex sessions reader", () => {
         ...(cursor ? { cursor } : {}),
         limit: 80,
       });
-      expect(page.total).toBe(SUMMARY_CACHE_COUNT_LIMIT + 1);
+      expect(page.total).toBe(SUMMARY_CACHE_COUNT_LIMIT);
       listedCount += page.sessions.length;
       pageCount += 1;
       cursor = page.nextCursor ?? undefined;
     } while (cursor);
     const drainMs = performance.now() - startedAt;
 
-    expect(listedCount).toBe(SUMMARY_CACHE_COUNT_LIMIT + 1);
-    expect(pageCount).toBe(Math.ceil((SUMMARY_CACHE_COUNT_LIMIT + 1) / 80));
+    expect(listedCount).toBe(SUMMARY_CACHE_COUNT_LIMIT);
+    expect(pageCount).toBe(Math.ceil(SUMMARY_CACHE_COUNT_LIMIT / 80));
     expect(cursor).toBeUndefined();
     expect(onSummaryDiscovery).toHaveBeenCalledTimes(1);
     expect(reader.getDiagnostics().summaryCount).toBeLessThanOrEqual(SUMMARY_CACHE_COUNT_LIMIT);
@@ -623,7 +624,7 @@ describe("Codex sessions reader", () => {
     }
   });
 
-  it("keeps summary cache bytes bounded without truncating the discovered list total", async () => {
+  it("keeps summary cache and active snapshot bytes bounded", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
     await mkdir(sessionDir, { recursive: true });
@@ -641,8 +642,8 @@ describe("Codex sessions reader", () => {
       const reader = createReaderWithSmallByteCache({ codexHome });
       const listed = await reader.listExternalSessions({ projects: [], limit: 5 });
 
-      expect(listed.total).toBe(5);
-      expect(listed.sessions).toHaveLength(5);
+      expect(listed.total).toBeLessThan(5);
+      expect(listed.sessions).toHaveLength(listed.total);
       expect(listed.nextCursor).toBeNull();
       expect(reader.getDiagnostics().summaryBytes).toBeLessThanOrEqual(2_000);
     } finally {
