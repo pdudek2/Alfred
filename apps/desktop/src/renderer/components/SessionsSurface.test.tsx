@@ -155,7 +155,12 @@ describe("SessionsSurface", () => {
       sessions: Array.from({ length: 90 }, (_, index) => managedSession(index)),
     });
 
-    expect(screen.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
+    const surface = screen.getByRole("region", { name: "Sessions workspace" });
+    const results = screen.getByRole("listbox", { name: "Session results" });
+    expect(surface).toBeVisible();
+    expect(results).toHaveClass("sessions-results");
+    expect(screen.getAllByRole("option")[0]).toHaveClass("sessions-result");
+    expect(surface.querySelector(".sessions-navigator__results")).toBeNull();
     expect(screen.getByRole("searchbox", { name: "Search sessions" })).toHaveFocus();
     expect(screen.getAllByRole("option")).toHaveLength(80);
     expect(screen.queryByText(/History|Observatory/)).not.toBeInTheDocument();

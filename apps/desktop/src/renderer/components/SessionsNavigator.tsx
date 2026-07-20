@@ -152,7 +152,7 @@ export function SessionsNavigator({
 
       <div
         ref={navigatorRef}
-        className="sessions-navigator__results"
+        className="sessions-results"
         role="listbox"
         aria-label="Session results"
         aria-activedescendant={selectedDomId}
@@ -177,7 +177,7 @@ export function SessionsNavigator({
                   role="option"
                   id={optionDomId(index)}
                   aria-selected={state.selectedSessionKey === session.sessionKey}
-                  className={active ? "active" : undefined}
+                  className={active ? "sessions-result active" : "sessions-result"}
                   key={session.sessionKey}
                   tabIndex={-1}
                   onClick={() => {

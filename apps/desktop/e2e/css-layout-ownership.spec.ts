@@ -82,11 +82,17 @@ const inboxProbes: CssOwnerProbe[] = [
     properties: ["display", "grid-template-columns", "min-width", "overflow"] },
 ];
 
-const observatoryProbes: CssOwnerProbe[] = [
-  { name: "observatory", selector: ".observatory-surface", required: true,
-    properties: ["display", "min-height", "overflow", "background-color"] },
-  { name: "observatory-grid", selector: ".observatory-grid", required: true,
-    properties: ["display", "grid-template-columns", "min-height", "overflow", "gap"] },
+const sessionsProbes: CssOwnerProbe[] = [
+  { name: "sessions", selector: ".sessions-surface", required: true,
+    properties: ["display", "grid-template-columns", "min-height", "overflow", "background-color"] },
+  { name: "sessions-navigator", selector: ".sessions-navigator", required: true,
+    properties: ["display", "min-height", "overflow", "background-color", "border-right-width"] },
+  { name: "sessions-results", selector: ".sessions-results", required: true,
+    properties: ["min-height", "overflow-x", "overflow-y", "background-color"] },
+  { name: "sessions-reader", selector: ".sessions-reader", required: true,
+    properties: ["display", "grid-template-rows", "min-width", "min-height", "overflow", "background-color"] },
+  { name: "sessions-reader-scroll", selector: ".sessions-reader__scroll", required: true,
+    properties: ["min-height", "overflow-x", "overflow-y", "background-color"] },
 ];
 
 const overlayProbes: Record<"command-palette" | "privacy", CssOwnerProbe[]> = {
@@ -178,10 +184,12 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Inbox");
   await capture("inbox", [...frameProbes, ...inboxProbes]);
 
-  await selectSurface(page, "Observatory");
-  await expect(page.getByRole("region", { name: "History workspace" })).toBeVisible();
-  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Observatory");
-  await capture("observatory", [...frameProbes, ...observatoryProbes]);
+  await selectSurface(page, "Sessions");
+  await expect(page.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
+  await page.getByRole("option").first().click();
+  await expect(page.getByRole("article")).toBeVisible();
+  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Sessions");
+  await capture("observatory", [...frameProbes, ...sessionsProbes]);
 
   await selectSurface(page, "Work");
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
@@ -281,7 +289,7 @@ async function addManualTerminal(page: Page): Promise<void> {
 
 async function selectSurface(
   page: Page,
-  surface: "Work" | "Observatory" | "Context" | "Local Data & Privacy",
+  surface: "Work" | "Sessions" | "Context" | "Local Data & Privacy",
 ): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();

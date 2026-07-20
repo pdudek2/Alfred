@@ -25,7 +25,7 @@ async function parseWithLightningCss(source: string, filename: string): Promise<
 function isLiveSliceOneSelector(selector: string): boolean {
   if (
     selector.startsWith(".workspace-layout.surface-inbox")
-    || selector.startsWith(".workspace-layout.surface-history")
+    || selector.startsWith(".workspace-layout.surface-sessions")
   ) return false;
 
   return [
@@ -883,12 +883,12 @@ describe("renderer CSS contracts", () => {
       "grid-template-columns: auto minmax(0, 1fr)",
       "position: relative",
     ]);
-    expectCanonicalBase(".workspace-layout.surface-history", [
+    expectCanonicalBase(".workspace-layout.surface-sessions", [
       "grid-template-columns: auto minmax(0, 1fr)",
       "position: relative",
     ]);
     expect(topLevelExactRuleBodies(".workspace-layout.surface-inbox.preview-visible")).toHaveLength(1);
-    expect(topLevelExactRuleBodies(".workspace-layout.surface-history.preview-visible")).toHaveLength(1);
+    expect(topLevelExactRuleBodies(".workspace-layout.surface-sessions.preview-visible")).toHaveLength(1);
 
     expect(topLevelExactRuleBodies(".workspace-layout:has(.context-column.open)")).toHaveLength(0);
     expect(styles).not.toContain("grid-column: 3");
@@ -987,8 +987,8 @@ describe("renderer CSS contracts", () => {
     expect(popover[0]).not.toMatch(/\b(?:left|top):/);
   });
 
-  it("keeps narrow Inbox and History surfaces beside the 46px navigator at the forced-rail breakpoint", () => {
-    for (const selector of [".workspace-layout.surface-inbox", ".workspace-layout.surface-history"]) {
+  it("keeps narrow Inbox and Sessions surfaces beside the 46px navigator at the forced-rail breakpoint", () => {
+    for (const selector of [".workspace-layout.surface-inbox", ".workspace-layout.surface-sessions"]) {
       const layout = mediaExactRuleBodies("(max-width: 1180px)", selector);
       expect(layout).toHaveLength(1);
       expect(layout[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
@@ -1264,16 +1264,16 @@ describe("renderer CSS contracts", () => {
     expect(compactOverflowMenu[0]).toContain("display: inline-flex");
   });
 
-  it("keeps canonical owners for Inbox Observatory and overlays", () => {
+  it("keeps canonical owners for Inbox Sessions and overlays", () => {
     const inboxRegions = [{
       name: "Inbox docket",
       startMarker: ".inbox-docket {",
-      endMarker: ".observatory-surface {",
+      endMarker: ".sessions-surface {",
     }];
-    const observatoryRegions = [
+    const sessionsRegions = [
       {
-        name: "Observatory surface",
-        startMarker: ".observatory-surface {",
+        name: "Sessions surface",
+        startMarker: ".sessions-surface {",
         endMarker: ".agent-raw-toggle {",
       },
     ];
@@ -1297,13 +1297,18 @@ describe("renderer CSS contracts", () => {
       },
     ];
     const surfaceResponsiveRegion = {
-      name: "Inbox and Observatory responsive ownership",
+      name: "Inbox and Sessions responsive ownership",
       startMarker: ".inbox-docket {",
       endMarker: ".agent-timeline-panel,\n.workspace-preview-panel {",
     };
 
     expectCanonicalBase(".inbox-docket__canvas", ["overflow-y: auto", "overflow-x: hidden"]);
-    expectCanonicalBase(".observatory-grid", ["display: grid"]);
+    expectCanonicalBase(".sessions-surface", ["display: grid", "min-height: 0"]);
+    expectCanonicalBase(".sessions-navigator", ["min-height: 0", "overflow: hidden"]);
+    expectCanonicalBase(".sessions-results", ["overflow-y: auto"]);
+    expectCanonicalBase(".sessions-reader", ["min-width: 0", "min-height: 0"]);
+    expectCanonicalBase(".sessions-reader__scroll", ["overflow-y: auto"]);
+    expect(styles).not.toMatch(/\.observatory-|\.history-surface/);
     const primaryInboxAction = blockForContaining(".inbox-docket__primary", "background: var(--ink-6)");
     expect(primaryInboxAction).toContain("background: var(--ink-6)");
     expect(primaryInboxAction).toContain("border: 1px solid var(--ink-6)");
@@ -1326,50 +1331,41 @@ describe("renderer CSS contracts", () => {
       ".inbox-docket__statusbar",
     ]));
 
-    const observatorySelectors = expectAllFamilyTopLevelOccurrencesWithinSource(
+    const sessionsSelectors = expectAllFamilyTopLevelOccurrencesWithinSource(
       styles,
-      "Observatory",
-      (selector) => selector.startsWith(".observatory-"),
-      observatoryRegions,
+      "Sessions",
+      (selector) => selector.startsWith(".sessions-"),
+      sessionsRegions,
     );
-    expect(observatorySelectors).toEqual(expect.arrayContaining([
-      ".observatory-project:hover",
-      ".observatory-project:focus-visible",
-      ".observatory-project.active",
-      ".observatory-project.current:not(.active)",
-      ".observatory-project.active .observatory-project-marker",
-      ".observatory-project.active .observatory-project-count",
-      ".observatory-project.active .observatory-project-arrow",
-      ".observatory-session-row:hover",
-      ".observatory-session-row:focus-visible",
-      ".observatory-session-row.selected",
-      ".observatory-source-badge.source-external-codex",
-      ".observatory-detail-card.source-external-codex",
-      ".observatory-surface-header button:disabled",
-      ".observatory-surface-header button:hover",
-      ".observatory-surface-header button:focus-visible",
-      ".observatory-detail-card button:disabled",
-      ".observatory-detail-card button:hover",
-      ".observatory-detail-card button:focus-visible",
+    expect(sessionsSelectors).toEqual(expect.arrayContaining([
+      ".sessions-navigator__search:focus-within",
+      ".sessions-result:hover",
+      ".sessions-result:focus-visible",
+      ".sessions-result[aria-selected=\"true\"]",
+      ".sessions-reader__toolbar button:hover",
+      ".sessions-reader__toolbar button:focus-visible",
+      ".sessions-transcript",
+      ".sessions-message",
+      ".sessions-message__body",
+      ".sessions-transcript__blocks pre",
     ]));
 
     expectResponsiveFamilyOwnersWithinSource(
       styles,
-      "Inbox and Observatory",
+      "Inbox and Sessions",
       (selector) => selector.startsWith(".inbox-docket")
-        || selector.startsWith(".observatory-"),
+        || selector.startsWith(".sessions-"),
       [
-        { atRule: "media", query: "(max-width: 1180px)", selector: ".observatory-grid", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 1180px)", selector: ".observatory-detail", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-surface", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-transcript", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-message", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1120px)", selector: ".inbox-docket__detail-grid", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1120px)", selector: ".inbox-docket__facts", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 980px)", selector: ".observatory-surface-header", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 980px)", selector: ".observatory-grid", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(prefers-reduced-motion: reduce)", selector: ".inbox-docket *", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(prefers-reduced-motion: reduce)", selector: ".sessions-result", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(prefers-reduced-motion: reduce)", selector: ".sessions-transcript", region: surfaceResponsiveRegion },
       ],
     );
-
-    expect(exactRuleBodies(".history-surface"), ".history-surface must remain an unstyled semantic hook").toHaveLength(0);
 
     const commandPaletteSelectors = expectAllFamilyTopLevelOccurrencesWithinSource(
       styles,
@@ -1577,13 +1573,15 @@ describe("renderer CSS contracts", () => {
   it("styles workspace scrollbars so native white rails do not dominate the shell", () => {
     const workspaceScroll = exactBlockFor(".project-navigator-scroll");
     const inboxScroll = exactBlockFor(".inbox-docket__canvas");
-    const observatoryScroll = exactBlockFor(".observatory-surface");
+    const sessionsResultsScroll = exactBlockFor(".sessions-results");
+    const sessionsReaderScroll = exactBlockFor(".sessions-reader__scroll");
     const scrollbarThumb = blockFor(".inbox-docket__canvas::-webkit-scrollbar-thumb");
 
     expect(workspaceScroll).toContain("scrollbar-width: thin");
     expect(workspaceScroll).toContain("scrollbar-color:");
     expect(inboxScroll).toContain("scrollbar-width: thin");
-    expect(observatoryScroll).toContain("scrollbar-width: thin");
+    expect(sessionsResultsScroll).toContain("scrollbar-width: thin");
+    expect(sessionsReaderScroll).toContain("scrollbar-width: thin");
     expect(scrollbarThumb).toContain("background:");
   });
 
