@@ -116,16 +116,18 @@ export function SessionsSurface({
   }, []);
 
   useEffect(() => {
-    if (externalSessionIndexingEnabled || !state.selectedSessionKey?.startsWith("external-codex:")) return;
+    const selectedExternalSession = state.selectedSessionKey?.startsWith("external-codex:") ?? false;
+    const hasExternalReaderPages = state.readerPages.some((page) => page.sessionKey.startsWith("external-codex:"));
+    if (externalSessionIndexingEnabled || (!selectedExternalSession && !hasExternalReaderPages)) return;
     requestSequenceRef.current += 1;
     onStateChange((current) => ({
       ...current,
-      selectedSessionKey: null,
+      selectedSessionKey: selectedExternalSession ? null : current.selectedSessionKey,
       readerPages: [],
       readerScrollTop: 0,
     }));
-    setReaderStatus("idle");
-  }, [externalSessionIndexingEnabled, onStateChange, state.selectedSessionKey]);
+    setReaderStatus(selectedExternalSession ? "idle" : "missing");
+  }, [externalSessionIndexingEnabled, onStateChange, state.readerPages, state.selectedSessionKey]);
 
   const selectSession = useCallback(async (summary: SessionSummary) => {
     const requestSequence = requestSequenceRef.current + 1;
@@ -139,6 +141,24 @@ export function SessionsSurface({
     setReaderStatus("loading");
 
     try {
+      if (summary.source === "external-codex" || summary.contentSessionKey) {
+        if (!sessionsApi) {
+          setReaderStatus("error");
+          return;
+        }
+        const page = await sessionsApi.readTranscriptPage({
+          sessionKey: summary.contentSessionKey ?? summary.sessionKey,
+        });
+        if (requestSequenceRef.current !== requestSequence) return;
+        if (page.blocks.length === 0 && page.nextCursor === null) {
+          setReaderStatus("missing");
+          return;
+        }
+        onStateChange((current) => ({ ...current, readerPages: [page] }));
+        setReaderStatus("ready");
+        return;
+      }
+
       if (summary.source === "managed") {
         const target = projection.managedTargets.get(summary.sessionKey);
         const session = target
@@ -156,27 +176,14 @@ export function SessionsSurface({
         return;
       }
 
-      if (!sessionsApi) {
-        setReaderStatus("error");
-        return;
-      }
-      const page = await sessionsApi.readTranscriptPage({
-        sessionKey: summary.contentSessionKey ?? summary.sessionKey,
-      });
-      if (requestSequenceRef.current !== requestSequence) return;
-      if (page.blocks.length === 0 && page.nextCursor === null) {
-        setReaderStatus("missing");
-        return;
-      }
-      onStateChange((current) => ({ ...current, readerPages: [page] }));
-      setReaderStatus("ready");
+      setReaderStatus("error");
     } catch {
       if (requestSequenceRef.current === requestSequence) setReaderStatus("error");
     }
   }, [onStateChange, projection.managedTargets, sessions, sessionsApi, terminalApi]);
 
   const loadMore = useCallback(async () => {
-    if (!selected || selected.source !== "external-codex" || !sessionsApi) return;
+    if (!selected || !sessionsApi || (selected.source !== "external-codex" && !selected.contentSessionKey)) return;
     const cursor = state.readerPages.at(-1)?.nextCursor;
     if (!cursor) return;
     const requestSequence = requestSequenceRef.current + 1;

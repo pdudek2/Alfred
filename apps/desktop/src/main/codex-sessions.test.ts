@@ -45,6 +45,59 @@ describe("Codex sessions reader", () => {
     });
   });
 
+  it("reads a listed external transcript through its content session key without making that key resumable", async () => {
+    const { codexHome } = await transcriptFixture("content-alias", [
+      { type: "session_meta", payload: { id: "content-alias", cwd: "/repo" } },
+      { type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "Alias question" }] } },
+      { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "Alias answer" }] } },
+    ]);
+    const reader = createCodexSessionsReader({ codexHome });
+    const listed = await reader.listExternalSessions({
+      projects: [{ id: "A", label: "Repo", rootPath: "/repo" }],
+    });
+    const summary = listed.sessions[0]!;
+
+    const page = await reader.readTranscriptPage({ sessionKey: summary.contentSessionKey });
+
+    expect(page.blocks.filter((block) => block.kind === "message").map((block) => block.text)).toEqual([
+      "Alias question",
+      "Alias answer",
+    ]);
+    expect(await reader.resolveExternalSession(summary.contentSessionKey)).toEqual({ kind: "none" });
+    expect(await reader.resolveExternalSession(summary.sessionKey)).toEqual({
+      kind: "resume",
+      projectId: "A",
+      cwd: "/repo",
+      sessionId: "content-alias",
+    });
+  });
+
+  it("removes content session aliases when caches are cleared", async () => {
+    const { codexHome } = await transcriptFixture("cleared-alias", [
+      { type: "session_meta", payload: { id: "cleared-alias", cwd: "/repo" } },
+      { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "Private transcript" }] } },
+    ]);
+    const reader = createCodexSessionsReader({ codexHome });
+    const listed = await reader.listExternalSessions({ projects: [] });
+    const contentSessionKey = listed.sessions[0]!.contentSessionKey;
+    await expect(reader.readTranscriptPage({ sessionKey: contentSessionKey })).resolves.toMatchObject({
+      blocks: [expect.objectContaining({ text: "Private transcript" })],
+    });
+
+    reader.clearCaches();
+
+    await expect(reader.readTranscriptPage({ sessionKey: contentSessionKey })).rejects.toThrow("Unknown external session.");
+  });
+
+  it("rejects unknown content-shaped transcript keys without exposing local paths", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const reader = createCodexSessionsReader({ codexHome });
+    const error = await reader.readTranscriptPage({ sessionKey: "external-codex:not-listed" }).catch((reason: unknown) => reason as Error);
+
+    expect(error).toMatchObject({ message: "Unknown external session." });
+    expect(`${error.message}:${JSON.stringify(error)}`).not.toContain(codexHome);
+  });
+
   it("keeps the newest duplicate and prioritizes the Codex title index", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
     const olderDir = path.join(codexHome, "sessions", "2026", "07", "19");

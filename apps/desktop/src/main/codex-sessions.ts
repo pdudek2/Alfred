@@ -40,6 +40,7 @@ type TranscriptCursor = { offset: number; revision: string };
 
 export function createCodexSessionsReader(options: { codexHome: string; summaryLimit?: number }) {
   const sourceBySessionKey = new Map<string, CodexSessionSource>();
+  const sourceByContentSessionKey = new Map<string, CodexSessionSource>();
   const summaryCache = new Map<string, SummaryCacheEntry>();
   const summaryOrder: string[] = [];
   const pageCache = new Map<string, TranscriptPage>();
@@ -102,6 +103,7 @@ export function createCodexSessionsReader(options: { codexHome: string; summaryL
   };
   const clearCaches = (): void => {
     sourceBySessionKey.clear();
+    sourceByContentSessionKey.clear();
     summaryCache.clear();
     summaryOrder.splice(0);
     summaryBytes = 0;
@@ -119,7 +121,10 @@ export function createCodexSessionsReader(options: { codexHome: string; summaryL
       const filtered = filterSummaryMetadata(summaries, request.query ?? "");
       const offset = decodeListCursor(request.cursor, filtered.length);
       const page = pageWithinResponseCeiling(filtered, offset, limit);
-      for (const item of page) sourceBySessionKey.set(item.summary.sessionKey, item.source);
+      for (const item of page) {
+        sourceBySessionKey.set(item.summary.sessionKey, item.source);
+        sourceByContentSessionKey.set(item.summary.contentSessionKey, item.source);
+      }
       return {
         sessions: page.map((item) => item.summary),
         nextCursor: offset + page.length < filtered.length ? encodeListCursor(offset + page.length) : null,
@@ -134,7 +139,7 @@ export function createCodexSessionsReader(options: { codexHome: string; summaryL
       return { kind: "resume", projectId: source.projectId, cwd: source.cwd, sessionId: source.id };
     },
     async readTranscriptPage(request: { sessionKey: string; cursor?: string }): Promise<TranscriptPage> {
-      const source = sourceBySessionKey.get(request.sessionKey);
+      const source = sourceBySessionKey.get(request.sessionKey) ?? sourceByContentSessionKey.get(request.sessionKey);
       if (!source) throw new Error("Unknown external session.");
       let current: { revision: string; size: number };
       try { current = await currentRevision(source.path); } catch { throw transcriptReadError(); }
