@@ -213,7 +213,20 @@ function installDesktopBridge(
     .mockImplementation((request: Parameters<WorkspaceApi["openExternalUrl"]>[0]) =>
       Promise.resolve({ ok: true, url: request.url }),
     );
-  const listExternalSessions = vi.fn().mockResolvedValue({ sessions: externalCodexSessions, nextCursor: null, total: externalCodexSessions.length });
+  const listExternalSessions = vi.fn().mockImplementation((request: Parameters<SessionsApi["listExternalSessions"]>[0]) => {
+    const limit = Math.min(Math.max(request.limit ?? 80, 1), 100);
+    const cursorPrefix = "test-external-cursor:";
+    const offset = request.cursor?.startsWith(cursorPrefix)
+      ? Number.parseInt(request.cursor.slice(cursorPrefix.length), 10)
+      : 0;
+    const sessions = externalCodexSessions.slice(offset, offset + limit);
+    const nextOffset = offset + sessions.length;
+    return Promise.resolve({
+      sessions,
+      nextCursor: nextOffset < externalCodexSessions.length ? `${cursorPrefix}${nextOffset}` : null,
+      total: externalCodexSessions.length,
+    });
+  });
   const readTranscriptPage = vi.fn().mockResolvedValue({ sessionKey: "test", blocks: [], nextCursor: null, revision: "", partial: false });
   const getSessionsDiagnostics = vi.fn().mockResolvedValue({ cachedSessionCount: 0, decodedTranscriptBytes: 0, summaryCount: 0, summaryBytes: 0 });
   const clearSessionsCaches = vi.fn().mockResolvedValue(undefined);
@@ -1007,15 +1020,38 @@ describe("App integration", () => {
     await waitFor(() => expect(clearSessionsCaches).toHaveBeenCalledOnce());
   });
 
-  it("discards an external sessions refresh that resolves after indexing is disabled", async () => {
+  it("discards a late external sessions page after indexing is disabled", async () => {
     const user = userEvent.setup();
     const pending = deferred<{ sessions: ExternalSessionSummary[]; nextCursor: null; total: number }>();
     const { listExternalSessions } = installDesktopBridge();
-    listExternalSessions.mockImplementationOnce(() => pending.promise);
+    listExternalSessions
+      .mockResolvedValueOnce({
+        sessions: [{
+          sessionKey: "external-codex:first-page",
+          lineageKey: "external-codex:first-page",
+          contentSessionKey: "external-codex:first-page",
+          source: "external-codex",
+          kind: "codex",
+          title: "First external page",
+          project: { id: "A", label: "Alfred" },
+          locationLabel: "Alfred",
+          updatedAt: 300,
+          lifecycle: "resumable",
+        }],
+        nextCursor: "opaque-next-page",
+        total: 2,
+      })
+      .mockImplementationOnce(() => pending.promise);
 
     render(<App />);
     await selectSurface(user, "Sessions");
-    await waitFor(() => expect(listExternalSessions).toHaveBeenCalledOnce());
+    await waitFor(() => expect(listExternalSessions).toHaveBeenCalledTimes(2));
+    expect(listExternalSessions).toHaveBeenLastCalledWith({
+      projects: expect.any(Array),
+      limit: 80,
+      cursor: "opaque-next-page",
+    });
+    expect(await screen.findByRole("option", { name: /First external page/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
@@ -1041,7 +1077,9 @@ describe("App integration", () => {
     });
 
     expect(await screen.findByText("External Codex indexing is off.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /First external page/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Stale external session/i })).not.toBeInTheDocument();
+    expect(listExternalSessions).toHaveBeenCalledTimes(2);
   });
 
   it("shows a state-not-saved warning and retries the failed save", async () => {
@@ -2872,9 +2910,9 @@ describe("App integration", () => {
     expect(within(sessions).getAllByRole("option")).toHaveLength(2);
   });
 
-  it("keeps an external Sessions result page capped at 80 while search retains focus", async () => {
+  it("drains external summary pages while keeping each Sessions result page capped at 80", async () => {
     const user = userEvent.setup();
-    const externalSessions = Array.from({ length: 81 }, (_, index): ExternalSessionSummary => {
+    const externalSessions = Array.from({ length: 120 }, (_, index): ExternalSessionSummary => {
       const suffix = String(index + 1).padStart(3, "0");
       return {
         sessionKey: `opaque-session-${suffix}`,
@@ -2889,7 +2927,7 @@ describe("App integration", () => {
         lifecycle: "resumable",
       };
     });
-    installDesktopBridge(
+    const { listExternalSessions } = installDesktopBridge(
       undefined,
       null,
       [],
@@ -2907,7 +2945,22 @@ describe("App integration", () => {
     expect(search).toHaveFocus();
     await user.click(within(within(sessions).getByRole("group", { name: "Session source" }))
       .getByText("External Codex", { exact: true }));
+    await waitFor(() => expect(listExternalSessions).toHaveBeenCalledTimes(2));
+    expect(listExternalSessions).toHaveBeenNthCalledWith(1, {
+      projects: expect.any(Array),
+      limit: 80,
+    });
+    expect(listExternalSessions).toHaveBeenNthCalledWith(2, {
+      projects: expect.any(Array),
+      limit: 80,
+      cursor: "test-external-cursor:80",
+    });
+    expect(within(sessions).getByRole("status")).toHaveTextContent("120 results");
     expect(within(sessions).getAllByRole("option")).toHaveLength(80);
+
+    await user.click(within(sessions).getByRole("button", { name: "Next" }));
+    expect(within(sessions).getAllByRole("option")).toHaveLength(40);
+    expect(within(sessions).getByRole("option", { name: /Bounded external session 120/i })).toBeVisible();
 
     await user.type(search, "081");
     expect(search).toHaveFocus();
