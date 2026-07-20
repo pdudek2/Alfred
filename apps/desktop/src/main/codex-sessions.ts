@@ -266,7 +266,9 @@ async function streamTranscriptPage(source: CodexSessionSource, sessionKey: stri
     const block = parsed.block;
     const blockBytes = Buffer.byteLength(block.text, "utf8");
     if (blocks.length >= pageLimit()) return makePage(line.start);
-    if (textBytes + blockBytes + (blocks.length ? 1 : 0) > TRANSCRIPT_TEXT_LIMIT) {
+    const pendingNoticeBytes = partialNotice ? Buffer.byteLength(partialNotice, "utf8") + 1 : 0;
+    if (textBytes + blockBytes + (blocks.length ? 1 : 0) + pendingNoticeBytes > TRANSCRIPT_TEXT_LIMIT) {
+      if (partialNotice) return makePage(line.start);
       if (!blocks.length) {
         partialNotice = TRUNCATED_NOTICE;
         const text = truncateUtf8(block.text, TRANSCRIPT_TEXT_LIMIT - Buffer.byteLength(TRUNCATED_NOTICE, "utf8") - 1);

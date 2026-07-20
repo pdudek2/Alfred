@@ -220,6 +220,30 @@ describe("Codex sessions reader", () => {
     expect(second.blocks.filter((block) => block.kind === "message").map((block) => block.text)).toEqual(["After malformed"]);
   });
 
+  it("reserves a pending malformed notice before admitting a near-limit valid message", async () => {
+    const nearLimit = "r".repeat(256 * 1024 - 8);
+    const { codexHome } = await transcriptFixture("notice-reserve", [
+      { type: "session_meta", payload: { id: "notice-reserve", cwd: "/repo" } },
+      "{ malformed",
+      { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: nearLimit }] } },
+      { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "Later valid" }] } },
+    ]);
+    const reader = createCodexSessionsReader({ codexHome });
+    const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
+    const sessionKey = listed.sessions[0]!.sessionKey;
+    const pages = [];
+    let cursor: string | undefined;
+    do {
+      const page = await reader.readTranscriptPage({ sessionKey, ...(cursor ? { cursor } : {}) });
+      pages.push(page);
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+
+    expect(pages.flatMap((page) => page.blocks.filter((block) => block.kind === "notice").map((block) => block.text))).toEqual(["Some malformed transcript records were omitted."]);
+    expect(pages.flatMap((page) => page.blocks.filter((block) => block.kind === "message").map((block) => block.text))).toEqual([nearLimit, "Later valid"]);
+    expect(Buffer.byteLength(pages.flatMap((page) => page.blocks).find((block) => block.kind === "message")!.text)).toBe(Buffer.byteLength(nearLimit));
+  });
+
   it("uses UTF-8 byte cursors and returns every source message exactly once across byte-limited pages", async () => {
     const messages = Array.from({ length: 120 }, (_, index) => `${String(index).padStart(3, "0")}:${"x".repeat(6_000)}`);
     const records = [
