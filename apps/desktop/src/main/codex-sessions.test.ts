@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createCodexSessionsReader } from "./codex-sessions.js";
-import { SUMMARY_CACHE_COUNT_LIMIT } from "../shared/sessions-ipc.js";
+import { SUMMARY_CACHE_COUNT_LIMIT, SUMMARY_CACHE_TEXT_LIMIT } from "../shared/sessions-ipc.js";
 import {
   writeCodexSummaryFixtures,
   writeLargeCodexTranscriptFixture,
@@ -469,6 +469,80 @@ describe("Codex sessions reader", () => {
       summaryBytes: diagnostics.summaryBytes,
       summaryCount: diagnostics.summaryCount,
     }));
+  });
+
+  it("bounds and releases a renderer-consumed snapshot when discovery exceeds the 5,000 summary cap", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    await writeCodexSummaryFixtures(codexHome, SUMMARY_CACHE_COUNT_LIMIT + 1, "/fixture/project");
+    const onSummaryDiscovery = vi.fn();
+    const reader = createCodexSessionsReader({ codexHome, onSummaryDiscovery });
+    const request = {
+      projects: [{ id: "A", label: "Fixture project", rootPath: "/fixture/project" }],
+      limit: 80,
+    };
+    let cursor: string | undefined;
+    let finalPageCursor: string | undefined;
+    let listedCount = 0;
+    let pageCount = 0;
+    const startedAt = performance.now();
+    do {
+      finalPageCursor = cursor;
+      const page = await reader.listExternalSessions({
+        ...request,
+        ...(cursor ? { cursor } : {}),
+        limit: Math.min(80, SUMMARY_CACHE_COUNT_LIMIT - listedCount),
+      });
+      expect(page.total).toBe(SUMMARY_CACHE_COUNT_LIMIT);
+      listedCount += page.sessions.length;
+      pageCount += 1;
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor && listedCount < SUMMARY_CACHE_COUNT_LIMIT);
+    const drainMs = performance.now() - startedAt;
+
+    expect(listedCount).toBe(SUMMARY_CACHE_COUNT_LIMIT);
+    expect(pageCount).toBe(Math.ceil(SUMMARY_CACHE_COUNT_LIMIT / 80));
+    expect(cursor).toBeUndefined();
+    expect(onSummaryDiscovery).toHaveBeenCalledTimes(1);
+    expect(reader.getDiagnostics().summaryCount).toBeLessThanOrEqual(SUMMARY_CACHE_COUNT_LIMIT);
+    expect(reader.getDiagnostics().summaryBytes).toBeLessThanOrEqual(SUMMARY_CACHE_TEXT_LIMIT);
+    await expect(reader.listExternalSessions({ ...request, cursor: finalPageCursor! }))
+      .rejects.toThrow("Invalid external sessions cursor.");
+    console.info(JSON.stringify({
+      evidence: "sessions-summary-snapshot-cap",
+      discoveredCount: SUMMARY_CACHE_COUNT_LIMIT + 1,
+      drainMs: Number(drainMs.toFixed(3)),
+      listedCount,
+      pageCount,
+      ...reader.getDiagnostics(),
+    }));
+  });
+
+  it("keeps a list snapshot inside the summary byte ceiling", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
+    await mkdir(sessionDir, { recursive: true });
+    await Promise.all(Array.from({ length: 5 }, (_, index) => writeFile(
+      path.join(sessionDir, `byte-summary-${index}.jsonl`),
+      codexLines({ id: `byte-summary-${index}`, cwd: "/repo", title: "x".repeat(400) }),
+    )));
+    vi.resetModules();
+    vi.doMock("../shared/sessions-ipc.js", async (importOriginal) => ({
+      ...await importOriginal<typeof import("../shared/sessions-ipc.js")>(),
+      SUMMARY_CACHE_TEXT_LIMIT: 2_000,
+    }));
+    try {
+      const { createCodexSessionsReader: createReaderWithSmallByteCache } = await import("./codex-sessions.js");
+      const reader = createReaderWithSmallByteCache({ codexHome });
+      const listed = await reader.listExternalSessions({ projects: [], limit: 5 });
+
+      expect(listed.total).toBeGreaterThan(0);
+      expect(listed.total).toBeLessThan(5);
+      expect(listed.nextCursor).toBeNull();
+      expect(reader.getDiagnostics().summaryBytes).toBeLessThanOrEqual(2_000);
+    } finally {
+      vi.doUnmock("../shared/sessions-ipc.js");
+      vi.resetModules();
+    }
   });
 
   it("streams the first page of a 10 MiB 100k-line transcript without reading to EOF", async () => {
