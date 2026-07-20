@@ -25,10 +25,10 @@ test("Sessions exposes all 120 external summaries through bounded UI pages and l
   await selectSurface(page, "Sessions");
   const sessions = page.getByRole("region", { name: "Sessions workspace" });
   await page.getByRole("group", { name: "Session source" })
-    .getByText("External Codex", { exact: true })
+    .getByText("Codex", { exact: true })
     .click();
 
-  await expect(sessions.getByRole("status")).toHaveText("120 results");
+  await expect(sessions.getByRole("status")).toHaveText("120 conversations");
   await expect(sessions.getByRole("option")).toHaveCount(80);
   await sessions.getByRole("button", { name: "Next" }).click();
   await expect(sessions.getByRole("option")).toHaveCount(40);

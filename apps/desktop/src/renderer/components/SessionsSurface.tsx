@@ -18,6 +18,7 @@ import type { SessionTile } from "../session-state";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { appendTranscriptPage, type SessionsViewState } from "../sessions-view-state";
 import { SessionsNavigator } from "./SessionsNavigator";
+import { SessionsProjects } from "./SessionsProjects";
 import { SessionsReader, type SessionsReaderStatus } from "./SessionsReader";
 
 export type SessionsSurfaceProps = {
@@ -56,6 +57,7 @@ export function SessionsSurface({
   onStateChange,
 }: SessionsSurfaceProps) {
   const searchRef = useRef<HTMLInputElement | null>(null);
+  const projectsRef = useRef<HTMLDivElement | null>(null);
   const navigatorRef = useRef<HTMLDivElement | null>(null);
   const readerRef = useRef<HTMLDivElement | null>(null);
   const initialFocusTargetRef = useRef(state.focusTarget);
@@ -80,14 +82,30 @@ export function SessionsSurface({
       externalSessions: filteredExternalSessions,
       query: state.query,
       pageIndex: state.pageIndex,
+      projectId: state.selectedProjectId,
     }),
-    [filteredExternalSessions, filteredSessions, state.pageIndex, state.query, workspaces],
+    [filteredExternalSessions, filteredSessions, state.pageIndex, state.query, state.selectedProjectId, workspaces],
+  );
+  const projectProjection = useMemo(
+    () => buildSessionsProjection({
+      sessions,
+      workspaces,
+      externalSessions,
+      projectId: "all",
+    }),
+    [externalSessions, sessions, workspaces],
   );
   const [activeSessionKey, setActiveSessionKey] = useState<string | null>(
     state.selectedSessionKey ?? projection.items[0]?.sessionKey ?? null,
   );
-  const selected = projection.items.find((item) => item.sessionKey === state.selectedSessionKey) ?? null;
-  const selectedManagedTarget = selected ? projection.managedTargets.get(selected.sessionKey) ?? null : null;
+  const projectedSelected = projection.items.find((item) => item.sessionKey === state.selectedSessionKey) ?? null;
+  const [selectedSummary, setSelectedSummary] = useState<SessionSummary | null>(projectedSelected);
+  const selected = projectedSelected
+    ?? (selectedSummary?.sessionKey === state.selectedSessionKey ? selectedSummary : null);
+  const selectedManagedTarget = selected
+    ? projection.managedTargets.get(selected.sessionKey)
+      ?? managedTargetForSummary(selected, sessions)
+    : null;
   const selectedManagedSession = selectedManagedTarget
     ? sessions.find((item) => (
         item.id === selectedManagedTarget.sessionId
@@ -124,7 +142,9 @@ export function SessionsSurface({
   }, [onStateChange]);
 
   useEffect(() => {
-    const target = initialFocusTargetRef.current === "results"
+    const target = initialFocusTargetRef.current === "projects"
+      ? projectsRef.current?.querySelector<HTMLElement>("button") ?? null
+      : initialFocusTargetRef.current === "results"
       ? navigatorRef.current
       : initialFocusTargetRef.current === "reader"
         ? readerRef.current
@@ -139,13 +159,24 @@ export function SessionsSurface({
   }, [activeSessionKey, projection.items]);
 
   useEffect(() => {
+    if (projectedSelected) {
+      setSelectedSummary(projectedSelected);
+    } else if (!state.selectedSessionKey) {
+      setSelectedSummary(null);
+    }
+  }, [projectedSelected, state.selectedSessionKey]);
+
+  useEffect(() => {
     if (navigatorRef.current && navigatorRef.current.scrollTop !== state.navigatorScrollTop) {
       navigatorRef.current.scrollTop = state.navigatorScrollTop;
+    }
+    if (projectsRef.current && projectsRef.current.scrollTop !== state.projectsScrollTop) {
+      projectsRef.current.scrollTop = state.projectsScrollTop;
     }
     if (readerRef.current && readerRef.current.scrollTop !== state.readerScrollTop) {
       readerRef.current.scrollTop = state.readerScrollTop;
     }
-  }, [state.navigatorScrollTop, state.readerScrollTop]);
+  }, [state.navigatorScrollTop, state.projectsScrollTop, state.readerScrollTop]);
 
   useEffect(() => {
     const handleFind = (event: KeyboardEvent) => {
@@ -176,14 +207,19 @@ export function SessionsSurface({
     setReaderStatus(selectedExternalSession ? "idle" : "missing");
   }, [externalSessionIndexingEnabled, onStateChange, state.readerPages, state.selectedSessionKey]);
 
-  const selectSession = useCallback(async (summary: SessionSummary) => {
+  const selectSession = useCallback(async (
+    summary: SessionSummary,
+    readerMode: SessionsViewState["readerMode"] = "conversation",
+  ) => {
     const requestSequence = requestSequenceRef.current + 1;
     requestSequenceRef.current = requestSequence;
+    setSelectedSummary(summary);
     onStateChange((current) => ({
       ...current,
       selectedSessionKey: summary.sessionKey,
       readerPages: [],
       readerScrollTop: 0,
+      readerMode,
     }));
     setReaderStatus("loading");
     setReaderPageError(null);
@@ -196,6 +232,7 @@ export function SessionsSurface({
         }
         const page = await sessionsApi.readTranscriptPage({
           sessionKey: summary.contentSessionKey ?? summary.sessionKey,
+          ...(readerMode === "raw" ? { mode: "raw" as const } : {}),
         });
         if (requestSequenceRef.current !== requestSequence) return;
         if (page.blocks.length === 0 && page.nextCursor === null) {
@@ -241,6 +278,7 @@ export function SessionsSurface({
       const page = await sessionsApi.readTranscriptPage({
         sessionKey: selected.contentSessionKey ?? selected.sessionKey,
         cursor,
+        ...(state.readerMode === "raw" ? { mode: "raw" as const } : {}),
       });
       if (requestSequenceRef.current !== requestSequence) return;
       onStateChange((current) => appendTranscriptPage(current, page));
@@ -251,7 +289,7 @@ export function SessionsSurface({
         setReaderPageError("The next transcript page could not be loaded.");
       }
     }
-  }, [onStateChange, selected, sessionsApi, state.readerPages]);
+  }, [onStateChange, selected, sessionsApi, state.readerMode, state.readerPages]);
 
   return (
     <section
@@ -265,6 +303,18 @@ export function SessionsSurface({
         onBackToWork();
       }}
     >
+      <SessionsProjects
+        counts={projectProjection.projectCounts}
+        projectsRef={projectsRef}
+        selectedProjectId={state.selectedProjectId}
+        workspaces={workspaces}
+        onBackToWork={onBackToWork}
+        onScrollTopChange={(projectsScrollTop) => patchState({ projectsScrollTop })}
+        onSelectProject={(selectedProjectId) => {
+          setActiveSessionKey(null);
+          patchState({ selectedProjectId, pageIndex: 0, navigatorScrollTop: 0 });
+        }}
+      />
       <SessionsNavigator
         activeSessionKey={activeSessionKey}
         externalSessionIndexingEnabled={externalSessionIndexingEnabled}
@@ -275,7 +325,6 @@ export function SessionsSurface({
         searchRef={searchRef}
         state={state}
         onActiveSessionKeyChange={setActiveSessionKey}
-        onBackToWork={onBackToWork}
         onOpenPrivacySettings={onOpenPrivacySettings}
         onRefreshExternalSessions={onRefreshExternalSessions}
         onSelectSession={(summary) => void selectSession(summary)}
@@ -300,6 +349,8 @@ export function SessionsSurface({
         selected={selected}
         status={readerStatus}
         pageError={readerPageError}
+        readerMode={state.readerMode}
+        canReadRaw={Boolean(selected && (selected.source === "external-codex" || selected.contentSessionKey))}
         onLoadMore={() => void loadMore()}
         onRetryTranscript={() => {
           if (selected) void selectSession(selected);
@@ -307,11 +358,24 @@ export function SessionsSurface({
         onPrimaryAction={() => {
           if (primaryActionRequest) onPrimaryAction?.(primaryActionRequest);
         }}
+        onReaderModeChange={(readerMode) => {
+          if (selected) void selectSession(selected, readerMode);
+        }}
         onScrollTopChange={(readerScrollTop) => patchState({ readerScrollTop })}
         onFocus={() => patchState({ focusTarget: "reader" })}
       />
     </section>
   );
+}
+
+function managedTargetForSummary(
+  summary: SessionSummary,
+  sessions: SessionTile[],
+): { workspaceId: string; sessionId: string } | null {
+  if (summary.source !== "managed" || !summary.sessionKey.startsWith("managed:")) return null;
+  const sessionId = summary.sessionKey.slice("managed:".length);
+  const session = sessions.find((item) => item.id === sessionId);
+  return session ? { workspaceId: session.workspaceId, sessionId: session.id } : null;
 }
 
 async function readManagedTranscript(

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { createCodexSessionsReader } from "./codex-sessions.js";
 import { isAllowedWorkspacePath } from "./workspace-path.js";
-import { sessionsChannels, type ResolveExternalSessionResult, type TranscriptPage } from "../shared/sessions-ipc.js";
+import { sessionsChannels, type ReadTranscriptPageRequest, type ResolveExternalSessionResult, type TranscriptPage } from "../shared/sessions-ipc.js";
 import type { SessionsProjectInput } from "../shared/sessions-ipc.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 
@@ -87,11 +87,12 @@ function isListSnapshotReleaseRequest(value: unknown): value is { cursor: string
     && (value as { cursor: string }).cursor.length > 0;
 }
 
-function isTranscriptPageRequest(value: unknown): value is { sessionKey: string; cursor?: string } {
+function isTranscriptPageRequest(value: unknown): value is ReadTranscriptPageRequest {
   return typeof value === "object" && value !== null
     && typeof (value as { sessionKey?: unknown }).sessionKey === "string"
     && (value as { sessionKey: string }).sessionKey.length > 0
-    && ((value as { cursor?: unknown }).cursor === undefined || typeof (value as { cursor?: unknown }).cursor === "string");
+    && ((value as { cursor?: unknown }).cursor === undefined || typeof (value as { cursor?: unknown }).cursor === "string")
+    && ((value as { mode?: unknown }).mode === undefined || (value as { mode?: unknown }).mode === "conversation" || (value as { mode?: unknown }).mode === "raw");
 }
 
 function emptyTranscriptPage(sessionKey: string): TranscriptPage {

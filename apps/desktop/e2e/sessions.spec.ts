@@ -39,11 +39,13 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
   const sessions = page.getByRole("region", { name: "Sessions workspace" });
   await expect(sessions).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Projects and Free Chats" })).toHaveCount(0);
+  await expect(sessions.getByRole("navigation", { name: "Projects" })).toBeVisible();
+  await expect(sessions.getByRole("button", { name: /Fixture Alpha/ })).toBeVisible();
   const search = page.getByRole("searchbox", { name: "Search sessions" });
   await expect(search).toBeFocused();
 
   await page.getByRole("group", { name: "Session source" })
-    .getByText("External Codex", { exact: true })
+    .getByText("Codex", { exact: true })
     .click();
   await expect(page.getByRole("option")).toHaveCount(12);
   expect(await page.locator(".sessions-result").count()).toBeLessThanOrEqual(80);

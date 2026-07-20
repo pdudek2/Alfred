@@ -1,4 +1,4 @@
-import { ChevronLeft, RefreshCcw, Search } from "lucide-react";
+import { RefreshCcw, Search } from "lucide-react";
 import type { ChangeEvent, KeyboardEvent, RefObject } from "react";
 import { SESSIONS_PAGE_SIZE, type SessionSummary } from "../../shared/sessions-ipc";
 import type { SessionsProjectionPage } from "../sessions-projection";
@@ -15,7 +15,6 @@ type SessionsNavigatorProps = {
   searchRef: RefObject<HTMLInputElement | null>;
   state: SessionsViewState;
   onActiveSessionKeyChange: (sessionKey: string | null) => void;
-  onBackToWork: () => void;
   onOpenPrivacySettings: (() => void) | undefined;
   onRefreshExternalSessions: () => void;
   onSelectSession: (session: SessionSummary) => void;
@@ -33,7 +32,6 @@ export function SessionsNavigator({
   searchRef,
   state,
   onActiveSessionKeyChange,
-  onBackToWork,
   onOpenPrivacySettings,
   onRefreshExternalSessions,
   onSelectSession,
@@ -43,13 +41,9 @@ export function SessionsNavigator({
   const activeIndex = Math.max(0, projection.items.findIndex((item) => item.sessionKey === activeSessionKey));
   const selectedDomId = projection.items.length > 0 ? optionDomId(activeIndex) : undefined;
   const resultStatus = loadingExternalSessions && projection.items.length === 0
-    ? "Loading sessions…"
-    : `${projection.total} result${projection.total === 1 ? "" : "s"}`;
+    ? "Loading conversations…"
+    : `${projection.total} conversation${projection.total === 1 ? "" : "s"}`;
   const hasNextPage = (state.pageIndex + 1) * SESSIONS_PAGE_SIZE < projection.total;
-
-  const updateQuery = (event: ChangeEvent<HTMLInputElement>) => {
-    onStatePatch({ query: event.target.value, pageIndex: 0 });
-  };
 
   const handleListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (projection.items.length === 0) return;
@@ -59,15 +53,15 @@ export function SessionsNavigator({
       if (session) onSelectSession(session);
       return;
     }
-
-    const nextIndex = (() => {
-      if (event.key === "ArrowDown") return Math.min(projection.items.length - 1, activeIndex + 1);
-      if (event.key === "ArrowUp") return Math.max(0, activeIndex - 1);
-      if (event.key === "Home") return 0;
-      if (event.key === "End") return projection.items.length - 1;
-      return;
-    })();
-
+    const nextIndex = event.key === "ArrowDown"
+      ? Math.min(projection.items.length - 1, activeIndex + 1)
+      : event.key === "ArrowUp"
+        ? Math.max(0, activeIndex - 1)
+        : event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? projection.items.length - 1
+            : undefined;
     if (nextIndex === undefined) return;
     event.preventDefault();
     const session = projection.items[nextIndex];
@@ -76,70 +70,43 @@ export function SessionsNavigator({
   };
 
   return (
-    <aside className="sessions-navigator" aria-label="Sessions search">
-      <div className="sessions-navigator__heading">
-        <button type="button" onClick={onBackToWork}>
-          <ChevronLeft aria-hidden="true" size={14} />
-          <span>Projects</span>
-        </button>
-        <strong>Sessions</strong>
-      </div>
+    <aside className="sessions-navigator" aria-label="Conversations">
+      <header className="sessions-navigator__heading">
+        <strong>Conversations</strong>
+        <span>{projection.total}</span>
+      </header>
       <label className="sessions-navigator__search">
         <Search aria-hidden="true" size={15} />
         <input
           ref={searchRef}
           type="search"
           aria-label="Search sessions"
-          placeholder="Search sessions…"
+          placeholder="Search conversations…"
           value={state.query}
-          onChange={updateQuery}
+          onChange={(event: ChangeEvent<HTMLInputElement>) => onStatePatch({ query: event.target.value, pageIndex: 0 })}
           onFocus={() => onFocusTargetChange("search")}
         />
       </label>
       <div className="sessions-navigator__filters">
         <fieldset aria-label="Session source">
           <legend className="visually-hidden">Session source</legend>
-          {([
-            ["all", "All sources"],
-            ["managed", "Managed"],
-            ["external-codex", "External Codex"],
-          ] as const).map(([value, label]) => (
+          {([ ["all", "All"], ["managed", "Managed"], ["external-codex", "Codex"] ] as const).map(([value, label]) => (
             <label key={value}>
-              <input
-                type="radio"
-                name="sessions-source"
-                checked={state.source === value}
-                onChange={() => onStatePatch({ source: value, pageIndex: 0 })}
-              />
+              <input type="radio" name="sessions-source" checked={state.source === value} onChange={() => onStatePatch({ source: value, pageIndex: 0 })} />
               <span>{label}</span>
             </label>
           ))}
         </fieldset>
         <fieldset aria-label="Session time range">
           <legend className="visually-hidden">Session time range</legend>
-          {([
-            ["any", "Any time"],
-            ["day", "Past day"],
-            ["week", "Past week"],
-            ["month", "Past month"],
-          ] as const).map(([value, label]) => (
+          {([ ["any", "Any time"], ["day", "Day"], ["week", "Week"], ["month", "Month"] ] as const).map(([value, label]) => (
             <label key={value}>
-              <input
-                type="radio"
-                name="sessions-time-range"
-                checked={state.timeRange === value}
-                onChange={() => onStatePatch({ timeRange: value, pageIndex: 0 })}
-              />
+              <input type="radio" name="sessions-time-range" checked={state.timeRange === value} onChange={() => onStatePatch({ timeRange: value, pageIndex: 0 })} />
               <span>{label}</span>
             </label>
           ))}
         </fieldset>
-        <button
-          type="button"
-          aria-label="Refresh external sessions"
-          disabled={!externalSessionIndexingEnabled || loadingExternalSessions}
-          onClick={onRefreshExternalSessions}
-        >
+        <button type="button" aria-label="Refresh external sessions" disabled={!externalSessionIndexingEnabled || loadingExternalSessions} onClick={onRefreshExternalSessions}>
           <RefreshCcw aria-hidden="true" size={14} />
         </button>
       </div>
@@ -147,26 +114,19 @@ export function SessionsNavigator({
       {!externalSessionIndexingEnabled && (
         <p className="sessions-navigator__notice">
           <strong>External Codex indexing is off.</strong>
-          {onOpenPrivacySettings && (
-            <button type="button" onClick={onOpenPrivacySettings}>Open Local Data &amp; Privacy</button>
-          )}
+          {onOpenPrivacySettings && <button type="button" onClick={onOpenPrivacySettings}>Open Local Data &amp; Privacy</button>}
         </p>
       )}
       {externalSessionIndexingEnabled && externalSessionsError && (
-        <p className="sessions-navigator__notice">
-          <strong>External sessions may be incomplete.</strong>
-          <span>{externalSessionsError}</span>
-        </p>
+        <p className="sessions-navigator__notice"><strong>External sessions may be incomplete.</strong><span>{externalSessionsError}</span></p>
       )}
-      <span className="sessions-navigator__result-status" role="status" aria-live="polite" aria-atomic="true">
-        {resultStatus}
-      </span>
+      <span className="sessions-navigator__result-status" role="status" aria-live="polite" aria-atomic="true">{resultStatus}</span>
 
       <div
         ref={navigatorRef}
         className="sessions-results"
         role="listbox"
-        aria-label="Session results"
+        aria-label="Conversation results"
         aria-activedescendant={selectedDomId}
         tabIndex={0}
         onFocus={() => onFocusTargetChange("results")}
@@ -175,64 +135,47 @@ export function SessionsNavigator({
       >
         {projection.items.length === 0 && !loadingExternalSessions ? (
           <div className="sessions-navigator__empty">
-            <strong>No sessions found.</strong>
-            <span>Try another title, project, source, or time range.</span>
-            {state.query && (
-              <button type="button" onClick={() => onStatePatch({ query: "", pageIndex: 0 })}>Clear search</button>
-            )}
+            <strong>No conversations found.</strong>
+            <span>Try another title, source, or time range.</span>
+            {state.query && <button type="button" onClick={() => onStatePatch({ query: "", pageIndex: 0 })}>Clear search</button>}
           </div>
-        ) : projection.groups.map((group) => (
-          <section role="group" aria-label={group.label} key={group.id}>
-            <h2>{group.label}</h2>
-            {group.items.map((session) => {
-              const index = projection.items.findIndex((item) => item.sessionKey === session.sessionKey);
-              const active = index === activeIndex;
-              return (
-                <button
-                  type="button"
-                  role="option"
-                  id={optionDomId(index)}
-                  aria-selected={state.selectedSessionKey === session.sessionKey}
-                  className={active ? "sessions-result active" : "sessions-result"}
-                  key={session.sessionKey}
-                  tabIndex={-1}
-                  onClick={() => {
-                    onActiveSessionKeyChange(session.sessionKey);
-                    onSelectSession(session);
-                  }}
-                >
-                  <span className="sessions-navigator__result-title">
-                    <strong>{session.title}</strong>
-                    <time>{sessionAgeLabel(session.updatedAt)}</time>
-                  </span>
-                  {session.snippet && <span>{session.snippet}</span>}
-                  <span className="sessions-navigator__result-meta">
-                    <b>{session.kind === "manual" ? "Manual" : session.kind === "claude" ? "Claude" : "Codex"}</b>
-                    <span>{session.branch ?? session.locationLabel}</span>
-                  </span>
-                </button>
-              );
-            })}
-          </section>
+        ) : projection.items.map((session, index) => (
+          <button
+            type="button"
+            role="option"
+            id={optionDomId(index)}
+            aria-selected={state.selectedSessionKey === session.sessionKey}
+            className={index === activeIndex ? "sessions-result active" : "sessions-result"}
+            key={session.sessionKey}
+            tabIndex={-1}
+            onClick={() => {
+              onActiveSessionKeyChange(session.sessionKey);
+              onSelectSession(session);
+            }}
+          >
+            <span className="sessions-navigator__result-title"><strong>{session.title}</strong><time>{sessionAgeLabel(session.updatedAt)}</time></span>
+            {session.snippet && <span>{session.snippet}</span>}
+            <span className="sessions-navigator__result-meta">
+              <b>{session.kind === "manual" ? "Manual" : session.kind === "claude" ? "Claude" : "Codex"}</b>
+              <span>{session.branch ?? session.locationLabel}</span>
+              {(session.delegatedRunCount ?? 0) > 0 && <em>{session.delegatedRunCount} delegated</em>}
+            </span>
+          </button>
         ))}
       </div>
+      {state.selectedProjectId === "all" && projection.technicalRunCount > 0 && (
+        <details className="sessions-navigator__maintenance">
+          <summary>
+            {projection.technicalRunCount} internal run{projection.technicalRunCount === 1 ? "" : "s"} hidden
+          </summary>
+          <p>These records could not be attached to a verified parent conversation.</p>
+        </details>
+      )}
       {(state.pageIndex > 0 || hasNextPage) && (
-        <nav className="sessions-navigator__pagination" aria-label="Session result pages">
-          <button
-            type="button"
-            disabled={state.pageIndex === 0}
-            onClick={() => onStatePatch({ pageIndex: Math.max(0, state.pageIndex - 1), navigatorScrollTop: 0 })}
-          >
-            Previous
-          </button>
+        <nav className="sessions-navigator__pagination" aria-label="Conversation result pages">
+          <button type="button" disabled={state.pageIndex === 0} onClick={() => onStatePatch({ pageIndex: Math.max(0, state.pageIndex - 1), navigatorScrollTop: 0 })}>Previous</button>
           <span>Page {state.pageIndex + 1}</span>
-          <button
-            type="button"
-            disabled={!hasNextPage}
-            onClick={() => onStatePatch({ pageIndex: state.pageIndex + 1, navigatorScrollTop: 0 })}
-          >
-            Next
-          </button>
+          <button type="button" disabled={!hasNextPage} onClick={() => onStatePatch({ pageIndex: state.pageIndex + 1, navigatorScrollTop: 0 })}>Next</button>
         </nav>
       )}
     </aside>

@@ -92,7 +92,7 @@ describe("sessionsPrimaryAction", () => {
 });
 
 describe("buildSessionsProjection", () => {
-  it("normalizes lifecycle state, groups Free Chats, and merges a resumed Codex lineage", () => {
+  it("normalizes lifecycle state, identifies Free Chats, and merges a resumed Codex lineage", () => {
     const externalId = "019fff00-1111-7222-8333-444444444444";
     const liveCodex = managedSession({
       resumeTarget: { agentKind: "codex", sessionId: externalId, source: "codex-session-index" },
@@ -135,13 +135,11 @@ describe("buildSessionsProjection", () => {
       externalSessions: [externalSession(externalId)],
     });
 
-    expect(projection.groups.find((group) => group.id === "free-chats")?.items).toHaveLength(2);
-    expect(projection.groups.find((group) => group.id === "free-chats")?.items).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ sessionKey: "managed:free-chat" }),
-        expect.objectContaining({ sessionKey: "managed:restored-free-chat", lifecycle: "recoverable" }),
-      ]),
-    );
+    expect(projection.projectCounts["free-chats"]).toBe(2);
+    expect(projection.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sessionKey: "managed:free-chat" }),
+      expect.objectContaining({ sessionKey: "managed:restored-free-chat", lifecycle: "recoverable" }),
+    ]));
     expect(projection.items.filter((item) => item.lineageKey === `codex:${externalId}`)).toHaveLength(1);
     expect(projection.items.find((item) => item.lineageKey === `codex:${externalId}`)).toMatchObject({
       sessionKey: "managed:managed-codex",
@@ -194,6 +192,36 @@ describe("buildSessionsProjection", () => {
     expect(secondPage.total).toBe(82);
   });
 
+  it("scopes conversations by project before search and paging while keeping stable project counts", () => {
+    const projectB = managedSession({
+      id: "client-session",
+      workspaceId: "B",
+      cwd: "/Users/patryk/Desktop/ClientApp",
+      title: "Client release",
+    });
+    const allWorkspaces = [
+      ...workspaces,
+      { id: "B", label: "ClientApp", rootPath: "/Users/patryk/Desktop/ClientApp" },
+    ];
+
+    const client = buildSessionsProjection({
+      sessions: [managedSession(), projectB],
+      workspaces: allWorkspaces,
+      externalSessions: [],
+      projectId: "B",
+    });
+    const all = buildSessionsProjection({
+      sessions: [managedSession(), projectB],
+      workspaces: allWorkspaces,
+      externalSessions: [],
+      projectId: "all",
+    });
+
+    expect(client.items).toMatchObject([{ title: "Client release" }]);
+    expect(client.projectCounts).toEqual(expect.objectContaining({ A: 1, B: 1 }));
+    expect(all.items).toHaveLength(2);
+  });
+
   it("keeps external transcript identity when the newest managed tile wins a duplicate lineage", () => {
     const externalId = "019fff00-5555-7222-8333-444444444444";
     const newest = managedSession({
@@ -221,6 +249,69 @@ describe("buildSessionsProjection", () => {
       workspaceId: "A",
       sessionId: "managed-newest",
     });
+  });
+
+  it("collapses delegated runs under their parent conversation instead of listing them as peers", () => {
+    const parentId = "parent-conversation";
+    const parent = externalSession(parentId, {
+      title: "Implement the Sessions correction",
+      updatedAt: 500,
+    });
+    const child = {
+      ...externalSession("delegated-child", {
+        lineageKey: `external-codex:${parentId}`,
+        title: "Inspect projection tests",
+        updatedAt: 600,
+      }),
+      parentContentSessionKey: `external-codex:${parentId}`,
+    } as ExternalSessionSummary;
+
+    const projection = buildSessionsProjection({
+      sessions: [],
+      workspaces,
+      externalSessions: [child, parent],
+    });
+
+    expect(projection.items).toHaveLength(1);
+    expect(projection.items[0]).toMatchObject({
+      title: "Implement the Sessions correction",
+      contentSessionKey: `external-codex:${parentId}`,
+      delegatedRunCount: 1,
+    });
+    expect(projection.items.some((item) => item.title === "Inspect projection tests")).toBe(false);
+  });
+
+  it("keeps orphaned delegated runs outside the primary conversation list", () => {
+    const child = {
+      ...externalSession("orphan-child", {
+        lineageKey: "external-codex:missing-parent",
+        title: "Internal delegated task",
+      }),
+      parentContentSessionKey: "external-codex:missing-parent",
+    } as ExternalSessionSummary;
+
+    const projection = buildSessionsProjection({
+      sessions: [],
+      workspaces,
+      externalSessions: [child],
+    });
+
+    expect(projection.items).toHaveLength(0);
+    expect(projection.technicalRunCount).toBe(1);
+  });
+
+  it("does not expose injected runtime envelopes as managed conversation titles", () => {
+    const projection = buildSessionsProjection({
+      sessions: [managedSession({
+        id: "polluted-managed",
+        title: "Codex · <recommended_plugins> Here is a list of plugins that are available but not installed.",
+      })],
+      workspaces,
+      externalSessions: [],
+    });
+
+    expect(projection.items[0]?.title).toBe("Codex session");
+    expect(JSON.stringify(projection.items)).not.toContain("recommended_plugins");
   });
 
   it("chooses a managed lineage representative independently of input order or external activity", () => {

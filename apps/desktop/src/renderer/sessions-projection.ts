@@ -6,6 +6,7 @@ import {
   type SessionSummary,
   type SessionsProjectInput,
 } from "../shared/sessions-ipc";
+import { sessionPresentationText, sessionPresentationTitle } from "../shared/session-presentation";
 import { isFreeChatScope } from "./session-scope";
 import type { SessionTile } from "./session-state";
 
@@ -22,10 +23,11 @@ export type SessionsPrimaryActionRequest = {
   target: ManagedSessionTarget | null;
 };
 export type SessionsProjectionPage = {
-  groups: Array<{ id: string; label: string; items: SessionSummary[] }>;
   items: SessionSummary[];
   managedTargets: Map<string, ManagedSessionTarget>;
   total: number;
+  technicalRunCount: number;
+  projectCounts: Record<string, number>;
 };
 
 export function sessionsPrimaryAction(summary: SessionSummary): SessionsPrimaryAction | null {
@@ -53,6 +55,7 @@ export type BuildSessionsProjectionInput = {
   externalSessions: ExternalSessionSummary[];
   query?: string;
   pageIndex?: number;
+  projectId?: string;
 };
 
 type ProjectedSession = {
@@ -70,9 +73,12 @@ export function buildSessionsProjection({
   externalSessions,
   query = "",
   pageIndex = 0,
+  projectId = "all",
 }: BuildSessionsProjectionInput): SessionsProjectionPage {
   const workspacesById = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
   const byLineage = new Map<string, ProjectedSession>();
+  const externalGroups = new Map<string, ProjectedSession[]>();
+  const externalLineageByContentKey = new Map<string, string>();
 
   for (const external of externalSessions) {
     const summary = normalizeExternalSession(external);
@@ -82,17 +88,33 @@ export function buildSessionsProjection({
       externalContentSessionKey: external.contentSessionKey,
       externalUpdatedAt: summary.updatedAt,
     };
-    const existing = byLineage.get(summary.lineageKey);
-    if (
-      !existing
-      || (existing.managedActivityAt === undefined && compareExternalSessions(projected, existing) < 0)
-    ) {
-      byLineage.set(summary.lineageKey, projected);
-    }
+    const group = externalGroups.get(summary.lineageKey) ?? [];
+    group.push(projected);
+    externalGroups.set(summary.lineageKey, group);
+    externalLineageByContentKey.set(external.contentSessionKey, summary.lineageKey);
+  }
+
+  for (const [lineageKey, group] of externalGroups) {
+    const parents = group
+      .filter((item) => !item.summary.parentContentSessionKey)
+      .sort(compareExternalSessions);
+    const parent = parents[0];
+    if (!parent) continue;
+    const delegatedRunCount = Math.max(
+      parent.summary.delegatedRunCount ?? 0,
+      group.length - parents.length,
+    );
+    parent.summary = {
+      ...parent.summary,
+      delegatedRunCount,
+      updatedAt: Math.max(...group.map((item) => item.summary.updatedAt)),
+    };
+    parent.externalUpdatedAt = parent.summary.updatedAt;
+    byLineage.set(lineageKey, parent);
   }
 
   for (const session of sessions) {
-    const projected = normalizeManagedSession(session, workspacesById);
+    const projected = normalizeManagedSession(session, workspacesById, externalLineageByContentKey);
     const existing = byLineage.get(projected.summary.lineageKey);
     if (existing?.managedActivityAt !== undefined && compareManagedSessions(existing, projected) <= 0) {
       continue;
@@ -108,10 +130,31 @@ export function buildSessionsProjection({
         projected.externalUpdatedAt = existing.externalUpdatedAt;
       }
     }
+    const externalGroup = externalGroups.get(projected.summary.lineageKey) ?? [];
+    const delegatedRunCount = externalGroup.filter((item) => item.summary.parentContentSessionKey).length;
+    projected.summary = { ...projected.summary, delegatedRunCount };
     byLineage.set(projected.summary.lineageKey, projected);
   }
 
-  const filtered = [...byLineage.values()]
+  let technicalRunCount = 0;
+  for (const [lineageKey, group] of externalGroups) {
+    if (!byLineage.has(lineageKey)) technicalRunCount += group.length;
+  }
+
+  const allProjected = [...byLineage.values()];
+  const projectCounts: Record<string, number> = {};
+  for (const item of allProjected) {
+    const countKey = item.group.id === "free-chats"
+      ? "free-chats"
+      : item.summary.project.id ?? "unassigned";
+    projectCounts[countKey] = (projectCounts[countKey] ?? 0) + 1;
+  }
+  const filtered = allProjected
+    .filter((item) => projectId === "all" || (
+      projectId === "free-chats"
+        ? item.group.id === "free-chats"
+        : item.summary.project.id === projectId && item.group.id !== "free-chats"
+    ))
     .filter((item) => summaryMatchesQuery(item.summary, item.group.label, query))
     .sort(compareProjectedSessions);
   const normalizedPageIndex = Math.max(0, Math.floor(pageIndex));
@@ -127,17 +170,23 @@ export function buildSessionsProjection({
   }
 
   return {
-    groups: groupPageItems(pageItems),
     items: pageItems.map((item) => item.summary),
     managedTargets,
     total: filtered.length,
+    technicalRunCount,
+    projectCounts,
   };
 }
 
 function normalizeExternalSession(session: ExternalSessionSummary): SessionSummary {
+  const snippet = session.snippet ? sessionPresentationText(session.snippet) : "";
+  const { snippet: _sourceSnippet, ...rest } = session;
   return {
-    ...session,
-    lineageKey: codexLineageKey(session.contentSessionKey) ?? session.lineageKey,
+    ...rest,
+    title: sessionPresentationTitle(session.title, "Codex session"),
+    ...(snippet ? { snippet } : {}),
+    lineageKey: codexLineageKey(session.lineageKey) ?? session.lineageKey,
+    delegatedRunCount: session.delegatedRunCount ?? 0,
     lifecycle: session.project.id ? session.lifecycle : "read-only",
   };
 }
@@ -145,6 +194,7 @@ function normalizeExternalSession(session: ExternalSessionSummary): SessionSumma
 function normalizeManagedSession(
   session: SessionTile,
   workspacesById: ReadonlyMap<string, SessionsProjectInput>,
+  externalLineageByContentKey: ReadonlyMap<string, string>,
 ): ProjectedSession {
   const workspace = workspacesById.get(session.workspaceId);
   const project: SessionProjectRef = {
@@ -152,13 +202,19 @@ function normalizeManagedSession(
     label: workspace?.label ?? session.workspaceId,
   };
   const freeChat = isFreeChatScope(session);
+  const kind = managedKind(session);
   const summary: SessionSummary = {
     sessionKey: `managed:${session.id}`,
-    lineageKey: managedLineageKey(session),
+    lineageKey: managedLineageKey(session, externalLineageByContentKey),
     contentSessionKey: null,
+    parentContentSessionKey: null,
+    delegatedRunCount: 0,
     source: "managed",
-    kind: managedKind(session),
-    title: session.title,
+    kind,
+    title: sessionPresentationTitle(
+      session.title,
+      `${kind === "codex" ? "Codex" : kind === "claude" ? "Claude" : "Manual"} session`,
+    ),
     project,
     locationLabel: displayLocation(session),
     ...(session.branchName?.trim() ? { branch: session.branchName } : {}),
@@ -174,10 +230,13 @@ function normalizeManagedSession(
   };
 }
 
-function managedLineageKey(session: SessionTile): string {
-  return session.resumeTarget?.agentKind === "codex"
-    ? `codex:${session.resumeTarget.sessionId}`
-    : `managed:${session.id}`;
+function managedLineageKey(
+  session: SessionTile,
+  externalLineageByContentKey: ReadonlyMap<string, string>,
+): string {
+  if (session.resumeTarget?.agentKind !== "codex") return `managed:${session.id}`;
+  const contentKey = `external-codex:${session.resumeTarget.sessionId}`;
+  return externalLineageByContentKey.get(contentKey) ?? `codex:${session.resumeTarget.sessionId}`;
 }
 
 function codexLineageKey(contentSessionKey: string | null): string | null {
@@ -255,19 +314,4 @@ function compareExternalSessions(a: ProjectedSession, b: ProjectedSession): numb
 function compareProjectedSessions(a: ProjectedSession, b: ProjectedSession): number {
   return b.summary.updatedAt - a.summary.updatedAt
     || a.summary.sessionKey.localeCompare(b.summary.sessionKey);
-}
-
-function groupPageItems(items: ProjectedSession[]): SessionsProjectionPage["groups"] {
-  const groupsById = new Map<string, { id: string; label: string; items: SessionSummary[] }>();
-  for (const item of items) {
-    const group = groupsById.get(item.group.id) ?? { ...item.group, items: [] };
-    group.items.push(item.summary);
-    groupsById.set(item.group.id, group);
-  }
-
-  return [...groupsById.values()].sort((a, b) => {
-    if (a.id === "free-chats") return 1;
-    if (b.id === "free-chats") return -1;
-    return 0;
-  });
 }

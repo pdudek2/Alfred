@@ -1318,6 +1318,7 @@ describe("renderer CSS contracts", () => {
 
     expectCanonicalBase(".inbox-docket__canvas", ["overflow-y: auto", "overflow-x: hidden"]);
     expectCanonicalBase(".sessions-surface", ["display: grid", "min-height: 0"]);
+    expectCanonicalBase(".sessions-projects", ["min-height: 0", "overflow: hidden"]);
     expectCanonicalBase(".sessions-navigator", ["min-height: 0", "overflow: hidden"]);
     expectCanonicalBase(".sessions-results", ["overflow-y: auto"]);
     expectCanonicalBase(".sessions-reader", ["min-width: 0", "min-height: 0"]);
@@ -1371,6 +1372,11 @@ describe("renderer CSS contracts", () => {
         || selector.startsWith(".sessions-"),
       [
         { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-surface", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-projects__header", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-projects__header > strong", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-project__label", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-project__count", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-project", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-transcript", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-message", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1120px)", selector: ".inbox-docket__detail-grid", region: surfaceResponsiveRegion },

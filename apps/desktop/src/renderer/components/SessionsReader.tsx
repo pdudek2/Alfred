@@ -16,9 +16,12 @@ type SessionsReaderProps = {
   selected: SessionSummary | null;
   status: SessionsReaderStatus;
   pageError: string | null;
+  readerMode: "conversation" | "raw";
+  canReadRaw: boolean;
   onLoadMore: () => void;
   onRetryTranscript: () => void;
   onPrimaryAction: () => void;
+  onReaderModeChange: (mode: "conversation" | "raw") => void;
   onScrollTopChange: (scrollTop: number) => void;
   onFocus: () => void;
 };
@@ -31,9 +34,12 @@ export function SessionsReader({
   selected,
   status,
   pageError,
+  readerMode,
+  canReadRaw,
   onLoadMore,
   onRetryTranscript,
   onPrimaryAction,
+  onReaderModeChange,
   onScrollTopChange,
   onFocus,
 }: SessionsReaderProps) {
@@ -42,11 +48,16 @@ export function SessionsReader({
   const partial = pages.some((page) => page.partial);
 
   return (
-    <main className="sessions-reader" onFocusCapture={onFocus}>
+    <main className="sessions-reader" aria-label="Session reader" onFocusCapture={onFocus}>
       <header className="sessions-reader__toolbar">
         <strong>{selected?.title ?? "Select a session"}</strong>
         {selected && <span>{selected.project.label} · {selected.locationLabel}</span>}
         <span className="sessions-reader__toolbar-spacer" />
+        {selected && canReadRaw && (
+          <button type="button" className="sessions-reader__mode" onClick={() => onReaderModeChange(readerMode === "raw" ? "conversation" : "raw") }>
+            {readerMode === "raw" ? "Clean conversation" : "Raw transcript"}
+          </button>
+        )}
         {selected && primaryAction && (
           <button type="button" onClick={onPrimaryAction}>
             {primaryAction.label}
@@ -70,6 +81,12 @@ export function SessionsReader({
               <h1>{selected.title}</h1>
               <p>{selected.project.label} · {selected.source === "managed" ? "Managed session" : "External Codex"}</p>
             </header>
+            {(selected.delegatedRunCount ?? 0) > 0 && (
+              <details className="sessions-delegated-work">
+                <summary>Delegated work <span>{selected.delegatedRunCount}</span></summary>
+                <p>Internal agent runs are attached to this conversation and hidden from the primary list.</p>
+              </details>
+            )}
             {recoveryReview && (
               <section className="sessions-recovery-review" aria-label="Relaunch review">
                 <strong>Confirm relaunch</strong>

@@ -153,13 +153,87 @@ afterEach(() => {
 });
 
 describe("SessionsSurface", () => {
+  it("separates Projects, Conversations, and the Reader into complementary navigation levels", async () => {
+    const user = userEvent.setup();
+    const scopedWorkspaces: SessionsProjectInput[] = [
+      ...workspaces,
+      { id: "B", label: "ClientApp", rootPath: "/Users/patryk/Desktop/ClientApp" },
+      { id: "FREE", label: "Free Chat", rootPath: "/Users/patryk/Documents/Codex" },
+      { id: "EMPTY", label: "Workspace 99" },
+    ];
+    renderSurface({
+      workspaces: scopedWorkspaces,
+      sessions: [
+        managedSession(0, { title: "Alfred architecture" }),
+        managedSession(1, {
+          title: "Client release",
+          workspaceId: "B",
+          cwd: "/Users/patryk/Desktop/ClientApp",
+        }),
+      ],
+    });
+
+    expect(screen.getByRole("navigation", { name: "Projects" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Free Chat0/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Free Chats0/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Workspace 99/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("listbox", { name: "Conversation results" })).toBeVisible();
+    expect(screen.getByRole("main", { name: "Session reader" })).toBeVisible();
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+
+    await user.click(screen.getByRole("button", { name: /ClientApp/ }));
+    expect(screen.getByRole("option", { name: /Client release/ })).toBeVisible();
+    expect(screen.queryByRole("option", { name: /Alfred architecture/ })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("listbox", { name: "Conversation results" })).queryByRole("heading", { name: "ClientApp" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the open reader stable while the adjacent project scope changes", async () => {
+    const user = userEvent.setup();
+    const scopedWorkspaces: SessionsProjectInput[] = [
+      ...workspaces,
+      { id: "B", label: "ClientApp", rootPath: "/Users/patryk/Desktop/ClientApp" },
+    ];
+    renderSurface({
+      workspaces: scopedWorkspaces,
+      sessions: [
+        managedSession(0, { title: "Alfred architecture", initialBuffer: "Alfred evidence", runtimeStatus: "restored" }),
+        managedSession(1, {
+          title: "Client release",
+          workspaceId: "B",
+          cwd: "/Users/patryk/Desktop/ClientApp",
+        }),
+      ],
+    });
+
+    await user.click(screen.getByRole("option", { name: /Alfred architecture/ }));
+    expect(await screen.findByRole("article", { name: /Alfred architecture/ })).toHaveTextContent("Alfred evidence");
+
+    await user.click(screen.getByRole("button", { name: /ClientApp/ }));
+    expect(screen.getByRole("option", { name: /Client release/ })).toBeVisible();
+    expect(screen.getByRole("article", { name: /Alfred architecture/ })).toHaveTextContent("Alfred evidence");
+  });
+
+  it("keeps orphaned delegated runs out of conversations and behind one maintenance disclosure", () => {
+    const orphan = externalSession(7, {
+      lineageKey: "external-codex:missing-parent",
+      parentContentSessionKey: "external-codex:missing-parent",
+      title: "Internal delegated task",
+    });
+    renderSurface({ externalSessions: [orphan] });
+
+    expect(screen.queryByRole("option", { name: /Internal delegated task/ })).not.toBeInTheDocument();
+    const disclosure = screen.getByText("1 internal run hidden").closest("details");
+    expect(disclosure).not.toHaveAttribute("open");
+    expect(within(disclosure as HTMLElement).getByText(/could not be attached to a verified parent conversation/i)).toBeInTheDocument();
+  });
+
   it("mounts the Sessions workspace with focused search and at most 80 options", () => {
     renderSurface({
       sessions: Array.from({ length: 90 }, (_, index) => managedSession(index)),
     });
 
     const surface = screen.getByRole("region", { name: "Sessions workspace" });
-    const results = screen.getByRole("listbox", { name: "Session results" });
+    const results = screen.getByRole("listbox", { name: "Conversation results" });
     expect(surface).toBeVisible();
     expect(results).toHaveClass("sessions-results");
     expect(screen.getAllByRole("option")[0]).toHaveClass("sessions-result");
@@ -188,6 +262,34 @@ describe("SessionsSurface", () => {
     expect(article).toHaveTextContent("You");
     expect(article).toHaveTextContent("Assistant");
     expect(sessionsApi.readTranscriptPage).toHaveBeenCalledWith({ sessionKey: "external-codex:content-0" });
+  });
+
+  it("keeps delegated work collapsed and reloads source evidence only when Raw transcript is requested", async () => {
+    const user = userEvent.setup();
+    const sessionsApi = createSessionsApi();
+    vi.mocked(sessionsApi.readTranscriptPage)
+      .mockResolvedValueOnce(transcriptPage("external-codex:content-0", [
+        { id: "clean", kind: "message", role: "user", text: "Meaningful request" },
+      ]))
+      .mockResolvedValueOnce(transcriptPage("external-codex:content-0", [
+        { id: "raw", kind: "message", role: "system", text: "Raw bootstrap context" },
+      ]));
+    renderSurface({
+      externalSessions: [externalSession(0, { title: "Parent conversation", delegatedRunCount: 4 })],
+      sessionsApi,
+    });
+
+    await user.click(screen.getByRole("option", { name: /Parent conversation/ }));
+    expect(await screen.findByText("Meaningful request")).toBeInTheDocument();
+    const delegated = screen.getByText(/Delegated work/).closest("details");
+    expect(delegated).not.toHaveAttribute("open");
+
+    await user.click(screen.getByRole("button", { name: "Raw transcript" }));
+    expect(await screen.findByText("Raw bootstrap context")).toBeInTheDocument();
+    expect(sessionsApi.readTranscriptPage).toHaveBeenNthCalledWith(2, {
+      sessionKey: "external-codex:content-0",
+      mode: "raw",
+    });
   });
 
   it("reads a managed and external merged session through one content key across pagination", async () => {
@@ -340,7 +442,7 @@ describe("SessionsSurface", () => {
       terminalApi,
     });
 
-    await user.click(within(screen.getByRole("listbox", { name: "Session results" })).getByRole("option"));
+    await user.click(within(screen.getByRole("listbox", { name: "Conversation results" })).getByRole("option"));
     expect(await screen.findByRole("article", { name: /Managed session 2/ })).toHaveTextContent("restored line");
     expect(terminalApi.snapshot).not.toHaveBeenCalled();
   });
@@ -359,7 +461,7 @@ describe("SessionsSurface", () => {
       terminalApi,
     });
 
-    await user.click(within(screen.getByRole("listbox", { name: "Session results" })).getByRole("option"));
+    await user.click(within(screen.getByRole("listbox", { name: "Conversation results" })).getByRole("option"));
     const article = await screen.findByRole("article", { name: /ANSI transcript/ });
     expect(article).toHaveTextContent("% pnpm dev");
     expect(article).toHaveTextContent("ready");
@@ -378,7 +480,7 @@ describe("SessionsSurface", () => {
 
     renderSurface({ sessions: [restoredSession] });
 
-    await user.click(within(screen.getByRole("listbox", { name: "Session results" })).getByRole("option"));
+    await user.click(within(screen.getByRole("listbox", { name: "Conversation results" })).getByRole("option"));
     const article = await screen.findByRole("article", { name: /Boundary ANSI transcript/ });
     const block = article.querySelector("[data-testid='transcript-block']");
     expect(block).toHaveTextContent("x".repeat(100));
@@ -407,7 +509,7 @@ describe("SessionsSurface", () => {
     const user = userEvent.setup();
     const onOpenPrivacySettings = vi.fn();
     const view = renderSurface({ loadingExternalSessions: true });
-    expect(screen.getByRole("status")).toHaveTextContent("Loading sessions");
+    expect(screen.getByRole("status")).toHaveTextContent("Loading conversations");
 
     view.unmount();
     renderSurface({
@@ -423,7 +525,7 @@ describe("SessionsSurface", () => {
     expect(screen.getByRole("option", { name: /Managed session 1/ })).toBeInTheDocument();
 
     await user.type(screen.getByRole("searchbox", { name: "Search sessions" }), "no such session");
-    expect(screen.getByText("No sessions found.")).toBeInTheDocument();
+    expect(screen.getByText("No conversations found.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Clear search" }));
     expect(screen.getByRole("option", { name: /Managed session 1/ })).toBeInTheDocument();
 
@@ -521,7 +623,7 @@ describe("SessionsSurface", () => {
       terminalApi: createTerminalApi(),
     });
     const search = screen.getByRole("searchbox", { name: "Search sessions" });
-    const listbox = screen.getByRole("listbox", { name: "Session results" });
+    const listbox = screen.getByRole("listbox", { name: "Conversation results" });
     const options = screen.getAllByRole("option");
 
     await user.tab();
@@ -557,7 +659,7 @@ describe("SessionsSurface", () => {
       { sessions: [managedSession(0)] },
       { ...createInitialSessionsViewState(), focusTarget: "results" },
     );
-    expect(screen.getByRole("listbox", { name: "Session results" })).toHaveFocus();
+    expect(screen.getByRole("listbox", { name: "Conversation results" })).toHaveFocus();
 
     resultView.unmount();
     renderSurface(
@@ -734,7 +836,7 @@ describe("SessionsSurface", () => {
 
     const surface = screen.getByRole("region", { name: "Sessions workspace" });
     expect(surface).toHaveClass("sessions-surface--reduced-motion");
-    expect(screen.getByRole("listbox", { name: "Session results" })).toHaveProperty("scrollTop", 70);
+    expect(screen.getByRole("listbox", { name: "Conversation results" })).toHaveProperty("scrollTop", 70);
     expect(surface.querySelector(".sessions-reader__scroll")).toHaveProperty("scrollTop", 90);
     expect(screen.getByRole("article", { name: /Phase I/ })).not.toHaveAttribute("aria-live");
   });

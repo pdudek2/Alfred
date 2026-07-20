@@ -210,6 +210,35 @@ describe("Codex sessions reader", () => {
     expect(result.sessions[0]).toMatchObject({ title: "Indexed title", updatedAt: Date.parse("2026-07-20T10:00:00.000Z") });
   });
 
+  it("preserves delegated Codex lineage as an opaque parent content key", async () => {
+    const { codexHome } = await transcriptFixture("delegated-child", [
+      {
+        type: "session_meta",
+        payload: {
+          id: "delegated-child",
+          parent_thread_id: "parent-conversation",
+          cwd: "/repo",
+          originator: "codex subagent",
+        },
+      },
+      {
+        type: "response_item",
+        payload: { type: "message", role: "user", content: [{ type: "input_text", text: "Inspect one bounded concern" }] },
+      },
+    ]);
+
+    const listed = await createCodexSessionsReader({ codexHome }).listExternalSessions({
+      projects: [{ id: "A", label: "Repo", rootPath: "/repo" }],
+    });
+
+    expect(listed.sessions).toHaveLength(1);
+    expect(listed.sessions[0]).toMatchObject({
+      lineageKey: "external-codex:parent-conversation",
+      contentSessionKey: "external-codex:delegated-child",
+      parentContentSessionKey: "external-codex:parent-conversation",
+    });
+  });
+
   it("rejects invalid cursors and clamps the requested page limit", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
@@ -359,7 +388,7 @@ describe("Codex sessions reader", () => {
     })).rejects.toThrow("Invalid external sessions project id.");
   });
 
-  it("reads only known Codex message roles and marks malformed transcript data as partial", async () => {
+  it("projects a clean conversation by default and keeps known source roles in raw mode", async () => {
     const { codexHome, file } = await transcriptFixture("roles", [
       { type: "session_meta", payload: { id: "roles", cwd: "/repo" } },
       { type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "Question" }] } },
@@ -373,12 +402,43 @@ describe("Codex sessions reader", () => {
     const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
 
     const page = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey });
+    const rawPage = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey, mode: "raw" });
 
-    expect(page.blocks.filter((block) => block.kind === "message").map((block) => block.text)).toEqual(["Question", "Answer", "Instruction"]);
+    expect(page.blocks.filter((block) => block.kind === "message").map((block) => block.text)).toEqual(["Question", "Answer"]);
+    expect(rawPage.blocks.filter((block) => block.kind === "message").map((block) => block.text)).toEqual(["Question", "Answer", "Instruction"]);
     expect(page.blocks.every((block) => block.kind !== "message" || ["user", "assistant", "system"].includes(block.role))).toBe(true);
     expect(page.blocks.some((block) => block.kind === "notice")).toBe(true);
     expect(page.partial).toBe(true);
     expect(file).toContain("roles.jsonl");
+  });
+
+  it("removes injected runtime envelopes from titles, snippets, and the default reader", async () => {
+    const injected = `<recommended_plugins>\n- Gmail\n- Slack\n</recommended_plugins>\n\n<in-app-browser-context source="ambient-ui-state">\nCurrent URL: http://localhost\n</in-app-browser-context>\n\n## My request for Codex:\nBuild the compact project conversation library`;
+    const { codexHome } = await transcriptFixture("clean-presentation", [
+      { type: "session_meta", payload: { id: "clean-presentation", cwd: "/repo" } },
+      { type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: injected }] } },
+      { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "Implemented the library." }] } },
+    ]);
+    await writeFile(path.join(codexHome, "session_index.jsonl"), JSON.stringify({
+      id: "clean-presentation",
+      thread_name: "<recommended_plugins>Here is a list of plugins that are available but not installed.</recommended_plugins>",
+    }));
+    const reader = createCodexSessionsReader({ codexHome });
+    const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
+
+    expect(listed.sessions[0]).toMatchObject({
+      title: "Build the compact project conversation library",
+      snippet: "Build the compact project conversation library",
+    });
+
+    const conversation = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey });
+    const raw = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey, mode: "raw" });
+    expect(conversation.blocks.filter((block) => block.kind === "message").map((block) => block.text)).toEqual([
+      "Build the compact project conversation library",
+      "Implemented the library.",
+    ]);
+    expect(JSON.stringify(conversation)).not.toContain("recommended_plugins");
+    expect(JSON.stringify(raw)).toContain("recommended_plugins");
   });
 
   it("bounds transcript pages by 50 blocks and 256 KiB and rejects opaque or stale cursors", async () => {
@@ -497,6 +557,12 @@ describe("Codex sessions reader", () => {
 
     await writeFile(index, JSON.stringify({ id: "indexed", thread_name: "Updated indexed title" }));
     expect((await reader.listExternalSessions({ projects: [] })).sessions[0]?.title).toBe("Updated indexed title");
+
+    await writeFile(index, JSON.stringify({
+      id: "indexed",
+      thread_name: "<recommended_plugins>Hidden runtime envelope</recommended_plugins>",
+    }));
+    expect((await reader.listExternalSessions({ projects: [] })).sessions[0]?.title).toBe("Fallback");
 
     await writeFile(index, "");
     expect((await reader.listExternalSessions({ projects: [] })).sessions[0]?.title).toBe("Fallback");
