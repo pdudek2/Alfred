@@ -3,12 +3,15 @@ import os from "node:os";
 import path from "node:path";
 import { createCodexSessionsReader } from "./codex-sessions.js";
 import { sessionsChannels, type ResolveExternalSessionResult, type TranscriptPage } from "../shared/sessions-ipc.js";
+import type { SessionsProjectInput } from "../shared/sessions-ipc.js";
+import type { WorkspaceStore } from "./workspace-store.js";
 
 type SessionsReader = ReturnType<typeof createCodexSessionsReader>;
 type RegisterSessionsOptions = {
   codexHome?: string;
   reader?: SessionsReader;
   isExternalSessionIndexingEnabled?: () => Promise<boolean> | boolean;
+  workspaceStore?: WorkspaceStore;
 };
 
 export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void {
@@ -26,18 +29,34 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
     cacheGeneration += 1;
     return queueMutation(() => reader.clearCaches());
   };
+  const authoritativeProjects = async (request: unknown): Promise<SessionsProjectInput[]> => {
+    if (!options.workspaceStore) return sanitizeProjectsFromRequest(request);
+    const state = await options.workspaceStore.getWorkspaceState();
+    return state.workspaces
+      .map((workspace) => ({
+        id: workspace.id,
+        label: workspace.label,
+        ...(workspace.rootPath === undefined ? {} : { rootPath: workspace.rootPath }),
+      }));
+  };
 
   ipcMain.handle(sessionsChannels.listExternal, async (_event, request) => {
     if (!(await isEnabled())) { await invalidateCaches(); return { sessions: [], nextCursor: null, total: 0 }; }
+    const projects = await authoritativeProjects(request);
+    const sanitizedRequest = sanitizeListRequest(request, projects);
     const requestGeneration = cacheGeneration;
-    const result = await queueMutation(() => reader.listExternalSessions(request));
+    const result = await queueMutation(() => reader.listExternalSessions(sanitizedRequest));
     if (requestGeneration !== cacheGeneration) return { sessions: [], nextCursor: null, total: 0 };
     if (!(await isEnabled())) { await invalidateCaches(); return { sessions: [], nextCursor: null, total: 0 }; }
     return result;
   });
   ipcMain.handle(sessionsChannels.resolveExternal, async (_event, request): Promise<ResolveExternalSessionResult> => {
     if (!(await isEnabled())) { await invalidateCaches(); return { kind: "none" }; }
-    return reader.resolveExternalSession(request);
+    const result = await reader.resolveExternalSession(request);
+    if (result.kind !== "resume" || !options.workspaceStore) return result;
+    const state = await options.workspaceStore.getWorkspaceState();
+    const workspace = state.workspaces.find((candidate) => candidate.id === result.projectId);
+    return pathMatchesWorkspace(result.cwd, workspace?.rootPath) ? result : { kind: "add-project" };
   });
   ipcMain.handle(sessionsChannels.readTranscriptPage, async (_event, request): Promise<TranscriptPage> => {
     if (!isTranscriptPageRequest(request)) throw new Error("Invalid transcript page request.");
@@ -69,3 +88,41 @@ function emptyTranscriptPage(sessionKey: string): TranscriptPage {
 }
 
 function defaultCodexHome(): string { return process.env.CODEX_HOME ?? path.join(app?.getPath?.("home") ?? os.homedir(), ".codex"); }
+
+function sanitizeListRequest(
+  request: unknown,
+  projects: SessionsProjectInput[],
+): { projects: SessionsProjectInput[]; query?: string; cursor?: string; limit?: number } {
+  const value = typeof request === "object" && request !== null ? request as {
+    query?: unknown;
+    cursor?: unknown;
+    limit?: unknown;
+  } : {};
+  return {
+    projects,
+    ...(typeof value.query === "string" ? { query: value.query } : {}),
+    ...(typeof value.cursor === "string" ? { cursor: value.cursor } : {}),
+    ...(typeof value.limit === "number" ? { limit: value.limit } : {}),
+  };
+}
+
+function sanitizeProjectsFromRequest(request: unknown): SessionsProjectInput[] {
+  if (typeof request !== "object" || request === null || !Array.isArray((request as { projects?: unknown }).projects)) return [];
+  return (request as { projects: unknown[] }).projects.flatMap((project) => {
+    if (typeof project !== "object" || project === null) return [];
+    const candidate = project as { id?: unknown; label?: unknown; rootPath?: unknown };
+    if (typeof candidate.id !== "string" || typeof candidate.label !== "string") return [];
+    return [{
+      id: candidate.id,
+      label: candidate.label,
+      ...(typeof candidate.rootPath === "string" ? { rootPath: candidate.rootPath } : {}),
+    }];
+  });
+}
+
+function pathMatchesWorkspace(cwd: string, rootPath: string | undefined): boolean {
+  const root = rootPath?.replace(/\/+$/, "");
+  if (!cwd || !root) return false;
+  const legacyRoot = `${path.dirname(root)}/.alfred-worktrees/${path.basename(root)}`;
+  return cwd === root || cwd.startsWith(`${root}/`) || cwd === legacyRoot || cwd.startsWith(`${legacyRoot}/`);
+}

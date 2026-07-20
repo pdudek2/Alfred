@@ -490,21 +490,23 @@ describe("Codex sessions reader", () => {
       const page = await reader.listExternalSessions({
         ...request,
         ...(cursor ? { cursor } : {}),
-        limit: Math.min(80, SUMMARY_CACHE_COUNT_LIMIT - listedCount),
+        limit: 80,
       });
-      expect(page.total).toBe(SUMMARY_CACHE_COUNT_LIMIT);
+      expect(page.total).toBe(SUMMARY_CACHE_COUNT_LIMIT + 1);
       listedCount += page.sessions.length;
       pageCount += 1;
       cursor = page.nextCursor ?? undefined;
-    } while (cursor && listedCount < SUMMARY_CACHE_COUNT_LIMIT);
+    } while (cursor);
     const drainMs = performance.now() - startedAt;
 
-    expect(listedCount).toBe(SUMMARY_CACHE_COUNT_LIMIT);
-    expect(pageCount).toBe(Math.ceil(SUMMARY_CACHE_COUNT_LIMIT / 80));
+    expect(listedCount).toBe(SUMMARY_CACHE_COUNT_LIMIT + 1);
+    expect(pageCount).toBe(Math.ceil((SUMMARY_CACHE_COUNT_LIMIT + 1) / 80));
     expect(cursor).toBeUndefined();
     expect(onSummaryDiscovery).toHaveBeenCalledTimes(1);
     expect(reader.getDiagnostics().summaryCount).toBeLessThanOrEqual(SUMMARY_CACHE_COUNT_LIMIT);
     expect(reader.getDiagnostics().summaryBytes).toBeLessThanOrEqual(SUMMARY_CACHE_TEXT_LIMIT);
+    expect(reader.getDiagnostics().resumeAliasCount).toBeLessThanOrEqual(SUMMARY_CACHE_COUNT_LIMIT);
+    expect(reader.getDiagnostics().contentAliasCount).toBeLessThanOrEqual(SUMMARY_CACHE_COUNT_LIMIT);
     await expect(reader.listExternalSessions({ ...request, cursor: finalPageCursor! }))
       .rejects.toThrow("Invalid external sessions cursor.");
     console.info(JSON.stringify({
@@ -517,7 +519,60 @@ describe("Codex sessions reader", () => {
     }));
   });
 
-  it("keeps a list snapshot inside the summary byte ceiling", async () => {
+  it("keeps summaries beyond the cache cap reachable through a fresh query", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    await writeCodexSummaryFixtures(codexHome, SUMMARY_CACHE_COUNT_LIMIT + 25, "/fixture/project");
+    const oldestId = `summary-fixture-${String(SUMMARY_CACHE_COUNT_LIMIT + 24).padStart(5, "0")}`;
+    await writeFile(
+      path.join(codexHome, "session_index.jsonl"),
+      JSON.stringify({ id: oldestId, thread_name: "Late unique query target" }),
+      "utf8",
+    );
+    const reader = createCodexSessionsReader({ codexHome });
+
+    const queried = await reader.listExternalSessions({
+      projects: [{ id: "A", label: "Fixture project", rootPath: "/fixture/project" }],
+      query: "Late unique query target",
+      limit: 10,
+    });
+
+    expect(queried.total).toBe(1);
+    expect(queried.sessions).toHaveLength(1);
+    expect(queried.sessions[0]?.title).toBe("Late unique query target");
+    expect(reader.getDiagnostics().summaryCount).toBeLessThanOrEqual(SUMMARY_CACHE_COUNT_LIMIT);
+  });
+
+  it("bounds revision-driven resume aliases across repeated refreshes", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
+    await mkdir(sessionDir, { recursive: true });
+    const file = path.join(sessionDir, "refreshing.jsonl");
+    await writeFile(file, codexLines({ id: "refreshing", cwd: "/repo", title: "Refreshing session" }));
+
+    vi.resetModules();
+    vi.doMock("../shared/sessions-ipc.js", async (importOriginal) => ({
+      ...await importOriginal<typeof import("../shared/sessions-ipc.js")>(),
+      SUMMARY_CACHE_COUNT_LIMIT: 3,
+    }));
+    try {
+      const { createCodexSessionsReader: createReaderWithSmallAliasBound } = await import("./codex-sessions.js");
+      const reader = createReaderWithSmallAliasBound({ codexHome });
+      for (let revision = 0; revision < 5; revision += 1) {
+        const when = new Date(Date.parse("2026-07-20T12:00:00.000Z") + revision * 60_000);
+        await utimes(file, when, when);
+        const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
+        expect(listed.sessions[0]?.title).toBe("Refreshing session");
+      }
+
+      expect(reader.getDiagnostics().resumeAliasCount).toBe(3);
+      expect(reader.getDiagnostics().contentAliasCount).toBe(1);
+    } finally {
+      vi.doUnmock("../shared/sessions-ipc.js");
+      vi.resetModules();
+    }
+  });
+
+  it("keeps summary cache bytes bounded without truncating the discovered list total", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
     const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
     await mkdir(sessionDir, { recursive: true });
@@ -535,8 +590,8 @@ describe("Codex sessions reader", () => {
       const reader = createReaderWithSmallByteCache({ codexHome });
       const listed = await reader.listExternalSessions({ projects: [], limit: 5 });
 
-      expect(listed.total).toBeGreaterThan(0);
-      expect(listed.total).toBeLessThan(5);
+      expect(listed.total).toBe(5);
+      expect(listed.sessions).toHaveLength(5);
       expect(listed.nextCursor).toBeNull();
       expect(reader.getDiagnostics().summaryBytes).toBeLessThanOrEqual(2_000);
     } finally {

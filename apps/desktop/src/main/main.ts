@@ -131,16 +131,17 @@ if (!hasSingleInstanceLock) {
     configureStagedPlanPersistence(persistedDesktopStateStore);
     configureTerminalPersistence(persistedDesktopStateStore);
     registerDesktopStateIpc(persistedDesktopStateStore);
-    registerSessionsIpc({
-      isExternalSessionIndexingEnabled: async () =>
-        (await persistedDesktopStateStore.getState()).privacySettings.externalSessionIndexingEnabled,
-    });
     const defaultWorkspaceRootPath = resolveDefaultWorkspaceRootPath(app.getAppPath());
     const managedWorktreeRootPath = path.join(app.getPath("userData"), "worktrees");
     const scratchRootPath = codexScratchRootPath(app.getPath("documents"));
     const workspaceStore = createWorkspaceStore({
       persistedStateStore: persistedDesktopStateStore,
       defaultRootPath: defaultWorkspaceRootPath,
+    });
+    registerSessionsIpc({
+      isExternalSessionIndexingEnabled: async () =>
+        (await persistedDesktopStateStore.getState()).privacySettings.externalSessionIndexingEnabled,
+      workspaceStore,
     });
     registerTerminalIpc({
       allowedCwdRoots: async () => allowedWorkspaceRoots(workspaceStore, { managedWorktreeRootPath, scratchRootPath }),
