@@ -1,5 +1,6 @@
 import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { collectControlOverflowEvidence } from "./support/control-overflow-evidence";
 
 type DesktopSessionsWindow = Window & {
   alfredDesktop?: {
@@ -219,32 +220,30 @@ async function setWindowSize(
 }
 
 async function assertSessionsGeometry(page: Page, label: string) {
-  const evidence = await page.evaluate(() => {
-    const visibleControls = Array.from(document.querySelectorAll<HTMLElement>(
-      'button:not(:disabled), input:not(:disabled), [role="option"]',
-    )).filter((control) => {
-      const style = getComputedStyle(control);
-      const rect = control.getBoundingClientRect();
-      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
-    });
-    const clippedControls = visibleControls.flatMap((control) => {
-      const rect = control.getBoundingClientRect();
-      const overflow = Math.max(0, -rect.left, rect.right - innerWidth);
-      return overflow > 0.5 ? [{ label: control.getAttribute("aria-label") ?? control.textContent, overflow }] : [];
-    });
-    const navigatorOwners = Array.from(document.querySelectorAll<HTMLElement>(".sessions-results"));
-    const readerOwners = Array.from(document.querySelectorAll<HTMLElement>(".sessions-reader__scroll"));
-    return {
-      documentOverflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      bodyOverflowX: document.body.scrollWidth - document.body.clientWidth,
-      clippedControls,
-      navigatorOwners: navigatorOwners.map((node) => getComputedStyle(node).overflowY),
-      readerOwners: readerOwners.map((node) => getComputedStyle(node).overflowY),
-    };
-  });
+  const [layoutEvidence, controlOverflowEvidence] = await Promise.all([
+    page.evaluate(() => {
+      const navigatorOwners = Array.from(document.querySelectorAll<HTMLElement>(".sessions-results"));
+      const readerOwners = Array.from(document.querySelectorAll<HTMLElement>(".sessions-reader__scroll"));
+      return {
+        documentOverflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        bodyOverflowX: document.body.scrollWidth - document.body.clientWidth,
+        navigatorOwners: navigatorOwners.map((node) => getComputedStyle(node).overflowY),
+        readerOwners: readerOwners.map((node) => getComputedStyle(node).overflowY),
+      };
+    }),
+    collectControlOverflowEvidence(page, {
+      controlSelector:
+        'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [role="tab"], [role="menuitem"], [role="option"]',
+      verticalScrollOwners: [
+        { id: "sessions-results", label: "Sessions results", selector: ".sessions-results" },
+        { id: "sessions-reader", label: "Sessions reader", selector: ".sessions-reader__scroll" },
+      ],
+    }),
+  ]);
+  const evidence = { ...layoutEvidence, controlOverflowEvidence };
   expect(evidence.documentOverflowX, `${label}: document overflow`).toBeLessThanOrEqual(0);
   expect(evidence.bodyOverflowX, `${label}: body overflow`).toBeLessThanOrEqual(0);
-  expect(evidence.clippedControls, `${label}: clipped controls`).toEqual([]);
+  expect(evidence.controlOverflowEvidence, `${label}: control overflow by side`).toEqual([]);
   expect(evidence.navigatorOwners, `${label}: navigator scroll owners`).toEqual(["auto"]);
   expect(evidence.readerOwners, `${label}: reader scroll owners`).toEqual(["auto"]);
   return evidence;
