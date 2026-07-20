@@ -421,9 +421,6 @@ function filterSummaryMetadata(summaries: CodexSummary[], query: string): CodexS
   if (!terms.length) return summaries;
   return summaries.filter(({ summary }) => terms.every((term) => [summary.title, summary.project.label, summary.locationLabel, summary.model, summary.originator].filter(Boolean).join(" ").toLowerCase().includes(term)));
 }
-function summaryCacheKey(summary: CodexSummary): string {
-  return `${summary.source.path}:${summary.source.revision}`;
-}
 function summaryEntryBytes(key: string, summary: CodexSummary): number {
   return Buffer.byteLength(key, "utf8") + Buffer.byteLength(JSON.stringify(summary), "utf8");
 }
