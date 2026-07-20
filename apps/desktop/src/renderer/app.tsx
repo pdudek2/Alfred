@@ -78,7 +78,6 @@ import { createInitialSessionsViewState } from "./sessions-view-state";
 import { recordPreviewUrlsFromText, type PreviewUrlCandidate } from "./preview-state";
 import type { WorkMode } from "./terminal-desk-types";
 import { shortenPath } from "./path-display";
-import { findWorkspaceForCwd } from "./workspace-path-matching";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import type { SessionsPrimaryActionRequest } from "./sessions-projection";
 import { normalizeSessionTitle } from "../shared/session-title";
@@ -2942,10 +2941,6 @@ function createScratchWorkspaceState(workspaces: Workspace[]): WorkspaceStateSna
     workspaces: [...workspaces, workspace],
     activeWorkspaceId: workspace.id,
   };
-}
-
-function workspaceForCwd(cwd: string, workspaces: Workspace[]): Workspace | null {
-  return findWorkspaceForCwd(cwd, workspaces);
 }
 
 function omitWorkspaceRecord<T>(record: Record<string, T>, workspaceId: string): Record<string, T> {

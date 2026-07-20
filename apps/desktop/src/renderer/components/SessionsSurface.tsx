@@ -108,9 +108,13 @@ export function SessionsSurface({
   }, [activeSessionKey, projection.items]);
 
   useEffect(() => {
-    if (navigatorRef.current) navigatorRef.current.scrollTop = state.navigatorScrollTop;
-    if (readerRef.current) readerRef.current.scrollTop = state.readerScrollTop;
-  }, []);
+    if (navigatorRef.current && navigatorRef.current.scrollTop !== state.navigatorScrollTop) {
+      navigatorRef.current.scrollTop = state.navigatorScrollTop;
+    }
+    if (readerRef.current && readerRef.current.scrollTop !== state.readerScrollTop) {
+      readerRef.current.scrollTop = state.readerScrollTop;
+    }
+  }, [state.navigatorScrollTop, state.readerScrollTop]);
 
   useEffect(() => {
     const handleFind = (event: KeyboardEvent) => {

@@ -49,20 +49,22 @@ export function SessionsNavigator({
 
   const handleListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (projection.items.length === 0) return;
-    let nextIndex = activeIndex;
-    if (event.key === "ArrowDown") nextIndex = Math.min(projection.items.length - 1, activeIndex + 1);
-    else if (event.key === "ArrowUp") nextIndex = Math.max(0, activeIndex - 1);
-    else if (event.key === "Home") nextIndex = 0;
-    else if (event.key === "End") nextIndex = projection.items.length - 1;
-    else if (event.key === "Enter") {
+    if (event.key === "Enter") {
       event.preventDefault();
       const session = projection.items[activeIndex];
       if (session) onSelectSession(session);
       return;
-    } else {
-      return;
     }
 
+    const nextIndex = (() => {
+      if (event.key === "ArrowDown") return Math.min(projection.items.length - 1, activeIndex + 1);
+      if (event.key === "ArrowUp") return Math.max(0, activeIndex - 1);
+      if (event.key === "Home") return 0;
+      if (event.key === "End") return projection.items.length - 1;
+      return;
+    })();
+
+    if (nextIndex === undefined) return;
     event.preventDefault();
     const session = projection.items[nextIndex];
     onActiveSessionKeyChange(session?.sessionKey ?? null);
