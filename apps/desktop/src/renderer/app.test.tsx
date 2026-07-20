@@ -165,6 +165,7 @@ function installDesktopBridge(
   worktreeDiff: ReturnType<typeof vi.fn>;
   openExternalUrl: ReturnType<typeof vi.fn>;
   listExternalSessions: ReturnType<typeof vi.fn>;
+  releaseListSnapshot: ReturnType<typeof vi.fn>;
   resolveExternalSession: ReturnType<typeof vi.fn>;
   readTranscriptPage: ReturnType<typeof vi.fn>;
   getSessionsDiagnostics: ReturnType<typeof vi.fn>;
@@ -400,6 +401,7 @@ function installDesktopBridge(
     worktreeDiff,
     openExternalUrl,
     listExternalSessions,
+    releaseListSnapshot,
     resolveExternalSession,
     readTranscriptPage,
     getSessionsDiagnostics,
@@ -2611,6 +2613,12 @@ describe("App integration", () => {
     expect(review).toHaveTextContent("/bin/sh -c rm -rf dist");
     expect(review).toHaveTextContent("/Users/patryk/Desktop/Alfred");
 
+    fireEvent.keyDown(screen.getByRole("region", { name: "Sessions workspace" }), { key: "Escape" });
+    expect(screen.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Review relaunch" })).toBeInTheDocument();
+    expect(createTerminal).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Review relaunch" }));
     await user.click(screen.getByRole("button", { name: "Confirm relaunch" }));
     await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole("region", { name: "Sessions workspace" })).not.toBeInTheDocument();
@@ -2923,7 +2931,7 @@ describe("App integration", () => {
       updatedAt: 300,
       lifecycle: "resumable",
     };
-    const { listExternalSessions } = installDesktopBridge();
+    const { listExternalSessions, releaseListSnapshot } = installDesktopBridge();
     listExternalSessions
       .mockResolvedValueOnce({
         sessions: [firstPageSession],
@@ -2939,6 +2947,7 @@ describe("App integration", () => {
     expect(await screen.findByText("External sessions may be incomplete.")).toBeInTheDocument();
     expect(screen.getByText("Refresh failed. Retry when the local session index is available.")).toBeInTheDocument();
     expect(listExternalSessions).toHaveBeenCalledTimes(2);
+    expect(releaseListSnapshot).toHaveBeenCalledWith({ cursor: "partial-next-page" });
   });
 
   it("keeps only one global modal open at a time", async () => {
@@ -3049,6 +3058,64 @@ describe("App integration", () => {
     expect(search).toHaveFocus();
     expect(within(sessions).getAllByRole("option")).toHaveLength(1);
     expect(within(sessions).getByRole("option", { name: /Bounded external session 081/i })).toBeVisible();
+  });
+
+  it("debounces non-empty Sessions queries to main and refreshes immediately when cleared", async () => {
+    const user = userEvent.setup();
+    const lateSession: ExternalSessionSummary = {
+      sessionKey: "opaque-late-session",
+      lineageKey: "external-codex:late-session",
+      contentSessionKey: "external-codex:late-session",
+      source: "external-codex",
+      kind: "codex",
+      title: "Late unique query target",
+      project: { id: "A", label: "Alfred" },
+      locationLabel: "Alfred",
+      updatedAt: 1_720_000_000_000,
+      lifecycle: "resumable",
+    };
+    const { listExternalSessions } = installDesktopBridge();
+    listExternalSessions.mockImplementation((request: Parameters<SessionsApi["listExternalSessions"]>[0]) => Promise.resolve({
+      sessions: request.query === "late unique" ? [lateSession] : [],
+      nextCursor: null,
+      total: request.query === "late unique" ? 1 : 0,
+    }));
+
+    render(<App />);
+    await selectSurface(user, "Sessions");
+    const search = screen.getByRole("searchbox", { name: "Search sessions" });
+    await waitFor(() => expect(listExternalSessions).toHaveBeenCalledTimes(1));
+
+    await user.type(search, "late unique");
+    expect(listExternalSessions).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(listExternalSessions).toHaveBeenLastCalledWith({
+      projects: expect.any(Array),
+      query: "late unique",
+      limit: 80,
+    }));
+    expect(await screen.findByRole("option", { name: /Late unique query target/i })).toBeVisible();
+
+    await user.clear(search);
+    await waitFor(() => expect(listExternalSessions).toHaveBeenLastCalledWith({
+      projects: expect.any(Array),
+      limit: 80,
+    }));
+  });
+
+  it("releases the unfinished main snapshot when the renderer stops before exhausting its cursor", async () => {
+    const user = userEvent.setup();
+    const { listExternalSessions, releaseListSnapshot } = installDesktopBridge();
+    listExternalSessions.mockResolvedValue({
+      sessions: [],
+      nextCursor: "unfinished-snapshot",
+      total: 5_001,
+    });
+
+    render(<App />);
+    await selectSurface(user, "Sessions");
+
+    await waitFor(() => expect(releaseListSnapshot).toHaveBeenCalledWith({ cursor: "unfinished-snapshot" }));
+    expect(listExternalSessions).toHaveBeenCalledOnce();
   });
 
   it("surfaces detected localhost URLs in the workspace preview dock", async () => {
