@@ -6,6 +6,7 @@ import path from "node:path";
 import { registerSessionsIpc } from "./sessions-ipc.js";
 import { createCodexSessionsReader } from "./codex-sessions.js";
 import { sessionsChannels } from "../shared/sessions-ipc.js";
+import type { WorkspaceStore } from "./workspace-store.js";
 
 const handlers = new Map<string, (event: unknown, request: unknown) => unknown>();
 
@@ -14,6 +15,44 @@ vi.mock("electron", () => ({
 }));
 
 describe("sessions IPC", () => {
+  it("replaces renderer project roots with authoritative workspace roots before discovery", async () => {
+    const reader = {
+      listExternalSessions: vi.fn(async () => ({ sessions: [], nextCursor: null, total: 0 })),
+      resolveExternalSession: vi.fn(),
+      clearCaches: vi.fn(),
+    };
+    registerSessionsIpc({
+      reader,
+      workspaceStore: fakeWorkspaceStore([{ id: "A", label: "Authoritative", shortLabel: "AU", rootPath: "/authoritative/root" }]),
+    });
+
+    await handlers.get(sessionsChannels.listExternal)?.({}, {
+      projects: [{ id: "A", label: "Injected", rootPath: "/malicious/root" }],
+      query: "needle",
+      limit: 20,
+    });
+
+    expect(reader.listExternalSessions).toHaveBeenCalledWith({
+      projects: [{ id: "A", label: "Authoritative", rootPath: "/authoritative/root" }],
+      query: "needle",
+      limit: 20,
+    });
+  });
+
+  it("rejects a resumable result when the authoritative workspace roots no longer match", async () => {
+    const reader = {
+      listExternalSessions: vi.fn(),
+      resolveExternalSession: vi.fn(async () => ({ kind: "resume" as const, projectId: "A", cwd: "/authoritative/root/.alfred-worktrees/feature", sessionId: "stale" })),
+      clearCaches: vi.fn(),
+    };
+    registerSessionsIpc({
+      reader,
+      workspaceStore: fakeWorkspaceStore([{ id: "A", label: "Authoritative", shortLabel: "AU", rootPath: "/other/root" }]),
+    });
+
+    await expect(handlers.get(sessionsChannels.resolveExternal)?.({}, { sessionKey: "stale" })).resolves.toEqual({ kind: "add-project" });
+  });
+
   it("returns an empty page and clears cached sources when indexing is disabled", async () => {
     const reader = {
       listExternalSessions: vi.fn(),
@@ -132,7 +171,14 @@ describe("sessions IPC", () => {
       listExternalSessions: vi.fn(),
       resolveExternalSession: vi.fn(),
       readTranscriptPage: vi.fn(() => Promise.resolve({ sessionKey: "known", blocks: [], nextCursor: null, revision: "1", partial: false })),
-      getDiagnostics: vi.fn(() => ({ cachedSessionCount: 0, decodedTranscriptBytes: 0, summaryCount: 0, summaryBytes: 0 })),
+      getDiagnostics: vi.fn(() => ({
+        cachedSessionCount: 0,
+        decodedTranscriptBytes: 0,
+        summaryCount: 0,
+        summaryBytes: 0,
+        resumeAliasCount: 0,
+        contentAliasCount: 0,
+      })),
       clearCaches: vi.fn(),
     };
     registerSessionsIpc({ reader, isExternalSessionIndexingEnabled: () => enabled });
@@ -144,6 +190,15 @@ describe("sessions IPC", () => {
     expect(reader.clearCaches).toHaveBeenCalledOnce();
   });
 });
+
+function fakeWorkspaceStore(workspaces: Array<{ id: string; label: string; shortLabel: string; rootPath?: string }>): WorkspaceStore {
+  return {
+    bindWorkspaceToPath: vi.fn(),
+    createWorkspaceFromPath: vi.fn(),
+    getWorkspaceState: vi.fn(async () => ({ workspaces, activeWorkspaceId: workspaces[0]?.id ?? "A" })),
+    setWorkspaceState: vi.fn(),
+  };
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

@@ -68,6 +68,8 @@ export type SessionsDiagnostics = {
   decodedTranscriptBytes: number;
   summaryCount: number;
   summaryBytes: number;
+  resumeAliasCount: number;
+  contentAliasCount: number;
 };
 
 export type SessionsApi = {

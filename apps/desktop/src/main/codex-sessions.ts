@@ -47,6 +47,8 @@ export function createCodexSessionsReader(options: {
 }) {
   const sourceBySessionKey = new Map<string, CodexSessionSource>();
   const sourceByContentSessionKey = new Map<string, CodexSessionSource>();
+  const sourceSessionAliasOrder: string[] = [];
+  const sourceContentAliasOrder: string[] = [];
   const summaryCache = new Map<string, SummaryCacheEntry>();
   const summaryOrder: string[] = [];
   const pageCache = new Map<string, TranscriptPage>();
@@ -56,6 +58,7 @@ export function createCodexSessionsReader(options: {
   let decodedTranscriptBytes = 0;
   let listSnapshotGeneration = 0;
   let listSnapshot: ListSnapshot | null = null;
+  const sourceAliasLimit = SUMMARY_CACHE_COUNT_LIMIT;
 
   const touchSummary = (key: string): void => {
     const index = summaryOrder.indexOf(key);
@@ -112,6 +115,8 @@ export function createCodexSessionsReader(options: {
   const clearCaches = (): void => {
     sourceBySessionKey.clear();
     sourceByContentSessionKey.clear();
+    sourceSessionAliasOrder.splice(0);
+    sourceContentAliasOrder.splice(0);
     summaryCache.clear();
     summaryOrder.splice(0);
     summaryBytes = 0;
@@ -120,6 +125,21 @@ export function createCodexSessionsReader(options: {
     sessionOrder.splice(0);
     decodedTranscriptBytes = 0;
     listSnapshot = null;
+  };
+  const touchAlias = <T>(map: Map<string, T>, order: string[], key: string, value: T): void => {
+    map.set(key, value);
+    const index = order.indexOf(key);
+    if (index >= 0) order.splice(index, 1);
+    order.push(key);
+    while (order.length > sourceAliasLimit) {
+      const oldest = order.shift();
+      if (!oldest) break;
+      map.delete(oldest);
+    }
+  };
+  const cacheSourceAliases = (item: CodexSummary): void => {
+    touchAlias(sourceBySessionKey, sourceSessionAliasOrder, item.summary.sessionKey, item.source);
+    touchAlias(sourceByContentSessionKey, sourceContentAliasOrder, item.summary.contentSessionKey, item.source);
   };
 
   return {
@@ -142,25 +162,17 @@ export function createCodexSessionsReader(options: {
       } else {
         options.onSummaryDiscovery?.();
         const summaries = await discoverCodexSummaries(options.codexHome, request.projects, summaryCache, touchSummary, cacheSummary);
-        const boundedSummaries = boundSummarySnapshot(summaries);
-        summaryCache.clear();
-        summaryOrder.splice(0);
-        summaryBytes = 0;
-        for (const summary of boundedSummaries) cacheSummary(summaryCacheKey(summary), summary);
         snapshot = {
           id: listSnapshotGeneration + 1,
           requestSignature,
-          summaries: filterSummaryMetadata(boundedSummaries, request.query ?? ""),
+          summaries: filterSummaryMetadata(summaries, request.query ?? ""),
         };
         listSnapshotGeneration = snapshot.id;
         listSnapshot = snapshot;
         offset = 0;
       }
       const page = pageWithinResponseCeiling(snapshot.summaries, offset, limit, snapshot.id);
-      for (const item of page) {
-        sourceBySessionKey.set(item.summary.sessionKey, item.source);
-        sourceByContentSessionKey.set(item.summary.contentSessionKey, item.source);
-      }
+      for (const item of page) cacheSourceAliases(item);
       const nextCursor = offset + page.length < snapshot.summaries.length
         ? encodeListCursor({ offset: offset + page.length, snapshot: snapshot.id })
         : null;
@@ -198,6 +210,8 @@ export function createCodexSessionsReader(options: {
         decodedTranscriptBytes,
         summaryCount: summaryCache.size,
         summaryBytes,
+        resumeAliasCount: sourceBySessionKey.size,
+        contentAliasCount: sourceByContentSessionKey.size,
       };
     },
     clearCaches,
@@ -406,20 +420,6 @@ function filterSummaryMetadata(summaries: CodexSummary[], query: string): CodexS
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length) return summaries;
   return summaries.filter(({ summary }) => terms.every((term) => [summary.title, summary.project.label, summary.locationLabel, summary.model, summary.originator].filter(Boolean).join(" ").toLowerCase().includes(term)));
-}
-function boundSummarySnapshot(summaries: CodexSummary[]): CodexSummary[] {
-  const bounded: CodexSummary[] = [];
-  let bytes = 0;
-  for (const summary of summaries) {
-    const entryBytes = summaryEntryBytes(summaryCacheKey(summary), summary);
-    if (
-      bounded.length === SUMMARY_CACHE_COUNT_LIMIT
-      || bytes + entryBytes > SUMMARY_CACHE_TEXT_LIMIT
-    ) break;
-    bounded.push(summary);
-    bytes += entryBytes;
-  }
-  return bounded;
 }
 function summaryCacheKey(summary: CodexSummary): string {
   return `${summary.source.path}:${summary.source.revision}`;
