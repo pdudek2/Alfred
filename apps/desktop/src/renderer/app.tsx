@@ -17,10 +17,10 @@ import {
 import { ComposerBar } from "./composer";
 import { CommandPalette } from "./components/CommandPalette";
 import { ContextColumn } from "./components/ContextColumn";
-import { ObservatorySurface } from "./components/ObservatorySurface";
 import { PrepareWorkPopover } from "./components/PrepareWorkPopover";
 import { ProjectNavigator, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
 import { ReviewSurface } from "./components/ReviewSurface";
+import { SessionsSurface } from "./components/SessionsSurface";
 import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
 import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHeader";
 import { WorkSurfaceToolbar } from "./components/WorkSurfaceToolbar";
@@ -74,6 +74,7 @@ import {
   type SessionTile,
 } from "./session-state";
 import { terminalSessionDisplayStatus } from "./session-status";
+import { createInitialSessionsViewState } from "./sessions-view-state";
 import { recordPreviewUrlsFromText, type PreviewUrlCandidate } from "./preview-state";
 import type { WorkMode } from "./terminal-desk-types";
 import { shortenPath } from "./path-display";
@@ -182,6 +183,7 @@ export function App() {
   const [privacySettings, setPrivacySettings] = useState<DesktopPrivacySettings>(DEFAULT_PRIVACY_SETTINGS);
   const [desktopSaveStatus, setDesktopSaveStatus] = useState<DesktopSaveStatus>({ status: "saved" });
   const [activeSurface, setActiveSurface] = useState<PrimarySurface>("work");
+  const [sessionsViewState, setSessionsViewState] = useState(createInitialSessionsViewState);
   const [workspaceHydrationStatus, setWorkspaceHydrationStatus] = useState<WorkspaceHydrationStatus>({
     status: "loading",
   });
@@ -209,6 +211,8 @@ export function App() {
   const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const prepareWorkTriggerRef = useRef<HTMLButtonElement | null>(null);
   const surfacesTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const workReturnFocusRef = useRef<HTMLElement | null>(null);
+  const restoreWorkFocusPendingRef = useRef(false);
   const contextReturnFocusRef = useRef<HTMLButtonElement | null>(null);
   const contextFocusRequestKeyRef = useRef(0);
   const closingSessionIdsRef = useRef<Set<string>>(new Set());
@@ -1438,6 +1442,11 @@ export function App() {
     handleSelectPrimarySurface("work");
   }, [handleSelectPrimarySurface]);
 
+  const handleExitSessionsToWork = useCallback(() => {
+    restoreWorkFocusPendingRef.current = true;
+    setActiveSurface("work");
+  }, []);
+
   const handleRejectTile = useCallback((tileId: string) => {
     const alfredApi = getDesktopAlfredApi();
     setTerminalSessions((sessions) => rejectStaged(sessions, tileId));
@@ -1547,7 +1556,7 @@ export function App() {
     setExternalCodexSessionsLoading(true);
     setExternalCodexSessionsError(null);
     try {
-      const result = await sessionsApi.listExternalSessions({ projects: workspaces });
+      const result = await sessionsApi.listExternalSessions({ projects: workspaces, limit: 80 });
       if (externalSessionsRequestGenerationRef.current !== requestGeneration) return;
       setExternalCodexSessions(result.sessions);
       setExternalCodexSessionsError(null);
@@ -1619,7 +1628,7 @@ export function App() {
     setWorkspaceHydrationRetryIndex((index) => index + 1);
   }, []);
 
-  const handleOpenManagedSessionFromObservatory = useCallback((workspaceId: string, sessionId: string) => {
+  const handleOpenManagedSessionFromSessions = useCallback((workspaceId: string, sessionId: string) => {
     setActiveSurface("work");
     handleFocusSessionInWorkspace(workspaceId, sessionId);
   }, [handleFocusSessionInWorkspace]);
@@ -1692,10 +1701,22 @@ export function App() {
   }, [activeWorkspace.id]);
 
   useEffect(() => {
-    if (activeSurface !== "history") return;
+    if (activeSurface !== "sessions") return;
     if (!privacySettings.externalSessionIndexingEnabled) return;
     void handleRefreshExternalCodexSessions();
   }, [activeSurface, handleRefreshExternalCodexSessions, privacySettings.externalSessionIndexingEnabled]);
+
+  useEffect(() => {
+    if (activeSurface !== "work") return;
+    if (restoreWorkFocusPendingRef.current) {
+      restoreWorkFocusPendingRef.current = false;
+      requestAnimationFrame(() => {
+        queueMicrotask(() => {
+          if (workReturnFocusRef.current?.isConnected) workReturnFocusRef.current.focus();
+        });
+      });
+    }
+  }, [activeSurface]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1935,6 +1956,15 @@ export function App() {
   return (
     <main
       className="agent-space-shell"
+      onFocusCapture={(event) => {
+        if (activeSurface !== "work" || !(event.target instanceof HTMLElement)) return;
+        if (
+          document.activeElement === event.target
+          && event.target.closest("[data-testid='workbench-shell']")
+        ) {
+          workReturnFocusRef.current = event.target;
+        }
+      }}
       onKeyDownCapture={(event) => {
         if (!inboxOwnsEscape || event.key !== "Escape") return;
         const dismissalOwner = activeAccessibleDismissalOwner(event.currentTarget);
@@ -2155,22 +2185,24 @@ export function App() {
                 />
               </div>
             )}
-            {activeSurface === "history" && (
+            {activeSurface === "sessions" && (
               <div className="surface-panel active">
-                <ObservatorySurface
-                  activeWorkspaceId={activeWorkspace.id}
-                  externalCodexSessions={externalCodexSessions}
+                <SessionsSurface
                   externalSessionIndexingEnabled={privacySettings.externalSessionIndexingEnabled}
+                  externalSessions={externalCodexSessions}
                   externalSessionsError={externalCodexSessionsError}
                   loadingExternalSessions={externalCodexSessionsLoading}
                   sessions={terminalSessions}
+                  sessionsApi={getDesktopSessionsApi()}
+                  state={sessionsViewState}
+                  terminalApi={getDesktopTerminalApi()}
                   workspaces={workspaces}
-                  onOpenManagedSession={handleOpenManagedSessionFromObservatory}
+                  onBackToWork={handleExitSessionsToWork}
+                  onOpenManagedSession={handleOpenManagedSessionFromSessions}
                   onRefreshExternalSessions={handleRefreshExternalCodexSessions}
                   onResumeExternalCodexSession={handleResumeExternalCodexSession}
-                  onSelectSurface={handleSelectPrimarySurface}
+                  onStateChange={setSessionsViewState}
                   onTrustExternalCodexWorkspace={handleTrustExternalCodexWorkspace}
-                  onSelectWorkspace={handleSelectWorkspace}
                 />
               </div>
             )}
@@ -2402,7 +2434,7 @@ function PrivacyPanel({
           <section className="privacy-control-row">
             <div>
               <strong>External Codex indexing</strong>
-              <span>{settings.externalSessionIndexingEnabled ? "Observatory can index local Codex transcripts." : "Observatory will not scan external Codex transcripts."}</span>
+              <span>{settings.externalSessionIndexingEnabled ? "Sessions can index local Codex transcripts." : "Sessions will not scan external Codex transcripts."}</span>
             </div>
             <label className="privacy-toggle">
               <input

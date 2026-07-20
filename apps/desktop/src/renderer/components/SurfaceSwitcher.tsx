@@ -1,14 +1,14 @@
 import type { PrimarySurface } from "./WorkbenchHeader";
 
 type SurfaceSwitcherProps = {
-  activeSurface: Extract<PrimarySurface, "inbox" | "history">;
+  activeSurface: Extract<PrimarySurface, "inbox" | "sessions">;
   onSelectSurface: (surface: PrimarySurface) => void;
 };
 
 const SURFACES: Array<{ id: PrimarySurface; label: string }> = [
   { id: "work", label: "Work" },
   { id: "inbox", label: "Inbox" },
-  { id: "history", label: "Observatory" },
+  { id: "sessions", label: "Sessions" },
 ];
 
 export function SurfaceSwitcher({ activeSurface, onSelectSurface }: SurfaceSwitcherProps) {

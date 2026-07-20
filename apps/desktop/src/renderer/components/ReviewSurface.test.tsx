@@ -112,7 +112,7 @@ describe("ReviewSurface", () => {
 
   it.each([
     ["Work", "{Enter}", "work"],
-    ["Observatory", " ", "history"],
+    ["Sessions", " ", "sessions"],
   ] as const)(
     "lets the %s switcher button handle %s without running the selected decision",
     async (label, key, surface) => {

@@ -26,7 +26,7 @@ describe("ChromeMenu", () => {
         title="Surfaces"
         items={[
           { id: "work", label: "Work", run },
-          { id: "observatory", label: "Observatory", run: vi.fn() },
+          { id: "sessions", label: "Sessions", run: vi.fn() },
         ]}
       >
         Surfaces
@@ -80,7 +80,7 @@ describe("ChromeMenu", () => {
           items={[
             { id: "work", label: "Work", run: vi.fn() },
             { id: "disabled", label: "Disabled", disabled: true, run: vi.fn() },
-            { id: "observatory", label: "Observatory", run: vi.fn() },
+            { id: "sessions", label: "Sessions", run: vi.fn() },
             { id: "context", label: "Context", run: vi.fn() },
           ]}
         >
@@ -93,7 +93,7 @@ describe("ChromeMenu", () => {
     await user.click(screen.getByRole("button", { name: "Open Surfaces menu" }));
     expect(screen.getByRole("menuitem", { name: "Work" })).toHaveFocus();
     await user.keyboard("{ArrowDown}");
-    expect(screen.getByRole("menuitem", { name: "Observatory" })).toHaveFocus();
+    expect(screen.getByRole("menuitem", { name: "Sessions" })).toHaveFocus();
     await user.keyboard("{End}");
     expect(screen.getByRole("menuitem", { name: "Context" })).toHaveFocus();
     await user.keyboard("{Home}");
@@ -115,7 +115,7 @@ describe("ChromeMenu", () => {
           items={[
             { id: "work", label: "Work", run: vi.fn() },
             { id: "disabled", label: "Disabled", disabled: true, run: vi.fn() },
-            { id: "observatory", label: "Observatory", run: vi.fn() },
+            { id: "sessions", label: "Sessions", run: vi.fn() },
             { id: "context", label: "Context", run: vi.fn() },
           ]}
         >
@@ -142,7 +142,7 @@ describe("ChromeMenu", () => {
           items={[
             { id: "work", label: "Work", run: vi.fn() },
             { id: "disabled", label: "Disabled", disabled: true, run: vi.fn() },
-            { id: "observatory", label: "Observatory", run: vi.fn() },
+            { id: "sessions", label: "Sessions", run: vi.fn() },
             { id: "context", label: "Context", run: vi.fn() },
           ]}
         >
@@ -154,7 +154,7 @@ describe("ChromeMenu", () => {
 
     await user.click(screen.getByRole("button", { name: "Open Surfaces menu" }));
     await user.keyboard("{ArrowDown}");
-    expect(screen.getByRole("menuitem", { name: "Observatory" })).toHaveFocus();
+    expect(screen.getByRole("menuitem", { name: "Sessions" })).toHaveFocus();
     await user.tab();
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "After menu" })).toHaveFocus();
@@ -169,7 +169,7 @@ describe("ChromeMenu", () => {
         items={[
           { id: "work", label: "Work", run: vi.fn() },
           { id: "disabled", label: "Disabled", disabled: true, run: vi.fn() },
-          { id: "observatory", label: "Observatory", run: vi.fn() },
+          { id: "sessions", label: "Sessions", run: vi.fn() },
           { id: "context", label: "Context", run: vi.fn() },
         ]}
       >
