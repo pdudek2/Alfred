@@ -49,6 +49,36 @@ describe("Codex sessions reader", () => {
     });
   });
 
+  it("discovers summaries once for a multi-page cursor snapshot and rediscovers on refresh", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    await writeCodexSummaryFixtures(codexHome, 120, "/fixture/project");
+    const onSummaryDiscovery = vi.fn();
+    const reader = createCodexSessionsReader({
+      codexHome,
+      onSummaryDiscovery,
+    });
+    const request = {
+      projects: [{ id: "A", label: "Fixture project", rootPath: "/fixture/project" }],
+      limit: 80,
+    };
+
+    const first = await reader.listExternalSessions(request);
+    const second = await reader.listExternalSessions({ ...request, cursor: first.nextCursor! });
+
+    expect(first.sessions).toHaveLength(80);
+    expect(second.sessions).toHaveLength(40);
+    expect(onSummaryDiscovery).toHaveBeenCalledTimes(1);
+
+    const refreshed = await reader.listExternalSessions(request);
+    expect(onSummaryDiscovery).toHaveBeenCalledTimes(2);
+    await expect(reader.listExternalSessions({ ...request, cursor: first.nextCursor! }))
+      .rejects.toThrow("Invalid external sessions cursor.");
+
+    reader.clearCaches();
+    await expect(reader.listExternalSessions({ ...request, cursor: refreshed.nextCursor! }))
+      .rejects.toThrow("Invalid external sessions cursor.");
+  });
+
   it("reads a listed external transcript through its content session key without making that key resumable", async () => {
     const { codexHome } = await transcriptFixture("content-alias", [
       { type: "session_meta", payload: { id: "content-alias", cwd: "/repo" } },

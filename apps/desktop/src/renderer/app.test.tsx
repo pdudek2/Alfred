@@ -2855,8 +2855,40 @@ describe("App integration", () => {
     listExternalSessions.mockRejectedValueOnce(new Error("index unavailable"));
     await user.click(screen.getByRole("button", { name: "Refresh external sessions" }));
 
-    expect(await screen.findByText("Showing last successful results.")).toBeInTheDocument();
+    expect(await screen.findByText("External sessions may be incomplete.")).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Previously indexed Codex/i })).toBeInTheDocument();
+  });
+
+  it("marks incrementally published external rows as incomplete when a later page fails", async () => {
+    const user = userEvent.setup();
+    const firstPageSession: ExternalSessionSummary = {
+      sessionKey: "external-codex:partial-page",
+      lineageKey: "external-codex:partial-page",
+      contentSessionKey: "external-codex:partial-page",
+      source: "external-codex",
+      kind: "codex",
+      title: "Published before page failure",
+      project: { id: "A", label: "Alfred" },
+      locationLabel: "Alfred",
+      updatedAt: 300,
+      lifecycle: "resumable",
+    };
+    const { listExternalSessions } = installDesktopBridge();
+    listExternalSessions
+      .mockResolvedValueOnce({
+        sessions: [firstPageSession],
+        nextCursor: "partial-next-page",
+        total: 120,
+      })
+      .mockRejectedValueOnce(new Error("second page unavailable"));
+
+    render(<App />);
+    await selectSurface(user, "Sessions");
+
+    expect(await screen.findByRole("option", { name: /Published before page failure/i })).toBeInTheDocument();
+    expect(await screen.findByText("External sessions may be incomplete.")).toBeInTheDocument();
+    expect(screen.getByText("Refresh failed. Retry when the local session index is available.")).toBeInTheDocument();
+    expect(listExternalSessions).toHaveBeenCalledTimes(2);
   });
 
   it("keeps only one global modal open at a time", async () => {

@@ -37,8 +37,14 @@ type CodexSummary = { summary: ExternalSessionSummary; source: CodexSessionSourc
 type SessionFile = { path: string; updatedAt: number; size: number };
 type SummaryCacheEntry = { summary: CodexSummary; bytes: number };
 type TranscriptCursor = { offset: number; revision: string };
+type ListCursor = { offset: number; snapshot: number };
+type ListSnapshot = { id: number; requestSignature: string; summaries: CodexSummary[] };
 
-export function createCodexSessionsReader(options: { codexHome: string; summaryLimit?: number }) {
+export function createCodexSessionsReader(options: {
+  codexHome: string;
+  summaryLimit?: number;
+  onSummaryDiscovery?: () => void;
+}) {
   const sourceBySessionKey = new Map<string, CodexSessionSource>();
   const sourceByContentSessionKey = new Map<string, CodexSessionSource>();
   const summaryCache = new Map<string, SummaryCacheEntry>();
@@ -48,6 +54,8 @@ export function createCodexSessionsReader(options: { codexHome: string; summaryL
   const sessionOrder: string[] = [];
   let summaryBytes = 0;
   let decodedTranscriptBytes = 0;
+  let listSnapshotGeneration = 0;
+  let listSnapshot: ListSnapshot | null = null;
 
   const touchSummary = (key: string): void => {
     const index = summaryOrder.indexOf(key);
@@ -111,24 +119,51 @@ export function createCodexSessionsReader(options: { codexHome: string; summaryL
     pageKeysBySession.clear();
     sessionOrder.splice(0);
     decodedTranscriptBytes = 0;
+    listSnapshot = null;
   };
 
   return {
     async listExternalSessions(request: ListExternalSessionsRequest): Promise<ListExternalSessionsResult> {
       validateProjects(request.projects);
       const limit = Math.min(Math.max(request.limit ?? options.summaryLimit ?? SESSIONS_PAGE_SIZE, 1), 100);
-      const summaries = await discoverCodexSummaries(options.codexHome, request.projects, summaryCache, touchSummary, cacheSummary);
-      const filtered = filterSummaryMetadata(summaries, request.query ?? "");
-      const offset = decodeListCursor(request.cursor, filtered.length);
-      const page = pageWithinResponseCeiling(filtered, offset, limit);
+      const requestSignature = listRequestSignature(request);
+      let snapshot: ListSnapshot;
+      let offset: number;
+      if (request.cursor) {
+        const cursor = decodeListCursor(request.cursor);
+        if (
+          !listSnapshot
+          || cursor.snapshot !== listSnapshot.id
+          || requestSignature !== listSnapshot.requestSignature
+          || cursor.offset > listSnapshot.summaries.length
+        ) throw invalidListCursor();
+        snapshot = listSnapshot;
+        offset = cursor.offset;
+      } else {
+        options.onSummaryDiscovery?.();
+        const summaries = await discoverCodexSummaries(options.codexHome, request.projects, summaryCache, touchSummary, cacheSummary);
+        snapshot = {
+          id: listSnapshotGeneration + 1,
+          requestSignature,
+          summaries: filterSummaryMetadata(summaries, request.query ?? ""),
+        };
+        listSnapshotGeneration = snapshot.id;
+        listSnapshot = snapshot;
+        offset = 0;
+      }
+      const page = pageWithinResponseCeiling(snapshot.summaries, offset, limit, snapshot.id);
       for (const item of page) {
         sourceBySessionKey.set(item.summary.sessionKey, item.source);
         sourceByContentSessionKey.set(item.summary.contentSessionKey, item.source);
       }
+      const nextCursor = offset + page.length < snapshot.summaries.length
+        ? encodeListCursor({ offset: offset + page.length, snapshot: snapshot.id })
+        : null;
+      if (!nextCursor) listSnapshot = null;
       return {
         sessions: page.map((item) => item.summary),
-        nextCursor: offset + page.length < filtered.length ? encodeListCursor(offset + page.length) : null,
-        total: filtered.length,
+        nextCursor,
+        total: snapshot.summaries.length,
       };
     },
     async resolveExternalSession(request: { sessionKey: string } | string): Promise<ResolveExternalSessionResult> {
@@ -368,21 +403,37 @@ function filterSummaryMetadata(summaries: CodexSummary[], query: string): CodexS
   return summaries.filter(({ summary }) => terms.every((term) => [summary.title, summary.project.label, summary.locationLabel, summary.model, summary.originator].filter(Boolean).join(" ").toLowerCase().includes(term)));
 }
 function validateProjects(projects: SessionsProjectInput[]): void { for (const project of projects) if (!project.id.trim() || Buffer.byteLength(project.id, "utf8") > MAX_PROJECT_ID_BYTES) throw new Error("Invalid external sessions project id."); }
-function pageWithinResponseCeiling(summaries: CodexSummary[], offset: number, limit: number): CodexSummary[] {
+function pageWithinResponseCeiling(summaries: CodexSummary[], offset: number, limit: number, snapshot: number): CodexSummary[] {
   const page: CodexSummary[] = [];
   for (const item of summaries.slice(offset, offset + limit)) {
     const candidate = [...page, item];
     const candidateOffset = offset + candidate.length;
-    const result = { sessions: candidate.map((entry) => entry.summary), nextCursor: candidateOffset < summaries.length ? encodeListCursor(candidateOffset) : null, total: summaries.length };
+    const result = { sessions: candidate.map((entry) => entry.summary), nextCursor: candidateOffset < summaries.length ? encodeListCursor({ offset: candidateOffset, snapshot }) : null, total: summaries.length };
     if (Buffer.byteLength(JSON.stringify(result)) > MAX_LIST_RESPONSE_BYTES) break;
     page.push(item);
   }
   return page;
 }
-function encodeListCursor(offset: number): string { return Buffer.from(JSON.stringify({ offset }), "utf8").toString("base64url"); }
-function decodeListCursor(cursor: string | undefined, total: number): number {
-  if (!cursor) return 0;
-  try { const value = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as { offset?: unknown }; if (typeof value.offset !== "number" || !Number.isInteger(value.offset) || value.offset < 0 || value.offset > total) throw new Error("invalid"); return value.offset; } catch { throw new Error("Invalid external sessions cursor."); }
+function encodeListCursor(cursor: ListCursor): string { return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url"); }
+function decodeListCursor(cursor: string): ListCursor {
+  try {
+    const value = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as unknown;
+    if (!isListCursor(value)) throw new Error("invalid");
+    return value;
+  } catch { throw invalidListCursor(); }
+}
+function isListCursor(value: unknown): value is ListCursor {
+  return isRecord(value)
+    && typeof value.offset === "number"
+    && Number.isInteger(value.offset)
+    && value.offset >= 0
+    && typeof value.snapshot === "number"
+    && Number.isInteger(value.snapshot)
+    && value.snapshot > 0;
+}
+function invalidListCursor(): Error { return new Error("Invalid external sessions cursor."); }
+function listRequestSignature(request: ListExternalSessionsRequest): string {
+  return JSON.stringify({ projects: request.projects, query: request.query ?? "" });
 }
 function projectForCwd(cwd: string, projects: SessionsProjectInput[]): SessionProjectRef {
   const project = projects.filter((candidate) => pathMatchesWorkspace(cwd, candidate.rootPath)).sort((left, right) => (right.rootPath?.length ?? 0) - (left.rootPath?.length ?? 0))[0];
