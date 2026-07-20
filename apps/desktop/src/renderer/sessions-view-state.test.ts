@@ -23,14 +23,17 @@ describe("SessionsViewState", () => {
   it("starts as window-lifetime navigation state without transcript content", () => {
     expect(createInitialSessionsViewState()).toEqual({
       query: "",
+      selectedProjectId: "all",
       source: "all",
       timeRange: "any",
       pageIndex: 0,
       selectedSessionKey: null,
       navigatorScrollTop: 0,
+      projectsScrollTop: 0,
       readerScrollTop: 0,
       focusTarget: "search",
       readerPages: [],
+      readerMode: "conversation",
     });
   });
 

@@ -2,25 +2,31 @@ import type { TranscriptPage } from "../shared/sessions-ipc";
 
 export type SessionsViewState = {
   query: string;
+  selectedProjectId: string;
   source: "all" | "managed" | "external-codex";
   timeRange: "any" | "day" | "week" | "month";
   pageIndex: number;
   selectedSessionKey: string | null;
   navigatorScrollTop: number;
+  projectsScrollTop: number;
   readerScrollTop: number;
-  focusTarget: "search" | "results" | "reader";
+  readerMode: "conversation" | "raw";
+  focusTarget: "projects" | "search" | "results" | "reader";
   readerPages: TranscriptPage[];
 };
 
 export function createInitialSessionsViewState(): SessionsViewState {
   return {
     query: "",
+    selectedProjectId: "all",
     source: "all",
     timeRange: "any",
     pageIndex: 0,
     selectedSessionKey: null,
     navigatorScrollTop: 0,
+    projectsScrollTop: 0,
     readerScrollTop: 0,
+    readerMode: "conversation",
     focusTarget: "search",
     readerPages: [],
   };

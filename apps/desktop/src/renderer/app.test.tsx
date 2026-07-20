@@ -921,7 +921,7 @@ describe("App integration", () => {
     await user.type(search, "round trip");
     await user.click(await screen.findByRole("option", { name: /Round trip session/i }));
     const transcript = await screen.findByRole("article", { name: /Round trip session/i });
-    const navigator = screen.getByRole("listbox", { name: "Session results" });
+    const navigator = screen.getByRole("listbox", { name: "Conversation results" });
     const reader = document.querySelector<HTMLElement>(".sessions-reader__scroll");
     expect(reader).not.toBeNull();
     fireEvent.scroll(navigator, { target: { scrollTop: 37 } });
@@ -935,7 +935,7 @@ describe("App integration", () => {
     expect(screen.getByRole("searchbox", { name: "Search sessions" })).toHaveValue("round trip");
     const restoredTranscript = screen.getByRole("article", { name: /Round trip session/i });
     expect(restoredTranscript).not.toBe(transcript);
-    expect(screen.getByRole("listbox", { name: "Session results" })).toHaveProperty("scrollTop", 37);
+    expect(screen.getByRole("listbox", { name: "Conversation results" })).toHaveProperty("scrollTop", 37);
     expect(document.querySelector(".sessions-reader__scroll")).toHaveProperty("scrollTop", 53);
     expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
   });
@@ -3035,8 +3035,7 @@ describe("App integration", () => {
     const sessions = await screen.findByRole("region", { name: "Sessions workspace" });
     const search = within(sessions).getByRole("searchbox", { name: "Search sessions" });
     expect(search).toHaveFocus();
-    await user.click(within(within(sessions).getByRole("group", { name: "Session source" }))
-      .getByText("External Codex", { exact: true }));
+    await user.click(within(sessions).getByRole("radio", { name: "Codex" }));
     await waitFor(() => expect(listExternalSessions).toHaveBeenCalledTimes(2));
     expect(listExternalSessions).toHaveBeenNthCalledWith(1, {
       projects: expect.any(Array),
@@ -3047,7 +3046,7 @@ describe("App integration", () => {
       limit: 80,
       cursor: "test-external-cursor:80",
     });
-    expect(within(sessions).getByRole("status")).toHaveTextContent("120 results");
+    expect(within(sessions).getByRole("status")).toHaveTextContent("120 conversations");
     expect(within(sessions).getAllByRole("option")).toHaveLength(80);
 
     await user.click(within(sessions).getByRole("button", { name: "Next" }));

@@ -13,6 +13,8 @@ export type SessionSummary = {
   sessionKey: string;
   lineageKey: string;
   contentSessionKey: string | null;
+  parentContentSessionKey?: string | null;
+  delegatedRunCount?: number;
   source: "managed" | "external-codex";
   kind: "codex" | "claude" | "manual";
   title: string;
@@ -30,6 +32,7 @@ export type ExternalSessionSummary = SessionSummary & {
   source: "external-codex";
   kind: "codex";
   contentSessionKey: string;
+  parentContentSessionKey?: string | null;
   lifecycle: "resumable" | "read-only";
 };
 
@@ -63,6 +66,13 @@ export type TranscriptPage = {
   partial: boolean;
 };
 
+export type TranscriptReadMode = "conversation" | "raw";
+export type ReadTranscriptPageRequest = {
+  sessionKey: string;
+  cursor?: string;
+  mode?: TranscriptReadMode;
+};
+
 export type SessionsDiagnostics = {
   cachedSessionCount: number;
   decodedTranscriptBytes: number;
@@ -76,7 +86,7 @@ export type SessionsApi = {
   listExternalSessions(request: ListExternalSessionsRequest): Promise<ListExternalSessionsResult>;
   releaseListSnapshot(request: { cursor: string }): Promise<void>;
   resolveExternalSession(request: { sessionKey: string }): Promise<ResolveExternalSessionResult>;
-  readTranscriptPage(request: { sessionKey: string; cursor?: string }): Promise<TranscriptPage>;
+  readTranscriptPage(request: ReadTranscriptPageRequest): Promise<TranscriptPage>;
   getDiagnostics(): Promise<SessionsDiagnostics>;
   clearCaches(): Promise<void>;
 };

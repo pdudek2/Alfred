@@ -20,7 +20,9 @@ import {
   type SessionProjectRef,
   type TranscriptBlock,
   type TranscriptPage,
+  type TranscriptReadMode,
 } from "../shared/sessions-ipc.js";
+import { sessionPresentationText as presentationText } from "../shared/session-presentation.js";
 import { canonicalWorkspacePath } from "./workspace-path.js";
 
 const MAX_TITLE_LENGTH = 92;
@@ -38,7 +40,7 @@ type CodexSessionSource = { path: string; id: string; cwd: string; revision: str
 type CodexSummary = { summary: ExternalSessionSummary; source: CodexSessionSource; fallbackTitle: string };
 type SessionFile = { path: string; updatedAt: number; size: number };
 type SummaryCacheEntry = { summary: CodexSummary; bytes: number };
-type TranscriptCursor = { offset: number; revision: string };
+type TranscriptCursor = { offset: number; revision: string; mode: TranscriptReadMode };
 type ListCursor = { offset: number; snapshot: number };
 type ListSnapshot = { id: number; requestSignature: string; summaries: CodexSummary[] };
 type CanonicalSessionsProject = SessionsProjectInput & { canonicalRoots: string[] };
@@ -100,8 +102,8 @@ export function createCodexSessionsReader(options: {
     const index = sessionOrder.indexOf(sessionKey);
     if (index >= 0) sessionOrder.splice(index, 1);
   };
-  const cachePage = (sessionKey: string, requestCursor: string | undefined, page: TranscriptPage): void => {
-    const key = `${sessionKey}:${page.revision}:${requestCursor ?? "start"}`;
+  const cachePage = (sessionKey: string, requestCursor: string | undefined, mode: TranscriptReadMode, page: TranscriptPage): void => {
+    const key = `${sessionKey}:${mode}:${page.revision}:${requestCursor ?? "start"}`;
     const previous = pageCache.get(key);
     if (previous) decodedTranscriptBytes -= decodedBytes(previous);
     pageCache.set(key, page);
@@ -199,18 +201,19 @@ export function createCodexSessionsReader(options: {
       if (!source.projectId) return { kind: "add-project" };
       return { kind: "resume", projectId: source.projectId, cwd: source.cwd, sessionId: source.id };
     },
-    async readTranscriptPage(request: { sessionKey: string; cursor?: string }): Promise<TranscriptPage> {
+    async readTranscriptPage(request: { sessionKey: string; cursor?: string; mode?: TranscriptReadMode }): Promise<TranscriptPage> {
       const source = sourceBySessionKey.get(request.sessionKey) ?? sourceByContentSessionKey.get(request.sessionKey);
       if (!source) throw new Error("Unknown external session.");
+      const mode = request.mode ?? "conversation";
       let current: { revision: string; size: number };
       try { current = await currentRevision(source.path); } catch { throw transcriptReadError(); }
-      const cursor = decodeTranscriptCursor(request.cursor, current.revision, current.size);
-      const cacheKey = `${request.sessionKey}:${current.revision}:${request.cursor ?? "start"}`;
+      const cursor = decodeTranscriptCursor(request.cursor, current.revision, current.size, mode);
+      const cacheKey = `${request.sessionKey}:${mode}:${current.revision}:${request.cursor ?? "start"}`;
       const cached = pageCache.get(cacheKey);
       if (cached) { touchSession(request.sessionKey); return cached; }
       let page: TranscriptPage;
-      try { page = await streamTranscriptPage(source, request.sessionKey, cursor); } catch { throw transcriptReadError(); }
-      cachePage(request.sessionKey, request.cursor, page);
+      try { page = await streamTranscriptPage(source, request.sessionKey, cursor, mode); } catch { throw transcriptReadError(); }
+      cachePage(request.sessionKey, request.cursor, mode, page);
       return page;
     },
     getDiagnostics(): SessionsDiagnostics {
@@ -289,8 +292,8 @@ async function summarizeCodexSessionFile(
     if (!record) continue;
     if (record.type === "session_meta" && isRecord(record.payload)) { meta = record.payload as SessionMetaPayload; continue; }
     if (!titleText) {
-      const candidate = extractUserText(record);
-      if (candidate && !isInjectedSessionContext(candidate)) titleText = candidate;
+      const candidate = presentationText(extractUserText(record));
+      if (candidate) titleText = candidate;
     }
     if (meta && titleText) break;
   }
@@ -300,7 +303,8 @@ async function summarizeCodexSessionFile(
   if (Buffer.byteLength(cwd, "utf8") > MAX_SESSION_CWD_BYTES) return null;
   const project = await projectForCwd(cwd, projects, canonicalCwds);
   const fallback = titleFromText(titleText) || titleFromText(fallbackTitle(cwd, id));
-  const title = titleFromText(titleIndex.get(id) ?? "") || fallback;
+  const indexedTitle = presentationText(titleIndex.get(id) ?? "");
+  const title = titleFromText(indexedTitle) || fallback;
   const model = stringValue(meta?.model);
   const originator = stringValue(meta?.originator);
   const sessionKey = `external-codex:${opaqueSessionToken(id, file.updatedAt)}`;
@@ -310,9 +314,14 @@ async function summarizeCodexSessionFile(
     sessionKey,
     lineageKey: `external-codex:${boundedSessionIdentity(parentThreadId ?? id)}`,
     contentSessionKey: `external-codex:${contentId}`,
+    parentContentSessionKey: parentThreadId
+      ? `external-codex:${boundedSessionIdentity(parentThreadId)}`
+      : null,
+    delegatedRunCount: 0,
     source: "external-codex",
     kind: "codex",
     title,
+    ...(titleText ? { snippet: boundedDisplayText(titleText) } : {}),
     project,
     locationLabel: boundedDisplayText(project.id ? project.label : (cwd ? path.basename(cwd) : "Unknown workspace")),
     updatedAt: file.updatedAt,
@@ -323,7 +332,12 @@ async function summarizeCodexSessionFile(
   return { summary, source: { path: file.path, id, cwd, revision: revisionFrom(file.updatedAt, file.size), projectId: project.id }, fallbackTitle: fallback };
 }
 
-async function streamTranscriptPage(source: CodexSessionSource, sessionKey: string, cursor: TranscriptCursor): Promise<TranscriptPage> {
+async function streamTranscriptPage(
+  source: CodexSessionSource,
+  sessionKey: string,
+  cursor: TranscriptCursor,
+  mode: TranscriptReadMode,
+): Promise<TranscriptPage> {
   const blocks: TranscriptBlock[] = [];
   let textBytes = 0;
   let partialNotice: string | null = null;
@@ -331,12 +345,12 @@ async function streamTranscriptPage(source: CodexSessionSource, sessionKey: stri
   const makePage = (nextOffset: number | null): TranscriptPage => ({
     sessionKey,
     blocks: partialNotice ? appendPartialNotice(blocks, textBytes, partialNotice) : blocks,
-    nextCursor: nextOffset === null ? null : encodeTranscriptCursor({ offset: nextOffset, revision: cursor.revision }),
+    nextCursor: nextOffset === null ? null : encodeTranscriptCursor({ offset: nextOffset, revision: cursor.revision, mode }),
     revision: cursor.revision,
     partial: Boolean(partialNotice),
   });
   for await (const line of rawTranscriptLines(source.path, cursor.offset)) {
-    const parsed = parseTranscriptRecord(line.text, `${sessionKey}:${line.start}`);
+    const parsed = parseTranscriptRecord(line.text, `${sessionKey}:${line.start}`, mode);
     if (parsed.kind === "malformed") {
       if (!partialNotice && !canAppendNotice(blocks, textBytes, MALFORMED_NOTICE)) return makePage(line.start);
       partialNotice = MALFORMED_NOTICE;
@@ -402,29 +416,42 @@ function appendPartialNotice(blocks: TranscriptBlock[], textBytes: number, notic
     : blocks;
 }
 
-function parseTranscriptRecord(line: string, id: string): { block?: TranscriptBlock; kind: "known" | "unknown" | "malformed" } {
+function parseTranscriptRecord(
+  line: string,
+  id: string,
+  mode: TranscriptReadMode,
+): { block?: TranscriptBlock; kind: "known" | "unknown" | "malformed" } {
   const record = parseJsonRecord(line);
   if (!record) return { kind: "malformed" };
   if (record.type !== "response_item" || !isRecord(record.payload)) return { kind: "unknown" };
   const payload = record.payload;
   if (payload.type !== "message" || !isTranscriptRole(payload.role) || !Array.isArray(payload.content)) return { kind: "unknown" };
-  const text = payload.content.flatMap((item) => isRecord(item) ? [stringValue(item.text) ?? stringValue(item.input_text) ?? stringValue(item.output_text) ?? ""] : []).join("\n").trim();
+  const sourceText = payload.content.flatMap((item) => isRecord(item) ? [stringValue(item.text) ?? stringValue(item.input_text) ?? stringValue(item.output_text) ?? ""] : []).join("\n").trim();
+  if (mode === "conversation" && payload.role === "system") return { kind: "known" };
+  const text = mode === "conversation" && payload.role === "user"
+    ? presentationText(sourceText)
+    : sourceText;
   return text ? { kind: "known", block: { id, kind: "message", role: payload.role, text } } : { kind: "unknown" };
 }
 
 function isTranscriptRole(value: unknown): value is "user" | "assistant" | "system" { return value === "user" || value === "assistant" || value === "system"; }
 function decodedBytes(page: TranscriptPage): number { return page.blocks.reduce((total, block) => total + Buffer.byteLength(block.text, "utf8"), 0); }
 function encodeTranscriptCursor(value: TranscriptCursor): string { return Buffer.from(JSON.stringify(value), "utf8").toString("base64url"); }
-function decodeTranscriptCursor(value: string | undefined, revision: string, size: number): TranscriptCursor {
-  if (!value) return { offset: 0, revision };
+function decodeTranscriptCursor(value: string | undefined, revision: string, size: number, mode: TranscriptReadMode): TranscriptCursor {
+  if (!value) return { offset: 0, revision, mode };
   try {
     const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as unknown;
-    if (!isTranscriptCursor(parsed) || parsed.revision !== revision || parsed.offset > size) throw new Error("invalid");
+    if (!isTranscriptCursor(parsed) || parsed.revision !== revision || parsed.mode !== mode || parsed.offset > size) throw new Error("invalid");
     return parsed;
   } catch { throw new Error("Transcript cursor is invalid or stale."); }
 }
 function isTranscriptCursor(value: unknown): value is TranscriptCursor {
-  return isRecord(value) && typeof value.offset === "number" && Number.isInteger(value.offset) && value.offset >= 0 && typeof value.revision === "string";
+  return isRecord(value)
+    && typeof value.offset === "number"
+    && Number.isInteger(value.offset)
+    && value.offset >= 0
+    && typeof value.revision === "string"
+    && (value.mode === "conversation" || value.mode === "raw");
 }
 function truncateUtf8(value: string, limit: number): string {
   const bytes = Buffer.from(value, "utf8");
@@ -528,7 +555,7 @@ function longestRoot(project: CanonicalSessionsProject): number {
 function pathMatchesWorkspace(cwd: string, root: string): boolean {
   return Boolean(cwd && root && (cwd === root || cwd.startsWith(`${root}${path.sep}`)));
 }
-async function readCodexSessionTitleIndex(codexHome: string): Promise<Map<string, string>> { let content: string; try { content = await readFile(path.join(codexHome, "session_index.jsonl"), "utf8"); } catch { return new Map(); } const titles = new Map<string, string>(); for (const line of content.split(/\r?\n/)) { const record = parseJsonRecord(line); const id = stringValue(record?.id); const title = titleFromText(stringValue(record?.thread_name) ?? ""); if (id && title) titles.set(id, title); } return titles; }
+async function readCodexSessionTitleIndex(codexHome: string): Promise<Map<string, string>> { let content: string; try { content = await readFile(path.join(codexHome, "session_index.jsonl"), "utf8"); } catch { return new Map(); } const titles = new Map<string, string>(); for (const line of content.split(/\r?\n/)) { const record = parseJsonRecord(line); const id = stringValue(record?.id); const title = titleFromText(presentationText(stringValue(record?.thread_name) ?? "")); if (id && title) titles.set(id, title); } return titles; }
 async function findJsonlFiles(root: string): Promise<SessionFile[]> { const files: SessionFile[] = []; async function visit(dir: string): Promise<void> { let handle: Awaited<ReturnType<typeof opendir>>; try { handle = await opendir(dir); } catch { return; } for await (const entry of handle) { const entryPath = path.join(dir, entry.name); if (entry.isDirectory()) await visit(entryPath); else if (entry.isFile() && entry.name.endsWith(".jsonl")) try { const details = await stat(entryPath); files.push({ path: entryPath, updatedAt: details.mtimeMs, size: details.size }); } catch { /* File changed while Codex was writing it. */ } } } await visit(root); return files; }
 async function readTranscriptPrefixLines(filePath: string, maxLines: number): Promise<string[]> { const stream = createReadStream(filePath, { encoding: "utf8" }); const reader = createInterface({ input: stream, crlfDelay: Infinity }); const lines: string[] = []; try { for await (const line of reader) { lines.push(line); if (lines.length >= maxLines) { reader.close(); stream.destroy(); break; } } } finally { reader.close(); stream.destroy(); } return lines; }
 function parseJsonRecord(line: string): Record<string, unknown> | null { try { const value = JSON.parse(line) as unknown; return isRecord(value) ? value : null; } catch { return null; } }
@@ -537,7 +564,6 @@ function stringValue(value: unknown): string | undefined { return typeof value =
 function extractUserText(record: Record<string, unknown>): string { if (record.type === "event_msg" && isRecord(record.payload)) return stringValue(record.payload.message) ?? ""; if (record.type !== "response_item" || !isRecord(record.payload) || record.payload.type !== "message" || record.payload.role !== "user" || !Array.isArray(record.payload.content)) return ""; return record.payload.content.flatMap((item) => isRecord(item) ? [stringValue(item.text) ?? stringValue(item.input_text) ?? ""] : []).join(" ").trim(); }
 function titleFromText(value: string): string { const text = value.replace(/\s+/g, " ").trim(); return !text ? "" : text.length > MAX_TITLE_LENGTH ? `${text.slice(0, MAX_TITLE_LENGTH - 1)}...` : text; }
 function boundedDisplayText(value: string): string { const text = value.replace(/\s+/g, " ").trim(); return text.length > MAX_DISPLAY_TEXT_LENGTH ? `${text.slice(0, MAX_DISPLAY_TEXT_LENGTH - 1)}...` : text; }
-function isInjectedSessionContext(value: string): boolean { return /^#\s*AGENTS\.md instructions\b/i.test(value.trim()); }
 function fallbackTitle(cwd: string, id: string): string { return cwd ? `${path.basename(cwd)} Codex session` : id; }
 function idFromFilename(filePath: string): string { const basename = path.basename(filePath, ".jsonl"); return basename.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)?.[0] ?? basename; }
 function opaqueSessionToken(id: string, revision: number): string { return createHash("sha256").update(`${id}:${revision}`).digest("base64url"); }
