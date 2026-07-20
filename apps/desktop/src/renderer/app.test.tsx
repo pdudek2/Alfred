@@ -863,7 +863,7 @@ describe("App integration", () => {
     expect(screen.queryByText("Search sessions, chats, files")).not.toBeInTheDocument();
   });
 
-  it("keeps the same project navigator across Inbox and Sessions switches", async () => {
+  it("keeps the project navigator in Inbox but replaces it with the Sessions navigator on Sessions", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
@@ -876,7 +876,8 @@ describe("App integration", () => {
 
     await selectSurface(user, "Sessions");
     expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-sessions");
-    expect(screen.getByRole("navigation", { name: "Projects and Free Chats" })).toBe(navigator);
+    expect(screen.queryByRole("navigation", { name: "Projects and Free Chats" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
   });
 
   it("unmounts Sessions on Escape and restores the previously focused Work target", async () => {
@@ -893,7 +894,7 @@ describe("App integration", () => {
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("region", { name: "Sessions workspace" })).not.toBeInTheDocument();
-    await waitFor(() => expect(workTarget).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Manual · zsh 1" })).toHaveFocus());
   });
 
   it("round-trips Sessions state without retaining its transcript DOM or remounting xterm", async () => {
@@ -2938,6 +2939,7 @@ describe("App integration", () => {
     await selectSurface(user, "Sessions");
     const sessions = await screen.findByRole("region", { name: "Sessions workspace" });
     expect(sessions).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Projects and Free Chats" })).not.toBeInTheDocument();
     expect(within(sessions).getByRole("searchbox", { name: "Search sessions" })).toHaveFocus();
     expect(within(sessions).getAllByRole("option")).toHaveLength(2);
   });

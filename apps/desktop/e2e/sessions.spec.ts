@@ -38,6 +38,7 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
   await selectSurface(page, "Sessions");
   const sessions = page.getByRole("region", { name: "Sessions workspace" });
   await expect(sessions).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Projects and Free Chats" })).toHaveCount(0);
   const search = page.getByRole("searchbox", { name: "Search sessions" });
   await expect(search).toBeFocused();
 
