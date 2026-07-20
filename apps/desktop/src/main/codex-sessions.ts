@@ -53,7 +53,7 @@ export function createCodexSessionsReader(options: { codexHome: string; summaryL
     summaryOrder.push(key);
   };
   const cacheSummary = (key: string, summary: CodexSummary): void => {
-    const bytes = Buffer.byteLength(JSON.stringify(summary.summary), "utf8");
+    const bytes = Buffer.byteLength(key, "utf8") + Buffer.byteLength(JSON.stringify(summary), "utf8");
     const existing = summaryCache.get(key);
     if (existing) summaryBytes -= existing.bytes;
     summaryCache.set(key, { summary, bytes });
@@ -135,12 +135,14 @@ export function createCodexSessionsReader(options: { codexHome: string; summaryL
     async readTranscriptPage(request: { sessionKey: string; cursor?: string }): Promise<TranscriptPage> {
       const source = sourceBySessionKey.get(request.sessionKey);
       if (!source) throw new Error("Unknown external session.");
-      const revision = await currentRevision(source.path);
-      const cursor = decodeTranscriptCursor(request.cursor, revision);
-      const cacheKey = `${request.sessionKey}:${revision}:${request.cursor ?? "start"}`;
+      let current: { revision: string; size: number };
+      try { current = await currentRevision(source.path); } catch { throw transcriptReadError(); }
+      const cursor = decodeTranscriptCursor(request.cursor, current.revision, current.size);
+      const cacheKey = `${request.sessionKey}:${current.revision}:${request.cursor ?? "start"}`;
       const cached = pageCache.get(cacheKey);
       if (cached) { touchSession(request.sessionKey); return cached; }
-      const page = await streamTranscriptPage(source, request.sessionKey, cursor);
+      let page: TranscriptPage;
+      try { page = await streamTranscriptPage(source, request.sessionKey, cursor); } catch { throw transcriptReadError(); }
       cachePage(request.sessionKey, request.cursor, page);
       return page;
     },
@@ -170,7 +172,7 @@ async function discoverCodexSummaries(
   for (const file of files) {
     const cacheKey = `${file.path}:${file.updatedAt}:${file.size}`;
     const cached = cache.get(cacheKey);
-    const parsed = cached ? (touch(cacheKey), remapProject(cached.summary, projects)) : await summarizeCodexSessionFile(file, titleIndex, projects);
+    const parsed = cached ? (touch(cacheKey), remapProject(cached.summary, projects, titleIndex)) : await summarizeCodexSessionFile(file, titleIndex, projects);
     if (!cached && parsed) cacheSummary(cacheKey, parsed);
     if (!parsed || ids.has(parsed.source.id)) continue;
     ids.add(parsed.source.id);
@@ -179,11 +181,12 @@ async function discoverCodexSummaries(
   return summaries.sort((left, right) => right.summary.updatedAt - left.summary.updatedAt);
 }
 
-function remapProject(value: CodexSummary, projects: SessionsProjectInput[]): CodexSummary {
+function remapProject(value: CodexSummary, projects: SessionsProjectInput[], titleIndex: Map<string, string>): CodexSummary {
   const project = projectForCwd(value.source.cwd, projects);
   return {
     summary: {
       ...value.summary,
+      title: titleFromText(titleIndex.get(value.source.id) ?? "") || value.summary.title,
       project,
       locationLabel: boundedDisplayText(project.id ? project.label : (value.source.cwd ? path.basename(value.source.cwd) : "Unknown workspace")),
       lifecycle: project.id ? "resumable" : "read-only",
@@ -238,47 +241,64 @@ async function summarizeCodexSessionFile(
 }
 
 async function streamTranscriptPage(source: CodexSessionSource, sessionKey: string, cursor: TranscriptCursor): Promise<TranscriptPage> {
-  const stream = createReadStream(source.path, { encoding: "utf8" });
-  const reader = createInterface({ input: stream, crlfDelay: Infinity });
   const blocks: TranscriptBlock[] = [];
-  let offset = 0;
   let textBytes = 0;
   let malformedCount = 0;
+  let partial = false;
   const pageLimit = (): number => TRANSCRIPT_BLOCK_LIMIT - (malformedCount > 0 ? 1 : 0);
   const makePage = (nextOffset: number | null): TranscriptPage => ({
     sessionKey,
-    blocks: malformedCount > 0 ? appendPartialNotice(blocks, textBytes) : blocks,
+    blocks: partial || malformedCount > 0 ? appendPartialNotice(blocks, textBytes) : blocks,
     nextCursor: nextOffset === null ? null : encodeTranscriptCursor({ offset: nextOffset, revision: cursor.revision }),
     revision: cursor.revision,
-    partial: malformedCount > 0,
+    partial: partial || malformedCount > 0,
   });
-  try {
-    for await (const line of reader) {
-      const lineOffset = offset;
-      offset += 1;
-      if (lineOffset < cursor.offset) continue;
-      const parsed = parseTranscriptRecord(line, `${sessionKey}:${lineOffset}`);
-      if (parsed.kind === "malformed") { malformedCount += 1; continue; }
-      if (!parsed.block) continue;
-      const block = parsed.block;
-      const blockBytes = Buffer.byteLength(block.text, "utf8");
-      if (blocks.length >= pageLimit()) return makePage(lineOffset);
-      if (textBytes + blockBytes + (blocks.length ? 1 : 0) > TRANSCRIPT_TEXT_LIMIT) {
-        if (!blocks.length) {
-          const noticeReserve = malformedCount > 0 ? Buffer.byteLength(PARTIAL_NOTICE, "utf8") + 1 : 0;
-          const text = truncateUtf8(block.text, TRANSCRIPT_TEXT_LIMIT - noticeReserve);
-          blocks.push({ ...block, text });
-          textBytes = Buffer.byteLength(text, "utf8");
-        }
-        return makePage(offset);
+  for await (const line of rawTranscriptLines(source.path, cursor.offset)) {
+    const parsed = parseTranscriptRecord(line.text, `${sessionKey}:${line.start}`);
+    if (parsed.kind === "malformed") { malformedCount += 1; continue; }
+    if (!parsed.block) continue;
+    const block = parsed.block;
+    const blockBytes = Buffer.byteLength(block.text, "utf8");
+    if (blocks.length >= pageLimit()) return makePage(line.start);
+    if (textBytes + blockBytes + (blocks.length ? 1 : 0) > TRANSCRIPT_TEXT_LIMIT) {
+      if (!blocks.length) {
+        partial = true;
+        const text = truncateUtf8(block.text, TRANSCRIPT_TEXT_LIMIT - Buffer.byteLength(PARTIAL_NOTICE, "utf8") - 1);
+        blocks.push({ ...block, text });
+        textBytes = Buffer.byteLength(text, "utf8");
+        return makePage(line.nextOffset);
       }
-      blocks.push(block);
-      textBytes += blockBytes + (blocks.length > 1 ? 1 : 0);
-      if (blocks.length >= pageLimit()) return makePage(offset);
+      return makePage(line.start);
     }
-    return makePage(null);
+    blocks.push(block);
+    textBytes += blockBytes + (blocks.length > 1 ? 1 : 0);
+    if (blocks.length >= pageLimit()) return makePage(line.nextOffset);
+  }
+  return makePage(null);
+}
+
+async function* rawTranscriptLines(filePath: string, start: number): AsyncGenerator<{ start: number; nextOffset: number; text: string }> {
+  const stream = createReadStream(filePath, { start });
+  let pending = Buffer.alloc(0);
+  let offset = start;
+  try {
+    for await (const chunk of stream) {
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      const buffer = pending.length ? Buffer.concat([pending, bytes]) : bytes;
+      let lineStart = 0;
+      while (true) {
+        const newline = buffer.indexOf(0x0a, lineStart);
+        if (newline < 0) break;
+        const rawLine = buffer.subarray(lineStart, newline);
+        const content = rawLine.at(-1) === 0x0d ? rawLine.subarray(0, -1) : rawLine;
+        yield { start: offset + lineStart, nextOffset: offset + newline + 1, text: content.toString("utf8") };
+        lineStart = newline + 1;
+      }
+      pending = buffer.subarray(lineStart);
+      offset += lineStart;
+    }
+    if (pending.length) yield { start: offset, nextOffset: offset + pending.length, text: pending.toString("utf8") };
   } finally {
-    reader.close();
     stream.destroy();
   }
 }
@@ -308,11 +328,11 @@ function parseTranscriptRecord(line: string, id: string): { block?: TranscriptBl
 function isTranscriptRole(value: unknown): value is "user" | "assistant" | "system" { return value === "user" || value === "assistant" || value === "system"; }
 function decodedBytes(page: TranscriptPage): number { return page.blocks.reduce((total, block) => total + Buffer.byteLength(block.text, "utf8"), 0); }
 function encodeTranscriptCursor(value: TranscriptCursor): string { return Buffer.from(JSON.stringify(value), "utf8").toString("base64url"); }
-function decodeTranscriptCursor(value: string | undefined, revision: string): TranscriptCursor {
+function decodeTranscriptCursor(value: string | undefined, revision: string, size: number): TranscriptCursor {
   if (!value) return { offset: 0, revision };
   try {
     const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as unknown;
-    if (!isTranscriptCursor(parsed) || parsed.revision !== revision) throw new Error("invalid");
+    if (!isTranscriptCursor(parsed) || parsed.revision !== revision || parsed.offset > size) throw new Error("invalid");
     return parsed;
   } catch { throw new Error("Transcript cursor is invalid or stale."); }
 }
@@ -326,8 +346,9 @@ function truncateUtf8(value: string, limit: number): string {
   while (end > 0 && ((bytes[end] ?? 0) & 0b1100_0000) === 0b1000_0000) end -= 1;
   return bytes.subarray(0, end).toString("utf8");
 }
-async function currentRevision(filePath: string): Promise<string> { const details = await stat(filePath); return revisionFrom(details.mtimeMs, details.size); }
+async function currentRevision(filePath: string): Promise<{ revision: string; size: number }> { const details = await stat(filePath); return { revision: revisionFrom(details.mtimeMs, details.size), size: details.size }; }
 function revisionFrom(updatedAt: number, size: number): string { return `${updatedAt}:${size}`; }
+function transcriptReadError(): Error { return new Error("Unable to read external session transcript."); }
 
 function filterSummaryMetadata(summaries: CodexSummary[], query: string): CodexSummary[] {
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);

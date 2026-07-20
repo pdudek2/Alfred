@@ -1,4 +1,4 @@
-import { mkdir, utimes, writeFile } from "node:fs/promises";
+import { mkdir, unlink, utimes, writeFile } from "node:fs/promises";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -186,12 +186,88 @@ describe("Codex sessions reader", () => {
     const huge = await transcriptFixture("large-block", [
       { type: "session_meta", payload: { id: "large-block", cwd: "/repo" } },
       { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "x".repeat(300 * 1024) }] } },
+      { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "After oversized record" }] } },
     ]);
     const hugeReader = createCodexSessionsReader({ codexHome: huge.codexHome });
     const hugeListed = await hugeReader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
     const hugePage = await hugeReader.readTranscriptPage({ sessionKey: hugeListed.sessions[0]!.sessionKey });
-    expect(Buffer.byteLength(hugePage.blocks[0]!.text)).toBe(256 * 1024);
+    expect(Buffer.byteLength(hugePage.blocks[0]!.text)).toBeLessThan(256 * 1024);
     expect(hugePage.nextCursor).toEqual(expect.any(String));
+    expect(hugePage.partial).toBe(true);
+    expect(hugePage.blocks.some((block) => block.kind === "notice")).toBe(true);
+    const afterHuge = await hugeReader.readTranscriptPage({ sessionKey: hugeListed.sessions[0]!.sessionKey, cursor: hugePage.nextCursor! });
+    expect(afterHuge.blocks.filter((block) => block.kind === "message").map((block) => block.text)).toEqual(["After oversized record"]);
+  });
+
+  it("uses UTF-8 byte cursors and returns every source message exactly once across byte-limited pages", async () => {
+    const messages = Array.from({ length: 120 }, (_, index) => `${String(index).padStart(3, "0")}:${"x".repeat(6_000)}`);
+    const records = [
+      { type: "session_meta", payload: { id: "byte-pages", cwd: "/repo" } },
+      ...messages.map((text) => ({ type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text }] } })),
+    ];
+    const { codexHome } = await transcriptFixture("byte-pages", records);
+    const reader = createCodexSessionsReader({ codexHome });
+    const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
+    const sessionKey = listed.sessions[0]!.sessionKey;
+    const first = await reader.readTranscriptPage({ sessionKey });
+    const firstCursor = decodeCursor(first.nextCursor!);
+    const expectedFirstOffset = Buffer.byteLength(records.slice(0, 44).map((record) => JSON.stringify(record)).join("\n") + "\n");
+    const received = first.blocks.filter((block) => block.kind === "message").map((block) => block.text);
+    let cursor = first.nextCursor;
+    while (cursor) {
+      const page = await reader.readTranscriptPage({ sessionKey, cursor });
+      received.push(...page.blocks.filter((block) => block.kind === "message").map((block) => block.text));
+      cursor = page.nextCursor;
+    }
+
+    expect(firstCursor.offset).toBe(expectedFirstOffset);
+    expect(firstCursor.offset).toBeGreaterThan(120);
+    expect(received).toEqual(messages);
+  });
+
+  it("refreshes an unchanged transcript when the Codex title index changes", async () => {
+    const { codexHome } = await transcriptFixture("indexed", [
+      { type: "session_meta", payload: { id: "indexed", cwd: "/repo" } },
+      { type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "Fallback" }] } },
+    ]);
+    const index = path.join(codexHome, "session_index.jsonl");
+    await writeFile(index, JSON.stringify({ id: "indexed", thread_name: "First indexed title" }));
+    const reader = createCodexSessionsReader({ codexHome });
+    expect((await reader.listExternalSessions({ projects: [] })).sessions[0]?.title).toBe("First indexed title");
+
+    await writeFile(index, JSON.stringify({ id: "indexed", thread_name: "Updated indexed title" }));
+    expect((await reader.listExternalSessions({ projects: [] })).sessions[0]?.title).toBe("Updated indexed title");
+  });
+
+  it("accounts for private source data when evicting summary cache entries", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const sessionDir = path.join(codexHome, "sessions", "2026", "07", "20");
+    await mkdir(sessionDir, { recursive: true });
+    const privateCwd = `/repo/${"x".repeat(3 * 1024 * 1024)}`;
+    for (let index = 0; index < 4; index += 1) {
+      await writeFile(path.join(sessionDir, `private-${index}.jsonl`), JSON.stringify({ type: "session_meta", payload: { id: `private-${index}`, cwd: privateCwd } }));
+    }
+
+    const reader = createCodexSessionsReader({ codexHome });
+    await reader.listExternalSessions({ projects: [] });
+
+    expect(reader.getDiagnostics().summaryCount).toBeLessThan(4);
+    expect(reader.getDiagnostics().summaryBytes).toBeLessThanOrEqual(10 * 1024 * 1024);
+  });
+
+  it("returns a path-free transcript error when a listed source disappears", async () => {
+    const { codexHome, file } = await transcriptFixture("gone", [
+      { type: "session_meta", payload: { id: "gone", cwd: "/repo" } },
+      { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "Gone" }] } },
+    ]);
+    const reader = createCodexSessionsReader({ codexHome });
+    const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
+    await unlink(file);
+    const error = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey }).catch((reason: unknown) => reason as Error);
+
+    expect(error).toMatchObject({ message: "Unable to read external session transcript." });
+    expect(`${error.message}:${JSON.stringify(error)}`).not.toContain(file);
+    expect(`${error.message}:${JSON.stringify(error)}`).not.toContain(codexHome);
   });
 
   it("evicts transcript pages by session LRU and respects decoded byte diagnostics", async () => {
@@ -249,6 +325,10 @@ async function transcriptFixture(id: string, records: Array<unknown>): Promise<{
 async function readText(file: string): Promise<string> {
   const { readFile } = await import("node:fs/promises");
   return readFile(file, "utf8");
+}
+
+function decodeCursor(value: string): { offset: number; revision: string } {
+  return JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as { offset: number; revision: string };
 }
 
 function codexLines({ cwd, id, title }: { cwd: string; id: string; title: string }): string {
