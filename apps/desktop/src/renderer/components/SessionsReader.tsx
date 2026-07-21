@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { useEffect, useState, type RefObject } from "react";
 import type { SessionSummary, TranscriptBlock, TranscriptPage } from "../../shared/sessions-ipc";
 import type { SessionsPrimaryAction } from "../sessions-projection";
 
@@ -43,21 +43,27 @@ export function SessionsReader({
   onScrollTopChange,
   onFocus,
 }: SessionsReaderProps) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const blocks = pages.flatMap((page) => page.blocks);
   const nextCursor = pages.at(-1)?.nextCursor ?? null;
   const partial = pages.some((page) => page.partial);
 
+  useEffect(() => {
+    setDetailsOpen(false);
+  }, [selected?.sessionKey]);
+
   return (
     <main className="sessions-reader" aria-label="Session reader" onFocusCapture={onFocus}>
       <header className="sessions-reader__toolbar">
-        <strong>{selected?.title ?? "Select a session"}</strong>
-        {selected && <span>{selected.project.label} · {selected.locationLabel}</span>}
+        {selected ? (
+          <nav aria-label="Session breadcrumb" className="sessions-reader__breadcrumb">
+            <span>{selected.project.label}</span>
+            <span aria-hidden="true">/</span>
+            <strong>{selected.title}</strong>
+          </nav>
+        ) : <strong>Select a conversation</strong>}
         <span className="sessions-reader__toolbar-spacer" />
-        {selected && canReadRaw && (
-          <button type="button" className="sessions-reader__mode" onClick={() => onReaderModeChange(readerMode === "raw" ? "conversation" : "raw") }>
-            {readerMode === "raw" ? "Clean conversation" : "Raw transcript"}
-          </button>
-        )}
+        {selected && <button type="button" onClick={() => setDetailsOpen(true)}>Run details</button>}
         {selected && primaryAction && (
           <button type="button" onClick={onPrimaryAction}>
             {primaryAction.label}
@@ -72,8 +78,7 @@ export function SessionsReader({
       >
         {!selected ? (
           <div className="sessions-reader__empty">
-            <strong>Select a session to read it.</strong>
-            <span>Transcript content is loaded only when you open a result.</span>
+            <strong>No conversation matches the current filters</strong>
           </div>
         ) : (
           <article aria-label={selected.title} className="sessions-transcript">
@@ -81,12 +86,6 @@ export function SessionsReader({
               <h1>{selected.title}</h1>
               <p>{selected.project.label} · {selected.source === "managed" ? "Managed session" : "External Codex"}</p>
             </header>
-            {(selected.delegatedRunCount ?? 0) > 0 && (
-              <details className="sessions-delegated-work">
-                <summary>Delegated work <span>{selected.delegatedRunCount}</span></summary>
-                <p>Internal agent runs are attached to this conversation and hidden from the primary list.</p>
-              </details>
-            )}
             {recoveryReview && (
               <section className="sessions-recovery-review" aria-label="Relaunch review">
                 <strong>Confirm relaunch</strong>
@@ -119,7 +118,58 @@ export function SessionsReader({
           </article>
         )}
       </div>
+      {detailsOpen && selected && (
+        <div className="sessions-run-details__backdrop">
+          <dialog
+            aria-labelledby="sessions-run-details-title"
+            className="sessions-run-details"
+            open
+          >
+            <header>
+              <div>
+                <span>Conversation provenance</span>
+                <h2 id="sessions-run-details-title">Run details</h2>
+              </div>
+              <button type="button" aria-label="Close Run details" onClick={() => setDetailsOpen(false)}>×</button>
+            </header>
+            <dl>
+              <RunDetail label="Project" value={selected.project.label} />
+              <RunDetail label="Source" value={selected.source === "managed" ? "Managed session" : "External Codex"} />
+              <RunDetail label="Location" value={selected.locationLabel} />
+              {selected.branch && <RunDetail label="Branch" value={selected.branch} />}
+              {selected.model && <RunDetail label="Model" value={selected.model} />}
+              {(selected.delegatedRunCount ?? 0) > 0 && (
+                <RunDetail
+                  label="Delegated work"
+                  value={`${selected.delegatedRunCount} internal run${selected.delegatedRunCount === 1 ? "" : "s"}`}
+                />
+              )}
+            </dl>
+            <footer>
+              {canReadRaw && (
+                <button
+                  type="button"
+                  className="sessions-reader__mode"
+                  onClick={() => onReaderModeChange(readerMode === "raw" ? "conversation" : "raw")}
+                >
+                  {readerMode === "raw" ? "Clean conversation" : "Raw transcript"}
+                </button>
+              )}
+              <button type="button" onClick={() => setDetailsOpen(false)}>Done</button>
+            </footer>
+          </dialog>
+        </div>
+      )}
     </main>
+  );
+}
+
+function RunDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
   );
 }
 

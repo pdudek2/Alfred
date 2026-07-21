@@ -39,32 +39,35 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
   const sessions = page.getByRole("region", { name: "Sessions workspace" });
   await expect(sessions).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Projects and Free Chats" })).toHaveCount(0);
-  await expect(sessions.getByRole("navigation", { name: "Projects" })).toBeVisible();
-  await expect(sessions.getByRole("button", { name: /Fixture Alpha/ })).toBeVisible();
+  await expect(sessions.getByRole("navigation", { name: "Projects" })).toHaveCount(0);
+  const projectScope = sessions.getByRole("combobox", { name: "Project scope" });
+  await expect(projectScope).toHaveValue("all");
+  await expect(projectScope.getByRole("option", { name: "Fixture Alpha" })).toBeAttached();
   const search = page.getByRole("searchbox", { name: "Search sessions" });
+  const results = sessions.getByRole("listbox", { name: "Conversation results" });
   await expect(search).toBeFocused();
 
   await page.getByRole("group", { name: "Session source" })
     .getByText("Codex", { exact: true })
     .click();
-  await expect(page.getByRole("option")).toHaveCount(12);
+  await expect(results.getByRole("option")).toHaveCount(12);
   expect(await page.locator(".sessions-result").count()).toBeLessThanOrEqual(80);
 
   await search.fill("Free chat");
-  await expect(page.getByRole("option")).toHaveCount(3);
+  await expect(results.getByRole("option")).toHaveCount(3);
   await page.keyboard.press("ControlOrMeta+f");
   await expect(search).toBeFocused();
   await search.fill("");
-  await expect(page.getByRole("option")).toHaveCount(12);
+  await expect(results.getByRole("option")).toHaveCount(12);
 
-  await page.getByRole("option", { name: /Mapped resumable session 01/i }).click();
+  await results.getByRole("option", { name: /Mapped resumable session 01/i }).click();
   await expect(page.getByRole("button", { name: "Resume in Work" })).toBeVisible();
   await expect(page.getByText("Transcript is incomplete.", { exact: true })).toBeVisible();
 
-  await page.getByRole("option", { name: /Free chat session 04/i }).click();
+  await results.getByRole("option", { name: /Free chat session 04/i }).click();
   await expect(page.getByRole("button", { name: "Add Project…" })).toBeVisible();
 
-  await page.getByRole("option", { name: /Long transcript session 02/i }).click();
+  await results.getByRole("option", { name: /Long transcript session 02/i }).click();
   const transcriptBlocks = page.locator(
     ".sessions-transcript [data-testid='transcript-block']",
   );
@@ -74,6 +77,11 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
   await expect(page.getByRole("button", { name: "Load more transcript" })).toHaveCount(0);
   const transcriptBlockCount = await transcriptBlocks.count();
   expect(transcriptBlockCount).toBe(6);
+  await page.getByRole("button", { name: "Run details" }).click();
+  const runDetails = page.getByRole("dialog", { name: "Run details" });
+  await expect(runDetails).toBeVisible();
+  await expect(runDetails).toContainText("External Codex");
+  await runDetails.getByRole("button", { name: "Close Run details" }).click();
 
   const privacyEvidence = await page.evaluate(async ({ workspaceA, workspaceB }) => {
     const api = (window as DesktopSessionsWindow).alfredDesktop?.sessions;
@@ -109,7 +117,7 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
 
   const geometryEvidence = [];
   for (const viewport of [
-    { width: 1440, height: 900 },
+    { width: 1280, height: 720 },
     { width: 1120, height: 720 },
   ]) {
     await setWindowSize(app, page, viewport.width, viewport.height);

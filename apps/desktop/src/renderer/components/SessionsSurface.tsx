@@ -18,7 +18,6 @@ import type { SessionTile } from "../session-state";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { appendTranscriptPage, type SessionsViewState } from "../sessions-view-state";
 import { SessionsNavigator } from "./SessionsNavigator";
-import { SessionsProjects } from "./SessionsProjects";
 import { SessionsReader, type SessionsReaderStatus } from "./SessionsReader";
 
 export type SessionsSurfaceProps = {
@@ -57,11 +56,18 @@ export function SessionsSurface({
   onStateChange,
 }: SessionsSurfaceProps) {
   const searchRef = useRef<HTMLInputElement | null>(null);
-  const projectsRef = useRef<HTMLDivElement | null>(null);
   const navigatorRef = useRef<HTMLDivElement | null>(null);
   const readerRef = useRef<HTMLDivElement | null>(null);
   const initialFocusTargetRef = useRef(state.focusTarget);
   const requestSequenceRef = useRef(0);
+  const reconciliationKey = [
+    state.selectedProjectId,
+    state.source,
+    state.timeRange,
+    state.query,
+    state.pageIndex,
+  ].join("\u0000");
+  const previousReconciliationKeyRef = useRef(reconciliationKey);
   const reducedMotion = usePrefersReducedMotion();
   const [readerStatus, setReaderStatus] = useState<SessionsReaderStatus>(
     state.readerPages.length > 0 ? "ready" : state.selectedSessionKey ? "missing" : "idle",
@@ -100,8 +106,13 @@ export function SessionsSurface({
   );
   const projectedSelected = projection.items.find((item) => item.sessionKey === state.selectedSessionKey) ?? null;
   const [selectedSummary, setSelectedSummary] = useState<SessionSummary | null>(projectedSelected);
-  const selected = projectedSelected
-    ?? (selectedSummary?.sessionKey === state.selectedSessionKey ? selectedSummary : null);
+  const selectionInProjection = Boolean(
+    state.selectedSessionKey
+    && projection.items.some((item) => item.sessionKey === state.selectedSessionKey),
+  );
+  const selected = selectionInProjection
+    ? projectedSelected ?? (selectedSummary?.sessionKey === state.selectedSessionKey ? selectedSummary : null)
+    : null;
   const selectedManagedTarget = selected
     ? projection.managedTargets.get(selected.sessionKey)
       ?? managedTargetForSummary(selected, sessions)
@@ -142,9 +153,7 @@ export function SessionsSurface({
   }, [onStateChange]);
 
   useEffect(() => {
-    const target = initialFocusTargetRef.current === "projects"
-      ? projectsRef.current?.querySelector<HTMLElement>("button") ?? null
-      : initialFocusTargetRef.current === "results"
+    const target = initialFocusTargetRef.current === "results"
       ? navigatorRef.current
       : initialFocusTargetRef.current === "reader"
         ? readerRef.current
@@ -161,7 +170,7 @@ export function SessionsSurface({
   useEffect(() => {
     if (projectedSelected) {
       setSelectedSummary(projectedSelected);
-    } else if (!state.selectedSessionKey) {
+    } else {
       setSelectedSummary(null);
     }
   }, [projectedSelected, state.selectedSessionKey]);
@@ -170,13 +179,10 @@ export function SessionsSurface({
     if (navigatorRef.current && navigatorRef.current.scrollTop !== state.navigatorScrollTop) {
       navigatorRef.current.scrollTop = state.navigatorScrollTop;
     }
-    if (projectsRef.current && projectsRef.current.scrollTop !== state.projectsScrollTop) {
-      projectsRef.current.scrollTop = state.projectsScrollTop;
-    }
     if (readerRef.current && readerRef.current.scrollTop !== state.readerScrollTop) {
       readerRef.current.scrollTop = state.readerScrollTop;
     }
-  }, [state.navigatorScrollTop, state.projectsScrollTop, state.readerScrollTop]);
+  }, [state.navigatorScrollTop, state.readerScrollTop]);
 
   useEffect(() => {
     const handleFind = (event: KeyboardEvent) => {
@@ -267,6 +273,32 @@ export function SessionsSurface({
     }
   }, [onStateChange, projection.managedTargets, sessions, sessionsApi, terminalApi]);
 
+  useEffect(() => {
+    if (previousReconciliationKeyRef.current === reconciliationKey) return;
+    previousReconciliationKeyRef.current = reconciliationKey;
+    if (projection.items.some((item) => item.sessionKey === state.selectedSessionKey)) return;
+    const first = projection.items[0];
+    if (first) {
+      void selectSession(first);
+      return;
+    }
+    requestSequenceRef.current += 1;
+    setSelectedSummary(null);
+    setReaderStatus("idle");
+    setReaderPageError(null);
+    onStateChange((current) => {
+      if (current.selectedSessionKey === null && current.readerPages.length === 0 && current.readerScrollTop === 0) {
+        return current;
+      }
+      return {
+        ...current,
+        selectedSessionKey: null,
+        readerPages: [],
+        readerScrollTop: 0,
+      };
+    });
+  }, [onStateChange, projection.items, reconciliationKey, selectSession, state.selectedSessionKey]);
+
   const loadMore = useCallback(async () => {
     if (!selected || !sessionsApi || (selected.source !== "external-codex" && !selected.contentSessionKey)) return;
     const cursor = state.readerPages.at(-1)?.nextCursor;
@@ -303,18 +335,6 @@ export function SessionsSurface({
         onBackToWork();
       }}
     >
-      <SessionsProjects
-        counts={projectProjection.projectCounts}
-        projectsRef={projectsRef}
-        selectedProjectId={state.selectedProjectId}
-        workspaces={workspaces}
-        onBackToWork={onBackToWork}
-        onScrollTopChange={(projectsScrollTop) => patchState({ projectsScrollTop })}
-        onSelectProject={(selectedProjectId) => {
-          setActiveSessionKey(null);
-          patchState({ selectedProjectId, pageIndex: 0, navigatorScrollTop: 0 });
-        }}
-      />
       <SessionsNavigator
         activeSessionKey={activeSessionKey}
         externalSessionIndexingEnabled={externalSessionIndexingEnabled}
@@ -322,12 +342,23 @@ export function SessionsSurface({
         loadingExternalSessions={loadingExternalSessions}
         navigatorRef={navigatorRef}
         projection={projection}
+        projectCounts={projectProjection.projectCounts}
         searchRef={searchRef}
         state={state}
+        workspaces={workspaces}
         onActiveSessionKeyChange={setActiveSessionKey}
+        onBackToWork={onBackToWork}
         onOpenPrivacySettings={onOpenPrivacySettings}
         onRefreshExternalSessions={onRefreshExternalSessions}
         onSelectSession={(summary) => void selectSession(summary)}
+        onSelectProject={(selectedProjectId) => {
+          patchState({
+            selectedProjectId,
+            query: "",
+            pageIndex: 0,
+            navigatorScrollTop: 0,
+          });
+        }}
         onFocusTargetChange={(focusTarget) => patchState({ focusTarget })}
         onStatePatch={patchState}
       />

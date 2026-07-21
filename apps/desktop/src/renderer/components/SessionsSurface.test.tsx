@@ -153,7 +153,7 @@ afterEach(() => {
 });
 
 describe("SessionsSurface", () => {
-  it("separates Projects, Conversations, and the Reader into complementary navigation levels", async () => {
+  it("integrates project scope into Conversations without a second project rail", async () => {
     const user = userEvent.setup();
     const scopedWorkspaces: SessionsProjectInput[] = [
       ...workspaces,
@@ -173,27 +173,30 @@ describe("SessionsSurface", () => {
       ],
     });
 
-    expect(screen.getByRole("navigation", { name: "Projects" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: /Free Chat0/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Free Chats0/ })).toBeVisible();
-    expect(screen.queryByRole("button", { name: /Workspace 99/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Projects" })).not.toBeInTheDocument();
+    const projectScope = screen.getByRole("combobox", { name: "Project scope" });
+    expect(within(projectScope).getByRole("option", { name: "All projects" })).toBeInTheDocument();
+    expect(within(projectScope).getByRole("option", { name: "ClientApp" })).toBeInTheDocument();
+    expect(within(projectScope).getByRole("option", { name: "Free Chats" })).toBeInTheDocument();
+    expect(within(projectScope).queryByRole("option", { name: "Workspace 99" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Conversation count" })).toHaveTextContent("2");
     expect(screen.getByRole("listbox", { name: "Conversation results" })).toBeVisible();
     expect(screen.getByRole("main", { name: "Session reader" })).toBeVisible();
-    expect(screen.getAllByRole("option")).toHaveLength(2);
+    expect(within(screen.getByRole("listbox", { name: "Conversation results" })).getAllByRole("option")).toHaveLength(2);
 
-    await user.click(screen.getByRole("button", { name: /ClientApp/ }));
+    await user.selectOptions(projectScope, "B");
     expect(screen.getByRole("option", { name: /Client release/ })).toBeVisible();
     expect(screen.queryByRole("option", { name: /Alfred architecture/ })).not.toBeInTheDocument();
     expect(within(screen.getByRole("listbox", { name: "Conversation results" })).queryByRole("heading", { name: "ClientApp" })).not.toBeInTheDocument();
   });
 
-  it("keeps the open reader stable while the adjacent project scope changes", async () => {
+  it("preserves an included selection and chooses the first result only after scope excludes it", async () => {
     const user = userEvent.setup();
     const scopedWorkspaces: SessionsProjectInput[] = [
       ...workspaces,
       { id: "B", label: "ClientApp", rootPath: "/Users/patryk/Desktop/ClientApp" },
     ];
-    renderSurface({
+    const view = renderSurface({
       workspaces: scopedWorkspaces,
       sessions: [
         managedSession(0, { title: "Alfred architecture", initialBuffer: "Alfred evidence", runtimeStatus: "restored" }),
@@ -201,16 +204,24 @@ describe("SessionsSurface", () => {
           title: "Client release",
           workspaceId: "B",
           cwd: "/Users/patryk/Desktop/ClientApp",
+          initialBuffer: "Client evidence",
+          runtimeStatus: "restored",
         }),
       ],
     });
 
     await user.click(screen.getByRole("option", { name: /Alfred architecture/ }));
     expect(await screen.findByRole("article", { name: /Alfred architecture/ })).toHaveTextContent("Alfred evidence");
+    const projectScope = screen.getByRole("combobox", { name: "Project scope" });
 
-    await user.click(screen.getByRole("button", { name: /ClientApp/ }));
-    expect(screen.getByRole("option", { name: /Client release/ })).toBeVisible();
+    await user.selectOptions(projectScope, "A");
+    expect(view.getState().selectedSessionKey).toBe("managed:managed-0");
     expect(screen.getByRole("article", { name: /Alfred architecture/ })).toHaveTextContent("Alfred evidence");
+
+    await user.selectOptions(projectScope, "B");
+    expect(screen.getByRole("option", { name: /Client release/ })).toBeVisible();
+    await waitFor(() => expect(view.getState().selectedSessionKey).toBe("managed:managed-1"));
+    expect(await screen.findByRole("article", { name: /Client release/ })).toHaveTextContent("Client evidence");
   });
 
   it("keeps orphaned delegated runs out of conversations and behind one maintenance disclosure", () => {
@@ -236,10 +247,10 @@ describe("SessionsSurface", () => {
     const results = screen.getByRole("listbox", { name: "Conversation results" });
     expect(surface).toBeVisible();
     expect(results).toHaveClass("sessions-results");
-    expect(screen.getAllByRole("option")[0]).toHaveClass("sessions-result");
+    expect(within(screen.getByRole("listbox", { name: "Conversation results" })).getAllByRole("option")[0]).toHaveClass("sessions-result");
     expect(surface.querySelector(".sessions-navigator__results")).toBeNull();
     expect(screen.getByRole("searchbox", { name: "Search sessions" })).toHaveFocus();
-    expect(screen.getAllByRole("option")).toHaveLength(80);
+    expect(within(screen.getByRole("listbox", { name: "Conversation results" })).getAllByRole("option")).toHaveLength(80);
     expect(screen.queryByText(/History|Observatory/)).not.toBeInTheDocument();
   });
 
@@ -264,6 +275,40 @@ describe("SessionsSurface", () => {
     expect(sessionsApi.readTranscriptPage).toHaveBeenCalledWith({ sessionKey: "external-codex:content-0" });
   });
 
+  it("keeps the Reader focused on the conversation and reveals provenance in Run details", async () => {
+    const user = userEvent.setup();
+    const sessionsApi = createSessionsApi();
+    vi.mocked(sessionsApi.readTranscriptPage).mockResolvedValueOnce(transcriptPage(
+      "external-codex:content-0",
+      [{ id: "assistant-1", kind: "message", role: "assistant", text: "Ready to resume" }],
+    ));
+    renderSurface({
+      externalSessions: [externalSession(0, {
+        title: "Resume the Alfred redesign",
+        branch: "sessions-single-column",
+        model: "gpt-5.6-sol",
+        delegatedRunCount: 3,
+      })],
+      sessionsApi,
+    });
+
+    await user.click(screen.getByRole("option", { name: /Resume the Alfred redesign/ }));
+    expect(await screen.findByText("Ready to resume")).toBeInTheDocument();
+    const breadcrumb = screen.getByRole("navigation", { name: "Session breadcrumb" });
+    expect(breadcrumb).toHaveTextContent("Alfred");
+    expect(breadcrumb).toHaveTextContent("Resume the Alfred redesign");
+    expect(screen.queryByRole("dialog", { name: "Run details" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Run details" }));
+    const details = screen.getByRole("dialog", { name: "Run details" });
+    expect(details).toHaveTextContent("External Codex");
+    expect(details).toHaveTextContent("sessions-single-column");
+    expect(details).toHaveTextContent("gpt-5.6-sol");
+    expect(details).toHaveTextContent("3 internal runs");
+    expect(within(details).getByRole("button", { name: "Raw transcript" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resume in Work" })).toBeInTheDocument();
+  });
+
   it("keeps delegated work collapsed and reloads source evidence only when Raw transcript is requested", async () => {
     const user = userEvent.setup();
     const sessionsApi = createSessionsApi();
@@ -281,10 +326,11 @@ describe("SessionsSurface", () => {
 
     await user.click(screen.getByRole("option", { name: /Parent conversation/ }));
     expect(await screen.findByText("Meaningful request")).toBeInTheDocument();
-    const delegated = screen.getByText(/Delegated work/).closest("details");
-    expect(delegated).not.toHaveAttribute("open");
-
-    await user.click(screen.getByRole("button", { name: "Raw transcript" }));
+    expect(screen.queryByText(/Delegated work/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Run details" }));
+    const details = screen.getByRole("dialog", { name: "Run details" });
+    expect(details).toHaveTextContent("4 internal runs");
+    await user.click(within(details).getByRole("button", { name: "Raw transcript" }));
     expect(await screen.findByText("Raw bootstrap context")).toBeInTheDocument();
     expect(sessionsApi.readTranscriptPage).toHaveBeenNthCalledWith(2, {
       sessionKey: "external-codex:content-0",
@@ -347,7 +393,8 @@ describe("SessionsSurface", () => {
 
     await user.click(screen.getByRole("option", { name: /External session 0/ }));
     expect(await screen.findByText("Latest clean messages")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Raw transcript" }));
+    await user.click(screen.getByRole("button", { name: "Run details" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Run details" })).getByRole("button", { name: "Raw transcript" }));
     expect(await screen.findByText("Stable first page")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Load more transcript" }));
 
@@ -503,7 +550,7 @@ describe("SessionsSurface", () => {
     const user = userEvent.setup();
     const onOpenPrivacySettings = vi.fn();
     const view = renderSurface({ loadingExternalSessions: true });
-    expect(screen.getByRole("status")).toHaveTextContent("Loading conversations");
+    expect(screen.getByRole("status", { name: "Conversation count" })).toHaveTextContent("…");
 
     view.unmount();
     renderSurface({
@@ -520,6 +567,9 @@ describe("SessionsSurface", () => {
 
     await user.type(screen.getByRole("searchbox", { name: "Search sessions" }), "no such session");
     expect(screen.getByText("No conversations found.")).toBeInTheDocument();
+    expect(screen.getByText("No conversation matches the current filters")).toBeInTheDocument();
+    expect(screen.queryByRole("article")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("listbox", { name: "Conversation results" })).queryByRole("option", { selected: true })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Clear search" }));
     expect(screen.getByRole("option", { name: /Managed session 1/ })).toBeInTheDocument();
 
@@ -618,7 +668,7 @@ describe("SessionsSurface", () => {
     });
     const search = screen.getByRole("searchbox", { name: "Search sessions" });
     const listbox = screen.getByRole("listbox", { name: "Conversation results" });
-    const options = screen.getAllByRole("option");
+    const options = within(listbox).getAllByRole("option");
 
     await user.tab();
     await user.tab();
@@ -633,6 +683,8 @@ describe("SessionsSurface", () => {
     fireEvent.keyDown(listbox, { key: "Enter" });
     await waitFor(() => expect(screen.getByRole("article", { name: /Managed session 1/ })).toBeInTheDocument());
 
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Run details" })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("button", { name: "Reveal in Work" })).toHaveFocus();
     expect(view.getState().focusTarget).toBe("reader");
