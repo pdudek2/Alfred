@@ -1,6 +1,10 @@
-import { RefreshCcw, Search } from "lucide-react";
+import { ChevronLeft, RefreshCcw, Search } from "lucide-react";
 import type { ChangeEvent, KeyboardEvent, RefObject } from "react";
-import { SESSIONS_PAGE_SIZE, type SessionSummary } from "../../shared/sessions-ipc";
+import {
+  SESSIONS_PAGE_SIZE,
+  type SessionSummary,
+  type SessionsProjectInput,
+} from "../../shared/sessions-ipc";
 import type { SessionsProjectionPage } from "../sessions-projection";
 import type { SessionsViewState } from "../sessions-view-state";
 import { sessionAgeLabel } from "../session-time";
@@ -12,12 +16,16 @@ type SessionsNavigatorProps = {
   loadingExternalSessions: boolean;
   navigatorRef: RefObject<HTMLDivElement | null>;
   projection: SessionsProjectionPage;
+  projectCounts: Record<string, number>;
   searchRef: RefObject<HTMLInputElement | null>;
   state: SessionsViewState;
+  workspaces: SessionsProjectInput[];
   onActiveSessionKeyChange: (sessionKey: string | null) => void;
+  onBackToWork: () => void;
   onOpenPrivacySettings: (() => void) | undefined;
   onRefreshExternalSessions: () => void;
   onSelectSession: (session: SessionSummary) => void;
+  onSelectProject: (projectId: string) => void;
   onFocusTargetChange: (target: "search" | "results") => void;
   onStatePatch: (patch: Partial<SessionsViewState>) => void;
 };
@@ -29,21 +37,29 @@ export function SessionsNavigator({
   loadingExternalSessions,
   navigatorRef,
   projection,
+  projectCounts,
   searchRef,
   state,
+  workspaces,
   onActiveSessionKeyChange,
+  onBackToWork,
   onOpenPrivacySettings,
   onRefreshExternalSessions,
   onSelectSession,
+  onSelectProject,
   onFocusTargetChange,
   onStatePatch,
 }: SessionsNavigatorProps) {
   const activeIndex = Math.max(0, projection.items.findIndex((item) => item.sessionKey === activeSessionKey));
   const selectedDomId = projection.items.length > 0 ? optionDomId(activeIndex) : undefined;
   const resultStatus = loadingExternalSessions && projection.items.length === 0
-    ? "Loading conversations…"
-    : `${projection.total} conversation${projection.total === 1 ? "" : "s"}`;
+    ? "…"
+    : String(projection.total);
   const hasNextPage = (state.pageIndex + 1) * SESSIONS_PAGE_SIZE < projection.total;
+  const projectOptions = workspaces.filter((workspace) => (
+    !isFreeChatsWorkspace(workspace)
+    && ((projectCounts[workspace.id] ?? 0) > 0 || state.selectedProjectId === workspace.id)
+  ));
 
   const handleListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (projection.items.length === 0) return;
@@ -72,8 +88,28 @@ export function SessionsNavigator({
   return (
     <aside className="sessions-navigator" aria-label="Conversations">
       <header className="sessions-navigator__heading">
+        <button type="button" aria-label="Back to Work" onClick={onBackToWork}>
+          <ChevronLeft aria-hidden="true" size={15} />
+        </button>
         <strong>Conversations</strong>
-        <span>{projection.total}</span>
+        <span aria-hidden="true">/</span>
+        <select
+          aria-label="Project scope"
+          value={state.selectedProjectId}
+          onChange={(event) => onSelectProject(event.target.value)}
+        >
+          <option value="all">All projects</option>
+          {projectOptions.map((workspace) => (
+            <option key={workspace.id} value={workspace.id}>{workspace.label}</option>
+          ))}
+          <option value="free-chats">Free Chats</option>
+        </select>
+        <span
+          aria-label="Conversation count"
+          aria-live="polite"
+          aria-atomic="true"
+          role="status"
+        >{resultStatus}</span>
       </header>
       <label className="sessions-navigator__search">
         <Search aria-hidden="true" size={15} />
@@ -120,8 +156,6 @@ export function SessionsNavigator({
       {externalSessionIndexingEnabled && externalSessionsError && (
         <p className="sessions-navigator__notice"><strong>External sessions may be incomplete.</strong><span>{externalSessionsError}</span></p>
       )}
-      <span className="sessions-navigator__result-status" role="status" aria-live="polite" aria-atomic="true">{resultStatus}</span>
-
       <div
         ref={navigatorRef}
         className="sessions-results"
@@ -184,4 +218,8 @@ export function SessionsNavigator({
 
 function optionDomId(index: number): string {
   return `sessions-option-${index}`;
+}
+
+function isFreeChatsWorkspace(workspace: SessionsProjectInput): boolean {
+  return workspace.rootPath?.replaceAll("\\", "/").includes("/Documents/Codex") ?? false;
 }

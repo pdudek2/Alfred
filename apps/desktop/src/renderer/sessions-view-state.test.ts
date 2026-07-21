@@ -29,7 +29,6 @@ describe("SessionsViewState", () => {
       pageIndex: 0,
       selectedSessionKey: null,
       navigatorScrollTop: 0,
-      projectsScrollTop: 0,
       readerScrollTop: 0,
       focusTarget: "search",
       readerPages: [],

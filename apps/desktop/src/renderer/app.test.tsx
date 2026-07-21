@@ -2999,7 +2999,7 @@ describe("App integration", () => {
     expect(sessions).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "Projects and Free Chats" })).not.toBeInTheDocument();
     expect(within(sessions).getByRole("searchbox", { name: "Search sessions" })).toHaveFocus();
-    expect(within(sessions).getAllByRole("option")).toHaveLength(2);
+    expect(within(within(sessions).getByRole("listbox", { name: "Conversation results" })).getAllByRole("option")).toHaveLength(2);
   });
 
   it("drains external summary pages while keeping each Sessions result page capped at 80", async () => {
@@ -3046,17 +3046,18 @@ describe("App integration", () => {
       limit: 80,
       cursor: "test-external-cursor:80",
     });
-    expect(within(sessions).getByRole("status")).toHaveTextContent("120 conversations");
-    expect(within(sessions).getAllByRole("option")).toHaveLength(80);
+    const results = within(sessions).getByRole("listbox", { name: "Conversation results" });
+    expect(within(sessions).getByRole("status", { name: "Conversation count" })).toHaveTextContent("120");
+    expect(within(results).getAllByRole("option")).toHaveLength(80);
 
     await user.click(within(sessions).getByRole("button", { name: "Next" }));
-    expect(within(sessions).getAllByRole("option")).toHaveLength(40);
-    expect(within(sessions).getByRole("option", { name: /Bounded external session 120/i })).toBeVisible();
+    expect(within(results).getAllByRole("option")).toHaveLength(40);
+    expect(within(results).getByRole("option", { name: /Bounded external session 120/i })).toBeVisible();
 
     await user.type(search, "081");
     expect(search).toHaveFocus();
-    expect(within(sessions).getAllByRole("option")).toHaveLength(1);
-    expect(within(sessions).getByRole("option", { name: /Bounded external session 081/i })).toBeVisible();
+    expect(within(results).getAllByRole("option")).toHaveLength(1);
+    expect(within(results).getByRole("option", { name: /Bounded external session 081/i })).toBeVisible();
   });
 
   it("debounces non-empty Sessions queries to main and refreshes immediately when cleared", async () => {

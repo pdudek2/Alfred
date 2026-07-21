@@ -8,10 +8,9 @@ export type SessionsViewState = {
   pageIndex: number;
   selectedSessionKey: string | null;
   navigatorScrollTop: number;
-  projectsScrollTop: number;
   readerScrollTop: number;
   readerMode: "conversation" | "raw";
-  focusTarget: "projects" | "search" | "results" | "reader";
+  focusTarget: "search" | "results" | "reader";
   readerPages: TranscriptPage[];
 };
 
@@ -24,7 +23,6 @@ export function createInitialSessionsViewState(): SessionsViewState {
     pageIndex: 0,
     selectedSessionKey: null,
     navigatorScrollTop: 0,
-    projectsScrollTop: 0,
     readerScrollTop: 0,
     readerMode: "conversation",
     focusTarget: "search",
