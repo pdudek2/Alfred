@@ -21,9 +21,9 @@ describe("CSS layout evidence support", () => {
     expect(privacySafeScreenshotStyle).toContain(".agent-context-essentials");
     expect(privacySafeScreenshotStyle).toContain(".project-row-label");
     expect(privacySafeScreenshotStyle).toContain(".project-session-title");
-    expect(privacySafeScreenshotStyle).toContain(".sessions-results section > h2");
     expect(privacySafeScreenshotStyle).toContain(".sessions-result > span");
-    expect(privacySafeScreenshotStyle).toContain(".sessions-reader__toolbar > strong");
+    expect(privacySafeScreenshotStyle).toContain(".sessions-reader__breadcrumb > strong");
+    expect(privacySafeScreenshotStyle).toContain(".sessions-reader__breadcrumb > span");
     expect(privacySafeScreenshotStyle).toContain(".sessions-transcript > header > *");
     expect(privacySafeScreenshotStyle).not.toContain(".session-observatory-");
     expect(privacySafeScreenshotStyle).not.toContain(".observatory-");
@@ -61,12 +61,12 @@ describe("CSS layout evidence support", () => {
       <section class="sessions-surface">
         <aside class="sessions-navigator">
           <label class="sessions-navigator__search"><input value="private query"></label>
-          <div class="sessions-results"><section><h2>Fixture project</h2>
+          <div class="sessions-results">
             <button class="sessions-result"><span>Fixture session</span></button>
-          </section></div>
+          </div>
         </aside>
         <main class="sessions-reader">
-          <header class="sessions-reader__toolbar"><strong>Fixture session</strong><span>/fixture/project</span><span class="sessions-reader__toolbar-spacer"></span></header>
+          <header class="sessions-reader__toolbar"><nav class="sessions-reader__breadcrumb"><span>Fixture project</span><span>/</span><strong>Fixture session</strong></nav><span class="sessions-reader__toolbar-spacer"></span></header>
           <article class="sessions-transcript"><header><h1>Fixture session</h1><p>Fixture project</p></header>
             <section data-testid="transcript-block"><div>private transcript</div></section>
           </article>

@@ -24,21 +24,22 @@ test("Sessions exposes all 120 external summaries through bounded UI pages and l
 
   await selectSurface(page, "Sessions");
   const sessions = page.getByRole("region", { name: "Sessions workspace" });
+  const results = sessions.getByRole("listbox", { name: "Conversation results" });
   await page.getByRole("group", { name: "Session source" })
     .getByText("Codex", { exact: true })
     .click();
 
-  await expect(sessions.getByRole("status")).toHaveText("120 conversations");
-  await expect(sessions.getByRole("option")).toHaveCount(80);
+  await expect(sessions.getByRole("status")).toHaveText("120");
+  await expect(results.getByRole("option")).toHaveCount(80);
   await sessions.getByRole("button", { name: "Next" }).click();
-  await expect(sessions.getByRole("option")).toHaveCount(40);
-  await expect(sessions.getByRole("option", { name: /Known late pagination title/i })).toBeVisible();
+  await expect(results.getByRole("option")).toHaveCount(40);
+  await expect(results.getByRole("option", { name: /Known late pagination title/i })).toBeVisible();
 
   const search = sessions.getByRole("searchbox", { name: "Search sessions" });
   await search.fill("Known late pagination title");
   await expect(search).toBeFocused();
-  await expect(sessions.getByRole("option")).toHaveCount(1);
-  await expect(sessions.getByRole("option", { name: /Known late pagination title/i })).toBeVisible();
+  await expect(results.getByRole("option")).toHaveCount(1);
+  await expect(results.getByRole("option", { name: /Known late pagination title/i })).toBeVisible();
   expect(await page.locator(".sessions-result").count()).toBeLessThanOrEqual(80);
 
   harness.assertNoRuntimeErrors();
