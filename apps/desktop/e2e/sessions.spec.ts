@@ -68,20 +68,12 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
   const transcriptBlocks = page.locator(
     ".sessions-transcript [data-testid='transcript-block']",
   );
-  await expect(transcriptBlocks).toHaveCount(50);
-  for (let pageIndex = 0; pageIndex < 3; pageIndex += 1) {
-    const loadMore = page.getByRole("button", { name: "Load more transcript" });
-    if (!(await loadMore.isVisible().catch(() => false))) break;
-    const previousCount = await transcriptBlocks.count();
-    await loadMore.click();
-    await expect.poll(async () => ({
-      count: await transcriptBlocks.count(),
-      loadMoreVisible: await loadMore.isVisible().catch(() => false),
-    })).not.toEqual({ count: previousCount, loadMoreVisible: true });
-  }
+  await expect(transcriptBlocks).toHaveCount(6);
+  await expect(transcriptBlocks.first()).toContainText("Long transcript block 129.");
+  await expect(transcriptBlocks.last()).toContainText("Long transcript block 134.");
+  await expect(page.getByRole("button", { name: "Load more transcript" })).toHaveCount(0);
   const transcriptBlockCount = await transcriptBlocks.count();
-  expect(transcriptBlockCount).toBeGreaterThan(0);
-  expect(transcriptBlockCount).toBeLessThanOrEqual(120);
+  expect(transcriptBlockCount).toBe(6);
 
   const privacyEvidence = await page.evaluate(async ({ workspaceA, workspaceB }) => {
     const api = (window as DesktopSessionsWindow).alfredDesktop?.sessions;

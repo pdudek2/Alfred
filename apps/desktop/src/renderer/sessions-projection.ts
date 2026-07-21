@@ -123,6 +123,7 @@ export function buildSessionsProjection({
       projected.summary = {
         ...projected.summary,
         contentSessionKey: existing.externalContentSessionKey,
+        title: existing.summary.title,
         updatedAt: Math.max(projected.summary.updatedAt, existing.externalUpdatedAt ?? 0),
       };
       projected.externalContentSessionKey = existing.externalContentSessionKey;
@@ -183,7 +184,7 @@ function normalizeExternalSession(session: ExternalSessionSummary): SessionSumma
   const { snippet: _sourceSnippet, ...rest } = session;
   return {
     ...rest,
-    title: sessionPresentationTitle(session.title, "Codex session"),
+    title: session.title,
     ...(snippet ? { snippet } : {}),
     lineageKey: codexLineageKey(session.lineageKey) ?? session.lineageKey,
     delegatedRunCount: session.delegatedRunCount ?? 0,
