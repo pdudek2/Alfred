@@ -186,9 +186,14 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await capture("inbox", [...frameProbes, ...inboxProbes]);
 
   await selectSurface(page, "Sessions");
-  await expect(page.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
+  const sessions = page.getByRole("region", { name: "Sessions workspace" });
+  await expect(sessions).toBeVisible();
   await expect(page.locator(".project-navigator")).toHaveCount(0);
-  await page.getByRole("option").first().click();
+  await sessions
+    .getByRole("listbox", { name: "Conversation results" })
+    .getByRole("option")
+    .first()
+    .click();
   await expect(page.getByRole("article")).toBeVisible();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Sessions");
   await capture("sessions", [...sessionsFrameProbes, ...sessionsProbes]);
