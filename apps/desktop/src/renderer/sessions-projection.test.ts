@@ -224,6 +224,7 @@ describe("buildSessionsProjection", () => {
 
   it("keeps external transcript identity when the newest managed tile wins a duplicate lineage", () => {
     const externalId = "019fff00-5555-7222-8333-444444444444";
+    const exactCodexTitle = "Dokończ  plan na branchu — dokładna nazwa Codexa";
     const newest = managedSession({
       id: "managed-newest",
       lastActivityAt: 500,
@@ -238,12 +239,13 @@ describe("buildSessionsProjection", () => {
     const projection = buildSessionsProjection({
       sessions: [newest, older],
       workspaces,
-      externalSessions: [externalSession(externalId)],
+      externalSessions: [externalSession(externalId, { title: exactCodexTitle })],
     });
 
     expect(projection.items).toMatchObject([{
       sessionKey: "managed:managed-newest",
       contentSessionKey: `external-codex:${externalId}`,
+      title: exactCodexTitle,
     }]);
     expect(projection.managedTargets.get("managed:managed-newest")).toEqual({
       workspaceId: "A",
@@ -312,6 +314,17 @@ describe("buildSessionsProjection", () => {
 
     expect(projection.items[0]?.title).toBe("Codex session");
     expect(JSON.stringify(projection.items)).not.toContain("recommended_plugins");
+  });
+
+  it("keeps an external Codex thread name byte-for-byte through the renderer projection", () => {
+    const exactTitle = `Plan  redesignu  Alfreda — ${"szczegółowy kierunek ".repeat(6).trim()}`;
+    const projection = buildSessionsProjection({
+      sessions: [],
+      workspaces,
+      externalSessions: [externalSession("exact-title", { title: exactTitle })],
+    });
+
+    expect(projection.items[0]?.title).toBe(exactTitle);
   });
 
   it("chooses a managed lineage representative independently of input order or external activity", () => {

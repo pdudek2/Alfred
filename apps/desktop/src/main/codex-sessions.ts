@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { opendir, readFile, stat } from "node:fs/promises";
+import { open, opendir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import {
@@ -26,6 +26,8 @@ import { sessionPresentationText as presentationText } from "../shared/session-p
 import { canonicalWorkspacePath } from "./workspace-path.js";
 
 const MAX_TITLE_LENGTH = 92;
+const LATEST_CONVERSATION_MESSAGE_LIMIT = 6;
+const REVERSE_READ_CHUNK_BYTES = 64 * 1024;
 const MAX_TRANSCRIPT_PREFIX_LINES = 140;
 const MAX_DISPLAY_TEXT_LENGTH = 512;
 const MAX_SESSION_ID_LENGTH = 512;
@@ -207,7 +209,9 @@ export function createCodexSessionsReader(options: {
       const mode = request.mode ?? "conversation";
       let current: { revision: string; size: number };
       try { current = await currentRevision(source.path); } catch { throw transcriptReadError(); }
-      const cursor = decodeTranscriptCursor(request.cursor, current.revision, current.size, mode);
+      const cursor = mode === "conversation"
+        ? latestTranscriptCursor(request.cursor, current.revision, current.size)
+        : decodeTranscriptCursor(request.cursor, current.revision, current.size, mode);
       const cacheKey = `${request.sessionKey}:${mode}:${current.revision}:${request.cursor ?? "start"}`;
       const cached = pageCache.get(cacheKey);
       if (cached) { touchSession(request.sessionKey); return cached; }
@@ -267,7 +271,7 @@ async function remapProject(
   return {
     summary: {
       ...value.summary,
-      title: titleFromText(titleIndex.get(value.source.id) ?? "") || value.fallbackTitle,
+      title: titleIndex.get(value.source.id) || value.fallbackTitle,
       project,
       locationLabel: boundedDisplayText(project.id ? project.label : (value.source.cwd ? path.basename(value.source.cwd) : "Unknown workspace")),
       lifecycle: project.id ? "resumable" : "read-only",
@@ -303,8 +307,7 @@ async function summarizeCodexSessionFile(
   if (Buffer.byteLength(cwd, "utf8") > MAX_SESSION_CWD_BYTES) return null;
   const project = await projectForCwd(cwd, projects, canonicalCwds);
   const fallback = titleFromText(titleText) || titleFromText(fallbackTitle(cwd, id));
-  const indexedTitle = presentationText(titleIndex.get(id) ?? "");
-  const title = titleFromText(indexedTitle) || fallback;
+  const title = titleIndex.get(id) || fallback;
   const model = stringValue(meta?.model);
   const originator = stringValue(meta?.originator);
   const sessionKey = `external-codex:${opaqueSessionToken(id, file.updatedAt)}`;
@@ -338,6 +341,10 @@ async function streamTranscriptPage(
   cursor: TranscriptCursor,
   mode: TranscriptReadMode,
 ): Promise<TranscriptPage> {
+  if (mode === "conversation") {
+    return streamLatestConversationPage(source, sessionKey, cursor);
+  }
+
   const blocks: TranscriptBlock[] = [];
   let textBytes = 0;
   let partialNotice: string | null = null;
@@ -379,6 +386,56 @@ async function streamTranscriptPage(
   return makePage(null);
 }
 
+async function streamLatestConversationPage(
+  source: CodexSessionSource,
+  sessionKey: string,
+  cursor: TranscriptCursor,
+): Promise<TranscriptPage> {
+  const newestFirst: TranscriptBlock[] = [];
+  let malformed = false;
+  for await (const line of rawTranscriptLinesReverse(source.path, cursor.offset)) {
+    const parsed = parseTranscriptRecord(line.text, `${sessionKey}:${line.start}`, "conversation");
+    if (parsed.kind === "malformed") {
+      malformed = true;
+      continue;
+    }
+    if (!parsed.block) continue;
+    newestFirst.push(parsed.block);
+    if (newestFirst.length >= LATEST_CONVERSATION_MESSAGE_LIMIT) break;
+  }
+
+  const noticeReserve = Buffer.byteLength(TRUNCATED_NOTICE, "utf8") + 1;
+  let remainingBytes = Math.max(0, TRANSCRIPT_TEXT_LIMIT - noticeReserve);
+  let truncated = false;
+  const fittedNewestFirst: TranscriptBlock[] = [];
+  for (const block of newestFirst) {
+    const separatorBytes = fittedNewestFirst.length ? 1 : 0;
+    if (remainingBytes <= separatorBytes) {
+      truncated = true;
+      break;
+    }
+    const available = remainingBytes - separatorBytes;
+    const text = truncateUtf8(block.text, available);
+    if (!text) {
+      truncated = true;
+      break;
+    }
+    if (text !== block.text) truncated = true;
+    fittedNewestFirst.push({ ...block, text });
+    remainingBytes -= Buffer.byteLength(text, "utf8") + separatorBytes;
+  }
+
+  const blocks = fittedNewestFirst.reverse();
+  const notice = truncated ? TRUNCATED_NOTICE : malformed ? MALFORMED_NOTICE : null;
+  return {
+    sessionKey,
+    blocks: notice ? [...blocks, { id: `notice:${blocks.length}`, kind: "notice", text: notice }] : blocks,
+    nextCursor: null,
+    revision: cursor.revision,
+    partial: Boolean(notice),
+  };
+}
+
 async function* rawTranscriptLines(filePath: string, start: number): AsyncGenerator<{ start: number; nextOffset: number; text: string }> {
   const stream = createReadStream(filePath, { start });
   let pending = Buffer.alloc(0);
@@ -402,6 +459,41 @@ async function* rawTranscriptLines(filePath: string, start: number): AsyncGenera
     if (pending.length) yield { start: offset, nextOffset: offset + pending.length, text: pending.toString("utf8") };
   } finally {
     stream.destroy();
+  }
+}
+
+async function* rawTranscriptLinesReverse(
+  filePath: string,
+  endExclusive: number,
+): AsyncGenerator<{ start: number; text: string }> {
+  const handle = await open(filePath, "r");
+  let position = endExclusive;
+  let pending = Buffer.alloc(0);
+  try {
+    while (position > 0) {
+      const length = Math.min(REVERSE_READ_CHUNK_BYTES, position);
+      position -= length;
+      const chunk = Buffer.allocUnsafe(length);
+      const { bytesRead } = await handle.read(chunk, 0, length, position);
+      const buffer = pending.length
+        ? Buffer.concat([chunk.subarray(0, bytesRead), pending])
+        : chunk.subarray(0, bytesRead);
+      let segmentEnd = buffer.length;
+      for (let index = buffer.length - 1; index >= 0; index -= 1) {
+        if (buffer[index] !== 0x0a) continue;
+        const rawLine = buffer.subarray(index + 1, segmentEnd);
+        const content = rawLine.at(-1) === 0x0d ? rawLine.subarray(0, -1) : rawLine;
+        if (content.length) yield { start: position + index + 1, text: content.toString("utf8") };
+        segmentEnd = index;
+      }
+      pending = buffer.subarray(0, segmentEnd);
+    }
+    if (pending.length) {
+      const content = pending.at(-1) === 0x0d ? pending.subarray(0, -1) : pending;
+      if (content.length) yield { start: 0, text: content.toString("utf8") };
+    }
+  } finally {
+    await handle.close();
   }
 }
 
@@ -444,6 +536,10 @@ function decodeTranscriptCursor(value: string | undefined, revision: string, siz
     if (!isTranscriptCursor(parsed) || parsed.revision !== revision || parsed.mode !== mode || parsed.offset > size) throw new Error("invalid");
     return parsed;
   } catch { throw new Error("Transcript cursor is invalid or stale."); }
+}
+function latestTranscriptCursor(value: string | undefined, revision: string, size: number): TranscriptCursor {
+  if (value) throw new Error("Transcript cursor is invalid or stale.");
+  return { offset: size, revision, mode: "conversation" };
 }
 function isTranscriptCursor(value: unknown): value is TranscriptCursor {
   return isRecord(value)
@@ -555,7 +651,18 @@ function longestRoot(project: CanonicalSessionsProject): number {
 function pathMatchesWorkspace(cwd: string, root: string): boolean {
   return Boolean(cwd && root && (cwd === root || cwd.startsWith(`${root}${path.sep}`)));
 }
-async function readCodexSessionTitleIndex(codexHome: string): Promise<Map<string, string>> { let content: string; try { content = await readFile(path.join(codexHome, "session_index.jsonl"), "utf8"); } catch { return new Map(); } const titles = new Map<string, string>(); for (const line of content.split(/\r?\n/)) { const record = parseJsonRecord(line); const id = stringValue(record?.id); const title = titleFromText(presentationText(stringValue(record?.thread_name) ?? "")); if (id && title) titles.set(id, title); } return titles; }
+async function readCodexSessionTitleIndex(codexHome: string): Promise<Map<string, string>> {
+  let content: string;
+  try { content = await readFile(path.join(codexHome, "session_index.jsonl"), "utf8"); } catch { return new Map(); }
+  const titles = new Map<string, string>();
+  for (const line of content.split(/\r?\n/)) {
+    const record = parseJsonRecord(line);
+    const id = stringValue(record?.id);
+    const threadName = stringValue(record?.thread_name);
+    if (id && threadName?.trim()) titles.set(id, threadName);
+  }
+  return titles;
+}
 async function findJsonlFiles(root: string): Promise<SessionFile[]> { const files: SessionFile[] = []; async function visit(dir: string): Promise<void> { let handle: Awaited<ReturnType<typeof opendir>>; try { handle = await opendir(dir); } catch { return; } for await (const entry of handle) { const entryPath = path.join(dir, entry.name); if (entry.isDirectory()) await visit(entryPath); else if (entry.isFile() && entry.name.endsWith(".jsonl")) try { const details = await stat(entryPath); files.push({ path: entryPath, updatedAt: details.mtimeMs, size: details.size }); } catch { /* File changed while Codex was writing it. */ } } } await visit(root); return files; }
 async function readTranscriptPrefixLines(filePath: string, maxLines: number): Promise<string[]> { const stream = createReadStream(filePath, { encoding: "utf8" }); const reader = createInterface({ input: stream, crlfDelay: Infinity }); const lines: string[] = []; try { for await (const line of reader) { lines.push(line); if (lines.length >= maxLines) { reader.close(); stream.destroy(); break; } } } finally { reader.close(); stream.destroy(); } return lines; }
 function parseJsonRecord(line: string): Record<string, unknown> | null { try { const value = JSON.parse(line) as unknown; return isRecord(value) ? value : null; } catch { return null; } }

@@ -292,22 +292,17 @@ describe("SessionsSurface", () => {
     });
   });
 
-  it("reads a managed and external merged session through one content key across pagination", async () => {
+  it("reads a managed and external merged session through one content key while keeping the Codex title", async () => {
     const user = userEvent.setup();
     const sessionsApi = createSessionsApi();
     const terminalApi = createTerminalApi();
-    vi.mocked(sessionsApi.readTranscriptPage)
-      .mockResolvedValueOnce(transcriptPage(
-        "external-codex:content-0",
-        [{ id: "user-1", kind: "message", role: "user", text: "Merged question" }],
-        { nextCursor: "cursor-1" },
-      ))
-      .mockResolvedValueOnce(transcriptPage(
-        "external-codex:content-0",
-        [{ id: "assistant-1", kind: "message", role: "assistant", text: "Merged answer" }],
-      ));
+    const exactCodexTitle = "Dokończ  plan na branchu — dokładna nazwa Codexa";
+    vi.mocked(sessionsApi.readTranscriptPage).mockResolvedValueOnce(transcriptPage(
+      "external-codex:content-0",
+      [{ id: "user-1", kind: "message", role: "user", text: "Merged question" }],
+    ));
     renderSurface({
-      externalSessions: [externalSession(0)],
+      externalSessions: [externalSession(0, { title: exactCodexTitle })],
       sessions: [managedSession(0, {
         title: "Merged managed session",
         resumeTarget: {
@@ -320,27 +315,24 @@ describe("SessionsSurface", () => {
       terminalApi,
     });
 
-    await user.click(screen.getByRole("option", { name: /Merged managed session/ }));
-    const article = await screen.findByRole("article", { name: /Merged managed session/ });
+    await user.click(screen.getByRole("option", { name: /Dokończ plan na branchu/ }));
+    const article = await screen.findByRole("article", { name: /Dokończ plan na branchu/ });
     expect(article).toHaveTextContent("Merged question");
     expect(article).toHaveTextContent("You");
     expect(terminalApi.snapshot).not.toHaveBeenCalled();
     expect(sessionsApi.readTranscriptPage).toHaveBeenNthCalledWith(1, {
       sessionKey: "external-codex:content-0",
     });
-
-    await user.click(screen.getByRole("button", { name: "Load more transcript" }));
-    expect(await screen.findByText("Merged answer")).toBeInTheDocument();
-    expect(sessionsApi.readTranscriptPage).toHaveBeenNthCalledWith(2, {
-      sessionKey: "external-codex:content-0",
-      cursor: "cursor-1",
-    });
   });
 
-  it("keeps loaded transcript blocks visible when a later page fails and can restart reading", async () => {
+  it("keeps loaded raw transcript blocks visible when a later page fails and can restart reading", async () => {
     const user = userEvent.setup();
     const sessionsApi = createSessionsApi();
     vi.mocked(sessionsApi.readTranscriptPage)
+      .mockResolvedValueOnce(transcriptPage(
+        "external-codex:content-0",
+        [{ id: "latest", kind: "message", role: "assistant", text: "Latest clean messages" }],
+      ))
       .mockResolvedValueOnce(transcriptPage(
         "external-codex:content-0",
         [{ id: "first", kind: "message", role: "assistant", text: "Stable first page" }],
@@ -354,6 +346,8 @@ describe("SessionsSurface", () => {
     renderSurface({ externalSessions: [externalSession(0)], sessionsApi });
 
     await user.click(screen.getByRole("option", { name: /External session 0/ }));
+    expect(await screen.findByText("Latest clean messages")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Raw transcript" }));
     expect(await screen.findByText("Stable first page")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Load more transcript" }));
 
