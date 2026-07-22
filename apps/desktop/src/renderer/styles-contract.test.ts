@@ -13,6 +13,13 @@ if (!stylesPath) {
 }
 
 const styles = readFileSync(stylesPath, "utf8");
+const previewDockStylesPath = [
+  resolve(process.cwd(), "src/renderer/components/workspace-preview-dock.css"),
+  resolve(process.cwd(), "apps/desktop/src/renderer/components/workspace-preview-dock.css"),
+].find((candidate) => existsSync(candidate));
+
+if (!previewDockStylesPath) throw new Error("Unable to locate workspace-preview-dock.css");
+const previewDockStyles = readFileSync(previewDockStylesPath, "utf8");
 const lightningCssConfig = resolveConfig(
   { configFile: false, css: { transformer: "lightningcss" } },
   "build",
@@ -424,6 +431,16 @@ function contrastRatio(foreground: string, background: string): number {
 }
 
 describe("renderer CSS contracts", () => {
+  it("gives the Preview dock one component stylesheet owner", async () => {
+    expect(styles).not.toMatch(/\.workspace-preview-/);
+    expect(styles).not.toContain(".context-drawer .workspace-preview-panel");
+    expect(previewDockStyles).toContain(".workspace-preview-dock .workspace-preview-panel");
+    expect(previewDockStyles).toContain(".workspace-preview-empty");
+    expect(previewDockStyles).toContain("position: relative");
+    expect(previewDockStyles).toContain("position: absolute");
+    await expect(parseWithLightningCss(previewDockStyles, previewDockStylesPath)).resolves.toBeUndefined();
+  });
+
   it("implements the canonical B4 Inbox visual contract without selector residue", () => {
     const root = singleTopLevelRuleBodyIn(styles, ".inbox-docket");
     const canvas = singleTopLevelRuleBodyIn(styles, ".inbox-docket__canvas");
@@ -1090,7 +1107,7 @@ describe("renderer CSS contracts", () => {
     expectTopLevelOwnerWithin(".terminal-tile.collapsed .xterm", ["min-height: 0"], terminalTileStart, terminalTileEnd);
 
     const contextStart = ".context-drawer {";
-    const contextEnd = ".workspace-preview-panel,\n.agent-timeline-panel {";
+    const contextEnd = ".agent-timeline-panel {\n  border-color: var(--border);";
     expectTopLevelOwnerWithin(".context-drawer.closed", ["display: none"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-drawer.open", ["display: flex"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-column.closed", ["display: none"], contextStart, contextEnd);
@@ -1144,7 +1161,7 @@ describe("renderer CSS contracts", () => {
     const contextRegion: CssOwnerRegion = {
       name: "Context drawer/column",
       startMarker: ".context-drawer {",
-      endMarker: ".workspace-preview-panel,\n.agent-timeline-panel {",
+      endMarker: ".agent-timeline-panel {\n  border-color: var(--border);",
     };
     const composerRegion: CssOwnerRegion = {
       name: "composer/dispatch",
@@ -1228,7 +1245,6 @@ describe("renderer CSS contracts", () => {
 
     for (const [selector, expectedOccurrences] of [
       [".context-drawer-header", 1],
-      [".context-drawer .workspace-preview-panel", 2],
       [".context-drawer .agent-timeline-panel", 2],
       [".context-drawer .agent-timeline-body", 1],
       [".context-drawer .agent-session-pulse", 1],
@@ -1313,7 +1329,7 @@ describe("renderer CSS contracts", () => {
     const surfaceResponsiveRegion = {
       name: "Inbox and Sessions responsive ownership",
       startMarker: ".inbox-docket {",
-      endMarker: ".agent-timeline-panel,\n.workspace-preview-panel {",
+      endMarker: ".agent-timeline-panel {\n  border-radius: 10px;",
     };
 
     expectCanonicalBase(".inbox-docket__canvas", ["overflow-y: auto", "overflow-x: hidden"]);
