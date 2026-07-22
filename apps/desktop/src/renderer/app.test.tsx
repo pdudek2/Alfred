@@ -3155,11 +3155,17 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await selectSurface(user, "Context");
+    const previewToggle = await screen.findByRole("button", { name: "Preview" });
+    expect(previewToggle).toBeEnabled();
+    expect(previewToggle).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByLabelText("Workspace preview")).not.toBeInTheDocument();
+
+    await user.click(previewToggle);
     const preview = await screen.findByLabelText("Workspace preview");
-    expect(within(preview).getAllByText("localhost:5173")).toHaveLength(2);
+    expect(within(preview).getByText("localhost:5173")).toBeInTheDocument();
     expect(within(preview).queryByText("example.com")).not.toBeInTheDocument();
     expect(within(preview).getByTitle("Preview of http://localhost:5173/")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "true");
 
     await user.click(within(preview).getByRole("button", { name: "Open preview externally" }));
 
@@ -3179,7 +3185,8 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await selectSurface(user, "Context");
+    const previewToggle = await screen.findByRole("button", { name: "Preview" });
+    await user.click(previewToggle);
     const preview = await screen.findByLabelText("Workspace preview");
     await user.click(within(preview).getByRole("button", { name: "Open preview externally" }));
 
@@ -3189,6 +3196,7 @@ describe("App integration", () => {
   });
 
   it("adds preview URLs from live terminal output", async () => {
+    const user = userEvent.setup();
     const { emitData } = installDesktopBridge(undefined, null, [
       {
         id: "runtime-dev",
@@ -3220,9 +3228,80 @@ describe("App integration", () => {
       }],
     });
 
+    const previewToggle = await screen.findByRole("button", { name: "Preview" });
+    await user.click(previewToggle);
     const preview = await screen.findByLabelText("Workspace preview");
-    expect(within(preview).getAllByText("127.0.0.1:3000")).toHaveLength(2);
+    expect(within(preview).getByText("127.0.0.1:3000/app")).toBeInTheDocument();
     expect(within(preview).getByTitle("Preview of http://127.0.0.1:3000/app")).toBeInTheDocument();
+  });
+
+  it("closes and reopens Preview without remounting the terminal work surface", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [
+      liveSnapshot("preview-toggle", { buffer: "Ready at http://localhost:5173/\n" }),
+    ]);
+
+    render(<App />);
+
+    const terminalHost = await screen.findByTestId("xterm-host");
+    const previewToggle = await screen.findByRole("button", { name: "Preview" });
+    await user.click(previewToggle);
+    const preview = await screen.findByLabelText("Workspace preview");
+    await user.click(within(preview).getByRole("button", { name: "Close Preview" }));
+
+    expect(screen.queryByLabelText("Workspace preview")).not.toBeInTheDocument();
+    expect(screen.getByTestId("xterm-host")).toBe(terminalHost);
+    expect(screen.getByRole("button", { name: "Preview" })).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: "Preview" }));
+    expect(await screen.findByLabelText("Workspace preview")).toBeInTheDocument();
+  });
+
+  it("hydrates Preview open state and width independently per workspace", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(
+      undefined,
+      null,
+      [
+        liveSnapshot("preview-a", {
+          workspaceId: "A",
+          buffer: "Ready at http://localhost:5173/a\n",
+        }),
+        liveSnapshot("preview-b", {
+          workspaceId: "B",
+          cwd: "/Users/patryk/Desktop/IronLog",
+          buffer: "Ready at http://localhost:4173/b\n",
+        }),
+      ],
+      undefined,
+      {
+        layoutsByWorkspace: {},
+        viewStateByWorkspace: {
+          A: { previewDockOpen: false, previewDockWidth: 460 },
+          B: { previewDockOpen: true, previewDockWidth: 580 },
+        },
+      },
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "B", label: "IronLog", shortLabel: "I", rootPath: "/Users/patryk/Desktop/IronLog" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByLabelText("Workspace preview")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "IronLog workspace" }));
+
+    expect(await screen.findByLabelText("Workspace preview")).toBeInTheDocument();
+    expect(screen.getByRole("separator", { name: "Resize Preview" })).toHaveAttribute("aria-valuenow", "580");
+
+    await user.click(screen.getByRole("tab", { name: "Alfred workspace" }));
+    expect(screen.queryByLabelText("Workspace preview")).not.toBeInTheDocument();
   });
 
   it("starts sessions in a scratch workspace before a folder is bound", async () => {

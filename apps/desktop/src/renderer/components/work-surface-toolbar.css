@@ -1,0 +1,67 @@
+.desk-surface-panel > .work-surface-toolbar {
+  position: relative;
+  z-index: 10;
+  overflow: visible;
+}
+
+.work-surface-toolbar .work-surface-layout .chrome-menu-trigger {
+  width: auto;
+  min-width: 104px;
+  border-color: transparent;
+  background: transparent;
+  justify-content: flex-start;
+}
+
+.work-surface-toolbar .work-surface-layout .chrome-menu-trigger:hover,
+.work-surface-toolbar .work-surface-layout .chrome-menu-trigger:focus-visible,
+.work-surface-toolbar .work-surface-layout .chrome-menu-trigger[aria-expanded="true"] {
+  border-color: transparent;
+  background: var(--ink-2);
+}
+
+.work-surface-toolbar .work-surface-layout .chrome-menu-trigger > span {
+  color: var(--ink-5);
+  font-weight: 550;
+}
+
+.work-surface-toolbar .work-surface-layout .chrome-menu-trigger > strong {
+  color: var(--ink-7);
+  font-weight: 650;
+}
+
+.work-surface-toolbar .work-surface-layout .chrome-menu-trigger > svg {
+  margin-left: auto;
+  color: var(--ink-5);
+}
+
+.work-surface-toolbar .work-surface-layout .chrome-menu-popover {
+  right: auto;
+  left: 0;
+  width: 154px;
+}
+
+.work-surface-toolbar > button,
+.work-surface-toolbar .work-preview-toggle {
+  border-color: transparent;
+  background: transparent;
+}
+
+.work-surface-toolbar > button:hover,
+.work-surface-toolbar > button:focus-visible {
+  border-color: transparent;
+}
+
+.work-surface-toolbar .work-preview-toggle[aria-pressed="true"] {
+  border-color: transparent;
+  background: color-mix(in oklab, var(--signal-focus) 8%, var(--ink-2));
+  color: var(--ink-7);
+}
+
+.work-surface-toolbar .work-preview-toggle[aria-pressed="true"] svg {
+  color: var(--signal-focus);
+}
+
+.work-surface-toolbar .work-preview-toggle:disabled {
+  opacity: 0.42;
+  cursor: default;
+}

@@ -1,16 +1,13 @@
 import { X } from "lucide-react";
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { AgentTimelinePanel, type AgentTimelinePanelProps } from "./AgentTimelinePanel";
-import { WorkspacePreviewPanel, type WorkspacePreviewPanelProps } from "./WorkspacePreviewPanel";
 
 export type ContextColumnProps = {
   contextOpen: boolean;
   dismissalSuspended?: boolean;
   focusRequestKey: number;
-  previewVisible: boolean;
   returnFocusRef: RefObject<HTMLButtonElement | null>;
   timelineProps: AgentTimelinePanelProps;
-  previewProps: WorkspacePreviewPanelProps;
   onCloseContext: () => void;
 };
 
@@ -18,10 +15,8 @@ export function ContextColumn({
   contextOpen,
   dismissalSuspended = false,
   focusRequestKey,
-  previewVisible,
   returnFocusRef,
   timelineProps,
-  previewProps,
   onCloseContext,
 }: ContextColumnProps) {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -79,7 +74,6 @@ export function ContextColumn({
             <X size={15} />
           </button>
         </header>
-        {previewVisible && <WorkspacePreviewPanel {...previewProps} />}
         <AgentTimelinePanel {...timelineProps} />
       </div>
     </aside>

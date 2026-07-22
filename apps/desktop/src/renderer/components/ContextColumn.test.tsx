@@ -24,19 +24,8 @@ const sessionB: SessionTile = {
 const baseProps = {
   contextOpen: true,
   focusRequestKey: 0,
-  previewVisible: false,
   returnFocusRef: { current: null },
   timelineProps: { session: sessionA },
-  previewProps: {
-    candidates: [],
-    refreshKey: 0,
-    selectedUrl: null,
-    workspaceLabel: "Workspace A",
-    onCopyUrl: vi.fn(),
-    onOpenExternal: vi.fn(),
-    onRefresh: vi.fn(),
-    onSelectUrl: vi.fn(),
-  },
   onCloseContext: vi.fn(),
 };
 
@@ -115,7 +104,7 @@ describe("ContextColumn", () => {
     expect(surfacesTrigger).not.toHaveFocus();
   });
 
-  it("rebinds the visible timeline and preview to the selected session without a second status rail", () => {
+  it("rebinds the visible timeline to the selected session without a second status rail", () => {
     const { rerender } = renderContext({ session: sessionA, contextOpen: true });
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent(sessionA.title);
 

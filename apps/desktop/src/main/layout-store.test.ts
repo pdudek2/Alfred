@@ -65,14 +65,29 @@ describe("layout-store", () => {
   it("stores view state per workspace", async () => {
     const response = await setWorkspaceViewStateSnapshot({
       workspaceId: "A",
-      viewState: { workMode: "focus", selectedSessionId: "manual-1" },
+      viewState: {
+        workMode: "focus",
+        selectedSessionId: "manual-1",
+        previewDockOpen: true,
+        previewDockWidth: 560,
+      },
     });
 
-    expect(response.viewStateByWorkspace.A).toEqual({ workMode: "focus", selectedSessionId: "manual-1" });
+    expect(response.viewStateByWorkspace.A).toEqual({
+      workMode: "focus",
+      selectedSessionId: "manual-1",
+      previewDockOpen: true,
+      previewDockWidth: 560,
+    });
     await expect(getLayoutsSnapshot()).resolves.toEqual({
       layoutsByWorkspace: {},
       viewStateByWorkspace: {
-        A: { workMode: "focus", selectedSessionId: "manual-1" },
+        A: {
+          workMode: "focus",
+          selectedSessionId: "manual-1",
+          previewDockOpen: true,
+          previewDockWidth: 560,
+        },
       },
     });
   });

@@ -262,6 +262,8 @@ describe("persisted-desktop-state", () => {
             selectedSessionId: "manual-1",
             collapsedSessionIds: ["manual-2", "", "manual-2"],
             contextDrawerOpen: true,
+            previewDockOpen: false,
+            previewDockWidth: 584.4,
             dispatchTarget: { kind: "session", id: "manual-1", label: "Manual · zsh 1" },
           },
           B: {
@@ -281,8 +283,32 @@ describe("persisted-desktop-state", () => {
         workMode: "focus",
         selectedSessionId: "manual-1",
         collapsedSessionIds: ["manual-2"],
+        previewDockOpen: false,
+        previewDockWidth: 584,
         dispatchTarget: { kind: "session", id: "manual-1", label: "Manual · zsh 1" },
       },
+    });
+  });
+
+  it("clamps persisted Preview widths and drops invalid dock values", async () => {
+    const filePath = await temporaryStateFile();
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: DESKTOP_STATE_VERSION,
+        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
+        activeWorkspaceId: "A",
+        viewStateByWorkspace: {
+          A: { previewDockOpen: true, previewDockWidth: 900 },
+          B: { previewDockOpen: "yes", previewDockWidth: "500" },
+        },
+      }),
+      "utf8",
+    );
+
+    const state = await createPersistedDesktopStateStore({ filePath }).getState();
+    expect(state.viewStateByWorkspace).toEqual({
+      A: { previewDockOpen: true, previewDockWidth: 620 },
     });
   });
 
