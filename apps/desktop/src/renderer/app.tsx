@@ -663,7 +663,13 @@ export function App() {
   }, [activeWorkspace.id]);
 
   const handleCopyPreviewUrl = useCallback(async (url: string) => {
-    await navigator.clipboard?.writeText(url);
+    setShellActionError(null);
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard is unavailable.");
+      await navigator.clipboard.writeText(url);
+    } catch (error) {
+      setShellActionError(error instanceof Error ? error.message : "Clipboard is unavailable.");
+    }
   }, []);
 
   const handleOpenPreviewExternal = useCallback(async (url: string) => {
