@@ -27,6 +27,12 @@ export function isPgrepNoChildren(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === 1;
 }
 
+export function hasExpectedConnectionRefusedSources(sources: readonly string[]): boolean {
+  return sources.filter((source) => source === "renderer").length === 1 &&
+    sources.filter((source) => source === "main-stderr").length <= 1 &&
+    sources.every((source) => source === "renderer" || source === "main-stderr");
+}
+
 function normalizeElectronConsoleText(text: string): string {
   return text
     .replace(/\s+/g, " ")

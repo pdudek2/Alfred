@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  hasExpectedConnectionRefusedSources,
   isAllowedElectronMainOutput,
   isAllowedElectronWarning,
   isPgrepNoChildren,
@@ -26,6 +27,14 @@ describe("Electron harness pure guards", () => {
     expect(isPgrepNoChildren({ code: "ENOENT" })).toBe(false);
     expect(isPgrepNoChildren({ code: 2 })).toBe(false);
     expect(isPgrepNoChildren(new Error("permission denied"))).toBe(false);
+  });
+
+  it("requires the renderer refusal and accepts Electron's optional matching main log", () => {
+    expect(hasExpectedConnectionRefusedSources(["renderer"])).toBe(true);
+    expect(hasExpectedConnectionRefusedSources(["renderer", "main-stderr"])).toBe(true);
+    expect(hasExpectedConnectionRefusedSources(["main-stderr"])).toBe(false);
+    expect(hasExpectedConnectionRefusedSources(["renderer", "renderer"])).toBe(false);
+    expect(hasExpectedConnectionRefusedSources(["renderer", "main-stderr", "main-stderr"])).toBe(false);
   });
 
   it("allows only Playwright's exact inspector shutdown message from Electron main", () => {
