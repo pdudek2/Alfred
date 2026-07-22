@@ -22,6 +22,7 @@ import {
   privacySafeScreenshotSelectors,
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
+import { chooseWorkLayout } from "./support/work-layout";
 
 const frameProbes: CssOwnerProbe[] = [
   { name: "desktop-frame", selector: ".desktop-frame", required: true,
@@ -159,25 +160,26 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Prepare Work" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Focus", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Focus", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await chooseWorkLayout(page, "Focus");
+  await expect(page.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeVisible();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Focus");
   await capture("focus", [...frameProbes, ...terminalProbes]);
 
-  await page.getByRole("button", { name: "Split", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Split", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await chooseWorkLayout(page, "Split");
+  await expect(page.getByRole("button", { name: "Open layout menu, Split selected" })).toBeVisible();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Split");
   await capture("split", [...frameProbes, ...terminalProbes]);
 
-  await page.getByRole("button", { name: "Grid", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Grid", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await chooseWorkLayout(page, "Grid");
+  await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Grid restored");
-  await page.getByRole("button", { name: "Arrange", exact: true }).click();
+  await chooseWorkLayout(page, "Arrange");
+  await expect(page.getByRole("button", { name: "Open layout menu, Arrange selected" })).toBeVisible();
   await expect(page.getByText("Arrange mode", { exact: true })).toBeVisible();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Arrange");
   await capture("arrange", [...frameProbes, ...terminalProbes]);
-  await page.getByRole("button", { name: "Arrange", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Arrange", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await chooseWorkLayout(page, "Arrange");
+  await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Arrange closed");
 
   await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
@@ -214,7 +216,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await capture("context", [...frameProbes, ...terminalProbes, ...contextProbes]);
 
   await page.getByRole("button", { name: "Close Context panel" }).click();
-  await page.getByRole("button", { name: "Grid", exact: true }).click();
+  await chooseWorkLayout(page, "Grid");
+  await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
   await setWindowSize(app, page, 1120, 720);
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow Grid");
   await capture("narrow", [...frameProbes, ...terminalProbes]);

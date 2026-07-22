@@ -558,6 +558,14 @@ async function selectSurface(user: ReturnType<typeof userEvent.setup>, label: "W
   await user.click(screen.getByRole("menuitem", { name: label }));
 }
 
+async function chooseWorkLayout(
+  user: ReturnType<typeof userEvent.setup>,
+  item: "Focus" | "Split" | "Grid" | "Arrange",
+): Promise<void> {
+  await user.click(screen.getByRole("button", { name: /Open layout menu/ }));
+  await user.click(screen.getByRole("menuitem", { name: item, exact: true }));
+}
+
 async function submitCommandPalette(user: ReturnType<typeof userEvent.setup>, query: string) {
   const search = screen.getByRole("textbox", { name: "Search commands" });
   await user.type(search, query);
@@ -632,9 +640,10 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const focus = await screen.findByRole("button", { name: "Focus" });
-    await user.click(focus);
-    expect(focus).toHaveAttribute("aria-pressed", "true");
+    await screen.findByRole("button", { name: /Open layout menu/ });
+    await chooseWorkLayout(user, "Focus");
+    const focus = screen.getByRole("button", { name: "Open layout menu, Focus selected" });
+    expect(focus).toBeInTheDocument();
 
     const launchTrigger = screen.getByRole("button", { name: "Open launch menu" });
     launchTrigger.focus();
@@ -648,7 +657,7 @@ describe("App integration", () => {
 
     expect(screen.queryByRole("dialog", { name: "Prepare Work" })).not.toBeInTheDocument();
     expect(launchTrigger).toHaveFocus();
-    expect(focus).toHaveAttribute("aria-pressed", "true");
+    expect(focus).toBeInTheDocument();
     const visibleTiles = screen.getAllByTestId("terminal-tile").filter(
       (tile) => tile.getAttribute("aria-hidden") !== "true",
     );
@@ -1368,7 +1377,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
+    expect(await screen.findByRole("button", { name: "Open layout menu, Focus selected" })).toBeInTheDocument();
     expect(screen.getByTestId("terminal-grid")).toBeInTheDocument();
     expect(screen.getAllByTestId("xterm-host")).toHaveLength(2);
     expect(screen.getAllByTestId("terminal-tile")).toHaveLength(2);
@@ -1412,16 +1421,17 @@ describe("App integration", () => {
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
 
-    await user.click(screen.getByRole("button", { name: /^focus$/i }));
+    await chooseWorkLayout(user, "Focus");
+    expect(screen.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeInTheDocument();
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
-    await user.click(screen.getByRole("button", { name: "Split" }));
-    expect(screen.getByRole("button", { name: "Split" })).toHaveAttribute("aria-pressed", "true");
+    await chooseWorkLayout(user, "Split");
+    expect(screen.getByRole("button", { name: "Open layout menu, Split selected" })).toBeInTheDocument();
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
-    await user.click(screen.getByRole("button", { name: "Grid" }));
-    expect(screen.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "true");
+    await chooseWorkLayout(user, "Grid");
+    expect(screen.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeInTheDocument();
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
 
@@ -1483,13 +1493,16 @@ describe("App integration", () => {
     await waitFor(() => expect(toolbar).toHaveTextContent("3 visible sessions"));
     expect(screen.getAllByTestId("terminal-tile").filter((tile) => tile.getAttribute("aria-hidden") !== "true")).toHaveLength(3);
 
-    await user.click(within(toolbar).getByRole("button", { name: "Focus" }));
+    await chooseWorkLayout(user, "Focus");
+    expect(screen.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeInTheDocument();
     expect(toolbar).toHaveTextContent("1 visible session");
 
-    await user.click(within(toolbar).getByRole("button", { name: "Split" }));
+    await chooseWorkLayout(user, "Split");
+    expect(screen.getByRole("button", { name: "Open layout menu, Split selected" })).toBeInTheDocument();
     expect(toolbar).toHaveTextContent("2 visible sessions");
 
-    await user.click(within(toolbar).getByRole("button", { name: "Arrange" }));
+    await chooseWorkLayout(user, "Arrange");
+    expect(screen.getByRole("button", { name: "Open layout menu, Arrange selected" })).toBeInTheDocument();
     expect(toolbar).toHaveTextContent("3 visible sessions");
   });
 
@@ -1530,11 +1543,12 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await screen.findByRole("button", { name: "Focus" });
+    await screen.findByRole("button", { name: /Open layout menu/ });
     const firstHost = screen.getAllByTestId("xterm-host")[0];
     expect(firstHost).toBeInstanceOf(HTMLElement);
 
-    await user.click(screen.getByRole("button", { name: "Focus" }));
+    await chooseWorkLayout(user, "Focus");
+    expect(screen.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /Codex · two/i }));
 
     const visibleTiles = screen.getAllByTestId("terminal-tile").filter(
@@ -1575,13 +1589,15 @@ describe("App integration", () => {
     expect(stagedTile.querySelector(".tile-header")).not.toBeNull();
   });
 
-  it.each(["Split", "Grid"])("%s keeps tile headers and omits session tabs", async (name) => {
+  it.each(["Split", "Grid"] as const)("%s keeps tile headers and omits session tabs", async (name) => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
 
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name }));
+    await screen.findByRole("button", { name: /Open layout menu/ });
+    await chooseWorkLayout(user, name);
+    expect(screen.getByRole("button", { name: `Open layout menu, ${name} selected` })).toBeInTheDocument();
 
     const visibleTiles = screen.getAllByTestId("terminal-tile").filter(
       (tile) => tile.getAttribute("aria-hidden") !== "true",
@@ -1599,12 +1615,15 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: "Focus" }));
+    await screen.findByRole("button", { name: /Open layout menu/ });
+    await chooseWorkLayout(user, "Focus");
+    expect(screen.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeInTheDocument();
     const initialHosts = screen.getAllByTestId("xterm-host");
     expect(initialHosts).toHaveLength(2);
     const disposeCountBeforeArrange = terminalDisposeCalls.length;
 
-    await user.click(screen.getByRole("button", { name: "Arrange" }));
+    await chooseWorkLayout(user, "Arrange");
+    expect(screen.getByRole("button", { name: "Open layout menu, Arrange selected" })).toBeInTheDocument();
 
     const visibleTiles = screen.getAllByTestId("terminal-tile").filter(
       (tile) => tile.getAttribute("aria-hidden") !== "true",
@@ -1647,9 +1666,7 @@ describe("App integration", () => {
     };
     renderTerminalDeskForSessions([session]);
 
-    expect(screen.queryByRole("button", { name: "Focus" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Split" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Grid" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Open layout menu/ })).not.toBeInTheDocument();
   });
 
   it("routes secondary terminal actions through one accessible overflow menu", async () => {
@@ -1736,7 +1753,8 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Codex · one/i })).toBeInTheDocument();
     const disposeCount = terminalDisposeCalls.length;
 
-    await user.click(screen.getByRole("button", { name: "Split" }));
+    await chooseWorkLayout(user, "Split");
+    expect(screen.getByRole("button", { name: "Open layout menu, Split selected" })).toBeInTheDocument();
 
     expect(screen.getAllByTestId("xterm-host")).toHaveLength(3);
     const hiddenSplitTile = document.querySelector("article[aria-label='Codex · three']");
@@ -1753,7 +1771,8 @@ describe("App integration", () => {
 
     await bridge.emitData({ id: "runtime-three", data: "hidden split output\n", activities: [] });
 
-    await user.click(screen.getByRole("button", { name: "Grid" }));
+    await chooseWorkLayout(user, "Grid");
+    expect(screen.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeInTheDocument();
     expect(document.querySelector("article[aria-label='Codex · three']")).toHaveTextContent("hidden split output");
     expect(terminalDisposeCalls).toHaveLength(disposeCount);
   });
@@ -3164,7 +3183,8 @@ describe("App integration", () => {
     const preview = await screen.findByLabelText("Workspace preview");
     expect(within(preview).getByText("localhost:5173")).toBeInTheDocument();
     expect(within(preview).queryByText("example.com")).not.toBeInTheDocument();
-    expect(within(preview).getByTitle("Preview of http://localhost:5173/")).toBeInTheDocument();
+    expect(within(preview).getByText("Preview is offline")).toBeInTheDocument();
+    expect(within(preview).queryByTitle("Preview of http://localhost:5173/")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "true");
 
     await user.click(within(preview).getByRole("button", { name: "Open preview externally" }));
@@ -3253,7 +3273,8 @@ describe("App integration", () => {
     await user.click(previewToggle);
     const preview = await screen.findByLabelText("Workspace preview");
     expect(within(preview).getByText("127.0.0.1:3000/app")).toBeInTheDocument();
-    expect(within(preview).getByTitle("Preview of http://127.0.0.1:3000/app")).toBeInTheDocument();
+    expect(within(preview).getByText("Preview is offline")).toBeInTheDocument();
+    expect(within(preview).queryByTitle("Preview of http://127.0.0.1:3000/app")).not.toBeInTheDocument();
   });
 
   it("closes and reopens Preview without remounting the terminal work surface", async () => {
@@ -3851,10 +3872,10 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Open launch menu" }));
     await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
     await screen.findByRole("article", { name: /Manual · zsh 2/i });
-    expect(screen.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "true");
-    await user.click(screen.getByRole("button", { name: "Split" }));
+    expect(screen.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeInTheDocument();
+    await chooseWorkLayout(user, "Split");
 
-    expect(screen.getByRole("button", { name: "Split" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Open layout menu, Split selected" })).toBeInTheDocument();
     expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
       workspaceId: "A",
       layouts: expect.objectContaining({
@@ -3863,9 +3884,9 @@ describe("App integration", () => {
       }),
     });
 
-    await user.click(screen.getByRole("button", { name: "Grid" }));
+    await chooseWorkLayout(user, "Grid");
 
-    expect(screen.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeInTheDocument();
   });
 
   it("applies layout presets to the current workspace sessions after a session is added", async () => {
@@ -3879,7 +3900,8 @@ describe("App integration", () => {
     await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
     expect(await screen.findByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Focus" }));
+    await chooseWorkLayout(user, "Focus");
+    expect(screen.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeInTheDocument();
 
     await waitFor(() => {
       expect(setWorkspaceLayout).toHaveBeenLastCalledWith(
@@ -4016,7 +4038,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
+    expect(await screen.findByRole("button", { name: "Open layout menu, Focus selected" })).toBeInTheDocument();
     const selectedTile = await screen.findByRole("article", { name: /Claude - UI\/UX Deep Analysis/i });
     const terminalHost = selectedTile.querySelector(".xterm-host");
     expect(terminalHost).toBeInstanceOf(HTMLElement);
@@ -4077,14 +4099,14 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("button", { name: "Focus" })).toHaveAttribute("aria-pressed", "true");
+    expect(await screen.findByRole("button", { name: "Open layout menu, Focus selected" })).toBeInTheDocument();
     const focusedTile = await screen.findByRole("article", { name: /Claude - UI\/UX Deep Analysis/i });
     expect(focusedTile).toHaveClass("selected");
 
     setWorkspaceViewState.mockClear();
-    await user.click(screen.getByRole("button", { name: "Split" }));
+    await chooseWorkLayout(user, "Split");
 
-    expect(screen.getByRole("button", { name: "Split" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Open layout menu, Split selected" })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Codex - Backend Code Quality Analysis/i })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Claude - UI\/UX Deep Analysis/i })).toHaveClass("selected");
     expect(setWorkspaceViewState).toHaveBeenCalledTimes(1);
@@ -4212,11 +4234,12 @@ describe("App integration", () => {
     });
     expect(await screen.findByRole("article", { name: /Codex · session 1/i })).toHaveTextContent("spawn failed");
 
-    await user.click(screen.getByRole("button", { name: "Focus" }));
-    await user.click(screen.getByRole("button", { name: "Split" }));
+    await chooseWorkLayout(user, "Focus");
+    expect(screen.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeInTheDocument();
+    await chooseWorkLayout(user, "Split");
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Split" })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: "Open layout menu, Split selected" })).toBeInTheDocument();
     });
     const codexCalls = createTerminal.mock.calls.filter(([request]) => request.clientId === "codex-1");
     expect(codexCalls).toHaveLength(1);
@@ -4259,7 +4282,8 @@ describe("App integration", () => {
     render(<App />);
 
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
-    await user.click(screen.getByRole("button", { name: "Focus" }));
+    await chooseWorkLayout(user, "Focus");
+    expect(screen.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeInTheDocument();
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
 
     await selectSurface(user, "Context");
@@ -4365,7 +4389,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "split");
 
-    expect(screen.getByRole("button", { name: "Split" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Open layout menu, Split selected" })).toBeInTheDocument();
     expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
       workspaceId: "A",
       layouts: expect.objectContaining({
@@ -4732,7 +4756,8 @@ describe("App integration", () => {
     await user.type(input, "Spec reviewer{Enter}");
 
     expect(renameTerminal).toHaveBeenCalledWith({ clientId: "codex-1", title: "Spec reviewer" });
-    await user.click(screen.getByRole("button", { name: "Arrange" }));
+    await chooseWorkLayout(user, "Arrange");
+    expect(screen.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeInTheDocument();
     expect(screen.getByRole("toolbar", { name: "checkout actions for Spec reviewer" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Applying..." })).toBeDisabled();
 
@@ -5415,12 +5440,12 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "arrange tiles");
-    await user.click(screen.getByRole("button", { name: "Grid" }));
 
     const grid = screen.getByLabelText("terminals").querySelector(".terminal-grid");
     expect(grid).toHaveClass("arranging");
 
-    await user.click(screen.getByRole("button", { name: "Arrange" }));
+    await chooseWorkLayout(user, "Arrange");
+    expect(screen.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeInTheDocument();
 
     expect(grid).toHaveClass("laid-out");
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toHaveStyle({ gridColumn: "1 / span 12" });
