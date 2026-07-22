@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
-import { Copy, ExternalLink, RefreshCw } from "lucide-react";
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { ExternalLink, MoreHorizontal, RefreshCw, WifiOff, X } from "lucide-react";
 import type { PreviewUrlCandidate } from "../preview-state";
+import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 
 type PreviewReachability = "checking" | "online" | "offline";
 
@@ -9,6 +10,7 @@ export type WorkspacePreviewPanelProps = {
   refreshKey: number;
   selectedUrl: string | null;
   workspaceLabel: string;
+  onClose: () => void;
   onCopyUrl: (url: string) => Promise<void> | void;
   onOpenExternal: (url: string) => Promise<void> | void;
   onRefresh: () => void;
@@ -20,6 +22,7 @@ export function WorkspacePreviewPanel({
   refreshKey,
   selectedUrl,
   workspaceLabel,
+  onClose,
   onCopyUrl,
   onOpenExternal,
   onRefresh,
@@ -27,6 +30,11 @@ export function WorkspacePreviewPanel({
 }: WorkspacePreviewPanelProps) {
   const selected = candidates.find((candidate) => candidate.url === selectedUrl) ?? candidates[0] ?? null;
   const [reachability, setReachability] = useState<PreviewReachability>("checking");
+  const [lastSuccessfulAt, setLastSuccessfulAt] = useState<number | null>(null);
+
+  useEffect(() => {
+    setLastSuccessfulAt(null);
+  }, [selected?.url]);
 
   useEffect(() => {
     if (!selected) {
@@ -45,7 +53,9 @@ export function WorkspacePreviewPanel({
       signal: controller.signal,
     })
       .then(() => {
-        if (!disposed) setReachability("online");
+        if (disposed) return;
+        setReachability("online");
+        setLastSuccessfulAt(Date.now());
       })
       .catch(() => {
         if (!disposed) setReachability("offline");
@@ -59,64 +69,108 @@ export function WorkspacePreviewPanel({
     };
   }, [refreshKey, selected]);
 
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key !== "Escape" || event.defaultPrevented) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onClose();
+  };
+  const menuItems: ChromeMenuItem[] = selected
+    ? [
+        { id: "refresh", label: "Refresh preview", run: onRefresh },
+        { id: "copy-url", label: "Copy URL", run: () => void onCopyUrl(selected.url) },
+      ]
+    : [];
+
   return (
-    <aside className="workspace-preview-panel" aria-label="Workspace preview">
+    <aside
+      className="workspace-preview-panel"
+      aria-label="Workspace preview"
+      aria-busy={reachability === "checking"}
+      onKeyDown={handleKeyDown}
+    >
       <header className="workspace-preview-header">
-        <div>
-          <span>Preview</span>
-          <strong>{selected ? previewHostLabel(selected.url) : workspaceLabel}</strong>
+        <div className="workspace-preview-identity">
+          <span className={`workspace-preview-status-dot ${reachability}`} aria-hidden="true" />
+          <strong>Preview</strong>
+          <span className="workspace-preview-location">
+            {selected ? previewLocationLabel(selected.url) : workspaceLabel}
+          </span>
+          <span className="visually-hidden" aria-live="polite">
+            {reachabilityLabel(reachability)}
+          </span>
         </div>
-        {selected && (
-          <div className="workspace-preview-actions">
-            <button type="button" onClick={onRefresh} aria-label="Refresh preview">
-              <RefreshCw size={13} />
-            </button>
-            <button type="button" onClick={() => void onOpenExternal(selected.url)} aria-label="Open preview externally">
-              <ExternalLink size={13} />
-            </button>
-            <button type="button" onClick={() => void onCopyUrl(selected.url)} aria-label="Copy preview URL">
-              <Copy size={13} />
-            </button>
-          </div>
-        )}
+        <div className="workspace-preview-actions">
+          {selected && (
+            <>
+              <button
+                type="button"
+                className="workspace-preview-open"
+                onClick={() => void onOpenExternal(selected.url)}
+                aria-label="Open preview externally"
+              >
+                <span>Open</span>
+                <ExternalLink aria-hidden="true" size={13} />
+              </button>
+              <ChromeMenu label="More Preview actions" title="Preview actions" items={menuItems}>
+                <MoreHorizontal aria-hidden="true" size={15} />
+              </ChromeMenu>
+            </>
+          )}
+          <button type="button" className="workspace-preview-close" onClick={onClose} aria-label="Close Preview">
+            <X aria-hidden="true" size={15} />
+          </button>
+        </div>
       </header>
 
       {selected ? (
         <>
-          <div className="workspace-preview-selector" aria-label="Detected preview URLs">
-            {candidates.map((candidate) => (
-              <button
-                type="button"
-                key={candidate.url}
-                className={candidate.url === selected.url ? "active" : ""}
-                aria-pressed={candidate.url === selected.url}
-                onClick={() => onSelectUrl(candidate.url)}
-                title={candidate.url}
-              >
-                <span>{previewHostLabel(candidate.url)}</span>
-                <small>{candidate.sessionTitle}</small>
-              </button>
-            ))}
-          </div>
+          {candidates.length > 1 && (
+            <label className="workspace-preview-selector">
+              <span className="visually-hidden">Detected preview URL</span>
+              <select value={selected.url} onChange={(event) => onSelectUrl(event.target.value)}>
+                {candidates.map((candidate) => (
+                  <option key={candidate.url} value={candidate.url}>
+                    {previewLocationLabel(candidate.url)} · {candidate.sessionTitle}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <div className="workspace-preview-frame-shell">
             <iframe
               key={`${selected.url}:${refreshKey}`}
               src={selected.url}
               title={`Preview of ${selected.url}`}
               referrerPolicy="no-referrer"
+              aria-hidden={reachability === "offline" ? "true" : undefined}
             />
             {reachability === "offline" && (
               <div className="workspace-preview-fallback visible" role="status">
-                <span>Preview offline</span>
-                <strong>{selected.url}</strong>
-                <p>Start or restart the local dev server for this workspace.</p>
+                <div className="workspace-preview-offline-icon"><WifiOff aria-hidden="true" size={17} /></div>
+                <h2>Preview is offline</h2>
+                <p>The local app is no longer responding.</p>
+                <dl>
+                  <div><dt>Source</dt><dd>{selected.sessionTitle}</dd></div>
+                  <div><dt>Last successful check</dt><dd>{lastSuccessfulAt ? "Just now" : "Not yet"}</dd></div>
+                </dl>
+                <code>{selected.url}</code>
+                <div className="workspace-preview-offline-actions">
+                  <button type="button" onClick={() => void onOpenExternal(selected.url)}>
+                    Open externally
+                  </button>
+                  <button type="button" className="primary" onClick={onRefresh}>
+                    <RefreshCw aria-hidden="true" size={13} />
+                    Retry
+                  </button>
+                </div>
               </div>
             )}
           </div>
         </>
       ) : (
         <div className="workspace-preview-empty" role="status">
-          <span>waiting for local app</span>
+          <span>Waiting for local app</span>
           <strong>No preview URL yet</strong>
           <p>Start a dev server; Alfred will catch localhost URLs from terminal output.</p>
         </div>
@@ -125,11 +179,18 @@ export function WorkspacePreviewPanel({
   );
 }
 
-function previewHostLabel(url: string): string {
+function previewLocationLabel(url: string): string {
   try {
     const parsed = new URL(url);
-    return `${parsed.hostname}${parsed.port ? `:${parsed.port}` : ""}`;
+    const path = parsed.pathname === "/" ? "" : parsed.pathname;
+    return `${parsed.host}${path}${parsed.search}`;
   } catch {
     return url;
   }
+}
+
+function reachabilityLabel(reachability: PreviewReachability): string {
+  if (reachability === "online") return "Preview online";
+  if (reachability === "offline") return "Preview offline";
+  return "Checking Preview";
 }

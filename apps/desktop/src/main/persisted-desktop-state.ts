@@ -3,7 +3,14 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { redactText, redactUnknown } from "@alfred/schema";
 import type { AlfredStagedPlanSnapshot, AgentKind } from "../shared/alfred-ipc.js";
-import type { DispatchTargetSnapshot, TileLayout, WorkspaceViewState, WorkMode } from "../shared/layout-ipc.js";
+import {
+  PREVIEW_DOCK_MAX_WIDTH,
+  PREVIEW_DOCK_MIN_WIDTH,
+  type DispatchTargetSnapshot,
+  type TileLayout,
+  type WorkspaceViewState,
+  type WorkMode,
+} from "../shared/layout-ipc.js";
 import type {
   SessionActivityEvent,
   SessionActivityEventKind,
@@ -372,17 +379,30 @@ function normalizeViewStateByWorkspace(value: unknown): Record<string, Workspace
     const collapsedSessionIds = normalizeStringList(rawViewState.collapsedSessionIds);
     const dispatchTarget = normalizeDispatchTarget(rawViewState.dispatchTarget);
     const workMode = normalizeWorkMode(rawViewState.workMode);
+    const previewDockOpen = typeof rawViewState.previewDockOpen === "boolean"
+      ? rawViewState.previewDockOpen
+      : undefined;
+    const previewDockWidth = normalizePreviewDockWidth(rawViewState.previewDockWidth);
     const selectedSessionId =
       typeof rawViewState.selectedSessionId === "string" && rawViewState.selectedSessionId.trim()
         ? rawViewState.selectedSessionId.trim()
         : undefined;
 
-    if (!collapsedSessionIds.length && !dispatchTarget && !workMode && !selectedSessionId) {
+    if (
+      !collapsedSessionIds.length &&
+      !dispatchTarget &&
+      previewDockOpen === undefined &&
+      previewDockWidth === undefined &&
+      !workMode &&
+      !selectedSessionId
+    ) {
       continue;
     }
     viewStateByWorkspace[workspaceId] = {
       ...(collapsedSessionIds.length === 0 ? {} : { collapsedSessionIds }),
       ...(dispatchTarget === undefined ? {} : { dispatchTarget }),
+      ...(previewDockOpen === undefined ? {} : { previewDockOpen }),
+      ...(previewDockWidth === undefined ? {} : { previewDockWidth }),
       ...(workMode === undefined ? {} : { workMode }),
       ...(selectedSessionId === undefined ? {} : { selectedSessionId }),
     };
@@ -393,6 +413,11 @@ function normalizeViewStateByWorkspace(value: unknown): Record<string, Workspace
 
 function normalizeWorkMode(value: unknown): WorkMode | undefined {
   return value === "desk" || value === "focus" || value === "split" ? value : undefined;
+}
+
+function normalizePreviewDockWidth(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  return Math.min(PREVIEW_DOCK_MAX_WIDTH, Math.max(PREVIEW_DOCK_MIN_WIDTH, Math.round(value)));
 }
 
 function normalizeDispatchTarget(value: unknown): DispatchTargetSnapshot | undefined {

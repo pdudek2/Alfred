@@ -25,6 +25,7 @@ import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk
 import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHeader";
 import { WorkSurfaceToolbar } from "./components/WorkSurfaceToolbar";
 import { WorkspaceActionsMenu } from "./components/WorkspaceActionsMenu";
+import { WorkspacePreviewDock } from "./components/WorkspacePreviewDock";
 import {
   blockingAttentionCount,
   blockingAttentionCountByWorkspace,
@@ -103,7 +104,11 @@ import type {
   TerminalSessionIsolation,
   TerminalSessionSnapshot,
 } from "../shared/terminal-ipc";
-import type { DispatchTargetSnapshot, WorkspaceViewState } from "../shared/layout-ipc";
+import {
+  PREVIEW_DOCK_DEFAULT_WIDTH,
+  type DispatchTargetSnapshot,
+  type WorkspaceViewState,
+} from "../shared/layout-ipc";
 import type { WorkspaceMissionBrief, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 import {
   SESSIONS_PAGE_SIZE,
@@ -207,6 +212,8 @@ export function App() {
   const [previewCandidates, setPreviewCandidates] = useState<PreviewUrlCandidate[]>([]);
   const [selectedPreviewUrlsByWorkspace, setSelectedPreviewUrlsByWorkspace] = useState<Record<string, string>>({});
   const [previewRefreshKeysByWorkspace, setPreviewRefreshKeysByWorkspace] = useState<Record<string, number>>({});
+  const [previewDockOpenByWorkspace, setPreviewDockOpenByWorkspace] = useState<Record<string, boolean>>({});
+  const [previewDockWidthsByWorkspace, setPreviewDockWidthsByWorkspace] = useState<Record<string, number>>({});
   const [worktreeActionPending, setWorktreeActionPending] = useState<Record<string, WorktreeActionKind | undefined>>({});
   const [collapsedSessionIdsByWorkspace, setCollapsedSessionIdsByWorkspace] = useState<Record<string, string[]>>({});
   const [contextDrawerOpenByWorkspace, setContextDrawerOpenByWorkspace] = useState<Record<string, boolean>>({});
@@ -216,6 +223,7 @@ export function App() {
   const [prepareWorkOpen, setPrepareWorkOpen] = useState(false);
   const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const prepareWorkTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const previewTriggerRef = useRef<HTMLButtonElement | null>(null);
   const surfacesTriggerRef = useRef<HTMLButtonElement | null>(null);
   const workReturnFocusRef = useRef<HTMLElement | null>(null);
   const workReturnFocusLabelRef = useRef<string | null>(null);
@@ -243,6 +251,8 @@ export function App() {
     null;
   const activePreviewRefreshKey = previewRefreshKeysByWorkspace[activeWorkspace.id] ?? 0;
   const previewVisible = activePreviewCandidates.length > 0;
+  const activePreviewDockOpen = previewVisible && (previewDockOpenByWorkspace[activeWorkspace.id] ?? false);
+  const activePreviewDockWidth = previewDockWidthsByWorkspace[activeWorkspace.id] ?? PREVIEW_DOCK_DEFAULT_WIDTH;
   const activeSelectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id] ?? null;
   const activeInspectedSession =
     activeSelectedSessionId
@@ -420,6 +430,8 @@ export function App() {
     setDispatchTargetsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setSelectedPreviewUrlsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setPreviewRefreshKeysByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
+    setPreviewDockOpenByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
+    setPreviewDockWidthsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setPreviewCandidates((current) => current.filter((candidate) => candidate.workspaceId !== activeWorkspace.id));
     void workspaceApi?.setWorkspaceState({
       workspaces: remainingWorkspaces,
@@ -660,6 +672,40 @@ export function App() {
       "Preview URL is unavailable.",
     );
   }, [runShellAction]);
+
+  const handleTogglePreviewDock = useCallback(() => {
+    if (!previewVisible) return;
+    const nextOpen = !activePreviewDockOpen;
+    setPreviewDockOpenByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: nextOpen,
+    }));
+    persistActiveWorkspaceViewState({ previewDockOpen: nextOpen });
+  }, [activePreviewDockOpen, activeWorkspace.id, persistActiveWorkspaceViewState, previewVisible]);
+
+  const handleClosePreviewDock = useCallback(() => {
+    setPreviewDockOpenByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: false,
+    }));
+    persistActiveWorkspaceViewState({ previewDockOpen: false });
+    requestAnimationFrame(() => previewTriggerRef.current?.focus());
+  }, [activeWorkspace.id, persistActiveWorkspaceViewState]);
+
+  const handlePreviewDockWidthChange = useCallback((width: number) => {
+    setPreviewDockWidthsByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: width,
+    }));
+  }, [activeWorkspace.id]);
+
+  const handlePreviewDockWidthCommit = useCallback((width: number) => {
+    setPreviewDockWidthsByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: width,
+    }));
+    persistActiveWorkspaceViewState({ previewDockWidth: width });
+  }, [activeWorkspace.id, persistActiveWorkspaceViewState]);
 
   const handleApplyLayoutPreset = useCallback((preset: LayoutPreset, selectedSessionId = activeSelectedSessionId) => {
     const layoutApi = getDesktopLayoutApi();
@@ -2032,6 +2078,20 @@ export function App() {
             ),
           ),
         );
+        setPreviewDockOpenByWorkspace(
+          Object.fromEntries(
+            Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
+              viewState.previewDockOpen === undefined ? [] : [[workspaceId, viewState.previewDockOpen]],
+            ),
+          ),
+        );
+        setPreviewDockWidthsByWorkspace(
+          Object.fromEntries(
+            Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
+              viewState.previewDockWidth === undefined ? [] : [[workspaceId, viewState.previewDockWidth]],
+            ),
+          ),
+        );
         if (workspaceStateResult) {
           setWorkspaces(workspaceStateResult.workspaces);
           setActiveWorkspaceId(workspaceStateResult.activeWorkspaceId);
@@ -2226,7 +2286,7 @@ export function App() {
         </div>
 
         <div
-          className={`workspace-layout surface-${activeSurface}${previewVisible ? " preview-visible" : ""}`}
+          className={`workspace-layout surface-${activeSurface}${activePreviewDockOpen ? " preview-visible" : ""}`}
           data-testid="workbench-shell"
         >
           {activeSurface !== "sessions" && (
@@ -2281,55 +2341,77 @@ export function App() {
               <WorkSurfaceToolbar
                 arrangeMode={arrangeMode}
                 branch={activeWorkspace.gitBranch}
+                previewAvailable={previewVisible}
+                previewOpen={activePreviewDockOpen}
+                previewTriggerRef={previewTriggerRef}
                 rootPath={activeWorkspace.rootPath}
                 visibleSessionCount={visibleWorkSessionCount}
                 workMode={activeWorkMode}
                 onAddManualSession={handleAddManualSession}
                 onApplyWorkMode={handleApplyWorkMode}
                 onToggleArrangeMode={handleToggleArrangeMode}
+                onTogglePreview={handleTogglePreviewDock}
               />
-              <TerminalDesk
-                activeWorkspaceId={activeWorkspace.id}
-                arrangeMode={arrangeMode}
-                armedRecoverySessionIds={armedRecoverySessionIds}
-                collapsedSessionIds={activeCollapsedSessionIds}
-                layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
-                recoverableSessions={activeRecoverableSessions}
-                selectedSessionId={activeSelectedSessionId}
-                sessions={terminalSessions}
-                surfaceActive={!workSurfaceHidden}
-                workMode={activeWorkMode}
-                worktreeActionPending={worktreeActionPending}
-                workspaceGitBranch={activeWorkspace.gitBranch}
-                workspaceLabel={activeWorkspace.label}
-                workspaceRootPath={activeWorkspace.rootPath}
-                onBindWorkspace={handleBindWorkspaceFromFolder}
-                onAddAgentSession={handleAddAgentSession}
-                onAddManualSession={handleAddManualSession}
-                onApplyWorktree={handleApplyWorktree}
-                onCloseSession={handleCloseSession}
-                onContinueRestoredSession={handleContinueRestoredSession}
-                onOpenInbox={handleOpenInbox}
-                onRestartSession={handleRestartSession}
-                onApplyWorkMode={handleApplyWorkMode}
-                onMoveTile={handleMoveTile}
-                onRuntimeSessionFailed={handleRuntimeSessionFailed}
-                onRuntimeSessionExited={handleRuntimeSessionExited}
-                onRuntimeSessionOutput={handleRuntimeSessionOutput}
-                onRuntimeSessionReplayBuffer={handleRuntimeSessionReplayBuffer}
-                onRuntimeSessionSnapshot={handleRuntimeSessionSnapshot}
-                onRuntimeSessionReady={handleRuntimeSessionReady}
-                onRuntimeSessionStarting={handleRuntimeSessionStarting}
-                onRuntimeSessionUnavailable={handleRuntimeSessionUnavailable}
-                onRenameSession={handleRenameSession}
-                onFocusSession={handleFocusSession}
-                onSelectSession={handleSelectSession}
-                onApproveTile={handleApproveTile}
-                onRejectTile={handleRejectTile}
-                onResizeTile={handleResizeTile}
-                onReviewWorktree={handleReviewWorktree}
-                onToggleCollapseSession={handleToggleCollapseSession}
-              />
+              <WorkspacePreviewDock
+                open={activePreviewDockOpen}
+                width={activePreviewDockWidth}
+                onWidthChange={handlePreviewDockWidthChange}
+                onWidthCommit={handlePreviewDockWidthCommit}
+                previewProps={{
+                  candidates: activePreviewCandidates,
+                  refreshKey: activePreviewRefreshKey,
+                  selectedUrl: activeSelectedPreviewUrl,
+                  workspaceLabel: activeWorkspace.label,
+                  onClose: handleClosePreviewDock,
+                  onCopyUrl: handleCopyPreviewUrl,
+                  onOpenExternal: handleOpenPreviewExternal,
+                  onRefresh: handleRefreshPreview,
+                  onSelectUrl: handleSelectPreviewUrl,
+                }}
+              >
+                <TerminalDesk
+                  activeWorkspaceId={activeWorkspace.id}
+                  arrangeMode={arrangeMode}
+                  armedRecoverySessionIds={armedRecoverySessionIds}
+                  collapsedSessionIds={activeCollapsedSessionIds}
+                  layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
+                  recoverableSessions={activeRecoverableSessions}
+                  selectedSessionId={activeSelectedSessionId}
+                  sessions={terminalSessions}
+                  surfaceActive={!workSurfaceHidden}
+                  workMode={activeWorkMode}
+                  worktreeActionPending={worktreeActionPending}
+                  workspaceGitBranch={activeWorkspace.gitBranch}
+                  workspaceLabel={activeWorkspace.label}
+                  workspaceRootPath={activeWorkspace.rootPath}
+                  onBindWorkspace={handleBindWorkspaceFromFolder}
+                  onAddAgentSession={handleAddAgentSession}
+                  onAddManualSession={handleAddManualSession}
+                  onApplyWorktree={handleApplyWorktree}
+                  onCloseSession={handleCloseSession}
+                  onContinueRestoredSession={handleContinueRestoredSession}
+                  onOpenInbox={handleOpenInbox}
+                  onRestartSession={handleRestartSession}
+                  onApplyWorkMode={handleApplyWorkMode}
+                  onMoveTile={handleMoveTile}
+                  onRuntimeSessionFailed={handleRuntimeSessionFailed}
+                  onRuntimeSessionExited={handleRuntimeSessionExited}
+                  onRuntimeSessionOutput={handleRuntimeSessionOutput}
+                  onRuntimeSessionReplayBuffer={handleRuntimeSessionReplayBuffer}
+                  onRuntimeSessionSnapshot={handleRuntimeSessionSnapshot}
+                  onRuntimeSessionReady={handleRuntimeSessionReady}
+                  onRuntimeSessionStarting={handleRuntimeSessionStarting}
+                  onRuntimeSessionUnavailable={handleRuntimeSessionUnavailable}
+                  onRenameSession={handleRenameSession}
+                  onFocusSession={handleFocusSession}
+                  onSelectSession={handleSelectSession}
+                  onApproveTile={handleApproveTile}
+                  onRejectTile={handleRejectTile}
+                  onResizeTile={handleResizeTile}
+                  onReviewWorktree={handleReviewWorktree}
+                  onToggleCollapseSession={handleToggleCollapseSession}
+                />
+              </WorkspacePreviewDock>
             </div>
             {activeSurface === "inbox" && (
               <div className="surface-panel active">
@@ -2379,19 +2461,8 @@ export function App() {
               inboxOwnsEscape
             }
             focusRequestKey={contextFocusRequestKeyRef.current}
-            previewVisible={previewVisible}
             returnFocusRef={contextReturnFocusRef}
             onCloseContext={handleCloseContextDrawer}
-            previewProps={{
-              candidates: activePreviewCandidates,
-              refreshKey: activePreviewRefreshKey,
-              selectedUrl: activeSelectedPreviewUrl,
-              workspaceLabel: activeWorkspace.label,
-              onCopyUrl: handleCopyPreviewUrl,
-              onOpenExternal: handleOpenPreviewExternal,
-              onRefresh: handleRefreshPreview,
-              onSelectUrl: handleSelectPreviewUrl,
-            }}
             timelineProps={{
               session: activeInspectedSession,
               onCopyActivityText: handleCopyActivityText,
