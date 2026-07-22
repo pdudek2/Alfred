@@ -478,7 +478,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  vi.unstubAllGlobals();
   delete window.alfredDesktop;
 });
 
@@ -3198,19 +3197,23 @@ describe("App integration", () => {
 
   it("reports an unavailable Preview clipboard through the shell alert", async () => {
     const user = userEvent.setup();
-    vi.stubGlobal("navigator", { platform: window.navigator.platform, clipboard: undefined });
-    installDesktopBridge(undefined, null, [
-      liveSnapshot("preview-copy", { buffer: "Ready at http://localhost:5173/\n" }),
-    ]);
+    const clipboardGetter = vi.spyOn(navigator, "clipboard", "get").mockReturnValue(undefined);
+    try {
+      installDesktopBridge(undefined, null, [
+        liveSnapshot("preview-copy", { buffer: "Ready at http://localhost:5173/\n" }),
+      ]);
 
-    render(<App />);
-    await user.click(await screen.findByRole("button", { name: "Preview" }));
-    await user.click(screen.getByRole("button", { name: "More Preview actions" }));
-    await user.click(screen.getByRole("menuitem", { name: "Copy URL" }));
+      render(<App />);
+      await user.click(await screen.findByRole("button", { name: "Preview" }));
+      await user.click(screen.getByRole("button", { name: "More Preview actions" }));
+      await user.click(screen.getByRole("menuitem", { name: "Copy URL" }));
 
-    expect(await screen.findByRole("alert", { name: "Shell action failed" })).toHaveTextContent(
-      "Clipboard is unavailable.",
-    );
+      expect(await screen.findByRole("alert", { name: "Shell action failed" })).toHaveTextContent(
+        "Clipboard is unavailable.",
+      );
+    } finally {
+      clipboardGetter.mockRestore();
+    }
   });
 
   it("adds preview URLs from live terminal output", async () => {
