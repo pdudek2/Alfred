@@ -563,7 +563,7 @@ async function chooseWorkLayout(
   item: "Focus" | "Split" | "Grid" | "Arrange",
 ): Promise<void> {
   await user.click(screen.getByRole("button", { name: /Open layout menu/ }));
-  await user.click(screen.getByRole("menuitem", { name: item, exact: true }));
+  await user.click(screen.getByRole("menuitem", { name: item }));
 }
 
 async function submitCommandPalette(user: ReturnType<typeof userEvent.setup>, query: string) {
@@ -3183,7 +3183,7 @@ describe("App integration", () => {
     const preview = await screen.findByLabelText("Workspace preview");
     expect(within(preview).getByText("localhost:5173")).toBeInTheDocument();
     expect(within(preview).queryByText("example.com")).not.toBeInTheDocument();
-    expect(within(preview).getByText("Preview is offline")).toBeInTheDocument();
+    expect(await within(preview).findByText("Preview is offline")).toBeInTheDocument();
     expect(within(preview).queryByTitle("Preview of http://localhost:5173/")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "true");
 
@@ -3217,7 +3217,8 @@ describe("App integration", () => {
 
   it("reports an unavailable Preview clipboard through the shell alert", async () => {
     const user = userEvent.setup();
-    const clipboardGetter = vi.spyOn(navigator, "clipboard", "get").mockReturnValue(undefined);
+    const optionalClipboardNavigator: { readonly clipboard?: Clipboard } = navigator;
+    const clipboardGetter = vi.spyOn(optionalClipboardNavigator, "clipboard", "get").mockReturnValue(undefined);
     try {
       installDesktopBridge(undefined, null, [
         liveSnapshot("preview-copy", { buffer: "Ready at http://localhost:5173/\n" }),

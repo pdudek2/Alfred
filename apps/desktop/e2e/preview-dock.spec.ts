@@ -53,32 +53,16 @@ test("Preview stays on demand and preserves xterm while loaded, resized, and off
     await expect(frame).toBeVisible();
     await new Promise<void>((resolve, reject) => server?.close((error) => error ? reject(error) : resolve()));
     server = null;
-    await expect.poll(async () => {
-      try {
-        await fetch(url);
-        return false;
-      } catch {
-        return true;
-      }
-    }).toBe(true);
-    await page.route(url, async (route) => {
-      if (route.request().resourceType() === "document") {
-        await route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Stopped preview</title>" });
-        return;
-      }
-      await route.continue();
-    });
-    await page.evaluate((offlineUrl) => {
-      const nativeFetch = window.fetch;
-      window.fetch = (input, init) => String(input) === offlineUrl
-        ? Promise.reject(new TypeError("Failed to fetch"))
-        : nativeFetch(input, init);
-    }, url);
+    const refusedRequest = page.waitForEvent("requestfailed", (request) =>
+      request.url() === url && request.failure()?.errorText === "net::ERR_CONNECTION_REFUSED",
+    );
     await page.getByRole("button", { name: "More Preview actions" }).click();
     await page.getByRole("menuitem", { name: "Refresh preview" }).click();
+    await refusedRequest;
     await expect(page.getByText("Preview is offline")).toBeVisible({ timeout: 5_000 });
     await expect(frame).toHaveCount(0);
     await expectSameNode(xtermHandle, xterm);
+    harness.expectConnectionRefused(url);
 
     await app.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1120, height: 720 });

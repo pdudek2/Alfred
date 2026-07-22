@@ -31,6 +31,7 @@ type RuntimeMessage = {
   source: "main-stderr" | "main-stdout" | "pageerror" | "renderer";
   level: "error" | "warning";
   text: string;
+  url?: string;
 };
 
 type DesktopTerminalWindow = Window & {
@@ -43,6 +44,7 @@ export type ElectronHarness = {
   paths: DesktopFixturePaths;
   marker: string;
   assertNoRuntimeErrors(): void;
+  expectConnectionRefused(url: string): void;
   closeActiveTerminals(): Promise<void>;
   close(): Promise<void>;
 };
@@ -92,6 +94,7 @@ export const test = base.extend<Fixtures>({
             "renderer",
             message.type() === "error" ? "error" : "warning",
             message.text(),
+            message.location().url,
           ),
         );
       });
@@ -132,8 +135,10 @@ export const test = base.extend<Fixtures>({
     }
 
     let closeAttempt: Promise<void> | null = null;
+    const expectedMessages = new Set<RuntimeMessage>();
     const assertNoRuntimeErrors = (): void => {
       const forbidden = messages.filter((message) => {
+        if (expectedMessages.has(message)) return false;
         if (message.text.trim().length === 0) return false;
         if (
           message.source === "renderer" &&
@@ -154,6 +159,12 @@ export const test = base.extend<Fixtures>({
             .join("\n")}`,
         );
       }
+    };
+
+    const expectConnectionRefused = (url: string): void => {
+      const matching = messages.filter((message) => isExpectedConnectionRefused(message, url));
+      expect(matching.map(({ source }) => source).sort()).toEqual(["main-stderr", "renderer"]);
+      for (const message of matching) expectedMessages.add(message);
     };
 
     const closeActiveTerminals = async (): Promise<void> => {
@@ -222,7 +233,7 @@ export const test = base.extend<Fixtures>({
     };
 
     try {
-      await use({ app, page, paths, marker, assertNoRuntimeErrors, closeActiveTerminals, close });
+      await use({ app, page, paths, marker, assertNoRuntimeErrors, expectConnectionRefused, closeActiveTerminals, close });
       assertNoRuntimeErrors();
     } finally {
       if (testInfo.status !== testInfo.expectedStatus && !page.isClosed()) {
@@ -275,8 +286,23 @@ function runtimeMessage(
   source: RuntimeMessage["source"],
   level: RuntimeMessage["level"],
   text: string,
+  url?: string,
 ): RuntimeMessage {
-  return { source, level, text: redactText(text) };
+  return { source, level, text: redactText(text), url };
+}
+
+function isExpectedConnectionRefused(message: RuntimeMessage, url: string): boolean {
+  if (message.source === "renderer") {
+    return message.level === "error" &&
+      message.text === "Failed to load resource: net::ERR_CONNECTION_REFUSED" &&
+      message.url === url;
+  }
+  if (message.source !== "main-stderr" || message.level !== "error") return false;
+  const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(
+    `^\\(node:\\d+\\) electron: Failed to load URL: ${escapedUrl} with error: ERR_CONNECTION_REFUSED` +
+      "(?:\\n\\(Use `Electron --trace-warnings \\.\\.\\.` to show where the warning was created\\))?\\n?$",
+  ).test(message.text);
 }
 
 function safeError(error: unknown): string {
