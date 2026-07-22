@@ -478,6 +478,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   delete window.alfredDesktop;
 });
 
@@ -3192,6 +3193,23 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("alert", { name: "Shell action failed" })).toHaveTextContent(
       "Browser could not open this preview.",
+    );
+  });
+
+  it("reports an unavailable Preview clipboard through the shell alert", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("navigator", { platform: window.navigator.platform, clipboard: undefined });
+    installDesktopBridge(undefined, null, [
+      liveSnapshot("preview-copy", { buffer: "Ready at http://localhost:5173/\n" }),
+    ]);
+
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Preview" }));
+    await user.click(screen.getByRole("button", { name: "More Preview actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Copy URL" }));
+
+    expect(await screen.findByRole("alert", { name: "Shell action failed" })).toHaveTextContent(
+      "Clipboard is unavailable.",
     );
   });
 

@@ -47,6 +47,40 @@ describe("WorkspacePreviewPanel", () => {
     );
   });
 
+  it("removes the iframe from focus when a retry goes offline", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockRejectedValueOnce(new Error("offline"));
+    vi.stubGlobal("fetch", fetchMock);
+    const props = {
+      candidates: [{
+        id: "A:http://127.0.0.1:5173/",
+        workspaceId: "A",
+        url: "http://127.0.0.1:5173/",
+        sessionId: "dev",
+        sessionTitle: "Dev server",
+        firstSeenAt: 1,
+        lastSeenAt: 1,
+      }],
+      selectedUrl: "http://127.0.0.1:5173/",
+      workspaceLabel: "Alfred",
+      onClose: vi.fn(),
+      onCopyUrl: vi.fn(),
+      onOpenExternal: vi.fn(),
+      onRefresh: vi.fn(),
+      onSelectUrl: vi.fn(),
+    };
+    const { rerender } = render(<WorkspacePreviewPanel {...props} refreshKey={0} />);
+
+    expect(await screen.findByText("Preview online")).toBeInTheDocument();
+    rerender(<WorkspacePreviewPanel {...props} refreshKey={1} />);
+
+    expect(await screen.findByText("Preview is offline")).toBeInTheDocument();
+    expect(screen.queryByTitle("Preview of http://127.0.0.1:5173/")).not.toBeInTheDocument();
+    expect(screen.getByText("Earlier")).toBeInTheDocument();
+  });
+
   it("keeps Open and Close visible while moving refresh and copy into a quiet menu", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 200 })));
     const onClose = vi.fn();

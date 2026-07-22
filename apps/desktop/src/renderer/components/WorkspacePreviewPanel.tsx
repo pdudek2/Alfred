@@ -30,10 +30,10 @@ export function WorkspacePreviewPanel({
 }: WorkspacePreviewPanelProps) {
   const selected = candidates.find((candidate) => candidate.url === selectedUrl) ?? candidates[0] ?? null;
   const [reachability, setReachability] = useState<PreviewReachability>("checking");
-  const [lastSuccessfulAt, setLastSuccessfulAt] = useState<number | null>(null);
+  const [hadSuccessfulCheck, setHadSuccessfulCheck] = useState(false);
 
   useEffect(() => {
-    setLastSuccessfulAt(null);
+    setHadSuccessfulCheck(false);
   }, [selected?.url]);
 
   useEffect(() => {
@@ -55,7 +55,7 @@ export function WorkspacePreviewPanel({
       .then(() => {
         if (disposed) return;
         setReachability("online");
-        setLastSuccessfulAt(Date.now());
+        setHadSuccessfulCheck(true);
       })
       .catch(() => {
         if (!disposed) setReachability("offline");
@@ -138,13 +138,14 @@ export function WorkspacePreviewPanel({
             </label>
           )}
           <div className="workspace-preview-frame-shell">
-            <iframe
-              key={`${selected.url}:${refreshKey}`}
-              src={selected.url}
-              title={`Preview of ${selected.url}`}
-              referrerPolicy="no-referrer"
-              aria-hidden={reachability === "offline" ? "true" : undefined}
-            />
+            {reachability !== "offline" && (
+              <iframe
+                key={`${selected.url}:${refreshKey}`}
+                src={selected.url}
+                title={`Preview of ${selected.url}`}
+                referrerPolicy="no-referrer"
+              />
+            )}
             {reachability === "offline" && (
               <div className="workspace-preview-fallback visible" role="status">
                 <div className="workspace-preview-offline-icon"><WifiOff aria-hidden="true" size={17} /></div>
@@ -152,7 +153,7 @@ export function WorkspacePreviewPanel({
                 <p>The local app is no longer responding.</p>
                 <dl>
                   <div><dt>Source</dt><dd>{selected.sessionTitle}</dd></div>
-                  <div><dt>Last successful check</dt><dd>{lastSuccessfulAt ? "Just now" : "Not yet"}</dd></div>
+                  <div><dt>Last successful check</dt><dd>{hadSuccessfulCheck ? "Earlier" : "Not yet"}</dd></div>
                 </dl>
                 <code>{selected.url}</code>
                 <div className="workspace-preview-offline-actions">
