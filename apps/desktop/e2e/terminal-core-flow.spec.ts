@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { chooseWorkLayout } from "./support/work-layout";
 
 type TerminalNodeHandles = {
   tile: ElementHandle<HTMLElement>;
@@ -25,9 +26,7 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
 
-  await expect(page.getByRole("button", { name: "Focus", exact: true })).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "Split", exact: true })).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "Grid", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toHaveCount(1);
 
   const terminalNodes = await captureTerminalNodes(page);
   const identityTransitions: string[] = [];
@@ -52,20 +51,20 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   surfaceGeometries.push(await readActiveSurfaceGeometry(page, "Work restored"));
   await expect(page.getByTestId("xterm-host").first()).toContainText(marker);
 
-  await page.getByRole("button", { name: "Focus", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Focus", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await chooseWorkLayout(page, "Focus");
+  await expect(page.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeVisible();
   await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(2);
   await expectTerminalNodes(terminalNodes, page, "Focus");
   identityTransitions.push("Work→Focus (2 hidden mounted)");
 
-  await page.getByRole("button", { name: "Split", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Split", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await chooseWorkLayout(page, "Split");
+  await expect(page.getByRole("button", { name: "Open layout menu, Split selected" })).toBeVisible();
   await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(1);
   await expectTerminalNodes(terminalNodes, page, "Split");
   identityTransitions.push("Focus→Split (1 hidden mounted)");
 
-  await page.getByRole("button", { name: "Grid", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Grid", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await chooseWorkLayout(page, "Grid");
+  await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
   await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(0);
   await expectTerminalNodes(terminalNodes, page, "Grid");
   identityTransitions.push("Split→Grid (all restored)");

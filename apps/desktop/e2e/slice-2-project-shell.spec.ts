@@ -12,6 +12,7 @@ import {
   neutralScreenshotPointer,
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
+import { chooseWorkLayout } from "./support/work-layout";
 
 const evidenceDir = path.resolve(
   import.meta.dirname,
@@ -117,11 +118,8 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   expect(sameConnectedAlphaScreen).toBe(true);
   await expect(alphaScreen).toContainText(backgroundMarker);
 
-  await workToolbar.getByRole("button", { name: "Grid", exact: true }).click();
-  await expect(workToolbar.getByRole("button", { name: "Grid", exact: true })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await chooseWorkLayout(page, "Grid");
+  await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
   await setWindowSize(app, page, 1120, 720);
   const narrow = await readNarrowProjectShell(page);
   expect(narrow.navigatorWidth).toBe(46);

@@ -11,6 +11,7 @@ import {
   neutralScreenshotPointer,
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
+import { chooseWorkLayout } from "./support/work-layout";
 
 const evidenceDir = path.resolve(
   import.meta.dirname,
@@ -75,8 +76,8 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     .getByRole("group", { name: "Fixture Alpha sessions" })
     .getByRole("button", { name: "Manual · zsh 2", exact: true })
     .click();
-  await workToolbar.getByRole("button", { name: "Focus", exact: true }).click();
-  await expect(workToolbar.getByRole("button", { name: "Focus", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await chooseWorkLayout(page, "Focus");
+  await expect(page.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeVisible();
   expect(await readHeaderHeight(page)).toBe(40);
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
   await expect(visibleTerminalTiles(page).locator(".terminal-tile-header")).toHaveCount(0);
@@ -97,8 +98,8 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     "r1-focus-two-sessions.png",
   );
 
-  await workToolbar.getByRole("button", { name: "Split", exact: true }).click();
-  await expect(workToolbar.getByRole("button", { name: "Split", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await chooseWorkLayout(page, "Split");
+  await expect(page.getByRole("button", { name: "Open layout menu, Split selected" })).toBeVisible();
   const r6 = await readShellGeometry(page);
   expect(r6.headerHeight).toBe(40);
   expect(r6.visibleTileCount).toBe(2);
@@ -106,7 +107,8 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(r6.tileHeaderHeights).toEqual([30, 30]);
   diagnosticScreenshotHashes["r6-split.png"] = await captureEvidence(page, "r6-split.png");
 
-  await workToolbar.getByRole("button", { name: "Focus", exact: true }).click();
+  await chooseWorkLayout(page, "Focus");
+  await expect(page.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeVisible();
   const identityTransitions: Record<string, boolean> = {
     "R0→Focus→Split→Focus": await isSameConnectedNode(firstScreenHandle, firstScreen),
   };
@@ -123,7 +125,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Prepare Work" })).toHaveCount(0);
   await expect(launchTrigger).toBeFocused();
-  await expect(workToolbar.getByRole("button", { name: "Focus", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeVisible();
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
   const focusRestoration = {
     openedWithKeyboard: true,
@@ -146,8 +148,8 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(identityTransitions["Work→Context"]).toBe(true);
   await page.getByRole("button", { name: "Close Context panel" }).click();
 
-  await workToolbar.getByRole("button", { name: "Grid", exact: true }).click();
-  await expect(workToolbar.getByRole("button", { name: "Grid", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await chooseWorkLayout(page, "Grid");
+  await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
   await expect(visibleTerminalTiles(page)).toHaveCount(2);
   await setWindowSize(app, page, 1120, 720);
   const narrowTile = visibleTerminalTiles(page).first();
@@ -295,7 +297,10 @@ async function readNarrowGeometry(page: Page): Promise<{
 }> {
   const [geometry, activeControlOverflows] = await Promise.all([
     page.evaluate(() => ({
-      layout: document.querySelector('.work-surface-layout button[aria-pressed="true"]')?.textContent?.trim() ?? "",
+      layout: document
+        .querySelector('.work-surface-layout button[aria-label^="Open layout menu, "]')
+        ?.getAttribute("aria-label")
+        ?.replace(/^Open layout menu, (.+) selected$/, "$1") ?? "",
       visibleTileCount: document.querySelectorAll(
         '[data-testid="terminal-tile"]:not([aria-hidden="true"])',
       ).length,
