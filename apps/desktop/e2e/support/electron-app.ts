@@ -19,6 +19,7 @@ import {
   type DesktopFixturePaths,
 } from "./desktop-state-fixture";
 import {
+  hasExpectedConnectionRefusedSources,
   isAllowedElectronMainOutput,
   isAllowedElectronWarning,
   isPgrepNoChildren,
@@ -163,7 +164,7 @@ export const test = base.extend<Fixtures>({
 
     const expectConnectionRefused = (url: string): void => {
       const matching = messages.filter((message) => isExpectedConnectionRefused(message, url));
-      expect(matching.map(({ source }) => source).sort()).toEqual(["main-stderr", "renderer"]);
+      expect(hasExpectedConnectionRefusedSources(matching.map(({ source }) => source))).toBe(true);
       for (const message of matching) expectedMessages.add(message);
     };
 
