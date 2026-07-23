@@ -215,7 +215,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
   await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Inbox");
-  await capture("inbox", [...frameProbes, ...inboxProbes]);
+  await capture("inbox", [...sessionsFrameProbes, ...inboxProbes]);
 
   await selectSurface(page, "Sessions");
   const sessions = page.getByRole("region", { name: "Sessions workspace" });
@@ -259,7 +259,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
       getComputedStyle(element).gridTemplateColumns.trim().split(/\s+/),
     ),
   ).toHaveLength(1);
-  const narrowInboxEvidence = await capture("narrow-inbox", [...frameProbes, ...inboxProbes]);
+  const narrowInboxEvidence = await capture("narrow-inbox", [...sessionsFrameProbes, ...inboxProbes]);
   expect(
     narrowInboxEvidence.documentOverflowX,
     "Narrow Inbox must not create horizontal document overflow",
