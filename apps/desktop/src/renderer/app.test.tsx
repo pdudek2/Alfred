@@ -7848,7 +7848,7 @@ describe("App integration", () => {
 
   it("opens the selected blocked staged command in Context for editing", async () => {
     const user = userEvent.setup();
-    const { createTerminal } = installDesktopBridge({
+    const { createTerminal, setWorkspaceViewState } = installDesktopBridge({
       ok: true,
       plan: {
         name: "Unsafe plan",
@@ -7860,9 +7860,14 @@ describe("App integration", () => {
           safetyNote: "rm -rf detected",
         }],
       },
-    });
+    }, null, [liveSnapshot("context-review-preview", {
+      buffer: "Ready at http://localhost:5173/\n",
+    })]);
 
     render(<App />);
+    const xtermHost = await screen.findByTestId("xterm-host");
+    await user.click(screen.getByRole("button", { name: "Preview" }));
+    expect(screen.getByLabelText("Workspace preview")).toBeVisible();
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage risky cleanup");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
@@ -7873,6 +7878,12 @@ describe("App integration", () => {
 
     expect(screen.getByTestId("desk-runtime-surface")).toBeVisible();
     expect(screen.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
+    expect(screen.queryByLabelText("Workspace preview")).not.toBeInTheDocument();
+    expect(setWorkspaceViewState).toHaveBeenCalledWith({
+      workspaceId: "A",
+      viewState: { previewDockOpen: false },
+    });
+    expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
     await waitFor(() => expect(screen.getByRole("button", { name: "Close Context panel" })).toHaveFocus());
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Risky cleanup");
     expect(screen.getByRole("button", { name: "Edit command" })).toBeInTheDocument();

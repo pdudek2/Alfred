@@ -1785,7 +1785,16 @@ export function App() {
   const handleReviewBlockedSession = useCallback((workspaceId: string, sessionId: string) => {
     contextReturnFocusRef.current = null;
     contextFocusRequestKeyRef.current += 1;
+    const layoutApi = getDesktopLayoutApi();
     handleFocusSessionInWorkspace(workspaceId, sessionId);
+    setPreviewDockOpenByWorkspace((current) => ({
+      ...current,
+      [workspaceId]: false,
+    }));
+    void layoutApi?.setWorkspaceViewState({
+      workspaceId,
+      viewState: { previewDockOpen: false },
+    });
     setContextDrawerOpenByWorkspace((current) => ({
       ...current,
       [workspaceId]: true,
