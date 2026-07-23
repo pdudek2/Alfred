@@ -5124,7 +5124,7 @@ body.arranging-pointer {
 
 .inbox-docket__item-row time {
   color: var(--ink-5);
-  font: 500 9px/1 var(--mono);
+  font: 500 12px/1 var(--mono);
   white-space: nowrap;
 }
 
@@ -5172,7 +5172,7 @@ body.arranging-pointer {
 .inbox-docket__detail-main h3 {
   margin: 0 0 7px;
   color: var(--ink-5);
-  font: 600 10px/1.2 var(--sans);
+  font: 600 13px/1.2 var(--sans);
 }
 
 .inbox-docket__detail-main blockquote {
@@ -5192,7 +5192,7 @@ body.arranging-pointer {
   padding: 9px 11px;
   background: var(--ink-0);
   color: var(--ink-6);
-  font: 500 10px/1.55 var(--mono);
+  font: 500 12px/1.55 var(--mono);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
@@ -5201,7 +5201,7 @@ body.arranging-pointer {
 .inbox-docket__recovery-warning p {
   margin: 8px 0 0;
   color: var(--ink-5);
-  font: 500 10px/1.45 var(--sans);
+  font: 500 12px/1.45 var(--sans);
 }
 
 .inbox-docket__primary,
@@ -5272,7 +5272,7 @@ body.arranging-pointer {
 
 .inbox-docket__state dd {
   color: var(--ink-5);
-  font: 600 9px/1.2 var(--sans);
+  font: 600 13px/1.2 var(--sans);
 }
 
 .inbox-docket__state--waiting dd {
@@ -5366,7 +5366,7 @@ body.arranging-pointer {
   display: block;
   margin-bottom: 4px;
   color: var(--ink-5);
-  font: 600 9px/1.2 var(--sans);
+  font: 600 12px/1.2 var(--sans);
 }
 
 .inbox-docket__recovery-actions {
@@ -5412,7 +5412,7 @@ body.arranging-pointer {
 
 .inbox-docket__empty span {
   color: var(--ink-5);
-  font: 500 10px/1.4 var(--sans);
+  font: 500 12px/1.4 var(--sans);
 }
 
 .sessions-surface {

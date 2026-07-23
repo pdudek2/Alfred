@@ -2008,12 +2008,28 @@ describe("renderer CSS contracts", () => {
     const decisionCount = blockFor(".inbox-docket__header h2 span");
     const recoveryLabel = blockFor(".inbox-docket__recovery-toggle strong");
     const recoveryCaption = blockFor(".inbox-docket__recovery-toggle span");
+    const inboxTypeFloors = [
+      [".inbox-docket__item-row time", "font: 500 12px/1 var(--mono)"],
+      [".inbox-docket__detail-main h3", "font: 600 13px/1.2 var(--sans)"],
+      [".inbox-docket__detail-main code", "font: 500 12px/1.55 var(--mono)"],
+      [".inbox-docket__detail-main p", "font: 500 12px/1.45 var(--sans)"],
+      [".inbox-docket__state dd", "font: 600 13px/1.2 var(--sans)"],
+      [".inbox-docket__technical-block span", "font: 600 12px/1.2 var(--sans)"],
+      [".inbox-docket__empty span", "font: 500 12px/1.4 var(--sans)"],
+    ] as const;
 
     expect(styles).toContain("--type-micro: 10px");
     expect(summary).toContain("font: 500 12px/1.2 var(--sans)");
     expect(decisionCount).toContain("font: 500 12px/1.2 var(--sans)");
     expect(recoveryLabel).toContain("font: 500 13px/1.2 var(--sans)");
     expect(recoveryCaption).toContain("font: 500 12px/1.2 var(--sans)");
+    for (const [selector, font] of inboxTypeFloors) {
+      const rule = singleTopLevelRuleBodyIn(styles, selector);
+      expect(rule, `${selector} must respect the Inbox type floor`).toContain(font);
+      expect(rule, `${selector} must not regress to 9px or 10px`).not.toMatch(
+        /font:\s*[^;]*\b(?:9|10)px\b/,
+      );
+    }
     expect(styles).not.toMatch(/font-size:\s*(?:8|8\.5)px/);
   });
 
