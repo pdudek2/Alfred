@@ -1454,7 +1454,7 @@ describe("App integration", () => {
     const workbenchHeader = screen.getByTestId("workbench-header");
 
     expect(screen.getByRole("button", { name: /Workspace menu for Alfred/i })).not.toHaveTextContent(/2 tiles/);
-    expect(workbenchHeader).toHaveAttribute("data-chrome-height", "40");
+    expect(workbenchHeader).toHaveAttribute("data-chrome-height", "44");
     expect(within(workbenchHeader).queryByRole("toolbar")).not.toBeInTheDocument();
     expect(workbenchHeader).not.toHaveTextContent("2 sessions");
     expect(screen.getByRole("toolbar", { name: "Work layout controls" })).toHaveTextContent("2 visible sessions");
@@ -1523,7 +1523,7 @@ describe("App integration", () => {
     render(<App />);
 
     const workbenchHeader = await screen.findByTestId("workbench-header");
-    expect(workbenchHeader).toHaveAttribute("data-chrome-height", "40");
+    expect(workbenchHeader).toHaveAttribute("data-chrome-height", "44");
     expect(within(workbenchHeader).queryByRole("toolbar", { name: "Session and layout controls" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tablist", { name: "Sessions" })).not.toBeInTheDocument();
     const primarySessionContext = workbenchHeader.querySelector(".workbench-primary-row .workbench-session-context");

@@ -40,8 +40,8 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await setWindowSize(app, page, 1440, 900);
   const header = page.getByTestId("workbench-header");
   const workToolbar = page.getByRole("toolbar", { name: "Work layout controls" });
-  await expect(header).toHaveAttribute("data-chrome-height", "40");
-  await expect(header).toHaveCSS("height", "40px");
+  await expect(header).toHaveAttribute("data-chrome-height", "44");
+  await expect(header).toHaveCSS("height", "44px");
   await expect(workToolbar).toBeVisible();
 
   await expect(page.getByTestId("xterm-host")).toHaveCount(1);
@@ -50,10 +50,10 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   const firstScreenHandle = await requiredHandle(firstScreen, "first xterm screen");
 
   const r0 = await readShellGeometry(page);
-  expect(r0.headerHeight).toBe(40);
+  expect(r0.headerHeight).toBe(44);
   expect(r0.visibleTileCount).toBe(1);
   expect(r0.visibleTileHeaderCount).toBe(1);
-  expect(r0.tileHeaderHeights).toEqual([30]);
+  expect(r0.tileHeaderHeights).toEqual([44]);
   expect(
     r0.frameHeight - r0.headerHeight - r0.alertStackHeight,
     `R0 shell geometry: ${JSON.stringify(r0)}`,
@@ -78,11 +78,11 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     .click();
   await chooseWorkLayout(page, "Focus");
   await expect(page.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeVisible();
-  expect(await readHeaderHeight(page)).toBe(40);
+  expect(await readHeaderHeight(page)).toBe(44);
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
   await expect(visibleTerminalTiles(page).locator(".terminal-tile-header")).toHaveCount(0);
   const r1 = await readShellGeometry(page);
-  expect(r1.headerHeight).toBe(40);
+  expect(r1.headerHeight).toBe(44);
   expect(r1.visibleTileCount).toBe(1);
   expect(r1.visibleTileHeaderCount).toBe(0);
   await page.locator(".terminal-grid-column").evaluate((node) => {
@@ -101,10 +101,10 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await chooseWorkLayout(page, "Split");
   await expect(page.getByRole("button", { name: "Open layout menu, Split selected" })).toBeVisible();
   const r6 = await readShellGeometry(page);
-  expect(r6.headerHeight).toBe(40);
+  expect(r6.headerHeight).toBe(44);
   expect(r6.visibleTileCount).toBe(2);
   expect(r6.visibleTileHeaderCount).toBe(2);
-  expect(r6.tileHeaderHeights).toEqual([30, 30]);
+  expect(r6.tileHeaderHeights).toEqual([44, 44]);
   diagnosticScreenshotHashes["r6-split.png"] = await captureEvidence(page, "r6-split.png");
 
   await chooseWorkLayout(page, "Focus");
