@@ -324,16 +324,73 @@ describe("SessionsSurface", () => {
     const breadcrumb = screen.getByRole("navigation", { name: "Session breadcrumb" });
     expect(breadcrumb).toHaveTextContent("Alfred");
     expect(breadcrumb).toHaveTextContent("Resume the Alfred redesign");
+    expect(screen.queryByRole("complementary", { name: "Run details" })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Run details" })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Run details" }));
-    const details = screen.getByRole("dialog", { name: "Run details" });
+    const trigger = screen.getByRole("button", { name: "Run details" });
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(trigger).toHaveAttribute("aria-controls", "sessions-run-details");
+    const details = screen.getByRole("complementary", { name: "Run details" });
+    expect(details).toHaveAttribute("id", "sessions-run-details");
+    expect(within(details).getByRole("button", { name: "Close Run details" })).toHaveFocus();
+    expect(document.querySelector(".sessions-run-details__backdrop")).not.toBeInTheDocument();
     expect(details).toHaveTextContent("External Codex");
     expect(details).toHaveTextContent("sessions-single-column");
     expect(details).toHaveTextContent("gpt-5.6-sol");
     expect(details).toHaveTextContent("3 internal runs");
     expect(within(details).getByRole("button", { name: "Raw transcript" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Resume in Work" })).toBeInTheDocument();
+  });
+
+  it("closes integrated Run details before leaving Sessions and restores trigger focus", async () => {
+    const user = userEvent.setup();
+    const onBackToWork = vi.fn();
+    renderSurface({
+      onBackToWork,
+      sessions: [managedSession(0, {
+        runtimeStatus: "restored",
+        initialBuffer: "Reader evidence",
+      })],
+    });
+
+    await user.click(screen.getByRole("option", { name: /Phase I navigator/ }));
+    const trigger = screen.getByRole("button", { name: "Run details" });
+    await user.click(trigger);
+    const details = screen.getByRole("complementary", { name: "Run details" });
+
+    fireEvent.keyDown(details, { key: "Escape" });
+
+    expect(screen.queryByRole("complementary", { name: "Run details" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(onBackToWork).not.toHaveBeenCalled();
+
+    await user.click(trigger);
+    await user.click(within(
+      screen.getByRole("complementary", { name: "Run details" }),
+    ).getByRole("button", { name: "Done" }));
+    expect(trigger).toHaveFocus();
+  });
+
+  it("closes Run details when the selected conversation changes", async () => {
+    const user = userEvent.setup();
+    renderSurface({
+      sessions: [
+        managedSession(0, { runtimeStatus: "restored", initialBuffer: "First" }),
+        managedSession(1, { runtimeStatus: "restored", initialBuffer: "Second" }),
+      ],
+    });
+
+    await user.click(screen.getByRole("option", { name: /Phase I navigator/ }));
+    await user.click(screen.getByRole("button", { name: "Run details" }));
+    expect(screen.getByRole("complementary", { name: "Run details" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("option", { name: /Managed session 1/ }));
+
+    expect(screen.queryByRole("complementary", { name: "Run details" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /Managed session 1/ }))
+      .toHaveTextContent("Second");
   });
 
   it("keeps delegated work collapsed and reloads source evidence only when Raw transcript is requested", async () => {
@@ -355,9 +412,11 @@ describe("SessionsSurface", () => {
     expect(await screen.findByText("Meaningful request")).toBeInTheDocument();
     expect(screen.queryByText(/Delegated work/)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Run details" }));
-    const details = screen.getByRole("dialog", { name: "Run details" });
+    const details = screen.getByRole("complementary", { name: "Run details" });
     expect(details).toHaveTextContent("4 internal runs");
     await user.click(within(details).getByRole("button", { name: "Raw transcript" }));
+    expect(screen.queryByRole("complementary", { name: "Run details" })).not.toBeInTheDocument();
+    expect(document.querySelector(".sessions-reader__scroll")).toHaveFocus();
     expect(await screen.findByText("Raw bootstrap context")).toBeInTheDocument();
     expect(sessionsApi.readTranscriptPage).toHaveBeenNthCalledWith(2, {
       sessionKey: "external-codex:content-0",
@@ -421,7 +480,7 @@ describe("SessionsSurface", () => {
     await user.click(screen.getByRole("option", { name: /External session 0/ }));
     expect(await screen.findByText("Latest clean messages")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Run details" }));
-    await user.click(within(screen.getByRole("dialog", { name: "Run details" })).getByRole("button", { name: "Raw transcript" }));
+    await user.click(within(screen.getByRole("complementary", { name: "Run details" })).getByRole("button", { name: "Raw transcript" }));
     expect(await screen.findByText("Stable first page")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Load more transcript" }));
 
