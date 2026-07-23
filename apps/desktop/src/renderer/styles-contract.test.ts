@@ -505,14 +505,14 @@ describe("renderer CSS contracts", () => {
 
   it("defines the approved achromatic material ramp exactly once", () => {
     const expectedTokens = {
-      "--ink-0": "#0A0C0F",
-      "--ink-1": "#0E1114",
-      "--ink-2": "#14181D",
-      "--ink-3": "#1D2228",
-      "--ink-4": "#5A6169",
-      "--ink-5": "#8B929B",
-      "--ink-6": "#C9CED5",
-      "--ink-7": "#EDF0F3",
+      "--ink-0": "#090B0E",
+      "--ink-1": "#101318",
+      "--ink-2": "#15191F",
+      "--ink-3": "#20262D",
+      "--ink-4": "#5F6974",
+      "--ink-5": "#8B95A1",
+      "--ink-6": "#C5CBD2",
+      "--ink-7": "#F0F2F4",
       "--signal": "#E29B6E",
     };
 
@@ -533,26 +533,38 @@ describe("renderer CSS contracts", () => {
     expect(exactBlockFor(".shell-action-alert")).not.toMatch(/animation|transition/);
     expectCanonicalBase(".workspace-layout", ["grid-row: 3"]);
     expect(styles).not.toContain(".desktop-alert-stack:empty");
-    expectCanonicalBase(".workbench-header", ["height: 40px"]);
-    expectCanonicalBase(".workbench-primary-row", ["height: 40px"]);
-    expectCanonicalBase(".desk-surface-panel", ["display: grid", "grid-template-rows: 36px minmax(0, 1fr)"]);
+    expectCanonicalBase(".workbench-header", ["height: 44px"]);
+    expectCanonicalBase(".workbench-primary-row", ["height: 44px"]);
+    expectCanonicalBase(".desk-surface-panel", ["display: grid", "grid-template-rows: 46px minmax(0, 1fr)"]);
     expectCanonicalBase(".work-surface-toolbar", [
       "min-width: 0",
       "border-bottom: 1px solid var(--ink-3)",
-      "background: var(--ink-0)",
+      "background: color-mix(in oklab, var(--ink-1) 82%, transparent)",
       "display: flex",
       "align-items: center",
     ]);
     expectCanonicalBase(".terminal-tile.chrome-headerless", ["grid-template-rows: minmax(0, 1fr)"]);
-    expectCanonicalBase(".terminal-tile-header", ["height: 30px", "min-height: 30px"]);
+    expectCanonicalBase(".terminal-tile-header", ["height: 44px", "min-height: 44px"]);
   });
 
   it("uses system type for chrome identity and mono only for technical workspace context", () => {
-    const topLevelOwner = (selector: string) => topLevelExactRuleBodiesIn(styles, selector).at(-1) ?? "";
+    for (const selector of [
+      ".project-navigator-header",
+      ".project-row-button",
+      ".project-session",
+      ".workbench-session-context > span",
+      ".workbench-session-context > small",
+      ".work-surface-toolbar button",
+      ".terminal-tile-header .tile-title b",
+      ".tile-status",
+    ]) {
+      const bodies = allRulesIn(styles).filter(({ selectors }) => selectors.includes(selector));
+      expect(bodies.length, selector).toBeGreaterThan(0);
+      expect(bodies.some(({ body }) => body.includes("var(--mono)")), selector).toBe(false);
+    }
 
-    expect(topLevelOwner(".workbench-session-context > span")).toContain("var(--sans)");
-    expect(topLevelOwner(".workbench-session-context > small")).toContain("var(--sans)");
-    expect(topLevelOwner(".work-surface-context")).toContain("var(--mono)");
+    expect(topLevelExactRuleBodies(".work-surface-context").at(-1)).toContain("var(--mono)");
+    expect(topLevelExactRuleBodies(".workbench-right-zone kbd").at(-1)).toContain("var(--mono)");
   });
 
   it("drops deleted navigation and migration-era selector families", () => {
@@ -572,8 +584,9 @@ describe("renderer CSS contracts", () => {
     );
     const liveSelectors = liveRules.flatMap(({ selectors }) => selectors);
     const legacyColorUses = liveRules.filter(({ body }) =>
-      /var\(--(?:signal-focus(?:-strong)?|signal-danger|signal-agent(?:-soft)?|signal-success|codex-blue|claude-amber|cyan|brass|role-[^)]+|surface-[^)]+|text-[^)]+|border(?:-[^)]+)?|line(?:-strong)?|panel(?:-soft)?|terminal|muted|faint|passive|ink(?:-soft)?|radius-[^)]+)\)/.test(body),
+      /var\(--(?:signal-focus-strong|signal-danger|signal-agent(?:-soft)?|signal-success|codex-blue|claude-amber|cyan|brass|role-[^)]+|surface-[^)]+|text-[^)]+|border(?:-[^)]+)?|line(?:-strong)?|panel(?:-soft)?|terminal|muted|faint|passive|ink(?:-soft)?|radius-[^)]+)\)/.test(body),
     );
+    const focusSignalUses = liveRules.filter(({ body }) => body.includes("var(--signal-focus)"));
     const lowContrastControlUses = liveRules.filter(({ body }) => /color:\s*var\(--ink-4\)/.test(body));
     const literalColorUses = liveRules.filter(({ body }) => /#[0-9a-f]{3,8}\b|rgba?\(/i.test(body));
 
@@ -583,6 +596,13 @@ describe("renderer CSS contracts", () => {
       ".recovery-inbox-link",
     ]));
     expect(legacyColorUses.map(({ selectors }) => selectors)).toEqual([]);
+    expect(focusSignalUses.every(({ selectors }) =>
+      selectors.every((selector) =>
+        selector.includes("selected")
+        || selector.includes("focus")
+        || selector.includes("aria-pressed"),
+      ),
+    )).toBe(true);
     expect(lowContrastControlUses.map(({ selectors }) => selectors)).toEqual([]);
     expect(literalColorUses.map(({ selectors }) => selectors)).toEqual([]);
   });
@@ -597,15 +617,17 @@ describe("renderer CSS contracts", () => {
     const signalUses = ownerRules.filter(({ body }) => /var\(--signal\)/.test(body));
     const oversizedRadii = ownerRules.flatMap(({ selectors, body }) =>
       [...body.matchAll(/border-radius:\s*(\d+(?:\.\d+)?)px/g)]
-        .filter((match) => Number(match[1]) > 7)
+        .filter((match) => Number(match[1]) > 9)
         .map((match) => ({ selectors, radius: match[1] })),
     );
 
     expect(gradients.map(({ selectors }) => selectors)).toEqual([]);
-    expect(materialShadows.map(({ selectors }) => selectors)).toEqual([
+    expect(materialShadows.map(({ selectors }) => selectors)).toEqual(expect.arrayContaining([
+      [".workbench-header"],
       [".chrome-menu-popover"],
       [".prepare-work-popover"],
-    ]);
+    ]));
+    expect(materialShadows).toHaveLength(3);
     expect(oversizedRadii).toEqual([]);
     expect(signalUses.every(({ selectors }) =>
       selectors.every((selector) => selector.includes("attention") || selector.includes("waiting")),
@@ -690,7 +712,7 @@ describe("renderer CSS contracts", () => {
     const workspaceButton = singleTopLevelRuleBodyIn(styles, ".project-row-button");
 
     expect(workspaceButton.match(/font:/g)).toHaveLength(1);
-    expect(workspaceButton).toContain("font: 600 12px/1.2 var(--sans)");
+    expect(workspaceButton).toContain("font: 600 13px/1.2 var(--sans)");
   });
 
   it("drops proven orphan compatibility families", () => {
@@ -867,9 +889,13 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".workspace-title-menu", ["position: relative", "min-width: 0"]);
     expect(topLevelExactRuleBodies(".workspace-title-trigger")).toHaveLength(1);
     expect(mediaExactRuleBodies("(max-width: 980px)", ".workspace-title-trigger")).toHaveLength(1);
-    expectCanonicalBase(".workbench-header", ["width: 100%", "min-width: 0", "height: 40px"]);
-    expectCanonicalBase(".workbench-primary-row", ["display: grid", "grid-template-columns: auto minmax(0, 1fr) auto"]);
-    expectCanonicalBase(".work-surface-toolbar", ["display: flex", "height: 36px"]);
+    expectCanonicalBase(".workbench-header", ["width: 100%", "min-width: 0", "height: 44px"]);
+    expectCanonicalBase(".workbench-primary-row", [
+      "display: grid",
+      "grid-template-columns: auto minmax(0, 1fr) auto",
+      "height: 44px",
+    ]);
+    expectCanonicalBase(".work-surface-toolbar", ["display: flex", "height: 46px"]);
     expectCanonicalBase(".chrome-menu-popover", ["z-index: 120", "box-shadow:"]);
     expectCanonicalBase(".prepare-work-popover", ["width: 560px", "max-width: calc(100vw - 24px)"]);
 
@@ -877,7 +903,7 @@ describe("renderer CSS contracts", () => {
       "min-width: 0",
       "display: grid",
       "grid-template-rows: auto minmax(0, 1fr) auto",
-      "width: 248px",
+      "width: 226px",
     ]);
     expectCanonicalBase(".project-navigator.is-collapsed", ["width: 46px"]);
     const workspaceNavScrollBodies = exactRuleBodies(".project-navigator-scroll");
@@ -892,8 +918,8 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps one canonical owner for the Slice 2 shell", () => {
-    expectCanonicalBase(".project-navigator", ["width: 248px", "overflow: hidden"]);
-    expectCanonicalBase(".workbench-header", ["height: 40px"]);
+    expectCanonicalBase(".project-navigator", ["width: 226px", "overflow: hidden"]);
+    expectCanonicalBase(".workbench-header", ["height: 44px"]);
     expectCanonicalBase(".work-surface-toolbar", ["display: flex"]);
     expectCanonicalBase(".context-column", ["position: absolute", "width: min(336px"]);
     expectCanonicalBase(".workspace-layout.surface-inbox", [
@@ -1046,7 +1072,7 @@ describe("renderer CSS contracts", () => {
     expect(workspaceNavHover).toHaveLength(1);
     expect(workspaceNavFocus).toHaveLength(1);
     expect(workspaceNavHover[0]).toContain("background: var(--ink-2)");
-    expectCanonicalBase(".workbench-primary-row button", ["max-height: 28px", "border-radius: 7px"]);
+    expectCanonicalBase(".workbench-primary-row button", ["max-height: 32px", "border-radius: 7px"]);
     expectCanonicalBase('.work-surface-toolbar button[aria-pressed="true"]', ["font-weight: 700"]);
     expectCanonicalBase(".chrome-menu-popover button", ["width: 100%"]);
   });
@@ -1073,7 +1099,13 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".terminal-stage-body", ["min-height: 0", "overflow: hidden"]);
     expectCanonicalBase(".terminal-grid-column", ["overflow-y: auto", "height: 100%"]);
     expectCanonicalBase(".terminal-grid", ["display: grid", "min-height: 0"]);
-    expectCanonicalBase(".terminal-tile", ["display: grid", "overflow: hidden"]);
+    expectCanonicalBase(".terminal-tile", [
+      "display: grid",
+      "overflow: hidden",
+      "border-radius: 9px",
+      "background: var(--ink-0)",
+      "grid-template-rows: 44px minmax(0, 1fr)",
+    ]);
     expectCanonicalBase(".context-column", ["position: absolute", "pointer-events: none"]);
     expectCanonicalBase(".context-drawer", ["display: flex", "overflow: hidden"]);
     expectCanonicalBase(".composer-bar", ["display: grid", "min-width: 0"]);
@@ -1096,10 +1128,25 @@ describe("renderer CSS contracts", () => {
       terminalTileEnd,
     );
     expectTopLevelOwnerWithin(".terminal-stage.mode-focus .terminal-tile.focus-hidden", ["display: none"], terminalTileStart, terminalTileEnd);
-    expectTopLevelOwnerWithin(".terminal-tile.selected", ["border-color: var(--ink-6)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
-    expectTopLevelOwnerWithin(".terminal-tile:focus-visible", ["border-color: var(--ink-6)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
-    expectTopLevelOwnerWithin(".terminal-tile:focus-within", ["outline: 1px solid var(--ink-5)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
-    expectTopLevelOwnerWithin(".terminal-tile.collapsed", ["grid-template-rows: 30px 0", "min-height: 30px"], terminalTileStart, terminalTileEnd);
+    expectTopLevelOwnerWithin(
+      ".terminal-tile.selected",
+      ["border-color: color-mix(in oklab, var(--signal-focus) 52%, var(--ink-3))", "box-shadow: none"],
+      terminalTileStart,
+      terminalTileEnd,
+    );
+    expectTopLevelOwnerWithin(
+      ".terminal-tile:focus-visible",
+      ["border-color: color-mix(in oklab, var(--signal-focus) 52%, var(--ink-3))", "box-shadow: none"],
+      terminalTileStart,
+      terminalTileEnd,
+    );
+    expectTopLevelOwnerWithin(
+      ".terminal-tile:focus-within",
+      ["border-color: color-mix(in oklab, var(--signal-focus) 44%, var(--ink-3))", "box-shadow: none"],
+      terminalTileStart,
+      terminalTileEnd,
+    );
+    expectTopLevelOwnerWithin(".terminal-tile.collapsed", ["grid-template-rows: 44px 0", "min-height: 44px"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile:not(.arranging):hover", ["border-color: var(--ink-5)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-stage.mode-split .terminal-tile.focus-hidden", ["display: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.collapsed .xterm-host", ["height: 0", "pointer-events: none"], terminalTileStart, terminalTileEnd);
@@ -1112,7 +1159,7 @@ describe("renderer CSS contracts", () => {
     expectTopLevelOwnerWithin(".context-drawer.open", ["display: flex"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-column.closed", ["display: none"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-column.open", ["pointer-events: auto"], contextStart, contextEnd);
-    expectCanonicalBase(".workspace-layout", ["grid-template-columns: 248px minmax(0, 1fr)", "position: relative"]);
+    expectCanonicalBase(".workspace-layout", ["grid-template-columns: 226px minmax(0, 1fr)", "position: relative"]);
     expectTopLevelOwnerWithin(
       ".context-column",
       ["position: absolute", "top: 12px", "right: 12px", "bottom: 12px", "width: min(336px, calc(100% - 24px))"],
@@ -1461,9 +1508,9 @@ describe("renderer CSS contracts", () => {
     expect(tokenDefinitionCount("--text-muted")).toBe(1);
     expect(tokenDefinitionCount("--text-faint")).toBe(1);
 
-    expect(rootToken("--surface-chrome")).toBe("#07090b");
-    expect(rootToken("--surface-control")).toBe("#090d11");
-    expect(rootToken("--surface-control-hover")).toBe("#10151a");
+    expect(rootToken("--surface-chrome")).toBe("#101318");
+    expect(rootToken("--surface-control")).toBe("#171C22");
+    expect(rootToken("--surface-control-hover")).toBe("#1C2229");
     expect(styles).not.toMatch(/--flat-/);
     expect(styles).not.toMatch(/--proto-/);
     expect(styles).not.toMatch(/ALFRED CLEAN FLAT v4/);
@@ -1491,7 +1538,7 @@ describe("renderer CSS contracts", () => {
   it("keeps the CSS terminal surface on the approved graphite material", () => {
     const xtermHost = blockFor(".terminal-tile .xterm-host");
 
-    expect(rootToken("--ink-0")).toBe("#0A0C0F");
+    expect(rootToken("--ink-0")).toBe("#090B0E");
     expect(xtermHost).toContain("background: var(--ink-0)");
   });
 
@@ -1553,9 +1600,9 @@ describe("renderer CSS contracts", () => {
   it("keeps the adaptive workbench controls compact", () => {
     const workbenchAction = exactBlockFor(".workbench-primary-row button");
 
-    expect(workbenchAction).toContain("max-height: 28px");
+    expect(workbenchAction).toContain("max-height: 32px");
     expect(workbenchAction).toContain("border-radius: 7px");
-    expect(workbenchAction).toContain("background: var(--ink-1)");
+    expect(workbenchAction).toContain("background: transparent");
     expect(styles).not.toContain("--flat-control-height");
     expect(styles).not.toContain("--flat-control");
   });
@@ -1587,7 +1634,7 @@ describe("renderer CSS contracts", () => {
     const contextColumn = singleTopLevelRuleBodyIn(styles, ".context-column");
     const contextDrawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
 
-    expect(closedLayout).toContain("grid-template-columns: 248px minmax(0, 1fr)");
+    expect(closedLayout).toContain("grid-template-columns: 226px minmax(0, 1fr)");
     expect(closedLayout).toContain("position: relative");
     expect(contextColumn).toContain("position: absolute");
     expect(contextColumn).toContain("width: min(336px, calc(100% - 24px))");
@@ -1731,7 +1778,7 @@ describe("renderer CSS contracts", () => {
     expect(tile).toContain("background: var(--ink-0)");
     expect(tile).toContain("box-shadow: none");
     expect(header).toContain("min-height");
-    expect(header).toContain("background: var(--ink-0)");
+    expect(header).toContain("background: var(--ink-1)");
     expect(header).not.toContain("linear-gradient");
     expect(tileTitle).toContain("font: 650 13px/1.12 var(--sans)");
     expect(xtermHost).toContain("background: var(--ink-0)");
@@ -1935,7 +1982,7 @@ describe("renderer CSS contracts", () => {
     expect(navSectionHeader).toContain("color: var(--ink-5)");
     expect(navSectionHeader).toContain("var(--sans)");
     expect(navRow).toContain("background: transparent");
-    expect(navRow).toContain("grid-template-columns: 18px minmax(0, 1fr) auto auto");
+    expect(navRow).toContain("grid-template-columns: 17px minmax(0, 1fr) auto auto");
     expect(navRowTitle).toContain("text-overflow: ellipsis");
     expect(navRowTitle).toContain("white-space: nowrap");
     expect(activeWorkspace).toContain("background:");

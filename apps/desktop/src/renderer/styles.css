@@ -1,29 +1,29 @@
 :root {
-  --ink-0: #0A0C0F;
-  --ink-1: #0E1114;
-  --ink-2: #14181D;
-  --ink-3: #1D2228;
-  --ink-4: #5A6169;
-  --ink-5: #8B929B;
-  --ink-6: #C9CED5;
-  --ink-7: #EDF0F3;
+  --ink-0: #090B0E;
+  --ink-1: #101318;
+  --ink-2: #15191F;
+  --ink-3: #20262D;
+  --ink-4: #5F6974;
+  --ink-5: #8B95A1;
+  --ink-6: #C5CBD2;
+  --ink-7: #F0F2F4;
   --signal: #E29B6E;
 
-  --surface-terminal: #070808;
-  --surface-canvas: #050607;
-  --surface-panel: #0a0d10;
-  --surface-raised: #0f1317;
-  --surface-chrome: #07090b;
-  --surface-control: #090d11;
-  --surface-control-hover: #10151a;
+  --surface-terminal: #080A0C;
+  --surface-canvas: #07090B;
+  --surface-panel: #13171C;
+  --surface-raised: #181D23;
+  --surface-chrome: #101318;
+  --surface-control: #171C22;
+  --surface-control-hover: #1C2229;
 
   --text-primary: #edf2f6;
   --text-secondary: #c9d2db;
   --text-muted: #9da8b4;
   --text-faint: #8996a5;
 
-  --border: rgba(176, 188, 201, 0.12);
-  --border-strong: rgba(191, 203, 218, 0.2);
+  --border: rgba(235, 241, 246, 0.075);
+  --border-strong: rgba(235, 241, 246, 0.14);
   --border-focus: color-mix(in oklab, var(--signal-focus) 28%, transparent);
 
   --signal-focus: #55bdca;
@@ -36,8 +36,8 @@
   --signal-success-soft: color-mix(in oklab, var(--signal-success) 8%, transparent);
   --role-active: var(--signal-focus);
 
-  --radius-control: 8px;
-  --radius-panel: 12px;
+  --radius-control: 7px;
+  --radius-panel: 9px;
   --control-height: 32px;
   --type-micro: 10px;
 
@@ -661,7 +661,7 @@ button:focus-visible {
   grid-row: 3;
   min-height: 0;
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-columns: 226px minmax(0, 1fr);
   gap: 0;
   padding: 0;
   background: var(--ink-0);
@@ -676,7 +676,7 @@ button:focus-visible {
   grid-column: 1;
   min-width: 0;
   min-height: 0;
-  width: 248px;
+  width: 226px;
   border-right: 1px solid var(--ink-3);
   background: var(--ink-1);
   display: grid;
@@ -698,13 +698,13 @@ button:focus-visible {
 }
 
 .project-navigator-header {
-  min-height: 42px;
+  min-height: 46px;
   justify-content: space-between;
   border-bottom: 1px solid var(--ink-3);
   color: var(--ink-6);
-  font: 650 12px/1 var(--sans);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font: 650 13px/1 var(--sans);
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .project-navigator-header button,
@@ -783,18 +783,18 @@ button:focus-visible {
 .project-row-button {
   min-width: 0;
   width: 100%;
-  min-height: 34px;
+  min-height: 36px;
   border: 0;
-  border-radius: 6px;
-  padding: 5px 6px;
+  border-radius: 7px;
+  padding: 0 9px;
   background: transparent;
   color: var(--ink-6);
   cursor: pointer;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto auto;
+  grid-template-columns: 17px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 6px;
-  font: 600 12px/1.2 var(--sans);
+  font: 600 13px/1.2 var(--sans);
   text-align: left;
 }
 
@@ -1054,7 +1054,7 @@ button:focus-visible {
   pointer-events: none;
 }
 .workspace-layout.preview-visible {
-  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-columns: 226px minmax(0, 1fr);
 }
 
 .side-dock-stack {
@@ -1090,20 +1090,20 @@ button:focus-visible {
 
 .workbench-header {
   width: 100%;
-  height: 40px;
+  height: 44px;
   min-width: 0;
   overflow: visible;
-  background: var(--ink-0);
-  box-shadow: none;
+  background: color-mix(in oklab, var(--ink-1) 88%, transparent);
+  box-shadow: inset 0 -1px 0 var(--ink-3);
   color: var(--ink-6);
 }
 
 .workbench-primary-row {
   width: 100%;
-  height: 40px;
+  height: 44px;
   min-width: 0;
   border-bottom: 1px solid var(--ink-3);
-  padding: 0 8px;
+  padding: 0 10px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -1154,19 +1154,19 @@ button:focus-visible {
 
 .workbench-primary-row button,
 .work-surface-toolbar button {
-  max-height: 28px;
-  min-height: 26px;
-  border: 1px solid var(--ink-3);
+  max-height: 32px;
+  min-height: 32px;
+  border: 1px solid transparent;
   border-radius: 7px;
   padding: 0 8px;
-  background: var(--ink-1);
+  background: transparent;
   box-shadow: none;
   color: var(--ink-6);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  font: 600 11px/1 var(--sans);
+  font: 600 13px/1 var(--sans);
   cursor: pointer;
   -webkit-app-region: no-drag;
 }
@@ -1209,11 +1209,11 @@ button:focus-visible {
 
 .work-surface-toolbar {
   width: 100%;
-  height: 36px;
+  height: 46px;
   min-width: 0;
   border-bottom: 1px solid var(--ink-3);
-  padding: 3px 8px;
-  background: var(--ink-0);
+  padding: 7px 10px;
+  background: color-mix(in oklab, var(--ink-1) 82%, transparent);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1393,7 +1393,7 @@ button:focus-visible {
 
 .desk-surface-panel {
   display: grid;
-  grid-template-rows: 36px minmax(0, 1fr);
+  grid-template-rows: 46px minmax(0, 1fr);
 }
 
 .desk-surface-panel.active {
@@ -1653,8 +1653,8 @@ button:focus-visible {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(620px, 100%), 1fr));
   grid-auto-rows: minmax(320px, 1fr);
-  gap: 10px;
-  padding: 9px;
+  gap: 8px;
+  padding: 10px;
   scrollbar-width: thin;
   scrollbar-color: var(--ink-3) transparent;
 }
@@ -1919,7 +1919,7 @@ button:focus-visible {
   min-width: 0;
   min-height: 0;
   border: 1px solid var(--ink-3);
-  border-radius: 0;
+  border-radius: 9px;
   overflow: hidden;
   background: var(--ink-0);
   box-shadow: none;
@@ -1927,7 +1927,7 @@ button:focus-visible {
   -webkit-backdrop-filter: none;
   container: terminal-tile / inline-size;
   display: grid;
-  grid-template-rows: 30px minmax(0, 1fr);
+  grid-template-rows: 44px minmax(0, 1fr);
   isolation: isolate;
 }
 
@@ -1939,26 +1939,25 @@ button:focus-visible {
 .terminal-tile.selected {
   outline: none;
   outline-offset: 2px;
-  border-color: var(--ink-6);
+  border-color: color-mix(in oklab, var(--signal-focus) 52%, var(--ink-3));
   box-shadow: none;
 }
 
 .terminal-tile:focus-visible {
   outline: none;
-  border-color: var(--ink-6);
+  border-color: color-mix(in oklab, var(--signal-focus) 52%, var(--ink-3));
   box-shadow: none;
 }
 
 .terminal-tile:focus-within {
-  outline: 1px solid var(--ink-5);
-  outline-offset: 2px;
-  border-color: var(--ink-6);
+  outline: none;
+  border-color: color-mix(in oklab, var(--signal-focus) 44%, var(--ink-3));
   box-shadow: none;
 }
 
 .terminal-tile.collapsed {
-  grid-template-rows: 30px 0;
-  min-height: 30px;
+  grid-template-rows: 44px 0;
+  min-height: 44px;
 }
 
 .terminal-tile.chrome-headerless {
@@ -1997,7 +1996,7 @@ button:focus-visible {
 }
 
 .terminal-tile.arranging {
-  grid-template-rows: 30px minmax(0, 1fr);
+  grid-template-rows: 44px minmax(0, 1fr);
   will-change: transform;
 }
 
@@ -2103,17 +2102,17 @@ body.arranging-pointer {
   gap: 8px;
   padding: 0 14px;
   color: var(--ink-5);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 12px;
   background: var(--ink-0);
 }
 
 .terminal-tile-header {
-  height: 30px;
-  min-height: 30px;
+  height: 44px;
+  min-height: 44px;
   padding: 0 10px;
   border-bottom: 1px solid var(--ink-3);
-  background: var(--ink-0);
+  background: var(--ink-1);
   box-shadow: none;
   display: flex;
   align-items: center;
@@ -2504,10 +2503,10 @@ body.arranging-pointer {
   border-radius: 7px;
   background: var(--ink-1);
   color: var(--ink-5);
-  font-family: var(--mono);
-  font-size: 11px;
+  font-family: var(--sans);
+  font-size: 13px;
   font-weight: 500;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   text-transform: lowercase;
   line-height: 1.2;
 }
