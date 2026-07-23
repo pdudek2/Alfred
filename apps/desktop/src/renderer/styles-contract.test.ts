@@ -2084,6 +2084,13 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain(".agent-section-heading");
   });
 
+  it("keeps Context status labels at the product-label type floor", () => {
+    const contextStatusText = singleTopLevelRuleBodyIn(styles, ".context-drawer .agent-status-text");
+
+    expect(contextStatusText).toContain("font: 600 13px/1 var(--sans)");
+    expect(blockFor(".agent-status-pill .agent-status-text")).not.toContain("13px");
+  });
+
   it("keeps project navigator hierarchy quiet but readable", () => {
     const navPanel = singleTopLevelRuleBodyIn(styles, ".project-navigator");
     const navSectionHeader = singleTopLevelRuleBodyIn(styles, ".free-chat-section > header");

@@ -6424,6 +6424,10 @@ body.arranging-pointer {
   font: 500 12px/1.45 var(--sans);
 }
 
+.context-drawer .agent-status-text {
+  font: 600 13px/1 var(--sans);
+}
+
 .context-drawer .agent-handoff-buttons button,
 .context-drawer .agent-disclosure-toggle,
 .context-drawer .agent-raw-toggle {
