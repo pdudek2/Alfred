@@ -1389,12 +1389,59 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".sessions-surface", [
       "display: grid",
       "min-height: 0",
-      "grid-template-columns: 350px minmax(0, 1fr)",
+      "grid-template-columns: 340px minmax(0, 1fr)",
     ]);
-    expectCanonicalBase(".sessions-navigator", ["min-height: 0", "overflow: hidden"]);
+    expectCanonicalBase(".sessions-navigator", [
+      "min-height: 0",
+      "overflow: hidden",
+      "font-family: var(--sans)",
+    ]);
     expectCanonicalBase(".sessions-results", ["overflow-y: auto"]);
-    expectCanonicalBase(".sessions-reader", ["min-width: 0", "min-height: 0"]);
+    expectCanonicalBase(".sessions-reader", [
+      "min-width: 0",
+      "min-height: 0",
+      "grid-template-rows: 52px minmax(0, 1fr)",
+    ]);
+    expectCanonicalBase(".sessions-reader__body", [
+      "display: grid",
+      "grid-template-columns: minmax(0, 1fr)",
+    ]);
+    expectCanonicalBase(".sessions-reader--details-open .sessions-reader__body", [
+      "grid-template-columns: minmax(0, 1fr) 280px",
+    ]);
     expectCanonicalBase(".sessions-reader__scroll", ["overflow-y: auto"]);
+    expectCanonicalBase(".sessions-run-details", [
+      "border-left: 1px solid var(--ink-3)",
+      "border-radius: 0",
+      "background: var(--ink-1)",
+      "box-shadow: none",
+    ]);
+    expectCanonicalBase(".sessions-run-details dd", ["font: 520 13px/1.35 var(--sans)"]);
+    expectCanonicalBase(".sessions-run-details dd.technical", ["font-family: var(--mono)"]);
+    expect(styles).not.toContain(".sessions-run-details__backdrop");
+    expect(styles).not.toMatch(/\.sessions-run-details\s+dialog/);
+    for (const selector of [
+      ".sessions-navigator__heading > button",
+      ".sessions-navigator__filters select",
+      ".sessions-navigator__filters > button",
+      ".sessions-reader__toolbar button",
+      ".sessions-run-details button",
+      ".sessions-navigator__pagination button",
+    ]) {
+      expect(exactBlockFor(selector), selector).toContain("min-height: 32px");
+    }
+    expect(mediaExactRuleBodies(
+      "(max-width: 1180px)",
+      ".sessions-surface",
+    ).at(-1)).toContain("grid-template-columns: 300px minmax(0, 1fr)");
+    expect(mediaExactRuleBodies(
+      "(max-width: 1180px)",
+      ".sessions-reader--details-open .sessions-reader__body",
+    ).at(-1)).toContain("grid-template-columns: minmax(0, 1fr)");
+    expect(mediaExactRuleBodies(
+      "(max-width: 1180px)",
+      ".sessions-reader--details-open .sessions-reader__scroll",
+    ).at(-1)).toContain("display: none");
     expect(styles).not.toMatch(/\.observatory-|\.history-surface/);
     const primaryInboxAction = blockForContaining(".inbox-docket__primary", "background: var(--ink-6)");
     expect(primaryInboxAction).toContain("background: var(--ink-6)");
@@ -1431,7 +1478,10 @@ describe("renderer CSS contracts", () => {
       ".sessions-result[aria-selected=\"true\"]",
       ".sessions-reader__toolbar button:hover",
       ".sessions-reader__toolbar button:focus-visible",
+      ".sessions-reader__body",
+      ".sessions-reader--details-open .sessions-reader__body",
       ".sessions-run-details",
+      ".sessions-run-details dd.technical",
       ".sessions-transcript",
       ".sessions-message",
       ".sessions-message__body",
@@ -1447,6 +1497,9 @@ describe("renderer CSS contracts", () => {
         { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-surface", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-transcript", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-message", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-reader--details-open .sessions-reader__body", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-reader--details-open .sessions-reader__scroll", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-run-details", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1120px)", selector: ".inbox-docket__detail-grid", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1120px)", selector: ".inbox-docket__facts", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(prefers-reduced-motion: reduce)", selector: ".inbox-docket *", region: surfaceResponsiveRegion },
