@@ -49,10 +49,10 @@ afterEach(() => {
 });
 
 describe("WorkbenchHeader", () => {
-  it("stays at 40 px with multiple sessions and no session tab strip", () => {
+  it("uses the 44px quiet chrome without a session tab strip", () => {
     renderHeader({ selectedSession: liveB });
     const header = screen.getByTestId("workbench-header");
-    expect(header).toHaveAttribute("data-chrome-height", "40");
+    expect(header).toHaveAttribute("data-chrome-height", "44");
     expect(header).toHaveTextContent("Codex review");
     expect(screen.queryByRole("toolbar", { name: "Session and layout controls" })).not.toBeInTheDocument();
     expect(header.querySelector(".alfred-mark svg")).toBeInTheDocument();
@@ -64,12 +64,13 @@ describe("WorkbenchHeader", () => {
     expect(screen.queryByText(liveA.title)).not.toBeInTheDocument();
   });
 
-  it("uses the frozen 40px title identity for the global Decision Inbox", () => {
+  it("uses Inbox as the single global decision-surface name", () => {
     renderHeader({ activeSurface: "inbox", selectedSession: liveA });
 
     const header = screen.getByTestId("workbench-header");
-    expect(header).toHaveAttribute("data-chrome-height", "40");
-    expect(header).toHaveTextContent("Decision Inbox");
+    expect(header).toHaveAttribute("data-chrome-height", "44");
+    expect(header).toHaveTextContent("Inbox");
+    expect(header).not.toHaveTextContent("Decision Inbox");
     expect(within(header).getByText("All projects")).toBeInTheDocument();
     expect(screen.queryByText(liveA.title)).not.toBeInTheDocument();
   });

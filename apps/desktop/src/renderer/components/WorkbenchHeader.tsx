@@ -44,7 +44,7 @@ export function WorkbenchHeader({
   onToggleContext,
 }: WorkbenchHeaderProps) {
   const surfaceTitle = activeSurface === "inbox"
-    ? "Decision Inbox"
+    ? "Inbox"
     : activeSurface === "sessions"
       ? "Sessions"
       : selectedSession?.title ?? "Work";
@@ -63,7 +63,7 @@ export function WorkbenchHeader({
   ];
 
   return (
-    <header className="workbench-header" data-testid="workbench-header" data-chrome-height="40">
+    <header className="workbench-header" data-testid="workbench-header" data-chrome-height="44">
       <div className="workbench-primary-row">
         <div className="workbench-product-signature"><AlfredMark /></div>
         <div className="workbench-session-context">
