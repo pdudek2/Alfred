@@ -61,7 +61,7 @@ function renderSurface(attentionItems: AttentionProjection[] = DECISIONS) {
     onRecover: vi.fn(),
     onDiscardRecovery: vi.fn(),
     onReviewEdit: vi.fn(),
-    onSelectSurface: vi.fn(),
+    onBackToWork: vi.fn(),
   };
   const renderProps = {
     armedRecoverySessionIds: new Set<string>(),
@@ -92,67 +92,25 @@ afterEach(() => {
 });
 
 describe("ReviewSurface", () => {
-  it("uses the canonical docket and the existing secondary chrome slot", async () => {
+  it("renders the single global Inbox toolbar without duplicate navigation or status chrome", async () => {
     const user = userEvent.setup();
     const handlers = renderSurface();
 
     const surface = screen.getByRole("region", { name: "Inbox workspace" });
     expect(surface).toHaveClass("inbox-docket");
-    expect(surface).toHaveAttribute("data-secondary-chrome-height", "36");
+    expect(surface).toHaveAttribute("data-secondary-chrome-height", "52");
+    expect(within(surface).getByRole("heading", { name: "Inbox" })).toBeVisible();
+    expect(within(surface).getByText("All projects", { exact: true })).toBeVisible();
+    expect(within(surface).getByText("3 need you · 0 recovery", { exact: true })).toBeVisible();
+    expect(within(surface).queryByRole("navigation", { name: "Primary surfaces" })).not.toBeInTheDocument();
+    expect(surface.querySelector(".inbox-docket__statusbar")).not.toBeInTheDocument();
     expect(surface.querySelector(".review-surface")).not.toBeInTheDocument();
     expect(surface.querySelector(".inbox-section")).not.toBeInTheDocument();
     expect(surface.querySelector("[class*='avatar'], [class*='pill']")).not.toBeInTheDocument();
 
-    const switcher = screen.getByRole("navigation", { name: "Primary surfaces" });
-    expect(within(switcher).getByRole("button", { name: "Inbox" })).toHaveAttribute("aria-current", "page");
-    expect(screen.queryByRole("toolbar", { name: "Primary surfaces" })).not.toBeInTheDocument();
-    await user.click(within(switcher).getByRole("button", { name: "Work" }));
-    expect(handlers.onSelectSurface).toHaveBeenCalledWith("work");
+    await user.click(within(surface).getByRole("button", { name: "Back to Work" }));
+    expect(handlers.onBackToWork).toHaveBeenCalledOnce();
   });
-
-  it.each([
-    ["Work", "{Enter}", "work"],
-    ["Sessions", " ", "sessions"],
-  ] as const)(
-    "lets the %s switcher button handle %s without running the selected decision",
-    async (label, key, surface) => {
-      const user = userEvent.setup();
-      const handlers = renderSurface();
-      const switcherButton = within(screen.getByRole("navigation", { name: "Primary surfaces" }))
-        .getByRole("button", { name: label });
-
-      switcherButton.focus();
-      await user.keyboard(key);
-
-      expect(handlers.onSelectSurface).toHaveBeenCalledOnce();
-      expect(handlers.onSelectSurface).toHaveBeenCalledWith(surface);
-      expect(handlers.onReviewEdit).not.toHaveBeenCalled();
-      expect(handlers.onOpenInWork).not.toHaveBeenCalled();
-      expect(handlers.onLaunch).not.toHaveBeenCalled();
-      expect(handlers.onRecover).not.toHaveBeenCalled();
-    },
-  );
-
-  it.each(["{ArrowDown}", "{ArrowUp}", "{Home}", "{End}"])(
-    "keeps %s inside the surface switcher without moving or acting on the docket",
-    async (key) => {
-      const user = userEvent.setup();
-      const handlers = renderSurface();
-      const workButton = within(screen.getByRole("navigation", { name: "Primary surfaces" }))
-        .getByRole("button", { name: "Work" });
-
-      workButton.focus();
-      await user.keyboard(key);
-
-      expect(workButton).toHaveFocus();
-      expect(expandedItems()).toEqual([selectButton(SAFETY)]);
-      expect(handlers.onSelectSurface).not.toHaveBeenCalled();
-      expect(handlers.onReviewEdit).not.toHaveBeenCalled();
-      expect(handlers.onOpenInWork).not.toHaveBeenCalled();
-      expect(handlers.onLaunch).not.toHaveBeenCalled();
-      expect(handlers.onRecover).not.toHaveBeenCalled();
-    },
-  );
 
   it("selects, expands, and focuses the first decision without running an action", () => {
     const handlers = renderSurface();
@@ -163,9 +121,6 @@ describe("ReviewSurface", () => {
     expect(selectButton(WAITING)).toHaveAttribute("tabindex", "-1");
     expect(selectButton(SAFETY)).toHaveFocus();
     expect(expandedItems()).toEqual([selectButton(SAFETY)]);
-    expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Review / Edit");
-    expect(screen.getByRole("contentinfo")).not.toHaveTextContent("Space");
-    expect(screen.getByRole("contentinfo")).not.toHaveTextContent("Expand");
     expect(handlers.onLaunch).not.toHaveBeenCalled();
     expect(handlers.onOpenInWork).not.toHaveBeenCalled();
     expect(handlers.onRecover).not.toHaveBeenCalled();
@@ -203,12 +158,11 @@ describe("ReviewSurface", () => {
     expect(selectButton(SAFETY)).toHaveFocus();
   });
 
-  it("runs the selected waiting decision's status-bar action on Enter", async () => {
+  it("runs the selected waiting decision's primary action on Enter", async () => {
     const user = userEvent.setup();
     const handlers = renderSurface();
 
     await user.keyboard("{ArrowDown}");
-    expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Open in Work");
     await user.keyboard("{Enter}");
 
     expect(handlers.onOpenInWork).toHaveBeenCalledOnce();
@@ -216,7 +170,6 @@ describe("ReviewSurface", () => {
     expect(handlers.onLaunch).not.toHaveBeenCalled();
     expect(handlers.onRecover).not.toHaveBeenCalled();
     expect(handlers.onReviewEdit).not.toHaveBeenCalled();
-    expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Open in Work");
   });
 
   it("routes staged and recovery actions through their canonical handlers", async () => {
@@ -434,31 +387,6 @@ describe("ReviewSurface", () => {
     expect(handlers.onLaunch).not.toHaveBeenCalled();
   });
 
-  it("shows the focused Recovery primary action in the status bar", async () => {
-    const user = userEvent.setup();
-    const recovery = decision({
-      id: "ALFRED:RECOVERY",
-      sessionId: "RECOVERY",
-      sessionTitle: "Saved Codex",
-      kind: "recovery",
-      section: "recovery",
-      blocksAgent: false,
-      rank: null,
-      reason: "Saved agent session can be resumed.",
-      action: { kind: "resume" },
-    });
-    renderSurface([STAGED, recovery]);
-
-    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
-    expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Launch");
-
-    await user.tab();
-
-    expect(screen.getByRole("button", { name: "Resume Saved Codex in Alfred" })).toHaveFocus();
-    expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Resume");
-    expect(screen.getByTestId("inbox-status-action")).not.toHaveTextContent("Launch");
-  });
-
   it("updates the focused Recovery action after arming and Enter runs the visible confirmation", async () => {
     const user = userEvent.setup();
     const recovery = decision({
@@ -483,8 +411,6 @@ describe("ReviewSurface", () => {
 
     const confirmButton = screen.getByRole("button", { name: "Confirm relaunch Saved shell in Alfred" });
     expect(confirmButton).toHaveFocus();
-    expect(screen.getByTestId("inbox-status-action")).toHaveTextContent("Confirm relaunch");
-    expect(screen.getByTestId("inbox-status-action")).not.toHaveTextContent("Review relaunch");
 
     await user.keyboard("{Enter}");
     expect(handlers.onRecover).toHaveBeenLastCalledWith("ALFRED", "UNSAFE");
