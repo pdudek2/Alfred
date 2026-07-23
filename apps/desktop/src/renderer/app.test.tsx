@@ -3054,7 +3054,10 @@ describe("App integration", () => {
     const sessions = await screen.findByRole("region", { name: "Sessions workspace" });
     const search = within(sessions).getByRole("searchbox", { name: "Search sessions" });
     expect(search).toHaveFocus();
-    await user.click(within(sessions).getByRole("radio", { name: "Codex" }));
+    await user.selectOptions(
+      within(sessions).getByRole("combobox", { name: "Session source" }),
+      "external-codex",
+    );
     await waitFor(() => expect(listExternalSessions).toHaveBeenCalledTimes(2));
     expect(listExternalSessions).toHaveBeenNthCalledWith(1, {
       projects: expect.any(Array),
