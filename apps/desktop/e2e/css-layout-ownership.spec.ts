@@ -66,10 +66,33 @@ const terminalProbes: CssOwnerProbe[] = [
 ];
 
 const contextProbes: CssOwnerProbe[] = [
-  { name: "context-column", selector: "[data-testid='context-column']", required: true,
-    properties: ["display", "width", "min-width", "overflow"] },
-  { name: "context-drawer", selector: "[data-testid='context-drawer']", required: false,
-    properties: ["display", "width", "overflow-x", "overflow-y", "background-color"] },
+  {
+    name: "context-column",
+    selector: "[data-testid='context-column']",
+    required: true,
+    properties: [
+      "display",
+      "position",
+      "width",
+      "min-width",
+      "overflow-x",
+      "overflow-y",
+      "border-left-width",
+      "background-color",
+    ],
+  },
+  {
+    name: "context-drawer",
+    selector: "[data-testid='context-drawer']",
+    required: true,
+    properties: [
+      "display",
+      "height",
+      "overflow",
+      "border-radius",
+      "box-shadow",
+    ],
+  },
 ];
 
 const prepareWorkProbes: CssOwnerProbe[] = [
@@ -237,11 +260,14 @@ test("captures deterministic CSS ownership evidence across core states and overl
   const beforeContext = await readShellOwnerGeometry(page);
   await openContext(page);
   const afterContext = await readShellOwnerGeometry(page);
-  expect(afterContext.workspaceGridColumns).toBe(beforeContext.workspaceGridColumns);
-  expect(Math.abs(afterContext.terminalGrid.width - beforeContext.terminalGrid.width)).toBeLessThanOrEqual(1);
-  expect(afterContext.context.position).toBe("absolute");
-  expect(afterContext.context.rightGap).toBeCloseTo(12, 0);
-  expect(afterContext.context.width).toBeLessThanOrEqual(336);
+  expect(
+    afterContext.workspaceGridColumns.trim().split(/\s+/),
+  ).toHaveLength(3);
+  expect(afterContext.context.position).toBe("static");
+  expect(afterContext.context.rightGap).toBeCloseTo(0, 0);
+  expect(afterContext.context.width).toBeCloseTo(318, 0);
+  expect(afterContext.context.overlapWithTerminal).toBeLessThanOrEqual(0);
+  await expect(page.getByLabel("Workspace preview")).toHaveCount(0);
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Context");
   await capture("context", [...frameProbes, ...terminalProbes, ...contextProbes]);
 
@@ -358,7 +384,7 @@ async function openContext(page: Page): Promise<void> {
 async function readShellOwnerGeometry(page: Page): Promise<{
   workspaceGridColumns: string;
   terminalGrid: { width: number };
-  context: { position: string; rightGap: number; width: number };
+  context: { position: string; rightGap: number; width: number; overlapWithTerminal: number };
 }> {
   return page.evaluate(() => {
     const workspace = document.querySelector<HTMLElement>("[data-testid='workbench-shell']");
@@ -376,6 +402,10 @@ async function readShellOwnerGeometry(page: Page): Promise<{
         position: getComputedStyle(context).position,
         rightGap: workspaceBounds.right - contextBounds.right,
         width: contextBounds.width,
+        overlapWithTerminal: Math.max(
+          0,
+          terminalGridBounds.right - contextBounds.left,
+        ),
       },
     };
   });

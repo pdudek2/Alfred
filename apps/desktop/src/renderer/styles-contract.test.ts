@@ -664,6 +664,7 @@ describe("renderer CSS contracts", () => {
       "Slice 1 shell",
       (selector) => isLiveSliceOneSelector(selector)
         && !selector.startsWith(".workspace-layout > .context-column")
+        && !selector.startsWith(".workspace-layout.context-visible")
         && (
           selector.startsWith(".prepare-work-popover")
           || !/(?:\.terminal-|\.tile-|\.tool-dot|\.session-status-|\.session-rename-form|\.split-empty-|\.staged-|\.arrange-|\.xterm-host|\.composer-|\.dispatch-)/.test(selector)
@@ -929,7 +930,7 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".project-navigator", ["width: 226px", "overflow: hidden"]);
     expectCanonicalBase(".workbench-header", ["height: 44px"]);
     expectCanonicalBase(".work-surface-toolbar", ["display: flex"]);
-    expectCanonicalBase(".context-column", ["position: absolute", "width: min(336px"]);
+    expectCanonicalBase(".context-column", ["grid-column: 3", "position: static", "width: auto"]);
     expectCanonicalBase(".workspace-layout.surface-inbox", [
       "grid-template-columns: minmax(0, 1fr)",
       "position: relative",
@@ -948,10 +949,28 @@ describe("renderer CSS contracts", () => {
     expect(topLevelExactRuleBodies(".workspace-layout.surface-sessions.preview-visible")).toHaveLength(1);
 
     expect(topLevelExactRuleBodies(".workspace-layout:has(.context-column.open)")).toHaveLength(0);
-    expect(styles).not.toContain("grid-column: 3");
     expect(styles).not.toContain(".context-compact-status");
     expect(styles).not.toContain(".session-chrome-row");
     expect(styles).not.toContain(".workspace-rail.embedded");
+  });
+
+  it("owns Context as one adjacent right dock", () => {
+    const openShell = singleTopLevelRuleBodyIn(
+      styles,
+      ".workspace-layout.context-visible",
+    );
+    const contextColumn = singleTopLevelRuleBodyIn(styles, ".context-column");
+    const contextDrawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
+
+    expect(openShell).toContain(
+      "grid-template-columns: 226px minmax(420px, 1fr) 318px",
+    );
+    expect(contextColumn).toContain("grid-column: 3");
+    expect(contextColumn).toContain("position: static");
+    expect(contextColumn).toContain("width: auto");
+    expect(contextDrawer).toContain("border-radius: 0");
+    expect(contextDrawer).toContain("box-shadow: none");
+    expect(styles).not.toContain(".workspace-layout > .context-column.open");
   });
 
   it("keeps terminal ancestors motionless and honors reduced motion", () => {
@@ -1117,8 +1136,8 @@ describe("renderer CSS contracts", () => {
       "background: var(--ink-0)",
       "grid-template-rows: 44px minmax(0, 1fr)",
     ]);
-    expectCanonicalBase(".context-column", ["position: absolute", "pointer-events: none"]);
-    expectCanonicalBase(".context-drawer", ["display: flex", "overflow: hidden"]);
+    expectCanonicalBase(".context-column", ["grid-column: 3", "position: static", "pointer-events: none"]);
+    expectCanonicalBase(".context-drawer", ["display: grid", "overflow: hidden"]);
     expectCanonicalBase(".composer-bar", ["display: grid", "min-width: 0"]);
     expectCanonicalBase(".composer-input", ["box-sizing: border-box", "resize: none"]);
     expectCanonicalBase(".composer-send", ["display: inline-flex", "cursor: pointer"]);
@@ -1164,16 +1183,14 @@ describe("renderer CSS contracts", () => {
     expectTopLevelOwnerWithin(".terminal-tile.collapsed .terminal-viewport", ["min-height: 0"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.collapsed .xterm", ["min-height: 0"], terminalTileStart, terminalTileEnd);
 
-    const contextStart = ".context-drawer {";
+    const contextStart = ".workspace-layout.context-visible {";
     const contextEnd = ".agent-timeline-panel {\n  border-color: var(--border);";
-    expectTopLevelOwnerWithin(".context-drawer.closed", ["display: none"], contextStart, contextEnd);
-    expectTopLevelOwnerWithin(".context-drawer.open", ["display: flex"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-column.closed", ["display: none"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-column.open", ["pointer-events: auto"], contextStart, contextEnd);
     expectCanonicalBase(".workspace-layout", ["grid-template-columns: 226px minmax(0, 1fr)", "position: relative"]);
     expectTopLevelOwnerWithin(
       ".context-column",
-      ["position: absolute", "top: 12px", "right: 12px", "bottom: 12px", "width: min(336px, calc(100% - 24px))"],
+      ["grid-column: 3", "position: static", "width: auto"],
       contextStart,
       contextEnd,
     );
@@ -1303,7 +1320,7 @@ describe("renderer CSS contracts", () => {
 
     for (const [selector, expectedOccurrences] of [
       [".context-drawer-header", 1],
-      [".context-drawer .agent-timeline-panel", 2],
+      [".context-drawer .agent-timeline-panel", 1],
       [".context-drawer .agent-timeline-body", 1],
       [".context-drawer .agent-session-pulse", 1],
     ] as const) {
@@ -1594,10 +1611,7 @@ describe("renderer CSS contracts", () => {
     expect(contrastRatio(rootToken("--text-muted"), rootToken("--surface-panel"))).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(rootToken("--text-faint"), rootToken("--surface-panel"))).toBeGreaterThanOrEqual(4.0);
 
-    expect(styles.match(/(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/gi)).toEqual([
-      "backdrop-filter: blur(18px)",
-      "-webkit-backdrop-filter: blur(18px)",
-    ]);
+    expect(styles.match(/(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/gi)).toBeNull();
     expect(styles).not.toMatch(/--glass:/);
   });
 
@@ -1695,16 +1709,15 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain("--flat-");
   });
 
-  it("floats Context over the terminal scene without resizing the workbench", () => {
-    const closedLayout = singleTopLevelRuleBodyIn(styles, ".workspace-layout");
+  it("docks Context beside the terminal scene", () => {
+    const openLayout = singleTopLevelRuleBodyIn(styles, ".workspace-layout.context-visible");
     const contextColumn = singleTopLevelRuleBodyIn(styles, ".context-column");
     const contextDrawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
 
-    expect(closedLayout).toContain("grid-template-columns: 226px minmax(0, 1fr)");
-    expect(closedLayout).toContain("position: relative");
-    expect(contextColumn).toContain("position: absolute");
-    expect(contextColumn).toContain("width: min(336px, calc(100% - 24px))");
-    expect(contextDrawer).toContain("max-height: 100%");
+    expect(openLayout).toContain("grid-template-columns: 226px minmax(420px, 1fr) 318px");
+    expect(contextColumn).toContain("position: static");
+    expect(contextColumn).toContain("width: auto");
+    expect(contextDrawer).toContain("height: 100%");
     expect(styles).not.toContain(":has(.context-column.open)");
     expect(styles).not.toContain(".workspace-layout > .context-column.open");
   });
@@ -1802,15 +1815,15 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain(".inbox-section-empty");
   });
 
-  it("makes the context drawer itself scrollable instead of clipping the lower timeline", () => {
+  it("keeps the Context timeline scrollable without clipping the lower timeline", () => {
     const contextColumn = singleTopLevelRuleBodyIn(styles, ".context-column");
     const contextDrawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
-    const timelinePanel = blockFor(".context-drawer .agent-timeline-panel");
+    const timelineBody = blockFor(".context-drawer .agent-timeline-body");
 
     expect(contextColumn).toContain("display: block");
     expect(contextDrawer).toContain("overflow: hidden");
-    expect(contextDrawer).toContain("flex-direction: column");
-    expect(timelinePanel).toContain("overflow: auto");
+    expect(contextDrawer).toContain("grid-template-rows: 46px minmax(0, 1fr)");
+    expect(timelineBody).toContain("overflow-y: auto");
   });
 
   it("keeps recovery strip text from visually colliding", () => {
@@ -2045,7 +2058,7 @@ describe("renderer CSS contracts", () => {
     const handoffButton = blockFor(".agent-handoff-buttons button");
 
     expect(drawer).toContain("background: var(--ink-1)");
-    expect(drawer).toContain("background: color-mix(in oklab, var(--ink-1) 92%, transparent)");
+    expect(drawer).not.toContain("transparent");
     expect(essentials).toContain("background: var(--surface-control)");
     expect(essentialsCommand).toContain("var(--mono)");
     expect(disclosureToggle).toContain("var(--sans)");
@@ -2055,6 +2068,12 @@ describe("renderer CSS contracts", () => {
     expect(pulseTitle).toContain("color: var(--text-primary)");
     expect(pulseBody).toContain("color: var(--text-muted)");
     expect(handoffButton).toContain("background: var(--surface-control)");
+    expect(styles).toContain(".context-drawer .agent-session-pulse span {");
+    expect(styles).toContain("font: 650 13px/1.2 var(--sans)");
+    expect(styles).toContain(".context-drawer .agent-session-pulse p {");
+    expect(styles).toContain("font: 500 12px/1.45 var(--sans)");
+    expect(styles).toContain(".context-drawer .agent-handoff-buttons button,");
+    expect(styles).toContain("min-height: 32px");
     expect(styles).not.toContain(".agent-context-zone");
     expect(styles).not.toContain(".agent-section-heading");
   });

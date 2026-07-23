@@ -1407,82 +1407,102 @@ button:focus-visible {
     grid-template-columns: 46px minmax(0, 1fr);
   }
 
-  .workspace-layout.preview-visible .project-navigator {
+  .workspace-layout.context-visible,
+  .workspace-layout.context-visible:has(.project-navigator.is-collapsed) {
+    grid-template-columns: 46px minmax(420px, 1fr) 318px;
+  }
+
+  .workspace-layout.preview-visible .project-navigator,
+  .workspace-layout.context-visible .project-navigator {
     width: 46px;
   }
 
-  .workspace-layout.preview-visible .project-navigator-collapse {
+  .workspace-layout.preview-visible .project-navigator-collapse,
+  .workspace-layout.context-visible .project-navigator-collapse {
     display: none;
   }
 
-  .workspace-layout.preview-visible .project-navigator .project-navigator-header {
+  .workspace-layout.preview-visible .project-navigator .project-navigator-header,
+  .workspace-layout.context-visible .project-navigator .project-navigator-header {
     justify-content: center;
     padding-inline: 5px;
   }
 
-  .workspace-layout.preview-visible .project-navigator .project-navigator-header > strong,
-  .workspace-layout.preview-visible .project-navigator .project-row-label,
-  .workspace-layout.preview-visible .project-navigator .project-row-button kbd,
-  .workspace-layout.preview-visible .project-navigator .project-session-title,
-  .workspace-layout.preview-visible .project-navigator .project-overflow-button > span:first-child,
-  .workspace-layout.preview-visible .project-navigator .free-chat-section > header strong,
-  .workspace-layout.preview-visible .project-navigator .project-navigator-footer span {
+  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-navigator-header > strong,
+  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-row-label,
+  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-row-button kbd,
+  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-session-title,
+  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-overflow-button > span:first-child,
+  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .free-chat-section > header strong,
+  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-navigator-footer span {
     display: none;
   }
 
-  .workspace-layout.preview-visible .project-navigator .project-row {
+  .workspace-layout.preview-visible .project-navigator .project-row,
+  .workspace-layout.context-visible .project-navigator .project-row {
     display: block;
   }
 
-  .workspace-layout.preview-visible .project-navigator .project-disclosure {
+  .workspace-layout.preview-visible .project-navigator .project-disclosure,
+  .workspace-layout.context-visible .project-navigator .project-disclosure {
     width: 24px;
     height: 24px;
     margin: 0 auto 2px;
     display: flex;
   }
 
-  .workspace-layout.preview-visible .project-navigator .project-workspace-actions {
+  .workspace-layout.preview-visible .project-navigator .project-workspace-actions,
+  .workspace-layout.context-visible .project-navigator .project-workspace-actions {
     display: flex;
     justify-content: center;
     padding: 2px 0 4px;
   }
 
-  .workspace-layout.preview-visible .project-workspace-actions .workspace-popover {
+  .workspace-layout.preview-visible .project-workspace-actions .workspace-popover,
+  .workspace-layout.context-visible .project-workspace-actions .workspace-popover {
     position: fixed;
     width: min(390px, calc(100vw - 60px));
     max-height: calc(100vh - 64px);
     overflow-y: auto;
   }
 
-  .workspace-layout.preview-visible .project-navigator .project-row-button {
+  .workspace-layout.preview-visible .project-navigator .project-row-button,
+  .workspace-layout.context-visible .project-navigator .project-row-button {
     grid-template-columns: 18px auto;
     justify-content: center;
     padding-inline: 4px;
   }
 
-  .workspace-layout.preview-visible .project-navigator .project-session-list {
+  .workspace-layout.preview-visible .project-navigator .project-session-list,
+  .workspace-layout.context-visible .project-navigator .project-session-list {
     padding-left: 5px;
   }
 
-  .workspace-layout.preview-visible .project-navigator .project-session {
+  .workspace-layout.preview-visible .project-navigator .project-session,
+  .workspace-layout.context-visible .project-navigator .project-session {
     grid-template-columns: 16px;
     justify-content: center;
   }
 
-  .workspace-layout.preview-visible .project-navigator .project-overflow-button {
+  .workspace-layout.preview-visible .project-navigator .project-overflow-button,
+  .workspace-layout.context-visible .project-navigator .project-overflow-button {
     padding: 5px;
     justify-content: center;
   }
 
-  .workspace-layout.preview-visible .project-navigator .free-chat-section > header,
-  .workspace-layout.preview-visible .project-navigator .project-navigator-footer button {
+  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .free-chat-section > header,
+  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-navigator-footer button {
     justify-content: center;
   }
 
   .workspace-layout.preview-visible .project-navigator .project-row-button:hover::after,
   .workspace-layout.preview-visible .project-navigator:focus-within .project-row-button:focus-visible::after,
   .workspace-layout.preview-visible .project-navigator .project-session:hover::after,
-  .workspace-layout.preview-visible .project-navigator:focus-within .project-session:focus-visible::after {
+  .workspace-layout.preview-visible .project-navigator:focus-within .project-session:focus-visible::after,
+  .workspace-layout.context-visible .project-navigator .project-row-button:hover::after,
+  .workspace-layout.context-visible .project-navigator:focus-within .project-row-button:focus-visible::after,
+  .workspace-layout.context-visible .project-navigator .project-session:hover::after,
+  .workspace-layout.context-visible .project-navigator:focus-within .project-session:focus-visible::after {
     content: attr(data-label);
     position: fixed;
     z-index: 140;
@@ -6285,140 +6305,40 @@ body.arranging-pointer {
     0 16px 34px -30px rgba(0, 0, 0, 0.9);
 }
 
-.context-drawer {
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
-  height: auto;
-  max-height: 100%;
-  border: 1px solid color-mix(in oklab, var(--border) 70%, white 8%);
-  border-radius: 10px;
-  background: var(--ink-1);
-  background: color-mix(in oklab, var(--ink-1) 92%, transparent);
-  background-image: none;
-  box-shadow: none;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+.workspace-layout.context-visible {
+  grid-template-columns: 226px minmax(420px, 1fr) 318px;
 }
 
-@media (prefers-reduced-transparency: reduce) {
-  .context-drawer {
-    background: var(--ink-1);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
+.workspace-layout.context-visible:has(.project-navigator.is-collapsed) {
+  grid-template-columns: 46px minmax(420px, 1fr) 318px;
 }
 
-.context-drawer.closed {
-  display: none;
+.workspace-layout.surface-inbox.context-visible,
+.workspace-layout.surface-sessions.context-visible {
+  grid-template-columns: minmax(420px, 1fr) 318px;
 }
 
-.context-drawer.open {
-  display: flex;
+.workspace-layout.surface-inbox.context-visible > .orchestrator-surface,
+.workspace-layout.surface-sessions.context-visible > .orchestrator-surface {
+  grid-column: 1;
 }
 
-.context-drawer::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
-}
-
-.context-drawer::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.context-drawer::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
-}
-
-.context-drawer-header {
-  min-height: 44px;
-  border-bottom: 1px solid var(--line);
-  padding: 8px 10px;
-  background: var(--surface-panel);
-  background-image: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.context-drawer-header div {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.context-drawer-header span {
-  color: var(--text-muted);
-  font: 700 10px/1 var(--sans);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.context-drawer-header button {
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.02);
-  color: var(--text-muted);
-  display: inline-grid;
-  place-items: center;
-  cursor: pointer;
-}
-
-.context-drawer .agent-timeline-panel {
-  width: 100%;
-  min-width: 0;
-  min-height: auto;
-  max-height: none;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  display: block;
-  flex: none;
-  overflow: visible;
-  animation: none;
-}
-
-.context-drawer .agent-timeline-panel {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-}
-
-.context-drawer .agent-timeline-body {
-  overflow: visible;
-}
-
-.context-drawer .agent-session-pulse {
-  background: var(--surface-raised);
-  background-image: none;
-  box-shadow: none;
+.workspace-layout.surface-inbox.context-visible > .context-column,
+.workspace-layout.surface-sessions.context-visible > .context-column {
+  grid-column: 2;
 }
 
 .context-column {
-  grid-column: auto;
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  bottom: 12px;
-  z-index: 35;
-  width: min(336px, calc(100% - 24px));
+  grid-column: 3;
   min-width: 0;
   min-height: 0;
   display: block;
+  position: static;
+  width: auto;
+  overflow: hidden;
+  border-left: 1px solid var(--ink-3);
+  background: var(--ink-1);
   pointer-events: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 
 .context-column.closed {
@@ -6429,9 +6349,93 @@ body.arranging-pointer {
   pointer-events: auto;
 }
 
-.context-column.open .context-drawer {
+.context-drawer {
   width: 100%;
+  min-width: 0;
   min-height: 0;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: var(--ink-1);
+  box-shadow: none;
+  display: grid;
+  grid-template-rows: 46px minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.context-drawer-header {
+  min-height: 46px;
+  border-bottom: 1px solid var(--ink-3);
+  padding: 0 8px 0 14px;
+  background: color-mix(in oklab, var(--ink-1) 86%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.context-drawer-header span {
+  color: var(--ink-7);
+  font: 650 13px/1 var(--sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.context-drawer-header button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-5);
+}
+
+.context-drawer .agent-timeline-panel {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--ink-1);
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.context-drawer .agent-timeline-body {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.context-drawer .agent-session-pulse {
+  border: 0;
+  border-bottom: 1px solid var(--ink-3);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.context-drawer .agent-session-pulse span {
+  font: 650 13px/1.2 var(--sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.context-drawer .agent-session-pulse p {
+  font: 500 12px/1.45 var(--sans);
+}
+
+.context-drawer .agent-handoff-buttons button,
+.context-drawer .agent-disclosure-toggle,
+.context-drawer .agent-raw-toggle {
+  min-height: 32px;
+  font: 600 13px/1 var(--sans);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .context-drawer,
+  .context-drawer-header {
+    background: var(--ink-1);
+  }
 }
 
 .agent-timeline-panel {

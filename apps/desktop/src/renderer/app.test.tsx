@@ -3313,6 +3313,31 @@ describe("App integration", () => {
     expect(await screen.findByLabelText("Workspace preview")).toBeInTheDocument();
   });
 
+  it("keeps Preview and Context mutually exclusive without replacing xterm", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [
+      liveSnapshot("context-preview", {
+        buffer: "Ready at http://localhost:5173/\n",
+      }),
+    ]);
+    render(<App />);
+
+    const xtermHost = await screen.findByTestId("xterm-host");
+    await user.click(screen.getByRole("button", { name: "Preview" }));
+    expect(screen.getByLabelText("Workspace preview")).toBeVisible();
+
+    await selectSurface(user, "Context");
+    expect(screen.queryByLabelText("Workspace preview")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workbench-shell")).toHaveClass("context-visible");
+    expect(screen.getByRole("complementary", { name: "Session context" })).toBeVisible();
+    expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
+
+    await user.click(screen.getByRole("button", { name: "Preview" }));
+    expect(screen.getByLabelText("Workspace preview")).toBeVisible();
+    expect(screen.getByTestId("workbench-shell")).not.toHaveClass("context-visible");
+    expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
+  });
+
   it("hydrates Preview open state and width independently per workspace", async () => {
     const user = userEvent.setup();
     installDesktopBridge(
@@ -5701,8 +5726,8 @@ describe("App integration", () => {
     await user.dblClick(tile.querySelector(".tile-header")!);
     await selectSurface(user, "Context");
 
-    const pulse = screen.getByRole("region", { name: "Session pulse" });
-    expect(pulse).toHaveTextContent("needs you");
+    const pulse = screen.getByRole("region", { name: "Current state" });
+    expect(pulse).toHaveTextContent("Current state");
     expect(pulse).toHaveTextContent("Waiting for approval");
     expect(screen.queryByRole("group", { name: "Approval actions for Codex · session 1" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Send yes" })).not.toBeInTheDocument();

@@ -59,7 +59,11 @@ export function ContextColumn({
   }, [contextOpen, returnFocusRef]);
 
   return (
-    <aside className={`context-column ${contextOpen ? "open" : "closed"}`} data-testid="context-column">
+    <aside
+      aria-label="Session context"
+      className={`context-column ${contextOpen ? "open" : "closed"}`}
+      data-testid="context-column"
+    >
       <div
         className={`side-dock-stack context-drawer ${contextOpen ? "open" : "closed"}`}
         data-testid="context-drawer"
