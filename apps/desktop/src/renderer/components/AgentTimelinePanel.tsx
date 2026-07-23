@@ -316,8 +316,8 @@ export function AgentTimelinePanel({
           </form>
         )}
         {pulseCard && (
-          <section className={`agent-session-pulse tone-${pulseCard.tone}`} aria-label="Session pulse">
-            <span>{pulseCard.label}</span>
+          <section className={`agent-session-pulse tone-${pulseCard.tone}`} aria-label="Current state">
+            <span>Current state</span>
             <strong>{pulseCard.title}</strong>
             <p>{pulseCard.detail}</p>
             {pulseCard.at > 0 && (

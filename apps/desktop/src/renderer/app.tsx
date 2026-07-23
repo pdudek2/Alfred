@@ -470,6 +470,11 @@ export function App() {
     if (nextOpen) {
       contextReturnFocusRef.current = surfacesTriggerRef.current;
       contextFocusRequestKeyRef.current += 1;
+      setPreviewDockOpenByWorkspace((current) => ({
+        ...current,
+        [activeWorkspace.id]: false,
+      }));
+      persistActiveWorkspaceViewState({ previewDockOpen: false });
     }
     setContextDrawerOpenByWorkspace((current) => {
       return {
@@ -477,16 +482,21 @@ export function App() {
         [activeWorkspace.id]: nextOpen,
       };
     });
-  }, [activeContextDrawerOpen, activeWorkspace.id]);
+  }, [activeContextDrawerOpen, activeWorkspace.id, persistActiveWorkspaceViewState]);
 
   const handleOpenContextFromCommandPalette = useCallback(() => {
     contextReturnFocusRef.current = commandPaletteTriggerRef.current;
     contextFocusRequestKeyRef.current += 1;
+    setPreviewDockOpenByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: false,
+    }));
+    persistActiveWorkspaceViewState({ previewDockOpen: false });
     setContextDrawerOpenByWorkspace((current) => ({
       ...current,
       [activeWorkspace.id]: true,
     }));
-  }, [activeWorkspace.id]);
+  }, [activeWorkspace.id, persistActiveWorkspaceViewState]);
 
   const handleCloseContextDrawer = useCallback(() => {
     setContextDrawerOpenByWorkspace((current) => {
@@ -682,6 +692,12 @@ export function App() {
   const handleTogglePreviewDock = useCallback(() => {
     if (!previewVisible) return;
     const nextOpen = !activePreviewDockOpen;
+    if (nextOpen) {
+      setContextDrawerOpenByWorkspace((current) => ({
+        ...current,
+        [activeWorkspace.id]: false,
+      }));
+    }
     setPreviewDockOpenByWorkspace((current) => ({
       ...current,
       [activeWorkspace.id]: nextOpen,
@@ -2297,7 +2313,12 @@ export function App() {
         </div>
 
         <div
-          className={`workspace-layout surface-${activeSurface}${activePreviewDockOpen ? " preview-visible" : ""}`}
+          className={[
+            "workspace-layout",
+            `surface-${activeSurface}`,
+            activePreviewDockOpen ? "preview-visible" : "",
+            activeContextDrawerOpen ? "context-visible" : "",
+          ].filter(Boolean).join(" ")}
           data-testid="workbench-shell"
         >
           {activeSurface === "work" && (

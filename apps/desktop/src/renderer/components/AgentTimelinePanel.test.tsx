@@ -627,10 +627,10 @@ describe("AgentTimelinePanel", () => {
 
     render(<AgentTimelinePanel session={session} />);
 
-    const pulse = screen.getAllByRole("region", { name: "Session pulse" }).at(-1);
+    const pulse = screen.getAllByRole("region", { name: "Current state" }).at(-1);
     expect(pulse).toBeDefined();
     if (!pulse) throw new Error("Session pulse not rendered");
-    expect(within(pulse).getByText("needs you")).toBeInTheDocument();
+    expect(within(pulse).getByText("Current state")).toBeInTheDocument();
     expect(within(pulse).getByText("Waiting for approval")).toBeInTheDocument();
     expect(within(pulse).getByText("Allow edit?")).toBeInTheDocument();
   });
@@ -653,10 +653,10 @@ describe("AgentTimelinePanel", () => {
 
     render(<AgentTimelinePanel session={session} />);
 
-    const pulse = screen.getAllByRole("region", { name: "Session pulse" }).at(-1);
+    const pulse = screen.getAllByRole("region", { name: "Current state" }).at(-1);
     expect(pulse).toBeDefined();
     if (!pulse) throw new Error("Session pulse not rendered");
-    expect(within(pulse).getByText("check this")).toBeInTheDocument();
+    expect(within(pulse).getByText("Current state")).toBeInTheDocument();
     expect(within(pulse).getByText("Error reported")).toBeInTheDocument();
     expect(within(pulse).getByText("build failed")).toBeInTheDocument();
   });
@@ -677,10 +677,10 @@ describe("AgentTimelinePanel", () => {
 
     render(<AgentTimelinePanel session={session} />);
 
-    const pulse = screen.getAllByRole("region", { name: "Session pulse" }).at(-1);
+    const pulse = screen.getAllByRole("region", { name: "Current state" }).at(-1);
     expect(pulse).toBeDefined();
     if (!pulse) throw new Error("Session pulse not rendered");
-    expect(within(pulse).getByText("latest output")).toBeInTheDocument();
+    expect(within(pulse).getByText("Current state")).toBeInTheDocument();
     expect(within(pulse).getByText("Progress reported")).toBeInTheDocument();
     expect(within(pulse).getByText("✓ build passed")).toBeInTheDocument();
   });
@@ -699,10 +699,10 @@ describe("AgentTimelinePanel", () => {
 
     render(<AgentTimelinePanel session={session} />);
 
-    const pulse = screen.getAllByRole("region", { name: "Session pulse" }).at(-1);
+    const pulse = screen.getAllByRole("region", { name: "Current state" }).at(-1);
     expect(pulse).toBeDefined();
     if (!pulse) throw new Error("Session pulse not rendered");
-    expect(within(pulse).getByText("ready to launch")).toBeInTheDocument();
+    expect(within(pulse).getByText("Current state")).toBeInTheDocument();
     expect(within(pulse).getByText("Plan item staged")).toBeInTheDocument();
     expect(within(pulse).getByText("pnpm test --filter @alfred/desktop")).toBeInTheDocument();
   });
@@ -864,10 +864,10 @@ describe("AgentTimelinePanel", () => {
 
     render(<AgentTimelinePanel session={session} />);
 
-    const pulse = screen.getAllByRole("region", { name: "Session pulse" }).at(-1);
+    const pulse = screen.getAllByRole("region", { name: "Current state" }).at(-1);
     expect(pulse).toBeDefined();
     if (!pulse) throw new Error("Session pulse not rendered");
-    expect(within(pulse).getByText("needs you")).toBeInTheDocument();
+    expect(within(pulse).getByText("Current state")).toBeInTheDocument();
     expect(within(pulse).getByText("Waiting for approval")).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Session input" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Send yes" })).not.toBeInTheDocument();

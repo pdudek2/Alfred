@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionTile } from "../session-state";
 import { ContextColumn, type ContextColumnProps } from "./ContextColumn";
@@ -58,6 +58,16 @@ afterEach(() => {
 });
 
 describe("ContextColumn", () => {
+  it("exposes one adjacent Session context dock with no nested dock card", () => {
+    renderContext({ contextOpen: true });
+
+    const column = screen.getByRole("complementary", { name: "Session context" });
+    expect(column).toHaveAttribute("data-testid", "context-column");
+    expect(within(column).getByText("Context", { exact: true })).toBeVisible();
+    expect(within(column).getByRole("button", { name: "Close Context panel" })).toBeVisible();
+    expect(column.querySelectorAll(".context-drawer")).toHaveLength(1);
+  });
+
   it("closes on Escape and restores focus to the Surfaces trigger", async () => {
     const trigger = document.createElement("button");
     document.body.append(trigger);
