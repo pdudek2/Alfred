@@ -124,25 +124,43 @@ export function SessionsNavigator({
         />
       </label>
       <div className="sessions-navigator__filters">
-        <fieldset aria-label="Session source">
-          <legend className="visually-hidden">Session source</legend>
-          {([ ["all", "All"], ["managed", "Managed"], ["external-codex", "Codex"] ] as const).map(([value, label]) => (
-            <label key={value}>
-              <input type="radio" name="sessions-source" checked={state.source === value} onChange={() => onStatePatch({ source: value, pageIndex: 0 })} />
-              <span>{label}</span>
-            </label>
-          ))}
-        </fieldset>
-        <fieldset aria-label="Session time range">
-          <legend className="visually-hidden">Session time range</legend>
-          {([ ["any", "Any time"], ["day", "Day"], ["week", "Week"], ["month", "Month"] ] as const).map(([value, label]) => (
-            <label key={value}>
-              <input type="radio" name="sessions-time-range" checked={state.timeRange === value} onChange={() => onStatePatch({ timeRange: value, pageIndex: 0 })} />
-              <span>{label}</span>
-            </label>
-          ))}
-        </fieldset>
-        <button type="button" aria-label="Refresh external sessions" disabled={!externalSessionIndexingEnabled || loadingExternalSessions} onClick={onRefreshExternalSessions}>
+        <label>
+          <span className="visually-hidden">Session source</span>
+          <select
+            aria-label="Session source"
+            value={state.source}
+            onChange={(event) => onStatePatch({
+              source: event.target.value as SessionsViewState["source"],
+              pageIndex: 0,
+            })}
+          >
+            <option value="all">All sources</option>
+            <option value="managed">Managed</option>
+            <option value="external-codex">Codex</option>
+          </select>
+        </label>
+        <label>
+          <span className="visually-hidden">Session time range</span>
+          <select
+            aria-label="Session time range"
+            value={state.timeRange}
+            onChange={(event) => onStatePatch({
+              timeRange: event.target.value as SessionsViewState["timeRange"],
+              pageIndex: 0,
+            })}
+          >
+            <option value="any">Any time</option>
+            <option value="day">Day</option>
+            <option value="week">Week</option>
+            <option value="month">Month</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          aria-label="Refresh external sessions"
+          disabled={!externalSessionIndexingEnabled || loadingExternalSessions}
+          onClick={onRefreshExternalSessions}
+        >
           <RefreshCcw aria-hidden="true" size={14} />
         </button>
       </div>

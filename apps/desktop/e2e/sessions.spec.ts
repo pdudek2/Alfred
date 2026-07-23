@@ -47,9 +47,8 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
   const results = sessions.getByRole("listbox", { name: "Conversation results" });
   await expect(search).toBeFocused();
 
-  await page.getByRole("group", { name: "Session source" })
-    .getByText("Codex", { exact: true })
-    .click();
+  await page.getByRole("combobox", { name: "Session source" })
+    .selectOption("external-codex");
   await expect(results.getByRole("option")).toHaveCount(12);
   expect(await page.locator(".sessions-result").count()).toBeLessThanOrEqual(80);
 
