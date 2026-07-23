@@ -45,6 +45,10 @@ const extendedVisualProbes: CssOwnerProbe[] = [
 ];
 
 const terminalProbes: CssOwnerProbe[] = [
+  { name: "preview-split", selector: ".workspace-preview-split.open", required: false,
+    properties: ["display", "grid-template-columns", "min-width", "overflow"] },
+  { name: "preview-dock", selector: ".workspace-preview-dock", required: false,
+    properties: ["display", "width", "min-width", "overflow", "background-color"] },
   { name: "work-surface-toolbar", selector: ".work-surface-toolbar", required: true,
     properties: ["display", "height", "min-width", "overflow", "background-color"] },
   { name: "workbench-surface", selector: "[data-testid='workbench-surface']", required: true,
@@ -128,7 +132,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
   await expect(page.locator(".workspace-title-trigger strong")).toHaveText("Fixture Alpha");
   await expect(page.getByTestId("workbench-header")).toHaveClass("workbench-header");
-  await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "40");
+  await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "44");
   await recordPrivacyMaskCoverage();
 
   const firstHost = page.getByTestId("xterm-host").first();
@@ -149,7 +153,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expect(page.getByTestId("xterm-host")).toHaveCount(2);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
   await expect(page.getByTestId("workbench-header")).toHaveClass("workbench-header");
-  await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "40");
+  await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "44");
 
   await capture("work-grid", [...frameProbes, ...terminalProbes]);
 
