@@ -958,11 +958,9 @@ describe("renderer CSS contracts", () => {
     expect(reducedMotion[0]).toContain("transition-duration: 0.001ms !important");
   });
 
-  it("keeps the forced narrow navigator peekable and its toggle honest", () => {
+  it("compacts Projects at the native narrow width only when Work yields space to Preview", () => {
     for (const selector of [
-      ".workspace-layout",
       ".workspace-layout.preview-visible",
-      ".workspace-layout:has(.project-navigator.is-collapsed)",
       ".workspace-layout.preview-visible:has(.project-navigator.is-collapsed)",
     ]) {
       const layout = mediaExactRuleBodies("(max-width: 1180px)", selector);
@@ -970,21 +968,29 @@ describe("renderer CSS contracts", () => {
       expect(layout[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
     }
 
-    const forcedRail = mediaExactRuleBodies("(max-width: 1180px)", ".project-navigator");
+    const forcedRail = mediaExactRuleBodies(
+      "(max-width: 1180px)",
+      ".workspace-layout.preview-visible .project-navigator",
+    );
     expect(forcedRail).toHaveLength(1);
     expect(forcedRail[0]).toContain("width: 46px");
 
-    const hiddenToggle = mediaExactRuleBodies("(max-width: 1180px)", ".project-navigator-collapse");
+    expect(mediaExactRuleBodies("(max-width: 1180px)", ".workspace-layout")).toHaveLength(0);
+
+    const hiddenToggle = mediaExactRuleBodies(
+      "(max-width: 1180px)",
+      ".workspace-layout.preview-visible .project-navigator-collapse",
+    );
     expect(hiddenToggle).toHaveLength(1);
     expect(hiddenToggle[0]).toContain("display: none");
 
     const hoverPeek = mediaExactRuleBodies(
       "(max-width: 1180px)",
-      ".project-navigator .project-row-button:hover::after",
+      ".workspace-layout.preview-visible .project-navigator .project-row-button:hover::after",
     );
     const focusPeek = mediaExactRuleBodies(
       "(max-width: 1180px)",
-      ".project-navigator:focus-within .project-row-button:focus-visible::after",
+      ".workspace-layout.preview-visible .project-navigator:focus-within .project-row-button:focus-visible::after",
     );
     expect(hoverPeek).toHaveLength(1);
     expect(focusPeek).toHaveLength(1);
@@ -1003,7 +1009,7 @@ describe("renderer CSS contracts", () => {
 
     const forcedRailDisclosure = mediaExactRuleBodies(
       "(max-width: 1180px)",
-      ".project-navigator .project-disclosure",
+      ".workspace-layout.preview-visible .project-navigator .project-disclosure",
     );
     expect(forcedRailDisclosure).toHaveLength(1);
     expect(forcedRailDisclosure[0]).toContain("display: flex");
@@ -1020,7 +1026,7 @@ describe("renderer CSS contracts", () => {
 
     const actions = mediaExactRuleBodies(
       "(max-width: 1180px)",
-      ".project-navigator .project-workspace-actions",
+      ".workspace-layout.preview-visible .project-navigator .project-workspace-actions",
     );
     expect(actions).toHaveLength(1);
     expect(actions[0]).toContain("display: flex");
@@ -1028,7 +1034,7 @@ describe("renderer CSS contracts", () => {
 
     const popover = mediaExactRuleBodies(
       "(max-width: 1180px)",
-      ".project-workspace-actions .workspace-popover",
+      ".workspace-layout.preview-visible .project-workspace-actions .workspace-popover",
     );
     expect(popover).toHaveLength(1);
     expect(popover[0]).toContain("position: fixed");

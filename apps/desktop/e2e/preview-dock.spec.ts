@@ -51,6 +51,20 @@ test("Preview stays on demand and preserves xterm while loaded, resized, and off
 
     await previewToggle.click();
     await expect(frame).toBeVisible();
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1120, height: 720 });
+    });
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => {
+      const bounds = BrowserWindow.getAllWindows()[0]?.getBounds();
+      return bounds ? { width: bounds.width, height: bounds.height } : null;
+    })).toEqual({ width: 1120, height: 720 });
+    await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "46px");
+    await expect(xterm).toBeVisible();
+    await expect(input).toBeVisible();
+    await expectSameNode(xtermHandle, xterm);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
+      .toBeLessThanOrEqual(0);
+
     await new Promise<void>((resolve, reject) => server?.close((error) => error ? reject(error) : resolve()));
     server = null;
     const refusedRequest = page.waitForEvent("requestfailed", (request) =>
@@ -64,13 +78,6 @@ test("Preview stays on demand and preserves xterm while loaded, resized, and off
     await expectSameNode(xtermHandle, xterm);
     harness.expectConnectionRefused(url);
 
-    await app.evaluate(({ BrowserWindow }) => {
-      BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1120, height: 720 });
-    });
-    await expect.poll(() => app.evaluate(({ BrowserWindow }) => {
-      const bounds = BrowserWindow.getAllWindows()[0]?.getBounds();
-      return bounds ? { width: bounds.width, height: bounds.height } : null;
-    })).toEqual({ width: 1120, height: 720 });
     await expect(preview).toBeVisible();
     await expect(xterm).toBeVisible();
     await expect(input).toBeVisible();
