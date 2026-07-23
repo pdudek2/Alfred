@@ -2673,6 +2673,7 @@ function PrivacyPanel({
 
   const clearSavedTerminalData = async () => {
     const result = await onClearSavedTerminalData();
+    restoreClearFocusRef.current = true;
     setClearArmed(false);
     setMessage(
       result.ok
