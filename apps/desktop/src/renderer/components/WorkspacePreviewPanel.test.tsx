@@ -73,7 +73,7 @@ describe("WorkspacePreviewPanel", () => {
     };
     const { rerender } = render(<WorkspacePreviewPanel {...props} refreshKey={0} />);
 
-    expect(await screen.findByText("Preview online")).toBeInTheDocument();
+    expect(await screen.findByText("Live")).toHaveAccessibleName("Preview online");
     rerender(<WorkspacePreviewPanel {...props} refreshKey={1} />);
 
     expect(await screen.findByText("Preview is offline")).toBeInTheDocument();
@@ -127,5 +127,34 @@ describe("WorkspacePreviewPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "Close Preview" }));
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("uses a textual Preview status instead of a decorative dot", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 200 })));
+    render(
+      <WorkspacePreviewPanel
+        candidates={[{
+          id: "A:http://127.0.0.1:5173/",
+          workspaceId: "A",
+          url: "http://127.0.0.1:5173/",
+          sessionId: "dev",
+          sessionTitle: "Dev server",
+          firstSeenAt: 1,
+          lastSeenAt: 1,
+        }]}
+        refreshKey={0}
+        selectedUrl="http://127.0.0.1:5173/"
+        workspaceLabel="Alfred"
+        onClose={vi.fn()}
+        onCopyUrl={vi.fn()}
+        onOpenExternal={vi.fn()}
+        onRefresh={vi.fn()}
+        onSelectUrl={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText("Live")).toHaveClass("workspace-preview-status", "online");
+    expect(document.querySelector(".workspace-preview-status-dot")).not.toBeInTheDocument();
+    expect(screen.getByText("Live")).toHaveAttribute("aria-label", "Preview online");
   });
 });

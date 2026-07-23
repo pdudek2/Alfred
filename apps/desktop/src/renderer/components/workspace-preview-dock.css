@@ -99,7 +99,7 @@
 
 .workspace-preview-dock {
   container-type: inline-size;
-  background: color-mix(in oklab, var(--ink-1) 74%, var(--ink-0));
+  background: var(--ink-1);
 }
 
 .workspace-preview-dock .workspace-preview-panel {
@@ -118,10 +118,11 @@
 }
 
 .workspace-preview-dock .workspace-preview-header {
-  min-height: 42px;
+  min-height: 46px;
   border: 0;
-  padding: 0 7px 0 12px;
-  background: var(--ink-1);
+  border-bottom: 1px solid var(--ink-3);
+  padding: 0 8px 0 12px;
+  background: color-mix(in oklab, var(--ink-1) 84%, transparent);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -137,20 +138,18 @@
   gap: 7px;
 }
 
-.workspace-preview-status-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--ink-5);
+.workspace-preview-status {
   flex: none;
+  color: var(--ink-5);
+  font: 650 12px/1 var(--sans);
 }
 
-.workspace-preview-status-dot.online {
-  background: var(--signal-success);
+.workspace-preview-status.online {
+  color: color-mix(in oklab, var(--signal-success) 72%, var(--ink-6));
 }
 
-.workspace-preview-status-dot.offline {
-  background: var(--signal-danger);
+.workspace-preview-status.offline {
+  color: color-mix(in oklab, var(--signal-danger) 78%, var(--ink-6));
 }
 
 .workspace-preview-dock .workspace-preview-identity > strong {
@@ -305,8 +304,9 @@
   position: relative;
   min-width: 0;
   min-height: 0;
-  margin: 0 4px 4px;
-  border-radius: 7px;
+  margin: 8px;
+  border: 1px solid var(--ink-3);
+  border-radius: 8px;
   background: var(--ink-0);
   flex: 1 1 auto;
   overflow: hidden;
