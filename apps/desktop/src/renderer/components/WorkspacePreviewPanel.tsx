@@ -91,13 +91,15 @@ export function WorkspacePreviewPanel({
     >
       <header className="workspace-preview-header">
         <div className="workspace-preview-identity">
-          <span className={`workspace-preview-status-dot ${reachability}`} aria-hidden="true" />
+          <span
+            className={`workspace-preview-status ${reachability}`}
+            aria-label={reachabilityLabel(reachability)}
+          >
+            {reachabilityShortLabel(reachability)}
+          </span>
           <strong>Preview</strong>
           <span className="workspace-preview-location">
             {selected ? previewLocationLabel(selected.url) : workspaceLabel}
-          </span>
-          <span className="visually-hidden" aria-live="polite">
-            {reachabilityLabel(reachability)}
           </span>
         </div>
         <div className="workspace-preview-actions">
@@ -194,4 +196,10 @@ function reachabilityLabel(reachability: PreviewReachability): string {
   if (reachability === "online") return "Preview online";
   if (reachability === "offline") return "Preview offline";
   return "Checking Preview";
+}
+
+function reachabilityShortLabel(reachability: PreviewReachability): string {
+  if (reachability === "online") return "Live";
+  if (reachability === "offline") return "Offline";
+  return "Checking";
 }
