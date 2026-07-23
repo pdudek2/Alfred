@@ -162,6 +162,24 @@ const overlayProbes: Record<"command-palette" | "privacy", CssOwnerProbe[]> = {
       properties: ["display", "position", "inset", "padding", "background-color"] },
     { name: "privacy-panel", selector: ".privacy-panel", required: true,
       properties: ["display", "width", "max-height", "overflow", "background-color", "border-radius"] },
+    {
+      name: "privacy-body",
+      selector: ".privacy-panel-body",
+      required: true,
+      properties: ["display", "min-height", "overflow-x", "overflow-y", "padding"],
+    },
+    {
+      name: "privacy-row",
+      selector: ".privacy-control-row",
+      required: true,
+      properties: [
+        "display",
+        "min-height",
+        "border-bottom-width",
+        "border-radius",
+        "background-color",
+      ],
+    },
   ],
 };
 

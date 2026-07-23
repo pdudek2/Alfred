@@ -1567,15 +1567,7 @@ describe("renderer CSS contracts", () => {
       ".privacy-confirm-actions .danger",
     ]));
 
-    expectExactGroupedRule(
-      [".privacy-backdrop", ".discard-checkout-backdrop", ".command-palette-backdrop"],
-      ["background: rgba(0, 0, 0, 0.66)", "backdrop-filter: none"],
-    );
-    expectExactGroupedRule(
-      [".command-palette", ".privacy-panel", ".discard-checkout-dialog"],
-      ["background: var(--surface-panel)", "box-shadow: var(--shadow-panel)"],
-    );
-    expectAllTopLevelOccurrencesWithin(".privacy-backdrop", privacyRegions, 2);
+    expectAllTopLevelOccurrencesWithin(".privacy-backdrop", privacyRegions, 1);
     expectAllTopLevelOccurrencesWithin(".command-palette-backdrop", commandPaletteRegions, 1);
   });
 
@@ -1611,7 +1603,11 @@ describe("renderer CSS contracts", () => {
     expect(contrastRatio(rootToken("--text-muted"), rootToken("--surface-panel"))).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(rootToken("--text-faint"), rootToken("--surface-panel"))).toBeGreaterThanOrEqual(4.0);
 
-    expect(styles.match(/(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/gi)).toBeNull();
+    const blurredRules = allRulesIn(styles).filter((rule) =>
+      /(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/i.test(rule.body),
+    );
+    expect(blurredRules).toHaveLength(1);
+    expect(blurredRules[0]?.selectors).toEqual([".privacy-backdrop"]);
     expect(styles).not.toMatch(/--glass:/);
   });
 
@@ -1939,15 +1935,32 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps overlay surfaces flat instead of glassy", () => {
-    const overlayBackdrop = blockFor(".privacy-backdrop,\n.discard-checkout-backdrop,\n.command-palette-backdrop");
-    const commandPalette = blockFor(
-      ".command-palette,\n.privacy-panel,\n.discard-checkout-dialog",
-    );
+    const overlayBackdrop = blockFor(".discard-checkout-backdrop,\n.command-palette-backdrop");
+    const commandPalette = blockFor(".command-palette,\n.discard-checkout-dialog");
 
     expect(overlayBackdrop).toContain("backdrop-filter: none");
     expect(overlayBackdrop).toContain("background-image: none");
     expect(commandPalette).toContain("background: var(--surface-panel)");
     expect(commandPalette).toContain("background-image: none");
+  });
+
+  it("keeps Privacy as one flat settings list", () => {
+    const panel = singleTopLevelRuleBodyIn(styles, ".privacy-panel");
+    const body = singleTopLevelRuleBodyIn(styles, ".privacy-panel-body");
+    const rows = blockFor(".privacy-control-row,\n.privacy-action-row");
+
+    expect(panel).toContain("width: min(640px, calc(100vw - 88px))");
+    expect(body).toContain("overflow: auto");
+    expect(rows).toContain("border-bottom: 1px solid var(--ink-3)");
+    expect(rows).toContain("border-radius: 0");
+    expect(rows).toContain("background: transparent");
+    const privacyRuleBodies = allRulesIn(styles)
+      .filter((rule) => rule.selectors.some((selector) =>
+        selector.startsWith(".privacy-"),
+      ))
+      .map((rule) => rule.body)
+      .join("\n");
+    expect(privacyRuleBodies).not.toContain("font-family: var(--mono)");
   });
 
   it("keeps the Work chrome quiet and command-like", () => {
@@ -2111,12 +2124,8 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps overlays opaque and tactical instead of glassy", () => {
-    const primaryOverlayBackdrop = blockFor(
-      ".privacy-backdrop,\n.discard-checkout-backdrop,\n.command-palette-backdrop",
-    );
-    const overlayPanels = blockFor(
-      ".command-palette,\n.privacy-panel,\n.discard-checkout-dialog",
-    );
+    const primaryOverlayBackdrop = blockFor(".discard-checkout-backdrop,\n.command-palette-backdrop");
+    const overlayPanels = blockFor(".command-palette,\n.discard-checkout-dialog");
     const activePaletteRow = blockFor(
       ".command-palette-list button:hover,\n.command-palette-list button:focus-visible,\n.command-palette-list button.active",
     );
