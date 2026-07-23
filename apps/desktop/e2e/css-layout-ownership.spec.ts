@@ -82,8 +82,12 @@ const prepareWorkProbes: CssOwnerProbe[] = [
 const inboxProbes: CssOwnerProbe[] = [
   { name: "inbox", selector: ".inbox-docket", required: true,
     properties: ["display", "min-height", "overflow", "background-color"] },
+  { name: "inbox-toolbar", selector: ".inbox-docket__toolbar", required: true,
+    properties: ["display", "height", "min-height", "padding", "background-color"] },
   { name: "inbox-scroll-owner", selector: ".inbox-docket__canvas", required: true,
     properties: ["display", "min-height", "overflow-x", "overflow-y", "padding", "max-width"] },
+  { name: "inbox-list", selector: ".inbox-docket__list", required: true,
+    properties: ["border-width", "border-radius", "background-color", "overflow"] },
   { name: "inbox-detail", selector: ".inbox-docket__detail-grid", required: true,
     properties: ["display", "grid-template-columns", "min-width", "overflow"] },
 ];
@@ -260,7 +264,22 @@ test("captures deterministic CSS ownership evidence across core states and overl
     narrowInboxEvidence.documentOverflowX,
     "Narrow Inbox must not create horizontal document overflow",
   ).toBeLessThanOrEqual(0);
-  await page.getByRole("navigation", { name: "Primary surfaces" }).getByRole("button", { name: "Work" }).click();
+  await expect(page.getByRole("navigation", {
+    name: "Projects and Free Chats",
+  })).toHaveCount(0);
+  await expect(page.locator(".inbox-docket__statusbar")).toHaveCount(0);
+  await expect(page.locator(".inbox-docket__toolbar")).toHaveCSS("height", "52px");
+  await expect(page.locator(".inbox-docket__list")).toHaveCSS("border-radius", "0px");
+
+  const frequentControls = [
+    page.getByRole("button", { name: "Back to Work" }),
+    page.locator(".inbox-docket__primary"),
+  ];
+  for (const control of frequentControls) {
+    expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
+  }
+
+  await page.getByRole("button", { name: "Back to Work" }).click();
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
 
   await setWindowSize(app, page, 1440, 920);
