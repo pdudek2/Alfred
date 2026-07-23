@@ -2645,7 +2645,7 @@ function PrivacyPanel({
   const keepDataButtonRef = useRef<HTMLButtonElement | null>(null);
   const restoreClearFocusRef = useRef(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     closeButtonRef.current?.focus();
   }, []);
 
