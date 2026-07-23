@@ -103,6 +103,7 @@ export function ReviewSurface({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.target instanceof Element && event.target.closest(".inbox-docket__toolbar")) return;
     if (!selectedItem) return;
     if (event.key === "Enter") {
       event.preventDefault();
