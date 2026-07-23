@@ -5,7 +5,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   getDesktopAlfredApi,
   getDesktopLayoutApi,
@@ -225,6 +225,7 @@ export function App() {
   const prepareWorkTriggerRef = useRef<HTMLButtonElement | null>(null);
   const previewTriggerRef = useRef<HTMLButtonElement | null>(null);
   const surfacesTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const privacyReturnFocusRef = useRef<HTMLElement | null>(null);
   const workReturnFocusRef = useRef<HTMLElement | null>(null);
   const workReturnFocusLabelRef = useRef<string | null>(null);
   const restoreWorkFocusPendingRef = useRef(false);
@@ -1627,13 +1628,24 @@ export function App() {
   }, []);
 
   const handleOpenPrivacyPanel = useCallback(() => {
+    privacyReturnFocusRef.current = commandPaletteOpen
+      ? commandPaletteTriggerRef.current
+      : document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : surfacesTriggerRef.current;
     setCommandPaletteOpen(false);
     setCommandQuery("");
     setPrivacyPanelOpen(true);
-  }, []);
+  }, [commandPaletteOpen]);
 
   const handleClosePrivacyPanel = useCallback(() => {
     setPrivacyPanelOpen(false);
+    requestAnimationFrame(() => {
+      const target = privacyReturnFocusRef.current;
+      if (target?.isConnected) target.focus();
+      else surfacesTriggerRef.current?.focus();
+      privacyReturnFocusRef.current = null;
+    });
   }, []);
 
   const handleCloseCommandPalette = useCallback(() => {
@@ -2483,7 +2495,7 @@ export function App() {
                   terminalApi={getDesktopTerminalApi()}
                   workspaces={workspaces}
                   onBackToWork={handleExitSessionsToWork}
-                  onOpenPrivacySettings={() => setPrivacyPanelOpen(true)}
+                  onOpenPrivacySettings={handleOpenPrivacyPanel}
                   onPrimaryAction={handleSessionsPrimaryAction}
                   onRefreshExternalSessions={() => void handleRefreshExternalCodexSessions(sessionsViewState.query)}
                   onStateChange={setSessionsViewState}
@@ -2627,6 +2639,12 @@ function PrivacyPanel({
 }) {
   const [clearArmed, setClearArmed] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    closeButtonRef.current?.focus();
+  }, []);
 
   const updateRetention = (terminalScrollbackRetention: DesktopPrivacySettings["terminalScrollbackRetention"]) => {
     setMessage(null);
@@ -2656,32 +2674,55 @@ function PrivacyPanel({
     setMessage(result.ok ? "Local state file revealed." : result.error);
   };
 
+  const handleDialogKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const controls = [...(panelRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ) ?? [])];
+    if (controls.length === 0) return;
+    const first = controls[0]!;
+    const last = controls[controls.length - 1]!;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   return (
     <div className="privacy-backdrop" role="presentation" onMouseDown={onClose}>
       <div
+        ref={panelRef}
         className="privacy-panel"
         role="dialog"
         aria-modal="true"
         aria-label="Local Data & Privacy"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") onClose();
-        }}
+        onKeyDown={handleDialogKeyDown}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="privacy-panel-header">
           <div>
-            <span>Local controls</span>
             <strong>Local Data & Privacy</strong>
-            <small>Saved terminal data and external Codex indexing</small>
+            <small>
+              Control what Alfred keeps on this Mac and which local Codex sessions appear in Sessions.
+            </small>
           </div>
-          <button type="button" className="privacy-panel-close" onClick={onClose} aria-label="Close privacy controls">
+          <button ref={closeButtonRef} type="button" className="privacy-panel-close" onClick={onClose} aria-label="Close privacy controls">
             <X size={15} />
           </button>
         </header>
         <div className="privacy-panel-body">
           <section className="privacy-control-row">
             <div>
-              <strong>Terminal scrollback retention</strong>
+              <strong>Terminal scrollback</strong>
               <span>{settings.terminalScrollbackRetention === "off" ? "Saved terminal buffers are disabled." : "Only a redacted 80k tail is saved."}</span>
             </div>
             <div className="privacy-segmented" role="group" aria-label="Terminal scrollback retention">
@@ -2712,9 +2753,12 @@ function PrivacyPanel({
             <label className="privacy-toggle">
               <input
                 type="checkbox"
+                role="switch"
+                aria-label="External Codex indexing"
                 checked={settings.externalSessionIndexingEnabled}
                 onChange={updateExternalIndexing}
               />
+              <span className="privacy-toggle-track" aria-hidden="true" />
               <span>{settings.externalSessionIndexingEnabled ? "On" : "Off"}</span>
             </label>
           </section>
@@ -2722,22 +2766,24 @@ function PrivacyPanel({
           <section className="privacy-action-row">
             <div>
               <strong>Saved transcripts</strong>
-              <span>Clear Alfred's persisted terminal buffers and activity previews.</span>
+              <span>
+                Clear Alfred&apos;s persisted terminal buffers and activity previews.
+                This can&apos;t be undone.
+              </span>
             </div>
             {clearArmed ? (
               <div className="privacy-confirm-actions">
                 <button type="button" onClick={() => setClearArmed(false)}>
-                  Cancel
+                  Keep data
                 </button>
                 <button type="button" className="danger" onClick={() => void clearSavedTerminalData()}>
-                  <Trash2 size={14} />
-                  <span>Confirm clear</span>
+                  Clear saved transcripts
                 </button>
               </div>
             ) : (
               <button type="button" className="privacy-action-button danger" onClick={() => setClearArmed(true)}>
                 <Trash2 size={14} />
-                <span>Clear saved transcripts</span>
+                <span>Clear saved transcripts…</span>
               </button>
             )}
           </section>
@@ -2749,7 +2795,7 @@ function PrivacyPanel({
             </div>
             <button type="button" className="privacy-action-button" onClick={() => void revealStateFile()}>
               <Eye size={14} />
-              <span>Reveal local state file</span>
+              <span>Reveal in Finder</span>
             </button>
           </section>
 

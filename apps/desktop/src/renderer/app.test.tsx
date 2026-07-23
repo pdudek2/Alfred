@@ -970,7 +970,16 @@ describe("App integration", () => {
     await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
 
     const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
-    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).queryByText("Local controls")).not.toBeInTheDocument();
+    expect(within(dialog).getByText(
+      "Control what Alfred keeps on this Mac and which local Codex sessions appear in Sessions.",
+    )).toBeVisible();
+    expect(within(dialog).getByRole("switch", {
+      name: "External Codex indexing",
+    })).toBeChecked();
+    expect(within(dialog).getByRole("button", {
+      name: "Close privacy controls",
+    })).toHaveFocus();
 
     await user.click(within(dialog).getByRole("button", { name: "Off" }));
     await waitFor(() => {
@@ -980,7 +989,7 @@ describe("App integration", () => {
       });
     });
 
-    await user.click(within(dialog).getByRole("checkbox", { name: /On/i }));
+    await user.click(within(dialog).getByRole("switch", { name: "External Codex indexing" }));
     await waitFor(() => {
       expect(updatePrivacySettings).toHaveBeenCalledWith({
         terminalScrollbackRetention: "off",
@@ -988,14 +997,40 @@ describe("App integration", () => {
       });
     });
 
+    expect(within(dialog).getByText(/This can't be undone\./)).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "Clear saved transcripts…" }));
+    expect(within(dialog).getByRole("button", { name: "Keep data" })).toBeVisible();
     await user.click(within(dialog).getByRole("button", { name: "Clear saved transcripts" }));
-    await user.click(within(dialog).getByRole("button", { name: "Confirm clear" }));
     await waitFor(() => {
       expect(clearSavedTerminalData).toHaveBeenCalledTimes(1);
     });
 
-    await user.click(within(dialog).getByRole("button", { name: "Reveal local state file" }));
+    await user.click(within(dialog).getByRole("button", { name: "Reveal in Finder" }));
     expect(revealStateFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("traps Privacy focus and restores its surviving trigger", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+    render(<App />);
+
+    const surfaces = screen.getByRole("button", { name: "Open Surfaces menu" });
+    await user.click(surfaces);
+    await user.click(screen.getByRole("menuitem", {
+      name: "Local Data & Privacy",
+    }));
+
+    const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
+    const close = within(dialog).getByRole("button", {
+      name: "Close privacy controls",
+    });
+    await waitFor(() => expect(close).toHaveFocus());
+
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    await user.keyboard("{Escape}");
+    expect(dialog).not.toBeInTheDocument();
+    expect(surfaces).toHaveFocus();
   });
 
   it("does not refresh external Codex sessions when indexing is disabled", async () => {
@@ -1047,7 +1082,7 @@ describe("App integration", () => {
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
-    await user.click(screen.getByRole("checkbox", { name: /On/i }));
+    await user.click(screen.getByRole("switch", { name: "External Codex indexing" }));
 
     await waitFor(() => expect(clearSessionsCaches).toHaveBeenCalledOnce());
   });
@@ -1087,7 +1122,7 @@ describe("App integration", () => {
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
-    await user.click(screen.getByRole("checkbox", { name: /On/i }));
+    await user.click(screen.getByRole("switch", { name: "External Codex indexing" }));
 
     await act(async () => {
       pending.resolve({
@@ -6686,7 +6721,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
   });
 
-  it("lets Privacy consume Escape over Inbox without forcing focus into the dialog", async () => {
+  it("lets Privacy consume Escape over Inbox and restore the surviving trigger", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
 
@@ -6695,13 +6730,15 @@ describe("App integration", () => {
     const inbox = screen.getByRole("region", { name: "Inbox workspace" });
 
     await selectSurface(user, "Local Data & Privacy");
-    expect(screen.getByRole("dialog", { name: "Local Data & Privacy" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open Surfaces menu" })).toHaveFocus();
+    const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
+    const surfaces = screen.getByRole("button", { name: "Open Surfaces menu" });
+    expect(within(dialog).getByRole("button", { name: "Close privacy controls" })).toHaveFocus();
 
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("dialog", { name: "Local Data & Privacy" })).not.toBeInTheDocument();
     expect(inbox).toBeVisible();
+    expect(surfaces).toHaveFocus();
   });
 
   it("keeps Recovery non-blocking and exposes Discard only after expansion", async () => {
