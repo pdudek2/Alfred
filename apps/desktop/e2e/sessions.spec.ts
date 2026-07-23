@@ -76,11 +76,6 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
   await expect(page.getByRole("button", { name: "Load more transcript" })).toHaveCount(0);
   const transcriptBlockCount = await transcriptBlocks.count();
   expect(transcriptBlockCount).toBe(6);
-  await page.getByRole("button", { name: "Run details" }).click();
-  const runDetails = page.getByRole("dialog", { name: "Run details" });
-  await expect(runDetails).toBeVisible();
-  await expect(runDetails).toContainText("External Codex");
-  await runDetails.getByRole("button", { name: "Close Run details" }).click();
 
   const privacyEvidence = await page.evaluate(async ({ workspaceA, workspaceB }) => {
     const api = (window as DesktopSessionsWindow).alfredDesktop?.sessions;
@@ -116,14 +111,31 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
 
   const geometryEvidence = [];
   for (const viewport of [
-    { width: 1280, height: 720 },
-    { width: 1120, height: 720 },
+    { width: 1440, height: 900, detailsMode: "side" as const },
+    { width: 1120, height: 720, detailsMode: "replacement" as const },
   ]) {
     await setWindowSize(app, page, viewport.width, viewport.height);
+    const trigger = page.getByRole("button", { name: "Run details" });
+    await trigger.click();
+    const runDetails = page.getByRole("complementary", { name: "Run details" });
+    await expect(runDetails).toBeVisible();
+    await expect(runDetails).toContainText("External Codex");
+    await expect(page.getByRole("dialog", { name: "Run details" })).toHaveCount(0);
+    await expect(page.locator(".sessions-run-details__backdrop")).toHaveCount(0);
+
     geometryEvidence.push({
       viewport,
       ...(await assertSessionsGeometry(page, `${viewport.width}x${viewport.height}`)),
+      runDetails: await assertRunDetailsGeometry(
+        page,
+        `${viewport.width}x${viewport.height}`,
+        viewport.detailsMode,
+      ),
     });
+
+    await runDetails.getByRole("button", { name: "Close Run details" }).click();
+    await expect(runDetails).toHaveCount(0);
+    await expect(trigger).toBeFocused();
   }
 
   const backgroundMarker = `${marker}_SESSIONS_BACKGROUND`;
@@ -262,5 +274,43 @@ async function assertSessionsGeometry(page: Page, label: string) {
   expect(evidence.readerOwners, `${label}: reader scroll owners`).toEqual(["auto"]);
   expect(evidence.surfaceOffsetLeft, `${label}: Sessions surface left edge`).toBeLessThanOrEqual(1);
   expect(evidence.surfaceWidthDelta, `${label}: Sessions surface width`).toBeLessThanOrEqual(1);
+  return evidence;
+}
+
+async function assertRunDetailsGeometry(
+  page: Page,
+  label: string,
+  expectedMode: "side" | "replacement",
+) {
+  const evidence = await page.evaluate(() => {
+    const body = document.querySelector<HTMLElement>(".sessions-reader__body");
+    const reader = document.querySelector<HTMLElement>(".sessions-reader__scroll");
+    const details = document.querySelector<HTMLElement>(".sessions-run-details");
+    const detailsRect = details?.getBoundingClientRect();
+    return {
+      bodyColumns: body ? getComputedStyle(body).gridTemplateColumns : "",
+      detailsBorderLeft: details ? getComputedStyle(details).borderLeftWidth : "",
+      detailsWidth: detailsRect?.width ?? 0,
+      readerDisplay: reader ? getComputedStyle(reader).display : "",
+      readerVisible: reader ? reader.getClientRects().length > 0 : false,
+      detailsVisible: details ? details.getClientRects().length > 0 : false,
+      hasBackdrop: Boolean(document.querySelector(".sessions-run-details__backdrop")),
+    };
+  });
+
+  expect(evidence.detailsVisible, `${label}: Run details visible`).toBe(true);
+  expect(evidence.hasBackdrop, `${label}: no modal backdrop`).toBe(false);
+  if (expectedMode === "side") {
+    expect(evidence.readerVisible, `${label}: Reader remains visible`).toBe(true);
+    expect(evidence.readerDisplay, `${label}: Reader display`).not.toBe("none");
+    expect(evidence.detailsWidth, `${label}: inspector width`).toBeGreaterThanOrEqual(278);
+    expect(evidence.detailsWidth, `${label}: inspector width`).toBeLessThanOrEqual(282);
+    expect(evidence.detailsBorderLeft, `${label}: inspector divider`).toBe("1px");
+  } else {
+    expect(evidence.readerVisible, `${label}: Reader is replaced`).toBe(false);
+    expect(evidence.readerDisplay, `${label}: Reader display`).toBe("none");
+    expect(evidence.bodyColumns.trim().split(/\s+/), `${label}: one body column`).toHaveLength(1);
+    expect(evidence.detailsBorderLeft, `${label}: no redundant divider`).toBe("0px");
+  }
   return evidence;
 }

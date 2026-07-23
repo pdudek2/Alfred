@@ -97,8 +97,30 @@ const sessionsProbes: CssOwnerProbe[] = [
     properties: ["min-height", "overflow-x", "overflow-y", "background-color"] },
   { name: "sessions-reader", selector: ".sessions-reader", required: true,
     properties: ["display", "grid-template-rows", "min-width", "min-height", "overflow", "background-color"] },
+  {
+    name: "sessions-reader-body",
+    selector: ".sessions-reader__body",
+    required: true,
+    properties: ["display", "grid-template-columns", "min-width", "min-height", "overflow"],
+  },
   { name: "sessions-reader-scroll", selector: ".sessions-reader__scroll", required: true,
     properties: ["min-height", "overflow-x", "overflow-y", "background-color"] },
+  {
+    name: "sessions-run-details",
+    selector: ".sessions-run-details",
+    required: false,
+    properties: [
+      "display",
+      "width",
+      "min-width",
+      "overflow-x",
+      "overflow-y",
+      "background-color",
+      "border-left-width",
+      "border-radius",
+      "box-shadow",
+    ],
+  },
 ];
 
 const overlayProbes: Record<"command-palette" | "privacy", CssOwnerProbe[]> = {
