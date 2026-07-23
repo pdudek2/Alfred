@@ -105,8 +105,14 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   const surfacesTrigger = page.getByRole("button", { name: "Open Surfaces menu" });
   await openContext(page);
   const gridAfterContext = await terminalGridRect(page);
-  expect(Math.abs(gridAfterContext.width - gridBeforeContext.width)).toBeLessThanOrEqual(1);
+  const contextWidth = await page.getByTestId("context-column").evaluate(
+    (node) => node.getBoundingClientRect().width,
+  );
+  expect(gridBeforeContext.width - gridAfterContext.width).toBe(318);
+  expect(gridAfterContext.width).toBeGreaterThanOrEqual(420);
+  expect(contextWidth).toBe(318);
   expect(Math.abs(gridAfterContext.height - gridBeforeContext.height)).toBeLessThanOrEqual(1);
+  expect(await isSameConnectedNode(before, alphaScreen)).toBe(true);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "true");
   await expect(surfacesTrigger).toBeFocused();
