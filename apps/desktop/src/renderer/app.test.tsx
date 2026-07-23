@@ -882,16 +882,26 @@ describe("App integration", () => {
     expect(screen.queryByText("Search sessions, chats, files")).not.toBeInTheDocument();
   });
 
-  it("keeps the project navigator in Inbox but replaces it with the Sessions navigator on Sessions", async () => {
+  it("removes the Work project navigator from global Inbox and Sessions", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
 
-    const navigator = await screen.findByRole("navigation", { name: "Projects and Free Chats" });
+    expect(await screen.findByRole("navigation", {
+      name: "Projects and Free Chats",
+    })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /open inbox surface/i }));
     expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-inbox");
-    expect(screen.getByRole("navigation", { name: "Projects and Free Chats" })).toBe(navigator);
+    expect(screen.queryByRole("navigation", {
+      name: "Projects and Free Chats",
+    })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back to Work" })).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Back to Work" }));
+    expect(screen.getByRole("navigation", {
+      name: "Projects and Free Chats",
+    })).toBeInTheDocument();
 
     await selectSurface(user, "Sessions");
     expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-sessions");
@@ -5106,8 +5116,7 @@ describe("App integration", () => {
     const terminalFocus = vi.fn();
     terminalHost.addEventListener("focusin", terminalFocus);
 
-    const statusAction = screen.getByTestId("inbox-status-action");
-    expect(statusAction).toHaveTextContent("Open in Work");
+    expect(screen.getByRole("button", { name: "Open in Work Waiting agent in Alfred" })).toBeVisible();
     expect(screen.getByTestId("inbox-decision-select-A:WAITING")).toHaveFocus();
     await user.keyboard("{Enter}");
 
@@ -5158,8 +5167,6 @@ describe("App integration", () => {
     const inbox = screen.getByRole("region", { name: "Inbox workspace" });
     await user.click(within(inbox).getByRole("button", { name: "Launch Client task in ClientApp" }));
 
-    expect(screen.getByRole("tab", { name: /Alfred workspace/i })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: /ClientApp workspace/i })).toHaveAttribute("aria-selected", "false");
     expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
@@ -6494,7 +6501,7 @@ describe("App integration", () => {
   });
 
   it.each(["Work", "Sessions"] as const)(
-    "disarms unsafe Recovery before the Inbox switcher can open %s",
+    "disarms unsafe Recovery before global navigation can open %s",
     async (surfaceLabel) => {
       const user = userEvent.setup();
       const { createTerminal } = installDesktopBridge(
@@ -6530,8 +6537,14 @@ describe("App integration", () => {
         name: `Confirm relaunch Unsafe ${surfaceLabel} switch in Alfred`,
       })).toBeInTheDocument();
 
-      const switcherButton = within(inbox).getByRole("button", { name: surfaceLabel });
-      await user.click(switcherButton);
+      const leaveInbox = async () => {
+        if (surfaceLabel === "Work") {
+          await user.click(within(inbox).getByRole("button", { name: "Back to Work" }));
+        } else {
+          await selectSurface(user, "Sessions");
+        }
+      };
+      await leaveInbox();
 
       expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
       expect(within(inbox).getByRole("button", {
@@ -6539,7 +6552,7 @@ describe("App integration", () => {
       })).toBeInTheDocument();
       expect(createTerminal).not.toHaveBeenCalled();
 
-      await user.click(switcherButton);
+      await leaveInbox();
 
       if (surfaceLabel === "Work") {
         expect(screen.getByTestId("desk-runtime-surface")).not.toHaveAttribute("aria-hidden");
@@ -6646,50 +6659,6 @@ describe("App integration", () => {
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
-  });
-
-  it("lets workspace actions consume Escape over Inbox when focus remains on its trigger", async () => {
-    const user = userEvent.setup();
-    const { createTerminal } = installDesktopBridge(
-      undefined,
-      null,
-      [],
-      undefined,
-      undefined,
-      undefined,
-      [
-        {
-          clientId: "workspace-overlay-recovery",
-          title: "Workspace overlay recovery",
-          cwd: "/repo",
-          source: "manual",
-          isolation: "shared",
-          shell: "/bin/sh",
-          command: "/bin/sh",
-          args: ["-c", "/usr/bin/printf 'confirmed restore\\n'"],
-          buffer: "saved output\n",
-        },
-      ],
-    );
-
-    render(<App />);
-    await openInboxFromCommandPalette(user);
-    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    await user.click(within(inbox).getByRole("button", { name: "Recovery · 1 saved session" }));
-    await user.click(within(inbox).getByRole("button", { name: "Review relaunch Workspace overlay recovery in Alfred" }));
-    expect(within(inbox).getByRole("button", { name: "Confirm relaunch Workspace overlay recovery in Alfred" })).toBeInTheDocument();
-
-    const workspaceMenuTrigger = screen.getByRole("button", { name: "Workspace menu for Alfred" });
-    await user.click(workspaceMenuTrigger);
-    expect(screen.getByRole("dialog", { name: "Workspace actions" })).toBeInTheDocument();
-    expect(workspaceMenuTrigger).toHaveFocus();
-
-    await user.keyboard("{Escape}");
-
-    expect(screen.queryByRole("dialog", { name: "Workspace actions" })).not.toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
-    expect(within(inbox).getByRole("button", { name: "Confirm relaunch Workspace overlay recovery in Alfred" })).toBeInTheDocument();
-    expect(createTerminal).not.toHaveBeenCalled();
   });
 
   it("lets Privacy consume Escape over Inbox without forcing focus into the dialog", async () => {

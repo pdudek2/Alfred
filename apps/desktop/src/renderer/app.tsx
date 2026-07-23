@@ -1511,8 +1511,13 @@ export function App() {
   }, [activeSurface, armedRecoverySessionIds]);
 
   const handleExitInboxToWork = useCallback(() => {
-    handleSelectPrimarySurface("work");
-  }, [handleSelectPrimarySurface]);
+    if (armedRecoverySessionIds.size > 0) {
+      setArmedRecoverySessionIds(new Set());
+      return;
+    }
+    restoreWorkFocusPendingRef.current = true;
+    setActiveSurface("work");
+  }, [armedRecoverySessionIds]);
 
   const handleExitSessionsToWork = useCallback(() => {
     if (armedRecoverySessionIds.size > 0) {
@@ -2295,7 +2300,7 @@ export function App() {
           className={`workspace-layout surface-${activeSurface}${activePreviewDockOpen ? " preview-visible" : ""}`}
           data-testid="workbench-shell"
         >
-          {activeSurface !== "sessions" && (
+          {activeSurface === "work" && (
             <ProjectNavigator
               activeSessionId={activeSelectedSessionId}
               activeWorkspaceId={activeWorkspace.id}
@@ -2430,7 +2435,7 @@ export function App() {
                   onOpenInWork={handleFocusSessionInWorkspace}
                   onRecover={handleRecoverInboxItem}
                   onReviewEdit={handleReviewBlockedSession}
-                  onSelectSurface={handleSelectPrimarySurface}
+                  onBackToWork={handleExitInboxToWork}
                 />
               </div>
             )}

@@ -1,10 +1,9 @@
-import { useCallback, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
+import { ChevronLeft } from "lucide-react";
+import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { AttentionProjection } from "../attention-projection";
 import type { SessionTile } from "../session-state";
-import { InboxDecisionItem, attentionActionLabel } from "./InboxDecisionItem";
-import { InboxRecoveryList, recoveryActionLabel } from "./InboxRecoveryList";
-import { SurfaceSwitcher } from "./SurfaceSwitcher";
-import type { PrimarySurface } from "./WorkbenchHeader";
+import { InboxDecisionItem } from "./InboxDecisionItem";
+import { InboxRecoveryList } from "./InboxRecoveryList";
 
 type ReviewSurfaceProps = {
   attentionItems: AttentionProjection[];
@@ -15,7 +14,7 @@ type ReviewSurfaceProps = {
   onRecover: (workspaceId: string, sessionId: string) => void;
   onDiscardRecovery: (sessionId: string) => void;
   onReviewEdit: (workspaceId: string, sessionId: string) => void;
-  onSelectSurface: (surface: PrimarySurface) => void;
+  onBackToWork: () => void;
 };
 
 export function ReviewSurface({
@@ -27,25 +26,17 @@ export function ReviewSurface({
   onRecover,
   onDiscardRecovery,
   onReviewEdit,
-  onSelectSurface,
+  onBackToWork,
 }: ReviewSurfaceProps) {
   const decisions = attentionItems.filter((item) => item.section === "needs-you");
   const recoveryItems = attentionItems.filter((item) => item.section === "recovery");
   const [selectedAttentionId, setSelectedAttentionId] = useState(
     () => decisions[0]?.id ?? null,
   );
-  const [focusedPrimaryActionLabel, setFocusedPrimaryActionLabel] = useState<string | null>(null);
-  const [focusedRecoverySessionId, setFocusedRecoverySessionId] = useState<string | null>(null);
   const previousDecisionsRef = useRef(decisions);
   const surfaceRef = useRef<HTMLElement | null>(null);
   const selectedIndex = decisions.findIndex((item) => item.id === selectedAttentionId);
   const selectedItem = selectedIndex >= 0 ? decisions[selectedIndex] ?? null : null;
-  const focusedRecoveryItem = focusedRecoverySessionId
-    ? recoveryItems.find((item) => item.sessionId === focusedRecoverySessionId) ?? null
-    : null;
-  const statusActionLabel = focusedRecoveryItem
-    ? recoveryActionLabel(focusedRecoveryItem, armedRecoverySessionIds.has(focusedRecoveryItem.sessionId))
-    : focusedPrimaryActionLabel ?? (selectedItem ? attentionActionLabel(selectedItem) : null);
 
   const runPrimaryAction = useCallback((item: AttentionProjection) => {
     const action = item.action;
@@ -112,7 +103,6 @@ export function ReviewSurface({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.target instanceof Element && event.target.closest(".surface-switcher")) return;
     if (!selectedItem) return;
     if (event.key === "Enter") {
       event.preventDefault();
@@ -130,32 +120,32 @@ export function ReviewSurface({
     moveSelection(nextIndex);
   };
 
-  const handleFocusCapture = (event: FocusEvent<HTMLElement>) => {
-    const actionOwner = event.target instanceof Element
-      ? event.target.closest<HTMLElement>("[data-inbox-primary-action]")
-      : null;
-    const nextLabel = actionOwner?.dataset.inboxPrimaryAction ?? null;
-    const nextRecoverySessionId = actionOwner?.dataset.inboxRecoverySessionId ?? null;
-    if (nextLabel !== focusedPrimaryActionLabel) setFocusedPrimaryActionLabel(nextLabel);
-    if (nextRecoverySessionId !== focusedRecoverySessionId) setFocusedRecoverySessionId(nextRecoverySessionId);
-  };
-
   return (
     <section
       ref={surfaceRef}
       className="inbox-docket"
       aria-label="Inbox workspace"
-      data-secondary-chrome-height="36"
-      onFocusCapture={handleFocusCapture}
+      data-secondary-chrome-height="52"
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >
-      <div className="inbox-docket__chrome">
-        <SurfaceSwitcher activeSurface="inbox" onSelectSurface={onSelectSurface} />
+      <header className="inbox-docket__toolbar" aria-label="Inbox toolbar">
+        <button
+          type="button"
+          className="inbox-docket__back"
+          aria-label="Back to Work"
+          onClick={onBackToWork}
+        >
+          <ChevronLeft aria-hidden="true" size={16} />
+        </button>
+        <span className="inbox-docket__title">
+          <strong role="heading" aria-level={1}>Inbox</strong>
+          <small>All projects</small>
+        </span>
         <span className="inbox-docket__summary">
           {decisions.length} need you · {recoveryItems.length} recovery
         </span>
-      </div>
+      </header>
 
       <div className="inbox-docket__canvas">
         <header className="inbox-docket__header">
@@ -190,15 +180,6 @@ export function ReviewSurface({
         />
       </div>
 
-      <footer className="inbox-docket__statusbar" aria-live="polite">
-        <span><kbd>↑↓</kbd>Select</span>
-        {statusActionLabel && (
-          <strong data-testid="inbox-status-action">
-            <kbd>↵</kbd>{statusActionLabel}
-          </strong>
-        )}
-        <span><kbd>Esc</kbd>Back to Work</span>
-      </footer>
     </section>
   );
 }
