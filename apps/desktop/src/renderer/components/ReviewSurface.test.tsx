@@ -92,6 +92,17 @@ afterEach(() => {
 });
 
 describe("ReviewSurface", () => {
+  it("uses Inbox naming and flat section hierarchy", () => {
+    renderSurface();
+    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
+
+    expect(within(inbox).getByRole("heading", { name: "Needs you" })).toBeVisible();
+    expect(within(inbox).getByText("3 decisions", { exact: true })).toBeVisible();
+    expect(within(inbox).getByText("Highest impact first", { exact: true })).toBeVisible();
+    expect(within(inbox).queryByText("Decision Inbox", { exact: true })).not.toBeInTheDocument();
+    expect(within(inbox).queryByText("Needs You", { exact: true })).not.toBeInTheDocument();
+  });
+
   it("renders the single global Inbox toolbar without duplicate navigation or status chrome", async () => {
     const user = userEvent.setup();
     const handlers = renderSurface();

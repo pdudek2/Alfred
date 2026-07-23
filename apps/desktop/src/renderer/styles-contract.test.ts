@@ -441,23 +441,31 @@ describe("renderer CSS contracts", () => {
     await expect(parseWithLightningCss(previewDockStyles, previewDockStylesPath)).resolves.toBeUndefined();
   });
 
-  it("implements the canonical B4 Inbox visual contract without selector residue", () => {
+  it("implements the canonical flat Inbox visual contract without selector residue", () => {
     const root = singleTopLevelRuleBodyIn(styles, ".inbox-docket");
+    const toolbar = singleTopLevelRuleBodyIn(styles, ".inbox-docket__toolbar");
     const canvas = singleTopLevelRuleBodyIn(styles, ".inbox-docket__canvas");
+    const list = singleTopLevelRuleBodyIn(styles, ".inbox-docket__list");
     const row = singleTopLevelRuleBodyIn(styles, ".inbox-docket__item-row");
     const disclosure = singleTopLevelRuleBodyIn(styles, ".inbox-docket__disclosure");
     const detail = singleTopLevelRuleBodyIn(styles, ".inbox-docket__detail");
-    const statusbar = singleTopLevelRuleBodyIn(styles, ".inbox-docket__statusbar");
 
     expect(root).toContain("font-family: var(--sans)");
-    expect(root).toContain("grid-template-rows: 36px minmax(0, 1fr) 30px");
+    expect(root).toContain("grid-template-rows: 52px minmax(0, 1fr)");
+    expect(toolbar).toContain("height: 52px");
+    expect(toolbar).toContain("min-height: 52px");
+    expect(toolbar).toContain("padding: 0 18px");
+    expect(toolbar).toContain("background: var(--ink-1)");
     expect(canvas).toContain("overflow-y: auto");
     expect(canvas).toContain("overflow-x: hidden");
-    expect(canvas).toContain("max-width: 920px");
+    expect(canvas).toContain("max-width: 860px");
+    expect(list).toContain("border: 0");
+    expect(list).toContain("border-radius: 0");
+    expect(list).toContain("background: transparent");
     expect(row).toContain("min-height: 51px");
     expect(disclosure).toMatch(/transition:\s*transform\s+(?:1[6-9]\d|20\d|210)ms\s+ease-out/);
     expect(detail).toMatch(/transition:[^;]*(?:1[6-9]\d|20\d|210)ms/);
-    expect(statusbar).toContain("position: sticky");
+    expect(styles).not.toContain(".inbox-docket__statusbar");
 
     expect(singleTopLevelRuleBodyIn(styles, ":root")).toContain(
       '--sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif',
@@ -923,9 +931,10 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".work-surface-toolbar", ["display: flex"]);
     expectCanonicalBase(".context-column", ["position: absolute", "width: min(336px"]);
     expectCanonicalBase(".workspace-layout.surface-inbox", [
-      "grid-template-columns: auto minmax(0, 1fr)",
+      "grid-template-columns: minmax(0, 1fr)",
       "position: relative",
     ]);
+    expectCanonicalBase(".workspace-layout.surface-inbox > .orchestrator-surface", ["grid-column: 1"]);
     expectCanonicalBase(".workspace-layout.surface-sessions", [
       "grid-template-columns: minmax(0, 1fr)",
       "position: relative",
@@ -1041,10 +1050,9 @@ describe("renderer CSS contracts", () => {
     expect(popover[0]).not.toMatch(/\b(?:left|top):/);
   });
 
-  it("keeps narrow Inbox beside its rail and lets Sessions replace that rail", () => {
+  it("keeps Inbox global while Sessions retains its narrow layout", () => {
     const inboxLayout = mediaExactRuleBodies("(max-width: 1180px)", ".workspace-layout.surface-inbox");
-    expect(inboxLayout).toHaveLength(1);
-    expect(inboxLayout[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
+    expect(inboxLayout).toHaveLength(0);
 
     const sessionsLayout = mediaExactRuleBodies("(max-width: 1180px)", ".workspace-layout.surface-sessions");
     expect(sessionsLayout).toHaveLength(1);
@@ -1065,11 +1073,8 @@ describe("renderer CSS contracts", () => {
       "(max-width: 980px)",
       ".workspace-layout.surface-inbox > .orchestrator-surface",
     );
-    expect(navigatorPlacement).toHaveLength(1);
-    expect(navigatorPlacement[0]).toContain("grid-column: 1");
-    expect(surfacePlacement).toHaveLength(1);
-    expect(surfacePlacement[0]).toContain("grid-column: 2");
-    expect(surfacePlacement[0]).toContain("min-width: 0");
+    expect(navigatorPlacement).toHaveLength(0);
+    expect(surfacePlacement).toHaveLength(0);
   });
 
   it("keeps Slice A interaction winners adjacent to their canonical components", () => {
@@ -1462,8 +1467,10 @@ describe("renderer CSS contracts", () => {
       ".inbox-docket__glyph--waiting",
       ".inbox-docket__glyph--blocked",
       ".inbox-docket__primary:hover",
-      ".inbox-docket__statusbar",
+      ".inbox-docket__toolbar",
+      ".inbox-docket__list",
     ]));
+    expect(inboxSelectors).not.toContain(".inbox-docket__statusbar");
 
     const sessionsSelectors = expectAllFamilyTopLevelOccurrencesWithinSource(
       styles,
@@ -1500,8 +1507,8 @@ describe("renderer CSS contracts", () => {
         { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-reader--details-open .sessions-reader__body", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-reader--details-open .sessions-reader__scroll", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-run-details", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 1120px)", selector: ".inbox-docket__detail-grid", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 1120px)", selector: ".inbox-docket__facts", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".inbox-docket__detail-grid", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".inbox-docket__facts", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(prefers-reduced-motion: reduce)", selector: ".inbox-docket *", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(prefers-reduced-motion: reduce)", selector: ".sessions-result", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(prefers-reduced-motion: reduce)", selector: ".sessions-transcript", region: surfaceResponsiveRegion },
@@ -1748,7 +1755,7 @@ describe("renderer CSS contracts", () => {
     expect(exactBlockFor(".mission-bar")).toContain("display: flex");
     expect(exactBlockFor(".workbench-header")).toContain("width: 100%");
     expect(blockFor(".inbox-docket__item-row")).toContain("grid-template-columns: 18px minmax(0, 1fr) auto 16px");
-    expect(blockFor(".inbox-docket")).toContain("grid-template-rows: 36px minmax(0, 1fr) 30px");
+    expect(blockFor(".inbox-docket")).toContain("grid-template-rows: 52px minmax(0, 1fr)");
     expect(blockFor(".recovery-workspace-strip")).toContain("background: transparent");
   });
 
@@ -2000,7 +2007,7 @@ describe("renderer CSS contracts", () => {
     const summary = blockFor(".inbox-docket__summary");
 
     expect(styles).toContain("--type-micro: 10px");
-    expect(summary).toContain("font: 500 9px/1 var(--mono)");
+    expect(summary).toContain("font: 500 12px/1.2 var(--sans)");
     expect(styles).not.toMatch(/font-size:\s*(?:8|8\.5)px/);
   });
 

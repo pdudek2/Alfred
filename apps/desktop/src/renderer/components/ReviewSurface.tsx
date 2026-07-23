@@ -150,8 +150,8 @@ export function ReviewSurface({
 
       <div className="inbox-docket__canvas">
         <header className="inbox-docket__header">
-          <h2>Needs You <span>{decisions.length} decision{decisions.length === 1 ? "" : "s"}</span></h2>
-          <p>Sorted by <strong>impact, then age</strong></p>
+          <h2 aria-label="Needs you">Needs you <span>{decisions.length} decision{decisions.length === 1 ? "" : "s"}</span></h2>
+          <p>Highest impact first</p>
         </header>
 
         {decisions.length === 0 ? (
