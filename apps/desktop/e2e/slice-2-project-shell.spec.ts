@@ -65,8 +65,8 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await setWindowSize(app, page, 1440, 900);
 
   const header = page.getByTestId("workbench-header");
-  await expect(header).toHaveAttribute("data-chrome-height", "40");
-  await expect(header).toHaveCSS("height", "40px");
+  await expect(header).toHaveAttribute("data-chrome-height", "44");
+  await expect(header).toHaveCSS("height", "44px");
   const navigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
   await expect(navigator).toBeVisible();
 
@@ -122,9 +122,9 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
   await setWindowSize(app, page, 1120, 720);
   const narrow = await readNarrowProjectShell(page);
-  expect(narrow.navigatorWidth).toBe(46);
-  expect(narrow.gridTemplateColumns).toBe("46px 1074px");
-  expect(narrow.orchestratorX - narrow.layoutX).toBe(46);
+  expect(narrow.navigatorWidth).toBe(226);
+  expect(narrow.gridTemplateColumns).toBe("226px 894px");
+  expect(narrow.orchestratorX - narrow.layoutX).toBe(226);
   expect(narrow.orchestratorX).toBe(narrow.navigatorRight);
   expect(narrow.documentOverflow).toBe(0);
   expect(
@@ -134,7 +134,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   expect(narrow.visibleTileCount).toBe(6);
   expect(narrow.visibleTileHeaderHeights.length).toBeGreaterThan(0);
   expect(narrow.visibleTileHeaderHeights).toHaveLength(narrow.visibleTileCount);
-  expect(narrow.visibleTileHeaderHeights.every((height) => height === 30)).toBe(true);
+  expect(narrow.visibleTileHeaderHeights.every((height) => height === 44)).toBe(true);
   expect(await isSameConnectedNode(before, alphaScreen)).toBe(true);
 
   const narrowWorkspaceActions = await operateNarrowWorkspaceActions(page, navigator);
@@ -150,7 +150,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
       narrow: { width: 1120, height: 720 },
     },
     shell: {
-      chromeHeight: 40,
+      chromeHeight: 44,
       navigationLandmark: "Projects and Free Chats",
       projectCount: 7,
       activeSessionCount: 6,
