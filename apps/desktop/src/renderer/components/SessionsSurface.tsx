@@ -327,7 +327,7 @@ export function SessionsSurface({
     <section
       className={`sessions-surface${reducedMotion ? " sessions-surface--reduced-motion" : ""}`}
       aria-label="Sessions workspace"
-      data-secondary-chrome-height="36"
+      data-secondary-chrome-height="52"
       onKeyDown={(event) => {
         if (event.key !== "Escape") return;
         event.preventDefault();

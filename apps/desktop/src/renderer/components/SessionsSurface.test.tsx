@@ -190,6 +190,33 @@ describe("SessionsSurface", () => {
     expect(within(screen.getByRole("listbox", { name: "Conversation results" })).queryByRole("heading", { name: "ClientApp" })).not.toBeInTheDocument();
   });
 
+  it("uses compact labelled selects for source and time without changing filter state", async () => {
+    const user = userEvent.setup();
+    const view = renderSurface({
+      sessions: [managedSession(0)],
+      externalSessions: [externalSession(0)],
+    });
+
+    expect(screen.queryByRole("group", { name: "Session source" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Session time range" })).not.toBeInTheDocument();
+
+    const source = screen.getByRole("combobox", { name: "Session source" });
+    const timeRange = screen.getByRole("combobox", { name: "Session time range" });
+    expect(screen.getByRole("region", { name: "Sessions workspace" }))
+      .toHaveAttribute("data-secondary-chrome-height", "52");
+    expect(within(source).getByRole("option", { name: "All sources" })).toBeInTheDocument();
+    expect(within(source).getByRole("option", { name: "Managed" })).toBeInTheDocument();
+    expect(within(source).getByRole("option", { name: "Codex" })).toBeInTheDocument();
+    expect(within(timeRange).getByRole("option", { name: "Any time" })).toBeInTheDocument();
+
+    await user.selectOptions(source, "external-codex");
+    await user.selectOptions(timeRange, "week");
+
+    expect(view.getState().source).toBe("external-codex");
+    expect(view.getState().timeRange).toBe("week");
+    expect(view.getState().pageIndex).toBe(0);
+  });
+
   it("preserves an included selection and chooses the first result only after scope excludes it", async () => {
     const user = userEvent.setup();
     const scopedWorkspaces: SessionsProjectInput[] = [
