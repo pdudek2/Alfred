@@ -112,6 +112,20 @@ describe("ReviewSurface", () => {
     expect(handlers.onBackToWork).toHaveBeenCalledOnce();
   });
 
+  it("keeps Enter on Back to Work from running the selected decision", async () => {
+    const user = userEvent.setup();
+    const handlers = renderSurface();
+
+    screen.getByRole("button", { name: "Back to Work" }).focus();
+    await user.keyboard("{Enter}");
+
+    expect(handlers.onBackToWork).toHaveBeenCalledOnce();
+    expect(handlers.onReviewEdit).not.toHaveBeenCalled();
+    expect(handlers.onOpenInWork).not.toHaveBeenCalled();
+    expect(handlers.onLaunch).not.toHaveBeenCalled();
+    expect(handlers.onRecover).not.toHaveBeenCalled();
+  });
+
   it("selects, expands, and focuses the first decision without running an action", () => {
     const handlers = renderSurface();
 
