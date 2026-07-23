@@ -25,9 +25,8 @@ test("Sessions exposes all 120 external summaries through bounded UI pages and l
   await selectSurface(page, "Sessions");
   const sessions = page.getByRole("region", { name: "Sessions workspace" });
   const results = sessions.getByRole("listbox", { name: "Conversation results" });
-  await page.getByRole("group", { name: "Session source" })
-    .getByText("Codex", { exact: true })
-    .click();
+  await page.getByRole("combobox", { name: "Session source" })
+    .selectOption("external-codex");
 
   await expect(sessions.getByRole("status")).toHaveText("120");
   await expect(results.getByRole("option")).toHaveCount(80);
