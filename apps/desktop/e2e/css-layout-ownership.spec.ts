@@ -287,7 +287,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   expect(afterContext.context.overlapWithTerminal).toBeLessThanOrEqual(0);
   await expect(page.getByLabel("Workspace preview")).toHaveCount(0);
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Context");
-  const wideContextEvidence = await capture("context", [...frameProbes, ...terminalProbes, ...contextProbes]);
+  const wideContextEvidence = await capture("context-wide", [...frameProbes, ...terminalProbes, ...contextProbes]);
   expect(wideContextEvidence.documentOverflowX, "Wide Context must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
   const wideContext = page.getByRole("complementary", { name: "Session context" });
@@ -314,7 +314,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow Grid");
   await capture("narrow", [...frameProbes, ...terminalProbes]);
   await openContext(page);
-  const narrowContextEvidence = await capture("context", [...frameProbes, ...terminalProbes, ...contextProbes]);
+  const narrowContextEvidence = await capture("context-narrow", [...frameProbes, ...terminalProbes, ...contextProbes]);
   expect(narrowContextEvidence.documentOverflowX, "Narrow Context must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
   const narrowContext = page.getByRole("complementary", { name: "Session context" });
@@ -368,7 +368,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await selectSurface(page, "Local Data & Privacy");
   const narrowPrivacy = page.getByRole("dialog", { name: "Local Data & Privacy" });
   await expect(narrowPrivacy).toBeVisible();
-  const narrowPrivacyEvidence = await capture("privacy", [...frameProbes, ...overlayProbes.privacy]);
+  const narrowPrivacyEvidence = await capture("privacy-narrow", [...frameProbes, ...overlayProbes.privacy]);
   expect(narrowPrivacyEvidence.documentOverflowX, "Narrow Privacy must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
   const narrowPrivacyToggle = narrowPrivacy.getByRole("switch", { name: "External Codex indexing" }).locator("..");
@@ -403,7 +403,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await selectSurface(page, "Local Data & Privacy");
   const widePrivacy = page.getByRole("dialog", { name: "Local Data & Privacy" });
   await expect(widePrivacy).toBeVisible();
-  const widePrivacyEvidence = await capture("privacy", [...frameProbes, ...overlayProbes.privacy]);
+  const widePrivacyEvidence = await capture("privacy-wide", [...frameProbes, ...overlayProbes.privacy]);
   expect(widePrivacyEvidence.documentOverflowX, "Wide Privacy must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
   const widePrivacyToggle = widePrivacy.getByRole("switch", { name: "External Codex indexing" }).locator("..");

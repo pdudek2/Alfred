@@ -10,11 +10,13 @@ export const cssEvidenceStateNames = [
   "arrange",
   "inbox",
   "sessions",
-  "context",
+  "context-wide",
+  "context-narrow",
   "narrow",
   "narrow-inbox",
   "command-palette",
-  "privacy",
+  "privacy-wide",
+  "privacy-narrow",
 ] as const;
 
 export type CssEvidenceStateName = (typeof cssEvidenceStateNames)[number];

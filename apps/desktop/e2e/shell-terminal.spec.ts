@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
+import type { TerminalApi } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
 import {
   collectControlOverflowEvidence,
@@ -34,8 +35,12 @@ type ShellGeometry = {
   frameChildren: Array<{ className: string; height: number; top: number }>;
 };
 
+type DesktopTerminalWindow = Window & {
+  alfredDesktop?: { terminal: TerminalApi };
+};
+
 test("proves the adaptive shell and preserves the first real xterm", async ({ harness }, testInfo) => {
-  const { app, page } = harness;
+  const { app, marker, page } = harness;
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 900);
   const header = page.getByTestId("workbench-header");
@@ -200,9 +205,44 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await expect(keepData).toBeFocused();
   await keepData.click();
   await expect(clearSavedTranscripts).toBeFocused();
+
+  const privacyOutputMarker = `ALFRED_E2E_PRIVACY_BACKGROUND_${marker}`;
+  const markerHex = Buffer.from(privacyOutputMarker, "utf8").toString("hex");
+  const markerCommand = `printf '${markerHex}' | /usr/bin/xxd -r -p; printf '\\n'`;
+  expect(markerCommand).not.toContain(privacyOutputMarker);
+  const firstRuntimeId = await page.evaluate(async () => {
+    const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
+    if (!terminalApi) throw new Error("Desktop terminal API is unavailable.");
+    const runtime = (await terminalApi.list()).sessions.find((session) => session.clientId === "manual-1");
+    if (!runtime) throw new Error("Initial manual terminal runtime is missing.");
+    return runtime.id;
+  });
+  await page.evaluate(({ runtimeId, input }) => {
+    const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
+    if (!terminalApi) throw new Error("Desktop terminal API is unavailable.");
+    terminalApi.write({ id: runtimeId, data: `${input}\r` });
+  }, { runtimeId: firstRuntimeId, input: markerCommand });
+  await expect.poll(async () => page.evaluate(async ({ runtimeId, expectedMarker }) => {
+    const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
+    if (!terminalApi) throw new Error("Desktop terminal API is unavailable.");
+    return (await terminalApi.snapshot({ id: runtimeId }))?.buffer.includes(expectedMarker) ?? false;
+  }, { runtimeId: firstRuntimeId, expectedMarker: privacyOutputMarker })).toBe(true);
+
   await page.keyboard.press("Escape");
   await expect(privacyDialog).toHaveCount(0);
   await expect(surfacesTrigger).toBeFocused();
+  await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
+  identityTransitions["Privacy→Work"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
+  expect(identityTransitions["Privacy→Work"]).toBe(true);
+  await expect(firstScreen).toContainText(privacyOutputMarker);
+  const backgroundOutputVisible = (await firstScreen.textContent())?.includes(privacyOutputMarker) ?? false;
+  const backgroundOutputPersisted = await page.evaluate(async ({ runtimeId, expectedMarker }) => {
+    const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
+    if (!terminalApi) throw new Error("Desktop terminal API is unavailable.");
+    return (await terminalApi.snapshot({ id: runtimeId }))?.buffer.includes(expectedMarker) ?? false;
+  }, { runtimeId: firstRuntimeId, expectedMarker: privacyOutputMarker });
+  expect(backgroundOutputVisible).toBe(true);
+  expect(backgroundOutputPersisted).toBe(true);
 
   const runtimeProof = {
     viewport: { initial: { width: 1440, height: 900 }, narrow: { width: 1120, height: 720 } },
@@ -213,8 +253,13 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     narrow,
     identityTransitions,
     focusRestoration,
+    backgroundOutputVisible,
+    backgroundOutputPersisted,
     diagnosticScreenshotSha256: diagnosticScreenshotHashes,
   };
+  expect(identityTransitions["Privacy→Work"]).toBe(true);
+  expect(runtimeProof.backgroundOutputVisible).toBe(true);
+  expect(runtimeProof.backgroundOutputPersisted).toBe(true);
   const proofText = `${JSON.stringify(runtimeProof, null, 2)}\n`;
   expect(proofText).not.toContain(harness.paths.root);
   const proofPath = path.join(evidenceDir, "runtime-proof.json");
