@@ -23,18 +23,23 @@ test.describe("deterministic mixed Decision Inbox", () => {
     const inbox = await bootstrapMixedInbox(page);
 
     await expect(page.getByRole("button", { name: "Open Inbox surface, 4 items" })).toBeVisible();
-    await expect(page.getByRole("tab", {
-      name: "Fixture Alpha workspace, 2 decisions need review",
-    })).toBeVisible();
-    await expect(page.getByRole("tab", {
-      name: "Fixture Beta workspace, 2 decisions need review",
-    })).toBeVisible();
+    await expect(page.getByRole("navigation", {
+      name: "Projects and Free Chats",
+    })).toHaveCount(0);
+    await expect(inbox.getByRole("heading", { name: "Inbox" })).toBeVisible();
+    await expect(inbox.getByText("All projects", { exact: true })).toBeVisible();
+    await expect(inbox.locator(".inbox-docket__statusbar")).toHaveCount(0);
     await expect(inbox.getByText("4 need you · 6 recovery", { exact: true })).toBeVisible();
     await expect(inbox.getByRole("list", { name: "Needs you items" }).locator(":scope > li")).toHaveCount(4);
-    await expect(inbox.getByRole("button", { name: "Recovery · 6 saved sessions" })).toHaveAttribute(
+    await expect(inbox.getByRole("list", {
+      name: "Needs you items",
+    }).locator(":scope > li[aria-expanded='true']")).toHaveCount(1);
+    const recoveryToggle = inbox.getByRole("button", { name: "Recovery · 6 saved sessions" });
+    await expect(recoveryToggle).toHaveAttribute(
       "aria-expanded",
       "false",
     );
+    expect((await recoveryToggle.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
 
     const blockerIds = await inbox
       .getByRole("list", { name: "Needs you items" })
@@ -164,13 +169,10 @@ test.describe("deterministic mixed Decision Inbox", () => {
     await inbox.getByRole("button", { name: "Open in Work Fixture item 2 in Fixture Beta" }).click();
     await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
 
-    const projectNavigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
-    await projectNavigator.getByRole("tab", { name: /Fixture Alpha workspace/ }).click();
     expect(await preservedAlphaScreen.evaluate(
       (node, previousNode) => node.isSameNode(previousNode) && node.isConnected,
       preservedAlphaHandle,
-    ), "Work→Inbox→Fixture Beta Work→Fixture Alpha changed the original xterm screen").toBe(true);
-    await projectNavigator.getByRole("tab", { name: /Fixture Beta workspace/ }).click();
+    ), "Work→Inbox→Fixture Beta Work changed the original Fixture Alpha xterm screen").toBe(true);
 
     const terminalScreen = page.locator('[data-session-id="fixture-item-2"] .xterm-screen');
     await expect(terminalScreen).toBeAttached();
@@ -191,10 +193,11 @@ test.describe("deterministic mixed Decision Inbox", () => {
 
       await openInbox(page);
       inbox = page.getByRole("region", { name: "Inbox workspace" });
+      await inbox.getByRole("button", { name: "Recovery · 6 saved sessions" }).scrollIntoViewIfNeeded();
       await assertNoHorizontalOverflow(page, "Inbox", [
+        inbox.locator(".inbox-docket__toolbar"),
         inbox.getByTestId("inbox-decision-select-B:fixture-item-2"),
         inbox.getByRole("button", { name: "Recovery · 6 saved sessions" }),
-        inbox.locator(".inbox-docket__statusbar"),
       ]);
       await inbox.getByTestId("inbox-decision-select-B:fixture-item-2").click();
       await inbox.getByRole("button", { name: "Open in Work Fixture item 2 in Fixture Beta" }).click();
@@ -230,7 +233,7 @@ test.describe("long Decision Inbox", () => {
     },
   });
 
-  test("keyboard navigation keeps selection, scroll, sticky status, and reduced motion deterministic", async ({
+  test("keyboard navigation keeps selection, scroll, flat actions, and reduced motion deterministic", async ({
     harness,
   }) => {
     const { page } = harness;
@@ -240,41 +243,30 @@ test.describe("long Decision Inbox", () => {
 
     const initiallySelected = inbox.getByTestId("inbox-decision-select-B:fixture-item-2");
     await initiallySelected.press("End");
-    const last = inbox
+    const lastItem = inbox
       .getByRole("list", { name: "Needs you items" })
       .locator(":scope > li")
-      .last()
-      .locator(".inbox-docket__item-row");
+      .last();
+    const last = lastItem.locator(".inbox-docket__item-row");
     await expect(last).toBeFocused();
     await expect(last).toHaveAttribute("aria-expanded", "true");
-    await expect(inbox.getByTestId("inbox-status-action")).toHaveText(/Launch/);
+    await expect(lastItem.locator(".inbox-docket__primary")).toHaveText("Launch");
     const endGeometry = await selectedScrollGeometry(scrollOwner, last);
     expect(endGeometry.scrollTop).toBeGreaterThan(0);
     expect(endGeometry.itemTop).toBeGreaterThanOrEqual(endGeometry.ownerTop - 1);
     expect(endGeometry.itemBottom).toBeLessThanOrEqual(endGeometry.ownerBottom + 1);
-
-    const stickyGeometry = await inbox.locator(".inbox-docket__statusbar").evaluate((footer) => {
-      const bounds = footer.getBoundingClientRect();
-      const surface = footer.closest(".inbox-docket")?.getBoundingClientRect();
-      return {
-        bottom: getComputedStyle(footer).bottom,
-        position: getComputedStyle(footer).position,
-        footerBottom: bounds.bottom,
-        surfaceBottom: surface?.bottom ?? Number.NaN,
-      };
-    });
-    expect(stickyGeometry.position).toBe("sticky");
-    expect(stickyGeometry.bottom).toBe("0px");
-    expect(Math.abs(stickyGeometry.footerBottom - stickyGeometry.surfaceBottom)).toBeLessThanOrEqual(1);
+    await expect(inbox.locator(".inbox-docket__statusbar")).toHaveCount(0);
 
     await last.press("Home");
     const first = inbox.getByTestId("inbox-decision-select-A:fixture-item-1");
     await expect(first).toBeFocused();
-    await expect(inbox.getByTestId("inbox-status-action")).toHaveText(/Review \/ Edit/);
+    await expect(inbox.getByTestId("inbox-decision-A:fixture-item-1")
+      .locator(".inbox-docket__primary")).toHaveText("Review / Edit");
     await first.press("ArrowDown");
     const waiting = inbox.getByTestId("inbox-decision-select-B:fixture-item-2");
     await expect(waiting).toBeFocused();
-    await expect(inbox.getByTestId("inbox-status-action")).toHaveText(/Open in Work/);
+    await expect(inbox.getByTestId("inbox-decision-B:fixture-item-2")
+      .locator(".inbox-docket__primary")).toHaveText("Open in Work");
     await waiting.press("ArrowUp");
     await expect(first).toBeFocused();
 
@@ -283,7 +275,8 @@ test.describe("long Decision Inbox", () => {
     await page.keyboard.press("Space");
     await expect(tenth).toBeFocused();
     await expect(tenth).toHaveAttribute("aria-expanded", "true");
-    await expect(inbox.getByTestId("inbox-status-action")).toHaveText(/Launch/);
+    await expect(inbox.getByTestId("inbox-decision-B:fixture-item-10")
+      .locator(".inbox-docket__primary")).toHaveText("Launch");
 
     const transitionDurations = await inbox.locator(".inbox-docket__detail").first().evaluate((detail) =>
       getComputedStyle(detail).transitionDuration.split(",").map((value) => Number.parseFloat(value)),
@@ -304,10 +297,8 @@ test.describe("long Decision Inbox", () => {
     await expect(page.getByRole("dialog", { name: "Command palette" })).toHaveCount(0);
     await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
 
-    const sessions = page.getByRole("navigation", { name: "Primary surfaces" })
-      .getByRole("button", { name: "Sessions" });
-    await sessions.focus();
-    await page.keyboard.press("Space");
+    await page.getByRole("button", { name: "Open Surfaces menu" }).click();
+    await page.getByRole("menuitem", { name: "Sessions" }).click();
     await expect(page.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
