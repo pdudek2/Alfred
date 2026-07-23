@@ -10,6 +10,7 @@ import {
   type CssOwnerProbe,
   type CssStateEvidence,
 } from "./support/css-layout-evidence";
+import { collectControlOverflowEvidence } from "./support/control-overflow-evidence";
 import {
   rendererViewportMatches,
   selectDisplayBounds,
@@ -275,7 +276,6 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Work restored after surfaces");
   await expect(firstHost).toContainText(marker);
-  const beforeContext = await readShellOwnerGeometry(page);
   await openContext(page);
   const afterContext = await readShellOwnerGeometry(page);
   expect(
@@ -287,7 +287,25 @@ test("captures deterministic CSS ownership evidence across core states and overl
   expect(afterContext.context.overlapWithTerminal).toBeLessThanOrEqual(0);
   await expect(page.getByLabel("Workspace preview")).toHaveCount(0);
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Context");
-  await capture("context", [...frameProbes, ...terminalProbes, ...contextProbes]);
+  const wideContextEvidence = await capture("context", [...frameProbes, ...terminalProbes, ...contextProbes]);
+  expect(wideContextEvidence.documentOverflowX, "Wide Context must not create horizontal document overflow")
+    .toBeLessThanOrEqual(0);
+  const wideContext = page.getByRole("complementary", { name: "Session context" });
+  const wideContextControls = [
+    wideContext.getByRole("button", { name: "Close Context panel" }),
+    wideContext.getByRole("button", { name: /Open external terminal/ }),
+  ];
+  for (const control of wideContextControls) {
+    expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
+  }
+  expect(await collectControlOverflowEvidence(page, {
+    controlSelector: "[data-testid='context-column'].open button:not(:disabled)",
+    verticalScrollOwners: [{
+      id: "context-body",
+      label: "Context body",
+      selector: ".context-drawer .agent-timeline-body",
+    }],
+  }), "Wide Context controls must remain within their scroll owner").toEqual([]);
 
   await page.getByRole("button", { name: "Close Context panel" }).click();
   await chooseWorkLayout(page, "Grid");
@@ -295,6 +313,27 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await setWindowSize(app, page, 1120, 720);
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow Grid");
   await capture("narrow", [...frameProbes, ...terminalProbes]);
+  await openContext(page);
+  const narrowContextEvidence = await capture("context", [...frameProbes, ...terminalProbes, ...contextProbes]);
+  expect(narrowContextEvidence.documentOverflowX, "Narrow Context must not create horizontal document overflow")
+    .toBeLessThanOrEqual(0);
+  const narrowContext = page.getByRole("complementary", { name: "Session context" });
+  const narrowContextControls = [
+    narrowContext.getByRole("button", { name: "Close Context panel" }),
+    narrowContext.getByRole("button", { name: /Open external terminal/ }),
+  ];
+  for (const control of narrowContextControls) {
+    expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
+  }
+  expect(await collectControlOverflowEvidence(page, {
+    controlSelector: "[data-testid='context-column'].open button:not(:disabled)",
+    verticalScrollOwners: [{
+      id: "context-body",
+      label: "Context body",
+      selector: ".context-drawer .agent-timeline-body",
+    }],
+  }), "Narrow Context controls must remain within their scroll owner").toEqual([]);
+  await page.getByRole("button", { name: "Close Context panel" }).click();
   await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
   await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow Inbox");
@@ -326,6 +365,34 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await page.getByRole("button", { name: "Back to Work" }).click();
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
 
+  await selectSurface(page, "Local Data & Privacy");
+  const narrowPrivacy = page.getByRole("dialog", { name: "Local Data & Privacy" });
+  await expect(narrowPrivacy).toBeVisible();
+  const narrowPrivacyEvidence = await capture("privacy", [...frameProbes, ...overlayProbes.privacy]);
+  expect(narrowPrivacyEvidence.documentOverflowX, "Narrow Privacy must not create horizontal document overflow")
+    .toBeLessThanOrEqual(0);
+  const narrowPrivacyToggle = narrowPrivacy.getByRole("switch", { name: "External Codex indexing" }).locator("..");
+  const narrowPrivacyControls = [
+    narrowPrivacy.getByRole("button", { name: "Close privacy controls" }),
+    narrowPrivacy.getByRole("button", { name: "Redacted tail" }),
+    narrowPrivacyToggle,
+    narrowPrivacy.getByRole("button", { name: "Clear saved transcripts…" }),
+    narrowPrivacy.getByRole("button", { name: "Reveal in Finder" }),
+  ];
+  for (const control of narrowPrivacyControls) {
+    expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
+  }
+  expect(await collectControlOverflowEvidence(page, {
+    controlSelector: ".privacy-panel button:not(:disabled), .privacy-panel .privacy-toggle",
+    verticalScrollOwners: [{
+      id: "privacy-body",
+      label: "Privacy body",
+      selector: ".privacy-panel-body",
+    }],
+  }), "Narrow Privacy controls must remain within their scroll owner").toEqual([]);
+  await narrowPrivacy.getByRole("button", { name: "Close privacy controls" }).click();
+  await expect(narrowPrivacy).toHaveCount(0);
+
   await setWindowSize(app, page, 1440, 920);
   await page.getByRole("button", { name: "Open command palette" }).click();
   await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
@@ -334,10 +401,32 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expect(page.getByRole("dialog", { name: "Command palette" })).toHaveCount(0);
 
   await selectSurface(page, "Local Data & Privacy");
-  await expect(page.getByRole("dialog", { name: "Local Data & Privacy" })).toBeVisible();
-  await capture("privacy", [...frameProbes, ...overlayProbes.privacy]);
-  await page.getByRole("button", { name: "Close privacy controls" }).click();
-  await expect(page.getByRole("dialog", { name: "Local Data & Privacy" })).toHaveCount(0);
+  const widePrivacy = page.getByRole("dialog", { name: "Local Data & Privacy" });
+  await expect(widePrivacy).toBeVisible();
+  const widePrivacyEvidence = await capture("privacy", [...frameProbes, ...overlayProbes.privacy]);
+  expect(widePrivacyEvidence.documentOverflowX, "Wide Privacy must not create horizontal document overflow")
+    .toBeLessThanOrEqual(0);
+  const widePrivacyToggle = widePrivacy.getByRole("switch", { name: "External Codex indexing" }).locator("..");
+  const widePrivacyControls = [
+    widePrivacy.getByRole("button", { name: "Close privacy controls" }),
+    widePrivacy.getByRole("button", { name: "Redacted tail" }),
+    widePrivacyToggle,
+    widePrivacy.getByRole("button", { name: "Clear saved transcripts…" }),
+    widePrivacy.getByRole("button", { name: "Reveal in Finder" }),
+  ];
+  for (const control of widePrivacyControls) {
+    expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
+  }
+  expect(await collectControlOverflowEvidence(page, {
+    controlSelector: ".privacy-panel button:not(:disabled), .privacy-panel .privacy-toggle",
+    verticalScrollOwners: [{
+      id: "privacy-body",
+      label: "Privacy body",
+      selector: ".privacy-panel-body",
+    }],
+  }), "Wide Privacy controls must remain within their scroll owner").toEqual([]);
+  await widePrivacy.getByRole("button", { name: "Close privacy controls" }).click();
+  await expect(widePrivacy).toHaveCount(0);
 
   expect(
     [...privacySelectorRuntimeMatches].filter(([, matched]) => !matched).map(([selector]) => selector),
