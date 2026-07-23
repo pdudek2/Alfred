@@ -2641,10 +2641,22 @@ function PrivacyPanel({
   const [message, setMessage] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const clearActionRef = useRef<HTMLButtonElement | null>(null);
+  const keepDataButtonRef = useRef<HTMLButtonElement | null>(null);
+  const restoreClearFocusRef = useRef(false);
 
   useEffect(() => {
     closeButtonRef.current?.focus();
   }, []);
+
+  useLayoutEffect(() => {
+    if (clearArmed) {
+      keepDataButtonRef.current?.focus();
+    } else if (restoreClearFocusRef.current) {
+      restoreClearFocusRef.current = false;
+      clearActionRef.current?.focus();
+    }
+  }, [clearArmed]);
 
   const updateRetention = (terminalScrollbackRetention: DesktopPrivacySettings["terminalScrollbackRetention"]) => {
     setMessage(null);
@@ -2672,6 +2684,11 @@ function PrivacyPanel({
   const revealStateFile = async () => {
     const result = await onRevealStateFile();
     setMessage(result.ok ? "Local state file revealed." : result.error);
+  };
+
+  const cancelClearSavedTerminalData = () => {
+    restoreClearFocusRef.current = true;
+    setClearArmed(false);
   };
 
   const handleDialogKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -2773,7 +2790,7 @@ function PrivacyPanel({
             </div>
             {clearArmed ? (
               <div className="privacy-confirm-actions">
-                <button type="button" onClick={() => setClearArmed(false)}>
+                <button ref={keepDataButtonRef} type="button" onClick={cancelClearSavedTerminalData}>
                   Keep data
                 </button>
                 <button type="button" className="danger" onClick={() => void clearSavedTerminalData()}>
@@ -2781,7 +2798,7 @@ function PrivacyPanel({
                 </button>
               </div>
             ) : (
-              <button type="button" className="privacy-action-button danger" onClick={() => setClearArmed(true)}>
+              <button ref={clearActionRef} type="button" className="privacy-action-button danger" onClick={() => setClearArmed(true)}>
                 <Trash2 size={14} />
                 <span>Clear saved transcripts…</span>
               </button>

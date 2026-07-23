@@ -3753,8 +3753,8 @@ body.arranging-pointer {
   font: 630 13px/1.25 var(--sans);
 }
 
-.privacy-control-row span,
-.privacy-action-row span {
+.privacy-control-row > div:first-child > span,
+.privacy-action-row > div:first-child > span {
   color: var(--text-secondary);
   font: 12px/1.35 var(--sans);
 }
@@ -3773,6 +3773,7 @@ body.arranging-pointer {
 .privacy-action-button,
 .privacy-confirm-actions button,
 .privacy-panel-status button {
+  min-height: 32px;
   border: 1px solid transparent;
   border-radius: 7px;
   padding: 7px 10px;
@@ -3784,7 +3785,7 @@ body.arranging-pointer {
   gap: 7px;
   cursor: pointer;
   font-family: var(--sans);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .privacy-segmented button[aria-pressed="true"] {
@@ -3817,10 +3818,12 @@ body.arranging-pointer {
 }
 
 .privacy-toggle {
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  font-size: 13px;
 }
 
 .privacy-toggle input {
