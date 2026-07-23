@@ -6503,6 +6503,7 @@ body.arranging-pointer {
   background: var(--ink-1);
   box-shadow: none;
   overflow: hidden;
+  animation: none;
 }
 
 .context-drawer .agent-timeline-body {
