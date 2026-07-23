@@ -6431,6 +6431,17 @@ body.arranging-pointer {
   font: 600 13px/1 var(--sans);
 }
 
+.context-drawer .agent-staged-editor button,
+.context-drawer .agent-staged-edit-actions button {
+  min-height: 32px;
+  font: 600 13px/1 var(--sans);
+}
+
+.context-drawer .agent-staged-editor strong,
+.context-drawer .agent-staged-edit-form label > span {
+  font: 600 13px/1.2 var(--sans);
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .context-drawer,
   .context-drawer-header {

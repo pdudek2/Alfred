@@ -2074,6 +2074,12 @@ describe("renderer CSS contracts", () => {
     expect(styles).toContain("font: 500 12px/1.45 var(--sans)");
     expect(styles).toContain(".context-drawer .agent-handoff-buttons button,");
     expect(styles).toContain("min-height: 32px");
+    expect(styles).toContain(".context-drawer .agent-staged-editor button,");
+    expect(styles).toContain(".context-drawer .agent-staged-edit-actions button {");
+    expect(styles).toContain("font: 600 13px/1 var(--sans)");
+    expect(styles).toContain(".context-drawer .agent-staged-editor strong,");
+    expect(styles).toContain(".context-drawer .agent-staged-edit-form label > span {");
+    expect(styles).toContain("font: 600 13px/1.2 var(--sans)");
     expect(styles).not.toContain(".agent-context-zone");
     expect(styles).not.toContain(".agent-section-heading");
   });
