@@ -1954,6 +1954,13 @@ describe("renderer CSS contracts", () => {
     expect(rows).toContain("border-bottom: 1px solid var(--ink-3)");
     expect(rows).toContain("border-radius: 0");
     expect(rows).toContain("background: transparent");
+    const controls = blockFor(
+      ".privacy-segmented button,\n.privacy-action-button,\n.privacy-confirm-actions button,\n.privacy-panel-status button",
+    );
+    const toggle = singleTopLevelRuleBodyIn(styles, ".privacy-toggle");
+    expect(controls).toContain("min-height: 32px");
+    expect(controls).toContain("font-size: 13px");
+    expect(toggle).toContain("min-height: 32px");
     const privacyRuleBodies = allRulesIn(styles)
       .filter((rule) => rule.selectors.some((selector) =>
         selector.startsWith(".privacy-"),

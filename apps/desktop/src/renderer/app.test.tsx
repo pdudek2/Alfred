@@ -1033,6 +1033,28 @@ describe("App integration", () => {
     expect(surfaces).toHaveFocus();
   });
 
+  it("keeps focus in Privacy while changing the clear confirmation", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
+
+    const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
+    const clear = within(dialog).getByRole("button", { name: "Clear saved transcripts…" });
+    await user.click(clear);
+
+    const keepData = within(dialog).getByRole("button", { name: "Keep data" });
+    expect(keepData).toHaveFocus();
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+
+    await user.click(keepData);
+    const restoredClear = within(dialog).getByRole("button", { name: "Clear saved transcripts…" });
+    await waitFor(() => expect(restoredClear).toHaveFocus());
+  });
+
   it("does not refresh external Codex sessions when indexing is disabled", async () => {
     const user = userEvent.setup();
     const { listExternalSessions } = installDesktopBridge(
