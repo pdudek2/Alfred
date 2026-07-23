@@ -354,23 +354,6 @@ function expectAllFamilyTopLevelOccurrencesWithinSource(
   return [...new Set(selectors)];
 }
 
-function expectExactGroupedRule(selectors: string[], requiredDeclarations: string[]): void {
-  const expectedSelectors = [...selectors].sort();
-  const matches = [...withoutComments(styles).matchAll(/(?<selectors>[^{}]+)\{(?<body>[^{}]*)\}/gm)].filter((match) => {
-    const actualSelectors = (match.groups?.selectors ?? "")
-      .split(",")
-      .map((selector) => selector.trim())
-      .sort();
-    return (
-      actualSelectors.length === expectedSelectors.length &&
-      actualSelectors.every((selector, index) => selector === expectedSelectors[index])
-    );
-  });
-
-  expect(matches, `Expected one exact grouped rule for ${selectors.join(", ")}`).toHaveLength(1);
-  for (const declaration of requiredDeclarations) expect(matches[0]?.groups?.body ?? "").toContain(declaration);
-}
-
 function ruleForSelectorContaining(selector: string): { selectors: string; body: string } {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matches = [
