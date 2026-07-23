@@ -2005,9 +2005,15 @@ describe("renderer CSS contracts", () => {
 
   it("keeps chrome microcopy on a readable type floor", () => {
     const summary = blockFor(".inbox-docket__summary");
+    const decisionCount = blockFor(".inbox-docket__header h2 span");
+    const recoveryLabel = blockFor(".inbox-docket__recovery-toggle strong");
+    const recoveryCaption = blockFor(".inbox-docket__recovery-toggle span");
 
     expect(styles).toContain("--type-micro: 10px");
     expect(summary).toContain("font: 500 12px/1.2 var(--sans)");
+    expect(decisionCount).toContain("font: 500 12px/1.2 var(--sans)");
+    expect(recoveryLabel).toContain("font: 500 13px/1.2 var(--sans)");
+    expect(recoveryCaption).toContain("font: 500 12px/1.2 var(--sans)");
     expect(styles).not.toMatch(/font-size:\s*(?:8|8\.5)px/);
   });
 

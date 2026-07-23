@@ -4993,7 +4993,7 @@ body.arranging-pointer {
 .inbox-docket__header h2 span {
   margin-left: 6px;
   color: var(--ink-5);
-  font: 500 10px/1.2 var(--sans);
+  font: 500 12px/1.2 var(--sans);
 }
 
 .inbox-docket__header p {
@@ -5314,14 +5314,14 @@ body.arranging-pointer {
 .inbox-docket__recovery-toggle strong {
   min-width: 0;
   overflow: hidden;
-  font: 500 10px/1.2 var(--sans);
+  font: 500 13px/1.2 var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .inbox-docket__recovery-toggle span {
   color: var(--ink-5);
-  font: 500 10px/1.2 var(--sans);
+  font: 500 12px/1.2 var(--sans);
   white-space: nowrap;
 }
 
