@@ -16,7 +16,7 @@ import { chooseWorkLayout } from "./support/work-layout";
 
 const evidenceDir = path.resolve(
   import.meta.dirname,
-  "../../../docs/audits/local-artifacts/2026-07-14-phase-i-slice-2-project-shell",
+  "../../../docs/audits/local-artifacts/2026-07-23-phase-j0-slice-4-context-privacy/slice-2-project-shell",
 );
 
 const longProjectLabel = "Fixture Project With A Deliberately Long Navigator Label";
@@ -61,6 +61,7 @@ test.use({
 
 test("proves the project-first shell without replacing xterm", async ({ harness }, testInfo) => {
   const { app, page } = harness;
+  expect(evidenceDir).toContain("2026-07-23-phase-j0-slice-4-context-privacy/slice-2-project-shell");
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 900);
 

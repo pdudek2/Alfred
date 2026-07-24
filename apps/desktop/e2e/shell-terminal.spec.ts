@@ -16,7 +16,7 @@ import { chooseWorkLayout } from "./support/work-layout";
 
 const evidenceDir = path.resolve(
   import.meta.dirname,
-  "../../../docs/audits/local-artifacts/2026-07-13-phase-i-slice-1-shell-terminal",
+  "../../../docs/audits/local-artifacts/2026-07-23-phase-j0-slice-4-context-privacy/shell-terminal",
 );
 
 type ShellGeometry = {
@@ -41,6 +41,7 @@ type DesktopTerminalWindow = Window & {
 
 test("proves the adaptive shell and preserves the first real xterm", async ({ harness }, testInfo) => {
   const { app, marker, page } = harness;
+  expect(evidenceDir).toContain("2026-07-23-phase-j0-slice-4-context-privacy/shell-terminal");
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 900);
   const header = page.getByTestId("workbench-header");
