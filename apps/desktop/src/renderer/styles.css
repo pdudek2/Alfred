@@ -3578,7 +3578,7 @@ body.arranging-pointer {
   border: 1px solid var(--ink-4);
   border-radius: 13px;
   overflow: hidden;
-  background: color-mix(in oklab, var(--ink-1) 96%, transparent);
+  background: var(--ink-1);
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -3722,6 +3722,7 @@ body.arranging-pointer {
   overflow-x: hidden;
   overflow-y: auto;
   display: block;
+  background: var(--ink-1);
 }
 
 .privacy-control-row,
@@ -3732,7 +3733,7 @@ body.arranging-pointer {
   border-bottom: 1px solid var(--ink-3);
   border-radius: 0;
   padding: 14px 0;
-  background: transparent;
+  background: var(--ink-1);
   box-shadow: none;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

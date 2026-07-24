@@ -1934,10 +1934,12 @@ describe("renderer CSS contracts", () => {
     const rows = blockFor(".privacy-control-row,\n.privacy-action-row");
 
     expect(panel).toContain("width: min(640px, calc(100vw - 88px))");
+    expect(panel).toContain("background: var(--ink-1)");
     expect(body).toContain("overflow: auto");
+    expect(body).toContain("background: var(--ink-1)");
     expect(rows).toContain("border-bottom: 1px solid var(--ink-3)");
     expect(rows).toContain("border-radius: 0");
-    expect(rows).toContain("background: transparent");
+    expect(rows).toContain("background: var(--ink-1)");
     const controls = blockFor(
       ".privacy-segmented button,\n.privacy-action-button,\n.privacy-confirm-actions button,\n.privacy-panel-status button",
     );
@@ -1952,6 +1954,11 @@ describe("renderer CSS contracts", () => {
       .map((rule) => rule.body)
       .join("\n");
     expect(privacyRuleBodies).not.toContain("font-family: var(--mono)");
+    const blurredRules = allRulesIn(styles).filter((rule) =>
+      /(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/i.test(rule.body),
+    );
+    expect(blurredRules).toHaveLength(1);
+    expect(blurredRules[0]?.selectors).toEqual([".privacy-backdrop"]);
   });
 
   it("keeps the Work chrome quiet and command-like", () => {
