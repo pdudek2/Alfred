@@ -155,6 +155,23 @@ test.describe("deterministic mixed Decision Inbox", () => {
     await harness.closeActiveTerminals();
   });
 
+  test("recovery toggle remains within rendered viewport pixels at 1120 by 720", async ({ harness }) => {
+    const { app, page } = harness;
+    await setWindowSize(app, page, 1120, 720);
+    const inbox = await bootstrapMixedInbox(page);
+    const recoveryToggle = inbox.getByRole("button", { name: "Recovery · 6 saved sessions" });
+    await recoveryToggle.scrollIntoViewIfNeeded();
+
+    await assertNoHorizontalOverflow(page, "Inbox", [recoveryToggle]);
+    expect(await recoveryToggle.evaluate((control) => {
+      const rect = control.getBoundingClientRect();
+      return document.elementFromPoint(rect.left + rect.width / 2, innerHeight - 1) === control;
+    })).toBe(true);
+
+    harness.assertNoRuntimeErrors();
+    await harness.closeActiveTerminals();
+  });
+
   test("terminal continuity and geometry preserve one xterm node and restore focus", async ({ harness }) => {
     const { app, page } = harness;
     await setWindowSize(app, page, 1440, 900);
@@ -420,11 +437,13 @@ async function assertNoHorizontalOverflow(
     await expect(control).toBeVisible();
     const bounds = await control.boundingBox();
     if (!bounds) throw new Error(`${state}: active control has no bounding box.`);
-    const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
-    expect(bounds.x, `${state}: active control clips left`).toBeGreaterThanOrEqual(0);
-    expect(bounds.y, `${state}: active control clips top`).toBeGreaterThanOrEqual(0);
-    expect(bounds.x + bounds.width, `${state}: active control clips right`).toBeLessThanOrEqual(viewport.width);
-    expect(bounds.y + bounds.height, `${state}: active control clips bottom`).toBeLessThanOrEqual(viewport.height);
+    const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight, dpr: devicePixelRatio }));
+    expect(Math.ceil(bounds.x * viewport.dpr), `${state}: active control clips left`).toBeGreaterThanOrEqual(0);
+    expect(Math.ceil(bounds.y * viewport.dpr), `${state}: active control clips top`).toBeGreaterThanOrEqual(0);
+    expect(Math.floor((bounds.x + bounds.width) * viewport.dpr), `${state}: active control clips right`)
+      .toBeLessThanOrEqual(Math.floor(viewport.width * viewport.dpr));
+    expect(Math.floor((bounds.y + bounds.height) * viewport.dpr), `${state}: active control clips bottom`)
+      .toBeLessThanOrEqual(Math.floor(viewport.height * viewport.dpr));
   }
 }
 
