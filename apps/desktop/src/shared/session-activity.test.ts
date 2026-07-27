@@ -141,6 +141,14 @@ describe("session activity classifier", () => {
     });
   });
 
+  it("recognizes Swift build completion after an earlier error", () => {
+    expect(classifyTerminalOutputActivity("Build complete! (0.28s)")).toEqual({
+      kind: "output",
+      title: "Progress reported",
+      detail: "Build complete! (0.28s)",
+    });
+  });
+
   it("keeps command payloads precise and does not treat permission failures as approvals", () => {
     expect(classifyTerminalOutputActivity("Running pnpm typecheck")).toEqual({
       kind: "command",

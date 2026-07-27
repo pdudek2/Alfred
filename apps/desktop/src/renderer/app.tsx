@@ -358,10 +358,6 @@ export function App() {
     };
   }, []);
 
-  const handleAddManualSession = useCallback(() => {
-    setTerminalSessions((sessions) => addManualSession(sessions, activeWorkspace.rootPath ?? "", activeWorkspace.id));
-  }, [activeWorkspace.id, activeWorkspace.rootPath]);
-
   const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, isolation: TerminalSessionIsolation = "shared") => {
     setTerminalSessions((sessions) =>
       addAgentSession(sessions, kind, activeWorkspace.rootPath ?? "", activeWorkspace.id, isolation),
@@ -785,6 +781,18 @@ export function App() {
       };
     });
   }, [activeWorkMode, activeWorkspace.id]);
+
+  const handleAddManualSession = useCallback(() => {
+    const nextSessions = addManualSession(
+      terminalSessionsRef.current,
+      activeWorkspace.rootPath ?? "",
+      activeWorkspace.id,
+    );
+    const addedSession = nextSessions.at(-1);
+    terminalSessionsRef.current = nextSessions;
+    setTerminalSessions(nextSessions);
+    if (addedSession && activeWorkMode === "focus") handleSelectSession(addedSession.id);
+  }, [activeWorkMode, activeWorkspace.id, activeWorkspace.rootPath, handleSelectSession]);
 
   const handleFocusSession = useCallback((sessionId: string) => {
     setActiveSurface("work");
