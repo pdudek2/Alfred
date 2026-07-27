@@ -213,7 +213,7 @@ function classifyOutputLine(line: string): SessionActivityInput | null {
     };
   }
 
-  if (/(^✓|^✔|\b(done|passed|ready|listening|compiled|built|completed)\b)/i.test(line)) {
+  if (/(^✓|^✔|\b(done|passed|ready|listening|compiled|built|completed)\b|\bbuild complete\b)/i.test(line)) {
     return {
       kind: "output",
       title: "Progress reported",

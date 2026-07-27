@@ -4482,6 +4482,46 @@ describe("App integration", () => {
     expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
   });
 
+  it("selects a new terminal immediately while Focus mode is active", async () => {
+    const user = userEvent.setup();
+    const { setWorkspaceViewState } = installDesktopBridge(
+      undefined,
+      null,
+      [
+        {
+          id: "runtime-a",
+          clientId: "manual-1",
+          title: "Manual · zsh 1",
+          source: "manual",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "/bin/zsh",
+          buffer: "",
+        },
+      ],
+      undefined,
+      {
+        layoutsByWorkspace: {},
+        viewStateByWorkspace: {
+          A: { workMode: "focus", selectedSessionId: "manual-1" },
+        },
+      },
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "New terminal" }));
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 2");
+    expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
+      workspaceId: "A",
+      viewState: { workMode: "focus", selectedSessionId: "manual-2" },
+    });
+  });
+
   it("opens the command palette and runs desk commands", async () => {
     const user = userEvent.setup();
     const { createWorkspaceFromFolder, setWorkspaceLayout, setWorkspaceState } = installDesktopBridge();
