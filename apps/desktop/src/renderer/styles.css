@@ -1144,12 +1144,12 @@ button:focus-visible {
 
 .workbench-session-context > span {
   color: var(--ink-6);
-  font: 600 12px/1 var(--sans);
+  font: 600 13px/1 var(--sans);
 }
 
 .workbench-session-context > small {
   color: var(--ink-5);
-  font: 500 11px/1 var(--sans);
+  font: 500 12px/1 var(--sans);
 }
 
 .workbench-primary-row button,
@@ -5825,11 +5825,18 @@ body.arranging-pointer {
   background: color-mix(in oklab, white 3.5%, transparent);
 }
 
-.sessions-result.active,
+.sessions-result.active:not([aria-selected="true"]) {
+  border-bottom-color: transparent;
+  border-radius: 7px;
+  background: color-mix(in oklab, white 3.5%, transparent);
+  box-shadow: inset 0 0 0 1px var(--ink-4);
+}
+
 .sessions-result[aria-selected="true"] {
   border-bottom-color: transparent;
   border-radius: 7px;
   background: color-mix(in oklab, white 7%, transparent);
+  box-shadow: none;
 }
 
 .sessions-result:focus-visible {

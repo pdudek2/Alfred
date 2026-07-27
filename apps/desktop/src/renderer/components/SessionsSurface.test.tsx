@@ -272,9 +272,12 @@ describe("SessionsSurface", () => {
 
     const surface = screen.getByRole("region", { name: "Sessions workspace" });
     const results = screen.getByRole("listbox", { name: "Conversation results" });
+    const firstOption = within(results).getAllByRole("option")[0];
     expect(surface).toBeVisible();
     expect(results).toHaveClass("sessions-results");
-    expect(within(screen.getByRole("listbox", { name: "Conversation results" })).getAllByRole("option")[0]).toHaveClass("sessions-result");
+    expect(firstOption).toHaveClass("sessions-result", "active");
+    expect(firstOption).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByText("No conversation matches the current filters")).toBeInTheDocument();
     expect(surface.querySelector(".sessions-navigator__results")).toBeNull();
     expect(screen.getByRole("searchbox", { name: "Search sessions" })).toHaveFocus();
     expect(within(screen.getByRole("listbox", { name: "Conversation results" })).getAllByRole("option")).toHaveLength(80);
