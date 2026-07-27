@@ -239,6 +239,28 @@ describe("main quit persistence", () => {
     expect(() => handler?.()).not.toThrow();
     expect(mocks.BrowserWindow.getAllWindows).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps native glass disabled unless the macOS probe flag is explicit", async () => {
+    const main = await import("./main.js");
+
+    expect(main.glassProbeConfiguration("darwin", undefined)).toEqual({
+      enabled: false,
+      windowOptions: { backgroundColor: "#050607" },
+    });
+    expect(main.glassProbeConfiguration("linux", "1")).toEqual({
+      enabled: false,
+      windowOptions: { backgroundColor: "#050607" },
+    });
+    expect(main.glassProbeConfiguration("darwin", "1")).toEqual({
+      enabled: true,
+      windowOptions: {
+        backgroundColor: "#00000000",
+        transparent: true,
+        vibrancy: "under-window",
+        visualEffectState: "active",
+      },
+    });
+  });
 });
 
 function deferredPromise<T>(): {

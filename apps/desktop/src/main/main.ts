@@ -1,4 +1,10 @@
-import { app, BrowserWindow, dialog, type MessageBoxSyncOptions } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  type BrowserWindowConstructorOptions,
+  type MessageBoxSyncOptions,
+} from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { config as loadDotenv } from "dotenv";
@@ -36,6 +42,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
 const openDevToolsInDev = process.env.ALFRED_DESKTOP_OPEN_DEVTOOLS === "1";
+const GLASS_PROBE_QUERY_KEY = "alfred-glass-probe";
 let terminalQuitConfirmed = false;
 let terminalPersistenceFlushedForQuit = false;
 let desktopStateStore: PersistedDesktopStateStore | null = null;
@@ -49,12 +56,13 @@ loadDotenv({ path: path.resolve(app.getAppPath(), "../..", ".env") });
 async function createWindow(persistedDesktopStateStore: PersistedDesktopStateStore): Promise<void> {
   const persistedWindowState = (await persistedDesktopStateStore.getState()).windowState;
   const appIconPath = resolveDesktopAppIconPath(app.getAppPath());
+  const glassProbe = glassProbeConfiguration();
   const window = new BrowserWindow({
     ...windowOptionsFromState(persistedWindowState),
     minWidth: 1120,
     minHeight: 720,
     title: "Alfred Agent Space",
-    backgroundColor: "#050607",
+    ...glassProbe.windowOptions,
     ...(appIconPath ? { icon: appIconPath } : {}),
     show: false,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
@@ -87,14 +95,42 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
   });
 
   if (isDev) {
-    await window.loadURL(process.env.VITE_DEV_SERVER_URL!);
+    const rendererUrl = new URL(process.env.VITE_DEV_SERVER_URL!);
+    if (glassProbe.enabled) {
+      rendererUrl.searchParams.set(GLASS_PROBE_QUERY_KEY, "1");
+    }
+    await window.loadURL(rendererUrl.toString());
     if (openDevToolsInDev) {
       window.webContents.openDevTools({ mode: "detach" });
     }
     return;
   }
 
-  await window.loadFile(path.join(__dirname, "../renderer/index.html"));
+  const rendererPath = path.join(__dirname, "../renderer/index.html");
+  if (glassProbe.enabled) {
+    await window.loadFile(rendererPath, { query: { [GLASS_PROBE_QUERY_KEY]: "1" } });
+    return;
+  }
+  await window.loadFile(rendererPath);
+}
+
+export function glassProbeConfiguration(
+  platform: NodeJS.Platform = process.platform,
+  value: string | undefined = process.env.ALFRED_DESKTOP_GLASS_PROBE,
+): { enabled: boolean; windowOptions: BrowserWindowConstructorOptions } {
+  if (platform !== "darwin" || value !== "1") {
+    return { enabled: false, windowOptions: { backgroundColor: "#050607" } };
+  }
+
+  return {
+    enabled: true,
+    windowOptions: {
+      backgroundColor: "#00000000",
+      transparent: true,
+      vibrancy: "under-window",
+      visualEffectState: "active",
+    },
+  };
 }
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
