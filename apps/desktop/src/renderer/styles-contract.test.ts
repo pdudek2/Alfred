@@ -558,6 +558,11 @@ describe("renderer CSS contracts", () => {
     expect(topLevelExactRuleBodies(".workbench-right-zone kbd").at(-1)).toContain("var(--mono)");
   });
 
+  it("keeps the primary workbench context above the operational type floor", () => {
+    expect(exactBlockFor(".workbench-session-context > span")).toContain("font: 600 13px/1 var(--sans)");
+    expect(exactBlockFor(".workbench-session-context > small")).toContain("font: 500 12px/1 var(--sans)");
+  });
+
   it("drops deleted navigation and migration-era selector families", () => {
     expect(styles).not.toMatch(orphanClassTokenPattern("primary-nav-rail"));
     expect(styles).not.toMatch(orphanClassTokenPattern("primary-nav-brand"));
@@ -1423,6 +1428,14 @@ describe("renderer CSS contracts", () => {
     ]);
     expectCanonicalBase(".sessions-run-details dd", ["font: 520 13px/1.35 var(--sans)"]);
     expectCanonicalBase(".sessions-run-details dd.technical", ["font-family: var(--mono)"]);
+    expectCanonicalBase(".sessions-result.active:not([aria-selected=\"true\"])", [
+      "background: color-mix(in oklab, white 3.5%, transparent)",
+      "box-shadow: inset 0 0 0 1px var(--ink-4)",
+    ]);
+    expectCanonicalBase(".sessions-result[aria-selected=\"true\"]", [
+      "background: color-mix(in oklab, white 7%, transparent)",
+      "box-shadow: none",
+    ]);
     expect(styles).not.toContain(".sessions-run-details__backdrop");
     expect(styles).not.toMatch(/\.sessions-run-details\s+dialog/);
     for (const selector of [
