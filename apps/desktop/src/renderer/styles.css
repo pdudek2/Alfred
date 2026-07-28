@@ -122,7 +122,6 @@ button:focus-visible {
   box-shadow: var(--shadow-panel);
 }
 
-.renderer-crash-card span,
 .renderer-crash-kicker {
   margin: 0;
   color: var(--signal-danger);
@@ -130,15 +129,14 @@ button:focus-visible {
   font: 650 13px/1.2 var(--sans);
 }
 
-.renderer-crash-card strong,
 .renderer-crash-card h1 {
-  margin-top: 8px;
+  margin: 8px 0 0;
   color: var(--ink);
   display: block;
   font-size: 22px;
 }
 
-.renderer-crash-card p {
+.renderer-crash-card p:not(.renderer-crash-kicker) {
   margin: 10px 0 18px;
   color: var(--muted);
   line-height: 1.45;
