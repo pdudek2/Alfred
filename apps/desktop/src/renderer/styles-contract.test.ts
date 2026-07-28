@@ -68,6 +68,10 @@ function blockForContaining(selector: string, text: string): string {
   return blocksFor(selector).find((body) => body.includes(text)) ?? "";
 }
 
+function declaredMinHeightPx(body: string): number {
+  return Number(body.match(/min-height:\s*(\d+)px/)?.[1] ?? 0);
+}
+
 function exactBlockFor(selector: string): string {
   const matches = [...styles.matchAll(/(?<selectors>[^{}]+)\{(?<body>[^{}]*)\}/gm)].filter((match) =>
     (match.groups?.selectors ?? "").split(",").some((candidate) => candidate.trim() === selector),
@@ -2151,5 +2155,59 @@ describe("renderer CSS contracts", () => {
     expect(overlayPanels).toContain("border: 1px solid var(--border)");
     expect(overlayPanels).toContain("box-shadow: var(--shadow-panel)");
     expect(activePaletteRow).not.toContain("linear-gradient");
+  });
+
+  it("keeps support-surface operations on the product type and control floors", () => {
+    const expectedFonts = [
+      [".renderer-crash-kicker", "font: 650 13px/1.2 var(--sans)"],
+      [".workspace-popover button strong", "font: 600 13px/1.2 var(--sans)"],
+      [".workspace-popover button small", "font: 500 12px/1.35 var(--mono)"],
+      [".workspace-rename-form label span", "font: 600 12px/1.2 var(--sans)"],
+      [".workspace-mission-form label span", "font: 600 12px/1.2 var(--sans)"],
+      [".prepare-work-popover", "font: 500 13px/1.35 var(--sans)"],
+      [".command-palette-group", "font: 650 12px/1.2 var(--sans)"],
+      [".command-palette-list button small", "font: 500 12px/1.35 var(--sans)"],
+      [".command-palette-empty", "font: 500 12px/1.35 var(--sans)"],
+      [".discard-checkout-header span", "font: 650 13px/1.2 var(--sans)"],
+      [".discard-checkout-actions button", "font: 650 13px/1 var(--sans)"],
+    ] as const;
+
+    for (const [selector, font] of expectedFonts) {
+      expect(topLevelExactRuleBodies(selector).at(-1), selector).toContain(font);
+    }
+
+    for (const selector of [
+      ".renderer-crash-card button",
+      ".workspace-rename-form > div button",
+      ".workspace-mission-actions button",
+      ".command-palette-list button",
+      ".discard-checkout-actions button",
+    ]) {
+      const body = topLevelExactRuleBodies(selector).find((candidate) => candidate.includes("min-height:")) ?? "";
+      expect(body, selector).toContain("min-height:");
+      expect(declaredMinHeightPx(body), selector).toBeGreaterThanOrEqual(32);
+    }
+  });
+
+  it("keeps support surfaces free of prototype gradients and nested cards", () => {
+    for (const selector of [
+      ".renderer-crash-shell",
+      ".renderer-crash-card",
+      ".discard-checkout-dialog",
+    ]) {
+      const bodies = topLevelExactRuleBodies(selector);
+      expect(bodies.length, selector).toBeGreaterThan(0);
+      expect(bodies.every((body) => !body.includes("linear-gradient")), selector).toBe(true);
+    }
+
+    for (const selector of [
+      ".discard-checkout-body dl div",
+      ".discard-checkout-body li",
+    ]) {
+      const row = singleTopLevelRuleBodyIn(styles, selector);
+      expect(row, selector).toContain("border-radius: 0");
+      expect(row, selector).toContain("background: transparent");
+      expect(row, selector).not.toContain("box-shadow");
+    }
   });
 });

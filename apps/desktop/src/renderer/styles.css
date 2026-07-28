@@ -110,34 +110,28 @@ button:focus-visible {
   padding: 24px;
   display: grid;
   place-items: center;
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.028), transparent 180px),
-    var(--night);
+  background: var(--ink-0);
 }
 
 .renderer-crash-card {
   width: min(560px, 100%);
-  border: 1px solid color-mix(in oklab, var(--signal-danger) 35%, transparent);
+  border: 1px solid var(--ink-3);
   border-radius: 10px;
   padding: 22px;
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--signal-danger) 8%, transparent), transparent 120px),
-    rgba(8, 11, 15, 0.96);
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklab, white 7%, transparent),
-    0 24px 70px rgba(0, 0, 0, 0.5);
+  background: var(--ink-1);
+  box-shadow: var(--shadow-panel);
 }
 
-.renderer-crash-card span {
+.renderer-crash-card span,
+.renderer-crash-kicker {
+  margin: 0;
   color: var(--signal-danger);
   display: block;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
+  font: 650 13px/1.2 var(--sans);
 }
 
-.renderer-crash-card strong {
+.renderer-crash-card strong,
+.renderer-crash-card h1 {
   margin-top: 8px;
   color: var(--ink);
   display: block;
@@ -158,7 +152,7 @@ button:focus-visible {
   padding: 10px;
   background: rgba(0, 0, 0, 0.25);
   color: var(--ink-soft);
-  font: 11px/1.45 var(--mono);
+  font: 12px/1.45 var(--mono);
   white-space: pre-wrap;
 }
 
@@ -169,6 +163,7 @@ button:focus-visible {
   padding: 0 12px;
   background: color-mix(in oklab, var(--signal-focus) 8%, transparent);
   color: #cff3f6;
+  font: 600 13px/1 var(--sans);
   cursor: pointer;
 }
 
@@ -445,8 +440,7 @@ button:focus-visible {
 .workspace-title-trigger small {
   margin-top: 2px;
   color: var(--ink-5);
-  font-family: var(--mono);
-  font-size: 11px;
+  font: 500 12px/1.35 var(--mono);
   white-space: nowrap;
 }
 
@@ -466,18 +460,6 @@ button:focus-visible {
   padding: 7px;
   background: var(--ink-1);
   box-shadow: none;
-}
-
-.workspace-popover::before {
-  content: "Workspace";
-  display: block;
-  padding: 7px 8px 8px;
-  color: var(--ink-5);
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .workspace-popover button {
@@ -522,15 +504,13 @@ button:focus-visible {
 }
 
 .workspace-popover button strong {
-  font-size: 12px;
-  font-weight: 650;
+  font: 600 13px/1.2 var(--sans);
 }
 
 .workspace-popover button small {
   margin-top: 2px;
   color: var(--ink-5);
-  font-family: var(--mono);
-  font-size: 10px;
+  font: 500 12px/1.35 var(--mono);
 }
 
 .workspace-popover hr {
@@ -559,11 +539,7 @@ button:focus-visible {
 .workspace-rename-form label span,
 .workspace-mission-form label span {
   color: var(--ink-5);
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font: 600 12px/1.2 var(--sans);
 }
 
 .workspace-rename-form input,
@@ -1299,6 +1275,7 @@ button:focus-visible {
   padding: 8px;
   background: var(--ink-1);
   box-shadow: 0 18px 46px color-mix(in oklab, black 50%, transparent);
+  font: 500 13px/1.35 var(--sans);
   transform: translateX(-50%);
 }
 
@@ -3588,15 +3565,11 @@ body.arranging-pointer {
 .discard-checkout-dialog {
   width: min(860px, calc(100vw - 88px));
   max-height: min(760px, calc(100vh - 88px));
-  border: 1px solid rgba(188, 202, 218, 0.2);
+  border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.06), transparent 112px),
-    rgba(8, 11, 15, 0.985);
-  box-shadow:
-    0 30px 110px rgba(0, 0, 0, 0.58),
-    inset 0 1px 0 rgba(238, 243, 247, 0.07);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-panel);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
 }
@@ -3623,23 +3596,19 @@ body.arranging-pointer {
 
 .discard-checkout-header span {
   color: var(--brass);
-  font-family: var(--mono);
-  font-size: 11px;
-  text-transform: uppercase;
+  font: 650 13px/1.2 var(--sans);
 }
 
 .discard-checkout-header strong {
   margin-top: 5px;
   color: var(--ink);
-  font-size: 20px;
-  font-weight: 650;
+  font: 650 18px/1.2 var(--sans);
 }
 
 .discard-checkout-header small {
   margin-top: 3px;
   color: var(--faint);
-  font-family: var(--mono);
-  font-size: 11px;
+  font: 500 12px/1.35 var(--sans);
 }
 
 .discard-checkout-close {
@@ -3859,15 +3828,16 @@ body.arranging-pointer {
 .discard-checkout-body dl {
   margin: 0;
   display: grid;
-  gap: 8px;
+  gap: 0;
 }
 
 .discard-checkout-body dl div {
   min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
   padding: 9px 10px;
-  background: rgba(0, 0, 0, 0.18);
+  background: transparent;
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr);
   gap: 10px;
@@ -3875,8 +3845,7 @@ body.arranging-pointer {
 
 .discard-checkout-body dt {
   color: var(--text-muted);
-  font: 650 10px/1.2 var(--sans);
-  text-transform: uppercase;
+  font: 600 12px/1.2 var(--sans);
 }
 
 .discard-checkout-body dd {
@@ -3893,15 +3862,16 @@ body.arranging-pointer {
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 7px;
+  gap: 0;
 }
 
 .discard-checkout-body li {
   min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 9px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
   padding: 8px 9px;
-  background: rgba(255, 255, 255, 0.026);
+  background: transparent;
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr);
   gap: 8px;
@@ -3909,7 +3879,7 @@ body.arranging-pointer {
 
 .discard-checkout-body li span {
   color: color-mix(in oklab, var(--brass) 84%, white 8%);
-  font: 700 11px/1.2 var(--mono);
+  font: 700 12px/1.2 var(--mono);
 }
 
 .discard-checkout-body li code {
@@ -3941,7 +3911,7 @@ body.arranging-pointer {
   padding: 0 12px;
   background: var(--surface-raised);
   color: var(--text-secondary);
-  font: 650 12px/1 var(--sans);
+  font: 650 13px/1 var(--sans);
   cursor: pointer;
 }
 
@@ -4022,11 +3992,7 @@ body.arranging-pointer {
   min-height: 24px;
   padding: 9px 10px 3px;
   color: var(--passive);
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 760;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font: 650 12px/1.2 var(--sans);
 }
 
 .command-palette-list button,
@@ -4042,6 +4008,7 @@ body.arranging-pointer {
 }
 
 .command-palette-list button {
+  min-height: 40px;
   color: var(--ink-soft);
   cursor: pointer;
 }
@@ -4084,8 +4051,7 @@ body.arranging-pointer {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--faint);
-  font-family: var(--mono);
-  font-size: 11px;
+  font: 500 12px/1.35 var(--sans);
 }
 
 .command-palette,
