@@ -1119,7 +1119,8 @@ html[data-alfred-window-material="native"] .project-session.is-active {
   background: color-mix(in oklab, white 11%, transparent);
 }
 
-html[data-alfred-window-material="native"] .orchestrator-surface {
+html[data-alfred-window-material="native"] .orchestrator-surface,
+html[data-alfred-window-material="native"] .desktop-alert-stack {
   background: var(--ink-0);
 }
 
