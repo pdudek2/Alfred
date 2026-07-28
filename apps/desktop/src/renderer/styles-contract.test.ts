@@ -604,7 +604,10 @@ describe("renderer CSS contracts", () => {
       ),
     )).toBe(true);
     expect(lowContrastControlUses.map(({ selectors }) => selectors)).toEqual([]);
-    expect(literalColorUses.map(({ selectors }) => selectors)).toEqual([]);
+    expect(literalColorUses.map(({ selectors }) => selectors)).toEqual([
+      ['html[data-alfred-window-material="native"] .mission-bar'],
+      ['html[data-alfred-window-material="native"] .project-navigator'],
+    ]);
   });
 
   it("keeps live shell and terminal material flat and reserves signal for attention", () => {
@@ -626,8 +629,9 @@ describe("renderer CSS contracts", () => {
       [".workbench-header"],
       [".chrome-menu-popover"],
       [".prepare-work-popover"],
+      ['html[data-alfred-window-material="native"] .mission-bar'],
     ]));
-    expect(materialShadows).toHaveLength(3);
+    expect(materialShadows).toHaveLength(4);
     expect(oversizedRadii).toEqual([]);
     expect(signalUses.every(({ selectors }) =>
       selectors.every((selector) => selector.includes("attention") || selector.includes("waiting")),
@@ -690,6 +694,14 @@ describe("renderer CSS contracts", () => {
       const openingBraceIndex = index + match[0].lastIndexOf("{");
       const selectors = topLevelExactSelectorsIn(balancedBlockBody(source, openingBraceIndex).body);
       for (const selector of selectors) {
+        const isNativeReducedTransparency = match[1] === "media"
+          && match[2]?.trim() === "(prefers-reduced-transparency: reduce)"
+          && [
+            'html[data-alfred-window-material="native"] .desktop-frame',
+            'html[data-alfred-window-material="native"] .mission-bar',
+            'html[data-alfred-window-material="native"] .project-navigator',
+          ].includes(selector);
+        if (isNativeReducedTransparency) continue;
         const isTerminal = /(?:\.terminal-|\.tile-|\.tool-dot|\.session-status-|\.session-rename-form|\.split-empty-|\.staged-|\.arrange-|\.xterm-host)/.test(selector);
         const isShell = isLiveSliceOneSelector(selector) && !isTerminal && !/(?:\.composer-|\.dispatch-)/.test(selector);
         if (isTerminal && (index < terminalStart || index >= terminalEnd)) misplaced.push(selector);
@@ -1606,8 +1618,12 @@ describe("renderer CSS contracts", () => {
     const blurredRules = allRulesIn(styles).filter((rule) =>
       /(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/i.test(rule.body),
     );
-    expect(blurredRules).toHaveLength(1);
-    expect(blurredRules[0]?.selectors).toEqual([".privacy-backdrop"]);
+    expect(blurredRules).toHaveLength(3);
+    expect(blurredRules.map(({ selectors }) => selectors)).toEqual(expect.arrayContaining([
+      [".privacy-backdrop"],
+      ['html[data-alfred-window-material="native"] .mission-bar'],
+      ['html[data-alfred-window-material="native"] .project-navigator'],
+    ]));
     expect(styles).not.toMatch(/--glass:/);
   });
 
@@ -1743,7 +1759,7 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps the top chrome on adaptive frame rows", () => {
-    const frame = blockFor(".desktop-frame");
+    const frame = singleTopLevelRuleBodyIn(styles, ".desktop-frame");
     const missionBar = exactBlockFor(".mission-bar");
     const primaryRow = exactBlockFor(".workbench-primary-row");
 
@@ -1974,8 +1990,12 @@ describe("renderer CSS contracts", () => {
     const blurredRules = allRulesIn(styles).filter((rule) =>
       /(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/i.test(rule.body),
     );
-    expect(blurredRules).toHaveLength(1);
-    expect(blurredRules[0]?.selectors).toEqual([".privacy-backdrop"]);
+    expect(blurredRules).toHaveLength(3);
+    expect(blurredRules.map(({ selectors }) => selectors)).toEqual(expect.arrayContaining([
+      [".privacy-backdrop"],
+      ['html[data-alfred-window-material="native"] .mission-bar'],
+      ['html[data-alfred-window-material="native"] .project-navigator'],
+    ]));
   });
 
   it("keeps the Work chrome quiet and command-like", () => {

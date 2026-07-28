@@ -240,24 +240,20 @@ describe("main quit persistence", () => {
     expect(mocks.BrowserWindow.getAllWindows).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps native glass disabled unless the macOS probe flag is explicit", async () => {
+  it("enables transparent native material in production on macOS only", async () => {
     const main = await import("./main.js");
 
-    expect(main.glassProbeConfiguration("darwin", undefined)).toEqual({
+    expect(main.windowMaterialConfiguration("linux")).toEqual({
       enabled: false,
       windowOptions: { backgroundColor: "#050607" },
     });
-    expect(main.glassProbeConfiguration("linux", "1")).toEqual({
-      enabled: false,
-      windowOptions: { backgroundColor: "#050607" },
-    });
-    expect(main.glassProbeConfiguration("darwin", "1")).toEqual({
+    expect(main.windowMaterialConfiguration("darwin")).toEqual({
       enabled: true,
       windowOptions: {
         backgroundColor: "#00000000",
         transparent: true,
         vibrancy: "under-window",
-        visualEffectState: "active",
+        visualEffectState: "followWindow",
       },
     });
   });
