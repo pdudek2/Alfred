@@ -13,9 +13,6 @@ if (!stylesPath) {
 }
 
 const styles = readFileSync(stylesPath, "utf8");
-const rendererPath = resolve(stylesPath, "../main.tsx");
-const rendererSource = readFileSync(rendererPath, "utf8");
-const glassProbePath = resolve(stylesPath, "../glass-probe.css");
 const previewDockStylesPath = [
   resolve(process.cwd(), "src/renderer/components/workspace-preview-dock.css"),
   resolve(process.cwd(), "apps/desktop/src/renderer/components/workspace-preview-dock.css"),
@@ -421,124 +418,6 @@ function contrastRatio(foreground: string, background: string): number {
 }
 
 describe("renderer CSS contracts", () => {
-  it("boots native window material from the production query marker without a probe stylesheet", () => {
-    expect(rendererSource).toContain(
-      'new URLSearchParams(window.location.search).get("alfred-window-material") === "native"',
-    );
-    expect(rendererSource).toContain('document.documentElement.dataset.alfredWindowMaterial = "native"');
-    expect(rendererSource).not.toContain("alfred-glass-probe");
-    expect(rendererSource).not.toContain("glass-probe.css");
-    expect(existsSync(glassProbePath)).toBe(false);
-  });
-
-  it("bounds native window material to the titlebar and Projects owners", () => {
-    const nativeRoot = 'html[data-alfred-window-material="native"]';
-    const nativeRules = topLevelRulesIn(styles).filter(({ selectors }) =>
-      selectors.some((selector) => selector.startsWith(nativeRoot)),
-    );
-    const bodiesFor = (selector: string) =>
-      nativeRules.filter(({ selectors }) => selectors.includes(selector)).map(({ body }) => body);
-
-    const shellPlumbing = [
-      nativeRoot,
-      `${nativeRoot} body`,
-      `${nativeRoot} #root`,
-      `${nativeRoot} .agent-space-shell`,
-      `${nativeRoot} .desktop-frame`,
-      `${nativeRoot} .workspace-layout`,
-    ];
-    for (const selector of shellPlumbing) {
-      expect(bodiesFor(selector), `${selector} transparent shell plumbing`).toHaveLength(1);
-      expect(bodiesFor(selector)[0]).toContain("background: transparent");
-    }
-
-    const missionBar = bodiesFor(`${nativeRoot} .mission-bar`);
-    expect(missionBar, "mission-bar native material owner").toHaveLength(1);
-    expect(missionBar[0]).toContain("background: rgba(9, 11, 14, 0.52)");
-    expect(missionBar[0]).toContain("backdrop-filter: blur(24px) saturate(1.18)");
-    expect(missionBar[0]).toContain("-webkit-backdrop-filter: blur(24px) saturate(1.18)");
-
-    for (const selector of [
-      `${nativeRoot} .workbench-header`,
-      `${nativeRoot} .workbench-primary-row`,
-    ]) {
-      expect(bodiesFor(selector), `${selector} transparent titlebar child`).toHaveLength(1);
-      expect(bodiesFor(selector)[0]).toContain("background: transparent");
-      expect(bodiesFor(selector)[0]).not.toMatch(/backdrop-filter/);
-    }
-
-    const projects = bodiesFor(`${nativeRoot} .project-navigator`);
-    expect(projects, "Projects native material owner").toHaveLength(1);
-    expect(projects[0]).toContain("background: rgba(3, 5, 8, 0.62)");
-    expect(projects[0]).toContain("backdrop-filter: blur(24px) saturate(1.18)");
-    expect(projects[0]).toContain("-webkit-backdrop-filter: blur(24px) saturate(1.18)");
-
-    const orchestrator = bodiesFor(`${nativeRoot} .orchestrator-surface`);
-    expect(orchestrator, "opaque orchestrator content owner").toHaveLength(1);
-    expect(orchestrator[0]).toContain("background: var(--ink-0)");
-
-    const alerts = bodiesFor(`${nativeRoot} .desktop-alert-stack`);
-    expect(alerts, "opaque alert row owner").toHaveLength(1);
-    expect(alerts[0]).toContain("background: var(--ink-0)");
-
-    const selectedRows = [
-      `${nativeRoot} .project-row-button[aria-selected="true"]`,
-      `${nativeRoot} .project-session.is-active`,
-    ];
-    for (const selector of selectedRows) {
-      expect(bodiesFor(selector), `${selector} restrained selected fill`).toHaveLength(1);
-      expect(bodiesFor(selector)[0]).toContain(
-        "background: color-mix(in oklab, white 11%, transparent)",
-      );
-    }
-
-    for (const excludedSurface of [
-      ".terminal-tile",
-      ".xterm-host",
-      ".preview-dock",
-      ".sessions-shell",
-      ".sessions-reader",
-      ".sessions-run-details",
-      ".inbox-shell",
-      ".context-drawer",
-      ".privacy-panel",
-      ".command-palette",
-      ".discard-checkout-dialog",
-      ".renderer-crash-card",
-    ]) {
-      expect(
-        allRulesIn(styles).flatMap(({ selectors }) => selectors).filter((selector) =>
-          selector.startsWith(nativeRoot) && selector.includes(excludedSurface),
-        ),
-        `${excludedSurface} must stay outside native material selectors`,
-      ).toEqual([]);
-    }
-  });
-
-  it("restores opaque chrome when reduced transparency is requested", () => {
-    const nativeRoot = 'html[data-alfred-window-material="native"]';
-    const reducedDesktop = mediaExactRuleBodies(
-      "(prefers-reduced-transparency: reduce)",
-      `${nativeRoot} .desktop-frame`,
-    );
-    expect(reducedDesktop).toHaveLength(1);
-    expect(reducedDesktop[0]).toContain("background: var(--ink-0)");
-
-    for (const selector of [
-      `${nativeRoot} .mission-bar`,
-      `${nativeRoot} .project-navigator`,
-    ]) {
-      const reducedOwner = mediaExactRuleBodies(
-        "(prefers-reduced-transparency: reduce)",
-        selector,
-      );
-      expect(reducedOwner, `${selector} reduced-transparency fallback`).toHaveLength(1);
-      expect(reducedOwner[0]).toContain("background: var(--ink-1)");
-      expect(reducedOwner[0]).toContain("backdrop-filter: none");
-      expect(reducedOwner[0]).toContain("-webkit-backdrop-filter: none");
-    }
-  });
-
   it("gives the Preview dock one component stylesheet owner", async () => {
     expect(styles).not.toMatch(/\.workspace-preview-/);
     expect(styles).not.toContain(".context-drawer .workspace-preview-panel");
@@ -725,10 +604,7 @@ describe("renderer CSS contracts", () => {
       ),
     )).toBe(true);
     expect(lowContrastControlUses.map(({ selectors }) => selectors)).toEqual([]);
-    expect(literalColorUses.map(({ selectors }) => selectors)).toEqual([
-      ['html[data-alfred-window-material="native"] .mission-bar'],
-      ['html[data-alfred-window-material="native"] .project-navigator'],
-    ]);
+    expect(literalColorUses.map(({ selectors }) => selectors)).toEqual([]);
   });
 
   it("keeps live shell and terminal material flat and reserves signal for attention", () => {
@@ -750,9 +626,8 @@ describe("renderer CSS contracts", () => {
       [".workbench-header"],
       [".chrome-menu-popover"],
       [".prepare-work-popover"],
-      ['html[data-alfred-window-material="native"] .mission-bar'],
     ]));
-    expect(materialShadows).toHaveLength(4);
+    expect(materialShadows).toHaveLength(3);
     expect(oversizedRadii).toEqual([]);
     expect(signalUses.every(({ selectors }) =>
       selectors.every((selector) => selector.includes("attention") || selector.includes("waiting")),
@@ -815,14 +690,6 @@ describe("renderer CSS contracts", () => {
       const openingBraceIndex = index + match[0].lastIndexOf("{");
       const selectors = topLevelExactSelectorsIn(balancedBlockBody(source, openingBraceIndex).body);
       for (const selector of selectors) {
-        const isNativeReducedTransparency = match[1] === "media"
-          && match[2]?.trim() === "(prefers-reduced-transparency: reduce)"
-          && [
-            'html[data-alfred-window-material="native"] .desktop-frame',
-            'html[data-alfred-window-material="native"] .mission-bar',
-            'html[data-alfred-window-material="native"] .project-navigator',
-          ].includes(selector);
-        if (isNativeReducedTransparency) continue;
         const isTerminal = /(?:\.terminal-|\.tile-|\.tool-dot|\.session-status-|\.session-rename-form|\.split-empty-|\.staged-|\.arrange-|\.xterm-host)/.test(selector);
         const isShell = isLiveSliceOneSelector(selector) && !isTerminal && !/(?:\.composer-|\.dispatch-)/.test(selector);
         if (isTerminal && (index < terminalStart || index >= terminalEnd)) misplaced.push(selector);
@@ -1739,12 +1606,8 @@ describe("renderer CSS contracts", () => {
     const blurredRules = allRulesIn(styles).filter((rule) =>
       /(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/i.test(rule.body),
     );
-    expect(blurredRules).toHaveLength(3);
-    expect(blurredRules.map(({ selectors }) => selectors)).toEqual(expect.arrayContaining([
-      [".privacy-backdrop"],
-      ['html[data-alfred-window-material="native"] .mission-bar'],
-      ['html[data-alfred-window-material="native"] .project-navigator'],
-    ]));
+    expect(blurredRules).toHaveLength(1);
+    expect(blurredRules[0]?.selectors).toEqual([".privacy-backdrop"]);
     expect(styles).not.toMatch(/--glass:/);
   });
 
@@ -1880,7 +1743,7 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps the top chrome on adaptive frame rows", () => {
-    const frame = singleTopLevelRuleBodyIn(styles, ".desktop-frame");
+    const frame = blockFor(".desktop-frame");
     const missionBar = exactBlockFor(".mission-bar");
     const primaryRow = exactBlockFor(".workbench-primary-row");
 
@@ -2111,12 +1974,8 @@ describe("renderer CSS contracts", () => {
     const blurredRules = allRulesIn(styles).filter((rule) =>
       /(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/i.test(rule.body),
     );
-    expect(blurredRules).toHaveLength(3);
-    expect(blurredRules.map(({ selectors }) => selectors)).toEqual(expect.arrayContaining([
-      [".privacy-backdrop"],
-      ['html[data-alfred-window-material="native"] .mission-bar'],
-      ['html[data-alfred-window-material="native"] .project-navigator'],
-    ]));
+    expect(blurredRules).toHaveLength(1);
+    expect(blurredRules[0]?.selectors).toEqual([".privacy-backdrop"]);
   });
 
   it("keeps the Work chrome quiet and command-like", () => {
