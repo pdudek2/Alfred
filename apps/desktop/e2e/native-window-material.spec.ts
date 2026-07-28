@@ -1,9 +1,12 @@
 import type { Locator } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
 
-test("shows native material only through macOS chrome while keeping Work opaque", async ({ harness }) => {
+test("shows bounded macOS material or its reduced-transparency fallback while keeping Work opaque", async ({ harness }) => {
   const { app, page } = harness;
   const nativeMaterial = process.platform === "darwin";
+  const reducedTransparency = await page.evaluate(
+    () => window.matchMedia("(prefers-reduced-transparency: reduce)").matches,
+  );
 
   await expect(page.getByTestId("workbench-header")).toBeVisible();
   await expect(page.getByTestId("xterm-host").first()).toBeVisible();
@@ -24,8 +27,9 @@ test("shows native material only through macOS chrome while keeping Work opaque"
   if (nativeMaterial) {
     expect(windowState.shadow).toBe(true);
     expect(marker).toBe("native");
-    await expectAlphaBelowOne(page.locator(".mission-bar"), "titlebar");
-    await expectAlphaBelowOne(page.getByTestId("project-navigator"), "Projects");
+    const expectChromeAlpha = reducedTransparency ? expectAlphaOne : expectAlphaBelowOne;
+    await expectChromeAlpha(page.locator(".mission-bar"), "titlebar");
+    await expectChromeAlpha(page.getByTestId("project-navigator"), "Projects");
   } else {
     expect(marker).toBeUndefined();
   }
