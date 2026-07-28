@@ -477,6 +477,10 @@ describe("renderer CSS contracts", () => {
     expect(orchestrator, "opaque orchestrator content owner").toHaveLength(1);
     expect(orchestrator[0]).toContain("background: var(--ink-0)");
 
+    const alerts = bodiesFor(`${nativeRoot} .desktop-alert-stack`);
+    expect(alerts, "opaque alert row owner").toHaveLength(1);
+    expect(alerts[0]).toContain("background: var(--ink-0)");
+
     const selectedRows = [
       `${nativeRoot} .project-row-button[aria-selected="true"]`,
       `${nativeRoot} .project-session.is-active`,
