@@ -31,6 +31,8 @@ test("keeps native window material bounded to chrome while Work remains stable",
 
     await page.getByRole("button", { name: "Preview" }).click();
     const preview = page.getByLabel("Workspace preview");
+    const previewDock = page.locator(".workspace-preview-dock");
+    const previewFrame = page.getByTitle("Preview of " + previewUrl);
     await expect(preview).toBeVisible();
     await expect(page.getByTitle(`Preview of ${previewUrl}`)).toBeVisible();
     await expect(page.frameLocator(`iframe[title="Preview of ${previewUrl}"]`).getByText("Preview ready")).toBeVisible();
@@ -38,8 +40,11 @@ test("keeps native window material bounded to chrome while Work remains stable",
     await assertMaterialSurfaces(page, nativeMaterial);
     const divider = page.getByRole("separator", { name: "Resize Preview" });
     const widthBeforeResize = await divider.getAttribute("aria-valuenow");
+    const dockWidthBeforeResize = (await previewDock.boundingBox())?.width;
+    if (dockWidthBeforeResize === undefined) throw new Error("Preview dock is not measurable.");
     await divider.press("ArrowLeft");
     await expect.poll(() => divider.getAttribute("aria-valuenow")).not.toBe(widthBeforeResize);
+    await expect.poll(async () => (await previewDock.boundingBox())?.width).not.toBe(dockWidthBeforeResize);
     await assertNoOverflow(page);
     await screenshot(page, testInfo, "native-window-material-1440x900.png");
 
@@ -47,6 +52,8 @@ test("keeps native window material bounded to chrome while Work remains stable",
     await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "46px");
     await expect(preview).toBeVisible();
     await expect(preview.getByRole("button", { name: "Close Preview" })).toBeVisible();
+    await expect(previewFrame).toBeVisible();
+    await expect(page.frameLocator('iframe[title="Preview of ' + previewUrl + '"]').getByText("Preview ready")).toBeVisible();
     await assertOpaque(page.getByTestId("xterm-host").first(), "terminal content at 1120x720");
     await assertWindowMatchesDocument(app, page, 1120, 720);
     await assertNoOverflow(page);
@@ -156,17 +163,23 @@ async function assertWindowMatchesDocument(
   width: number,
   height: number,
 ): Promise<void> {
-  const [bounds, documentSize] = await Promise.all([
+  const [bounds, contentBounds, documentSize] = await Promise.all([
     app.evaluate(({ BrowserWindow }) => {
       const [window] = BrowserWindow.getAllWindows();
       if (!window) throw new Error("Electron window is missing.");
       const { width: boundsWidth, height: boundsHeight } = window.getBounds();
       return { width: boundsWidth, height: boundsHeight };
     }),
+    app.evaluate(({ BrowserWindow }) => {
+      const [window] = BrowserWindow.getAllWindows();
+      if (!window) throw new Error("Electron window is missing.");
+      const { width: contentWidth, height: contentHeight } = window.getContentBounds();
+      return { width: contentWidth, height: contentHeight };
+    }),
     page.evaluate(() => ({ width: document.documentElement.clientWidth, height: document.documentElement.clientHeight })),
   ]);
   expect(bounds).toEqual({ width, height });
-  expect(documentSize).toEqual({ width, height });
+  expect(documentSize).toEqual(contentBounds);
 }
 
 async function setWindowSize(
@@ -180,7 +193,19 @@ async function setWindowSize(
     if (!window) throw new Error("Electron window is missing.");
     window.setBounds({ x: 0, y: 0, ...bounds });
   }, { width, height });
-  await expect.poll(() => page.evaluate(() => ({ width: innerWidth, height: innerHeight }))).toEqual({ width, height });
+  await expect.poll(() => app.evaluate(({ BrowserWindow }) => {
+    const [window] = BrowserWindow.getAllWindows();
+    if (!window) throw new Error("Electron window is missing.");
+    const { width: boundsWidth, height: boundsHeight } = window.getBounds();
+    return { width: boundsWidth, height: boundsHeight };
+  })).toEqual({ width, height });
+  const contentBounds = await app.evaluate(({ BrowserWindow }) => {
+    const [window] = BrowserWindow.getAllWindows();
+    if (!window) throw new Error("Electron window is missing.");
+    const { width: contentWidth, height: contentHeight } = window.getContentBounds();
+    return { width: contentWidth, height: contentHeight };
+  });
+  await expect.poll(() => page.evaluate(() => ({ width: innerWidth, height: innerHeight }))).toEqual(contentBounds);
 }
 
 async function selectSurface(page: Page, surface: "Work" | "Sessions" | "Context"): Promise<void> {
