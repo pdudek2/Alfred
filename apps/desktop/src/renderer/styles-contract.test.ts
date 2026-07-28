@@ -2031,6 +2031,7 @@ describe("renderer CSS contracts", () => {
     "context-toggle-button",
     "mission-actions",
     "new-terminal-button",
+    "surface-switcher",
     "workspace-title-main",
   ])("does not retain proven orphan selector .%s", (className) => {
     expect(styles).not.toMatch(orphanClassTokenPattern(className));

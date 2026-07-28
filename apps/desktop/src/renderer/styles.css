@@ -1220,54 +1220,6 @@ button:focus-visible {
   overflow: hidden;
 }
 
-.surface-switcher-slot {
-  width: 100%;
-  height: 36px;
-  min-width: 0;
-  border-bottom: 1px solid var(--ink-3);
-  padding: 3px 8px;
-  background: var(--ink-0);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow: hidden;
-}
-
-.surface-switcher {
-  min-width: 0;
-  border: 1px solid var(--ink-3);
-  border-radius: 7px;
-  padding: 2px;
-  background: var(--ink-1);
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.surface-switcher button {
-  min-height: 24px;
-  border: 0;
-  border-radius: 5px;
-  padding: 0 9px;
-  background: transparent;
-  color: var(--ink-5);
-  font: 600 10px/1 var(--sans);
-  cursor: pointer;
-  transition: background-color 140ms ease-out, color 140ms ease-out;
-}
-
-.surface-switcher button:hover,
-.surface-switcher button:focus-visible {
-  background: var(--ink-2);
-  color: var(--ink-7);
-  outline: none;
-}
-
-.surface-switcher button[aria-pressed="true"] {
-  background: var(--ink-3);
-  color: var(--ink-7);
-}
-
 .work-surface-layout {
   min-width: 0;
   flex: 0 0 auto;
@@ -6388,8 +6340,7 @@ body.arranging-pointer {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .inbox-docket *,
-  .surface-switcher button {
+  .inbox-docket * {
     transition-duration: 0.001ms !important;
   }
 
