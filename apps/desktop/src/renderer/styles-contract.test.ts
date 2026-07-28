@@ -940,8 +940,8 @@ describe("renderer CSS contracts", () => {
       'html[data-alfred-window-material="native"] .project-navigator',
     );
 
-    expect(titlebarMaterial).toContain("background: rgba(3, 5, 8, 0.38)");
-    expect(projectsMaterial).toContain("background: rgba(3, 5, 8, 0.46)");
+    expect(titlebarMaterial).toContain("background: rgba(3, 5, 8, 0.3)");
+    expect(projectsMaterial).toContain("background: rgba(3, 5, 8, 0.36)");
   });
 
   it("keeps one canonical owner for the Slice 2 shell", () => {
