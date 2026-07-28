@@ -127,7 +127,7 @@ export function windowMaterialConfiguration(
       backgroundColor: "#00000000",
       transparent: true,
       vibrancy: "under-window",
-      visualEffectState: "followWindow",
+      visualEffectState: "active",
     },
   };
 }
