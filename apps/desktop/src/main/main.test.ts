@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type AppEventHandler = (...args: unknown[]) => unknown;
@@ -241,33 +240,26 @@ describe("main quit persistence", () => {
     expect(mocks.BrowserWindow.getAllWindows).toHaveBeenCalledTimes(1);
   });
 
-  it("uses native material by default only on macOS without transparent-window mode", async () => {
+  it("keeps native glass disabled unless the macOS probe flag is explicit", async () => {
     const main = await import("./main.js");
 
-    expect(main.windowMaterialConfiguration("darwin")).toEqual({
+    expect(main.glassProbeConfiguration("darwin", undefined)).toEqual({
+      enabled: false,
+      windowOptions: { backgroundColor: "#050607" },
+    });
+    expect(main.glassProbeConfiguration("linux", "1")).toEqual({
+      enabled: false,
+      windowOptions: { backgroundColor: "#050607" },
+    });
+    expect(main.glassProbeConfiguration("darwin", "1")).toEqual({
       enabled: true,
       windowOptions: {
         backgroundColor: "#00000000",
+        transparent: true,
         vibrancy: "under-window",
-        visualEffectState: "followWindow",
+        visualEffectState: "active",
       },
     });
-    expect(main.windowMaterialConfiguration("linux")).toEqual({
-      enabled: false,
-      windowOptions: { backgroundColor: "#050607" },
-    });
-    expect(main.windowMaterialConfiguration("win32")).toEqual({
-      enabled: false,
-      windowOptions: { backgroundColor: "#050607" },
-    });
-    expect(main.windowMaterialConfiguration("darwin").windowOptions)
-      .not.toHaveProperty("transparent");
-  });
-
-  it("does not retain the glass probe environment flag", async () => {
-    const source = await readFile("src/main/main.ts", "utf8");
-
-    expect(source).not.toContain("ALFRED_DESKTOP_GLASS_PROBE");
   });
 });
 
