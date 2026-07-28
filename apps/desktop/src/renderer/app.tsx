@@ -226,6 +226,7 @@ export function App() {
   const previewTriggerRef = useRef<HTMLButtonElement | null>(null);
   const surfacesTriggerRef = useRef<HTMLButtonElement | null>(null);
   const privacyReturnFocusRef = useRef<HTMLElement | null>(null);
+  const discardReturnFocusRef = useRef<HTMLElement | null>(null);
   const workReturnFocusRef = useRef<HTMLElement | null>(null);
   const workReturnFocusLabelRef = useRef<string | null>(null);
   const restoreWorkFocusPendingRef = useRef(false);
@@ -989,6 +990,7 @@ export function App() {
   const handleCloseSession = useCallback((sessionId: string) => {
     const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
     const terminalApi = getDesktopTerminalApi();
+    const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     const destructiveWorktreeCleanup =
       session?.runtimeStatus === "restored" || session?.runtimeStatus === "exited" || session?.runtimeStatus === "error";
@@ -1026,6 +1028,7 @@ export function App() {
         return;
       }
 
+      discardReturnFocusRef.current = returnFocus;
       setPendingDiscardConfirmation({
         sessionId,
         title: session.title,
@@ -1248,13 +1251,19 @@ export function App() {
   }, [activeSelectedSession, activeWorkspace.id, handleCloseSession, selectedSessionIdsByWorkspace]);
 
   const handleCancelDiscardCheckout = useCallback(() => {
+    const returnFocus = discardReturnFocusRef.current;
+    discardReturnFocusRef.current = null;
     setPendingDiscardConfirmation(null);
+    queueMicrotask(() => {
+      if (returnFocus?.isConnected) returnFocus.focus();
+    });
   }, []);
 
   const handleReviewDiscardCheckout = useCallback(() => {
     const confirmation = pendingDiscardConfirmation;
     if (!confirmation) return;
 
+    discardReturnFocusRef.current = null;
     setPendingDiscardConfirmation(null);
     void handleReviewWorktree(confirmation.sessionId);
   }, [handleReviewWorktree, pendingDiscardConfirmation]);
@@ -1263,6 +1272,7 @@ export function App() {
     const confirmation = pendingDiscardConfirmation;
     if (!confirmation) return;
 
+    discardReturnFocusRef.current = null;
     setPendingDiscardConfirmation(null);
     closeSessionNow(confirmation.sessionId);
   }, [closeSessionNow, pendingDiscardConfirmation]);
@@ -2856,6 +2866,7 @@ function DiscardCheckoutDialog({
   onConfirmDiscard: () => void;
   onReviewChanges: () => void;
 }) {
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const changedFileLabel = `${confirmation.files.length} changed file${confirmation.files.length === 1 ? "" : "s"}`;
   const previewFiles = confirmation.files.slice(0, 6);
   const remaining = confirmation.files.length - previewFiles.length;
@@ -2863,15 +2874,32 @@ function DiscardCheckoutDialog({
   return (
     <div className="discard-checkout-backdrop" role="presentation" onMouseDown={onCancel}>
       <div
+        ref={panelRef}
         className="discard-checkout-dialog"
         role="dialog"
         aria-modal="true"
         aria-label="Discard isolated checkout"
         onKeyDown={(event) => {
-          if (event.key !== "Escape") return;
-          event.preventDefault();
-          event.stopPropagation();
-          onCancel();
+          if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
+            onCancel();
+            return;
+          }
+          if (event.key !== "Tab") return;
+          const controls = [...(panelRef.current?.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), input:not([disabled]), [href], select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ) ?? [])];
+          const first = controls[0];
+          const last = controls.at(-1);
+          if (!first || !last) return;
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+          }
         }}
         onMouseDown={(event) => event.stopPropagation()}
       >

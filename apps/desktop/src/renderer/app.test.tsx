@@ -4522,6 +4522,20 @@ describe("App integration", () => {
     });
   });
 
+  it("announces an empty command palette result", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    const palette = screen.getByRole("dialog", { name: "Command palette" });
+    await user.type(within(palette).getByRole("textbox", { name: "Search commands" }), "no such alfred command");
+
+    expect(within(palette).getByRole("status")).toHaveTextContent("No matching command.");
+  });
+
   it("opens the command palette and runs desk commands", async () => {
     const user = userEvent.setup();
     const { createWorkspaceFromFolder, setWorkspaceLayout, setWorkspaceState } = installDesktopBridge();
@@ -6897,7 +6911,7 @@ describe("App integration", () => {
     expect(forgetTerminal).not.toHaveBeenCalled();
   });
 
-  it("lets discard confirmation consume Escape without changing armed Recovery", async () => {
+  it("traps discard confirmation focus and restores its trigger without changing armed Recovery", async () => {
     const user = userEvent.setup();
     const { createTerminal, forgetTerminal } = installDesktopBridge(
       undefined,
@@ -6929,13 +6943,25 @@ describe("App integration", () => {
     await user.click(within(inbox).getByRole("button", { name: "Review relaunch Guarded armed recovery in Alfred" }));
     expect(within(inbox).getByRole("button", { name: "Confirm relaunch Guarded armed recovery in Alfred" })).toBeInTheDocument();
 
-    await user.click(within(inbox).getByRole("button", { name: "Discard Guarded armed recovery" }));
-    expect(await screen.findByRole("dialog", { name: "Discard isolated checkout" })).toBeInTheDocument();
+    const discardTrigger = within(inbox).getByRole("button", { name: "Discard Guarded armed recovery" });
+    await user.click(discardTrigger);
+    const dialog = await screen.findByRole("dialog", { name: "Discard isolated checkout" });
+    const firstControl = within(dialog).getByRole("button", { name: "Close discard dialog" });
+    const lastControl = within(dialog).getByRole("button", { name: "Discard checkout permanently" });
     expect(forgetTerminal).not.toHaveBeenCalled();
+
+    lastControl.focus();
+    await user.tab();
+    expect(firstControl).toHaveFocus();
+
+    firstControl.focus();
+    await user.tab({ shift: true });
+    expect(lastControl).toHaveFocus();
 
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
+    expect(discardTrigger).toHaveFocus();
     expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
     expect(within(inbox).getByRole("button", { name: "Confirm relaunch Guarded armed recovery in Alfred" })).toBeInTheDocument();
     expect(within(inbox).getByText("Guarded armed recovery")).toBeVisible();

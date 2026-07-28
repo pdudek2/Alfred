@@ -493,7 +493,7 @@ export function CommandPalette({
             ),
           )}
           {filteredCommands.length === 0 && (
-            <div className="command-palette-empty">No matching command.</div>
+            <div className="command-palette-empty" role="status">No matching command.</div>
           )}
         </div>
       </div>
