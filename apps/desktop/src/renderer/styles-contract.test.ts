@@ -930,6 +930,20 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".project-session-title", ["text-overflow: ellipsis", "white-space: nowrap"]);
   });
 
+  it("keeps the approved stronger native material influence bounded to window chrome", () => {
+    const titlebarMaterial = singleTopLevelRuleBodyIn(
+      styles,
+      'html[data-alfred-window-material="native"] .mission-bar',
+    );
+    const projectsMaterial = singleTopLevelRuleBodyIn(
+      styles,
+      'html[data-alfred-window-material="native"] .project-navigator',
+    );
+
+    expect(titlebarMaterial).toContain("background: rgba(9, 11, 14, 0.44)");
+    expect(projectsMaterial).toContain("background: rgba(3, 5, 8, 0.54)");
+  });
+
   it("keeps one canonical owner for the Slice 2 shell", () => {
     expectCanonicalBase(".project-navigator", ["width: 226px", "overflow: hidden"]);
     expectCanonicalBase(".workbench-header", ["height: 44px"]);
