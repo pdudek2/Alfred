@@ -25,17 +25,19 @@ const mocks = vi.hoisted(() => {
     appEventHandlers,
     attachWindowStatePersistence: vi.fn(() => ({ flush: vi.fn(async () => {}) })),
     BrowserWindow: Object.assign(
-      vi.fn(() => ({
-        focus: vi.fn(),
-        isMinimized: vi.fn(() => false),
-        loadFile: vi.fn(async () => {}),
-        loadURL: vi.fn(async () => {}),
-        on: vi.fn(),
-        once: vi.fn(),
-        restore: vi.fn(),
-        show: vi.fn(),
-        webContents: { openDevTools: vi.fn() },
-      })),
+      vi.fn(function MockBrowserWindow() {
+        return {
+          focus: vi.fn(),
+          isMinimized: vi.fn(() => false),
+          loadFile: vi.fn(async () => {}),
+          loadURL: vi.fn(async () => {}),
+          on: vi.fn(),
+          once: vi.fn(),
+          restore: vi.fn(),
+          show: vi.fn(),
+          webContents: { openDevTools: vi.fn() },
+        };
+      }),
       { getAllWindows: vi.fn(() => []) },
     ),
     configureLayoutPersistence: vi.fn(),
@@ -44,7 +46,12 @@ const mocks = vi.hoisted(() => {
     createPersistedDesktopStateStore: vi.fn(() => ({
       getState: vi.fn(async () => ({ windowState: null })),
     })),
-    createWorkspaceStore: vi.fn(() => ({})),
+    createWorkspaceStore: vi.fn(() => ({
+      getWorkspaceState: vi.fn(async () => ({
+        activeWorkspaceId: "A",
+        workspaces: [{ id: "A", name: "Repo", rootPath: "/repo" }],
+      })),
+    })),
     dialog: { showMessageBoxSync: vi.fn(() => 0) },
     flushTerminalPersistence: vi.fn(async () => {}),
     getTerminalSessionCount: vi.fn(() => 0),
@@ -218,6 +225,22 @@ describe("main quit persistence", () => {
       consoleWarn.mockRestore();
       consoleError.mockRestore();
     }
+  });
+
+  it("wires authoritative workspace-root resolution into terminal IPC", async () => {
+    mocks.app.whenReady.mockResolvedValueOnce(undefined);
+
+    await import("./main.js");
+    await flushMicrotasks();
+
+    expect(mocks.registerTerminalIpc).toHaveBeenCalledWith(expect.objectContaining({
+      resolveWorkspaceRoot: expect.any(Function),
+    }));
+    const options = mocks.registerTerminalIpc.mock.calls[0]?.[0] as
+      | { resolveWorkspaceRoot?: (workspaceId: string) => Promise<string | undefined> }
+      | undefined;
+    await expect(options?.resolveWorkspaceRoot?.("A")).resolves.toBe("/repo");
+    await expect(options?.resolveWorkspaceRoot?.("missing")).resolves.toBeUndefined();
   });
 
   it("exits immediately when another Alfred instance owns the desktop profile", async () => {

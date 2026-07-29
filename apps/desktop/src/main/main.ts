@@ -185,6 +185,10 @@ if (!hasSingleInstanceLock) {
       allowedCwdRoots: async () => allowedWorkspaceRoots(workspaceStore, { managedWorktreeRootPath, scratchRootPath }),
       isStagedCommandAllowed: isStagedSessionLaunchAllowed,
       managedWorktreeRootPath,
+      resolveWorkspaceRoot: async (workspaceId) => {
+        const state = await workspaceStore.getWorkspaceState();
+        return state.workspaces.find((workspace) => workspace.id === workspaceId)?.rootPath;
+      },
       requireLaunchTickets: true,
       scratchRootPath,
     });

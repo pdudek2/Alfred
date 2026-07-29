@@ -275,7 +275,7 @@ function installDesktopBridge(
     }),
   );
   const killTerminal = vi.fn();
-  const forgetTerminal = vi.fn();
+  const forgetTerminal = vi.fn(async () => ({ ok: true as const }));
   const renameTerminal = vi.fn().mockResolvedValue(undefined);
   const prepareLaunch = vi.fn().mockResolvedValue({ launchTicketId: "ticket-1", expiresAt: Date.now() + 120_000 });
   const writeTerminal = vi.fn();
@@ -7318,6 +7318,43 @@ describe("App integration", () => {
 
     expect(screen.queryByRole("article", { name: /Codex · session 9/i })).not.toBeInTheDocument();
     expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9", cleanupWorktree: true });
+  });
+
+  it("retains the recovery tile and warns when checkout Discard is rejected", async () => {
+    const user = userEvent.setup();
+    const { forgetTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [{
+        clientId: "codex-9",
+        title: "Codex · session 9",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "A",
+        workspaceRootFingerprint: "0123456789abcdef",
+        isolation: "worktree",
+        branchName: "alfred-codex-9",
+      }],
+    );
+    forgetTerminal.mockResolvedValueOnce({
+      ok: false,
+      error: "Unable to remove isolated Git worktree.",
+    });
+
+    render(<App />);
+    expect(await screen.findByRole("article", { name: /Codex · session 9/i })).toBeInTheDocument();
+    await selectSurface(user, "Context");
+    await user.click(screen.getByRole("button", { name: "Discard checkout Codex · session 9" }));
+    await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
+
+    expect(await screen.findByRole("article", { name: /Codex · session 9/i })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Codex · session 9/i })).toHaveTextContent(
+      "Unable to remove isolated Git worktree.",
+    );
   });
 
   it("preserves legacy isolated checkout metadata when resuming a restored agent session", async () => {

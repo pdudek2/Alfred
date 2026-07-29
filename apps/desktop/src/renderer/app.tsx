@@ -972,9 +972,31 @@ export function App() {
     });
   }, [activeSessions, activeWorkspace.id]);
 
-  const closeSessionNow = useCallback((sessionId: string) => {
+  const closeSessionNow = useCallback(async (sessionId: string) => {
     const terminalApi = getDesktopTerminalApi();
+    const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
+    if (!session) return;
+
     closingSessionIdsRef.current.add(sessionId);
+    const destructiveWorktreeCleanup =
+      session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error";
+    if (destructiveWorktreeCleanup) {
+      const result = terminalApi
+        ? await terminalApi.forget({ clientId: session.id, cleanupWorktree: true })
+        : { ok: false as const, error: "Desktop terminal API is unavailable." };
+      if (!result.ok) {
+        closingSessionIdsRef.current.delete(sessionId);
+        setTerminalSessions((current) =>
+          appendSessionActivity(current, session.id, {
+            kind: "warning",
+            title: "Discard checkout blocked",
+            detail: result.error,
+          }),
+        );
+        return;
+      }
+    }
+
     setArmedRecoverySessionIds((current) => {
       if (!current.has(sessionId)) return current;
       const next = new Set(current);
@@ -983,22 +1005,15 @@ export function App() {
     });
     setPreviewCandidates((candidates) => candidates.filter((candidate) => candidate.sessionId !== sessionId));
 
-    setTerminalSessions((sessions) => {
-      const session = sessions.find((item) => item.id === sessionId);
-      if (session?.runtimeStatus === "restored" || session?.runtimeStatus === "exited" || session?.runtimeStatus === "error") {
-        terminalApi?.forget({ clientId: session.id, cleanupWorktree: true });
-        if (session.runtimeId) {
-          terminalApi?.kill({ id: session.runtimeId });
-        }
-        closingSessionIdsRef.current.delete(sessionId);
-      } else if (session?.runtimeId) {
-        terminalApi?.kill({ id: session.runtimeId });
-        window.setTimeout(() => closingSessionIdsRef.current.delete(sessionId), 5_000);
-      } else {
-        closingSessionIdsRef.current.delete(sessionId);
-      }
-      return closeSession(sessions, sessionId);
-    });
+    if (destructiveWorktreeCleanup) {
+      closingSessionIdsRef.current.delete(sessionId);
+    } else if (session.runtimeId) {
+      terminalApi?.kill({ id: session.runtimeId });
+      window.setTimeout(() => closingSessionIdsRef.current.delete(sessionId), 5_000);
+    } else {
+      closingSessionIdsRef.current.delete(sessionId);
+    }
+    setTerminalSessions((sessions) => closeSession(sessions, sessionId));
   }, []);
 
   const handleCloseSession = useCallback((sessionId: string) => {
@@ -1010,7 +1025,7 @@ export function App() {
       session?.runtimeStatus === "restored" || session?.runtimeStatus === "exited" || session?.runtimeStatus === "error";
 
     if (!session || !destructiveWorktreeCleanup || !isReviewableWorktreeSession(session)) {
-      closeSessionNow(sessionId);
+      void closeSessionNow(sessionId);
       return;
     }
 
@@ -1038,7 +1053,7 @@ export function App() {
       }
 
       if (result.files.length === 0) {
-        closeSessionNow(sessionId);
+        void closeSessionNow(sessionId);
         return;
       }
 
@@ -1288,7 +1303,7 @@ export function App() {
 
     discardReturnFocusRef.current = null;
     setPendingDiscardConfirmation(null);
-    closeSessionNow(confirmation.sessionId);
+    void closeSessionNow(confirmation.sessionId);
   }, [closeSessionNow, pendingDiscardConfirmation]);
 
   const handleRuntimeSessionStarting = useCallback((tileId: string): boolean => {
@@ -2976,10 +2991,16 @@ function DiscardCheckoutDialog({
 }
 
 function isReviewableWorktreeSession(
-  session: Pick<SessionTile, "baseCwd" | "branchName" | "isolation"> | null | undefined,
+  session: Pick<
+    SessionTile,
+    "baseCwd" | "branchName" | "isolation" | "workspaceId" | "workspaceRootFingerprint"
+  > | null | undefined,
 ): boolean {
   if (session?.isolation === "shared") return false;
-  return Boolean(session?.baseCwd && session.branchName);
+  return Boolean(
+    session?.branchName
+    && (session.baseCwd || (session.workspaceId && session.workspaceRootFingerprint)),
+  );
 }
 
 function worktreeDiffDetail(result: {
