@@ -50,7 +50,12 @@ export function registerDesktopStateIpc(store: PersistedDesktopStateStore): void
     async (): Promise<DesktopStateClearSavedTerminalDataResult> => {
       try {
         const current = await store.getState();
-        const clearedInMemory = applyTerminalPrivacyPolicyInMemory(current.privacySettings, true);
+        const affectedClientIds = new Set(current.restoredTerminalSessions.map((session) => session.clientId));
+        const clearedSessions = applyTerminalPrivacyPolicyInMemory(
+          current.privacySettings,
+          true,
+          affectedClientIds,
+        );
         const state = await store.updateState((latest) => ({
           ...latest,
           restoredTerminalSessions: latest.restoredTerminalSessions.flatMap((session) => {
@@ -60,7 +65,7 @@ export function registerDesktopStateIpc(store: PersistedDesktopStateStore): void
         }));
         return {
           ok: true,
-          clearedSessions: Math.max(clearedInMemory, current.restoredTerminalSessions.length),
+          clearedSessions,
         };
       } catch (error) {
         return { ok: false, error: error instanceof Error ? error.message : "Failed to clear saved terminal data." };

@@ -51,6 +51,7 @@ import {
   type AgentWorktreeResult,
 } from "./git-worktree.js";
 import {
+  DEFAULT_PRIVACY_SETTINGS,
   sanitizePersistedTerminalSession,
   type DesktopPrivacySettings,
   type PersistedDesktopStateStore,
@@ -139,6 +140,9 @@ let persistenceHydrationMutations: Set<string> | null = null;
 let persistenceGeneration = 0;
 let persistDebounceMs = 250;
 let persistTimer: NodeJS.Timeout | null = null;
+let effectivePrivacySettings: DesktopPrivacySettings = { ...DEFAULT_PRIVACY_SETTINGS };
+let privacyPolicyGeneration = 0;
+let privacyClearGeneration = 0;
 
 export function configureTerminalPersistence(
   store: PersistedDesktopStateStore,
@@ -149,6 +153,9 @@ export function configureTerminalPersistence(
   persistenceHydration = null;
   persistenceHydrationMutations = null;
   persistenceGeneration += 1;
+  privacyPolicyGeneration += 1;
+  privacyClearGeneration += 1;
+  effectivePrivacySettings = { ...DEFAULT_PRIVACY_SETTINGS };
   restoredSessionSnapshots.clear();
   forgottenClientIds.clear();
   persistDebounceMs = options.debounceMs ?? 250;
@@ -164,6 +171,9 @@ export function resetTerminalPersistenceForTests(): void {
   persistenceHydration = null;
   persistenceHydrationMutations = null;
   persistenceGeneration += 1;
+  privacyPolicyGeneration += 1;
+  privacyClearGeneration += 1;
+  effectivePrivacySettings = { ...DEFAULT_PRIVACY_SETTINGS };
   restoredSessionSnapshots.clear();
   forgottenClientIds.clear();
   recentTerminalExits.clear();
@@ -280,6 +290,10 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       }
 
       const safeRequest = validateTerminalCreateRequest(request);
+      void hydratePersistedTerminalSessions();
+      const launchClearGeneration = privacyClearGeneration;
+      const launchStartedWithPersistence =
+        effectivePrivacySettings.terminalScrollbackRetention !== "off";
       const requiresLaunchTicket = Boolean(options.requireLaunchTickets && requestRequiresLaunchTicket(safeRequest));
       if (requiresLaunchTicket) {
         consumeLaunchTicket(
@@ -339,7 +353,9 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           activityEvents: [],
           activityStream: { carry: "" },
           ownerWindowId: window.id,
-          persistLaunchData: true,
+          persistLaunchData: launchStartedWithPersistence
+            && launchClearGeneration === privacyClearGeneration
+            && effectivePrivacySettings.terminalScrollbackRetention !== "off",
           pty,
           window,
         };
@@ -360,6 +376,10 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         appendToBuffer(session, data);
         session.lastOutputAt = now;
         const activities = recordOutputActivity(session, data, now);
+        if (effectivePrivacySettings.terminalScrollbackRetention === "off") {
+          session.persistLaunchData = false;
+          clearSessionReplayData(session);
+        }
         rememberSessionSnapshot(session);
         sendToSessionWindow(session, terminalChannels.data, {
           id: session.id,
@@ -533,8 +553,14 @@ export function getTerminalSessionCount(): number {
 export function applyTerminalPrivacyPolicyInMemory(
   privacySettings: DesktopPrivacySettings,
   clearLaunchData = false,
+  changed = new Set<string>(),
 ): number {
-  const changed = new Set<string>();
+  effectivePrivacySettings = { ...privacySettings };
+  privacyPolicyGeneration += 1;
+  if (clearLaunchData || privacySettings.terminalScrollbackRetention === "off") {
+    privacyClearGeneration += 1;
+  }
+
   for (const [clientId, snapshot] of restoredSessionSnapshots) {
     const sanitized = sanitizePersistedTerminalSession(snapshot, privacySettings, clearLaunchData);
     if (JSON.stringify(snapshot) !== JSON.stringify(sanitized)) changed.add(clientId);
@@ -543,15 +569,7 @@ export function applyTerminalPrivacyPolicyInMemory(
   }
 
   if (clearLaunchData || privacySettings.terminalScrollbackRetention === "off") {
-    for (const session of sessions.values()) {
-      if (!session.clientId) continue;
-      session.persistLaunchData = false;
-      session.buffer = "";
-      delete session.activityEvents;
-      delete session.lastActivityAt;
-      delete session.lastOutputAt;
-      changed.add(session.clientId);
-    }
+    disableLiveSessionPersistence(changed);
   }
 
   scheduleTerminalPersistence();
@@ -638,6 +656,22 @@ function appendToBuffer(session: TerminalSession, data: string): void {
   }
 }
 
+function clearSessionReplayData(session: TerminalSession): void {
+  session.buffer = "";
+  delete session.activityEvents;
+  delete session.lastActivityAt;
+  delete session.lastOutputAt;
+}
+
+function disableLiveSessionPersistence(changed?: Set<string>): void {
+  for (const session of sessions.values()) {
+    if (!session.clientId) continue;
+    session.persistLaunchData = false;
+    clearSessionReplayData(session);
+    changed?.add(session.clientId);
+  }
+}
+
 async function hydratePersistedTerminalSessions(): Promise<void> {
   if (persistenceHydrated || !persistedStateStore) {
     return;
@@ -648,11 +682,26 @@ async function hydratePersistedTerminalSessions(): Promise<void> {
 
   const store = persistedStateStore;
   const generation = persistenceGeneration;
+  const policyGeneration = privacyPolicyGeneration;
+  const clearGeneration = privacyClearGeneration;
   const hydrationMutations = new Set(restoredSessionSnapshots.keys());
   persistenceHydrationMutations = hydrationMutations;
   const hydration = (async () => {
     const state = await store.getState();
     if (persistedStateStore !== store || persistenceGeneration !== generation) return;
+    if (privacyPolicyGeneration === policyGeneration) {
+      const learnedRetentionOff =
+        effectivePrivacySettings.terminalScrollbackRetention !== "off"
+        && state.privacySettings.terminalScrollbackRetention === "off";
+      effectivePrivacySettings = { ...state.privacySettings };
+      if (learnedRetentionOff) {
+        privacyClearGeneration += 1;
+        disableLiveSessionPersistence();
+      }
+    }
+    const clearLaunchData = privacyClearGeneration !== clearGeneration;
+    const sanitizeHydratedSessions =
+      clearLaunchData || effectivePrivacySettings.terminalScrollbackRetention === "off";
 
     const locallyRemembered = new Map(
       [...restoredSessionSnapshots].filter(([clientId]) => hydrationMutations.has(clientId)),
@@ -660,10 +709,16 @@ async function hydratePersistedTerminalSessions(): Promise<void> {
     restoredSessionSnapshots.clear();
     for (const session of state.restoredTerminalSessions) {
       if (forgottenClientIds.has(session.clientId) || locallyRemembered.has(session.clientId)) continue;
-      restoredSessionSnapshots.set(session.clientId, clonePersistedSession(session));
+      const sanitized = sanitizeHydratedSessions
+        ? sanitizePersistedTerminalSession(session, effectivePrivacySettings, clearLaunchData)
+        : session;
+      if (sanitized) restoredSessionSnapshots.set(session.clientId, clonePersistedSession(sanitized));
     }
     for (const [clientId, session] of locallyRemembered) {
-      restoredSessionSnapshots.set(clientId, session);
+      const sanitized = sanitizeHydratedSessions
+        ? sanitizePersistedTerminalSession(session, effectivePrivacySettings, clearLaunchData)
+        : session;
+      if (sanitized) restoredSessionSnapshots.set(clientId, sanitized);
     }
     persistenceHydrated = true;
   })();
