@@ -1,5 +1,7 @@
 # Phase S3 API Boundary Simplification Implementation Plan
 
+**Status:** Executed and integrated locally — hosted rollout pending
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Remove Alfred's unused browser-session authentication and human query
@@ -99,7 +101,7 @@ configuration.
   default `404` responses for all retired paths.
 - Preserves: the existing retryable `createBootstrapAuthGate()` contract.
 
-- [ ] **Step 1: Replace browser-route expectations with the retired boundary**
+- [x] **Step 1: Replace browser-route expectations with the retired boundary**
 
 Remove the runs/auth/system fixtures and imports from `app.test.ts`. Change the
 root expectation to:
@@ -174,7 +176,7 @@ Update the bootstrap retry test to request
 the second to be `401` because bootstrap recovered but no Bearer token was
 provided, and the seed mock to have two calls.
 
-- [ ] **Step 2: Run the boundary test and verify it fails**
+- [x] **Step 2: Run the boundary test and verify it fails**
 
 ```bash
 pnpm --filter @alfred/api test -- app.test.ts
@@ -183,7 +185,7 @@ pnpm --filter @alfred/api test -- app.test.ts
 Expected: FAIL because root metadata still advertises runs, retired routes are
 mounted, and the global bootstrap middleware still runs before unknown routes.
 
-- [ ] **Step 3: Narrow `createApp()` to health and ingest**
+- [x] **Step 3: Narrow `createApp()` to health and ingest**
 
 Remove every session, OIDC, runs, system, and system-status import and
 construction from `app.ts`. Keep the current device store selection.
@@ -206,13 +208,13 @@ Delete the global `app.use("*", ...)` middleware and
 independent of bootstrap while preserving bootstrap before every surviving
 ingest handler.
 
-- [ ] **Step 4: Delete the orphaned runtime and dedicated tests**
+- [x] **Step 4: Delete the orphaned runtime and dedicated tests**
 
 Delete exactly the files listed in this task. Do not delete
 `bootstrap-auth.ts`, `device-auth.ts`, `token-hash.ts`, ingest routes/services,
 or any database schema/migration file.
 
-- [ ] **Step 5: Run the API boundary and ingest regressions**
+- [x] **Step 5: Run the API boundary and ingest regressions**
 
 ```bash
 pnpm --filter @alfred/api test -- app.test.ts ingest.test.ts
@@ -223,7 +225,7 @@ pnpm --filter @alfred/api build
 Expected: PASS. The ingest suite must still prove valid heartbeat/batch `202`,
 missing token `401`, and scope mismatch `403`.
 
-- [ ] **Step 6: Confirm no deleted runtime imports remain**
+- [x] **Step 6: Confirm no deleted runtime imports remain**
 
 ```bash
 if rg -n 'auth/(cookies|oidc-auth|session-auth)|routes/(auth|runs|system)|services/(runs-query-service|runner-status-service|system-status-store)' apps/api/src; then
@@ -234,7 +236,7 @@ fi
 
 Expected: exit `0` with no matches.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/api/src
@@ -257,7 +259,7 @@ git commit -m "refactor(api): remove browser auth and query routes"
   `AUTH_DEV_SESSION_TOKEN`, or `APP_BASE_URL`.
 - Preserves: hosted rejection of the built-in `dev-device-token`.
 
-- [ ] **Step 1: Rewrite environment regressions**
+- [x] **Step 1: Rewrite environment regressions**
 
 Keep a local-default test that expects:
 
@@ -299,7 +301,7 @@ for (const key of [
 }
 ```
 
-- [ ] **Step 2: Run the focused test and verify it fails**
+- [x] **Step 2: Run the focused test and verify it fails**
 
 ```bash
 pnpm --filter @alfred/api test -- env.test.ts
@@ -308,7 +310,7 @@ pnpm --filter @alfred/api test -- env.test.ts
 Expected: FAIL because the schema still returns browser-auth fields and hosted
 validation still requires an explicit session token.
 
-- [ ] **Step 3: Remove browser-only environment fields**
+- [x] **Step 3: Remove browser-only environment fields**
 
 Delete `DEFAULT_AUTH_DEV_SESSION_TOKEN` and the five retired fields from
 `createEnvSchema()`. Remove the hosted session-token guard. Keep only:
@@ -325,7 +327,7 @@ if (hostedDevAuth && parsed.RUNNER_DEVICE_TOKEN === DEFAULT_RUNNER_DEVICE_TOKEN)
 
 Do not rename the existing flags in this phase.
 
-- [ ] **Step 4: Run API checks**
+- [x] **Step 4: Run API checks**
 
 ```bash
 pnpm --filter @alfred/api test
@@ -335,7 +337,7 @@ pnpm --filter @alfred/api build
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/env.ts apps/api/src/test/env.test.ts
@@ -358,7 +360,7 @@ git commit -m "refactor(api): remove browser auth configuration"
 - Public mode verifies health plus `404` for every retired direct and alias
   route; runner mode keeps its heartbeat and synthetic batch checks.
 
-- [ ] **Step 1: Replace session-mode tests with boundary tests**
+- [x] **Step 1: Replace session-mode tests with boundary tests**
 
 Rewrite the first cloud-smoke test so its HTTP server returns health for
 `/health` and `404` for all other paths. Pass retired session variables in the
@@ -400,7 +402,7 @@ assert.match(
 
 Keep both runner-auth tests unchanged.
 
-- [ ] **Step 2: Run the script test and verify it fails**
+- [x] **Step 2: Run the script test and verify it fails**
 
 ```bash
 node --test scripts/test/cloud-smoke.test.mjs
@@ -409,7 +411,7 @@ node --test scripts/test/cloud-smoke.test.mjs
 Expected: FAIL because public mode still probes login readiness and
 `authenticated` remains accepted.
 
-- [ ] **Step 3: Replace browser checks with negative route checks**
+- [x] **Step 3: Replace browser checks with negative route checks**
 
 Allow only:
 
@@ -434,7 +436,7 @@ function validateNotFound(response) {
 Keep `validateHealth`, runner headers, runner batch construction, and Vercel
 protection bypass behavior unchanged.
 
-- [ ] **Step 4: Run cloud-smoke and script gates**
+- [x] **Step 4: Run cloud-smoke and script gates**
 
 ```bash
 node --test scripts/test/cloud-smoke.test.mjs
@@ -443,7 +445,7 @@ pnpm test:scripts
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/cloud-smoke.mjs scripts/test/cloud-smoke.test.mjs
@@ -467,7 +469,7 @@ git commit -m "test(api): smoke the device-only boundary"
   `runner:service:logs`.
 - Removes: launcher tasks `api-run-filters` and `api-root-tests`.
 
-- [ ] **Step 1: Verify the current scripts parse before deletion**
+- [x] **Step 1: Verify the current scripts parse before deletion**
 
 ```bash
 node --check scripts/dev-doctor.mjs
@@ -477,7 +479,7 @@ node --check scripts/launch-parallel-agents.mjs
 Expected: both scripts parse. This task deletes obsolete configuration and
 prompts; Patryk approved the no-new-text-test exception during plan pre-flight.
 
-- [ ] **Step 2: Simplify dev-doctor**
+- [x] **Step 2: Simplify dev-doctor**
 
 From `loadConfig()`, remove `authDevSessionToken` and
 `apiSystemStatusUrl`. Delete `checkRunnerStatus()` and its call from `main()`.
@@ -492,13 +494,13 @@ return "start foreground with `pnpm runner:local`; for the background service us
 
 Do not replace the deleted system query with another API route.
 
-- [ ] **Step 3: Remove launcher tasks that recreate retired routes**
+- [x] **Step 3: Remove launcher tasks that recreate retired routes**
 
 Delete only the `api-run-filters` and `api-root-tests` task objects from
 `scripts/launch-parallel-agents.mjs`. Keep the remaining runner, diagnostics,
 privacy, maintenance, and adapter tasks unchanged.
 
-- [ ] **Step 4: Run syntax and existing script checks**
+- [x] **Step 4: Run syntax and existing script checks**
 
 ```bash
 node --check scripts/dev-doctor.mjs
@@ -508,7 +510,7 @@ pnpm test:scripts
 
 Expected: PASS.
 
-- [ ] **Step 5: Run the focused residue scan**
+- [x] **Step 5: Run the focused residue scan**
 
 ```bash
 if rg -n 'AUTH_DEV_SESSION_TOKEN|API_SYSTEM_STATUS_URL|alfred_session|/api/v1/system/status' scripts/dev-doctor.mjs; then
@@ -524,7 +526,7 @@ fi
 
 Expected: both scans exit `0` with no matches.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add scripts/dev-doctor.mjs scripts/launch-parallel-agents.mjs
@@ -549,7 +551,7 @@ git commit -m "refactor(tooling): remove browser API diagnostics"
 - Preserves: the local `ALFRED_ALLOW_DEV_AUTH=1` static device-token fallback
   and the existing runner service workflow.
 
-- [ ] **Step 1: Tighten the executable Vercel routing contract**
+- [x] **Step 1: Tighten the executable Vercel routing contract**
 
 Change the exact Vercel rewrite expectation to:
 
@@ -564,7 +566,7 @@ rewrites: [
 Do not add tests that grep README or `.env.example`; they are human-facing
 documentation, not executable behavior.
 
-- [ ] **Step 2: Run the product-boundary test and verify it fails**
+- [x] **Step 2: Run the product-boundary test and verify it fails**
 
 ```bash
 node --test scripts/test/desktop-product-boundary.test.mjs
@@ -572,7 +574,7 @@ node --test scripts/test/desktop-product-boundary.test.mjs
 
 Expected: FAIL because the auth rewrite still exists.
 
-- [ ] **Step 3: Remove the Vercel auth rewrite**
+- [x] **Step 3: Remove the Vercel auth rewrite**
 
 Delete only:
 
@@ -582,7 +584,7 @@ Delete only:
 
 Keep the API, versioned API, and health rewrites.
 
-- [ ] **Step 4: Rewrite the environment example**
+- [x] **Step 4: Rewrite the environment example**
 
 Delete `AUTH_DEV_SESSION_TOKEN` and `APP_BASE_URL`. Replace the `# API auth`
 comment with:
@@ -597,7 +599,7 @@ ALFRED_BOOTSTRAP_WORKSPACE_ID=00000000-0000-4000-8000-000000000001
 Keep the runner workspace, device, and token values where they are; do not
 duplicate them.
 
-- [ ] **Step 5: Rewrite the API/cloud documentation**
+- [x] **Step 5: Rewrite the API/cloud documentation**
 
 Make the workspace map describe:
 
@@ -637,7 +639,7 @@ In `Local runner service`, replace the development-auth sentence with:
 creating a browser session or querying runner data from the API.
 ```
 
-- [ ] **Step 6: Run product-boundary and script checks**
+- [x] **Step 6: Run product-boundary and script checks**
 
 ```bash
 node --test scripts/test/desktop-product-boundary.test.mjs scripts/test/cloud-smoke.test.mjs
@@ -646,7 +648,7 @@ pnpm test:scripts
 
 Expected: PASS.
 
-- [ ] **Step 7: Review documentation residue without adding prose tests**
+- [x] **Step 7: Review documentation residue without adding prose tests**
 
 ```bash
 if rg -n 'AUTH_OIDC_|AUTH_DEV_SESSION_TOKEN|APP_BASE_URL|ALFRED_EXPECT_AUTH|ALFRED_CLOUD_SMOKE_MODE=authenticated|/api/v1/runs|/v1/runs' README.md .env.example; then
@@ -657,7 +659,7 @@ fi
 
 Expected: exit `0` with no matches.
 
-- [ ] **Step 8: Confirm database files are untouched**
+- [x] **Step 8: Confirm database files are untouched**
 
 ```bash
 git diff --exit-code "$(git merge-base HEAD origin/main)"..HEAD -- packages/db/src/schema.ts drizzle
@@ -665,7 +667,7 @@ git diff --exit-code "$(git merge-base HEAD origin/main)"..HEAD -- packages/db/s
 
 Expected: no output and exit `0`.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add vercel.json .env.example README.md scripts/test/desktop-product-boundary.test.mjs
