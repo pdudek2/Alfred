@@ -57,27 +57,39 @@ export async function runRunnerOnce(
       }
     }
 
-    const flushResult = await flushOutbox(outbox, {
-      apiUrl: config.apiUrl,
-      deviceToken: config.deviceToken,
-      ...(config.vercelAutomationBypassSecret
-        ? { vercelAutomationBypassSecret: config.vercelAutomationBypassSecret }
-        : {}),
-      workspaceId: config.workspaceId,
-      deviceId: config.deviceId,
-      ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
-      ...(options.onWarning ? { onWarning: options.onWarning } : {}),
-    });
-
-    if (flushResult.sent === 0) {
-      await postRunnerHeartbeat({
+    let flushResult: FlushOutboxResult;
+    try {
+      flushResult = await flushOutbox(outbox, {
         apiUrl: config.apiUrl,
         deviceToken: config.deviceToken,
         ...(config.vercelAutomationBypassSecret
           ? { vercelAutomationBypassSecret: config.vercelAutomationBypassSecret }
           : {}),
+        workspaceId: config.workspaceId,
+        deviceId: config.deviceId,
         ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+        ...(options.onWarning ? { onWarning: options.onWarning } : {}),
       });
+
+      if (flushResult.sent === 0) {
+        await postRunnerHeartbeat({
+          apiUrl: config.apiUrl,
+          deviceToken: config.deviceToken,
+          ...(config.vercelAutomationBypassSecret
+            ? { vercelAutomationBypassSecret: config.vercelAutomationBypassSecret }
+            : {}),
+          ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+        });
+      }
+    } catch (deliveryError) {
+      if (collectionErrors.length > 0) {
+        throw new AggregateError(
+          [...collectionErrors, deliveryError],
+          "Runner collection and delivery failed",
+          { cause: deliveryError },
+        );
+      }
+      throw deliveryError;
     }
 
     if (collectionErrors.length > 0) {

@@ -44,7 +44,11 @@ export async function collectCodexEvents(config: CodexAdapterConfig): Promise<So
     let newestOccurredAt: string | undefined;
     let index = 0;
 
-    for await (const record of readJsonlRecords(file)) {
+    for await (const record of readJsonlRecords(file, (lineNumber) => {
+      config.onWarning?.(
+        `Skipped corrupt codex-cli JSONL in ${relativeSessionPath} at line ${lineNumber}`,
+      );
+    })) {
       try {
         const event = codexRecordToEvent(record, index, config, context, file, cursorMs);
         if (event) {

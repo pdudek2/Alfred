@@ -223,6 +223,46 @@ describe("collectCodexEvents", () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).not.toContain("secret source payload");
   });
+
+  it("warns once for a corrupt Codex JSONL line without exposing its payload", async () => {
+    const codexHome = trackedTempDir("alfred-codex-home-");
+    const target = join(codexHome, "sessions/2026/04/28/corrupt-session.jsonl");
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(
+      target,
+      [
+        JSON.stringify({
+          timestamp: "2026-04-28T10:00:00.000Z",
+          type: "session.start",
+          id: "corrupt-codex-run",
+          cwd: "/Users/patryk/Desktop/Alfred",
+        }),
+        '{"secret":"CODEX_CORRUPT_SECRET",',
+        JSON.stringify({
+          timestamp: "2026-04-28T10:00:01.000Z",
+          type: "tool.call",
+          id: "healthy-after-corrupt",
+          session_id: "corrupt-codex-run",
+          tool: "exec_command",
+        }),
+      ].join("\n"),
+    );
+    const warnings: string[] = [];
+
+    const { events } = await collectCodexEvents({
+      codexHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+      onWarning: (message) => warnings.push(message),
+    });
+
+    expect(events.some((event) => event.source_event_id === "healthy-after-corrupt")).toBe(true);
+    expect(warnings).toEqual([
+      "Skipped corrupt codex-cli JSONL in sessions/2026/04/28/corrupt-session.jsonl at line 2",
+    ]);
+    expect(warnings[0]).not.toContain("CODEX_CORRUPT_SECRET");
+  });
 });
 
 function trackedTempDir(prefix: string): string {

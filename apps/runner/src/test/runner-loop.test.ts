@@ -731,6 +731,68 @@ describe("flushOutboxOnce", () => {
     reopenedOutbox.close();
   });
 
+  it("surfaces collection and delivery failures while retaining the queued event", async () => {
+    const dir = trackedTempDir("alfred-runner-combined-failure-");
+    const outboxPath = join(dir, "outbox.sqlite");
+    const outbox = new OutboxDb(outboxPath);
+    enqueueValidEvent(outbox, "retry-event-000001");
+    outbox.close();
+    const collectionError = new Error("source unavailable");
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 500 }));
+
+    let surfacedError: unknown;
+    try {
+      await runRunnerOnce(
+        {
+          apiUrl: "http://127.0.0.1:4301",
+          deviceToken: "token-1",
+          workspaceId,
+          deviceId,
+          privacyMode: "standard",
+          outboxPath,
+          codexHome: join(dir, ".codex"),
+        },
+        {
+          fetchImpl,
+          adapter: {
+            sourceId: "codex-cli",
+            collect: async () => {
+              throw collectionError;
+            },
+          },
+        },
+      );
+    } catch (error) {
+      surfacedError = error;
+    }
+
+    expect(surfacedError).toMatchObject({
+      name: "AggregateError",
+      message: "Runner collection and delivery failed",
+      errors: [
+        collectionError,
+        expect.objectContaining({
+          name: "IngestRequestError",
+          status: 500,
+        }),
+      ],
+    });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect((fetchImpl as unknown as FetchMock).mock.calls[0]?.[0]).toBe(
+      "http://127.0.0.1:4301/v1/ingest/batches",
+    );
+
+    const reopenedOutbox = new OutboxDb(outboxPath);
+    expect(reopenedOutbox.countQueued()).toBe(1);
+    expect(reopenedOutbox.listReady(10, new Date("2100-01-01T00:00:00.000Z"))).toEqual([
+      expect.objectContaining({
+        eventId: "retry-event-000001",
+        attempts: 1,
+      }),
+    ]);
+    reopenedOutbox.close();
+  });
+
   it("continues other adapters and flushes their events before surfacing collection failures", async () => {
     const dir = trackedTempDir("alfred-runner-adapter-isolation-");
     const outboxPath = join(dir, "outbox.sqlite");
