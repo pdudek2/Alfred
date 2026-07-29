@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { LOCAL_DEVICE_ID, LOCAL_USER_ID, LOCAL_WORKSPACE_ID } from "@alfred/schema";
 
-const DEFAULT_AUTH_DEV_SESSION_TOKEN = "dev-session-token";
 const DEFAULT_RUNNER_DEVICE_TOKEN = "dev-device-token";
 
 const BooleanEnv = z
@@ -24,11 +23,6 @@ function createEnvSchema(devAuthEnabled: boolean) {
   return z.object({
     API_PORT: z.coerce.number().int().positive().default(8787),
     DEV_AUTH_ENABLED: BooleanEnv.default(devAuthEnabled),
-    AUTH_DEV_SESSION_TOKEN: z.string().min(1).default(DEFAULT_AUTH_DEV_SESSION_TOKEN),
-    AUTH_OIDC_ISSUER: z.string().url().optional(),
-    AUTH_OIDC_CLIENT_ID: z.string().min(1).optional(),
-    AUTH_OIDC_CLIENT_SECRET: z.string().min(1).optional(),
-    APP_BASE_URL: z.string().url().default("http://127.0.0.1:4301"),
     ALFRED_BOOTSTRAP_ADMIN_EMAIL: z.string().email().default("local@alfred.local"),
     ALFRED_BOOTSTRAP_USER_ID: z.string().uuid().default(LOCAL_USER_ID),
     ALFRED_BOOTSTRAP_WORKSPACE_ID: z.string().uuid().default(LOCAL_WORKSPACE_ID),
@@ -55,10 +49,6 @@ export function parseApiEnv(input: NodeJS.ProcessEnv) {
   const devAuthEnabled = shouldEnableDevAuth(input);
   const parsed = createEnvSchema(devAuthEnabled).parse(input);
   const hostedDevAuth = parsed.DEV_AUTH_ENABLED && isHostedRuntime(input);
-
-  if (hostedDevAuth && parsed.AUTH_DEV_SESSION_TOKEN === DEFAULT_AUTH_DEV_SESSION_TOKEN) {
-    throw new Error("AUTH_DEV_SESSION_TOKEN must be explicitly set when dev auth is enabled in hosted runtime");
-  }
 
   if (hostedDevAuth && parsed.RUNNER_DEVICE_TOKEN === DEFAULT_RUNNER_DEVICE_TOKEN) {
     throw new Error("RUNNER_DEVICE_TOKEN must be explicitly set when dev auth is enabled in hosted runtime");
