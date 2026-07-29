@@ -3,9 +3,7 @@
 import { randomUUID } from "node:crypto";
 
 const baseUrl = process.env.ALFRED_CLOUD_URL;
-const sessionToken = process.env.AUTH_DEV_SESSION_TOKEN;
 const mode = process.env.ALFRED_CLOUD_SMOKE_MODE ?? "public";
-const expectedAuth = process.env.ALFRED_EXPECT_AUTH ?? "any";
 const vercelProtectionBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 
 if (!baseUrl) {
@@ -13,18 +11,8 @@ if (!baseUrl) {
   process.exit(1);
 }
 
-if (!["public", "authenticated", "runner-auth"].includes(mode)) {
-  console.error("ALFRED_CLOUD_SMOKE_MODE must be public, authenticated, or runner-auth");
-  process.exit(1);
-}
-
-if (!["any", "ready", "not-configured"].includes(expectedAuth)) {
-  console.error("ALFRED_EXPECT_AUTH must be any, ready, or not-configured");
-  process.exit(1);
-}
-
-if (mode === "authenticated" && !sessionToken) {
-  console.error("AUTH_DEV_SESSION_TOKEN is required for authenticated cloud smoke");
+if (!["public", "runner-auth"].includes(mode)) {
+  console.error("ALFRED_CLOUD_SMOKE_MODE must be public or runner-auth");
   process.exit(1);
 }
 
@@ -56,22 +44,26 @@ const checks =
           body: runnerSmokeBatch,
         },
       ]
-    : mode === "authenticated"
-    ? [
-        { name: "health", path: "/health", validate: validateHealth },
-        { name: "system", path: "/api/v1/system/status", validate: validateSystemStatus },
-        { name: "runs", path: "/api/v1/runs?limit=1", validate: validateRuns },
-      ]
     : [
         { name: "health", path: "/health", validate: validateHealth },
-        { name: "auth", path: "/auth/login", validate: validateAuth },
+        { name: "auth login", path: "/auth/login", validate: validateNotFound },
+        { name: "auth callback", path: "/auth/callback", validate: validateNotFound },
+        { name: "auth logout", path: "/auth/logout", validate: validateNotFound, method: "POST" },
+        { name: "api auth login", path: "/api/auth/login", validate: validateNotFound },
+        { name: "api auth callback", path: "/api/auth/callback", validate: validateNotFound },
+        { name: "api auth logout", path: "/api/auth/logout", validate: validateNotFound, method: "POST" },
+        { name: "runs", path: "/v1/runs", validate: validateNotFound },
+        { name: "run", path: "/v1/runs/retired-run", validate: validateNotFound },
+        { name: "api runs", path: "/api/v1/runs", validate: validateNotFound },
+        { name: "api run", path: "/api/v1/runs/retired-run", validate: validateNotFound },
+        { name: "system", path: "/v1/system/status", validate: validateNotFound },
+        { name: "api system", path: "/api/v1/system/status", validate: validateNotFound },
       ];
 
 let failed = false;
 
 for (const check of checks) {
   const headers = {
-    ...(mode === "authenticated" && sessionToken ? { cookie: `alfred_session=${sessionToken}` } : {}),
     ...(mode === "runner-auth" ? { authorization: `Bearer ${process.env.RUNNER_DEVICE_TOKEN}` } : {}),
     ...(check.body ? { "content-type": "application/json" } : {}),
     ...(vercelProtectionBypass ? { "x-vercel-protection-bypass": vercelProtectionBypass } : {}),
@@ -109,33 +101,8 @@ function validateHealth(response, body) {
   return json?.ok === true && json?.service === "alfred-api";
 }
 
-function validateAuth(response, body) {
-  if (response.status === 302 || response.status === 303) {
-    return expectedAuth !== "not-configured" && Boolean(response.headers.get("location"));
-  }
-
-  const json = parseJson(body, response.headers);
-  if (response.status === 503 && json?.error === "oidc_not_configured") {
-    if (expectedAuth === "ready") return false;
-    if (expectedAuth === "not-configured") return true;
-    return "warn";
-  }
-
-  return false;
-}
-
-function validateSystemStatus(response, body) {
-  if (!response.ok) return false;
-  const headers = response.headers;
-  const json = parseJson(body, headers);
-  return typeof json?.runner?.state === "string";
-}
-
-function validateRuns(response, body) {
-  if (!response.ok) return false;
-  const headers = response.headers;
-  const json = parseJson(body, headers);
-  return Array.isArray(json?.items);
+function validateNotFound(response) {
+  return response.status === 404;
 }
 
 function validateRunnerHeartbeat(response, body) {
