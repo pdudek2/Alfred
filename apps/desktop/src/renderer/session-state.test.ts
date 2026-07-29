@@ -332,31 +332,34 @@ describe("desktop session state", () => {
   });
 
   it("hydrates recovery-only worktree identity without synthetic launch data", () => {
-    const [hydrated] = hydratePersistedTerminalSessions([
+    const restored = hydratePersistedTerminalSessions([
       {
-        clientId: "codex-1",
+        clientId: "codex-private",
         title: "Codex recovery",
         source: "alfred",
         agentKind: "codex",
         workspaceId: "A",
         workspaceRootFingerprint: "0123456789abcdef",
         isolation: "worktree",
-        branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
+        branchName: "alfred-codex-private-20260729120000-abcd1234",
+        createdAt: 1,
       },
     ]);
+    const [hydrated] = restored;
 
     expect(hydrated).toMatchObject({
-      id: "codex-1",
+      id: "codex-private",
       cwd: "",
       initialBuffer: "",
       workspaceRootFingerprint: "0123456789abcdef",
       isolation: "worktree",
-      branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
+      branchName: "alfred-codex-private-20260729120000-abcd1234",
       runtimeStatus: "restored",
     });
     for (const field of ["baseCwd", "shell", "command", "args", "resumeTarget"]) {
       expect(hydrated).not.toHaveProperty(field);
     }
+    expect(relaunchRestoredSession(restored, "codex-private")).toEqual(restored);
   });
 
   it("relaunches a restored transcript in the same tile", () => {

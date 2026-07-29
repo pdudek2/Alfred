@@ -12,7 +12,12 @@ import {
 } from "react";
 import { getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
 import type { TileLayout } from "../layout-state";
-import { isLaunchBlocked, sessionInstanceKey, type SessionTile } from "../session-state";
+import {
+  canRelaunchRestoredSession,
+  isLaunchBlocked,
+  sessionInstanceKey,
+  type SessionTile,
+} from "../session-state";
 import { StagedTilePreview } from "../staged-tile";
 import { terminalSessionDisplayStatus, type LocalTerminalStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
@@ -362,6 +367,7 @@ export function TerminalDesk({
                 runtimeStatus={session.runtimeStatus}
                 relaunchArmed={armedRecoverySessionIds.has(session.id)}
                 workspaceId={session.workspaceId}
+                workspaceRootFingerprint={session.workspaceRootFingerprint}
                 title={session.title}
                 layoutHidden={layoutHidden}
                 workspaceHidden={workspaceHidden}
@@ -732,6 +738,7 @@ function ManualTerminalTile({
   sessionKey,
   source,
   workspaceId,
+  workspaceRootFingerprint,
   title,
   layoutHidden = false,
   workspaceHidden,
@@ -781,6 +788,7 @@ function ManualTerminalTile({
   sessionKey: string;
   source: SessionTile["source"];
   workspaceId: string;
+  workspaceRootFingerprint?: string | undefined;
   title: string;
   layoutHidden?: boolean;
   workspaceHidden: boolean;
@@ -829,8 +837,27 @@ function ManualTerminalTile({
   const statusLabel = terminalStatusLabel(statusSession, tileStatus);
   const restartable = displayStatus.kind === "done" || displayStatus.kind === "error";
   const discardableSession = displayStatus.kind === "restored" || restartable;
-  const existingCheckoutMetadata = isReusableIsolatedCheckoutMetadata({ isolation, branchName, baseCwd });
-  const isolatedCheckout = isIsolatedCheckout({ isolation, branchName, baseCwd });
+  const existingCheckoutMetadata = isReusableIsolatedCheckoutMetadata({
+    isolation,
+    branchName,
+    baseCwd,
+    workspaceId,
+    workspaceRootFingerprint,
+  });
+  const isolatedCheckout = isIsolatedCheckout({
+    isolation,
+    branchName,
+    baseCwd,
+    workspaceId,
+    workspaceRootFingerprint,
+  });
+  const relaunchCapable = canRelaunchRestoredSession({
+    cwd,
+    source,
+    ...(agentKind === undefined ? {} : { agentKind }),
+    ...(command === undefined ? {} : { command }),
+    ...(runtimeStatus === undefined ? {} : { runtimeStatus }),
+  });
   const relaunchSafety = sessionRelaunchSafety({
     source,
     ...(agentKind === undefined ? {} : { agentKind }),
@@ -859,6 +886,7 @@ function ManualTerminalTile({
     : resolvedCwd ?? "runtime cwd";
   const externalTerminalCwd = resolvedCwd || cwd;
   const worktreeRecoverySession = discardableSession && isolatedCheckout;
+  const recoveryOnly = tileStatus === "restored" && worktreeRecoverySession && !relaunchCapable;
   const closeActionLabel = discardableSession ? (worktreeRecoverySession ? "Discard checkout" : "Discard") : "Close";
   const closeActionTitle = discardableSession
     ? worktreeRecoverySession
@@ -1434,7 +1462,7 @@ function ManualTerminalTile({
           </div>
           {(tileStatus === "restored" || restartable) && (
             <div className="tile-action-group tile-primary-actions">
-              {tileStatus === "restored" && (
+              {tileStatus === "restored" && relaunchCapable && (
                 <button
                   type="button"
                   className={`continue-button ${relaunchNeedsReview ? "unsafe" : ""} ${relaunchArmed ? "armed" : ""}`}
@@ -1523,6 +1551,11 @@ function ManualTerminalTile({
         </div>
         </header>
       )}
+      {recoveryOnly && (
+        <div className="terminal-action-strip" role="note">
+          Launch details were cleared for privacy. Your isolated checkout is still available.
+        </div>
+      )}
       <div
         className="xterm-host"
         data-testid={workspaceHidden ? "background-xterm-host" : "xterm-host"}
@@ -1567,16 +1600,30 @@ function isIsolatedCheckout({
   isolation,
   branchName,
   baseCwd,
+  workspaceId,
+  workspaceRootFingerprint,
 }: {
   isolation?: SessionTile["isolation"] | undefined;
   branchName?: string | undefined;
   baseCwd?: string | undefined;
+  workspaceId?: string | undefined;
+  workspaceRootFingerprint?: string | undefined;
 }): boolean {
   if (isolation === "shared") return false;
-  return hasIsolatedCheckoutMetadata({ branchName, baseCwd }) || isolation === "worktree";
+  return hasIsolatedCheckoutMetadata({
+    branchName,
+    baseCwd,
+    workspaceId,
+    workspaceRootFingerprint,
+  }) || isolation === "worktree";
 }
 
-function isReviewableIsolatedCheckout(session: Pick<SessionTile, "baseCwd" | "branchName" | "isolation">): boolean {
+function isReviewableIsolatedCheckout(
+  session: Pick<
+    SessionTile,
+    "baseCwd" | "branchName" | "isolation" | "workspaceId" | "workspaceRootFingerprint"
+  >,
+): boolean {
   if (session.isolation === "shared") return false;
   return hasIsolatedCheckoutMetadata(session);
 }
@@ -1585,23 +1632,39 @@ function isReusableIsolatedCheckoutMetadata({
   isolation,
   branchName,
   baseCwd,
+  workspaceId,
+  workspaceRootFingerprint,
 }: {
   isolation?: SessionTile["isolation"] | undefined;
   branchName?: string | undefined;
   baseCwd?: string | undefined;
+  workspaceId?: string | undefined;
+  workspaceRootFingerprint?: string | undefined;
 }): boolean {
   if (isolation === "shared") return false;
-  return hasIsolatedCheckoutMetadata({ branchName, baseCwd });
+  return hasIsolatedCheckoutMetadata({
+    branchName,
+    baseCwd,
+    workspaceId,
+    workspaceRootFingerprint,
+  });
 }
 
 function hasIsolatedCheckoutMetadata({
   branchName,
   baseCwd,
+  workspaceId,
+  workspaceRootFingerprint,
 }: {
   branchName?: string | undefined;
   baseCwd?: string | undefined;
+  workspaceId?: string | undefined;
+  workspaceRootFingerprint?: string | undefined;
 }): boolean {
-  return Boolean(branchName && baseCwd);
+  return Boolean(
+    branchName
+    && (baseCwd || (workspaceId && workspaceRootFingerprint)),
+  );
 }
 
 function activityKindLabel(kind: NonNullable<SessionTile["activityEvents"]>[number]["kind"]): string {
