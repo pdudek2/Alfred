@@ -13,15 +13,31 @@ const QUOTED_HEADER_SECRET_PATTERN =
   /(["'])([^"']*\b(?:authorization|x-api-key|api-key|cookie)\s*:\s*)([^"']+)\1/gi;
 const HEADER_SECRET_PATTERN =
   /\b(authorization|x-api-key|api-key|cookie)(\s*:\s*)((?:Bearer|Basic)\s+[^\s"'`;,]+|[^\s"'`;,]+)/gi;
+const URI_USERINFO_PATTERN =
+  /\b([a-z][a-z0-9+.-]*:\/\/)([^/\s:@]+):([^@\s/]+)@/gi;
+const JSON_SECRET_ASSIGNMENT_PATTERN =
+  /(["'](?:api[_-]?key|token|secret|password)["']\s*:\s*)(["'])([^"']+)\2/gi;
+const COOKIE_HEADER_PATTERN =
+  /\b(cookie)(\s*:\s*)([^"'`\r\n]+)/gi;
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g;
 const AWS_ACCESS_KEY_ID_PATTERN = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
 const SLACK_TOKEN_PATTERN = /\bxox[abprs]-[A-Za-z0-9-]{20,}\b/g;
 const GITHUB_TOKEN_PATTERN = /\b(?:gh[pousr]_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{8,})\b/g;
+const STRIPE_LIVE_KEY_PATTERN = /\bsk_live_[A-Za-z0-9]{8,}\b/g;
+const GOOGLE_API_KEY_PATTERN = /\bAIza[A-Za-z0-9_-]{20,}\b/g;
+const GITLAB_TOKEN_PATTERN = /\bglpat-[A-Za-z0-9_-]{8,}\b/g;
+const NPM_TOKEN_PATTERN = /\bnpm_[A-Za-z0-9]{8,}\b/g;
+const SENDGRID_KEY_PATTERN = /\bSG\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g;
 const SECRET_TEXT_PATTERNS = [
   /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
   /\bBearer\s+[A-Za-z0-9._~+/\-=]+/gi,
   /\bsk-[A-Za-z0-9_-]{8,}\b/g,
   GITHUB_TOKEN_PATTERN,
+  STRIPE_LIVE_KEY_PATTERN,
+  GOOGLE_API_KEY_PATTERN,
+  GITLAB_TOKEN_PATTERN,
+  NPM_TOKEN_PATTERN,
+  SENDGRID_KEY_PATTERN,
   JWT_PATTERN,
   AWS_ACCESS_KEY_ID_PATTERN,
   SLACK_TOKEN_PATTERN,
@@ -89,6 +105,9 @@ function redactValue(value: unknown, key?: string, options: RedactValueOptions =
 
 function redactSecretText(value: string, options: RedactValueOptions = STANDARD_REDACTION_OPTIONS): string {
   const withoutStructuredSecrets = value
+    .replace(URI_USERINFO_PATTERN, (_match, scheme) => `${scheme}${REDACTED}@`)
+    .replace(JSON_SECRET_ASSIGNMENT_PATTERN, (_match, prefix, quote) => `${prefix}${quote}${REDACTED}${quote}`)
+    .replace(COOKIE_HEADER_PATTERN, (_match, header, separator) => `${header}${separator}${REDACTED}`)
     .replace(QUOTED_HEADER_SECRET_PATTERN, (_match, quote, headerPrefix) => `${quote}${headerPrefix}${REDACTED}${quote}`)
     .replace(HEADER_SECRET_PATTERN, (match, header, separator) =>
       match.includes(REDACTED) ? match : `${header}${separator}${REDACTED}`,
