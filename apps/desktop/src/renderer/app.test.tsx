@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./app";
 import { TerminalDesk } from "./components/TerminalDesk";
@@ -1959,11 +1959,15 @@ describe("App integration", () => {
     expect(column.scrollTop).toBe(120);
   });
 
-  it("separates collapse from destructive close and only shows resize handles in Arrange", async () => {
+  it("persists collapse exactly once without destructively closing the tile", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    const { setWorkspaceViewState } = installDesktopBridge();
 
-    render(<App />);
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
 
     const tile = await screen.findByTestId("terminal-tile");
     const host = within(tile).getByTestId("xterm-host");
@@ -1978,6 +1982,15 @@ describe("App integration", () => {
     await user.click(within(tile).getByRole("button", { name: "Collapse Manual · zsh 1" }));
 
     expect(tile).toHaveClass("collapsed");
+    expect(setWorkspaceViewState).toHaveBeenCalledTimes(1);
+    expect(setWorkspaceViewState).toHaveBeenCalledWith({
+      workspaceId: "A",
+      viewState: {
+        collapsedSessionIds: ["manual-1"],
+        selectedSessionId: "manual-1",
+        workMode: "desk",
+      },
+    });
     expect(host.isConnected).toBe(true);
     expect(within(tile).getByTestId("xterm-host")).toBe(host);
     expect(within(tile).getByRole("button", { name: "Expand Manual · zsh 1" })).toBeInTheDocument();
@@ -3743,6 +3756,23 @@ describe("App integration", () => {
     });
   });
 
+  it("creates a fallback workspace and manual session exactly once in StrictMode", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+
+    const emptyState = await screen.findByRole("status", { name: "Empty workspace" });
+    await user.click(within(emptyState).getByRole("button", { name: "Bind folder" }));
+
+    expect(await screen.findByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getAllByRole("article", { name: /Manual · zsh/i })).toHaveLength(1);
+    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+  });
+
   it("creates scratch workspaces and scopes terminals to the active workspace", async () => {
     const user = userEvent.setup();
     const { createTerminal, createWorkspaceFromFolder, setWorkspaceState } = installDesktopBridge();
@@ -3784,7 +3814,7 @@ describe("App integration", () => {
     });
   });
 
-  it("keeps workspace actions in a compact title menu", async () => {
+  it("persists a workspace rename exactly once with the complete workspace list", async () => {
     const user = userEvent.setup();
     const { openExternalTerminal, revealPath, setWorkspaceState } = installDesktopBridge(
       undefined,
@@ -3806,7 +3836,11 @@ describe("App integration", () => {
       },
     );
 
-    render(<App />);
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
 
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
     const trigger = screen.getByRole("button", { name: "Workspace menu for Alfred" });
@@ -3835,6 +3869,7 @@ describe("App integration", () => {
     expect(renameDialog).toBeInTheDocument();
     await user.clear(within(renameDialog).getByRole("textbox", { name: "Workspace name" }));
     expect(within(renameDialog).getByRole("button", { name: "Save" })).toBeDisabled();
+    setWorkspaceState.mockClear();
     await user.type(within(renameDialog).getByRole("textbox", { name: "Workspace name" }), "Ops Console{Enter}");
 
     expect(screen.getByRole("button", { name: "Workspace menu for Ops Console" })).toBeInTheDocument();
@@ -3852,6 +3887,7 @@ describe("App integration", () => {
         activeWorkspaceId: "A",
       });
     });
+    expect(setWorkspaceState).toHaveBeenCalledTimes(1);
   });
 
   it("shows and dismisses workspace action failures without leaking them into Prepare Work", async () => {
@@ -3879,7 +3915,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("alert", { name: "Shell action failed" })).not.toBeInTheDocument();
   });
 
-  it("saves a workspace mission brief and sends it with the next Alfred prompt", async () => {
+  it("saves a workspace mission brief exactly once and sends it with the next Alfred prompt", async () => {
     const user = userEvent.setup();
     const { requestPlan, setWorkspaceState } = installDesktopBridge(
       undefined,
@@ -3901,7 +3937,11 @@ describe("App integration", () => {
       },
     );
 
-    render(<App />);
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
 
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
     await user.click(screen.getByRole("button", { name: "Workspace menu for Alfred" }));
@@ -3915,6 +3955,7 @@ describe("App integration", () => {
     await user.type(within(missionDialog).getByRole("textbox", { name: "Mission goal" }), "Ship launcher v0 calmly");
     await user.type(within(missionDialog).getByRole("textbox", { name: "Done when" }), "Agents are staged{Enter}Manual terminals keep focus");
     await user.type(within(missionDialog).getByRole("textbox", { name: "Guardrails" }), "No force push");
+    setWorkspaceState.mockClear();
     await user.click(within(missionDialog).getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
@@ -3936,6 +3977,7 @@ describe("App integration", () => {
         activeWorkspaceId: "A",
       });
     });
+    expect(setWorkspaceState).toHaveBeenCalledTimes(1);
 
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "prepare the next slice");
@@ -4208,17 +4250,22 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeInTheDocument();
   });
 
-  it("applies layout presets to the current workspace sessions after a session is added", async () => {
+  it("persists a layout preset exactly once after a session is added", async () => {
     const user = userEvent.setup();
     const { setWorkspaceLayout } = installDesktopBridge();
 
-    render(<App />);
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
 
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open launch menu" }));
     await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
     expect(await screen.findByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
 
+    setWorkspaceLayout.mockClear();
     await chooseWorkLayout(user, "Focus");
     expect(screen.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeInTheDocument();
 
@@ -4232,6 +4279,7 @@ describe("App integration", () => {
         }),
       );
     });
+    expect(setWorkspaceLayout).toHaveBeenCalledTimes(1);
   });
 
   it("shows a useful second pane prompt when split mode has one session", async () => {
@@ -4309,7 +4357,7 @@ describe("App integration", () => {
     expect(screen.getByRole("article", { name: /Claude - UI\/UX Deep Analysis/i })).toBeInTheDocument();
   });
 
-  it("ignores duplicate terminal focus events for the already selected session", async () => {
+  it("persists session selection exactly once and ignores duplicate focus events", async () => {
     const { setWorkspaceViewState } = installDesktopBridge(
       undefined,
       null,
@@ -4350,23 +4398,31 @@ describe("App integration", () => {
           },
         },
         viewStateByWorkspace: {
-          A: { workMode: "focus", selectedSessionId: "alfred-2" },
+          A: { workMode: "split", selectedSessionId: "alfred-2" },
         },
       },
     );
 
-    render(<App />);
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
 
-    expect(await screen.findByRole("button", { name: "Open layout menu, Focus selected" })).toBeInTheDocument();
-    const selectedTile = await screen.findByRole("article", { name: /Claude - UI\/UX Deep Analysis/i });
-    const terminalHost = selectedTile.querySelector(".xterm-host");
+    expect(await screen.findByRole("button", { name: "Open layout menu, Split selected" })).toBeInTheDocument();
+    const newlySelectedTile = await screen.findByRole("article", { name: /Codex - Backend Code Quality Analysis/i });
+    const terminalHost = newlySelectedTile.querySelector(".xterm-host");
     expect(terminalHost).toBeInstanceOf(HTMLElement);
 
     setWorkspaceViewState.mockClear();
     fireEvent.focus(terminalHost!);
     fireEvent.focus(terminalHost!);
 
-    expect(setWorkspaceViewState).not.toHaveBeenCalled();
+    expect(setWorkspaceViewState).toHaveBeenCalledTimes(1);
+    expect(setWorkspaceViewState).toHaveBeenCalledWith({
+      workspaceId: "A",
+      viewState: { workMode: "split", selectedSessionId: "alfred-1" },
+    });
   });
 
   it("keeps the selected resumed session stable when switching focus back to split", async () => {
@@ -4805,7 +4861,7 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
   });
 
-  it("jumps to sessions in other workspaces from the command palette", async () => {
+  it("persists cross-workspace focus layout exactly once from the command palette", async () => {
     const user = userEvent.setup();
     const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge(
       undefined,
@@ -4844,7 +4900,11 @@ describe("App integration", () => {
       },
     );
 
-    render(<App />);
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
 
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Alfred workspace/i })).toHaveAttribute("aria-selected", "true");
@@ -4856,6 +4916,8 @@ describe("App integration", () => {
     await user.type(within(palette).getByRole("textbox", { name: "Search commands" }), "api worker");
 
     expect(within(palette).getByRole("option", { name: /ClientApp · idle · .*ClientApp/i })).toHaveTextContent("Open API worker");
+    setWorkspaceLayout.mockClear();
+    setWorkspaceViewState.mockClear();
     await pressCommandPaletteEnter(within(palette).getByRole("textbox", { name: "Search commands" }));
 
     await waitFor(() => {
@@ -4863,6 +4925,8 @@ describe("App integration", () => {
     });
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("API worker");
+    expect(setWorkspaceLayout).toHaveBeenCalledTimes(1);
+    expect(setWorkspaceViewState).toHaveBeenCalledTimes(1);
     expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
       workspaceId: "CLIENT",
       viewState: { workMode: "focus", selectedSessionId: "client-codex" },
@@ -5770,11 +5834,15 @@ describe("App integration", () => {
     expect(createTerminal).not.toHaveBeenCalled();
   });
 
-  it("moves and resizes a tile with pointer gestures in arrange mode", async () => {
+  it("persists tile move and resize exactly once per pointer gesture", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    const { setWorkspaceLayout } = installDesktopBridge();
 
-    render(<App />);
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
 
     const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
@@ -5787,18 +5855,22 @@ describe("App integration", () => {
     expect(tile).toHaveStyle({ transform: "translate3d(160px, 72px, 0)" });
     expect(tile).toHaveStyle({ gridColumn: "1 / span 12", gridRow: "1 / span 8" });
 
+    setWorkspaceLayout.mockClear();
     fireEvent.pointerUp(window);
 
     expect(tile).toHaveStyle({ gridColumn: "1 / span 12", gridRow: "2 / span 8" });
+    expect(setWorkspaceLayout).toHaveBeenCalledTimes(1);
 
     fireEvent.pointerDown(screen.getByRole("button", { name: "Resize Manual · zsh 1" }), { clientX: 0, clientY: 0 });
     fireEvent.pointerMove(window, { clientX: 80, clientY: 72 });
 
     expect(tile).toHaveClass("is-resizing");
 
+    setWorkspaceLayout.mockClear();
     fireEvent.pointerUp(window);
 
     expect(tile).toHaveStyle({ gridColumn: "1 / span 12", gridRow: "2 / span 9" });
+    expect(setWorkspaceLayout).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the snapped layout grid after leaving arrange mode", async () => {
