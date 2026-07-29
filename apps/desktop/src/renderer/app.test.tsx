@@ -8606,4 +8606,34 @@ describe("App integration", () => {
     expect(composer).toHaveValue("retry this plan");
     expect(await screen.findByRole("alert")).toHaveTextContent("OpenRouter is unreachable.");
   });
+
+  it("recovers when the plan IPC rejects and allows a successful retry", async () => {
+    const user = userEvent.setup();
+    const successfulPlan: AlfredPlanResponse = {
+      ok: true,
+      plan: {
+        name: "Demo plan",
+        sessions: [
+          { kind: "shell", title: "Task A", command: "echo", args: ["a"] },
+          { kind: "dev-server", title: "Task B", command: "pnpm", args: ["dev"] },
+        ],
+      },
+    };
+    const { requestPlan } = installDesktopBridge(successfulPlan);
+    requestPlan.mockRejectedValueOnce(new Error("fixture bridge rejection")).mockResolvedValueOnce(successfulPlan);
+
+    render(<App />);
+    await openPrepareWork(user);
+    const composer = screen.getByLabelText("Dispatch instruction");
+    await user.type(composer, "retry this plan");
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Alfred runtime request failed. Try again.");
+    expect(composer).toBeEnabled();
+    expect(composer).toHaveValue("retry this plan");
+
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
+    expect(await screen.findByRole("article", { name: /Staged Task A/i })).toBeInTheDocument();
+    expect(requestPlan).toHaveBeenCalledTimes(2);
+  });
 });

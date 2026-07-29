@@ -92,6 +92,7 @@ import type {
 } from "../shared/desktop-state-ipc";
 import type {
   AgentKind,
+  AlfredPlanResponse,
   AlfredRuntimeStatus,
   AlfredStagedSessionPatch,
   AlfredStagedPlanSnapshot,
@@ -1496,11 +1497,17 @@ export function App() {
       return false;
     }
     setAlfredStatus(thinking());
-    const response = await alfredApi.requestPlan({
-      dispatchTarget,
-      prompt,
-      workspace: workspacePlanContext(activeWorkspace, activeSessions, dispatchTarget),
-    });
+    let response: AlfredPlanResponse;
+    try {
+      response = await alfredApi.requestPlan({
+        dispatchTarget,
+        prompt,
+        workspace: workspacePlanContext(activeWorkspace, activeSessions, dispatchTarget),
+      });
+    } catch {
+      setAlfredStatus(errored({ code: "network", message: "Alfred runtime request failed. Try again." }));
+      return false;
+    }
     if (!response.ok) {
       setAlfredStatus(errored(response.error));
       return false;
