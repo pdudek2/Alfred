@@ -328,8 +328,18 @@ function resumeLaunchForRestoredAgent(
 }
 
 function resumeModeForRestoredAgent(
-  session: Pick<SessionTile, "agentKind" | "command" | "resumeTarget">,
+  session: Pick<
+    PersistedTerminalSessionSnapshot,
+    "agentKind" | "command" | "cwd" | "resumeTarget" | "source"
+  >,
 ): Pick<SessionTile, "resumeMode"> {
+  if (!canRelaunchRestoredSession({
+    cwd: session.cwd ?? "",
+    runtimeStatus: "restored",
+    source: session.source,
+    ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
+    ...(session.command === undefined ? {} : { command: session.command }),
+  })) return {};
   if (restoredAgentKind(session) !== "codex") return {};
   return { resumeMode: session.resumeTarget?.agentKind === "codex" ? "exact" : "latest" };
 }

@@ -7399,6 +7399,47 @@ describe("App integration", () => {
     expect(worktreeApply).toHaveBeenCalledWith({ clientId: "codex-private" });
   });
 
+  it("opens recovery-only worktree history without offering or recording a relaunch", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [{
+        clientId: "codex-private",
+        title: "Codex recovery",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "A",
+        workspaceRootFingerprint: "0123456789abcdef",
+        isolation: "worktree",
+        branchName: "alfred-codex-private-20260729120000-abcd1234",
+        createdAt: 1,
+      }],
+    );
+
+    render(<App />);
+    await screen.findByRole("article", { name: /Codex recovery/i });
+
+    await user.click(screen.getByRole("button", { name: "Open Inbox surface" }));
+    expect(screen.queryByRole("button", { name: /Resume|Continue|Relaunch/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Recovery · 1 saved session/i })).not.toBeInTheDocument();
+
+    await selectSurface(user, "Sessions");
+    await user.click(await screen.findByRole("option", { name: /Codex recovery/i }));
+    expect(screen.queryByRole("button", { name: /Resume|Continue|Relaunch/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open Project" }));
+
+    expect(createTerminal).not.toHaveBeenCalled();
+    await selectSurface(user, "Context");
+    await user.click(screen.getByRole("button", { name: /^Activity \(/ }));
+    expect(screen.getByLabelText("Agent activity")).not.toHaveTextContent("Relaunching session");
+    expect(screen.getByRole("article", { name: /Codex recovery/i })).toBeInTheDocument();
+  });
+
   it("keeps recovery-only checkout visible when its rebound workspace rejects review", async () => {
     const user = userEvent.setup();
     const { worktreeDiff } = installDesktopBridge(

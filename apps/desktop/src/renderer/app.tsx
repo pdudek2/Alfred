@@ -55,6 +55,7 @@ import {
   appendSessionActivity,
   attachRuntimeSession,
   approveStaged,
+  canRelaunchRestoredSession,
   closeSession,
   createInitialSessions,
   hydrateStagedPlanSessions,
@@ -272,7 +273,12 @@ export function App() {
     null;
   const canCloseActiveWorkspace =
     activeWorkspace.id !== DEFAULT_WORKSPACE_ID && workspaces.length > 1 && activeSessions.length === 0;
-  const attentionItems = buildAttentionProjection(workspaces, terminalSessions);
+  const attentionItems = buildAttentionProjection(workspaces, terminalSessions).filter((item) => {
+    const session = terminalSessions.find((candidate) => candidate.id === item.sessionId);
+    return item.section !== "recovery"
+      || session?.runtimeStatus !== "restored"
+      || canRelaunchRestoredSession(session);
+  });
   const recoverySessionIds = new Set(
     attentionItems
       .filter((item) => item.section === "recovery" && item.workspaceId === activeWorkspace.id)
@@ -1091,7 +1097,7 @@ export function App() {
   const handleContinueRestoredSession = useCallback((sessionId: string) => {
     setTerminalSessions((sessions) => {
       const session = sessions.find((item) => item.id === sessionId);
-      if (!session || session.runtimeStatus !== "restored") return sessions;
+      if (!session || !canRelaunchRestoredSession(session)) return sessions;
       const relaunchSafety = sessionRelaunchSafety(session);
       if (!relaunchSafety.safe && !armedRecoverySessionIds.has(sessionId)) {
         setArmedRecoverySessionIds((ids) => new Set(ids).add(sessionId));

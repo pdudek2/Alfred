@@ -8,7 +8,7 @@ import {
 } from "../shared/sessions-ipc";
 import { sessionPresentationText, sessionPresentationTitle } from "../shared/session-presentation";
 import { isFreeChatScope } from "./session-scope";
-import type { SessionTile } from "./session-state";
+import { canRelaunchRestoredSession, type SessionTile } from "./session-state";
 
 export type ManagedSessionTarget = { workspaceId: string; sessionId: string };
 export type SessionsPrimaryAction =
@@ -255,21 +255,14 @@ function managedKind(session: SessionTile): SessionSummary["kind"] {
 
 function managedLifecycle(session: SessionTile): SessionLifecycle {
   if (session.runtimeStatus === "live" || session.runtimeStatus === "starting") return "live";
-  if (
-    (session.runtimeStatus === "restored" || session.runtimeStatus === "error" || session.runtimeStatus === "exited")
-    && hasRelaunchContract(session)
-  ) {
+  if (session.runtimeStatus === "restored" && canRelaunchRestoredSession(session)) {
     return "recoverable";
   }
+  if (
+    (session.runtimeStatus === "error" || session.runtimeStatus === "exited")
+    && session.command?.trim()
+  ) return "recoverable";
   return "read-only";
-}
-
-function hasRelaunchContract(session: SessionTile): boolean {
-  const resumableAgent = session.agentKind === "codex"
-    || session.agentKind === "claude"
-    || session.command === "codex"
-    || session.command === "claude";
-  return Boolean(session.command?.trim()) || (session.runtimeStatus === "restored" && resumableAgent);
 }
 
 function displayLocation(session: SessionTile): string {
