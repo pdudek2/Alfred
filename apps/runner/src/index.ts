@@ -7,7 +7,7 @@ import { OutboxDb } from "./outbox/outbox-db.js";
 import { flushOutboxOnce, type FlushOutboxResult } from "./outbox/outbox-worker.js";
 import { createClaudeAdapter } from "./sources/claude/claude-adapter.js";
 import { createCodexAdapter } from "./sources/codex/codex-adapter.js";
-import type { SourceAdapter } from "./sources/source-adapter.js";
+import type { SourceAdapter, SourceCollection } from "./sources/source-adapter.js";
 import { postRunnerHeartbeat } from "./sync/ingest-client.js";
 
 export type RunRunnerOptions = {
@@ -38,9 +38,16 @@ export async function runRunnerOnce(
 
   try {
     let collectedEvents = 0;
+    const collectionErrors: unknown[] = [];
 
     for (const adapter of adapters) {
-      const collection = await adapter.collect();
+      let collection: SourceCollection;
+      try {
+        collection = await adapter.collect();
+      } catch (error) {
+        collectionErrors.push(error);
+        continue;
+      }
       collectedEvents += collection.events.length;
       for (const event of collection.events) {
         outbox.enqueue(redactEvent(event, config.privacyMode));
@@ -71,6 +78,10 @@ export async function runRunnerOnce(
           : {}),
         ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
       });
+    }
+
+    if (collectionErrors.length > 0) {
+      throw new AggregateError(collectionErrors, "Runner collection failed");
     }
 
     return {
