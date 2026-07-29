@@ -136,7 +136,7 @@ const MAX_RECENT_TERMINAL_EXITS = 64;
 let persistedStateStore: PersistedDesktopStateStore | null = null;
 let persistenceHydrated = false;
 let persistenceHydration: Promise<void> | null = null;
-let persistenceHydrationMutations: Set<string> | null = null;
+let persistenceHydrationMutations: Map<string, number> | null = null;
 let persistenceGeneration = 0;
 let persistDebounceMs = 250;
 let persistTimer: NodeJS.Timeout | null = null;
@@ -687,7 +687,11 @@ async function hydratePersistedTerminalSessions(): Promise<void> {
   const store = persistedStateStore;
   const generation = persistenceGeneration;
   const clearGeneration = privacyClearGeneration;
-  const hydrationMutations = new Set(restoredSessionSnapshots.keys());
+  const hydrationMutations = new Map(
+    [...restoredSessionSnapshots.keys()].map(
+      (clientId): [string, number] => [clientId, privacyClearGeneration],
+    ),
+  );
   persistenceHydrationMutations = hydrationMutations;
   const hydration = (async () => {
     const state = await store.getState();
@@ -719,8 +723,12 @@ async function hydratePersistedTerminalSessions(): Promise<void> {
       if (sanitized) restoredSessionSnapshots.set(session.clientId, clonePersistedSession(sanitized));
     }
     for (const [clientId, session] of locallyRemembered) {
-      const sanitized = sanitizeHydratedSessions
-        ? sanitizePersistedTerminalSession(session, effectivePrivacySettings, clearLaunchData)
+      const crossedClear =
+        (hydrationMutations.get(clientId) ?? clearGeneration) < privacyClearGeneration;
+      const sanitizeLocalSession =
+        crossedClear || effectivePrivacySettings.terminalScrollbackRetention === "off";
+      const sanitized = sanitizeLocalSession
+        ? sanitizePersistedTerminalSession(session, effectivePrivacySettings, crossedClear)
         : session;
       if (sanitized) restoredSessionSnapshots.set(clientId, sanitized);
     }
@@ -742,14 +750,14 @@ function rememberSessionSnapshot(session: TerminalSession): void {
   if (!snapshot) return;
   if (forgottenClientIds.has(snapshot.clientId)) return;
 
-  persistenceHydrationMutations?.add(snapshot.clientId);
+  persistenceHydrationMutations?.set(snapshot.clientId, privacyClearGeneration);
   restoredSessionSnapshots.set(snapshot.clientId, snapshot);
   scheduleTerminalPersistence();
 }
 
 function forgetPersistedSession(clientId: string): void {
   if (!clientId) return;
-  persistenceHydrationMutations?.add(clientId);
+  persistenceHydrationMutations?.set(clientId, privacyClearGeneration);
   forgottenClientIds.add(clientId);
   restoredSessionSnapshots.delete(clientId);
   scheduleTerminalPersistence();
