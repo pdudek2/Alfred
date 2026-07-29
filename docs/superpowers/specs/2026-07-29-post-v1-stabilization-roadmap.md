@@ -35,7 +35,7 @@ without reopening the accepted product or visual direction.
 
 ## Scope lineage
 
-`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 next`
+`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 spec approved`
 
 Phase Z remains closed. This roadmap does not reinterpret or reopen its visual
 or product decisions.
@@ -57,7 +57,7 @@ or product decisions.
 |---|---|---:|---|
 | S1 — Desktop safety gate | Honest runtime gate and no silent desktop-state loss | 2, 3, 4, 14, 19 | Complete |
 | S2 — Runner loss and stall prevention | Concurrent sessions do not lose events; poison or malformed records cannot stall sync | 6, 7, 8, 24 | Complete |
-| S3 — API boundary simplification | Delete browser-session auth and browser-only query surfaces; keep device-auth ingest | 9, 10, 22 | Next |
+| S3 — API boundary simplification | Delete browser-session auth and browser-only query surfaces; keep device-auth ingest | 9, 10, 22 | Spec approved |
 | S4 — Privacy and worktree lifecycle | Resolve worktree close behavior and prevent sensitive launch data from persisting | 13, 15, 16 | Pending decision gates |
 | S5 — Desktop interaction correctness | Recover failed planning, unblock review/edit, remove impure state updaters, correct activity classification | 5, 11, 17, 23 | Pending |
 | S6 — Ingest/API correctness | Correct parent lifecycle, validate hosted DB config, and test the real ingest store | 12, 20, 21 | Pending |
@@ -70,9 +70,10 @@ after the preceding phase has fresh verification and closeout.
 
 **Closed implementation plan:** `docs/superpowers/specs/2026-07-29-phase-s2-runner-loss-stall-prevention-implementation-plan.md`
 
-**Next phase:** S3 — API boundary simplification. Its product-boundary decision
-above remains unchanged: delete browser-session auth and browser-only query
-surfaces while retaining device-auth ingest.
+**Current phase contract:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification.md`
+
+Its product-boundary decision above remains unchanged: delete browser-session
+auth and browser-only query surfaces while retaining device-auth ingest.
 
 ## Finding ledger
 
