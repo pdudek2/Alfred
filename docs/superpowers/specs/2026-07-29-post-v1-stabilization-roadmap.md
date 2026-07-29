@@ -53,7 +53,7 @@ or product decisions.
 - S4 product decisions are settled: live isolated Close retains Recovery,
   Discard remains explicitly destructive, and retention Off/Clear remove
   sensitive launch data while preserving only safe worktree-recovery identity.
-- S4 implementation and fresh verification are complete at `54067ff`.
+- S4 implementation and final review follow-up are complete at `4885ff1`.
 
 ## Phases
 
@@ -101,10 +101,10 @@ auth and browser-only query surfaces while retaining device-auth ingest.
 | 10 | Superseded by product-boundary decision | S3 deletes the OIDC surface |
 | 11 | Confirmed | S5 |
 | 12 | Confirmed | S6 |
-| 13 | Fixed in `b192291`, `aad5063`, `fa7cf19`, `d5556eb`, `2a29706`, `54067ff` | Closed |
+| 13 | Fixed in `b192291`, `aad5063`, `fa7cf19`, `d5556eb`, `2a29706`, `54067ff`, `4885ff1` | Closed |
 | 14 | Fixed in `90a04e5` | Closed |
-| 15 | Fixed in `591c865`, `66329fb`, `006385e`, `1b13861`, `f73ae07`, `279d9af`, `fa7cf19`, `d5556eb`, `54067ff` | Closed |
-| 16 | Fixed in `47ce4fa` | Closed |
+| 15 | Fixed in `591c865`, `66329fb`, `006385e`, `1b13861`, `f73ae07`, `279d9af`, `fa7cf19`, `d5556eb`, `54067ff`, `4885ff1` | Closed |
+| 16 | Fixed in `47ce4fa`, `4885ff1` | Closed |
 | 17 | Confirmed | S5 |
 | 18 | Fixed in `2a020a0` | Closed |
 | 19 | Fixed in `5ae7c1d` | Closed |
@@ -211,7 +211,7 @@ while runner-auth smoke verified heartbeat and synthetic batch `202`.
 
 **Implementation commits:** `47ce4fa`, `591c865`, `66329fb`, `006385e`,
 `1b13861`, `f73ae07`, `279d9af`, `b192291`, `aad5063`, `fa7cf19`, `d5556eb`,
-`676cb15`, `2a29706`, `54067ff`
+`676cb15`, `2a29706`, `54067ff`, `4885ff1`
 
 **Next phase:** S5 — Desktop interaction correctness; unplanned until a new
 convergence workflow begins
@@ -235,6 +235,14 @@ Fresh verification at `54067ff` passed schema 47/47 tests, desktop 962/962
 tests, package typechecks and builds, full `pnpm test` with 34/34 root script
 tests and all six package test tasks (1,174 tests total), full typecheck 9/9,
 full build 6/6, and `pnpm verify` including Electron smoke 16/16.
+
+Final review follow-up at `4885ff1` closed the remaining hydration,
+cleanup-before-forget, stale Discard preflight, complete Cookie redaction, and
+secret-safe diagnostic gaps. Fresh focused verification passed schema 43/43
+and desktop 330/330 tests. Full `pnpm verify` passed 1,187/1,187 automated
+tests, typecheck 9/9, build 6/6, and Electron smoke 16/16. The independent
+scoped re-review reported 0 Critical, 0 Important, and 0 Minor findings and
+approved the fix wave.
 
 A complete disposable macOS observation independently exercised Apply,
 recreate plus permanent Discard, and recovery under retention Off. The actual
