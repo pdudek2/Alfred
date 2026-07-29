@@ -199,6 +199,34 @@ describe("redactPayload", () => {
     );
   });
 
+  it.each([
+    ["postgresql://alfred:sup3rs3cret@db.example.com:5432/alfred", "sup3rs3cret"],
+    ["https://user:ghp_1234567890abcdef@github.com/a/b.git", "ghp_1234567890abcdef"],
+    ["stripe sk_live_1234567890abcdef", "sk_live_1234567890abcdef"],
+    ["google AIzaSyD1234567890abcdefghijklmnop", "AIzaSyD1234567890abcdefghijklmnop"],
+    ["gitlab glpat-1234567890abcdef", "glpat-1234567890abcdef"],
+    ["npm npm_1234567890abcdef", "npm_1234567890abcdef"],
+    ["sendgrid SG.1234567890abcdef.abcdefghijklmnop", "SG.1234567890abcdef.abcdefghijklmnop"],
+    ['{"api_key": "abc123SECRET"}', "abc123SECRET"],
+    ["Cookie: session=abc123SECRET; csrf=xyz789LEAK", "abc123SECRET"],
+    ["Cookie: session=abc123SECRET; csrf=xyz789LEAK", "xyz789LEAK"],
+  ])("redacts leaked credential from %s", (input, leaked) => {
+    const output = redactText(input);
+    expect(output).toContain("[redacted]");
+    expect(output).not.toContain(leaked);
+  });
+
+  it.each([
+    "https://user@example.com/a/b.git",
+    "stripe sk_live_preview",
+    "google AIza-short",
+    "npm install",
+    "SG status report",
+    '{"api_key_description": "used by local fixtures"}',
+  ])("does not overmatch ordinary text: %s", (input) => {
+    expect(redactText(input)).toBe(input);
+  });
+
   it("keeps only minimal keys in minimal mode", () => {
     expect(
       redactPayload(
