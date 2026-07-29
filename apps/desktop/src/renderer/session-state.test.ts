@@ -331,6 +331,34 @@ describe("desktop session state", () => {
     ]);
   });
 
+  it("hydrates recovery-only worktree identity without synthetic launch data", () => {
+    const [hydrated] = hydratePersistedTerminalSessions([
+      {
+        clientId: "codex-1",
+        title: "Codex recovery",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "A",
+        workspaceRootFingerprint: "0123456789abcdef",
+        isolation: "worktree",
+        branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
+      },
+    ]);
+
+    expect(hydrated).toMatchObject({
+      id: "codex-1",
+      cwd: "",
+      initialBuffer: "",
+      workspaceRootFingerprint: "0123456789abcdef",
+      isolation: "worktree",
+      branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
+      runtimeStatus: "restored",
+    });
+    for (const field of ["baseCwd", "shell", "command", "args", "resumeTarget"]) {
+      expect(hydrated).not.toHaveProperty(field);
+    }
+  });
+
   it("relaunches a restored transcript in the same tile", () => {
     const restored = hydratePersistedTerminalSessions([
       {

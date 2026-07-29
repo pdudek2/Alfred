@@ -23,6 +23,7 @@ import type {
   TerminalSessionSource,
 } from "../shared/terminal-ipc.js";
 import type { WorkspaceMissionBrief, WorkspaceSnapshot, WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
+import { isAlfredManagedBranchName, workspaceRootFingerprint } from "./git-worktree.js";
 
 export const DESKTOP_STATE_VERSION = 1;
 export const DESKTOP_STATE_FILE_NAME = "desktop-state.json";
@@ -82,6 +83,11 @@ export type PersistedDesktopStateStoreOptions = {
   onWarning?: (message: string, error: unknown) => void;
 };
 
+type DesktopStateReadResult = {
+  state: DesktopStateSnapshot;
+  rewrite: boolean;
+};
+
 export const DEFAULT_WORKSPACE: WorkspaceSnapshot = {
   id: "A",
   label: "Alfred",
@@ -125,7 +131,12 @@ export function createPersistedDesktopStateStore(
 
   const hydrate = async (): Promise<void> => {
     if (hydrated) return;
-    cachedState = await readDesktopStateFile(filePath, options.onWarning);
+    const result = await readDesktopStateFile(filePath, options.onWarning);
+    if (result.rewrite) {
+      await persistState(result.state);
+      return;
+    }
+    cachedState = result.state;
     hydrated = true;
   };
 
@@ -507,10 +518,7 @@ function normalizeRestoredTerminalSessions(
     if (
       typeof item.clientId !== "string" ||
       typeof item.title !== "string" ||
-      !isTerminalSessionSource(item.source) ||
-      typeof item.cwd !== "string" ||
-      typeof item.shell !== "string" ||
-      typeof item.buffer !== "string"
+      !isTerminalSessionSource(item.source)
     ) {
       continue;
     }
@@ -520,38 +528,89 @@ function normalizeRestoredTerminalSessions(
 
     seenClientIds.add(clientId);
     const activityEvents = Array.isArray(item.activityEvents) ? normalizeActivityEvents(item.activityEvents) : undefined;
-    const buffer =
-      privacySettings.terminalScrollbackRetention === "off"
-        ? ""
-        : redactText(tailText(item.buffer, MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH));
-
-    sessions.push({
+    const session = sanitizePersistedTerminalSession({
       clientId,
-      title: redactText(item.title),
+      title: item.title,
       source: item.source,
-      cwd: item.cwd,
-      shell: item.shell,
-      buffer,
       ...(isAgentKind(item.agentKind) ? { agentKind: item.agentKind } : {}),
       ...(typeof item.workspaceId === "string" ? { workspaceId: item.workspaceId } : {}),
+      ...(typeof item.workspaceRootFingerprint === "string"
+        ? { workspaceRootFingerprint: item.workspaceRootFingerprint }
+        : {}),
       ...(isTerminalSessionIsolation(item.isolation) ? { isolation: item.isolation } : {}),
       ...(typeof item.branchName === "string" ? { branchName: item.branchName } : {}),
       ...(typeof item.baseCwd === "string" ? { baseCwd: item.baseCwd } : {}),
       ...(typeof item.createdAt === "number" ? { createdAt: item.createdAt } : {}),
+      ...(typeof item.cwd === "string" ? { cwd: item.cwd } : {}),
+      ...(typeof item.shell === "string" ? { shell: item.shell } : {}),
       ...(typeof item.command === "string" ? { command: item.command } : {}),
       ...(Array.isArray(item.args) && item.args.every((arg) => typeof arg === "string")
         ? { args: [...item.args] }
         : {}),
       ...(isTerminalResumeTarget(item.resumeTarget) ? { resumeTarget: { ...item.resumeTarget } } : {}),
+      ...(typeof item.buffer === "string" ? { buffer: item.buffer } : {}),
+      ...(activityEvents === undefined ? {} : { activityEvents }),
       ...(typeof item.lastActivityAt === "number" ? { lastActivityAt: item.lastActivityAt } : {}),
       ...(typeof item.lastOutputAt === "number" ? { lastOutputAt: item.lastOutputAt } : {}),
-      ...(privacySettings.terminalScrollbackRetention === "off" || activityEvents === undefined
-        ? {}
-        : { activityEvents: redactActivityEvents(activityEvents) }),
-    });
+    }, privacySettings);
+    if (session) {
+      sessions.push(session);
+    }
   }
 
   return sessions;
+}
+
+export function sanitizePersistedTerminalSession(
+  session: PersistedTerminalSessionSnapshot,
+  privacySettings: DesktopPrivacySettings,
+  clearLaunchData = false,
+): PersistedTerminalSessionSnapshot | null {
+  const launchDataCleared =
+    clearLaunchData || privacySettings.terminalScrollbackRetention === "off";
+  const fingerprint = session.workspaceRootFingerprint
+    ?? (session.baseCwd ? workspaceRootFingerprint(session.baseCwd) : undefined);
+  const safeIdentity =
+    session.isolation === "worktree"
+    && Boolean(session.workspaceId?.trim())
+    && Boolean(fingerprint)
+    && Boolean(session.branchName && isAlfredManagedBranchName(session.branchName));
+
+  const identity = {
+    clientId: session.clientId.trim(),
+    title: redactText(session.title),
+    source: session.source,
+    ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
+    ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
+    ...(fingerprint === undefined ? {} : { workspaceRootFingerprint: fingerprint }),
+    ...(session.isolation === undefined ? {} : { isolation: session.isolation }),
+    ...(session.branchName === undefined ? {} : { branchName: session.branchName }),
+    ...(session.createdAt === undefined ? {} : { createdAt: session.createdAt }),
+  };
+
+  if (launchDataCleared) {
+    return safeIdentity ? identity : null;
+  }
+
+  return {
+    ...identity,
+    ...(session.cwd === undefined ? {} : { cwd: session.cwd }),
+    ...(session.baseCwd === undefined ? {} : { baseCwd: session.baseCwd }),
+    ...(session.shell === undefined ? {} : { shell: session.shell }),
+    ...(session.command === undefined || redactText(session.command) !== session.command
+      ? {}
+      : { command: session.command }),
+    ...(session.args === undefined ? {} : { args: session.args.map(redactText) }),
+    ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
+    ...(session.buffer === undefined
+      ? {}
+      : { buffer: redactText(tailText(session.buffer, MAX_PERSISTED_TERMINAL_SCROLLBACK_LENGTH)) }),
+    ...(session.activityEvents === undefined
+      ? {}
+      : { activityEvents: redactActivityEvents(session.activityEvents) }),
+    ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
+    ...(session.lastOutputAt === undefined ? {} : { lastOutputAt: session.lastOutputAt }),
+  };
 }
 
 function redactActivityEvents(events: SessionActivityEvent[]): SessionActivityEvent[] {
@@ -614,18 +673,18 @@ function normalizeWindowPosition(value: unknown): number | undefined {
 async function readDesktopStateFile(
   filePath: string,
   onWarning: PersistedDesktopStateStoreOptions["onWarning"],
-): Promise<DesktopStateSnapshot> {
+): Promise<DesktopStateReadResult> {
   let raw: string;
 
   try {
     raw = await readFile(filePath, "utf8");
   } catch (error) {
     if (isNodeError(error) && error.code === "ENOENT") {
-      return cloneDesktopState(DEFAULT_DESKTOP_STATE);
+      return { state: cloneDesktopState(DEFAULT_DESKTOP_STATE), rewrite: false };
     }
 
     onWarning?.("Failed to read desktop state; using defaults.", error);
-    return cloneDesktopState(DEFAULT_DESKTOP_STATE);
+    return { state: cloneDesktopState(DEFAULT_DESKTOP_STATE), rewrite: false };
   }
 
   let parsed: unknown;
@@ -638,7 +697,7 @@ async function readDesktopStateFile(
       error,
       onWarning,
     );
-    return cloneDesktopState(DEFAULT_DESKTOP_STATE);
+    return { state: cloneDesktopState(DEFAULT_DESKTOP_STATE), rewrite: false };
   }
 
   if (!isRecord(parsed) || parsed.version !== DESKTOP_STATE_VERSION) {
@@ -648,10 +707,15 @@ async function readDesktopStateFile(
       parsed,
       onWarning,
     );
-    return cloneDesktopState(DEFAULT_DESKTOP_STATE);
+    return { state: cloneDesktopState(DEFAULT_DESKTOP_STATE), rewrite: false };
   }
 
-  return normalizeDesktopState(parsed);
+  const normalized = normalizeDesktopState(parsed);
+  const normalizedFile = { version: DESKTOP_STATE_VERSION, ...normalized };
+  return {
+    state: normalized,
+    rewrite: JSON.stringify(parsed) !== JSON.stringify(normalizedFile),
+  };
 }
 
 async function quarantineDesktopStateFile(

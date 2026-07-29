@@ -21,6 +21,7 @@ export type SessionTile = {
   runtimeId?: TerminalSessionId;
   title: string;
   workspaceId: string;
+  workspaceRootFingerprint?: string;
   cwd: string;
   isolation?: TerminalSessionIsolation;
   branchName?: string;
@@ -219,6 +220,9 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     title: snapshot.title,
     workspaceId: snapshot.workspaceId ?? "A",
     cwd: snapshot.cwd,
+    ...(snapshot.workspaceRootFingerprint === undefined
+      ? {}
+      : { workspaceRootFingerprint: snapshot.workspaceRootFingerprint }),
     ...(snapshot.isolation === undefined ? {} : { isolation: snapshot.isolation }),
     ...(snapshot.branchName === undefined ? {} : { branchName: snapshot.branchName }),
     ...(snapshot.baseCwd === undefined ? {} : { baseCwd: snapshot.baseCwd }),
@@ -242,7 +246,10 @@ export function hydratePersistedTerminalSessions(snapshots: PersistedTerminalSes
     id: snapshot.clientId,
     title: snapshot.title,
     workspaceId: snapshot.workspaceId ?? "A",
-    cwd: snapshot.cwd,
+    cwd: snapshot.cwd ?? "",
+    ...(snapshot.workspaceRootFingerprint === undefined
+      ? {}
+      : { workspaceRootFingerprint: snapshot.workspaceRootFingerprint }),
     ...(snapshot.isolation === undefined ? {} : { isolation: snapshot.isolation }),
     ...(snapshot.branchName === undefined ? {} : { branchName: snapshot.branchName }),
     ...(snapshot.baseCwd === undefined ? {} : { baseCwd: snapshot.baseCwd }),
@@ -258,7 +265,7 @@ export function hydratePersistedTerminalSessions(snapshots: PersistedTerminalSes
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
     ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
     ...(snapshot.lastOutputAt === undefined ? {} : { lastOutputAt: snapshot.lastOutputAt }),
-    initialBuffer: snapshot.buffer,
+    initialBuffer: snapshot.buffer ?? "",
   }));
 }
 
