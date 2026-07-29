@@ -7,6 +7,8 @@ import {
   cleanupAgentWorktree,
   inspectAgentWorktree,
   isAlfredManagedBranchName,
+  isSafeAgentWorktreeCleanupRequest,
+  managedProjectWorktreeRoot,
   prepareAgentWorktree,
   preflightAgentWorktree,
   workspaceRootFingerprint,
@@ -33,6 +35,40 @@ describe("git worktree preparation", () => {
       expect(workspaceRootFingerprint(aliasRoot)).toBe(workspaceRootFingerprint(workspaceRoot));
       expect(workspaceRootFingerprint(workspaceRoot)).not.toBe(workspaceRootFingerprint(otherRoot));
       expect(workspaceRootFingerprint(aliasRoot)).toMatch(/^[a-f0-9]{16}$/);
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts a recovered managed worktree when the workspace root uses a filesystem alias", async () => {
+    const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "alfred-recovered-worktree-"));
+    const physicalParent = path.join(temporaryRoot, "private", "var");
+    const aliasParent = path.join(temporaryRoot, "var");
+    const canonicalBaseCwd = path.join(physicalParent, "folders", "fixture", "workspace-a");
+    const aliasedBaseCwd = path.join(aliasParent, "folders", "fixture", "workspace-a");
+    const worktreeStoreRoot = path.join(physicalParent, "folders", "fixture", "user-data", "worktrees");
+    const branchName = "alfred-codex-recovered";
+
+    try {
+      await mkdir(canonicalBaseCwd, { recursive: true });
+      await mkdir(worktreeStoreRoot, { recursive: true });
+      await symlink(physicalParent, aliasParent);
+      const canonicalWorktree = path.join(
+        managedProjectWorktreeRoot(worktreeStoreRoot, canonicalBaseCwd),
+        branchName,
+      );
+      await mkdir(canonicalWorktree, { recursive: true });
+
+      expect(isSafeAgentWorktreeCleanupRequest({
+        baseCwd: aliasedBaseCwd,
+        branchName,
+        cwd: canonicalWorktree,
+      }, { worktreeStoreRoot })).toBe(true);
+      expect(isSafeAgentWorktreeCleanupRequest({
+        baseCwd: aliasedBaseCwd,
+        branchName,
+        cwd: path.join(worktreeStoreRoot, "other-workspace", branchName),
+      }, { worktreeStoreRoot })).toBe(false);
     } finally {
       await rm(temporaryRoot, { recursive: true, force: true });
     }
