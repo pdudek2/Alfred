@@ -7,13 +7,8 @@ import {
   requireDeviceToken,
 } from "../auth/device-auth";
 import { hashToken } from "../auth/token-hash";
-import { createAuthRoutes } from "../routes/auth";
-import type { RunListItem } from "../services/runs-query-service";
 
-const dbMock = vi.hoisted(() => ({
-  getRun: vi.fn(),
-  listRuns: vi.fn(),
-}));
+const dbMock = vi.hoisted(() => ({}));
 
 const bootstrapAuthMock = vi.hoisted(() => ({
   seedBootstrapAuth: vi.fn(),
@@ -46,30 +41,8 @@ vi.mock("../auth/bootstrap-auth", () => bootstrapAuthMock);
 
 import { createApp } from "../app";
 
-const run: RunListItem = {
-  id: "run-1",
-  workspace_id: "00000000-0000-4000-8000-000000000001",
-  project_id: "project-1",
-  project_key: "Alfred",
-  project_name: "Alfred",
-  source_id: "codex-cli",
-  source_run_id: "codex-run-1",
-  status: "running",
-  lifecycle_status: "running",
-  title: null,
-  started_at: "2026-04-28T10:00:00.000Z",
-  completed_at: null,
-  last_activity_at: "2026-04-28T10:00:01.000Z",
-  updated_at: "2026-04-28T10:01:00.000Z",
-  created_at: "2026-04-28T10:00:00.000Z",
-};
-
 describe("api", () => {
   beforeEach(() => {
-    dbMock.getRun.mockReset();
-    dbMock.listRuns.mockReset();
-    dbMock.getRun.mockResolvedValue(null);
-    dbMock.listRuns.mockResolvedValue([run]);
     bootstrapAuthMock.seedBootstrapAuth.mockReset();
     bootstrapAuthMock.seedBootstrapAuth.mockResolvedValue(undefined);
   });
@@ -82,8 +55,8 @@ describe("api", () => {
       service: "alfred-api",
       endpoints: {
         health: "/health",
-        runs: "/v1/runs",
-        apiAliasRuns: "/api/v1/runs",
+        heartbeat: "/v1/ingest/heartbeat",
+        batches: "/v1/ingest/batches",
       },
     });
   });
@@ -98,55 +71,32 @@ describe("api", () => {
     });
   });
 
-  it("keeps the Vercel runs API alias compatible", async () => {
-    const res = await createApp().request("/api/v1/runs?limit=7", {
-      headers: { cookie: "alfred_session=dev-session-token" },
-    });
+  const retiredRoutes = [
+    { method: "GET", path: "/auth/login" },
+    { method: "GET", path: "/auth/callback" },
+    { method: "POST", path: "/auth/logout" },
+    { method: "GET", path: "/api/auth/login" },
+    { method: "GET", path: "/api/auth/callback" },
+    { method: "POST", path: "/api/auth/logout" },
+    { method: "GET", path: "/v1/runs" },
+    { method: "GET", path: "/v1/runs/retired-run" },
+    { method: "GET", path: "/api/v1/runs" },
+    { method: "GET", path: "/api/v1/runs/retired-run" },
+    { method: "GET", path: "/v1/system/status" },
+    { method: "GET", path: "/api/v1/system/status" },
+  ] as const;
 
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ items: [run] });
-    expect(dbMock.listRuns).toHaveBeenCalledOnce();
-    expect(dbMock.listRuns).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000001", 7, {});
+  it.each(retiredRoutes)("$method $path returns the default 404", async ({ method, path }) => {
+    const response = await createApp().request(path, { method });
+    expect(response.status).toBe(404);
   });
 
-  it("sets a dev session cookie from login when OIDC is not configured in dev auth mode", async () => {
-    const res = await createApp().request("/auth/login", { redirect: "manual" });
-
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("/");
-    expect(res.headers.get("set-cookie")).toContain("alfred_session=dev-session-token");
-    expect(res.headers.get("set-cookie")).toContain("HttpOnly");
+  it.each(["/v1/ingest/heartbeat", "/api/v1/ingest/heartbeat"])("%s requires a device token", async (path) => {
+    const response = await createApp().request(path, { method: "POST" });
+    expect(response.status).toBe(401);
   });
 
-  it("allows runs after the dev login cookie is issued", async () => {
-    const login = await createApp().request("/auth/login", { redirect: "manual" });
-    const cookie = login.headers.get("set-cookie")?.split(";")[0];
-
-    const res = await createApp().request("/api/v1/runs?limit=7", {
-      headers: cookie ? { cookie } : {},
-    });
-
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ items: [run] });
-    expect(dbMock.listRuns).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000001", 7, {});
-  });
-
-  it("mounts system status behind session auth", async () => {
-    const res = await createApp().request("/api/v1/system/status");
-    expect(res.status).toBe(401);
-  });
-
-  it("supports Vercel cloud aliases for health and auth", async () => {
-    const health = await createApp().request("/api/health");
-    expect(health.status).toBe(200);
-
-    const login = await createApp().request("/api/auth/login", { redirect: "manual" });
-    expect(login.status).toBe(302);
-    expect(login.headers.get("location")).toBe("/");
-    expect(login.headers.get("set-cookie")).toContain("alfred_session=dev-session-token");
-  });
-
-  it("serves health endpoints even when bootstrap auth fails", async () => {
+  it("keeps root, health, and retired routes available when bootstrap auth fails", async () => {
     const originalNodeEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     bootstrapAuthMock.seedBootstrapAuth.mockRejectedValue(new Error("bootstrap unavailable"));
@@ -155,15 +105,16 @@ describe("api", () => {
     try {
       const app = createApp();
 
+      const root = await app.request("/");
       const health = await app.request("/health");
-      const apiHealth = await app.request("/api/health");
-      const runs = await app.request("/api/v1/runs", {
-        headers: { cookie: "alfred_session=dev-session-token" },
-      });
+      const retired = await app.request("/auth/login");
+      const ingest = await app.request("/api/v1/ingest/heartbeat", { method: "POST" });
 
+      expect(root.status).toBe(200);
       expect(health.status).toBe(200);
-      expect(apiHealth.status).toBe(200);
-      expect(runs.status).toBeGreaterThanOrEqual(500);
+      expect(retired.status).toBe(404);
+      expect(ingest.status).toBeGreaterThanOrEqual(500);
+      expect(bootstrapAuthMock.seedBootstrapAuth).toHaveBeenCalledTimes(1);
       expect(consoleError).toHaveBeenCalledTimes(1);
       expect(consoleError).toHaveBeenCalledWith(expect.objectContaining({ message: "bootstrap unavailable" }));
     } finally {
@@ -183,8 +134,8 @@ describe("api", () => {
     try {
       const app = createApp();
 
-      const first = await app.request("/api/v1/system/status");
-      const second = await app.request("/api/v1/system/status");
+      const first = await app.request("/api/v1/ingest/heartbeat", { method: "POST" });
+      const second = await app.request("/api/v1/ingest/heartbeat", { method: "POST" });
 
       expect(first.status).toBeGreaterThanOrEqual(500);
       expect(second.status).toBe(401);
@@ -196,47 +147,6 @@ describe("api", () => {
     } finally {
       consoleError.mockRestore();
       process.env.NODE_ENV = originalNodeEnv;
-    }
-  });
-
-  it("uses the cloud auth callback path when starting OIDC through the api alias", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          authorization_endpoint: "https://idp.example.test/authorize",
-          token_endpoint: "https://idp.example.test/token",
-        }),
-        { headers: { "content-type": "application/json" } },
-      ),
-    );
-    const app = new Hono();
-    app.route(
-      "/api/auth",
-      createAuthRoutes(dbMock as never, {
-        callbackPath: "/api/auth/callback",
-        config: {
-          appBaseUrl: "https://alfred.example.test",
-          bootstrapWorkspaceId: "00000000-0000-4000-8000-000000000001",
-          clientId: "alfred-client",
-          clientSecret: "alfred-secret",
-          issuer: "https://idp.example.test",
-        },
-      }),
-    );
-
-    try {
-      const login = await app.request("/api/auth/login", { redirect: "manual" });
-      const location = login.headers.get("location");
-
-      expect(login.status).toBe(302);
-      expect(location).toContain(
-        "redirect_uri=https%3A%2F%2Falfred.example.test%2Fapi%2Fauth%2Fcallback",
-      );
-      expect(new URL(location ?? "").searchParams.get("redirect_uri")).toBe(
-        "https://alfred.example.test/api/auth/callback",
-      );
-    } finally {
-      fetchMock.mockRestore();
     }
   });
 
