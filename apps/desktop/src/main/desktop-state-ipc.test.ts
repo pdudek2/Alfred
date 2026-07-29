@@ -7,7 +7,7 @@ import { registerDesktopStateIpc } from "./desktop-state-ipc.js";
 import { desktopStateChannels } from "../shared/desktop-state-ipc.js";
 
 const mocks = vi.hoisted(() => ({
-  clearTerminalSavedDataInMemory: vi.fn(() => 2),
+  applyTerminalPrivacyPolicyInMemory: vi.fn(() => 2),
   handlers: new Map<string, (_event?: unknown, request?: unknown) => unknown>(),
   sentMessages: [] as Array<{ channel: string; payload: unknown }>,
   showItemInFolder: vi.fn(),
@@ -37,13 +37,17 @@ vi.mock("electron", () => ({
 }));
 
 vi.mock("./terminal-manager.js", () => ({
-  clearTerminalSavedDataInMemory: mocks.clearTerminalSavedDataInMemory,
+  applyTerminalPrivacyPolicyInMemory: mocks.applyTerminalPrivacyPolicyInMemory,
 }));
 
 describe("desktop-state IPC", () => {
   it("updates privacy settings through the persisted state store", async () => {
     mocks.handlers.clear();
-    const store = createMemoryStore();
+    mocks.applyTerminalPrivacyPolicyInMemory.mockClear();
+    const store = createMemoryStore({
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [sensitiveIsolatedSession("settings-session")],
+    });
     registerDesktopStateIpc(store);
 
     const handler = mocks.handlers.get(desktopStateChannels.updatePrivacySettings);
@@ -62,48 +66,53 @@ describe("desktop-state IPC", () => {
         externalSessionIndexingEnabled: false,
       },
     });
+    expect(mocks.applyTerminalPrivacyPolicyInMemory).toHaveBeenCalledWith({
+      terminalScrollbackRetention: "off",
+      externalSessionIndexingEnabled: false,
+    });
+    expect((await store.getState()).restoredTerminalSessions).toEqual([
+      {
+        clientId: "settings-session",
+        title: "Isolated settings-session",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "workspace-a",
+        workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
+        isolation: "worktree",
+        branchName: "alfred-codex-settings-session",
+        createdAt: 123,
+      },
+    ]);
   });
 
-  it("clears persisted terminal buffers and activity previews", async () => {
+  it("clears all persisted terminal launch, transcript, and activity data", async () => {
     mocks.handlers.clear();
-    mocks.clearTerminalSavedDataInMemory.mockClear();
+    mocks.applyTerminalPrivacyPolicyInMemory.mockClear();
     const store = createMemoryStore({
       ...DEFAULT_DESKTOP_STATE,
-      restoredTerminalSessions: [
-        {
-          clientId: "manual-1",
-          title: "Manual",
-          source: "manual",
-          cwd: "/repo",
-          shell: "/bin/zsh",
-          buffer: "secret",
-          activityEvents: [
-            {
-              id: "activity-1",
-              kind: "warning",
-              title: "Warning",
-              detail: "secret",
-              payload: { type: "warning", message: "secret" },
-              at: 123,
-            },
-          ],
-        },
-      ],
+      restoredTerminalSessions: [sensitiveIsolatedSession("clear-session")],
     });
     registerDesktopStateIpc(store);
 
     const handler = mocks.handlers.get(desktopStateChannels.clearSavedTerminalData);
     await expect(handler?.()).resolves.toEqual({ ok: true, clearedSessions: 2 });
-    expect(mocks.clearTerminalSavedDataInMemory).toHaveBeenCalledTimes(1);
-    await expect(store.getState()).resolves.toMatchObject({
-      restoredTerminalSessions: [
-        expect.objectContaining({
-          clientId: "manual-1",
-          buffer: "",
-        }),
-      ],
-    });
-    expect((await store.getState()).restoredTerminalSessions[0]).not.toHaveProperty("activityEvents");
+    expect(mocks.applyTerminalPrivacyPolicyInMemory).toHaveBeenCalledWith(
+      DEFAULT_DESKTOP_STATE.privacySettings,
+      true,
+    );
+    expect((await store.getState()).restoredTerminalSessions).toEqual([
+      {
+        clientId: "clear-session",
+        title: "Isolated clear-session",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "workspace-a",
+        workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
+        isolation: "worktree",
+        branchName: "alfred-codex-clear-session",
+        createdAt: 123,
+      },
+    ]);
   });
 
   it("reveals the main-owned desktop state file path", async () => {
@@ -133,6 +142,42 @@ describe("desktop-state IPC", () => {
     ]);
   });
 });
+
+function sensitiveIsolatedSession(clientId: string) {
+  return {
+    clientId,
+    title: `Isolated ${clientId}`,
+    source: "alfred" as const,
+    agentKind: "codex" as const,
+    workspaceId: "workspace-a",
+    isolation: "worktree" as const,
+    branchName: `alfred-codex-${clientId}`,
+    createdAt: 123,
+    cwd: `/alfred/userData/worktrees/${clientId}`,
+    baseCwd: "/repo",
+    shell: "codex",
+    command: "codex",
+    args: ["resume", "secret"],
+    resumeTarget: {
+      agentKind: "codex" as const,
+      sessionId: "secret-session",
+      source: "codex-session-index" as const,
+    },
+    buffer: "secret transcript",
+    activityEvents: [
+      {
+        id: "activity-1",
+        kind: "warning" as const,
+        title: "Warning",
+        detail: "secret",
+        payload: { type: "warning" as const, message: "secret" },
+        at: 123,
+      },
+    ],
+    lastActivityAt: 123,
+    lastOutputAt: 124,
+  };
+}
 
 function createMemoryStore(initialState = DEFAULT_DESKTOP_STATE) {
   const listeners = new Set<(status: DesktopSaveStatus) => void>();

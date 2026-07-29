@@ -6,12 +6,10 @@ import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { redactText, redactUnknown } from "@alfred/schema";
 import {
   appendActivityEvent,
   classifyTerminalOutputChunk,
   type SessionActivityEvent,
-  type SessionActivityPayload,
   type TerminalOutputActivityChunkResult,
   type TerminalOutputActivityStreamState,
 } from "../shared/session-activity.js";
@@ -48,10 +46,15 @@ import {
   inspectAgentWorktree as defaultInspectAgentWorktree,
   isSafeAgentWorktreeCleanupRequest,
   prepareAgentWorktree as defaultPrepareAgentWorktree,
+  workspaceRootFingerprint,
   type AgentWorktreeCleanupRequest,
   type AgentWorktreeResult,
 } from "./git-worktree.js";
-import type { DesktopPrivacySettings, PersistedDesktopStateStore } from "./persisted-desktop-state.js";
+import {
+  sanitizePersistedTerminalSession,
+  type DesktopPrivacySettings,
+  type PersistedDesktopStateStore,
+} from "./persisted-desktop-state.js";
 import { canonicalWorkspacePath, isAllowedWorkspacePath } from "./workspace-path.js";
 
 type PtyProcess = import("node-pty").IPty;
@@ -92,6 +95,7 @@ type TerminalSession = {
   source: TerminalSessionSource;
   agentKind?: TerminalCreateResult["agentKind"];
   workspaceId?: string;
+  workspaceRootFingerprint?: string;
   cwd: string;
   isolation?: TerminalCreateResult["isolation"];
   branchName?: string;
@@ -106,6 +110,7 @@ type TerminalSession = {
   activityStream: TerminalOutputActivityStreamState;
   lastActivityAt?: number;
   lastOutputAt?: number;
+  persistLaunchData: boolean;
   pty: PtyProcess;
   // PTY lifetime is app-scoped; BrowserWindows may close and reattach later.
   window?: BrowserWindow;
@@ -334,6 +339,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           activityEvents: [],
           activityStream: { carry: "" },
           ownerWindowId: window.id,
+          persistLaunchData: true,
           pty,
           window,
         };
@@ -524,33 +530,32 @@ export function getTerminalSessionCount(): number {
   return sessions.size;
 }
 
-export function clearTerminalSavedDataInMemory(): number {
-  const clearedClientIds = new Set<string>();
-
+export function applyTerminalPrivacyPolicyInMemory(
+  privacySettings: DesktopPrivacySettings,
+  clearLaunchData = false,
+): number {
+  const changed = new Set<string>();
   for (const [clientId, snapshot] of restoredSessionSnapshots) {
-    if (snapshot.buffer || snapshot.activityEvents?.length || snapshot.lastActivityAt || snapshot.lastOutputAt) {
-      clearedClientIds.add(clientId);
-    }
-    const { activityEvents: _activityEvents, lastActivityAt: _lastActivityAt, lastOutputAt: _lastOutputAt, ...rest } = snapshot;
-    restoredSessionSnapshots.set(clientId, { ...rest, buffer: "" });
+    const sanitized = sanitizePersistedTerminalSession(snapshot, privacySettings, clearLaunchData);
+    if (JSON.stringify(snapshot) !== JSON.stringify(sanitized)) changed.add(clientId);
+    if (sanitized) restoredSessionSnapshots.set(clientId, sanitized);
+    else restoredSessionSnapshots.delete(clientId);
   }
 
-  for (const session of sessions.values()) {
-    if (!session.clientId) continue;
-    if (session.buffer || session.activityEvents?.length || session.lastActivityAt || session.lastOutputAt) {
-      clearedClientIds.add(session.clientId);
-    }
-    session.buffer = "";
-    delete session.activityEvents;
-    delete session.lastActivityAt;
-    delete session.lastOutputAt;
-    const snapshot = toPersistedSnapshot(session);
-    if (snapshot) {
-      restoredSessionSnapshots.set(snapshot.clientId, snapshot);
+  if (clearLaunchData || privacySettings.terminalScrollbackRetention === "off") {
+    for (const session of sessions.values()) {
+      if (!session.clientId) continue;
+      session.persistLaunchData = false;
+      session.buffer = "";
+      delete session.activityEvents;
+      delete session.lastActivityAt;
+      delete session.lastOutputAt;
+      changed.add(session.clientId);
     }
   }
 
-  return clearedClientIds.size;
+  scheduleTerminalPersistence();
+  return changed.size;
 }
 
 function sessionMetadata(
@@ -571,6 +576,9 @@ function sessionMetadata(
     source: request.source ?? "manual",
     ...(request.agentKind === undefined ? {} : { agentKind: request.agentKind }),
     ...(request.workspaceId === undefined ? {} : { workspaceId: request.workspaceId }),
+    ...(worktree?.baseCwd === undefined
+      ? {}
+      : { workspaceRootFingerprint: workspaceRootFingerprint(worktree.baseCwd) }),
     cwd,
     ...(isolation === undefined ? {} : { isolation }),
     ...(worktree?.branchName === undefined ? {} : { branchName: worktree.branchName }),
@@ -597,6 +605,9 @@ function toCreateResult(session: TerminalSession): TerminalCreateResult {
     source: session.source,
     ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
     ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
+    ...(session.workspaceRootFingerprint === undefined
+      ? {}
+      : { workspaceRootFingerprint: session.workspaceRootFingerprint }),
     cwd: session.cwd,
     ...(session.isolation === undefined ? {} : { isolation: session.isolation }),
     ...(session.branchName === undefined ? {} : { branchName: session.branchName }),
@@ -810,12 +821,15 @@ function hasIsolatedWorktreeMetadata(
 
 function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSessionSnapshot | null {
   if (!session.clientId) return null;
-  return {
+  const snapshot: PersistedTerminalSessionSnapshot = {
     clientId: session.clientId,
     title: session.title,
     source: session.source,
     ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
     ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
+    ...(session.workspaceRootFingerprint === undefined
+      ? {}
+      : { workspaceRootFingerprint: session.workspaceRootFingerprint }),
     cwd: session.cwd,
     ...(session.isolation === undefined ? {} : { isolation: session.isolation }),
     ...(session.branchName === undefined ? {} : { branchName: session.branchName }),
@@ -829,6 +843,20 @@ function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSession
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
     ...(session.lastOutputAt === undefined ? {} : { lastOutputAt: session.lastOutputAt }),
+  };
+  if (session.persistLaunchData) return snapshot;
+
+  const identity = sanitizePersistedTerminalSession(snapshot, {
+    terminalScrollbackRetention: "redactedTail",
+    externalSessionIndexingEnabled: false,
+  }, true);
+  if (!identity) return null;
+  return {
+    ...identity,
+    buffer: session.buffer,
+    ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
+    ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
+    ...(snapshot.lastOutputAt === undefined ? {} : { lastOutputAt: snapshot.lastOutputAt }),
   };
 }
 
@@ -857,9 +885,10 @@ async function persistTerminalSnapshots(): Promise<void> {
   if (persistedStateStore !== store) return;
 
   await store.updateState((current) => {
-    const restoredTerminalSessions = [...restoredSessionSnapshots.values()].map((session) =>
-      preparePersistedSessionForPrivacy(session, current.privacySettings),
-    );
+    const restoredTerminalSessions = [...restoredSessionSnapshots.values()].flatMap((session) => {
+      const sanitized = sanitizePersistedTerminalSession(session, current.privacySettings);
+      return sanitized ? [sanitized] : [];
+    });
     return {
       ...current,
       restoredTerminalSessions,
@@ -905,41 +934,6 @@ function cloneActivityEvents(events: SessionActivityEvent[]): SessionActivityEve
   return events.map((event) => ({
     ...event,
     ...(event.payload === undefined ? {} : { payload: { ...event.payload } }),
-  }));
-}
-
-function preparePersistedSessionForPrivacy(
-  session: PersistedTerminalSessionSnapshot,
-  privacySettings: DesktopPrivacySettings,
-): PersistedTerminalSessionSnapshot {
-  const { activityEvents: _activityEvents, ...baseSession } = clonePersistedSession(session);
-  const redactedBase = {
-    ...baseSession,
-    title: redactText(baseSession.title),
-  };
-
-  if (privacySettings.terminalScrollbackRetention === "off") {
-    return {
-      ...redactedBase,
-      buffer: "",
-    };
-  }
-
-  return {
-    ...redactedBase,
-    buffer: redactText(tailBuffer(session.buffer ?? "", MAX_PERSISTED_BUFFER_LENGTH)),
-    ...(session.activityEvents === undefined ? {} : { activityEvents: redactActivityEvents(session.activityEvents) }),
-  };
-}
-
-function redactActivityEvents(events: SessionActivityEvent[]): SessionActivityEvent[] {
-  return events.map((event) => ({
-    ...event,
-    title: redactText(event.title),
-    detail: redactText(event.detail),
-    ...(event.payload === undefined
-      ? {}
-      : { payload: redactUnknown(event.payload) as SessionActivityPayload }),
   }));
 }
 

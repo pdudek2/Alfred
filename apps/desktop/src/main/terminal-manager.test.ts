@@ -5,6 +5,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
+  applyTerminalPrivacyPolicyInMemory,
   configureTerminalPersistence,
   flushTerminalPersistence,
   getTerminalSessionCount,
@@ -389,7 +390,7 @@ describe("terminal-manager IPC", () => {
     expect(restored?.buffer).toBe(rawBuffer);
   });
 
-  it("drops persisted terminal scrollback and activity when retention is off", async () => {
+  it("drops shared persisted terminal sessions when retention is off", async () => {
     let state: DesktopStateSnapshot = {
       ...DEFAULT_DESKTOP_STATE,
       privacySettings: {
@@ -424,13 +425,165 @@ describe("terminal-manager IPC", () => {
     pty.onDataHandler?.("Server ready\nBash(\"pnpm test\")\n");
     await flushTerminalPersistence();
 
-    expect(state.restoredTerminalSessions[0]).toEqual(
+    expect(state.restoredTerminalSessions).toEqual([]);
+  });
+
+  it("applies retention off immediately without killing live terminals or permanently disabling new runtimes", async () => {
+    const sharedRestored: PersistedTerminalSessionSnapshot = {
+      clientId: "shared-restored",
+      title: "Shared restored",
+      source: "manual",
+      cwd: "/repo",
+      baseCwd: "/repo",
+      shell: "/bin/zsh",
+      command: "node",
+      args: ["shared-secret"],
+      buffer: "shared old buffer",
+      lastActivityAt: 10,
+      lastOutputAt: 11,
+    };
+    const isolatedRestored: PersistedTerminalSessionSnapshot = {
+      clientId: "isolated-restored",
+      title: "Isolated restored",
+      source: "alfred",
+      agentKind: "codex",
+      workspaceId: "workspace-a",
+      isolation: "worktree",
+      branchName: "alfred-codex-restored",
+      baseCwd: "/repo",
+      cwd: "/alfred/userData/worktrees/restored",
+      shell: "codex",
+      command: "codex",
+      args: ["resume", "isolated-secret"],
+      resumeTarget: {
+        agentKind: "codex",
+        sessionId: "isolated-secret",
+        source: "codex-session-index",
+      },
+      buffer: "isolated old buffer",
+      lastActivityAt: 12,
+      lastOutputAt: 13,
+    };
+    let state = stateWithRestoredSessions([sharedRestored, isolatedRestored]);
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const oldPty = new FakePty();
+    const newPty = new FakePty();
+    const ptys = [oldPty, newPty];
+    const prepareAgentWorktree = vi.fn(async (request: { clientId?: string }) => ({
+      baseCwd: "/repo",
+      branchName: `alfred-codex-${request.clientId}`,
+      cwd: `/alfred/userData/worktrees/${request.clientId}`,
+    }));
+    configureTerminalPersistence(store, { debounceMs: 60_000 });
+    registerTerminalIpc({
+      loadNodePty: async () => fakeNodePty(ptys.shift() ?? new FakePty()) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+      prepareAgentWorktree,
+    });
+
+    await invoke<TerminalListResult>(terminalChannels.list);
+    const oldRuntime = await invoke<{ id: string; workspaceRootFingerprint?: string }>(terminalChannels.create, {
+      agentKind: "codex",
+      args: ["resume", "live-secret"],
+      clientId: "live-runtime",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      resumeTarget: {
+        agentKind: "codex",
+        sessionId: "live-secret",
+        source: "codex-session-index",
+      },
+      rows: 24,
+      source: "alfred",
+      title: "Live runtime",
+      workspaceId: "workspace-a",
+    });
+    oldPty.onDataHandler?.("old live buffer\nBash(\"old-secret\")\n");
+
+    state = {
+      ...state,
+      privacySettings: {
+        terminalScrollbackRetention: "off",
+        externalSessionIndexingEnabled: false,
+      },
+    };
+    const cleared = applyTerminalPrivacyPolicyInMemory(state.privacySettings);
+    const immediateList = await invoke<TerminalListResult>(terminalChannels.list);
+
+    expect(immediateList.restoredSessions?.map(({ clientId }) => clientId)).toEqual(["isolated-restored"]);
+    expect(immediateList.restoredSessions?.[0]).not.toHaveProperty("command");
+    expect(immediateList.sessions).toHaveLength(1);
+    expect(cleared).toBe(3);
+    expect(oldPty.killed).toBe(false);
+    expect(oldRuntime.workspaceRootFingerprint).toMatch(/^[a-f0-9]{16}$/);
+
+    state = {
+      ...state,
+      privacySettings: {
+        terminalScrollbackRetention: "redactedTail",
+        externalSessionIndexingEnabled: false,
+      },
+    };
+    oldPty.onDataHandler?.("fresh output\n");
+    await flushTerminalPersistence();
+
+    expect(state.restoredTerminalSessions.find(({ clientId }) => clientId === "shared-restored")).toBeUndefined();
+    expect(state.restoredTerminalSessions.find(({ clientId }) => clientId === "isolated-restored")).toEqual({
+      clientId: "isolated-restored",
+      title: "Isolated restored",
+      source: "alfred",
+      agentKind: "codex",
+      workspaceId: "workspace-a",
+      workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
+      isolation: "worktree",
+      branchName: "alfred-codex-restored",
+    });
+    const oldRuntimePersisted = state.restoredTerminalSessions.find(({ clientId }) => clientId === "live-runtime");
+    expect(oldRuntimePersisted?.buffer).toBe("fresh output\n");
+    expect(JSON.stringify(oldRuntimePersisted)).not.toContain("old");
+    for (const field of ["cwd", "baseCwd", "shell", "command", "args", "resumeTarget", "activityEvents"]) {
+      expect(oldRuntimePersisted).not.toHaveProperty(field);
+    }
+
+    const newRuntime = await invoke<{ id: string; workspaceRootFingerprint?: string }>(terminalChannels.create, {
+      agentKind: "codex",
+      args: ["new-safe-arg"],
+      clientId: "new-runtime",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+      source: "alfred",
+      title: "New runtime",
+      workspaceId: "workspace-a",
+    });
+    newPty.onDataHandler?.("new runtime output\n");
+    await flushTerminalPersistence();
+
+    expect(oldPty.killed).toBe(false);
+    expect(newRuntime.workspaceRootFingerprint).toMatch(/^[a-f0-9]{16}$/);
+    expect(state.restoredTerminalSessions.find(({ clientId }) => clientId === "new-runtime")).toEqual(
       expect.objectContaining({
-        clientId: "manual-no-retention",
-        buffer: "",
+        args: ["new-safe-arg"],
+        baseCwd: "/repo",
+        command: "codex",
+        cwd: "/alfred/userData/worktrees/new-runtime",
+        shell: "codex",
       }),
     );
-    expect(state.restoredTerminalSessions[0]).not.toHaveProperty("activityEvents");
   });
 
   it("renames live sessions and persists the updated title", async () => {
