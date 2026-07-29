@@ -144,6 +144,36 @@ function stateWithRestoredSessions(
   };
 }
 
+function staleHydrationSessions(prefix: string): PersistedTerminalSessionSnapshot[] {
+  return [
+    {
+      clientId: `${prefix}-shared`,
+      title: "Stale shared",
+      source: "manual",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+      command: "node",
+      args: ["stale-secret"],
+      buffer: "stale output",
+    },
+    {
+      clientId: `${prefix}-isolated`,
+      title: "Stale isolated",
+      source: "alfred",
+      agentKind: "codex",
+      workspaceId: "workspace-a",
+      isolation: "worktree",
+      branchName: `alfred-codex-${prefix}-isolated`,
+      baseCwd: "/repo",
+      cwd: `/alfred/userData/worktrees/${prefix}-isolated`,
+      shell: "codex",
+      command: "codex",
+      args: ["stale-secret"],
+      buffer: "stale output",
+    },
+  ];
+}
+
 function registerTerminalIpc(options: Parameters<typeof registerTerminalIpcBase>[0] = {}): void {
   registerTerminalIpcBase({
     allowedCwdRoots: async () => defaultAllowedCwdRoots(),
@@ -751,6 +781,155 @@ describe("terminal-manager IPC", () => {
         branchName: "alfred-codex-stale-isolated",
       },
     ]);
+  });
+
+  it("keeps explicit Off authoritative when later hydration returns stale redactedTail data", async () => {
+    const hydration = deferred<DesktopStateSnapshot>();
+    let state = stateWithRestoredSessions([]);
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(() => hydration.promise),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const pty = new FakePty();
+    configureTerminalPersistence(store, { debounceMs: 60_000 });
+    registerTerminalIpc({
+      loadNodePty: async () => fakeNodePty(pty) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+      prepareAgentWorktree: async () => ({
+        baseCwd: "/repo",
+        branchName: "alfred-codex-after-explicit-off",
+        cwd: "/alfred/userData/worktrees/after-explicit-off",
+      }),
+    });
+    applyTerminalPrivacyPolicyInMemory({
+      terminalScrollbackRetention: "off",
+      externalSessionIndexingEnabled: false,
+    });
+
+    const pendingList = invoke<TerminalListResult>(terminalChannels.list);
+    hydration.resolve(stateWithRestoredSessions(staleHydrationSessions("after-off")));
+    const listed = await pendingList;
+
+    expect(listed.restoredSessions?.map(({ clientId }) => clientId)).toEqual(["after-off-isolated"]);
+    expect(listed.restoredSessions?.[0]).not.toHaveProperty("command");
+
+    await invoke(terminalChannels.create, {
+      agentKind: "codex",
+      args: ["future-off-secret"],
+      clientId: "after-explicit-off",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+      source: "alfred",
+      workspaceId: "workspace-a",
+    });
+    pty.onDataHandler?.("future-off-output\n");
+    state = { ...state, privacySettings: DEFAULT_DESKTOP_STATE.privacySettings };
+    applyTerminalPrivacyPolicyInMemory(state.privacySettings);
+    await flushTerminalPersistence();
+
+    const persisted = state.restoredTerminalSessions.find(({ clientId }) => clientId === "after-explicit-off");
+    expect(JSON.stringify(persisted)).not.toContain("future-off");
+    expect(persisted).not.toHaveProperty("command");
+  });
+
+  it("sanitizes hydration started after explicit Clear even when disk still returns raw records", async () => {
+    const hydration = deferred<DesktopStateSnapshot>();
+    const store = storeWithRestoredSessions([]);
+    vi.mocked(store.getState).mockReturnValue(hydration.promise);
+    configureTerminalPersistence(store, { debounceMs: 60_000 });
+    registerTerminalIpc();
+    applyTerminalPrivacyPolicyInMemory(DEFAULT_DESKTOP_STATE.privacySettings, true);
+
+    const pendingList = invoke<TerminalListResult>(terminalChannels.list);
+    hydration.resolve(stateWithRestoredSessions(staleHydrationSessions("after-clear")));
+    const listed = await pendingList;
+
+    expect(listed.restoredSessions).toEqual([
+      {
+        clientId: "after-clear-isolated",
+        title: "Stale isolated",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "workspace-a",
+        workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
+        isolation: "worktree",
+        branchName: "alfred-codex-after-clear-isolated",
+      },
+    ]);
+  });
+
+  it("keeps explicit redactedTail authoritative when later hydration returns stale Off", async () => {
+    const hydration = deferred<DesktopStateSnapshot>();
+    let state: DesktopStateSnapshot = {
+      ...stateWithRestoredSessions([]),
+      privacySettings: {
+        terminalScrollbackRetention: "off",
+        externalSessionIndexingEnabled: false,
+      },
+    };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(() => hydration.promise),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const pty = new FakePty();
+    configureTerminalPersistence(store, { debounceMs: 60_000 });
+    registerTerminalIpc({
+      loadNodePty: async () => fakeNodePty(pty) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+      prepareAgentWorktree: async () => ({
+        baseCwd: "/repo",
+        branchName: "alfred-codex-after-relaxation",
+        cwd: "/alfred/userData/worktrees/after-relaxation",
+      }),
+    });
+    applyTerminalPrivacyPolicyInMemory(DEFAULT_DESKTOP_STATE.privacySettings);
+
+    const pendingList = invoke<TerminalListResult>(terminalChannels.list);
+    hydration.resolve(state);
+    await pendingList;
+    state = { ...state, privacySettings: DEFAULT_DESKTOP_STATE.privacySettings };
+
+    await invoke(terminalChannels.create, {
+      agentKind: "codex",
+      args: ["allowed-after-relaxation"],
+      clientId: "after-relaxation",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+      source: "alfred",
+      workspaceId: "workspace-a",
+    });
+    pty.onDataHandler?.("allowed output\n");
+    await flushTerminalPersistence();
+
+    expect(state.restoredTerminalSessions.find(({ clientId }) => clientId === "after-relaxation")).toEqual(
+      expect.objectContaining({
+        args: ["allowed-after-relaxation"],
+        baseCwd: "/repo",
+        buffer: "allowed output\n",
+        command: "codex",
+        cwd: "/alfred/userData/worktrees/after-relaxation",
+      }),
+    );
   });
 
   it("renames live sessions and persists the updated title", async () => {

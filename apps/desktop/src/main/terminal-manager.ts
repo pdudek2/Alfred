@@ -141,8 +141,8 @@ let persistenceGeneration = 0;
 let persistDebounceMs = 250;
 let persistTimer: NodeJS.Timeout | null = null;
 let effectivePrivacySettings: DesktopPrivacySettings = { ...DEFAULT_PRIVACY_SETTINGS };
-let privacyPolicyGeneration = 0;
 let privacyClearGeneration = 0;
+let explicitPrivacyPolicy: { clearLaunchData: boolean } | null = null;
 
 export function configureTerminalPersistence(
   store: PersistedDesktopStateStore,
@@ -153,9 +153,9 @@ export function configureTerminalPersistence(
   persistenceHydration = null;
   persistenceHydrationMutations = null;
   persistenceGeneration += 1;
-  privacyPolicyGeneration += 1;
   privacyClearGeneration += 1;
   effectivePrivacySettings = { ...DEFAULT_PRIVACY_SETTINGS };
+  explicitPrivacyPolicy = null;
   restoredSessionSnapshots.clear();
   forgottenClientIds.clear();
   persistDebounceMs = options.debounceMs ?? 250;
@@ -171,9 +171,9 @@ export function resetTerminalPersistenceForTests(): void {
   persistenceHydration = null;
   persistenceHydrationMutations = null;
   persistenceGeneration += 1;
-  privacyPolicyGeneration += 1;
   privacyClearGeneration += 1;
   effectivePrivacySettings = { ...DEFAULT_PRIVACY_SETTINGS };
+  explicitPrivacyPolicy = null;
   restoredSessionSnapshots.clear();
   forgottenClientIds.clear();
   recentTerminalExits.clear();
@@ -556,8 +556,12 @@ export function applyTerminalPrivacyPolicyInMemory(
   changed = new Set<string>(),
 ): number {
   effectivePrivacySettings = { ...privacySettings };
-  privacyPolicyGeneration += 1;
-  if (clearLaunchData || privacySettings.terminalScrollbackRetention === "off") {
+  const clearsLaunchData =
+    clearLaunchData || privacySettings.terminalScrollbackRetention === "off";
+  explicitPrivacyPolicy = {
+    clearLaunchData: Boolean(explicitPrivacyPolicy?.clearLaunchData || clearsLaunchData),
+  };
+  if (clearsLaunchData) {
     privacyClearGeneration += 1;
   }
 
@@ -568,7 +572,7 @@ export function applyTerminalPrivacyPolicyInMemory(
     else restoredSessionSnapshots.delete(clientId);
   }
 
-  if (clearLaunchData || privacySettings.terminalScrollbackRetention === "off") {
+  if (clearsLaunchData) {
     disableLiveSessionPersistence(changed);
   }
 
@@ -682,14 +686,13 @@ async function hydratePersistedTerminalSessions(): Promise<void> {
 
   const store = persistedStateStore;
   const generation = persistenceGeneration;
-  const policyGeneration = privacyPolicyGeneration;
   const clearGeneration = privacyClearGeneration;
   const hydrationMutations = new Set(restoredSessionSnapshots.keys());
   persistenceHydrationMutations = hydrationMutations;
   const hydration = (async () => {
     const state = await store.getState();
     if (persistedStateStore !== store || persistenceGeneration !== generation) return;
-    if (privacyPolicyGeneration === policyGeneration) {
+    if (!explicitPrivacyPolicy) {
       const learnedRetentionOff =
         effectivePrivacySettings.terminalScrollbackRetention !== "off"
         && state.privacySettings.terminalScrollbackRetention === "off";
@@ -699,7 +702,8 @@ async function hydratePersistedTerminalSessions(): Promise<void> {
         disableLiveSessionPersistence();
       }
     }
-    const clearLaunchData = privacyClearGeneration !== clearGeneration;
+    const clearLaunchData =
+      explicitPrivacyPolicy?.clearLaunchData || privacyClearGeneration !== clearGeneration;
     const sanitizeHydratedSessions =
       clearLaunchData || effectivePrivacySettings.terminalScrollbackRetention === "off";
 
