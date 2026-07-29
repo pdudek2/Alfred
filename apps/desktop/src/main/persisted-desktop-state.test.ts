@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -515,7 +515,8 @@ describe("persisted-desktop-state", () => {
 
   it("falls back safely when persisted JSON is corrupt", async () => {
     const filePath = await temporaryStateFile();
-    await writeFile(filePath, "{not json", "utf8");
+    const invalidContents = "{not json";
+    await writeFile(filePath, invalidContents, "utf8");
     const warnings: string[] = [];
     const store = createPersistedDesktopStateStore({
       filePath,
@@ -525,23 +526,55 @@ describe("persisted-desktop-state", () => {
     });
 
     await expect(store.getState()).resolves.toEqual(DEFAULT_DESKTOP_STATE);
-    expect(warnings).toEqual(["Failed to parse desktop state; using defaults."]);
+    const entries = await readdir(path.dirname(filePath));
+    const quarantineName = entries.find((entry) => /^desktop-state\.invalid-\d+\.json$/.test(entry));
+    expect(quarantineName).toBeDefined();
+    expect(await readFile(path.join(path.dirname(filePath), quarantineName!), "utf8")).toBe(invalidContents);
+    await expect(readFile(filePath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    expect(warnings).toEqual(["Failed to parse desktop state; preserved invalid file."]);
   });
 
   it("falls back safely when persisted state has an unsupported version", async () => {
     const filePath = await temporaryStateFile();
-    await writeFile(
+    const invalidContents = JSON.stringify({
+      version: 999,
+      workspaces: [{ id: "UI", label: "Interface", shortLabel: "UI" }],
+      activeWorkspaceId: "UI",
+    });
+    await writeFile(filePath, invalidContents, "utf8");
+    const warnings: string[] = [];
+    const store = createPersistedDesktopStateStore({
       filePath,
-      JSON.stringify({
-        version: 999,
-        workspaces: [{ id: "UI", label: "Interface", shortLabel: "UI" }],
-        activeWorkspaceId: "UI",
-      }),
-      "utf8",
-    );
-    const store = createPersistedDesktopStateStore({ filePath });
+      onWarning: (message) => warnings.push(message),
+    });
 
     await expect(store.getState()).resolves.toEqual(DEFAULT_DESKTOP_STATE);
+    const entries = await readdir(path.dirname(filePath));
+    const quarantineName = entries.find((entry) => /^desktop-state\.invalid-\d+\.json$/.test(entry));
+    expect(quarantineName).toBeDefined();
+    expect(await readFile(path.join(path.dirname(filePath), quarantineName!), "utf8")).toBe(invalidContents);
+    await expect(readFile(filePath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    expect(warnings).toEqual(["Unsupported desktop state version; preserved invalid file."]);
+  });
+
+  it("does not continue with defaults when invalid state cannot be quarantined", async () => {
+    const filePath = await temporaryStateFile();
+    const invalidContents = "{not json";
+    await writeFile(filePath, invalidContents, "utf8");
+    await chmod(path.dirname(filePath), 0o500);
+    const warnings: string[] = [];
+    const store = createPersistedDesktopStateStore({
+      filePath,
+      onWarning: (message) => warnings.push(message),
+    });
+
+    try {
+      await expect(store.getState()).rejects.toThrow("Failed to preserve invalid desktop state.");
+      expect(warnings).toEqual(["Failed to preserve invalid desktop state."]);
+      expect(await readFile(filePath, "utf8")).toBe(invalidContents);
+    } finally {
+      await chmod(path.dirname(filePath), 0o700);
+    }
   });
 
   it("rejects state updates when the desktop state file cannot be written", async () => {

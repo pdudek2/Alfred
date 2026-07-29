@@ -628,18 +628,52 @@ async function readDesktopStateFile(
     return cloneDesktopState(DEFAULT_DESKTOP_STATE);
   }
 
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(raw) as unknown;
-
-    if (!isRecord(parsed) || parsed.version !== DESKTOP_STATE_VERSION) {
-      return cloneDesktopState(DEFAULT_DESKTOP_STATE);
-    }
-
-    return normalizeDesktopState(parsed);
+    parsed = JSON.parse(raw) as unknown;
   } catch (error) {
-    onWarning?.("Failed to parse desktop state; using defaults.", error);
+    await quarantineDesktopStateFile(
+      filePath,
+      "Failed to parse desktop state; preserved invalid file.",
+      error,
+      onWarning,
+    );
     return cloneDesktopState(DEFAULT_DESKTOP_STATE);
   }
+
+  if (!isRecord(parsed) || parsed.version !== DESKTOP_STATE_VERSION) {
+    await quarantineDesktopStateFile(
+      filePath,
+      "Unsupported desktop state version; preserved invalid file.",
+      parsed,
+      onWarning,
+    );
+    return cloneDesktopState(DEFAULT_DESKTOP_STATE);
+  }
+
+  return normalizeDesktopState(parsed);
+}
+
+async function quarantineDesktopStateFile(
+  filePath: string,
+  message: string,
+  cause: unknown,
+  onWarning: PersistedDesktopStateStoreOptions["onWarning"],
+): Promise<void> {
+  const extension = path.extname(filePath);
+  const quarantinePath = path.join(
+    path.dirname(filePath),
+    `${path.basename(filePath, extension)}.invalid-${Date.now()}${extension}`,
+  );
+
+  try {
+    await rename(filePath, quarantinePath);
+  } catch (error) {
+    onWarning?.("Failed to preserve invalid desktop state.", error);
+    throw new Error("Failed to preserve invalid desktop state.", { cause: error });
+  }
+
+  onWarning?.(message, cause);
 }
 
 async function writeDesktopStateFile(filePath: string, state: DesktopStateSnapshot): Promise<void> {
