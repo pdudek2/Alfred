@@ -194,6 +194,32 @@ describe("main quit persistence", () => {
     }
   });
 
+  it("routes persisted desktop state warnings to the main-process log", async () => {
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.app.whenReady.mockResolvedValueOnce(undefined);
+
+    try {
+      await import("./main.js");
+      await flushMicrotasks();
+
+      expect(mocks.createPersistedDesktopStateStore).toHaveBeenCalledWith({
+        userDataPath: "/tmp/alfred-user-data",
+        onWarning: expect.any(Function),
+      });
+      const options = mocks.createPersistedDesktopStateStore.mock.calls[0]?.[0] as
+        | { onWarning?: (message: string, error: unknown) => void }
+        | undefined;
+      const warning = new Error("invalid state");
+      options?.onWarning?.("Desktop state warning.", warning);
+
+      expect(consoleWarn).toHaveBeenCalledWith("Desktop state warning.", warning);
+    } finally {
+      consoleWarn.mockRestore();
+      consoleError.mockRestore();
+    }
+  });
+
   it("exits immediately when another Alfred instance owns the desktop profile", async () => {
     mocks.app.requestSingleInstanceLock.mockReturnValueOnce(false);
 

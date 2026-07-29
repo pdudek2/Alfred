@@ -159,7 +159,10 @@ if (!hasSingleInstanceLock) {
       app.dock?.setIcon(appIconPath);
     }
 
-    const persistedDesktopStateStore = createPersistedDesktopStateStore({ userDataPath: app.getPath("userData") });
+    const persistedDesktopStateStore = createPersistedDesktopStateStore({
+      userDataPath: app.getPath("userData"),
+      onWarning: (message, error) => console.warn(message, error),
+    });
     desktopStateStore = persistedDesktopStateStore;
 
     configureLayoutPersistence(persistedDesktopStateStore);
