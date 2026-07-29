@@ -35,7 +35,7 @@ without reopening the accepted product or visual direction.
 
 ## Scope lineage
 
-`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 complete → S4 design approved`
+`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 complete → S4 contract approved → S4 implementation plan ready`
 
 Phase Z remains closed. This roadmap does not reinterpret or reopen its visual
 or product decisions.
@@ -61,7 +61,7 @@ or product decisions.
 | S1 — Desktop safety gate | Honest runtime gate and no silent desktop-state loss | 2, 3, 4, 14, 19 | Complete |
 | S2 — Runner loss and stall prevention | Concurrent sessions do not lose events; poison or malformed records cannot stall sync | 6, 7, 8, 24 | Complete |
 | S3 — API boundary simplification | Delete browser-session auth and browser-only query surfaces; keep device-auth ingest | 9, 10, 22 | Complete |
-| S4 — Privacy and worktree lifecycle | Resolve worktree close behavior and prevent sensitive launch data from persisting | 13, 15, 16 | Design approved; written spec review pending |
+| S4 — Privacy and worktree lifecycle | Resolve worktree close behavior and prevent sensitive launch data from persisting | 13, 15, 16 | Contract approved; implementation plan ready |
 | S5 — Desktop interaction correctness | Recover failed planning, unblock review/edit, remove impure state updaters, correct activity classification | 5, 11, 17, 23 | Pending |
 | S6 — Ingest/API correctness | Correct parent lifecycle, validate hosted DB config, and test the real ingest store | 12, 20, 21 | Pending |
 | S7 — Residue and blocked-boundary review | Complete scripts/tooling and CSS/accessibility audits; triage investigate-only signals | audit gaps | Pending |
@@ -73,10 +73,12 @@ after the preceding phase has fresh verification and closeout.
 
 **Closed implementation plan:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification-implementation-plan.md`
 
-**Current phase:** S4 — Privacy and worktree lifecycle; design decisions are
-approved and the written spec awaits review.
+**Current phase:** S4 — Privacy and worktree lifecycle; contract and
+implementation plan are approved for execution routing.
 
-**Draft phase contract:** `docs/superpowers/specs/2026-07-29-phase-s4-privacy-worktree-lifecycle.md`
+**Approved phase contract:** `docs/superpowers/specs/2026-07-29-phase-s4-privacy-worktree-lifecycle.md`
+
+**Implementation plan:** `docs/superpowers/plans/2026-07-29-phase-s4-privacy-worktree-lifecycle.md`
 
 Its product-boundary decision above remains unchanged: delete browser-session
 auth and browser-only query surfaces while retaining device-auth ingest.

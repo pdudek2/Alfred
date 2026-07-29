@@ -1,6 +1,6 @@
 # Phase S4 — Privacy and Worktree Lifecycle
 
-**Status:** Draft — approved design, awaiting written-spec review
+**Status:** Approved — implementation plan ready
 **Roadmap:** `docs/superpowers/specs/2026-07-29-post-v1-stabilization-roadmap.md`
 **Source audit:** `docs/audits/2026-07-29-agent-sanity-review.md`
 **Findings:** 13, 15, 16
