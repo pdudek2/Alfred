@@ -7,6 +7,13 @@ export type IngestClientConfig = {
   fetchImpl?: typeof fetch;
 };
 
+export class IngestRequestError extends Error {
+  constructor(readonly status: number) {
+    super(`Ingest failed with status ${status}`);
+    this.name = "IngestRequestError";
+  }
+}
+
 export async function postIngestBatch(config: IngestClientConfig, batch: IngestBatch): Promise<void> {
   const fetchImpl = config.fetchImpl ?? fetch;
   const response = await fetchImpl(`${config.apiUrl}/v1/ingest/batches`, {
@@ -22,7 +29,7 @@ export async function postIngestBatch(config: IngestClientConfig, batch: IngestB
   });
 
   if (response.status !== 202) {
-    throw new Error(`Ingest failed with status ${response.status}`);
+    throw new IngestRequestError(response.status);
   }
 }
 

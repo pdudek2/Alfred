@@ -4,7 +4,7 @@ import { redactPayload, type IngestEvent } from "@alfred/schema";
 
 import { loadRunnerConfig, type RunnerConfig } from "./config.js";
 import { OutboxDb } from "./outbox/outbox-db.js";
-import { flushOutboxOnce } from "./outbox/outbox-worker.js";
+import { flushOutboxOnce, type FlushOutboxResult } from "./outbox/outbox-worker.js";
 import { createClaudeAdapter } from "./sources/claude/claude-adapter.js";
 import { createCodexAdapter } from "./sources/codex/codex-adapter.js";
 import type { SourceAdapter } from "./sources/source-adapter.js";
@@ -45,7 +45,7 @@ export async function runRunnerOnce(
       }
     }
 
-    const flushedEvents = await flushOutbox(outbox, {
+    const flushResult = await flushOutbox(outbox, {
       apiUrl: config.apiUrl,
       deviceToken: config.deviceToken,
       ...(config.vercelAutomationBypassSecret
@@ -56,7 +56,7 @@ export async function runRunnerOnce(
       ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
     });
 
-    if (flushedEvents === 0) {
+    if (flushResult.sent === 0) {
       await postRunnerHeartbeat({
         apiUrl: config.apiUrl,
         deviceToken: config.deviceToken,
@@ -69,7 +69,7 @@ export async function runRunnerOnce(
 
     return {
       collectedEvents,
-      flushedEvents,
+      flushedEvents: flushResult.sent,
     };
   } finally {
     outbox.close();
@@ -107,13 +107,14 @@ export async function runRunnerLoop(
 async function flushOutbox(
   outbox: OutboxDb,
   config: Parameters<typeof flushOutboxOnce>[1],
-): Promise<number> {
-  let flushedEvents = 0;
+): Promise<FlushOutboxResult> {
+  const total = { sent: 0, quarantined: 0 };
 
   while (true) {
-    const flushedBatchEvents = await flushOutboxOnce(outbox, config);
-    if (flushedBatchEvents === 0) return flushedEvents;
-    flushedEvents += flushedBatchEvents;
+    const result = await flushOutboxOnce(outbox, config);
+    total.sent += result.sent;
+    total.quarantined += result.quarantined;
+    if (result.sent + result.quarantined === 0) return total;
   }
 }
 

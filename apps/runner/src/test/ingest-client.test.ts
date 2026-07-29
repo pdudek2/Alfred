@@ -86,7 +86,7 @@ describe("postIngestBatch", () => {
   });
 
   it("throws on non-accepted response", async () => {
-    const fetchImpl = vi.fn(async () => new Response("{}", { status: 500 }));
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 400 }));
 
     await expect(
       postIngestBatch({
@@ -94,7 +94,11 @@ describe("postIngestBatch", () => {
         deviceToken: "token-1",
         fetchImpl,
       }, batch),
-    ).rejects.toThrow(/Ingest failed with status 500/);
+    ).rejects.toMatchObject({
+      name: "IngestRequestError",
+      status: 400,
+      message: "Ingest failed with status 400",
+    });
   });
 
   it("throws when heartbeat is not accepted", async () => {

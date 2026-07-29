@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "n
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
+import Database from "better-sqlite3";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { IngestBatchSchema, type IngestEvent } from "@alfred/schema";
 
@@ -20,7 +21,12 @@ function createOutbox() {
   return new OutboxDb(join(dir, "outbox.sqlite"));
 }
 
-function enqueueValidEvent(outbox: OutboxDb, eventId = "123456789012") {
+function enqueueValidEvent(
+  outbox: OutboxDb,
+  eventId = "123456789012",
+  overrides: Partial<IngestEvent> = {},
+  now = new Date("2026-04-28T10:00:00.000Z"),
+) {
   outbox.enqueue(
     {
       event_id: eventId,
@@ -34,9 +40,21 @@ function enqueueValidEvent(outbox: OutboxDb, eventId = "123456789012") {
       privacy_mode: "standard",
       occurred_at: "2026-04-28T10:00:00.000Z",
       payload: {},
+      ...overrides,
     },
-    new Date("2026-04-28T10:00:00.000Z"),
+    now,
   );
+}
+
+function readDeadLetters(path: string) {
+  const db = new Database(path, { readonly: true });
+  try {
+    return db
+      .prepare("SELECT event_id, payload, reason FROM outbox_dead_letters ORDER BY id")
+      .all() as Array<{ event_id: string; payload: string; reason: string }>;
+  } finally {
+    db.close();
+  }
 }
 
 describe("flushOutboxOnce", () => {
@@ -60,7 +78,7 @@ describe("flushOutboxOnce", () => {
         fetchImpl,
         now: new Date("2026-04-28T10:00:00.000Z"),
       }),
-    ).resolves.toBe(1);
+    ).resolves.toEqual({ sent: 1, quarantined: 0 });
 
     expect(outbox.listReady(10)).toHaveLength(0);
     expect(fetchImpl).toHaveBeenCalledOnce();
@@ -92,17 +110,25 @@ describe("flushOutboxOnce", () => {
     outbox.close();
   });
 
-  it("discards invalid records while flushing valid records", async () => {
-    const outbox = createOutbox();
+  it("quarantines invalid and identity-mismatched records while sending valid records", async () => {
+    const dir = trackedTempDir("alfred-outbox-local-quarantine-");
+    const outboxPath = join(dir, "outbox.sqlite");
+    const outbox = new OutboxDb(outboxPath);
     outbox.enqueue(
       {
         event_id: "invalid-event-1",
         type: "run.started",
+        payload: { secret: "invalid-secret-payload" },
       },
       new Date("2026-04-28T10:00:00.000Z"),
     );
+    enqueueValidEvent(outbox, "wrong-workspace-01", {
+      workspace_id: "00000000-0000-4000-8000-000000000002",
+      payload: { secret: "identity-secret-payload" },
+    });
     enqueueValidEvent(outbox, "valid-event-000001");
     const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
+    const warnings: string[] = [];
 
     await expect(
       flushOutboxOnce(outbox, {
@@ -111,18 +137,167 @@ describe("flushOutboxOnce", () => {
         workspaceId,
         deviceId,
         fetchImpl,
+        onWarning: (message) => warnings.push(message),
         now: new Date("2026-04-28T10:00:00.000Z"),
       }),
-    ).resolves.toBe(1);
+    ).resolves.toEqual({ sent: 1, quarantined: 2 });
 
     expect(fetchImpl).toHaveBeenCalledOnce();
     const request = (fetchImpl as unknown as FetchMock).mock.calls[0]?.[1];
     const body = typeof request?.body === "string" ? JSON.parse(request.body) : null;
     const parsed = IngestBatchSchema.parse(body);
     expect(parsed.events.map((event) => event.event_id)).toEqual(["valid-event-000001"]);
-    expect(outbox.listReady(10, new Date("2026-04-28T10:00:00.500Z"))).toHaveLength(0);
-    expect(outbox.listReady(10, new Date("2026-04-28T10:00:01.000Z"))).toHaveLength(0);
+    expect(outbox.countQueued()).toBe(0);
+    expect(warnings).toEqual([
+      "Quarantined event invalid-event-1: invalid_payload",
+      "Quarantined event wrong-workspace-01: identity_mismatch",
+    ]);
+    expect(warnings.join(" ")).not.toContain("secret-payload");
     outbox.close();
+
+    const deadLetters = readDeadLetters(outboxPath);
+    expect(deadLetters.map(({ event_id, reason }) => ({ event_id, reason }))).toEqual([
+      { event_id: "invalid-event-1", reason: "invalid_payload" },
+      { event_id: "wrong-workspace-01", reason: "identity_mismatch" },
+    ]);
+    expect(JSON.parse(deadLetters[0]!.payload)).toMatchObject({
+      event_id: "invalid-event-1",
+      payload: { secret: "invalid-secret-payload" },
+    });
+    expect(JSON.parse(deadLetters[1]!.payload)).toMatchObject({
+      event_id: "wrong-workspace-01",
+      payload: { secret: "identity-secret-payload" },
+    });
+  });
+
+  it("isolates a permanently rejected event and sends healthy singletons", async () => {
+    const dir = trackedTempDir("alfred-outbox-permanent-rejection-");
+    const outboxPath = join(dir, "outbox.sqlite");
+    const outbox = new OutboxDb(outboxPath);
+    enqueueValidEvent(outbox, "healthy-event-0001");
+    enqueueValidEvent(outbox, "poison-event-00001", {
+      payload: { secret: "poison-secret-payload" },
+    });
+    enqueueValidEvent(outbox, "healthy-event-0002");
+    const warnings: string[] = [];
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : null;
+      const request = IngestBatchSchema.parse(body);
+      if (request.events.length > 1) return new Response("{}", { status: 400 });
+      return new Response("{}", {
+        status: request.events[0]?.event_id === "poison-event-00001" ? 400 : 202,
+      });
+    });
+
+    await expect(
+      flushOutboxOnce(outbox, {
+        apiUrl: "http://127.0.0.1:4301",
+        deviceToken: "token-1",
+        workspaceId,
+        deviceId,
+        fetchImpl,
+        onWarning: (message) => warnings.push(message),
+        now: new Date("2026-04-28T10:00:00.000Z"),
+      }),
+    ).resolves.toEqual({ sent: 2, quarantined: 1 });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    expect(outbox.countQueued()).toBe(0);
+    expect(warnings).toEqual([
+      "Quarantined event poison-event-00001: permanent_ingest_rejection",
+    ]);
+    expect(warnings[0]).not.toContain("poison-secret-payload");
+    outbox.close();
+
+    const [deadLetter] = readDeadLetters(outboxPath);
+    expect(deadLetter).toMatchObject({
+      event_id: "poison-event-00001",
+      reason: "permanent_ingest_rejection",
+    });
+    expect(JSON.parse(deadLetter!.payload)).toMatchObject({
+      event_id: "poison-event-00001",
+      payload: { secret: "poison-secret-payload" },
+    });
+  });
+
+  it("quarantines an event rejected by a singleton batch", async () => {
+    const outbox = createOutbox();
+    enqueueValidEvent(outbox, "poison-event-00001");
+    const warnings: string[] = [];
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 400 }));
+
+    await expect(
+      flushOutboxOnce(outbox, {
+        apiUrl: "http://127.0.0.1:4301",
+        deviceToken: "token-1",
+        workspaceId,
+        deviceId,
+        fetchImpl,
+        onWarning: (message) => warnings.push(message),
+        now: new Date("2026-04-28T10:00:00.000Z"),
+      }),
+    ).resolves.toEqual({ sent: 0, quarantined: 1 });
+
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(outbox.countQueued()).toBe(0);
+    expect(warnings).toEqual([
+      "Quarantined event poison-event-00001: permanent_ingest_rejection",
+    ]);
+    outbox.close();
+  });
+
+  it("retains retryable singletons after a permanently rejected batch", async () => {
+    const dir = trackedTempDir("alfred-outbox-transient-singleton-");
+    const outboxPath = join(dir, "outbox.sqlite");
+    const outbox = new OutboxDb(outboxPath);
+    enqueueValidEvent(outbox, "healthy-event-0001");
+    enqueueValidEvent(outbox, "poison-event-00001");
+    enqueueValidEvent(outbox, "transient-event-001");
+    const warnings: string[] = [];
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : null;
+      const request = IngestBatchSchema.parse(body);
+      if (request.events.length > 1) return new Response("{}", { status: 422 });
+
+      const eventId = request.events[0]?.event_id;
+      if (eventId === "poison-event-00001") return new Response("{}", { status: 413 });
+      if (eventId === "transient-event-001") return new Response("{}", { status: 500 });
+      return new Response("{}", { status: 202 });
+    });
+
+    await expect(
+      flushOutboxOnce(outbox, {
+        apiUrl: "http://127.0.0.1:4301",
+        deviceToken: "token-1",
+        workspaceId,
+        deviceId,
+        fetchImpl,
+        onWarning: (message) => warnings.push(message),
+        now: new Date("2026-04-28T10:00:00.000Z"),
+      }),
+    ).rejects.toMatchObject({
+      name: "IngestRequestError",
+      status: 500,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    expect(warnings).toEqual([
+      "Quarantined event poison-event-00001: permanent_ingest_rejection",
+    ]);
+    expect(outbox.countQueued()).toBe(1);
+    const [retryable] = outbox.listReady(10, new Date("2026-04-28T10:00:01.000Z"));
+    expect(retryable).toMatchObject({
+      eventId: "transient-event-001",
+      attempts: 1,
+    });
+    outbox.close();
+
+    expect(readDeadLetters(outboxPath)).toEqual([
+      expect.objectContaining({
+        event_id: "poison-event-00001",
+        reason: "permanent_ingest_rejection",
+      }),
+    ]);
   });
 
   it("does not send requests for an empty outbox", async () => {
@@ -137,7 +312,7 @@ describe("flushOutboxOnce", () => {
         deviceId,
         fetchImpl,
       }),
-    ).resolves.toBe(0);
+    ).resolves.toEqual({ sent: 0, quarantined: 0 });
 
     expect(fetchImpl).not.toHaveBeenCalled();
     outbox.close();
@@ -234,6 +409,57 @@ describe("flushOutboxOnce", () => {
     const outbox = new OutboxDb(outboxPath);
     expect(outbox.countQueued()).toBe(0);
     outbox.close();
+  });
+
+  it("continues flushing after a page contains only quarantined records", async () => {
+    const dir = trackedTempDir("alfred-runner-quarantine-drain-");
+    const outboxPath = join(dir, "outbox.sqlite");
+    const outbox = new OutboxDb(outboxPath);
+    for (let index = 0; index < 100; index += 1) {
+      outbox.enqueue(
+        {
+          event_id: `invalid-${String(index).padStart(12, "0")}`,
+          type: "run.started",
+        },
+        new Date("2026-04-28T10:00:00.000Z"),
+      );
+    }
+    enqueueValidEvent(
+      outbox,
+      "valid-after-invalid",
+      {},
+      new Date("2026-04-28T10:01:00.000Z"),
+    );
+    outbox.close();
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
+
+    await expect(
+      runRunnerOnce(
+        {
+          apiUrl: "http://127.0.0.1:4301",
+          deviceToken: "token-1",
+          workspaceId,
+          deviceId,
+          privacyMode: "standard",
+          outboxPath,
+          codexHome: join(dir, ".codex"),
+        },
+        {
+          fetchImpl,
+          adapter: {
+            sourceId: "codex-cli",
+            collect: async () => ({ events: [], cursorUpdates: [] }),
+          },
+        },
+      ),
+    ).resolves.toEqual({ collectedEvents: 0, flushedEvents: 1 });
+
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    const request = (fetchImpl as unknown as FetchMock).mock.calls[0]?.[1];
+    const body = typeof request?.body === "string" ? JSON.parse(request.body) : null;
+    expect(IngestBatchSchema.parse(body).events.map((event) => event.event_id)).toEqual([
+      "valid-after-invalid",
+    ]);
   });
 
   it("persists adapter cursor updates after enqueue", async () => {
