@@ -85,6 +85,15 @@ export function registerAlfredIpc(): void {
           ok: true,
           plan: await preflightAlfredPlan(response.plan, request.workspace),
         };
+      } catch (error: unknown) {
+        console.error("[alfred-orchestrator] failed to prepare plan", error);
+        return {
+          ok: false,
+          error: {
+            code: "malformed",
+            message: "Alfred could not prepare this plan.",
+          },
+        };
       } finally {
         inFlight = false;
       }
