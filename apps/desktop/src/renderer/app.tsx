@@ -243,6 +243,7 @@ export function App() {
   const announcedSessionStatusesRef = useRef<Map<string, string>>(new Map());
   const sessionStatusAnnouncementsReadyRef = useRef<boolean>(false);
   const workspaceStateHydratedRef = useRef<boolean>(false);
+  const workspaceStatePersistenceSkipRef = useRef<WorkspaceStateSnapshot | null>(null);
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? DEFAULT_WORKSPACE;
   const activeWorkMode = workModesByWorkspace[activeWorkspace.id] ?? "desk";
@@ -415,17 +416,15 @@ export function App() {
       return;
     }
 
-    setWorkspaces((current) => {
-      const index = current.length + 1;
-      const workspace: Workspace = {
-        id: `W${index}`,
-        label: `Workspace ${index}`,
-        shortLabel: `W${index}`,
-      };
-      setActiveWorkspaceId(workspace.id);
-      setTerminalSessions((sessions) => addManualSession(sessions, "", workspace.id));
-      return [...current, workspace];
-    });
+    const index = workspaces.length + 1;
+    const workspace: Workspace = {
+      id: `W${index}`,
+      label: `Workspace ${index}`,
+      shortLabel: `W${index}`,
+    };
+    setWorkspaces([...workspaces, workspace]);
+    setActiveWorkspaceId(workspace.id);
+    setTerminalSessions((sessions) => addManualSession(sessions, "", workspace.id));
   }, [activeWorkspace.id, activeWorkspace.rootStatus, workspaces]);
 
   const handleCloseActiveWorkspace = useCallback(() => {
@@ -527,20 +526,22 @@ export function App() {
   }, [activeWorkspace.id]);
 
   const handleToggleCollapseSession = useCallback((sessionId: string) => {
-    setCollapsedSessionIdsByWorkspace((current) => {
-      const existing = current[activeWorkspace.id] ?? [];
-      const nextCollapsed = existing.includes(sessionId)
-        ? existing.filter((id) => id !== sessionId)
-        : [...existing, sessionId];
-      persistActiveWorkspaceViewState({
-        collapsedSessionIds: nextCollapsed,
-      });
-      return {
-        ...current,
-        [activeWorkspace.id]: nextCollapsed,
-      };
+    const existing = collapsedSessionIdsByWorkspace[activeWorkspace.id] ?? [];
+    const nextCollapsed = existing.includes(sessionId)
+      ? existing.filter((id) => id !== sessionId)
+      : [...existing, sessionId];
+    setCollapsedSessionIdsByWorkspace({
+      ...collapsedSessionIdsByWorkspace,
+      [activeWorkspace.id]: nextCollapsed,
     });
-  }, [activeWorkspace.id, persistActiveWorkspaceViewState]);
+    persistActiveWorkspaceViewState({
+      collapsedSessionIds: nextCollapsed,
+    });
+  }, [
+    activeWorkspace.id,
+    collapsedSessionIdsByWorkspace,
+    persistActiveWorkspaceViewState,
+  ]);
 
   const handleCycleDispatchTarget = useCallback(() => {
     if (activeDispatchTargets.length === 0) return;
@@ -573,31 +574,45 @@ export function App() {
     if (nextLabel === activeWorkspace.label) return;
 
     const workspaceApi = getDesktopWorkspaceApi();
-    setWorkspaces((current) => {
-      const next = current.map((workspace) =>
-        workspace.id === activeWorkspace.id
-          ? { ...workspace, label: nextLabel, shortLabel: shortLabelForWorkspace(nextLabel) }
-          : workspace,
-      );
-      void workspaceApi?.setWorkspaceState({ workspaces: next, activeWorkspaceId: activeWorkspace.id });
-      return next;
-    });
-  }, [activeWorkspace.id, activeWorkspace.label]);
+    const nextWorkspaces = workspaces.map((workspace) =>
+      workspace.id === activeWorkspace.id
+        ? { ...workspace, label: nextLabel, shortLabel: shortLabelForWorkspace(nextLabel) }
+        : workspace,
+    );
+    setWorkspaces(nextWorkspaces);
+    if (workspaceApi) {
+      workspaceStatePersistenceSkipRef.current = {
+        workspaces: nextWorkspaces,
+        activeWorkspaceId: activeWorkspace.id,
+      };
+      void workspaceApi.setWorkspaceState({
+        workspaces: nextWorkspaces,
+        activeWorkspaceId: activeWorkspace.id,
+      });
+    }
+  }, [activeWorkspace.id, activeWorkspace.label, workspaces]);
 
   const handleSaveWorkspaceMissionBrief = useCallback((missionBrief: WorkspaceMissionBrief | undefined) => {
     const workspaceApi = getDesktopWorkspaceApi();
     setWorkspaceMenuOpen(false);
     setWorkspaceRenameEditing(false);
-    setWorkspaces((current) => {
-      const next = current.map((workspace) => {
-        if (workspace.id !== activeWorkspace.id) return workspace;
-        const { missionBrief: _previousMissionBrief, ...rest } = workspace;
-        return missionBrief ? { ...rest, missionBrief } : rest;
-      });
-      void workspaceApi?.setWorkspaceState({ workspaces: next, activeWorkspaceId: activeWorkspace.id });
-      return next;
+    const nextWorkspaces = workspaces.map((workspace) => {
+      if (workspace.id !== activeWorkspace.id) return workspace;
+      const { missionBrief: _previousMissionBrief, ...rest } = workspace;
+      return missionBrief ? { ...rest, missionBrief } : rest;
     });
-  }, [activeWorkspace.id]);
+    setWorkspaces(nextWorkspaces);
+    if (workspaceApi) {
+      workspaceStatePersistenceSkipRef.current = {
+        workspaces: nextWorkspaces,
+        activeWorkspaceId: activeWorkspace.id,
+      };
+      void workspaceApi.setWorkspaceState({
+        workspaces: nextWorkspaces,
+        activeWorkspaceId: activeWorkspace.id,
+      });
+    }
+  }, [activeWorkspace.id, workspaces]);
 
   const runShellAction = useCallback(async (
     action: () => Promise<ShellActionResult> | undefined,
@@ -750,17 +765,14 @@ export function App() {
   const handleApplyLayoutPreset = useCallback((preset: LayoutPreset, selectedSessionId = activeSelectedSessionId) => {
     const layoutApi = getDesktopLayoutApi();
     const workspaceLayouts = applyLayoutPreset(activeSessions, preset, selectedSessionId);
+    if (tileLayoutRecordsEqual(tileLayoutsByWorkspace[activeWorkspace.id], workspaceLayouts)) return;
 
-    setTileLayoutsByWorkspace((current) => {
-      if (tileLayoutRecordsEqual(current[activeWorkspace.id], workspaceLayouts)) return current;
-
-      void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
-      return {
-        ...current,
-        [activeWorkspace.id]: workspaceLayouts,
-      };
+    setTileLayoutsByWorkspace({
+      ...tileLayoutsByWorkspace,
+      [activeWorkspace.id]: workspaceLayouts,
     });
-  }, [activeSelectedSessionId, activeSessions, activeWorkspace.id]);
+    void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
+  }, [activeSelectedSessionId, activeSessions, activeWorkspace.id, tileLayoutsByWorkspace]);
 
   const handleApplyWorkMode = useCallback((mode: WorkMode, selectedSessionId = activeSelectedSessionId) => {
     const preset: LayoutPreset = mode === "focus" ? "focus" : mode === "split" ? "two-up" : "grid";
@@ -788,20 +800,18 @@ export function App() {
   }, [activeSelectedSessionId, activeWorkMode, activeWorkspace.id, handleApplyLayoutPreset]);
 
   const handleSelectSession = useCallback((sessionId: string) => {
-    const layoutApi = getDesktopLayoutApi();
-    setSelectedSessionIdsByWorkspace((current) => {
-      if (current[activeWorkspace.id] === sessionId) return current;
+    if (selectedSessionIdsByWorkspace[activeWorkspace.id] === sessionId) return;
 
-      void layoutApi?.setWorkspaceViewState({
-        workspaceId: activeWorkspace.id,
-        viewState: { workMode: activeWorkMode, selectedSessionId: sessionId },
-      });
-      return {
-        ...current,
-        [activeWorkspace.id]: sessionId,
-      };
+    const layoutApi = getDesktopLayoutApi();
+    setSelectedSessionIdsByWorkspace({
+      ...selectedSessionIdsByWorkspace,
+      [activeWorkspace.id]: sessionId,
     });
-  }, [activeWorkMode, activeWorkspace.id]);
+    void layoutApi?.setWorkspaceViewState({
+      workspaceId: activeWorkspace.id,
+      viewState: { workMode: activeWorkMode, selectedSessionId: sessionId },
+    });
+  }, [activeWorkMode, activeWorkspace.id, selectedSessionIdsByWorkspace]);
 
   const handleAddManualSession = useCallback(() => {
     if (activeWorkspace.rootStatus === "missing") return;
@@ -848,37 +858,33 @@ export function App() {
 
   const handleMoveTile = useCallback((tileId: string, deltaCol: number, deltaRow: number) => {
     const layoutApi = getDesktopLayoutApi();
-    setTileLayoutsByWorkspace((current) => {
-      const workspaceLayouts = moveTileLayout(
-        ensureTileLayouts(activeSessions, current[activeWorkspace.id] ?? {}),
-        tileId,
-        deltaCol,
-        deltaRow,
-      );
-      void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
-      return {
-        ...current,
-        [activeWorkspace.id]: workspaceLayouts,
-      };
+    const workspaceLayouts = moveTileLayout(
+      ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {}),
+      tileId,
+      deltaCol,
+      deltaRow,
+    );
+    setTileLayoutsByWorkspace({
+      ...tileLayoutsByWorkspace,
+      [activeWorkspace.id]: workspaceLayouts,
     });
-  }, [activeSessions, activeWorkspace.id]);
+    void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
+  }, [activeSessions, activeWorkspace.id, tileLayoutsByWorkspace]);
 
   const handleResizeTile = useCallback((tileId: string, deltaColSpan: number, deltaRowSpan: number) => {
     const layoutApi = getDesktopLayoutApi();
-    setTileLayoutsByWorkspace((current) => {
-      const workspaceLayouts = resizeTileLayout(
-        ensureTileLayouts(activeSessions, current[activeWorkspace.id] ?? {}),
-        tileId,
-        deltaColSpan,
-        deltaRowSpan,
-      );
-      void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
-      return {
-        ...current,
-        [activeWorkspace.id]: workspaceLayouts,
-      };
+    const workspaceLayouts = resizeTileLayout(
+      ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {}),
+      tileId,
+      deltaColSpan,
+      deltaRowSpan,
+    );
+    setTileLayoutsByWorkspace({
+      ...tileLayoutsByWorkspace,
+      [activeWorkspace.id]: workspaceLayouts,
     });
-  }, [activeSessions, activeWorkspace.id]);
+    void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
+  }, [activeSessions, activeWorkspace.id, tileLayoutsByWorkspace]);
 
   const refreshLiveSessions = useCallback(async () => {
     const terminalApi = getDesktopTerminalApi();
@@ -911,13 +917,12 @@ export function App() {
     if (activeWorkspaceId !== workspaceId) {
       setActiveWorkspaceId(workspaceId);
     }
-    setSelectedSessionIdsByWorkspace((current) => {
-      if (current[workspaceId] === sessionId) return current;
-      return {
-        ...current,
+    if (selectedSessionIdsByWorkspace[workspaceId] !== sessionId) {
+      setSelectedSessionIdsByWorkspace({
+        ...selectedSessionIdsByWorkspace,
         [workspaceId]: sessionId,
-      };
-    });
+      });
+    }
     setWorkModesByWorkspace((current) => {
       if ((current[workspaceId] ?? "desk") === "focus") return current;
       return {
@@ -925,15 +930,13 @@ export function App() {
         [workspaceId]: "focus",
       };
     });
-    setTileLayoutsByWorkspace((current) => {
-      if (tileLayoutRecordsEqual(current[workspaceId], workspaceLayouts)) return current;
-
-      void layoutApi?.setWorkspaceLayout({ workspaceId, layouts: workspaceLayouts });
-      return {
-        ...current,
+    if (!tileLayoutRecordsEqual(tileLayoutsByWorkspace[workspaceId], workspaceLayouts)) {
+      setTileLayoutsByWorkspace({
+        ...tileLayoutsByWorkspace,
         [workspaceId]: workspaceLayouts,
-      };
-    });
+      });
+      void layoutApi?.setWorkspaceLayout({ workspaceId, layouts: workspaceLayouts });
+    }
     if (viewStateChanged) {
       void layoutApi?.setWorkspaceViewState({
         workspaceId,
@@ -945,6 +948,7 @@ export function App() {
     activeWorkspaceId,
     refreshLiveSessions,
     selectedSessionIdsByWorkspace,
+    tileLayoutsByWorkspace,
     workModesByWorkspace,
   ]);
 
@@ -2299,6 +2303,14 @@ export function App() {
     if (!workspaceStateHydratedRef.current) return;
     const workspaceApi = getDesktopWorkspaceApi();
     if (!workspaceApi) return;
+    const alreadyPersisted = workspaceStatePersistenceSkipRef.current;
+    if (
+      alreadyPersisted?.workspaces === workspaces
+      && alreadyPersisted.activeWorkspaceId === activeWorkspaceId
+    ) {
+      workspaceStatePersistenceSkipRef.current = null;
+      return;
+    }
 
     const snapshot: WorkspaceStateSnapshot = {
       workspaces,
