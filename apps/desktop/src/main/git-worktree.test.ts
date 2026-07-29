@@ -1,4 +1,6 @@
+import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import os from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   applyAgentWorktreePatch,
@@ -15,6 +17,25 @@ describe("git worktree preparation", () => {
     expect(workspaceRootFingerprint("/repo")).toMatch(/^[a-f0-9]{16}$/);
     expect(workspaceRootFingerprint("/repo")).toBe(workspaceRootFingerprint("/repo/."));
     expect(workspaceRootFingerprint("/repo")).not.toBe(workspaceRootFingerprint("/other"));
+  });
+
+  it("uses the same fingerprint for filesystem aliases of one workspace root", async () => {
+    const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "alfred-workspace-fingerprint-"));
+    const workspaceRoot = path.join(temporaryRoot, "workspace-a");
+    const otherRoot = path.join(temporaryRoot, "workspace-b");
+    const aliasRoot = path.join(temporaryRoot, "workspace-alias");
+
+    try {
+      await mkdir(workspaceRoot);
+      await mkdir(otherRoot);
+      await symlink(workspaceRoot, aliasRoot);
+
+      expect(workspaceRootFingerprint(aliasRoot)).toBe(workspaceRootFingerprint(workspaceRoot));
+      expect(workspaceRootFingerprint(workspaceRoot)).not.toBe(workspaceRootFingerprint(otherRoot));
+      expect(workspaceRootFingerprint(aliasRoot)).toMatch(/^[a-f0-9]{16}$/);
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
   });
 
   it.each([

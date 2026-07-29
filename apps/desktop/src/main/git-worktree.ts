@@ -1,6 +1,6 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { constants as fsConstants } from "node:fs";
+import { constants as fsConstants, realpathSync } from "node:fs";
 import { copyFile, lstat, mkdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -63,8 +63,14 @@ export type AgentWorktreeInspection = {
 const execFile = promisify(execFileCallback) as ExecFile;
 
 export function workspaceRootFingerprint(rootPath: string): string {
+  let canonicalRoot = path.resolve(rootPath);
+  try {
+    canonicalRoot = realpathSync.native(canonicalRoot);
+  } catch {
+    // Paths unavailable to realpath retain their stable pre-existing identity.
+  }
   return createHash("sha256")
-    .update(path.resolve(rootPath))
+    .update(canonicalRoot)
     .digest("hex")
     .slice(0, 16);
 }
