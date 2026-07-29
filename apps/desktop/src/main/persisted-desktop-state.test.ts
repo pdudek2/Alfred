@@ -7,6 +7,7 @@ import {
   DEFAULT_PRIVACY_SETTINGS,
   DESKTOP_STATE_VERSION,
   createPersistedDesktopStateStore,
+  normalizeDesktopState,
   sanitizePersistedTerminalSession,
 } from "./persisted-desktop-state.js";
 import type { DesktopStateSnapshot } from "./persisted-desktop-state.js";
@@ -518,6 +519,71 @@ describe("persisted-desktop-state", () => {
         externalSessionIndexingEnabled: false,
       },
     )).toBeNull();
+  });
+
+  it("rejects non-opaque fingerprints and only derives them from absolute legacy roots", () => {
+    const identity = {
+      clientId: "codex-1",
+      title: "Codex recovery",
+      source: "alfred" as const,
+      workspaceId: "A",
+      isolation: "worktree" as const,
+      branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
+    };
+    const privacySettings = {
+      terminalScrollbackRetention: "off" as const,
+      externalSessionIndexingEnabled: false,
+    };
+
+    expect(sanitizePersistedTerminalSession({
+      ...identity,
+      workspaceRootFingerprint: "/Users/patryk/Client",
+    }, privacySettings)).toBeNull();
+    expect(sanitizePersistedTerminalSession({
+      ...identity,
+      workspaceRootFingerprint: "not-opaque",
+      baseCwd: "/Users/patryk/Client",
+    }, privacySettings)?.workspaceRootFingerprint).toMatch(/^[a-f0-9]{16}$/);
+    expect(sanitizePersistedTerminalSession({
+      ...identity,
+      baseCwd: "relative/client",
+    }, privacySettings)).toBeNull();
+  });
+
+  it("does not let a rejected duplicate hide later safe recovery identity", () => {
+    const normalized = normalizeDesktopState({
+      ...DEFAULT_DESKTOP_STATE,
+      privacySettings: {
+        terminalScrollbackRetention: "off",
+        externalSessionIndexingEnabled: false,
+      },
+      restoredTerminalSessions: [
+        {
+          clientId: "codex-1",
+          title: "Shared",
+          source: "manual",
+          isolation: "shared",
+        },
+        {
+          clientId: "codex-1",
+          title: "Isolated",
+          source: "alfred",
+          workspaceId: "A",
+          isolation: "worktree",
+          branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
+          baseCwd: "/Users/patryk/Client",
+        },
+      ],
+    });
+
+    expect(normalized.restoredTerminalSessions).toEqual([
+      expect.objectContaining({
+        clientId: "codex-1",
+        title: "Isolated",
+        workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
+        isolation: "worktree",
+      }),
+    ]);
   });
 
   it("removes shared restored terminal records when retention is off", async () => {
