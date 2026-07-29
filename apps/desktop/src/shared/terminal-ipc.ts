@@ -73,6 +73,16 @@ export type TerminalSnapshotRequest = {
 
 export type TerminalSnapshotResult = TerminalSessionSnapshot | null;
 
+export type TerminalReconcileRequest = {
+  id: TerminalSessionId;
+  clientId?: string;
+};
+
+export type TerminalReconcileResult =
+  | { state: "running"; snapshot: TerminalSessionSnapshot }
+  | { state: "exited"; snapshot: TerminalSessionSnapshot; event: TerminalExitEvent }
+  | { state: "missing" };
+
 export type TerminalResizeRequest = {
   id: TerminalSessionId;
   cols: number;
@@ -132,6 +142,7 @@ export type TerminalDataEvent = {
 export type TerminalApi = {
   list(): Promise<TerminalListResult>;
   snapshot(request: TerminalSnapshotRequest): Promise<TerminalSnapshotResult>;
+  reconcile(request: TerminalReconcileRequest): Promise<TerminalReconcileResult>;
   prepareLaunch(request: TerminalCreateRequest): Promise<TerminalPrepareLaunchResult>;
   create(request: TerminalCreateRequest): Promise<TerminalCreateResult>;
   write(request: TerminalWriteRequest): void;
@@ -148,6 +159,7 @@ export type TerminalApi = {
 export const terminalChannels = {
   list: "alfred:terminal:list",
   snapshot: "alfred:terminal:snapshot",
+  reconcile: "alfred:terminal:reconcile",
   prepareLaunch: "alfred:terminal:prepare-launch",
   create: "alfred:terminal:create",
   write: "alfred:terminal:write",

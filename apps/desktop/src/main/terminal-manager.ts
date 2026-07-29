@@ -26,6 +26,8 @@ import {
   type TerminalExitEvent,
   type TerminalKillRequest,
   type TerminalListResult,
+  type TerminalReconcileRequest,
+  type TerminalReconcileResult,
   type TerminalRenameRequest,
   type TerminalResizeRequest,
   type TerminalSessionSnapshot,
@@ -110,13 +112,21 @@ type TerminalSession = {
   ownerWindowId: number;
 };
 
+type RecentTerminalExit = {
+  event: TerminalExitEvent;
+  ownerWindowId: number;
+  snapshot: TerminalSessionSnapshot;
+};
+
 const sessions = new Map<TerminalSessionId, TerminalSession>();
 const restoredSessionSnapshots = new Map<string, PersistedTerminalSessionSnapshot>();
 const forgottenClientIds = new Set<string>();
+const recentTerminalExits = new Map<TerminalSessionId, RecentTerminalExit>();
 const require = createRequire(import.meta.url);
 const NODE_PTY_HELPER_MODE = 0o755;
 const MAX_BUFFER_LENGTH = 200_000;
 const MAX_PERSISTED_BUFFER_LENGTH = 80_000;
+const MAX_RECENT_TERMINAL_EXITS = 64;
 let persistedStateStore: PersistedDesktopStateStore | null = null;
 let persistenceHydrated = false;
 let persistenceHydration: Promise<void> | null = null;
@@ -151,6 +161,7 @@ export function resetTerminalPersistenceForTests(): void {
   persistenceGeneration += 1;
   restoredSessionSnapshots.clear();
   forgottenClientIds.clear();
+  recentTerminalExits.clear();
   persistDebounceMs = 250;
 }
 
@@ -189,6 +200,39 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     async (event, request: TerminalSnapshotRequest): Promise<TerminalSnapshotResult> => {
       const session = getOwnedSession(event.sender, request.id);
       return session ? toSnapshot(session) : null;
+    },
+  );
+
+  ipcMain.handle(
+    terminalChannels.reconcile,
+    async (event, request: TerminalReconcileRequest): Promise<TerminalReconcileResult> => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (!window) return { state: "missing" };
+
+      const session = sessions.get(request.id);
+      if (
+        session
+        && canAttachToWindow(session, window)
+        && (!request.clientId || request.clientId === session.clientId)
+      ) {
+        attachSessionWindow(session, window);
+        return { state: "running", snapshot: toSnapshot(session) };
+      }
+
+      const recentExit = recentTerminalExits.get(request.id);
+      if (
+        !recentExit
+        || !canAttachOwnerToWindow(recentExit.ownerWindowId, window)
+        || (request.clientId && request.clientId !== recentExit.event.clientId)
+      ) {
+        return { state: "missing" };
+      }
+      recentExit.ownerWindowId = window.id;
+      return {
+        state: "exited",
+        snapshot: recentExit.snapshot,
+        event: recentExit.event,
+      };
     },
   );
 
@@ -320,13 +364,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       });
 
       session.pty.onExit(({ exitCode, signal }) => {
-        recordSessionActivity(session, {
-          kind: "lifecycle",
-          title: "Process exited",
-          detail: `The terminal process exited with code ${exitCode}.`,
-        });
-        rememberSessionSnapshot(session);
-        disposeSession(session.id);
+        if (!sessions.has(session.id)) return;
         const identity = {
           id: session.id,
           ...(session.clientId === undefined ? {} : { clientId: session.clientId }),
@@ -334,6 +372,23 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         const payload: TerminalExitEvent = signal === undefined
           ? { ...identity, exitCode }
           : { ...identity, exitCode, signal };
+        recordSessionActivity(session, {
+          kind: "lifecycle",
+          title: "Process exited",
+          detail: `The terminal process exited with code ${exitCode}.`,
+        });
+        rememberSessionSnapshot(session);
+        recentTerminalExits.set(session.id, {
+          event: payload,
+          ownerWindowId: session.ownerWindowId,
+          snapshot: toSnapshot(session),
+        });
+        while (recentTerminalExits.size > MAX_RECENT_TERMINAL_EXITS) {
+          const oldestId = recentTerminalExits.keys().next().value;
+          if (!oldestId) break;
+          recentTerminalExits.delete(oldestId);
+        }
+        disposeSession(session.id);
         sendToSessionWindow(session, terminalChannels.exit, payload);
       });
 
@@ -913,7 +968,11 @@ function getOwnedSession(sender: Electron.WebContents, sessionId: TerminalSessio
 }
 
 function canAttachToWindow(session: TerminalSession, window: BrowserWindow): boolean {
-  return session.ownerWindowId === window.id || !hasLiveWindow(session.ownerWindowId);
+  return canAttachOwnerToWindow(session.ownerWindowId, window);
+}
+
+function canAttachOwnerToWindow(ownerWindowId: number, window: BrowserWindow): boolean {
+  return ownerWindowId === window.id || !hasLiveWindow(ownerWindowId);
 }
 
 function hasLiveWindow(windowId: number): boolean {

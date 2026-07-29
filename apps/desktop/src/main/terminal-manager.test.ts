@@ -744,6 +744,102 @@ describe("terminal-manager IPC", () => {
     expect(listed.sessions).toEqual([]);
   });
 
+  it("reconciles a terminal that exits before the renderer attaches its exit listener", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(5_000);
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+    const created = await invoke<{ id: string }>(terminalChannels.create, {
+      clientId: "fast-exit",
+      command: "node",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+    });
+
+    pty.onDataHandler?.("failed before attach\n");
+    pty.onExitHandler?.({ exitCode: 7, signal: 9 });
+
+    const reconciled = await invoke<{
+      state: string;
+      snapshot: { buffer: string; activityEvents?: Array<{ kind: string; title: string }> };
+      event: { id: string; clientId?: string; exitCode: number; signal?: number };
+    }>("alfred:terminal:reconcile", { id: created.id, clientId: "fast-exit" });
+
+    expect(reconciled).toEqual({
+      state: "exited",
+      snapshot: expect.objectContaining({
+        id: created.id,
+        clientId: "fast-exit",
+        buffer: "failed before attach\n",
+        activityEvents: expect.arrayContaining([
+          expect.objectContaining({
+            kind: "lifecycle",
+            title: "Process exited",
+          }),
+        ]),
+      }),
+      event: { id: created.id, clientId: "fast-exit", exitCode: 7, signal: 9 },
+    });
+
+    const otherWindow = fakeWindow(2);
+    liveWindows.push(otherWindow);
+    await expect(
+      invoke("alfred:terminal:reconcile", { id: created.id }, senderFor(otherWindow)),
+    ).resolves.toEqual({ state: "missing" });
+  });
+
+  it("keeps only the newest 64 terminal exit records available for reconciliation", async () => {
+    const ptys: FakePty[] = [];
+    const nodePty = {
+      spawn: vi.fn(() => {
+        const pty = new FakePty();
+        ptys.push(pty);
+        return pty;
+      }),
+    };
+    registerTerminalIpc({ loadNodePty: async () => nodePty as never });
+    const ids: string[] = [];
+
+    for (let index = 0; index < 65; index += 1) {
+      const created = await invoke<{ id: string }>(terminalChannels.create, {
+        command: "node",
+        cols: 80,
+        cwd: "/repo",
+        rows: 24,
+      });
+      ids.push(created.id);
+      ptys[index]?.onExitHandler?.({ exitCode: index });
+    }
+
+    await expect(
+      invoke("alfred:terminal:reconcile", { id: ids[0] }),
+    ).resolves.toEqual({ state: "missing" });
+    await expect(
+      invoke("alfred:terminal:reconcile", { id: ids[64] }),
+    ).resolves.toEqual(expect.objectContaining({
+      state: "exited",
+      event: expect.objectContaining({ id: ids[64], exitCode: 64 }),
+    }));
+  });
+
+  it("does not reconcile a terminal that the user explicitly killed", async () => {
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+    const created = await invoke<{ id: string }>(terminalChannels.create, {
+      command: "node",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+    });
+
+    emit(terminalChannels.kill, { id: created.id });
+    pty.onExitHandler?.({ exitCode: 0 });
+
+    await expect(
+      invoke("alfred:terminal:reconcile", { id: created.id }),
+    ).resolves.toEqual({ state: "missing" });
+  });
+
   it("reserves a client id while terminal creation is in flight", async () => {
     const loadPty = deferred<ReturnType<typeof fakeNodePty>>();
     const nodePty = fakeNodePty(new FakePty());
