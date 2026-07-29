@@ -931,25 +931,6 @@ function isIsolatedWorktreeSession(
     || Boolean(session.branchName && (session.baseCwd || (session.workspaceId && session.workspaceRootFingerprint)));
 }
 
-function hasIsolatedWorktreeMetadata(
-  session:
-    | {
-        baseCwd?: string | undefined;
-        branchName?: string | undefined;
-        isolation?: TerminalCreateResult["isolation"] | undefined;
-      }
-    | null
-    | undefined,
-): session is {
-  baseCwd: string;
-  branchName: string;
-  cwd?: string | undefined;
-  isolation?: TerminalCreateResult["isolation"] | undefined;
-} {
-  if (session?.isolation === "shared") return false;
-  return Boolean(session?.baseCwd && session.branchName);
-}
-
 function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSessionSnapshot | null {
   if (!session.clientId) return null;
   const snapshot: PersistedTerminalSessionSnapshot = {

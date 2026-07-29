@@ -56,7 +56,7 @@ export function registerDesktopStateIpc(store: PersistedDesktopStateStore): void
           true,
           affectedClientIds,
         );
-        const state = await store.updateState((latest) => ({
+        await store.updateState((latest) => ({
           ...latest,
           restoredTerminalSessions: latest.restoredTerminalSessions.flatMap((session) => {
             const sanitized = sanitizePersistedTerminalSession(session, latest.privacySettings, true);
