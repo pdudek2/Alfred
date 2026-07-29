@@ -62,6 +62,21 @@ export type AgentWorktreeInspection = {
 
 const execFile = promisify(execFileCallback) as ExecFile;
 
+export function workspaceRootFingerprint(rootPath: string): string {
+  return createHash("sha256")
+    .update(path.resolve(rootPath))
+    .digest("hex")
+    .slice(0, 16);
+}
+
+export function isAlfredManagedBranchName(value: string): boolean {
+  try {
+    return value.startsWith("alfred-") && safeCleanupBranchName(value) === value;
+  } catch {
+    return false;
+  }
+}
+
 export async function prepareAgentWorktree(
   request: AgentWorktreeRequest,
   options: PrepareAgentWorktreeOptions = {},

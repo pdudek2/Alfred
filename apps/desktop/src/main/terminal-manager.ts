@@ -927,7 +927,7 @@ function preparePersistedSessionForPrivacy(
 
   return {
     ...redactedBase,
-    buffer: redactText(tailBuffer(session.buffer, MAX_PERSISTED_BUFFER_LENGTH)),
+    buffer: redactText(tailBuffer(session.buffer ?? "", MAX_PERSISTED_BUFFER_LENGTH)),
     ...(session.activityEvents === undefined ? {} : { activityEvents: redactActivityEvents(session.activityEvents) }),
   };
 }
@@ -1142,7 +1142,7 @@ async function isExactPersistedRestoredLaunch(request: TerminalCreateRequest): P
 
   const snapshot = restoredSessionSnapshots.get(request.clientId);
   if (snapshot?.source !== "manual" || snapshot.command !== request.command) return false;
-  if (path.resolve(snapshot.cwd) !== path.resolve(request.cwd ?? "")) return false;
+  if (!snapshot.cwd || path.resolve(snapshot.cwd) !== path.resolve(request.cwd ?? "")) return false;
 
   const requestedArgs = request.args ?? [];
   const persistedArgs = snapshot.args ?? [];

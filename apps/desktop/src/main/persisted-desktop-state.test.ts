@@ -7,6 +7,7 @@ import {
   DEFAULT_PRIVACY_SETTINGS,
   DESKTOP_STATE_VERSION,
   createPersistedDesktopStateStore,
+  sanitizePersistedTerminalSession,
 } from "./persisted-desktop-state.js";
 import type { DesktopStateSnapshot } from "./persisted-desktop-state.js";
 
@@ -461,7 +462,65 @@ describe("persisted-desktop-state", () => {
     });
   });
 
-  it("drops restored terminal buffers and activity when retention is off", async () => {
+  it("keeps only safe isolated recovery identity when retention is off", () => {
+    const isolated = {
+      clientId: "codex-1",
+      title: "Codex /Users/patryk/Client",
+      source: "alfred" as const,
+      agentKind: "codex" as const,
+      workspaceId: "A",
+      isolation: "worktree" as const,
+      branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
+      baseCwd: "/Users/patryk/Client",
+      cwd: "/private/worktrees/client/codex-1",
+      shell: "/bin/zsh",
+      command: "codex",
+      args: ["secret customer prompt"],
+      resumeTarget: {
+        agentKind: "codex" as const,
+        sessionId: "session-secret",
+        source: "codex-session-index" as const,
+      },
+      buffer: "Authorization: Bearer abc.def.ghi",
+      lastActivityAt: 10,
+      lastOutputAt: 11,
+    };
+
+    const sanitized = sanitizePersistedTerminalSession(isolated, {
+      terminalScrollbackRetention: "off",
+      externalSessionIndexingEnabled: false,
+    });
+
+    expect(sanitized).toMatchObject({
+      clientId: "codex-1",
+      workspaceId: "A",
+      workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
+      isolation: "worktree",
+      branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
+    });
+    for (const field of [
+      "cwd",
+      "baseCwd",
+      "shell",
+      "command",
+      "args",
+      "resumeTarget",
+      "buffer",
+      "lastActivityAt",
+      "lastOutputAt",
+    ]) {
+      expect(sanitized).not.toHaveProperty(field);
+    }
+    expect(sanitizePersistedTerminalSession(
+      { ...isolated, isolation: "shared" },
+      {
+        terminalScrollbackRetention: "off",
+        externalSessionIndexingEnabled: false,
+      },
+    )).toBeNull();
+  });
+
+  it("removes shared restored terminal records when retention is off", async () => {
     const filePath = await temporaryStateFile();
     await writeFile(
       filePath,
@@ -503,14 +562,85 @@ describe("persisted-desktop-state", () => {
         terminalScrollbackRetention: "off",
         externalSessionIndexingEnabled: false,
       },
-      restoredTerminalSessions: [
-        expect.objectContaining({
-          clientId: "manual-off",
-          buffer: "",
-        }),
-      ],
+      restoredTerminalSessions: [],
     });
-    expect((await store.getState()).restoredTerminalSessions[0]).not.toHaveProperty("activityEvents");
+  });
+
+  it("rewrites a valid legacy privacy state once without a migration backup", async () => {
+    const filePath = await temporaryStateFile();
+    const isolated = {
+      clientId: "codex-1",
+      title: "Codex /Users/patryk/Client",
+      source: "alfred" as const,
+      agentKind: "codex" as const,
+      workspaceId: "A",
+      isolation: "worktree" as const,
+      branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
+      baseCwd: "/Users/patryk/Client",
+      cwd: "/private/worktrees/client/codex-1",
+      shell: "/bin/zsh",
+      command: "codex",
+      args: ["secret customer prompt"],
+      resumeTarget: {
+        agentKind: "codex" as const,
+        sessionId: "session-secret",
+        source: "codex-session-index" as const,
+      },
+      buffer: "Authorization: Bearer abc.def.ghi",
+      lastActivityAt: 10,
+      lastOutputAt: 11,
+    };
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: DESKTOP_STATE_VERSION,
+        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
+        activeWorkspaceId: "A",
+        privacySettings: {
+          terminalScrollbackRetention: "off",
+          externalSessionIndexingEnabled: false,
+        },
+        restoredTerminalSessions: [
+          isolated,
+          {
+            ...isolated,
+            clientId: "shared-1",
+            isolation: "shared",
+            branchName: undefined,
+          },
+        ],
+      }),
+      "utf8",
+    );
+
+    const firstState = await createPersistedDesktopStateStore({ filePath }).getState();
+    expect(firstState.restoredTerminalSessions).toHaveLength(1);
+    expect(firstState.restoredTerminalSessions[0]).toMatchObject({
+      clientId: "codex-1",
+      workspaceId: "A",
+      workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
+      isolation: "worktree",
+      branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
+    });
+    expect(firstState.restoredTerminalSessions[0]).not.toHaveProperty("baseCwd");
+    expect(await readdir(path.dirname(filePath))).toEqual(["desktop-state.json"]);
+
+    const migratedContents = await readFile(filePath, "utf8");
+    const migratedFile = JSON.parse(migratedContents) as { restoredTerminalSessions: unknown[] };
+    expect(migratedFile.restoredTerminalSessions).toEqual([
+      {
+        clientId: "codex-1",
+        title: expect.stringMatching(/^Codex \[redacted-path:[a-f0-9]{8}\]$/),
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "A",
+        workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
+        isolation: "worktree",
+        branchName: "alfred-codex-codex-1-20260729120000-abcd1234",
+      },
+    ]);
+    await createPersistedDesktopStateStore({ filePath }).getState();
+    expect(await readFile(filePath, "utf8")).toBe(migratedContents);
   });
 
   it("falls back safely when persisted JSON is corrupt", async () => {

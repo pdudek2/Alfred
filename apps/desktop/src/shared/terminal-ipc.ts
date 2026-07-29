@@ -40,6 +40,7 @@ export type TerminalCreateResult = {
   source: TerminalSessionSource;
   agentKind?: AgentKind;
   workspaceId?: string;
+  workspaceRootFingerprint?: string;
   cwd: string;
   isolation?: TerminalSessionIsolation;
   branchName?: string;
@@ -58,8 +59,26 @@ export type TerminalSessionSnapshot = TerminalCreateResult & {
   lastOutputAt?: number;
 };
 
-export type PersistedTerminalSessionSnapshot = Omit<TerminalSessionSnapshot, "id"> & {
+export type PersistedTerminalSessionSnapshot = {
   clientId: string;
+  title: string;
+  source: TerminalSessionSource;
+  agentKind?: AgentKind;
+  workspaceId?: string;
+  workspaceRootFingerprint?: string;
+  isolation?: TerminalSessionIsolation;
+  branchName?: string;
+  createdAt?: number;
+  cwd?: string;
+  baseCwd?: string;
+  shell?: string;
+  command?: string;
+  args?: string[];
+  resumeTarget?: TerminalResumeTarget;
+  buffer?: string;
+  activityEvents?: SessionActivityEvent[];
+  lastActivityAt?: number;
+  lastOutputAt?: number;
 };
 
 export type TerminalListResult = {

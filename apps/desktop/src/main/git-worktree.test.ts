@@ -4,11 +4,27 @@ import {
   applyAgentWorktreePatch,
   cleanupAgentWorktree,
   inspectAgentWorktree,
+  isAlfredManagedBranchName,
   prepareAgentWorktree,
   preflightAgentWorktree,
+  workspaceRootFingerprint,
 } from "./git-worktree.js";
 
 describe("git worktree preparation", () => {
+  it("creates a stable opaque workspace root fingerprint", () => {
+    expect(workspaceRootFingerprint("/repo")).toMatch(/^[a-f0-9]{16}$/);
+    expect(workspaceRootFingerprint("/repo")).toBe(workspaceRootFingerprint("/repo/."));
+    expect(workspaceRootFingerprint("/repo")).not.toBe(workspaceRootFingerprint("/other"));
+  });
+
+  it.each([
+    ["alfred-codex-session-20260729120000-abcd1234", true],
+    ["feature/customer-secret", false],
+    ["../alfred-codex-session", false],
+  ])("validates Alfred-managed recovery branch %s", (branchName, expected) => {
+    expect(isAlfredManagedBranchName(branchName)).toBe(expected);
+  });
+
   it("creates a unique isolated worktree branch for agent sessions", async () => {
     const execFile = vi.fn(async (_file: string, args: string[]) => {
       if (args.includes("rev-parse")) return { stdout: "/Users/patryk/Desktop/Alfred\n", stderr: "" };
