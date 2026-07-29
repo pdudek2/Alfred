@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -8,6 +8,7 @@ import { IngestBatchSchema, type IngestEvent } from "@alfred/schema";
 import { runRunnerLoop, runRunnerOnce } from "../index.js";
 import { OutboxDb } from "../outbox/outbox-db.js";
 import { flushOutboxOnce } from "../outbox/outbox-worker.js";
+import type { SourceCollection } from "../sources/source-adapter.js";
 
 const workspaceId = "00000000-0000-4000-8000-000000000001";
 const deviceId = "00000000-0000-4000-8000-000000000101";
@@ -175,7 +176,7 @@ describe("flushOutboxOnce", () => {
           fetchImpl,
           adapter: {
             sourceId: "codex-cli",
-            collect: async () => [event],
+            collect: async () => ({ events: [event], cursorUpdates: [] }),
           },
         },
       ),
@@ -223,7 +224,7 @@ describe("flushOutboxOnce", () => {
           fetchImpl,
           adapter: {
             sourceId: "codex-cli",
-            collect: async () => events,
+            collect: async () => ({ events, cursorUpdates: [] }),
           },
         },
       ),
@@ -235,7 +236,7 @@ describe("flushOutboxOnce", () => {
     outbox.close();
   });
 
-  it("stores the newest collected event timestamp as the source cursor", async () => {
+  it("persists adapter cursor updates after enqueue", async () => {
     const dir = trackedTempDir("alfred-runner-cursor-");
     const outboxPath = join(dir, "outbox.sqlite");
     const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
@@ -276,13 +277,21 @@ describe("flushOutboxOnce", () => {
         fetchImpl,
         adapter: {
           sourceId: "codex-cli",
-          collect: async () => [secondEvent, firstEvent],
+          collect: async () => ({
+            events: [secondEvent, firstEvent],
+            cursorUpdates: [
+              {
+                key: "codex-session-cursor",
+                value: "2026-04-28T10:05:00.000Z",
+              },
+            ],
+          }),
         },
       },
     );
 
     const outbox = new OutboxDb(outboxPath);
-    expect(outbox.getSourceCursor("codex-cli")).toBe("2026-04-28T10:05:00.000Z");
+    expect(outbox.getSourceCursor("codex-session-cursor")).toBe("2026-04-28T10:05:00.000Z");
     outbox.close();
   });
 
@@ -340,7 +349,76 @@ describe("flushOutboxOnce", () => {
     });
   });
 
-  it("collects multiple source adapters and stores independent cursors", async () => {
+  it("keeps independent cursors for concurrent Codex session files", async () => {
+    const dir = trackedTempDir("alfred-runner-concurrent-cursors-");
+    const codexHome = join(dir, ".codex");
+    const sessionsDir = join(codexHome, "sessions/2026/04/28");
+    const sessionA = join(sessionsDir, "session-a.jsonl");
+    const sessionB = join(sessionsDir, "session-b.jsonl");
+    mkdirSync(sessionsDir, { recursive: true });
+    writeFileSync(
+      sessionA,
+      JSON.stringify({
+        timestamp: "2026-04-28T10:00:00.000Z",
+        type: "session.start",
+        id: "session-a",
+        cwd: "/Users/patryk/Desktop/Alfred",
+      }),
+    );
+    writeFileSync(
+      sessionB,
+      JSON.stringify({
+        timestamp: "2026-04-28T09:00:00.000Z",
+        type: "session.start",
+        id: "session-b",
+        cwd: "/Users/patryk/Desktop/Alfred",
+      }),
+    );
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
+    const config = {
+      apiUrl: "http://127.0.0.1:4301",
+      deviceToken: "token-1",
+      workspaceId,
+      deviceId,
+      privacyMode: "standard" as const,
+      outboxPath: join(dir, "outbox.sqlite"),
+      codexHome,
+    };
+
+    await expect(runRunnerOnce(config, { fetchImpl })).resolves.toMatchObject({
+      collectedEvents: 2,
+    });
+
+    appendFileSync(
+      sessionB,
+      `\n${JSON.stringify({
+        timestamp: "2026-04-28T09:30:00.000Z",
+        type: "event_msg",
+        payload: {
+          type: "task_complete",
+          turn_id: "session-b-later",
+        },
+      })}`,
+    );
+
+    await expect(runRunnerOnce(config, { fetchImpl })).resolves.toMatchObject({
+      collectedEvents: 1,
+      flushedEvents: 1,
+    });
+
+    const request = (fetchImpl as unknown as FetchMock).mock.calls.at(-1)?.[1];
+    const body = typeof request?.body === "string" ? JSON.parse(request.body) : null;
+    const parsed = IngestBatchSchema.parse(body);
+    expect(parsed.events).toContainEqual(
+      expect.objectContaining({
+        source_run_id: "session-b",
+        source_event_id: "session-b-later",
+        occurred_at: "2026-04-28T09:30:00.000Z",
+      }),
+    );
+  });
+
+  it("collects multiple source adapters", async () => {
     const dir = trackedTempDir("alfred-runner-multi-source-");
     const outboxPath = join(dir, "outbox.sqlite");
     const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
@@ -389,11 +467,11 @@ describe("flushOutboxOnce", () => {
           adapters: [
             {
               sourceId: "codex-cli",
-              collect: async () => [codexEvent],
+              collect: async () => ({ events: [codexEvent], cursorUpdates: [] }),
             },
             {
               sourceId: "claude-code",
-              collect: async () => [claudeEvent],
+              collect: async () => ({ events: [claudeEvent], cursorUpdates: [] }),
             },
           ],
         },
@@ -405,10 +483,6 @@ describe("flushOutboxOnce", () => {
     const parsed = IngestBatchSchema.parse(body);
     expect(parsed.events.map((event) => event.source_id)).toEqual(["codex-cli", "claude-code"]);
 
-    const outbox = new OutboxDb(outboxPath);
-    expect(outbox.getSourceCursor("codex-cli")).toBe("2026-04-28T10:00:00.000Z");
-    expect(outbox.getSourceCursor("claude-code")).toBe("2026-04-28T10:03:00.000Z");
-    outbox.close();
   });
 
   it("keeps polling while the runner loop is active", async () => {
@@ -416,24 +490,27 @@ describe("flushOutboxOnce", () => {
     const outboxPath = join(dir, "outbox.sqlite");
     const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
     const collect = vi
-      .fn<() => Promise<IngestEvent[]>>()
-      .mockResolvedValueOnce([
-        {
-          event_id: "loop-event-000001",
-          workspace_id: workspaceId,
-          device_id: deviceId,
-          project_key: "Alfred",
-          source_id: "codex-cli",
-          source_run_id: "codex-run-1",
-          source_event_id: "codex-event-1",
-          type: "run.started",
-          status: "running",
-          privacy_mode: "standard",
-          occurred_at: "2026-04-28T10:00:00.000Z",
-          payload: {},
-        },
-      ])
-      .mockResolvedValueOnce([]);
+      .fn<() => Promise<SourceCollection>>()
+      .mockResolvedValueOnce({
+        events: [
+          {
+            event_id: "loop-event-000001",
+            workspace_id: workspaceId,
+            device_id: deviceId,
+            project_key: "Alfred",
+            source_id: "codex-cli",
+            source_run_id: "codex-run-1",
+            source_event_id: "codex-event-1",
+            type: "run.started",
+            status: "running",
+            privacy_mode: "standard",
+            occurred_at: "2026-04-28T10:00:00.000Z",
+            payload: {},
+          },
+        ],
+        cursorUpdates: [],
+      })
+      .mockResolvedValueOnce({ events: [], cursorUpdates: [] });
     const sleep = vi.fn(async () => undefined);
     const onIteration = vi.fn();
 

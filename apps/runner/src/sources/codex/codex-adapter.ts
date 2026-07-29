@@ -4,7 +4,8 @@ import { normalizeEvent } from "@alfred/adapters";
 import { IngestEventSchema, type IngestEvent, type PrivacyMode } from "@alfred/schema";
 import fg from "fast-glob";
 
-import type { SourceAdapter } from "../source-adapter.js";
+import type { SourceAdapter, SourceCollection } from "../source-adapter.js";
+import { newestCursor, sourceCursorKey } from "../source-cursor.js";
 import { projectKeyFromCwdPath } from "../worktree-project-key.js";
 import { readJsonlRecords } from "./codex-jsonl.js";
 
@@ -14,6 +15,7 @@ export type CodexAdapterConfig = {
   deviceId: string;
   privacyMode: PrivacyMode;
   codexSince?: string;
+  getCursor?: (key: string) => string | null;
   onWarning?: (message: string) => void;
 };
 
@@ -24,24 +26,32 @@ export function createCodexAdapter(config: CodexAdapterConfig): SourceAdapter {
   };
 }
 
-export async function collectCodexEvents(config: CodexAdapterConfig): Promise<IngestEvent[]> {
+export async function collectCodexEvents(config: CodexAdapterConfig): Promise<SourceCollection> {
   const files = await fg("sessions/**/*.jsonl", {
     cwd: config.codexHome,
     absolute: true,
     onlyFiles: true,
   });
   const events: IngestEvent[] = [];
-  const codexSinceMs = config.codexSince === undefined ? undefined : Date.parse(config.codexSince);
+  const cursorUpdates: SourceCollection["cursorUpdates"] = [];
 
   for (const file of files.sort()) {
+    const relativeSessionPath = relative(config.codexHome, file);
+    const cursorKey = sourceCursorKey("codex-cli", relativeSessionPath);
+    const cursor = newestCursor(config.codexSince, config.getCursor?.(cursorKey) ?? null);
+    const cursorMs = cursor === undefined ? undefined : Date.parse(cursor);
     const context = await codexSessionContextFromFile(file);
+    let newestOccurredAt: string | undefined;
     let index = 0;
 
     for await (const record of readJsonlRecords(file)) {
       try {
-        const event = codexRecordToEvent(record, index, config, context, file, codexSinceMs);
+        const event = codexRecordToEvent(record, index, config, context, file, cursorMs);
         if (event) {
           events.push(event);
+          if (!newestOccurredAt || event.occurred_at > newestOccurredAt) {
+            newestOccurredAt = event.occurred_at;
+          }
         }
       } catch {
         config.onWarning?.(
@@ -50,9 +60,13 @@ export async function collectCodexEvents(config: CodexAdapterConfig): Promise<In
       }
       index += 1;
     }
+
+    if (newestOccurredAt) {
+      cursorUpdates.push({ key: cursorKey, value: newestOccurredAt });
+    }
   }
 
-  return events;
+  return { events, cursorUpdates };
 }
 
 function codexRecordToEvent(

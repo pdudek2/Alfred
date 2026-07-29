@@ -35,12 +35,14 @@ export async function runRunnerOnce(
     let collectedEvents = 0;
 
     for (const adapter of adapters) {
-      const events = await adapter.collect();
-      collectedEvents += events.length;
-      for (const event of events) {
+      const collection = await adapter.collect();
+      collectedEvents += collection.events.length;
+      for (const event of collection.events) {
         outbox.enqueue(redactEvent(event, config.privacyMode));
       }
-      updateSourceCursor(outbox, adapter.sourceId, events);
+      for (const cursor of collection.cursorUpdates) {
+        outbox.setSourceCursor(cursor.key, cursor.value);
+      }
     }
 
     const flushedEvents = await flushOutbox(outbox, {
@@ -126,55 +128,18 @@ function createDefaultAdapters(config: RunnerConfig, outbox: OutboxDb): SourceAd
 }
 
 function createDefaultCodexAdapter(config: RunnerConfig, outbox: OutboxDb): SourceAdapter {
-  const storedCursor = outbox.getSourceCursor("codex-cli");
-  const codexSince = newestCursor(config.codexSince, storedCursor);
   return createCodexAdapter({
     ...config,
-    ...(codexSince ? { codexSince } : {}),
+    getCursor: (key) => outbox.getSourceCursor(key),
   });
 }
 
 function createDefaultClaudeAdapter(config: RunnerConfig, outbox: OutboxDb): SourceAdapter {
-  const storedCursor = outbox.getSourceCursor("claude-code");
-  const claudeSince = newestCursor(config.claudeSince, storedCursor);
   return createClaudeAdapter({
     ...config,
     claudeHome: config.claudeHome ?? `${process.env.HOME ?? "."}/.claude`,
-    ...(claudeSince ? { claudeSince } : {}),
+    getCursor: (key) => outbox.getSourceCursor(key),
   });
-}
-
-function newestCursor(configuredSince: string | undefined, storedCursor: string | null): string | undefined {
-  if (!configuredSince) return storedCursor ?? undefined;
-  if (!storedCursor) return configuredSince;
-
-  const configuredMs = Date.parse(configuredSince);
-  const storedMs = Date.parse(storedCursor);
-  if (Number.isNaN(configuredMs)) return storedCursor;
-  if (Number.isNaN(storedMs)) return configuredSince;
-
-  return storedMs > configuredMs ? storedCursor : configuredSince;
-}
-
-function updateSourceCursor(outbox: OutboxDb, sourceId: string, events: IngestEvent[]): void {
-  const newestOccurredAt = maxOccurredAt(events);
-  if (newestOccurredAt) {
-    outbox.setSourceCursor(sourceId, newestOccurredAt);
-  }
-}
-
-function maxOccurredAt(events: IngestEvent[]): string | null {
-  let newestMs = Number.NEGATIVE_INFINITY;
-  let newest: string | null = null;
-
-  for (const event of events) {
-    const occurredAtMs = Date.parse(event.occurred_at);
-    if (Number.isNaN(occurredAtMs) || occurredAtMs < newestMs) continue;
-    newestMs = occurredAtMs;
-    newest = event.occurred_at;
-  }
-
-  return newest;
 }
 
 function redactEvent(event: IngestEvent, privacyMode: RunnerConfig["privacyMode"]): IngestEvent {
