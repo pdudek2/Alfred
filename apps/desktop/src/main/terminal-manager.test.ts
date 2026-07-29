@@ -246,7 +246,7 @@ describe("terminal-manager IPC", () => {
       expect.objectContaining({
         clientId: "manual-1",
         buffer: "Server ready\nBash(\"pnpm test\")\n",
-        activityEvents: [
+        activityEvents: expect.arrayContaining([
           expect.objectContaining({
             kind: "output",
             title: "Progress reported",
@@ -258,7 +258,11 @@ describe("terminal-manager IPC", () => {
             detail: "\"pnpm test\"",
             payload: { type: "command", command: "pnpm test" },
           }),
-        ],
+          expect.objectContaining({
+            kind: "lifecycle",
+            title: "Stopped on quit",
+          }),
+        ]),
       }),
     ]);
   });
@@ -501,6 +505,35 @@ describe("terminal-manager IPC", () => {
     await flushTerminalPersistence();
 
     expect(state.restoredTerminalSessions).toEqual([]);
+  });
+
+  it("hydrates persisted snapshots before a quit-time flush", async () => {
+    const persistedSnapshot: PersistedTerminalSessionSnapshot = {
+      clientId: "persisted-before-quit",
+      title: "Persisted before quit",
+      source: "manual",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+      buffer: "saved transcript\n",
+    };
+    let state = stateWithRestoredSessions([persistedSnapshot]);
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    configureTerminalPersistence(store, { debounceMs: 0 });
+
+    await flushTerminalPersistence();
+
+    expect(store.getState).toHaveBeenCalledOnce();
+    expect(state.restoredTerminalSessions).toEqual([persistedSnapshot]);
   });
 
   it("hydrates persisted terminal snapshots once across concurrent readers", async () => {

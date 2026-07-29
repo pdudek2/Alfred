@@ -637,7 +637,7 @@ async function hydratePersistedTerminalSessions(): Promise<void> {
 
   const store = persistedStateStore;
   const generation = persistenceGeneration;
-  const hydrationMutations = new Set<string>();
+  const hydrationMutations = new Set(restoredSessionSnapshots.keys());
   persistenceHydrationMutations = hydrationMutations;
   const hydration = (async () => {
     const state = await store.getState();
@@ -853,8 +853,7 @@ async function persistTerminalSnapshots(): Promise<void> {
   const store = persistedStateStore;
   if (!store) return;
 
-  const hydration = persistenceHydration;
-  if (hydration) await hydration;
+  await hydratePersistedTerminalSessions();
   if (persistedStateStore !== store) return;
 
   await store.updateState((current) => {
