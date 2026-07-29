@@ -13,6 +13,11 @@ export type OutboxRecord = {
   createdAt: string;
 };
 
+export type OutboxQuarantineReason =
+  | "invalid_payload"
+  | "identity_mismatch"
+  | "permanent_ingest_rejection";
+
 type OutboxRow = {
   id: number;
   event_id: string;
@@ -44,6 +49,16 @@ export class OutboxDb {
       CREATE INDEX IF NOT EXISTS outbox_events_ready_idx
         ON outbox_events(next_attempt_at, created_at);
 
+      CREATE TABLE IF NOT EXISTS outbox_dead_letters (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id TEXT NOT NULL UNIQUE,
+        payload TEXT NOT NULL,
+        attempts INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        quarantined_at TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS source_cursors (
         source_id TEXT PRIMARY KEY,
         cursor_value TEXT NOT NULL,
@@ -59,7 +74,10 @@ export class OutboxDb {
       .prepare(
         `
           INSERT OR IGNORE INTO outbox_events (event_id, payload, attempts, next_attempt_at, created_at)
-          VALUES (@eventId, @payload, 0, @nextAttemptAt, @createdAt)
+          SELECT @eventId, @payload, 0, @nextAttemptAt, @createdAt
+          WHERE NOT EXISTS (
+            SELECT 1 FROM outbox_dead_letters WHERE event_id = @eventId
+          )
         `,
       )
       .run({
@@ -100,18 +118,30 @@ export class OutboxDb {
     return row.count;
   }
 
-  pruneFailedBefore(cutoff: Date): number {
-    const result = this.db
-      .prepare(
-        `
-          DELETE FROM outbox_events
-          WHERE attempts > 0
-            AND next_attempt_at < @cutoff
-        `,
-      )
-      .run({ cutoff: cutoff.toISOString() });
+  quarantine(id: number, reason: OutboxQuarantineReason, now = new Date()): void {
+    const insertDeadLetter = this.db.prepare(
+      `
+        INSERT OR IGNORE INTO outbox_dead_letters (
+          event_id, payload, attempts, reason, created_at, quarantined_at
+        )
+        SELECT event_id, payload, attempts, @reason, created_at, @quarantinedAt
+        FROM outbox_events
+        WHERE id = @id
+      `,
+    );
+    const deleteOutboxRecord = this.db.prepare("DELETE FROM outbox_events WHERE id = ?");
+    const moveToQuarantine = this.db.transaction(
+      (recordId: number, quarantineReason: OutboxQuarantineReason, quarantinedAt: string) => {
+        insertDeadLetter.run({
+          id: recordId,
+          reason: quarantineReason,
+          quarantinedAt,
+        });
+        deleteOutboxRecord.run(recordId);
+      },
+    );
 
-    return result.changes;
+    moveToQuarantine(id, reason, now.toISOString());
   }
 
   getSourceCursor(sourceId: string): string | null {
