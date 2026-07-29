@@ -7358,6 +7358,93 @@ describe("App integration", () => {
     );
   });
 
+  it("shows privacy-safe recovery without a launch action and keeps checkout actions available", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, worktreeApply, worktreeDiff } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [{
+        clientId: "codex-private",
+        title: "Codex recovery",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "A",
+        workspaceRootFingerprint: "0123456789abcdef",
+        isolation: "worktree",
+        branchName: "alfred-codex-private-20260729120000-abcd1234",
+        createdAt: 1,
+      }],
+    );
+
+    render(<App />);
+
+    const tile = await screen.findByRole("article", { name: /Codex recovery/i });
+    const privacyNote = screen.getByRole("note");
+    expect(privacyNote).toHaveTextContent(
+      "Launch details were cleared for privacy. Your isolated checkout is still available.",
+    );
+    expect(within(tile).queryByRole("button", { name: /Resume|Continue|Relaunch/i })).not.toBeInTheDocument();
+    expect(createTerminal).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Discard checkout Codex recovery" })).toBeInTheDocument();
+
+    await user.dblClick(tile.querySelector(".tile-header")!);
+    const checkoutActions = screen.getByRole("toolbar", { name: "checkout actions for Codex recovery" });
+    await user.click(within(checkoutActions).getByRole("button", { name: "Review diff" }));
+    expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-private" });
+    await user.click(within(checkoutActions).getByRole("button", { name: "Apply to project" }));
+    expect(worktreeApply).toHaveBeenCalledWith({ clientId: "codex-private" });
+  });
+
+  it("keeps recovery-only checkout visible when its rebound workspace rejects review", async () => {
+    const user = userEvent.setup();
+    const { worktreeDiff } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      {
+        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A", rootPath: "/rebound" }],
+        activeWorkspaceId: "A",
+      },
+      [{
+        clientId: "codex-private",
+        title: "Codex recovery",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "A",
+        workspaceRootFingerprint: "0123456789abcdef",
+        isolation: "worktree",
+        branchName: "alfred-codex-private-20260729120000-abcd1234",
+        createdAt: 1,
+      }],
+    );
+    worktreeDiff.mockResolvedValueOnce({
+      ok: false,
+      error: "Workspace root no longer matches this checkout.",
+    });
+
+    render(<App />);
+
+    const tile = await screen.findByRole("article", { name: /Codex recovery/i });
+    await user.dblClick(tile.querySelector(".tile-header")!);
+    await user.click(screen.getByRole("button", { name: "Review diff" }));
+    expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-private" });
+    await selectSurface(user, "Context");
+    await user.click(screen.getByRole("button", { name: /^Activity \(/ }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Agent activity")).toHaveTextContent(
+        "Workspace root no longer matches this checkout.",
+      );
+    });
+    expect(screen.getByRole("article", { name: /Codex recovery/i })).toBeInTheDocument();
+  });
+
   it("coalesces duplicate Discard requests while Forget is pending", async () => {
     const pendingForget = deferred<TerminalForgetResult>();
     const { forgetTerminal } = installDesktopBridge(
@@ -7419,6 +7506,7 @@ describe("App integration", () => {
         title: "Original recovery",
         source: "alfred",
         agentKind: "codex",
+        cwd: "/repo",
         isolation: "shared",
         command: "codex",
         args: [],

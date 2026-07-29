@@ -202,9 +202,23 @@ export function restartSession(sessions: SessionTile[], sessionId: string): Sess
   });
 }
 
+export function canRelaunchRestoredSession(
+  session: Pick<
+    SessionTile,
+    "agentKind" | "command" | "cwd" | "runtimeStatus" | "source"
+  >,
+): boolean {
+  if (session.runtimeStatus !== "restored" || !session.cwd) return false;
+  if (session.agentKind === "codex" || session.agentKind === "claude") {
+    return session.command === session.agentKind;
+  }
+  if (session.source === "manual" && !session.agentKind) return true;
+  return Boolean(session.command);
+}
+
 export function relaunchRestoredSession(sessions: SessionTile[], sessionId: string): SessionTile[] {
   return sessions.map((session) => {
-    if (session.id !== sessionId || session.runtimeStatus !== "restored") return session;
+    if (session.id !== sessionId || !canRelaunchRestoredSession(session)) return session;
     const {
       runtimeId: _runtimeId,
       ...relaunchableSession
