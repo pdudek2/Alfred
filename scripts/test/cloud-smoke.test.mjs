@@ -10,7 +10,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const scriptPath = path.join(repoRoot, "scripts", "cloud-smoke.mjs");
 
 describe("cloud smoke", () => {
-  it("defaults to public mode even when an auth token is present", async () => {
+  it("checks the public API boundary without session state", async () => {
     const requests = [];
     const result = await runSmoke({
       env: {
@@ -20,7 +20,6 @@ describe("cloud smoke", () => {
       handler: async (req, res) => {
         requests.push({ cookie: req.headers.cookie, method: req.method, url: req.url });
         if (req.url === "/health") return sendJson(res, 200, { ok: true, service: "alfred-api" });
-        if (req.url === "/auth/login") return sendJson(res, 503, { error: "oidc_not_configured" });
         return send(res, 404, "text/plain", "not found");
       },
     });
@@ -31,37 +30,32 @@ describe("cloud smoke", () => {
       [
         ["GET", "/health"],
         ["GET", "/auth/login"],
+        ["GET", "/auth/callback"],
+        ["POST", "/auth/logout"],
+        ["GET", "/api/auth/login"],
+        ["GET", "/api/auth/callback"],
+        ["POST", "/api/auth/logout"],
+        ["GET", "/v1/runs"],
+        ["GET", "/v1/runs/retired-run"],
+        ["GET", "/api/v1/runs"],
+        ["GET", "/api/v1/runs/retired-run"],
+        ["GET", "/v1/system/status"],
+        ["GET", "/api/v1/system/status"],
       ],
     );
     assert.equal(requests.some((request) => request.cookie), false);
   });
 
-  it("checks the authenticated runtime routes with the configured session cookie", async () => {
-    const requests = [];
+  it("rejects authenticated mode", async () => {
     const result = await runSmoke({
       env: {
         ALFRED_CLOUD_SMOKE_MODE: "authenticated",
-        AUTH_DEV_SESSION_TOKEN: "dev-session-token",
       },
-      handler: async (req, res) => {
-        requests.push({ cookie: req.headers.cookie, method: req.method, url: req.url });
-        if (req.url === "/health") return sendJson(res, 200, { ok: true, service: "alfred-api" });
-        if (req.url === "/api/v1/system/status") return sendJson(res, 200, { runner: { state: "online" } });
-        if (req.url === "/api/v1/runs?limit=1") return sendJson(res, 200, { items: [] });
-        return send(res, 404, "text/plain", "not found");
-      },
+      handler: async (_req, res) => send(res, 500, "text/plain", "unexpected"),
     });
 
-    assert.equal(result.code, 0, result.stderr);
-    assert.deepEqual(
-      requests.map((request) => [request.method, request.url, request.cookie]),
-      [
-        ["GET", "/health", "alfred_session=dev-session-token"],
-        ["GET", "/api/v1/system/status", "alfred_session=dev-session-token"],
-        ["GET", "/api/v1/runs?limit=1", "alfred_session=dev-session-token"],
-      ],
-    );
-    assert.equal(requests.some((request) => ["/", "/api/system", "/api/runs"].includes(request.url)), false);
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /ALFRED_CLOUD_SMOKE_MODE must be public or runner-auth/);
   });
 
   it("checks runner heartbeat and batch ingest with device auth", async () => {
