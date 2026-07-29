@@ -527,7 +527,7 @@ function emptyEditDraft(): StagedEditDraft {
 }
 
 function isEditableStagedSession(session: SessionTile): boolean {
-  return session.stage === "staged" && (session.agentKind === "shell" || session.agentKind === "dev-server");
+  return session.stage === "staged";
 }
 
 function argsToDraft(args: string[] | undefined): string {
