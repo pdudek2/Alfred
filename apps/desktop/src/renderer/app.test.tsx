@@ -7587,6 +7587,91 @@ describe("App integration", () => {
     );
   });
 
+  it.each([
+    {
+      name: "failed inspection",
+      result: {
+        ok: false,
+        error: "stale diff warning",
+      } as Awaited<ReturnType<TerminalApi["worktreeDiff"]>>,
+    },
+    {
+      name: "clean inspection",
+      result: {
+        ok: true,
+        summary: "No changes",
+        files: [],
+      } as Awaited<ReturnType<TerminalApi["worktreeDiff"]>>,
+    },
+    {
+      name: "changed inspection",
+      result: {
+        ok: true,
+        summary: "1 changed file",
+        files: [{ path: "src/stale.ts", status: "M" }],
+      } as Awaited<ReturnType<TerminalApi["worktreeDiff"]>>,
+    },
+  ])("ignores a stale $name result after the session instance is replaced", async ({ result }) => {
+    const user = userEvent.setup();
+    const pendingDiff = deferred<Awaited<ReturnType<TerminalApi["worktreeDiff"]>>>();
+    const bridge = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      {
+        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A", rootPath: "/repo" }],
+        activeWorkspaceId: "A",
+      },
+      [{
+        clientId: "codex-stale-diff",
+        title: "Original checkout",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/repo/.alfred-worktrees/codex-stale-diff",
+        baseCwd: "/repo",
+        isolation: "worktree",
+        branchName: "alfred-codex-stale-diff",
+        createdAt: 1,
+        command: "codex",
+        args: [],
+        shell: "codex",
+      }],
+    );
+    bridge.worktreeDiff.mockReturnValueOnce(pendingDiff.promise);
+
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Discard checkout Original checkout" }));
+    expect(bridge.worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-stale-diff" });
+
+    vi.mocked(window.alfredDesktop!.terminal.list).mockResolvedValue({
+      sessions: [{
+        id: "replacement-runtime",
+        clientId: "codex-stale-diff",
+        title: "Replacement session",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/repo",
+        createdAt: 999,
+        shell: "/bin/sh",
+        buffer: "replacement output",
+      }],
+      restoredSessions: [],
+    });
+    fireEvent.keyDown(window, { key: "1", ctrlKey: true });
+    expect(await screen.findByRole("article", { name: /Replacement session/i })).toBeInTheDocument();
+
+    await act(async () => pendingDiff.resolve(result));
+
+    const replacement = await screen.findByRole("article", { name: /Replacement session/i });
+    expect(replacement).not.toHaveTextContent("stale diff warning");
+    expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
+    expect(bridge.killTerminal).not.toHaveBeenCalled();
+    expect(bridge.forgetTerminal).not.toHaveBeenCalled();
+  });
+
   it("preserves legacy isolated checkout metadata when resuming a restored agent session", async () => {
     const user = userEvent.setup();
     const { createTerminal } = installDesktopBridge(

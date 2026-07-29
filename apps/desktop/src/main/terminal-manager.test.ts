@@ -2559,6 +2559,59 @@ describe("terminal-manager IPC", () => {
     );
   });
 
+  it.each([
+    { name: "omitted", request: {} },
+    { name: "false", request: { cleanupWorktree: false } },
+  ])("rejects isolated Forget when cleanupWorktree is $name", async ({ request }) => {
+    const cleanupAgentWorktree = vi.fn(async (): Promise<void> => undefined);
+    configureTerminalPersistence(storeWithRestoredSessions([{
+      clientId: "isolated-forget",
+      title: "Isolated checkout",
+      source: "alfred",
+      agentKind: "codex",
+      isolation: "worktree",
+      branchName: "alfred-codex-isolated-forget",
+      baseCwd: "/repo",
+      cwd: "/alfred/userData/worktrees/repo-816fc349/alfred-codex-isolated-forget",
+    }]), { debounceMs: 0 });
+    registerTerminalIpc({ cleanupAgentWorktree });
+
+    await expect(invoke(terminalChannels.forget, {
+      clientId: "isolated-forget",
+      ...request,
+    })).resolves.toEqual({
+      ok: false,
+      error: "Discarding an isolated checkout requires worktree cleanup.",
+    });
+    expect(cleanupAgentWorktree).not.toHaveBeenCalled();
+    expect((await invoke<TerminalListResult>(terminalChannels.list)).restoredSessions).toEqual([
+      expect.objectContaining({ clientId: "isolated-forget" }),
+    ]);
+  });
+
+  it.each([
+    { name: "omitted", request: {} },
+    { name: "false", request: { cleanupWorktree: false } },
+  ])("forgets a shared record non-destructively when cleanupWorktree is $name", async ({ request }) => {
+    const cleanupAgentWorktree = vi.fn(async (): Promise<void> => undefined);
+    configureTerminalPersistence(storeWithRestoredSessions([{
+      clientId: "shared-forget",
+      title: "Shared recovery",
+      source: "manual",
+      isolation: "shared",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+    }]), { debounceMs: 0 });
+    registerTerminalIpc({ cleanupAgentWorktree });
+
+    await expect(invoke(terminalChannels.forget, {
+      clientId: "shared-forget",
+      ...request,
+    })).resolves.toEqual({ ok: true });
+    expect(cleanupAgentWorktree).not.toHaveBeenCalled();
+    expect((await invoke<TerminalListResult>(terminalChannels.list)).restoredSessions).toEqual([]);
+  });
+
   it("retains an isolated snapshot when cleanup rejects", async () => {
     const store = storeWithRestoredSessions([{
       clientId: "codex-discard",

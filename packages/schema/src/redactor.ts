@@ -10,15 +10,15 @@ const SECRET_ASSIGNMENT_PATTERN =
 const CLI_SECRET_ARG_PATTERN =
   /(\B--(?:token|api-key|apikey|password|secret|client-secret|access-token|refresh-token)(?:=|\s+))("[^"]+"|'[^']+'|[^\s"'`]+)/gi;
 const QUOTED_HEADER_SECRET_PATTERN =
-  /(["'])([^"']*\b(?:authorization|x-api-key|api-key|cookie)\s*:\s*)([^"']+)\1/gi;
+  /(["'])([^"']*\b(?:authorization|x-api-key|api-key)\s*:\s*)([^"']+)\1/gi;
 const HEADER_SECRET_PATTERN =
-  /\b(authorization|x-api-key|api-key|cookie)(\s*:\s*)((?:Bearer|Basic)\s+[^\s"'`;,]+|[^\s"'`;,]+)/gi;
+  /\b(authorization|x-api-key|api-key)(\s*:\s*)((?:Bearer|Basic)\s+[^\s"'`;,]+|[^\s"'`;,]+)/gi;
 const URI_USERINFO_PATTERN =
   /\b([a-z][a-z0-9+.-]*:\/\/)([^/\s:@]+):([^@\s/]+)@/gi;
 const JSON_SECRET_ASSIGNMENT_PATTERN =
   /(["'](?:api[_-]?key|token|secret|password)["']\s*:\s*)(["'])([^"']+)\2/gi;
 const COOKIE_HEADER_PATTERN =
-  /\b(cookie)(\s*:\s*)([^"'`\r\n]+)/gi;
+  /(["'])(\s*cookie\s*:\s*)(?=[!#$%&'*+\-.^_`|~0-9A-Za-z]+\s*=)[^\r\n]*?\1|\b(cookie)(\s*:\s*)(?=[!#$%&'*+\-.^_`|~0-9A-Za-z]+\s*=)[^\r\n]+/gi;
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g;
 const AWS_ACCESS_KEY_ID_PATTERN = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
 const SLACK_TOKEN_PATTERN = /\bxox[abprs]-[A-Za-z0-9-]{20,}\b/g;
@@ -107,14 +107,17 @@ function redactSecretText(value: string, options: RedactValueOptions = STANDARD_
   const withoutStructuredSecrets = value
     .replace(URI_USERINFO_PATTERN, (_match, scheme) => `${scheme}${REDACTED}@`)
     .replace(JSON_SECRET_ASSIGNMENT_PATTERN, (_match, prefix, quote) => `${prefix}${quote}${REDACTED}${quote}`)
-    .replace(COOKIE_HEADER_PATTERN, (_match, header, separator) => `${header}${separator}${REDACTED}`)
+    .replace(COOKIE_HEADER_PATTERN, (_match, quote, quotedPrefix, header, separator) =>
+      quote ? `${quote}${quotedPrefix}${REDACTED}${quote}` : `${header}${separator}${REDACTED}`,
+    )
     .replace(QUOTED_HEADER_SECRET_PATTERN, (_match, quote, headerPrefix) => `${quote}${headerPrefix}${REDACTED}${quote}`)
     .replace(HEADER_SECRET_PATTERN, (match, header, separator) =>
       match.includes(REDACTED) ? match : `${header}${separator}${REDACTED}`,
     )
-    .replace(SECRET_ASSIGNMENT_PATTERN, (match, key, separator) =>
-      match.includes(REDACTED) ? match : `${key}${separator}${REDACTED}`,
-    )
+    .replace(SECRET_ASSIGNMENT_PATTERN, (match, key, separator) => {
+      if (/^cookie$/i.test(key) && separator.includes(":")) return match;
+      return match.includes(REDACTED) ? match : `${key}${separator}${REDACTED}`;
+    })
     .replace(CLI_SECRET_ARG_PATTERN, (match, prefix) =>
       match.includes(REDACTED) ? match : `${prefix}${REDACTED}`,
     );

@@ -128,16 +128,27 @@ export function createPersistedDesktopStateStore(
   let saveStatus: DesktopSaveStatus = { status: "saved" };
   const saveStatusListeners = new Set<(status: DesktopSaveStatus) => void>();
   let mutationQueue: Promise<void> = Promise.resolve();
+  let hydrationPromise: Promise<void> | null = null;
 
-  const hydrate = async (): Promise<void> => {
-    if (hydrated) return;
-    const result = await readDesktopStateFile(filePath, options.onWarning);
-    if (result.rewrite) {
-      await persistState(result.state);
-      return;
-    }
-    cachedState = result.state;
-    hydrated = true;
+  const hydrate = (): Promise<void> => {
+    if (hydrated) return Promise.resolve();
+    if (hydrationPromise) return hydrationPromise;
+
+    const hydration = enqueueMutation(async () => {
+      if (hydrated) return;
+      const result = await readDesktopStateFile(filePath, options.onWarning);
+      if (result.rewrite) {
+        await persistState(result.state);
+        return;
+      }
+      cachedState = result.state;
+      hydrated = true;
+    });
+    hydrationPromise = hydration;
+    void hydration.catch(() => {
+      if (hydrationPromise === hydration) hydrationPromise = null;
+    });
+    return hydration;
   };
 
   const enqueueMutation = async <T>(operation: () => Promise<T>): Promise<T> => {
@@ -198,9 +209,10 @@ export function createPersistedDesktopStateStore(
     },
 
     async retrySave(): Promise<DesktopStateSnapshot> {
+      const hydration = failedState ? Promise.resolve() : hydrate();
       return enqueueMutation(async () => {
         if (!failedState) {
-          await hydrate();
+          await hydration;
           return cloneDesktopState(cachedState);
         }
         return persistState(failedState);
@@ -214,8 +226,9 @@ export function createPersistedDesktopStateStore(
     async updateState(
       updater: (current: DesktopStateSnapshot) => DesktopStateSnapshot | Promise<DesktopStateSnapshot>,
     ): Promise<DesktopStateSnapshot> {
+      const hydration = hydrate();
       return enqueueMutation(async () => {
-        await hydrate();
+        await hydration;
         return persistState(await updater(cloneDesktopState(failedState ?? cachedState)));
       });
     },
