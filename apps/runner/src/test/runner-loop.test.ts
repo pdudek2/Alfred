@@ -686,6 +686,122 @@ describe("flushOutboxOnce", () => {
     );
   });
 
+  it("flushes queued data before surfacing an adapter collection failure", async () => {
+    const dir = trackedTempDir("alfred-runner-collection-failure-");
+    const outboxPath = join(dir, "outbox.sqlite");
+    const outbox = new OutboxDb(outboxPath);
+    enqueueValidEvent(outbox, "queued-event-000001");
+    outbox.close();
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
+
+    await expect(
+      runRunnerOnce(
+        {
+          apiUrl: "http://127.0.0.1:4301",
+          deviceToken: "token-1",
+          workspaceId,
+          deviceId,
+          privacyMode: "standard",
+          outboxPath,
+          codexHome: join(dir, ".codex"),
+        },
+        {
+          fetchImpl,
+          adapter: {
+            sourceId: "codex-cli",
+            collect: async () => {
+              throw new Error("source unavailable");
+            },
+          },
+        },
+      ),
+    ).rejects.toMatchObject({
+      name: "AggregateError",
+      message: "Runner collection failed",
+    });
+
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    const request = (fetchImpl as unknown as FetchMock).mock.calls[0]?.[1];
+    const body = typeof request?.body === "string" ? JSON.parse(request.body) : null;
+    expect(IngestBatchSchema.parse(body).events.map((event) => event.event_id)).toEqual([
+      "queued-event-000001",
+    ]);
+    const reopenedOutbox = new OutboxDb(outboxPath);
+    expect(reopenedOutbox.countQueued()).toBe(0);
+    reopenedOutbox.close();
+  });
+
+  it("continues other adapters and flushes their events before surfacing collection failures", async () => {
+    const dir = trackedTempDir("alfred-runner-adapter-isolation-");
+    const outboxPath = join(dir, "outbox.sqlite");
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
+    const collectionError = new Error("source unavailable");
+    const failingCollect = vi.fn(async (): Promise<SourceCollection> => {
+      throw collectionError;
+    });
+    const healthyEvent: IngestEvent = {
+      event_id: "healthy-event-0001",
+      workspace_id: workspaceId,
+      device_id: deviceId,
+      project_key: "Alfred",
+      source_id: "claude-code",
+      source_run_id: "claude-run-1",
+      source_event_id: "claude-event-1",
+      type: "agent.waiting",
+      status: "waiting",
+      privacy_mode: "standard",
+      occurred_at: "2026-04-28T10:03:00.000Z",
+      payload: {},
+    };
+    const healthyCollect = vi.fn(async (): Promise<SourceCollection> => ({
+      events: [healthyEvent],
+      cursorUpdates: [
+        {
+          key: "healthy-session-cursor",
+          value: "2026-04-28T10:03:00.000Z",
+        },
+      ],
+    }));
+
+    await expect(
+      runRunnerOnce(
+        {
+          apiUrl: "http://127.0.0.1:4301",
+          deviceToken: "token-1",
+          workspaceId,
+          deviceId,
+          privacyMode: "standard",
+          outboxPath,
+          codexHome: join(dir, ".codex"),
+        },
+        {
+          fetchImpl,
+          adapters: [
+            { sourceId: "codex-cli", collect: failingCollect },
+            { sourceId: "claude-code", collect: healthyCollect },
+          ],
+        },
+      ),
+    ).rejects.toMatchObject({
+      name: "AggregateError",
+      message: "Runner collection failed",
+      errors: [collectionError],
+    });
+
+    expect(failingCollect).toHaveBeenCalledOnce();
+    expect(healthyCollect).toHaveBeenCalledOnce();
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    const request = (fetchImpl as unknown as FetchMock).mock.calls[0]?.[1];
+    const body = typeof request?.body === "string" ? JSON.parse(request.body) : null;
+    expect(IngestBatchSchema.parse(body).events.map((event) => event.event_id)).toEqual([
+      "healthy-event-0001",
+    ]);
+    const outbox = new OutboxDb(outboxPath);
+    expect(outbox.countQueued()).toBe(0);
+    expect(outbox.getSourceCursor("healthy-session-cursor")).toBe("2026-04-28T10:03:00.000Z");
+    outbox.close();
+  });
+
   it("collects multiple source adapters", async () => {
     const dir = trackedTempDir("alfred-runner-multi-source-");
     const outboxPath = join(dir, "outbox.sqlite");
