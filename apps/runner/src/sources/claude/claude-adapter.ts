@@ -66,7 +66,11 @@ export async function collectClaudeEvents(config: ClaudeAdapterConfig): Promise<
     const cursorKey = sourceCursorKey("claude-code", relativeSessionPath);
     const cursor = newestCursor(config.claudeSince, config.getCursor?.(cursorKey) ?? null);
     const cursorMs = cursor === undefined ? undefined : Date.parse(cursor);
-    const records = await readJsonlFile(file);
+    const records = await readJsonlFile(file, (lineNumber) => {
+      config.onWarning?.(
+        `Skipped corrupt claude-code JSONL in ${relativeSessionPath} at line ${lineNumber}`,
+      );
+    });
     const context = claudeSessionContext(records, file);
     let newestOccurredAt: string | undefined;
 
@@ -119,18 +123,23 @@ export async function collectClaudeEvents(config: ClaudeAdapterConfig): Promise<
   return { events, cursorUpdates };
 }
 
-async function readJsonlFile(path: string): Promise<unknown[]> {
+async function readJsonlFile(
+  path: string,
+  onInvalidLine?: (lineNumber: number) => void,
+): Promise<unknown[]> {
   const content = await readFile(path, "utf8");
   const records: unknown[] = [];
+  let lineNumber = 0;
 
   for (const line of content.split(/\r?\n/)) {
+    lineNumber += 1;
     const trimmed = line.trim();
     if (!trimmed) continue;
 
     try {
       records.push(JSON.parse(trimmed) as unknown);
     } catch {
-      // Claude Code session files are external state. One corrupt line should not stop ingestion.
+      onInvalidLine?.(lineNumber);
     }
   }
 

@@ -187,6 +187,52 @@ describe("collectClaudeEvents", () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).not.toContain("secret source payload");
   });
+
+  it("warns once for a corrupt Claude JSONL line without exposing its payload", async () => {
+    const claudeHome = trackedTempDir("alfred-claude-home-");
+    const target = join(
+      claudeHome,
+      "projects/-Users-patryk-Desktop-Alfred/corrupt-session.jsonl",
+    );
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(
+      target,
+      [
+        JSON.stringify({
+          sessionId: "corrupt-claude-run",
+          type: "user",
+          uuid: "corrupt-start",
+          timestamp: "2026-04-28T10:00:00.000Z",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          message: { role: "user", content: "start" },
+        }),
+        '{"secret":"CLAUDE_CORRUPT_SECRET",',
+        JSON.stringify({
+          sessionId: "corrupt-claude-run",
+          type: "user",
+          uuid: "healthy-after-corrupt",
+          timestamp: "2026-04-28T10:00:01.000Z",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          message: { role: "user", content: "later" },
+        }),
+      ].join("\n"),
+    );
+    const warnings: string[] = [];
+
+    const { events } = await collectClaudeEvents({
+      claudeHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+      onWarning: (message) => warnings.push(message),
+    });
+
+    expect(events.some((event) => event.source_event_id === "healthy-after-corrupt")).toBe(true);
+    expect(warnings).toEqual([
+      "Skipped corrupt claude-code JSONL in projects/-Users-patryk-Desktop-Alfred/corrupt-session.jsonl at line 2",
+    ]);
+    expect(warnings[0]).not.toContain("CLAUDE_CORRUPT_SECRET");
+  });
 });
 
 function trackedTempDir(prefix: string): string {
