@@ -83,9 +83,9 @@ surfaces while retaining device-auth ingest.
 | 3 | Fixed in `cf62ee4` | Closed |
 | 4 | Fixed in `90a04e5` | Closed |
 | 5 | Confirmed | S5 |
-| 6 | Fixed in `c9130e7`, `8b12fbe` | Closed |
+| 6 | Fixed in `c9130e7`, `8b12fbe`, `4b17a14` | Closed |
 | 7 | Fixed in `50fc5c0` | Closed |
-| 8 | Fixed in `4b4bd33`, `720e783`, `7eb31fb` | Closed |
+| 8 | Fixed in `4b4bd33`, `720e783`, `7eb31fb`, `4b17a14` | Closed |
 | 9 | Superseded by product-boundary decision | S3 deletes the session surface |
 | 10 | Superseded by product-boundary decision | S3 deletes the OIDC surface |
 | 11 | Confirmed | S5 |
@@ -101,7 +101,7 @@ surfaces while retaining device-auth ingest.
 | 21 | Confirmed | S6 |
 | 22 | Superseded by product-boundary decision | S3 deletes dev cookie auth |
 | 23 | Confirmed | S5 |
-| 24 | Fixed in `4b4bd33`, `720e783`, `7eb31fb` | Closed |
+| 24 | Fixed in `4b4bd33`, `720e783`, `7eb31fb`, `4b17a14` | Closed |
 
 ## Phase gates
 
@@ -145,7 +145,7 @@ format changes.
 ## S2 closeout
 
 **State:** Complete
-**Implementation commits:** `c9130e7`, `50fc5c0`, `4b4bd33`, `720e783`, `7eb31fb`, `8b12fbe`
+**Implementation commits:** `c9130e7`, `50fc5c0`, `4b4bd33`, `720e783`, `7eb31fb`, `8b12fbe`, `4b17a14`
 **Next phase:** S3 — API boundary simplification
 
 Closed behavior:
@@ -159,10 +159,12 @@ Closed behavior:
 - only HTTP `400`, `413`, and `422` decompose a rejected batch, while network,
   authentication, rate-limit, and server failures remain retryable;
 - queued data still flushes before an adapter collection failure is surfaced.
+- simultaneous collection and delivery failures preserve both errors while the
+  retryable event remains queued.
 
 Fresh verification:
 
-- `pnpm --filter @alfred/runner test` — 83/83 passed; tests create temporary
+- `pnpm --filter @alfred/runner test` — 86/86 passed; tests create temporary
   Codex/Claude homes and temporary SQLite outboxes, with no real user homes;
 - `pnpm --filter @alfred/runner typecheck` — passed;
 - `pnpm --filter @alfred/runner build` — passed;
