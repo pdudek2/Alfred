@@ -360,10 +360,11 @@ export function App() {
   }, []);
 
   const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, isolation: TerminalSessionIsolation = "shared") => {
+    if (activeWorkspace.rootStatus === "missing") return;
     setTerminalSessions((sessions) =>
       addAgentSession(sessions, kind, activeWorkspace.rootPath ?? "", activeWorkspace.id, isolation),
     );
-  }, [activeWorkspace.id, activeWorkspace.rootPath]);
+  }, [activeWorkspace.id, activeWorkspace.rootPath, activeWorkspace.rootStatus]);
 
   const handleAddWorkspace = useCallback(async () => {
     const snapshot = createScratchWorkspaceState(workspaces);
@@ -383,6 +384,18 @@ export function App() {
   const handleBindWorkspaceFromFolder = useCallback(async () => {
     const workspaceApi = getDesktopWorkspaceApi();
     if (workspaceApi) {
+      if (activeWorkspace.rootStatus === "missing") {
+        const snapshot = await workspaceApi.bindFolderToWorkspace({ workspaceId: activeWorkspace.id });
+        const workspace = snapshot.workspaces.find((item) => item.id === snapshot.activeWorkspaceId);
+        setWorkspaces(snapshot.workspaces);
+        setActiveWorkspaceId(snapshot.activeWorkspaceId);
+        const rootPath = workspace?.rootPath;
+        if (workspace && rootPath && workspace.rootStatus !== "missing") {
+          setTerminalSessions((sessions) => addManualSession(sessions, rootPath, workspace.id));
+        }
+        return;
+      }
+
       const previousWorkspaceIds = new Set(workspaces.map((workspace) => workspace.id));
       const snapshot = await workspaceApi.createWorkspaceFromFolder();
       const workspace = snapshot.workspaces.find((item) => item.id === snapshot.activeWorkspaceId);
@@ -406,7 +419,7 @@ export function App() {
       setTerminalSessions((sessions) => addManualSession(sessions, "", workspace.id));
       return [...current, workspace];
     });
-  }, [workspaces]);
+  }, [activeWorkspace.id, activeWorkspace.rootStatus, workspaces]);
 
   const handleCloseActiveWorkspace = useCallback(() => {
     if (!canCloseActiveWorkspace) return;
@@ -784,6 +797,7 @@ export function App() {
   }, [activeWorkMode, activeWorkspace.id]);
 
   const handleAddManualSession = useCallback(() => {
+    if (activeWorkspace.rootStatus === "missing") return;
     const nextSessions = addManualSession(
       terminalSessionsRef.current,
       activeWorkspace.rootPath ?? "",
@@ -793,7 +807,7 @@ export function App() {
     terminalSessionsRef.current = nextSessions;
     setTerminalSessions(nextSessions);
     if (addedSession && activeWorkMode === "focus") handleSelectSession(addedSession.id);
-  }, [activeWorkMode, activeWorkspace.id, activeWorkspace.rootPath, handleSelectSession]);
+  }, [activeWorkMode, activeWorkspace.id, activeWorkspace.rootPath, activeWorkspace.rootStatus, handleSelectSession]);
 
   const handleFocusSession = useCallback((sessionId: string) => {
     setActiveSurface("work");
@@ -2170,9 +2184,14 @@ export function App() {
           (session) => !liveClientIds.has(session.id),
         );
         const restoredClientIds = new Set(restoredSessions.map((session) => session.id));
+        const hydratedWorkspaceId = workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID;
+        const hydratedWorkspaceRootPath = workspaceRootPath(workspaceStateResult, hydratedWorkspaceId);
+        const hydratedWorkspaceMissing =
+          workspaceStateResult?.workspaces.find((workspace) => workspace.id === hydratedWorkspaceId)?.rootStatus
+          === "missing";
         const stagedSessions = hydrateStagedPlanSessions(
           stagedPlanResult.plan,
-          workspaceRootPath(workspaceStateResult, workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID),
+          hydratedWorkspaceRootPath,
         ).filter(
           (session) => !liveClientIds.has(session.id) && !restoredClientIds.has(session.id),
         );
@@ -2186,10 +2205,10 @@ export function App() {
         const hydratedSessions =
           liveSessions.length + restoredSessions.length + stagedSessions.length > 0
             ? [...liveSessions, ...restoredSessions, ...stagedSessions]
-            : workspaceRootPath(workspaceStateResult, workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID)
+            : hydratedWorkspaceRootPath && !hydratedWorkspaceMissing
               ? createInitialSessions(
-                  workspaceRootPath(workspaceStateResult, workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID),
-                  workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID,
+                  hydratedWorkspaceRootPath,
+                  hydratedWorkspaceId,
                 )
               : [];
         setWorkspaces((current) =>
@@ -2416,6 +2435,7 @@ export function App() {
                 previewOpen={activePreviewDockOpen}
                 previewTriggerRef={previewTriggerRef}
                 rootPath={activeWorkspace.rootPath}
+                terminalLaunchDisabled={activeWorkspace.rootStatus === "missing"}
                 visibleSessionCount={visibleWorkSessionCount}
                 workMode={activeWorkMode}
                 onAddManualSession={handleAddManualSession}
@@ -2455,6 +2475,7 @@ export function App() {
                   workspaceGitBranch={activeWorkspace.gitBranch}
                   workspaceLabel={activeWorkspace.label}
                   workspaceRootPath={activeWorkspace.rootPath}
+                  workspaceRootStatus={activeWorkspace.rootStatus}
                   onBindWorkspace={handleBindWorkspaceFromFolder}
                   onAddAgentSession={handleAddAgentSession}
                   onAddManualSession={handleAddManualSession}

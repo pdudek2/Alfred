@@ -3,10 +3,19 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_DESKTOP_STATE, DEFAULT_WORKSPACE, createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
-import { createWorkspaceStore } from "./workspace-store.js";
+import { createWorkspaceStore as createWorkspaceStoreBase } from "./workspace-store.js";
 import type { WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
 
 let temporaryDirectory: string | null = null;
+
+function createWorkspaceStore(
+  options: Parameters<typeof createWorkspaceStoreBase>[0] = {},
+): ReturnType<typeof createWorkspaceStoreBase> {
+  return createWorkspaceStoreBase({
+    resolveRootStatus: async () => "available",
+    ...options,
+  });
+}
 
 async function temporaryStateFile(): Promise<string> {
   temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "alfred-workspace-store-"));
@@ -259,6 +268,38 @@ describe("workspace-store", () => {
       ],
       activeWorkspaceId: "CLIENT",
     });
+  });
+
+  it("reports a missing workspace folder without persisting the transient status", async () => {
+    const filePath = await temporaryStateFile();
+    const persistedStateStore = createPersistedDesktopStateStore({ filePath });
+    await persistedStateStore.setState({
+      ...DEFAULT_DESKTOP_STATE,
+      workspaces: [
+        {
+          id: "CLIENT",
+          label: "Client",
+          shortLabel: "CLI",
+          rootPath: "/path/that/does/not/exist",
+        },
+      ],
+      activeWorkspaceId: "CLIENT",
+      layoutsByWorkspace: {},
+    });
+
+    await expect(createWorkspaceStoreBase({ persistedStateStore }).getWorkspaceState()).resolves.toEqual({
+      workspaces: [
+        {
+          id: "CLIENT",
+          label: "Client",
+          shortLabel: "CLI",
+          rootPath: "/path/that/does/not/exist",
+          rootStatus: "missing",
+        },
+      ],
+      activeWorkspaceId: "CLIENT",
+    });
+    expect((await persistedStateStore.getState()).workspaces[0]).not.toHaveProperty("rootStatus");
   });
 
   it("keeps ids unique when two folders share a basename", async () => {

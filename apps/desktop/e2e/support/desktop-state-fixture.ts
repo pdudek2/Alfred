@@ -27,6 +27,7 @@ export type DesktopStateFixtureOptions = {
   externalSessionFixture?: "mixed";
   externalSessionSummaryCount?: number;
   largeExternalTranscript?: boolean;
+  missingWorkspaceId?: "A" | "B";
 };
 
 export type DesktopFixturePaths = {
@@ -62,6 +63,12 @@ export async function createDesktopFixture(
       mkdir(path.join(paths.home, ".codex"), { recursive: true }),
       mkdir(path.join(paths.home, ".claude"), { recursive: true }),
     ]);
+    if (options.missingWorkspaceId) {
+      await rm(options.missingWorkspaceId === "A" ? paths.workspaceA : paths.workspaceB, {
+        recursive: true,
+        force: true,
+      });
+    }
 
     const workspaces = [
       { id: "A", label: "Fixture Alpha", shortLabel: "FA", rootPath: paths.workspaceA },
