@@ -19,17 +19,6 @@ const tasks = [
     checks: "pnpm --filter @alfred/runner test && pnpm --filter @alfred/runner typecheck",
   },
   {
-    slot: "02",
-    tool: "claude",
-    task: "api-run-filters",
-    title: "API run filters",
-    owned: "apps/api/src/routes/runs.ts, apps/api/src/services/runs-query-service.ts, apps/api/src/test/runs.test.ts",
-    forbidden: "apps/runner/**, packages/db/src/schema.ts, drizzle/**, pnpm-lock.yaml",
-    goal:
-      "Add optional query filters to GET /v1/runs: since, source, status, and project. Keep default list behavior unchanged.",
-    checks: "pnpm --filter @alfred/api test && pnpm --filter @alfred/api typecheck",
-  },
-  {
     slot: "05",
     tool: "codex",
     task: "dev-doctor",
@@ -50,17 +39,6 @@ const tasks = [
     goal:
       "Create a safe local script that prints SQL and supports a dry-run for deleting runs older than an ISO timestamp. Default must be dry-run and require --execute to mutate.",
     checks: "node scripts/purge-old-runs.mjs --before 2026-04-28T00:00:00.000Z",
-  },
-  {
-    slot: "07",
-    tool: "codex",
-    task: "api-root-tests",
-    title: "API root and prefix tests",
-    owned: "apps/api/src/test/app.test.ts",
-    forbidden: "apps/runner/**, packages/db/**, drizzle/**, pnpm-lock.yaml",
-    goal:
-      "Add tests proving / returns endpoint metadata and /api/v1/runs stays compatible. Only change production app routing if a test exposes a real gap.",
-    checks: "pnpm --filter @alfred/api test && pnpm --filter @alfred/api typecheck",
   },
   {
     slot: "08",

@@ -159,12 +159,6 @@ async function loadConfig() {
     resolveConfig("DESKTOP_PORT", envFile, envExample, "4310"),
     4310,
   );
-  const authDevSessionToken = resolveConfig(
-    "AUTH_DEV_SESSION_TOKEN",
-    envFile,
-    envExample,
-    "dev-session-token",
-  );
   const databaseUrl = resolveConfig(
     "DATABASE_URL",
     envFile,
@@ -176,10 +170,6 @@ async function loadConfig() {
     apiPort,
     apiHealthUrl:
       process.env.API_HEALTH_URL ?? `http://127.0.0.1:${apiPort}/health`,
-    apiSystemStatusUrl:
-      process.env.API_SYSTEM_STATUS_URL ??
-      `http://127.0.0.1:${apiPort}/api/v1/system/status`,
-    authDevSessionToken,
     databaseEndpoint: parseDatabaseEndpoint(databaseUrl),
     desktopPort,
     desktopHealthUrl:
@@ -197,11 +187,7 @@ function startDesktopCommand(port) {
 }
 
 function startRunnerAction() {
-  return "start foreground with `pnpm runner:local`, or install background service with `pnpm runner:service:install && pnpm runner:service:start`";
-}
-
-function restartRunnerServiceAction() {
-  return "inspect `pnpm runner:service:logs`, then restart with `pnpm runner:service:restart`";
+  return "start foreground with `pnpm runner:local`; for the background service use `pnpm runner:service:doctor` and `pnpm runner:service:logs`";
 }
 
 async function checkRepoCommands() {
@@ -612,74 +598,6 @@ async function checkRunnerProcess() {
   return true;
 }
 
-async function checkRunnerStatus(config, runnerProcessRunning) {
-  const result = await fetchText(config.apiSystemStatusUrl, {
-    accept: "application/json",
-    headers: {
-      cookie: `alfred_session=${encodeURIComponent(config.authDevSessionToken)}`,
-    },
-    timeoutMs: HTTP_TIMEOUT_MS,
-  });
-
-  if (!result.ok) {
-    fail(
-      "runner status",
-      `${config.apiSystemStatusUrl} failed (${result.error})`,
-      `start the API, then ${startRunnerAction()}`,
-    );
-    return;
-  }
-
-  if (result.status === 401) {
-    fail(
-      "runner status",
-      "API rejected the dev session cookie",
-      "start the local API with `ALFRED_ALLOW_DEV_AUTH=1` or set AUTH_DEV_SESSION_TOKEN to match it; hosted APIs are not checked by dev-doctor",
-    );
-    return;
-  }
-
-  if (result.status < 200 || result.status >= 300) {
-    fail(
-      "runner status",
-      `${config.apiSystemStatusUrl} returned HTTP ${result.status}`,
-      "inspect API logs for the system status route",
-    );
-    return;
-  }
-
-  const payload = parseJsonLine(result.body);
-  const runner = payload?.runner;
-  if (!runner || typeof runner.state !== "string") {
-    fail(
-      "runner status",
-      `unexpected payload: ${compact(result.body)}`,
-      "verify `/api/v1/system/status` is returning runner status",
-    );
-    return;
-  }
-
-  const ingestAge = runner.seconds_since_last_ingest;
-  const seenAge = runner.seconds_since_last_device_seen;
-  const age =
-    typeof ingestAge === "number"
-      ? `last ingest ${ingestAge}s ago`
-      : typeof seenAge === "number"
-        ? `last heartbeat ${seenAge}s ago`
-        : "no heartbeat yet";
-
-  if (runner.state !== "live") {
-    fail(
-      "runner status",
-      `runner is ${runner.state} (${age})`,
-      runnerProcessRunning ? restartRunnerServiceAction() : startRunnerAction(),
-    );
-    return;
-  }
-
-  pass("runner status", `runner is live (${age})`);
-}
-
 async function fetchText(url, options) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.timeoutMs);
@@ -732,8 +650,7 @@ async function main() {
   const dockerDaemonAvailable = await checkDocker();
   await checkPostgres(dockerDaemonAvailable, config.databaseEndpoint);
   await checkApiHealth(config);
-  const runnerProcessRunning = await checkRunnerProcess();
-  await checkRunnerStatus(config, runnerProcessRunning);
+  await checkRunnerProcess();
   await checkDesktopRendererHealth(config);
 
   const failed = results.filter((result) => result.status === "FAIL").length;
