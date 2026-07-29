@@ -21,7 +21,11 @@ import type {
   TerminalListResult,
 } from "../shared/terminal-ipc.js";
 import type { TerminalSnapshotResult } from "../shared/terminal-ipc.js";
-import { workspaceRootFingerprint, type AgentWorktreeCleanupRequest } from "./git-worktree.js";
+import {
+  managedProjectWorktreeRoot,
+  workspaceRootFingerprint,
+  type AgentWorktreeCleanupRequest,
+} from "./git-worktree.js";
 import { DEFAULT_DESKTOP_STATE, type DesktopStateSnapshot, type PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 
 type IpcInvokeHandler = (event: { sender: object }, request?: unknown) => unknown;
@@ -2399,6 +2403,65 @@ describe("terminal-manager IPC", () => {
       baseCwd: "/repo",
       branchName: "alfred-codex-sanitized",
     }, {});
+  });
+
+  it("reviews a recovered checkout when the authoritative workspace root uses a filesystem alias", async () => {
+    const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "alfred-recovered-terminal-"));
+    const physicalParent = path.join(temporaryRoot, "private", "var");
+    const aliasParent = path.join(temporaryRoot, "var");
+    const canonicalBaseCwd = path.join(physicalParent, "folders", "fixture", "workspace-a");
+    const aliasedBaseCwd = path.join(aliasParent, "folders", "fixture", "workspace-a");
+    const worktreeStoreRoot = path.join(physicalParent, "folders", "fixture", "user-data", "worktrees");
+    const branchName = "alfred-codex-recovered";
+
+    try {
+      await fs.mkdir(canonicalBaseCwd, { recursive: true });
+      await fs.mkdir(worktreeStoreRoot, { recursive: true });
+      await fs.symlink(physicalParent, aliasParent);
+      const canonicalWorktree = path.join(
+        managedProjectWorktreeRoot(worktreeStoreRoot, canonicalBaseCwd),
+        branchName,
+      );
+      await fs.mkdir(canonicalWorktree, { recursive: true });
+
+      const inspectAgentWorktree = vi.fn(async () => ({ summary: "2 changed files", files: [] }));
+      configureTerminalPersistence(storeWithRestoredSessions([{
+        clientId: "s4-fresh-apply",
+        title: "S4 fresh Apply fixture",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "A",
+        workspaceRootFingerprint: workspaceRootFingerprint(canonicalBaseCwd),
+        cwd: canonicalWorktree,
+        baseCwd: canonicalBaseCwd,
+        isolation: "worktree",
+        branchName,
+        createdAt: 1,
+        shell: "codex",
+        command: "codex",
+        buffer: "Output cleared when Alfred closed.",
+      }]), { debounceMs: 0 });
+      registerTerminalIpc({
+        inspectAgentWorktree,
+        managedWorktreeRootPath: worktreeStoreRoot,
+        resolveWorkspaceRoot: async () => aliasedBaseCwd,
+      });
+
+      await expect(invoke(terminalChannels.worktreeDiff, { clientId: "s4-fresh-apply" })).resolves.toEqual({
+        ok: true,
+        summary: "2 changed files",
+        files: [],
+      });
+      expect(inspectAgentWorktree).toHaveBeenCalledWith({
+        baseCwd: aliasedBaseCwd,
+        branchName,
+        cwd: canonicalWorktree,
+      }, {
+        worktreeStoreRoot,
+      });
+    } finally {
+      await fs.rm(temporaryRoot, { recursive: true, force: true });
+    }
   });
 
   it.each([

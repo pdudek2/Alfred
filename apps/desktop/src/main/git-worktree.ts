@@ -63,14 +63,8 @@ export type AgentWorktreeInspection = {
 const execFile = promisify(execFileCallback) as ExecFile;
 
 export function workspaceRootFingerprint(rootPath: string): string {
-  let canonicalRoot = path.resolve(rootPath);
-  try {
-    canonicalRoot = realpathSync.native(canonicalRoot);
-  } catch {
-    // Paths unavailable to realpath retain their stable pre-existing identity.
-  }
   return createHash("sha256")
-    .update(canonicalRoot)
+    .update(canonicalPathIdentity(rootPath))
     .digest("hex")
     .slice(0, 16);
 }
@@ -469,8 +463,9 @@ function worktreeRootPath(
 }
 
 function projectWorktreeKey(baseCwd: string): string {
-  const basename = sanitizeWorktreePathSegment(path.basename(baseCwd) || "workspace");
-  const hash = createHash("sha256").update(path.resolve(baseCwd)).digest("hex").slice(0, 8);
+  const canonicalBaseCwd = canonicalPathIdentity(baseCwd);
+  const basename = sanitizeWorktreePathSegment(path.basename(canonicalBaseCwd) || "workspace");
+  const hash = createHash("sha256").update(canonicalBaseCwd).digest("hex").slice(0, 8);
   return `${basename}-${hash}`;
 }
 
@@ -536,9 +531,20 @@ function safePathSegment(value: string): boolean {
 }
 
 function isPathWithin(childPath: string, parentPath: string): boolean {
-  const resolvedParent = path.resolve(parentPath);
-  const relative = path.relative(resolvedParent, childPath);
+  const resolvedParent = canonicalPathIdentity(parentPath);
+  const resolvedChild = canonicalPathIdentity(childPath);
+  const relative = path.relative(resolvedParent, resolvedChild);
   return !relative || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function canonicalPathIdentity(value: string): string {
+  const resolvedPath = path.resolve(value);
+  try {
+    return realpathSync.native(resolvedPath);
+  } catch {
+    // Paths unavailable to realpath retain their stable pre-existing identity.
+    return resolvedPath;
+  }
 }
 
 function safeRelativePath(root: string, cwd: string): string {
