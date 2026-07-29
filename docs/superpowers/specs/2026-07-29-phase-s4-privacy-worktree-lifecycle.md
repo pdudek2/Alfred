@@ -1,6 +1,6 @@
 # Phase S4 — Privacy and Worktree Lifecycle
 
-**Status:** Approved — implementation plan ready
+**Status:** Complete
 **Roadmap:** `docs/superpowers/specs/2026-07-29-post-v1-stabilization-roadmap.md`
 **Source audit:** `docs/audits/2026-07-29-agent-sanity-review.md`
 **Findings:** 13, 15, 16
@@ -343,3 +343,61 @@ S4 is complete only when:
 
 S5 planning does not begin until S4 receives fresh verification and a roadmap
 closeout.
+
+## Closeout
+
+**State:** Complete
+
+**Implementation commits:** `47ce4fa`, `591c865`, `66329fb`, `006385e`,
+`1b13861`, `f73ae07`, `279d9af`, `b192291`, `aad5063`, `fa7cf19`, `d5556eb`,
+`676cb15`, `2a29706`, `54067ff`
+
+**Next phase:** S5 — Desktop interaction correctness; unplanned until a new
+convergence workflow begins
+
+Closed behavior:
+
+- live isolated Close stops the terminal while retaining the recovery record,
+  branch, and checkout;
+- Review, Apply, and explicit permanent Discard remain available after restart,
+  including when macOS resolves the same workspace through `/var` and
+  `/private/var` aliases;
+- Discard awaits authoritative root resolution, fingerprint validation,
+  guarded cleanup, and persistence before the renderer removes the tile;
+- retention Off and Clear remove launch, resume, path, transcript, and activity
+  fields from memory and disk while preserving only safe checkout identity;
+- valid legacy state is sanitized through the single canonical sanitizer;
+- the shared schema redactor covers the accepted credential forms.
+
+Fresh verification at `54067ff`:
+
+- schema: 47/47 tests, typecheck passed, build passed;
+- desktop: 962/962 tests, typecheck passed, build passed;
+- full `pnpm test`: 34/34 root script tests and all six package test tasks
+  passed, 1,174 tests total;
+- full `pnpm typecheck`: 9/9 tasks passed;
+- full `pnpm build`: 6/6 tasks passed;
+- `pnpm verify`: lint, typecheck, tests, build, and Electron smoke 16/16
+  passed.
+
+The complete macOS observation used disposable repository
+`/var/folders/gr/v03n0xbx0js1jnb6w8rzd0280000gn/T/alfred-electron-PIqdbC`,
+its isolated user-data directory, and a copied Electron application. Separate
+cycles proved Apply and permanent Discard for tracked and untracked changes.
+Under retention Off, restart produced a recovery-only record containing safe
+identity only; a recursive scan found none of `cwd`, `baseCwd`, `shell`,
+`command`, `args`, `resumeTarget`, `buffer`, `activityEvents`,
+`lastActivityAt`, or `lastOutputAt`. Review still listed both changes, and
+permanent Discard removed the record, worktree, and branch while leaving the
+base repository clean.
+
+Focused review found no API, database, runner, dependency, lockfile, migration,
+or broad visual change; no duplicate sanitizer; cleanup-before-forget ordering;
+and generation coverage preventing cleared data from being repersisted by a
+live session. Finding 17 remains routed to S5 except for the destructive
+close/discard updater path required by S4.
+
+Three non-blocking follow-ups remain explicitly routed: store retry-intent
+consistency after a post-cleanup flush failure and Windows junction coverage to
+S7, and transport-level preload rejection normalization to S5. They do not
+weaken the verified S4 privacy or no-work-loss invariants.
