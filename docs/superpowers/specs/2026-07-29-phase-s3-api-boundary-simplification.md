@@ -1,6 +1,6 @@
 # Phase S3 — API Boundary Simplification
 
-**Status:** Implemented — hosted smoke pending
+**Status:** Integrated locally — hosted smoke pending
 
 **Date:** 2026-07-29
 
@@ -238,6 +238,10 @@ not authorized, so S3 remains pending `pnpm smoke:cloud` and
   in `apps/api/src/test/env.test.ts` twice (10 matching lines).
 - Diff review found no desktop UI, schema/migration, dependency, query-route
   replacement, route redirect/tombstone, or compatibility-flag change.
+
+The final local integration added a direct `GET /api/health` regression,
+bringing the API suite to 42/42. `main` was fast-forwarded through `4649718`,
+then fresh `pnpm test`, `pnpm typecheck`, and `pnpm build` gates passed.
 
 ## Acceptance gate
 
