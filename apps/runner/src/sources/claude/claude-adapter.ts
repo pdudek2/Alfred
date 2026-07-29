@@ -5,7 +5,8 @@ import { normalizeEvent } from "@alfred/adapters";
 import { IngestEventSchema, type IngestEvent, type PrivacyMode } from "@alfred/schema";
 import fg from "fast-glob";
 
-import type { SourceAdapter } from "../source-adapter.js";
+import type { SourceAdapter, SourceCollection } from "../source-adapter.js";
+import { newestCursor, sourceCursorKey } from "../source-cursor.js";
 import { projectKeyFromCwdPath } from "../worktree-project-key.js";
 
 export type ClaudeAdapterConfig = {
@@ -14,6 +15,7 @@ export type ClaudeAdapterConfig = {
   deviceId: string;
   privacyMode: PrivacyMode;
   claudeSince?: string;
+  getCursor?: (key: string) => string | null;
   onWarning?: (message: string) => void;
 };
 
@@ -49,7 +51,7 @@ export function createClaudeAdapter(config: ClaudeAdapterConfig): SourceAdapter 
   };
 }
 
-export async function collectClaudeEvents(config: ClaudeAdapterConfig): Promise<IngestEvent[]> {
+export async function collectClaudeEvents(config: ClaudeAdapterConfig): Promise<SourceCollection> {
   const files = await fg("projects/**/*.jsonl", {
     cwd: config.claudeHome,
     absolute: true,
@@ -57,29 +59,34 @@ export async function collectClaudeEvents(config: ClaudeAdapterConfig): Promise<
     ignore: ["**/skill-injections.jsonl"],
   });
   const events: IngestEvent[] = [];
-  const claudeSinceMs = config.claudeSince === undefined ? undefined : Date.parse(config.claudeSince);
+  const cursorUpdates: SourceCollection["cursorUpdates"] = [];
 
   for (const file of files.sort()) {
+    const relativeSessionPath = relative(config.claudeHome, file);
+    const cursorKey = sourceCursorKey("claude-code", relativeSessionPath);
+    const cursor = newestCursor(config.claudeSince, config.getCursor?.(cursorKey) ?? null);
+    const cursorMs = cursor === undefined ? undefined : Date.parse(cursor);
     const records = await readJsonlFile(file);
     const context = claudeSessionContext(records, file);
+    let newestOccurredAt: string | undefined;
 
     if (context.startedAt) {
       const startedAtMs = Date.parse(context.startedAt);
-      if (claudeSinceMs === undefined || startedAtMs > claudeSinceMs) {
+      if (cursorMs === undefined || startedAtMs > cursorMs) {
         try {
-          events.push(
-            parseEvent({
-              config,
-              context,
-              sourceEventId: `${context.sourceRunId}:started`,
-              type: "run.started",
-              status: "running",
-              occurredAt: new Date(startedAtMs).toISOString(),
-              payload: {
-                cwd: context.cwd,
-              },
-            }),
-          );
+          const event = parseEvent({
+            config,
+            context,
+            sourceEventId: `${context.sourceRunId}:started`,
+            type: "run.started",
+            status: "running",
+            occurredAt: new Date(startedAtMs).toISOString(),
+            payload: {
+              cwd: context.cwd,
+            },
+          });
+          events.push(event);
+          newestOccurredAt = event.occurred_at;
         } catch {
           config.onWarning?.(
             `Skipped invalid claude-code record in ${relative(config.claudeHome, file)} at index ${records.findIndex(isClaudeConversationRecord)}`,
@@ -90,17 +97,26 @@ export async function collectClaudeEvents(config: ClaudeAdapterConfig): Promise<
 
     records.forEach((record, index) => {
       try {
-        const recordEvents = claudeRecordToEvents(record, index, config, context, file, claudeSinceMs);
+        const recordEvents = claudeRecordToEvents(record, index, config, context, file, cursorMs);
         events.push(...recordEvents);
+        for (const event of recordEvents) {
+          if (!newestOccurredAt || event.occurred_at > newestOccurredAt) {
+            newestOccurredAt = event.occurred_at;
+          }
+        }
       } catch {
         config.onWarning?.(
           `Skipped invalid claude-code record in ${relative(config.claudeHome, file)} at index ${index}`,
         );
       }
     });
+
+    if (newestOccurredAt) {
+      cursorUpdates.push({ key: cursorKey, value: newestOccurredAt });
+    }
   }
 
-  return events;
+  return { events, cursorUpdates };
 }
 
 async function readJsonlFile(path: string): Promise<unknown[]> {

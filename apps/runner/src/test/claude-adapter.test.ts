@@ -32,7 +32,7 @@ describe("collectClaudeEvents", () => {
   });
 
   it("collects multi-turn Claude sessions without treating end_turn as session completion", async () => {
-    const events = await collectClaudeEvents({
+    const { events } = await collectClaudeEvents({
       claudeHome: createClaudeHome(),
       workspaceId,
       deviceId,
@@ -65,7 +65,7 @@ describe("collectClaudeEvents", () => {
   });
 
   it("skips Claude events at or before the configured since timestamp", async () => {
-    const events = await collectClaudeEvents({
+    const { events } = await collectClaudeEvents({
       claudeHome: createClaudeHome(),
       workspaceId,
       deviceId,
@@ -97,7 +97,7 @@ describe("collectClaudeEvents", () => {
       })}\n`,
     );
 
-    const events = await collectClaudeEvents({
+    const { events } = await collectClaudeEvents({
       claudeHome,
       workspaceId,
       deviceId,
@@ -126,7 +126,7 @@ describe("collectClaudeEvents", () => {
       })}\n`,
     );
 
-    const events = await collectClaudeEvents({
+    const { events } = await collectClaudeEvents({
       claudeHome,
       workspaceId,
       deviceId,
@@ -172,7 +172,7 @@ describe("collectClaudeEvents", () => {
     );
     const warnings: string[] = [];
 
-    const events = await collectClaudeEvents({
+    const { events } = await collectClaudeEvents({
       claudeHome,
       workspaceId,
       deviceId,

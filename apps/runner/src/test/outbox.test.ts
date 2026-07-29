@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { OutboxDb } from "../outbox/outbox-db.js";
+import { sourceCursorKey } from "../sources/source-cursor.js";
 
 const tempDirs: string[] = [];
 
@@ -94,17 +95,17 @@ describe("OutboxDb", () => {
     outbox.close();
   });
 
-  it("stores one cursor per source", () => {
+  it("stores independent cursors for session files from the same source", () => {
     const outbox = createOutbox();
+    const first = sourceCursorKey("codex-cli", "sessions/a.jsonl");
+    const second = sourceCursorKey("codex-cli", "sessions/b.jsonl");
 
-    expect(outbox.getSourceCursor("codex-cli")).toBeNull();
+    outbox.setSourceCursor(first, "2026-04-28T10:00:00.000Z");
+    outbox.setSourceCursor(second, "2026-04-28T09:00:00.000Z");
 
-    outbox.setSourceCursor("codex-cli", "2026-04-28T10:00:00.000Z");
-    outbox.setSourceCursor("claude-code", "2026-04-28T11:00:00.000Z");
-    outbox.setSourceCursor("codex-cli", "2026-04-28T12:00:00.000Z");
-
-    expect(outbox.getSourceCursor("codex-cli")).toBe("2026-04-28T12:00:00.000Z");
-    expect(outbox.getSourceCursor("claude-code")).toBe("2026-04-28T11:00:00.000Z");
+    expect(outbox.getSourceCursor(first)).toBe("2026-04-28T10:00:00.000Z");
+    expect(outbox.getSourceCursor(second)).toBe("2026-04-28T09:00:00.000Z");
+    expect(first).not.toBe(second);
 
     outbox.close();
   });

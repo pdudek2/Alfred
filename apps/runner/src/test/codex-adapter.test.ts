@@ -77,7 +77,7 @@ describe("collectCodexEvents", () => {
   });
 
   it("collects Codex session events into ingest events", async () => {
-    const events = await collectCodexEvents({
+    const { events } = await collectCodexEvents({
       codexHome: createCodexHome(),
       workspaceId,
       deviceId,
@@ -98,7 +98,7 @@ describe("collectCodexEvents", () => {
   });
 
   it("skips Codex events at or before the configured since timestamp", async () => {
-    const events = await collectCodexEvents({
+    const { events } = await collectCodexEvents({
       codexHome: createCodexHome(),
       workspaceId,
       deviceId,
@@ -115,7 +115,7 @@ describe("collectCodexEvents", () => {
   });
 
   it("treats Codex task completion as waiting for the next user turn", async () => {
-    const events = await collectCodexEvents({
+    const { events } = await collectCodexEvents({
       codexHome: createCodexHome(turnCompleteFixturePath()),
       workspaceId,
       deviceId,
@@ -148,7 +148,7 @@ describe("collectCodexEvents", () => {
       })}\n`,
     );
 
-    const events = await collectCodexEvents({
+    const { events } = await collectCodexEvents({
       codexHome,
       workspaceId,
       deviceId,
@@ -162,7 +162,7 @@ describe("collectCodexEvents", () => {
   });
 
   it("uses distinct source event ids for call and output payloads with the same call id", async () => {
-    const events = await collectCodexEvents({
+    const { events } = await collectCodexEvents({
       codexHome: createCodexHome(turnCompleteFixturePath()),
       workspaceId,
       deviceId,
@@ -208,7 +208,7 @@ describe("collectCodexEvents", () => {
     );
     const warnings: string[] = [];
 
-    const events = await collectCodexEvents({
+    const { events } = await collectCodexEvents({
       codexHome,
       workspaceId,
       deviceId,
