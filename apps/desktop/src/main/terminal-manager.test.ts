@@ -932,6 +932,78 @@ describe("terminal-manager IPC", () => {
     );
   });
 
+  it("preserves post-Clear redactedTail mutations while pending hydration sanitizes stale disk records", async () => {
+    const hydration = deferred<DesktopStateSnapshot>();
+    let state = stateWithRestoredSessions([]);
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(() => hydration.promise),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const pty = new FakePty();
+    configureTerminalPersistence(store, { debounceMs: 60_000 });
+    registerTerminalIpc({
+      loadNodePty: async () => fakeNodePty(pty) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+      prepareAgentWorktree: async () => ({
+        baseCwd: "/repo",
+        branchName: "alfred-codex-post-clear",
+        cwd: "/alfred/userData/worktrees/post-clear",
+      }),
+    });
+    applyTerminalPrivacyPolicyInMemory(DEFAULT_DESKTOP_STATE.privacySettings, true);
+    applyTerminalPrivacyPolicyInMemory(DEFAULT_DESKTOP_STATE.privacySettings);
+
+    const pendingList = invoke<TerminalListResult>(terminalChannels.list);
+    await invoke(terminalChannels.create, {
+      agentKind: "codex",
+      args: ["allowed-post-clear"],
+      clientId: "post-clear",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+      source: "alfred",
+      workspaceId: "workspace-a",
+    });
+    pty.onDataHandler?.("post-clear output\n");
+    hydration.resolve(stateWithRestoredSessions(staleHydrationSessions("pre-clear")));
+
+    const listed = await pendingList;
+    await flushTerminalPersistence();
+
+    expect(listed.restoredSessions).toEqual([
+      {
+        clientId: "pre-clear-isolated",
+        title: "Stale isolated",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "workspace-a",
+        workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
+        isolation: "worktree",
+        branchName: "alfred-codex-pre-clear-isolated",
+      },
+    ]);
+    expect(state.restoredTerminalSessions.find(({ clientId }) => clientId === "pre-clear-shared")).toBeUndefined();
+    expect(state.restoredTerminalSessions.find(({ clientId }) => clientId === "post-clear")).toEqual(
+      expect.objectContaining({
+        args: ["allowed-post-clear"],
+        baseCwd: "/repo",
+        buffer: "post-clear output\n",
+        command: "codex",
+        cwd: "/alfred/userData/worktrees/post-clear",
+      }),
+    );
+    expect(pty.killed).toBe(false);
+  });
+
   it("renames live sessions and persists the updated title", async () => {
     let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
     const store: PersistedDesktopStateStore = {
