@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { basename, dirname } from "node:path";
+import { basename, dirname, relative } from "node:path";
 
 import { normalizeEvent } from "@alfred/adapters";
 import { IngestEventSchema, type IngestEvent, type PrivacyMode } from "@alfred/schema";
@@ -14,6 +14,7 @@ export type ClaudeAdapterConfig = {
   deviceId: string;
   privacyMode: PrivacyMode;
   claudeSince?: string;
+  onWarning?: (message: string) => void;
 };
 
 type ClaudeSessionContext = {
@@ -65,25 +66,37 @@ export async function collectClaudeEvents(config: ClaudeAdapterConfig): Promise<
     if (context.startedAt) {
       const startedAtMs = Date.parse(context.startedAt);
       if (claudeSinceMs === undefined || startedAtMs > claudeSinceMs) {
-        events.push(
-          parseEvent({
-            config,
-            context,
-            sourceEventId: `${context.sourceRunId}:started`,
-            type: "run.started",
-            status: "running",
-            occurredAt: context.startedAt,
-            payload: {
-              cwd: context.cwd,
-            },
-          }),
-        );
+        try {
+          events.push(
+            parseEvent({
+              config,
+              context,
+              sourceEventId: `${context.sourceRunId}:started`,
+              type: "run.started",
+              status: "running",
+              occurredAt: new Date(startedAtMs).toISOString(),
+              payload: {
+                cwd: context.cwd,
+              },
+            }),
+          );
+        } catch {
+          config.onWarning?.(
+            `Skipped invalid claude-code record in ${relative(config.claudeHome, file)} at index ${records.findIndex(isClaudeConversationRecord)}`,
+          );
+        }
       }
     }
 
     records.forEach((record, index) => {
-      const recordEvents = claudeRecordToEvents(record, index, config, context, claudeSinceMs);
-      events.push(...recordEvents);
+      try {
+        const recordEvents = claudeRecordToEvents(record, index, config, context, file, claudeSinceMs);
+        events.push(...recordEvents);
+      } catch {
+        config.onWarning?.(
+          `Skipped invalid claude-code record in ${relative(config.claudeHome, file)} at index ${index}`,
+        );
+      }
     });
   }
 
@@ -132,6 +145,7 @@ function claudeRecordToEvents(
   index: number,
   config: ClaudeAdapterConfig,
   context: ClaudeSessionContext,
+  file: string,
   claudeSinceMs?: number,
 ): IngestEvent[] {
   if (!isRecord(record)) return [];
@@ -139,16 +153,23 @@ function claudeRecordToEvents(
   const type = stringValue(record.type);
   const occurredAt = stringValue(record.timestamp);
   const occurredAtMs = occurredAt === undefined ? Number.NaN : Date.parse(occurredAt);
-  if (!type || !occurredAt || Number.isNaN(occurredAtMs)) return [];
+  if (!type) return [];
+  if (Number.isNaN(occurredAtMs)) {
+    config.onWarning?.(
+      `Skipped invalid claude-code record in ${relative(config.claudeHome, file)} at index ${index}`,
+    );
+    return [];
+  }
   if (claudeSinceMs !== undefined && occurredAtMs <= claudeSinceMs) return [];
+  const normalizedOccurredAt = new Date(occurredAtMs).toISOString();
 
-  const recordEventId = sourceEventIdForRecord(record, type, occurredAt, index);
+  const recordEventId = sourceEventIdForRecord(record, type, normalizedOccurredAt, index);
   if (type === "assistant") {
-    return assistantRecordToEvents(record, recordEventId, occurredAt, config, context);
+    return assistantRecordToEvents(record, recordEventId, normalizedOccurredAt, config, context);
   }
 
   if (type === "user") {
-    return userRecordToEvents(record, recordEventId, occurredAt, config, context);
+    return userRecordToEvents(record, recordEventId, normalizedOccurredAt, config, context);
   }
 
   if (type === "system" && stringValue(record.subtype) === "turn_duration") {
@@ -159,7 +180,7 @@ function claudeRecordToEvents(
         sourceEventId: recordEventId,
         type: "run.updated",
         status: "waiting",
-        occurredAt,
+        occurredAt: normalizedOccurredAt,
         payload: {
           subtype: "turn_duration",
           duration_ms: numberValue(record.durationMs),

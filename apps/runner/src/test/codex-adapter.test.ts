@@ -176,6 +176,53 @@ describe("collectCodexEvents", () => {
       "turn-1",
     ]);
   });
+
+  it("skips invalid Codex records while preserving later normalized events", async () => {
+    const codexHome = trackedTempDir("alfred-codex-home-");
+    const target = join(codexHome, "sessions/2026/04/28/session.jsonl");
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(
+      target,
+      [
+        JSON.stringify({
+          timestamp: "2026-04-28T12:00:00+02:00",
+          type: "session.start",
+          id: "offset-codex-run",
+          cwd: "/Users/patryk/Desktop/Alfred",
+        }),
+        JSON.stringify({
+          timestamp: "not-a-timestamp",
+          type: "tool.call",
+          id: "invalid-record",
+          session_id: "offset-codex-run",
+          secret: "secret source payload",
+        }),
+        JSON.stringify({
+          timestamp: "2026-04-28T12:00:01+02:00",
+          type: "tool.call",
+          id: "valid-after-invalid",
+          session_id: "offset-codex-run",
+          tool: "exec_command",
+        }),
+      ].join("\n"),
+    );
+    const warnings: string[] = [];
+
+    const events = await collectCodexEvents({
+      codexHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+      onWarning: (message) => warnings.push(message),
+    });
+
+    expect(events.map((event) => event.occurred_at)).toContain(
+      "2026-04-28T10:00:00.000Z",
+    );
+    expect(events.some((event) => event.source_event_id === "valid-after-invalid")).toBe(true);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).not.toContain("secret source payload");
+  });
 });
 
 function trackedTempDir(prefix: string): string {
