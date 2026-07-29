@@ -6032,6 +6032,66 @@ describe("App integration", () => {
     });
   });
 
+  it("uses one precomputed timestamp for the Session attached event in StrictMode", async () => {
+    const user = userEvent.setup();
+    const runtimeReady = deferred<TerminalSessionSnapshot>();
+    const bridge = installDesktopBridge(undefined, null, [{
+      id: "runtime-existing",
+      clientId: "existing",
+      title: "Existing terminal",
+      source: "manual",
+      workspaceId: "A",
+      cwd: "/repo",
+      createdAt: 100,
+      shell: "/bin/zsh",
+      buffer: "",
+    }]);
+
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+
+    await screen.findByRole("article", { name: /Existing terminal/i });
+    bridge.createTerminal.mockReturnValueOnce(runtimeReady.promise);
+    await user.click(screen.getByRole("button", { name: "Open launch menu" }));
+    await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(1));
+    const request = bridge.createTerminal.mock.calls[0]?.[0] as Parameters<TerminalApi["create"]>[0];
+    const attachmentAt = 4_000_000_000_000;
+    vi.spyOn(Date, "now")
+      .mockReturnValueOnce(attachmentAt)
+      .mockReturnValue(attachmentAt + 1_000);
+
+    await act(async () => {
+      runtimeReady.resolve({
+        id: "runtime-timestamp",
+        clientId: request.clientId ?? "manual-1",
+        title: "Timestamp runtime",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/repo",
+        shell: "/bin/zsh",
+        buffer: "",
+      });
+    });
+
+    const tile = await screen.findByRole("article", { name: /Timestamp runtime/i });
+    await user.dblClick(tile.querySelector(".tile-header")!);
+    await selectSurface(user, "Context");
+    await user.click(screen.getByRole("button", { name: /^Activity \(/ }));
+    const timeline = document.querySelector(".agent-activity-list");
+    if (!(timeline instanceof HTMLOListElement)) throw new Error("Expected activity timeline");
+    const attachedEvents = within(timeline).getAllByText("Session attached");
+
+    expect(attachedEvents).toHaveLength(1);
+    expect(attachedEvents[0]?.closest("li")?.querySelector("time")).toHaveAttribute(
+      "dateTime",
+      new Date(attachmentAt).toISOString(),
+    );
+  });
+
   it("announces terminal status changes through one central live region", async () => {
     const { emitExit } = installDesktopBridge(undefined, null, [
       {
@@ -6574,6 +6634,37 @@ describe("App integration", () => {
     });
   });
 
+  it("persists one stable plan ID exactly once in StrictMode", async () => {
+    const user = userEvent.setup();
+    const expectedPlanId = "00000000-0000-4000-8000-000000000001";
+    const replayedPlanId = "00000000-0000-4000-8000-000000000002";
+    const randomUuid = vi.spyOn(crypto, "randomUUID")
+      .mockReturnValueOnce(expectedPlanId)
+      .mockReturnValue(replayedPlanId);
+    const { setStagedPlan } = installDesktopBridge({
+      ok: true,
+      plan: {
+        name: "Stable plan",
+        sessions: [{ kind: "shell", title: "Stable task", command: "echo", args: ["ok"] }],
+      },
+    });
+
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+
+    await openPrepareWork(user);
+    await user.type(screen.getByLabelText("Dispatch instruction"), "create stable plan");
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
+    await screen.findByRole("article", { name: /Staged Stable task/i });
+
+    expect(randomUuid).toHaveBeenCalledTimes(1);
+    expect(setStagedPlan).toHaveBeenCalledTimes(1);
+    expect(setStagedPlan.mock.calls[0]?.[0].id).toBe(expectedPlanId);
+  });
+
   it("persists staged worktree isolation in the saved Alfred plan", async () => {
     const user = userEvent.setup();
     const { setStagedPlan } = installDesktopBridge({
@@ -6929,6 +7020,92 @@ describe("App integration", () => {
     expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Clean Desktop");
+  });
+
+  it("relaunches unsafe restored sessions once after one review warning in StrictMode", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [{
+        clientId: "unsafe-relaunch-once",
+        title: "Unsafe relaunch once",
+        cwd: "/repo",
+        source: "manual",
+        shell: "/bin/sh",
+        command: "/bin/sh",
+        args: ["-c", "rm -rf dist"],
+        buffer: "saved output\n",
+      }],
+    );
+    createTerminal.mockRejectedValueOnce(new Error("expected relaunch failure"));
+
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+
+    await screen.findByRole("article", { name: /Unsafe relaunch once/i });
+    await selectSurface(user, "Sessions");
+    await user.click(await screen.findByRole("option", { name: /Unsafe relaunch once/i }));
+    await user.click(screen.getByRole("button", { name: "Review relaunch" }));
+
+    expect(createTerminal).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Confirm relaunch" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Relaunch review" })).toHaveTextContent("rm -rf dist");
+
+    await user.click(screen.getByRole("button", { name: "Confirm relaunch" }));
+
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(1));
+    await selectSurface(user, "Sessions");
+    await user.click(await screen.findByRole("option", { name: /Unsafe relaunch once/i }));
+    expect(screen.getByRole("button", { name: "Review relaunch" })).toBeInTheDocument();
+  });
+
+  it("restarts unsafe exited sessions once after one review warning in StrictMode", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, emitExit } = installDesktopBridge(undefined, null, [{
+      id: "runtime-unsafe-restart",
+      clientId: "unsafe-restart-once",
+      title: "Unsafe restart once",
+      source: "manual",
+      workspaceId: "A",
+      cwd: "/repo",
+      shell: "/bin/sh",
+      command: "/bin/sh",
+      args: ["-c", "rm -rf dist"],
+      buffer: "",
+    }]);
+    createTerminal.mockRejectedValueOnce(new Error("expected restart failure"));
+
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+
+    await screen.findByRole("article", { name: /Unsafe restart once/i });
+    await waitFor(() => expect(window.alfredDesktop?.terminal.onExit).toHaveBeenCalled());
+    await emitExit({ id: "runtime-unsafe-restart", exitCode: 1 });
+    await selectSurface(user, "Sessions");
+    await user.click(await screen.findByRole("option", { name: /Unsafe restart once/i }));
+    await user.click(screen.getByRole("button", { name: "Review relaunch" }));
+
+    expect(createTerminal).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Confirm relaunch" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Relaunch review" })).toHaveTextContent("rm -rf dist");
+
+    await user.click(screen.getByRole("button", { name: "Confirm relaunch" }));
+
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(1));
+    await selectSurface(user, "Sessions");
+    await user.click(await screen.findByRole("option", { name: /Unsafe restart once/i }));
+    expect(screen.getByRole("button", { name: "Review relaunch" })).toBeInTheDocument();
   });
 
   it.each(["Work", "Sessions"] as const)(
@@ -8188,6 +8365,26 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
     expect(requestPlan).toHaveBeenCalledTimes(2);
+  });
+
+  it("resolves a rejected staged tile exactly once in StrictMode", async () => {
+    const user = userEvent.setup();
+    const { resolveStagedPlan } = installDesktopBridge();
+
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+
+    await openPrepareWork(user);
+    await user.type(screen.getByLabelText("Dispatch instruction"), "reject one");
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
+    const task = await screen.findByRole("article", { name: /Staged Task A/i });
+    await user.click(within(task).getByRole("button", { name: "Reject Task A" }));
+
+    expect(resolveStagedPlan).toHaveBeenCalledTimes(1);
+    expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
   });
 
   it("resolves a staged tile after approval starts its terminal", async () => {

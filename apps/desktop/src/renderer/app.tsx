@@ -1108,57 +1108,57 @@ export function App() {
   }, [closeSessionNow]);
 
   const handleContinueRestoredSession = useCallback((sessionId: string) => {
-    setTerminalSessions((sessions) => {
-      const session = sessions.find((item) => item.id === sessionId);
-      if (!session || !canRelaunchRestoredSession(session)) return sessions;
-      const relaunchSafety = sessionRelaunchSafety(session);
-      if (!relaunchSafety.safe && !armedRecoverySessionIds.has(sessionId)) {
-        setArmedRecoverySessionIds((ids) => new Set(ids).add(sessionId));
-        return appendSessionActivity(sessions, sessionId, {
-          kind: "warning",
-          title: "Review before relaunch",
-          detail: relaunchSafety.reason,
-        });
-      }
-      setArmedRecoverySessionIds((ids) => {
-        if (!ids.has(sessionId)) return ids;
-        const next = new Set(ids);
-        next.delete(sessionId);
-        return next;
-      });
-      return appendSessionActivity(relaunchRestoredSession(sessions, sessionId), sessionId, {
+    const sessions = terminalSessionsRef.current;
+    const session = sessions.find((item) => item.id === sessionId);
+    if (!session || !canRelaunchRestoredSession(session)) return;
+    const relaunchSafety = sessionRelaunchSafety(session);
+    if (!relaunchSafety.safe && !armedRecoverySessionIds.has(sessionId)) {
+      setArmedRecoverySessionIds(new Set(armedRecoverySessionIds).add(sessionId));
+      setTerminalSessions(appendSessionActivity(sessions, sessionId, {
+        kind: "warning",
+        title: "Review before relaunch",
+        detail: relaunchSafety.reason,
+      }));
+      return;
+    }
+
+    const nextArmed = new Set(armedRecoverySessionIds);
+    nextArmed.delete(sessionId);
+    setArmedRecoverySessionIds(nextArmed);
+    setTerminalSessions(
+      appendSessionActivity(relaunchRestoredSession(sessions, sessionId), sessionId, {
         kind: "lifecycle",
         title: "Relaunching session",
         detail: "Alfred is starting a fresh process from this saved transcript.",
-      });
-    });
+      }),
+    );
   }, [armedRecoverySessionIds]);
 
   const handleRestartSession = useCallback((sessionId: string) => {
-    setTerminalSessions((sessions) => {
-      const session = sessions.find((item) => item.id === sessionId);
-      if (!session || (session.runtimeStatus !== "exited" && session.runtimeStatus !== "error")) return sessions;
-      const restartSafety = sessionRelaunchSafety(session);
-      if (!restartSafety.safe && !armedRecoverySessionIds.has(sessionId)) {
-        setArmedRecoverySessionIds((ids) => new Set(ids).add(sessionId));
-        return appendSessionActivity(sessions, sessionId, {
-          kind: "warning",
-          title: "Review before restart",
-          detail: restartSafety.reason,
-        });
-      }
-      setArmedRecoverySessionIds((ids) => {
-        if (!ids.has(sessionId)) return ids;
-        const next = new Set(ids);
-        next.delete(sessionId);
-        return next;
-      });
-      return appendSessionActivity(restartSession(sessions, sessionId), sessionId, {
+    const sessions = terminalSessionsRef.current;
+    const session = sessions.find((item) => item.id === sessionId);
+    if (!session || (session.runtimeStatus !== "exited" && session.runtimeStatus !== "error")) return;
+    const restartSafety = sessionRelaunchSafety(session);
+    if (!restartSafety.safe && !armedRecoverySessionIds.has(sessionId)) {
+      setArmedRecoverySessionIds(new Set(armedRecoverySessionIds).add(sessionId));
+      setTerminalSessions(appendSessionActivity(sessions, sessionId, {
+        kind: "warning",
+        title: "Review before restart",
+        detail: restartSafety.reason,
+      }));
+      return;
+    }
+
+    const nextArmed = new Set(armedRecoverySessionIds);
+    nextArmed.delete(sessionId);
+    setArmedRecoverySessionIds(nextArmed);
+    setTerminalSessions(
+      appendSessionActivity(restartSession(sessions, sessionId), sessionId, {
         kind: "lifecycle",
         title: "Restarting session",
         detail: "Alfred is starting a fresh process in this tile.",
-      });
-    });
+      }),
+    );
   }, [armedRecoverySessionIds]);
 
   const handleRenameSession = useCallback((sessionId: string, title: string) => {
@@ -1369,9 +1369,9 @@ export function App() {
     }
 
     startingSessionIdsRef.current.delete(tileId);
+    const attachmentAt = runtime.createdAt ?? Date.now();
     setTerminalSessions((sessions) => {
       const attached = attachRuntimeSession(sessions, tileId, runtime);
-      const attachmentAt = runtime.createdAt ?? Date.now();
       const session = attached.find((candidate) => candidate.id === tileId);
       if (session?.activityEvents?.some((event) => event.at >= attachmentAt)) {
         return attached;
@@ -1517,32 +1517,32 @@ export function App() {
       return false;
     }
     setAlfredStatus(idle());
-    setTerminalSessions((sessions) => {
-      const before = sessions;
-      const after = addStagedSessions(before, response.plan.sessions, activeWorkspace.rootPath ?? "", activeWorkspace.id);
-      const stagedPlan = createStagedPlanSnapshot({
-        ...(response.plan.name === undefined ? {} : { name: response.plan.name }),
-        prompt,
-        sessions: after.slice(before.length),
-      });
-      setPendingPlan(
-        stagedPlan
-          ? {
-              id: stagedPlan.id,
-              ...(stagedPlan.name === undefined ? {} : { name: stagedPlan.name }),
-              prompt: stagedPlan.prompt,
-              sessionIds: stagedPlan.sessions.map((session) => session.id),
-              workspaceId: activeWorkspace.id,
-            }
-          : null,
-      );
-      if (stagedPlan) {
-        void alfredApi.setStagedPlan(stagedPlan);
-      } else {
-        void alfredApi.clearStagedPlan();
-      }
-      return after;
+    const before = terminalSessionsRef.current;
+    const after = addStagedSessions(
+      before,
+      response.plan.sessions,
+      activeWorkspace.rootPath ?? "",
+      activeWorkspace.id,
+    );
+    const stagedPlan = createStagedPlanSnapshot({
+      ...(response.plan.name === undefined ? {} : { name: response.plan.name }),
+      prompt,
+      sessions: after.slice(before.length),
     });
+    const nextPendingPlan = stagedPlan
+      ? {
+          id: stagedPlan.id,
+          ...(stagedPlan.name === undefined ? {} : { name: stagedPlan.name }),
+          prompt: stagedPlan.prompt,
+          sessionIds: stagedPlan.sessions.map((session) => session.id),
+          workspaceId: activeWorkspace.id,
+        }
+      : null;
+
+    setTerminalSessions(after);
+    setPendingPlan(nextPendingPlan);
+    if (stagedPlan) void alfredApi.setStagedPlan(stagedPlan);
+    else void alfredApi.clearStagedPlan();
     return true;
   }, [activeSessions, activeWorkspace, alfredStatus, globalStagedCount]);
 
@@ -1651,14 +1651,18 @@ export function App() {
 
   const handleRejectTile = useCallback((tileId: string) => {
     const alfredApi = getDesktopAlfredApi();
+    const planOwnsTile = pendingPlan?.sessionIds.includes(tileId) ?? false;
+    const remaining = pendingPlan?.sessionIds.filter((id) => id !== tileId) ?? [];
     setTerminalSessions((sessions) => rejectStaged(sessions, tileId));
-    setPendingPlan((plan) => {
-      if (!plan) return plan;
-      const remaining = plan.sessionIds.filter((id) => id !== tileId);
-      void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
-      return remaining.length === 0 ? null : { ...plan, sessionIds: remaining };
-    });
-  }, []);
+    setPendingPlan(
+      pendingPlan
+        ? remaining.length === 0
+          ? null
+          : { ...pendingPlan, sessionIds: remaining }
+        : null,
+    );
+    if (planOwnsTile) void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
+  }, [pendingPlan]);
 
   const handleUpdateStagedSession = useCallback(async (sessionId: string, patch: AlfredStagedSessionPatch) => {
     const alfredApi = getDesktopAlfredApi();
