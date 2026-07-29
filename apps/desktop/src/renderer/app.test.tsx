@@ -20,6 +20,7 @@ import type {
   TerminalApi,
   TerminalDataEvent,
   TerminalExitEvent,
+  TerminalReconcileResult,
   TerminalSessionSnapshot,
 } from "../shared/terminal-ipc";
 import type { WorkspaceApi, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
@@ -174,6 +175,7 @@ function installDesktopBridge(
   getPrivacySettings: ReturnType<typeof vi.fn>;
   revealStateFile: ReturnType<typeof vi.fn>;
   retrySave: ReturnType<typeof vi.fn>;
+  reconcileTerminal: ReturnType<typeof vi.fn>;
   snapshotTerminal: ReturnType<typeof vi.fn>;
   updatePrivacySettings: ReturnType<typeof vi.fn>;
   setTerminalSnapshots: (next: TerminalSessionSnapshot[]) => void;
@@ -311,12 +313,17 @@ function installDesktopBridge(
     const session = terminalSnapshots.find((candidate) => candidate.id === request.id);
     return session ?? null;
   });
+  const reconcileTerminal = vi.fn(async (request: { id: string }): Promise<TerminalReconcileResult> => {
+    const session = terminalSnapshots.find((candidate) => candidate.id === request.id);
+    return session ? { state: "running", snapshot: session } : { state: "missing" };
+  });
   const terminal: TerminalApi = {
     create: createTerminal,
     forget: forgetTerminal,
     kill: killTerminal,
     list: vi.fn().mockResolvedValue({ sessions: terminalSessions, restoredSessions: restoredTerminalSessions }),
     prepareLaunch,
+    reconcile: reconcileTerminal,
     rename: renameTerminal,
     snapshot: snapshotTerminal,
     onData: vi.fn((callback: (event: TerminalDataEvent) => void) => {
@@ -410,6 +417,7 @@ function installDesktopBridge(
     getPrivacySettings,
     revealStateFile,
     retrySave,
+    reconcileTerminal,
     snapshotTerminal,
     updatePrivacySettings,
     setTerminalSnapshots: (next: TerminalSessionSnapshot[]) => {
@@ -2200,20 +2208,23 @@ describe("App integration", () => {
   });
 
   it.each(["null", "reject"] as const)(
-    "replays the fallback buffer once when the initial snapshot resolves as %s",
+    "replays the fallback buffer once when initial reconciliation resolves as %s",
     async (outcome) => {
       const alfredSession = liveSnapshot("alfred", {
         id: "runtime-alfred",
         workspaceId: "A",
         buffer: "before switch\n",
       });
-      const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
+      const delayedReconcile = deferred<TerminalReconcileResult>();
       const bridge = installDesktopBridge(undefined, null, [alfredSession]);
-      bridge.snapshotTerminal.mockImplementation(() => delayedSnapshot.promise);
+      bridge.reconcileTerminal.mockImplementation(() => delayedReconcile.promise);
 
       render(<App />);
       await waitFor(() => {
-        expect(bridge.snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-alfred" });
+        expect(bridge.reconcileTerminal).toHaveBeenCalledWith({
+          id: "runtime-alfred",
+          clientId: "alfred",
+        });
       });
       await bridge.emitData({
         id: "runtime-alfred",
@@ -2223,14 +2234,14 @@ describe("App integration", () => {
 
       await act(async () => {
         if (outcome === "null") {
-          delayedSnapshot.resolve(null);
-          await delayedSnapshot.promise;
+          delayedReconcile.resolve({ state: "missing" });
+          await delayedReconcile.promise;
           return;
         }
 
-        delayedSnapshot.reject(new Error("snapshot failed"));
+        delayedReconcile.reject(new Error("reconciliation failed"));
         try {
-          await delayedSnapshot.promise;
+          await delayedReconcile.promise;
         } catch {
           // expected in this regression path
         }
@@ -2244,6 +2255,111 @@ describe("App integration", () => {
       });
     },
   );
+
+  it("replays the final snapshot and exit when reconciliation finds an early terminal exit", async () => {
+    const initial = liveSnapshot("fast-exit", {
+      id: "runtime-fast-exit",
+      buffer: "",
+    });
+    const exitEvent: TerminalExitEvent = {
+      id: initial.id,
+      clientId: "fast-exit",
+      exitCode: 7,
+    };
+    const finalSnapshot: TerminalSessionSnapshot = {
+      ...initial,
+      buffer: "failed before attach\n",
+      activityEvents: [{
+        id: "fast-exit-lifecycle",
+        at: 5_000,
+        kind: "lifecycle",
+        title: "Process exited",
+        detail: "The terminal process exited with code 7.",
+      }],
+      lastActivityAt: 5_000,
+    };
+    const bridge = installDesktopBridge(undefined, null, [initial]);
+    bridge.reconcileTerminal.mockResolvedValue({
+      state: "exited",
+      snapshot: finalSnapshot,
+      event: exitEvent,
+    });
+    const session: SessionTile = {
+      id: "fast-exit",
+      runtimeId: initial.id,
+      title: "Manual · fast exit",
+      source: "manual",
+      workspaceId: "A",
+      cwd: initial.cwd,
+      stage: "live",
+      runtimeStatus: "live",
+      initialBuffer: "",
+    };
+
+    const { callbacks } = renderTerminalDeskForSessions([session]);
+
+    await waitFor(() => {
+      expect(callbacks.onRuntimeSessionExited).toHaveBeenCalledOnce();
+    });
+    expect(callbacks.onRuntimeSessionExited).toHaveBeenCalledWith(exitEvent);
+    expect(callbacks.onRuntimeSessionSnapshot).toHaveBeenCalledWith(
+      session.id,
+      expect.objectContaining({
+        buffer: "failed before attach\n",
+        activityEvents: finalSnapshot.activityEvents,
+      }),
+    );
+    const output = screen.getByTestId("xterm-host").textContent ?? "";
+    expect(output).toContain("failed before attach");
+    expect(output.match(/\[process exited with code 7\]/g)).toHaveLength(1);
+  });
+
+  it("does not report an exit twice when the live event wins the reconciliation race", async () => {
+    const initial = liveSnapshot("race", {
+      id: "runtime-race",
+      buffer: "",
+    });
+    const exitEvent: TerminalExitEvent = {
+      id: initial.id,
+      clientId: "race",
+      exitCode: 3,
+    };
+    const delayedReconcile = deferred<TerminalReconcileResult>();
+    const bridge = installDesktopBridge(undefined, null, [initial]);
+    bridge.reconcileTerminal.mockImplementation(() => delayedReconcile.promise);
+    const session: SessionTile = {
+      id: "race",
+      runtimeId: initial.id,
+      title: "Manual · race",
+      source: "manual",
+      workspaceId: "A",
+      cwd: initial.cwd,
+      stage: "live",
+      runtimeStatus: "live",
+      initialBuffer: "",
+    };
+    const { callbacks } = renderTerminalDeskForSessions([session]);
+    await waitFor(() => {
+      expect(bridge.reconcileTerminal).toHaveBeenCalledWith({
+        id: initial.id,
+        clientId: initial.clientId,
+      });
+    });
+
+    await bridge.emitExit(exitEvent);
+    await act(async () => {
+      delayedReconcile.resolve({
+        state: "exited",
+        snapshot: { ...initial, buffer: "final output\n" },
+        event: exitEvent,
+      });
+      await delayedReconcile.promise;
+    });
+
+    expect(callbacks.onRuntimeSessionExited).toHaveBeenCalledOnce();
+    const output = screen.getByTestId("xterm-host").textContent ?? "";
+    expect(output.match(/\[process exited with code 3\]/g)).toHaveLength(1);
+  });
 
   it("keeps one producer activity after live delivery and snapshot reconciliation", async () => {
     const user = userEvent.setup();
@@ -2259,13 +2375,16 @@ describe("App integration", () => {
       payload: { type: "approval" as const, prompt: "Allow the release?" },
       at: 1_234,
     };
-    const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
+    const delayedReconcile = deferred<TerminalReconcileResult>();
     const bridge = installDesktopBridge(undefined, null, [initial]);
-    bridge.snapshotTerminal.mockImplementation(() => delayedSnapshot.promise);
+    bridge.reconcileTerminal.mockImplementation(() => delayedReconcile.promise);
 
     render(<App />);
     await waitFor(() => {
-      expect(bridge.snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-activity" });
+      expect(bridge.reconcileTerminal).toHaveBeenCalledWith({
+        id: "runtime-activity",
+        clientId: "activity",
+      });
     });
     await bridge.emitData({
       id: "runtime-activity",
@@ -2274,12 +2393,15 @@ describe("App integration", () => {
     });
 
     await act(async () => {
-      delayedSnapshot.resolve({
-        ...initial,
-        activityEvents: [producerEvent],
-        lastActivityAt: producerEvent.at,
+      delayedReconcile.resolve({
+        state: "running",
+        snapshot: {
+          ...initial,
+          activityEvents: [producerEvent],
+          lastActivityAt: producerEvent.at,
+        },
       });
-      await delayedSnapshot.promise;
+      await delayedReconcile.promise;
     });
 
     await selectSurface(user, "Context");
@@ -2315,13 +2437,16 @@ describe("App integration", () => {
       activityEvents: initialEvents,
       lastActivityAt: 1_039,
     });
-    const delayedSnapshot = deferred<TerminalSessionSnapshot | null>();
+    const delayedReconcile = deferred<TerminalReconcileResult>();
     const bridge = installDesktopBridge(undefined, null, [initial]);
-    bridge.snapshotTerminal.mockImplementation(() => delayedSnapshot.promise);
+    bridge.reconcileTerminal.mockImplementation(() => delayedReconcile.promise);
 
     render(<App />);
     await waitFor(() => {
-      expect(bridge.snapshotTerminal).toHaveBeenCalledWith({ id: "runtime-activity" });
+      expect(bridge.reconcileTerminal).toHaveBeenCalledWith({
+        id: "runtime-activity",
+        clientId: "activity",
+      });
     });
     await bridge.emitData({
       id: "runtime-activity",
@@ -2330,12 +2455,15 @@ describe("App integration", () => {
     });
 
     await act(async () => {
-      delayedSnapshot.resolve({
-        ...initial,
-        activityEvents: retainedEvents,
-        lastActivityAt: 5_000,
+      delayedReconcile.resolve({
+        state: "running",
+        snapshot: {
+          ...initial,
+          activityEvents: retainedEvents,
+          lastActivityAt: 5_000,
+        },
       });
-      await delayedSnapshot.promise;
+      await delayedReconcile.promise;
     });
 
     await selectSurface(user, "Context");
@@ -3248,6 +3376,7 @@ describe("App integration", () => {
 
   it("surfaces detected localhost URLs in the workspace preview dock", async () => {
     const user = userEvent.setup();
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("connection refused"));
     const { openExternalUrl } = installDesktopBridge(undefined, null, [
       {
         id: "runtime-dev",
@@ -3328,6 +3457,7 @@ describe("App integration", () => {
 
   it("adds preview URLs from live terminal output", async () => {
     const user = userEvent.setup();
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("connection refused"));
     const { emitData } = installDesktopBridge(undefined, null, [
       {
         id: "runtime-dev",

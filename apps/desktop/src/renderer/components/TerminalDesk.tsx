@@ -1072,6 +1072,7 @@ function ManualTerminalTile({
     const fitAndResize = () => fitAndResizeRef.current?.() ?? false;
     let snapshotHandshakePending = false;
     let snapshotHandshakeOutput = "";
+    let exitObserved = false;
 
     if (!terminal) {
       return;
@@ -1137,14 +1138,18 @@ function ManualTerminalTile({
         runtimeCallbacksRef.current.onRuntimeSessionOutput(event);
       }
     });
+    const reportExit = (event: TerminalExitEvent) => {
+      exitObserved = true;
+      runtimeCallbacksRef.current.onRuntimeSessionExited(event);
+      setTileStatus(event.exitCode === 0 ? "exited" : "error");
+      terminal.writeln("");
+      terminal.writeln(`[process exited with code ${event.exitCode}]`);
+      scheduleRepaint();
+    };
     const removeExitListener = terminalApi.onExit((event) => {
       const resolvedRuntimeId = sessionIdRef.current;
       if (resolvedRuntimeId ? event.id === resolvedRuntimeId : event.clientId === sessionKey) {
-        runtimeCallbacksRef.current.onRuntimeSessionExited(event);
-        setTileStatus(event.exitCode === 0 ? "exited" : "error");
-        terminal.writeln("");
-        terminal.writeln(`[process exited with code ${event.exitCode}]`);
-        scheduleRepaint();
+        reportExit(event);
       }
     });
     const inputDisposable = terminal.onData((data) => {
@@ -1160,11 +1165,11 @@ function ManualTerminalTile({
       setTileStatus("ready");
       snapshotHandshakePending = true;
       void terminalApi
-        .snapshot({ id: runtimeId })
-        .then((snapshot) => {
+        .reconcile({ id: runtimeId, clientId: sessionKey })
+        .then((result) => {
           if (disposed) return;
           snapshotHandshakePending = false;
-          if (!snapshot) {
+          if (result.state === "missing") {
             const fallbackBuffer = mergeTerminalReplayBuffer(metadata.initialBuffer, snapshotHandshakeOutput);
             if (fallbackBuffer) {
               runtimeCallbacksRef.current.onRuntimeSessionReplayBuffer(sessionKey, runtimeId, fallbackBuffer);
@@ -1173,10 +1178,14 @@ function ManualTerminalTile({
             return;
           }
 
+          const snapshot = result.snapshot;
           const replayBuffer = mergeTerminalReplayBuffer(snapshot.buffer, snapshotHandshakeOutput);
           runtimeCallbacksRef.current.onRuntimeSessionSnapshot(sessionKey, { ...snapshot, buffer: replayBuffer });
           if (replayBuffer) {
             writeAndRepaint(replayBuffer);
+          }
+          if (result.state === "exited" && !exitObserved) {
+            reportExit(result.event);
           }
         })
         .catch(() => {
