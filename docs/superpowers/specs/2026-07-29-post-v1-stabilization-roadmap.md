@@ -35,7 +35,7 @@ without reopening the accepted product or visual direction.
 
 ## Scope lineage
 
-`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 implementation plan approved`
+`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 complete → S4 design approved`
 
 Phase Z remains closed. This roadmap does not reinterpret or reopen its visual
 or product decisions.
@@ -50,6 +50,9 @@ or product decisions.
 - OIDC/cookie auth and its only consumers are API routes, cloud-smoke/dev-doctor
   helpers, tests, environment variables, and README documentation. The Electron
   renderer does not call them.
+- S4 product decisions are settled: live isolated Close retains Recovery,
+  Discard remains explicitly destructive, and retention Off/Clear remove
+  sensitive launch data while preserving only safe worktree-recovery identity.
 
 ## Phases
 
@@ -58,7 +61,7 @@ or product decisions.
 | S1 — Desktop safety gate | Honest runtime gate and no silent desktop-state loss | 2, 3, 4, 14, 19 | Complete |
 | S2 — Runner loss and stall prevention | Concurrent sessions do not lose events; poison or malformed records cannot stall sync | 6, 7, 8, 24 | Complete |
 | S3 — API boundary simplification | Delete browser-session auth and browser-only query surfaces; keep device-auth ingest | 9, 10, 22 | Complete |
-| S4 — Privacy and worktree lifecycle | Resolve worktree close behavior and prevent sensitive launch data from persisting | 13, 15, 16 | Pending decision gates |
+| S4 — Privacy and worktree lifecycle | Resolve worktree close behavior and prevent sensitive launch data from persisting | 13, 15, 16 | Design approved; written spec review pending |
 | S5 — Desktop interaction correctness | Recover failed planning, unblock review/edit, remove impure state updaters, correct activity classification | 5, 11, 17, 23 | Pending |
 | S6 — Ingest/API correctness | Correct parent lifecycle, validate hosted DB config, and test the real ingest store | 12, 20, 21 | Pending |
 | S7 — Residue and blocked-boundary review | Complete scripts/tooling and CSS/accessibility audits; triage investigate-only signals | audit gaps | Pending |
@@ -70,8 +73,10 @@ after the preceding phase has fresh verification and closeout.
 
 **Closed implementation plan:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification-implementation-plan.md`
 
-**Next phase:** S4 — Privacy and worktree lifecycle; decision gates remain
-unresolved.
+**Current phase:** S4 — Privacy and worktree lifecycle; design decisions are
+approved and the written spec awaits review.
+
+**Draft phase contract:** `docs/superpowers/specs/2026-07-29-phase-s4-privacy-worktree-lifecycle.md`
 
 Its product-boundary decision above remains unchanged: delete browser-session
 auth and browser-only query surfaces while retaining device-auth ingest.
@@ -92,9 +97,9 @@ auth and browser-only query surfaces while retaining device-auth ingest.
 | 10 | Superseded by product-boundary decision | S3 deletes the OIDC surface |
 | 11 | Confirmed | S5 |
 | 12 | Confirmed | S6 |
-| 13 | Confirmed; close semantics unresolved | S4 decision gate |
+| 13 | Confirmed; retain Recovery on live isolated Close | S4 |
 | 14 | Fixed in `90a04e5` | Closed |
-| 15 | Confirmed; restore-fidelity tradeoff unresolved | S4 decision gate |
+| 15 | Confirmed; privacy-first Off/Clear contract accepted | S4 |
 | 16 | Confirmed | S4 |
 | 17 | Confirmed | S5 |
 | 18 | Fixed in `2a020a0` | Closed |
