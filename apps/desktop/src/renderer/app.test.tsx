@@ -1948,7 +1948,13 @@ describe("App integration", () => {
     expect(column.scrollTop).toBe(0);
 
     viewport.scrollTop = 600;
-    fireEvent.wheel(screenElement, { deltaY: 120 });
+    const edgeWheel = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaY: 120,
+    });
+    screenElement.dispatchEvent(edgeWheel);
+    expect(edgeWheel.defaultPrevented).toBe(true);
     expect(column.scrollTop).toBe(120);
   });
 
