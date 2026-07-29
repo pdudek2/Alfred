@@ -589,6 +589,34 @@ describe("persisted-desktop-state", () => {
     expect(store.getSaveStatus()).toMatchObject({ status: "saveFailed", message: "Failed to persist desktop state." });
   });
 
+  it("preserves a failed mutation through the next successful update", async () => {
+    const directoryPath = await mkdtemp(path.join(os.tmpdir(), "alfred-desktop-state-merge-"));
+    temporaryDirectory = directoryPath;
+    const filePath = path.join(directoryPath, "state", "desktop-state.json");
+    const blockingFilePath = path.dirname(filePath);
+    await writeFile(blockingFilePath, "not a directory", "utf8");
+    const store = createPersistedDesktopStateStore({ filePath });
+    const firstMutation: DesktopStateSnapshot = {
+      ...DEFAULT_DESKTOP_STATE,
+      workspaces: [{ id: "A", label: "First mutation", shortLabel: "F" }],
+    };
+
+    await expect(store.setState(firstMutation)).rejects.toThrow("Failed to persist desktop state.");
+    await rm(blockingFilePath, { force: true });
+    await store.updateState((current) => ({
+      ...current,
+      windowState: {
+        ...current.windowState,
+        maximized: true,
+      },
+    }));
+
+    const persisted = await createPersistedDesktopStateStore({ filePath }).getState();
+    expect(persisted.workspaces).toEqual(firstMutation.workspaces);
+    expect(persisted.windowState.maximized).toBe(true);
+    expect(store.getSaveStatus()).toEqual({ status: "saved" });
+  });
+
   it("retries the last failed desktop state write", async () => {
     const directoryPath = await mkdtemp(path.join(os.tmpdir(), "alfred-desktop-state-retry-"));
     temporaryDirectory = directoryPath;
