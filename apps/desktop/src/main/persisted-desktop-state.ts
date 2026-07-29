@@ -526,7 +526,6 @@ function normalizeRestoredTerminalSessions(
     const clientId = item.clientId.trim();
     if (!clientId || seenClientIds.has(clientId)) continue;
 
-    seenClientIds.add(clientId);
     const activityEvents = Array.isArray(item.activityEvents) ? normalizeActivityEvents(item.activityEvents) : undefined;
     const session = sanitizePersistedTerminalSession({
       clientId,
@@ -554,6 +553,7 @@ function normalizeRestoredTerminalSessions(
       ...(typeof item.lastOutputAt === "number" ? { lastOutputAt: item.lastOutputAt } : {}),
     }, privacySettings);
     if (session) {
+      seenClientIds.add(clientId);
       sessions.push(session);
     }
   }
@@ -568,8 +568,12 @@ export function sanitizePersistedTerminalSession(
 ): PersistedTerminalSessionSnapshot | null {
   const launchDataCleared =
     clearLaunchData || privacySettings.terminalScrollbackRetention === "off";
-  const fingerprint = session.workspaceRootFingerprint
-    ?? (session.baseCwd ? workspaceRootFingerprint(session.baseCwd) : undefined);
+  const legacyRoot = session.baseCwd?.trim();
+  const fingerprint = /^[a-f0-9]{16}$/.test(session.workspaceRootFingerprint ?? "")
+    ? session.workspaceRootFingerprint
+    : legacyRoot && path.isAbsolute(legacyRoot)
+      ? workspaceRootFingerprint(legacyRoot)
+      : undefined;
   const safeIdentity =
     session.isolation === "worktree"
     && Boolean(session.workspaceId?.trim())
