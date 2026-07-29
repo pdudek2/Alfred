@@ -187,6 +187,8 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
   const launchTickets = new Map<string, LaunchTicket>();
   const restoredLaunchReservations = new Map<string, string>();
   const clientIdsInFlight = new Set<string>();
+  const clientIdsBeingForgotten = new Set<string>();
+  const launchPreparationsInFlight = new Map<string, number>();
 
   ipcMain.handle(terminalChannels.list, async (event): Promise<TerminalListResult> => {
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -258,28 +260,51 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     terminalChannels.prepareLaunch,
     async (_event, request: TerminalCreateRequest) => {
       const safeRequest = validateTerminalCreateRequest(request);
-      const isPersistedRestoredLaunch = await validateTerminalCommandApproval(safeRequest, options.isStagedCommandAllowed, {
-        allowPersistedRestoredLaunch: true,
-      });
-      await resolveValidatedTerminalCwd(safeRequest, options);
-      const launchTicketId = randomUUID();
-      const expiresAt = Date.now() + (options.launchTicketTtlMs ?? 2 * 60 * 1000);
-      const ticket: LaunchTicket = {
-        expiresAt,
-        fingerprint: launchFingerprint(safeRequest, options),
-        ...(isPersistedRestoredLaunch && safeRequest.clientId
-          ? { restoredClientId: safeRequest.clientId }
-          : {}),
-      };
-      if (ticket.restoredClientId) {
-        const previousTicketId = restoredLaunchReservations.get(ticket.restoredClientId);
-        if (previousTicketId) {
-          launchTickets.delete(previousTicketId);
+      const preparedClientId = safeRequest.clientId;
+      if (preparedClientId) {
+        if (clientIdsBeingForgotten.has(preparedClientId)) {
+          throw new Error("Session lifecycle operation is already in progress.");
         }
-        restoredLaunchReservations.set(ticket.restoredClientId, launchTicketId);
+        launchPreparationsInFlight.set(
+          preparedClientId,
+          (launchPreparationsInFlight.get(preparedClientId) ?? 0) + 1,
+        );
       }
-      launchTickets.set(launchTicketId, ticket);
-      return { launchTicketId, expiresAt };
+      try {
+        const isPersistedRestoredLaunch = await validateTerminalCommandApproval(
+          safeRequest,
+          options.isStagedCommandAllowed,
+          { allowPersistedRestoredLaunch: true },
+        );
+        await resolveValidatedTerminalCwd(safeRequest, options);
+        const launchTicketId = randomUUID();
+        const expiresAt = Date.now() + (options.launchTicketTtlMs ?? 2 * 60 * 1000);
+        const ticket: LaunchTicket = {
+          expiresAt,
+          fingerprint: launchFingerprint(safeRequest, options),
+          ...(isPersistedRestoredLaunch && safeRequest.clientId
+            ? { restoredClientId: safeRequest.clientId }
+            : {}),
+        };
+        if (ticket.restoredClientId) {
+          const previousTicketId = restoredLaunchReservations.get(ticket.restoredClientId);
+          if (previousTicketId) {
+            launchTickets.delete(previousTicketId);
+          }
+          restoredLaunchReservations.set(ticket.restoredClientId, launchTicketId);
+        }
+        launchTickets.set(launchTicketId, ticket);
+        return { launchTicketId, expiresAt };
+      } finally {
+        if (preparedClientId) {
+          const remaining = (launchPreparationsInFlight.get(preparedClientId) ?? 1) - 1;
+          if (remaining > 0) {
+            launchPreparationsInFlight.set(preparedClientId, remaining);
+          } else {
+            launchPreparationsInFlight.delete(preparedClientId);
+          }
+        }
+      }
     },
   );
 
@@ -293,6 +318,10 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       }
 
       const safeRequest = validateTerminalCreateRequest(request);
+      const reservedClientId = safeRequest.clientId;
+      if (reservedClientId && clientIdsBeingForgotten.has(reservedClientId)) {
+        throw new Error("Session lifecycle operation is already in progress.");
+      }
       void hydratePersistedTerminalSessions();
       const launchClearGeneration = privacyClearGeneration;
       const launchStartedWithPersistence =
@@ -306,7 +335,6 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           options,
         );
       }
-      const reservedClientId = safeRequest.clientId;
       if (reservedClientId) {
         if (clientIdsInFlight.has(reservedClientId) || findLiveSessionByClientId(reservedClientId)) {
           throw new Error("Terminal client id is already active.");
@@ -445,7 +473,24 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     if (!request?.clientId?.trim()) {
       return { ok: false, error: "Session id is required." };
     }
+    const reservedLaunchTicketId = restoredLaunchReservations.get(request.clientId);
+    if (
+      reservedLaunchTicketId
+      && (launchTickets.get(reservedLaunchTicketId)?.expiresAt ?? 0) < Date.now()
+    ) {
+      restoredLaunchReservations.delete(request.clientId);
+      launchTickets.delete(reservedLaunchTicketId);
+    }
+    if (
+      clientIdsBeingForgotten.has(request.clientId)
+      || clientIdsInFlight.has(request.clientId)
+      || launchPreparationsInFlight.has(request.clientId)
+      || restoredLaunchReservations.has(request.clientId)
+    ) {
+      return { ok: false, error: "Session lifecycle operation is already in progress." };
+    }
 
+    clientIdsBeingForgotten.add(request.clientId);
     let session: PersistedTerminalSessionSnapshot | undefined;
     try {
       await hydratePersistedTerminalSessions();
@@ -482,6 +527,8 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         restoredSessionSnapshots.set(request.clientId, session);
       }
       return { ok: false, error: terminalErrorMessage(error) };
+    } finally {
+      clientIdsBeingForgotten.delete(request.clientId);
     }
   });
 

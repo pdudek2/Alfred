@@ -232,7 +232,7 @@ export function App() {
   const restoreWorkFocusPendingRef = useRef(false);
   const contextReturnFocusRef = useRef<HTMLButtonElement | null>(null);
   const contextFocusRequestKeyRef = useRef(0);
-  const closingSessionIdsRef = useRef<Set<string>>(new Set());
+  const closingSessionIdsRef = useRef(new Map<string, { instanceKey: string }>());
   const startingSessionIdsRef = useRef<Set<string>>(new Set());
   const resumingExternalSessionKeysRef = useRef<Set<string>>(new Set());
   const externalResumeReservationsRef = useRef<Map<string, { tileId: string; workspaceId: string }>>(new Map());
@@ -975,23 +975,38 @@ export function App() {
   const closeSessionNow = useCallback(async (sessionId: string) => {
     const terminalApi = getDesktopTerminalApi();
     const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
-    if (!session) return;
+    if (!session || closingSessionIdsRef.current.has(sessionId)) return;
 
-    closingSessionIdsRef.current.add(sessionId);
+    const closingOperation = { instanceKey: sessionInstanceKey(session) };
+    const finishClosing = () => {
+      if (closingSessionIdsRef.current.get(sessionId) === closingOperation) {
+        closingSessionIdsRef.current.delete(sessionId);
+      }
+    };
+    closingSessionIdsRef.current.set(sessionId, closingOperation);
     const destructiveWorktreeCleanup =
       session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error";
     if (destructiveWorktreeCleanup) {
       const result = terminalApi
         ? await terminalApi.forget({ clientId: session.id, cleanupWorktree: true })
         : { ok: false as const, error: "Desktop terminal API is unavailable." };
+      const currentSession = terminalSessionsRef.current.find((item) => item.id === sessionId);
+      if (!currentSession || sessionInstanceKey(currentSession) !== closingOperation.instanceKey) {
+        finishClosing();
+        return;
+      }
       if (!result.ok) {
-        closingSessionIdsRef.current.delete(sessionId);
+        finishClosing();
         setTerminalSessions((current) =>
-          appendSessionActivity(current, session.id, {
-            kind: "warning",
-            title: "Discard checkout blocked",
-            detail: result.error,
-          }),
+          current.some(
+            (item) => item.id === sessionId && sessionInstanceKey(item) === closingOperation.instanceKey,
+          )
+            ? appendSessionActivity(current, session.id, {
+                kind: "warning",
+                title: "Discard checkout blocked",
+                detail: result.error,
+              })
+            : current,
         );
         return;
       }
@@ -1006,14 +1021,20 @@ export function App() {
     setPreviewCandidates((candidates) => candidates.filter((candidate) => candidate.sessionId !== sessionId));
 
     if (destructiveWorktreeCleanup) {
-      closingSessionIdsRef.current.delete(sessionId);
+      finishClosing();
     } else if (session.runtimeId) {
       terminalApi?.kill({ id: session.runtimeId });
-      window.setTimeout(() => closingSessionIdsRef.current.delete(sessionId), 5_000);
+      window.setTimeout(finishClosing, 5_000);
     } else {
-      closingSessionIdsRef.current.delete(sessionId);
+      finishClosing();
     }
-    setTerminalSessions((sessions) => closeSession(sessions, sessionId));
+    setTerminalSessions((sessions) =>
+      sessions.some(
+        (item) => item.id === sessionId && sessionInstanceKey(item) === closingOperation.instanceKey,
+      )
+        ? closeSession(sessions, sessionId)
+        : sessions,
+    );
   }, []);
 
   const handleCloseSession = useCallback((sessionId: string) => {
@@ -1319,9 +1340,12 @@ export function App() {
     const terminalApi = getDesktopTerminalApi();
     const alfredApi = getDesktopAlfredApi();
 
-    if (closingSessionIdsRef.current.has(tileId)) {
+    const closingOperation = closingSessionIdsRef.current.get(tileId);
+    if (closingOperation) {
       terminalApi?.kill({ id: runtime.id });
-      closingSessionIdsRef.current.delete(tileId);
+      if (closingSessionIdsRef.current.get(tileId) === closingOperation) {
+        closingSessionIdsRef.current.delete(tileId);
+      }
       return;
     }
 

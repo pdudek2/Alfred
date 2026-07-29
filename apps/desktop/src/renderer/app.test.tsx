@@ -20,6 +20,7 @@ import type {
   TerminalApi,
   TerminalDataEvent,
   TerminalExitEvent,
+  TerminalForgetResult,
   TerminalReconcileResult,
   TerminalSessionSnapshot,
 } from "../shared/terminal-ipc";
@@ -7354,6 +7355,106 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Codex · session 9/i })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Codex · session 9/i })).toHaveTextContent(
       "Unable to remove isolated Git worktree.",
+    );
+  });
+
+  it("coalesces duplicate Discard requests while Forget is pending", async () => {
+    const pendingForget = deferred<TerminalForgetResult>();
+    const { forgetTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [{
+        clientId: "codex-9",
+        title: "Codex · session 9",
+        source: "alfred",
+        agentKind: "codex",
+        isolation: "shared",
+      }],
+    );
+    forgetTerminal.mockReturnValue(pendingForget.promise);
+
+    render(<App />);
+    const discard = await screen.findByRole("button", { name: "Discard Codex · session 9" });
+    fireEvent.click(discard);
+    fireEvent.click(discard);
+
+    expect(forgetTerminal).toHaveBeenCalledTimes(1);
+    await act(async () => pendingForget.resolve({ ok: true }));
+    await waitFor(() => {
+      expect(screen.queryByRole("article", { name: /Codex · session 9/i })).not.toBeInTheDocument();
+    });
+  });
+
+  it.each([
+    {
+      name: "successful",
+      result: { ok: true } as TerminalForgetResult,
+    },
+    {
+      name: "rejected",
+      result: { ok: false, error: "stale discard warning" } as TerminalForgetResult,
+    },
+  ])("does not apply a $name stale Forget result to a replacement tile with the same id", async ({ result }) => {
+    const user = userEvent.setup();
+    const pendingForget = deferred<TerminalForgetResult>();
+    const bridge = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/repo" },
+          { id: "B", label: "Other", shortLabel: "B", rootPath: "/other" },
+        ],
+        activeWorkspaceId: "A",
+      },
+      [{
+        clientId: "codex-9",
+        title: "Original recovery",
+        source: "alfred",
+        agentKind: "codex",
+        isolation: "shared",
+        command: "codex",
+        args: [],
+      }],
+    );
+    bridge.forgetTerminal.mockReturnValueOnce(pendingForget.promise);
+
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Discard Original recovery" }));
+    await user.click(screen.getByRole("button", { name: "Resume latest Codex conversation Original recovery" }));
+    await waitFor(() => {
+      expect(bridge.killTerminal).toHaveBeenCalledWith({ id: "runtime-1" });
+    });
+
+    vi.mocked(window.alfredDesktop!.terminal.list).mockResolvedValue({
+      sessions: [{
+        id: "replacement-runtime",
+        clientId: "codex-9",
+        title: "Replacement session",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/repo",
+        createdAt: 999,
+        shell: "/bin/sh",
+        buffer: "replacement output",
+      }],
+      restoredSessions: [],
+    });
+    fireEvent.keyDown(window, { key: "1", ctrlKey: true });
+    expect(await screen.findByRole("article", { name: /Replacement session/i })).toBeInTheDocument();
+
+    await act(async () => pendingForget.resolve(result));
+
+    expect(await screen.findByRole("article", { name: /Replacement session/i })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Replacement session/i })).not.toHaveTextContent(
+      "stale discard warning",
     );
   });
 
