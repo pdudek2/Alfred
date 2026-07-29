@@ -462,6 +462,48 @@ describe("flushOutboxOnce", () => {
     ]);
   });
 
+  it("routes payload-free quarantine warnings through runRunnerOnce", async () => {
+    const dir = trackedTempDir("alfred-runner-quarantine-warning-");
+    const outboxPath = join(dir, "outbox.sqlite");
+    const outbox = new OutboxDb(outboxPath);
+    outbox.enqueue(
+      {
+        event_id: "runner-invalid-0001",
+        type: "run.started",
+        payload: { secret: "runner-secret-payload" },
+      },
+      new Date("2026-04-28T10:00:00.000Z"),
+    );
+    outbox.close();
+    const warnings: string[] = [];
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 202 }));
+
+    await runRunnerOnce(
+      {
+        apiUrl: "http://127.0.0.1:4301",
+        deviceToken: "token-1",
+        workspaceId,
+        deviceId,
+        privacyMode: "standard",
+        outboxPath,
+        codexHome: join(dir, ".codex"),
+      },
+      {
+        fetchImpl,
+        onWarning: (message) => warnings.push(message),
+        adapter: {
+          sourceId: "codex-cli",
+          collect: async () => ({ events: [], cursorUpdates: [] }),
+        },
+      },
+    );
+
+    expect(warnings).toEqual([
+      "Quarantined event runner-invalid-0001: invalid_payload",
+    ]);
+    expect(warnings.join(" ")).not.toContain("runner-secret-payload");
+  });
+
   it("persists adapter cursor updates after enqueue", async () => {
     const dir = trackedTempDir("alfred-runner-cursor-");
     const outboxPath = join(dir, "outbox.sqlite");

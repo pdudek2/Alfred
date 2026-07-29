@@ -14,6 +14,7 @@ export type RunRunnerOptions = {
   adapter?: SourceAdapter;
   adapters?: SourceAdapter[];
   fetchImpl?: typeof fetch;
+  onWarning?: (message: string) => void;
 };
 
 export type RunRunnerLoopOptions = RunRunnerOptions & {
@@ -29,7 +30,11 @@ export async function runRunnerOnce(
   options: RunRunnerOptions = {},
 ): Promise<{ collectedEvents: number; flushedEvents: number }> {
   const outbox = new OutboxDb(config.outboxPath);
-  const adapters = options.adapters ?? (options.adapter ? [options.adapter] : createDefaultAdapters(config, outbox));
+  const adapters =
+    options.adapters ??
+    (options.adapter
+      ? [options.adapter]
+      : createDefaultAdapters(config, outbox, options.onWarning));
 
   try {
     let collectedEvents = 0;
@@ -54,6 +59,7 @@ export async function runRunnerOnce(
       workspaceId: config.workspaceId,
       deviceId: config.deviceId,
       ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+      ...(options.onWarning ? { onWarning: options.onWarning } : {}),
     });
 
     if (flushResult.sent === 0) {
@@ -118,28 +124,42 @@ async function flushOutbox(
   }
 }
 
-function createDefaultAdapters(config: RunnerConfig, outbox: OutboxDb): SourceAdapter[] {
+function createDefaultAdapters(
+  config: RunnerConfig,
+  outbox: OutboxDb,
+  onWarning?: (message: string) => void,
+): SourceAdapter[] {
   const sources = config.runnerSources ?? ["codex"];
   return sources.map((source) => {
     if (source === "claude") {
-      return createDefaultClaudeAdapter(config, outbox);
+      return createDefaultClaudeAdapter(config, outbox, onWarning);
     }
-    return createDefaultCodexAdapter(config, outbox);
+    return createDefaultCodexAdapter(config, outbox, onWarning);
   });
 }
 
-function createDefaultCodexAdapter(config: RunnerConfig, outbox: OutboxDb): SourceAdapter {
+function createDefaultCodexAdapter(
+  config: RunnerConfig,
+  outbox: OutboxDb,
+  onWarning?: (message: string) => void,
+): SourceAdapter {
   return createCodexAdapter({
     ...config,
     getCursor: (key) => outbox.getSourceCursor(key),
+    ...(onWarning ? { onWarning } : {}),
   });
 }
 
-function createDefaultClaudeAdapter(config: RunnerConfig, outbox: OutboxDb): SourceAdapter {
+function createDefaultClaudeAdapter(
+  config: RunnerConfig,
+  outbox: OutboxDb,
+  onWarning?: (message: string) => void,
+): SourceAdapter {
   return createClaudeAdapter({
     ...config,
     claudeHome: config.claudeHome ?? `${process.env.HOME ?? "."}/.claude`,
     getCursor: (key) => outbox.getSourceCursor(key),
+    ...(onWarning ? { onWarning } : {}),
   });
 }
 
@@ -161,6 +181,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       `Alfred runner collected ${result.collectedEvents} event(s), flushed ${result.flushedEvents} event(s)`,
     );
   };
+  const onWarning = (message: string) => console.warn(message);
 
   if (process.env.ALFRED_RUNNER_LOOP === "1") {
     console.log(`Alfred runner watching every ${config.pollMs ?? 5_000}ms`);
@@ -169,12 +190,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       onError: (error) => {
         console.error(error instanceof Error ? error.message : error);
       },
+      onWarning,
     }).catch((error: unknown) => {
       console.error(error instanceof Error ? error.message : error);
       process.exitCode = 1;
     });
   } else {
-    runRunnerOnce(config)
+    runRunnerOnce(config, { onWarning })
       .then(logResult)
       .catch((error: unknown) => {
         console.error(error instanceof Error ? error.message : error);
