@@ -709,6 +709,70 @@ describe("persisted-desktop-state", () => {
     expect(await readFile(filePath, "utf8")).toBe(migratedContents);
   });
 
+  it("hydrates a legacy migration once before a concurrent state update", async () => {
+    const filePath = await temporaryStateFile();
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: DESKTOP_STATE_VERSION,
+        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
+        activeWorkspaceId: "A",
+        privacySettings: {
+          terminalScrollbackRetention: "off",
+          externalSessionIndexingEnabled: false,
+        },
+        restoredTerminalSessions: [{
+          clientId: "codex-concurrent",
+          title: "Concurrent migration",
+          source: "alfred",
+          agentKind: "codex",
+          workspaceId: "A",
+          isolation: "worktree",
+          branchName: "alfred-codex-concurrent",
+          baseCwd: "/repo",
+          cwd: "/private/worktrees/codex-concurrent",
+          shell: "codex",
+          command: "codex",
+          args: ["private prompt"],
+        }],
+      }),
+      "utf8",
+    );
+    const store = createPersistedDesktopStateStore({ filePath });
+    let successfulWrites = 0;
+    store.onSaveStatus((status) => {
+      if (status.status === "saved") successfulWrites += 1;
+    });
+
+    await Promise.all([
+      store.getState(),
+      store.updateState((current) => ({
+        ...current,
+        windowState: {
+          bounds: { x: 64, y: 48, width: 1600, height: 1000 },
+          maximized: true,
+        },
+      })),
+    ]);
+
+    const state = await store.getState();
+    expect(state.windowState).toEqual({
+      bounds: { x: 64, y: 48, width: 1600, height: 1000 },
+      maximized: true,
+    });
+    expect(state.restoredTerminalSessions).toEqual([
+      expect.objectContaining({
+        clientId: "codex-concurrent",
+        workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
+      }),
+    ]);
+    expect(JSON.parse(await readFile(filePath, "utf8"))).toMatchObject({
+      windowState: state.windowState,
+      restoredTerminalSessions: state.restoredTerminalSessions,
+    });
+    expect(successfulWrites).toBe(2);
+  });
+
   it("falls back safely when persisted JSON is corrupt", async () => {
     const filePath = await temporaryStateFile();
     const invalidContents = "{not json";

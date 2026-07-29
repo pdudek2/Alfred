@@ -1067,14 +1067,22 @@ export function App() {
       return;
     }
 
+    const discardSessionInstanceKey = sessionInstanceKey(session);
     void terminalApi.worktreeDiff({ clientId: sessionId }).then((result) => {
+      const currentSession = terminalSessionsRef.current.find((item) => item.id === sessionId);
+      if (!currentSession || sessionInstanceKey(currentSession) !== discardSessionInstanceKey) return;
+
       if (!result.ok) {
         setTerminalSessions((sessions) =>
-          appendSessionActivity(sessions, sessionId, {
-            kind: "warning",
-            title: "Discard checkout blocked",
-            detail: result.error,
-          }),
+          sessions.some(
+            (item) => item.id === sessionId && sessionInstanceKey(item) === discardSessionInstanceKey,
+          )
+            ? appendSessionActivity(sessions, sessionId, {
+                kind: "warning",
+                title: "Discard checkout blocked",
+                detail: result.error,
+              })
+            : sessions,
         );
         return;
       }

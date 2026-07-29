@@ -200,31 +200,95 @@ describe("redactPayload", () => {
   });
 
   it.each([
-    ["postgresql://alfred:sup3rs3cret@db.example.com:5432/alfred", "sup3rs3cret"],
-    ["https://user:ghp_1234567890abcdef@github.com/a/b.git", "ghp_1234567890abcdef"],
-    ["stripe sk_live_1234567890abcdef", "sk_live_1234567890abcdef"],
-    ["google AIzaSyD1234567890abcdefghijklmnop", "AIzaSyD1234567890abcdefghijklmnop"],
-    ["gitlab glpat-1234567890abcdef", "glpat-1234567890abcdef"],
-    ["npm npm_1234567890abcdef", "npm_1234567890abcdef"],
-    ["sendgrid SG.1234567890abcdef.abcdefghijklmnop", "SG.1234567890abcdef.abcdefghijklmnop"],
-    ['{"api_key": "abc123SECRET"}', "abc123SECRET"],
-    ["Cookie: session=abc123SECRET; csrf=xyz789LEAK", "abc123SECRET"],
-    ["Cookie: session=abc123SECRET; csrf=xyz789LEAK", "xyz789LEAK"],
-  ])("redacts leaked credential from %s", (input, leaked) => {
+    {
+      name: "URI userinfo",
+      input: "postgresql://alfred:sup3rs3cret@db.example.com:5432/alfred",
+      leaked: ["sup3rs3cret"],
+    },
+    {
+      name: "GitHub URI userinfo",
+      input: "https://user:ghp_1234567890abcdef@github.com/a/b.git",
+      leaked: ["ghp_1234567890abcdef"],
+    },
+    {
+      name: "Stripe live key",
+      input: "stripe sk_live_1234567890abcdef",
+      leaked: ["sk_live_1234567890abcdef"],
+    },
+    {
+      name: "Google API key",
+      input: "google AIzaSyD1234567890abcdefghijklmnop",
+      leaked: ["AIzaSyD1234567890abcdefghijklmnop"],
+    },
+    {
+      name: "GitLab token",
+      input: "gitlab glpat-1234567890abcdef",
+      leaked: ["glpat-1234567890abcdef"],
+    },
+    {
+      name: "npm token",
+      input: "npm npm_1234567890abcdef",
+      leaked: ["npm_1234567890abcdef"],
+    },
+    {
+      name: "SendGrid key",
+      input: "sendgrid SG.1234567890abcdef.abcdefghijklmnop",
+      leaked: ["SG.1234567890abcdef.abcdefghijklmnop"],
+    },
+    {
+      name: "JSON API key",
+      input: '{"api_key": "abc123SECRET"}',
+      leaked: ["abc123SECRET"],
+    },
+    {
+      name: "direct Cookie header",
+      input: "Cookie: preference=\"compact\"; session=abc123SECRET; csrf=xyz789LEAK",
+      leaked: ["abc123SECRET", "xyz789LEAK"],
+    },
+    {
+      name: "shell-quoted Cookie header",
+      input: "curl -H 'Cookie: preference=\"compact\"; session=abc123SECRET; csrf=xyz789LEAK' https://example.test",
+      leaked: ["abc123SECRET", "xyz789LEAK"],
+    },
+    {
+      name: "Cookie header after an empty first value",
+      input: "Cookie: preference=; session=abc123SECRET; csrf=xyz789LEAK",
+      leaked: ["abc123SECRET", "xyz789LEAK"],
+    },
+    {
+      name: "shell-quoted Cookie header after a malformed segment",
+      input: "curl -H 'Cookie: preference=\"compact\"; malformed; session=abc123SECRET' https://example.test",
+      leaked: ["abc123SECRET"],
+    },
+  ])("redacts $name credential", ({ input, leaked }) => {
     const output = redactText(input);
-    expect(output).toContain("[redacted]");
-    expect(output).not.toContain(leaked);
+    expect(output.includes("[redacted]")).toBe(true);
+    expect(leaked.some((secret) => output.includes(secret))).toBe(false);
   });
 
   it.each([
-    "https://user@example.com/a/b.git",
-    "stripe sk_live_preview",
-    "google AIza-short",
-    "npm install",
-    "SG status report",
-    '{"api_key_description": "used by local fixtures"}',
-  ])("does not overmatch ordinary text: %s", (input) => {
+    { name: "userinfo-free URL", input: "https://user@example.com/a/b.git" },
+    { name: "Stripe preview text", input: "stripe sk_live_preview" },
+    { name: "short Google prefix", input: "google AIza-short" },
+    { name: "npm command", input: "npm install" },
+    { name: "SendGrid status text", input: "SG status report" },
+    { name: "API key description", input: '{"api_key_description": "used by local fixtures"}' },
+    { name: "Cookie prose", input: "Cookie: preferences are documented" },
+    {
+      name: "shell Cookie policy text",
+      input: "curl -H 'Cookie policy: use the browser profile' https://example.test",
+    },
+  ])("does not overmatch ordinary $name", ({ input }) => {
     expect(redactText(input)).toBe(input);
+  });
+
+  it("preserves command context around a shell-quoted Cookie header", () => {
+    const input =
+      "curl -H 'Cookie: preference=\"compact\"; session=abc123SECRET; csrf=xyz789LEAK' https://example.test";
+    const expected = "curl -H 'Cookie: [redacted]' https://example.test";
+    const output = redactText(input);
+
+    expect(output === expected).toBe(true);
   });
 
   it("keeps only minimal keys in minimal mode", () => {

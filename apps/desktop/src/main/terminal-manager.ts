@@ -508,7 +508,11 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         return { ok: false, error: "Session not found." };
       }
 
-      if (request.cleanupWorktree && isIsolatedWorktreeSession(session)) {
+      const isolatedWorktree = isIsolatedWorktreeSession(session);
+      if (isolatedWorktree && request.cleanupWorktree !== true) {
+        return { ok: false, error: "Discarding an isolated checkout requires worktree cleanup." };
+      }
+      if (isolatedWorktree) {
         const operation = await worktreeOperationRequest(event.sender, request.clientId, options);
         if (!operation.ok) {
           return operation;
