@@ -35,7 +35,7 @@ without reopening the accepted product or visual direction.
 
 ## Scope lineage
 
-`Phase Z release closeout → post-v1 stabilization roadmap → Phase S1 desktop safety gate`
+`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 planned`
 
 Phase Z remains closed. This roadmap does not reinterpret or reopen its visual
 or product decisions.
@@ -56,7 +56,7 @@ or product decisions.
 | Phase | Outcome | Findings | State |
 |---|---|---:|---|
 | S1 — Desktop safety gate | Honest runtime gate and no silent desktop-state loss | 2, 3, 4, 14, 19 | Complete |
-| S2 — Runner loss and stall prevention | Concurrent sessions do not lose events; poison or malformed records cannot stall sync | 6, 7, 8, 24 | Next |
+| S2 — Runner loss and stall prevention | Concurrent sessions do not lose events; poison or malformed records cannot stall sync | 6, 7, 8, 24 | Planned |
 | S3 — API boundary simplification | Delete browser-session auth and browser-only query surfaces; keep device-auth ingest | 9, 10, 22 | Pending |
 | S4 — Privacy and worktree lifecycle | Resolve worktree close behavior and prevent sensitive launch data from persisting | 13, 15, 16 | Pending decision gates |
 | S5 — Desktop interaction correctness | Recover failed planning, unblock review/edit, remove impure state updaters, correct activity classification | 5, 11, 17, 23 | Pending |
@@ -65,6 +65,10 @@ or product decisions.
 
 Only the current phase receives an implementation plan. A later phase starts
 after the preceding phase has fresh verification and closeout.
+
+**Current phase contract:** `docs/superpowers/specs/2026-07-29-phase-s2-runner-loss-stall-prevention.md`
+
+**Current implementation plan:** `docs/superpowers/specs/2026-07-29-phase-s2-runner-loss-stall-prevention-implementation-plan.md`
 
 ## Finding ledger
 
