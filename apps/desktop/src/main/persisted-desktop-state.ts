@@ -205,7 +205,7 @@ export function createPersistedDesktopStateStore(
     ): Promise<DesktopStateSnapshot> {
       return enqueueMutation(async () => {
         await hydrate();
-        return persistState(await updater(cloneDesktopState(cachedState)));
+        return persistState(await updater(cloneDesktopState(failedState ?? cachedState)));
       });
     },
   };
