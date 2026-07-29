@@ -136,6 +136,57 @@ describe("collectClaudeEvents", () => {
     expect(events.length).toBeGreaterThan(0);
     expect(events.every((event) => event.project_key === "Alfred")).toBe(true);
   });
+
+  it("skips invalid Claude records while preserving later normalized events", async () => {
+    const claudeHome = trackedTempDir("alfred-claude-home-");
+    const target = join(claudeHome, "projects/-Users-patryk-Desktop-Alfred/claude-session-1.jsonl");
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(
+      target,
+      [
+        JSON.stringify({
+          sessionId: "offset-claude-run",
+          type: "user",
+          uuid: "offset-start",
+          timestamp: "2026-04-28T12:00:00+02:00",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          message: { role: "user", content: "start" },
+        }),
+        JSON.stringify({
+          sessionId: "offset-claude-run",
+          type: "assistant",
+          uuid: "invalid-record",
+          timestamp: "not-a-timestamp",
+          secret: "secret source payload",
+          message: { role: "assistant", content: [] },
+        }),
+        JSON.stringify({
+          sessionId: "offset-claude-run",
+          type: "user",
+          uuid: "valid-after-invalid",
+          timestamp: "2026-04-28T12:00:01+02:00",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          message: { role: "user", content: "later" },
+        }),
+      ].join("\n"),
+    );
+    const warnings: string[] = [];
+
+    const events = await collectClaudeEvents({
+      claudeHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+      onWarning: (message) => warnings.push(message),
+    });
+
+    expect(events.map((event) => event.occurred_at)).toContain(
+      "2026-04-28T10:00:00.000Z",
+    );
+    expect(events.some((event) => event.source_event_id === "valid-after-invalid")).toBe(true);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).not.toContain("secret source payload");
+  });
 });
 
 function trackedTempDir(prefix: string): string {

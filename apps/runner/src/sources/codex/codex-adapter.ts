@@ -1,4 +1,4 @@
-import { basename } from "node:path";
+import { basename, relative } from "node:path";
 
 import { normalizeEvent } from "@alfred/adapters";
 import { IngestEventSchema, type IngestEvent, type PrivacyMode } from "@alfred/schema";
@@ -14,6 +14,7 @@ export type CodexAdapterConfig = {
   deviceId: string;
   privacyMode: PrivacyMode;
   codexSince?: string;
+  onWarning?: (message: string) => void;
 };
 
 export function createCodexAdapter(config: CodexAdapterConfig): SourceAdapter {
@@ -37,9 +38,15 @@ export async function collectCodexEvents(config: CodexAdapterConfig): Promise<In
     let index = 0;
 
     for await (const record of readJsonlRecords(file)) {
-      const event = codexRecordToEvent(record, index, config, context, codexSinceMs);
-      if (event) {
-        events.push(event);
+      try {
+        const event = codexRecordToEvent(record, index, config, context, file, codexSinceMs);
+        if (event) {
+          events.push(event);
+        }
+      } catch {
+        config.onWarning?.(
+          `Skipped invalid codex-cli record in ${relative(config.codexHome, file)} at index ${index}`,
+        );
       }
       index += 1;
     }
@@ -53,6 +60,7 @@ function codexRecordToEvent(
   index: number,
   config: CodexAdapterConfig,
   context: CodexSessionContext,
+  file: string,
   codexSinceMs?: number,
 ): IngestEvent | null {
   if (!isRecord(record)) return null;
@@ -60,17 +68,24 @@ function codexRecordToEvent(
   const type = stringValue(record.type);
   const occurredAt = stringValue(record.timestamp);
   const occurredAtMs = occurredAt === undefined ? Number.NaN : Date.parse(occurredAt);
-  if (!type || !occurredAt || Number.isNaN(occurredAtMs)) return null;
+  if (!type) return null;
+  if (Number.isNaN(occurredAtMs)) {
+    config.onWarning?.(
+      `Skipped invalid codex-cli record in ${relative(config.codexHome, file)} at index ${index}`,
+    );
+    return null;
+  }
   if (codexSinceMs !== undefined && occurredAtMs <= codexSinceMs) return null;
+  const normalizedOccurredAt = new Date(occurredAtMs).toISOString();
 
   if (isRecord(record.payload)) {
-    return codexEnvelopeToEvent(record.payload, type, occurredAt, index, config, context);
+    return codexEnvelopeToEvent(record.payload, type, normalizedOccurredAt, index, config, context);
   }
 
   const sourceRunId = stringValue(record.session_id) ?? stringValue(record.id);
   if (!sourceRunId) return null;
 
-  const sourceEventId = stringValue(record.id) ?? `${type}:${occurredAt}:${index}`;
+  const sourceEventId = stringValue(record.id) ?? `${type}:${normalizedOccurredAt}:${index}`;
   const cwd = stringValue(record.cwd);
   const projectKey = projectKeyFromCwd(cwd);
 
@@ -82,7 +97,7 @@ function codexRecordToEvent(
       sourceEventId,
       type: "run.started",
       status: "running",
-      occurredAt,
+      occurredAt: normalizedOccurredAt,
       payload: {
         cwd,
       },
@@ -96,7 +111,7 @@ function codexRecordToEvent(
       sourceRunId,
       sourceEventId,
       type: "tool.started",
-      occurredAt,
+      occurredAt: normalizedOccurredAt,
       payload: {
         tool_name: stringValue(record.tool),
       },
@@ -111,7 +126,7 @@ function codexRecordToEvent(
       sourceRunId,
       sourceEventId,
       type: status === "failed" ? "tool.failed" : "tool.completed",
-      occurredAt,
+      occurredAt: normalizedOccurredAt,
       payload: {
         tool_name: stringValue(record.tool),
         status,
@@ -128,7 +143,7 @@ function codexRecordToEvent(
       sourceEventId,
       type: status === "failed" ? "run.failed" : "run.completed",
       status: status === "failed" ? "failed" : "completed",
-      occurredAt,
+      occurredAt: normalizedOccurredAt,
       payload: {
         status,
       },
