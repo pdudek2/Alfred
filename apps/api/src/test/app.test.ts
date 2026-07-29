@@ -71,6 +71,16 @@ describe("api", () => {
     });
   });
 
+  it("returns health through the public API alias", async () => {
+    const res = await createApp().request("/api/health");
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      ok: true,
+      service: "alfred-api",
+      version: "0.0.0",
+    });
+  });
+
   const retiredRoutes = [
     { method: "GET", path: "/auth/login" },
     { method: "GET", path: "/auth/callback" },
