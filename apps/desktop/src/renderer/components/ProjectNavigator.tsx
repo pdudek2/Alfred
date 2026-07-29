@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight, Folder, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
-import type { WorkspaceMissionBrief } from "../../shared/workspace-ipc";
+import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import { isFreeChatSession, isNavigableLiveSession } from "../session-scope";
 import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
@@ -12,6 +12,7 @@ export type ProjectNavigatorWorkspace = {
   label: string;
   shortLabel: string;
   rootPath?: string;
+  rootStatus?: WorkspaceRootStatus;
   gitBranch?: string;
   missionBrief?: WorkspaceMissionBrief;
 };

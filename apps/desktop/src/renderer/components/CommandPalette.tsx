@@ -129,7 +129,13 @@ export function CommandPalette({
   const selectedSession = sessions.find((session) => session.id === selectedSessionId) ?? sessions[0] ?? null;
   const selectedRestartable = selectedSession ? isRestartableSession(selectedSession) : false;
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
-  const activeWorkspaceBound = Boolean(activeWorkspace?.rootPath);
+  const activeWorkspaceAvailable = activeWorkspace?.rootStatus !== "missing";
+  const activeWorkspaceBound = Boolean(activeWorkspace?.rootPath) && activeWorkspaceAvailable;
+  const launchDetail = activeWorkspaceAvailable
+    ? activeWorkspaceBound
+      ? "this workspace"
+      : "the scratch desk"
+    : "Choose the workspace folder first";
   const normalizedQuery = query.trim().toLowerCase();
   const workspaceById = useMemo(
     () => new Map(workspaces.map((workspace) => [workspace.id, workspace])),
@@ -150,21 +156,24 @@ export function CommandPalette({
       {
         id: "new-terminal",
         label: "New manual terminal",
-        detail: activeWorkspace?.rootPath
-          ? `${shortcutModifier} T · start a shell in this workspace`
-          : `${shortcutModifier} T · start a shell in the scratch desk`,
+        detail: activeWorkspaceAvailable
+          ? `${shortcutModifier} T · start a shell in ${activeWorkspaceBound ? "this workspace" : "the scratch desk"}`
+          : "Choose the workspace folder first",
+        disabled: !activeWorkspaceAvailable,
         run: onAddManualSession,
       },
       {
         id: "new-codex-session",
         label: "New Codex session",
-        detail: activeWorkspaceBound ? "Start Codex in this workspace" : "Start Codex in the scratch desk",
+        detail: activeWorkspaceAvailable ? `Start Codex in ${launchDetail}` : launchDetail,
+        disabled: !activeWorkspaceAvailable,
         run: () => onAddAgentSession("codex"),
       },
       {
         id: "new-claude-session",
         label: "New Claude session",
-        detail: activeWorkspaceBound ? "Start Claude in this workspace" : "Start Claude in the scratch desk",
+        detail: activeWorkspaceAvailable ? `Start Claude in ${launchDetail}` : launchDetail,
+        disabled: !activeWorkspaceAvailable,
         run: () => onAddAgentSession("claude"),
       },
       {
@@ -365,7 +374,9 @@ export function CommandPalette({
       activeWorkMode,
       activeWorkspaceId,
       activeWorkspace,
+      activeWorkspaceAvailable,
       activeWorkspaceBound,
+      launchDetail,
       arrangeMode,
       canCloseWorkspace,
       onAddAgentSession,

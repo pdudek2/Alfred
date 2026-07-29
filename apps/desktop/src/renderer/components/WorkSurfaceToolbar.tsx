@@ -12,6 +12,7 @@ export type WorkSurfaceToolbarProps = {
   previewOpen: boolean;
   previewTriggerRef?: Ref<HTMLButtonElement>;
   rootPath: string | undefined;
+  terminalLaunchDisabled?: boolean;
   visibleSessionCount: number;
   workMode: WorkMode;
   onAddManualSession: () => void;
@@ -27,6 +28,7 @@ export function WorkSurfaceToolbar({
   previewOpen,
   previewTriggerRef,
   rootPath,
+  terminalLaunchDisabled = false,
   visibleSessionCount,
   workMode,
   onAddManualSession,
@@ -51,7 +53,13 @@ export function WorkSurfaceToolbar({
 
   return (
     <div className="work-surface-toolbar" role="toolbar" aria-label="Work layout controls">
-      <button type="button" aria-label="New terminal" title="New terminal" onClick={onAddManualSession}>
+      <button
+        type="button"
+        aria-label="New terminal"
+        disabled={terminalLaunchDisabled}
+        title={terminalLaunchDisabled ? "Choose the workspace folder first" : "New terminal"}
+        onClick={onAddManualSession}
+      >
         <Plus aria-hidden="true" size={14} />
       </button>
       <div className="work-surface-layout">

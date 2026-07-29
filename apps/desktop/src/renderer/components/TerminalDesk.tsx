@@ -21,6 +21,7 @@ import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 import type { ArrangePointerMode, ArrangePreview, WorkMode } from "../terminal-desk-types";
 import type { AgentKind } from "../../shared/alfred-ipc";
+import type { WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import type {
   TerminalCreateRequest,
   TerminalCreateResult,
@@ -59,6 +60,7 @@ type TerminalDeskProps = {
   workspaceGitBranch?: string | undefined;
   workspaceLabel: string;
   workspaceRootPath?: string | undefined;
+  workspaceRootStatus?: WorkspaceRootStatus | undefined;
   onBindWorkspace: () => void;
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
@@ -102,6 +104,7 @@ export function TerminalDesk({
   workspaceGitBranch,
   workspaceLabel,
   workspaceRootPath,
+  workspaceRootStatus,
   onBindWorkspace,
   onAddAgentSession,
   onAddManualSession,
@@ -331,6 +334,7 @@ export function TerminalDesk({
               workspaceGitBranch={workspaceGitBranch}
               workspaceLabel={workspaceLabel}
               workspaceRootPath={workspaceRootPath}
+              workspaceRootStatus={workspaceRootStatus}
             />
           )}
           {renderedSessions.map((session) => {
@@ -534,6 +538,7 @@ function EmptyWorkspaceState({
   workspaceGitBranch,
   workspaceLabel,
   workspaceRootPath,
+  workspaceRootStatus,
 }: {
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
@@ -541,15 +546,25 @@ function EmptyWorkspaceState({
   workspaceGitBranch?: string | undefined;
   workspaceLabel: string;
   workspaceRootPath?: string | undefined;
+  workspaceRootStatus?: WorkspaceRootStatus | undefined;
 }) {
   const bound = Boolean(workspaceRootPath);
+  const missing = workspaceRootStatus === "missing";
 
   return (
-    <div className="terminal-empty-state" role="status" aria-label="Empty workspace">
+    <div
+      className="terminal-empty-state"
+      role="status"
+      aria-label={missing ? "Unavailable workspace folder" : "Empty workspace"}
+    >
       <div>
-        <span>{bound ? "Workspace ready" : "Scratch workspace ready"}</span>
+        <span>{missing ? "Folder unavailable" : bound ? "Workspace ready" : "Scratch workspace ready"}</span>
         <strong>{workspaceLabel}</strong>
-        <p>{workspaceHomeCopy(workspaceRootPath, workspaceGitBranch)}</p>
+        <p>
+          {missing
+            ? "Choose the folder again to reconnect this workspace."
+            : workspaceHomeCopy(workspaceRootPath, workspaceGitBranch)}
+        </p>
       </div>
       <dl className="terminal-empty-facts" aria-label="workspace details">
         <div>
@@ -562,22 +577,30 @@ function EmptyWorkspaceState({
         </div>
       </dl>
       <div className="terminal-empty-actions" aria-label="empty workspace actions">
-        <button type="button" className="terminal-empty-primary-action" onClick={onAddManualSession}>
-          New terminal
-        </button>
-        <div className="terminal-empty-secondary-actions" role="group" aria-label="secondary empty workspace actions">
-          <button type="button" onClick={() => onAddAgentSession("codex")}>
-            Start Codex
+        {missing ? (
+          <button type="button" className="terminal-empty-primary-action" onClick={onBindWorkspace}>
+            Choose folder
           </button>
-          <button type="button" onClick={() => onAddAgentSession("claude")}>
-            Start Claude
-          </button>
-          {!bound && (
-            <button type="button" onClick={onBindWorkspace}>
-              Bind folder
+        ) : (
+          <>
+            <button type="button" className="terminal-empty-primary-action" onClick={onAddManualSession}>
+              New terminal
             </button>
-          )}
-        </div>
+            <div className="terminal-empty-secondary-actions" role="group" aria-label="secondary empty workspace actions">
+              <button type="button" onClick={() => onAddAgentSession("codex")}>
+                Start Codex
+              </button>
+              <button type="button" onClick={() => onAddAgentSession("claude")}>
+                Start Claude
+              </button>
+              {!bound && (
+                <button type="button" onClick={onBindWorkspace}>
+                  Bind folder
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

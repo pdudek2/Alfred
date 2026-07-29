@@ -4,11 +4,14 @@ export type WorkspaceMissionBrief = {
   guardrails: string[];
 };
 
+export type WorkspaceRootStatus = "available" | "missing";
+
 export type WorkspaceSnapshot = {
   id: string;
   label: string;
   shortLabel: string;
   rootPath?: string;
+  rootStatus?: WorkspaceRootStatus;
   gitBranch?: string;
   missionBrief?: WorkspaceMissionBrief;
 };

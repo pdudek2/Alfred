@@ -204,7 +204,11 @@ function installDesktopBridge(
     Promise.resolve({
       workspaces: workspaceState.workspaces.map((workspace) =>
         workspace.id === request.workspaceId
-          ? { ...workspace, rootPath: workspace.rootPath ?? "/Users/patryk/TrustedWorkspace" }
+          ? {
+              ...workspace,
+              rootPath: "/Users/patryk/TrustedWorkspace",
+              rootStatus: undefined,
+            }
           : workspace,
       ),
       activeWorkspaceId: request.workspaceId,
@@ -743,7 +747,6 @@ describe("App integration", () => {
         },
       ],
     );
-
     render(<App />);
 
     const panel = await screen.findByTestId("project-navigator");
@@ -3650,6 +3653,70 @@ describe("App integration", () => {
 
     expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
     await waitForTerminalStartsToSettle();
+  });
+
+  it("recovers a workspace whose saved folder is unavailable", async () => {
+    const user = userEvent.setup();
+    const { bindFolderToWorkspace, createTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          {
+            id: "A",
+            label: "Missing project",
+            shortLabel: "MP",
+            rootPath: "/Users/patryk/Desktop/MissingProject",
+            rootStatus: "missing",
+          },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+    bindFolderToWorkspace.mockResolvedValueOnce({
+      workspaces: [
+        {
+          id: "A",
+          label: "Missing project",
+          shortLabel: "MP",
+          rootPath: "/Users/patryk/Desktop/MissingProject",
+          rootStatus: "missing",
+        },
+      ],
+      activeWorkspaceId: "A",
+    });
+
+    render(<App />);
+
+    const emptyState = await screen.findByRole("status", { name: "Unavailable workspace folder" });
+    expect(emptyState).toHaveTextContent("Folder unavailable");
+    expect(emptyState).toHaveTextContent("…/Desktop/MissingProject");
+    expect(within(emptyState).queryByRole("button", { name: "New terminal" })).not.toBeInTheDocument();
+    expect(within(emptyState).queryByRole("button", { name: "Start Codex" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New terminal" })).toBeDisabled();
+    expect(createTerminal).not.toHaveBeenCalled();
+
+    await user.click(within(emptyState).getByRole("button", { name: "Choose folder" }));
+    expect(bindFolderToWorkspace).toHaveBeenCalledWith({ workspaceId: "A" });
+    expect(createTerminal).not.toHaveBeenCalled();
+
+    await user.click(
+      within(await screen.findByRole("status", { name: "Unavailable workspace folder" }))
+        .getByRole("button", { name: "Choose folder" }),
+    );
+    expect(bindFolderToWorkspace).toHaveBeenCalledTimes(2);
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cwd: "/Users/patryk/TrustedWorkspace",
+          source: "manual",
+          workspaceId: "A",
+        }),
+      );
+    });
   });
 
   it("keeps browser fallback terminal status consistent across tile and workspace", async () => {

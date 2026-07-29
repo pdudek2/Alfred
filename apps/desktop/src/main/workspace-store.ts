@@ -1,5 +1,6 @@
 import path from "node:path";
 import { execFile } from "node:child_process";
+import { stat } from "node:fs/promises";
 import { promisify } from "node:util";
 import {
   createPersistedDesktopStateStore,
@@ -12,6 +13,7 @@ import {
 import { shortLabelForWorkspace } from "../shared/workspace-label.js";
 import type {
   WorkspaceBindFolderRequest,
+  WorkspaceRootStatus,
   WorkspaceStateSetRequest,
   WorkspaceStateSnapshot,
 } from "../shared/workspace-ipc.js";
@@ -29,6 +31,7 @@ export type WorkspaceStoreOptions = PersistedDesktopStateStoreOptions & {
   defaultRootPath?: string;
   persistedStateStore?: PersistedDesktopStateStore;
   resolveGitBranch?: (rootPath: string) => Promise<string | undefined>;
+  resolveRootStatus?: (rootPath: string) => Promise<WorkspaceRootStatus>;
 };
 
 export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): WorkspaceStore {
@@ -96,7 +99,7 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
 
     async getWorkspaceState(): Promise<WorkspaceStateSnapshot> {
       const state = await ensureDefaultWorkspaceRoot(await persistedStateStore.getState());
-      return toWorkspaceState(await refreshWorkspaceBranches(state));
+      return annotateMissingRoots(await refreshWorkspaceBranches(state));
     },
 
     async setWorkspaceState(request: WorkspaceStateSetRequest): Promise<WorkspaceStateSnapshot> {
@@ -151,6 +154,17 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
       workspaces: current.workspaces.map((workspace) => refreshedById.get(workspace.id) ?? workspace),
     }));
   }
+
+  async function annotateMissingRoots(state: DesktopStateSnapshot): Promise<WorkspaceStateSnapshot> {
+    const workspaces = await Promise.all(
+      state.workspaces.map(async (workspace) => {
+        if (!workspace.rootPath) return workspace;
+        const rootStatus = await (options.resolveRootStatus ?? resolveRootStatus)(workspace.rootPath);
+        return rootStatus === "missing" ? { ...workspace, rootStatus } : workspace;
+      }),
+    );
+    return { workspaces, activeWorkspaceId: state.activeWorkspaceId };
+  }
 }
 
 function toWorkspaceState(state: WorkspaceStateSnapshot): WorkspaceStateSnapshot {
@@ -170,6 +184,14 @@ async function resolveGitBranch(rootPath: string): Promise<string | undefined> {
     return branch;
   } catch {
     return undefined;
+  }
+}
+
+async function resolveRootStatus(rootPath: string): Promise<WorkspaceRootStatus> {
+  try {
+    return (await stat(rootPath)).isDirectory() ? "available" : "missing";
+  } catch {
+    return "missing";
   }
 }
 
