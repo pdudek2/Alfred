@@ -85,9 +85,8 @@ const terminal: TerminalApi = {
   kill: (request) => {
     ipcRenderer.send(terminalChannels.kill, request);
   },
-  forget: (request) => {
-    ipcRenderer.send(terminalChannels.forget, request);
-  },
+  forget: (request) =>
+    ipcRenderer.invoke(terminalChannels.forget, request) as ReturnType<TerminalApi["forget"]>,
   rename: (request) => ipcRenderer.invoke(terminalChannels.rename, request) as ReturnType<TerminalApi["rename"]>,
   worktreeDiff: (request) =>
     ipcRenderer.invoke(terminalChannels.worktreeDiff, request) as ReturnType<TerminalApi["worktreeDiff"]>,

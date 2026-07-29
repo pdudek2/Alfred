@@ -21,6 +21,7 @@ import {
   type TerminalCreateRequest,
   type TerminalCreateResult,
   type TerminalForgetRequest,
+  type TerminalForgetResult,
   type TerminalExitEvent,
   type TerminalKillRequest,
   type TerminalListResult,
@@ -61,13 +62,14 @@ import { canonicalWorkspacePath, isAllowedWorkspacePath } from "./workspace-path
 type PtyProcess = import("node-pty").IPty;
 type NodePtyModule = typeof import("node-pty");
 type ApplyAgentWorktreePatch = typeof defaultApplyAgentWorktreePatch;
-type CleanupAgentWorktree = typeof defaultCleanupAgentWorktree;
 type InspectAgentWorktree = typeof defaultInspectAgentWorktree;
 type WorktreeOperationSession = {
   baseCwd?: string | undefined;
   branchName?: string | undefined;
   cwd?: string | undefined;
   isolation?: TerminalCreateResult["isolation"] | undefined;
+  workspaceId?: string | undefined;
+  workspaceRootFingerprint?: string | undefined;
 };
 type TerminalIpcOptions = {
   allowedCwdRoots?: () => Promise<string[]>;
@@ -79,6 +81,7 @@ type TerminalIpcOptions = {
   loadNodePty?: () => Promise<NodePtyModule>;
   managedWorktreeRootPath?: string;
   prepareAgentWorktree?: typeof defaultPrepareAgentWorktree;
+  resolveWorkspaceRoot?: (workspaceId: string) => Promise<string | undefined>;
   requireLaunchTickets?: boolean;
   scratchRootPath?: string;
 };
@@ -434,35 +437,51 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
 
   ipcMain.on(terminalChannels.kill, (event, request: TerminalKillRequest) => {
     if (getOwnedSession(event.sender, request.id)) {
-      killSession(request.id, {
-        ...(request.cleanupWorktree
-          ? {
-              cleanupAgentWorktree: options.cleanupAgentWorktree ?? defaultCleanupAgentWorktree,
-              ...terminalWorktreeOptions(options),
-            }
-          : {}),
-        forgetSnapshot: true,
-      });
+      killSession(request.id, "close");
     }
   });
 
-  ipcMain.on(terminalChannels.forget, (event, request: TerminalForgetRequest) => {
-    const liveSession = findLiveSessionByClientId(request.clientId);
-    if (liveSession) {
-      const window = BrowserWindow.fromWebContents(event.sender);
-      if (!window || !canAttachToWindow(liveSession, window)) {
-        return;
-      }
-      return;
+  ipcMain.handle(terminalChannels.forget, async (event, request: TerminalForgetRequest): Promise<TerminalForgetResult> => {
+    if (!request?.clientId?.trim()) {
+      return { ok: false, error: "Session id is required." };
     }
 
-    const session = restoredSessionSnapshots.get(request.clientId);
-    forgetPersistedSession(request.clientId);
-    if (request.cleanupWorktree) {
-      cleanupSessionWorktree(session, options.cleanupAgentWorktree ?? defaultCleanupAgentWorktree, {
-        force: true,
-        ...terminalWorktreeOptions(options),
-      });
+    let session: PersistedTerminalSessionSnapshot | undefined;
+    try {
+      await hydratePersistedTerminalSessions();
+      const liveSession = findLiveSessionByClientId(request.clientId);
+      if (liveSession) {
+        const window = BrowserWindow.fromWebContents(event.sender);
+        if (!window || !canAttachToWindow(liveSession, window)) {
+          return { ok: false, error: "Session not found." };
+        }
+        return { ok: false, error: "Close the live session before discarding its checkout." };
+      }
+
+      session = restoredSessionSnapshots.get(request.clientId);
+      if (!session) {
+        return { ok: false, error: "Session not found." };
+      }
+
+      if (request.cleanupWorktree && isIsolatedWorktreeSession(session)) {
+        const operation = await worktreeOperationRequest(event.sender, request.clientId, options);
+        if (!operation.ok) {
+          return operation;
+        }
+        await (options.cleanupAgentWorktree ?? defaultCleanupAgentWorktree)(
+          { ...operation.request, force: true },
+          operation.options,
+        );
+      }
+      forgetPersistedSession(request.clientId);
+      await flushTerminalPersistence();
+      return { ok: true };
+    } catch (error: unknown) {
+      if (session) {
+        forgottenClientIds.delete(request.clientId);
+        restoredSessionSnapshots.set(request.clientId, session);
+      }
+      return { ok: false, error: terminalErrorMessage(error) };
     }
   });
 
@@ -533,7 +552,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
 
 export function killAllTerminalSessions(): void {
   for (const id of sessions.keys()) {
-    killSession(id, { forgetSnapshot: false });
+    killSession(id, "quit");
   }
 }
 
@@ -760,41 +779,12 @@ function forgetPersistedSession(clientId: string): void {
   persistenceHydrationMutations?.set(clientId, privacyClearGeneration);
   forgottenClientIds.add(clientId);
   restoredSessionSnapshots.delete(clientId);
-  scheduleTerminalPersistence();
-}
-
-function cleanupSessionWorktree(
-  session:
-    | {
-        baseCwd?: string | undefined;
-        branchName?: string | undefined;
-        cwd?: string | undefined;
-        isolation?: TerminalCreateResult["isolation"] | undefined;
-      }
-    | null
-    | undefined,
-  cleanupAgentWorktree: CleanupAgentWorktree,
-  options: { force?: boolean; managedWorktreeRootPath?: string } = {},
-): void {
-  if (!hasIsolatedWorktreeMetadata(session)) return;
-  const cleanupRequest = {
-    baseCwd: session.baseCwd,
-    branchName: session.branchName,
-    ...(session.cwd === undefined ? {} : { cwd: session.cwd }),
-    ...(options.force ? { force: true } : {}),
-  };
-  const cleanupOptions = {
-    ...(options.managedWorktreeRootPath === undefined ? {} : { worktreeStoreRoot: options.managedWorktreeRootPath }),
-  };
-  if (!isSafeAgentWorktreeCleanupRequest(cleanupRequest, cleanupOptions)) return;
-
-  void cleanupAgentWorktree(cleanupRequest, cleanupOptions).catch(() => undefined);
 }
 
 async function worktreeOperationRequest(
   sender: Electron.WebContents,
   clientId: string | undefined,
-  options: Pick<TerminalIpcOptions, "managedWorktreeRootPath">,
+  options: Pick<TerminalIpcOptions, "managedWorktreeRootPath" | "resolveWorkspaceRoot">,
 ): Promise<
   | {
       ok: true;
@@ -815,13 +805,28 @@ async function worktreeOperationRequest(
   if (session.isolation === "shared" || (!session.baseCwd && !session.branchName)) {
     return { ok: false, error: "Session is not an isolated checkout." };
   }
-  if (!hasIsolatedWorktreeMetadata(session)) {
+  const baseCwd = session.workspaceId && session.workspaceRootFingerprint
+    ? await options.resolveWorkspaceRoot?.(session.workspaceId)
+    : session.baseCwd;
+  if (!baseCwd) {
+    return { ok: false, error: "Reattach the original project before managing this checkout." };
+  }
+  if (
+    session.workspaceRootFingerprint
+    && workspaceRootFingerprint(baseCwd) !== session.workspaceRootFingerprint
+  ) {
+    return {
+      ok: false,
+      error: "This workspace points to a different project. Reattach the original project first.",
+    };
+  }
+  if (!session.branchName) {
     return { ok: false, error: "Isolated checkout metadata is incomplete." };
   }
 
   const cleanupOptions = worktreeStoreOptions(options);
   const cleanupRequest: AgentWorktreeCleanupRequest = {
-    baseCwd: session.baseCwd,
+    baseCwd,
     branchName: session.branchName,
   };
   if (session.cwd !== undefined) {
@@ -864,7 +869,19 @@ function toWorktreeOperationSession(session: WorktreeOperationSession): Worktree
     ...(session.branchName === undefined ? {} : { branchName: session.branchName }),
     ...(session.cwd === undefined ? {} : { cwd: session.cwd }),
     ...(session.isolation === undefined ? {} : { isolation: session.isolation }),
+    ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
+    ...(session.workspaceRootFingerprint === undefined
+      ? {}
+      : { workspaceRootFingerprint: session.workspaceRootFingerprint }),
   };
+}
+
+function isIsolatedWorktreeSession(
+  session: WorktreeOperationSession | null | undefined,
+): boolean {
+  if (!session || session.isolation === "shared") return false;
+  return session.isolation === "worktree"
+    || Boolean(session.branchName && (session.baseCwd || (session.workspaceId && session.workspaceRootFingerprint)));
 }
 
 function hasIsolatedWorktreeMetadata(
@@ -1057,11 +1074,7 @@ function normalizedSessionTitle(value: string): string {
 
 function killSession(
   id: TerminalSessionId,
-  options: {
-    cleanupAgentWorktree?: CleanupAgentWorktree;
-    forgetSnapshot: boolean;
-    managedWorktreeRootPath?: string;
-  },
+  reason: "close" | "quit",
 ): void {
   const session = sessions.get(id);
 
@@ -1070,22 +1083,18 @@ function killSession(
   }
 
   sessions.delete(id);
-  if (options.forgetSnapshot && session.clientId) {
-    forgetPersistedSession(session.clientId);
-    if (options.cleanupAgentWorktree) {
-      cleanupSessionWorktree(session, options.cleanupAgentWorktree, {
-        force: true,
-        ...terminalWorktreeOptions(options),
+  recordSessionActivity(session, reason === "close"
+    ? {
+        kind: "lifecycle",
+        title: "Closed by user",
+        detail: "This terminal was closed. Its recovery snapshot is still available.",
+      }
+    : {
+        kind: "lifecycle",
+        title: "Stopped on quit",
+        detail: "Alfred stopped this terminal while quitting.",
       });
-    }
-  } else if (!options.forgetSnapshot) {
-    recordSessionActivity(session, {
-      kind: "lifecycle",
-      title: "Stopped on quit",
-      detail: "Alfred stopped this terminal while quitting.",
-    });
-    rememberSessionSnapshot(session);
-  }
+  rememberSessionSnapshot(session);
   session.pty.kill();
 }
 

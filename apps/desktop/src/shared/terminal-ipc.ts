@@ -115,13 +115,16 @@ export type TerminalWriteRequest = {
 
 export type TerminalKillRequest = {
   id: TerminalSessionId;
-  cleanupWorktree?: boolean;
 };
 
 export type TerminalForgetRequest = {
   clientId: string;
   cleanupWorktree?: boolean;
 };
+
+export type TerminalForgetResult =
+  | { ok: true }
+  | { ok: false; error: string };
 
 export type TerminalRenameRequest = {
   clientId: string;
@@ -167,7 +170,7 @@ export type TerminalApi = {
   write(request: TerminalWriteRequest): void;
   resize(request: TerminalResizeRequest): void;
   kill(request: TerminalKillRequest): void;
-  forget(request: TerminalForgetRequest): void;
+  forget(request: TerminalForgetRequest): Promise<TerminalForgetResult>;
   rename(request: TerminalRenameRequest): Promise<void>;
   worktreeDiff(request: TerminalWorktreeDiffRequest): Promise<TerminalWorktreeDiffResult>;
   worktreeApply(request: TerminalWorktreeApplyRequest): Promise<TerminalWorktreeApplyResult>;
