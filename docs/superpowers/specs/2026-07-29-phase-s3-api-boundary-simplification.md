@@ -1,6 +1,6 @@
 # Phase S3 — API Boundary Simplification
 
-**Status:** Approved
+**Status:** Implemented — hosted smoke pending
 
 **Date:** 2026-07-29
 
@@ -219,6 +219,25 @@ migration impact is measured.
 Rollback restores the previous binary. Because auth tables and migrations stay
 intact, no database rollback is needed. If hosted browser-auth variables were
 already removed, restore them before rolling back to the previous binary.
+
+## Local verification checkpoint
+
+Local verification completed on 2026-07-29. Hosted deployment and smoke were
+not authorized, so S3 remains pending `pnpm smoke:cloud` and
+`pnpm smoke:cloud:runner` against separately supplied hosted credentials.
+
+- `pnpm --filter @alfred/api test` — 3 files, 41/41 tests passed.
+- `pnpm --filter @alfred/api typecheck` and `pnpm --filter @alfred/api build`
+  — passed.
+- `pnpm test:scripts` — 34/34 tests passed.
+- `pnpm verify` — lint, 9 typecheck tasks, 34 script tests, 1,083 package
+  tests, 6 build tasks, and 16/16 Electron smoke tests passed.
+- The runtime residue scans found 0 matches after excluding
+  `apps/api/src/test/**`; the original `!test/**` glob did not exclude that
+  path and reported the five intentionally retained retired-config fixtures
+  in `apps/api/src/test/env.test.ts` twice (10 matching lines).
+- Diff review found no desktop UI, schema/migration, dependency, query-route
+  replacement, route redirect/tombstone, or compatibility-flag change.
 
 ## Acceptance gate
 

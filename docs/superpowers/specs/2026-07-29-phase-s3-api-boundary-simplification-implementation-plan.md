@@ -686,7 +686,7 @@ git commit -m "docs(api): describe the device-only boundary"
 - Produces: a locally verified S3 checkpoint or, when separately authorized,
   a fully closed S3 phase.
 
-- [ ] **Step 1: Run the focused API and script gates**
+- [x] **Step 1: Run the focused API and script gates**
 
 ```bash
 pnpm --filter @alfred/api test
@@ -697,15 +697,15 @@ pnpm test:scripts
 
 Expected: PASS.
 
-- [ ] **Step 2: Run the security residue scan**
+- [x] **Step 2: Run the security residue scan**
 
 ```bash
-if rg -n 'AUTH_OIDC_|AUTH_DEV_SESSION_TOKEN|APP_BASE_URL|ALFRED_EXPECT_AUTH|alfred_session' apps/api/src scripts/*.mjs README.md .env.example vercel.json --glob '!test/**'; then
+if rg -n 'AUTH_OIDC_|AUTH_DEV_SESSION_TOKEN|APP_BASE_URL|ALFRED_EXPECT_AUTH|alfred_session' apps/api/src scripts/*.mjs README.md .env.example vercel.json --glob '!apps/api/src/test/**'; then
   echo "retired browser API residue remains"
   exit 1
 fi
 
-if rg -n 'createAuthRoutes|createRunsRoutes|createSystemRoutes|requireSession|oidc-auth|session-auth|runs-query-service|runner-status-service|system-status-store' apps/api/src --glob '!test/**'; then
+if rg -n 'createAuthRoutes|createRunsRoutes|createSystemRoutes|requireSession|oidc-auth|session-auth|runs-query-service|runner-status-service|system-status-store' apps/api/src --glob '!apps/api/src/test/**'; then
   echo "retired browser runtime import remains"
   exit 1
 fi
@@ -715,7 +715,7 @@ Expected: both scans exit `0` with no matches. Negative `404` probes and their
 tests intentionally retain the retired URL strings. `packages/db/src/schema.ts`
 and migrations are also excluded because inert auth tables remain in S3.
 
-- [ ] **Step 3: Run the full repository gate**
+- [x] **Step 3: Run the full repository gate**
 
 ```bash
 pnpm verify
@@ -723,7 +723,7 @@ pnpm verify
 
 Expected: lint, typecheck, tests, build, and Electron smoke all PASS.
 
-- [ ] **Step 4: Review the final diff against the approved contract**
+- [x] **Step 4: Review the final diff against the approved contract**
 
 ```bash
 git diff --check
@@ -736,7 +736,7 @@ Confirm the diff contains no desktop UI change, database schema/migration
 change, dependency addition, query replacement, redirect, tombstone, or
 compatibility flag.
 
-- [ ] **Step 5: Record local verification without overstating rollout**
+- [x] **Step 5: Record local verification without overstating rollout**
 
 If hosted deployment has not been separately authorized:
 
@@ -757,7 +757,7 @@ pnpm smoke:cloud:runner
 Only after both pass, set the S3 spec and roadmap state to `Complete` and make
 S4 the next phase.
 
-- [ ] **Step 6: Mark completed plan checkboxes and commit the checkpoint**
+- [x] **Step 6: Mark completed plan checkboxes and commit the checkpoint**
 
 ```bash
 git add docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification.md docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification-implementation-plan.md docs/superpowers/specs/2026-07-29-post-v1-stabilization-roadmap.md
