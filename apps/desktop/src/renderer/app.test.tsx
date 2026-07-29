@@ -8545,18 +8545,24 @@ describe("App integration", () => {
     expect(resolveStagedPlan).not.toHaveBeenCalled();
   });
 
-  it("opens the selected blocked staged command in Context for editing", async () => {
+  it("rechecks the selected blocked staged Codex command in Context", async () => {
     const user = userEvent.setup();
-    const { createTerminal, setWorkspaceViewState } = installDesktopBridge({
+    const { createTerminal, setStagedPlan, setWorkspaceViewState, updateStagedSession } = installDesktopBridge({
       ok: true,
       plan: {
         name: "Unsafe plan",
         sessions: [{
-          kind: "shell",
-          title: "Risky cleanup",
-          command: "rm",
-          args: ["-rf", "dist"],
-          safetyNote: "rm -rf detected",
+          kind: "codex",
+          title: "Blocked Codex",
+          command: "codex",
+          args: ["exec", "--old"],
+          safetyNote: "old blocker",
+          launchPreflight: {
+            status: "blocked",
+            code: "git_not_ready",
+            label: "Git not ready",
+            reason: "old blocker",
+          },
         }],
       },
     }, null, [liveSnapshot("context-review-preview", {
@@ -8570,9 +8576,34 @@ describe("App integration", () => {
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage risky cleanup");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
+    await waitFor(() => {
+      expect(setStagedPlan).toHaveBeenCalled();
+    });
+    const blockedPlan = setStagedPlan.mock.calls.at(-1)?.[0] as AlfredStagedPlanSnapshot;
+    const blockedSession = blockedPlan.sessions[0];
+    if (!blockedSession) throw new Error("Expected blocked staged session");
+    updateStagedSession.mockResolvedValueOnce({
+      ok: true,
+      plan: {
+        ...blockedPlan,
+        sessions: [{
+          ...blockedSession,
+          command: "codex",
+          args: ["exec", "--safe"],
+          cwd: "apps/desktop",
+          safetyNote: undefined,
+          launchPreflight: {
+            status: "ready",
+            label: "Ready",
+            detail: "Will launch in the selected workspace.",
+            isolation: "shared",
+          },
+        }],
+      },
+    });
     await openInboxFromCommandPalette(user);
     await user.click(screen.getByRole("button", {
-      name: "Review / Edit Risky cleanup in Alfred",
+      name: "Review / Edit Blocked Codex in Alfred",
     }));
 
     expect(screen.getByTestId("desk-runtime-surface")).toBeVisible();
@@ -8584,9 +8615,30 @@ describe("App integration", () => {
     });
     expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
     await waitFor(() => expect(screen.getByRole("button", { name: "Close Context panel" })).toHaveFocus());
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Risky cleanup");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Blocked Codex");
     expect(screen.getByRole("button", { name: "Edit command" })).toBeInTheDocument();
     expect(createTerminal).not.toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-1" }));
+
+    await user.click(screen.getByRole("button", { name: "Edit command" }));
+    fireEvent.change(screen.getByLabelText("Command"), { target: { value: "codex" } });
+    fireEvent.change(screen.getByLabelText("Arguments"), { target: { value: "exec\n--safe" } });
+    fireEvent.change(screen.getByLabelText("Working directory"), { target: { value: "apps/desktop" } });
+    await user.click(screen.getByRole("button", { name: "Save and re-check" }));
+
+    await waitFor(() => {
+      expect(updateStagedSession).toHaveBeenCalledWith({
+        planId: blockedPlan.id,
+        sessionId: blockedPlan.sessions[0]?.id,
+        patch: {
+          command: "codex",
+          args: ["exec", "--safe"],
+          cwd: "apps/desktop",
+        },
+        workspace: expect.any(Object),
+      });
+    });
+    expect(screen.getByRole("button", { name: /Launch/ })).toBeEnabled();
+    expect(screen.queryByText(/old blocker/i)).not.toBeInTheDocument();
   });
 
   it("keeps the draft when Alfred plan creation fails", async () => {

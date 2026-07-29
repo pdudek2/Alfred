@@ -780,24 +780,63 @@ describe("AgentTimelinePanel", () => {
     expect(screen.getByRole("form", { name: /Edit staged command for/ })).toBeInTheDocument();
   });
 
-  it("keeps coding-agent staged sessions read-only until launch defaults are wired", () => {
-    const onUpdateStagedSession = vi.fn().mockResolvedValue(undefined);
-    const session: SessionTile = {
-      id: "s3",
-      title: "review feature",
-      workspaceId: "w1",
-      stage: "staged",
-      cwd: "/repo",
-      source: "alfred",
-      agentKind: "codex",
-      command: "codex",
-      args: [],
-    };
+  it.each(["codex", "claude"] as const)(
+    "lets staged %s sessions save command changes for re-check",
+    async (agentKind) => {
+      const user = userEvent.setup();
+      const onUpdateStagedSession = vi.fn().mockResolvedValue(undefined);
+      const session: SessionTile = {
+        id: `staged-${agentKind}`,
+        title: `review ${agentKind}`,
+        workspaceId: "w1",
+        stage: "staged",
+        cwd: "/repo",
+        source: "alfred",
+        agentKind,
+        command: agentKind,
+        args: ["--old"],
+      };
 
-    const { container } = render(<AgentTimelinePanel session={session} onUpdateStagedSession={onUpdateStagedSession} />);
+      render(<AgentTimelinePanel session={session} onUpdateStagedSession={onUpdateStagedSession} />);
+      await user.click(screen.getByRole("button", { name: "Edit command" }));
+      await user.clear(screen.getByLabelText("Arguments"));
+      await user.type(screen.getByLabelText("Arguments"), "--new");
+      await user.click(screen.getByRole("button", { name: "Save and re-check" }));
 
-    expect(within(container).queryByRole("button", { name: "Edit command" })).not.toBeInTheDocument();
-  });
+      expect(onUpdateStagedSession).toHaveBeenCalledWith(session.id, {
+        command: agentKind,
+        args: ["--new"],
+        cwd: "/repo",
+      });
+    },
+  );
+
+  it.each(["live", "restored", "exited"] as const)(
+    "does not edit live sessions with %s runtime status",
+    (runtimeStatus) => {
+      const sessionFixture: SessionTile = {
+        id: `live-${runtimeStatus}`,
+        title: "active coding session",
+        workspaceId: "w1",
+        stage: "live",
+        cwd: "/repo",
+        source: "alfred",
+        agentKind: "codex",
+        command: "codex",
+        args: [],
+        runtimeId: "runtime-1",
+      };
+
+      render(
+        <AgentTimelinePanel
+          session={{ ...sessionFixture, runtimeStatus }}
+          onUpdateStagedSession={vi.fn()}
+        />,
+      );
+
+      expect(screen.queryByRole("button", { name: "Edit command" })).not.toBeInTheDocument();
+    },
+  );
 
   it("keeps the focused session age moving while the panel stays open", async () => {
     vi.useFakeTimers();
