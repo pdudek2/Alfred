@@ -9,34 +9,44 @@ describe("api env", () => {
         ALFRED_ALLOW_DEV_AUTH: "1",
       }),
     ).toMatchObject({
-      APP_BASE_URL: "http://127.0.0.1:4301",
-      AUTH_DEV_SESSION_TOKEN: "dev-session-token",
       DEV_AUTH_ENABLED: true,
       RUNNER_DEVICE_TOKEN: "dev-device-token",
     });
   });
 
-  it("rejects hosted dev auth with default secrets", () => {
+  it("rejects hosted dev auth with the default device token", () => {
     expect(() =>
       parseApiEnv({
         ALFRED_ALLOW_DEV_AUTH: "1",
         NODE_ENV: "production",
       }),
-    ).toThrow(/AUTH_DEV_SESSION_TOKEN/);
+    ).toThrow(/RUNNER_DEVICE_TOKEN/);
   });
 
-  it("allows hosted dev auth only with explicit non-default secrets", () => {
-    expect(
-      parseApiEnv({
-        ALFRED_ALLOW_DEV_AUTH: "1",
-        AUTH_DEV_SESSION_TOKEN: "preview-session-token",
-        NODE_ENV: "production",
-        RUNNER_DEVICE_TOKEN: "preview-device-token",
-      }),
-    ).toMatchObject({
-      AUTH_DEV_SESSION_TOKEN: "preview-session-token",
+  it("ignores retired browser auth configuration for hosted device auth", () => {
+    const parsed = parseApiEnv({
+      ALFRED_ALLOW_DEV_AUTH: "1",
+      APP_BASE_URL: "https://alfred.example.test",
+      AUTH_DEV_SESSION_TOKEN: "retired-session-token",
+      AUTH_OIDC_CLIENT_ID: "retired-client",
+      AUTH_OIDC_CLIENT_SECRET: "retired-secret",
+      AUTH_OIDC_ISSUER: "https://idp.example.test",
+      NODE_ENV: "production",
+      RUNNER_DEVICE_TOKEN: "preview-device-token",
+    });
+
+    expect(parsed).toMatchObject({
       DEV_AUTH_ENABLED: true,
       RUNNER_DEVICE_TOKEN: "preview-device-token",
     });
+    for (const key of [
+      "APP_BASE_URL",
+      "AUTH_DEV_SESSION_TOKEN",
+      "AUTH_OIDC_CLIENT_ID",
+      "AUTH_OIDC_CLIENT_SECRET",
+      "AUTH_OIDC_ISSUER",
+    ]) {
+      expect(parsed).not.toHaveProperty(key);
+    }
   });
 });
