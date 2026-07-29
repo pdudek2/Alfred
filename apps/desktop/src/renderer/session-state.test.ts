@@ -356,7 +356,7 @@ describe("desktop session state", () => {
       branchName: "alfred-codex-private-20260729120000-abcd1234",
       runtimeStatus: "restored",
     });
-    for (const field of ["baseCwd", "shell", "command", "args", "resumeTarget"]) {
+    for (const field of ["baseCwd", "shell", "command", "args", "resumeTarget", "resumeMode"]) {
       expect(hydrated).not.toHaveProperty(field);
     }
     expect(relaunchRestoredSession(restored, "codex-private")).toEqual(restored);

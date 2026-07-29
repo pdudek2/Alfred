@@ -92,6 +92,35 @@ describe("sessionsPrimaryAction", () => {
 });
 
 describe("buildSessionsProjection", () => {
+  it("projects recovery-only Codex as read-only without a Resume in Work action", () => {
+    const { command: _command, ...recoveryOnly } = managedSession({
+      id: "codex-private",
+      title: "Codex recovery",
+      cwd: "",
+      source: "alfred",
+      runtimeStatus: "restored",
+      workspaceRootFingerprint: "0123456789abcdef",
+      isolation: "worktree",
+      branchName: "alfred-codex-private-20260729120000-abcd1234",
+    });
+
+    const projection = buildSessionsProjection({
+      sessions: [recoveryOnly],
+      workspaces,
+      externalSessions: [],
+    });
+    const [projected] = projection.items;
+
+    expect(projected).toMatchObject({
+      sessionKey: "managed:codex-private",
+      lifecycle: "read-only",
+    });
+    expect(projected && sessionsPrimaryAction(projected)).toEqual({
+      kind: "open-project",
+      label: "Open Project",
+    });
+  });
+
   it("normalizes lifecycle state, identifies Free Chats, and merges a resumed Codex lineage", () => {
     const externalId = "019fff00-1111-7222-8333-444444444444";
     const liveCodex = managedSession({
