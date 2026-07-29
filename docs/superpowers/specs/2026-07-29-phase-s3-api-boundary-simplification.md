@@ -1,6 +1,6 @@
 # Phase S3 — API Boundary Simplification
 
-**Status:** Integrated locally — hosted smoke pending
+**Status:** Complete
 
 **Date:** 2026-07-29
 
@@ -243,6 +243,23 @@ The final local integration added a direct `GET /api/health` regression,
 bringing the API suite to 42/42. `main` was fast-forwarded through `4649718`,
 then fresh `pnpm test`, `pnpm typecheck`, and `pnpm build` gates passed.
 
+## Hosted verification closeout
+
+Production deployment `dpl_5PZsSKKJ9UgJ1q47bSe8uXYTWWpQ` reached `READY` on
+2026-07-29. Smoke checks used its public production alias
+`https://alfred-jade-ten.vercel.app`:
+
+- public health returned `200`;
+- every retired direct and `/api` alias route returned `404`;
+- runner heartbeat returned `202`;
+- a synthetic runner batch returned `202`.
+
+The deployment-specific URL is protected by Vercel SSO and returns `302`, so
+it is not the public observation surface. The unused production
+`APP_BASE_URL` variable remains in place: Vercel exposes it as encrypted but
+does not return a recoverable value through `env pull`, so deleting it would
+weaken rollback of the previous binary without changing the current runtime.
+
 ## Acceptance gate
 
 - Add negative route tests for every retired direct and alias route.
@@ -261,5 +278,5 @@ then fresh `pnpm test`, `pnpm typecheck`, and `pnpm build` gates passed.
 
 ## Open questions
 
-None block S3. Auth-table deletion remains explicitly deferred, and hosted
-deployment requires separate authorization.
+None block S3. Auth-table deletion and removal of the unused hosted
+`APP_BASE_URL` variable remain explicitly deferred.

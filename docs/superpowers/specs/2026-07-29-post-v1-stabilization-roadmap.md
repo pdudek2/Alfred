@@ -57,7 +57,7 @@ or product decisions.
 |---|---|---:|---|
 | S1 — Desktop safety gate | Honest runtime gate and no silent desktop-state loss | 2, 3, 4, 14, 19 | Complete |
 | S2 — Runner loss and stall prevention | Concurrent sessions do not lose events; poison or malformed records cannot stall sync | 6, 7, 8, 24 | Complete |
-| S3 — API boundary simplification | Delete browser-session auth and browser-only query surfaces; keep device-auth ingest | 9, 10, 22 | Integrated locally — hosted smoke pending |
+| S3 — API boundary simplification | Delete browser-session auth and browser-only query surfaces; keep device-auth ingest | 9, 10, 22 | Complete |
 | S4 — Privacy and worktree lifecycle | Resolve worktree close behavior and prevent sensitive launch data from persisting | 13, 15, 16 | Pending decision gates |
 | S5 — Desktop interaction correctness | Recover failed planning, unblock review/edit, remove impure state updaters, correct activity classification | 5, 11, 17, 23 | Pending |
 | S6 — Ingest/API correctness | Correct parent lifecycle, validate hosted DB config, and test the real ingest store | 12, 20, 21 | Pending |
@@ -66,13 +66,12 @@ or product decisions.
 Only the current phase receives an implementation plan. A later phase starts
 after the preceding phase has fresh verification and closeout.
 
-**Closed phase contract:** `docs/superpowers/specs/2026-07-29-phase-s2-runner-loss-stall-prevention.md`
+**Closed phase contract:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification.md`
 
-**Closed implementation plan:** `docs/superpowers/specs/2026-07-29-phase-s2-runner-loss-stall-prevention-implementation-plan.md`
+**Closed implementation plan:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification-implementation-plan.md`
 
-**Current phase contract:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification.md`
-
-**Approved implementation plan:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification-implementation-plan.md`
+**Next phase:** S4 — Privacy and worktree lifecycle; decision gates remain
+unresolved.
 
 Its product-boundary decision above remains unchanged: delete browser-session
 auth and browser-only query surfaces while retaining device-auth ingest.
@@ -178,11 +177,11 @@ ordering, transactional exact-payload quarantine, harmless ignored global
 cursors, the restricted permanent-rejection classification, payload-free
 warnings, and no API, hosted schema, device-auth, desktop, or visual change.
 
-## S3 local checkpoint
+## S3 closeout
 
-**State:** Integrated locally — hosted smoke pending
+**State:** Complete
 **Implementation commits:** `8f6b5cd`, `c4042d5`, `16cb30d`, `a136be9`, `e1521aa`, `a96d8c9`, `4649718`
-**Next phase:** S4 remains unstarted pending S3 hosted smoke
+**Next phase:** S4 — Privacy and worktree lifecycle
 
 Local gates passed: API 42/42 tests, API typecheck and build, script tests
 34/34, and the pre-integration `pnpm verify` gate (lint, typecheck, tests,
@@ -193,7 +192,9 @@ corrected to match `apps/api/src/test/**`; no runtime residue remains.
 
 Focused diff review found no desktop UI, schema/migration, dependency,
 query-route replacement, route redirect/tombstone, or compatibility-flag
-change. No hosted deployment or smoke was authorized or run.
+change. Production deployment `dpl_5PZsSKKJ9UgJ1q47bSe8uXYTWWpQ` reached
+`READY`; public smoke verified health `200` and every retired route `404`,
+while runner-auth smoke verified heartbeat and synthetic batch `202`.
 
 ## Explicitly deferred
 
@@ -201,6 +202,8 @@ change. No hosted deployment or smoke was authorized or run.
 - Replacing device-token runner auth.
 - Deleting auth-related database tables before runtime code is removed and
   schema impact is measured.
+- Removing the unused encrypted production `APP_BASE_URL` variable before its
+  rollback value is recoverable.
 - Broad refactors of `styles.css`, API services, persistence, or the runner
   while fixing a local root cause.
 - New abstractions, feature flags, or compatibility shims for retired routes.
