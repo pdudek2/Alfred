@@ -7,10 +7,11 @@ import {
   type DesktopStateRevealFileResult,
 } from "../shared/desktop-state-ipc.js";
 import {
-  clearTerminalSavedDataInMemory,
+  applyTerminalPrivacyPolicyInMemory,
 } from "./terminal-manager.js";
 import {
   normalizeDesktopPrivacySettings,
+  sanitizePersistedTerminalSession,
   type PersistedDesktopStateStore,
 } from "./persisted-desktop-state.js";
 
@@ -31,7 +32,15 @@ export function registerDesktopStateIpc(store: PersistedDesktopStateStore): void
     desktopStateChannels.updatePrivacySettings,
     async (_event, request: DesktopPrivacySettings): Promise<DesktopPrivacySettings> => {
       const privacySettings = normalizeDesktopPrivacySettings(request);
-      const state = await store.updateState((current) => ({ ...current, privacySettings }));
+      applyTerminalPrivacyPolicyInMemory(privacySettings);
+      const state = await store.updateState((current) => ({
+        ...current,
+        privacySettings,
+        restoredTerminalSessions: current.restoredTerminalSessions.flatMap((session) => {
+          const sanitized = sanitizePersistedTerminalSession(session, privacySettings);
+          return sanitized ? [sanitized] : [];
+        }),
+      }));
       return state.privacySettings;
     },
   );
@@ -40,17 +49,18 @@ export function registerDesktopStateIpc(store: PersistedDesktopStateStore): void
     desktopStateChannels.clearSavedTerminalData,
     async (): Promise<DesktopStateClearSavedTerminalDataResult> => {
       try {
-        const clearedInMemory = clearTerminalSavedDataInMemory();
-        const state = await store.updateState((current) => ({
-          ...current,
-          restoredTerminalSessions: current.restoredTerminalSessions.map((session) => {
-            const { activityEvents: _activityEvents, lastActivityAt: _lastActivityAt, lastOutputAt: _lastOutputAt, ...rest } = session;
-            return { ...rest, buffer: "" };
+        const current = await store.getState();
+        const clearedInMemory = applyTerminalPrivacyPolicyInMemory(current.privacySettings, true);
+        const state = await store.updateState((latest) => ({
+          ...latest,
+          restoredTerminalSessions: latest.restoredTerminalSessions.flatMap((session) => {
+            const sanitized = sanitizePersistedTerminalSession(session, latest.privacySettings, true);
+            return sanitized ? [sanitized] : [];
           }),
         }));
         return {
           ok: true,
-          clearedSessions: Math.max(clearedInMemory, state.restoredTerminalSessions.length),
+          clearedSessions: Math.max(clearedInMemory, current.restoredTerminalSessions.length),
         };
       } catch (error) {
         return { ok: false, error: error instanceof Error ? error.message : "Failed to clear saved terminal data." };
