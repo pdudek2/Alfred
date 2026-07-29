@@ -35,7 +35,7 @@ without reopening the accepted product or visual direction.
 
 ## Scope lineage
 
-`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 complete → S4 contract approved → S4 implementation plan ready`
+`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 complete → S4 complete → S5 next (unplanned)`
 
 Phase Z remains closed. This roadmap does not reinterpret or reopen its visual
 or product decisions.
@@ -53,6 +53,7 @@ or product decisions.
 - S4 product decisions are settled: live isolated Close retains Recovery,
   Discard remains explicitly destructive, and retention Off/Clear remove
   sensitive launch data while preserving only safe worktree-recovery identity.
+- S4 implementation and fresh verification are complete at `54067ff`.
 
 ## Phases
 
@@ -61,26 +62,27 @@ or product decisions.
 | S1 — Desktop safety gate | Honest runtime gate and no silent desktop-state loss | 2, 3, 4, 14, 19 | Complete |
 | S2 — Runner loss and stall prevention | Concurrent sessions do not lose events; poison or malformed records cannot stall sync | 6, 7, 8, 24 | Complete |
 | S3 — API boundary simplification | Delete browser-session auth and browser-only query surfaces; keep device-auth ingest | 9, 10, 22 | Complete |
-| S4 — Privacy and worktree lifecycle | Resolve worktree close behavior and prevent sensitive launch data from persisting | 13, 15, 16 | Contract approved; implementation plan ready |
+| S4 — Privacy and worktree lifecycle | Resolve worktree close behavior and prevent sensitive launch data from persisting | 13, 15, 16 | Complete |
 | S5 — Desktop interaction correctness | Recover failed planning, unblock review/edit, remove impure state updaters, correct activity classification | 5, 11, 17, 23 | Pending |
 | S6 — Ingest/API correctness | Correct parent lifecycle, validate hosted DB config, and test the real ingest store | 12, 20, 21 | Pending |
 | S7 — Residue and blocked-boundary review | Complete scripts/tooling and CSS/accessibility audits; triage investigate-only signals | audit gaps | Pending |
 
-Only the current phase receives an implementation plan. A later phase starts
-after the preceding phase has fresh verification and closeout.
+Only an actively converged phase receives an implementation plan. S5 remains
+unplanned until a new convergence workflow begins.
 
 **Closed phase contract:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification.md`
 
 **Closed implementation plan:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification-implementation-plan.md`
 
-**Current phase:** S4 — Privacy and worktree lifecycle; contract and
-implementation plan are approved for execution routing.
+**Closed phase:** S4 — Privacy and worktree lifecycle.
 
-**Approved phase contract:** `docs/superpowers/specs/2026-07-29-phase-s4-privacy-worktree-lifecycle.md`
+**Next phase:** S5 — Desktop interaction correctness; unplanned.
 
-**Implementation plan:** `docs/superpowers/plans/2026-07-29-phase-s4-privacy-worktree-lifecycle.md`
+**Closed phase contract:** `docs/superpowers/specs/2026-07-29-phase-s4-privacy-worktree-lifecycle.md`
 
-Its product-boundary decision above remains unchanged: delete browser-session
+**Closed implementation plan:** `docs/superpowers/plans/2026-07-29-phase-s4-privacy-worktree-lifecycle.md`
+
+The roadmap product-boundary decision above remains unchanged: delete browser-session
 auth and browser-only query surfaces while retaining device-auth ingest.
 
 ## Finding ledger
@@ -99,10 +101,10 @@ auth and browser-only query surfaces while retaining device-auth ingest.
 | 10 | Superseded by product-boundary decision | S3 deletes the OIDC surface |
 | 11 | Confirmed | S5 |
 | 12 | Confirmed | S6 |
-| 13 | Confirmed; retain Recovery on live isolated Close | S4 |
+| 13 | Fixed in `b192291`, `aad5063`, `fa7cf19`, `d5556eb`, `2a29706`, `54067ff` | Closed |
 | 14 | Fixed in `90a04e5` | Closed |
-| 15 | Confirmed; privacy-first Off/Clear contract accepted | S4 |
-| 16 | Confirmed | S4 |
+| 15 | Fixed in `591c865`, `66329fb`, `006385e`, `1b13861`, `f73ae07`, `279d9af`, `fa7cf19`, `d5556eb`, `54067ff` | Closed |
+| 16 | Fixed in `47ce4fa` | Closed |
 | 17 | Confirmed | S5 |
 | 18 | Fixed in `2a020a0` | Closed |
 | 19 | Fixed in `5ae7c1d` | Closed |
@@ -203,6 +205,52 @@ change. Production deployment `dpl_5PZsSKKJ9UgJ1q47bSe8uXYTWWpQ` reached
 `READY`; public smoke verified health `200` and every retired route `404`,
 while runner-auth smoke verified heartbeat and synthetic batch `202`.
 
+## S4 closeout
+
+**State:** Complete
+
+**Implementation commits:** `47ce4fa`, `591c865`, `66329fb`, `006385e`,
+`1b13861`, `f73ae07`, `279d9af`, `b192291`, `aad5063`, `fa7cf19`, `d5556eb`,
+`676cb15`, `2a29706`, `54067ff`
+
+**Next phase:** S5 — Desktop interaction correctness; unplanned until a new
+convergence workflow begins
+
+Closed behavior:
+
+- live isolated Close retains privacy-safe Recovery metadata and never deletes
+  the checkout;
+- Review, Apply, and explicit permanent Discard survive restart and canonical
+  macOS filesystem aliases;
+- Discard validates the workspace identity and managed root, awaits cleanup,
+  and forgets metadata only after cleanup succeeds;
+- retention Off and Clear remove launch, resume, raw-path, transcript, and
+  activity fields while retaining only safe worktree identity;
+- the single persisted-session sanitizer handles migration, privacy changes,
+  live-session races, and retry writes;
+- the shared redactor covers URI userinfo, accepted provider-token prefixes,
+  JSON secret assignments, and complete Cookie values.
+
+Fresh verification at `54067ff` passed schema 47/47 tests, desktop 962/962
+tests, package typechecks and builds, full `pnpm test` with 34/34 root script
+tests and all six package test tasks (1,174 tests total), full typecheck 9/9,
+full build 6/6, and `pnpm verify` including Electron smoke 16/16.
+
+A complete disposable macOS observation independently exercised Apply,
+recreate plus permanent Discard, and recovery under retention Off. The actual
+Off recovery record contained safe identity only; none of `cwd`, `baseCwd`,
+`shell`, `command`, `args`, `resumeTarget`, `buffer`, `activityEvents`,
+`lastActivityAt`, or `lastOutputAt` remained. Review still reported both the
+tracked and untracked changes. Final external Git checks confirmed the recovery
+record, managed worktree, and branch were removed while the base repository
+remained clean.
+
+Focused review found no API, database, runner, dependency, lockfile, migration,
+or broad visual change; no duplicate sanitizer; cleanup-before-forget ordering;
+and no route for an already-live session to repersist cleared launch data.
+Finding 17 remains routed to S5 except for the single destructive updater path
+required for transactional Discard.
+
 ## Explicitly deferred
 
 - A browser client or remote browser access.
@@ -214,3 +262,10 @@ while runner-auth smoke verified heartbeat and synthetic batch `202`.
 - Broad refactors of `styles.css`, API services, persistence, or the runner
   while fixing a local root cause.
 - New abstractions, feature flags, or compatibility shims for retired routes.
+- Normalizing a transport-level preload invocation rejection into the retained
+  tile warning is routed to S5 desktop interaction correctness.
+- Reconciling the desktop store's internal failed-save retry intent after a
+  post-cleanup flush rollback is routed to S7 residue and blocked-boundary
+  review; cleanup has already succeeded and the prior disk record remains.
+- Using an explicit Windows directory junction in filesystem-alias regression
+  coverage is routed to S7 tooling residue.
