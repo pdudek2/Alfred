@@ -536,6 +536,7 @@ describe("terminal-manager IPC", () => {
         externalSessionIndexingEnabled: false,
       },
     };
+    applyTerminalPrivacyPolicyInMemory(state.privacySettings);
     oldPty.onDataHandler?.("fresh output\n");
     await flushTerminalPersistence();
 
@@ -584,6 +585,172 @@ describe("terminal-manager IPC", () => {
         shell: "codex",
       }),
     );
+  });
+
+  it("does not persist launch data or output produced by a runtime created while retention is off", async () => {
+    let state: DesktopStateSnapshot = {
+      ...DEFAULT_DESKTOP_STATE,
+      privacySettings: {
+        terminalScrollbackRetention: "off",
+        externalSessionIndexingEnabled: false,
+      },
+      restoredTerminalSessions: [],
+    };
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const pty = new FakePty();
+    configureTerminalPersistence(store, { debounceMs: 60_000 });
+    registerTerminalIpc({
+      loadNodePty: async () => fakeNodePty(pty) as never,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+      prepareAgentWorktree: async () => ({
+        baseCwd: "/repo",
+        branchName: "alfred-codex-created-off",
+        cwd: "/alfred/userData/worktrees/created-off",
+      }),
+    });
+
+    await invoke(terminalChannels.create, {
+      agentKind: "codex",
+      args: ["off-secret-arg"],
+      clientId: "created-off",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+      source: "alfred",
+      workspaceId: "workspace-a",
+    });
+    pty.onDataHandler?.("off-secret-output\nBash(\"off-secret-activity\")\n");
+    state = { ...state, privacySettings: DEFAULT_DESKTOP_STATE.privacySettings };
+    applyTerminalPrivacyPolicyInMemory(state.privacySettings);
+    await flushTerminalPersistence();
+
+    const persisted = state.restoredTerminalSessions.find(({ clientId }) => clientId === "created-off");
+    expect(JSON.stringify(persisted)).not.toContain("off-secret");
+    for (const field of ["cwd", "baseCwd", "shell", "command", "args", "resumeTarget", "activityEvents"]) {
+      expect(persisted).not.toHaveProperty(field);
+    }
+    expect(pty.killed).toBe(false);
+  });
+
+  it("keeps launch persistence disabled when terminal creation crosses Clear", async () => {
+    let state = stateWithRestoredSessions([]);
+    const store: PersistedDesktopStateStore = {
+      getState: vi.fn(async () => state),
+      setState: vi.fn(async (next) => {
+        state = next;
+        return state;
+      }),
+      updateState: vi.fn(async (updater) => {
+        state = await updater(state);
+        return state;
+      }),
+    };
+    const pendingPty = deferred<ReturnType<typeof fakeNodePty>>();
+    const pty = new FakePty();
+    const loadNodePty = vi.fn(async () => pendingPty.promise as never);
+    configureTerminalPersistence(store, { debounceMs: 60_000 });
+    registerTerminalIpc({
+      loadNodePty,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+      prepareAgentWorktree: async () => ({
+        baseCwd: "/repo",
+        branchName: "alfred-codex-cross-clear",
+        cwd: "/alfred/userData/worktrees/cross-clear",
+      }),
+    });
+
+    const creating = invoke(terminalChannels.create, {
+      agentKind: "codex",
+      args: ["cross-clear-secret"],
+      clientId: "cross-clear",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+      source: "alfred",
+      workspaceId: "workspace-a",
+    });
+    await vi.waitFor(() => expect(loadNodePty).toHaveBeenCalledOnce());
+    applyTerminalPrivacyPolicyInMemory(state.privacySettings, true);
+    pendingPty.resolve(fakeNodePty(pty));
+    await creating;
+    pty.onDataHandler?.("fresh output\n");
+    await flushTerminalPersistence();
+
+    const persisted = state.restoredTerminalSessions.find(({ clientId }) => clientId === "cross-clear");
+    expect(JSON.stringify(persisted)).not.toContain("cross-clear-secret");
+    for (const field of ["cwd", "baseCwd", "shell", "command", "args", "resumeTarget"]) {
+      expect(persisted).not.toHaveProperty(field);
+    }
+    expect(pty.killed).toBe(false);
+  });
+
+  it("sanitizes stale restored snapshots when hydration resolves after retention is disabled", async () => {
+    const hydration = deferred<DesktopStateSnapshot>();
+    const store = storeWithRestoredSessions([]);
+    vi.mocked(store.getState).mockReturnValue(hydration.promise);
+    configureTerminalPersistence(store, { debounceMs: 60_000 });
+    registerTerminalIpc();
+
+    const pendingList = invoke<TerminalListResult>(terminalChannels.list);
+    applyTerminalPrivacyPolicyInMemory({
+      terminalScrollbackRetention: "off",
+      externalSessionIndexingEnabled: false,
+    });
+    hydration.resolve(stateWithRestoredSessions([
+      {
+        clientId: "stale-shared",
+        title: "Stale shared",
+        source: "manual",
+        cwd: "/repo",
+        shell: "/bin/zsh",
+        command: "node",
+        args: ["stale-secret"],
+        buffer: "stale output",
+      },
+      {
+        clientId: "stale-isolated",
+        title: "Stale isolated",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "workspace-a",
+        isolation: "worktree",
+        branchName: "alfred-codex-stale-isolated",
+        baseCwd: "/repo",
+        cwd: "/alfred/userData/worktrees/stale-isolated",
+        shell: "codex",
+        command: "codex",
+        args: ["stale-secret"],
+        buffer: "stale output",
+      },
+    ]));
+
+    const listed = await pendingList;
+    expect(listed.restoredSessions).toEqual([
+      {
+        clientId: "stale-isolated",
+        title: "Stale isolated",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "workspace-a",
+        workspaceRootFingerprint: expect.stringMatching(/^[a-f0-9]{16}$/),
+        isolation: "worktree",
+        branchName: "alfred-codex-stale-isolated",
+      },
+    ]);
   });
 
   it("renames live sessions and persists the updated title", async () => {

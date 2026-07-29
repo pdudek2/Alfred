@@ -7,7 +7,11 @@ import { registerDesktopStateIpc } from "./desktop-state-ipc.js";
 import { desktopStateChannels } from "../shared/desktop-state-ipc.js";
 
 const mocks = vi.hoisted(() => ({
-  applyTerminalPrivacyPolicyInMemory: vi.fn(() => 2),
+  applyTerminalPrivacyPolicyInMemory: vi.fn((
+    _privacySettings?: unknown,
+    _clearLaunchData?: boolean,
+    affectedClientIds?: Set<string>,
+  ) => affectedClientIds?.size ?? 2),
   handlers: new Map<string, (_event?: unknown, request?: unknown) => unknown>(),
   sentMessages: [] as Array<{ channel: string; payload: unknown }>,
   showItemInFolder: vi.fn(),
@@ -88,6 +92,14 @@ describe("desktop-state IPC", () => {
   it("clears all persisted terminal launch, transcript, and activity data", async () => {
     mocks.handlers.clear();
     mocks.applyTerminalPrivacyPolicyInMemory.mockClear();
+    mocks.applyTerminalPrivacyPolicyInMemory.mockImplementationOnce((
+      _privacySettings,
+      _clearLaunchData,
+      affectedClientIds,
+    ) => {
+      affectedClientIds?.add("live-session");
+      return affectedClientIds?.size ?? 1;
+    });
     const store = createMemoryStore({
       ...DEFAULT_DESKTOP_STATE,
       restoredTerminalSessions: [sensitiveIsolatedSession("clear-session")],
@@ -96,10 +108,10 @@ describe("desktop-state IPC", () => {
 
     const handler = mocks.handlers.get(desktopStateChannels.clearSavedTerminalData);
     await expect(handler?.()).resolves.toEqual({ ok: true, clearedSessions: 2 });
-    expect(mocks.applyTerminalPrivacyPolicyInMemory).toHaveBeenCalledWith(
+    expect(mocks.applyTerminalPrivacyPolicyInMemory.mock.calls[0]?.slice(0, 2)).toEqual([
       DEFAULT_DESKTOP_STATE.privacySettings,
       true,
-    );
+    ]);
     expect((await store.getState()).restoredTerminalSessions).toEqual([
       {
         clientId: "clear-session",
