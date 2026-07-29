@@ -48,7 +48,7 @@ shim loads. No desktop renderer or other user client is deployed there.
 
 ```text
 apps/desktop/      Electron main process, preload bridge, and React renderer
-apps/api/          Hono API for auth, queries, status, and runner ingest
+apps/api/          Hono API for health and device-authenticated runner ingest
 apps/runner/       local source adapters, redaction, outbox, and sync loop
 packages/schema/   shared Zod contracts
 packages/db/       Drizzle schema and database client
@@ -109,22 +109,14 @@ The local API listens on `127.0.0.1:4301`. Its health route is public:
 curl -sS http://127.0.0.1:4301/health
 ```
 
-Run queries require a session. With the development defaults enabled, query a
-few recent runs with:
-
-```bash
-curl -sS --cookie "alfred_session=dev-session-token" \
-  "http://127.0.0.1:4301/v1/runs?limit=5"
-```
-
-The `/api/v1/runs` alias is also available for the Vercel adapter. Runner ingest
-uses device authentication at `/v1/ingest/heartbeat` and
-`/v1/ingest/batches`.
+`ALFRED_ALLOW_DEV_AUTH=1` enables only the local static runner device-token
+fallback; it does not create a human session. Runner ingest uses Bearer device
+tokens at `/v1/ingest/heartbeat` and `/v1/ingest/batches`, with Vercel aliases
+at `/api/v1/ingest/heartbeat` and `/api/v1/ingest/batches`.
 
 `vercel.json` is deliberately API-only. Hosted runtime configuration requires:
 
 - `DATABASE_URL`: pooled Postgres URL used at runtime.
-- `APP_BASE_URL`: the deployed API origin.
 - `ALFRED_BOOTSTRAP_ADMIN_EMAIL`, `ALFRED_BOOTSTRAP_USER_ID`, and
   `ALFRED_BOOTSTRAP_WORKSPACE_ID`.
 - `RUNNER_WORKSPACE_ID`, `RUNNER_DEVICE_ID`, and `RUNNER_DEVICE_TOKEN`.
@@ -137,13 +129,6 @@ DATABASE_URL="$DATABASE_URL_UNPOOLED" \
   pnpm exec drizzle-kit migrate --config apps/api/drizzle.config.ts
 ```
 
-Production login requires `AUTH_OIDC_ISSUER`, `AUTH_OIDC_CLIENT_ID`, and
-`AUTH_OIDC_CLIENT_SECRET`. `ALFRED_ALLOW_DEV_AUTH=1` and
-`AUTH_DEV_SESSION_TOKEN` are for local development or a protected preview only.
-Do not enable development auth on a public production deployment. Hosted
-development auth refuses built-in default session and runner tokens; configure
-explicit non-default secrets.
-
 If Vercel Deployment Protection is enabled, local smoke checks and the runner
 may also need `VERCEL_AUTOMATION_BYPASS_SECRET`. Changing hosted environment
 variables requires a new deployment because existing deployments keep their
@@ -152,14 +137,7 @@ environment snapshot.
 Cloud smoke commands verify API routes rather than a user interface:
 
 ```bash
-ALFRED_CLOUD_SMOKE_MODE=public \
-ALFRED_EXPECT_AUTH=ready \
 ALFRED_CLOUD_URL=<prod-url> \
-pnpm smoke:cloud
-
-ALFRED_CLOUD_SMOKE_MODE=authenticated \
-ALFRED_CLOUD_URL=<preview-url> \
-AUTH_DEV_SESSION_TOKEN=<preview-token> \
 pnpm smoke:cloud
 
 ALFRED_CLOUD_URL=<prod-url> \
@@ -169,9 +147,8 @@ RUNNER_DEVICE_ID=<device-id> \
 pnpm smoke:cloud:runner
 ```
 
-Public mode checks API health and login readiness. Authenticated mode checks
-protected runtime queries. Runner mode sends an authenticated heartbeat and a
-small synthetic ingest batch; that run is hidden from user-facing queries.
+Public mode checks health and confirms retired browser routes are `404`. Runner
+mode sends a heartbeat and synthetic ingest batch.
 
 ## Runner
 
@@ -231,8 +208,7 @@ pnpm runner:service:uninstall
 ```
 
 `pnpm runner:service:doctor` verifies the launchd process and recent runner boot
-evidence. `node scripts/dev-doctor.mjs` instead checks the local development
-stack with development auth; it does not authenticate against a hosted API.
+evidence. `node scripts/dev-doctor.mjs` checks local processes and service health without creating a browser session or querying runner data from the API.
 
 ## Validation
 

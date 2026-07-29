@@ -32,7 +32,6 @@ describe("desktop product boundary", () => {
       buildCommand: "node scripts/build-vercel-api.mjs",
       rewrites: [
         { source: "/api/:path*", destination: "/api/:path*" },
-        { source: "/auth/:path*", destination: "/api/auth/:path*" },
         { source: "/v1/:path*", destination: "/api/v1/:path*" },
         { source: "/health", destination: "/api/health" },
       ],
