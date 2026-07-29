@@ -2576,6 +2576,136 @@ describe("terminal-manager IPC", () => {
     expect((await invoke<TerminalListResult>(terminalChannels.list)).sessions).toHaveLength(1);
   });
 
+  it("rejects Forget while a create holds the client lifecycle reservation", async () => {
+    const loadPty = deferred<ReturnType<typeof fakeNodePty>>();
+    const loadNodePty = vi.fn(async () => loadPty.promise as never);
+    const cleanupAgentWorktree = vi.fn(async (): Promise<void> => undefined);
+    configureTerminalPersistence(storeWithRestoredSessions([{
+      clientId: "racing-client",
+      title: "Racing checkout",
+      source: "alfred",
+      agentKind: "codex",
+      isolation: "worktree",
+      branchName: "alfred-codex-racing",
+      baseCwd: "/repo",
+      cwd: "/alfred/userData/worktrees/repo-816fc349/alfred-codex-racing",
+    }]), { debounceMs: 0 });
+    registerTerminalIpc({ cleanupAgentWorktree, loadNodePty });
+
+    const creating = invoke(terminalChannels.create, {
+      clientId: "racing-client",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+    });
+    await vi.waitFor(() => expect(loadNodePty).toHaveBeenCalledOnce());
+
+    await expect(invoke(terminalChannels.forget, {
+      clientId: "racing-client",
+      cleanupWorktree: true,
+    })).resolves.toEqual({
+      ok: false,
+      error: "Session lifecycle operation is already in progress.",
+    });
+    expect(cleanupAgentWorktree).not.toHaveBeenCalled();
+
+    loadPty.resolve(fakeNodePty(new FakePty()));
+    await expect(creating).resolves.toEqual(expect.objectContaining({ clientId: "racing-client" }));
+  });
+
+  it("blocks create, prepare, and duplicate Forget while cleanup owns the client lifecycle", async () => {
+    const cleanup = deferred<void>();
+    const cleanupAgentWorktree = vi.fn(() => cleanup.promise);
+    const loadNodePty = vi.fn(async () => fakeNodePty(new FakePty()) as never);
+    configureTerminalPersistence(storeWithRestoredSessions([{
+      clientId: "racing-client",
+      title: "Racing checkout",
+      source: "alfred",
+      agentKind: "codex",
+      isolation: "worktree",
+      branchName: "alfred-codex-racing",
+      baseCwd: "/repo",
+      cwd: "/alfred/userData/worktrees/repo-816fc349/alfred-codex-racing",
+    }]), { debounceMs: 0 });
+    registerTerminalIpc({
+      cleanupAgentWorktree,
+      loadNodePty,
+      managedWorktreeRootPath: "/alfred/userData/worktrees",
+    });
+
+    const forgetting = invoke(terminalChannels.forget, {
+      clientId: "racing-client",
+      cleanupWorktree: true,
+    });
+    await vi.waitFor(() => expect(cleanupAgentWorktree).toHaveBeenCalledOnce());
+
+    await expect(invoke(terminalChannels.create, {
+      clientId: "racing-client",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+    })).rejects.toThrow("Session lifecycle operation is already in progress.");
+    await expect(invoke(terminalChannels.prepareLaunch, {
+      clientId: "racing-client",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+    })).rejects.toThrow("Session lifecycle operation is already in progress.");
+    await expect(invoke(terminalChannels.forget, {
+      clientId: "racing-client",
+      cleanupWorktree: true,
+    })).resolves.toEqual({
+      ok: false,
+      error: "Session lifecycle operation is already in progress.",
+    });
+    expect(loadNodePty).not.toHaveBeenCalled();
+
+    cleanup.resolve();
+    await expect(forgetting).resolves.toEqual({ ok: true });
+  });
+
+  it("rejects Forget while a restored launch ticket reserves the client id", async () => {
+    const snapshot: PersistedTerminalSessionSnapshot = {
+      clientId: "prepared-client",
+      title: "Prepared recovery",
+      source: "manual",
+      cwd: "/repo",
+      shell: "/bin/sh",
+      command: "/bin/sh",
+      args: ["-c", "/usr/bin/printf prepared\\n"],
+    };
+    const nodePty = fakeNodePty(new FakePty());
+    configureTerminalPersistence(storeWithRestoredSessions([snapshot]), { debounceMs: 0 });
+    registerTerminalIpc({
+      isStagedCommandAllowed: async () => false,
+      loadNodePty: async () => nodePty as never,
+      requireLaunchTickets: true,
+    });
+    const request: TerminalCreateRequest = {
+      clientId: snapshot.clientId,
+      command: snapshot.command,
+      args: snapshot.args,
+      cols: 80,
+      cwd: snapshot.cwd,
+      rows: 24,
+      source: "manual",
+    };
+
+    const prepared = await invoke<{ launchTicketId: string }>(terminalChannels.prepareLaunch, request);
+    await expect(invoke(terminalChannels.forget, {
+      clientId: snapshot.clientId,
+      cleanupWorktree: true,
+    })).resolves.toEqual({
+      ok: false,
+      error: "Session lifecycle operation is already in progress.",
+    });
+
+    await expect(invoke(terminalChannels.create, {
+      ...request,
+      launchTicketId: prepared.launchTicketId,
+    })).resolves.toEqual(expect.objectContaining({ clientId: snapshot.clientId }));
+  });
+
   it("forgets shared recovery non-destructively without resolving a workspace root", async () => {
     const resolveWorkspaceRoot = vi.fn(async () => "/repo");
     const cleanupAgentWorktree = vi.fn(async (): Promise<void> => undefined);
