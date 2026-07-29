@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { afterEach, describe, expect, it } from "vitest";
+import Database from "better-sqlite3";
 
 import { OutboxDb } from "../outbox/outbox-db.js";
 import { sourceCursorKey } from "../sources/source-cursor.js";
@@ -11,7 +12,8 @@ const tempDirs: string[] = [];
 
 function createOutbox() {
   const dir = trackedTempDir("alfred-outbox-");
-  return new OutboxDb(join(dir, "outbox.sqlite"));
+  const path = join(dir, "outbox.sqlite");
+  return { outbox: new OutboxDb(path), path };
 }
 
 describe("OutboxDb", () => {
@@ -22,7 +24,7 @@ describe("OutboxDb", () => {
   });
 
   it("enqueues and lists ready events", () => {
-    const outbox = createOutbox();
+    const { outbox } = createOutbox();
 
     outbox.enqueue({ event_id: "event-1", type: "run.started" });
 
@@ -35,7 +37,7 @@ describe("OutboxDb", () => {
   });
 
   it("deduplicates by event id", () => {
-    const outbox = createOutbox();
+    const { outbox } = createOutbox();
 
     outbox.enqueue({ event_id: "event-1", type: "run.started" });
     outbox.enqueue({ event_id: "event-1", type: "run.started" });
@@ -46,7 +48,7 @@ describe("OutboxDb", () => {
   });
 
   it("removes sent records", () => {
-    const outbox = createOutbox();
+    const { outbox } = createOutbox();
 
     outbox.enqueue({ event_id: "event-1", type: "run.started" });
     const [record] = outbox.listReady(10);
@@ -59,7 +61,7 @@ describe("OutboxDb", () => {
   });
 
   it("marks failed records with retry time", () => {
-    const outbox = createOutbox();
+    const { outbox } = createOutbox();
     const retryAt = new Date("2026-04-28T10:00:00.000Z");
 
     outbox.enqueue({ event_id: "event-1", type: "run.started" });
@@ -76,7 +78,7 @@ describe("OutboxDb", () => {
   });
 
   it("counts all queued records including delayed failed records", () => {
-    const outbox = createOutbox();
+    const { outbox } = createOutbox();
 
     outbox.enqueue(
       { event_id: "event-1", type: "run.started" },
@@ -96,7 +98,7 @@ describe("OutboxDb", () => {
   });
 
   it("stores independent cursors for session files from the same source", () => {
-    const outbox = createOutbox();
+    const { outbox } = createOutbox();
     const first = sourceCursorKey("codex-cli", "sessions/a.jsonl");
     const second = sourceCursorKey("codex-cli", "sessions/b.jsonl");
 
@@ -110,38 +112,49 @@ describe("OutboxDb", () => {
     outbox.close();
   });
 
-  it("prunes only failed records whose retry time is before the cutoff", () => {
-    const outbox = createOutbox();
+  it("quarantines rejected records durably and prevents re-enqueue", () => {
+    const { outbox, path } = createOutbox();
+    const event = { event_id: "event-1", type: "run.started" };
 
-    outbox.enqueue(
-      { event_id: "old-failed", type: "run.started" },
-      new Date("2026-04-28T09:00:00.000Z"),
+    outbox.enqueue(event);
+    const [record] = outbox.listReady(10);
+    expect(record).toBeDefined();
+
+    outbox.quarantine(
+      record!.id,
+      "invalid_payload",
+      new Date("2026-04-28T11:00:00.000Z"),
     );
-    outbox.enqueue(
-      { event_id: "old-queued", type: "run.started" },
-      new Date("2026-04-28T09:05:00.000Z"),
-    );
-    outbox.enqueue(
-      { event_id: "recent-failed", type: "run.started" },
-      new Date("2026-04-28T10:00:00.000Z"),
-    );
-
-    const records = outbox.listReady(10, new Date("2026-04-28T10:00:00.000Z"));
-    const oldFailed = records.find((record) => record.eventId === "old-failed");
-    const recentFailed = records.find((record) => record.eventId === "recent-failed");
-    expect(oldFailed).toBeDefined();
-    expect(recentFailed).toBeDefined();
-
-    outbox.markFailed(oldFailed!.id, new Date("2026-04-28T10:30:00.000Z"));
-    outbox.markFailed(recentFailed!.id, new Date("2026-04-28T11:30:00.000Z"));
-
-    expect(outbox.pruneFailedBefore(new Date("2026-04-28T11:00:00.000Z"))).toBe(1);
-    expect(outbox.countQueued()).toBe(2);
-    expect(
-      outbox.listReady(10, new Date("2026-04-28T12:00:00.000Z")).map((record) => record.eventId),
-    ).toEqual(["old-queued", "recent-failed"]);
-
+    outbox.enqueue(event);
+    expect(outbox.countQueued()).toBe(0);
     outbox.close();
+
+    const db = new Database(path);
+    const deadLetter = db
+      .prepare(`
+        SELECT event_id, payload, attempts, reason, created_at, quarantined_at
+        FROM outbox_dead_letters
+      `)
+      .get() as {
+      event_id: string;
+      payload: string;
+      attempts: number;
+      reason: string;
+      created_at: string;
+      quarantined_at: string;
+    };
+
+    expect(deadLetter).toMatchObject({
+      event_id: "event-1",
+      reason: "invalid_payload",
+      attempts: 0,
+      quarantined_at: "2026-04-28T11:00:00.000Z",
+    });
+    expect(JSON.parse(deadLetter.payload)).toEqual(event);
+    expect(
+      db.prepare("SELECT COUNT(*) AS count FROM outbox_dead_letters").get(),
+    ).toMatchObject({ count: 1 });
+    db.close();
   });
 });
 
