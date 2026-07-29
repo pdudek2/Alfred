@@ -35,7 +35,7 @@ without reopening the accepted product or visual direction.
 
 ## Scope lineage
 
-`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 planned`
+`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 next`
 
 Phase Z remains closed. This roadmap does not reinterpret or reopen its visual
 or product decisions.
@@ -56,8 +56,8 @@ or product decisions.
 | Phase | Outcome | Findings | State |
 |---|---|---:|---|
 | S1 — Desktop safety gate | Honest runtime gate and no silent desktop-state loss | 2, 3, 4, 14, 19 | Complete |
-| S2 — Runner loss and stall prevention | Concurrent sessions do not lose events; poison or malformed records cannot stall sync | 6, 7, 8, 24 | Planned |
-| S3 — API boundary simplification | Delete browser-session auth and browser-only query surfaces; keep device-auth ingest | 9, 10, 22 | Pending |
+| S2 — Runner loss and stall prevention | Concurrent sessions do not lose events; poison or malformed records cannot stall sync | 6, 7, 8, 24 | Complete |
+| S3 — API boundary simplification | Delete browser-session auth and browser-only query surfaces; keep device-auth ingest | 9, 10, 22 | Next |
 | S4 — Privacy and worktree lifecycle | Resolve worktree close behavior and prevent sensitive launch data from persisting | 13, 15, 16 | Pending decision gates |
 | S5 — Desktop interaction correctness | Recover failed planning, unblock review/edit, remove impure state updaters, correct activity classification | 5, 11, 17, 23 | Pending |
 | S6 — Ingest/API correctness | Correct parent lifecycle, validate hosted DB config, and test the real ingest store | 12, 20, 21 | Pending |
@@ -66,9 +66,13 @@ or product decisions.
 Only the current phase receives an implementation plan. A later phase starts
 after the preceding phase has fresh verification and closeout.
 
-**Current phase contract:** `docs/superpowers/specs/2026-07-29-phase-s2-runner-loss-stall-prevention.md`
+**Closed phase contract:** `docs/superpowers/specs/2026-07-29-phase-s2-runner-loss-stall-prevention.md`
 
-**Current implementation plan:** `docs/superpowers/specs/2026-07-29-phase-s2-runner-loss-stall-prevention-implementation-plan.md`
+**Closed implementation plan:** `docs/superpowers/specs/2026-07-29-phase-s2-runner-loss-stall-prevention-implementation-plan.md`
+
+**Next phase:** S3 — API boundary simplification. Its product-boundary decision
+above remains unchanged: delete browser-session auth and browser-only query
+surfaces while retaining device-auth ingest.
 
 ## Finding ledger
 
@@ -79,9 +83,9 @@ after the preceding phase has fresh verification and closeout.
 | 3 | Fixed in `cf62ee4` | Closed |
 | 4 | Fixed in `90a04e5` | Closed |
 | 5 | Confirmed | S5 |
-| 6 | Confirmed | S2 |
-| 7 | Confirmed; cursor-key design required | S2 |
-| 8 | Confirmed | S2 |
+| 6 | Fixed in `c9130e7`, `8b12fbe` | Closed |
+| 7 | Fixed in `50fc5c0` | Closed |
+| 8 | Fixed in `4b4bd33`, `720e783`, `7eb31fb` | Closed |
 | 9 | Superseded by product-boundary decision | S3 deletes the session surface |
 | 10 | Superseded by product-boundary decision | S3 deletes the OIDC surface |
 | 11 | Confirmed | S5 |
@@ -97,7 +101,7 @@ after the preceding phase has fresh verification and closeout.
 | 21 | Confirmed | S6 |
 | 22 | Superseded by product-boundary decision | S3 deletes dev cookie auth |
 | 23 | Confirmed | S5 |
-| 24 | Confirmed | S2 |
+| 24 | Fixed in `4b4bd33`, `720e783`, `7eb31fb` | Closed |
 
 ## Phase gates
 
@@ -137,6 +141,37 @@ Fresh verification:
 
 Focused review found no unrelated visual, API, schema, dependency, or persisted
 format changes.
+
+## S2 closeout
+
+**State:** Complete
+**Implementation commits:** `c9130e7`, `50fc5c0`, `4b4bd33`, `720e783`, `7eb31fb`, `8b12fbe`
+**Next phase:** S3 — API boundary simplification
+
+Closed behavior:
+
+- malformed source records are skipped with payload-free diagnostics while
+  healthy records and adapters continue;
+- each source session file has a stable composite cursor, persisted only after
+  its collected events are enqueued;
+- invalid, identity-mismatched, and permanently rejected queued events move
+  transactionally to the local SQLite quarantine without losing their payload;
+- only HTTP `400`, `413`, and `422` decompose a rejected batch, while network,
+  authentication, rate-limit, and server failures remain retryable;
+- queued data still flushes before an adapter collection failure is surfaced.
+
+Fresh verification:
+
+- `pnpm --filter @alfred/runner test` — 83/83 passed; tests create temporary
+  Codex/Claude homes and temporary SQLite outboxes, with no real user homes;
+- `pnpm --filter @alfred/runner typecheck` — passed;
+- `pnpm --filter @alfred/runner build` — passed;
+- `pnpm verify` — lint, typecheck, tests, build, and Electron smoke passed.
+
+Focused review verified stable per-session cursor keys, enqueue-before-cursor
+ordering, transactional exact-payload quarantine, harmless ignored global
+cursors, the restricted permanent-rejection classification, payload-free
+warnings, and no API, hosted schema, device-auth, desktop, or visual change.
 
 ## Explicitly deferred
 
