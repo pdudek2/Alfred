@@ -1,6 +1,6 @@
 # Phase S5 — Desktop Interaction Correctness
 
-**Status:** Draft — pending written-spec approval  
+**Status:** Complete
 **Parent:** `docs/superpowers/specs/2026-07-29-post-v1-stabilization-roadmap.md`  
 **Findings:** 5, 11, 17, 23
 
@@ -12,7 +12,7 @@ updaters, and classify file activity without false positives.
 
 ## Scope lineage
 
-`Phase Z release closeout → post-v1 stabilization roadmap → S1–S4 complete → S5 current → S6 and S7 remain`
+`Phase Z release closeout → post-v1 stabilization roadmap → S1–S5 complete → S6 next → S7 remains`
 
 S5 closes only findings 5, 11, 17, and 23. It does not close the parent
 stabilization roadmap.
@@ -216,6 +216,37 @@ Use one direct Electron observation after implementation:
 
 The observation must use an isolated fixture and temporary user data. It must
 not invoke the real runner against `~/.codex`.
+
+## Closeout evidence
+
+**Implementation commits:** `ef768cc`, `478ae96`, `3da82ed`, `5b98464`,
+`d8283d2`, `628b7c8`
+
+Closed behavior:
+
+- rejected planning now returns or renders a structured failure, releases the
+  in-flight guard, re-enables the composer, and permits a successful retry;
+- blocked staged Codex and Claude sessions use the existing command editor,
+  while the main process remains authoritative for safety and preflight;
+- the S5-owned workspace, session, and plan state updaters derive state without
+  nested setters, IPC, persistence, timers, ref mutation, time reads, or ID
+  generation;
+- file activity matches complete `updated|modified` and `wrote|written` words
+  without classifying embedded negatives.
+
+Fresh verification passed the focused desktop command (62/62 files and
+992/992 tests), desktop typecheck, desktop build, and full `pnpm verify`
+including lint, typecheck 9/9, package and root tests, build 6/6, and Electron
+smoke 16/16. Focused diff review found 0 Critical, 0 Important, and 0 Minor
+findings in the accepted S5 boundaries.
+
+A direct Electron observation used a copied built application, temporary
+`userData`, and temporary Codex and Claude homes. It forced one IPC request
+rejection, observed the retryable error with an enabled composer, retried to a
+two-session plan, edited a blocked Codex session into a launchable state, and
+edited a second Codex session into a refreshed workspace-mismatch blocker.
+The final UI showed `edited · rechecked`, the refreshed blocked reason, and a
+disabled Launch action. The real runner and `~/.codex` were not used.
 
 ## Rollback and recovery
 
