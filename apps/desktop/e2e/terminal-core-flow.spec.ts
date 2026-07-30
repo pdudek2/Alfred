@@ -23,13 +23,33 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
 
   await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
+
+  await page.evaluate(async () => {
+    const layoutApi = window.alfredDesktop?.layout;
+    if (!layoutApi) throw new Error("Desktop layout API is unavailable.");
+    await layoutApi.setWorkspaceLayout({
+      workspaceId: "A",
+      layouts: {
+        "manual-1": { tileId: "manual-1", col: 1, row: 1, colSpan: 4, rowSpan: 4 },
+        "manual-2": { tileId: "manual-2", col: 5, row: 1, colSpan: 8, rowSpan: 4 },
+      },
+    });
+  });
+  await page.reload();
+  await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
+  const survivorNodes = await captureTerminalNodes(page, 2);
+  const beforeMembershipChange = await readTileGridPlacement(page, ["manual-1", "manual-2"]);
+
   await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
+  await expectTerminalNodes(survivorNodes, page, "Grid membership 2→3", 3);
+  const afterMembershipChange = await readTileGridPlacement(page, ["manual-1", "manual-2"]);
+  expect(afterMembershipChange).toEqual(beforeMembershipChange);
 
   await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toHaveCount(1);
 
   const terminalNodes = await captureTerminalNodes(page);
-  const identityTransitions: string[] = [];
+  const identityTransitions = ["Grid membership 2→3 (survivors stable)"];
   const surfaceGeometries = [await readActiveSurfaceGeometry(page, "Work initial")];
 
   await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
@@ -96,6 +116,10 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
       markerInputEncoding: "hex",
       markerCommandContainsDecodedMarker: markerCommand.includes(marker),
       identityTransitions,
+      membershipGeometry: {
+        before: beforeMembershipChange,
+        after: afterMembershipChange,
+      },
       surfaceGeometries,
       initialGridScroll,
       narrowGridScroll,
@@ -122,13 +146,13 @@ async function selectSurface(page: Page, surface: "Work" | "Sessions"): Promise<
   await page.getByRole("menuitem", { name: surface }).click();
 }
 
-async function captureTerminalNodes(page: Page): Promise<TerminalNodeHandles[]> {
+async function captureTerminalNodes(page: Page, expectedCount = 3): Promise<TerminalNodeHandles[]> {
   const tiles = page.getByTestId("terminal-tile");
   const hosts = page.getByTestId("xterm-host");
-  await expect(tiles).toHaveCount(3);
-  await expect(hosts).toHaveCount(3);
+  await expect(tiles).toHaveCount(expectedCount);
+  await expect(hosts).toHaveCount(expectedCount);
   const nodes: TerminalNodeHandles[] = [];
-  for (let index = 0; index < 3; index += 1) {
+  for (let index = 0; index < expectedCount; index += 1) {
     const host = hosts.nth(index);
     const screen = host.locator(".xterm-screen");
     await expect(screen).toBeAttached();
@@ -145,11 +169,12 @@ async function expectTerminalNodes(
   before: TerminalNodeHandles[],
   page: Page,
   transition: string,
+  expectedCount = before.length,
 ): Promise<void> {
   const tiles = page.getByTestId("terminal-tile");
   const hosts = page.getByTestId("xterm-host");
-  await expect(tiles).toHaveCount(before.length);
-  await expect(hosts).toHaveCount(before.length);
+  await expect(tiles).toHaveCount(expectedCount);
+  await expect(hosts).toHaveCount(expectedCount);
   for (const [index, nodes] of before.entries()) {
     const number = index + 1;
     await expectSameNode(nodes.tile, tiles.nth(index), `${transition}: terminal tile ${number} changed`);
@@ -160,6 +185,22 @@ async function expectTerminalNodes(
       `${transition}: xterm screen ${number} changed`,
     );
   }
+}
+
+async function readTileGridPlacement(
+  page: Page,
+  sessionIds: string[],
+): Promise<Record<string, { gridColumn: string; gridRow: string }>> {
+  return page.evaluate((ids) => Object.fromEntries(ids.map((sessionId) => {
+    const tile = document.querySelector(
+      `[data-testid="terminal-tile"][data-session-id="${sessionId}"]`,
+    );
+    if (!(tile instanceof HTMLElement)) {
+      throw new Error(`Terminal tile ${sessionId} is missing.`);
+    }
+    const style = getComputedStyle(tile);
+    return [sessionId, { gridColumn: style.gridColumn, gridRow: style.gridRow }];
+  })), sessionIds);
 }
 
 async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {
