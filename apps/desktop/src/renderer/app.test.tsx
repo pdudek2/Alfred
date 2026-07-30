@@ -508,6 +508,7 @@ function renderTerminalDeskForSessions(
     onApplyWorktree: vi.fn(),
     onCloseSession: vi.fn(),
     onContinueRestoredSession: vi.fn(),
+    onOpenExternalTerminal: vi.fn().mockResolvedValue(true),
     onOpenInbox: vi.fn(),
     onRestartSession: vi.fn(),
     onApplyWorkMode: vi.fn(),
@@ -1773,7 +1774,7 @@ describe("App integration", () => {
 
   it("routes secondary terminal actions through one accessible overflow menu", async () => {
     const user = userEvent.setup();
-    const { openExternalTerminal } = installDesktopBridge();
+    installDesktopBridge();
     const session: SessionTile = {
       id: "manual-menu",
       runtimeId: "runtime-manual-menu",
@@ -1805,7 +1806,7 @@ describe("App integration", () => {
 
     await user.click(trigger);
     await user.click(screen.getByRole("menuitem", { name: /Open in external terminal/ }));
-    expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
+    expect(callbacks.onOpenExternalTerminal).toHaveBeenCalledWith("/Users/patryk/Desktop/Alfred");
 
     await user.click(trigger);
     await user.click(screen.getByRole("menuitem", { name: "Rename session" }));
@@ -6504,6 +6505,30 @@ describe("App integration", () => {
     await user.click(within(tile).getByRole("button", { name: "Open Codex · session 1 in external terminal" }));
 
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
+  });
+
+  it("surfaces terminal tile handoff failures in shell chrome", async () => {
+    const user = userEvent.setup();
+    const { openExternalTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [liveSnapshot("handoff", { title: "Codex · handoff" })],
+    );
+    openExternalTerminal.mockResolvedValue({
+      ok: false,
+      error: "Ghostty could not open this session.",
+    });
+
+    render(<App />);
+    const tile = await screen.findByRole("article", { name: /Codex · handoff/i });
+    await user.click(
+      within(tile).getByRole("button", {
+        name: "Open Codex · handoff in external terminal",
+      }),
+    );
+
+    expect(await screen.findByRole("alert", { name: "Shell action failed" }))
+      .toHaveTextContent("Ghostty could not open this session.");
   });
 
   it("surfaces session terminal launch failures in shell chrome", async () => {
