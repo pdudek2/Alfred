@@ -20,6 +20,10 @@
 - Freeze every existing `latest` declaration to the exact version selected in
   commit `b369e60`; do not intentionally upgrade or downgrade any existing
   package.
+- Preserve the two floating Babel edges exposed by pnpm regeneration with
+  parent-scoped overrides only:
+  `@testing-library/dom@10.4.1 > @babel/code-frame@7.29.0` and
+  `@babel/code-frame@7.29.0 > @babel/helper-validator-identifier@7.28.5`.
 - Regenerate `pnpm-lock.yaml` with pnpm only. Do not hand-edit it.
 - After the freeze, PGlite must be the only new package introduced by S6.
 - Never run the real runner against `~/.codex`; S6 needs no runner process.
@@ -30,6 +34,7 @@
 
 - Workspace `package.json` files containing `latest` — pin only their existing
   resolved versions.
+- `pnpm-workspace.yaml` — add two narrow parent-scoped Babel resolution pins.
 - `apps/api/package.json` — declare PGlite as a test-only dependency.
 - `pnpm-lock.yaml` — pnpm-generated specifier freeze plus the PGlite graph.
 - `apps/api/src/services/ingest-service.ts` — expose the production store to both PostgreSQL drivers and neutralize parent synthesis.
@@ -50,6 +55,7 @@
 
 **Files:**
 - Modify: workspace `package.json` files containing `latest`
+- Modify: `pnpm-workspace.yaml`
 - Modify: `pnpm-lock.yaml`
 
 **Interfaces:**
@@ -79,15 +85,26 @@ replacement is an exact version, and no dependency name is added or removed.
 
 - [ ] **Step 3: Regenerate the lockfile with pnpm**
 
-Restore the S6 worktree's generated lockfile to its `b369e60` content, then
-run:
+Add only these root overrides to `pnpm-workspace.yaml`:
+
+```yaml
+overrides:
+  '@testing-library/dom@10.4.1>@babel/code-frame': 7.29.0
+  '@babel/code-frame@7.29.0>@babel/helper-validator-identifier': 7.28.5
+```
+
+They preserve the exact pre-S6 transitive edges without changing other Babel
+consumers. Restore the S6 worktree's generated lockfile to its `b369e60`
+content, then run:
 
 ```bash
 pnpm install --lockfile-only
 ```
 
 Expected: pnpm records exact manifest specifiers while preserving the
-pre-S6 resolved versions. Do not hand-edit the lockfile.
+pre-S6 resolved versions. Pnpm may refresh non-resolution metadata such as a
+deprecation message; it must not change an existing package version. Do not
+hand-edit the lockfile.
 
 - [ ] **Step 4: Prove the freeze did not change package versions**
 
@@ -103,7 +120,7 @@ Run:
 ```bash
 pnpm verify
 git diff --check
-git add -- ':(glob)**/package.json' pnpm-lock.yaml
+git add -- ':(glob)**/package.json' pnpm-workspace.yaml pnpm-lock.yaml
 git commit -m "chore: freeze dependency versions"
 ```
 
