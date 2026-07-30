@@ -234,11 +234,12 @@ Closed behavior:
 - file activity matches complete `updated|modified` and `wrote|written` words
   without classifying embedded negatives.
 
-Fresh verification passed the focused desktop command (62/62 files and
-992/992 tests), desktop typecheck, desktop build, and full `pnpm verify`
-including lint, typecheck 9/9, package and root tests, build 6/6, and Electron
-smoke 16/16. Focused diff review found 0 Critical, 0 Important, and 0 Minor
-findings in the accepted S5 boundaries.
+Fresh verification passed the requested desktop test command; because the
+package forwarded the literal `--`, Vitest ran the full desktop suite (62/62
+files and 992/992 tests). Desktop typecheck, desktop build, and full
+`pnpm verify` also passed, including lint, typecheck 9/9, package and root
+tests, build 6/6, and Electron smoke 16/16. Focused diff review found 0
+Critical, 0 Important, and 0 Minor findings in the accepted S5 boundaries.
 
 A direct Electron observation used a copied built application, temporary
 `userData`, and temporary Codex and Claude homes. It forced one IPC request
@@ -247,6 +248,15 @@ two-session plan, edited a blocked Codex session into a launchable state, and
 edited a second Codex session into a refreshed workspace-mismatch blocker.
 The final UI showed `edited · rechecked`, the refreshed blocked reason, and a
 disabled Launch action. The real runner and `~/.codex` were not used.
+
+Final screenshot:
+`.superpowers/sdd/2026-07-30-phase-s5-desktop-interaction-correctness/task-6-evidence/runtime.fujkF4/final-blocked-state.png`
+
+Visual evidence: Observed — surface: Computer Use; proof: the completed final
+`sky.get_app_state` showed the blocked workspace-mismatch state,
+`edited · rechecked`, external cwd `/tmp/alfred-s5-outside-workspace`,
+`Safety review required`, and the disabled `Blocked` launch action;
+`nodeRepl.emitImage` then emitted the screenshot at the path above.
 
 ## Rollback and recovery
 

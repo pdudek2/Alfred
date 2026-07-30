@@ -79,7 +79,8 @@ unplanned until a new convergence workflow begins.
 
 **Closed phase:** S4 — Privacy and worktree lifecycle.
 
-**Next phase:** S5 — Desktop interaction correctness; unplanned.
+**Historical S4 handoff:** S5 — Desktop interaction correctness, since
+completed.
 
 **Closed phase contract:** `docs/superpowers/specs/2026-07-29-phase-s4-privacy-worktree-lifecycle.md`
 
@@ -295,11 +296,13 @@ Closed behavior:
 - file activity recognizes complete operation words without false positives
   from `unmodified`, `overwritten`, or `rewritten`.
 
-Fresh verification passed the focused desktop command (62/62 files and
-992/992 tests), desktop typecheck, desktop build, and full `pnpm verify`
-including lint, typecheck 9/9, package and root tests, build 6/6, and Electron
-smoke 16/16. Focused review of the accepted production and regression-test
-diff reported 0 Critical, 0 Important, and 0 Minor findings.
+Fresh verification passed the requested desktop test command; because the
+package forwarded the literal `--`, Vitest ran the full desktop suite (62/62
+files and 992/992 tests). Desktop typecheck, desktop build, and full
+`pnpm verify` also passed, including lint, typecheck 9/9, package and root
+tests, build 6/6, and Electron smoke 16/16. Focused review of the accepted
+production and regression-test diff reported 0 Critical, 0 Important, and 0
+Minor findings.
 
 Direct Electron observation used an isolated copied build, temporary
 `userData`, and temporary Codex and Claude homes. A forced IPC rejection
@@ -307,6 +310,15 @@ rendered retryable copy with the composer enabled; retry produced staged
 Codex work; a safe edit became ready and launchable; and a second edit
 remained blocked with the refreshed workspace-mismatch reason and disabled
 Launch action. The real runner and `~/.codex` were not used.
+
+Final screenshot:
+`.superpowers/sdd/2026-07-30-phase-s5-desktop-interaction-correctness/task-6-evidence/runtime.fujkF4/final-blocked-state.png`
+
+Visual evidence: Observed — surface: Computer Use; proof: the completed final
+`sky.get_app_state` showed the blocked workspace-mismatch state,
+`edited · rechecked`, external cwd `/tmp/alfred-s5-outside-workspace`,
+`Safety review required`, and the disabled `Blocked` launch action;
+`nodeRepl.emitImage` then emitted the screenshot at the path above.
 
 ## Explicitly deferred
 
@@ -320,7 +332,7 @@ Launch action. The real runner and `~/.codex` were not used.
   while fixing a local root cause.
 - New abstractions, feature flags, or compatibility shims for retired routes.
 - Normalizing a transport-level preload invocation rejection into the retained
-  tile warning is routed to S5 desktop interaction correctness.
+  tile warning is routed to S7 final branch triage; S5 remains complete.
 - Reconciling the desktop store's internal failed-save retry intent after a
   post-cleanup flush rollback is routed to S7 residue and blocked-boundary
   review; cleanup has already succeeded and the prior disk record remains.
