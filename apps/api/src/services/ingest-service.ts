@@ -17,6 +17,11 @@ import {
   type Database,
 } from "@alfred/db";
 import type { IngestBatch, IngestEvent } from "@alfred/schema";
+import type {
+  PgDatabase,
+  PgQueryResultHKT,
+} from "drizzle-orm/pg-core";
+import type { TablesRelationalConfig } from "drizzle-orm/relations";
 
 export type IngestBatchResult = {
   batch_id: string;
@@ -34,11 +39,6 @@ type RunRecord = {
 };
 
 type DevicePresence = Pick<IngestBatch, "workspace_id" | "device_id" | "sent_at">;
-
-type DrizzleIngestDb = Pick<Database, "insert" | "update"> & {
-  transaction?: Database["transaction"];
-  select?: Database["select"];
-};
 
 export type IngestStore = {
   transaction<T>(fn: (store: IngestStore) => Promise<T>): Promise<T>;
@@ -160,15 +160,16 @@ function isTerminalRunEvent(event: IngestEvent): boolean {
   return event.type.startsWith("run.") && event.status === "cancelled";
 }
 
-function createDrizzleIngestStore(db: DrizzleIngestDb): IngestStore {
+export function createDrizzleIngestStore<
+  TQueryResult extends PgQueryResultHKT,
+  TFullSchema extends Record<string, unknown>,
+  TSchema extends TablesRelationalConfig,
+>(
+  db: PgDatabase<TQueryResult, TFullSchema, TSchema>,
+): IngestStore {
   return {
-    transaction: async (fn) => {
-      if (!db.transaction) {
-        return fn(createDrizzleIngestStore(db));
-      }
-
-      return db.transaction((tx) => fn(createDrizzleIngestStore(tx as unknown as DrizzleIngestDb)));
-    },
+    transaction: async (fn) =>
+      db.transaction((tx) => fn(createDrizzleIngestStore(tx))),
 
     insertBatchIfNew: async (batch) => {
       const [inserted] = await db
@@ -235,18 +236,14 @@ function createDrizzleIngestStore(db: DrizzleIngestDb): IngestStore {
     },
 
     ensureDevice: async (batch) => {
-      if (db.select) {
-        const [existingDevice] = await db
-          .select({
-            workspaceId: devices.workspaceId,
-          })
-          .from(devices)
-          .where(eq(devices.id, batch.device_id))
-          .limit(1);
+      const [existingDevice] = await db
+        .select({ workspaceId: devices.workspaceId })
+        .from(devices)
+        .where(eq(devices.id, batch.device_id))
+        .limit(1);
 
-        if (existingDevice && existingDevice.workspaceId !== batch.workspace_id) {
-          throw new Error("Device belongs to another workspace");
-        }
+      if (existingDevice && existingDevice.workspaceId !== batch.workspace_id) {
+        throw new Error("Device belongs to another workspace");
       }
 
       await db
