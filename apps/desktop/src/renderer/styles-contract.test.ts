@@ -1071,11 +1071,10 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps the single workspace actions owner operable in the forced narrow rail", () => {
-    const widePopover = topLevelExactRuleBodies(
-      ".project-workspace-actions .workspace-popover",
-    );
-    expect(widePopover).toHaveLength(1);
-    expect(widePopover[0]).toContain("position: fixed");
+    const workspacePopover = topLevelExactRuleBodies(".workspace-popover");
+    expect(workspacePopover).toHaveLength(1);
+    expect(workspacePopover[0]).toContain("position: fixed");
+    expect(workspacePopover[0]).toContain("max-height: calc(100vh - 16px)");
 
     const actions = mediaExactRuleBodies(
       "(max-width: 1180px)",
@@ -1089,9 +1088,7 @@ describe("renderer CSS contracts", () => {
       "(max-width: 1180px)",
       ".workspace-layout.preview-visible .project-workspace-actions .workspace-popover",
     );
-    expect(popover).toHaveLength(1);
-    expect(popover[0]).toContain("position: fixed");
-    expect(popover[0]).not.toMatch(/\b(?:left|top):/);
+    expect(popover).toHaveLength(0);
   });
 
   it("keeps Inbox global while Sessions retains its narrow layout", () => {
@@ -1841,6 +1838,7 @@ describe("renderer CSS contracts", () => {
     expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-session-context > small")).toHaveLength(0);
     expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-right-zone kbd")).toHaveLength(1);
     expect(mediaExactRuleBodies("(max-width: 1120px)", ".work-surface-context")).toHaveLength(1);
+    expect(mediaExactRuleBodies("(max-width: 980px)", ".workbench-session-title")).toHaveLength(1);
   });
 
   it("keeps workspace actions compact inside the active project row", () => {

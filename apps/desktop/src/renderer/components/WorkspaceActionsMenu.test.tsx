@@ -146,4 +146,12 @@ describe("WorkspaceActionsMenu", () => {
       top: "80px",
     });
   });
+
+  it("portals the popover outside clipped navigation ancestors", () => {
+    const { container } = render(<WorkspaceActionsMenu {...props()} />);
+    const popover = screen.getByRole("dialog", { name: "Workspace actions" });
+
+    expect(popover.parentElement).toBe(document.body);
+    expect(container).not.toContainElement(popover);
+  });
 });

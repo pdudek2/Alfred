@@ -449,14 +449,14 @@ button:focus-visible {
 }
 
 .workspace-popover {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: -2px;
-  z-index: 40;
-  width: min(390px, 78vw);
+  position: fixed;
+  z-index: 140;
+  width: min(390px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
   border: 1px solid var(--ink-3);
   border-radius: 7px;
   padding: 7px;
+  overflow-y: auto;
   background: var(--ink-1);
   box-shadow: none;
 }
@@ -858,12 +858,6 @@ button:focus-visible {
 
 .project-workspace-actions .workspace-title-trigger > span {
   display: none;
-}
-
-.project-workspace-actions .workspace-popover {
-  position: fixed;
-  max-height: calc(100vh - 16px);
-  overflow-y: auto;
 }
 
 .project-session-list {
@@ -1361,6 +1355,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 @media (max-width: 980px) {
+  .workbench-session-title,
   .workbench-context-detail {
     display: none;
   }
@@ -1454,14 +1449,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
     display: flex;
     justify-content: center;
     padding: 2px 0 4px;
-  }
-
-  .workspace-layout.preview-visible .project-workspace-actions .workspace-popover,
-  .workspace-layout.context-visible .project-workspace-actions .workspace-popover {
-    position: fixed;
-    width: min(390px, calc(100vw - 60px));
-    max-height: calc(100vh - 64px);
-    overflow-y: auto;
   }
 
   .workspace-layout.preview-visible .project-navigator .project-row-button,
