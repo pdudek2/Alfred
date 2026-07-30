@@ -368,12 +368,65 @@ export function App() {
     };
   }, []);
 
+  const commitAddedSession = useCallback((nextSessions: SessionTile[]) => {
+    const addedSession = nextSessions.at(-1);
+    if (!addedSession) return;
+
+    const previousWorkspaceSessions = terminalSessionsRef.current.filter(
+      (session) => session.workspaceId === activeWorkspace.id,
+    );
+    const workspaceSessions = nextSessions.filter(
+      (session) => session.workspaceId === activeWorkspace.id,
+    );
+    const currentLayouts = ensureTileLayouts(
+      previousWorkspaceSessions,
+      tileLayoutsByWorkspace[activeWorkspace.id] ?? {},
+    );
+    const workspaceLayouts = activeWorkMode === "focus"
+      ? applyLayoutPreset(workspaceSessions, "focus", addedSession.id)
+      : ensureTileLayouts(workspaceSessions, currentLayouts);
+    const layoutApi = getDesktopLayoutApi();
+
+    terminalSessionsRef.current = nextSessions;
+    setTerminalSessions(nextSessions);
+    setTileLayoutsByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: workspaceLayouts,
+    }));
+    void layoutApi?.setWorkspaceLayout({
+      workspaceId: activeWorkspace.id,
+      layouts: workspaceLayouts,
+    });
+
+    if (activeWorkMode === "focus") {
+      setSelectedSessionIdsByWorkspace((current) => ({
+        ...current,
+        [activeWorkspace.id]: addedSession.id,
+      }));
+      void layoutApi?.setWorkspaceViewState({
+        workspaceId: activeWorkspace.id,
+        viewState: { workMode: "focus", selectedSessionId: addedSession.id },
+      });
+    }
+  }, [activeWorkMode, activeWorkspace.id, tileLayoutsByWorkspace]);
+
   const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, isolation: TerminalSessionIsolation = "shared") => {
     if (activeWorkspace.rootStatus === "missing") return;
-    setTerminalSessions((sessions) =>
-      addAgentSession(sessions, kind, activeWorkspace.rootPath ?? "", activeWorkspace.id, isolation),
+    commitAddedSession(
+      addAgentSession(
+        terminalSessionsRef.current,
+        kind,
+        activeWorkspace.rootPath ?? "",
+        activeWorkspace.id,
+        isolation,
+      ),
     );
-  }, [activeWorkspace.id, activeWorkspace.rootPath, activeWorkspace.rootStatus]);
+  }, [
+    activeWorkspace.id,
+    activeWorkspace.rootPath,
+    activeWorkspace.rootStatus,
+    commitAddedSession,
+  ]);
 
   const handleAddWorkspace = useCallback(async () => {
     const snapshot = createScratchWorkspaceState(workspaces);
@@ -820,29 +873,18 @@ export function App() {
 
   const handleAddManualSession = useCallback(() => {
     if (activeWorkspace.rootStatus === "missing") return;
-    const nextSessions = addManualSession(
-      terminalSessionsRef.current,
-      activeWorkspace.rootPath ?? "",
-      activeWorkspace.id,
+    commitAddedSession(
+      addManualSession(
+        terminalSessionsRef.current,
+        activeWorkspace.rootPath ?? "",
+        activeWorkspace.id,
+      ),
     );
-    const addedSession = nextSessions.at(-1);
-    terminalSessionsRef.current = nextSessions;
-    setTerminalSessions(nextSessions);
-    if (addedSession && activeWorkMode === "focus") {
-      handleApplyLayoutPreset(
-        "focus",
-        addedSession.id,
-        nextSessions.filter((session) => session.workspaceId === activeWorkspace.id),
-      );
-      handleSelectSession(addedSession.id);
-    }
   }, [
-    activeWorkMode,
     activeWorkspace.id,
     activeWorkspace.rootPath,
     activeWorkspace.rootStatus,
-    handleApplyLayoutPreset,
-    handleSelectSession,
+    commitAddedSession,
   ]);
 
   const handleFocusSession = useCallback((sessionId: string) => {
