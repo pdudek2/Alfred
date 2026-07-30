@@ -82,21 +82,64 @@ vi.mock("@xterm/xterm", () => ({
 
 vi.mock("@xterm/addon-fit", () => ({
   FitAddon: class {
-    terminal: { resize: (cols: number, rows: number) => void } | null = null;
-    activate = vi.fn((terminal: { resize: (cols: number, rows: number) => void }) => {
+    terminal: {
+      element: HTMLElement | null;
+      resize: (cols: number, rows: number) => void;
+    } | null = null;
+    activate = vi.fn((terminal: {
+      element: HTMLElement | null;
+      resize: (cols: number, rows: number) => void;
+    }) => {
       this.terminal = terminal;
     });
     fit = vi.fn(() => {
-      this.terminal?.resize(100, 30);
+      const dimensions = this.proposeDimensions();
+      this.terminal?.resize(dimensions.cols, dimensions.rows);
     });
-    proposeDimensions = vi.fn(() => ({ cols: 100, rows: 30 }));
+    proposeDimensions = vi.fn(() => {
+      const width = this.terminal?.element?.getBoundingClientRect().width ?? 0;
+      return { cols: Math.max(2, Math.floor(width / 6.4)), rows: 30 };
+    });
   },
 }));
 
+const resizeObserverCallbacks = new Map<Element, ResizeObserverCallback>();
+
 class TestResizeObserver implements ResizeObserver {
-  disconnect = vi.fn();
-  observe = vi.fn();
-  unobserve = vi.fn();
+  private readonly targets = new Set<Element>();
+
+  constructor(private readonly callback: ResizeObserverCallback) {}
+
+  disconnect = vi.fn(() => {
+    for (const target of this.targets) resizeObserverCallbacks.delete(target);
+    this.targets.clear();
+  });
+  observe = vi.fn((target: Element) => {
+    this.targets.add(target);
+    resizeObserverCallbacks.set(target, this.callback);
+  });
+  unobserve = vi.fn((target: Element) => {
+    this.targets.delete(target);
+    resizeObserverCallbacks.delete(target);
+  });
+}
+
+function emitResize(target: Element): void {
+  resizeObserverCallbacks.get(target)?.([], {} as ResizeObserver);
+}
+
+function domRect(width: number, height: number): DOMRect {
+  return {
+    bottom: height,
+    height,
+    left: 0,
+    right: width,
+    top: 0,
+    width,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  } as DOMRect;
 }
 
 type DesktopBridge = {
@@ -494,6 +537,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  resizeObserverCallbacks.clear();
   vi.restoreAllMocks();
   delete window.alfredDesktop;
 });
@@ -2608,6 +2652,28 @@ describe("App integration", () => {
       expect(resizeTerminal).toHaveBeenCalledWith({ id: "runtime-1", cols: 100, rows: 30 });
     });
     expect(resizeTerminal).toHaveBeenCalledTimes(1);
+  });
+
+  it("refits and resizes the backend after the xterm host geometry changes", async () => {
+    let hostWidth = 640;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getBoundingClientRect(
+      this: HTMLElement,
+    ) {
+      return this.classList.contains("xterm-host")
+        ? domRect(hostWidth, 360)
+        : domRect(0, 0);
+    });
+    const { resizeTerminal } = installDesktopBridge();
+
+    render(<App />);
+    const host = await screen.findByTestId("xterm-host");
+    await waitFor(() => expect(resizeTerminal).toHaveBeenCalledTimes(1));
+
+    hostWidth = 420;
+    emitResize(host);
+
+    await waitFor(() => expect(resizeTerminal).toHaveBeenCalledTimes(2));
+    expect(resizeTerminal).toHaveBeenLastCalledWith({ id: "runtime-1", cols: 65, rows: 30 });
   });
 
   it("resumes an external Codex Sessions row exactly once through its opaque summary key without PTY writes", async () => {
