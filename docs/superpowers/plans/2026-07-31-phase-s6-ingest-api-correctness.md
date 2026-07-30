@@ -21,7 +21,8 @@
   commit `b369e60`; do not intentionally upgrade or downgrade any existing
   package.
 - Preserve the two floating Babel edges exposed by pnpm regeneration with
-  parent-scoped overrides only:
+  parent-scoped overrides under root `package.json#pnpm.overrides`, the
+  configuration location used by pnpm 10.0.0:
   `@testing-library/dom@10.4.1 > @babel/code-frame@7.29.0` and
   `@babel/code-frame@7.29.0 > @babel/helper-validator-identifier@7.28.5`.
 - Regenerate `pnpm-lock.yaml` with pnpm only. Do not hand-edit it.
@@ -34,7 +35,6 @@
 
 - Workspace `package.json` files containing `latest` — pin only their existing
   resolved versions.
-- `pnpm-workspace.yaml` — add two narrow parent-scoped Babel resolution pins.
 - `apps/api/package.json` — declare PGlite as a test-only dependency.
 - `pnpm-lock.yaml` — pnpm-generated specifier freeze plus the PGlite graph.
 - `apps/api/src/services/ingest-service.ts` — expose the production store to both PostgreSQL drivers and neutralize parent synthesis.
@@ -55,7 +55,6 @@
 
 **Files:**
 - Modify: workspace `package.json` files containing `latest`
-- Modify: `pnpm-workspace.yaml`
 - Modify: `pnpm-lock.yaml`
 
 **Interfaces:**
@@ -85,17 +84,21 @@ replacement is an exact version, and no dependency name is added or removed.
 
 - [ ] **Step 3: Regenerate the lockfile with pnpm**
 
-Add only these root overrides to `pnpm-workspace.yaml`:
+Add only these root overrides to the existing `pnpm` object in root
+`package.json`:
 
-```yaml
-overrides:
-  '@testing-library/dom@10.4.1>@babel/code-frame': 7.29.0
-  '@babel/code-frame@7.29.0>@babel/helper-validator-identifier': 7.28.5
+```json
+"overrides": {
+  "@testing-library/dom@10.4.1>@babel/code-frame": "7.29.0",
+  "@babel/code-frame@7.29.0>@babel/helper-validator-identifier": "7.28.5"
+}
 ```
 
 They preserve the exact pre-S6 transitive edges without changing other Babel
-consumers. Restore the S6 worktree's generated lockfile to its `b369e60`
-content, then run:
+consumers. Root `package.json#pnpm.overrides` is required because the
+repository pins pnpm 10.0.0, whose resolver reads that manifest field. Do not
+place these settings in `pnpm-workspace.yaml`. Restore the S6 worktree's
+generated lockfile to its `b369e60` content, then run:
 
 ```bash
 pnpm install --lockfile-only
@@ -120,7 +123,7 @@ Run:
 ```bash
 pnpm verify
 git diff --check
-git add -- ':(glob)**/package.json' pnpm-workspace.yaml pnpm-lock.yaml
+git add -- ':(glob)**/package.json' pnpm-lock.yaml
 git commit -m "chore: freeze dependency versions"
 ```
 

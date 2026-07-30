@@ -80,8 +80,9 @@ Before the PGlite contract is reviewed:
 - every existing `latest` declaration is replaced with the exact version
   already selected in the accepted pre-S6 lockfile;
 - the two pre-existing floating Babel edges that pnpm re-resolves while
-  changing the workspace importers are pinned with narrow parent-scoped
-  overrides to their accepted lockfile versions;
+  changing the workspace importers are pinned in root `package.json` under
+  `pnpm.overrides`, the configuration location consumed by the repository's
+  pinned pnpm 10.0.0, using narrow parent-scoped selectors;
 - this is a metadata freeze only: no package is intentionally upgraded or
   downgraded;
 - pnpm regenerates the shared lockfile; it is not hand-edited;
