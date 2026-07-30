@@ -2010,6 +2010,11 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   will-change: transform;
 }
 
+.terminal-tile.arranging:focus-visible {
+  outline: 2px solid var(--signal-focus);
+  outline-offset: -2px;
+}
+
 .terminal-tile.arranging.is-dragging {
   opacity: 0.88;
   border-color: var(--ink-6);

@@ -1,5 +1,10 @@
 import { X } from "lucide-react";
-import type { CSSProperties, FocusEvent as ReactFocusEvent, PointerEvent as ReactPointerEvent } from "react";
+import type {
+  CSSProperties,
+  FocusEvent as ReactFocusEvent,
+  KeyboardEvent as ReactKeyboardEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 import type { TileLayout } from "./layout-state";
 import type { SessionTile } from "./session-state";
 import type { ArrangePreview } from "./terminal-desk-types";
@@ -15,6 +20,7 @@ type StagedTilePreviewProps = {
   selected: boolean;
   tile: SessionTile;
   onApprove: (tileId: string) => void;
+  onArrangeKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
   onFocusSession: () => void;
   onSelectSession: () => void;
   onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
@@ -30,6 +36,7 @@ export function StagedTilePreview({
   selected,
   tile,
   onApprove,
+  onArrangeKeyDown,
   onFocusSession,
   onSelectSession,
   onPointerMoveStart,
@@ -70,6 +77,11 @@ export function StagedTilePreview({
         if (focusEnteredTile(event)) onSelectSession();
       }}
       onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (arrangeMode) {
+          onArrangeKeyDown(event);
+          return;
+        }
         if (event.key === "Enter") {
           event.preventDefault();
           onFocusSession();

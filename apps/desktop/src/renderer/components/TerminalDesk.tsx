@@ -8,6 +8,7 @@ import {
   useState,
   type CSSProperties,
   type FocusEvent as ReactFocusEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
@@ -296,6 +297,21 @@ export function TerminalDesk({
     },
     [arrangeMode, layouts, onMoveTile, onResizeTile],
   );
+  const handleArrangeKeyDown = useCallback((
+    tileId: string,
+    event: ReactKeyboardEvent<HTMLElement>,
+  ) => {
+    if (!arrangeMode) return;
+    const delta = arrangeKeyboardDelta(event);
+    if (!delta) return;
+
+    event.preventDefault();
+    if (delta.mode === "move") {
+      onMoveTile(tileId, delta.col, delta.row);
+    } else {
+      onResizeTile(tileId, delta.col, delta.row);
+    }
+  }, [arrangeMode, onMoveTile, onResizeTile]);
 
   return (
     <section
@@ -308,7 +324,7 @@ export function TerminalDesk({
             {arrangeMode && (
               <>
                 <span className="arrange-mode-label">Arrange mode</span>
-                <span className="arrange-hint">drag header · resize corner</span>
+                <span className="arrange-hint">drag or arrows · Shift+arrows resize</span>
               </>
             )}
           </div>
@@ -401,6 +417,7 @@ export function TerminalDesk({
                 onRestartSession={() => onRestartSession(session.id)}
                 onFocusSession={() => handleFocusSession(session.id)}
                 onSelectSession={() => handleSelectSession(session.id)}
+                onArrangeKeyDown={(event) => handleArrangeKeyDown(session.id, event)}
                 onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
                 onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
                 onRuntimeSessionFailed={onRuntimeSessionFailed}
@@ -426,6 +443,7 @@ export function TerminalDesk({
                 onFocusSession={() => handleFocusSession(session.id)}
                 onSelectSession={() => handleSelectSession(session.id)}
                 onApprove={onApproveTile}
+                onArrangeKeyDown={(event) => handleArrangeKeyDown(session.id, event)}
                 onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
                 onReject={onRejectTile}
                 onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
@@ -734,6 +752,7 @@ function ManualTerminalTile({
   onClose,
   onContinueRestoredSession,
   onRestartSession,
+  onArrangeKeyDown,
   onFocusSession,
   onSelectSession,
   onPointerMoveStart,
@@ -784,6 +803,7 @@ function ManualTerminalTile({
   onClose: () => void;
   onContinueRestoredSession: () => void;
   onRestartSession: () => void;
+  onArrangeKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
   onFocusSession: () => void;
   onSelectSession: () => void;
   onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
@@ -1390,6 +1410,11 @@ function ManualTerminalTile({
         if (focusEnteredTile(event)) onSelectSession();
       }}
       onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (arrangeMode) {
+          onArrangeKeyDown(event);
+          return;
+        }
         if (event.key === "Enter") {
           event.preventDefault();
           onFocusSession();
@@ -1739,6 +1764,19 @@ function terminalStatusLabel(
     default:
       return terminalStatusKind(session, localStatus);
   }
+}
+
+function arrangeKeyboardDelta(event: ReactKeyboardEvent<HTMLElement>): {
+  mode: ArrangePointerMode;
+  col: number;
+  row: number;
+} | null {
+  const mode = event.shiftKey ? "resize" : "move";
+  if (event.key === "ArrowLeft") return { mode, col: -1, row: 0 };
+  if (event.key === "ArrowRight") return { mode, col: 1, row: 0 };
+  if (event.key === "ArrowUp") return { mode, col: 0, row: -1 };
+  if (event.key === "ArrowDown") return { mode, col: 0, row: 1 };
+  return null;
 }
 
 function focusedSession(sessions: SessionTile[], layouts: Record<string, TileLayout>): SessionTile | null {

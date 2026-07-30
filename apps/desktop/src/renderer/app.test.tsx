@@ -4218,7 +4218,7 @@ describe("App integration", () => {
     expect(stage).not.toHaveClass("headerless");
     expect(stage.querySelector(".terminal-stage-header")).toBeInTheDocument();
     expect(screen.getByText("Arrange mode")).toBeInTheDocument();
-    expect(screen.getByText("drag header · resize corner")).toBeInTheDocument();
+    expect(screen.getByText("drag or arrows · Shift+arrows resize")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Apply Full preset" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Apply Split preset" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Apply Grid preset" })).not.toBeInTheDocument();
@@ -5957,6 +5957,42 @@ describe("App integration", () => {
 
     expect(tile).toHaveStyle({ gridColumn: "1 / span 12", gridRow: "7 / span 9" });
     expect(setWorkspaceLayout).toHaveBeenCalledTimes(1);
+  });
+
+  it("moves and resizes the selected tile from the keyboard in Arrange", async () => {
+    const user = userEvent.setup();
+    const { setWorkspaceLayout } = installDesktopBridge();
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await user.click(screen.getByRole("button", { name: "Open launch menu" }));
+    await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
+    await screen.findByRole("article", { name: /Manual · zsh 2/i });
+    await chooseWorkLayout(user, "Grid");
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await submitCommandPalette(user, "arrange tiles");
+
+    const tile = screen.getByRole("article", { name: /Manual · zsh 1/i });
+    tile.focus();
+    setWorkspaceLayout.mockClear();
+
+    await user.keyboard("{ArrowRight}{ArrowDown}");
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        layouts: expect.objectContaining({
+          "manual-1": expect.objectContaining({ col: 2, row: 2 }),
+        }),
+      }),
+    );
+
+    await user.keyboard("{Shift>}{ArrowDown}{/Shift}");
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        layouts: expect.objectContaining({
+          "manual-1": expect.objectContaining({ rowSpan: 9 }),
+        }),
+      }),
+    );
   });
 
   it("keeps the snapped layout grid after leaving arrange mode", async () => {
