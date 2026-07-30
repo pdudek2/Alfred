@@ -1,4 +1,4 @@
-import { Command, Layers3, ListChecks, Plus } from "lucide-react";
+import { ChevronDown, Command, Layers3, ListChecks, Plus } from "lucide-react";
 import type { Ref } from "react";
 import type { SessionTile } from "../session-state";
 import { AlfredMark } from "./AlfredMark";
@@ -47,7 +47,12 @@ export function WorkbenchHeader({
     ? "Inbox"
     : activeSurface === "sessions"
       ? "Sessions"
-      : selectedSession?.title ?? "Work";
+      : "Work";
+  const surfaceDetail = activeSurface === "work"
+    ? workspaceDetail
+    : activeSurface === "inbox"
+      ? "All projects"
+      : "Alfred";
   const inboxLabel = `Open Inbox surface${inboxCount > 0 ? `, ${inboxCount} item${inboxCount === 1 ? "" : "s"}` : ""}`;
   const launchItems: ChromeMenuItem[] = [
     { id: "prepare-work", label: "Prepare Work", run: onOpenPrepareWork },
@@ -67,8 +72,20 @@ export function WorkbenchHeader({
       <div className="workbench-primary-row">
         <div className="workbench-product-signature"><AlfredMark /></div>
         <div className="workbench-session-context">
-          <span>{surfaceTitle}</span>
-          <small>{activeSurface === "work" ? workspaceDetail : activeSurface === "inbox" ? "All projects" : "Alfred"}</small>
+          <div className="workbench-surface-menu">
+            <ChromeMenu
+              {...(surfacesTriggerRef ? { triggerRef: surfacesTriggerRef } : {})}
+              label="Open Surfaces menu"
+              title="Surfaces"
+              items={surfaceItems}
+            >
+              <Layers3 aria-hidden="true" size={13} />
+              <span>{surfaceTitle}</span>
+              <ChevronDown aria-hidden="true" size={12} />
+            </ChromeMenu>
+          </div>
+          {activeSurface === "work" && selectedSession && <span>{selectedSession.title}</span>}
+          <small className="workbench-context-detail">{surfaceDetail}</small>
           <ChromeMenu
             {...(prepareWorkTriggerRef ? { triggerRef: prepareWorkTriggerRef } : {})}
             label="Open launch menu"
@@ -83,14 +100,6 @@ export function WorkbenchHeader({
             <ListChecks aria-hidden="true" size={14} />
             {inboxCount > 0 && <span className="workbench-attention-count">{inboxCount}</span>}
           </button>
-          <ChromeMenu
-            {...(surfacesTriggerRef ? { triggerRef: surfacesTriggerRef } : {})}
-            label="Open Surfaces menu"
-            title="Surfaces"
-            items={surfaceItems}
-          >
-            <Layers3 aria-hidden="true" size={14} />
-          </ChromeMenu>
           <button
             ref={commandPaletteTriggerRef}
             type="button"

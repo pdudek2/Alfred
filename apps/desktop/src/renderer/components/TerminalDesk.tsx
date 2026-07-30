@@ -562,6 +562,11 @@ function EmptyWorkspaceState({
 }) {
   const bound = Boolean(workspaceRootPath);
   const missing = workspaceRootStatus === "missing";
+  const heading = missing
+    ? `Reconnect ${workspaceLabel}`
+    : bound
+      ? `Start work in ${workspaceLabel}`
+      : "Start with Codex";
 
   return (
     <div
@@ -569,9 +574,9 @@ function EmptyWorkspaceState({
       role="status"
       aria-label={missing ? "Unavailable workspace folder" : "Empty workspace"}
     >
-      <div>
-        <span>{missing ? "Folder unavailable" : bound ? "Workspace ready" : "Scratch workspace ready"}</span>
-        <strong>{workspaceLabel}</strong>
+      <div className="terminal-empty-copy">
+        <span>{missing ? "Folder unavailable" : bound ? "Project ready" : "Scratch workspace"}</span>
+        <strong>{heading}</strong>
         <p>
           {missing
             ? "Choose the folder again to reconnect this workspace."
@@ -580,13 +585,19 @@ function EmptyWorkspaceState({
       </div>
       <dl className="terminal-empty-facts" aria-label="workspace details">
         <div>
+          <dt>workspace</dt>
+          <dd>{workspaceLabel}</dd>
+        </div>
+        <div>
           <dt>folder</dt>
           <dd>{workspaceRootPath ? shortenPath(workspaceRootPath) : "local desk"}</dd>
         </div>
-        <div>
-          <dt>branch</dt>
-          <dd>{workspaceGitBranch ?? "not detected"}</dd>
-        </div>
+        {workspaceGitBranch && (
+          <div>
+            <dt>branch</dt>
+            <dd>{workspaceGitBranch}</dd>
+          </div>
+        )}
       </dl>
       <div className="terminal-empty-actions" aria-label="empty workspace actions">
         {missing ? (
@@ -595,19 +606,23 @@ function EmptyWorkspaceState({
           </button>
         ) : (
           <>
-            <button type="button" className="terminal-empty-primary-action" onClick={onAddManualSession}>
-              New terminal
+            <button
+              type="button"
+              className="terminal-empty-primary-action"
+              onClick={() => onAddAgentSession("codex")}
+            >
+              Start Codex
             </button>
             <div className="terminal-empty-secondary-actions" role="group" aria-label="secondary empty workspace actions">
-              <button type="button" onClick={() => onAddAgentSession("codex")}>
-                Start Codex
-              </button>
               <button type="button" onClick={() => onAddAgentSession("claude")}>
                 Start Claude
               </button>
+              <button type="button" onClick={onAddManualSession}>
+                New terminal
+              </button>
               {!bound && (
                 <button type="button" onClick={onBindWorkspace}>
-                  Bind folder
+                  Choose folder
                 </button>
               )}
             </div>
@@ -624,10 +639,10 @@ function workspaceHomeCopy(rootPath: string | undefined, gitBranch: string | und
   }
 
   if (rootPath) {
-    return `Start a terminal in ${shortenPath(rootPath)}.`;
+    return `Start Codex in ${shortenPath(rootPath)}.`;
   }
 
-  return "Start in the scratch desk, or bind a folder for project context.";
+  return "Start Codex here, or choose a project folder when repository context matters.";
 }
 
 function blockedLaunchDetail(session: Pick<SessionTile, "launchPreflight" | "safetyNote">): string {

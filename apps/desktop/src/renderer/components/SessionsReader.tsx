@@ -4,6 +4,19 @@ import type { SessionsPrimaryAction } from "../sessions-projection";
 
 export type SessionsReaderStatus = "idle" | "loading" | "ready" | "missing" | "error";
 
+export type SessionsReaderEmptyState = {
+  title: string;
+  detail: string;
+  primaryAction: {
+    label: string;
+    onClick: () => void;
+  };
+  secondaryAction?: {
+    label: string;
+    onClick: () => void;
+  };
+};
+
 type SessionsReaderProps = {
   pages: TranscriptPage[];
   primaryAction: SessionsPrimaryAction | null;
@@ -14,6 +27,7 @@ type SessionsReaderProps = {
   } | null;
   readerRef: RefObject<HTMLDivElement | null>;
   selected: SessionSummary | null;
+  emptyState: SessionsReaderEmptyState | null;
   status: SessionsReaderStatus;
   pageError: string | null;
   readerMode: "conversation" | "raw";
@@ -32,6 +46,7 @@ export function SessionsReader({
   recoveryReview,
   readerRef,
   selected,
+  emptyState,
   status,
   pageError,
   readerMode,
@@ -85,7 +100,7 @@ export function SessionsReader({
             <span aria-hidden="true">/</span>
             <strong>{selected.title}</strong>
           </nav>
-        ) : <strong>Select a conversation</strong>}
+        ) : <strong>{emptyState ? "Get started" : "Select a conversation"}</strong>}
         <span className="sessions-reader__toolbar-spacer" />
         {selected && (
           <button
@@ -111,9 +126,24 @@ export function SessionsReader({
           tabIndex={-1}
           onScroll={(event) => onScrollTopChange(event.currentTarget.scrollTop)}
         >
-          {!selected ? (
+          {!selected && emptyState ? (
+            <div className="sessions-reader__start" role="status">
+              <strong>{emptyState.title}</strong>
+              <p>{emptyState.detail}</p>
+              <div className="sessions-reader__start-actions">
+                <button type="button" onClick={emptyState.primaryAction.onClick}>
+                  {emptyState.primaryAction.label}
+                </button>
+                {emptyState.secondaryAction && (
+                  <button type="button" onClick={emptyState.secondaryAction.onClick}>
+                    {emptyState.secondaryAction.label}
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : !selected ? (
             <div className="sessions-reader__empty">
-              <strong>No conversation matches the current filters</strong>
+              <strong>Choose a conversation from the list.</strong>
             </div>
           ) : (
             <article aria-label={selected.title} className="sessions-transcript">

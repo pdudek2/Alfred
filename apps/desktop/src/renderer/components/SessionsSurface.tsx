@@ -18,7 +18,11 @@ import type { SessionTile } from "../session-state";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { appendTranscriptPage, type SessionsViewState } from "../sessions-view-state";
 import { SessionsNavigator } from "./SessionsNavigator";
-import { SessionsReader, type SessionsReaderStatus } from "./SessionsReader";
+import {
+  SessionsReader,
+  type SessionsReaderEmptyState,
+  type SessionsReaderStatus,
+} from "./SessionsReader";
 
 export type SessionsSurfaceProps = {
   externalSessionIndexingEnabled: boolean;
@@ -151,6 +155,55 @@ export function SessionsSurface({
   const patchState = useCallback((patch: Partial<SessionsViewState>) => {
     onStateChange((current) => ({ ...current, ...patch }));
   }, [onStateChange]);
+  const clearFilters = useCallback(() => {
+    patchState({
+      selectedProjectId: "all",
+      source: "all",
+      timeRange: "any",
+      query: "",
+      pageIndex: 0,
+      navigatorScrollTop: 0,
+    });
+  }, [patchState]);
+  const hasActiveFilters = Boolean(
+    state.query.trim()
+    || state.selectedProjectId !== "all"
+    || state.source !== "all"
+    || state.timeRange !== "any",
+  );
+  let emptyState: SessionsReaderEmptyState | null = null;
+  if (!loadingExternalSessions && projection.items.length === 0) {
+    if (hasActiveFilters) {
+      emptyState = {
+        title: "No conversations match these filters",
+        detail: "Clear the current project, source, time, and search filters to see every available conversation.",
+        primaryAction: { label: "Clear filters", onClick: clearFilters },
+        secondaryAction: { label: "Back to Work", onClick: onBackToWork },
+      };
+    } else if (!externalSessionIndexingEnabled) {
+      emptyState = {
+        title: "No conversations yet",
+        detail: "Start an agent in Work, or turn on Codex history in Local Data & Privacy.",
+        primaryAction: { label: "Start new work", onClick: onBackToWork },
+        ...(onOpenPrivacySettings
+          ? { secondaryAction: { label: "Open Local Data & Privacy", onClick: onOpenPrivacySettings } }
+          : {}),
+      };
+    } else if (externalSessionsError) {
+      emptyState = {
+        title: "Codex history couldn't be loaded",
+        detail: "Start a new agent in Work, or try loading history again.",
+        primaryAction: { label: "Start new work", onClick: onBackToWork },
+        secondaryAction: { label: "Try again", onClick: onRefreshExternalSessions },
+      };
+    } else {
+      emptyState = {
+        title: "No conversations yet",
+        detail: "Start Codex or Claude in Work. Active and finished runs will appear here.",
+        primaryAction: { label: "Start new work", onClick: onBackToWork },
+      };
+    }
+  }
 
   useEffect(() => {
     const target = initialFocusTargetRef.current === "results"
@@ -344,6 +397,7 @@ export function SessionsSurface({
         projection={projection}
         projectCounts={projectProjection.projectCounts}
         searchRef={searchRef}
+        showControls={loadingExternalSessions || projection.total > 0 || hasActiveFilters}
         state={state}
         workspaces={workspaces}
         onActiveSessionKeyChange={setActiveSessionKey}
@@ -378,6 +432,7 @@ export function SessionsSurface({
         }
         readerRef={readerRef}
         selected={selected}
+        emptyState={emptyState}
         status={readerStatus}
         pageError={readerPageError}
         readerMode={state.readerMode}
