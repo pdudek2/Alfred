@@ -4254,6 +4254,59 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeInTheDocument();
   });
 
+  it.each([
+    ["New manual terminal", "Manual · zsh 2"],
+    ["New Codex session", "Codex · session 1"],
+  ] as const)("keeps a newly added %s visible and full-width in Focus", async (menuItem, title) => {
+    const user = userEvent.setup();
+    const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge();
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await chooseWorkLayout(user, "Focus");
+    await user.click(screen.getByRole("button", { name: "Open launch menu" }));
+    await user.click(screen.getByRole("menuitem", { name: menuItem }));
+
+    const added = await screen.findByRole("article", { name: new RegExp(title, "i") });
+    expect(added).not.toHaveAttribute("aria-hidden", "true");
+    expect(added).toHaveStyle({ gridColumn: "1 / span 12" });
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        layouts: expect.objectContaining({
+          [added.dataset.sessionId!]: expect.objectContaining({ colSpan: 12 }),
+        }),
+      }),
+    );
+    expect(setWorkspaceViewState).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        viewState: expect.objectContaining({
+          workMode: "focus",
+          selectedSessionId: added.dataset.sessionId,
+        }),
+      }),
+    );
+  });
+
+  it("persists a newly added Grid tile without moving the existing terminal", async () => {
+    const user = userEvent.setup();
+    const { setWorkspaceLayout } = installDesktopBridge();
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    setWorkspaceLayout.mockClear();
+    await user.click(screen.getByRole("button", { name: "Open launch menu" }));
+    await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
+    await screen.findByRole("article", { name: /Manual · zsh 2/i });
+
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+      workspaceId: "A",
+      layouts: expect.objectContaining({
+        "manual-1": expect.objectContaining({ col: 1, row: 1, colSpan: 12, rowSpan: 8 }),
+        "manual-2": expect.objectContaining({ col: 1, row: 9, colSpan: 6, rowSpan: 8 }),
+      }),
+    });
+  });
+
   it("persists a layout preset exactly once after a session is added", async () => {
     const user = userEvent.setup();
     const { setWorkspaceLayout } = installDesktopBridge();
