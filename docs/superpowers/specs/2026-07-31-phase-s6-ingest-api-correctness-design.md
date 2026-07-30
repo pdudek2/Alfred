@@ -79,6 +79,9 @@ Before the PGlite contract is reviewed:
 
 - every existing `latest` declaration is replaced with the exact version
   already selected in the accepted pre-S6 lockfile;
+- the two pre-existing floating Babel edges that pnpm re-resolves while
+  changing the workspace importers are pinned with narrow parent-scoped
+  overrides to their accepted lockfile versions;
 - this is a metadata freeze only: no package is intentionally upgraded or
   downgraded;
 - pnpm regenerates the shared lockfile; it is not hand-edited;
@@ -88,6 +91,10 @@ Before the PGlite contract is reviewed:
 
 This prerequisite fixes workspace dependency determinism once, rather than
 accepting unrelated upgrades or curating one lockfile diff manually.
+The overrides apply only to
+`@testing-library/dom@10.4.1 > @babel/code-frame@7.29.0` and
+`@babel/code-frame@7.29.0 > @babel/helper-validator-identifier@7.28.5`;
+they do not constrain unrelated Babel consumers.
 
 ### 1. Production ingest has a PostgreSQL-compatible contract test
 
