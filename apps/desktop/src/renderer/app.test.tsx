@@ -3618,19 +3618,19 @@ describe("App integration", () => {
     render(<App />);
 
     const emptyState = await screen.findByRole("status", { name: "Empty workspace" });
-    expect(emptyState).toHaveTextContent("Scratch workspace ready");
-    expect(emptyState).toHaveTextContent("Start in the scratch desk");
+    expect(emptyState).toHaveTextContent("Scratch workspace");
+    expect(emptyState).toHaveTextContent("Start with Codex");
     expect(screen.queryByRole("article", { name: /Manual · zsh/i })).not.toBeInTheDocument();
-    const primaryAction = within(emptyState).getByRole("button", { name: "New terminal" });
-    expect(screen.getAllByRole("button", { name: "Start Codex" }).every((button) => !button.hasAttribute("disabled"))).toBe(true);
+    const primaryAction = within(emptyState).getByRole("button", { name: "Start Codex" });
+    expect(primaryAction).toHaveClass("terminal-empty-primary-action");
     const secondaryActions = within(emptyState).getByRole("group", { name: "secondary empty workspace actions" });
     expect(secondaryActions).not.toBeNull();
-    expect(within(secondaryActions).getByRole("button", { name: "Start Codex" })).toBeInTheDocument();
     expect(within(secondaryActions).getByRole("button", { name: "Start Claude" })).toBeInTheDocument();
-    expect(within(secondaryActions).getByRole("button", { name: "Bind folder" })).toBeInTheDocument();
+    expect(within(secondaryActions).getByRole("button", { name: "New terminal" })).toBeInTheDocument();
+    expect(within(secondaryActions).getByRole("button", { name: "Choose folder" })).toBeInTheDocument();
 
     await act(async () => {
-      primaryAction.click();
+      within(secondaryActions).getByRole("button", { name: "New terminal" }).click();
     });
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ source: "manual", workspaceId: "A" }));
@@ -3758,7 +3758,7 @@ describe("App integration", () => {
     expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
     expect(screen.getByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("status", { name: "Empty workspace" })).toHaveTextContent("Scratch workspace ready");
+    expect(screen.getByRole("status", { name: "Empty workspace" })).toHaveTextContent("Start with Codex");
     expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
 
     await user.click(within(screen.getByRole("status", { name: "Empty workspace" })).getByRole("button", { name: "New terminal" }));

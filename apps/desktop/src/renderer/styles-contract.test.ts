@@ -740,6 +740,7 @@ describe("renderer CSS contracts", () => {
 
     expect(bodyRules).toHaveLength(1);
     expect(bodyRules[0]).toContain("background: var(--ink-0)");
+    expect(bodyRules[0]).toContain("min-width: 0");
     expect(bodyRules[0]).not.toContain("gradient");
     expect(bodyRules[0]).not.toContain("background-size");
   });
@@ -897,12 +898,18 @@ describe("renderer CSS contracts", () => {
     expect(desktopFrameBodies[0]).toContain("overflow: hidden");
     expect(mediaExactRuleBodies("(max-width: 980px)", ".desktop-frame")).toHaveLength(0);
 
-    expectCanonicalBase(".mission-bar", ["display: flex", "min-height: 40px"]);
+    expectCanonicalBase(".mission-bar", [
+      "display: flex",
+      "min-height: 40px",
+      "position: relative",
+      "z-index: 100",
+    ]);
     expectCanonicalBase(".mission-name", ["display: flex", "min-width: 0"]);
     expectCanonicalBase(".workspace-title-menu", ["position: relative", "min-width: 0"]);
     expect(topLevelExactRuleBodies(".workspace-title-trigger")).toHaveLength(1);
     expect(mediaExactRuleBodies("(max-width: 980px)", ".workspace-title-trigger")).toHaveLength(1);
     expectCanonicalBase(".workbench-header", ["width: 100%", "min-width: 0", "height: 44px"]);
+    expect(exactBlockFor(".workbench-session-context")).toContain("overflow: visible");
     expectCanonicalBase(".workbench-primary-row", [
       "display: grid",
       "grid-template-columns: auto minmax(0, 1fr) auto",
@@ -1112,6 +1119,18 @@ describe("renderer CSS contracts", () => {
     );
     expect(navigatorPlacement).toHaveLength(0);
     expect(surfacePlacement).toHaveLength(0);
+  });
+
+  it("gives narrow Sessions states a readable single-column layout", () => {
+    expect(mediaExactRuleBodies("(max-width: 720px)", ".sessions-surface")).toEqual([
+      expect.stringContaining("grid-template-columns: minmax(0, 1fr)"),
+    ]);
+    expect(
+      mediaExactRuleBodies(
+        "(max-width: 720px)",
+        ".sessions-surface:has(.sessions-reader__start) .sessions-navigator",
+      ),
+    ).toEqual([expect.stringContaining("display: none")]);
   });
 
   it("keeps Slice A interaction winners adjacent to their canonical components", () => {
@@ -1552,6 +1571,13 @@ describe("renderer CSS contracts", () => {
         { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-run-details", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1180px)", selector: ".inbox-docket__detail-grid", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1180px)", selector: ".inbox-docket__facts", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 720px)", selector: ".sessions-surface", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 720px)", selector: ".sessions-navigator", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 720px)", selector: ".sessions-reader", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 720px)", selector: ".sessions-surface:has(.sessions-reader__start)", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 720px)", selector: ".sessions-surface:has(.sessions-reader__start) .sessions-navigator", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 720px)", selector: ".sessions-surface:has(.sessions-reader__start) .sessions-reader", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 720px)", selector: ".sessions-reader__start", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(prefers-reduced-motion: reduce)", selector: ".inbox-docket *", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(prefers-reduced-motion: reduce)", selector: ".sessions-result", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(prefers-reduced-motion: reduce)", selector: ".sessions-transcript", region: surfaceResponsiveRegion },

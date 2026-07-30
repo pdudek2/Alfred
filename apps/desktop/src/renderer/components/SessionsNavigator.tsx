@@ -18,6 +18,7 @@ type SessionsNavigatorProps = {
   projection: SessionsProjectionPage;
   projectCounts: Record<string, number>;
   searchRef: RefObject<HTMLInputElement | null>;
+  showControls: boolean;
   state: SessionsViewState;
   workspaces: SessionsProjectInput[];
   onActiveSessionKeyChange: (sessionKey: string | null) => void;
@@ -39,6 +40,7 @@ export function SessionsNavigator({
   projection,
   projectCounts,
   searchRef,
+  showControls,
   state,
   workspaces,
   onActiveSessionKeyChange,
@@ -54,6 +56,8 @@ export function SessionsNavigator({
   const selectedDomId = projection.items.length > 0 ? optionDomId(activeIndex) : undefined;
   const resultStatus = loadingExternalSessions && projection.items.length === 0
     ? "…"
+    : externalSessionsError && projection.items.length === 0
+      ? "—"
     : String(projection.total);
   const hasNextPage = (state.pageIndex + 1) * SESSIONS_PAGE_SIZE < projection.total;
   const projectOptions = workspaces.filter((workspace) => (
@@ -111,67 +115,71 @@ export function SessionsNavigator({
           role="status"
         >{resultStatus}</span>
       </header>
-      <label className="sessions-navigator__search">
-        <Search aria-hidden="true" size={15} />
-        <input
-          ref={searchRef}
-          type="search"
-          aria-label="Search sessions"
-          placeholder="Search conversations…"
-          value={state.query}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => onStatePatch({ query: event.target.value, pageIndex: 0 })}
-          onFocus={() => onFocusTargetChange("search")}
-        />
-      </label>
-      <div className="sessions-navigator__filters">
-        <label>
-          <span className="visually-hidden">Session source</span>
-          <select
-            aria-label="Session source"
-            value={state.source}
-            onChange={(event) => onStatePatch({
-              source: event.target.value as SessionsViewState["source"],
-              pageIndex: 0,
-            })}
-          >
-            <option value="all">All sources</option>
-            <option value="managed">Managed</option>
-            <option value="external-codex">Codex</option>
-          </select>
-        </label>
-        <label>
-          <span className="visually-hidden">Session time range</span>
-          <select
-            aria-label="Session time range"
-            value={state.timeRange}
-            onChange={(event) => onStatePatch({
-              timeRange: event.target.value as SessionsViewState["timeRange"],
-              pageIndex: 0,
-            })}
-          >
-            <option value="any">Any time</option>
-            <option value="day">Day</option>
-            <option value="week">Week</option>
-            <option value="month">Month</option>
-          </select>
-        </label>
-        <button
-          type="button"
-          aria-label="Refresh external sessions"
-          disabled={!externalSessionIndexingEnabled || loadingExternalSessions}
-          onClick={onRefreshExternalSessions}
-        >
-          <RefreshCcw aria-hidden="true" size={14} />
-        </button>
-      </div>
+      {showControls && (
+        <>
+          <label className="sessions-navigator__search">
+            <Search aria-hidden="true" size={15} />
+            <input
+              ref={searchRef}
+              type="search"
+              aria-label="Search sessions"
+              placeholder="Search conversations…"
+              value={state.query}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => onStatePatch({ query: event.target.value, pageIndex: 0 })}
+              onFocus={() => onFocusTargetChange("search")}
+            />
+          </label>
+          <div className="sessions-navigator__filters">
+            <label>
+              <span className="visually-hidden">Session source</span>
+              <select
+                aria-label="Session source"
+                value={state.source}
+                onChange={(event) => onStatePatch({
+                  source: event.target.value as SessionsViewState["source"],
+                  pageIndex: 0,
+                })}
+              >
+                <option value="all">All sources</option>
+                <option value="managed">Managed</option>
+                <option value="external-codex">Codex</option>
+              </select>
+            </label>
+            <label>
+              <span className="visually-hidden">Session time range</span>
+              <select
+                aria-label="Session time range"
+                value={state.timeRange}
+                onChange={(event) => onStatePatch({
+                  timeRange: event.target.value as SessionsViewState["timeRange"],
+                  pageIndex: 0,
+                })}
+              >
+                <option value="any">Any time</option>
+                <option value="day">Day</option>
+                <option value="week">Week</option>
+                <option value="month">Month</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              aria-label="Refresh external sessions"
+              disabled={!externalSessionIndexingEnabled || loadingExternalSessions}
+              onClick={onRefreshExternalSessions}
+            >
+              <RefreshCcw aria-hidden="true" size={14} />
+            </button>
+          </div>
+        </>
+      )}
 
-      {!externalSessionIndexingEnabled && (
+      {!externalSessionIndexingEnabled && projection.items.length > 0 && (
         <p className="sessions-navigator__notice">
           <strong>External Codex indexing is off.</strong>
           {onOpenPrivacySettings && <button type="button" onClick={onOpenPrivacySettings}>Open Local Data &amp; Privacy</button>}
         </p>
       )}
-      {externalSessionIndexingEnabled && externalSessionsError && (
+      {externalSessionIndexingEnabled && externalSessionsError && projection.items.length > 0 && (
         <p className="sessions-navigator__notice"><strong>External sessions may be incomplete.</strong><span>{externalSessionsError}</span></p>
       )}
       <div
@@ -185,13 +193,7 @@ export function SessionsNavigator({
         onKeyDown={handleListKeyDown}
         onScroll={(event) => onStatePatch({ navigatorScrollTop: event.currentTarget.scrollTop })}
       >
-        {projection.items.length === 0 && !loadingExternalSessions ? (
-          <div className="sessions-navigator__empty">
-            <strong>No conversations found.</strong>
-            <span>Try another title, source, or time range.</span>
-            {state.query && <button type="button" onClick={() => onStatePatch({ query: "", pageIndex: 0 })}>Clear search</button>}
-          </div>
-        ) : projection.items.map((session, index) => (
+        {projection.items.map((session, index) => (
           <button
             type="button"
             role="option"
