@@ -11,7 +11,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { getDesktopTerminalApi, getDesktopWorkspaceApi } from "../desktop-api";
+import { getDesktopTerminalApi } from "../desktop-api";
 import type { TileLayout } from "../layout-state";
 import {
   canRelaunchRestoredSession,
@@ -72,6 +72,7 @@ type TerminalDeskProps = {
   onApplyWorktree: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
   onContinueRestoredSession: (sessionId: string) => void;
+  onOpenExternalTerminal: (cwd: string) => Promise<boolean>;
   onOpenInbox: () => void;
   onRestartSession: (sessionId: string) => void;
   onApplyWorkMode: (mode: WorkMode) => void;
@@ -116,6 +117,7 @@ export function TerminalDesk({
   onApplyWorktree,
   onCloseSession,
   onContinueRestoredSession,
+  onOpenExternalTerminal,
   onOpenInbox,
   onRestartSession,
   onApplyWorkMode,
@@ -221,12 +223,6 @@ export function TerminalDesk({
     [arrangeMode, onFocusSession, onSelectSession],
   );
   const handleSelectSession = useCallback((sessionId: string) => onSelectSession(sessionId), [onSelectSession]);
-  const handleOpenExternalTerminal = useCallback(async (cwd: string) => {
-    const result = await getDesktopWorkspaceApi()?.openExternalTerminal({ cwd });
-    if (!result?.ok) {
-      throw new Error(result?.error ?? "Workspace runtime is unavailable.");
-    }
-  }, []);
   const startPointerArrange = useCallback(
     (tileId: string, mode: ArrangePointerMode, event: ReactPointerEvent<HTMLElement>) => {
       if (!arrangeMode) return;
@@ -428,7 +424,7 @@ export function TerminalDesk({
                 onRuntimeSessionReady={onRuntimeSessionReady}
                 onRuntimeSessionStarting={onRuntimeSessionStarting}
                 onRuntimeSessionUnavailable={onRuntimeSessionUnavailable}
-                onOpenExternalTerminal={handleOpenExternalTerminal}
+                onOpenExternalTerminal={onOpenExternalTerminal}
                 onRenameSession={onRenameSession}
                 onToggleCollapse={() => onToggleCollapseSession(session.id)}
               />
@@ -816,7 +812,7 @@ function ManualTerminalTile({
   onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
   onRuntimeSessionStarting: (tileId: string) => boolean;
   onRuntimeSessionUnavailable: (tileId: string) => void;
-  onOpenExternalTerminal: (cwd: string) => Promise<void>;
+  onOpenExternalTerminal: (cwd: string) => Promise<boolean>;
   onRenameSession: (sessionId: string, title: string) => void;
   onToggleCollapse: () => void;
   selected: boolean;

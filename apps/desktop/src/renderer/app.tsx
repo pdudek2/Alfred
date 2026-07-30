@@ -738,12 +738,11 @@ export function App() {
     );
   }, [runShellAction]);
 
-  const handleOpenSessionTerminal = useCallback(async (cwd: string) => {
-    await runShellAction(
+  const handleOpenSessionTerminal = useCallback((cwd: string) =>
+    runShellAction(
       () => getDesktopWorkspaceApi()?.openExternalTerminal({ cwd }),
       "Session terminal is unavailable.",
-    );
-  }, [runShellAction]);
+    ), [runShellAction]);
 
   const handleSelectPreviewUrl = useCallback((url: string) => {
     setSelectedPreviewUrlsByWorkspace((current) => ({
@@ -2635,6 +2634,7 @@ export function App() {
                   onApplyWorktree={handleApplyWorktree}
                   onCloseSession={handleCloseSession}
                   onContinueRestoredSession={handleContinueRestoredSession}
+                  onOpenExternalTerminal={handleOpenSessionTerminal}
                   onOpenInbox={handleOpenInbox}
                   onRestartSession={handleRestartSession}
                   onApplyWorkMode={handleApplyWorkMode}
