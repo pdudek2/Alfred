@@ -172,8 +172,6 @@ function gridStyle(layout: TileLayout | undefined, preview?: ArrangePreview | un
   if (preview) {
     style["--arrange-x"] = `${preview.offsetX}px`;
     style["--arrange-y"] = `${preview.offsetY}px`;
-    style["--arrange-cols"] = String(preview.deltaCol);
-    style["--arrange-rows"] = String(preview.deltaRow);
   }
 
   if (preview?.mode === "move") {
