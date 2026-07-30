@@ -84,7 +84,9 @@ export function WorkbenchHeader({
               <ChevronDown aria-hidden="true" size={12} />
             </ChromeMenu>
           </div>
-          {activeSurface === "work" && selectedSession && <span>{selectedSession.title}</span>}
+          {activeSurface === "work" && selectedSession && (
+            <span className="workbench-session-title">{selectedSession.title}</span>
+          )}
           <small className="workbench-context-detail">{surfaceDetail}</small>
           <ChromeMenu
             {...(prepareWorkTriggerRef ? { triggerRef: prepareWorkTriggerRef } : {})}
