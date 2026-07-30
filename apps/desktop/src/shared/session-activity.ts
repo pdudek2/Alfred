@@ -372,9 +372,9 @@ function fileOperationFromLine(line: string): FileActivityOperation | null {
   if (/\bcreated\b/i.test(line)) return "created";
   if (/\bdeleted\b/i.test(line)) return "deleted";
   if (/\brenamed\b/i.test(line)) return "renamed";
-  if (/\bupdated|modified\b/i.test(line)) return "updated";
+  if (/\b(updated|modified)\b/i.test(line)) return "updated";
   if (/\bedited\b/i.test(line)) return "edited";
-  if (/\bwrote|written\b/i.test(line)) return "wrote";
+  if (/\b(wrote|written)\b/i.test(line)) return "wrote";
   return null;
 }
 
