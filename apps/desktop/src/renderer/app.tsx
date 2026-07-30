@@ -240,6 +240,7 @@ export function App() {
   const externalResumeReservationsRef = useRef<Map<string, { tileId: string; workspaceId: string }>>(new Map());
   const worktreeActionPendingRef = useRef<Set<string>>(new Set());
   const terminalSessionsRef = useRef<SessionTile[]>([]);
+  const pendingPlanRef = useRef<SquadPlan | null>(null);
   const announcedSessionStatusesRef = useRef<Map<string, string>>(new Map());
   const sessionStatusAnnouncementsReadyRef = useRef<boolean>(false);
   const workspaceStateHydratedRef = useRef<boolean>(false);
@@ -1384,11 +1385,16 @@ export function App() {
     });
     if (runtime.source === "alfred") {
       void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
-      setPendingPlan((plan) => {
-        if (!plan) return plan;
-        const remaining = plan.sessionIds.filter((id) => id !== tileId);
-        return remaining.length === 0 ? null : { ...plan, sessionIds: remaining };
-      });
+      const currentPlan = pendingPlanRef.current;
+      if (currentPlan?.sessionIds.includes(tileId)) {
+        const remaining = currentPlan.sessionIds.filter((id) => id !== tileId);
+        pendingPlanRef.current = remaining.length === 0 ? null : { ...currentPlan, sessionIds: remaining };
+        setPendingPlan((plan) => {
+          if (!plan || plan.id !== currentPlan.id || !plan.sessionIds.includes(tileId)) return plan;
+          const currentRemaining = plan.sessionIds.filter((id) => id !== tileId);
+          return currentRemaining.length === 0 ? null : { ...plan, sessionIds: currentRemaining };
+        });
+      }
     }
   }, []);
 
@@ -1524,10 +1530,11 @@ export function App() {
       activeWorkspace.rootPath ?? "",
       activeWorkspace.id,
     );
+    const stagedSessions = after.slice(before.length);
     const stagedPlan = createStagedPlanSnapshot({
       ...(response.plan.name === undefined ? {} : { name: response.plan.name }),
       prompt,
-      sessions: after.slice(before.length),
+      sessions: stagedSessions,
     });
     const nextPendingPlan = stagedPlan
       ? {
@@ -1539,7 +1546,8 @@ export function App() {
         }
       : null;
 
-    setTerminalSessions(after);
+    setTerminalSessions((current) => [...current, ...stagedSessions]);
+    pendingPlanRef.current = nextPendingPlan;
     setPendingPlan(nextPendingPlan);
     if (stagedPlan) void alfredApi.setStagedPlan(stagedPlan);
     else void alfredApi.clearStagedPlan();
@@ -1651,18 +1659,20 @@ export function App() {
 
   const handleRejectTile = useCallback((tileId: string) => {
     const alfredApi = getDesktopAlfredApi();
-    const planOwnsTile = pendingPlan?.sessionIds.includes(tileId) ?? false;
-    const remaining = pendingPlan?.sessionIds.filter((id) => id !== tileId) ?? [];
+    const owningPlan = pendingPlanRef.current;
+    const planOwnsTile = owningPlan?.sessionIds.includes(tileId) ?? false;
     setTerminalSessions((sessions) => rejectStaged(sessions, tileId));
-    setPendingPlan(
-      pendingPlan
-        ? remaining.length === 0
-          ? null
-          : { ...pendingPlan, sessionIds: remaining }
-        : null,
-    );
-    if (planOwnsTile) void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
-  }, [pendingPlan]);
+    if (!owningPlan || !planOwnsTile) return;
+
+    const remaining = owningPlan.sessionIds.filter((id) => id !== tileId);
+    pendingPlanRef.current = remaining.length === 0 ? null : { ...owningPlan, sessionIds: remaining };
+    setPendingPlan((current) => {
+      if (!current || current.id !== owningPlan.id || !current.sessionIds.includes(tileId)) return current;
+      const currentRemaining = current.sessionIds.filter((id) => id !== tileId);
+      return currentRemaining.length === 0 ? null : { ...current, sessionIds: currentRemaining };
+    });
+    void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
+  }, []);
 
   const handleUpdateStagedSession = useCallback(async (sessionId: string, patch: AlfredStagedSessionPatch) => {
     const alfredApi = getDesktopAlfredApi();
@@ -1718,7 +1728,9 @@ export function App() {
         },
       ),
     );
-    setPendingPlan(toSquadPlan({ plan: response.plan, defaultWorkspaceId: activeWorkspace.id }));
+    const nextPendingPlan = toSquadPlan({ plan: response.plan, defaultWorkspaceId: activeWorkspace.id });
+    pendingPlanRef.current = nextPendingPlan;
+    setPendingPlan(nextPendingPlan);
   }, [activeSessions, activeWorkspace, pendingPlan?.id]);
 
   const handleOpenCommandPalette = useCallback(() => {
@@ -2284,7 +2296,12 @@ export function App() {
         );
         setTerminalSessions(hydratedSessions);
         setPreviewCandidates(previewCandidatesFromSessions(hydratedSessions));
-        setPendingPlan(toSquadPlan({ plan: stagedPlanResult.plan, omittedSessionIds: alreadyLaunchedStagedIds }));
+        const hydratedPendingPlan = toSquadPlan({
+          plan: stagedPlanResult.plan,
+          omittedSessionIds: alreadyLaunchedStagedIds,
+        });
+        pendingPlanRef.current = hydratedPendingPlan;
+        setPendingPlan(hydratedPendingPlan);
         workspaceStateHydratedRef.current = true;
         setWorkspaceHydrationStatus({ status: "ready" });
       })
