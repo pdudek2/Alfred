@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Exercise the production ingest store against PostgreSQL-compatible behavior, preserve parent-run lifecycle, and make hosted API startup reject missing or invalid database configuration.
+**Goal:** Make dependency resolution deterministic, exercise the production ingest store against PostgreSQL-compatible behavior, preserve parent-run lifecycle, and make hosted API startup reject missing or invalid database configuration.
 
 **Architecture:** Export the existing Drizzle ingest-store seam and run it against an isolated in-memory PGlite database initialized from the canonical migrations. Keep route tests on a minimal orchestration fake, neutralize synthetic parent events at their creation point, and pass the validated `DATABASE_URL` explicitly into the existing database pool.
 
@@ -17,15 +17,21 @@
 - Keep the local `DATABASE_URL` fallback; require a valid `postgres:` or `postgresql:` URL in hosted runtime.
 - Do not add a repository layer, factory hierarchy, database readiness probe, Docker dependency, compatibility path, or production migration.
 - Do not modify desktop UI, browser auth, runner device-token auth, retired query routes, or broad global styles.
-- `pnpm-lock.yaml` may change only through the explicit PGlite dependency command. Do not hand-edit it.
+- Freeze every existing `latest` declaration to the exact version selected in
+  commit `b369e60`; do not intentionally upgrade or downgrade any existing
+  package.
+- Regenerate `pnpm-lock.yaml` with pnpm only. Do not hand-edit it.
+- After the freeze, PGlite must be the only new package introduced by S6.
 - Never run the real runner against `~/.codex`; S6 needs no runner process.
 - Never force-push or add AI co-author trailers.
 - Do not push without Patryk's explicit authorization for the implementation session.
 
 ## File Map
 
+- Workspace `package.json` files containing `latest` — pin only their existing
+  resolved versions.
 - `apps/api/package.json` — declare PGlite as a test-only dependency.
-- `pnpm-lock.yaml` — generated lockfile update for that dependency only.
+- `pnpm-lock.yaml` — pnpm-generated specifier freeze plus the PGlite graph.
 - `apps/api/src/services/ingest-service.ts` — expose the production store to both PostgreSQL drivers and neutralize parent synthesis.
 - `apps/api/src/test/support/ingest-fixtures.ts` — shared valid ingest batch builder and stable fixture IDs.
 - `apps/api/src/test/support/pglite-ingest-db.ts` — create, migrate, and close one isolated PGlite database.
@@ -37,6 +43,72 @@
 - `apps/api/src/test/app.test.ts` — prove application database construction uses the parsed URL.
 - `docs/superpowers/specs/2026-07-31-phase-s6-ingest-api-correctness-design.md` — final S6 status and evidence.
 - `docs/superpowers/specs/2026-07-29-post-v1-stabilization-roadmap.md` — close S6 and route next to S7.
+
+---
+
+### Task 0: Freeze the existing dependency graph
+
+**Files:**
+- Modify: workspace `package.json` files containing `latest`
+- Modify: `pnpm-lock.yaml`
+
+**Interfaces:**
+- Consumes: dependency versions selected by `pnpm-lock.yaml` at commit
+  `b369e60`.
+- Produces: exact manifest specifiers for the same dependency graph and a
+  reproducible pnpm lockfile.
+
+- [ ] **Step 1: Record the current moving declarations**
+
+Run:
+
+```bash
+test "$(rg -n '"latest"' --glob package.json . | wc -l | tr -d ' ')" = "52"
+```
+
+Expected: exactly 52 declarations require freezing.
+
+- [ ] **Step 2: Pin each declaration to its accepted locked version**
+
+For every `latest` dependency, read the corresponding resolved version from
+the `b369e60` lockfile importer and replace only that manifest value. Use
+`apply_patch` for manifest edits.
+
+Expected: `rg -n '"latest"' --glob package.json .` returns no matches, every
+replacement is an exact version, and no dependency name is added or removed.
+
+- [ ] **Step 3: Regenerate the lockfile with pnpm**
+
+Restore the S6 worktree's generated lockfile to its `b369e60` content, then
+run:
+
+```bash
+pnpm install --lockfile-only
+```
+
+Expected: pnpm records exact manifest specifiers while preserving the
+pre-S6 resolved versions. Do not hand-edit the lockfile.
+
+- [ ] **Step 4: Prove the freeze did not change package versions**
+
+Compare every pre-existing package resolution against `b369e60`.
+
+Expected: no pre-existing package version changed; the only additional
+package graph belongs to API-dev-only PGlite from Task 1.
+
+- [ ] **Step 5: Verify and commit the prerequisite**
+
+Run:
+
+```bash
+pnpm verify
+git diff --check
+git add -- ':(glob)**/package.json' pnpm-lock.yaml
+git commit -m "chore: freeze dependency versions"
+```
+
+Expected: the full repository gate passes and the commit contains only exact
+specifier pins plus the pnpm-generated lockfile.
 
 ---
 
@@ -55,17 +127,17 @@
 - Consumes: canonical exports from `@alfred/db`, root `drizzle/` migrations, `ingestBatch`, and Drizzle's common `PgDatabase` base.
 - Produces: exported `createDrizzleIngestStore<TQueryResult, TFullSchema, TSchema>(db): IngestStore`, `makeBatch`, stable fixture IDs, and `createPgliteIngestDatabase()`.
 
-- [ ] **Step 1: Install the one accepted test dependency**
+- [ ] **Step 1: Confirm the one accepted test dependency**
 
 Run:
 
 ```bash
-pnpm --filter @alfred/api add --save-dev @electric-sql/pglite
+pnpm --filter @alfred/api why @electric-sql/pglite
 ```
 
 Expected: `@electric-sql/pglite` appears only in
-`apps/api/package.json#devDependencies`; `pnpm-lock.yaml` contains the generated
-resolution and Drizzle peer edge. No other package manifest changes.
+`apps/api/package.json#devDependencies`; `pnpm-lock.yaml` contains its generated
+resolution and Drizzle peer edge. No unrelated package resolution changed.
 
 - [ ] **Step 2: Extract the shared valid batch fixture**
 
