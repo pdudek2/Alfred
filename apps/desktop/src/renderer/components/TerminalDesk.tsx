@@ -834,7 +834,6 @@ function ManualTerminalTile({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
   const lastResizeRef = useRef<{ id: TerminalSessionId; cols: number; rows: number } | null>(null);
   const sessionIdRef = useRef<TerminalSessionId | null>(null);
   const [status, setStatus] = useState<LocalTerminalStatus>("connecting");
@@ -1085,7 +1084,6 @@ function ManualTerminalTile({
     terminal.loadAddon(fitAddon);
     terminal.open(container);
     terminalRef.current = terminal;
-    fitAddonRef.current = fitAddon;
 
     const fitAndResize = () => {
       if (!terminalHostHasStableGeometry(container)) return false;
@@ -1140,7 +1138,6 @@ function ManualTerminalTile({
       fitAndResizeRef.current = null;
       scheduleRepaintRef.current = null;
       writeAndRepaintRef.current = null;
-      fitAddonRef.current = null;
       terminalRef.current = null;
       terminal.dispose();
     };
@@ -1820,8 +1817,6 @@ function gridStyle(layout: TileLayout | undefined, preview?: ArrangePreview | un
   if (preview) {
     style["--arrange-x"] = `${preview.offsetX}px`;
     style["--arrange-y"] = `${preview.offsetY}px`;
-    style["--arrange-cols"] = String(preview.deltaCol);
-    style["--arrange-rows"] = String(preview.deltaRow);
   }
 
   if (preview?.mode === "move") {
