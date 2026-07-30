@@ -17,7 +17,7 @@ describe("production ingest store", () => {
 
   beforeEach(async () => {
     fixture = await createPgliteIngestDatabase();
-  });
+  }, 20_000);
 
   afterEach(async () => {
     await fixture.close();
