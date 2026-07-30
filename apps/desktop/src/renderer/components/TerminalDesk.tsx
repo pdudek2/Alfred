@@ -191,7 +191,7 @@ export function TerminalDesk({
     );
     if (!tile || tile.getAttribute("aria-hidden") === "true") return;
 
-    tile.scrollIntoView({ block: "nearest", inline: "nearest" });
+    tile.scrollIntoView?.({ block: "nearest", inline: "nearest" });
     onSessionRevealed(revealSessionId);
   }, [onSessionRevealed, revealSessionId, workMode]);
 
