@@ -35,7 +35,7 @@ without reopening the accepted product or visual direction.
 
 ## Scope lineage
 
-`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 complete → S4 complete → S5 next (unplanned)`
+`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 complete → S4 complete → S5 complete → S6 next`
 
 Phase Z remains closed. This roadmap does not reinterpret or reopen its visual
 or product decisions.
@@ -54,6 +54,9 @@ or product decisions.
   Discard remains explicitly destructive, and retention Off/Clear remove
   sensitive launch data while preserving only safe worktree-recovery identity.
 - S4 implementation and final review follow-up are complete at `4885ff1`.
+- S5 implementation is complete at `628b7c8`; rejected planning recovers,
+  blocked staged agents are editable, S5-owned state updaters are pure, and
+  file activity uses complete-word alternatives.
 
 ## Phases
 
@@ -63,11 +66,11 @@ or product decisions.
 | S2 — Runner loss and stall prevention | Concurrent sessions do not lose events; poison or malformed records cannot stall sync | 6, 7, 8, 24 | Complete |
 | S3 — API boundary simplification | Delete browser-session auth and browser-only query surfaces; keep device-auth ingest | 9, 10, 22 | Complete |
 | S4 — Privacy and worktree lifecycle | Resolve worktree close behavior and prevent sensitive launch data from persisting | 13, 15, 16 | Complete |
-| S5 — Desktop interaction correctness | Recover failed planning, unblock review/edit, remove impure state updaters, correct activity classification | 5, 11, 17, 23 | Pending |
+| S5 — Desktop interaction correctness | Recover failed planning, unblock review/edit, remove impure state updaters, correct activity classification | 5, 11, 17, 23 | Complete |
 | S6 — Ingest/API correctness | Correct parent lifecycle, validate hosted DB config, and test the real ingest store | 12, 20, 21 | Pending |
 | S7 — Residue and blocked-boundary review | Complete scripts/tooling and CSS/accessibility audits; triage investigate-only signals | audit gaps | Pending |
 
-Only an actively converged phase receives an implementation plan. S5 remains
+Only an actively converged phase receives an implementation plan. S6 remains
 unplanned until a new convergence workflow begins.
 
 **Closed phase contract:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification.md`
@@ -82,6 +85,15 @@ unplanned until a new convergence workflow begins.
 
 **Closed implementation plan:** `docs/superpowers/plans/2026-07-29-phase-s4-privacy-worktree-lifecycle.md`
 
+**Closed phase contract:** `docs/superpowers/specs/2026-07-30-phase-s5-desktop-interaction-correctness-design.md`
+
+**Closed implementation plan:** `docs/superpowers/plans/2026-07-30-phase-s5-desktop-interaction-correctness.md`
+
+**Closed phase:** S5 — Desktop interaction correctness.
+
+**Next phase:** S6 — Ingest/API correctness; findings 12, 20, and 21,
+unplanned until a new convergence workflow begins.
+
 The roadmap product-boundary decision above remains unchanged: delete browser-session
 auth and browser-only query surfaces while retaining device-auth ingest.
 
@@ -93,25 +105,25 @@ auth and browser-only query surfaces while retaining device-auth ingest.
 | 2 | Fixed in `6a6c1d7` | Closed |
 | 3 | Fixed in `cf62ee4` | Closed |
 | 4 | Fixed in `90a04e5` | Closed |
-| 5 | Confirmed | S5 |
+| 5 | Fixed in `ef768cc` | Closed |
 | 6 | Fixed in `c9130e7`, `8b12fbe`, `4b17a14` | Closed |
 | 7 | Fixed in `50fc5c0` | Closed |
 | 8 | Fixed in `4b4bd33`, `720e783`, `7eb31fb`, `4b17a14` | Closed |
 | 9 | Superseded by product-boundary decision | S3 deletes the session surface |
 | 10 | Superseded by product-boundary decision | S3 deletes the OIDC surface |
-| 11 | Confirmed | S5 |
+| 11 | Fixed in `478ae96` | Closed |
 | 12 | Confirmed | S6 |
 | 13 | Fixed in `b192291`, `aad5063`, `fa7cf19`, `d5556eb`, `2a29706`, `54067ff`, `4885ff1` | Closed |
 | 14 | Fixed in `90a04e5` | Closed |
 | 15 | Fixed in `591c865`, `66329fb`, `006385e`, `1b13861`, `f73ae07`, `279d9af`, `fa7cf19`, `d5556eb`, `54067ff`, `4885ff1` | Closed |
 | 16 | Fixed in `47ce4fa`, `4885ff1` | Closed |
-| 17 | Confirmed | S5 |
+| 17 | Fixed in `3da82ed`, `5b98464`, `d8283d2` | Closed |
 | 18 | Fixed in `2a020a0` | Closed |
 | 19 | Fixed in `5ae7c1d` | Closed |
 | 20 | Confirmed | S6 |
 | 21 | Confirmed | S6 |
 | 22 | Superseded by product-boundary decision | S3 deletes dev cookie auth |
-| 23 | Confirmed | S5 |
+| 23 | Fixed in `628b7c8` | Closed |
 | 24 | Fixed in `4b4bd33`, `720e783`, `7eb31fb`, `4b17a14` | Closed |
 
 ## Phase gates
@@ -256,8 +268,45 @@ remained clean.
 Focused review found no API, database, runner, dependency, lockfile, migration,
 or broad visual change; no duplicate sanitizer; cleanup-before-forget ordering;
 and no route for an already-live session to repersist cleared launch data.
-Finding 17 remains routed to S5 except for the single destructive updater path
-required for transactional Discard.
+At S4 closeout, finding 17 remained routed to S5 except for the single
+destructive updater path required for transactional Discard. S5 has since
+closed the remaining finding-17 scope.
+
+## S5 closeout
+
+**State:** Complete
+
+**Implementation commits:** `ef768cc`, `478ae96`, `3da82ed`, `5b98464`,
+`d8283d2`, `628b7c8`
+
+**Next phase:** S6 — Ingest/API correctness; findings 12, 20, and 21
+
+Closed behavior:
+
+- planning and preflight exceptions now become safe structured failures, the
+  renderer independently handles a rejected preload promise, and retry remains
+  available;
+- blocked staged Codex, Claude, shell, and dev-server work uses the existing
+  Review / Edit surface, with authoritative safety and preflight returned by
+  the main process;
+- the S5-owned workspace, session, and plan state updaters are effect-free,
+  with IDs, timestamps, persistence, IPC, and sibling state updates outside
+  replayable callbacks;
+- file activity recognizes complete operation words without false positives
+  from `unmodified`, `overwritten`, or `rewritten`.
+
+Fresh verification passed the focused desktop command (62/62 files and
+992/992 tests), desktop typecheck, desktop build, and full `pnpm verify`
+including lint, typecheck 9/9, package and root tests, build 6/6, and Electron
+smoke 16/16. Focused review of the accepted production and regression-test
+diff reported 0 Critical, 0 Important, and 0 Minor findings.
+
+Direct Electron observation used an isolated copied build, temporary
+`userData`, and temporary Codex and Claude homes. A forced IPC rejection
+rendered retryable copy with the composer enabled; retry produced staged
+Codex work; a safe edit became ready and launchable; and a second edit
+remained blocked with the refreshed workspace-mismatch reason and disabled
+Launch action. The real runner and `~/.codex` were not used.
 
 ## Explicitly deferred
 
