@@ -1,6 +1,6 @@
 # Phase S6 — Ingest/API Correctness
 
-**Status:** Draft — design approved; written review pending  
+**Status:** Approved — implementation pending
 **Parent:** `docs/superpowers/specs/2026-07-29-post-v1-stabilization-roadmap.md`  
 **Findings:** 12, 20, 21
 
