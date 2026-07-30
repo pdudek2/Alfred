@@ -68,14 +68,17 @@ export function resizeTileLayout(
 ): Record<string, TileLayout> {
   const layout = layouts[tileId];
   if (!layout) return layouts;
+  const maxSpanFromOrigin = GRID_COLUMNS - layout.col + 1;
+  const colSpan = clamp(
+    Math.round(layout.colSpan + deltaColSpan),
+    MIN_COL_SPAN,
+    maxSpanFromOrigin,
+  );
+  const rowSpan = Math.max(MIN_ROW_SPAN, Math.round(layout.rowSpan + deltaRowSpan));
 
   return {
     ...layouts,
-    [tileId]: normalizeLayout({
-      ...layout,
-      colSpan: layout.colSpan + deltaColSpan,
-      rowSpan: layout.rowSpan + deltaRowSpan,
-    }),
+    [tileId]: { ...layout, colSpan, rowSpan },
   };
 }
 

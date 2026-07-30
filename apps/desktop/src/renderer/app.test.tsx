@@ -5929,18 +5929,22 @@ describe("App integration", () => {
     const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "arrange tiles");
+    const grid = screen.getByLabelText("terminals").querySelector(".terminal-grid");
+    if (!(grid instanceof HTMLElement)) throw new Error("Expected terminal grid.");
+    grid.style.gridAutoRows = "84px";
+    grid.style.rowGap = "8px";
 
     fireEvent.pointerDown(tile.querySelector(".tile-header")!, { clientX: 0, clientY: 0 });
-    fireEvent.pointerMove(window, { clientX: 160, clientY: 72 });
+    fireEvent.pointerMove(window, { clientX: 160, clientY: 552 });
 
     expect(tile).toHaveClass("is-dragging");
-    expect(tile).toHaveStyle({ transform: "translate3d(160px, 72px, 0)" });
+    expect(tile).toHaveStyle({ transform: "translate3d(160px, 552px, 0)" });
     expect(tile).toHaveStyle({ gridColumn: "1 / span 12", gridRow: "1 / span 8" });
 
     setWorkspaceLayout.mockClear();
     fireEvent.pointerUp(window);
 
-    expect(tile).toHaveStyle({ gridColumn: "1 / span 12", gridRow: "2 / span 8" });
+    expect(tile).toHaveStyle({ gridColumn: "1 / span 12", gridRow: "7 / span 8" });
     expect(setWorkspaceLayout).toHaveBeenCalledTimes(1);
 
     fireEvent.pointerDown(screen.getByRole("button", { name: "Resize Manual · zsh 1" }), { clientX: 0, clientY: 0 });
@@ -5951,7 +5955,7 @@ describe("App integration", () => {
     setWorkspaceLayout.mockClear();
     fireEvent.pointerUp(window);
 
-    expect(tile).toHaveStyle({ gridColumn: "1 / span 12", gridRow: "2 / span 9" });
+    expect(tile).toHaveStyle({ gridColumn: "1 / span 12", gridRow: "7 / span 9" });
     expect(setWorkspaceLayout).toHaveBeenCalledTimes(1);
   });
 
