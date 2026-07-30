@@ -56,6 +56,7 @@ type TerminalDeskProps = {
   layouts: Record<string, TileLayout>;
   collapsedSessionIds: Set<string>;
   recoverableSessions: SessionTile[];
+  revealSessionId: string | null;
   armedRecoverySessionIds: Set<string>;
   selectedSessionId: string | null;
   sessions: SessionTile[];
@@ -92,6 +93,7 @@ type TerminalDeskProps = {
   onRejectTile: (tileId: string) => void;
   onResizeTile: (tileId: string, deltaColSpan: number, deltaRowSpan: number) => void;
   onReviewWorktree: (sessionId: string) => void;
+  onSessionRevealed: (sessionId: string) => void;
   onToggleCollapseSession: (sessionId: string) => void;
 };
 
@@ -101,6 +103,7 @@ export function TerminalDesk({
   layouts,
   collapsedSessionIds,
   recoverableSessions,
+  revealSessionId,
   armedRecoverySessionIds,
   selectedSessionId,
   sessions,
@@ -137,6 +140,7 @@ export function TerminalDesk({
   onRejectTile,
   onResizeTile,
   onReviewWorktree,
+  onSessionRevealed,
   onToggleCollapseSession,
 }: TerminalDeskProps) {
   const gridColumnRef = useRef<HTMLDivElement | null>(null);
@@ -179,6 +183,17 @@ export function TerminalDesk({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [onApplyWorkMode, workMode]);
+
+  useEffect(() => {
+    if (!revealSessionId || workMode === "focus") return;
+    const tile = gridRef.current?.querySelector<HTMLElement>(
+      `[data-session-id="${revealSessionId}"]`,
+    );
+    if (!tile || tile.getAttribute("aria-hidden") === "true") return;
+
+    tile.scrollIntoView({ block: "nearest", inline: "nearest" });
+    onSessionRevealed(revealSessionId);
+  }, [onSessionRevealed, revealSessionId, workMode]);
 
   useEffect(() => {
     const column = gridColumnRef.current;

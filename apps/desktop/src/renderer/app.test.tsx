@@ -572,6 +572,7 @@ function renderTerminalDeskForSessions(
     onRejectTile: vi.fn(),
     onResizeTile: vi.fn(),
     onReviewWorktree: vi.fn(),
+    onSessionRevealed: vi.fn(),
     onToggleCollapseSession: vi.fn(),
   };
   const renderDesk = (nextSessions: SessionTile[], arrangeMode = false) => (
@@ -582,6 +583,7 @@ function renderTerminalDeskForSessions(
       collapsedSessionIds={new Set()}
       layouts={{}}
       recoverableSessions={[]}
+      revealSessionId={null}
       selectedSessionId={nextSessions[0]?.id ?? null}
       sessions={nextSessions}
       surfaceActive
@@ -4372,6 +4374,38 @@ describe("App integration", () => {
         "manual-2": expect.objectContaining({ col: 1, row: 9, colSpan: 6, rowSpan: 8 }),
       }),
     });
+  });
+
+  it("reveals the newly added Grid tile exactly once", async () => {
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    const revealedSessionIds: string[] = [];
+    HTMLElement.prototype.scrollIntoView = vi.fn(function scrollIntoView(
+      this: HTMLElement,
+      options?: ScrollIntoViewOptions,
+    ) {
+      expect(options).toEqual({ block: "nearest", inline: "nearest" });
+      revealedSessionIds.push(this.dataset.sessionId ?? "");
+    });
+
+    try {
+      const user = userEvent.setup();
+      installDesktopBridge();
+      render(<App />);
+
+      await screen.findByRole("article", { name: /Manual · zsh 1/i });
+      await user.click(screen.getByRole("button", { name: "Open launch menu" }));
+      await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
+      await screen.findByRole("article", { name: /Manual · zsh 2/i });
+
+      await waitFor(() => expect(revealedSessionIds).toEqual(["manual-2"]));
+    } finally {
+      if (originalScrollIntoView) {
+        HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+      } else {
+        delete (HTMLElement.prototype as { scrollIntoView?: typeof HTMLElement.prototype.scrollIntoView })
+          .scrollIntoView;
+      }
+    }
   });
 
   it("persists a layout preset exactly once after a session is added", async () => {

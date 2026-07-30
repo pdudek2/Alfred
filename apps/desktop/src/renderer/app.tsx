@@ -186,6 +186,7 @@ export function App() {
   const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>([]);
   const [sessionStatusAnnouncement, setSessionStatusAnnouncement] = useState<string>("");
   const [selectedSessionIdsByWorkspace, setSelectedSessionIdsByWorkspace] = useState<Record<string, string>>({});
+  const [revealSessionId, setRevealSessionId] = useState<string | null>(null);
   const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
   const [shellActionError, setShellActionError] = useState<string | null>(null);
   const [pendingPlan, setPendingPlan] = useState<SquadPlan | null>(null);
@@ -368,6 +369,10 @@ export function App() {
     };
   }, []);
 
+  const handleSessionRevealed = useCallback((sessionId: string) => {
+    setRevealSessionId((current) => current === sessionId ? null : current);
+  }, []);
+
   const commitAddedSession = useCallback((nextSessions: SessionTile[]) => {
     const addedSession = nextSessions.at(-1);
     if (!addedSession) return;
@@ -389,6 +394,7 @@ export function App() {
 
     terminalSessionsRef.current = nextSessions;
     setTerminalSessions(nextSessions);
+    setRevealSessionId(activeWorkMode === "focus" ? null : addedSession.id);
     setTileLayoutsByWorkspace((current) => ({
       ...current,
       [activeWorkspace.id]: workspaceLayouts,
@@ -2619,6 +2625,7 @@ export function App() {
                   collapsedSessionIds={activeCollapsedSessionIds}
                   layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
                   recoverableSessions={activeRecoverableSessions}
+                  revealSessionId={revealSessionId}
                   selectedSessionId={activeSelectedSessionId}
                   sessions={terminalSessions}
                   surfaceActive={!workSurfaceHidden}
@@ -2636,6 +2643,7 @@ export function App() {
                   onContinueRestoredSession={handleContinueRestoredSession}
                   onOpenExternalTerminal={handleOpenSessionTerminal}
                   onOpenInbox={handleOpenInbox}
+                  onSessionRevealed={handleSessionRevealed}
                   onRestartSession={handleRestartSession}
                   onApplyWorkMode={handleApplyWorkMode}
                   onMoveTile={handleMoveTile}
