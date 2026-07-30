@@ -236,7 +236,11 @@ export function TerminalDesk({
 
       event.preventDefault();
       const rect = grid.getBoundingClientRect();
+      const styles = getComputedStyle(grid);
       const colWidth = rect.width > 0 ? rect.width / 12 : 80;
+      const rowHeight = Number.parseFloat(styles.gridAutoRows) || ARRANGE_GRID_ROW_HEIGHT;
+      const rowGap = Number.parseFloat(styles.rowGap) || 0;
+      const rowPitch = rowHeight + rowGap;
       const startX = event.clientX;
       const startY = event.clientY;
       let finalDeltaCol = 0;
@@ -256,7 +260,7 @@ export function TerminalDesk({
         const offsetX = moveEvent.clientX - startX;
         const offsetY = moveEvent.clientY - startY;
         finalDeltaCol = Math.round(offsetX / colWidth);
-        finalDeltaRow = Math.round(offsetY / ARRANGE_GRID_ROW_HEIGHT);
+        finalDeltaRow = Math.round(offsetY / rowPitch);
         setArrangePreview({
           tileId,
           mode,

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   applyLayoutPreset,
   ensureTileLayouts,
-  GRID_COLUMNS,
   moveTileLayout,
   resizeTileLayout,
   type TileLayout,
@@ -118,7 +117,7 @@ describe("layout-state", () => {
     });
   });
 
-  it("clamps resize spans", () => {
+  it("clamps resize spans while keeping the top-left origin fixed", () => {
     const layouts = { one: { tileId: "one", col: 9, row: 1, colSpan: 4, rowSpan: 3 } };
 
     expect(resizeTileLayout(layouts, "one", -10, -10).one).toEqual({
@@ -130,9 +129,9 @@ describe("layout-state", () => {
     });
     expect(resizeTileLayout(layouts, "one", 50, 2).one).toEqual({
       tileId: "one",
-      col: 1,
+      col: 9,
       row: 1,
-      colSpan: GRID_COLUMNS,
+      colSpan: 4,
       rowSpan: 5,
     });
   });
