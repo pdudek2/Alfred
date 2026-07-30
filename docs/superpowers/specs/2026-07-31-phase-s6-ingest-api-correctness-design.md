@@ -1,6 +1,6 @@
 # Phase S6 — Ingest/API Correctness
 
-**Status:** Approved — implementation pending
+**Status:** Approved — implementation in progress
 **Parent:** `docs/superpowers/specs/2026-07-29-post-v1-stabilization-roadmap.md`  
 **Findings:** 12, 20, 21
 
@@ -67,6 +67,27 @@ The API can start and answer `/health` while every data route fails to connect
 to a local PostgreSQL instance that does not exist.
 
 ## Accepted behavior
+
+### 0. Dependency resolution is deterministic before PGlite is added
+
+The repository currently declares 52 dependencies with the moving
+`latest` tag. Adding one API development dependency therefore causes pnpm to
+re-resolve unrelated workspace packages and produces an unsafe lockfile-wide
+upgrade.
+
+Before the PGlite contract is reviewed:
+
+- every existing `latest` declaration is replaced with the exact version
+  already selected in the accepted pre-S6 lockfile;
+- this is a metadata freeze only: no package is intentionally upgraded or
+  downgraded;
+- pnpm regenerates the shared lockfile; it is not hand-edited;
+- `pnpm verify` proves the frozen dependency graph preserves existing
+  behavior;
+- PGlite remains the only new package introduced by S6.
+
+This prerequisite fixes workspace dependency determinism once, rather than
+accepting unrelated upgrades or curating one lockfile diff manually.
 
 ### 1. Production ingest has a PostgreSQL-compatible contract test
 
@@ -222,14 +243,16 @@ and avoid printing credentials. No real runner, production database, or
 
 S6 is complete when:
 
-1. the production Drizzle ingest store is exercised by PGlite-backed contract
+1. all former `latest` declarations are pinned to their already-locked
+   versions, pnpm reproduces that graph, and the freeze passes `pnpm verify`;
+2. the production Drizzle ingest store is exercised by PGlite-backed contract
    tests using the canonical migrations;
-2. copied lifecycle and conflict logic no longer determines those tests;
-3. a child terminal event cannot change its parent's lifecycle or timestamps;
-4. hosted startup rejects missing, malformed, and non-PostgreSQL
+3. copied lifecycle and conflict logic no longer determines those tests;
+4. a child terminal event cannot change its parent's lifecycle or timestamps;
+5. hosted startup rejects missing, malformed, and non-PostgreSQL
    `DATABASE_URL` values before listening;
-5. local database defaults remain available;
-6. targeted tests, API typecheck/build, full verification, failure-path
+6. local database defaults remain available;
+7. targeted tests, API typecheck/build, full verification, failure-path
    observation, and focused review all pass;
-7. the parent roadmap records the implementation evidence and routes next to
+8. the parent roadmap records the implementation evidence and routes next to
    S7 without reopening S1–S5.
