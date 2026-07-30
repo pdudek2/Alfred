@@ -189,6 +189,26 @@ describe("session activity classifier", () => {
 
     expect(classifyTerminalOutputActivity("Updated to version 1.2.3")).toBeNull();
   });
+
+  it.each([
+    ["Updated app.tsx", "updated"],
+    ["Modified app.tsx", "updated"],
+    ["Wrote report.md", "wrote"],
+    ["Written report.md", "wrote"],
+  ] as const)("classifies complete file operation words: %s", (line, operation) => {
+    expect(classifyTerminalOutputActivity(line)).toMatchObject({
+      kind: "file",
+      payload: { type: "file", operation },
+    });
+  });
+
+  it.each([
+    "unmodified file.ts",
+    "overwritten output.log",
+    "rewritten config.json",
+  ])("does not classify embedded operation words: %s", (line) => {
+    expect(classifyTerminalOutputActivity(line)).toBeNull();
+  });
 });
 
 describe("session activity identity", () => {
