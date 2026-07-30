@@ -3635,19 +3635,19 @@ describe("App integration", () => {
     render(<App />);
 
     const emptyState = await screen.findByRole("status", { name: "Empty workspace" });
-    expect(emptyState).toHaveTextContent("Scratch workspace ready");
-    expect(emptyState).toHaveTextContent("Start in the scratch desk");
+    expect(emptyState).toHaveTextContent("Scratch workspace");
+    expect(emptyState).toHaveTextContent("Start with Codex");
     expect(screen.queryByRole("article", { name: /Manual · zsh/i })).not.toBeInTheDocument();
-    const primaryAction = within(emptyState).getByRole("button", { name: "New terminal" });
-    expect(screen.getAllByRole("button", { name: "Start Codex" }).every((button) => !button.hasAttribute("disabled"))).toBe(true);
+    const primaryAction = within(emptyState).getByRole("button", { name: "Start Codex" });
+    expect(primaryAction).toHaveClass("terminal-empty-primary-action");
     const secondaryActions = within(emptyState).getByRole("group", { name: "secondary empty workspace actions" });
     expect(secondaryActions).not.toBeNull();
-    expect(within(secondaryActions).getByRole("button", { name: "Start Codex" })).toBeInTheDocument();
     expect(within(secondaryActions).getByRole("button", { name: "Start Claude" })).toBeInTheDocument();
-    expect(within(secondaryActions).getByRole("button", { name: "Bind folder" })).toBeInTheDocument();
+    expect(within(secondaryActions).getByRole("button", { name: "New terminal" })).toBeInTheDocument();
+    expect(within(secondaryActions).getByRole("button", { name: "Choose folder" })).toBeInTheDocument();
 
     await act(async () => {
-      primaryAction.click();
+      within(secondaryActions).getByRole("button", { name: "New terminal" }).click();
     });
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ source: "manual", workspaceId: "A" }));
@@ -3770,7 +3770,7 @@ describe("App integration", () => {
     );
 
     const emptyState = await screen.findByRole("status", { name: "Empty workspace" });
-    await user.click(within(emptyState).getByRole("button", { name: "Bind folder" }));
+    await user.click(within(emptyState).getByRole("button", { name: "Choose folder" }));
 
     expect(await screen.findByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getAllByRole("article", { name: /Manual · zsh/i })).toHaveLength(1);
@@ -3792,7 +3792,7 @@ describe("App integration", () => {
     expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
     expect(screen.getByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("status", { name: "Empty workspace" })).toHaveTextContent("Scratch workspace ready");
+    expect(screen.getByRole("status", { name: "Empty workspace" })).toHaveTextContent("Start with Codex");
     expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
 
     await user.click(within(screen.getByRole("status", { name: "Empty workspace" })).getByRole("button", { name: "New terminal" }));
@@ -4748,7 +4748,7 @@ describe("App integration", () => {
 
   it("selects a new terminal immediately while Focus mode is active", async () => {
     const user = userEvent.setup();
-    const { setWorkspaceViewState } = installDesktopBridge(
+    const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge(
       undefined,
       null,
       [
@@ -4762,10 +4762,25 @@ describe("App integration", () => {
           shell: "/bin/zsh",
           buffer: "",
         },
+        {
+          id: "runtime-b",
+          clientId: "manual-2",
+          title: "Manual · zsh 2",
+          source: "manual",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "/bin/zsh",
+          buffer: "",
+        },
       ],
       undefined,
       {
-        layoutsByWorkspace: {},
+        layoutsByWorkspace: {
+          A: {
+            "manual-1": { tileId: "manual-1", col: 1, row: 1, colSpan: 12, rowSpan: 8 },
+            "manual-2": { tileId: "manual-2", col: 1, row: 9, colSpan: 12, rowSpan: 8 },
+          },
+        },
         viewStateByWorkspace: {
           A: { workMode: "focus", selectedSessionId: "manual-1" },
         },
@@ -4777,12 +4792,22 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "New terminal" }));
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
+    const newTerminal = await screen.findByRole("article", { name: /Manual · zsh 3/i });
+    expect(newTerminal).toHaveStyle({ gridColumn: "1 / span 12", gridRow: "1 / span 8" });
     expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 2");
+    expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 3");
     expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
       workspaceId: "A",
-      viewState: { workMode: "focus", selectedSessionId: "manual-2" },
+      viewState: { workMode: "focus", selectedSessionId: "manual-3" },
+    });
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+      workspaceId: "A",
+      layouts: {
+        "manual-1": { tileId: "manual-1", col: 1, row: 9, colSpan: 12, rowSpan: 8 },
+        "manual-2": { tileId: "manual-2", col: 1, row: 17, colSpan: 12, rowSpan: 8 },
+        "manual-3": { tileId: "manual-3", col: 1, row: 1, colSpan: 12, rowSpan: 8 },
+      },
     });
   });
 

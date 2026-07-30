@@ -1,5 +1,6 @@
 import { ChevronDown, FolderOpen, ListChecks, Pencil, SquareTerminal, Trash2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import type { WorkspaceMissionBrief } from "../../shared/workspace-ipc";
 import { shortenPath } from "../path-display";
 
@@ -95,7 +96,10 @@ export function WorkspaceActionsMenu({
     if (!menuOpen) return;
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target;
-      if (target instanceof Node && surfaceRef.current?.contains(target)) return;
+      if (
+        target instanceof Node
+        && (surfaceRef.current?.contains(target) || popoverRef.current?.contains(target))
+      ) return;
       onClose();
     };
     window.addEventListener("pointerdown", handlePointerDown);
@@ -163,7 +167,7 @@ export function WorkspaceActionsMenu({
         </span>
         <ChevronDown size={14} aria-hidden="true" />
       </button>
-      {menuOpen && (
+      {menuOpen && createPortal(
         <div className="workspace-popover" ref={popoverRef} role="dialog" aria-label={popoverLabel}>
           {renameEditing ? (
             <form
@@ -276,7 +280,8 @@ export function WorkspaceActionsMenu({
               )}
             </>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

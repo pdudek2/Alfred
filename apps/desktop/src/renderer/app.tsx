@@ -763,9 +763,13 @@ export function App() {
     persistActiveWorkspaceViewState({ previewDockWidth: width });
   }, [activeWorkspace.id, persistActiveWorkspaceViewState]);
 
-  const handleApplyLayoutPreset = useCallback((preset: LayoutPreset, selectedSessionId = activeSelectedSessionId) => {
+  const handleApplyLayoutPreset = useCallback((
+    preset: LayoutPreset,
+    selectedSessionId = activeSelectedSessionId,
+    sessions = activeSessions,
+  ) => {
     const layoutApi = getDesktopLayoutApi();
-    const workspaceLayouts = applyLayoutPreset(activeSessions, preset, selectedSessionId);
+    const workspaceLayouts = applyLayoutPreset(sessions, preset, selectedSessionId);
     if (tileLayoutRecordsEqual(tileLayoutsByWorkspace[activeWorkspace.id], workspaceLayouts)) return;
 
     setTileLayoutsByWorkspace({
@@ -824,8 +828,22 @@ export function App() {
     const addedSession = nextSessions.at(-1);
     terminalSessionsRef.current = nextSessions;
     setTerminalSessions(nextSessions);
-    if (addedSession && activeWorkMode === "focus") handleSelectSession(addedSession.id);
-  }, [activeWorkMode, activeWorkspace.id, activeWorkspace.rootPath, activeWorkspace.rootStatus, handleSelectSession]);
+    if (addedSession && activeWorkMode === "focus") {
+      handleApplyLayoutPreset(
+        "focus",
+        addedSession.id,
+        nextSessions.filter((session) => session.workspaceId === activeWorkspace.id),
+      );
+      handleSelectSession(addedSession.id);
+    }
+  }, [
+    activeWorkMode,
+    activeWorkspace.id,
+    activeWorkspace.rootPath,
+    activeWorkspace.rootStatus,
+    handleApplyLayoutPreset,
+    handleSelectSession,
+  ]);
 
   const handleFocusSession = useCallback((sessionId: string) => {
     setActiveSurface("work");

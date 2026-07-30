@@ -277,7 +277,7 @@ describe("SessionsSurface", () => {
     expect(results).toHaveClass("sessions-results");
     expect(firstOption).toHaveClass("sessions-result", "active");
     expect(firstOption).toHaveAttribute("aria-selected", "false");
-    expect(screen.getByText("No conversation matches the current filters")).toBeInTheDocument();
+    expect(screen.getByText("Choose a conversation from the list.")).toBeInTheDocument();
     expect(surface.querySelector(".sessions-navigator__results")).toBeNull();
     expect(screen.getByRole("searchbox", { name: "Search sessions" })).toHaveFocus();
     expect(within(screen.getByRole("listbox", { name: "Conversation results" })).getAllByRole("option")).toHaveLength(80);
@@ -640,6 +640,7 @@ describe("SessionsSurface", () => {
     const onOpenPrivacySettings = vi.fn();
     const view = renderSurface({ loadingExternalSessions: true });
     expect(screen.getByRole("status", { name: "Conversation count" })).toHaveTextContent("…");
+    expect(screen.getByRole("searchbox", { name: "Search sessions" })).toBeInTheDocument();
 
     view.unmount();
     renderSurface({
@@ -655,11 +656,11 @@ describe("SessionsSurface", () => {
     expect(screen.getByRole("option", { name: /Managed session 1/ })).toBeInTheDocument();
 
     await user.type(screen.getByRole("searchbox", { name: "Search sessions" }), "no such session");
-    expect(screen.getByText("No conversations found.")).toBeInTheDocument();
-    expect(screen.getByText("No conversation matches the current filters")).toBeInTheDocument();
+    expect(screen.getByText("No conversations match these filters")).toBeInTheDocument();
+    expect(screen.queryByText("No conversations found.")).not.toBeInTheDocument();
     expect(screen.queryByRole("article")).not.toBeInTheDocument();
     expect(within(screen.getByRole("listbox", { name: "Conversation results" })).queryByRole("option", { selected: true })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Clear search" }));
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(screen.getByRole("option", { name: /Managed session 1/ })).toBeInTheDocument();
 
     cleanup();
@@ -669,6 +670,23 @@ describe("SessionsSurface", () => {
     });
     expect(screen.getByText("External sessions may be incomplete.")).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Retained external result/ })).toBeInTheDocument();
+  });
+
+  it("keeps empty Sessions focused on recovery until filters are useful", async () => {
+    const user = userEvent.setup();
+    const onBackToWork = vi.fn();
+    renderSurface({
+      externalSessionsError: "External Codex indexing is unavailable in this build.",
+      onBackToWork,
+    });
+
+    expect(screen.queryByRole("searchbox", { name: "Search sessions" })).not.toBeInTheDocument();
+    const reader = screen.getByRole("main", { name: "Session reader" });
+    expect(within(reader).getByText("Codex history couldn't be loaded")).toBeInTheDocument();
+    expect(screen.queryByText("No conversations found.")).not.toBeInTheDocument();
+
+    await user.click(within(reader).getByRole("button", { name: "Start new work" }));
+    expect(onBackToWork).toHaveBeenCalledOnce();
   });
 
   it("drops retained external transcript pages when indexing is disabled without hiding a merged managed session", async () => {
