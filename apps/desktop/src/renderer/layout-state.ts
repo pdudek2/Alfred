@@ -20,26 +20,22 @@ export function ensureTileLayouts(
   sessions: LayoutSession[],
   existing: Record<string, TileLayout>,
 ): Record<string, TileLayout> {
-  const sessionIds = new Set(sessions.map((session) => session.id));
-  const existingIds = Object.keys(existing);
-  const matchingExistingCount = existingIds.filter((tileId) => sessionIds.has(tileId)).length;
-  const exactSameMembership = existingIds.length === sessions.length && matchingExistingCount === sessions.length;
-
-  if (!exactSameMembership) {
-    return defaultLayouts(sessions);
-  }
-
+  if (sessions.length === 0) return {};
+  if (Object.keys(existing).length === 0) return defaultLayouts(sessions);
   const next: Record<string, TileLayout> = {};
 
-  sessions.forEach((session, index) => {
+  for (const session of sessions) {
     const layout = existing[session.id];
-    next[session.id] = layout
-      ? normalizeLayout(layout)
-      : defaultLayout(session.id, index, sessions.length);
-  });
+    if (layout) next[session.id] = normalizeLayout(layout);
+  }
 
-  for (const tileId of Object.keys(next)) {
-    if (!sessionIds.has(tileId)) delete next[tileId];
+  for (const session of sessions) {
+    if (next[session.id]) continue;
+    next[session.id] = firstAvailableLayout(
+      session.id,
+      sessions.length,
+      Object.values(next),
+    );
   }
 
   return next;
@@ -153,6 +149,38 @@ function defaultLayout(tileId: string, index: number, tileCount: number): TileLa
     colSpan: DEFAULT_COL_SPAN,
     rowSpan,
   });
+}
+
+function firstAvailableLayout(
+  tileId: string,
+  tileCount: number,
+  occupied: TileLayout[],
+): TileLayout {
+  const rowSpan = tileCount === 1
+    ? FULL_WIDTH_ROW_SPAN
+    : tileCount === 2
+      ? SPLIT_VIEW_ROW_SPAN
+      : TILED_ROW_SPAN;
+  const colSpan = tileCount === 1 ? GRID_COLUMNS : DEFAULT_COL_SPAN;
+  const columns = colSpan === GRID_COLUMNS ? [1] : [1, 7];
+
+  for (let row = 1; ; row += rowSpan) {
+    for (const col of columns) {
+      const candidate = normalizeLayout({ tileId, col, row, colSpan, rowSpan });
+      if (occupied.every((layout) => !layoutsOverlap(candidate, layout))) {
+        return candidate;
+      }
+    }
+  }
+}
+
+function layoutsOverlap(left: TileLayout, right: TileLayout): boolean {
+  return !(
+    left.col + left.colSpan <= right.col ||
+    right.col + right.colSpan <= left.col ||
+    left.row + left.rowSpan <= right.row ||
+    right.row + right.rowSpan <= left.row
+  );
 }
 
 function normalizeLayout(layout: TileLayout): TileLayout {

@@ -9,15 +9,60 @@ import {
 } from "./layout-state";
 
 describe("layout-state", () => {
-  it("refits the desk when tile membership changes", () => {
+  it("preserves existing tile geometry and places only a newly added tile", () => {
     const existing: Record<string, TileLayout> = {
-      one: { tileId: "one", col: 2, row: 3, colSpan: 5, rowSpan: 4 },
-      stale: { tileId: "stale", col: 1, row: 1, colSpan: 6, rowSpan: 4 },
+      one: { tileId: "one", col: 1, row: 1, colSpan: 4, rowSpan: 4 },
+      two: { tileId: "two", col: 5, row: 1, colSpan: 8, rowSpan: 4 },
     };
 
-    expect(ensureTileLayouts([{ id: "one" }, { id: "two" }], existing)).toEqual({
-      one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 8 },
+    const result = ensureTileLayouts(
+      [{ id: "one" }, { id: "two" }, { id: "three" }],
+      existing,
+    );
+
+    expect(result.one).toEqual(existing.one);
+    expect(result.two).toEqual(existing.two);
+    expect(result.three).toEqual({
+      tileId: "three",
+      col: 1,
+      row: 7,
+      colSpan: 6,
+      rowSpan: 6,
+    });
+  });
+
+  it("drops removed tiles without moving survivors", () => {
+    const existing: Record<string, TileLayout> = {
+      one: { tileId: "one", col: 2, row: 3, colSpan: 5, rowSpan: 4 },
       two: { tileId: "two", col: 7, row: 1, colSpan: 6, rowSpan: 8 },
+    };
+
+    expect(ensureTileLayouts([{ id: "one" }], existing)).toEqual({
+      one: existing.one,
+    });
+  });
+
+  it("uses single-tile defaults when every saved tile is stale", () => {
+    const existing: Record<string, TileLayout> = {
+      stale: { tileId: "stale", col: 2, row: 3, colSpan: 5, rowSpan: 4 },
+    };
+
+    expect(ensureTileLayouts([{ id: "one" }], existing)).toEqual({
+      one: { tileId: "one", col: 1, row: 1, colSpan: 12, rowSpan: 8 },
+    });
+  });
+
+  it("skips occupied default slots when placing a new tile", () => {
+    const existing: Record<string, TileLayout> = {
+      one: { tileId: "one", col: 1, row: 1, colSpan: 12, rowSpan: 8 },
+    };
+
+    expect(ensureTileLayouts([{ id: "one" }, { id: "two" }], existing).two).toEqual({
+      tileId: "two",
+      col: 1,
+      row: 9,
+      colSpan: 6,
+      rowSpan: 8,
     });
   });
 
