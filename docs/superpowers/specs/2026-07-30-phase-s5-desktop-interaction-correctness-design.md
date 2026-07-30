@@ -250,7 +250,7 @@ The final UI showed `edited · rechecked`, the refreshed blocked reason, and a
 disabled Launch action. The real runner and `~/.codex` were not used.
 
 Final screenshot:
-`.superpowers/sdd/2026-07-30-phase-s5-desktop-interaction-correctness/task-6-evidence/runtime.fujkF4/final-blocked-state.png`
+`docs/superpowers/evidence/2026-07-30-phase-s5-final-blocked-state.png`
 
 Visual evidence: Observed — surface: Computer Use; proof: the completed final
 `sky.get_app_state` showed the blocked workspace-mismatch state,
