@@ -180,6 +180,7 @@ function installDesktopBridge(
   snapshotTerminal: ReturnType<typeof vi.fn>;
   updatePrivacySettings: ReturnType<typeof vi.fn>;
   setTerminalSnapshots: (next: TerminalSessionSnapshot[]) => void;
+  emitDataNow: (event: TerminalDataEvent) => void;
   emitData: (event: TerminalDataEvent) => Promise<void>;
   emitExit: (event: TerminalExitEvent) => Promise<void>;
   emitSaveStatus: (status: DesktopSaveStatus) => Promise<void>;
@@ -427,6 +428,9 @@ function installDesktopBridge(
     updatePrivacySettings,
     setTerminalSnapshots: (next: TerminalSessionSnapshot[]) => {
       terminalSnapshots = next;
+    },
+    emitDataNow: (event: TerminalDataEvent) => {
+      for (const listener of dataListeners) listener(event);
     },
     emitData: async (event: TerminalDataEvent) => {
       await act(async () => {
@@ -6665,6 +6669,60 @@ describe("App integration", () => {
     expect(setStagedPlan.mock.calls[0]?.[0].id).toBe(expectedPlanId);
   });
 
+  it("preserves a queued runtime activity when a plan response commits staged sessions", async () => {
+    const user = userEvent.setup();
+    const planResponse = deferred<AlfredPlanResponse>();
+    const bridge = installDesktopBridge(undefined, null, [{
+      id: "runtime-plan-race",
+      clientId: "plan-race",
+      title: "Plan race terminal",
+      source: "manual",
+      workspaceId: "A",
+      cwd: "/repo",
+      createdAt: 100,
+      shell: "/bin/zsh",
+      buffer: "",
+    }]);
+    bridge.requestPlan.mockReturnValueOnce(planResponse.promise);
+
+    render(<App />);
+
+    const liveTile = await screen.findByRole("article", { name: /Plan race terminal/i });
+    await waitFor(() => expect(window.alfredDesktop?.terminal.onData).toHaveBeenCalled());
+    await openPrepareWork(user);
+    await user.type(screen.getByLabelText("Dispatch instruction"), "stage while output arrives");
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
+    await waitFor(() => expect(bridge.requestPlan).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      bridge.emitDataNow({
+        id: "runtime-plan-race",
+        data: "approval arrived while planning\n",
+        activities: [{
+          id: "plan-race-approval",
+          kind: "approval",
+          title: "Approval arrived while planning",
+          detail: "Keep this queued runtime activity.",
+          at: 5_000,
+        }],
+      });
+      planResponse.resolve({
+        ok: true,
+        plan: {
+          name: "Interleaved plan",
+          sessions: [{ kind: "shell", title: "Interleaved task", command: "echo", args: ["ok"] }],
+        },
+      });
+      await planResponse.promise;
+      await Promise.resolve();
+    });
+
+    expect(await screen.findByRole("article", { name: /Staged Interleaved task/i })).toBeInTheDocument();
+    await user.click(liveTile.querySelector(".tile-header")!);
+    await selectSurface(user, "Context");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Approval arrived while planning");
+  });
+
   it("persists staged worktree isolation in the saved Alfred plan", async () => {
     const user = userEvent.setup();
     const { setStagedPlan } = installDesktopBridge({
@@ -8385,6 +8443,58 @@ describe("App integration", () => {
 
     expect(resolveStagedPlan).toHaveBeenCalledTimes(1);
     expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
+  });
+
+  it("does not resolve a sibling rejection twice while runtime-ready shrinks the pending plan", async () => {
+    const user = userEvent.setup();
+    const runtimeReady = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
+    const bridge = installDesktopBridge(undefined, null, [{
+      id: "runtime-existing-plan-owner",
+      clientId: "existing-plan-owner",
+      title: "Existing terminal",
+      source: "manual",
+      workspaceId: "A",
+      cwd: "/repo",
+      createdAt: 100,
+      shell: "/bin/zsh",
+      buffer: "",
+    }]);
+    bridge.createTerminal.mockReturnValueOnce(runtimeReady.promise);
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Existing terminal/i });
+    await openPrepareWork(user);
+    await user.type(screen.getByLabelText("Dispatch instruction"), "launch and reject together");
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
+    await screen.findByRole("article", { name: /Staged Task A/i });
+    await user.click(screen.getByRole("button", { name: "Launch Task A" }));
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(1));
+    const taskB = screen.getByRole("article", { name: /Staged Task B/i });
+    const rejectTaskB = within(taskB).getByRole("button", { name: "Reject Task B" });
+
+    await act(async () => {
+      runtimeReady.resolve({
+        id: "runtime-alfred-1",
+        clientId: "alfred-1",
+        title: "Task A",
+        source: "alfred",
+        agentKind: "shell",
+        workspaceId: "A",
+        cwd: "/repo",
+        shell: "/bin/zsh",
+        command: "echo",
+        args: ["a"],
+      });
+      await runtimeReady.promise;
+      await Promise.resolve();
+      fireEvent.click(rejectTaskB);
+      fireEvent.click(rejectTaskB);
+    });
+
+    const resolvedSessionIds = bridge.resolveStagedPlan.mock.calls.map(([request]) => request.sessionIds);
+    expect(resolvedSessionIds.filter(([id]) => id === "alfred-1")).toHaveLength(1);
+    expect(resolvedSessionIds.filter(([id]) => id === "alfred-2")).toHaveLength(1);
   });
 
   it("resolves a staged tile after approval starts its terminal", async () => {
