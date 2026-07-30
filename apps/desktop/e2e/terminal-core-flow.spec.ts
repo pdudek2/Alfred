@@ -1,5 +1,5 @@
 import { writeFile } from "node:fs/promises";
-import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
+import type { ElectronApplication, ElementHandle, Locator, Page, TestInfo } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
 import { chooseWorkLayout } from "./support/work-layout";
 
@@ -42,9 +42,18 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
 
   await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
+  await expect.poll(async () => page.evaluate(() => {
+    const owner = document.querySelector(".terminal-grid-column");
+    const tile = document.querySelector('[data-session-id="manual-3"]');
+    if (!(owner instanceof HTMLElement) || !(tile instanceof HTMLElement)) return false;
+    const ownerRect = owner.getBoundingClientRect();
+    const tileRect = tile.getBoundingClientRect();
+    return tileRect.top >= ownerRect.top && tileRect.bottom <= ownerRect.bottom;
+  })).toBe(true);
   await expectTerminalNodes(survivorNodes, page, "Grid membership 2→3", 3);
   const afterMembershipChange = await readTileGridPlacement(page, ["manual-1", "manual-2"]);
   expect(afterMembershipChange).toEqual(beforeMembershipChange);
+  await captureReviewScreenshot(page, testInfo, "grid-3-1440x920");
 
   await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toHaveCount(1);
 
@@ -76,12 +85,14 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(2);
   await expectTerminalNodes(terminalNodes, page, "Focus");
   identityTransitions.push("Work→Focus (2 hidden mounted)");
+  await captureReviewScreenshot(page, testInfo, "focus-3-1440x920");
 
   await chooseWorkLayout(page, "Split");
   await expect(page.getByRole("button", { name: "Open layout menu, Split selected" })).toBeVisible();
   await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(1);
   await expectTerminalNodes(terminalNodes, page, "Split");
   identityTransitions.push("Focus→Split (1 hidden mounted)");
+  await captureReviewScreenshot(page, testInfo, "split-3-1440x920");
 
   await chooseWorkLayout(page, "Grid");
   await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
@@ -89,6 +100,11 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   await expectTerminalNodes(terminalNodes, page, "Grid");
   identityTransitions.push("Split→Grid (all restored)");
   await expect(page.getByTestId("xterm-host").first()).toContainText(marker);
+
+  await chooseWorkLayout(page, "Arrange");
+  await expect(page.getByText("Arrange mode")).toBeVisible();
+  await captureReviewScreenshot(page, testInfo, "arrange-3-1440x920");
+  await chooseWorkLayout(page, "Arrange");
 
   const initialGridScroll = await proveGridScroll(page, "Initial Grid");
   const beforeResize = await readWindowGeometry(app, page);
@@ -108,7 +124,22 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
     };
   }).toEqual({ boundsWidth: 1120, boundsHeight: 720, clientViewportChanged: true });
   const afterResize = await readWindowGeometry(app, page);
+  await captureReviewScreenshot(page, testInfo, "grid-3-1120x720");
   const narrowGridScroll = await proveGridScroll(page, "1120×720 Grid");
+
+  await addManualTerminal(page);
+  await expect(page.getByTestId("terminal-tile")).toHaveCount(4);
+  await captureReviewScreenshot(page, testInfo, "grid-4-1120x720");
+  await app.evaluate(({ BrowserWindow }) => {
+    const [window] = BrowserWindow.getAllWindows();
+    if (!window) throw new Error("Electron window is missing.");
+    window.setBounds({ x: 0, y: 0, width: 1440, height: 920 });
+  });
+  await expect.poll(async () => {
+    const current = await readWindowGeometry(app, page);
+    return { width: current.bounds.width, height: current.bounds.height };
+  }).toEqual({ width: 1440, height: 920 });
+  await captureReviewScreenshot(page, testInfo, "grid-4-1440x920");
 
   const runtimeProofPath = testInfo.outputPath("terminal-core-runtime-proof.json");
   await writeFile(runtimeProofPath, `${JSON.stringify({
@@ -139,6 +170,19 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
 async function addManualTerminal(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Open launch menu" }).click();
   await page.getByRole("menuitem", { name: "New manual terminal" }).click();
+}
+
+async function captureReviewScreenshot(
+  page: Page,
+  testInfo: TestInfo,
+  name: string,
+): Promise<void> {
+  const screenshotPath = testInfo.outputPath(`${name}.png`);
+  await page.screenshot({ path: screenshotPath });
+  await testInfo.attach(`${name}.png`, {
+    path: screenshotPath,
+    contentType: "image/png",
+  });
 }
 
 async function selectSurface(page: Page, surface: "Work" | "Sessions"): Promise<void> {
