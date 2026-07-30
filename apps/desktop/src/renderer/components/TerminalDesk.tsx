@@ -1292,7 +1292,6 @@ function ManualTerminalTile({
     }
 
     if (!callbacks.onRuntimeSessionStarting(sessionKey)) {
-      terminal.writeln("Terminal start is already in progress...");
       return () => {
         disposed = true;
         inputDisposable.dispose();

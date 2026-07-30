@@ -4688,7 +4688,7 @@ describe("App integration", () => {
 
   it("selects a new terminal immediately while Focus mode is active", async () => {
     const user = userEvent.setup();
-    const { setWorkspaceViewState } = installDesktopBridge(
+    const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge(
       undefined,
       null,
       [
@@ -4702,10 +4702,25 @@ describe("App integration", () => {
           shell: "/bin/zsh",
           buffer: "",
         },
+        {
+          id: "runtime-b",
+          clientId: "manual-2",
+          title: "Manual · zsh 2",
+          source: "manual",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "/bin/zsh",
+          buffer: "",
+        },
       ],
       undefined,
       {
-        layoutsByWorkspace: {},
+        layoutsByWorkspace: {
+          A: {
+            "manual-1": { tileId: "manual-1", col: 1, row: 1, colSpan: 12, rowSpan: 8 },
+            "manual-2": { tileId: "manual-2", col: 1, row: 9, colSpan: 12, rowSpan: 8 },
+          },
+        },
         viewStateByWorkspace: {
           A: { workMode: "focus", selectedSessionId: "manual-1" },
         },
@@ -4717,12 +4732,22 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "New terminal" }));
 
-    expect(await screen.findByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
+    const newTerminal = await screen.findByRole("article", { name: /Manual · zsh 3/i });
+    expect(newTerminal).toHaveStyle({ gridColumn: "1 / span 12", gridRow: "1 / span 8" });
     expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 2");
+    expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 3");
     expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
       workspaceId: "A",
-      viewState: { workMode: "focus", selectedSessionId: "manual-2" },
+      viewState: { workMode: "focus", selectedSessionId: "manual-3" },
+    });
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+      workspaceId: "A",
+      layouts: {
+        "manual-1": { tileId: "manual-1", col: 1, row: 9, colSpan: 12, rowSpan: 8 },
+        "manual-2": { tileId: "manual-2", col: 1, row: 17, colSpan: 12, rowSpan: 8 },
+        "manual-3": { tileId: "manual-3", col: 1, row: 1, colSpan: 12, rowSpan: 8 },
+      },
     });
   });
 
