@@ -980,7 +980,7 @@ function scheduleTerminalPersistence(): void {
   if (!persistedStateStore) return;
 
   if (persistDebounceMs <= 0) {
-    void persistTerminalSnapshots();
+    persistTerminalSnapshotsInBackground();
     return;
   }
 
@@ -989,8 +989,14 @@ function scheduleTerminalPersistence(): void {
   }
   persistTimer = setTimeout(() => {
     persistTimer = null;
-    void persistTerminalSnapshots();
+    persistTerminalSnapshotsInBackground();
   }, persistDebounceMs);
+}
+
+function persistTerminalSnapshotsInBackground(): void {
+  void persistTerminalSnapshots().catch((error: unknown) => {
+    console.warn("Failed to persist terminal snapshots in background.", error);
+  });
 }
 
 async function persistTerminalSnapshots(): Promise<void> {

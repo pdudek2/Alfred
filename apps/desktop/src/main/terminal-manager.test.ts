@@ -302,6 +302,37 @@ describe("terminal-manager IPC", () => {
     ]);
   });
 
+  it("handles a rejected background terminal persistence write", async () => {
+    const rejection = new Error("disk unavailable");
+    const store = storeWithRestoredSessions([]);
+    vi.mocked(store.updateState).mockRejectedValue(rejection);
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(new FakePty()) as never });
+
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      await invoke(terminalChannels.create, {
+        clientId: "manual-persistence-failure",
+        command: "node",
+        cols: 80,
+        cwd: "/repo",
+        rows: 24,
+        title: "Manual terminal",
+      });
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(warning).toHaveBeenCalledWith(
+        "Failed to persist terminal snapshots in background.",
+        rejection,
+      );
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
+  });
+
   it("limits persisted terminal scrollback to the latest 80,000 characters", async () => {
     let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
     const store: PersistedDesktopStateStore = {
