@@ -14,18 +14,19 @@
   "dependencies": {
     "@alfred/db": "workspace:*",
     "@alfred/schema": "workspace:*",
-    "@hono/node-server": "latest",
-    "drizzle-orm": "latest",
-    "hono": "latest",
-    "pg": "latest",
-    "zod": "latest"
+    "@hono/node-server": "2.0.1",
+    "drizzle-orm": "0.45.2",
+    "hono": "4.12.18",
+    "pg": "8.20.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
-    "@types/node": "latest",
-    "@types/pg": "latest",
-    "drizzle-kit": "latest",
-    "tsx": "latest",
-    "typescript": "latest",
-    "vitest": "latest"
+    "@electric-sql/pglite": "0.5.4",
+    "@types/node": "25.6.0",
+    "@types/pg": "8.20.0",
+    "drizzle-kit": "0.31.10",
+    "tsx": "4.21.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.5"
   }
 }

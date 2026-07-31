@@ -18,15 +18,15 @@
   "dependencies": {
     "@alfred/schema": "workspace:*",
     "@alfred/adapters": "workspace:*",
-    "better-sqlite3": "latest",
-    "fast-glob": "latest",
-    "zod": "latest"
+    "better-sqlite3": "12.9.0",
+    "fast-glob": "3.3.3",
+    "zod": "4.4.3"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "latest",
-    "@types/node": "latest",
-    "tsx": "latest",
-    "typescript": "latest",
-    "vitest": "latest"
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node": "25.6.0",
+    "tsx": "4.21.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.5"
   }
 }

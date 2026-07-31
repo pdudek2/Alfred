@@ -31,18 +31,22 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
-    "drizzle-kit": "latest",
+    "drizzle-kit": "0.31.10",
     "eslint": "10.6.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "esbuild": "^0.28.0",
     "globals": "17.7.0",
-    "tsx": "latest",
-    "turbo": "latest",
-    "typescript": "latest",
+    "tsx": "4.21.0",
+    "turbo": "2.9.9",
+    "typescript": "6.0.3",
     "typescript-eslint": "8.63.0",
-    "vitest": "latest"
+    "vitest": "4.1.5"
   },
   "pnpm": {
+    "overrides": {
+      "@testing-library/dom@10.4.1>@babel/code-frame": "7.29.0",
+      "@babel/code-frame@7.29.0>@babel/helper-validator-identifier": "7.28.5"
+    },
     "onlyBuiltDependencies": [
       "better-sqlite3",
       "esbuild"
