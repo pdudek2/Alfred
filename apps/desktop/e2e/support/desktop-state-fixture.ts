@@ -66,7 +66,7 @@ export async function createDesktopFixture(
       ...["codex", "claude"].map((agent) =>
         writeFile(
           path.join(paths.home, "bin", agent),
-          `#!/bin/sh\nprintf '${agent} fixture ready\\n'\nexec /bin/cat\n`,
+          `#!/bin/sh\nmarker="\${TMPDIR:-/tmp}/alfred-${agent}-fixture-$$"\nprintf '${agent} fixture ready\\n' > "$marker"\nexec /usr/bin/tail -f "$marker"\n`,
           { encoding: "utf8", mode: 0o755 },
         )
       ),
