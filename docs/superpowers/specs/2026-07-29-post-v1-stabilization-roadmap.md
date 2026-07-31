@@ -1,6 +1,6 @@
 # Alfred Post‑v1 Stabilization Roadmap
 
-**Status:** Active  
+**Status:** Complete
 **Owner:** `main`  
 **Baseline:** `2a020a0`  
 **Source audit:** `docs/audits/2026-07-29-agent-sanity-review.md`
@@ -35,7 +35,7 @@ without reopening the accepted product or visual direction.
 
 ## Scope lineage
 
-`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 complete → S4 complete → S5 complete → S6 complete → S7A audited → S7.1 complete → S7.2 planned`
+`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 complete → S4 complete → S5 complete → S6 complete → S7A audited → S7.1 complete → S7.2 complete`
 
 Phase Z remains closed. This roadmap does not reinterpret or reopen its visual
 or product decisions.
@@ -57,6 +57,8 @@ or product decisions.
 - S5 implementation is complete at `628b7c8`; rejected planning recovers,
   blocked staged agents are editable, S5-owned state updaters are pure, and
   file activity uses complete-word alternatives.
+- S7.2 implementation is complete at `c7e326d`; local forced verification and
+  remote Linux, macOS Electron, and native Windows-junction gates are green.
 
 ## Phases
 
@@ -68,10 +70,10 @@ or product decisions.
 | S4 — Privacy and worktree lifecycle | Resolve worktree close behavior and prevent sensitive launch data from persisting | 13, 15, 16 | Complete |
 | S5 — Desktop interaction correctness | Recover failed planning, unblock review/edit, remove impure state updaters, correct activity classification | 5, 11, 17, 23 | Complete |
 | S6 — Ingest/API correctness | Correct parent lifecycle, validate hosted DB config, and test the real ingest store | 12, 20, 21 | Complete |
-| S7 — Residue and blocked-boundary review | Complete scripts/tooling and CSS/accessibility audits; triage investigate-only signals | audit gaps | Active — S7.2 planned |
+| S7 — Residue and blocked-boundary review | Complete scripts/tooling and CSS/accessibility audits; triage investigate-only signals | audit gaps | Complete |
 
-Only an actively converged phase receives an implementation plan. S7A and
-S7.1 are complete; S7.2 is the approved active slice.
+Only an actively converged phase receives an implementation plan. S7A, S7.1,
+and S7.2 are complete; no additional stabilization phase is planned.
 
 **Closed phase contract:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification.md`
 
@@ -98,13 +100,14 @@ completed.
 
 **Closed phase:** S7.1 — Safety and Correctness.
 
-**Approved phase contract:** `docs/superpowers/specs/2026-07-31-phase-s7-2-tooling-accessibility-cleanup-design.md`
+**Closed phase contract:** `docs/superpowers/specs/2026-07-31-phase-s7-2-tooling-accessibility-cleanup-design.md`
 
-**Approved implementation plan:** `docs/superpowers/plans/2026-07-31-phase-s7-2-tooling-accessibility-cleanup.md`
+**Closed implementation plan:** `docs/superpowers/plans/2026-07-31-phase-s7-2-tooling-accessibility-cleanup.md`
 
-**Active phase:** S7.2 — Tooling and Accessibility Cleanup.
+**Closed phase:** S7.2 — Tooling and Accessibility Cleanup.
 
-**Next gate:** execute the approved S7.2 plan.
+**Next gate:** none planned; start a new convergence cycle only for new
+evidence or an explicitly accepted next objective.
 
 The roadmap product-boundary decision above remains unchanged: delete browser-session
 auth and browser-only query surfaces while retaining device-auth ingest.
@@ -382,6 +385,33 @@ findings.
 
 No schema, migration, dependency, lockfile, visual-language, browser-auth, or
 device-auth contract changed.
+
+## S7.2 closeout
+
+**State:** Complete
+
+**Implementation commits:** `2f8c60b`, `8f75cf5`, `7a6e796`, `96d17c6`,
+`b82fe45`, `32e949c`, `463346a`, `fd7f208`, `ab2af24`, `c7e326d`
+
+**Next phase:** none planned; new work requires a new convergence cycle.
+
+S7.2 removed the historical parallel-agent launcher, added hermetic healthy
+and failure-path coverage for the read-only development doctor, replaced the
+project rail's incomplete tab model with navigation-list semantics, and added
+a narrow native Windows-junction security job. Remote-only CI failures exposed
+two additional host-dependent test assumptions; the final test harness now
+uses the actual created shell, fixture-owned Codex/Claude commands on POSIX and
+Windows, and a settled StrictMode measurement boundary.
+
+Fresh `TURBO_FORCE=true pnpm verify` passed script tests 37/37, desktop tests
+1017/1017, typecheck 9/9 tasks, build 6/6 tasks, and Electron smoke 18/18 with
+zero cached Turbo tasks. Remote CI run `30672423698` passed `quality`
+(`91292740112`), `electron-smoke` (`91292740133`), and the native
+`windows-path-security` job (`91292740082`). Focused final review reported
+0 Critical, 0 Important, and 0 Minor findings.
+
+No accepted visual output changed, and no dependency, lockfile, schema,
+migration, browser/auth, runner, API, or broad CSS change entered the phase.
 
 ## Explicitly deferred
 
