@@ -3,6 +3,7 @@ import {
   events,
   ingestBatches,
   projects,
+  runRelations,
   runs,
   workspaces,
 } from "@alfred/db";
@@ -268,6 +269,53 @@ describe("production ingest store", () => {
     );
 
     expect((await readRun())?.status).toBe("running");
+  });
+
+  it("does not complete a running parent when its child completes", async () => {
+    await ingestBatch(
+      store(),
+      makeBatch("00000000-0000-4000-8000-000000000211", {
+        event_id: "event-parent-started",
+        source_event_id: "source-parent-started",
+        source_run_id: "parent-run",
+        type: "run.started",
+        status: "running",
+        occurred_at: "2026-01-01T10:00:00.000Z",
+      }),
+    );
+
+    await ingestBatch(
+      store(),
+      makeBatch("00000000-0000-4000-8000-000000000212", {
+        event_id: "event-child-completed",
+        source_event_id: "source-child-completed",
+        source_run_id: "child-run",
+        parent_source_run_id: "parent-run",
+        type: "run.completed",
+        status: "completed",
+        occurred_at: "2026-01-01T10:05:00.000Z",
+      }),
+    );
+
+    const parent = await readRun("parent-run");
+    const child = await readRun("child-run");
+    const relations = await fixture.db.select().from(runRelations);
+
+    expect(parent).toMatchObject({
+      status: "running",
+      completedAt: null,
+    });
+    expect(child).toMatchObject({
+      status: "completed",
+      completedAt: new Date("2026-01-01T10:05:00.000Z"),
+    });
+    expect(relations).toEqual([
+      expect.objectContaining({
+        parentRunId: parent?.id,
+        childRunId: child?.id,
+        relationType: "parent",
+      }),
+    ]);
   });
 
   it("rejects ingest when the device belongs to another workspace", async () => {
