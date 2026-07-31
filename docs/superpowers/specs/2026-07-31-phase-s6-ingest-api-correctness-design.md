@@ -267,8 +267,8 @@ S6 is complete when:
 
 ## Closeout
 
-**Implementation commits:** `bdf16b8`, `813a7db`, `6c274b6`, `d9e462d`,
-`29cc0d7`, `e2dbd46`, `06eda7d`, `bcd3032`
+**Implementation commits:** `3be3468`, `bdf16b8`, `813a7db`, `6c274b6`,
+`d9e462d`, `29cc0d7`, `e2dbd46`, `06eda7d`, `bcd3032`
 
 Fresh verification on the S6 branch:
 
