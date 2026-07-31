@@ -138,9 +138,30 @@ describe("cloud smoke", () => {
     assert.equal(result.code, 1);
     assert.match(result.stdout, /FAIL runner batch: 202/);
   });
+
+  it("rejects runner credentials over non-loopback HTTP before sending a request", async () => {
+    const requests = [];
+    const result = await runSmoke({
+      hostname: "0.0.0.0",
+      env: {
+        ALFRED_CLOUD_SMOKE_MODE: "runner-auth",
+        RUNNER_DEVICE_TOKEN: "runner-token",
+        RUNNER_WORKSPACE_ID: randomUUID(),
+        RUNNER_DEVICE_ID: randomUUID(),
+      },
+      handler: async (req, res) => {
+        requests.push(req.url);
+        send(res, 500, "text/plain", "unexpected");
+      },
+    });
+
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /runner-auth cloud smoke requires HTTPS outside local loopback/);
+    assert.deepEqual(requests, []);
+  });
 });
 
-async function runSmoke({ env, handler }) {
+async function runSmoke({ env, handler, hostname = "127.0.0.1" }) {
   const server = http.createServer((req, res) => {
     void handler(req, res).catch((error) => {
       res.writeHead(500, { "content-type": "text/plain" });
@@ -156,7 +177,7 @@ async function runSmoke({ env, handler }) {
     return await runNode(scriptPath, {
       ...process.env,
       ...env,
-      ALFRED_CLOUD_URL: `http://127.0.0.1:${address.port}`,
+      ALFRED_CLOUD_URL: `http://${hostname}:${address.port}`,
     });
   } finally {
     await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
