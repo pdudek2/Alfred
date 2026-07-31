@@ -54,11 +54,20 @@ async function listen(server) {
   return address.port;
 }
 
+async function closeServer(server) {
+  if (!server?.listening) return;
+  await new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+}
+
 async function reserveTcpPort() {
   const server = createTcpServer();
-  const port = await listen(server);
-  await new Promise((resolve) => server.close(resolve));
-  return port;
+  try {
+    return await listen(server);
+  } finally {
+    await closeServer(server);
+  }
 }
 
 function runNode(args, env) {
@@ -85,28 +94,32 @@ function runNode(args, env) {
 }
 
 async function runDoctorFixture({ healthy }) {
-  const root = await mkdtemp(path.join(os.tmpdir(), "alfred-dev-doctor-"));
-  const binDirectory = path.join(root, "bin");
-  await mkdir(binDirectory);
-  await installFakeTools(binDirectory);
-
-  const http = createHttpServer((request, response) => {
-    if (!healthy) {
-      response.writeHead(503, { "content-type": "text/plain" });
-      response.end("fixture unavailable");
-    } else if (request.url === "/health") {
-      response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify({ ok: true, service: "alfred-api" }));
-    } else {
-      response.writeHead(200, { "content-type": "text/html" });
-      response.end('<div id="root"></div>');
-    }
-  });
-  const tcp = createTcpServer((socket) => socket.end());
-  const httpPort = await listen(http);
-  const tcpPort = healthy ? await listen(tcp) : await reserveTcpPort();
+  let root;
+  let http;
+  let tcp;
 
   try {
+    root = await mkdtemp(path.join(os.tmpdir(), "alfred-dev-doctor-"));
+    const binDirectory = path.join(root, "bin");
+    await mkdir(binDirectory);
+    await installFakeTools(binDirectory);
+
+    http = createHttpServer((request, response) => {
+      if (!healthy) {
+        response.writeHead(503, { "content-type": "text/plain" });
+        response.end("fixture unavailable");
+      } else if (request.url === "/health") {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ ok: true, service: "alfred-api" }));
+      } else {
+        response.writeHead(200, { "content-type": "text/html" });
+        response.end('<div id="root"></div>');
+      }
+    });
+    tcp = createTcpServer((socket) => socket.end());
+    const httpPort = await listen(http);
+    const tcpPort = healthy ? await listen(tcp) : await reserveTcpPort();
+
     return await runNode([doctorPath], {
       ...process.env,
       ALFRED_DOCTOR_FIXTURE: healthy ? "healthy" : "unhealthy",
@@ -116,11 +129,11 @@ async function runDoctorFixture({ healthy }) {
       PATH: `${binDirectory}${path.delimiter}${process.env.PATH ?? ""}`,
     });
   } finally {
-    await Promise.all([
-      new Promise((resolve) => http.close(resolve)),
-      healthy ? new Promise((resolve) => tcp.close(resolve)) : Promise.resolve(),
-    ]);
-    await rm(root, { force: true, recursive: true });
+    try {
+      await Promise.all([closeServer(http), closeServer(tcp)]);
+    } finally {
+      if (root) await rm(root, { force: true, recursive: true });
+    }
   }
 }
 
