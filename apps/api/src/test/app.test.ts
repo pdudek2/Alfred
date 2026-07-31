@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createDbDeviceAuthStore,
   createFallbackDeviceAuthStore,
@@ -46,9 +46,13 @@ vi.mock("@alfred/schema", () => ({
 vi.mock("../auth/bootstrap-auth", () => bootstrapAuthMock);
 
 import { createApp } from "../app";
+import { env } from "../env";
+
+const originalDatabaseUrl = env.DATABASE_URL;
 
 describe("api", () => {
   beforeEach(() => {
+    env.DATABASE_URL = undefined;
     dbMocks.createPool.mockReset();
     dbMocks.createPool.mockReturnValue(dbMocks.pool);
     dbMocks.createDb.mockReset();
@@ -57,10 +61,24 @@ describe("api", () => {
     bootstrapAuthMock.seedBootstrapAuth.mockResolvedValue(undefined);
   });
 
+  afterEach(() => {
+    env.DATABASE_URL = originalDatabaseUrl;
+  });
+
   it("constructs the database from the parsed DATABASE_URL", () => {
     createApp();
 
     expect(dbMocks.createPool).toHaveBeenCalledWith(undefined);
+    expect(dbMocks.createDb).toHaveBeenCalledWith(dbMocks.pool);
+  });
+
+  it("constructs the database from the configured parsed DATABASE_URL", () => {
+    const DATABASE_URL = "postgresql://alfred:fixture@db.example.test:5432/alfred";
+    env.DATABASE_URL = DATABASE_URL;
+
+    createApp();
+
+    expect(dbMocks.createPool).toHaveBeenCalledWith(DATABASE_URL);
     expect(dbMocks.createDb).toHaveBeenCalledWith(dbMocks.pool);
   });
 
