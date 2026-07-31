@@ -1,6 +1,6 @@
 # Phase S7.2 — Tooling and Accessibility Cleanup
 
-**Status:** Approved
+**Status:** Complete
 **Date:** 2026-07-31
 **Owner:** `main`
 **Parent:** `docs/superpowers/specs/2026-07-29-post-v1-stabilization-roadmap.md`
@@ -206,3 +206,37 @@ without duplicating the full Ubuntu quality or macOS Electron jobs.
 None. The four residue decisions are bounded and approved. Any defect exposed
 by the `dev-doctor` characterization that requires a broader product or service
 contract change must return to convergence instead of silently expanding S7.2.
+
+## Closeout
+
+**State:** Complete
+
+**Implementation commits:** `2f8c60b`, `8f75cf5`, `7a6e796`, `96d17c6`,
+`b82fe45`, `32e949c`, `463346a`, `fd7f208`, `ab2af24`, `c7e326d`
+
+Closed behavior:
+
+- the obsolete parallel-agent launcher, monitor, and package commands are gone;
+- `dev-doctor` has hermetic healthy and actionable-failure process coverage;
+- project navigation uses list/button semantics, native Tab order, and honest
+  `aria-current` state while preserving Arrow, Home, and End shortcuts;
+- the canonical-path escape regression runs against a native Windows junction;
+- terminal identity and collapse tests no longer depend on the CI host shell,
+  installed agent binaries, or unsettled StrictMode cleanup.
+
+Fresh local verification passed `TURBO_FORCE=true pnpm verify`: script tests
+37/37, desktop tests 1017/1017, typecheck 9/9 tasks, build 6/6 tasks, and
+Electron smoke 18/18 with no cached Turbo task reuse. Focused review reported
+0 Critical, 0 Important, and 0 Minor findings.
+
+Remote CI run `30672423698` passed all three required jobs at `c7e326d`:
+
+- `quality` — job `91292740112`;
+- `electron-smoke` — job `91292740133`;
+- `windows-path-security` — job `91292740082`, exercising the native junction
+  branch on `windows-latest`.
+
+No dependency, lockfile, schema, migration, browser/auth, runner, API, broad
+CSS, accepted copy, layout, or visual-output change entered S7.2. Normal Git
+integration is the only remaining repository action; no further product phase
+is planned by this roadmap.
