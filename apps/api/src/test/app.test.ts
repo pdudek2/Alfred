@@ -8,7 +8,12 @@ import {
 } from "../auth/device-auth";
 import { hashToken } from "../auth/token-hash";
 
-const dbMock = vi.hoisted(() => ({}));
+const dbMocks = vi.hoisted(() => ({
+  db: {},
+  pool: {},
+  createDb: vi.fn(),
+  createPool: vi.fn(),
+}));
 
 const bootstrapAuthMock = vi.hoisted(() => ({
   seedBootstrapAuth: vi.fn(),
@@ -16,7 +21,8 @@ const bootstrapAuthMock = vi.hoisted(() => ({
 
 vi.mock("@alfred/db", () => ({
   LOCAL_USER_ID: "local-user",
-  createDb: () => dbMock,
+  createDb: dbMocks.createDb,
+  createPool: dbMocks.createPool,
   devices: {},
   events: {},
   ingestBatches: {},
@@ -43,8 +49,19 @@ import { createApp } from "../app";
 
 describe("api", () => {
   beforeEach(() => {
+    dbMocks.createPool.mockReset();
+    dbMocks.createPool.mockReturnValue(dbMocks.pool);
+    dbMocks.createDb.mockReset();
+    dbMocks.createDb.mockReturnValue(dbMocks.db);
     bootstrapAuthMock.seedBootstrapAuth.mockReset();
     bootstrapAuthMock.seedBootstrapAuth.mockResolvedValue(undefined);
+  });
+
+  it("constructs the database from the parsed DATABASE_URL", () => {
+    createApp();
+
+    expect(dbMocks.createPool).toHaveBeenCalledWith(undefined);
+    expect(dbMocks.createDb).toHaveBeenCalledWith(dbMocks.pool);
   });
 
   it("returns endpoint metadata at the root", async () => {

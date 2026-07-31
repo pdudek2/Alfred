@@ -3,6 +3,21 @@ import { LOCAL_DEVICE_ID, LOCAL_USER_ID, LOCAL_WORKSPACE_ID } from "@alfred/sche
 
 const DEFAULT_RUNNER_DEVICE_TOKEN = "dev-device-token";
 
+const DatabaseUrl = z
+  .string()
+  .url({ message: "DATABASE_URL must be a valid URL" })
+  .refine(
+    (value) => {
+      try {
+        const protocol = new URL(value).protocol;
+        return protocol === "postgres:" || protocol === "postgresql:";
+      } catch {
+        return false;
+      }
+    },
+    { message: "DATABASE_URL must use postgres: or postgresql:" },
+  );
+
 const BooleanEnv = z
   .union([z.boolean(), z.string()])
   .optional()
@@ -28,6 +43,7 @@ function createEnvSchema(devAuthEnabled: boolean) {
     ALFRED_BOOTSTRAP_WORKSPACE_ID: z.string().uuid().default(LOCAL_WORKSPACE_ID),
     RUNNER_WORKSPACE_ID: z.string().uuid().default(LOCAL_WORKSPACE_ID),
     RUNNER_DEVICE_ID: z.string().uuid().default(LOCAL_DEVICE_ID),
+    DATABASE_URL: DatabaseUrl.optional(),
     RUNNER_DEVICE_TOKEN: z
       .string()
       .min(1)
@@ -48,7 +64,13 @@ function createEnvSchema(devAuthEnabled: boolean) {
 export function parseApiEnv(input: NodeJS.ProcessEnv) {
   const devAuthEnabled = shouldEnableDevAuth(input);
   const parsed = createEnvSchema(devAuthEnabled).parse(input);
-  const hostedDevAuth = parsed.DEV_AUTH_ENABLED && isHostedRuntime(input);
+  const hostedRuntime = isHostedRuntime(input);
+
+  if (hostedRuntime && !parsed.DATABASE_URL) {
+    throw new Error("DATABASE_URL is required in hosted runtime");
+  }
+
+  const hostedDevAuth = parsed.DEV_AUTH_ENABLED && hostedRuntime;
 
   if (hostedDevAuth && parsed.RUNNER_DEVICE_TOKEN === DEFAULT_RUNNER_DEVICE_TOKEN) {
     throw new Error("RUNNER_DEVICE_TOKEN must be explicitly set when dev auth is enabled in hosted runtime");
