@@ -35,7 +35,7 @@ without reopening the accepted product or visual direction.
 
 ## Scope lineage
 
-`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 complete → S4 complete → S5 complete → S6 complete → S7A audited → S7.1 complete → S7.2 next`
+`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 complete → S4 complete → S5 complete → S6 complete → S7A audited → S7.1 complete → S7.2 planned`
 
 Phase Z remains closed. This roadmap does not reinterpret or reopen its visual
 or product decisions.
@@ -68,11 +68,10 @@ or product decisions.
 | S4 — Privacy and worktree lifecycle | Resolve worktree close behavior and prevent sensitive launch data from persisting | 13, 15, 16 | Complete |
 | S5 — Desktop interaction correctness | Recover failed planning, unblock review/edit, remove impure state updaters, correct activity classification | 5, 11, 17, 23 | Complete |
 | S6 — Ingest/API correctness | Correct parent lifecycle, validate hosted DB config, and test the real ingest store | 12, 20, 21 | Complete |
-| S7 — Residue and blocked-boundary review | Complete scripts/tooling and CSS/accessibility audits; triage investigate-only signals | audit gaps | Active — S7.1 complete, S7.2 next |
+| S7 — Residue and blocked-boundary review | Complete scripts/tooling and CSS/accessibility audits; triage investigate-only signals | audit gaps | Active — S7.2 planned |
 
 Only an actively converged phase receives an implementation plan. S7A and
-S7.1 are complete; S7.2 remains unplanned until its convergence workflow
-begins.
+S7.1 are complete; S7.2 is the approved active slice.
 
 **Closed phase contract:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification.md`
 
@@ -99,7 +98,13 @@ completed.
 
 **Closed phase:** S7.1 — Safety and Correctness.
 
-**Next gate:** converge S7.2 — Tooling and Accessibility Cleanup.
+**Approved phase contract:** `docs/superpowers/specs/2026-07-31-phase-s7-2-tooling-accessibility-cleanup-design.md`
+
+**Approved implementation plan:** `docs/superpowers/plans/2026-07-31-phase-s7-2-tooling-accessibility-cleanup.md`
+
+**Active phase:** S7.2 — Tooling and Accessibility Cleanup.
+
+**Next gate:** execute the approved S7.2 plan.
 
 The roadmap product-boundary decision above remains unchanged: delete browser-session
 auth and browser-only query surfaces while retaining device-auth ingest.
@@ -361,8 +366,8 @@ global style, or readiness behavior changed.
 
 **Implementation commits:** `01652e8`, `0b4663e`, `48bd471`
 
-**Next phase:** S7.2 — Tooling and Accessibility Cleanup; unplanned until a
-new convergence workflow begins.
+**Next phase:** S7.2 — Tooling and Accessibility Cleanup; planned and approved
+for execution.
 
 S7.1 reconciles restored terminal snapshots before persistence retry, rejects
 credentialed non-local HTTP smoke targets before any request, and converts
