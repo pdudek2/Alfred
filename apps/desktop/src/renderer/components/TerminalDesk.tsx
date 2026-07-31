@@ -191,7 +191,8 @@ export function TerminalDesk({
     );
     if (!tile || tile.getAttribute("aria-hidden") === "true") return;
 
-    tile.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    (tile.querySelector<HTMLElement>(".terminal-tile-header") ?? tile)
+      .scrollIntoView?.({ block: "nearest", inline: "nearest" });
     onSessionRevealed(revealSessionId);
   }, [onSessionRevealed, revealSessionId, workMode]);
 
@@ -1436,12 +1437,11 @@ function ManualTerminalTile({
           onDoubleClick={!arrangeMode ? onFocusSession : undefined}
           onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
         >
-        <div className="tile-title">
-          <span className={`tool-dot ${kindMeta.className}`} />
-          <span className={`tile-kind-mark ${kindMeta.className}`} title={kindMeta.label} aria-label={kindMeta.label}>
-            <TileKindIcon kind={kind} size={14} />
-          </span>
-          <div>
+          <div className="tile-title">
+            <span className={`tile-kind-mark ${kindMeta.className}`} title={kindMeta.label} aria-label={kindMeta.label}>
+              <TileKindIcon kind={kind} size={14} />
+            </span>
+            <div>
             {renaming ? (
               <form
                 className="session-rename-form"

@@ -389,12 +389,20 @@ export function App() {
     );
     const workspaceLayouts = activeWorkMode === "focus"
       ? applyLayoutPreset(workspaceSessions, "focus", addedSession.id)
-      : ensureTileLayouts(workspaceSessions, currentLayouts);
+      : activeWorkMode === "split"
+        ? applyLayoutPreset(workspaceSessions, "two-up", addedSession.id)
+        : tileLayoutRecordsEqual(currentLayouts, applyLayoutPreset(previousWorkspaceSessions, "grid"))
+          ? applyLayoutPreset(workspaceSessions, "grid")
+          : ensureTileLayouts(workspaceSessions, currentLayouts);
     const layoutApi = getDesktopLayoutApi();
 
     terminalSessionsRef.current = nextSessions;
     setTerminalSessions(nextSessions);
     setRevealSessionId(activeWorkMode === "focus" ? null : addedSession.id);
+    setSelectedSessionIdsByWorkspace((current) => ({
+      ...current,
+      [activeWorkspace.id]: addedSession.id,
+    }));
     setTileLayoutsByWorkspace((current) => ({
       ...current,
       [activeWorkspace.id]: workspaceLayouts,
@@ -404,16 +412,10 @@ export function App() {
       layouts: workspaceLayouts,
     });
 
-    if (activeWorkMode === "focus") {
-      setSelectedSessionIdsByWorkspace((current) => ({
-        ...current,
-        [activeWorkspace.id]: addedSession.id,
-      }));
-      void layoutApi?.setWorkspaceViewState({
-        workspaceId: activeWorkspace.id,
-        viewState: { workMode: "focus", selectedSessionId: addedSession.id },
-      });
-    }
+    void layoutApi?.setWorkspaceViewState({
+      workspaceId: activeWorkspace.id,
+      viewState: { workMode: activeWorkMode, selectedSessionId: addedSession.id },
+    });
   }, [activeWorkMode, activeWorkspace.id, tileLayoutsByWorkspace]);
 
   const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, isolation: TerminalSessionIsolation = "shared") => {

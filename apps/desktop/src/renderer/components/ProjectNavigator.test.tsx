@@ -115,31 +115,12 @@ describe("ProjectNavigator", () => {
     expect(within(screen.getByRole("group", { name: "Free Chats" })).getAllByRole("button")).toHaveLength(4);
   });
 
-  it("exposes the active project's sessions as a keyboard-operable disclosure", async () => {
-    const user = userEvent.setup();
+  it("keeps the active project's sessions visible without a nested disclosure", () => {
     renderNavigator();
 
-    const disclosure = screen.getByRole("button", { name: "Collapse Alfred sessions" });
     const sessionGroup = screen.getByRole("group", { name: "Alfred sessions" });
-    expect(disclosure).toHaveAttribute("aria-expanded", "true");
     expect(sessionGroup).toBeVisible();
-
-    disclosure.focus();
-    await user.keyboard("{Enter}");
-
-    expect(screen.getByRole("button", { name: "Expand Alfred sessions" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    expect(sessionGroup).not.toBeVisible();
-
-    await user.keyboard(" ");
-
-    expect(screen.getByRole("button", { name: "Collapse Alfred sessions" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(screen.getByRole("group", { name: "Alfred sessions" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Alfred sessions/i })).not.toBeInTheDocument();
     expect(screen.getAllByRole("tablist")).toHaveLength(1);
   });
 
@@ -247,27 +228,14 @@ describe("ProjectNavigator", () => {
     expect(within(client).queryByLabelText(/need review/i)).not.toBeInTheDocument();
   });
 
-  it("keeps one destination tree and an operable session disclosure in collapsed mode", async () => {
-    const user = userEvent.setup();
+  it("keeps one destination tree and visible session destinations in collapsed mode", () => {
     const { container } = renderNavigator({ collapsed: true });
 
     expect(container.querySelector(".project-navigator")).toHaveClass("is-collapsed");
     expect(screen.getAllByRole("tab")).toHaveLength(5);
     expect(container.querySelectorAll('[role="tablist"]')).toHaveLength(1);
 
-    const disclosure = screen.getByRole("button", { name: "Collapse Alfred sessions" });
-    expect(disclosure).toHaveAttribute("aria-expanded", "true");
-    disclosure.focus();
-    await user.keyboard("{Enter}");
-    expect(screen.getByRole("button", { name: "Expand Alfred sessions" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    await user.keyboard(" ");
-    expect(screen.getByRole("button", { name: "Collapse Alfred sessions" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
+    expect(screen.getByRole("group", { name: "Alfred sessions" })).toBeVisible();
   });
 
   it("omits Free Chats when there are no matching live sessions", () => {

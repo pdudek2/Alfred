@@ -10,7 +10,7 @@ export const MIN_ROW_SPAN = 2;
 const DEFAULT_COL_SPAN = 6;
 const FULL_WIDTH_ROW_SPAN = 8;
 const SPLIT_VIEW_ROW_SPAN = 8;
-const TILED_ROW_SPAN = 6;
+const TILED_ROW_SPAN = 3;
 
 type LayoutSession = {
   id: string;
@@ -144,12 +144,13 @@ function defaultLayout(tileId: string, index: number, tileCount: number): TileLa
   }
 
   const rowSpan = tileCount === 2 ? SPLIT_VIEW_ROW_SPAN : TILED_ROW_SPAN;
+  const fullWidthLastTile = tileCount > 2 && tileCount % 2 === 1 && index === tileCount - 1;
 
   return normalizeLayout({
     tileId,
-    col: index % 2 === 0 ? 1 : 7,
+    col: fullWidthLastTile || index % 2 === 0 ? 1 : 7,
     row: Math.floor(index / 2) * rowSpan + 1,
-    colSpan: DEFAULT_COL_SPAN,
+    colSpan: fullWidthLastTile ? GRID_COLUMNS : DEFAULT_COL_SPAN,
     rowSpan,
   });
 }
@@ -164,10 +165,12 @@ function firstAvailableLayout(
     : tileCount === 2
       ? SPLIT_VIEW_ROW_SPAN
       : TILED_ROW_SPAN;
-  const colSpan = tileCount === 1 ? GRID_COLUMNS : DEFAULT_COL_SPAN;
+  const colSpan = tileCount === 1 || (tileCount > 2 && tileCount % 2 === 1)
+    ? GRID_COLUMNS
+    : DEFAULT_COL_SPAN;
   const columns = colSpan === GRID_COLUMNS ? [1] : [1, 7];
 
-  for (let row = 1; ; row += rowSpan) {
+  for (let row = 1; ; row += 1) {
     for (const col of columns) {
       const candidate = normalizeLayout({ tileId, col, row, colSpan, rowSpan });
       if (occupied.every((layout) => !layoutsOverlap(candidate, layout))) {

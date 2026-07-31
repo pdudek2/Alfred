@@ -42,17 +42,31 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
 
   await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
+  const addedTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-3"]');
+  await expect(addedTile).toHaveClass(/selected/);
   await expect.poll(async () => page.evaluate(() => {
     const owner = document.querySelector(".terminal-grid-column");
-    const tile = document.querySelector('[data-session-id="manual-3"]');
-    if (!(owner instanceof HTMLElement) || !(tile instanceof HTMLElement)) return false;
+    const header = document.querySelector('[data-testid="terminal-tile"][data-session-id="manual-3"] .terminal-tile-header');
+    if (!(owner instanceof HTMLElement) || !(header instanceof HTMLElement)) return false;
     const ownerRect = owner.getBoundingClientRect();
-    const tileRect = tile.getBoundingClientRect();
-    return tileRect.top >= ownerRect.top && tileRect.bottom <= ownerRect.bottom;
+    const headerRect = header.getBoundingClientRect();
+    return headerRect.top >= ownerRect.top && headerRect.bottom <= ownerRect.bottom;
   })).toBe(true);
   await expectTerminalNodes(survivorNodes, page, "Grid membership 2→3", 3);
   const afterMembershipChange = await readTileGridPlacement(page, ["manual-1", "manual-2"]);
   expect(afterMembershipChange).toEqual(beforeMembershipChange);
+  expect((await readTileGridPlacement(page, ["manual-3"]))["manual-3"]?.gridRow).toBe("5 / span 3");
+  const selectionBorders = await page.locator(
+    '[data-testid="terminal-tile"][data-session-id="manual-1"], [data-testid="terminal-tile"][data-session-id="manual-3"]',
+  ).evaluateAll(
+    (tiles) => tiles.map((tile) => {
+      const style = getComputedStyle(tile);
+      return { id: (tile as HTMLElement).dataset.sessionId, color: style.borderTopColor, width: style.borderTopWidth };
+    }),
+  );
+  expect(selectionBorders.find((border) => border.id === "manual-3")?.width).toBe("2px");
+  expect(selectionBorders.find((border) => border.id === "manual-3")?.color)
+    .not.toBe(selectionBorders.find((border) => border.id === "manual-1")?.color);
   await captureReviewScreenshot(page, testInfo, "grid-3-1440x920");
 
   await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toHaveCount(1);
@@ -106,7 +120,7 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   await captureReviewScreenshot(page, testInfo, "arrange-3-1440x920");
   await chooseWorkLayout(page, "Arrange");
 
-  const initialGridScroll = await proveGridScroll(page, "Initial Grid");
+  const initialGridFit = await proveGridFit(page, "Initial Grid");
   const beforeResize = await readWindowGeometry(app, page);
   await app.evaluate(({ BrowserWindow }) => {
     const [window] = BrowserWindow.getAllWindows();
@@ -125,7 +139,7 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   }).toEqual({ boundsWidth: 1120, boundsHeight: 720, clientViewportChanged: true });
   const afterResize = await readWindowGeometry(app, page);
   await captureReviewScreenshot(page, testInfo, "grid-3-1120x720");
-  const narrowGridScroll = await proveGridScroll(page, "1120×720 Grid");
+  const narrowGridFit = await proveGridFit(page, "1120×720 Grid");
 
   await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(4);
@@ -152,8 +166,8 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
         after: afterMembershipChange,
       },
       surfaceGeometries,
-      initialGridScroll,
-      narrowGridScroll,
+      initialGridFit,
+      narrowGridFit,
       beforeResize,
       afterResize,
     }, null, 2)}\n`, "utf8");
@@ -332,23 +346,16 @@ async function readTerminalGeometry(page: Page) {
   });
 }
 
-async function proveGridScroll(page: Page, label: string) {
-  const before = await readTerminalGeometry(page);
-  assertGridBeforeScroll(before, label);
-
-  const lastVisibleTile = page
-    .locator('[data-testid="desk-runtime-surface"] [data-testid="terminal-tile"]:not([aria-hidden="true"])')
-    .last();
-  await lastVisibleTile.scrollIntoViewIfNeeded();
-  await expect.poll(async () => (await readTerminalGeometry(page)).scrollTop).toBeGreaterThan(0);
-
-  const after = await readTerminalGeometry(page);
-  assertGridAfterScroll(after, label);
-
-  const scrollOwner = page.locator('[data-testid="desk-runtime-surface"] .terminal-grid-column');
-  await scrollOwner.evaluate((element) => element.scrollTo(0, 0));
-  await expect.poll(async () => (await readTerminalGeometry(page)).scrollTop).toBe(0);
-  return { label, before, after, restoredScrollTop: 0 };
+async function proveGridFit(page: Page, label: string) {
+  const geometry = await readTerminalGeometry(page);
+  assertTerminalGeometry(geometry);
+  const lastTile = geometry.tiles.at(-1);
+  expect(lastTile, "Grid must contain a last visible tile.").toBeDefined();
+  expect(geometry.scrollTop, `${label} must stay at scrollTop 0.`).toBe(0);
+  expect(geometry.scrollHeight, `${label}: ${JSON.stringify(geometry)}`)
+    .toBeLessThanOrEqual(geometry.scrollClientHeight + 12);
+  expect(lastTile?.viewportBottomOverflow, `${label}: ${JSON.stringify(geometry)}`).toBeLessThanOrEqual(2);
+  return { label, geometry };
 }
 
 async function readWindowGeometry(app: ElectronApplication, page: Page) {
@@ -377,7 +384,6 @@ function assertTerminalGeometry(geometry: Awaited<ReturnType<typeof readTerminal
   const evidence = `terminal geometry: ${JSON.stringify(geometry)}`;
   expect(geometry.stageWidth, evidence).toBeGreaterThan(0);
   expect(geometry.stageHeight, evidence).toBeGreaterThan(0);
-  expect(geometry.scrollHeight, evidence).toBeGreaterThan(geometry.scrollClientHeight);
   expect(["auto", "scroll"], evidence).toContain(geometry.overflowY);
   expect(geometry.tiles, evidence).toHaveLength(3);
   for (const tile of geometry.tiles) {
@@ -389,26 +395,4 @@ function assertTerminalGeometry(geometry: Awaited<ReturnType<typeof readTerminal
     expect(tile.rightOverflow, evidence).toBeLessThanOrEqual(2);
   }
   expect(geometry.documentOverflow, evidence).toBeLessThanOrEqual(0);
-}
-
-function assertGridBeforeScroll(
-  geometry: Awaited<ReturnType<typeof readTerminalGeometry>>,
-  label: string,
-): void {
-  assertTerminalGeometry(geometry);
-  const lastTile = geometry.tiles.at(-1);
-  expect(lastTile, "Grid must contain a last visible tile.").toBeDefined();
-  expect(geometry.scrollTop, `${label} must start at scrollTop 0.`).toBe(0);
-  expect(lastTile?.viewportBottomOverflow, `${label} before scroll: ${JSON.stringify(geometry)}`).toBeGreaterThan(0);
-}
-
-function assertGridAfterScroll(
-  geometry: Awaited<ReturnType<typeof readTerminalGeometry>>,
-  label: string,
-): void {
-  assertTerminalGeometry(geometry);
-  const lastTile = geometry.tiles.at(-1);
-  expect(lastTile, "Grid must contain a last visible tile.").toBeDefined();
-  expect(geometry.scrollTop, `${label} must have scrolled.`).toBeGreaterThan(0);
-  expect(lastTile?.viewportBottomOverflow, `${label} after scroll: ${JSON.stringify(geometry)}`).toBeLessThanOrEqual(2);
 }

@@ -599,6 +599,7 @@ describe("renderer CSS contracts", () => {
     expect(focusSignalUses.every(({ selectors }) =>
       selectors.every((selector) =>
         selector.includes("selected")
+        || selector.includes("is-active")
         || selector.includes("focus")
         || selector.includes("aria-pressed"),
       ),
@@ -1051,23 +1052,8 @@ describe("renderer CSS contracts", () => {
     expect(focusPeek[0]).toContain("content: attr(data-label)");
   });
 
-  it("keeps the project session disclosure focusable in both 46px navigator modes", () => {
-    const manualRailDisclosure = topLevelExactRuleBodies(
-      ".project-navigator.is-collapsed .project-disclosure",
-    );
-    expect(manualRailDisclosure).toHaveLength(1);
-    expect(manualRailDisclosure[0]).toContain("display: flex");
-    expect(manualRailDisclosure[0]).toContain("width: 24px");
-    expect(manualRailDisclosure[0]).not.toContain("display: none");
-
-    const forcedRailDisclosure = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      ".workspace-layout.preview-visible .project-navigator .project-disclosure",
-    );
-    expect(forcedRailDisclosure).toHaveLength(1);
-    expect(forcedRailDisclosure[0]).toContain("display: flex");
-    expect(forcedRailDisclosure[0]).toContain("width: 24px");
-    expect(forcedRailDisclosure[0]).not.toContain("display: none");
+  it("does not add a second disclosure control inside the active project", () => {
+    expect(styles).not.toContain(".project-disclosure");
   });
 
   it("keeps the single workspace actions owner operable in the forced narrow rail", () => {
@@ -1192,12 +1178,13 @@ describe("renderer CSS contracts", () => {
       terminalTileEnd,
     );
     expectTopLevelOwnerWithin(".terminal-stage.mode-focus .terminal-tile.focus-hidden", ["display: none"], terminalTileStart, terminalTileEnd);
-    expectTopLevelOwnerWithin(
-      ".terminal-tile.selected",
-      ["border-color: color-mix(in oklab, var(--signal-focus) 52%, var(--ink-3))", "box-shadow: none"],
-      terminalTileStart,
-      terminalTileEnd,
-    );
+    for (const selector of [".terminal-tile.real-terminal.selected", ".terminal-tile.staged.selected"]) {
+      expectCanonicalBase(selector, [
+        "border-width: 2px",
+        "border-color: color-mix(in oklab, var(--signal-focus) 70%, var(--ink-3))",
+        "box-shadow: none",
+      ]);
+    }
     expectTopLevelOwnerWithin(
       ".terminal-tile:focus-visible",
       ["border-color: color-mix(in oklab, var(--signal-focus) 52%, var(--ink-3))", "box-shadow: none"],
@@ -1298,16 +1285,12 @@ describe("renderer CSS contracts", () => {
       [".terminal-tile.kind-dev-server", 1],
       [".terminal-tile.real-terminal.browser", 1],
       [".terminal-tile.staged", 1],
-      [".terminal-tile.selected .tool-dot", 1],
       [".terminal-tile.selected .tile-status.status-active::before", 1],
       [".terminal-tile-header .tile-title", 1],
       [".terminal-tile-header .tile-title b", 1],
       [".terminal-tile-header .tile-title small", 1],
-      [".terminal-tile.real-terminal .tool-dot", 1],
-      [".terminal-tile.real-terminal.ready .tool-dot", 1],
-      [".terminal-tile.real-terminal.selected .tool-dot", 1],
       [".terminal-tile.real-terminal .tile-kind-mark", 1],
-      [".terminal-tile.real-terminal .tile-kind-mark span", 1],
+      [".terminal-tile.real-terminal .tile-kind-mark .tile-kind-label", 1],
       [".terminal-tile:hover .tile-utility-actions", 1],
       [".terminal-tile:focus-within .tile-utility-actions", 1],
       [".terminal-tile-header .tile-title:has(.session-rename-form)", 1],
@@ -1892,18 +1875,16 @@ describe("renderer CSS contracts", () => {
 
   it("keeps terminal tile chrome secondary to the xterm body", () => {
     const tile = blockForContaining(".terminal-tile", "box-shadow: none");
-    const header = blockFor(".terminal-tile-header");
+    const header = exactBlockFor(".terminal-tile-header");
     const tileTitle = blockFor(".terminal-tile-header .tile-title b");
     const xtermHost = exactBlockFor(".xterm-host");
     const kindMark = exactBlockFor(".terminal-tile.real-terminal .tile-kind-mark");
-    const kindMarkText = exactBlockFor(".terminal-tile.real-terminal .tile-kind-mark span");
+    const kindMarkText = exactBlockFor(".terminal-tile.real-terminal .tile-kind-mark .tile-kind-label");
     const primaryActions = blockForContaining(".tile-primary-actions", "opacity: 1");
     const primaryActionButton = exactBlockFor(".tile-primary-actions .continue-button");
     const utilities = blockForContaining(".tile-utility-actions", "opacity: 0");
     const dangerActions = blockForContaining(".tile-danger-actions", "opacity: 0");
     const utilityButtons = blockFor(".tile-utility-actions button,\n.tile-danger-actions button");
-    const readyToolDot = blockFor(".terminal-tile.real-terminal.ready .tool-dot");
-    const selectedToolDotRule = ruleForSelectorContaining(".terminal-tile.real-terminal.selected .tool-dot");
 
     expect(tile).toContain("background: var(--ink-0)");
     expect(tile).toContain("box-shadow: none");
@@ -1922,10 +1903,6 @@ describe("renderer CSS contracts", () => {
     expect(dangerActions).toContain("opacity: 0");
     expect(dangerActions).toContain("pointer-events: none");
     expect(utilityButtons).toContain("color: var(--ink-5)");
-    expect(readyToolDot).not.toContain("var(--green)");
-    expect(selectedToolDotRule.selectors).toContain(".terminal-tile.real-terminal.selected .tool-dot");
-    expect(selectedToolDotRule.selectors).toContain(".terminal-tile.real-terminal.session-waiting .tool-dot");
-    expect(selectedToolDotRule.selectors).toContain(".terminal-tile.real-terminal.error .tool-dot");
   });
 
   it("keeps terminal tile titles readable before action chrome under constrained width", () => {
@@ -1953,12 +1930,9 @@ describe("renderer CSS contracts", () => {
     expect(constrainedStatusText[0]).toContain("display: none");
   });
 
-  it("keeps shell and terminal identity achromatic", () => {
-    const identityDots = blockFor(".tool-dot.manual,\n.tool-dot.codex,\n.tool-dot.claude,\n.tool-dot.dev-server,\n.tool-dot.shell");
+  it("keeps the ready dispatch action neutral", () => {
     const readyDispatch = blockFor(".dispatch-bar[data-state=\"ready\"] .composer-send:enabled");
 
-    expect(identityDots).toContain("background: var(--ink-5)");
-    expect(identityDots).not.toMatch(/--(?:codex-blue|claude-amber|role-attention)/);
     expect(readyDispatch).toContain("background: var(--ink-2)");
     expect(readyDispatch).not.toMatch(/--(?:signal-focus|role-active|role-success)/);
   });
@@ -2183,7 +2157,7 @@ describe("renderer CSS contracts", () => {
     const navSectionHeader = singleTopLevelRuleBodyIn(styles, ".free-chat-section > header");
     const navRow = singleTopLevelRuleBodyIn(styles, ".project-row-button");
     const navRowTitle = blockFor(".project-row-label,\n.project-session-title");
-    const activeWorkspace = blockFor('.project-row-button[aria-selected="true"]');
+    const activeWorkspace = exactBlockFor('.project-row-button[aria-selected="true"]');
 
     expect(navPanel).toContain("background: var(--ink-1)");
     expect(navSectionHeader).toContain("color: var(--ink-5)");
