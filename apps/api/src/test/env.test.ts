@@ -7,6 +7,11 @@ const hostedEnv = {
   RUNNER_DEVICE_TOKEN: "fixture-runner-token",
 } satisfies NodeJS.ProcessEnv;
 
+const vercelEnv = {
+  VERCEL: "1",
+  RUNNER_DEVICE_TOKEN: "fixture-runner-token",
+} satisfies NodeJS.ProcessEnv;
+
 describe("api env", () => {
   it("allows local dev auth with development defaults", () => {
     expect(
@@ -30,6 +35,16 @@ describe("api env", () => {
 
   it("requires DATABASE_URL in hosted runtime", () => {
     expect(() => parseApiEnv(hostedEnv)).toThrow(/DATABASE_URL/);
+  });
+
+  it("requires DATABASE_URL in Vercel runtime", () => {
+    expect(() => parseApiEnv(vercelEnv)).toThrow(/DATABASE_URL/);
+  });
+
+  it("rejects a non-PostgreSQL DATABASE_URL in Vercel runtime", () => {
+    expect(() => parseApiEnv({ ...vercelEnv, DATABASE_URL: "https://database.example.test/alfred" })).toThrow(
+      /DATABASE_URL|postgres/i,
+    );
   });
 
   it.each([
