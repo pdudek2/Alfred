@@ -40,7 +40,7 @@ export async function createPgliteIngestDatabase() {
       close: () => client.close(),
     };
   } catch (error) {
-    await client.close();
+    await client.close().catch(() => undefined);
     throw error;
   }
 }
