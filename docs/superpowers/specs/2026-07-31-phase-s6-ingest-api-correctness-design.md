@@ -13,7 +13,7 @@ starts serving traffic.
 
 ## Scope lineage
 
-`Phase Z release closeout → post-v1 stabilization roadmap → S1–S5 complete → S6 active → S7 remains`
+`Phase Z release closeout → post-v1 stabilization roadmap → S1–S5 complete → S6 complete → S7 next`
 
 S6 closes only findings 12, 20, and 21. It does not reopen earlier product or
 visual decisions and does not close the parent stabilization roadmap.
