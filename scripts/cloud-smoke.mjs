@@ -16,6 +16,24 @@ if (!["public", "runner-auth"].includes(mode)) {
   process.exit(1);
 }
 
+let cloudUrl;
+try {
+  cloudUrl = new URL(baseUrl);
+} catch {
+  console.error("ALFRED_CLOUD_URL must be a valid URL");
+  process.exit(1);
+}
+
+const loopbackHosts = new Set(["localhost", "127.0.0.1", "[::1]"]);
+if (
+  mode === "runner-auth"
+  && cloudUrl.protocol !== "https:"
+  && !(cloudUrl.protocol === "http:" && loopbackHosts.has(cloudUrl.hostname))
+) {
+  console.error("runner-auth cloud smoke requires HTTPS outside local loopback");
+  process.exit(1);
+}
+
 if (mode === "runner-auth" && !process.env.RUNNER_DEVICE_TOKEN) {
   console.error("RUNNER_DEVICE_TOKEN is required for runner-auth cloud smoke");
   process.exit(1);
@@ -70,7 +88,7 @@ for (const check of checks) {
   };
 
   try {
-    const response = await fetch(new URL(check.path, baseUrl), {
+    const response = await fetch(new URL(check.path, cloudUrl), {
       method: check.method ?? "GET",
       headers,
       redirect: "manual",
