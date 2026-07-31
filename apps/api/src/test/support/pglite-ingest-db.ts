@@ -30,12 +30,17 @@ const migrationsFolder = fileURLToPath(
 
 export async function createPgliteIngestDatabase() {
   const client = new PGlite();
-  const db = drizzle({ client, schema: ingestSchema });
-  await migrate(db, { migrationsFolder });
+  try {
+    const db = drizzle({ client, schema: ingestSchema });
+    await migrate(db, { migrationsFolder });
 
-  return {
-    client,
-    db,
-    close: () => client.close(),
-  };
+    return {
+      client,
+      db,
+      close: () => client.close(),
+    };
+  } catch (error) {
+    await client.close();
+    throw error;
+  }
 }
