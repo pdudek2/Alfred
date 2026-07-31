@@ -6,6 +6,7 @@ import {
   runs,
   workspaces,
 } from "@alfred/db";
+import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -36,11 +37,31 @@ describe("production ingest store", () => {
     await fixture.close();
   });
 
+  async function readRun(sourceRunId = "run-1") {
+    const [run] = await fixture.db
+      .select({
+        id: runs.id,
+        status: runs.status,
+        startedAt: runs.startedAt,
+        completedAt: runs.completedAt,
+      })
+      .from(runs)
+      .where(
+        and(
+          eq(runs.workspaceId, workspaceId),
+          eq(runs.sourceId, "codex-cli"),
+          eq(runs.sourceRunId, sourceRunId),
+        ),
+      );
+    return run;
+  }
+
+  function store() {
+    return createDrizzleIngestStore(fixture.db);
+  }
+
   it("persists a new batch through the production Drizzle store", async () => {
-    const result = await ingestBatch(
-      createDrizzleIngestStore(fixture.db),
-      makeBatch(),
-    );
+    const result = await ingestBatch(store(), makeBatch());
 
     expect(result).toEqual({
       batch_id: "00000000-0000-4000-8000-000000000201",
@@ -52,6 +73,201 @@ describe("production ingest store", () => {
     await expect(fixture.db.select().from(projects)).resolves.toHaveLength(1);
     await expect(fixture.db.select().from(runs)).resolves.toHaveLength(1);
     await expect(fixture.db.select().from(events)).resolves.toHaveLength(1);
+  });
+
+  it("accepts the same batch twice without duplicating events", async () => {
+    const db = store();
+    const batch = makeBatch("00000000-0000-4000-8000-000000000201");
+    const first = await ingestBatch(db, batch);
+    const second = await ingestBatch(db, batch);
+
+    expect(first.accepted_events).toBe(1);
+    expect(second.accepted_events).toBe(0);
+    expect(second.duplicate_batch).toBe(true);
+  });
+
+  it("updates an existing run with completion status and timestamp", async () => {
+    const db = store();
+
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000201", {
+        source_event_id: "source-event-started",
+        event_id: "event-000000000001",
+        type: "run.started",
+        status: "running",
+        occurred_at: "2026-01-01T10:00:00.000Z",
+      }),
+    );
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000202", {
+        source_event_id: "source-event-completed",
+        event_id: "event-000000000002",
+        type: "run.completed",
+        status: "completed",
+        occurred_at: "2026-01-01T10:05:00.000Z",
+      }),
+    );
+
+    expect(await readRun()).toMatchObject({
+      status: "completed",
+      startedAt: new Date("2026-01-01T10:00:00.000Z"),
+      completedAt: new Date("2026-01-01T10:05:00.000Z"),
+    });
+  });
+
+  it("reopens an existing run when more activity arrives after a completed turn", async () => {
+    const db = store();
+
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000201", {
+        source_event_id: "source-event-started",
+        event_id: "event-000000000001",
+        type: "run.started",
+        status: "running",
+        occurred_at: "2026-01-01T10:00:00.000Z",
+      }),
+    );
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000202", {
+        source_event_id: "source-event-completed",
+        event_id: "event-000000000002",
+        type: "run.completed",
+        status: "completed",
+        occurred_at: "2026-01-01T10:05:00.000Z",
+      }),
+    );
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000203", {
+        source_event_id: "source-event-waiting",
+        event_id: "event-000000000003",
+        type: "agent.waiting",
+        status: "waiting",
+        occurred_at: "2026-01-01T10:06:00.000Z",
+      }),
+    );
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000204", {
+        source_event_id: "source-event-tool",
+        event_id: "event-000000000004",
+        type: "tool.started",
+        occurred_at: "2026-01-01T10:07:00.000Z",
+      }),
+    );
+
+    expect(await readRun()).toMatchObject({
+      status: "running",
+      startedAt: new Date("2026-01-01T10:00:00.000Z"),
+      completedAt: null,
+    });
+  });
+
+  it("does not reopen a terminal run from an older waiting event", async () => {
+    const db = store();
+
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000201", {
+        source_event_id: "source-event-completed",
+        event_id: "event-000000000001",
+        type: "run.completed",
+        status: "completed",
+        occurred_at: "2026-01-01T10:05:00.000Z",
+      }),
+    );
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000202", {
+        source_event_id: "source-event-waiting",
+        event_id: "event-000000000002",
+        type: "agent.waiting",
+        status: "waiting",
+        occurred_at: "2026-01-01T10:04:00.000Z",
+      }),
+    );
+
+    expect(await readRun()).toMatchObject({
+      status: "completed",
+      completedAt: new Date("2026-01-01T10:05:00.000Z"),
+    });
+  });
+
+  it("closes an existing run when a run update marks it cancelled", async () => {
+    const db = store();
+
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000201", {
+        source_event_id: "source-event-started",
+        event_id: "event-000000000001",
+        type: "run.started",
+        status: "running",
+        occurred_at: "2026-01-01T10:00:00.000Z",
+      }),
+    );
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000202", {
+        source_event_id: "source-event-cancelled",
+        event_id: "event-000000000002",
+        type: "run.updated",
+        status: "cancelled",
+        occurred_at: "2026-01-01T10:03:00.000Z",
+      }),
+    );
+
+    expect(await readRun()).toMatchObject({
+      status: "cancelled",
+      startedAt: new Date("2026-01-01T10:00:00.000Z"),
+      completedAt: new Date("2026-01-01T10:03:00.000Z"),
+    });
+  });
+
+  it("counts duplicate events across different batches", async () => {
+    const db = store();
+    const first = await ingestBatch(db, makeBatch("00000000-0000-4000-8000-000000000201"));
+    const second = await ingestBatch(db, makeBatch("00000000-0000-4000-8000-000000000202"));
+
+    expect(first).toMatchObject({
+      accepted_events: 1,
+      duplicate_events: 0,
+      duplicate_batch: false,
+    });
+    expect(second).toMatchObject({
+      accepted_events: 0,
+      duplicate_events: 1,
+      duplicate_batch: false,
+    });
+  });
+
+  it("keeps an existing run status when a technical event has no status", async () => {
+    const db = store();
+
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000201", {
+        source_event_id: "source-event-started",
+        event_id: "event-000000000001",
+        type: "run.started",
+        status: "running",
+      }),
+    );
+    await ingestBatch(
+      db,
+      makeBatch("00000000-0000-4000-8000-000000000202", {
+        source_event_id: "source-event-tool",
+        event_id: "event-000000000002",
+        type: "tool.completed",
+        status: undefined,
+      }),
+    );
+
+    expect((await readRun())?.status).toBe("running");
   });
 
   it("rejects ingest when the device belongs to another workspace", async () => {
