@@ -47,6 +47,7 @@ import { SessionStatusGlyph } from "./SessionStatusGlyph";
 const ARRANGE_GRID_ROW_HEIGHT = 84;
 const MIN_TERMINAL_FIT_HEIGHT = 48;
 const MIN_TERMINAL_FIT_WIDTH = 80;
+type DetectedAgentKind = Extract<AgentKind, "codex" | "claude">;
 
 export type WorktreeActionKind = "review" | "apply";
 
@@ -79,6 +80,7 @@ type TerminalDeskProps = {
   onApplyWorkMode: (mode: WorkMode) => void;
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
+  onRuntimeAgentKindDetected: (tileId: string, kind: DetectedAgentKind) => void;
   onRuntimeSessionExited: (event: TerminalExitEvent) => void;
   onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
   onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
@@ -126,6 +128,7 @@ export function TerminalDesk({
   onApplyWorkMode,
   onMoveTile,
   onRuntimeSessionFailed,
+  onRuntimeAgentKindDetected,
   onRuntimeSessionExited,
   onRuntimeSessionOutput,
   onRuntimeSessionReplayBuffer,
@@ -405,6 +408,7 @@ export function TerminalDesk({
                 workspaceHidden={workspaceHidden}
                 source={session.source}
                 agentKind={session.agentKind}
+                detectedAgentKind={session.detectedAgentKind}
                 isolation={session.isolation}
                 branchName={session.branchName}
                 baseCwd={session.baseCwd}
@@ -433,6 +437,7 @@ export function TerminalDesk({
                 onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
                 onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
                 onRuntimeSessionFailed={onRuntimeSessionFailed}
+                onRuntimeAgentKindDetected={onRuntimeAgentKindDetected}
                 onRuntimeSessionExited={onRuntimeSessionExited}
                 onRuntimeSessionOutput={onRuntimeSessionOutput}
                 onRuntimeSessionReplayBuffer={onRuntimeSessionReplayBuffer}
@@ -745,11 +750,36 @@ function usableTerminalDimensions(dimensions: { cols: number; rows: number } | u
   );
 }
 
+function consumeAgentCommandInput(buffer: string, data: string): {
+  buffer: string;
+  detectedKind?: DetectedAgentKind;
+} {
+  let nextBuffer = buffer;
+  let detectedKind: DetectedAgentKind | undefined;
+
+  for (const character of data) {
+    if (character === "\r" || character === "\n") {
+      const command = nextBuffer.trim().split(/\s+/, 1)[0];
+      if (command === "codex" || command === "claude") detectedKind = command;
+      nextBuffer = "";
+    } else if (character === "\x7f") {
+      nextBuffer = nextBuffer.slice(0, -1);
+    } else if (character === "\x15") {
+      nextBuffer = "";
+    } else if (character >= " ") {
+      nextBuffer += character;
+    }
+  }
+
+  return detectedKind === undefined ? { buffer: nextBuffer } : { buffer: nextBuffer, detectedKind };
+}
+
 function ManualTerminalTile({
   arrangeMode,
   cwd,
   createdAt,
   agentKind,
+  detectedAgentKind,
   isolation,
   branchName,
   baseCwd,
@@ -770,6 +800,7 @@ function ManualTerminalTile({
   onPointerMoveStart,
   onPointerResizeStart,
   onRuntimeSessionFailed,
+  onRuntimeAgentKindDetected,
   onRuntimeSessionExited,
   onRuntimeSessionOutput,
   onRuntimeSessionReplayBuffer,
@@ -801,6 +832,7 @@ function ManualTerminalTile({
   cwd: string;
   createdAt?: number | undefined;
   agentKind?: SessionTile["agentKind"];
+  detectedAgentKind?: SessionTile["detectedAgentKind"];
   isolation?: SessionTile["isolation"] | undefined;
   branchName?: string | undefined;
   baseCwd?: string | undefined;
@@ -821,6 +853,7 @@ function ManualTerminalTile({
   onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
+  onRuntimeAgentKindDetected: (tileId: string, kind: DetectedAgentKind) => void;
   onRuntimeSessionExited: (event: TerminalExitEvent) => void;
   onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
   onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
@@ -850,6 +883,7 @@ function ManualTerminalTile({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
+  const commandInputRef = useRef("");
   const lastResizeRef = useRef<{ id: TerminalSessionId; cols: number; rows: number } | null>(null);
   const sessionIdRef = useRef<TerminalSessionId | null>(null);
   const [status, setStatus] = useState<LocalTerminalStatus>("connecting");
@@ -869,7 +903,7 @@ function ManualTerminalTile({
   const [resolvedCwd, setResolvedCwd] = useState<string>(cwd);
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState(title);
-  const kind = sessionTileKind({ agentKind, source });
+  const kind = sessionTileKind({ agentKind, detectedAgentKind, source });
   const kindMeta = tileKindMeta(kind);
   const displayClock = useStatusClock(createdAt ?? lastOutputAt);
   const restoredTranscript = runtimeStatus === "restored" && !runtimeId;
@@ -1260,6 +1294,12 @@ function ManualTerminalTile({
     const inputDisposable = terminal.onData((data) => {
       const sessionId = sessionIdRef.current;
 
+      if (!agentKind) {
+        const detection = consumeAgentCommandInput(commandInputRef.current, data);
+        commandInputRef.current = detection.buffer;
+        if (detection.detectedKind) onRuntimeAgentKindDetected(sessionKey, detection.detectedKind);
+      }
+
       if (sessionId) {
         terminalApi.write({ id: sessionId, data });
       }
@@ -1398,7 +1438,7 @@ function ManualTerminalTile({
       removeDataListener();
       removeExitListener();
     };
-  }, [runtimeBindingKey, runtimeId, sessionKey, setTileStatus]);
+  }, [agentKind, onRuntimeAgentKindDetected, runtimeBindingKey, runtimeId, sessionKey, setTileStatus]);
 
   useEffect(() => {
     if (!surfaceActive || !selected || status !== "ready") return;

@@ -10,9 +10,10 @@ type TileKindMeta = {
 
 export function sessionTileKind(session: {
   agentKind?: SessionTile["agentKind"] | undefined;
+  detectedAgentKind?: SessionTile["detectedAgentKind"] | undefined;
   source: SessionTile["source"];
 }): TileKind {
-  return session.agentKind ?? (session.source === "manual" ? "manual" : "shell");
+  return session.detectedAgentKind ?? session.agentKind ?? (session.source === "manual" ? "manual" : "shell");
 }
 
 export function tileKindMeta(kind: TileKind): TileKindMeta {

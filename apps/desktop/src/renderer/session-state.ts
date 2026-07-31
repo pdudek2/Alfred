@@ -36,6 +36,7 @@ export type SessionTile = {
   resumeTarget?: TerminalResumeTarget;
   resumeMode?: "exact" | "latest";
   agentKind?: AgentKind;
+  detectedAgentKind?: Extract<AgentKind, "codex" | "claude">;
   safetyNote?: string;
   launchPreflight?: AlfredLaunchPreflight;
   initialBuffer?: string;
