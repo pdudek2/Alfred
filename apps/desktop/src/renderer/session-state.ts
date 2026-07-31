@@ -36,7 +36,7 @@ export type SessionTile = {
   resumeTarget?: TerminalResumeTarget;
   resumeMode?: "exact" | "latest";
   agentKind?: AgentKind;
-  detectedAgentKind?: Extract<AgentKind, "codex" | "claude">;
+  detectedAgentKind?: Extract<AgentKind, "codex" | "claude"> | undefined;
   safetyNote?: string;
   launchPreflight?: AlfredLaunchPreflight;
   initialBuffer?: string;
@@ -249,6 +249,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
     ...(snapshot.args === undefined ? {} : { args: snapshot.args }),
     ...(snapshot.resumeTarget === undefined ? {} : { resumeTarget: snapshot.resumeTarget }),
     ...(snapshot.agentKind === undefined ? {} : { agentKind: snapshot.agentKind }),
+    ...(snapshot.foregroundAgentKind === undefined ? {} : { detectedAgentKind: snapshot.foregroundAgentKind }),
     ...(snapshot.activityEvents === undefined ? {} : { activityEvents: snapshot.activityEvents }),
     ...(snapshot.lastActivityAt === undefined ? {} : { lastActivityAt: snapshot.lastActivityAt }),
     ...(snapshot.lastOutputAt === undefined ? {} : { lastOutputAt: snapshot.lastOutputAt }),
@@ -492,6 +493,7 @@ export function recordSessionOutputActivity(
 
     return {
       ...item,
+      detectedAgentKind: event.foregroundAgentKind,
       lastOutputAt: Math.max(item.lastOutputAt ?? outputAt, outputAt),
       ...(activityEvents.length === 0 ? {} : { activityEvents }),
       ...(lastActivityAt === undefined ? {} : { lastActivityAt }),

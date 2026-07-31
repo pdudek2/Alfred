@@ -29,14 +29,10 @@ import type { ExternalSessionSummary, SessionsApi } from "../shared/sessions-ipc
 import type { DesktopPrivacySettings, DesktopSaveStatus, DesktopStateApi } from "../shared/desktop-state-ipc";
 import { appendActivityEvent, type SessionActivityEvent } from "../shared/session-activity";
 
-const { terminalConstructorOptions, terminalDisposeCalls, terminalFocusSessionIds, terminalInputListeners } = vi.hoisted(() => ({
+const { terminalConstructorOptions, terminalDisposeCalls, terminalFocusSessionIds } = vi.hoisted(() => ({
   terminalConstructorOptions: [] as unknown[],
   terminalDisposeCalls: [] as unknown[],
   terminalFocusSessionIds: [] as string[],
-  terminalInputListeners: [] as Array<{
-    callback: (data: string) => void;
-    terminal: { element: HTMLElement | null };
-  }>,
 }));
 
 const rendererStyles = readFileSync(resolve(process.cwd(), "src/renderer/styles.css"), "utf8");
@@ -61,16 +57,7 @@ vi.mock("@xterm/xterm", () => ({
     loadAddon = vi.fn((addon: { activate?: (terminal: unknown) => void }) => {
       addon.activate?.(this);
     });
-    onData = vi.fn((callback: (data: string) => void) => {
-      const listener = { callback, terminal: this };
-      terminalInputListeners.push(listener);
-      return {
-        dispose: vi.fn(() => {
-          const index = terminalInputListeners.indexOf(listener);
-          if (index >= 0) terminalInputListeners.splice(index, 1);
-        }),
-      };
-    });
+    onData = vi.fn(() => ({ dispose: vi.fn() }));
     open = vi.fn((element: HTMLElement) => {
       this.element = element;
     });
@@ -541,7 +528,6 @@ beforeEach(() => {
   terminalConstructorOptions.length = 0;
   terminalDisposeCalls.length = 0;
   terminalFocusSessionIds.length = 0;
-  terminalInputListeners.length = 0;
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
@@ -572,7 +558,6 @@ function renderTerminalDeskForSessions(
     onApplyWorkMode: vi.fn(),
     onMoveTile: vi.fn(),
     onRuntimeSessionFailed: vi.fn(),
-    onRuntimeAgentKindDetected: vi.fn(),
     onRuntimeSessionExited: vi.fn(),
     onRuntimeSessionOutput: vi.fn(),
     onRuntimeSessionReplayBuffer: vi.fn(),
@@ -666,29 +651,33 @@ async function waitForTerminalStartsToSettle() {
   });
 }
 
-async function emitTerminalInput(sessionId: string, data: string): Promise<void> {
-  await waitFor(() => {
-    expect(terminalInputListeners.some(({ terminal }) => terminal.element?.dataset.sessionId === sessionId)).toBe(true);
-  });
-  await act(async () => {
-    terminalInputListeners
-      .find(({ terminal }) => terminal.element?.dataset.sessionId === sessionId)
-      ?.callback(data);
-  });
-}
-
 describe("App integration", () => {
   it("shows the Codex identity after launching codex inside a manual terminal", async () => {
-    installDesktopBridge();
+    const { emitData } = installDesktopBridge();
     render(<App />);
 
     const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
     expect(tile.querySelector(".tile-kind-mark.manual")).toBeInTheDocument();
+    await waitForTerminalStartsToSettle();
 
-    for (const character of "codex\r") await emitTerminalInput("manual-1", character);
+    await emitData({
+      id: "runtime-1",
+      clientId: "manual-1",
+      data: "Ready\n",
+      activities: [],
+      foregroundAgentKind: "codex",
+    } as TerminalDataEvent);
 
     expect(tile.querySelector(".tile-kind-mark.codex .kind-brand-icon")).toBeInTheDocument();
     expect(document.querySelector(".project-session-kind.kind-codex .kind-brand-icon")).toBeInTheDocument();
+
+    await emitData({
+      id: "runtime-1",
+      clientId: "manual-1",
+      data: "% ",
+      activities: [],
+    });
+    expect(tile.querySelector(".tile-kind-mark.manual")).toBeInTheDocument();
   });
 
   it("keeps Alfred shell hierarchy focused on workspace, decisions, and launch actions", async () => {

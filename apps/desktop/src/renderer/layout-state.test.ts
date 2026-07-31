@@ -80,6 +80,24 @@ describe("layout-state", () => {
     });
   });
 
+  it("adds a fifth tile at regular half width without reshaping a saved layout", () => {
+    const existing = applyLayoutPreset(
+      ["one", "two", "three", "four"].map((id) => ({ id })),
+      "grid",
+    );
+
+    expect(ensureTileLayouts(
+      ["one", "two", "three", "four", "five"].map((id) => ({ id })),
+      existing,
+    ).five).toEqual({
+      tileId: "five",
+      col: 1,
+      row: 7,
+      colSpan: 6,
+      rowSpan: 3,
+    });
+  });
+
   it("keeps existing layouts while the same tiles remain on the desk", () => {
     const existing: Record<string, TileLayout> = {
       one: { tileId: "one", col: 2, row: 3, colSpan: 5, rowSpan: 4 },
@@ -180,6 +198,24 @@ describe("layout-state", () => {
       row: 4,
       colSpan: 12,
       rowSpan: 3,
+    });
+  });
+
+  it("balances five Grid terminals as two half-width tiles above three third-width tiles", () => {
+    const sessions = ["one", "two", "three", "four", "five"].map((id) => ({ id }));
+    const layout = applyLayoutPreset(sessions, "grid");
+
+    expect(Object.fromEntries(sessions.map(({ id }) => [id, {
+      col: layout[id]?.col,
+      row: layout[id]?.row,
+      colSpan: layout[id]?.colSpan,
+      rowSpan: layout[id]?.rowSpan,
+    }]))).toEqual({
+      one: { col: 1, row: 1, colSpan: 6, rowSpan: 3 },
+      two: { col: 7, row: 1, colSpan: 6, rowSpan: 3 },
+      three: { col: 1, row: 4, colSpan: 4, rowSpan: 3 },
+      four: { col: 5, row: 4, colSpan: 4, rowSpan: 3 },
+      five: { col: 9, row: 4, colSpan: 4, rowSpan: 3 },
     });
   });
 

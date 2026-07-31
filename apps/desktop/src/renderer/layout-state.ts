@@ -144,7 +144,17 @@ function defaultLayout(tileId: string, index: number, tileCount: number): TileLa
   }
 
   const rowSpan = tileCount === 2 ? SPLIT_VIEW_ROW_SPAN : TILED_ROW_SPAN;
-  const fullWidthLastTile = tileCount > 2 && tileCount % 2 === 1 && index === tileCount - 1;
+  const tripleStart = tileCount >= 5 && tileCount % 2 === 1 ? tileCount - 3 : -1;
+  if (index >= tripleStart && tripleStart >= 0) {
+    return normalizeLayout({
+      tileId,
+      col: (index - tripleStart) * 4 + 1,
+      row: Math.floor(tripleStart / 2) * rowSpan + 1,
+      colSpan: 4,
+      rowSpan,
+    });
+  }
+  const fullWidthLastTile = tileCount === 3 && index === 2;
 
   return normalizeLayout({
     tileId,
@@ -165,7 +175,7 @@ function firstAvailableLayout(
     : tileCount === 2
       ? SPLIT_VIEW_ROW_SPAN
       : TILED_ROW_SPAN;
-  const colSpan = tileCount === 1 || (tileCount > 2 && tileCount % 2 === 1)
+  const colSpan = tileCount === 1 || tileCount === 3
     ? GRID_COLUMNS
     : DEFAULT_COL_SPAN;
   const columns = colSpan === GRID_COLUMNS ? [1] : [1, 7];
