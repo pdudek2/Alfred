@@ -4,6 +4,10 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@testing-library/dom@10.4.1>@babel/code-frame': 7.29.0
+  '@babel/code-frame@7.29.0>@babel/helper-validator-identifier': 7.28.5
+
 importers:
 
   .:
@@ -12,7 +16,7 @@ importers:
         specifier: 10.0.1
         version: 10.0.1(eslint@10.6.0)
       drizzle-kit:
-        specifier: latest
+        specifier: 0.31.10
         version: 0.31.10
       esbuild:
         specifier: ^0.28.0
@@ -27,19 +31,19 @@ importers:
         specifier: 17.7.0
         version: 17.7.0
       tsx:
-        specifier: latest
+        specifier: 4.21.0
         version: 4.21.0
       turbo:
-        specifier: latest
+        specifier: 2.9.9
         version: 2.9.9
       typescript:
-        specifier: latest
+        specifier: 6.0.3
         version: 6.0.3
       typescript-eslint:
         specifier: 8.63.0
         version: 8.63.0(eslint@10.6.0)(typescript@6.0.3)
       vitest:
-        specifier: latest
+        specifier: 4.1.5
         version: 4.1.5(@types/node@25.6.0)(jsdom@29.1.1)(vite@8.0.11(@types/node@25.6.0)(esbuild@0.28.0)(tsx@4.21.0))
 
   apps/api:
@@ -51,38 +55,41 @@ importers:
         specifier: workspace:*
         version: link:../../packages/schema
       '@hono/node-server':
-        specifier: latest
+        specifier: 2.0.1
         version: 2.0.1(hono@4.12.18)
       drizzle-orm:
-        specifier: latest
-        version: 0.45.2(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@12.9.0)(pg@8.20.0)
+        specifier: 0.45.2
+        version: 0.45.2(@electric-sql/pglite@0.5.4)(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@12.9.0)(pg@8.20.0)
       hono:
-        specifier: latest
+        specifier: 4.12.18
         version: 4.12.18
       pg:
-        specifier: latest
+        specifier: 8.20.0
         version: 8.20.0
       zod:
-        specifier: latest
+        specifier: 4.4.3
         version: 4.4.3
     devDependencies:
+      '@electric-sql/pglite':
+        specifier: 0.5.4
+        version: 0.5.4
       '@types/node':
-        specifier: latest
+        specifier: 25.6.0
         version: 25.6.0
       '@types/pg':
-        specifier: latest
+        specifier: 8.20.0
         version: 8.20.0
       drizzle-kit:
-        specifier: latest
+        specifier: 0.31.10
         version: 0.31.10
       tsx:
-        specifier: latest
+        specifier: 4.21.0
         version: 4.21.0
       typescript:
-        specifier: latest
+        specifier: 6.0.3
         version: 6.0.3
       vitest:
-        specifier: latest
+        specifier: 4.1.5
         version: 4.1.5(@types/node@25.6.0)(jsdom@29.1.1)(vite@8.0.11(@types/node@25.6.0)(esbuild@0.28.0)(tsx@4.21.0))
 
   apps/desktop:
@@ -91,7 +98,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/schema
       '@vitejs/plugin-react':
-        specifier: latest
+        specifier: 6.0.1
         version: 6.0.1(vite@8.0.11(@types/node@25.6.0)(esbuild@0.28.0)(tsx@4.21.0))
       '@xterm/addon-fit':
         specifier: ^0.11.0
@@ -109,53 +116,53 @@ importers:
         specifier: ^17.4.2
         version: 17.4.2
       lucide-react:
-        specifier: latest
+        specifier: 1.14.0
         version: 1.14.0(react@19.2.6)
       node-pty:
         specifier: ^1.1.0
         version: 1.1.0
       react:
-        specifier: latest
+        specifier: 19.2.6
         version: 19.2.6
       react-dom:
-        specifier: latest
+        specifier: 19.2.6
         version: 19.2.6(react@19.2.6)
       vite:
-        specifier: latest
+        specifier: 8.0.11
         version: 8.0.11(@types/node@25.6.0)(esbuild@0.28.0)(tsx@4.21.0)
     devDependencies:
       '@playwright/test':
         specifier: 1.61.1
         version: 1.61.1
       '@testing-library/jest-dom':
-        specifier: latest
+        specifier: 6.9.1
         version: 6.9.1
       '@testing-library/react':
-        specifier: latest
+        specifier: 16.3.2
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@testing-library/user-event':
-        specifier: latest
+        specifier: 14.6.1
         version: 14.6.1(@testing-library/dom@10.4.1)
       '@types/node':
-        specifier: latest
+        specifier: 25.6.0
         version: 25.6.0
       '@types/react':
-        specifier: latest
+        specifier: 19.2.14
         version: 19.2.14
       '@types/react-dom':
-        specifier: latest
+        specifier: 19.2.3
         version: 19.2.3(@types/react@19.2.14)
       electron:
-        specifier: latest
+        specifier: 42.0.0
         version: 42.0.0
       jsdom:
-        specifier: latest
+        specifier: 29.1.1
         version: 29.1.1
       typescript:
-        specifier: latest
+        specifier: 6.0.3
         version: 6.0.3
       vitest:
-        specifier: latest
+        specifier: 4.1.5
         version: 4.1.5(@types/node@25.6.0)(jsdom@29.1.1)(vite@8.0.11(@types/node@25.6.0)(esbuild@0.28.0)(tsx@4.21.0))
 
   apps/runner:
@@ -167,29 +174,29 @@ importers:
         specifier: workspace:*
         version: link:../../packages/schema
       better-sqlite3:
-        specifier: latest
+        specifier: 12.9.0
         version: 12.9.0
       fast-glob:
-        specifier: latest
+        specifier: 3.3.3
         version: 3.3.3
       zod:
-        specifier: latest
+        specifier: 4.4.3
         version: 4.4.3
     devDependencies:
       '@types/better-sqlite3':
-        specifier: latest
+        specifier: 7.6.13
         version: 7.6.13
       '@types/node':
-        specifier: latest
+        specifier: 25.6.0
         version: 25.6.0
       tsx:
-        specifier: latest
+        specifier: 4.21.0
         version: 4.21.0
       typescript:
-        specifier: latest
+        specifier: 6.0.3
         version: 6.0.3
       vitest:
-        specifier: latest
+        specifier: 4.1.5
         version: 4.1.5(@types/node@25.6.0)(jsdom@29.1.1)(vite@8.0.11(@types/node@25.6.0)(esbuild@0.28.0)(tsx@4.21.0))
 
   packages/adapters:
@@ -199,13 +206,13 @@ importers:
         version: link:../schema
     devDependencies:
       '@types/node':
-        specifier: latest
+        specifier: 25.6.0
         version: 25.6.0
       typescript:
-        specifier: latest
+        specifier: 6.0.3
         version: 6.0.3
       vitest:
-        specifier: latest
+        specifier: 4.1.5
         version: 4.1.5(@types/node@25.6.0)(jsdom@29.1.1)(vite@8.0.11(@types/node@25.6.0)(esbuild@0.28.0)(tsx@4.21.0))
 
   packages/db:
@@ -214,39 +221,39 @@ importers:
         specifier: workspace:*
         version: link:../schema
       drizzle-orm:
-        specifier: latest
-        version: 0.45.2(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@12.9.0)(pg@8.20.0)
+        specifier: 0.45.2
+        version: 0.45.2(@electric-sql/pglite@0.5.4)(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@12.9.0)(pg@8.20.0)
       pg:
-        specifier: latest
+        specifier: 8.20.0
         version: 8.20.0
     devDependencies:
       '@types/pg':
-        specifier: latest
+        specifier: 8.20.0
         version: 8.20.0
       drizzle-kit:
-        specifier: latest
+        specifier: 0.31.10
         version: 0.31.10
       typescript:
-        specifier: latest
+        specifier: 6.0.3
         version: 6.0.3
       vitest:
-        specifier: latest
+        specifier: 4.1.5
         version: 4.1.5(@types/node@25.6.0)(jsdom@29.1.1)(vite@8.0.11(@types/node@25.6.0)(esbuild@0.28.0)(tsx@4.21.0))
 
   packages/schema:
     dependencies:
       zod:
-        specifier: latest
+        specifier: 4.4.3
         version: 4.4.3
     devDependencies:
       '@types/node':
-        specifier: latest
+        specifier: 25.6.0
         version: 25.6.0
       typescript:
-        specifier: latest
+        specifier: 6.0.3
         version: 6.0.3
       vitest:
-        specifier: latest
+        specifier: 4.1.5
         version: 4.1.5(@types/node@25.6.0)(jsdom@29.1.1)(vite@8.0.11(@types/node@25.6.0)(esbuild@0.28.0)(tsx@4.21.0))
 
 packages:
@@ -391,6 +398,9 @@ packages:
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
 
+  '@electric-sql/pglite@0.5.4':
+    resolution: {integrity: sha512-yYZUyyXrHU7tPlCjwZQJ6hIG9DscdCCn7Uk0mYKwC1FeHX286AbcmFveMiRBEak8e9iPupjsoVImN3yJZVed2g==}
+
   '@electron/get@5.0.0':
     resolution: {integrity: sha512-pjoBpru1KdEtcExBnuHAP1cAc/5faoedw0hzJkL3o4/IJp7HNF1+fbrdxT3gMYRX2oJfvnA/WXeCTVQpYYxyJA==}
     engines: {node: '>=22.12.0'}
@@ -406,11 +416,11 @@ packages:
 
   '@esbuild-kit/core-utils@3.3.2':
     resolution: {integrity: sha512-sPRAnw9CdSsRmEtnsl2WXWdyquogVpB3yZ3dgwJfe8zrOzTsV7cJvmwrKVa+0ma5BoiGJ+BoqkMvawbayKUsqQ==}
-    deprecated: 'Merged into tsx: https://tsx.is'
+    deprecated: 'Merged into tsx: https://tsx.hirok.io'
 
   '@esbuild-kit/esm-loader@2.6.5':
     resolution: {integrity: sha512-FxEMIkJKnodyA1OaCUoEvbYRkoZlLZ4d/eXFu9Fh8CbBBgP5EmZxrfTRyN0qpXZ4vOvqnE5YdRdcrmUUXuU+dA==}
-    deprecated: 'Merged into tsx: https://tsx.is'
+    deprecated: 'Merged into tsx: https://tsx.hirok.io'
 
   '@esbuild/aix-ppc64@0.25.12':
     resolution: {integrity: sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA==}
@@ -2818,6 +2828,8 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
+  '@electric-sql/pglite@0.5.4': {}
+
   '@electron/get@5.0.0':
     dependencies:
       debug: 4.4.3
@@ -3703,8 +3715,9 @@ snapshots:
       esbuild: 0.25.12
       tsx: 4.21.0
 
-  drizzle-orm@0.45.2(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@12.9.0)(pg@8.20.0):
+  drizzle-orm@0.45.2(@electric-sql/pglite@0.5.4)(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(better-sqlite3@12.9.0)(pg@8.20.0):
     optionalDependencies:
+      '@electric-sql/pglite': 0.5.4
       '@types/better-sqlite3': 7.6.13
       '@types/pg': 8.20.0
       better-sqlite3: 12.9.0
