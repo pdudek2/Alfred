@@ -2148,7 +2148,7 @@ export function App() {
             )
             : null;
           const fallback = shell?.querySelector<HTMLElement>(
-            ".project-session[aria-current='true'], .project-row-button[aria-selected='true'], [data-testid='terminal-input']",
+            ".project-session[aria-current='page'], .project-row-button[aria-current='location'], [data-testid='terminal-input']",
           );
           (labeledFallback ?? fallback)?.focus();
         });

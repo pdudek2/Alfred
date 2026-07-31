@@ -697,7 +697,7 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("button", { name: "Workspace menu for Alfred" })).toBeInTheDocument();
-    expect(screen.getByRole("tablist", { name: "workspaces" })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Workspaces" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open command palette" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open launch menu" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: /terminals/i })).toBeInTheDocument();
@@ -802,7 +802,7 @@ describe("App integration", () => {
     const panel = await screen.findByTestId("project-navigator");
     expect(within(panel).getByText("Projects")).toBeInTheDocument();
     expect(within(panel).getByRole("button", { name: /Manual · zsh 1/i })).toBeInTheDocument();
-    expect(within(panel).getByRole("tablist", { name: /workspaces/i })).toBeInTheDocument();
+    expect(within(panel).getByRole("list", { name: /workspaces/i })).toBeInTheDocument();
     expect(within(panel).queryByText("Inbox")).not.toBeInTheDocument();
   });
 
@@ -830,7 +830,7 @@ describe("App integration", () => {
     render(<App />);
 
     const panel = await screen.findByTestId("project-navigator");
-    expect(within(panel).getByRole("tab", { name: "Alfred workspace" })).not.toHaveAttribute("data-attention");
+    expect(within(panel).getByRole("button", { name: "Alfred workspace" })).not.toHaveAttribute("data-attention");
     expect(screen.getByRole("button", { name: "Open Inbox surface" })).not.toHaveTextContent("1");
   });
 
@@ -848,7 +848,7 @@ describe("App integration", () => {
     render(<App />);
 
     const panel = await screen.findByTestId("project-navigator");
-    expect(within(panel).getByRole("tab", { name: /Alfred workspace/i })).not.toHaveAttribute("data-attention");
+    expect(within(panel).getByRole("button", { name: /Alfred workspace/i })).not.toHaveAttribute("data-attention");
     expect(panel.querySelector(".project-attention-signal")).toBeNull();
   });
 
@@ -907,7 +907,10 @@ describe("App integration", () => {
     await user.click(within(panel).getByRole("button", { name: /Scratch API worker/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("tab", { name: /ClientApp workspace/i })).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByRole("button", { name: /ClientApp workspace/i })).toHaveAttribute(
+        "aria-current",
+        "location",
+      );
     });
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Scratch API worker");
@@ -936,9 +939,9 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(screen.queryByRole("tab", { name: /Workspace 14 workspace/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Workspace 14 workspace/i })).not.toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: "Show 9 more projects" }));
-    expect(screen.getByRole("tab", { name: /Workspace 14 workspace/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Workspace 14 workspace/i })).toBeInTheDocument();
   });
 
   it("keeps five deterministic project destinations while preserving long accessible names", async () => {
@@ -1000,12 +1003,13 @@ describe("App integration", () => {
     expect(screen.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
   });
 
-  it("unmounts Sessions on Escape and restores the previously focused Work target", async () => {
+  it("unmounts Sessions on Escape and falls back to the active workspace when the focused target disappears", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
 
-    const workTarget = await screen.findByRole("button", { name: "Manual · zsh 1" });
+    const workTarget = await screen.findByRole("button", { name: "Alfred workspace" });
+    workTarget.removeAttribute("aria-label");
     workTarget.focus();
     expect(workTarget).toHaveFocus();
 
@@ -1014,7 +1018,7 @@ describe("App integration", () => {
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("region", { name: "Sessions workspace" })).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("button", { name: "Manual · zsh 1" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Alfred workspace" })).toHaveFocus());
   });
 
   it("round-trips Sessions state without retaining its transcript DOM or remounting xterm", async () => {
@@ -1307,7 +1311,7 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledTimes(1);
     });
-    await screen.findByRole("tab", { name: "Alfred workspace" });
+    await screen.findByRole("button", { name: "Alfred workspace" });
 
     const launchTrigger = screen.getByRole("button", { name: "Open launch menu" });
     const dispatch = await openPrepareWork(user);
@@ -1495,8 +1499,8 @@ describe("App integration", () => {
 
     await screen.findByTestId("project-navigator");
     await selectSurface(user, "Context");
-    const alfredWorkspace = screen.getByRole("tab", { name: "Alfred workspace" });
-    const clientWorkspace = screen.getByRole("tab", { name: "ClientApp workspace" });
+    const alfredWorkspace = screen.getByRole("button", { name: "Alfred workspace" });
+    const clientWorkspace = screen.getByRole("button", { name: "ClientApp workspace" });
 
     await user.click(clientWorkspace);
 
@@ -2085,7 +2089,7 @@ describe("App integration", () => {
 
     const tile = await screen.findByTestId("terminal-tile");
     const collapseButton = within(tile).getByRole("button", { name: "Collapse Manual · zsh 1" });
-    await screen.findByRole("tab", { name: "Alfred workspace" });
+    await screen.findByRole("button", { name: "Alfred workspace" });
 
     await act(async () => {
       tile.focus();
@@ -2295,7 +2299,7 @@ describe("App integration", () => {
     const alphaHost = within(alphaTile).getByTestId("xterm-host");
     const disposeCount = terminalDisposeCalls.length;
 
-    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
+    await user.click(screen.getByRole("button", { name: /ClientApp workspace/i }));
     expect(alphaTile).toHaveAttribute("data-testid", "background-terminal-tile");
     expect(alphaTile).toHaveAttribute("aria-hidden", "true");
     expect(alphaHost.isConnected).toBe(true);
@@ -2303,7 +2307,7 @@ describe("App integration", () => {
     await bridge.emitData({ id: "runtime-alpha", data: "alpha while hidden\n", activities: [] });
     await waitFor(() => expect(alphaHost).toHaveTextContent("alpha while hidden"));
 
-    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
+    await user.click(screen.getByRole("button", { name: /Alfred workspace/i }));
     expect(screen.getByTestId("terminal-tile")).toBe(alphaTile);
     expect(screen.getByTestId("xterm-host")).toBe(alphaHost);
     expect(terminalDisposeCalls).toHaveLength(disposeCount);
@@ -3085,7 +3089,10 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Open Project" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("tab", { name: "IronLog workspace" })).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByRole("button", { name: "IronLog workspace" })).toHaveAttribute(
+        "aria-current",
+        "location",
+      );
       expect(terminalFocusSessionIds.at(-1)).toBe("real-b");
     });
     const realTile = screen.getByRole("article", { name: /Real IronLog tile/i });
@@ -3154,7 +3161,10 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Open Project" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("tab", { name: "Empty workspace" })).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByRole("button", { name: "Empty workspace" })).toHaveAttribute(
+        "aria-current",
+        "location",
+      );
     });
     expect(screen.queryByRole("region", { name: "Sessions workspace" })).not.toBeInTheDocument();
     expect(setWorkspaceViewState).not.toHaveBeenCalledWith(expect.objectContaining({
@@ -3231,7 +3241,7 @@ describe("App integration", () => {
         ]),
       }),
     );
-    expect(screen.queryByRole("tab", { name: /UnknownProject workspace/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /UnknownProject workspace/i })).not.toBeInTheDocument();
   });
 
   it("keeps stale external Codex rows when Sessions refresh fails", async () => {
@@ -3706,12 +3716,12 @@ describe("App integration", () => {
     expect(await screen.findByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByLabelText("Workspace preview")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "IronLog workspace" }));
+    await user.click(screen.getByRole("button", { name: "IronLog workspace" }));
 
     expect(await screen.findByLabelText("Workspace preview")).toBeInTheDocument();
     expect(screen.getByRole("separator", { name: "Resize Preview" })).toHaveAttribute("aria-valuenow", "580");
 
-    await user.click(screen.getByRole("tab", { name: "Alfred workspace" }));
+    await user.click(screen.getByRole("button", { name: "Alfred workspace" }));
     expect(screen.queryByLabelText("Workspace preview")).not.toBeInTheDocument();
   });
 
@@ -3851,7 +3861,7 @@ describe("App integration", () => {
     const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
     await waitFor(() => {
       expect(within(tile).getByText("unavailable")).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: "Alfred workspace" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Alfred workspace" })).toBeInTheDocument();
       const navigatorSession = screen.getByRole("button", { name: "Manual · zsh 1" });
       expect(navigatorSession).toHaveAttribute("title", "Manual · zsh 1 · unavailable");
     });
@@ -3869,7 +3879,10 @@ describe("App integration", () => {
     const emptyState = await screen.findByRole("status", { name: "Empty workspace" });
     await user.click(within(emptyState).getByRole("button", { name: "Choose folder" }));
 
-    expect(await screen.findByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("button", { name: "Workspace 2 workspace" })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
     expect(screen.getAllByRole("article", { name: /Manual · zsh/i })).toHaveLength(1);
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
   });
@@ -3880,15 +3893,21 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("tab", { name: "Alfred workspace" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Alfred workspace" })).toBeInTheDocument();
     expect(within(screen.getByTestId("workbench-header")).queryByText("Alfred")).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Add workspace" }));
 
     expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
-    expect(screen.getByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: "Workspace 2 workspace" })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
+    expect(screen.getByRole("button", { name: "Workspace 2 workspace" })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
     expect(screen.getByRole("status", { name: "Empty workspace" })).toHaveTextContent("Start with Codex");
     expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
 
@@ -3900,7 +3919,7 @@ describe("App integration", () => {
       );
     });
 
-    await user.click(screen.getByRole("tab", { name: "Alfred workspace" }));
+    await user.click(screen.getByRole("button", { name: "Alfred workspace" }));
 
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
@@ -4167,14 +4186,20 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Add workspace" }));
 
     expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
-    expect(await screen.findByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("button", { name: "Workspace 2 workspace" })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
     expect(await screen.findByRole("status", { name: "Empty workspace" })).toHaveTextContent("Workspace 2");
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "close current");
 
-    expect(screen.queryByRole("tab", { name: "Workspace 2 workspace" })).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Alfred workspace" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("button", { name: "Workspace 2 workspace" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Alfred workspace" })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
     await waitFor(() => {
       expect(setWorkspaceState).toHaveBeenLastCalledWith({
         workspaces: [
@@ -4196,9 +4221,9 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute(
-      "aria-selected",
-      "true",
+    expect(await screen.findByRole("button", { name: "Workspace 2 workspace" })).toHaveAttribute(
+      "aria-current",
+      "location",
     );
     expect(within(screen.getByTestId("workbench-header")).queryByText("Workspace 2")).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
@@ -4295,7 +4320,7 @@ describe("App integration", () => {
     expect(await screen.findByRole("status", { name: "Empty workspace" })).toHaveTextContent("Workspace 2");
     expect(createTerminal).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole("tab", { name: "Alfred workspace" }));
+    await user.click(screen.getByRole("button", { name: "Alfred workspace" }));
 
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     expect(createTerminal).toHaveBeenCalledTimes(1);
@@ -5065,7 +5090,10 @@ describe("App integration", () => {
     await submitCommandPalette(user, "scratch");
 
     expect(createWorkspaceFromFolder).not.toHaveBeenCalled();
-    expect(await screen.findByRole("tab", { name: "Workspace 2 workspace" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("button", { name: "Workspace 2 workspace" })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
     expect(setWorkspaceState).toHaveBeenLastCalledWith({
       workspaces: [
         { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
@@ -5078,9 +5106,9 @@ describe("App integration", () => {
     await submitCommandPalette(user, "alfred");
 
     await waitFor(() => {
-      expect(screen.getByRole("tab", { name: "Alfred workspace" })).toHaveAttribute(
-        "aria-selected",
-        "true",
+      expect(screen.getByRole("button", { name: "Alfred workspace" })).toHaveAttribute(
+        "aria-current",
+        "location",
       );
     });
 
@@ -5141,7 +5169,10 @@ describe("App integration", () => {
     );
 
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Alfred workspace/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: /Alfred workspace/i })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     const palette = screen.getByRole("dialog", { name: "Command palette" });
@@ -5155,7 +5186,10 @@ describe("App integration", () => {
     await pressCommandPaletteEnter(within(palette).getByRole("textbox", { name: "Search commands" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("tab", { name: /ClientApp workspace/i })).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByRole("button", { name: /ClientApp workspace/i })).toHaveAttribute(
+        "aria-current",
+        "location",
+      );
     });
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("API worker");
@@ -5221,7 +5255,7 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
     });
-    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
+    await user.click(screen.getByRole("button", { name: /ClientApp workspace/i }));
 
     expect(await screen.findByRole("article", { name: /API worker/i })).toBeInTheDocument();
   });
@@ -5684,11 +5718,14 @@ describe("App integration", () => {
     await user.keyboard("{Enter}");
 
     expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /ClientApp workspace/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: /ClientApp workspace/i })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
 
-    await user.click(screen.getByRole("tab", { name: /Alfred workspace/i }));
+    await user.click(screen.getByRole("button", { name: /Alfred workspace/i }));
     await openInboxFromCommandPalette(user);
 
     expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeInTheDocument();
@@ -7180,7 +7217,10 @@ describe("App integration", () => {
     );
     await user.click(screen.getByRole("button", { name: "Open ClientApp" }));
 
-    expect(screen.getByRole("tab", { name: /ClientApp workspace/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: /ClientApp workspace/ })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
     expect(await screen.findByRole("article", { name: /Staged Client task/i })).toBeInTheDocument();
   });
 
