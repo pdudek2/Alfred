@@ -1020,6 +1020,7 @@ git status --short --branch
 git log --oneline --decorate main..HEAD
 ```
 
-Expected: clean `s6-ingest-api-correctness` worktree with two planning commits,
-four implementation commits, and one closeout commit. Do not push or integrate
-without Patryk's explicit authorization.
+Expected: clean `s6-ingest-api-correctness` worktree containing only the
+approved S6 planning, dependency-freeze, implementation, review-fix, and
+closeout commits. Do not push or integrate without Patryk's explicit
+authorization.
