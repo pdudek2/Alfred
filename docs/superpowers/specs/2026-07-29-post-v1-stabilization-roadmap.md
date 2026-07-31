@@ -35,7 +35,7 @@ without reopening the accepted product or visual direction.
 
 ## Scope lineage
 
-`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 complete → S4 complete → S5 complete → S6 next`
+`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 complete → S4 complete → S5 complete → S6 complete → S7 next`
 
 Phase Z remains closed. This roadmap does not reinterpret or reopen its visual
 or product decisions.
@@ -67,10 +67,10 @@ or product decisions.
 | S3 — API boundary simplification | Delete browser-session auth and browser-only query surfaces; keep device-auth ingest | 9, 10, 22 | Complete |
 | S4 — Privacy and worktree lifecycle | Resolve worktree close behavior and prevent sensitive launch data from persisting | 13, 15, 16 | Complete |
 | S5 — Desktop interaction correctness | Recover failed planning, unblock review/edit, remove impure state updaters, correct activity classification | 5, 11, 17, 23 | Complete |
-| S6 — Ingest/API correctness | Correct parent lifecycle, validate hosted DB config, and test the real ingest store | 12, 20, 21 | Pending |
+| S6 — Ingest/API correctness | Correct parent lifecycle, validate hosted DB config, and test the real ingest store | 12, 20, 21 | Complete |
 | S7 — Residue and blocked-boundary review | Complete scripts/tooling and CSS/accessibility audits; triage investigate-only signals | audit gaps | Pending |
 
-Only an actively converged phase receives an implementation plan. S6 remains
+Only an actively converged phase receives an implementation plan. S7 remains
 unplanned until a new convergence workflow begins.
 
 **Closed phase contract:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification.md`
@@ -92,8 +92,8 @@ completed.
 
 **Closed phase:** S5 — Desktop interaction correctness.
 
-**Next phase:** S6 — Ingest/API correctness; findings 12, 20, and 21,
-unplanned until a new convergence workflow begins.
+**Next phase:** S7 — Residue and blocked-boundary review; unplanned until a
+new convergence workflow begins.
 
 The roadmap product-boundary decision above remains unchanged: delete browser-session
 auth and browser-only query surfaces while retaining device-auth ingest.
@@ -113,7 +113,7 @@ auth and browser-only query surfaces while retaining device-auth ingest.
 | 9 | Superseded by product-boundary decision | S3 deletes the session surface |
 | 10 | Superseded by product-boundary decision | S3 deletes the OIDC surface |
 | 11 | Fixed in `478ae96` | Closed |
-| 12 | Confirmed | S6 |
+| 12 | Fixed in `29cc0d7`, `e2dbd46`, `6c274b6`, `d9e462d` | Closed |
 | 13 | Fixed in `b192291`, `aad5063`, `fa7cf19`, `d5556eb`, `2a29706`, `54067ff`, `4885ff1` | Closed |
 | 14 | Fixed in `90a04e5` | Closed |
 | 15 | Fixed in `591c865`, `66329fb`, `006385e`, `1b13861`, `f73ae07`, `279d9af`, `fa7cf19`, `d5556eb`, `54067ff`, `4885ff1` | Closed |
@@ -121,8 +121,8 @@ auth and browser-only query surfaces while retaining device-auth ingest.
 | 17 | Fixed in `3da82ed`, `5b98464`, `d8283d2` | Closed |
 | 18 | Fixed in `2a020a0` | Closed |
 | 19 | Fixed in `5ae7c1d` | Closed |
-| 20 | Confirmed | S6 |
-| 21 | Confirmed | S6 |
+| 20 | Fixed in `e2dbd46` | Closed |
+| 21 | Fixed in `06eda7d`, `bcd3032` | Closed |
 | 22 | Superseded by product-boundary decision | S3 deletes dev cookie auth |
 | 23 | Fixed in `628b7c8` | Closed |
 | 24 | Fixed in `4b4bd33`, `720e783`, `7eb31fb`, `4b17a14` | Closed |
@@ -319,6 +319,35 @@ Visual evidence: Observed — surface: Computer Use; proof: the completed final
 `edited · rechecked`, external cwd `/tmp/alfred-s5-outside-workspace`,
 `Safety review required`, and the disabled `Blocked` launch action;
 `nodeRepl.emitImage` then emitted the screenshot at the path above.
+
+## S6 closeout
+
+**State:** Complete
+
+**Implementation commits:** `bdf16b8`, `813a7db`, `6c274b6`, `d9e462d`,
+`29cc0d7`, `e2dbd46`, `06eda7d`, `bcd3032`
+
+**Next phase:** S7 — Residue and blocked-boundary review; unplanned until a
+new convergence workflow begins.
+
+Fresh verification passed the focused API S6 suite (4 files, 56/56 tests),
+API typecheck, API build, and full `pnpm verify` (lint, repository typecheck,
+root and package tests, builds, and Electron smoke 16/16).
+
+Direct hosted-startup observation used `NODE_ENV=production`, a fixture runner
+token, and no `DATABASE_URL`. The API exited 1 before listening and emitted
+only the redacted targeted error `DATABASE_URL is required in hosted runtime`;
+the fixture token was absent and the temporary log was removed.
+
+Focused `main...HEAD` review reported 0 Critical, 0 Important, and 0 Minor
+findings. It verified the PGlite production-store seam and canonical migration
+cleanup, copied-fake removal, lifecycle-neutral parent synthesis with unchanged
+real-child persistence, local-versus-hosted database behavior, credential-safe
+URL errors, and no `/health` readiness change. Dependency review confirmed all
+52 former `latest` declarations are pinned, 491 existing lockfile package keys
+are preserved, and API-dev-only PGlite is the only new package. No production
+migration, schema, desktop UI, browser auth, device-auth contract, query route,
+global style, or readiness behavior changed.
 
 ## Explicitly deferred
 

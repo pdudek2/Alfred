@@ -1,7 +1,7 @@
 # Phase S6 — Ingest/API Correctness
 
-**Status:** Approved — implementation in progress
-**Parent:** `docs/superpowers/specs/2026-07-29-post-v1-stabilization-roadmap.md`  
+**Status:** Complete
+**Parent:** `docs/superpowers/specs/2026-07-29-post-v1-stabilization-roadmap.md`
 **Findings:** 12, 20, 21
 
 ## Objective
@@ -264,3 +264,36 @@ S6 is complete when:
    observation, and focused review all pass;
 8. the parent roadmap records the implementation evidence and routes next to
    S7 without reopening S1–S5.
+
+## Closeout
+
+**Implementation commits:** `bdf16b8`, `813a7db`, `6c274b6`, `d9e462d`,
+`29cc0d7`, `e2dbd46`, `06eda7d`, `bcd3032`
+
+Fresh verification on the S6 branch:
+
+- `pnpm --filter @alfred/api exec vitest run src/test/ingest-store.test.ts src/test/ingest.test.ts src/test/env.test.ts src/test/app.test.ts` — 4 files, 56/56 tests passed.
+- `pnpm --filter @alfred/api typecheck` and `pnpm --filter @alfred/api build` — both passed.
+- `pnpm verify` — passed: lint, repository typecheck, root and package tests, builds, and Electron smoke (16/16).
+
+Hosted startup was observed directly after a fresh API build with
+`NODE_ENV=production`, `RUNNER_DEVICE_TOKEN=fixture-runner-token`, and
+`DATABASE_URL` unset. It exited `1` before `Alfred API listening`; the
+redacted output was `Error: DATABASE_URL is required in hosted runtime`. The
+fixture token was absent from the log and the temporary log was removed.
+
+Focused review of `main...HEAD` found 0 Critical, 0 Important, and 0 Minor
+findings. It confirmed that PGlite invokes the exported
+`createDrizzleIngestStore`, applies only canonical `drizzle/` migrations, and
+closes every fixture; the route fake contains no copied lifecycle logic; parent
+synthesis is terminal- and timestamp-neutral while the real child persists
+unchanged; local fallback remains non-hosted only; hosted fallback is
+unreachable; URL errors do not expose credentials; and `/health` has no
+database-readiness behavior.
+
+Dependency scope is frozen: all 52 pre-existing `latest` declarations from
+`main` are pinned, all 491 pre-existing lockfile package keys are preserved,
+and API-dev-only `@electric-sql/pglite@0.5.4` is the only new package. The
+Drizzle snapshot peer variant changed only to record that optional PGlite edge.
+No production migration, schema, desktop UI, browser-auth, device-auth
+contract, query-route, global-style, or readiness behavior changed.
