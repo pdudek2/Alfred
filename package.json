@@ -25,9 +25,7 @@
     "test:scripts": "node --test scripts/test/*.test.mjs",
     "typecheck": "turbo run typecheck",
     "verify:quality": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
-    "verify": "pnpm verify:quality && pnpm smoke:electron",
-    "agent:launch": "node scripts/launch-parallel-agents.mjs",
-    "agent:monitor": "node scripts/monitor-parallel-agents.mjs"
+    "verify": "pnpm verify:quality && pnpm smoke:electron"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
