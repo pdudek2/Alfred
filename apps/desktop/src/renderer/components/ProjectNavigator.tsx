@@ -48,7 +48,7 @@ export function ProjectNavigator({
   const [showAllProjects, setShowAllProjects] = useState(
     () => workspaces.findIndex((workspace) => workspace.id === activeWorkspaceId) >= 5,
   );
-  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const projectRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const activeProjectIndex = workspaces.findIndex((workspace) => workspace.id === activeWorkspaceId);
   const visibleProjects = showAllProjects ? workspaces : workspaces.slice(0, 5);
   const hiddenProjects = showAllProjects ? [] : workspaces.slice(5);
@@ -87,36 +87,38 @@ export function ProjectNavigator({
       </header>
 
       <div className="project-navigator-scroll">
-        <div className="project-list" role="tablist" aria-label="workspaces" aria-orientation="vertical">
+        <div className="project-list" role="list" aria-label="Workspaces">
           {visibleProjects.map((workspace, visibleIndex) => {
             const active = workspace.id === activeWorkspaceId;
             const stableIndex = workspaces.findIndex((candidate) => candidate.id === workspace.id);
             const attentionCount = attentionCountsByWorkspace.get(workspace.id) ?? 0;
             const hasAttention = attentionCount > 0;
             return (
-              <section className={`project-item${active ? " is-active" : ""}`} key={workspace.id}>
+              <section
+                className={`project-item${active ? " is-active" : ""}`}
+                key={workspace.id}
+                role="listitem"
+              >
                 <div className="project-row">
                   <button
                     type="button"
                     className="project-row-button"
+                    aria-current={active ? "location" : undefined}
                     aria-label={`${workspace.label} workspace${
                       hasAttention
                         ? `, ${attentionCount} decision${attentionCount === 1 ? " needs" : "s need"} review`
                         : ""
                     }`}
-                    aria-selected={active}
                     data-attention={hasAttention ? "true" : undefined}
                     data-label={workspace.label}
                     data-project-destination={workspace.id}
                     onClick={() => onSelectWorkspace(workspace.id)}
                     onKeyDown={(event) =>
-                      handleProjectKeyDown(event, visibleProjects, visibleIndex, onSelectWorkspace, tabRefs)
+                      handleProjectKeyDown(event, visibleProjects, visibleIndex, onSelectWorkspace, projectRefs)
                     }
                     ref={(element) => {
-                      tabRefs.current[workspace.id] = element;
+                      projectRefs.current[workspace.id] = element;
                     }}
-                    role="tab"
-                    tabIndex={active ? 0 : -1}
                     title={workspace.label}
                   >
                     <Folder className="project-folder-icon" aria-hidden="true" size={15} />
@@ -234,7 +236,7 @@ function NavigatorSessionButton({
     <button
       type="button"
       className={`project-session${active ? " is-active" : ""}`}
-      aria-current={active ? "true" : undefined}
+      aria-current={active ? "page" : undefined}
       aria-label={session.title}
       data-label={session.title}
       onClick={onClick}
