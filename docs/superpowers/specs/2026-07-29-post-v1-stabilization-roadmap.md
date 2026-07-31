@@ -35,7 +35,7 @@ without reopening the accepted product or visual direction.
 
 ## Scope lineage
 
-`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 complete → S4 complete → S5 complete → S6 complete → S7 next`
+`Phase Z release closeout → post-v1 stabilization roadmap → S1 complete → S2 complete → S3 complete → S4 complete → S5 complete → S6 complete → S7A audited → S7.1 complete → S7.2 next`
 
 Phase Z remains closed. This roadmap does not reinterpret or reopen its visual
 or product decisions.
@@ -68,10 +68,11 @@ or product decisions.
 | S4 — Privacy and worktree lifecycle | Resolve worktree close behavior and prevent sensitive launch data from persisting | 13, 15, 16 | Complete |
 | S5 — Desktop interaction correctness | Recover failed planning, unblock review/edit, remove impure state updaters, correct activity classification | 5, 11, 17, 23 | Complete |
 | S6 — Ingest/API correctness | Correct parent lifecycle, validate hosted DB config, and test the real ingest store | 12, 20, 21 | Complete |
-| S7 — Residue and blocked-boundary review | Complete scripts/tooling and CSS/accessibility audits; triage investigate-only signals | audit gaps | Pending |
+| S7 — Residue and blocked-boundary review | Complete scripts/tooling and CSS/accessibility audits; triage investigate-only signals | audit gaps | Active — S7.1 complete, S7.2 next |
 
-Only an actively converged phase receives an implementation plan. S7 remains
-unplanned until a new convergence workflow begins.
+Only an actively converged phase receives an implementation plan. S7A and
+S7.1 are complete; S7.2 remains unplanned until its convergence workflow
+begins.
 
 **Closed phase contract:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification.md`
 
@@ -92,8 +93,13 @@ completed.
 
 **Closed phase:** S5 — Desktop interaction correctness.
 
-**Next phase:** S7 — Residue and blocked-boundary review; unplanned until a
-new convergence workflow begins.
+**Closed phase contract:** `docs/superpowers/specs/2026-07-31-phase-s7-1-safety-correctness-design.md`
+
+**Closed implementation plan:** `docs/superpowers/plans/2026-07-31-phase-s7-1-safety-correctness.md`
+
+**Closed phase:** S7.1 — Safety and Correctness.
+
+**Next gate:** converge S7.2 — Tooling and Accessibility Cleanup.
 
 The roadmap product-boundary decision above remains unchanged: delete browser-session
 auth and browser-only query surfaces while retaining device-auth ingest.
@@ -327,8 +333,8 @@ Visual evidence: Observed — surface: Computer Use; proof: the completed final
 **Implementation commits:** `3be3468`, `bdf16b8`, `813a7db`, `6c274b6`,
 `d9e462d`, `29cc0d7`, `e2dbd46`, `06eda7d`, `bcd3032`
 
-**Next phase:** S7 — Residue and blocked-boundary review; unplanned until a
-new convergence workflow begins.
+**Next phase:** S7.2 — Tooling and Accessibility Cleanup; S7A audit and S7.1
+safety/correctness work are complete.
 
 Fresh verification passed the focused API S6 suite (4 files, 56/56 tests),
 API typecheck, API build, and full `pnpm verify` (lint, repository typecheck,
@@ -349,6 +355,29 @@ are preserved, and API-dev-only PGlite is the only new package. No production
 migration, schema, desktop UI, browser auth, device-auth contract, query route,
 global style, or readiness behavior changed.
 
+## S7.1 closeout
+
+**State:** Complete
+
+**Implementation commits:** `01652e8`, `0b4663e`, `48bd471`
+
+**Next phase:** S7.2 — Tooling and Accessibility Cleanup; unplanned until a
+new convergence workflow begins.
+
+S7.1 reconciles restored terminal snapshots before persistence retry, rejects
+credentialed non-local HTTP smoke targets before any request, and converts
+rejected Discard transport calls into the existing recoverable retained-tile
+warning.
+
+Focused verification passed the desktop main-process suite (116/116), scripts
+suite (35/35), and renderer Discard regressions (2/2). The final full
+`pnpm verify` passed, including desktop tests (1011/1011) and Electron smoke
+(17/17). Focused review reported 0 Critical, 0 Important, and 0 Minor
+findings.
+
+No schema, migration, dependency, lockfile, visual-language, browser-auth, or
+device-auth contract changed.
+
 ## Explicitly deferred
 
 - A browser client or remote browser access.
@@ -360,10 +389,5 @@ global style, or readiness behavior changed.
 - Broad refactors of `styles.css`, API services, persistence, or the runner
   while fixing a local root cause.
 - New abstractions, feature flags, or compatibility shims for retired routes.
-- Normalizing a transport-level preload invocation rejection into the retained
-  tile warning is routed to S7 final branch triage; S5 remains complete.
-- Reconciling the desktop store's internal failed-save retry intent after a
-  post-cleanup flush rollback is routed to S7 residue and blocked-boundary
-  review; cleanup has already succeeded and the prior disk record remains.
 - Using an explicit Windows directory junction in filesystem-alias regression
-  coverage is routed to S7 tooling residue.
+  coverage is routed to S7.2 tooling residue.
