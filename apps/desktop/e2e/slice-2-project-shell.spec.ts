@@ -71,13 +71,14 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   const navigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
   await expect(navigator).toBeVisible();
 
-  const projectTabs = navigator.getByRole("tab");
-  await expect(projectTabs).toHaveCount(5);
+  const projectButtons = navigator.getByRole("list", { name: "Workspaces" })
+    .getByRole("button", { name: / workspace(?:,|$)/i });
+  await expect(projectButtons).toHaveCount(5);
   const projectOverflow = navigator.getByRole("button", { name: "Show 2 more projects" });
   await expect(projectOverflow).toBeVisible();
   await projectOverflow.click();
-  await expect(projectTabs).toHaveCount(7);
-  await expect(navigator.getByRole("tab", { name: `${longProjectLabel} workspace` })).toBeVisible();
+  await expect(projectButtons).toHaveCount(7);
+  await expect(navigator.getByRole("button", { name: `${longProjectLabel} workspace` })).toBeVisible();
 
   const workToolbar = page.getByRole("toolbar", { name: "Work layout controls" });
   await workToolbar.getByRole("button", { name: "New terminal" }).click();
@@ -95,7 +96,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await expect(freeChats.getByRole("button", { name: "Restored scratch fixture 1" })).toHaveCount(0);
   await expect((await listMainProcessTerminals(page)).restoredSessions).toHaveLength(1);
   await expect(header.getByRole("button", { name: "Open Inbox surface" })).toBeVisible();
-  await expect(navigator.getByRole("tab", { name: "Fixture Beta workspace" })).not.toHaveAttribute(
+  await expect(navigator.getByRole("button", { name: "Fixture Beta workspace" })).not.toHaveAttribute(
     "data-attention",
   );
 
@@ -250,7 +251,7 @@ async function operateNarrowWorkspaceActions(page: Page, navigator: Locator) {
   await expect(input).toBeFocused();
   await input.fill("Fixture Alpha Narrow");
   await input.press("Enter");
-  await expect(navigator.getByRole("tab", { name: "Fixture Alpha Narrow workspace" })).toBeVisible();
+  await expect(navigator.getByRole("button", { name: "Fixture Alpha Narrow workspace" })).toBeVisible();
   await expect(navigator.getByRole("button", { name: "Workspace menu for Fixture Alpha Narrow" })).toBeVisible();
 
   return {
@@ -268,9 +269,9 @@ async function openContext(page: Page): Promise<void> {
 
 async function switchProject(page: Page, label: "Fixture Alpha" | "Fixture Beta"): Promise<void> {
   const destination = page.getByRole("navigation", { name: "Projects and Free Chats" })
-    .getByRole("tab", { name: `${label} workspace` });
+    .getByRole("button", { name: `${label} workspace` });
   await destination.click();
-  await expect(destination).toHaveAttribute("aria-selected", "true");
+  await expect(destination).toHaveAttribute("aria-current", "location");
 }
 
 async function writeBackgroundMarker(page: Page, clientId: string): Promise<string> {

@@ -101,7 +101,8 @@ describe("ProjectNavigator", () => {
   it("renders five stable projects, expands only the active project, and keeps Free Chats separate", () => {
     renderNavigator();
 
-    const projects = screen.getAllByRole("tab", { name: /workspace/i });
+    const projectList = screen.getByRole("list", { name: "Workspaces" });
+    const projects = within(projectList).getAllByRole("button", { name: / workspace(?:,|$)/i });
     expect(projects.map((row) => row.textContent)).toEqual([
       expect.stringContaining("Alfred"),
       expect.stringContaining("ClientApp"),
@@ -109,8 +110,14 @@ describe("ProjectNavigator", () => {
       expect.stringContaining("GothamTab"),
       expect.stringContaining("IronLog"),
     ]);
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Alfred workspace" })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
     expect(screen.getByRole("button", { name: "Show 2 more projects" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Codex · Slice 2/i })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: /Codex · Slice 2/i })).toHaveAttribute("aria-current", "page");
     expect(screen.queryByRole("button", { name: /Codex · restored/i })).not.toBeInTheDocument();
     expect(within(screen.getByRole("group", { name: "Free Chats" })).getAllByRole("button")).toHaveLength(4);
   });
@@ -121,7 +128,7 @@ describe("ProjectNavigator", () => {
     const sessionGroup = screen.getByRole("group", { name: "Alfred sessions" });
     expect(sessionGroup).toBeVisible();
     expect(screen.queryByRole("button", { name: /Alfred sessions/i })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("tablist")).toHaveLength(1);
+    expect(screen.getAllByRole("list", { name: "Workspaces" })).toHaveLength(1);
   });
 
   it("routes every selection through the supplied callbacks", async () => {
@@ -130,28 +137,36 @@ describe("ProjectNavigator", () => {
     const onFocusSessionInWorkspace = vi.fn();
     renderNavigator({ onSelectWorkspace, onFocusSessionInWorkspace });
 
-    await user.click(screen.getByRole("tab", { name: /ClientApp workspace/i }));
+    await user.click(screen.getByRole("button", { name: /ClientApp workspace/i }));
     expect(onSelectWorkspace).toHaveBeenCalledWith("CLIENT");
     await user.click(screen.getByRole("button", { name: /Codex · Slice 2/i }));
     expect(onFocusSessionInWorkspace).toHaveBeenCalledWith("A", "codex-live");
   });
 
-  it("keeps project order stable when attention changes and supports roving focus", async () => {
+  it("keeps project order stable when attention changes and supports native tab stops and arrow shortcuts", async () => {
     const { rerender } = renderNavigator();
-    const before = screen.getAllByRole("tab").map((node) => node.getAttribute("data-label"));
-    rerender(navigatorWithWaitingSessionInClientApp());
-    expect(screen.getAllByRole("tab").map((node) => node.getAttribute("data-label"))).toEqual(before);
+    const projectList = screen.getByRole("list", { name: "Workspaces" });
+    const before = within(projectList)
+      .getAllByRole("button", { name: / workspace(?:,|$)/i })
+      .map((node) => node.getAttribute("data-label"));
 
-    screen.getByRole("tab", { name: /Alfred workspace/i }).focus();
+    rerender(navigatorWithWaitingSessionInClientApp());
+    const projectButtons = within(screen.getByRole("list", { name: "Workspaces" }))
+      .getAllByRole("button", { name: / workspace(?:,|$)/i });
+    expect(projectButtons.map((node) => node.getAttribute("data-label"))).toEqual(before);
+    expect(projectButtons.every((button) => button.tabIndex === 0)).toBe(true);
+
+    screen.getByRole("button", { name: /Alfred workspace/i }).focus();
     await userEvent.keyboard("{ArrowDown}{End}{Home}{ArrowUp}");
-    expect(screen.getByRole("tab", { name: /IronLog workspace/i })).toHaveFocus();
+    expect(screen.getByRole("button", { name: /IronLog workspace/i })).toHaveFocus();
   });
 
   it("labels the first five project shortcuts as command 1 through 5", () => {
     renderNavigator();
 
-    const tabs = screen.getAllByRole("tab");
-    expect(tabs.map((tab) => tab.textContent)).toEqual([
+    const projectButtons = within(screen.getByRole("list", { name: "Workspaces" }))
+      .getAllByRole("button", { name: / workspace(?:,|$)/i });
+    expect(projectButtons.map((button) => button.textContent)).toEqual([
       expect.stringContaining("⌘1"),
       expect.stringContaining("⌘2"),
       expect.stringContaining("⌘3"),
@@ -165,14 +180,17 @@ describe("ProjectNavigator", () => {
     renderNavigator();
     await user.click(screen.getByRole("button", { name: "Show 2 more projects" }));
 
-    expect(screen.getByRole("tab", { name: `${workspaces[5]!.label} workspace` })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: `${workspaces[5]!.label} workspace` })).toBeInTheDocument();
   });
 
   it("shows the exact remaining project count and keeps an overflow selection visible", () => {
     const { rerender } = renderNavigator();
     rerender(navigator({ activeWorkspaceId: "SEVEN" }));
 
-    expect(screen.getByRole("tab", { name: /SeventhProject workspace/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: /SeventhProject workspace/i })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
   });
 
   it("collapses an expanded overflow when the active project remains visible", async () => {
@@ -180,26 +198,41 @@ describe("ProjectNavigator", () => {
     renderNavigator();
 
     await user.click(screen.getByRole("button", { name: "Show 2 more projects" }));
-    expect(screen.getAllByRole("tab")).toHaveLength(7);
+    expect(
+      within(screen.getByRole("list", { name: "Workspaces" }))
+        .getAllByRole("button", { name: / workspace(?:,|$)/i }),
+    ).toHaveLength(7);
 
     await user.click(screen.getByRole("button", { name: "Show fewer projects" }));
 
-    expect(screen.getAllByRole("tab")).toHaveLength(5);
+    expect(
+      within(screen.getByRole("list", { name: "Workspaces" }))
+        .getAllByRole("button", { name: / workspace(?:,|$)/i }),
+    ).toHaveLength(5);
     expect(screen.getByRole("button", { name: "Show 2 more projects" })).toBeInTheDocument();
   });
 
   it("keeps overflow expanded while it contains the active project", () => {
     renderNavigator({ activeWorkspaceId: "SEVEN" });
 
-    expect(screen.getAllByRole("tab")).toHaveLength(7);
+    expect(
+      within(screen.getByRole("list", { name: "Workspaces" }))
+        .getAllByRole("button", { name: / workspace(?:,|$)/i }),
+    ).toHaveLength(7);
     expect(screen.getByRole("button", { name: "Show fewer projects" })).toBeDisabled();
-    expect(screen.getByRole("tab", { name: /SeventhProject workspace/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: /SeventhProject workspace/i })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
   });
 
   it("propagates a hidden project's honest review marker to the overflow control", () => {
     renderNavigator({ attentionCountsByWorkspace: new Map([["SEVEN", 1]]) });
 
-    expect(screen.getAllByRole("tab")).toHaveLength(5);
+    expect(
+      within(screen.getByRole("list", { name: "Workspaces" }))
+        .getAllByRole("button", { name: / workspace(?:,|$)/i }),
+    ).toHaveLength(5);
     expect(
       screen.getByRole("button", { name: "Show 2 more projects, hidden project needs review" }),
     ).toHaveAttribute("data-attention", "true");
@@ -208,8 +241,11 @@ describe("ProjectNavigator", () => {
   it("includes the exact blocking decision count in the accessible project row", () => {
     renderNavigator({ attentionCountsByWorkspace: new Map([["CLIENT", 2]]) });
 
-    expect(screen.getAllByRole("tab")).toHaveLength(5);
-    const client = screen.getByRole("tab", { name: "ClientApp workspace, 2 decisions need review" });
+    expect(
+      within(screen.getByRole("list", { name: "Workspaces" }))
+        .getAllByRole("button", { name: / workspace(?:,|$)/i }),
+    ).toHaveLength(5);
+    const client = screen.getByRole("button", { name: "ClientApp workspace, 2 decisions need review" });
     expect(client).toHaveAttribute(
       "data-attention",
       "true",
@@ -223,7 +259,7 @@ describe("ProjectNavigator", () => {
   it("does not invent a signal for a recovery-only workspace omitted from the blocking map", () => {
     renderNavigator({ attentionCountsByWorkspace: new Map() });
 
-    const client = screen.getByRole("tab", { name: "ClientApp workspace" });
+    const client = screen.getByRole("button", { name: "ClientApp workspace" });
     expect(client).not.toHaveAttribute("data-attention");
     expect(within(client).queryByLabelText(/need review/i)).not.toBeInTheDocument();
   });
@@ -232,8 +268,11 @@ describe("ProjectNavigator", () => {
     const { container } = renderNavigator({ collapsed: true });
 
     expect(container.querySelector(".project-navigator")).toHaveClass("is-collapsed");
-    expect(screen.getAllByRole("tab")).toHaveLength(5);
-    expect(container.querySelectorAll('[role="tablist"]')).toHaveLength(1);
+    expect(
+      within(screen.getByRole("list", { name: "Workspaces" }))
+        .getAllByRole("button", { name: / workspace(?:,|$)/i }),
+    ).toHaveLength(5);
+    expect(screen.getAllByRole("list", { name: "Workspaces" })).toHaveLength(1);
 
     expect(screen.getByRole("group", { name: "Alfred sessions" })).toBeVisible();
   });

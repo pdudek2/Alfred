@@ -47,18 +47,18 @@ test("workspace switch keeps the same xterm node and streams background output",
   if (!screenBefore) throw new Error("Workspace A xterm screen is missing before switch.");
 
   const projectNavigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
-  const betaWorkspace = projectNavigator.getByRole("tab", {
+  const betaWorkspace = projectNavigator.getByRole("button", {
     name: "Fixture Beta workspace",
     exact: true,
   });
-  const alphaWorkspace = projectNavigator.getByRole("tab", {
+  const alphaWorkspace = projectNavigator.getByRole("button", {
     name: "Fixture Alpha workspace",
     exact: true,
   });
   await betaWorkspace.click();
-  await expect(betaWorkspace).toHaveAttribute("aria-selected", "true");
+  await expect(betaWorkspace).toHaveAttribute("aria-current", "location");
   await expect(page.getByRole("status", { name: "Empty workspace" })).toBeVisible();
-  await expect(alphaWorkspace).toHaveAttribute("aria-selected", "false");
+  await expect(alphaWorkspace).not.toHaveAttribute("aria-current");
   await expect(alphaTile).toHaveAttribute("data-testid", "background-terminal-tile");
   expect(await screenBefore.evaluate((node) => node.isConnected)).toBe(true);
 
@@ -79,7 +79,7 @@ test("workspace switch keeps the same xterm node and streams background output",
   }
 
   await alphaWorkspace.click();
-  await expect(alphaWorkspace).toHaveAttribute("aria-selected", "true");
+  await expect(alphaWorkspace).toHaveAttribute("aria-current", "location");
   await expect(terminalTiles).toHaveCount(1);
   await expect(terminalHost).toContainText(marker);
   const screenAfter = await alphaTile.locator(".xterm-screen").elementHandle();
