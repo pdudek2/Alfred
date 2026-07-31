@@ -11,7 +11,9 @@ describe("desktop state fixture", () => {
       for (const agent of ["codex", "claude"]) {
         const posixPath = path.join(paths.home, "bin", agent);
         expect((await stat(posixPath)).mode & 0o111).not.toBe(0);
-        expect(await readFile(posixPath, "utf8")).toContain(`${agent} fixture ready`);
+        const posixCommand = await readFile(posixPath, "utf8");
+        expect(posixCommand).toContain(`${agent} fixture ready`);
+        expect(posixCommand).toContain("exec /usr/bin/tail -f");
         expect(await readFile(`${posixPath}.cmd`, "utf8")).toContain(`${agent} fixture ready`);
       }
     } finally {

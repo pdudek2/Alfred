@@ -2054,7 +2054,6 @@ describe("App integration", () => {
 
     const tile = await screen.findByTestId("terminal-tile");
     const host = within(tile).getByTestId("xterm-host");
-    const disposeCountBeforeCollapse = terminalDisposeCalls.length;
 
     expect(document.querySelector(".arrange-handle")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Resize /i })).not.toBeInTheDocument();
@@ -2062,6 +2061,7 @@ describe("App integration", () => {
     await submitCommandPalette(user, "arrange tiles");
     expect(document.querySelector(".arrange-handle")).toBeInTheDocument();
 
+    const disposeCountBeforeCollapse = terminalDisposeCalls.length;
     await user.click(within(tile).getByRole("button", { name: "Collapse Manual · zsh 1" }));
 
     expect(tile).toHaveClass("collapsed");
