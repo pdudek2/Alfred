@@ -16,6 +16,7 @@ import {
 import { terminalChannels } from "../shared/terminal-ipc.js";
 import type {
   PersistedTerminalSessionSnapshot,
+  TerminalCreateResult,
   TerminalCreateRequest,
   TerminalDataEvent,
   TerminalListResult,
@@ -1547,7 +1548,7 @@ describe("terminal-manager IPC", () => {
   }) => {
     const pty = new FakePty();
     registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
-    const created = await invoke<{ id: string }>(terminalChannels.create, {
+    const created = await invoke<TerminalCreateResult>(terminalChannels.create, {
       clientId: `manual-${agentKind}`,
       cols: 80,
       cwd: "/repo",
@@ -1571,7 +1572,7 @@ describe("terminal-manager IPC", () => {
     });
     expect(listed.sessions[0]).toMatchObject({ foregroundAgentKind: agentKind });
 
-    pty.process = "zsh";
+    pty.process = path.basename(created.shell);
     pty.onDataHandler?.("% ");
 
     const shellEvent = sentEvents

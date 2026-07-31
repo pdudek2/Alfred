@@ -270,6 +270,9 @@ function electronEnvironment(paths: DesktopFixturePaths): Record<string, string>
   );
   return {
     ...env,
+    PATH: env.PATH
+      ? `${path.join(paths.home, "bin")}${path.delimiter}${env.PATH}`
+      : path.join(paths.home, "bin"),
     HOME: paths.home,
     TMPDIR: paths.root,
     ZDOTDIR: paths.home,
