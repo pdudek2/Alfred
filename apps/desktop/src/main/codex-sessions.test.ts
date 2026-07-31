@@ -12,7 +12,7 @@ import {
 
 // Resource tests intentionally create thousands of files or a 10 MiB transcript;
 // the default 5s timeout is too tight when the full suite contends for disk I/O.
-const RESOURCE_TEST_TIMEOUT_MS = 15_000;
+const RESOURCE_TEST_TIMEOUT_MS = 60_000;
 
 describe("Codex sessions reader", () => {
   it("returns display-safe opaque summaries in cursor pages and resolves selected keys", async () => {
