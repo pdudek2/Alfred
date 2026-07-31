@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { createDb } from "@alfred/db";
+import { createDb, createPool } from "@alfred/db";
 import { seedBootstrapAuth } from "./auth/bootstrap-auth.js";
 import {
   createDbDeviceAuthStore,
@@ -12,7 +12,7 @@ import { createIngestRoutes } from "./routes/ingest.js";
 
 export function createApp() {
   const app = new Hono();
-  const db = createDb();
+  const db = createDb(createPool(env.DATABASE_URL));
   const bootstrapAuth =
     process.env.NODE_ENV === "test"
       ? async () => undefined
