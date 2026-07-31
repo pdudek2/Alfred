@@ -22,6 +22,7 @@ import {
   type TerminalCreateResult,
   type TerminalForgetRequest,
   type TerminalForgetResult,
+  type TerminalForegroundAgentKind,
   type TerminalExitEvent,
   type TerminalKillRequest,
   type TerminalListResult,
@@ -112,6 +113,9 @@ type TerminalSession = {
   buffer: string;
   activityEvents?: SessionActivityEvent[];
   activityStream: TerminalOutputActivityStreamState;
+  commandInput: string;
+  foregroundAgentKind?: TerminalForegroundAgentKind | undefined;
+  submittedAgentKind?: TerminalForegroundAgentKind | undefined;
   lastActivityAt?: number;
   lastOutputAt?: number;
   persistLaunchData: boolean;
@@ -383,6 +387,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           buffer: "",
           activityEvents: [],
           activityStream: { carry: "" },
+          commandInput: "",
           ownerWindowId: window.id,
           persistLaunchData: launchStartedWithPersistence
             && launchClearGeneration === privacyClearGeneration
@@ -404,6 +409,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
 
       session.pty.onData((data) => {
         const now = Date.now();
+        const activeAgentKind = updateForegroundAgentKind(session);
         appendToBuffer(session, data);
         session.lastOutputAt = now;
         const activities = recordOutputActivity(session, data, now);
@@ -416,6 +422,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           id: session.id,
           ...(session.clientId === undefined ? {} : { clientId: session.clientId }),
           data,
+          ...(activeAgentKind === undefined ? {} : { foregroundAgentKind: activeAgentKind }),
           activities,
         });
       });
@@ -455,7 +462,11 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
 
   ipcMain.on(terminalChannels.write, (event, request: TerminalWriteRequest) => {
     const session = getOwnedSession(event.sender, request.id);
-    session?.pty.write(request.data);
+    if (!session) return;
+    const input = consumeAgentCommandInput(session.commandInput, request.data);
+    session.commandInput = input.buffer;
+    if (input.submitted) session.submittedAgentKind = input.agentKind;
+    session.pty.write(request.data);
   });
 
   ipcMain.on(terminalChannels.resize, (event, request: TerminalResizeRequest) => {
@@ -719,13 +730,62 @@ function toCreateResult(session: TerminalSession): TerminalCreateResult {
 }
 
 function toSnapshot(session: TerminalSession): TerminalSessionSnapshot {
+  const activeAgentKind = updateForegroundAgentKind(session);
   return {
     ...toCreateResult(session),
     buffer: session.buffer,
+    ...(activeAgentKind === undefined ? {} : { foregroundAgentKind: activeAgentKind }),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
     ...(session.lastOutputAt === undefined ? {} : { lastOutputAt: session.lastOutputAt }),
   };
+}
+
+function updateForegroundAgentKind(session: TerminalSession): TerminalForegroundAgentKind | undefined {
+  try {
+    const executable = path.basename(session.pty.process.trim().split(/\s+/, 1)[0] ?? "").toLowerCase();
+    if (/^codex(?:$|[-_])/.test(executable)) session.foregroundAgentKind = "codex";
+    else if (/^claude(?:$|[-_])/.test(executable)) session.foregroundAgentKind = "claude";
+    else if (executable === "node" && session.submittedAgentKind) {
+      session.foregroundAgentKind = session.submittedAgentKind;
+    } else if (
+      executable === path.basename(session.shell).toLowerCase()
+      && session.foregroundAgentKind !== undefined
+    ) {
+      session.foregroundAgentKind = undefined;
+      session.submittedAgentKind = undefined;
+    }
+  } catch {
+    // A PTY may disappear between output and process inspection.
+  }
+  return session.foregroundAgentKind;
+}
+
+function consumeAgentCommandInput(buffer: string, data: string): {
+  agentKind?: TerminalForegroundAgentKind | undefined;
+  buffer: string;
+  submitted: boolean;
+} {
+  let nextBuffer = buffer;
+  let agentKind: TerminalForegroundAgentKind | undefined;
+  let submitted = false;
+
+  for (const character of data) {
+    if (character === "\r" || character === "\n") {
+      const command = nextBuffer.trim().split(/\s+/, 1)[0];
+      agentKind = command === "codex" || command === "claude" ? command : undefined;
+      nextBuffer = "";
+      submitted = true;
+    } else if (character === "\x7f") {
+      nextBuffer = nextBuffer.slice(0, -1);
+    } else if (character === "\x15") {
+      nextBuffer = "";
+    } else if (character >= " ") {
+      nextBuffer += character;
+    }
+  }
+
+  return { agentKind, buffer: nextBuffer, submitted };
 }
 
 function appendToBuffer(session: TerminalSession, data: string): void {

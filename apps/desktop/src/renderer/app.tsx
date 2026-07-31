@@ -1528,14 +1528,6 @@ export function App() {
     setTerminalSessions((sessions) => recordSessionOutputActivity(sessions, event));
   }, []);
 
-  const handleRuntimeAgentKindDetected = useCallback((sessionId: string, detectedAgentKind: "codex" | "claude") => {
-    setTerminalSessions((sessions) => sessions.map((session) =>
-      session.id === sessionId && session.source === "manual" && !session.agentKind
-        ? { ...session, detectedAgentKind }
-        : session,
-    ));
-  }, []);
-
   const handleRuntimeSessionSnapshot = useCallback((sessionId: string, snapshot: TerminalSessionSnapshot) => {
     setTerminalSessions((sessions) =>
       sessions.map((session) => {
@@ -1553,6 +1545,7 @@ export function App() {
 
         return {
           ...session,
+          detectedAgentKind: snapshot.foregroundAgentKind,
           initialBuffer: snapshot.buffer,
           ...(mergedActivityEvents === undefined ? {} : { activityEvents: mergedActivityEvents }),
           ...(mergedLastActivityAt === undefined ? {} : { lastActivityAt: mergedLastActivityAt }),
@@ -2664,7 +2657,6 @@ export function App() {
                   onApplyWorkMode={handleApplyWorkMode}
                   onMoveTile={handleMoveTile}
                   onRuntimeSessionFailed={handleRuntimeSessionFailed}
-                  onRuntimeAgentKindDetected={handleRuntimeAgentKindDetected}
                   onRuntimeSessionExited={handleRuntimeSessionExited}
                   onRuntimeSessionOutput={handleRuntimeSessionOutput}
                   onRuntimeSessionReplayBuffer={handleRuntimeSessionReplayBuffer}
@@ -3488,7 +3480,6 @@ function mergeLiveSessions(sessions: SessionTile[], liveSessions: SessionTile[])
 
     return {
       ...liveSession,
-      ...(session.detectedAgentKind === undefined ? {} : { detectedAgentKind: session.detectedAgentKind }),
       ...(mergedInitialBuffer === undefined ? {} : { initialBuffer: mergedInitialBuffer }),
       ...(mergedActivityEvents === undefined ? {} : { activityEvents: mergedActivityEvents }),
       ...(mergedLastActivityAt === undefined ? {} : { lastActivityAt: mergedLastActivityAt }),

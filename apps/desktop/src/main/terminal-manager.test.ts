@@ -39,6 +39,7 @@ let liveWindows: Array<ReturnType<typeof fakeWindow>> = [];
 class FakePty {
   onDataHandler: ((data: string) => void) | null = null;
   onExitHandler: ((event: { exitCode: number; signal?: number }) => void) | null = null;
+  process = "zsh";
   killed = false;
   resized: Array<{ cols: number; rows: number }> = [];
   writes: string[] = [];
@@ -1535,6 +1536,44 @@ describe("terminal-manager IPC", () => {
       detail: "Approval required: apply patch?",
       payload: { type: "approval", prompt: "Approval required: apply patch?" },
     }));
+  });
+
+  it("reports Codex launched through its Node wrapper in terminal data and live snapshots", async () => {
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+    const created = await invoke<{ id: string }>(terminalChannels.create, {
+      clientId: "manual-codex",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+      source: "manual",
+    });
+
+    emit(terminalChannels.write, { id: created.id, data: "codex\r" });
+    pty.process = "node";
+    pty.onDataHandler?.("Ready\n");
+
+    const dataEvent = sentEvents
+      .filter((event) => event.channel === terminalChannels.data)
+      .at(-1)?.payload;
+    const listed = await invoke<TerminalListResult>(terminalChannels.list);
+
+    expect(dataEvent).toMatchObject({
+      id: created.id,
+      clientId: "manual-codex",
+      foregroundAgentKind: "codex",
+    });
+    expect(listed.sessions[0]).toMatchObject({ foregroundAgentKind: "codex" });
+
+    pty.process = "zsh";
+    pty.onDataHandler?.("% ");
+
+    const shellEvent = sentEvents
+      .filter((event) => event.channel === terminalChannels.data)
+      .at(-1)?.payload;
+    const shellList = await invoke<TerminalListResult>(terminalChannels.list);
+    expect(shellEvent).not.toHaveProperty("foregroundAgentKind");
+    expect(shellList.sessions[0]).not.toHaveProperty("foregroundAgentKind");
   });
 
   it("does not emit a classified activity suppressed as a duplicate", async () => {

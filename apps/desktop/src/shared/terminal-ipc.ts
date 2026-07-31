@@ -4,6 +4,7 @@ import type { SessionActivityEvent } from "./session-activity.js";
 export type TerminalSessionId = string;
 export type TerminalSessionSource = "manual" | "alfred";
 export type TerminalSessionIsolation = "shared" | "worktree";
+export type TerminalForegroundAgentKind = Extract<AgentKind, "codex" | "claude">;
 export type TerminalResumeTarget = {
   agentKind: "codex";
   sessionId: string;
@@ -54,6 +55,7 @@ export type TerminalCreateResult = {
 
 export type TerminalSessionSnapshot = TerminalCreateResult & {
   buffer: string;
+  foregroundAgentKind?: TerminalForegroundAgentKind;
   activityEvents?: SessionActivityEvent[];
   lastActivityAt?: number;
   lastOutputAt?: number;
@@ -158,6 +160,7 @@ export type TerminalDataEvent = {
   id: TerminalSessionId;
   clientId?: string;
   data: string;
+  foregroundAgentKind?: TerminalForegroundAgentKind;
   activities: SessionActivityEvent[];
 };
 
