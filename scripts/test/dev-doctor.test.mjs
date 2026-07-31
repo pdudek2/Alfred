@@ -54,6 +54,13 @@ async function listen(server) {
   return address.port;
 }
 
+async function reserveTcpPort() {
+  const server = createTcpServer();
+  const port = await listen(server);
+  await new Promise((resolve) => server.close(resolve));
+  return port;
+}
+
 function runNode(args, env) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, args, {
@@ -97,7 +104,7 @@ async function runDoctorFixture({ healthy }) {
   });
   const tcp = createTcpServer((socket) => socket.end());
   const httpPort = await listen(http);
-  const tcpPort = healthy ? await listen(tcp) : 1;
+  const tcpPort = healthy ? await listen(tcp) : await reserveTcpPort();
 
   try {
     return await runNode([doctorPath], {
@@ -122,6 +129,7 @@ describe("dev doctor", () => {
     const result = await runDoctorFixture({ healthy: true });
 
     assert.equal(result.code, 0, `${result.stdout}\n${result.stderr}`);
+    assert.equal(result.stderr, "");
     assert.match(result.stdout, /Alfred dev doctor \(read-only\)/);
     assert.match(result.stdout, /PASS docker daemon:/);
     assert.match(result.stdout, /PASS postgres readiness:/);
@@ -133,6 +141,7 @@ describe("dev doctor", () => {
     const result = await runDoctorFixture({ healthy: false });
 
     assert.equal(result.code, 1, `${result.stdout}\n${result.stderr}`);
+    assert.equal(result.stderr, "");
     assert.match(result.stdout, /FAIL docker daemon:/);
     assert.match(result.stdout, /Action: start Docker Desktop/);
     assert.match(result.stdout, /FAIL postgres tcp:/);
