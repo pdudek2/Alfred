@@ -899,4 +899,38 @@ describe("persisted-desktop-state", () => {
       workspaces: [{ id: "A", label: "Retried", shortLabel: "R" }],
     });
   });
+
+  it("retries the latest reconciled state after consecutive write failures", async () => {
+    const directoryPath = await mkdtemp(path.join(os.tmpdir(), "alfred-desktop-state-reconcile-"));
+    temporaryDirectory = directoryPath;
+    const filePath = path.join(directoryPath, "state", "desktop-state.json");
+    const blockingFilePath = path.dirname(filePath);
+    await writeFile(blockingFilePath, "not a directory", "utf8");
+    const store = createPersistedDesktopStateStore({ filePath });
+    const recoveredSession = {
+      clientId: "codex-discard",
+      title: "Discard checkout",
+      source: "alfred" as const,
+      agentKind: "codex" as const,
+      workspaceId: "A",
+      isolation: "worktree" as const,
+      branchName: "alfred-codex-discard",
+    };
+
+    await expect(store.setState({
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [],
+    })).rejects.toThrow("Failed to persist desktop state.");
+    await expect(store.updateState((current) => ({
+      ...current,
+      restoredTerminalSessions: [recoveredSession],
+    }))).rejects.toThrow("Failed to persist desktop state.");
+
+    await rm(blockingFilePath, { force: true });
+    await store.retrySave();
+
+    await expect(createPersistedDesktopStateStore({ filePath }).getState()).resolves.toMatchObject({
+      restoredTerminalSessions: [expect.objectContaining({ clientId: "codex-discard" })],
+    });
+  });
 });

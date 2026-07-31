@@ -2694,6 +2694,10 @@ describe("terminal-manager IPC", () => {
       clientId: "codex-discard",
       cleanupWorktree: true,
     })).resolves.toEqual({ ok: false, error: "disk full" });
+    expect(store.updateState).toHaveBeenCalledTimes(2);
+    await expect(store.getState()).resolves.toMatchObject({
+      restoredTerminalSessions: [expect.objectContaining({ clientId: "codex-discard" })],
+    });
     expect((await invoke<TerminalListResult>(terminalChannels.list)).restoredSessions).toEqual([
       expect.objectContaining({ clientId: "codex-discard" }),
     ]);
