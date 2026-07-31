@@ -1538,19 +1538,25 @@ describe("terminal-manager IPC", () => {
     }));
   });
 
-  it("reports Codex launched through its Node wrapper in terminal data and live snapshots", async () => {
+  it.each([
+    { agentKind: "codex" as const, foregroundProcess: "node" },
+    { agentKind: "claude" as const, foregroundProcess: "2.1.220" },
+  ])("reports $agentKind with foreground process $foregroundProcess in terminal data and live snapshots", async ({
+    agentKind,
+    foregroundProcess,
+  }) => {
     const pty = new FakePty();
     registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
     const created = await invoke<{ id: string }>(terminalChannels.create, {
-      clientId: "manual-codex",
+      clientId: `manual-${agentKind}`,
       cols: 80,
       cwd: "/repo",
       rows: 24,
       source: "manual",
     });
 
-    emit(terminalChannels.write, { id: created.id, data: "codex\r" });
-    pty.process = "node";
+    emit(terminalChannels.write, { id: created.id, data: `${agentKind}\r` });
+    pty.process = foregroundProcess;
     pty.onDataHandler?.("Ready\n");
 
     const dataEvent = sentEvents
@@ -1560,10 +1566,10 @@ describe("terminal-manager IPC", () => {
 
     expect(dataEvent).toMatchObject({
       id: created.id,
-      clientId: "manual-codex",
-      foregroundAgentKind: "codex",
+      clientId: `manual-${agentKind}`,
+      foregroundAgentKind: agentKind,
     });
-    expect(listed.sessions[0]).toMatchObject({ foregroundAgentKind: "codex" });
+    expect(listed.sessions[0]).toMatchObject({ foregroundAgentKind: agentKind });
 
     pty.process = "zsh";
     pty.onDataHandler?.("% ");
