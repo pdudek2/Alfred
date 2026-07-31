@@ -526,11 +526,17 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       await flushTerminalPersistence();
       return { ok: true };
     } catch (error: unknown) {
+      const originalError = terminalErrorMessage(error);
       if (session) {
         forgottenClientIds.delete(request.clientId);
         restoredSessionSnapshots.set(request.clientId, session);
+        try {
+          await persistTerminalSnapshots();
+        } catch {
+          // The store retains this reconciled snapshot as its next retry intent.
+        }
       }
-      return { ok: false, error: terminalErrorMessage(error) };
+      return { ok: false, error: originalError };
     } finally {
       clientIdsBeingForgotten.delete(request.clientId);
     }
