@@ -24,9 +24,9 @@ describe("layout-state", () => {
     expect(result.three).toEqual({
       tileId: "three",
       col: 1,
-      row: 7,
-      colSpan: 6,
-      rowSpan: 6,
+      row: 5,
+      colSpan: 12,
+      rowSpan: 3,
     });
   });
 
@@ -65,6 +65,21 @@ describe("layout-state", () => {
     });
   });
 
+  it("uses the first free row when adding below two tall tiles", () => {
+    const existing: Record<string, TileLayout> = {
+      one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 8 },
+      two: { tileId: "two", col: 7, row: 1, colSpan: 6, rowSpan: 8 },
+    };
+
+    expect(ensureTileLayouts([{ id: "one" }, { id: "two" }, { id: "three" }], existing).three).toEqual({
+      tileId: "three",
+      col: 1,
+      row: 9,
+      colSpan: 12,
+      rowSpan: 3,
+    });
+  });
+
   it("keeps existing layouts while the same tiles remain on the desk", () => {
     const existing: Record<string, TileLayout> = {
       one: { tileId: "one", col: 2, row: 3, colSpan: 5, rowSpan: 4 },
@@ -91,10 +106,10 @@ describe("layout-state", () => {
     const sessions = [{ id: "one" }, { id: "two" }, { id: "three" }, { id: "four" }];
 
     expect(ensureTileLayouts(sessions, {})).toEqual({
-      one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 6 },
-      two: { tileId: "two", col: 7, row: 1, colSpan: 6, rowSpan: 6 },
-      three: { tileId: "three", col: 1, row: 7, colSpan: 6, rowSpan: 6 },
-      four: { tileId: "four", col: 7, row: 7, colSpan: 6, rowSpan: 6 },
+      one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 3 },
+      two: { tileId: "two", col: 7, row: 1, colSpan: 6, rowSpan: 3 },
+      three: { tileId: "three", col: 1, row: 4, colSpan: 6, rowSpan: 3 },
+      four: { tileId: "four", col: 7, row: 4, colSpan: 6, rowSpan: 3 },
     });
   });
 
@@ -162,9 +177,9 @@ describe("layout-state", () => {
     expect(applyLayoutPreset(sessions, "grid").three).toEqual({
       tileId: "three",
       col: 1,
-      row: 7,
-      colSpan: 6,
-      rowSpan: 6,
+      row: 4,
+      colSpan: 12,
+      rowSpan: 3,
     });
   });
 

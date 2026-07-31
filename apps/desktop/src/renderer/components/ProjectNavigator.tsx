@@ -1,11 +1,12 @@
-import { ChevronDown, ChevronRight, Folder, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
+import { Folder, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import { isFreeChatSession, isNavigableLiveSession } from "../session-scope";
 import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
-import { SessionStatusGlyph } from "./SessionStatusGlyph";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
+import { sessionTileKind } from "../tile-kind";
+import { TileKindIcon } from "../tile-kind-icon";
 
 export type ProjectNavigatorWorkspace = {
   id: string;
@@ -47,7 +48,6 @@ export function ProjectNavigator({
   const [showAllProjects, setShowAllProjects] = useState(
     () => workspaces.findIndex((workspace) => workspace.id === activeWorkspaceId) >= 5,
   );
-  const [collapsedProjectId, setCollapsedProjectId] = useState<string | null>(null);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const activeProjectIndex = workspaces.findIndex((workspace) => workspace.id === activeWorkspaceId);
   const visibleProjects = showAllProjects ? workspaces : workspaces.slice(0, 5);
@@ -90,8 +90,6 @@ export function ProjectNavigator({
         <div className="project-list" role="tablist" aria-label="workspaces" aria-orientation="vertical">
           {visibleProjects.map((workspace, visibleIndex) => {
             const active = workspace.id === activeWorkspaceId;
-            const sessionsExpanded = active && collapsedProjectId !== workspace.id;
-            const sessionListId = `project-sessions-${encodeURIComponent(workspace.id)}`;
             const stableIndex = workspaces.findIndex((candidate) => candidate.id === workspace.id);
             const attentionCount = attentionCountsByWorkspace.get(workspace.id) ?? 0;
             const hasAttention = attentionCount > 0;
@@ -134,30 +132,14 @@ export function ProjectNavigator({
                       </span>
                     )}
                   </button>
-                  {active && activeSessions.length > 0 && (
-                    <button
-                      type="button"
-                      className="project-disclosure"
-                      aria-controls={sessionListId}
-                      aria-expanded={sessionsExpanded}
-                      aria-label={`${sessionsExpanded ? "Collapse" : "Expand"} ${workspace.label} sessions`}
-                      onClick={() => setCollapsedProjectId(sessionsExpanded ? workspace.id : null)}
-                    >
-                      {sessionsExpanded
-                        ? <ChevronDown aria-hidden="true" size={13} />
-                        : <ChevronRight aria-hidden="true" size={13} />}
-                    </button>
-                  )}
                   {active && <div className="project-workspace-actions">{workspaceActions}</div>}
                 </div>
 
                 {active && activeSessions.length > 0 && (
                   <div
-                    id={sessionListId}
                     className="project-session-list"
                     role="group"
                     aria-label={`${workspace.label} sessions`}
-                    hidden={!sessionsExpanded}
                   >
                     {activeSessions.map((session) => (
                       <NavigatorSessionButton
@@ -247,6 +229,7 @@ function NavigatorSessionButton({
   onClick: () => void;
 }) {
   const status = terminalSessionDisplayStatus(session);
+  const kind = sessionTileKind(session);
   return (
     <button
       type="button"
@@ -257,7 +240,9 @@ function NavigatorSessionButton({
       onClick={onClick}
       title={`${session.title} · ${status.label}`}
     >
-      <SessionStatusGlyph kind={status.kind} label={status.label} />
+      <span className={`project-session-kind kind-${kind}`} aria-hidden="true">
+        <TileKindIcon kind={kind} size={14} />
+      </span>
       <span className="project-session-title">{session.title}</span>
     </button>
   );

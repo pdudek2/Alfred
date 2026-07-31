@@ -740,7 +740,7 @@ button:focus-visible {
 .project-row {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
 }
 
@@ -828,27 +828,6 @@ button:focus-visible {
   min-width: 0;
 }
 
-.project-disclosure {
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: 6px;
-  padding: 0;
-  background: transparent;
-  color: var(--ink-5);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.project-disclosure:hover,
-.project-disclosure:focus-visible {
-  background: var(--ink-2);
-  color: var(--ink-7);
-  outline: none;
-}
-
 .project-workspace-actions .workspace-title-trigger {
   width: 28px;
   min-width: 28px;
@@ -876,17 +855,41 @@ button:focus-visible {
   color: var(--ink-6);
   cursor: pointer;
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
+  grid-template-columns: 18px minmax(0, 1fr);
   align-items: center;
   gap: 7px;
   font: 500 12px/1.2 var(--sans);
   text-align: left;
 }
 
-.project-session:hover,
-.project-session.is-active {
+.project-session:hover {
   background: var(--ink-2);
   color: var(--ink-7);
+}
+
+.project-session.is-active {
+  background: color-mix(in oklab, var(--signal-focus) 9%, var(--ink-2));
+  color: var(--ink-7);
+  font-weight: 620;
+}
+
+.project-session-kind {
+  width: 18px;
+  height: 18px;
+  color: var(--ink-5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.project-session-kind .kind-brand-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.project-session-kind.kind-codex .kind-brand-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .project-session:focus-visible {
@@ -969,13 +972,6 @@ button:focus-visible {
   display: block;
 }
 
-.project-navigator.is-collapsed .project-disclosure {
-  width: 24px;
-  height: 24px;
-  margin: 0 auto 2px;
-  display: flex;
-}
-
 .project-navigator.is-collapsed .project-row-button {
   grid-template-columns: 18px auto;
   justify-content: center;
@@ -987,7 +983,7 @@ button:focus-visible {
 }
 
 .project-navigator.is-collapsed .project-session {
-  grid-template-columns: 16px;
+  grid-template-columns: 18px;
   justify-content: center;
 }
 
@@ -1109,9 +1105,12 @@ html[data-alfred-window-material="native"] .project-navigator {
   -webkit-backdrop-filter: blur(24px) saturate(1.22);
 }
 
-html[data-alfred-window-material="native"] .project-row-button[aria-selected="true"],
-html[data-alfred-window-material="native"] .project-session.is-active {
+html[data-alfred-window-material="native"] .project-row-button[aria-selected="true"] {
   background: color-mix(in oklab, white 11%, transparent);
+}
+
+html[data-alfred-window-material="native"] .project-session.is-active {
+  background: color-mix(in oklab, var(--signal-focus) 13%, transparent);
 }
 
 html[data-alfred-window-material="native"] .orchestrator-surface,
@@ -1434,14 +1433,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   .workspace-layout.preview-visible .project-navigator .project-row,
   .workspace-layout.context-visible .project-navigator .project-row {
     display: block;
-  }
-
-  .workspace-layout.preview-visible .project-navigator .project-disclosure,
-  .workspace-layout.context-visible .project-navigator .project-disclosure {
-    width: 24px;
-    height: 24px;
-    margin: 0 auto 2px;
-    display: flex;
   }
 
   .workspace-layout.preview-visible .project-navigator .project-workspace-actions,
@@ -1946,13 +1937,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   box-shadow: none;
 }
 
-.terminal-tile.selected {
-  outline: none;
-  outline-offset: 2px;
-  border-color: color-mix(in oklab, var(--signal-focus) 52%, var(--ink-3));
-  box-shadow: none;
-}
-
 .terminal-tile:focus-visible {
   outline: none;
   border-color: color-mix(in oklab, var(--signal-focus) 52%, var(--ink-3));
@@ -2276,50 +2260,6 @@ body.arranging-pointer {
   gap: 2px;
 }
 
-.tool-dot {
-  width: 7px;
-  height: 7px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--ink-5);
-  box-shadow: none;
-  opacity: 0.8;
-}
-
-.terminal-tile.real-terminal .tool-dot {
-  width: 5px;
-  height: 5px;
-  opacity: 0.42;
-}
-
-.terminal-tile.real-terminal.ready .tool-dot {
-  background: var(--ink-5);
-}
-
-.terminal-tile.real-terminal.selected .tool-dot,
-.terminal-tile.real-terminal.session-waiting .tool-dot,
-.terminal-tile.real-terminal.error .tool-dot {
-  opacity: 0.68;
-}
-
-.terminal-tile.ready .tool-dot {
-  background: var(--ink-5);
-  box-shadow: none;
-}
-
-.terminal-tile.selected .tool-dot,
-.terminal-tile.session-waiting .tool-dot,
-.terminal-tile.error .tool-dot {
-  opacity: 1;
-  box-shadow: none;
-}
-
-.tool-dot.manual,
-.tool-dot.codex,
-.tool-dot.claude,
-.tool-dot.dev-server,
-.tool-dot.shell { background: var(--ink-5); }
-
 .tile-kind-mark {
   min-width: 40px;
   min-height: 22px;
@@ -2344,12 +2284,28 @@ body.arranging-pointer {
   gap: 0;
 }
 
-.terminal-tile.real-terminal .tile-kind-mark span {
+.terminal-tile.real-terminal .tile-kind-mark .tile-kind-label {
   display: none;
 }
 
 .tile-kind-mark svg {
   flex: 0 0 auto;
+}
+
+.kind-brand-icon {
+  display: block;
+  object-fit: contain;
+}
+
+.tile-kind-mark.codex .kind-brand-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.tile-kind-prompt {
+  color: currentColor;
+  font: 700 10px/1 var(--mono);
+  letter-spacing: -0.08em;
 }
 
 .tile-kind-mark span {
@@ -2366,6 +2322,17 @@ body.arranging-pointer {
   border-color: var(--ink-3);
   background: var(--ink-1);
   color: var(--ink-6);
+}
+
+.terminal-tile.selected .terminal-tile-header {
+  border-bottom-color: color-mix(in oklab, var(--signal-focus) 46%, var(--ink-3));
+  background: color-mix(in oklab, var(--signal-focus) 12%, var(--ink-1));
+}
+
+.terminal-tile.selected .tile-kind-mark {
+  border-color: color-mix(in oklab, var(--signal-focus) 56%, var(--ink-3));
+  background: color-mix(in oklab, var(--signal-focus) 13%, var(--ink-1));
+  color: var(--signal-focus);
 }
 
 .tile-title b {
@@ -2750,7 +2717,7 @@ body.arranging-pointer {
     max-width: 8ch;
   }
 
-  .tile-kind-mark span {
+  .tile-kind-mark .tile-kind-label {
     display: none;
   }
 
@@ -3048,11 +3015,13 @@ body.arranging-pointer {
   box-shadow: none;
 }
 
-.terminal-tile.staged .tool-dot.codex,
-.terminal-tile.staged .tool-dot.claude,
-.terminal-tile.staged .tool-dot.dev-server,
-.terminal-tile.staged .tool-dot.shell {
-  background: var(--ink-5);
+.terminal-tile.real-terminal.selected,
+.terminal-tile.staged.selected {
+  outline: none;
+  outline-offset: 2px;
+  border-width: 2px;
+  border-color: color-mix(in oklab, var(--signal-focus) 70%, var(--ink-3));
+  box-shadow: none;
 }
 
 .staged-body {
@@ -3174,11 +3143,6 @@ body.arranging-pointer {
   gap: 7px;
   white-space: nowrap;
   font: 700 12px var(--sans);
-}
-
-.terminal-action-strip button .tool-dot {
-  width: 7px;
-  height: 7px;
 }
 
 .terminal-action-strip button.active,

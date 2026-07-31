@@ -4313,8 +4313,8 @@ describe("App integration", () => {
     expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
       workspaceId: "A",
       layouts: expect.objectContaining({
-        "manual-1": expect.objectContaining({ col: 1, colSpan: 6, rowSpan: 8 }),
-        "manual-2": expect.objectContaining({ col: 7, colSpan: 6, rowSpan: 8 }),
+        "manual-1": expect.objectContaining({ col: 7, colSpan: 6, rowSpan: 8 }),
+        "manual-2": expect.objectContaining({ col: 1, colSpan: 6, rowSpan: 8 }),
       }),
     });
 
@@ -4356,35 +4356,57 @@ describe("App integration", () => {
     );
   });
 
-  it("persists a newly added Grid tile without moving the existing terminal", async () => {
+  it("repacks standard Grid layouts and selects each newly added terminal", async () => {
     const user = userEvent.setup();
-    const { setWorkspaceLayout } = installDesktopBridge();
+    const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge();
     render(<App />);
 
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
     setWorkspaceLayout.mockClear();
     await user.click(screen.getByRole("button", { name: "Open launch menu" }));
     await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
-    await screen.findByRole("article", { name: /Manual · zsh 2/i });
+    const second = await screen.findByRole("article", { name: /Manual · zsh 2/i });
 
     expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
       workspaceId: "A",
       layouts: expect.objectContaining({
-        "manual-1": expect.objectContaining({ col: 1, row: 1, colSpan: 12, rowSpan: 8 }),
-        "manual-2": expect.objectContaining({ col: 1, row: 9, colSpan: 6, rowSpan: 8 }),
+        "manual-1": expect.objectContaining({ col: 1, row: 1, colSpan: 6, rowSpan: 8 }),
+        "manual-2": expect.objectContaining({ col: 7, row: 1, colSpan: 6, rowSpan: 8 }),
       }),
+    });
+    expect(second).toHaveClass("selected");
+
+    await user.click(screen.getByRole("button", { name: "Open launch menu" }));
+    await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
+    const third = await screen.findByRole("article", { name: /Manual · zsh 3/i });
+
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+      workspaceId: "A",
+      layouts: expect.objectContaining({
+        "manual-1": expect.objectContaining({ col: 1, row: 1, colSpan: 6, rowSpan: 3 }),
+        "manual-2": expect.objectContaining({ col: 7, row: 1, colSpan: 6, rowSpan: 3 }),
+        "manual-3": expect.objectContaining({ col: 1, row: 4, colSpan: 12, rowSpan: 3 }),
+      }),
+    });
+    expect(third).toHaveClass("selected");
+    expect(second).not.toHaveClass("selected");
+    expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
+      workspaceId: "A",
+      viewState: { workMode: "desk", selectedSessionId: "manual-3" },
     });
   });
 
   it("reveals the newly added Grid tile exactly once", async () => {
     const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
     const revealedSessionIds: string[] = [];
+    const revealedClasses: string[] = [];
     HTMLElement.prototype.scrollIntoView = vi.fn(function scrollIntoView(
       this: HTMLElement,
       options?: ScrollIntoViewOptions,
     ) {
       expect(options).toEqual({ block: "nearest", inline: "nearest" });
-      revealedSessionIds.push(this.dataset.sessionId ?? "");
+      revealedSessionIds.push(this.closest<HTMLElement>("[data-session-id]")?.dataset.sessionId ?? "");
+      revealedClasses.push(this.className);
     });
 
     try {
@@ -4398,6 +4420,7 @@ describe("App integration", () => {
       await screen.findByRole("article", { name: /Manual · zsh 2/i });
 
       await waitFor(() => expect(revealedSessionIds).toEqual(["manual-2"]));
+      expect(revealedClasses[0]).toContain("terminal-tile-header");
     } finally {
       if (originalScrollIntoView) {
         HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
@@ -6074,7 +6097,7 @@ describe("App integration", () => {
     await submitCommandPalette(user, "arrange tiles");
 
     const tile = screen.getByRole("article", { name: /Manual · zsh 1/i });
-    tile.focus();
+    await act(async () => tile.focus());
     setWorkspaceLayout.mockClear();
 
     await user.keyboard("{ArrowRight}{ArrowDown}");
