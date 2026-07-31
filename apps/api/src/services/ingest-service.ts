@@ -84,6 +84,7 @@ export async function ingestBatch(db: Database | IngestStore, batch: IngestBatch
             source_run_id: event.parent_source_run_id,
             source_event_id: `${event.source_event_id}:parent`,
             event_id: `${event.event_id}:parent`,
+            type: "run.updated",
             status: "unknown",
           },
           project.id,
