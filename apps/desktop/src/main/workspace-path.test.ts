@@ -90,6 +90,32 @@ describe("workspace-path", () => {
     });
   });
 
+  it("rejects directory aliases that escape an allowed root, including Windows junctions", async () => {
+    const allowedRoot = path.join(temporaryDirectory, "junction-workspace");
+    const outsideRoot = path.join(temporaryDirectory, "junction-outside");
+    const outsideFile = path.join(outsideRoot, "secret.txt");
+    const aliasPath = path.join(allowedRoot, "outside-alias");
+    await fs.mkdir(allowedRoot);
+    await fs.mkdir(outsideRoot);
+    await fs.writeFile(outsideFile, "secret\n");
+    await fs.symlink(
+      outsideRoot,
+      aliasPath,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+
+    await expect(
+      resolveWorkspacePathForReveal(
+        { cwd: allowedRoot, path: "outside-alias/secret.txt" },
+        { allowedRoots: [allowedRoot] },
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      error: "Path is outside registered workspaces.",
+      resolvedPath: path.join(aliasPath, "secret.txt"),
+    });
+  });
+
   it("allows only canonical children of registered roots", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "alfred-root-"));
     const outside = await fs.mkdtemp(path.join(os.tmpdir(), "alfred-outside-"));

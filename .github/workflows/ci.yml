@@ -53,3 +53,18 @@ jobs:
             output/playwright
           if-no-files-found: warn
           retention-days: 7
+
+  windows-path-security:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.0.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @alfred/desktop exec vitest run src/main/workspace-path.test.ts
