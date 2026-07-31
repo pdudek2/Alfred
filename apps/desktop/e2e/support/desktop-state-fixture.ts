@@ -58,10 +58,25 @@ export async function createDesktopFixture(
         .filter((value) => value !== root)
         .map((value) => mkdir(value, { recursive: true })),
     );
+    await mkdir(path.join(paths.home, "bin"), { recursive: true });
     await Promise.all([
       mkdir(path.join(paths.home, ".config"), { recursive: true }),
       mkdir(path.join(paths.home, ".codex"), { recursive: true }),
       mkdir(path.join(paths.home, ".claude"), { recursive: true }),
+      ...["codex", "claude"].map((agent) =>
+        writeFile(
+          path.join(paths.home, "bin", agent),
+          `#!/bin/sh\nprintf '${agent} fixture ready\\n'\nexec /bin/cat\n`,
+          { encoding: "utf8", mode: 0o755 },
+        )
+      ),
+      ...["codex", "claude"].map((agent) =>
+        writeFile(
+          path.join(paths.home, "bin", `${agent}.cmd`),
+          `@echo off\r\necho ${agent} fixture ready\r\nmore\r\n`,
+          "utf8",
+        )
+      ),
     ]);
     if (options.missingWorkspaceId) {
       await rm(options.missingWorkspaceId === "A" ? paths.workspaceA : paths.workspaceB, {
