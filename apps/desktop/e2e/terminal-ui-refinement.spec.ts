@@ -69,6 +69,20 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-5-1120x720.png") });
 });
 
+test("manual terminal adopts the Claude runtime identity", async ({ harness }, testInfo) => {
+  const { page } = harness;
+  const manualTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
+  const manualInput = manualTile.getByRole("textbox", { name: "Terminal input" });
+
+  await manualInput.fill("claude");
+  await manualInput.press("Enter");
+
+  await expect(manualTile.locator(".tile-kind-mark.claude .kind-brand-icon")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Manual · zsh 1" })
+    .locator(".project-session-kind.kind-claude .kind-brand-icon")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("manual-claude-runtime-identity.png") });
+});
+
 async function addSession(page: import("@playwright/test").Page, name: string): Promise<void> {
   await page.getByRole("button", { name: "Open launch menu" }).click();
   await page.getByRole("menuitem", { name }).click();

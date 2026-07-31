@@ -744,12 +744,13 @@ function toSnapshot(session: TerminalSession): TerminalSessionSnapshot {
 function updateForegroundAgentKind(session: TerminalSession): TerminalForegroundAgentKind | undefined {
   try {
     const executable = path.basename(session.pty.process.trim().split(/\s+/, 1)[0] ?? "").toLowerCase();
+    const shellExecutable = path.basename(session.shell).toLowerCase();
     if (/^codex(?:$|[-_])/.test(executable)) session.foregroundAgentKind = "codex";
     else if (/^claude(?:$|[-_])/.test(executable)) session.foregroundAgentKind = "claude";
-    else if (executable === "node" && session.submittedAgentKind) {
+    else if (executable !== shellExecutable && session.submittedAgentKind) {
       session.foregroundAgentKind = session.submittedAgentKind;
     } else if (
-      executable === path.basename(session.shell).toLowerCase()
+      executable === shellExecutable
       && session.foregroundAgentKind !== undefined
     ) {
       session.foregroundAgentKind = undefined;
