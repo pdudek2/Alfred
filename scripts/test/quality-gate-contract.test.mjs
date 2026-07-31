@@ -73,6 +73,15 @@ function assertCiWorkflowShape(source) {
     electron,
     /^ {6}- name: Upload Electron diagnostics\s*\n {8}if: failure\(\)\s*\n {8}uses: actions\/upload-artifact@v7\s*\n {8}with:\s*\n {10}name: electron-smoke-diagnostics\s*\n {10}path: \|\s*\n {12}output\/playwright\s*\n {10}if-no-files-found: warn\s*$/m,
   );
+
+  const windowsPathSecurity = yamlBlock(jobs, "windows-path-security", 2);
+  assert.match(windowsPathSecurity, /^ {4}runs-on: windows-latest\s*$/m);
+  assert.match(windowsPathSecurity, /^ {4}timeout-minutes: 10\s*$/m);
+  assert.match(windowsPathSecurity, /^ {6}- run: pnpm install --frozen-lockfile\s*$/m);
+  assert.match(
+    windowsPathSecurity,
+    /^ {6}- run: pnpm --filter @alfred\/desktop exec vitest run src\/main\/workspace-path\.test\.ts\s*$/m,
+  );
   assert.doesNotMatch(workflow, /^\s*continue-on-error:\s*true\s*$/m);
 }
 
@@ -105,7 +114,7 @@ test("Turbo owns build, test and typecheck but not lint", async () => {
   assert.ok(turbo.tasks.typecheck);
 });
 
-test("CI exposes quality and electron smoke without weakening failures", async () => {
+test("CI exposes quality, electron smoke and Windows path security without weakening failures", async () => {
   const workflow = await readFile(new URL(".github/workflows/ci.yml", root), "utf8");
   assertCiWorkflowShape(workflow);
 });
@@ -122,6 +131,7 @@ test("CI workflow contract catches missing critical safeguards", async () => {
       "pnpm --filter @alfred/desktop... build",
       "pnpm --filter @alfred/desktop build",
     ],
+    ["Windows path security job", /^ {2}windows-path-security:\s*\n(?:^ {4,}.*(?:\n|$))+/m, ""],
   ];
   for (const [name, pattern, replacement] of mutations) {
     const mutated = workflow.replace(pattern, replacement);
