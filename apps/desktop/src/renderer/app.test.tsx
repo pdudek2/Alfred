@@ -7970,6 +7970,47 @@ describe("App integration", () => {
     );
   });
 
+  it("retains the recovery tile and warns when checkout Discard invocation rejects", async () => {
+    const user = userEvent.setup();
+    const { forgetTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [{
+        clientId: "codex-9",
+        title: "Codex · session 9",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "A",
+        workspaceRootFingerprint: "0123456789abcdef",
+        isolation: "worktree",
+        branchName: "alfred-codex-9",
+      }],
+    );
+    forgetTerminal.mockRejectedValueOnce(new Error("fixture bridge rejection"));
+    forgetTerminal.mockResolvedValueOnce({
+      ok: false,
+      error: "Second fixture rejection.",
+    });
+
+    render(<App />);
+    expect(await screen.findByRole("article", { name: /Codex · session 9/i })).toBeInTheDocument();
+    await selectSurface(user, "Context");
+    await user.click(screen.getByRole("button", { name: "Discard checkout Codex · session 9" }));
+    await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
+
+    const retained = await screen.findByRole("article", { name: /Codex · session 9/i });
+    expect(retained).toHaveTextContent("Discard checkout blocked");
+    expect(retained).toHaveTextContent("Desktop terminal request failed. Try again.");
+
+    await user.click(screen.getByRole("button", { name: "Discard checkout Codex · session 9" }));
+    await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
+    await waitFor(() => expect(forgetTerminal).toHaveBeenCalledTimes(2));
+  });
+
   it("shows privacy-safe recovery without a launch action and keeps checkout actions available", async () => {
     const user = userEvent.setup();
     const { createTerminal, worktreeApply, worktreeDiff } = installDesktopBridge(

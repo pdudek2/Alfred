@@ -103,6 +103,7 @@ import type {
   TerminalCreateResult,
   TerminalDataEvent,
   TerminalExitEvent,
+  TerminalForgetResult,
   TerminalSessionIsolation,
   TerminalSessionSnapshot,
 } from "../shared/terminal-ipc";
@@ -1066,9 +1067,14 @@ export function App() {
     const destructiveWorktreeCleanup =
       session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error";
     if (destructiveWorktreeCleanup) {
-      const result = terminalApi
-        ? await terminalApi.forget({ clientId: session.id, cleanupWorktree: true })
-        : { ok: false as const, error: "Desktop terminal API is unavailable." };
+      let result: TerminalForgetResult;
+      try {
+        result = terminalApi
+          ? await terminalApi.forget({ clientId: session.id, cleanupWorktree: true })
+          : { ok: false, error: "Desktop terminal API is unavailable." };
+      } catch {
+        result = { ok: false, error: "Desktop terminal request failed. Try again." };
+      }
       const currentSession = terminalSessionsRef.current.find((item) => item.id === sessionId);
       if (!currentSession || sessionInstanceKey(currentSession) !== closingOperation.instanceKey) {
         finishClosing();
