@@ -113,7 +113,7 @@ auth and browser-only query surfaces while retaining device-auth ingest.
 | 9 | Superseded by product-boundary decision | S3 deletes the session surface |
 | 10 | Superseded by product-boundary decision | S3 deletes the OIDC surface |
 | 11 | Fixed in `478ae96` | Closed |
-| 12 | Fixed in `29cc0d7`, `e2dbd46`, `6c274b6`, `d9e462d` | Closed |
+| 12 | Fixed in `3be3468`, `813a7db`, `6c274b6`, `d9e462d`, `29cc0d7` | Closed |
 | 13 | Fixed in `b192291`, `aad5063`, `fa7cf19`, `d5556eb`, `2a29706`, `54067ff`, `4885ff1` | Closed |
 | 14 | Fixed in `90a04e5` | Closed |
 | 15 | Fixed in `591c865`, `66329fb`, `006385e`, `1b13861`, `f73ae07`, `279d9af`, `fa7cf19`, `d5556eb`, `54067ff`, `4885ff1` | Closed |
@@ -324,8 +324,8 @@ Visual evidence: Observed — surface: Computer Use; proof: the completed final
 
 **State:** Complete
 
-**Implementation commits:** `bdf16b8`, `813a7db`, `6c274b6`, `d9e462d`,
-`29cc0d7`, `e2dbd46`, `06eda7d`, `bcd3032`
+**Implementation commits:** `3be3468`, `bdf16b8`, `813a7db`, `6c274b6`,
+`d9e462d`, `29cc0d7`, `e2dbd46`, `06eda7d`, `bcd3032`
 
 **Next phase:** S7 — Residue and blocked-boundary review; unplanned until a
 new convergence workflow begins.
