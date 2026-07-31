@@ -1138,7 +1138,7 @@ describe("renderer CSS contracts", () => {
       expect(focus).not.toContain("outline: none");
     }
 
-    expect(singleTopLevelRuleBodyIn(styles, '.project-row-button[aria-selected="true"]')).not.toContain(
+    expect(singleTopLevelRuleBodyIn(styles, '.project-row-button[aria-current="location"]')).not.toContain(
       "outline:",
     );
     expect(singleTopLevelRuleBodyIn(styles, ".project-session.is-active")).not.toContain("outline:");
@@ -1731,7 +1731,7 @@ describe("renderer CSS contracts", () => {
   it("keeps legacy gradients out of the main clean flat surfaces", () => {
     const workspacePopover = singleTopLevelRuleBodyIn(styles, ".workspace-popover");
     const terminalTile = exactBlockFor(".terminal-tile");
-    const activeWorkspace = exactBlockFor('.project-row-button[aria-selected="true"]');
+    const activeWorkspace = exactBlockFor('.project-row-button[aria-current="location"]');
 
     expect(workspacePopover).toContain("background:");
     expect(workspacePopover).not.toContain("linear-gradient");
@@ -2157,7 +2157,7 @@ describe("renderer CSS contracts", () => {
     const navSectionHeader = singleTopLevelRuleBodyIn(styles, ".free-chat-section > header");
     const navRow = singleTopLevelRuleBodyIn(styles, ".project-row-button");
     const navRowTitle = blockFor(".project-row-label,\n.project-session-title");
-    const activeWorkspace = exactBlockFor('.project-row-button[aria-selected="true"]');
+    const activeWorkspace = exactBlockFor('.project-row-button[aria-current="location"]');
 
     expect(navPanel).toContain("background: var(--ink-1)");
     expect(navSectionHeader).toContain("color: var(--ink-5)");

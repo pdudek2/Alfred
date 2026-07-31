@@ -774,7 +774,7 @@ button:focus-visible {
 }
 
 .project-row-button:hover,
-.project-row-button[aria-selected="true"] {
+.project-row-button[aria-current="location"] {
   background: var(--ink-2);
   color: var(--ink-7);
 }
@@ -1105,7 +1105,7 @@ html[data-alfred-window-material="native"] .project-navigator {
   -webkit-backdrop-filter: blur(24px) saturate(1.22);
 }
 
-html[data-alfred-window-material="native"] .project-row-button[aria-selected="true"] {
+html[data-alfred-window-material="native"] .project-row-button[aria-current="location"] {
   background: color-mix(in oklab, white 11%, transparent);
 }
 
