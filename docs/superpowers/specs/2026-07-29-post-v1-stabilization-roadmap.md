@@ -74,30 +74,10 @@ or product decisions.
 
 Only an actively converged phase receives an implementation plan. S7A, S7.1,
 and S7.2 are complete; no additional stabilization phase is planned.
-Completed implementation plans were retired from the working tree on
-2026-08-01; Git history preserves them. The surviving phase contracts below
-remain the canonical owners of closed behavior.
-
-**Closed phase contract:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification.md`
-
-**Closed phase:** S4 — Privacy and worktree lifecycle.
-
-**Historical S4 handoff:** S5 — Desktop interaction correctness, since
-completed.
-
-**Closed phase contract:** `docs/superpowers/specs/2026-07-29-phase-s4-privacy-worktree-lifecycle.md`
-
-**Closed phase contract:** `docs/superpowers/specs/2026-07-30-phase-s5-desktop-interaction-correctness-design.md`
-
-**Closed phase:** S5 — Desktop interaction correctness.
-
-**Closed phase contract:** `docs/superpowers/specs/2026-07-31-phase-s7-1-safety-correctness-design.md`
-
-**Closed phase:** S7.1 — Safety and Correctness.
-
-**Closed phase contract:** `docs/superpowers/specs/2026-07-31-phase-s7-2-tooling-accessibility-cleanup-design.md`
-
-**Closed phase:** S7.2 — Tooling and Accessibility Cleanup.
+Completed implementation plans and phase specs were retired from the working
+tree on 2026-08-01. Their full historical content remains available at Git
+commit `8565f22`. This roadmap is the sole surviving documentation owner for
+the closed stabilization cycle.
 
 **Next gate:** none planned; start a new convergence cycle only for new
 evidence or an explicitly accepted next objective.
