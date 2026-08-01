@@ -74,10 +74,11 @@ or product decisions.
 
 Only an actively converged phase receives an implementation plan. S7A, S7.1,
 and S7.2 are complete; no additional stabilization phase is planned.
+Completed implementation plans were retired from the working tree on
+2026-08-01; Git history preserves them. The surviving phase contracts below
+remain the canonical owners of closed behavior.
 
 **Closed phase contract:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification.md`
-
-**Closed implementation plan:** `docs/superpowers/specs/2026-07-29-phase-s3-api-boundary-simplification-implementation-plan.md`
 
 **Closed phase:** S4 — Privacy and worktree lifecycle.
 
@@ -86,23 +87,15 @@ completed.
 
 **Closed phase contract:** `docs/superpowers/specs/2026-07-29-phase-s4-privacy-worktree-lifecycle.md`
 
-**Closed implementation plan:** `docs/superpowers/plans/2026-07-29-phase-s4-privacy-worktree-lifecycle.md`
-
 **Closed phase contract:** `docs/superpowers/specs/2026-07-30-phase-s5-desktop-interaction-correctness-design.md`
-
-**Closed implementation plan:** `docs/superpowers/plans/2026-07-30-phase-s5-desktop-interaction-correctness.md`
 
 **Closed phase:** S5 — Desktop interaction correctness.
 
 **Closed phase contract:** `docs/superpowers/specs/2026-07-31-phase-s7-1-safety-correctness-design.md`
 
-**Closed implementation plan:** `docs/superpowers/plans/2026-07-31-phase-s7-1-safety-correctness.md`
-
 **Closed phase:** S7.1 — Safety and Correctness.
 
 **Closed phase contract:** `docs/superpowers/specs/2026-07-31-phase-s7-2-tooling-accessibility-cleanup-design.md`
-
-**Closed implementation plan:** `docs/superpowers/plans/2026-07-31-phase-s7-2-tooling-accessibility-cleanup.md`
 
 **Closed phase:** S7.2 — Tooling and Accessibility Cleanup.
 
