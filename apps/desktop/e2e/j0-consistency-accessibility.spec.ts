@@ -74,7 +74,10 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
 
   await selectSurface(page, "Sessions");
   const sessions = page.getByRole("region", { name: "Sessions workspace" });
-  await sessions.getByRole("listbox", { name: "Conversation results" }).getByRole("option").first().click();
+  await sessions
+    .getByRole("listbox", { name: "Conversation results" })
+    .getByRole("option", { name: /Mapped resumable session 01/i })
+    .click();
   const runDetailsTrigger = page.getByRole("button", { name: "Run details" });
   await expectMinimumHeight(runDetailsTrigger, 32);
 

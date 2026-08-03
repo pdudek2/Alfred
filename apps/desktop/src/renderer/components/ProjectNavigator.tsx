@@ -269,6 +269,7 @@ function NavigatorSessionButton({
       aria-current={active ? "page" : undefined}
       aria-label={session.title}
       data-label={session.title}
+      data-session-id={session.id}
       onClick={onClick}
       title={`${session.title} · ${status.label}`}
     >
