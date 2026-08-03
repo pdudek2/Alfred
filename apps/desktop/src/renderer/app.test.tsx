@@ -656,7 +656,7 @@ async function waitForTerminalStartsToSettle() {
 
 describe("App integration", () => {
   it("shows the Codex identity after launching codex inside a manual terminal", async () => {
-    const { emitData } = installDesktopBridge();
+    const { emitData, renameTerminal } = installDesktopBridge();
     render(<App />);
 
     const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
@@ -673,6 +673,19 @@ describe("App integration", () => {
 
     expect(tile.querySelector(".tile-kind-mark.codex .kind-brand-icon")).toBeInTheDocument();
     expect(document.querySelector(".project-session-kind.kind-codex .kind-brand-icon")).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: "Codex · session 1" })).toBeInTheDocument();
+    expect(renameTerminal).toHaveBeenLastCalledWith({ clientId: "manual-1", title: "Codex · session 1" });
+
+    await emitData({
+      id: "runtime-1",
+      clientId: "manual-1",
+      data: "Claude ready\n",
+      activities: [],
+      foregroundAgentKind: "claude",
+    } as TerminalDataEvent);
+
+    expect(await screen.findByRole("article", { name: "Claude · session 1" })).toBeInTheDocument();
+    expect(renameTerminal).toHaveBeenLastCalledWith({ clientId: "manual-1", title: "Claude · session 1" });
 
     await emitData({
       id: "runtime-1",
@@ -681,6 +694,29 @@ describe("App integration", () => {
       activities: [],
     });
     expect(tile.querySelector(".tile-kind-mark.manual")).toBeInTheDocument();
+  });
+
+  it("keeps a custom terminal title when an agent is detected", async () => {
+    const { emitData, renameTerminal } = installDesktopBridge(undefined, null, [
+      liveSnapshot("custom", {
+        title: "Release reviewer",
+        agentKind: undefined,
+        command: "/bin/zsh",
+      }),
+    ]);
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: "Release reviewer" })).toBeInTheDocument();
+    await emitData({
+      id: "runtime-custom",
+      clientId: "custom",
+      data: "Ready\n",
+      activities: [],
+      foregroundAgentKind: "codex",
+    } as TerminalDataEvent);
+
+    expect(screen.getByRole("article", { name: "Release reviewer" })).toBeInTheDocument();
+    expect(renameTerminal).not.toHaveBeenCalled();
   });
 
   it("keeps Alfred shell hierarchy focused on workspace, decisions, and launch actions", async () => {

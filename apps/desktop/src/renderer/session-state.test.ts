@@ -677,6 +677,45 @@ describe("desktop session state", () => {
     expect(next[0]?.activityEvents).toBeUndefined();
   });
 
+  it.each([
+    ["codex", "Codex · session 4"],
+    ["claude", "Claude · session 4"],
+  ] as const)("renames a generated manual title for detected %s", (kind, expectedTitle) => {
+    const next = recordSessionOutputActivity(
+      [{
+        id: "manual-4",
+        runtimeId: "pty-a",
+        title: "Manual · zsh 4",
+        workspaceId: "A",
+        cwd: "/repo",
+        source: "manual",
+        stage: "live",
+        runtimeStatus: "live",
+      }],
+      { id: "pty-a", clientId: "manual-4", data: "", foregroundAgentKind: kind, activities: [] },
+    );
+
+    expect(next[0]?.title).toBe(expectedTitle);
+  });
+
+  it("does not overwrite a custom title when an agent is detected", () => {
+    const next = recordSessionOutputActivity(
+      [{
+        id: "manual-4",
+        runtimeId: "pty-a",
+        title: "Release reviewer",
+        workspaceId: "A",
+        cwd: "/repo",
+        source: "manual",
+        stage: "live",
+        runtimeStatus: "live",
+      }],
+      { id: "pty-a", clientId: "manual-4", data: "", foregroundAgentKind: "codex", activities: [] },
+    );
+
+    expect(next[0]?.title).toBe("Release reviewer");
+  });
+
   it("records supplied approval events as waiting activity", () => {
     const hydrated = hydrateLiveTerminalSessions([
       {
