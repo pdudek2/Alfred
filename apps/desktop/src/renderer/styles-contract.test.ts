@@ -601,6 +601,7 @@ describe("renderer CSS contracts", () => {
         selector.includes("selected")
         || selector.includes("is-active")
         || selector.includes("focus")
+        || selector.includes("aria-current")
         || selector.includes("aria-pressed"),
       ),
     )).toBe(true);
@@ -1370,6 +1371,7 @@ describe("renderer CSS contracts", () => {
 
   it("switches terminal secondary actions by tile width", () => {
     const baseOverflowMenu = topLevelExactRuleBodies(".tile-overflow-menu");
+    const compactMenu = singleTopLevelRuleBodyIn(styles, ".tile-overflow-menu .chrome-menu-popover");
     const compactUtilityActions = containerExactRuleBodies(
       "terminal-tile (max-width: 620px)",
       ".tile-utility-actions",
@@ -1386,12 +1388,30 @@ describe("renderer CSS contracts", () => {
     expect(exactBlockFor(".terminal-tile")).toContain("container: terminal-tile / inline-size");
     expect(baseOverflowMenu).toHaveLength(1);
     expect(baseOverflowMenu[0]).toContain("display: none");
+    expect(compactMenu).toContain("min-width: 180px");
+    expect(compactMenu).toContain("max-width: calc(100vw - 16px)");
+    expect(compactMenu).toContain("overflow: visible");
     expect(compactUtilityActions).toHaveLength(1);
     expect(compactUtilityActions[0]).toContain("display: none");
     expect(compactDangerActions).toHaveLength(1);
     expect(compactDangerActions[0]).toContain("display: none");
     expect(compactOverflowMenu).toHaveLength(1);
     expect(compactOverflowMenu[0]).toContain("display: inline-flex");
+  });
+
+  it("keeps selected destinations recognizable in the collapsed project rail", () => {
+    const activeProject = singleTopLevelRuleBodyIn(
+      styles,
+      '.project-navigator.is-collapsed .project-row-button[aria-current="location"]',
+    );
+    const activeSession = singleTopLevelRuleBodyIn(
+      styles,
+      ".project-navigator.is-collapsed .project-session.is-active",
+    );
+
+    expect(activeProject).toContain("var(--signal-focus) 10%");
+    expect(activeProject).toContain("color: var(--ink-7)");
+    expect(activeSession).toBe(activeProject);
   });
 
   it("keeps canonical owners for Inbox Sessions and overlays", () => {

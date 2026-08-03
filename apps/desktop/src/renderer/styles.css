@@ -1013,6 +1013,12 @@ button:focus-visible {
   justify-content: center;
 }
 
+.project-navigator.is-collapsed .project-row-button[aria-current="location"],
+.project-navigator.is-collapsed .project-session.is-active {
+  background: color-mix(in oklab, var(--signal-focus) 10%, var(--ink-2));
+  color: var(--ink-7);
+}
+
 .project-navigator.is-collapsed .project-overflow-button {
   padding: 5px;
   justify-content: center;
@@ -2817,6 +2823,18 @@ body.arranging-pointer {
   .tile-overflow-menu {
     display: inline-flex;
   }
+}
+
+.tile-overflow-menu .chrome-menu-popover {
+  min-width: 180px;
+  width: 220px;
+  max-width: calc(100vw - 16px);
+  overflow: visible;
+}
+
+.tile-overflow-menu .chrome-menu-popover button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .terminal-tile:has(.tile-overflow-menu .chrome-menu-popover),
