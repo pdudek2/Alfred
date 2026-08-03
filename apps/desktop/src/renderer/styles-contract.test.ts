@@ -461,7 +461,7 @@ describe("renderer CSS contracts", () => {
       '--mono: ui-monospace, "SFMono-Regular", Menlo, monospace',
     );
 
-    for (const selector of [".project-navigator", ".xterm-host", ".orchestrator-surface", ".surface-panel"]) {
+    for (const selector of [".xterm-host", ".orchestrator-surface", ".surface-panel"]) {
       expect(allRulesIn(styles).filter(({ selectors }) => selectors.includes(selector)).map(({ body }) => body).join("\n"))
         .not.toMatch(/transition\s*:/);
     }
@@ -1065,6 +1065,28 @@ describe("renderer CSS contracts", () => {
     expect(expanded).toContain("transform: rotate(90deg)");
   });
 
+  it("uses restrained project motion and disables it for reduced motion", () => {
+    expect(singleTopLevelRuleBodyIn(styles, ".workspace-layout")).toContain(
+      "transition: grid-template-columns 180ms ease-out",
+    );
+    expect(singleTopLevelRuleBodyIn(styles, ".project-navigator")).toContain(
+      "transition: width 180ms ease-out",
+    );
+    expect(singleTopLevelRuleBodyIn(styles, ".project-session-disclosure svg")).toContain(
+      "transition: transform 140ms ease-out",
+    );
+
+    for (const selector of [
+      ".workspace-layout",
+      ".project-navigator",
+      ".project-session-disclosure svg",
+    ]) {
+      const reduced = mediaExactRuleBodies("(prefers-reduced-motion: reduce)", selector);
+      expect(reduced).toHaveLength(1);
+      expect(reduced[0]).toContain("transition: none");
+    }
+  });
+
   it("keeps the single workspace actions owner operable in the forced narrow rail", () => {
     const workspacePopover = topLevelExactRuleBodies(".workspace-popover");
     expect(workspacePopover).toHaveLength(1);
@@ -1391,6 +1413,12 @@ describe("renderer CSS contracts", () => {
     expect(compactMenu).toContain("min-width: 180px");
     expect(compactMenu).toContain("max-width: calc(100vw - 16px)");
     expect(compactMenu).toContain("overflow: visible");
+    const compactMenuButton = singleTopLevelRuleBodyIn(
+      styles,
+      ".tile-overflow-menu .chrome-menu-popover button",
+    );
+    expect(compactMenuButton).toContain("width: 100%");
+    expect(compactMenuButton).toContain("min-width: 0");
     expect(compactUtilityActions).toHaveLength(1);
     expect(compactUtilityActions[0]).toContain("display: none");
     expect(compactDangerActions).toHaveLength(1);

@@ -641,6 +641,7 @@ button:focus-visible {
   padding: 0;
   background: var(--ink-0);
   position: relative;
+  transition: grid-template-columns 180ms ease-out;
 }
 
 .workspace-layout:has(.project-navigator.is-collapsed) {
@@ -657,6 +658,7 @@ button:focus-visible {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
+  transition: width 180ms ease-out;
 }
 
 .project-navigator.is-collapsed {
@@ -851,6 +853,10 @@ button:focus-visible {
 
 .project-session-disclosure[aria-expanded="true"] svg {
   transform: rotate(90deg);
+}
+
+.project-session-disclosure svg {
+  transition: transform 140ms ease-out;
 }
 
 .project-workspace-actions .workspace-title-trigger {
@@ -1531,6 +1537,15 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
     pointer-events: none;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-layout,
+  .project-navigator,
+  .project-session-disclosure svg {
+    transition: none !important;
+  }
+}
+
 .terminal-stage {
   min-width: 0;
   min-height: 0;
@@ -2833,8 +2848,15 @@ body.arranging-pointer {
 }
 
 .tile-overflow-menu .chrome-menu-popover button {
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 30px;
+  padding: 6px 8px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
+  opacity: 1;
 }
 
 .terminal-tile:has(.tile-overflow-menu .chrome-menu-popover),
