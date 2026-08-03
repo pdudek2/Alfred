@@ -14,7 +14,7 @@ import type {
   AlfredRuntimeStatus,
   AlfredStagedPlanSnapshot,
 } from "../shared/alfred-ipc";
-import type { LayoutApi, WorkspaceLayoutsSnapshot } from "../shared/layout-ipc";
+import type { LayoutApi, TileLayout, WorkspaceLayoutsSnapshot } from "../shared/layout-ipc";
 import type {
   PersistedTerminalSessionSnapshot,
   TerminalApi,
@@ -561,6 +561,7 @@ afterEach(() => {
 
 function renderTerminalDeskForSessions(
   sessions: SessionTile[],
+  layouts: Record<string, TileLayout> = {},
 ) {
   const callbacks = {
     onBindWorkspace: vi.fn(),
@@ -598,7 +599,7 @@ function renderTerminalDeskForSessions(
       arrangeMode={arrangeMode}
       armedRecoverySessionIds={new Set()}
       collapsedSessionIds={new Set()}
-      layouts={{}}
+      layouts={layouts}
       recoverableSessions={[]}
       revealSessionId={null}
       selectedSessionId={nextSessions[0]?.id ?? null}
@@ -669,6 +670,34 @@ async function waitForTerminalStartsToSettle() {
 }
 
 describe("App integration", () => {
+  it("lets dense Grid auto-place terminals instead of pinning short persisted rows", () => {
+    const sessions = Array.from({ length: 6 }, (_, index): SessionTile => ({
+      id: `manual-${index + 1}`,
+      title: `Manual · zsh ${index + 1}`,
+      workspaceId: "A",
+      cwd: "/repo",
+      source: "manual",
+      stage: "live",
+      runtimeStatus: "restored",
+    }));
+    const layouts = Object.fromEntries(sessions.map((session, index) => [session.id, {
+      tileId: session.id,
+      col: index % 2 === 0 ? 1 : 7,
+      row: Math.floor(index / 2) * 3 + 1,
+      colSpan: 6,
+      rowSpan: 3,
+    }]));
+
+    renderTerminalDeskForSessions(sessions, layouts);
+
+    expect(screen.getByTestId("terminal-grid")).toHaveClass("laid-out", "dense", "six-up");
+    for (const session of sessions) {
+      const tile = screen.getByRole("article", { name: session.title });
+      expect(tile.style.gridColumn).toBe("");
+      expect(tile.style.gridRow).toBe("");
+    }
+  });
+
   it("shows the Codex identity after launching codex inside a manual terminal", async () => {
     const { emitData, renameTerminal } = installDesktopBridge();
     render(<App />);
