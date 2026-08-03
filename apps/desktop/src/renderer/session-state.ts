@@ -50,6 +50,17 @@ export type { SessionActivityEvent, SessionActivityEventKind, SessionActivityInp
 const MANUAL_SESSION_PREFIX = "manual-";
 const ALFRED_SESSION_PREFIX = "alfred-";
 const MAX_ACTIVITY_EVENTS = 40;
+const GENERATED_TERMINAL_TITLE = /^(?:Manual · zsh|Codex · session|Claude · session) (\d+)$/;
+
+export function generatedTitleForDetectedAgent(
+  session: Pick<SessionTile, "title">,
+  kind: TerminalDataEvent["foregroundAgentKind"],
+): string {
+  if (!kind) return session.title;
+  const match = GENERATED_TERMINAL_TITLE.exec(session.title);
+  if (!match) return session.title;
+  return `${kind === "codex" ? "Codex" : "Claude"} · session ${match[1]}`;
+}
 
 export function createInitialSessions(cwd: string, workspaceId = "A"): SessionTile[] {
   return [createManualSession(1, cwd, workspaceId)];
@@ -493,6 +504,7 @@ export function recordSessionOutputActivity(
 
     return {
       ...item,
+      title: generatedTitleForDetectedAgent(item, event.foregroundAgentKind),
       detectedAgentKind: event.foregroundAgentKind,
       lastOutputAt: Math.max(item.lastOutputAt ?? outputAt, outputAt),
       ...(activityEvents.length === 0 ? {} : { activityEvents }),

@@ -58,6 +58,7 @@ import {
   canRelaunchRestoredSession,
   closeSession,
   createInitialSessions,
+  generatedTitleForDetectedAgent,
   hydrateStagedPlanSessions,
   hydrateLiveTerminalSessions,
   hydratePersistedTerminalSessions,
@@ -1535,6 +1536,10 @@ export function App() {
   const handleRuntimeSessionOutput = useCallback((event: TerminalDataEvent) => {
     const session = terminalSessionsRef.current.find((item) => terminalEventMatchesSession(item, event));
     if (session) {
+      const generatedTitle = generatedTitleForDetectedAgent(session, event.foregroundAgentKind);
+      if (generatedTitle !== session.title) {
+        void getDesktopTerminalApi()?.rename({ clientId: session.id, title: generatedTitle });
+      }
       setPreviewCandidates((candidates) =>
         recordPreviewUrlsFromText(candidates, {
           workspaceId: session.workspaceId,
