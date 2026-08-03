@@ -227,6 +227,46 @@ describe("main quit persistence", () => {
     }
   });
 
+  it("keeps the Electron window hidden when the E2E harness requests it", async () => {
+    vi.stubEnv("ALFRED_E2E_HIDDEN", "1");
+    mocks.app.whenReady.mockResolvedValueOnce(undefined);
+
+    try {
+      await import("./main.js");
+      await flushMicrotasks();
+
+      const window = mocks.BrowserWindow.mock.results[0]?.value;
+      const readyToShow = window?.once.mock.calls.find(([eventName]: [string]) =>
+        eventName === "ready-to-show"
+      )?.[1] as (() => void) | undefined;
+      expect(readyToShow).toBeTypeOf("function");
+
+      readyToShow?.();
+
+      expect(mocks.restoreWindowPresentation).toHaveBeenCalledTimes(1);
+      expect(window?.show).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("shows the Electron window outside the hidden E2E harness", async () => {
+    mocks.app.whenReady.mockResolvedValueOnce(undefined);
+
+    await import("./main.js");
+    await flushMicrotasks();
+
+    const window = mocks.BrowserWindow.mock.results[0]?.value;
+    const readyToShow = window?.once.mock.calls.find(([eventName]: [string]) =>
+      eventName === "ready-to-show"
+    )?.[1] as (() => void) | undefined;
+    expect(readyToShow).toBeTypeOf("function");
+
+    readyToShow?.();
+
+    expect(window?.show).toHaveBeenCalledTimes(1);
+  });
+
   it("wires authoritative workspace-root resolution into terminal IPC", async () => {
     mocks.app.whenReady.mockResolvedValueOnce(undefined);
 

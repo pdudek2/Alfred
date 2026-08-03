@@ -42,6 +42,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
 const openDevToolsInDev = process.env.ALFRED_DESKTOP_OPEN_DEVTOOLS === "1";
+const keepE2eWindowHidden = process.env.ALFRED_E2E_HIDDEN === "1";
 const WINDOW_MATERIAL_QUERY_KEY = "alfred-window-material";
 let terminalQuitConfirmed = false;
 let terminalPersistenceFlushedForQuit = false;
@@ -76,7 +77,7 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
 
   window.once("ready-to-show", () => {
     restoreWindowPresentation(window, persistedWindowState);
-    window.show();
+    if (!keepE2eWindowHidden) window.show();
   });
 
   window.on("close", (event) => {

@@ -119,6 +119,10 @@ export const test = base.extend<Fixtures>({
       expect(await realpath(actualUserData)).toBe(await realpath(paths.userData));
       page = await app.firstWindow();
       instrumentPage(page);
+      await page.waitForLoadState("load");
+      expect(await app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0]?.isVisible()
+      )).toBe(false);
     } catch (error) {
       const processCleanup = await stopElectronApplication(app, mainProcess.pid);
       try {
@@ -277,6 +281,7 @@ function electronEnvironment(paths: DesktopFixturePaths): Record<string, string>
     TMPDIR: paths.root,
     ZDOTDIR: paths.home,
     XDG_CONFIG_HOME: path.join(paths.home, ".config"),
+    ALFRED_E2E_HIDDEN: "1",
     ALFRED_DESKTOP_WORKSPACE_CWD: paths.workspaceA,
     ALFRED_CODEX_HOME: path.join(paths.home, ".codex"),
     CODEX_HOME: path.join(paths.home, ".codex"),
