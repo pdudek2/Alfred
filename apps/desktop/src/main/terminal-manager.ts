@@ -1311,18 +1311,74 @@ async function validateTerminalCommandApproval(
 }
 
 async function isExactPersistedRestoredLaunch(request: TerminalCreateRequest): Promise<boolean> {
-  if (request.source !== "manual" || !request.clientId || !request.command) return false;
-  await hydratePersistedTerminalSessions();
-  if (findLiveSessionByClientId(request.clientId)) return false;
-
-  const snapshot = restoredSessionSnapshots.get(request.clientId);
-  if (snapshot?.source !== "manual" || snapshot.command !== request.command) return false;
-  if (!snapshot.cwd || path.resolve(snapshot.cwd) !== path.resolve(request.cwd ?? "")) return false;
+  if (!request.command) return false;
+  const snapshot = await matchingPersistedRestoredSnapshot(request);
+  if (!snapshot || snapshot.command !== request.command) return false;
 
   const requestedArgs = request.args ?? [];
   const persistedArgs = snapshot.args ?? [];
   return requestedArgs.length === persistedArgs.length
     && requestedArgs.every((arg, index) => arg === persistedArgs[index]);
+}
+
+async function matchingPersistedRestoredSnapshot(
+  request: TerminalCreateRequest,
+): Promise<PersistedTerminalSessionSnapshot | null> {
+  if (!request.clientId || !request.cwd) return null;
+  await hydratePersistedTerminalSessions();
+  if (findLiveSessionByClientId(request.clientId)) return null;
+
+  const snapshot = restoredSessionSnapshots.get(request.clientId);
+  if (!snapshot?.cwd || snapshot.source !== request.source) return null;
+  if ((snapshot.workspaceId ?? "A") !== (request.workspaceId ?? "A")) return null;
+  if ((snapshot.isolation ?? "shared") !== (request.isolation ?? "shared")) return null;
+  if (snapshot.branchName !== request.branchName || snapshot.baseCwd !== request.baseCwd) return null;
+
+  const [snapshotCwd, requestCwd] = await Promise.all([
+    canonicalWorkspacePath(snapshot.cwd),
+    canonicalWorkspacePath(request.cwd),
+  ]);
+  return snapshotCwd === requestCwd ? snapshot : null;
+}
+
+async function isExactPersistedRestoredCwd(request: TerminalCreateRequest): Promise<boolean> {
+  const snapshot = await matchingPersistedRestoredSnapshot(request);
+  if (!snapshot) return false;
+
+  if (!request.command) {
+    return !snapshot.command
+      && request.agentKind === undefined
+      && snapshot.agentKind === undefined
+      && (request.args?.length ?? 0) === 0
+      && request.resumeTarget === undefined;
+  }
+
+  const requestedArgs = request.args ?? [];
+  const persistedArgs = snapshot.args ?? [];
+  if (
+    snapshot.command === request.command
+    && requestedArgs.length === persistedArgs.length
+    && requestedArgs.every((arg, index) => arg === persistedArgs[index])
+  ) {
+    return true;
+  }
+
+  if (snapshot.agentKind === "codex" && request.agentKind === "codex" && request.command === "codex") {
+    if (snapshot.resumeTarget?.agentKind === "codex") {
+      return request.resumeTarget?.agentKind === "codex"
+        && request.resumeTarget.sessionId === snapshot.resumeTarget.sessionId
+        && requestedArgs.length === 2
+        && requestedArgs[0] === "resume"
+        && requestedArgs[1] === snapshot.resumeTarget.sessionId;
+    }
+    return requestedArgs.length === 2 && requestedArgs[0] === "resume" && requestedArgs[1] === "--last";
+  }
+
+  return snapshot.agentKind === "claude"
+    && request.agentKind === "claude"
+    && request.command === "claude"
+    && requestedArgs.length === 1
+    && requestedArgs[0] === "--continue";
 }
 
 function isTrustedAgentLaunch(request: TerminalCreateRequest): boolean {
@@ -1340,7 +1396,7 @@ async function resolveValidatedTerminalCwd(
   const canonicalCwd = await canonicalWorkspacePath(resolvedCwd);
   const allowed = await isAllowedWorkspacePath(canonicalCwd, roots);
 
-  if (!allowed) {
+  if (!allowed && !await isExactPersistedRestoredCwd(request)) {
     throw new Error("Terminal cwd is outside registered workspaces.");
   }
 

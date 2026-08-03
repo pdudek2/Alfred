@@ -1671,6 +1671,87 @@ describe("terminal-manager IPC", () => {
     expect(nodePty.spawn).not.toHaveBeenCalled();
   });
 
+  it("relaunches an exact saved manual cwd when its legacy workspace is no longer bound", async () => {
+    const nodePty = fakeNodePty(new FakePty());
+    const snapshot: PersistedTerminalSessionSnapshot = {
+      clientId: "manual-legacy",
+      title: "Legacy manual terminal",
+      workspaceId: "W16",
+      cwd: "/legacy/unbound/project",
+      source: "manual",
+      shell: "/bin/zsh",
+      buffer: "saved transcript\n",
+    };
+    configureTerminalPersistence(storeWithRestoredSessions([snapshot]), { debounceMs: 0 });
+    registerTerminalIpc({
+      allowedCwdRoots: async () => ["/repo"],
+      loadNodePty: async () => nodePty as never,
+    });
+
+    await invoke(terminalChannels.create, {
+      clientId: snapshot.clientId,
+      cols: 80,
+      cwd: snapshot.cwd,
+      rows: 24,
+      source: snapshot.source,
+      workspaceId: snapshot.workspaceId,
+    });
+
+    expect(nodePty.spawn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Array),
+      expect.objectContaining({ cwd: snapshot.cwd }),
+    );
+  });
+
+  it.each([
+    { agentKind: "codex" as const, args: ["resume", "--last"] },
+    { agentKind: "claude" as const, args: ["--continue"] },
+  ])("resumes an exact saved $agentKind session when its legacy workspace is no longer bound", async ({
+    agentKind,
+    args,
+  }) => {
+    const nodePty = fakeNodePty(new FakePty());
+    const snapshot: PersistedTerminalSessionSnapshot = {
+      clientId: `${agentKind}-legacy`,
+      title: `${agentKind} legacy session`,
+      workspaceId: "W16",
+      cwd: "/legacy/unbound/project",
+      source: "manual",
+      agentKind,
+      shell: agentKind,
+      command: agentKind,
+      args: ["original prompt"],
+      buffer: "saved transcript\n",
+    };
+    configureTerminalPersistence(storeWithRestoredSessions([snapshot]), { debounceMs: 0 });
+    registerTerminalIpc({
+      allowedCwdRoots: async () => ["/repo"],
+      loadNodePty: async () => nodePty as never,
+      requireLaunchTickets: true,
+    });
+    const request: TerminalCreateRequest = {
+      agentKind,
+      args,
+      clientId: snapshot.clientId,
+      cols: 80,
+      command: agentKind,
+      cwd: snapshot.cwd,
+      rows: 24,
+      source: snapshot.source,
+      workspaceId: snapshot.workspaceId,
+    };
+
+    const prepared = await invoke<{ launchTicketId: string }>(terminalChannels.prepareLaunch, request);
+    await invoke(terminalChannels.create, { ...request, launchTicketId: prepared.launchTicketId });
+
+    expect(nodePty.spawn).toHaveBeenCalledWith(
+      agentKind,
+      args,
+      expect.objectContaining({ cwd: snapshot.cwd }),
+    );
+  });
+
   it("rejects terminal cwd when allowed roots are empty", async () => {
     const nodePty = fakeNodePty(new FakePty());
     registerTerminalIpc({
