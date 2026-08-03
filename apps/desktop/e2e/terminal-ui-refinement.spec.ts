@@ -78,7 +78,7 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
   const wideSixUp = await tileGeometry(tiles);
   expect(uniqueCoordinates(wideSixUp, "left")).toHaveLength(3);
   expect(uniqueCoordinates(wideSixUp, "top")).toHaveLength(2);
-  expect(Math.min(...wideSixUp.map(({ height }) => height))).toBeGreaterThanOrEqual(360);
+  expect(Math.min(...wideSixUp.map(({ height }) => height))).toBeGreaterThan(400);
   expect(wideSixUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-6-1686x980.png") });
 
@@ -88,7 +88,7 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
   const narrowSixUp = await tileGeometry(tiles);
   expect(uniqueCoordinates(narrowSixUp, "left")).toHaveLength(2);
   expect(uniqueCoordinates(narrowSixUp, "top")).toHaveLength(3);
-  expect(Math.min(...narrowSixUp.map(({ height }) => height))).toBeGreaterThanOrEqual(360);
+  expect(Math.min(...narrowSixUp.map(({ height }) => height))).toBeGreaterThanOrEqual(400);
   expect(narrowSixUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-6-1120x720.png") });
 });

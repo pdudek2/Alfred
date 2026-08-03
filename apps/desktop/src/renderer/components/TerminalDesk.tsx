@@ -1186,6 +1186,10 @@ function ManualTerminalTile({
     if (!terminal) {
       return;
     }
+    const replaceAndRepaint = (data: string) => {
+      terminal.reset();
+      writeAndRepaint(data);
+    };
 
     sessionIdRef.current = runtimeId ?? null;
     terminal.options.disableStdin = metadata.restoredTranscript || !terminalApi;
@@ -1282,7 +1286,7 @@ function ManualTerminalTile({
             const fallbackBuffer = mergeTerminalReplayBuffer(metadata.initialBuffer, snapshotHandshakeOutput);
             if (fallbackBuffer) {
               runtimeCallbacksRef.current.onRuntimeSessionReplayBuffer(sessionKey, runtimeId, fallbackBuffer);
-              writeAndRepaint(fallbackBuffer);
+              replaceAndRepaint(fallbackBuffer);
             }
             return;
           }
@@ -1291,7 +1295,7 @@ function ManualTerminalTile({
           const replayBuffer = mergeTerminalReplayBuffer(snapshot.buffer, snapshotHandshakeOutput);
           runtimeCallbacksRef.current.onRuntimeSessionSnapshot(sessionKey, { ...snapshot, buffer: replayBuffer });
           if (replayBuffer) {
-            writeAndRepaint(replayBuffer);
+            replaceAndRepaint(replayBuffer);
           }
           if (result.state === "exited" && !exitObserved) {
             reportExit(result.event);
@@ -1303,7 +1307,7 @@ function ManualTerminalTile({
             const fallbackBuffer = mergeTerminalReplayBuffer(metadata.initialBuffer, snapshotHandshakeOutput);
             if (fallbackBuffer) {
               runtimeCallbacksRef.current.onRuntimeSessionReplayBuffer(sessionKey, runtimeId, fallbackBuffer);
-              writeAndRepaint(fallbackBuffer);
+              replaceAndRepaint(fallbackBuffer);
             }
           }
         });

@@ -540,11 +540,14 @@ function normalizeRestoredTerminalSessions(
     if (!clientId || seenClientIds.has(clientId)) continue;
 
     const activityEvents = Array.isArray(item.activityEvents) ? normalizeActivityEvents(item.activityEvents) : undefined;
+    const legacyAgentKind = legacyGeneratedTerminalAgentKind(clientId, item.title, item.agentKind, item.command);
     const session = sanitizePersistedTerminalSession({
       clientId,
       title: item.title,
       source: item.source,
-      ...(isAgentKind(item.agentKind) ? { agentKind: item.agentKind } : {}),
+      ...(isAgentKind(item.agentKind)
+        ? { agentKind: item.agentKind }
+        : legacyAgentKind === undefined ? {} : { agentKind: legacyAgentKind }),
       ...(typeof item.workspaceId === "string" ? { workspaceId: item.workspaceId } : {}),
       ...(typeof item.workspaceRootFingerprint === "string"
         ? { workspaceRootFingerprint: item.workspaceRootFingerprint }
@@ -555,10 +558,12 @@ function normalizeRestoredTerminalSessions(
       ...(typeof item.createdAt === "number" ? { createdAt: item.createdAt } : {}),
       ...(typeof item.cwd === "string" ? { cwd: item.cwd } : {}),
       ...(typeof item.shell === "string" ? { shell: item.shell } : {}),
-      ...(typeof item.command === "string" ? { command: item.command } : {}),
+      ...(typeof item.command === "string"
+        ? { command: item.command }
+        : legacyAgentKind === undefined ? {} : { command: legacyAgentKind }),
       ...(Array.isArray(item.args) && item.args.every((arg) => typeof arg === "string")
         ? { args: [...item.args] }
-        : {}),
+        : legacyAgentKind === undefined ? {} : { args: [] }),
       ...(isTerminalResumeTarget(item.resumeTarget) ? { resumeTarget: { ...item.resumeTarget } } : {}),
       ...(typeof item.buffer === "string" ? { buffer: item.buffer } : {}),
       ...(activityEvents === undefined ? {} : { activityEvents }),
@@ -572,6 +577,19 @@ function normalizeRestoredTerminalSessions(
   }
 
   return sessions;
+}
+
+function legacyGeneratedTerminalAgentKind(
+  clientId: string,
+  title: string,
+  agentKind: unknown,
+  command: unknown,
+): "codex" | "claude" | undefined {
+  if (agentKind !== undefined || command !== undefined) return undefined;
+  const idMatch = /^manual-(\d+)$/.exec(clientId);
+  const titleMatch = /^(Codex|Claude) · session (\d+)$/.exec(title);
+  if (!idMatch || !titleMatch || idMatch[1] !== titleMatch[2]) return undefined;
+  return titleMatch[1] === "Codex" ? "codex" : "claude";
 }
 
 export function sanitizePersistedTerminalSession(
