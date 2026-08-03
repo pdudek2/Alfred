@@ -67,6 +67,30 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
     BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1120, height: 720 });
   });
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-5-1120x720.png") });
+
+  await addSession(page, "New manual terminal");
+  await expect(tiles).toHaveCount(6);
+
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1686, height: 980 });
+  });
+  await expect(page.getByTestId("terminal-grid")).toHaveClass(/six-up/);
+  const wideSixUp = await tileGeometry(tiles);
+  expect(uniqueCoordinates(wideSixUp, "left")).toHaveLength(3);
+  expect(uniqueCoordinates(wideSixUp, "top")).toHaveLength(2);
+  expect(Math.min(...wideSixUp.map(({ height }) => height))).toBeGreaterThanOrEqual(360);
+  expect(wideSixUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-6-1686x980.png") });
+
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1120, height: 720 });
+  });
+  const narrowSixUp = await tileGeometry(tiles);
+  expect(uniqueCoordinates(narrowSixUp, "left")).toHaveLength(2);
+  expect(uniqueCoordinates(narrowSixUp, "top")).toHaveLength(3);
+  expect(Math.min(...narrowSixUp.map(({ height }) => height))).toBeGreaterThanOrEqual(360);
+  expect(narrowSixUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-6-1120x720.png") });
 });
 
 test("manual terminal adopts the Claude runtime identity", async ({ harness }, testInfo) => {
@@ -86,4 +110,25 @@ test("manual terminal adopts the Claude runtime identity", async ({ harness }, t
 async function addSession(page: import("@playwright/test").Page, name: string): Promise<void> {
   await page.getByRole("button", { name: "Open launch menu" }).click();
   await page.getByRole("menuitem", { name }).click();
+}
+
+async function tileGeometry(tiles: import("@playwright/test").Locator) {
+  return tiles.evaluateAll((nodes) => nodes.map((node) => {
+    const element = node as HTMLElement;
+    const rect = element.getBoundingClientRect();
+    return {
+      clientWidth: element.clientWidth,
+      height: Math.round(rect.height),
+      left: Math.round(rect.left),
+      scrollWidth: element.scrollWidth,
+      top: Math.round(rect.top),
+    };
+  }));
+}
+
+function uniqueCoordinates(
+  geometry: Awaited<ReturnType<typeof tileGeometry>>,
+  axis: "left" | "top",
+): number[] {
+  return [...new Set(geometry.map((tile) => tile[axis]))];
 }

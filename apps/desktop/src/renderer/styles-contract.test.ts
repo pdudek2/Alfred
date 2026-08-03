@@ -1197,7 +1197,15 @@ describe("renderer CSS contracts", () => {
     const terminalGridStart = ".terminal-stage {";
     const terminalGridEnd = ".terminal-empty-state {";
     expectTopLevelOwnerWithin(".terminal-grid.laid-out", ["--grid-bottom-safe-zone: 76px", "grid-auto-rows: 84px"], terminalGridStart, terminalGridEnd);
-    expectTopLevelOwnerWithin(".terminal-grid.laid-out.dense", ["align-content: start"], terminalGridStart, terminalGridEnd);
+    expectTopLevelOwnerWithin(
+      ".terminal-grid.laid-out.dense.six-up",
+      [
+        "grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr))",
+        "grid-auto-rows: 360px",
+      ],
+      terminalGridStart,
+      terminalGridEnd,
+    );
     expectTopLevelOwnerWithin(".terminal-stage.arranging .terminal-grid-column", ["overflow-y: auto", "padding-bottom: 18px"], terminalGridStart, terminalGridEnd);
 
     const terminalTileStart = ".terminal-tile {";
