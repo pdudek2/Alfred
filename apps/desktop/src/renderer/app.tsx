@@ -111,6 +111,7 @@ import type {
 import {
   PREVIEW_DOCK_DEFAULT_WIDTH,
   type DispatchTargetSnapshot,
+  type WorkspaceLayoutsSnapshot,
   type WorkspaceViewState,
 } from "../shared/layout-ipc";
 import type { WorkspaceMissionBrief, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
@@ -2295,12 +2296,16 @@ export function App() {
 
     setWorkspaceHydrationStatus({ status: "loading" });
 
+    const emptyLayouts: WorkspaceLayoutsSnapshot = {
+      layoutsByWorkspace: {},
+      viewStateByWorkspace: {},
+    };
+
     Promise.all([
       terminalApi.list(),
       alfredApi?.getStagedPlan().catch(() => ({ plan: null })) ?? Promise.resolve({ plan: null }),
       alfredApi?.getRuntimeStatus().catch(() => null) ?? Promise.resolve(null),
-      layoutApi?.getLayouts().catch(() => ({ layoutsByWorkspace: {}, viewStateByWorkspace: {} })) ??
-        Promise.resolve({ layoutsByWorkspace: {}, viewStateByWorkspace: {} }),
+      layoutApi?.getLayouts().catch(() => emptyLayouts) ?? Promise.resolve(emptyLayouts),
       workspaceApi?.getWorkspaceState().catch(() => null) ?? Promise.resolve(null),
     ])
       .then(([terminalResult, stagedPlanResult, runtimeStatusResult, layoutResult, workspaceStateResult]) => {
