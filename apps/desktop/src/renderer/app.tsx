@@ -179,7 +179,7 @@ function tileLayoutRecordsEqual(
 export function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(DEFAULT_WORKSPACES);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(DEFAULT_WORKSPACE_ID);
-  const [arrangeMode, setArrangeMode] = useState<boolean>(false);
+  const [arrangeMode, setArrangeMode] = useState<boolean>(true);
   const [workModesByWorkspace, setWorkModesByWorkspace] = useState<Record<string, WorkMode>>({
     [DEFAULT_WORKSPACE_ID]: "desk",
   });
@@ -2300,8 +2300,10 @@ export function App() {
     ])
       .then(([terminalResult, stagedPlanResult, runtimeStatusResult, layoutResult, workspaceStateResult]) => {
         if (cancelled) return;
+        const hydratedWorkspaceId = workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID;
         setRuntimeStatus(runtimeStatusResult);
         setTileLayoutsByWorkspace(layoutResult.layoutsByWorkspace);
+        setArrangeMode(layoutResult.viewStateByWorkspace[hydratedWorkspaceId]?.workMode === undefined);
         setWorkModesByWorkspace({
           [DEFAULT_WORKSPACE_ID]: "desk",
           ...Object.fromEntries(
@@ -2357,7 +2359,6 @@ export function App() {
           (session) => !liveClientIds.has(session.id),
         );
         const restoredClientIds = new Set(restoredSessions.map((session) => session.id));
-        const hydratedWorkspaceId = workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID;
         const hydratedWorkspaceRootPath = workspaceRootPath(workspaceStateResult, hydratedWorkspaceId);
         const hydratedWorkspaceMissing =
           workspaceStateResult?.workspaces.find((workspace) => workspace.id === hydratedWorkspaceId)?.rootStatus

@@ -169,7 +169,10 @@ function installDesktopBridge(
     model: "anthropic/claude-sonnet-4-6",
     openRouterConfigured: true,
   },
-  layouts: WorkspaceLayoutsSnapshot = { layoutsByWorkspace: {}, viewStateByWorkspace: {} },
+  layouts: WorkspaceLayoutsSnapshot = {
+    layoutsByWorkspace: {},
+    viewStateByWorkspace: { A: { workMode: "desk" } },
+  },
   workspaceState: WorkspaceStateSnapshot = {
     workspaces: [
       { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
@@ -4323,15 +4326,18 @@ describe("App integration", () => {
     expect(createTerminal).toHaveBeenCalledTimes(1);
   });
 
-  it("enables arrange mode without duplicating the Work layout controls", async () => {
+  it("starts Work in Arrange while keeping layout presets available", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, [], undefined, {
+      layoutsByWorkspace: {},
+      viewStateByWorkspace: {},
+    });
 
     render(<App />);
 
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await submitCommandPalette(user, "arrange tiles");
+    expect(screen.getByRole("button", { name: "Open layout menu, Arrange selected" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resize Manual · zsh 1" })).toBeInTheDocument();
 
     const stage = screen.getByLabelText("terminals");
     expect(stage).not.toHaveClass("headerless");
@@ -4343,7 +4349,11 @@ describe("App integration", () => {
     expect(screen.queryByRole("button", { name: "Apply Grid preset" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Move right" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Widen" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Resize Manual · zsh 1" })).toBeInTheDocument();
+
+    await chooseWorkLayout(user, "Grid");
+
+    expect(screen.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Resize Manual · zsh 1" })).not.toBeInTheDocument();
   });
 
   it("switches desk work modes without entering arrange mode", async () => {
@@ -6867,10 +6877,8 @@ describe("App integration", () => {
     render(<App />);
 
     const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await submitCommandPalette(user, "arrange tiles");
 
+    expect(screen.getByRole("button", { name: "Open layout menu, Arrange selected" })).toBeInTheDocument();
     expect(tile).toHaveStyle({ gridColumn: "3 / span 6", gridRow: "2 / span 4" });
   });
 
