@@ -517,6 +517,20 @@ function liveSnapshot(
   };
 }
 
+function manualLiveSnapshot(suffix: string, title: string): TerminalSessionSnapshot {
+  return {
+    id: `runtime-${suffix}`,
+    clientId: suffix,
+    title,
+    source: "manual",
+    workspaceId: "A",
+    cwd: "/Users/patryk/Desktop/Alfred",
+    createdAt: Date.now(),
+    shell: "/bin/zsh",
+    buffer: "",
+  };
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;
@@ -698,11 +712,7 @@ describe("App integration", () => {
 
   it("keeps a custom terminal title when an agent is detected", async () => {
     const { emitData, renameTerminal } = installDesktopBridge(undefined, null, [
-      liveSnapshot("custom", {
-        title: "Release reviewer",
-        agentKind: undefined,
-        command: "/bin/zsh",
-      }),
+      manualLiveSnapshot("custom", "Release reviewer"),
     ]);
     render(<App />);
 
@@ -5021,16 +5031,8 @@ describe("App integration", () => {
 
   it("selects a project session without replacing the current Grid layout", async () => {
     const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge(undefined, null, [
-      liveSnapshot("manual-1", {
-        title: "Manual · zsh 1",
-        agentKind: undefined,
-        command: undefined,
-      }),
-      liveSnapshot("manual-2", {
-        title: "Manual · zsh 2",
-        agentKind: undefined,
-        command: undefined,
-      }),
+      manualLiveSnapshot("manual-1", "Manual · zsh 1"),
+      manualLiveSnapshot("manual-2", "Manual · zsh 2"),
     ]);
 
     render(<App />);
