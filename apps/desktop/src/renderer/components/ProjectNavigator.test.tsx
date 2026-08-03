@@ -309,6 +309,10 @@ describe("ProjectNavigator", () => {
       "data-label",
       "Codex · Slice 2",
     );
+    expect(screen.getByRole("button", { name: "Codex · Slice 2" })).toHaveAttribute(
+      "data-session-id",
+      "codex-live",
+    );
   });
 
   it("omits Free Chats when there are no matching live sessions", () => {
