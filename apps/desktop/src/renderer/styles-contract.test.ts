@@ -1052,8 +1052,16 @@ describe("renderer CSS contracts", () => {
     expect(focusPeek[0]).toContain("content: attr(data-label)");
   });
 
-  it("does not add a second disclosure control inside the active project", () => {
-    expect(styles).not.toContain(".project-disclosure");
+  it("keeps project session disclosure compact and visibly expanded", () => {
+    const disclosure = singleTopLevelRuleBodyIn(styles, ".project-session-disclosure");
+    const expanded = singleTopLevelRuleBodyIn(
+      styles,
+      '.project-session-disclosure[aria-expanded="true"] svg',
+    );
+
+    expect(disclosure).toContain("width: 28px");
+    expect(disclosure).toContain("background: transparent");
+    expect(expanded).toContain("transform: rotate(90deg)");
   });
 
   it("keeps the single workspace actions owner operable in the forced narrow rail", () => {

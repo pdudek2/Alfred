@@ -828,6 +828,31 @@ button:focus-visible {
   min-width: 0;
 }
 
+.project-session-disclosure {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0;
+  background: transparent;
+  color: var(--ink-5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.project-session-disclosure:hover,
+.project-session-disclosure:focus-visible {
+  background: var(--ink-2);
+  color: var(--ink-7);
+  outline: none;
+}
+
+.project-session-disclosure[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+
 .project-workspace-actions .workspace-title-trigger {
   width: 28px;
   min-width: 28px;
@@ -961,6 +986,7 @@ button:focus-visible {
 .project-navigator.is-collapsed .project-row-label,
 .project-navigator.is-collapsed .project-row-button kbd,
 .project-navigator.is-collapsed .project-workspace-actions,
+.project-navigator.is-collapsed .project-session-disclosure,
 .project-navigator.is-collapsed .project-session-title,
 .project-navigator.is-collapsed .project-overflow-button > span:first-child,
 .project-navigator.is-collapsed .free-chat-section > header strong,
@@ -1440,6 +1466,10 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
     display: flex;
     justify-content: center;
     padding: 2px 0 4px;
+  }
+
+  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-session-disclosure {
+    display: none;
   }
 
   .workspace-layout.preview-visible .project-navigator .project-row-button,
