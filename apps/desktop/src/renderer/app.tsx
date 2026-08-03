@@ -972,6 +972,25 @@ export function App() {
     void refreshLiveSessions();
   }, [refreshLiveSessions]);
 
+  const handleSelectSessionInWorkspace = useCallback((workspaceId: string, sessionId: string) => {
+    const targetExists = terminalSessionsRef.current.some(
+      (session) => session.workspaceId === workspaceId && session.id === sessionId,
+    );
+    if (!targetExists) return;
+
+    const workMode = workModesByWorkspace[workspaceId] ?? "desk";
+    setActiveSurface("work");
+    setActiveWorkspaceId(workspaceId);
+    setSelectedSessionIdsByWorkspace((current) =>
+      current[workspaceId] === sessionId ? current : { ...current, [workspaceId]: sessionId },
+    );
+    void getDesktopLayoutApi()?.setWorkspaceViewState({
+      workspaceId,
+      viewState: { workMode, selectedSessionId: sessionId },
+    });
+    void refreshLiveSessions();
+  }, [refreshLiveSessions, workModesByWorkspace]);
+
   const handleFocusSessionInWorkspace = useCallback((workspaceId: string, sessionId: string) => {
     const targetSessions = terminalSessionsRef.current.filter((session) => session.workspaceId === workspaceId);
     if (!targetSessions.some((session) => session.id === sessionId)) return;
@@ -2583,7 +2602,7 @@ export function App() {
                 />
               )}
               onAddWorkspace={handleAddWorkspace}
-              onFocusSessionInWorkspace={handleFocusSessionInWorkspace}
+              onSelectSessionInWorkspace={handleSelectSessionInWorkspace}
               onSelectWorkspace={handleSelectWorkspace}
               onToggleCollapsed={() => setProjectNavigatorCollapsed((collapsed) => !collapsed)}
             />

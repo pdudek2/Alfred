@@ -861,7 +861,7 @@ describe("App integration", () => {
     expect(screen.queryByText("No scratch chats yet.")).not.toBeInTheDocument();
   });
 
-  it("opens a free chat in its own workspace from the workspace navigation panel", async () => {
+  it("selects a free chat in its own workspace without replacing its layout", async () => {
     const user = userEvent.setup();
     const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge(
       undefined,
@@ -904,6 +904,8 @@ describe("App integration", () => {
     const panel = await screen.findByTestId("project-navigator");
     expect(within(panel).getByRole("group", { name: "Free Chats" })).toBeInTheDocument();
     expect(within(panel).queryByText(/~\/Documents\/Codex\//)).not.toBeInTheDocument();
+    setWorkspaceLayout.mockClear();
+    setWorkspaceViewState.mockClear();
     await user.click(within(panel).getByRole("button", { name: /Scratch API worker/i }));
 
     await waitFor(() => {
@@ -912,18 +914,13 @@ describe("App integration", () => {
         "location",
       );
     });
-    expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
+    expect(screen.getByLabelText("terminals")).toHaveClass("mode-desk");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Scratch API worker");
     expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
       workspaceId: "CLIENT",
-      viewState: { workMode: "focus", selectedSessionId: "scratch-client" },
+      viewState: { workMode: "desk", selectedSessionId: "scratch-client" },
     });
-    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
-      workspaceId: "CLIENT",
-      layouts: expect.objectContaining({
-        "scratch-client": expect.objectContaining({ col: 1, colSpan: 12 }),
-      }),
-    });
+    expect(setWorkspaceLayout).not.toHaveBeenCalled();
   });
 
   it("collapses long empty workspace lists behind an explicit expansion", async () => {
@@ -4974,6 +4971,39 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
+  });
+
+  it("selects a project session without replacing the current Grid layout", async () => {
+    const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge(undefined, null, [
+      liveSnapshot("manual-1", {
+        title: "Manual · zsh 1",
+        agentKind: undefined,
+        command: undefined,
+      }),
+      liveSnapshot("manual-2", {
+        title: "Manual · zsh 2",
+        agentKind: undefined,
+        command: undefined,
+      }),
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
+    setWorkspaceLayout.mockClear();
+    setWorkspaceViewState.mockClear();
+
+    await userEvent.click(screen.getByRole("button", { name: "Manual · zsh 2" }));
+
+    expect(screen.getByLabelText("terminals")).toHaveClass("mode-desk");
+    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
+    expect(setWorkspaceLayout).not.toHaveBeenCalled();
+    expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
+      workspaceId: "A",
+      viewState: { workMode: "desk", selectedSessionId: "manual-2" },
+    });
   });
 
   it("selects a new terminal immediately while Focus mode is active", async () => {
