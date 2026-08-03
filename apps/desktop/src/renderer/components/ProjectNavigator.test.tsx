@@ -122,13 +122,42 @@ describe("ProjectNavigator", () => {
     expect(within(screen.getByRole("group", { name: "Free Chats" })).getAllByRole("button")).toHaveLength(4);
   });
 
-  it("keeps the active project's sessions visible without a nested disclosure", () => {
+  it("exposes one disclosure for an active project with live sessions", () => {
     renderNavigator();
 
     const sessionGroup = screen.getByRole("group", { name: "Alfred sessions" });
     expect(sessionGroup).toBeVisible();
-    expect(screen.queryByRole("button", { name: /Alfred sessions/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Collapse Alfred sessions" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
     expect(screen.getAllByRole("list", { name: "Workspaces" })).toHaveLength(1);
+  });
+
+  it("keeps previously expanded project sessions visible after the active project changes", () => {
+    const projectSessions = [
+      ...sessions,
+      liveSession("client-live", "Claude · Client review", "CLIENT", "/repo/client", "claude"),
+    ];
+    const view = renderNavigator({ activeWorkspaceId: "A", sessions: projectSessions });
+    expect(screen.getByRole("group", { name: "Alfred sessions" })).toBeVisible();
+
+    view.rerender(navigator({ activeWorkspaceId: "CLIENT", sessions: projectSessions }));
+
+    expect(screen.getByRole("group", { name: "Alfred sessions" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "ClientApp sessions" })).toBeVisible();
+  });
+
+  it("lets the user collapse a project's sessions independently", async () => {
+    const user = userEvent.setup();
+    renderNavigator();
+    const disclosure = screen.getByRole("button", { name: "Collapse Alfred sessions" });
+
+    await user.click(disclosure);
+
+    expect(screen.queryByRole("group", { name: "Alfred sessions" })).not.toBeInTheDocument();
+    expect(disclosure).toHaveAttribute("aria-expanded", "false");
+    expect(disclosure).toHaveAccessibleName("Expand Alfred sessions");
   });
 
   it("routes every selection through the supplied callbacks", async () => {

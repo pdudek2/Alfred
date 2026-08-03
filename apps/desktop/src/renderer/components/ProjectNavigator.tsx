@@ -1,5 +1,5 @@
-import { Folder, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
-import { useEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
+import { ChevronRight, Folder, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import { isFreeChatSession, isNavigableLiveSession } from "../session-scope";
 import type { SessionTile } from "../session-state";
@@ -48,11 +48,13 @@ export function ProjectNavigator({
   const [showAllProjects, setShowAllProjects] = useState(
     () => workspaces.findIndex((workspace) => workspace.id === activeWorkspaceId) >= 5,
   );
+  const [expandedWorkspaceIds, setExpandedWorkspaceIds] = useState<Set<string>>(
+    () => new Set([activeWorkspaceId]),
+  );
   const projectRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const activeProjectIndex = workspaces.findIndex((workspace) => workspace.id === activeWorkspaceId);
   const visibleProjects = showAllProjects ? workspaces : workspaces.slice(0, 5);
   const hiddenProjects = showAllProjects ? [] : workspaces.slice(5);
-  const activeSessions = sessions.filter((session) => isActiveNavigatorSession(session, activeWorkspaceId));
   const freeChats = sessions.filter(
     (session) => session.workspaceId !== activeWorkspaceId && isFreeChatSession(session),
   );
@@ -66,6 +68,13 @@ export function ProjectNavigator({
       setShowAllProjects(true);
     }
   }, [activeWorkspaceId, workspaces]);
+
+  useLayoutEffect(() => {
+    setExpandedWorkspaceIds((current) => {
+      if (current.has(activeWorkspaceId)) return current;
+      return new Set([...current, activeWorkspaceId]);
+    });
+  }, [activeWorkspaceId]);
 
   return (
     <aside
@@ -93,6 +102,9 @@ export function ProjectNavigator({
             const stableIndex = workspaces.findIndex((candidate) => candidate.id === workspace.id);
             const attentionCount = attentionCountsByWorkspace.get(workspace.id) ?? 0;
             const hasAttention = attentionCount > 0;
+            const workspaceSessions = sessions.filter((session) => isActiveNavigatorSession(session, workspace.id));
+            const sessionsExpanded = expandedWorkspaceIds.has(workspace.id);
+            const sessionGroupId = `project-${workspace.id}-sessions`;
             return (
               <section
                 className={`project-item${active ? " is-active" : ""}`}
@@ -134,16 +146,34 @@ export function ProjectNavigator({
                       </span>
                     )}
                   </button>
+                  {workspaceSessions.length > 0 && (
+                    <button
+                      type="button"
+                      className="project-session-disclosure"
+                      aria-controls={sessionGroupId}
+                      aria-expanded={sessionsExpanded}
+                      aria-label={`${sessionsExpanded ? "Collapse" : "Expand"} ${workspace.label} sessions`}
+                      onClick={() => setExpandedWorkspaceIds((current) => {
+                        const next = new Set(current);
+                        if (next.has(workspace.id)) next.delete(workspace.id);
+                        else next.add(workspace.id);
+                        return next;
+                      })}
+                    >
+                      <ChevronRight aria-hidden="true" size={13} />
+                    </button>
+                  )}
                   {active && <div className="project-workspace-actions">{workspaceActions}</div>}
                 </div>
 
-                {active && activeSessions.length > 0 && (
+                {sessionsExpanded && workspaceSessions.length > 0 && (
                   <div
+                    id={sessionGroupId}
                     className="project-session-list"
                     role="group"
                     aria-label={`${workspace.label} sessions`}
                   >
-                    {activeSessions.map((session) => (
+                    {workspaceSessions.map((session) => (
                       <NavigatorSessionButton
                         active={session.id === activeSessionId}
                         key={session.id}
