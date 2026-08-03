@@ -27,7 +27,7 @@ export type ProjectNavigatorProps = {
   workspaces: ProjectNavigatorWorkspace[];
   workspaceActions: ReactNode;
   onAddWorkspace: () => void;
-  onFocusSessionInWorkspace: (workspaceId: string, sessionId: string) => void;
+  onSelectSessionInWorkspace: (workspaceId: string, sessionId: string) => void;
   onSelectWorkspace: (workspaceId: string) => void;
   onToggleCollapsed: () => void;
 };
@@ -41,7 +41,7 @@ export function ProjectNavigator({
   workspaces,
   workspaceActions,
   onAddWorkspace,
-  onFocusSessionInWorkspace,
+  onSelectSessionInWorkspace,
   onSelectWorkspace,
   onToggleCollapsed,
 }: ProjectNavigatorProps) {
@@ -148,7 +148,7 @@ export function ProjectNavigator({
                         active={session.id === activeSessionId}
                         key={session.id}
                         session={session}
-                        onClick={() => onFocusSessionInWorkspace(workspace.id, session.id)}
+                        onClick={() => onSelectSessionInWorkspace(workspace.id, session.id)}
                       />
                     ))}
                   </div>
@@ -203,7 +203,7 @@ export function ProjectNavigator({
                   active={session.id === activeSessionId}
                   key={session.id}
                   session={session}
-                  onClick={() => onFocusSessionInWorkspace(session.workspaceId, session.id)}
+                  onClick={() => onSelectSessionInWorkspace(session.workspaceId, session.id)}
                 />
               ))}
             </div>

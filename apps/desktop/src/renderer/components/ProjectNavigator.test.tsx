@@ -60,7 +60,7 @@ function navigator(props: Partial<ProjectNavigatorProps> = {}) {
       workspaces={workspaces}
       workspaceActions={<button type="button">Workspace actions</button>}
       onAddWorkspace={vi.fn()}
-      onFocusSessionInWorkspace={vi.fn()}
+      onSelectSessionInWorkspace={vi.fn()}
       onSelectWorkspace={vi.fn()}
       onToggleCollapsed={vi.fn()}
       {...props}
@@ -134,13 +134,13 @@ describe("ProjectNavigator", () => {
   it("routes every selection through the supplied callbacks", async () => {
     const user = userEvent.setup();
     const onSelectWorkspace = vi.fn();
-    const onFocusSessionInWorkspace = vi.fn();
-    renderNavigator({ onSelectWorkspace, onFocusSessionInWorkspace });
+    const onSelectSessionInWorkspace = vi.fn();
+    renderNavigator({ onSelectWorkspace, onSelectSessionInWorkspace });
 
     await user.click(screen.getByRole("button", { name: /ClientApp workspace/i }));
     expect(onSelectWorkspace).toHaveBeenCalledWith("CLIENT");
     await user.click(screen.getByRole("button", { name: /Codex · Slice 2/i }));
-    expect(onFocusSessionInWorkspace).toHaveBeenCalledWith("A", "codex-live");
+    expect(onSelectSessionInWorkspace).toHaveBeenCalledWith("A", "codex-live");
   });
 
   it("keeps project order stable when attention changes and supports native tab stops and arrow shortcuts", async () => {
