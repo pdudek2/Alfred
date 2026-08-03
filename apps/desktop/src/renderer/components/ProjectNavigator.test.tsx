@@ -304,6 +304,11 @@ describe("ProjectNavigator", () => {
     expect(screen.getAllByRole("list", { name: "Workspaces" })).toHaveLength(1);
 
     expect(screen.getByRole("group", { name: "Alfred sessions" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Alfred workspace" })).toHaveAttribute("data-label", "Alfred");
+    expect(screen.getByRole("button", { name: "Codex · Slice 2" })).toHaveAttribute(
+      "data-label",
+      "Codex · Slice 2",
+    );
   });
 
   it("omits Free Chats when there are no matching live sessions", () => {
