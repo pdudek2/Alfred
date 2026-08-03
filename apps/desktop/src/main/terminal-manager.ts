@@ -356,6 +356,9 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       let session: TerminalSession;
       try {
         const canonicalCwd = await resolveValidatedTerminalCwd(safeRequest, options);
+        const restoredSnapshot = safeRequest.clientId && restoredSessionSnapshots.has(safeRequest.clientId)
+          ? await matchingPersistedRestoredSnapshot(safeRequest)
+          : null;
         const launchCwd = await resolveLaunchCwd(
           safeRequest,
           options.prepareAgentWorktree ?? defaultPrepareAgentWorktree,
@@ -384,7 +387,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         });
         session = {
           ...metadata,
-          buffer: "",
+          buffer: restoredSnapshot?.buffer ?? "",
           activityEvents: [],
           activityStream: { carry: "" },
           commandInput: "",
@@ -1004,11 +1007,14 @@ function isIsolatedWorktreeSession(
 
 function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSessionSnapshot | null {
   if (!session.clientId) return null;
+  const agentKind = session.agentKind ?? session.foregroundAgentKind;
+  const command = session.command ?? agentKind;
+  const args = session.args ?? (command ? [] : undefined);
   const snapshot: PersistedTerminalSessionSnapshot = {
     clientId: session.clientId,
     title: session.title,
     source: session.source,
-    ...(session.agentKind === undefined ? {} : { agentKind: session.agentKind }),
+    ...(agentKind === undefined ? {} : { agentKind }),
     ...(session.workspaceId === undefined ? {} : { workspaceId: session.workspaceId }),
     ...(session.workspaceRootFingerprint === undefined
       ? {}
@@ -1019,8 +1025,8 @@ function toPersistedSnapshot(session: TerminalSession): PersistedTerminalSession
     ...(session.baseCwd === undefined ? {} : { baseCwd: session.baseCwd }),
     createdAt: session.createdAt,
     shell: session.shell,
-    ...(session.command === undefined ? {} : { command: session.command }),
-    ...(session.args === undefined ? {} : { args: [...session.args] }),
+    ...(command === undefined ? {} : { command }),
+    ...(args === undefined ? {} : { args: [...args] }),
     ...(session.resumeTarget === undefined ? {} : { resumeTarget: { ...session.resumeTarget } }),
     buffer: tailBuffer(session.buffer, MAX_PERSISTED_BUFFER_LENGTH),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),

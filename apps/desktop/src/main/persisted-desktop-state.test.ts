@@ -463,6 +463,27 @@ describe("persisted-desktop-state", () => {
     });
   });
 
+  it("migrates an auto-titled manual coding-agent session to resumable metadata", () => {
+    const state = normalizeDesktopState({
+      ...DEFAULT_DESKTOP_STATE,
+      restoredTerminalSessions: [{
+        clientId: "manual-63",
+        title: "Codex · session 63",
+        source: "manual",
+        cwd: "/repo",
+        shell: "/bin/zsh",
+        buffer: "saved conversation\n",
+      }],
+    });
+
+    expect(state.restoredTerminalSessions[0]).toMatchObject({
+      clientId: "manual-63",
+      agentKind: "codex",
+      command: "codex",
+      args: [],
+    });
+  });
+
   it("keeps only safe isolated recovery identity when retention is off", () => {
     const isolated = {
       clientId: "codex-1",

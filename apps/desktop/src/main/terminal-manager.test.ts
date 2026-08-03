@@ -1688,7 +1688,7 @@ describe("terminal-manager IPC", () => {
       loadNodePty: async () => nodePty as never,
     });
 
-    await invoke(terminalChannels.create, {
+    const created = await invoke<TerminalCreateResult>(terminalChannels.create, {
       clientId: snapshot.clientId,
       cols: 80,
       cwd: snapshot.cwd,
@@ -1697,11 +1697,41 @@ describe("terminal-manager IPC", () => {
       workspaceId: snapshot.workspaceId,
     });
 
+    const relaunched = await invoke<TerminalSnapshotResult>(terminalChannels.snapshot, { id: created.id });
+
     expect(nodePty.spawn).toHaveBeenCalledWith(
       expect.any(String),
       expect.any(Array),
       expect.objectContaining({ cwd: snapshot.cwd }),
     );
+    expect(relaunched?.buffer).toBe("saved transcript\n");
+  });
+
+  it.each(["codex", "claude"] as const)("persists a manually started %s session as resumable", async (agentKind) => {
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+
+    const created = await invoke<TerminalCreateResult>(terminalChannels.create, {
+      clientId: `manual-${agentKind}`,
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+      source: "manual",
+      title: "Manual terminal",
+    });
+    emit(terminalChannels.write, { id: created.id, data: `${agentKind}\r` });
+    pty.process = agentKind;
+    pty.onDataHandler?.(`${agentKind} ready\n`);
+    pty.onExitHandler?.({ exitCode: 0 });
+
+    const listed = await invoke<TerminalListResult>(terminalChannels.list);
+    expect(listed.restoredSessions).toContainEqual(expect.objectContaining({
+      clientId: `manual-${agentKind}`,
+      agentKind,
+      command: agentKind,
+      args: [],
+      buffer: `${agentKind} ready\n`,
+    }));
   });
 
   it.each([
