@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { registerSessionsIpc } from "./sessions-ipc.js";
 import { createCodexSessionsReader } from "./codex-sessions.js";
+import { managedProjectWorktreeRoot } from "./git-worktree.js";
 import { sessionsChannels } from "../shared/sessions-ipc.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 
@@ -68,6 +69,34 @@ describe("sessions IPC", () => {
     });
 
     await expect(handlers.get(sessionsChannels.resolveExternal)?.({}, { sessionKey: "stale" })).resolves.toEqual({ kind: "add-project" });
+  });
+
+  it("authorizes resume targets inside the configured managed worktree root", async () => {
+    const projectRoot = path.join(tmpdir(), "authoritative-root");
+    const managedWorktreeRootPath = path.join(tmpdir(), "alfred-user-data", "worktrees");
+    const managedCwd = path.join(managedProjectWorktreeRoot(managedWorktreeRootPath, projectRoot), "feature-a");
+    const reader = {
+      listExternalSessions: vi.fn(),
+      resolveExternalSession: vi.fn(async () => ({
+        kind: "resume" as const,
+        projectId: "A",
+        cwd: managedCwd,
+        sessionId: "managed-session",
+      })),
+      clearCaches: vi.fn(),
+    };
+    registerSessionsIpc({
+      managedWorktreeRootPath,
+      reader,
+      workspaceStore: fakeWorkspaceStore([{ id: "A", label: "Authoritative", shortLabel: "AU", rootPath: projectRoot }]),
+    });
+
+    await expect(handlers.get(sessionsChannels.resolveExternal)?.({}, { sessionKey: "managed" })).resolves.toEqual({
+      kind: "resume",
+      projectId: "A",
+      cwd: managedCwd,
+      sessionId: "managed-session",
+    });
   });
 
   it("rejects a resumable cwd that escapes an authoritative workspace through dot segments", async () => {

@@ -281,6 +281,9 @@ describe("main quit persistence", () => {
       | undefined;
     await expect(options?.resolveWorkspaceRoot?.("A")).resolves.toBe("/repo");
     await expect(options?.resolveWorkspaceRoot?.("missing")).resolves.toBeUndefined();
+    expect(mocks.registerSessionsIpc).toHaveBeenCalledWith(expect.objectContaining({
+      managedWorktreeRootPath: "/tmp/alfred-user-data/worktrees",
+    }));
   });
 
   it("exits immediately when another Alfred instance owns the desktop profile", async () => {

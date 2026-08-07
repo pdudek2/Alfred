@@ -451,6 +451,15 @@ export function managedProjectWorktreeRoot(worktreeStoreRoot: string, baseCwd: s
   return path.join(path.resolve(worktreeStoreRoot), projectWorktreeKey(baseCwd));
 }
 
+export function projectWorktreeRoots(baseCwd: string, worktreeStoreRoot?: string): string[] {
+  const roots = [];
+  if (worktreeStoreRoot?.trim()) {
+    roots.push(managedProjectWorktreeRoot(worktreeStoreRoot, baseCwd));
+  }
+  roots.push(legacyProjectWorktreeRoot(baseCwd));
+  return roots;
+}
+
 function worktreeRootPath(
   result: Pick<AgentWorktreeResult, "baseCwd" | "branchName">,
   options: Pick<PrepareAgentWorktreeOptions, "worktreeStoreRoot"> = {},
@@ -509,12 +518,7 @@ function cleanupProjectRoots(
   baseCwd: string,
   options: Pick<PrepareAgentWorktreeOptions, "worktreeStoreRoot">,
 ): string[] {
-  const roots = [];
-  if (options.worktreeStoreRoot?.trim()) {
-    roots.push(managedProjectWorktreeRoot(options.worktreeStoreRoot, baseCwd));
-  }
-  roots.push(legacyProjectWorktreeRoot(baseCwd));
-  return roots;
+  return projectWorktreeRoots(baseCwd, options.worktreeStoreRoot);
 }
 
 function safeCleanupBranchName(value: string): string {

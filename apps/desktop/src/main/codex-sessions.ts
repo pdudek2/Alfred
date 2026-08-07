@@ -23,6 +23,7 @@ import {
   type TranscriptReadMode,
 } from "../shared/sessions-ipc.js";
 import { sessionPresentationText as presentationText } from "../shared/session-presentation.js";
+import { projectWorktreeRoots } from "./git-worktree.js";
 import { canonicalWorkspacePath } from "./workspace-path.js";
 
 const MAX_TITLE_LENGTH = 92;
@@ -50,6 +51,7 @@ type CanonicalCwdCache = Map<string, Promise<string>>;
 
 export function createCodexSessionsReader(options: {
   codexHome: string;
+  managedWorktreeRootPath?: string;
   summaryLimit?: number;
   onSummaryDiscovery?: () => void;
 }) {
@@ -169,7 +171,14 @@ export function createCodexSessionsReader(options: {
         offset = cursor.offset;
       } else {
         options.onSummaryDiscovery?.();
-        const summaries = await discoverCodexSummaries(options.codexHome, request.projects, summaryCache, touchSummary, cacheSummary);
+        const summaries = await discoverCodexSummaries(
+          options.codexHome,
+          request.projects,
+          options.managedWorktreeRootPath,
+          summaryCache,
+          touchSummary,
+          cacheSummary,
+        );
         snapshot = {
           id: listSnapshotGeneration + 1,
           requestSignature,
@@ -237,12 +246,13 @@ export function createCodexSessionsReader(options: {
 async function discoverCodexSummaries(
   codexHome: string,
   projects: SessionsProjectInput[],
+  managedWorktreeRootPath: string | undefined,
   cache: Map<string, SummaryCacheEntry>,
   touch: (key: string) => void,
   cacheSummary: (key: string, summary: CodexSummary) => void,
 ): Promise<CodexSummary[]> {
   const titleIndex = await readCodexSessionTitleIndex(codexHome);
-  const canonicalProjects = await canonicalizeProjects(projects);
+  const canonicalProjects = await canonicalizeProjects(projects, managedWorktreeRootPath);
   const canonicalCwds: CanonicalCwdCache = new Map();
   const files = (await findJsonlFiles(path.join(codexHome, "sessions"))).sort((left, right) => right.updatedAt - left.updatedAt);
   const summaries: CodexSummary[] = [];
@@ -615,14 +625,18 @@ function invalidListCursor(): Error { return new Error("Invalid external session
 function listRequestSignature(request: ListExternalSessionsRequest): string {
   return JSON.stringify({ projects: request.projects, query: request.query ?? "" });
 }
-async function canonicalizeProjects(projects: SessionsProjectInput[]): Promise<CanonicalSessionsProject[]> {
+async function canonicalizeProjects(
+  projects: SessionsProjectInput[],
+  managedWorktreeRootPath: string | undefined,
+): Promise<CanonicalSessionsProject[]> {
   return Promise.all(projects.map(async (project) => {
     if (!project.rootPath) return { ...project, canonicalRoots: [] };
-    const root = project.rootPath.replace(/\/+$/, "");
-    const legacyRoot = `${path.dirname(root)}/.alfred-worktrees/${path.basename(root)}`;
+    const root = path.resolve(project.rootPath);
     return {
       ...project,
-      canonicalRoots: await Promise.all([root, legacyRoot].map((value) => canonicalWorkspacePath(value))),
+      canonicalRoots: await Promise.all(
+        [root, ...projectWorktreeRoots(root, managedWorktreeRootPath)].map((value) => canonicalWorkspacePath(value)),
+      ),
     };
   }));
 }
