@@ -59,7 +59,7 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
   const wideFiveUp = await tileGeometry(tiles);
   expect(uniqueCoordinates(wideFiveUp, "left")).toHaveLength(3);
   expect(uniqueCoordinates(wideFiveUp, "top")).toHaveLength(2);
-  expect(Math.min(...wideFiveUp.map(({ height }) => height))).toBeGreaterThan(400);
+  expect(Math.min(...wideFiveUp.map(({ height }) => height))).toBeGreaterThan(760);
   expect(wideFiveUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-5-1686x980.png") });
 
@@ -69,7 +69,7 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
   const narrowFiveUp = await tileGeometry(tiles);
   expect(uniqueCoordinates(narrowFiveUp, "left")).toHaveLength(2);
   expect(uniqueCoordinates(narrowFiveUp, "top")).toHaveLength(3);
-  expect(Math.min(...narrowFiveUp.map(({ height }) => height))).toBeGreaterThanOrEqual(400);
+  expect(Math.min(...narrowFiveUp.map(({ height }) => height))).toBeGreaterThanOrEqual(540);
   expect(narrowFiveUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-5-1120x720.png") });
 
@@ -84,7 +84,7 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
   const wideSixUp = await tileGeometry(tiles);
   expect(uniqueCoordinates(wideSixUp, "left")).toHaveLength(3);
   expect(uniqueCoordinates(wideSixUp, "top")).toHaveLength(2);
-  expect(Math.min(...wideSixUp.map(({ height }) => height))).toBeGreaterThan(400);
+  expect(Math.min(...wideSixUp.map(({ height }) => height))).toBeGreaterThan(760);
   expect(wideSixUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-6-1686x980.png") });
 
@@ -94,9 +94,53 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
   const narrowSixUp = await tileGeometry(tiles);
   expect(uniqueCoordinates(narrowSixUp, "left")).toHaveLength(2);
   expect(uniqueCoordinates(narrowSixUp, "top")).toHaveLength(3);
-  expect(Math.min(...narrowSixUp.map(({ height }) => height))).toBeGreaterThanOrEqual(400);
+  expect(Math.min(...narrowSixUp.map(({ height }) => height))).toBeGreaterThanOrEqual(540);
   expect(narrowSixUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-6-1120x720.png") });
+});
+
+test("gives each wheel gesture to either xterm history or the terminal Grid", async ({ harness }) => {
+  const { app, page } = harness;
+  const input = page.getByRole("textbox", { name: "Terminal input" }).first();
+  await input.fill("seq 1 240");
+  await input.press("Enter");
+
+  const host = page.getByTestId("xterm-host").first();
+  await expect(host).toContainText("240");
+  for (let index = 0; index < 5; index += 1) {
+    await addSession(page, "New manual terminal");
+  }
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1120, height: 720 });
+  });
+
+  const screen = host.locator(".xterm-screen");
+  const column = page.locator(".terminal-grid-column");
+  const slider = host.locator(".scrollbar.vertical .slider");
+  await screen.hover();
+
+  const terminalBottom = await slider.evaluate((element) => Number.parseFloat((element as HTMLElement).style.top));
+  await page.mouse.wheel(0, 120);
+  await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  expect(await slider.evaluate((element) => Number.parseFloat((element as HTMLElement).style.top))).toBe(terminalBottom);
+
+  await column.evaluate((element) => { element.scrollTop = 0; });
+  await screen.hover();
+  for (let index = 0; index < 8; index += 1) {
+    await page.mouse.wheel(0, -120);
+    await page.waitForTimeout(40);
+  }
+  await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBe(0);
+  const terminalHistoryPosition = await slider.evaluate(
+    (element) => Number.parseFloat((element as HTMLElement).style.top),
+  );
+  expect(terminalHistoryPosition).toBeLessThan(terminalBottom);
+
+  await page.mouse.wheel(0, 120);
+  await expect.poll(() => slider.evaluate(
+    (element) => Number.parseFloat((element as HTMLElement).style.top),
+  )).toBeGreaterThan(terminalHistoryPosition);
+  expect(await column.evaluate((element) => element.scrollTop)).toBe(0);
 });
 
 test("manual terminal adopts the Claude runtime identity", async ({ harness }, testInfo) => {

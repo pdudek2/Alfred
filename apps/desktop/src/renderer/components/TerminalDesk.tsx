@@ -143,7 +143,6 @@ export function TerminalDesk({
   onSessionRevealed,
   onToggleCollapseSession,
 }: TerminalDeskProps) {
-  const gridColumnRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
   const activeSessions = sessions.filter((session) => session.workspaceId === activeWorkspaceId);
@@ -197,38 +196,6 @@ export function TerminalDesk({
       .scrollIntoView?.({ block: "nearest", inline: "nearest" });
     onSessionRevealed(revealSessionId);
   }, [onSessionRevealed, revealSessionId, workMode]);
-
-  useEffect(() => {
-    const column = gridColumnRef.current;
-    if (!column) return;
-
-    const handleWheel = (event: WheelEvent) => {
-      if (event.deltaY === 0 || column.scrollHeight <= column.clientHeight) return;
-
-      const target = event.target instanceof Element ? event.target : null;
-      const viewport = target?.closest(".xterm-host")?.querySelector(".xterm-viewport");
-      if (!(viewport instanceof HTMLElement)) return;
-
-      const direction = Math.sign(event.deltaY);
-      const terminalCanScroll =
-        direction > 0
-          ? viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight - 1
-          : viewport.scrollTop > 1;
-      if (terminalCanScroll) return;
-
-      const columnCanScroll =
-        direction > 0
-          ? column.scrollTop + column.clientHeight < column.scrollHeight - 1
-          : column.scrollTop > 1;
-      if (!columnCanScroll) return;
-
-      column.scrollTop += event.deltaY;
-      event.preventDefault();
-    };
-
-    column.addEventListener("wheel", handleWheel, { capture: true, passive: false });
-    return () => column.removeEventListener("wheel", handleWheel, { capture: true });
-  }, []);
 
   const handleFocusSession = useCallback(
     (sessionId: string) => {
@@ -345,7 +312,7 @@ export function TerminalDesk({
         </header>
       )}
       <div className="terminal-stage-body">
-        <div className="terminal-grid-column" ref={gridColumnRef}>
+        <div className="terminal-grid-column">
           {recoverableSessions.length > 0 && (
             <RecoveryWorkspaceStrip
               sessions={recoverableSessions}
@@ -1104,6 +1071,28 @@ function ManualTerminalTile({
 
     terminal.loadAddon(fitAddon);
     terminal.open(container);
+    terminal.attachCustomWheelEventHandler((event) => {
+      if (event.deltaY === 0) return true;
+
+      const direction = Math.sign(event.deltaY);
+      const buffer = terminal.buffer.active;
+      const terminalCanScroll = direction > 0 ? buffer.viewportY < buffer.baseY : buffer.viewportY > 0;
+      if (terminalCanScroll) {
+        terminal.scrollLines(direction * Math.max(1, Math.round(Math.abs(event.deltaY) / 40)));
+      } else {
+        const column = container.closest(".terminal-grid-column");
+        if (!(column instanceof HTMLElement)) return true;
+        const columnCanScroll = direction > 0
+          ? column.scrollTop + column.clientHeight < column.scrollHeight - 1
+          : column.scrollTop > 1;
+        if (!columnCanScroll) return true;
+        column.scrollTop += event.deltaY;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      return false;
+    });
     terminalRef.current = terminal;
 
     const fitAndResize = () => {

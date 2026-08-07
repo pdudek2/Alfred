@@ -1202,7 +1202,7 @@ describe("renderer CSS contracts", () => {
       [
         "--grid-bottom-safe-zone: 10px",
         "grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr))",
-        "grid-auto-rows: max(400px, calc((100dvh - 118px) / 2))",
+        "grid-auto-rows: max(560px, calc(100dvh - 150px))",
       ],
       terminalGridStart,
       terminalGridEnd,
