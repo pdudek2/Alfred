@@ -212,7 +212,6 @@ export function App() {
   const [externalCodexSessionsError, setExternalCodexSessionsError] = useState<string | null>(null);
   const [externalCodexSessionsLoading, setExternalCodexSessionsLoading] = useState<boolean>(false);
   const externalSessionsRequestGenerationRef = useRef(0);
-  const externalSessionsQueryRefreshTimeoutRef = useRef<number | null>(null);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState<boolean>(false);
   const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState<string>("");
   const [workspaceRenameEditing, setWorkspaceRenameEditing] = useState<boolean>(false);
@@ -1868,11 +1867,7 @@ export function App() {
     setCommandQuery("");
   }, []);
 
-  const handleRefreshExternalCodexSessions = useCallback(async (query: string) => {
-    if (externalSessionsQueryRefreshTimeoutRef.current !== null) {
-      window.clearTimeout(externalSessionsQueryRefreshTimeoutRef.current);
-      externalSessionsQueryRefreshTimeoutRef.current = null;
-    }
+  const handleRefreshExternalCodexSessions = useCallback(async () => {
     if (!privacySettings.externalSessionIndexingEnabled) {
       externalSessionsRequestGenerationRef.current += 1;
       setExternalCodexSessions([]);
@@ -1891,7 +1886,6 @@ export function App() {
     externalSessionsRequestGenerationRef.current = requestGeneration;
     setExternalCodexSessionsLoading(true);
     setExternalCodexSessionsError(null);
-    const normalizedQuery = query.trim();
     let snapshotCursorToRelease: string | undefined;
     try {
       const accumulated: ExternalSessionSummary[] = [];
@@ -1904,7 +1898,6 @@ export function App() {
         const result = await sessionsApi.listExternalSessions({
           projects: workspaces,
           limit: Math.min(SESSIONS_PAGE_SIZE, SUMMARY_CACHE_COUNT_LIMIT - accumulated.length),
-          ...(normalizedQuery ? { query: normalizedQuery } : {}),
           ...(cursor ? { cursor } : {}),
         });
         snapshotCursorToRelease = result.nextCursor ?? undefined;
@@ -2142,23 +2135,8 @@ export function App() {
   useEffect(() => {
     if (activeSurface !== "sessions") return;
     if (!privacySettings.externalSessionIndexingEnabled) return;
-    const query = sessionsViewState.query.trim();
-    if (!query) {
-      void handleRefreshExternalCodexSessions("");
-      return;
-    }
-    const timeout = window.setTimeout(() => {
-      externalSessionsQueryRefreshTimeoutRef.current = null;
-      void handleRefreshExternalCodexSessions(query);
-    }, 150);
-    externalSessionsQueryRefreshTimeoutRef.current = timeout;
-    return () => {
-      window.clearTimeout(timeout);
-      if (externalSessionsQueryRefreshTimeoutRef.current === timeout) {
-        externalSessionsQueryRefreshTimeoutRef.current = null;
-      }
-    };
-  }, [activeSurface, handleRefreshExternalCodexSessions, privacySettings.externalSessionIndexingEnabled, sessionsViewState.query]);
+    void handleRefreshExternalCodexSessions();
+  }, [activeSurface, handleRefreshExternalCodexSessions, privacySettings.externalSessionIndexingEnabled]);
 
   useEffect(() => {
     if (activeSurface !== "work") return;
@@ -2740,7 +2718,7 @@ export function App() {
                   onBackToWork={handleExitSessionsToWork}
                   onOpenPrivacySettings={handleOpenPrivacyPanel}
                   onPrimaryAction={handleSessionsPrimaryAction}
-                  onRefreshExternalSessions={() => void handleRefreshExternalCodexSessions(sessionsViewState.query)}
+                  onRefreshExternalSessions={() => void handleRefreshExternalCodexSessions()}
                   onStateChange={setSessionsViewState}
                 />
               </div>

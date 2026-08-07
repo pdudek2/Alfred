@@ -3451,68 +3451,7 @@ describe("App integration", () => {
     expect(search).toHaveFocus();
     expect(within(results).getAllByRole("option")).toHaveLength(1);
     expect(within(results).getByRole("option", { name: /Bounded external session 081/i })).toBeVisible();
-  });
-
-  it("debounces non-empty Sessions queries to main and refreshes immediately when cleared", async () => {
-    const user = userEvent.setup();
-    const lateSession: ExternalSessionSummary = {
-      sessionKey: "opaque-late-session",
-      lineageKey: "external-codex:late-session",
-      contentSessionKey: "external-codex:late-session",
-      source: "external-codex",
-      kind: "codex",
-      title: "Late unique query target",
-      project: { id: "A", label: "Alfred" },
-      locationLabel: "Alfred",
-      updatedAt: 1_720_000_000_000,
-      lifecycle: "resumable",
-    };
-    const { listExternalSessions } = installDesktopBridge();
-    listExternalSessions.mockImplementation((request: Parameters<SessionsApi["listExternalSessions"]>[0]) => Promise.resolve({
-      sessions: request.query === "late unique" ? [lateSession] : [],
-      nextCursor: null,
-      total: request.query === "late unique" ? 1 : 0,
-    }));
-
-    render(<App />);
-    await selectSurface(user, "Sessions");
-    const search = screen.getByRole("searchbox", { name: "Search sessions" });
-    await waitFor(() => expect(listExternalSessions).toHaveBeenCalledTimes(1));
-
-    await user.type(search, "late unique");
-    expect(listExternalSessions).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(listExternalSessions).toHaveBeenLastCalledWith({
-      projects: expect.any(Array),
-      query: "late unique",
-      limit: 80,
-    }));
-    expect(await screen.findByRole("option", { name: /Late unique query target/i })).toBeVisible();
-
-    await user.clear(search);
-    await waitFor(() => expect(listExternalSessions).toHaveBeenLastCalledWith({
-      projects: expect.any(Array),
-      limit: 80,
-    }));
-  });
-
-  it("cancels a pending Sessions query reload when refreshed manually", async () => {
-    const user = userEvent.setup();
-    const { listExternalSessions } = installDesktopBridge();
-
-    render(<App />);
-    await selectSurface(user, "Sessions");
-    const search = screen.getByRole("searchbox", { name: "Search sessions" });
-    await waitFor(() => expect(listExternalSessions).toHaveBeenCalledOnce());
-    listExternalSessions.mockClear();
-
-    fireEvent.change(search, { target: { value: "pending query" } });
-    fireEvent.click(screen.getByRole("button", { name: "Refresh external sessions" }));
-    await waitFor(() => expect(listExternalSessions).toHaveBeenCalledOnce());
-
-    await act(async () => {
-      await new Promise((resolve) => window.setTimeout(resolve, 200));
-    });
-    expect(listExternalSessions).toHaveBeenCalledOnce();
+    expect(listExternalSessions).toHaveBeenCalledTimes(2);
   });
 
   it("releases the unfinished main snapshot when the renderer stops before exhausting its cursor", async () => {
