@@ -92,6 +92,7 @@ function previewProps() {
       url: "http://127.0.0.1:5173/",
       sessionId: "dev",
       sessionTitle: "Dev server",
+      sources: [{ sessionId: "dev", sessionTitle: "Dev server", lastSeenAt: 1 }],
       firstSeenAt: 1,
       lastSeenAt: 1,
     }],

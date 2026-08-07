@@ -5,6 +5,7 @@ import {
   normalizeLocalPreviewUrl,
   previewUrlCandidatesFromText,
   recordPreviewUrlsFromText,
+  removePreviewSessionCandidates,
   type PreviewUrlCandidate,
 } from "./preview-state";
 
@@ -56,6 +57,7 @@ describe("preview-state", () => {
         url: "http://localhost:5173/",
         sessionId: "session-a",
         sessionTitle: "Dev server",
+        sources: [{ sessionId: "session-a", sessionTitle: "Dev server", lastSeenAt: 100 }],
         firstSeenAt: 100,
         lastSeenAt: 100,
       },
@@ -99,6 +101,10 @@ describe("preview-state", () => {
         url: "http://localhost:5173/",
         sessionId: "new-session",
         sessionTitle: "New server",
+        sources: [
+          { sessionId: "new-session", sessionTitle: "New server", lastSeenAt: 90 },
+          { sessionId: "old-session", sessionTitle: "Old server", lastSeenAt: 50 },
+        ],
         firstSeenAt: 10,
         lastSeenAt: 90,
       }),
@@ -142,8 +148,40 @@ describe("preview-state", () => {
         url: "http://localhost:5173/",
         sessionId: "new-session",
         sessionTitle: "New server",
+        sources: [
+          { sessionId: "new-session", sessionTitle: "New server", lastSeenAt: 100 },
+          { sessionId: "old-session", sessionTitle: "Old server", lastSeenAt: 50 },
+        ],
         firstSeenAt: 5,
         lastSeenAt: 100,
+      }),
+    ]);
+  });
+
+  it("keeps a shared preview URL while another source session remains", () => {
+    const shared = mergePreviewUrlCandidates(
+      previewUrlCandidatesFromText({
+        workspaceId: "workspace-a",
+        sessionId: "session-a",
+        sessionTitle: "First server",
+        text: "http://localhost:5173",
+        seenAt: 10,
+      }),
+      previewUrlCandidatesFromText({
+        workspaceId: "workspace-a",
+        sessionId: "session-b",
+        sessionTitle: "Second server",
+        text: "http://localhost:5173",
+        seenAt: 20,
+      }),
+    );
+
+    expect(removePreviewSessionCandidates(shared, "session-b")).toEqual([
+      candidate({
+        sessionId: "session-a",
+        sessionTitle: "First server",
+        firstSeenAt: 10,
+        lastSeenAt: 10,
       }),
     ]);
   });
@@ -190,14 +228,18 @@ describe("preview-state", () => {
 function candidate(overrides: Partial<PreviewUrlCandidate>): PreviewUrlCandidate {
   const workspaceId = overrides.workspaceId ?? "workspace-a";
   const url = overrides.url ?? "http://localhost:5173/";
+  const sessionId = overrides.sessionId ?? "session-a";
+  const sessionTitle = overrides.sessionTitle ?? "Dev server";
+  const lastSeenAt = overrides.lastSeenAt ?? overrides.firstSeenAt ?? 0;
 
   return {
     id: `${workspaceId}:${url}`,
     workspaceId,
     url,
-    sessionId: overrides.sessionId ?? "session-a",
-    sessionTitle: overrides.sessionTitle ?? "Dev server",
-    firstSeenAt: overrides.firstSeenAt ?? overrides.lastSeenAt ?? 0,
-    lastSeenAt: overrides.lastSeenAt ?? overrides.firstSeenAt ?? 0,
+    sessionId,
+    sessionTitle,
+    sources: overrides.sources ?? [{ sessionId, sessionTitle, lastSeenAt }],
+    firstSeenAt: overrides.firstSeenAt ?? lastSeenAt,
+    lastSeenAt,
   };
 }
