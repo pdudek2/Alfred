@@ -78,7 +78,11 @@ import {
 } from "./session-state";
 import { terminalSessionDisplayStatus } from "./session-status";
 import { createInitialSessionsViewState } from "./sessions-view-state";
-import { recordPreviewUrlsFromText, type PreviewUrlCandidate } from "./preview-state";
+import {
+  recordPreviewUrlsFromText,
+  removePreviewSessionCandidates,
+  type PreviewUrlCandidate,
+} from "./preview-state";
 import type { WorkMode } from "./terminal-desk-types";
 import { shortenPath } from "./path-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
@@ -1124,7 +1128,7 @@ export function App() {
       next.delete(sessionId);
       return next;
     });
-    setPreviewCandidates((candidates) => candidates.filter((candidate) => candidate.sessionId !== sessionId));
+    setPreviewCandidates((candidates) => removePreviewSessionCandidates(candidates, sessionId));
 
     if (destructiveWorktreeCleanup) {
       finishClosing();
@@ -1517,7 +1521,7 @@ export function App() {
   const handleRuntimeSessionExited = useCallback((event: TerminalExitEvent) => {
     const exitedSession = terminalSessionsRef.current.find((item) => terminalEventMatchesSession(item, event));
     if (exitedSession) {
-      setPreviewCandidates((candidates) => candidates.filter((candidate) => candidate.sessionId !== exitedSession.id));
+      setPreviewCandidates((candidates) => removePreviewSessionCandidates(candidates, exitedSession.id));
     }
     setTerminalSessions((sessions) => {
       const session = sessions.find((item) => terminalEventMatchesSession(item, event));
