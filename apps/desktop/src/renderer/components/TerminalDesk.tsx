@@ -144,6 +144,7 @@ export function TerminalDesk({
   onToggleCollapseSession,
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const gridColumnRef = useRef<HTMLDivElement | null>(null);
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
   const activeSessions = sessions.filter((session) => session.workspaceId === activeWorkspaceId);
   const activeLayouts = layouts;
@@ -168,6 +169,18 @@ export function TerminalDesk({
   const manyUpGrid = !arrangeMode && workMode === "desk" && visibleSessions.length >= 5;
   const sixUpGrid = manyUpGrid && visibleSessions.length === 6;
   const showLayoutControls = arrangeMode;
+
+  useEffect(() => {
+    const column = gridColumnRef.current;
+    if (!column) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      const scrollbarWidth = Math.max(8, column.offsetWidth - column.clientWidth);
+      if (event.clientX < column.getBoundingClientRect().right - scrollbarWidth) event.preventDefault();
+    };
+    column.addEventListener("wheel", handleWheel, { passive: false });
+    return () => column.removeEventListener("wheel", handleWheel);
+  }, []);
 
   useEffect(() => {
     if (workMode !== "focus") return;
@@ -312,7 +325,10 @@ export function TerminalDesk({
         </header>
       )}
       <div className="terminal-stage-body">
-        <div className="terminal-grid-column">
+        <div
+          ref={gridColumnRef}
+          className="terminal-grid-column"
+        >
           {recoverableSessions.length > 0 && (
             <RecoveryWorkspaceStrip
               sessions={recoverableSessions}
@@ -1068,52 +1084,21 @@ function ManualTerminalTile({
       theme: ghosttyVesperTerminalProfile.theme,
     });
     const fitAddon = new FitAddon();
-    let wheelGestureOwner: "terminal" | "grid" | null = null;
-    let wheelGestureResetTimer: number | undefined;
 
     const terminalCanScroll = (direction: number) => {
       const buffer = terminal.buffer.active;
       return direction > 0 ? buffer.viewportY < buffer.baseY : buffer.viewportY > 0;
     };
-    const gridCanScroll = (column: HTMLElement, direction: number) => direction > 0
-      ? column.scrollTop + column.clientHeight < column.scrollHeight - 1
-      : column.scrollTop > 1;
-    const handleWheelGesture = (event: WheelEvent) => {
-      if (event.deltaY === 0) return;
-
-      const direction = Math.sign(event.deltaY);
-      const column = container.closest(".terminal-grid-column");
-      if (wheelGestureOwner === null) {
-        if (terminalCanScroll(direction)) {
-          wheelGestureOwner = "terminal";
-        } else if (column instanceof HTMLElement && gridCanScroll(column, direction)) {
-          wheelGestureOwner = "grid";
-        }
-      }
-
-      if (wheelGestureResetTimer !== undefined) window.clearTimeout(wheelGestureResetTimer);
-      wheelGestureResetTimer = window.setTimeout(() => {
-        wheelGestureOwner = null;
-        wheelGestureResetTimer = undefined;
-      }, 160);
-    };
 
     terminal.loadAddon(fitAddon);
     terminal.open(container);
-    container.addEventListener("wheel", handleWheelGesture, { capture: true, passive: true });
     terminal.attachCustomWheelEventHandler((event) => {
       if (event.deltaY === 0) return true;
 
       const direction = Math.sign(event.deltaY);
-      if (wheelGestureOwner === "terminal") {
-        if (terminalCanScroll(direction)) {
-          terminal.scrollLines(direction * Math.max(1, Math.round(Math.abs(event.deltaY) / 40)));
-        }
-      } else if (wheelGestureOwner === "grid") {
-        const column = container.closest(".terminal-grid-column");
-        if (!(column instanceof HTMLElement)) return true;
-        if (gridCanScroll(column, direction)) column.scrollTop += event.deltaY;
-      } else return true;
+      if (terminalCanScroll(direction)) {
+        terminal.scrollLines(direction * Math.max(1, Math.round(Math.abs(event.deltaY) / 40)));
+      }
 
       event.preventDefault();
       event.stopPropagation();
@@ -1170,8 +1155,6 @@ function ManualTerminalTile({
 
     return () => {
       disposed = true;
-      container.removeEventListener("wheel", handleWheelGesture, true);
-      if (wheelGestureResetTimer !== undefined) window.clearTimeout(wheelGestureResetTimer);
       resizeObserver.disconnect();
       fitAndResizeRef.current = null;
       scheduleRepaintRef.current = null;
