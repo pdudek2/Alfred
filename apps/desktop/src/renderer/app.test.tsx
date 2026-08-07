@@ -690,7 +690,35 @@ describe("App integration", () => {
 
     renderTerminalDeskForSessions(sessions, layouts);
 
-    expect(screen.getByTestId("terminal-grid")).toHaveClass("laid-out", "dense", "six-up");
+    expect(screen.getByTestId("terminal-grid")).toHaveClass("laid-out", "dense", "many-up", "six-up");
+    for (const session of sessions) {
+      const tile = screen.getByRole("article", { name: session.title });
+      expect(tile.style.gridColumn).toBe("");
+      expect(tile.style.gridRow).toBe("");
+    }
+  });
+
+  it("uses the long scrolling Grid once five terminals would otherwise become short", () => {
+    const sessions = Array.from({ length: 5 }, (_, index): SessionTile => ({
+      id: `manual-${index + 1}`,
+      title: `Manual · zsh ${index + 1}`,
+      workspaceId: "A",
+      cwd: "/repo",
+      source: "manual",
+      stage: "live",
+      runtimeStatus: "restored",
+    }));
+    const layouts = Object.fromEntries(sessions.map((session, index) => [session.id, {
+      tileId: session.id,
+      col: index < 2 ? index * 6 + 1 : (index - 2) * 4 + 1,
+      row: index < 2 ? 1 : 4,
+      colSpan: index < 2 ? 6 : 4,
+      rowSpan: 3,
+    }]));
+
+    renderTerminalDeskForSessions(sessions, layouts);
+
+    expect(screen.getByTestId("terminal-grid")).toHaveClass("laid-out", "dense", "many-up");
     for (const session of sessions) {
       const tile = screen.getByRole("article", { name: session.title });
       expect(tile.style.gridColumn).toBe("");

@@ -1735,7 +1735,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   align-content: start;
 }
 
-.terminal-grid.laid-out.dense.six-up {
+.terminal-grid.laid-out.dense.many-up {
   --grid-bottom-safe-zone: 10px;
   grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr));
   grid-auto-rows: max(400px, calc((100dvh - 118px) / 2));
@@ -2379,6 +2379,10 @@ body.arranging-pointer {
   border-color: var(--ink-3);
   background: var(--ink-1);
   color: var(--ink-6);
+}
+
+.terminal-tile.selected {
+  border-color: color-mix(in oklab, var(--signal-focus) 62%, var(--ink-3));
 }
 
 .terminal-tile.selected .terminal-tile-header {
