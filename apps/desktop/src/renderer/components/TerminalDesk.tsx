@@ -1068,26 +1068,52 @@ function ManualTerminalTile({
       theme: ghosttyVesperTerminalProfile.theme,
     });
     const fitAddon = new FitAddon();
+    let wheelGestureOwner: "terminal" | "grid" | null = null;
+    let wheelGestureResetTimer: number | undefined;
+
+    const terminalCanScroll = (direction: number) => {
+      const buffer = terminal.buffer.active;
+      return direction > 0 ? buffer.viewportY < buffer.baseY : buffer.viewportY > 0;
+    };
+    const gridCanScroll = (column: HTMLElement, direction: number) => direction > 0
+      ? column.scrollTop + column.clientHeight < column.scrollHeight - 1
+      : column.scrollTop > 1;
+    const handleWheelGesture = (event: WheelEvent) => {
+      if (event.deltaY === 0) return;
+
+      const direction = Math.sign(event.deltaY);
+      const column = container.closest(".terminal-grid-column");
+      if (wheelGestureOwner === null) {
+        if (terminalCanScroll(direction)) {
+          wheelGestureOwner = "terminal";
+        } else if (column instanceof HTMLElement && gridCanScroll(column, direction)) {
+          wheelGestureOwner = "grid";
+        }
+      }
+
+      if (wheelGestureResetTimer !== undefined) window.clearTimeout(wheelGestureResetTimer);
+      wheelGestureResetTimer = window.setTimeout(() => {
+        wheelGestureOwner = null;
+        wheelGestureResetTimer = undefined;
+      }, 160);
+    };
 
     terminal.loadAddon(fitAddon);
     terminal.open(container);
+    container.addEventListener("wheel", handleWheelGesture, { capture: true, passive: true });
     terminal.attachCustomWheelEventHandler((event) => {
       if (event.deltaY === 0) return true;
 
       const direction = Math.sign(event.deltaY);
-      const buffer = terminal.buffer.active;
-      const terminalCanScroll = direction > 0 ? buffer.viewportY < buffer.baseY : buffer.viewportY > 0;
-      if (terminalCanScroll) {
-        terminal.scrollLines(direction * Math.max(1, Math.round(Math.abs(event.deltaY) / 40)));
-      } else {
+      if (wheelGestureOwner === "terminal") {
+        if (terminalCanScroll(direction)) {
+          terminal.scrollLines(direction * Math.max(1, Math.round(Math.abs(event.deltaY) / 40)));
+        }
+      } else if (wheelGestureOwner === "grid") {
         const column = container.closest(".terminal-grid-column");
         if (!(column instanceof HTMLElement)) return true;
-        const columnCanScroll = direction > 0
-          ? column.scrollTop + column.clientHeight < column.scrollHeight - 1
-          : column.scrollTop > 1;
-        if (!columnCanScroll) return true;
-        column.scrollTop += event.deltaY;
-      }
+        if (gridCanScroll(column, direction)) column.scrollTop += event.deltaY;
+      } else return true;
 
       event.preventDefault();
       event.stopPropagation();
@@ -1144,6 +1170,8 @@ function ManualTerminalTile({
 
     return () => {
       disposed = true;
+      container.removeEventListener("wheel", handleWheelGesture, true);
+      if (wheelGestureResetTimer !== undefined) window.clearTimeout(wheelGestureResetTimer);
       resizeObserver.disconnect();
       fitAndResizeRef.current = null;
       scheduleRepaintRef.current = null;
