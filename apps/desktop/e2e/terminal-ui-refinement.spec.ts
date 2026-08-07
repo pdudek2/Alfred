@@ -99,7 +99,7 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-6-1120x720.png") });
 });
 
-test("gives each wheel gesture to either xterm history or the terminal Grid", async ({ harness }) => {
+test("scrolls the terminal Grid only from its right scrollbar gutter", async ({ harness }) => {
   const { app, page } = harness;
   const input = page.getByRole("textbox", { name: "Terminal input" }).first();
   await input.fill("seq 1 240");
@@ -121,10 +121,19 @@ test("gives each wheel gesture to either xterm history or the terminal Grid", as
 
   const terminalBottom = await slider.evaluate((element) => Number.parseFloat((element as HTMLElement).style.top));
   await page.mouse.wheel(0, 120);
-  await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBe(0);
   expect(await slider.evaluate((element) => Number.parseFloat((element as HTMLElement).style.top))).toBe(terminalBottom);
 
-  await page.waitForTimeout(250);
+  await page.locator('[data-testid="terminal-tile"]').first().locator(".tile-header").hover();
+  await page.mouse.wheel(0, 120);
+  await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBe(0);
+
+  const columnBounds = await column.boundingBox();
+  expect(columnBounds).not.toBeNull();
+  await page.mouse.move(columnBounds!.x + columnBounds!.width - 2, columnBounds!.y + columnBounds!.height / 2);
+  await page.mouse.wheel(0, 120);
+  await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
   await column.evaluate((element) => { element.scrollTop = 0; });
   await screen.hover();
   for (let index = 0; index < 8; index += 1) {
@@ -137,7 +146,6 @@ test("gives each wheel gesture to either xterm history or the terminal Grid", as
   );
   expect(terminalHistoryPosition).toBeLessThan(terminalBottom);
 
-  await page.waitForTimeout(250);
   for (let index = 0; index < 24; index += 1) {
     await page.mouse.wheel(0, 120);
     await page.waitForTimeout(20);
@@ -146,10 +154,6 @@ test("gives each wheel gesture to either xterm history or the terminal Grid", as
     (element) => Number.parseFloat((element as HTMLElement).style.top),
   )).toBe(terminalBottom);
   expect(await column.evaluate((element) => element.scrollTop)).toBe(0);
-
-  await page.waitForTimeout(250);
-  await page.mouse.wheel(0, 120);
-  await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
 });
 
 test("manual terminal adopts the Claude runtime identity", async ({ harness }, testInfo) => {
