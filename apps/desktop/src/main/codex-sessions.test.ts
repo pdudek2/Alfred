@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createCodexSessionsReader } from "./codex-sessions.js";
+import { managedProjectWorktreeRoot } from "./git-worktree.js";
 import { SUMMARY_CACHE_COUNT_LIMIT, SUMMARY_CACHE_TEXT_LIMIT } from "../shared/sessions-ipc.js";
 import {
   writeCodexSummaryFixtures,
@@ -15,6 +16,36 @@ import {
 const RESOURCE_TEST_TIMEOUT_MS = 60_000;
 
 describe("Codex sessions reader", () => {
+  it("maps sessions from Alfred-managed worktrees back to their project", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const projectRoot = path.join(codexHome, "project");
+    const managedWorktreeRootPath = path.join(codexHome, "user-data", "worktrees");
+    const managedCheckout = path.join(managedProjectWorktreeRoot(managedWorktreeRootPath, projectRoot), "feature-a");
+    const sessionDir = path.join(codexHome, "sessions", "2026", "08", "07");
+    await mkdir(managedCheckout, { recursive: true });
+    await mkdir(sessionDir, { recursive: true });
+    await writeFile(
+      path.join(sessionDir, "managed.jsonl"),
+      codexLines({ id: "managed-session", cwd: managedCheckout, title: "Managed worktree session" }),
+    );
+
+    const reader = createCodexSessionsReader({ codexHome, managedWorktreeRootPath });
+    const listed = await reader.listExternalSessions({
+      projects: [{ id: "A", label: "Alfred", rootPath: projectRoot }],
+    });
+
+    expect(listed.sessions[0]).toMatchObject({
+      project: { id: "A", label: "Alfred" },
+      lifecycle: "resumable",
+    });
+    await expect(reader.resolveExternalSession({ sessionKey: listed.sessions[0]!.sessionKey })).resolves.toEqual({
+      kind: "resume",
+      projectId: "A",
+      cwd: managedCheckout,
+      sessionId: "managed-session",
+    });
+  });
+
   it("returns display-safe opaque summaries in cursor pages and resolves selected keys", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
     const workspaceA = "/workspaces/alfred";

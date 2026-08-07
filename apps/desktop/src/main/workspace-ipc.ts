@@ -10,7 +10,7 @@ import { openExternalUrl } from "./external-url.js";
 import { openExternalTerminal } from "./external-terminal.js";
 import type { WorkspaceStore } from "./workspace-store.js";
 import { resolveWorkspacePathForReveal } from "./workspace-path.js";
-import { managedProjectWorktreeRoot } from "./git-worktree.js";
+import { projectWorktreeRoots } from "./git-worktree.js";
 import { scratchWorkspacePath } from "./codex-scratch.js";
 
 type WorkspaceIpcOptions = {
@@ -70,12 +70,13 @@ export async function allowedWorkspaceRoots(store: WorkspaceStore, options: Work
     if (!workspace.rootPath) return [];
     return [path.resolve(workspace.rootPath)];
   });
-  const legacyProjectRoots = state.workspaces.flatMap((workspace) => {
+  const worktreeRootSets = state.workspaces.flatMap((workspace) => {
     if (!workspace.rootPath) return [];
-    return [legacyProjectWorktreeRoot(workspace.rootPath)];
+    return [projectWorktreeRoots(workspace.rootPath, options.managedWorktreeRootPath)];
   });
-  const managedRoot = options.managedWorktreeRootPath?.trim();
-  const baseRoots = [...workspaceRoots, ...legacyProjectRoots];
+  const legacyProjectRoots = worktreeRootSets.flatMap((roots) => roots.slice(-1));
+  const managedProjectRoots = worktreeRootSets.flatMap((roots) => roots.slice(0, -1));
+  const baseRoots = [...workspaceRoots, ...legacyProjectRoots, ...managedProjectRoots];
   const scratchRoot = options.scratchRootPath?.trim();
   const scratchWorkspaceRoots = scratchRoot
     ? [
@@ -84,16 +85,5 @@ export async function allowedWorkspaceRoots(store: WorkspaceStore, options: Work
       ]
     : [];
   const withScratchRoot = (roots: string[]) => [...roots, ...scratchWorkspaceRoots];
-  if (!managedRoot) return withScratchRoot(baseRoots);
-
-  const managedProjectRoots = state.workspaces.flatMap((workspace) => {
-    if (!workspace.rootPath) return [];
-    return [managedProjectWorktreeRoot(managedRoot, workspace.rootPath)];
-  });
-  return withScratchRoot([...baseRoots, ...managedProjectRoots]);
-}
-
-function legacyProjectWorktreeRoot(rootPath: string): string {
-  const resolvedRootPath = path.resolve(rootPath);
-  return path.join(path.dirname(resolvedRootPath), ".alfred-worktrees", path.basename(resolvedRootPath));
+  return withScratchRoot(baseRoots);
 }

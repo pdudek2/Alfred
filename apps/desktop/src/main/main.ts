@@ -180,6 +180,7 @@ if (!hasSingleInstanceLock) {
     registerSessionsIpc({
       isExternalSessionIndexingEnabled: async () =>
         (await persistedDesktopStateStore.getState()).privacySettings.externalSessionIndexingEnabled,
+      managedWorktreeRootPath,
       workspaceStore,
     });
     registerTerminalIpc({
