@@ -6,6 +6,7 @@ import {
   type SessionsProjectInput,
 } from "../../shared/sessions-ipc";
 import type { SessionsProjectionPage } from "../sessions-projection";
+import { isFreeChatPath } from "../session-scope";
 import type { SessionsViewState } from "../sessions-view-state";
 import { sessionAgeLabel } from "../session-time";
 
@@ -241,5 +242,5 @@ function optionDomId(index: number): string {
 }
 
 function isFreeChatsWorkspace(workspace: SessionsProjectInput): boolean {
-  return workspace.rootPath?.replaceAll("\\", "/").includes("/Documents/Codex") ?? false;
+  return isFreeChatPath(workspace.rootPath ?? "");
 }

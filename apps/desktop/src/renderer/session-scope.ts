@@ -8,7 +8,12 @@ export function isNavigableLiveSession(session: SessionTile): boolean {
 }
 
 export function isFreeChatScope(session: Pick<SessionTile, "cwd">): boolean {
-  return session.cwd.includes("/Documents/Codex/");
+  return isFreeChatPath(session.cwd);
+}
+
+export function isFreeChatPath(value: string): boolean {
+  const normalized = value.replaceAll("\\", "/").replace(/\/+$/, "");
+  return normalized.endsWith("/Documents/Codex") || normalized.includes("/Documents/Codex/");
 }
 
 export function isFreeChatSession(session: SessionTile): boolean {
