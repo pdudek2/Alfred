@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SessionTile } from "./session-state";
-import { isFreeChatScope, isFreeChatSession, isNavigableLiveSession } from "./session-scope";
+import { isFreeChatPath, isFreeChatScope, isFreeChatSession, isNavigableLiveSession } from "./session-scope";
 
 function session(overrides: Partial<SessionTile> = {}): SessionTile {
   return {
@@ -32,6 +32,11 @@ describe("session scope", () => {
 
     expect(isNavigableLiveSession(projectSession)).toBe(true);
     expect(isFreeChatSession(projectSession)).toBe(false);
+  });
+
+  it("does not treat a project whose name merely starts with Codex as a Free Chat", () => {
+    expect(isFreeChatPath("/Users/patryk/Documents/CodexProject")).toBe(false);
+    expect(isFreeChatPath("C:\\Users\\patryk\\Documents\\Codex\\idea")).toBe(true);
   });
 
   it.each(["restored", "exited", "error"] as const)(
