@@ -166,7 +166,8 @@ export function TerminalDesk({
   const showSplitEmptyState = workMode === "split" && activeSessions.length > 0 && visibleSessions.length < 2;
   const gridDensity =
     workMode === "split" ? "split" : visibleSessions.length <= 1 ? "single" : visibleSessions.length === 2 ? "split" : "dense";
-  const sixUpGrid = !arrangeMode && workMode === "desk" && visibleSessions.length === 6;
+  const manyUpGrid = !arrangeMode && workMode === "desk" && visibleSessions.length >= 5;
+  const sixUpGrid = manyUpGrid && visibleSessions.length === 6;
   const showLayoutControls = arrangeMode;
 
   useEffect(() => {
@@ -366,7 +367,7 @@ export function TerminalDesk({
             />
           )}
           <div
-            className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}${sixUpGrid ? " six-up" : ""}`}
+            className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}${manyUpGrid ? " many-up" : ""}${sixUpGrid ? " six-up" : ""}`}
             data-testid="terminal-grid"
             ref={gridRef}
           >
@@ -393,7 +394,7 @@ export function TerminalDesk({
                 cwd={session.cwd}
                 createdAt={session.createdAt}
                 key={session.id}
-                layout={sixUpGrid ? undefined : layouts[session.id]}
+                layout={manyUpGrid ? undefined : layouts[session.id]}
                 preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
                 sessionKey={session.id}
                 runtimeId={session.runtimeId}
@@ -450,7 +451,7 @@ export function TerminalDesk({
               <StagedTilePreview
                 focusHidden={layoutHidden}
                 key={session.id}
-                layout={sixUpGrid ? undefined : layouts[session.id]}
+                layout={manyUpGrid ? undefined : layouts[session.id]}
                 preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
                 tile={session}
                 selected={inspectedSession?.id === session.id}

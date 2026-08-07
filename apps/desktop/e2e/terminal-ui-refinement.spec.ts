@@ -47,25 +47,30 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
   await addSession(page, "New manual terminal");
   await expect(tiles).toHaveCount(5);
   await expect(tiles.last()).toHaveClass(/selected/);
+  await expect(page.getByTestId("terminal-grid")).toHaveClass(/many-up/);
   expect(await tiles.evaluateAll((nodes) => nodes.map((node) => ({
     column: (node as HTMLElement).style.gridColumn,
     row: (node as HTMLElement).style.gridRow,
-  })))).toEqual([
-    { column: "1 / span 6", row: "1 / span 3" },
-    { column: "7 / span 6", row: "1 / span 3" },
-    { column: "1 / span 4", row: "4 / span 3" },
-    { column: "5 / span 4", row: "4 / span 3" },
-    { column: "9 / span 4", row: "4 / span 3" },
-  ]);
+  })))).toEqual(Array.from({ length: 5 }, () => ({ column: "", row: "" })));
 
   await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1686, height: 980 });
   });
+  const wideFiveUp = await tileGeometry(tiles);
+  expect(uniqueCoordinates(wideFiveUp, "left")).toHaveLength(3);
+  expect(uniqueCoordinates(wideFiveUp, "top")).toHaveLength(2);
+  expect(Math.min(...wideFiveUp.map(({ height }) => height))).toBeGreaterThan(400);
+  expect(wideFiveUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-5-1686x980.png") });
 
   await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1120, height: 720 });
   });
+  const narrowFiveUp = await tileGeometry(tiles);
+  expect(uniqueCoordinates(narrowFiveUp, "left")).toHaveLength(2);
+  expect(uniqueCoordinates(narrowFiveUp, "top")).toHaveLength(3);
+  expect(Math.min(...narrowFiveUp.map(({ height }) => height))).toBeGreaterThanOrEqual(400);
+  expect(narrowFiveUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-5-1120x720.png") });
 
   await addSession(page, "New manual terminal");
@@ -74,6 +79,7 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
   await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1686, height: 980 });
   });
+  await expect(page.getByTestId("terminal-grid")).toHaveClass(/many-up/);
   await expect(page.getByTestId("terminal-grid")).toHaveClass(/six-up/);
   const wideSixUp = await tileGeometry(tiles);
   expect(uniqueCoordinates(wideSixUp, "left")).toHaveLength(3);

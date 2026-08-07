@@ -1198,7 +1198,7 @@ describe("renderer CSS contracts", () => {
     const terminalGridEnd = ".terminal-empty-state {";
     expectTopLevelOwnerWithin(".terminal-grid.laid-out", ["--grid-bottom-safe-zone: 76px", "grid-auto-rows: 84px"], terminalGridStart, terminalGridEnd);
     expectTopLevelOwnerWithin(
-      ".terminal-grid.laid-out.dense.six-up",
+      ".terminal-grid.laid-out.dense.many-up",
       [
         "--grid-bottom-safe-zone: 10px",
         "grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr))",
