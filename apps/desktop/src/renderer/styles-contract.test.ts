@@ -2251,6 +2251,7 @@ describe("renderer CSS contracts", () => {
   it("keeps project navigator hierarchy quiet but readable", () => {
     const navPanel = singleTopLevelRuleBodyIn(styles, ".project-navigator");
     const navSectionHeader = singleTopLevelRuleBodyIn(styles, ".free-chat-section > header");
+    const projectRow = singleTopLevelRuleBodyIn(styles, ".project-row");
     const navRow = singleTopLevelRuleBodyIn(styles, ".project-row-button");
     const navRowTitle = blockFor(".project-row-label,\n.project-session-title");
     const activeWorkspace = exactBlockFor('.project-row-button[aria-current="location"]');
@@ -2267,6 +2268,7 @@ describe("renderer CSS contracts", () => {
       "min-height: 32px",
       "border-radius: 7px",
     ]);
+    expect(projectRow).toContain("grid-template-columns: minmax(0, 1fr) auto auto");
     expect(navRow).toContain("grid-template-columns: 17px minmax(0, 1fr) auto auto");
     expect(navRowTitle).toContain("text-overflow: ellipsis");
     expect(navRowTitle).toContain("white-space: nowrap");
