@@ -42,6 +42,14 @@ describe("WorkspaceActionsMenu", () => {
     vi.unstubAllGlobals();
   });
 
+  it("distinguishes workspace actions from session disclosure", () => {
+    render(<WorkspaceActionsMenu {...props({ menuOpen: false })} />);
+
+    const trigger = screen.getByRole("button", { name: "Workspace menu for Alfred" });
+    expect(trigger.querySelector(".lucide-ellipsis")).toBeInTheDocument();
+    expect(trigger.querySelector(".lucide-chevron-down")).not.toBeInTheDocument();
+  });
+
   it.each([
     ["Open in Ghostty", "onOpenExternalTerminal"],
     ["Reveal in Finder", "onRevealFolder"],

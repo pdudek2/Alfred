@@ -421,12 +421,11 @@ button:focus-visible {
 
 .workspace-title-trigger svg {
   color: var(--ink-5);
-  transition: transform 160ms ease, color 160ms ease;
+  transition: color 160ms ease;
 }
 
 .workspace-title-trigger[aria-expanded="true"] svg {
   color: var(--ink-6);
-  transform: rotate(180deg);
 }
 
 .workspace-title-trigger strong {

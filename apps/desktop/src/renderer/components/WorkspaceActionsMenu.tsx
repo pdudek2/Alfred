@@ -1,4 +1,4 @@
-import { ChevronDown, FolderOpen, ListChecks, Pencil, SquareTerminal, Trash2 } from "lucide-react";
+import { Ellipsis, FolderOpen, ListChecks, Pencil, SquareTerminal, Trash2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import type { WorkspaceMissionBrief } from "../../shared/workspace-ipc";
@@ -165,7 +165,7 @@ export function WorkspaceActionsMenu({
           <strong>{workspaceLabel}</strong>
           <small>{detail}</small>
         </span>
-        <ChevronDown size={14} aria-hidden="true" />
+        <Ellipsis size={14} aria-hidden="true" />
       </button>
       {menuOpen && createPortal(
         <div className="workspace-popover" ref={popoverRef} role="dialog" aria-label={popoverLabel}>
