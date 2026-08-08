@@ -5,6 +5,8 @@ repo_root="$(cd "$(dirname "$0")/../../.." && pwd)"
 app_dir="${HOME}/Applications/Alfred.app"
 contents_dir="${app_dir}/Contents"
 macos_dir="${contents_dir}/MacOS"
+resources_dir="${contents_dir}/Resources"
+icon_name="alfred-icon.icns"
 
 pnpm_bin="${PNPM_BIN:-/opt/homebrew/bin/pnpm}"
 
@@ -14,7 +16,8 @@ if [[ ! -x "${pnpm_bin}" ]]; then
 fi
 
 rm -rf "${app_dir}"
-mkdir -p "${macos_dir}"
+mkdir -p "${macos_dir}" "${resources_dir}"
+cp "${repo_root}/apps/desktop/assets/${icon_name}" "${resources_dir}/${icon_name}"
 
 cat > "${contents_dir}/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -29,6 +32,8 @@ cat > "${contents_dir}/Info.plist" <<PLIST
   <string>Alfred</string>
   <key>CFBundleIdentifier</key>
   <string>dev.patryk.alfred.desktop</string>
+  <key>CFBundleIconFile</key>
+  <string>${icon_name}</string>
   <key>CFBundleName</key>
   <string>Alfred</string>
   <key>CFBundlePackageType</key>
