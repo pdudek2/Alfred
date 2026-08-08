@@ -531,16 +531,23 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".shell-action-alert", ["position: fixed", "z-index: 40"]);
     expect(exactBlockFor(".shell-action-alert")).not.toMatch(/animation|transition/);
     expectCanonicalBase(".workspace-layout", ["grid-row: 3"]);
+    expectCanonicalBase(".project-navigator", [
+      "width: 226px",
+      "border-right: 1px solid var(--ink-3)",
+    ]);
+    expectCanonicalBase(".project-navigator-header", ["min-height: 46px"]);
     expect(styles).not.toContain(".desktop-alert-stack:empty");
     expectCanonicalBase(".workbench-header", ["height: 44px"]);
     expectCanonicalBase(".workbench-primary-row", ["height: 44px"]);
     expectCanonicalBase(".desk-surface-panel", ["display: grid", "grid-template-rows: 46px minmax(0, 1fr)"]);
     expectCanonicalBase(".work-surface-toolbar", [
+      "height: 46px",
       "min-width: 0",
       "border-bottom: 1px solid var(--ink-3)",
-      "background: color-mix(in oklab, var(--ink-1) 82%, transparent)",
+      "background: color-mix(in oklab, var(--ink-1) 88%, transparent)",
       "display: flex",
       "align-items: center",
+      "gap: 8px",
     ]);
     expectCanonicalBase(".terminal-tile.chrome-headerless", ["grid-template-rows: minmax(0, 1fr)"]);
     expectCanonicalBase(".terminal-tile-header", ["height: 44px", "min-height: 44px"]);
@@ -2232,6 +2239,14 @@ describe("renderer CSS contracts", () => {
     expect(navSectionHeader).toContain("color: var(--ink-5)");
     expect(navSectionHeader).toContain("var(--sans)");
     expect(navRow).toContain("background: transparent");
+    expectCanonicalBase(".project-row-button", [
+      "min-height: 36px",
+      "border-radius: 8px",
+    ]);
+    expectCanonicalBase(".project-session", [
+      "min-height: 32px",
+      "border-radius: 7px",
+    ]);
     expect(navRow).toContain("grid-template-columns: 17px minmax(0, 1fr) auto auto");
     expect(navRowTitle).toContain("text-overflow: ellipsis");
     expect(navRowTitle).toContain("white-space: nowrap");
