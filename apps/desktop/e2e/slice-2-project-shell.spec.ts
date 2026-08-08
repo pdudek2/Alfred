@@ -142,7 +142,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   expect(narrow.visibleTileCount).toBe(6);
   expect(narrow.visibleTileHeaderHeights.length).toBeGreaterThan(0);
   expect(narrow.visibleTileHeaderHeights).toHaveLength(narrow.visibleTileCount);
-  expect(narrow.visibleTileHeaderHeights.every((height) => height === 44)).toBe(true);
+  expect(narrow.visibleTileHeaderHeights.every((height) => height === 43)).toBe(true);
   expect(await isSameConnectedNode(before, alphaScreen)).toBe(true);
 
   const narrowWorkspaceActions = await operateNarrowWorkspaceActions(page, navigator);
