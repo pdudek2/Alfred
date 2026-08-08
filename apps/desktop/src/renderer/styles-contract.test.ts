@@ -550,7 +550,22 @@ describe("renderer CSS contracts", () => {
       "gap: 8px",
     ]);
     expectCanonicalBase(".terminal-tile.chrome-headerless", ["grid-template-rows: minmax(0, 1fr)"]);
-    expectCanonicalBase(".terminal-tile-header", ["height: 44px", "min-height: 44px"]);
+    expectCanonicalBase(".terminal-tile", [
+      "border: 1px solid var(--ink-3)",
+      "border-radius: 10px",
+      "grid-template-rows: 43px minmax(0, 1fr)",
+    ]);
+    expectCanonicalBase(".terminal-tile-header", ["height: 43px", "min-height: 43px"]);
+    for (const selector of [
+      ".terminal-tile.real-terminal.selected",
+      ".terminal-tile.staged.selected",
+    ]) {
+      expectCanonicalBase(selector, [
+        "border-width: 2px",
+        "border-color: color-mix(in oklab, var(--signal-focus) 70%, var(--ink-3))",
+      ]);
+    }
+    expect(styles).not.toMatch(/terminal-tile\.selected::before/);
   });
 
   it("uses system type for chrome identity and mono only for technical workspace context", () => {
@@ -620,10 +635,11 @@ describe("renderer CSS contracts", () => {
     expect(literalColorUses.map(({ selectors }) => selectors)).toEqual([
       ['html[data-alfred-window-material="native"] .mission-bar'],
       ['html[data-alfred-window-material="native"] .project-navigator'],
+      [".terminal-tile"],
     ]);
   });
 
-  it("keeps live shell and terminal material flat and reserves signal for attention", () => {
+  it("keeps live shell and terminal material quiet and reserves signal for attention", () => {
     const ownerRules = allRulesIn(styles).filter((rule) => rule.selectors.some(isLiveSliceOneSelector));
     const gradients = ownerRules.filter(({ body }) => /(?:linear|radial)-gradient/.test(body));
     const materialShadows = ownerRules.filter(({ body }) => {
@@ -637,15 +653,18 @@ describe("renderer CSS contracts", () => {
         .map((match) => ({ selectors, radius: match[1] })),
     );
 
-    expect(gradients.map(({ selectors }) => selectors)).toEqual([]);
+    expect(gradients.map(({ selectors }) => selectors)).toEqual([
+      [".terminal-tile.selected .terminal-tile-header"],
+    ]);
     expect(materialShadows.map(({ selectors }) => selectors)).toEqual(expect.arrayContaining([
       [".workbench-header"],
       [".chrome-menu-popover"],
       [".prepare-work-popover"],
       ['html[data-alfred-window-material="native"] .mission-bar'],
+      [".terminal-tile"],
     ]));
-    expect(materialShadows).toHaveLength(4);
-    expect(oversizedRadii).toEqual([]);
+    expect(materialShadows).toHaveLength(5);
+    expect(oversizedRadii).toEqual([{ selectors: [".terminal-tile"], radius: "10" }]);
     expect(signalUses.every(({ selectors }) =>
       selectors.every((selector) => selector.includes("attention") || selector.includes("waiting")),
     )).toBe(true);
@@ -1194,9 +1213,9 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".terminal-tile", [
       "display: grid",
       "overflow: hidden",
-      "border-radius: 9px",
+      "border-radius: 10px",
       "background: var(--ink-0)",
-      "grid-template-rows: 44px minmax(0, 1fr)",
+      "grid-template-rows: 43px minmax(0, 1fr)",
     ]);
     expectCanonicalBase(".context-column", ["grid-column: 3", "position: static", "pointer-events: none"]);
     expectCanonicalBase(".context-drawer", ["display: grid", "overflow: hidden"]);
@@ -1950,8 +1969,9 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps terminal tile chrome secondary to the xterm body", () => {
-    const tile = blockForContaining(".terminal-tile", "box-shadow: none");
+    const tile = exactBlockFor(".terminal-tile");
     const header = exactBlockFor(".terminal-tile-header");
+    const selectedHeader = exactBlockFor(".terminal-tile.selected .terminal-tile-header");
     const tileTitle = blockFor(".terminal-tile-header .tile-title b");
     const xtermHost = exactBlockFor(".xterm-host");
     const kindMark = exactBlockFor(".terminal-tile.real-terminal .tile-kind-mark");
@@ -1963,13 +1983,13 @@ describe("renderer CSS contracts", () => {
     const utilityButtons = blockFor(".tile-utility-actions button,\n.tile-danger-actions button");
 
     expect(tile).toContain("background: var(--ink-0)");
-    expect(tile).toContain("box-shadow: none");
+    expect(tile).toContain("0 12px 30px -24px rgba(0, 0, 0, 0.9)");
     expect(header).toContain("min-height");
     expect(header).toContain("background: var(--ink-1)");
-    expect(header).not.toContain("linear-gradient");
+    expect(selectedHeader).toContain("linear-gradient");
     expect(tileTitle).toContain("font: 650 13px/1.12 var(--sans)");
     expect(xtermHost).toContain("background: var(--ink-0)");
-    expect(kindMark).toContain("width: 24px");
+    expect(kindMark).toContain("width: 22px");
     expect(kindMarkText).toContain("display: none");
     expect(primaryActions).toContain("opacity: 1");
     expect(primaryActions).toContain("pointer-events: auto");
