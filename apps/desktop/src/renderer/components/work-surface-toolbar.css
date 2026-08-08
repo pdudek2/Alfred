@@ -4,6 +4,12 @@
   overflow: visible;
 }
 
+.work-surface-toolbar .work-surface-layout .chrome-menu-trigger,
+.work-surface-toolbar > button,
+.work-surface-toolbar .work-preview-toggle {
+  border-radius: var(--radius-control);
+}
+
 .work-surface-toolbar .work-surface-layout .chrome-menu-trigger {
   width: auto;
   min-width: 116px;
