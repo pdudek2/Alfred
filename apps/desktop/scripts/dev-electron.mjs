@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { electronArguments } from "./dev-electron-config.mjs";
 
 const require = createRequire(import.meta.url);
 const electron = require("electron");
@@ -26,7 +27,7 @@ try {
     await waitForServer(devServerUrl, viteProcess);
   }
 
-  electronProcess = spawn(electron, ["."], {
+  electronProcess = spawn(electron, electronArguments(process.env.ALFRED_DESKTOP_USER_DATA_DIR), {
     cwd: appDirectory,
     env: {
       ...process.env,
