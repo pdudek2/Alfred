@@ -500,9 +500,9 @@ describe("renderer CSS contracts", () => {
 
   it("defines the approved achromatic material ramp exactly once", () => {
     const expectedTokens = {
-      "--ink-0": "#090B0E",
+      "--ink-0": "#080A0D",
       "--ink-1": "#101318",
-      "--ink-2": "#15191F",
+      "--ink-2": "#14181E",
       "--ink-3": "#20262D",
       "--ink-4": "#5F6974",
       "--ink-5": "#8B95A1",
@@ -515,6 +515,10 @@ describe("renderer CSS contracts", () => {
       expect(tokenDefinitionCount(token), `${token} definition count`).toBe(1);
       expect(rootToken(token)).toBe(value);
     }
+    expect(rootToken("--signal-focus")).toBe("#63C2CE");
+    const root = singleTopLevelRuleBodyIn(styles, ":root");
+    expect(root).toContain("--radius-control: 7px");
+    expect(root).toContain("--radius-panel: 10px");
     expect(contrastRatio(rootToken("--ink-5"), rootToken("--ink-0"))).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(rootToken("--ink-5"), rootToken("--ink-1"))).toBeGreaterThanOrEqual(4.5);
   });
@@ -1715,7 +1719,7 @@ describe("renderer CSS contracts", () => {
   it("keeps the CSS terminal surface on the approved graphite material", () => {
     const xtermHost = blockFor(".terminal-tile .xterm-host");
 
-    expect(rootToken("--ink-0")).toBe("#090B0E");
+    expect(rootToken("--ink-0")).toBe("#080A0D");
     expect(xtermHost).toContain("background: var(--ink-0)");
   });
 

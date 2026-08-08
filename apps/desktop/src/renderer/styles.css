@@ -1,7 +1,7 @@
 :root {
-  --ink-0: #090B0E;
+  --ink-0: #080A0D;
   --ink-1: #101318;
-  --ink-2: #15191F;
+  --ink-2: #14181E;
   --ink-3: #20262D;
   --ink-4: #5F6974;
   --ink-5: #8B95A1;
@@ -26,7 +26,7 @@
   --border-strong: rgba(235, 241, 246, 0.14);
   --border-focus: color-mix(in oklab, var(--signal-focus) 28%, transparent);
 
-  --signal-focus: #55bdca;
+  --signal-focus: #63C2CE;
   --signal-focus-strong: color-mix(in oklab, var(--signal-focus) 60%, white 8%);
   --signal-agent: #e0b75b;
   --signal-agent-soft: color-mix(in oklab, var(--signal-agent) 10%, transparent);
@@ -37,7 +37,7 @@
   --role-active: var(--signal-focus);
 
   --radius-control: 7px;
-  --radius-panel: 9px;
+  --radius-panel: 10px;
   --control-height: 32px;
   --type-micro: 10px;
 
