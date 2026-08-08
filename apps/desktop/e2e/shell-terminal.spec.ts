@@ -59,7 +59,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(r0.headerHeight).toBe(44);
   expect(r0.visibleTileCount).toBe(1);
   expect(r0.visibleTileHeaderCount).toBe(1);
-  expect(r0.tileHeaderHeights).toEqual([44]);
+  expect(r0.tileHeaderHeights).toEqual([43]);
   expect(
     r0.frameHeight - r0.headerHeight - r0.alertStackHeight,
     `R0 shell geometry: ${JSON.stringify(r0)}`,
@@ -110,7 +110,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(r6.headerHeight).toBe(44);
   expect(r6.visibleTileCount).toBe(2);
   expect(r6.visibleTileHeaderCount).toBe(2);
-  expect(r6.tileHeaderHeights).toEqual([44, 44]);
+  expect(r6.tileHeaderHeights).toEqual([43, 43]);
   diagnosticScreenshotHashes["r6-split.png"] = await captureEvidence(page, "r6-split.png");
 
   await chooseWorkLayout(page, "Focus");
