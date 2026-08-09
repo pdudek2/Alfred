@@ -122,6 +122,60 @@ describe("ProjectNavigator", () => {
     expect(within(screen.getByRole("group", { name: "Free Chats" })).getAllByRole("button")).toHaveLength(4);
   });
 
+  it("shows the two newest finished agent results without moving projects or including manual shells", () => {
+    const now = Date.now();
+    renderNavigator({
+      sessions: [
+        ...sessions,
+        { ...liveSession("codex-old", "Older result", "CLIENT", "/repo/client", "codex"), runtimeStatus: "exited", lastActivityAt: now - 30_000 },
+        { ...liveSession("claude-error", "Index logs", "IRON", "/repo/iron", "claude"), runtimeStatus: "error", lastActivityAt: now - 20_000 },
+        { ...liveSession("codex-new", "Sync files", "CLOUD", "/repo/cloud", "codex"), runtimeStatus: "exited", lastActivityAt: now - 10_000 },
+        {
+          id: "manual-done",
+          title: "Manual · zsh 9",
+          workspaceId: "A",
+          cwd: "/repo",
+          source: "manual",
+          stage: "live",
+          runtimeStatus: "exited",
+          lastActivityAt: now,
+        },
+      ],
+    });
+
+    const recent = screen.getByRole("region", { name: "Recent agent results" });
+    expect(within(recent).getAllByRole("button").map((button) => button.textContent)).toEqual([
+      expect.stringContaining("Sync files"),
+      expect.stringContaining("Index logs"),
+    ]);
+    expect(recent).not.toHaveTextContent("Older result");
+    expect(recent).not.toHaveTextContent("Manual · zsh 9");
+
+    const projectList = screen.getByRole("list", { name: "Workspaces" });
+    expect(within(projectList).getAllByRole("button", { name: / workspace(?:,|$)/i }).map((row) => row.getAttribute("data-label"))).toEqual([
+      "Alfred",
+      "ClientApp",
+      "Chmury_lab04",
+      "GothamTab",
+      "IronLog",
+    ]);
+  });
+
+  it("opens the exact recent session in its workspace", async () => {
+    const onSelectSessionInWorkspace = vi.fn();
+    renderNavigator({
+      onSelectSessionInWorkspace,
+      sessions: [
+        ...sessions,
+        { ...liveSession("codex-done", "Sync files", "CLOUD", "/repo/cloud", "codex"), runtimeStatus: "exited", lastActivityAt: Date.now() },
+      ],
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Open finished Sync files in Chmury_lab04" }));
+
+    expect(onSelectSessionInWorkspace).toHaveBeenCalledWith("CLOUD", "codex-done");
+  });
+
   it("exposes one disclosure for an active project with live sessions", () => {
     renderNavigator();
 
