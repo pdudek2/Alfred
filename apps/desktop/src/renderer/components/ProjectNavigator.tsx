@@ -1,12 +1,15 @@
-import { ChevronRight, Folder, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
+import { Check, ChevronRight, CircleSlash, Folder, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import { isFreeChatSession, isNavigableLiveSession } from "../session-scope";
 import type { SessionTile } from "../session-state";
 import { terminalSessionDisplayStatus } from "../session-status";
+import { sessionAgeLabel } from "../session-time";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 import { sessionTileKind } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
+
+const RECENT_RESULT_LIMIT = 2;
 
 export type ProjectNavigatorWorkspace = {
   id: string;
@@ -58,6 +61,7 @@ export function ProjectNavigator({
   const freeChats = sessions.filter(
     (session) => session.workspaceId !== activeWorkspaceId && isFreeChatSession(session),
   );
+  const recentResults = recentAgentResults(workspaces, sessions);
   const hiddenAttentionCount = hiddenProjects.reduce(
     (count, workspace) => count + (attentionCountsByWorkspace.get(workspace.id) ?? 0),
     0,
@@ -96,6 +100,44 @@ export function ProjectNavigator({
       </header>
 
       <div className="project-navigator-scroll">
+        {!collapsed && recentResults.length > 0 && (
+          <section className="project-recents" aria-label="Recent agent results">
+            <header className="project-recents-header">
+              <strong>Recent</strong>
+              <span aria-label={`${recentResults.length} recent result${recentResults.length === 1 ? "" : "s"}`}>
+                {recentResults.length}
+              </span>
+            </header>
+            <div className="project-recent-list">
+              {recentResults.map((result) => (
+                <button
+                  type="button"
+                  className={`project-recent-result status-${result.status}`}
+                  key={result.session.id}
+                  aria-label={`Open ${result.status === "done" ? "finished" : "stopped"} ${result.session.title} in ${result.workspaceLabel}`}
+                  onClick={() => onSelectSessionInWorkspace(result.session.workspaceId, result.session.id)}
+                  title={`${result.session.title} · ${result.workspaceLabel} · ${result.status}`}
+                >
+                  <span className="project-recent-status" aria-hidden="true">
+                    {result.status === "done" ? <Check size={11} /> : <CircleSlash size={11} />}
+                  </span>
+                  <span className="project-recent-copy">
+                    <strong>{result.session.title}</strong>
+                    <small>{result.workspaceLabel} · {result.agentLabel}</small>
+                  </span>
+                  {result.ageLabel && result.activityAt !== undefined && (
+                    <time dateTime={new Date(result.activityAt).toISOString()}>{result.ageLabel}</time>
+                  )}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {!collapsed && recentResults.length > 0 && (
+          <div className="project-section-heading">Projects</div>
+        )}
+
         <div className="project-list" role="list" aria-label="Workspaces">
           {visibleProjects.map((workspace, visibleIndex) => {
             const active = workspace.id === activeWorkspaceId;
@@ -249,6 +291,53 @@ export function ProjectNavigator({
       </footer>
     </aside>
   );
+}
+
+type RecentAgentResult = {
+  session: SessionTile;
+  workspaceLabel: string;
+  agentLabel: "Claude" | "Codex";
+  status: "done" | "error";
+  activityAt?: number;
+  ageLabel: string | null;
+};
+
+function recentAgentResults(
+  workspaces: ProjectNavigatorWorkspace[],
+  sessions: SessionTile[],
+): RecentAgentResult[] {
+  const workspaceLabels = new Map(workspaces.map((workspace) => [workspace.id, workspace.label]));
+
+  return sessions.flatMap((session): RecentAgentResult[] => {
+    const agentLabel = recentAgentLabel(session);
+    const status = terminalSessionDisplayStatus(session).kind;
+    if (!agentLabel || (status !== "done" && status !== "error")) return [];
+
+    const activityAt = session.lastActivityAt ?? session.lastOutputAt ?? session.createdAt;
+    return [{
+      session,
+      workspaceLabel: workspaceLabels.get(session.workspaceId) ?? session.workspaceId,
+      agentLabel,
+      status,
+      ...(activityAt === undefined ? {} : { activityAt }),
+      ageLabel: sessionAgeLabel(activityAt),
+    }];
+  }).sort((left, right) => (
+    (right.activityAt ?? 0) - (left.activityAt ?? 0)
+    || left.session.id.localeCompare(right.session.id)
+  )).slice(0, RECENT_RESULT_LIMIT);
+}
+
+function recentAgentLabel(session: SessionTile): "Claude" | "Codex" | null {
+  const kind = session.agentKind === "claude" || session.agentKind === "codex"
+    ? session.agentKind
+    : session.detectedAgentKind === "claude" || session.detectedAgentKind === "codex"
+      ? session.detectedAgentKind
+      : session.command === "claude" || session.command === "codex"
+        ? session.command
+        : null;
+  if (!kind) return null;
+  return kind === "claude" ? "Claude" : "Codex";
 }
 
 function NavigatorSessionButton({
