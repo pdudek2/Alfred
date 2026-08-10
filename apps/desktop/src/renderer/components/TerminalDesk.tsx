@@ -39,6 +39,7 @@ import { shortenPath } from "../path-display";
 import { recoveryHeadline } from "../recovery-display";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { restoredSessionActionLabel, restoredSessionActionTitle } from "../restored-session-action";
+import { isWorkSession } from "../session-scope";
 import { normalizeSessionTitle } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
@@ -146,7 +147,9 @@ export function TerminalDesk({
   const gridRef = useRef<HTMLDivElement | null>(null);
   const gridColumnRef = useRef<HTMLDivElement | null>(null);
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
-  const activeSessions = sessions.filter((session) => session.workspaceId === activeWorkspaceId);
+  const activeSessions = sessions.filter(
+    (session) => session.workspaceId === activeWorkspaceId && isWorkSession(session),
+  );
   const activeLayouts = layouts;
   const selectedSession = selectedSessionForDesk(activeSessions, selectedSessionId);
   const focusSession = workMode === "focus"
@@ -157,7 +160,9 @@ export function TerminalDesk({
     : activeSessions;
   const visibleSessions = arrangeMode ? activeSessions : focusSession ? [focusSession] : splitSessions;
   const renderedSessions = sessions.filter(
-    (session) => session.stage === "live" || session.workspaceId === activeWorkspaceId,
+    (session) => isWorkSession(session) && (
+      session.stage === "live" || session.workspaceId === activeWorkspaceId
+    ),
   );
   const visibleSessionIds = new Set(visibleSessions.map((session) => session.id));
   const inspectedSession = focusSession ?? selectedSession ?? visibleSessions[0] ?? null;

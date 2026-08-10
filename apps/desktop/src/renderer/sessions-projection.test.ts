@@ -61,6 +61,7 @@ describe("sessionsPrimaryAction", () => {
   it("maps lifecycle and project trust to truthful primary actions", () => {
     const live = summary();
     const restored = summary({ lifecycle: "recoverable" });
+    const restoredManual = summary({ kind: "manual", lifecycle: "recoverable" });
     const mappedExternal = summary({
       sessionKey: "external:opaque-resume",
       source: "external-codex",
@@ -84,6 +85,7 @@ describe("sessionsPrimaryAction", () => {
 
     expect(sessionsPrimaryAction(live)).toEqual({ kind: "reveal", label: "Reveal in Work" });
     expect(sessionsPrimaryAction(restored)).toMatchObject({ kind: "recover", label: "Resume in Work" });
+    expect(sessionsPrimaryAction(restoredManual)).toEqual({ kind: "recover", label: "Relaunch" });
     expect(sessionsPrimaryAction(mappedExternal)).toEqual({ kind: "resume-external", label: "Resume in Work" });
     expect(sessionsPrimaryAction(untrustedExternal)).toEqual({ kind: "add-project", label: "Add Project…" });
     expect(sessionsPrimaryAction(endedMapped)).toEqual({ kind: "open-project", label: "Open Project" });

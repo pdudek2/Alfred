@@ -1414,7 +1414,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   margin-left: auto;
   flex: 0 1 220px;
   color: var(--ink-5);
-  font: 500 10px/1 var(--mono);
+  font: 500 11px/1 var(--sans);
 }
 
 .chrome-menu {
@@ -1701,7 +1701,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   margin-top: 2px;
   overflow: hidden;
   color: var(--ink-5);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1722,7 +1722,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   color: var(--ink-5);
   display: inline-flex;
   align-items: center;
-  font: 600 10px/24px var(--mono);
+  font: 600 11px/24px var(--sans);
 }
 
 .arrange-mode-label {
@@ -2684,8 +2684,7 @@ body.arranging-pointer {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font: 750 10px/1 var(--mono);
-  font-size: 10px;
+  font: 650 11px/1 var(--sans);
 }
 
 .terminal-status-label::before {
@@ -2733,8 +2732,8 @@ body.arranging-pointer {
 .tile-age {
   min-width: 34px;
   color: var(--ink-5);
-  font-family: var(--mono);
-  font-size: 10px;
+  font-family: var(--sans);
+  font-size: 11px;
   text-align: right;
   white-space: nowrap;
 }
@@ -3129,7 +3128,7 @@ body.arranging-pointer {
 }
 
 .tile-actions .continue-button span {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 11px;
 }
 
@@ -3156,7 +3155,7 @@ body.arranging-pointer {
 }
 
 .tile-actions .discard-session-button span {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 11px;
 }
 
@@ -6238,6 +6237,12 @@ body.arranging-pointer {
   flex: 1;
 }
 
+.sessions-reader__saved-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .sessions-reader__toolbar button,
 .sessions-transcript > button {
   min-height: 32px;
@@ -6261,6 +6266,10 @@ body.arranging-pointer {
   outline: none;
 }
 
+.sessions-reader__toolbar .sessions-reader__discard {
+  color: var(--signal-danger);
+}
+
 .sessions-reader__body {
   min-width: 0;
   min-height: 0;
@@ -6271,6 +6280,27 @@ body.arranging-pointer {
 
 .sessions-reader--details-open .sessions-reader__body {
   grid-template-columns: minmax(0, 1fr) 280px;
+}
+
+.sessions-saved-action-feedback {
+  margin: 0 0 12px;
+  border: 1px solid color-mix(in oklab, var(--signal-success) 30%, var(--ink-3));
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+  background: var(--signal-success-soft);
+  color: var(--ink-6);
+  font: 500 12px/1.4 var(--sans);
+}
+
+.sessions-saved-action-feedback strong {
+  color: var(--ink-7);
+}
+
+.sessions-saved-action-feedback.warning {
+  border-color: color-mix(in oklab, var(--signal-danger) 34%, var(--ink-3));
+  background: var(--signal-danger-soft);
 }
 
 .sessions-reader__scroll {

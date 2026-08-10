@@ -1,4 +1,4 @@
-import { ChevronDown, PanelRight, Plus } from "lucide-react";
+import { Archive, ChevronDown, PanelRight, Plus } from "lucide-react";
 import type { Ref } from "react";
 import { shortenPath } from "../path-display";
 import type { WorkMode } from "../terminal-desk-types";
@@ -12,11 +12,13 @@ export type WorkSurfaceToolbarProps = {
   previewOpen: boolean;
   previewTriggerRef?: Ref<HTMLButtonElement>;
   rootPath: string | undefined;
+  savedSessionCount: number;
   terminalLaunchDisabled?: boolean;
   visibleSessionCount: number;
   workMode: WorkMode;
   onAddManualSession: () => void;
   onApplyWorkMode: (mode: WorkMode) => void;
+  onOpenSavedSessions: () => void;
   onToggleArrangeMode: () => void;
   onTogglePreview: () => void;
 };
@@ -28,11 +30,13 @@ export function WorkSurfaceToolbar({
   previewOpen,
   previewTriggerRef,
   rootPath,
+  savedSessionCount,
   terminalLaunchDisabled = false,
   visibleSessionCount,
   workMode,
   onAddManualSession,
   onApplyWorkMode,
+  onOpenSavedSessions,
   onToggleArrangeMode,
   onTogglePreview,
 }: WorkSurfaceToolbarProps) {
@@ -88,6 +92,18 @@ export function WorkSurfaceToolbar({
       <span className="work-surface-context">
         {location}{branchDetail} · {visibleSessionCount} {sessionLabel}
       </span>
+      {savedSessionCount > 0 && (
+        <button
+          type="button"
+          className="work-saved-sessions"
+          aria-label={`Browse ${savedSessionCount} saved session${savedSessionCount === 1 ? "" : "s"}`}
+          title="Open saved sessions"
+          onClick={onOpenSavedSessions}
+        >
+          <Archive aria-hidden="true" size={13} />
+          <span>{savedSessionCount} saved</span>
+        </button>
+      )}
     </div>
   );
 }

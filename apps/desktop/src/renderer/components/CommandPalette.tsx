@@ -37,6 +37,7 @@ type CommandPaletteProps = {
   shortcutModifier: string;
   workspaces: ProjectNavigatorWorkspace[];
   canCloseWorkspace: boolean;
+  hasSavedSessions: boolean;
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">, isolation?: TerminalSessionIsolation) => void;
   onAddManualSession: () => void;
   onAddWorkspace: () => void;
@@ -74,6 +75,7 @@ export function CommandPalette({
   shortcutModifier,
   workspaces,
   canCloseWorkspace,
+  hasSavedSessions,
   onAddAgentSession,
   onAddManualSession,
   onAddWorkspace,
@@ -205,10 +207,12 @@ export function CommandPalette({
         label: "Close current workspace",
         detail: canCloseWorkspace
           ? `Remove ${activeWorkspace?.label ?? "this workspace"} from the sidebar`
-          : sessions.length > 0
-            ? "Available when every session is closed"
-            : activeWorkspaceId === "A"
-              ? "Pinned workspace"
+          : activeWorkspaceId === "A"
+            ? "Pinned workspace"
+            : hasSavedSessions
+            ? "Discard saved sessions first"
+            : sessions.length > 0
+              ? "Available when every session is closed"
               : "No workspace selected",
         disabled: !canCloseWorkspace,
         run: onCloseWorkspace,
@@ -379,6 +383,7 @@ export function CommandPalette({
       launchDetail,
       arrangeMode,
       canCloseWorkspace,
+      hasSavedSessions,
       onAddAgentSession,
       onAddManualSession,
       onAddWorkspace,

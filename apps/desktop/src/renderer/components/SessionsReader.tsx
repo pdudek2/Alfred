@@ -17,9 +17,25 @@ export type SessionsReaderEmptyState = {
   };
 };
 
+export type SessionsSavedActions = {
+  checkout: boolean;
+  pendingAction?: "review" | "apply" | undefined;
+  onApply: () => void;
+  onDiscard: () => void;
+  onReview: () => void;
+};
+
+export type SessionsSavedActionFeedback = {
+  detail: string;
+  title: string;
+  warning: boolean;
+};
+
 type SessionsReaderProps = {
   pages: TranscriptPage[];
   primaryAction: SessionsPrimaryAction | null;
+  savedActionFeedback: SessionsSavedActionFeedback | null;
+  savedActions: SessionsSavedActions | null;
   recoveryReview: {
     command: string;
     cwd: string;
@@ -43,6 +59,8 @@ type SessionsReaderProps = {
 export function SessionsReader({
   pages,
   primaryAction,
+  savedActionFeedback,
+  savedActions,
   recoveryReview,
   readerRef,
   selected,
@@ -118,6 +136,41 @@ export function SessionsReader({
             {primaryAction.label}
           </button>
         )}
+        {selected && savedActions && (
+          <div
+            className="sessions-reader__saved-actions"
+            role="toolbar"
+            aria-label={savedActions.checkout ? "Saved checkout actions" : "Saved session actions"}
+          >
+            {savedActions.checkout && (
+              <>
+                <button
+                  type="button"
+                  disabled={savedActions.pendingAction !== undefined}
+                  onClick={savedActions.onReview}
+                >
+                  {savedActions.pendingAction === "review" ? "Reviewing…" : "Review diff"}
+                </button>
+                <button
+                  type="button"
+                  disabled={savedActions.pendingAction !== undefined}
+                  onClick={savedActions.onApply}
+                >
+                  {savedActions.pendingAction === "apply" ? "Applying…" : "Apply to project"}
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              className="sessions-reader__discard"
+              aria-label="Discard saved session"
+              disabled={savedActions.pendingAction !== undefined}
+              onClick={savedActions.onDiscard}
+            >
+              Discard
+            </button>
+          </div>
+        )}
       </header>
       <div className="sessions-reader__body">
         <div
@@ -155,6 +208,18 @@ export function SessionsReader({
                   }
                 </p>
               </header>
+              {savedActionFeedback && (
+                <section
+                  className={`sessions-saved-action-feedback${savedActionFeedback.warning ? " warning" : ""}`}
+                  role={savedActionFeedback.warning ? "alert" : "status"}
+                  aria-label={savedActionFeedback.warning
+                    ? "Saved session action failed"
+                    : "Saved session action result"}
+                >
+                  <strong>{savedActionFeedback.title}</strong>
+                  <span>{savedActionFeedback.detail}</span>
+                </section>
+              )}
               {recoveryReview && (
                 <section className="sessions-recovery-review" aria-label="Relaunch review">
                   <strong>Confirm relaunch</strong>

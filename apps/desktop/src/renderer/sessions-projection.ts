@@ -35,7 +35,7 @@ export function sessionsPrimaryAction(summary: SessionSummary): SessionsPrimaryA
     return { kind: "reveal", label: "Reveal in Work" };
   }
   if (summary.source === "managed" && summary.lifecycle === "recoverable") {
-    return { kind: "recover", label: "Resume in Work" };
+    return { kind: "recover", label: summary.kind === "manual" ? "Relaunch" : "Resume in Work" };
   }
   if (summary.source === "external-codex" && summary.lifecycle === "resumable" && summary.project.id) {
     return { kind: "resume-external", label: "Resume in Work" };

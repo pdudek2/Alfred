@@ -3,7 +3,7 @@ import type { TranscriptPage } from "../shared/sessions-ipc";
 export type SessionsViewState = {
   query: string;
   selectedProjectId: string;
-  source: "all" | "managed" | "external-codex";
+  source: "all" | "managed" | "saved" | "external-codex";
   timeRange: "any" | "day" | "week" | "month";
   pageIndex: number;
   selectedSessionKey: string | null;

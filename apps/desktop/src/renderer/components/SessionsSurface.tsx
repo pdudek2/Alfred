@@ -14,7 +14,8 @@ import {
   sessionsPrimaryAction,
   type SessionsPrimaryActionRequest,
 } from "../sessions-projection";
-import type { SessionTile } from "../session-state";
+import { sessionInstanceKey, type SessionTile } from "../session-state";
+import { isReviewableWorktreeSession } from "../session-scope";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { appendTranscriptPage, type SessionsViewState } from "../sessions-view-state";
 import { SessionsNavigator } from "./SessionsNavigator";
@@ -23,6 +24,15 @@ import {
   type SessionsReaderEmptyState,
   type SessionsReaderStatus,
 } from "./SessionsReader";
+
+const SAVED_ACTION_RESULT_TITLES = new Set([
+  "Applied to project",
+  "Apply failed",
+  "Apply needs review",
+  "Checkout diff reviewed",
+  "Discard checkout blocked",
+  "Review diff failed",
+]);
 
 export type SessionsSurfaceProps = {
   externalSessionIndexingEnabled: boolean;
@@ -34,11 +44,15 @@ export type SessionsSurfaceProps = {
   sessionsApi: SessionsApi | null;
   state: SessionsViewState;
   terminalApi: Pick<TerminalApi, "snapshot"> | null;
+  worktreeActionPending?: Readonly<Record<string, "review" | "apply" | undefined>>;
   workspaces: SessionsProjectInput[];
+  onApplyWorktree?: (sessionId: string) => void;
   onBackToWork: () => void;
+  onDiscardSavedSession?: (sessionId: string) => void;
   onOpenPrivacySettings?: () => void;
   onPrimaryAction: ((request: SessionsPrimaryActionRequest) => void) | undefined;
   onRefreshExternalSessions: () => void;
+  onReviewWorktree?: (sessionId: string) => void;
   onStateChange: Dispatch<SetStateAction<SessionsViewState>>;
 };
 
@@ -52,11 +66,15 @@ export function SessionsSurface({
   sessionsApi,
   state,
   terminalApi,
+  worktreeActionPending,
   workspaces,
+  onApplyWorktree,
   onBackToWork,
+  onDiscardSavedSession,
   onOpenPrivacySettings,
   onPrimaryAction,
   onRefreshExternalSessions,
+  onReviewWorktree,
   onStateChange,
 }: SessionsSurfaceProps) {
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -78,8 +96,8 @@ export function SessionsSurface({
   );
   const [readerPageError, setReaderPageError] = useState<string | null>(null);
   const filteredSessions = useMemo(
-    () => filterManagedSessions(sessions, state.source, state.timeRange),
-    [sessions, state.source, state.timeRange],
+    () => filterManagedSessions(sessions, state.source, state.timeRange, state.selectedProjectId),
+    [sessions, state.selectedProjectId, state.source, state.timeRange],
   );
   const filteredExternalSessions = useMemo(
     () => filterExternalSessions(externalSessions, state.source, state.timeRange),
@@ -92,9 +110,11 @@ export function SessionsSurface({
       externalSessions: filteredExternalSessions,
       query: state.query,
       pageIndex: state.pageIndex,
-      projectId: state.selectedProjectId,
+      projectId: state.source === "saved" && state.selectedProjectId !== "free-chats"
+        ? "all"
+        : state.selectedProjectId,
     }),
-    [filteredExternalSessions, filteredSessions, state.pageIndex, state.query, state.selectedProjectId, workspaces],
+    [filteredExternalSessions, filteredSessions, state.pageIndex, state.query, state.selectedProjectId, state.source, workspaces],
   );
   const projectProjection = useMemo(
     () => buildSessionsProjection({
@@ -133,6 +153,21 @@ export function SessionsSurface({
   const selectedRecoveryArmed = Boolean(
     selectedManagedTarget && armedRecoverySessionIds.has(selectedManagedTarget.sessionId),
   );
+  const selectedSavedActions = selectedManagedSession?.runtimeStatus === "restored" && onDiscardSavedSession
+    ? {
+        checkout: isReviewableWorktreeSession(selectedManagedSession)
+          && Boolean(onApplyWorktree && onReviewWorktree),
+        pendingAction: worktreeActionPending?.[sessionInstanceKey(selectedManagedSession)],
+        onApply: () => onApplyWorktree?.(selectedManagedSession.id),
+        onDiscard: () => onDiscardSavedSession(selectedManagedSession.id),
+        onReview: () => onReviewWorktree?.(selectedManagedSession.id),
+      }
+    : null;
+  const selectedSavedActionEvent = selectedManagedSession?.activityEvents
+    ? [...selectedManagedSession.activityEvents]
+        .reverse()
+        .find((event) => SAVED_ACTION_RESULT_TITLES.has(event.title)) ?? null
+    : null;
   const primaryActionRequest = useMemo<SessionsPrimaryActionRequest | null>(() => {
     if (!selected || !onPrimaryAction) return null;
     let action = sessionsPrimaryAction(selected);
@@ -327,7 +362,9 @@ export function SessionsSurface({
   }, [onStateChange, projection.managedTargets, sessions, sessionsApi, terminalApi]);
 
   useEffect(() => {
-    if (previousReconciliationKeyRef.current === reconciliationKey) return;
+    const selectedSessionMissing = state.selectedSessionKey !== null
+      && !projection.items.some((item) => item.sessionKey === state.selectedSessionKey);
+    if (previousReconciliationKeyRef.current === reconciliationKey && !selectedSessionMissing) return;
     previousReconciliationKeyRef.current = reconciliationKey;
     if (projection.items.some((item) => item.sessionKey === state.selectedSessionKey)) return;
     const first = projection.items[0];
@@ -419,6 +456,14 @@ export function SessionsSurface({
       <SessionsReader
         pages={state.readerPages}
         primaryAction={primaryActionRequest?.action ?? null}
+        savedActionFeedback={selectedSavedActionEvent
+          ? {
+              detail: selectedSavedActionEvent.detail,
+              title: selectedSavedActionEvent.title,
+              warning: selectedSavedActionEvent.kind === "error" || selectedSavedActionEvent.kind === "warning",
+            }
+          : null}
+        savedActions={selectedSavedActions}
         recoveryReview={
           selectedRecoveryArmed && selectedManagedSession && selectedRecoverySafety && !selectedRecoverySafety.safe
             ? {
@@ -523,11 +568,19 @@ function filterManagedSessions(
   sessions: SessionTile[],
   source: SessionsViewState["source"],
   timeRange: SessionsViewState["timeRange"],
+  projectId: string,
 ): SessionTile[] {
   if (source === "external-codex") return [];
   const cutoff = timeRangeCutoff(timeRange);
   return sessions.filter((session) => (
-    cutoff === null || (session.lastActivityAt ?? session.lastOutputAt ?? session.createdAt ?? 0) >= cutoff
+    (source !== "saved" || session.runtimeStatus === "restored")
+    && (
+      source !== "saved"
+      || projectId === "all"
+      || projectId === "free-chats"
+      || session.workspaceId === projectId
+    )
+    && (cutoff === null || (session.lastActivityAt ?? session.lastOutputAt ?? session.createdAt ?? 0) >= cutoff)
   ));
 }
 
@@ -536,7 +589,7 @@ function filterExternalSessions(
   source: SessionsViewState["source"],
   timeRange: SessionsViewState["timeRange"],
 ): ExternalSessionSummary[] {
-  if (source === "managed") return [];
+  if (source === "managed" || source === "saved") return [];
   const cutoff = timeRangeCutoff(timeRange);
   return sessions.filter((session) => cutoff === null || session.updatedAt >= cutoff);
 }
