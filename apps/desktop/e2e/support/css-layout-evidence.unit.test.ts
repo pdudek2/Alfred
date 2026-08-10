@@ -50,6 +50,7 @@ describe("CSS layout evidence support", () => {
       <textarea class="composer-input">fixture prompt</textarea>
       <div class="agent-context-essentials">fixture essentials</div>
       <div class="agent-session-pulse">fixture activity</div>
+      <div class="agents-drawer__work-copy"><span class="agents-drawer__work-detail">fixture agent activity</span></div>
       <button class="workspace-title-trigger"><small>/fixture/workspace</small></button>
       <span class="project-row-label">Fixture project</span>
       <span class="project-session-title">Fixture session</span>

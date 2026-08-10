@@ -1,0 +1,336 @@
+.agents-drawer {
+  position: absolute;
+  z-index: 80;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(328px, calc(100% - 48px));
+  min-width: 0;
+  border-left: 1px solid var(--border-strong);
+  background: var(--surface-panel);
+  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.34);
+  color: var(--text-primary);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  transform: translateX(100%);
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform 160ms ease-out, visibility 0s linear 160ms;
+}
+
+.agents-drawer.open {
+  transform: translateX(0);
+  visibility: visible;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+
+.agents-drawer__header,
+.agents-drawer__footer {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.agents-drawer__header {
+  min-height: 54px;
+  padding: 0 12px 0 15px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-chrome);
+}
+
+.agents-drawer__header h2 {
+  margin: 0;
+  font: 680 14px/1.2 var(--sans);
+}
+
+.agents-drawer__header button {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border: 0;
+  border-radius: var(--radius-control);
+  padding: 0;
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.agents-drawer__header button:hover,
+.agents-drawer__header button:focus-visible {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.agents-drawer__header button:focus-visible,
+.agents-drawer__decision > button:focus-visible,
+.agents-drawer__work-list > button:focus-visible,
+.agents-drawer__footer button:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--signal-focus);
+}
+
+.agents-drawer__body {
+  min-height: 0;
+  overflow: auto;
+  padding: 0;
+}
+
+.agents-drawer__section + .agents-drawer__section {
+  border-top: 1px solid var(--border);
+}
+
+.agents-drawer__section > header {
+  min-height: 34px;
+  padding: 0 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.agents-drawer__section h3 {
+  margin: 0;
+  color: var(--text-secondary);
+  font: 650 11.5px/1.3 var(--sans);
+}
+
+.agents-drawer__section:first-child h3 {
+  color: color-mix(in oklab, var(--signal-agent) 68%, var(--text-secondary));
+}
+
+.agents-drawer__section > header > span {
+  color: var(--text-muted);
+  font: 600 10px/1 var(--mono);
+}
+
+.agents-drawer__decision-list,
+.agents-drawer__work-list {
+  display: grid;
+  gap: 0;
+}
+
+.agents-drawer__decision {
+  min-width: 0;
+  min-height: 78px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  padding: 10px 13px 10px 12px;
+  background: color-mix(in oklab, var(--signal-danger) 5%, var(--surface-panel));
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  column-gap: 9px;
+  align-items: center;
+}
+
+.agents-drawer__decision-mark,
+.agents-drawer__agent-mark {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-control);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.agents-drawer__decision-mark {
+  border-color: color-mix(in oklab, var(--signal-danger) 32%, var(--border-strong));
+  background: var(--signal-danger-soft);
+  color: var(--signal-danger);
+}
+
+.agents-drawer__decision-copy {
+  min-width: 0;
+}
+
+.agents-drawer__decision-copy > div {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 7px;
+}
+
+.agents-drawer__decision strong,
+.agents-drawer__work-copy strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 640 12px/1.3 var(--sans);
+}
+
+.agents-drawer__decision small,
+.agents-drawer__work-copy small {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font: 500 10.5px/1.25 var(--sans);
+}
+
+.agents-drawer__decision p {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font: 500 11px/1.35 var(--sans);
+}
+
+.agents-drawer__decision > button {
+  grid-column: 3;
+  align-self: center;
+  justify-self: end;
+  min-height: 28px;
+  border: 1px solid color-mix(in oklab, var(--signal-agent) 32%, var(--border-strong));
+  border-radius: 6px;
+  padding: 0 9px;
+  background: var(--surface-control);
+  color: color-mix(in oklab, var(--signal-agent) 62%, var(--text-primary));
+  cursor: pointer;
+  font: 620 10px/1 var(--sans);
+}
+
+.agents-drawer__decision > button:hover {
+  background: var(--surface-control-hover);
+}
+
+.agents-drawer__work-list > button {
+  min-width: 0;
+  width: 100%;
+  min-height: 46px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  padding: 7px 13px 7px 12px;
+  background: transparent;
+  color: var(--text-primary);
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 9px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.agents-drawer__work-list > button:hover {
+  background: color-mix(in oklab, var(--signal-focus) 5%, var(--surface-panel));
+}
+
+.agents-drawer__work-list > button.is-selected {
+  background: color-mix(in oklab, var(--signal-focus) 10%, var(--surface-panel));
+}
+
+.agents-drawer__work-list > button:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--signal-focus);
+}
+
+.agents-drawer__agent-mark {
+  color: var(--text-secondary);
+}
+
+.agents-drawer__agent-mark.kind-claude {
+  border-color: color-mix(in oklab, var(--claude-amber) 28%, var(--border-strong));
+  background: color-mix(in oklab, var(--claude-amber) 7%, var(--surface-control));
+}
+
+.agents-drawer__agent-mark.kind-codex {
+  border-color: color-mix(in oklab, var(--signal-focus) 24%, var(--border-strong));
+  background: color-mix(in oklab, var(--signal-focus) 7%, var(--surface-control));
+}
+
+.agents-drawer__work-list > button.is-selected .agents-drawer__agent-mark {
+  border-color: color-mix(in oklab, var(--signal-focus) 56%, var(--border-strong));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--signal-focus) 12%, transparent);
+}
+
+.agents-drawer__open-label {
+  justify-self: end;
+  color: var(--signal-focus-strong);
+  opacity: 0.72;
+  font: 620 10.5px/1 var(--sans);
+  transition: opacity 120ms ease-out;
+}
+
+.agents-drawer__work-list > button:is(:hover, :focus-visible, .is-selected) .agents-drawer__open-label {
+  opacity: 1;
+}
+
+.agents-drawer__work-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.agents-drawer__work-copy small {
+  min-width: 0;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agents-drawer__work-detail {
+  color: var(--text-muted);
+}
+
+.agents-drawer__empty {
+  margin: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  padding: 12px 15px;
+  color: var(--text-muted);
+  font: 500 11px/1.35 var(--sans);
+}
+
+.agents-drawer__footer {
+  min-height: 54px;
+  border-top: 1px solid var(--border-strong);
+  padding: 0 12px 0 15px;
+  background: var(--surface-chrome);
+}
+
+.agents-drawer__footer-label {
+  color: var(--text-primary);
+  font: 680 12px/1 var(--sans);
+}
+
+.agents-drawer__footer button {
+  min-height: 30px;
+  border: 0;
+  border-radius: var(--radius-control);
+  padding: 0 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font: 620 11px/1 var(--sans);
+}
+
+.agents-drawer__footer button:hover {
+  background: var(--surface-control-hover);
+  color: var(--signal-focus-strong);
+}
+
+@media (max-width: 1180px) {
+  .agents-drawer {
+    width: min(300px, calc(100% - 46px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agents-drawer,
+  .agents-drawer__open-label {
+    transition: none;
+  }
+}

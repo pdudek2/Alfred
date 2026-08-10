@@ -1684,6 +1684,75 @@ describe("App integration", () => {
     expect(screen.getByTestId("context-column")).toHaveClass("open");
   });
 
+  it("keeps global agent work in an overlay drawer and lets higher overlays consume Escape first", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(
+      undefined,
+      null,
+      [
+        liveSnapshot("active-agent", {
+          title: "Tighten project rail",
+          workspaceId: "A",
+          lastActivityAt: 200,
+        }),
+        liveSnapshot("waiting-agent", {
+          title: "Review checkout",
+          workspaceId: "B",
+          cwd: "/repo/client",
+          activityEvents: [{
+            id: "approval",
+            kind: "approval",
+            title: "Waiting",
+            detail: "Choose whether to keep the migration.",
+            at: 100,
+          }],
+          lastActivityAt: 100,
+        }),
+      ],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "B", label: "ClientApp", shortLabel: "CLI", rootPath: "/repo/client" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+    render(<App />);
+
+    const trigger = await screen.findByRole("button", { name: "Agents, 1 active" });
+    const xtermHost = await screen.findByTestId("xterm-host");
+    const navigator = screen.getByTestId("project-navigator");
+    expect(within(navigator).getByRole("button", { name: "Alfred workspace" })).toHaveAccessibleDescription(
+      "1 active agent",
+    );
+    expect(within(navigator).getByRole("button", { name: "ClientApp workspace" })).toHaveAccessibleDescription(
+      "1 decision needs review",
+    );
+
+    await user.click(trigger);
+
+    const drawer = screen.getByTestId("agents-drawer");
+    expect(drawer).toHaveAttribute("aria-hidden", "false");
+    expect(drawer).toHaveTextContent("Tighten project rail");
+    expect(drawer).toHaveTextContent("Review checkout");
+    expect(xtermHost.isConnected).toBe(true);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Close Agents" })).toHaveFocus());
+
+    const commandPaletteTrigger = screen.getByRole("button", { name: "Open command palette" });
+    await user.click(commandPaletteTrigger);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
+    expect(drawer).toHaveAttribute("aria-hidden", "false");
+    await waitFor(() => expect(commandPaletteTrigger).toHaveFocus());
+
+    await user.keyboard("{Escape}");
+    expect(drawer).toHaveAttribute("aria-hidden", "true");
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(xtermHost.isConnected).toBe(true);
+  });
+
   it("lets Privacy consume Escape before Context", async () => {
     const user = userEvent.setup();
     installDesktopBridge();

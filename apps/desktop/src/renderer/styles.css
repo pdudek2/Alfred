@@ -1543,7 +1543,9 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 @media (max-width: 1180px) {
   .workspace-layout.preview-visible,
-  .workspace-layout.preview-visible:has(.project-navigator.is-collapsed) {
+  .workspace-layout.preview-visible:has(.project-navigator.is-collapsed),
+  .workspace-layout.agents-visible,
+  .workspace-layout.agents-visible:has(.project-navigator.is-collapsed) {
     grid-template-columns: 46px minmax(0, 1fr);
   }
 
@@ -1553,75 +1555,84 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   }
 
   .workspace-layout.preview-visible .project-navigator,
-  .workspace-layout.context-visible .project-navigator {
+  .workspace-layout.context-visible .project-navigator,
+  .workspace-layout.agents-visible .project-navigator {
     width: 46px;
   }
 
   .workspace-layout.preview-visible .project-navigator-collapse,
-  .workspace-layout.context-visible .project-navigator-collapse {
+  .workspace-layout.context-visible .project-navigator-collapse,
+  .workspace-layout.agents-visible .project-navigator-collapse {
     display: none;
   }
 
   .workspace-layout.preview-visible .project-navigator .project-navigator-header,
-  .workspace-layout.context-visible .project-navigator .project-navigator-header {
+  .workspace-layout.context-visible .project-navigator .project-navigator-header,
+  .workspace-layout.agents-visible .project-navigator .project-navigator-header {
     justify-content: center;
     padding-inline: 5px;
   }
 
-  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-navigator-header > strong,
-  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-recents,
-  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-section-heading,
-  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-row-label,
-  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-row-button kbd,
-  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-session-title,
-  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-overflow-button > span:first-child,
-  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .free-chat-section > header strong,
-  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-navigator-footer span {
+  .workspace-layout:is(.preview-visible, .context-visible, .agents-visible) .project-navigator .project-navigator-header > strong,
+  .workspace-layout:is(.preview-visible, .context-visible, .agents-visible) .project-navigator .project-recents,
+  .workspace-layout:is(.preview-visible, .context-visible, .agents-visible) .project-navigator .project-section-heading,
+  .workspace-layout:is(.preview-visible, .context-visible, .agents-visible) .project-navigator .project-row-label,
+  .workspace-layout:is(.preview-visible, .context-visible, .agents-visible) .project-navigator .project-row-button kbd,
+  .workspace-layout:is(.preview-visible, .context-visible, .agents-visible) .project-navigator .project-session-title,
+  .workspace-layout:is(.preview-visible, .context-visible, .agents-visible) .project-navigator .project-overflow-button > span:first-child,
+  .workspace-layout:is(.preview-visible, .context-visible, .agents-visible) .project-navigator .free-chat-section > header strong,
+  .workspace-layout:is(.preview-visible, .context-visible, .agents-visible) .project-navigator .project-navigator-footer span {
     display: none;
   }
 
   .workspace-layout.preview-visible .project-navigator .project-row,
-  .workspace-layout.context-visible .project-navigator .project-row {
+  .workspace-layout.context-visible .project-navigator .project-row,
+  .workspace-layout.agents-visible .project-navigator .project-row {
     display: block;
   }
 
   .workspace-layout.preview-visible .project-navigator .project-workspace-actions,
-  .workspace-layout.context-visible .project-navigator .project-workspace-actions {
+  .workspace-layout.context-visible .project-navigator .project-workspace-actions,
+  .workspace-layout.agents-visible .project-navigator .project-workspace-actions {
     display: flex;
     justify-content: center;
     padding: 2px 0 4px;
   }
 
-  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-session-disclosure {
+  .workspace-layout:is(.preview-visible, .context-visible, .agents-visible) .project-navigator .project-session-disclosure {
     display: none;
   }
 
   .workspace-layout.preview-visible .project-navigator .project-row-button,
-  .workspace-layout.context-visible .project-navigator .project-row-button {
+  .workspace-layout.context-visible .project-navigator .project-row-button,
+  .workspace-layout.agents-visible .project-navigator .project-row-button {
     grid-template-columns: 18px auto;
     justify-content: center;
     padding-inline: 4px;
   }
 
   .workspace-layout.preview-visible .project-navigator .project-session-list,
-  .workspace-layout.context-visible .project-navigator .project-session-list {
+  .workspace-layout.context-visible .project-navigator .project-session-list,
+  .workspace-layout.agents-visible .project-navigator .project-session-list {
     padding-left: 5px;
   }
 
   .workspace-layout.preview-visible .project-navigator .project-session,
-  .workspace-layout.context-visible .project-navigator .project-session {
+  .workspace-layout.context-visible .project-navigator .project-session,
+  .workspace-layout.agents-visible .project-navigator .project-session {
     grid-template-columns: 16px;
     justify-content: center;
   }
 
   .workspace-layout.preview-visible .project-navigator .project-overflow-button,
-  .workspace-layout.context-visible .project-navigator .project-overflow-button {
+  .workspace-layout.context-visible .project-navigator .project-overflow-button,
+  .workspace-layout.agents-visible .project-navigator .project-overflow-button {
     padding: 5px;
     justify-content: center;
   }
 
-  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .free-chat-section > header,
-  .workspace-layout:is(.preview-visible, .context-visible) .project-navigator .project-navigator-footer button {
+  .workspace-layout:is(.preview-visible, .context-visible, .agents-visible) .project-navigator .free-chat-section > header,
+  .workspace-layout:is(.preview-visible, .context-visible, .agents-visible) .project-navigator .project-navigator-footer button {
     justify-content: center;
   }
 
@@ -1632,7 +1643,11 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   .workspace-layout.context-visible .project-navigator .project-row-button:hover::after,
   .workspace-layout.context-visible .project-navigator:focus-within .project-row-button:focus-visible::after,
   .workspace-layout.context-visible .project-navigator .project-session:hover::after,
-  .workspace-layout.context-visible .project-navigator:focus-within .project-session:focus-visible::after {
+  .workspace-layout.context-visible .project-navigator:focus-within .project-session:focus-visible::after,
+  .workspace-layout.agents-visible .project-navigator .project-row-button:hover::after,
+  .workspace-layout.agents-visible .project-navigator:focus-within .project-row-button:focus-visible::after,
+  .workspace-layout.agents-visible .project-navigator .project-session:hover::after,
+  .workspace-layout.agents-visible .project-navigator:focus-within .project-session:focus-visible::after {
     content: attr(data-label);
     position: fixed;
     z-index: 140;

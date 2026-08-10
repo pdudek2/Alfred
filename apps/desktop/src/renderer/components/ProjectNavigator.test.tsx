@@ -54,6 +54,7 @@ function navigator(props: Partial<ProjectNavigatorProps> = {}) {
     <ProjectNavigator
       activeSessionId="codex-live"
       activeWorkspaceId="A"
+      activeAgentCountsByWorkspace={new Map()}
       attentionCountsByWorkspace={new Map()}
       collapsed={false}
       sessions={sessions}
@@ -328,15 +329,42 @@ describe("ProjectNavigator", () => {
       within(screen.getByRole("list", { name: "Workspaces" }))
         .getAllByRole("button", { name: / workspace(?:,|$)/i }),
     ).toHaveLength(5);
-    const client = screen.getByRole("button", { name: "ClientApp workspace, 2 decisions need review" });
+    const client = screen.getByRole("button", { name: "ClientApp workspace" });
     expect(client).toHaveAttribute(
       "data-attention",
       "true",
     );
-    const signal = within(client).getByLabelText("2 decisions need review");
-    expect(signal.querySelector(".alfred-signal-glyph")).toBeInTheDocument();
+    expect(client).toHaveAccessibleDescription("2 decisions need review");
+    const signal = client.querySelector(".project-attention-signal");
     expect(signal).toHaveClass("project-attention-signal");
     expect(signal).toHaveTextContent("2");
+  });
+
+  it("shows active agent counts beside their projects without reordering the rail", () => {
+    renderNavigator({
+      activeAgentCountsByWorkspace: new Map([
+        ["CLIENT", 3],
+        ["CLOUD", 1],
+      ]),
+      attentionCountsByWorkspace: new Map([["CLIENT", 2]]),
+    });
+
+    const projectButtons = within(screen.getByRole("list", { name: "Workspaces" }))
+      .getAllByRole("button", { name: / workspace(?:,|$)/i });
+    expect(projectButtons.map((button) => button.getAttribute("data-label"))).toEqual([
+      "Alfred",
+      "ClientApp",
+      "Chmury_lab04",
+      "GothamTab",
+      "IronLog",
+    ]);
+    const client = screen.getByRole("button", { name: "ClientApp workspace" });
+    expect(client).toHaveAccessibleDescription("2 decisions need review, 3 active agents");
+    expect(client.querySelector(".project-agent-signal")).toHaveTextContent("3");
+    expect(client.querySelector(".project-attention-signal")).toHaveTextContent("2");
+    expect(screen.getByRole("button", { name: "Chmury_lab04 workspace" })).toHaveAccessibleDescription(
+      "1 active agent",
+    );
   });
 
   it("does not invent a signal for a recovery-only workspace omitted from the blocking map", () => {

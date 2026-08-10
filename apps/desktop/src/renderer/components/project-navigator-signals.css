@@ -1,0 +1,53 @@
+.project-row-signals {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.project-agent-signal {
+  color: var(--signal-agent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  font: 650 9px/1 var(--mono);
+}
+
+.project-agent-signal .alfred-signal-glyph,
+.project-attention-icon {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 11px;
+}
+
+.project-attention-signal {
+  color: var(--signal-danger);
+}
+
+.project-navigator.is-collapsed .project-row-button {
+  gap: 2px;
+}
+
+.project-navigator.is-collapsed .project-row-signals {
+  gap: 0;
+}
+
+.project-navigator.is-collapsed .project-row-signals:has(.project-attention-signal) .project-agent-signal {
+  display: none;
+}
+
+@media (max-width: 1180px) {
+  .workspace-layout.agents-visible .project-row-button {
+    gap: 2px;
+  }
+
+  .workspace-layout.agents-visible .project-row-signals {
+    gap: 0;
+  }
+
+  .workspace-layout.agents-visible .project-row-signals:has(.project-attention-signal) .project-agent-signal {
+    display: none;
+  }
+}

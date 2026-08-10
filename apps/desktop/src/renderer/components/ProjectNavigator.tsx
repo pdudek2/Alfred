@@ -1,4 +1,4 @@
-import { Check, ChevronRight, CircleSlash, Folder, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus } from "lucide-react";
+import { Check, ChevronRight, CircleSlash, Folder, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, TriangleAlert } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import { isFreeChatSession, isNavigableLiveSession } from "../session-scope";
@@ -8,6 +8,7 @@ import { sessionAgeLabel } from "../session-time";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 import { sessionTileKind } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
+import "./project-navigator-signals.css";
 
 const RECENT_RESULT_LIMIT = 2;
 
@@ -24,6 +25,7 @@ export type ProjectNavigatorWorkspace = {
 export type ProjectNavigatorProps = {
   activeSessionId: string | null;
   activeWorkspaceId: string;
+  activeAgentCountsByWorkspace: ReadonlyMap<string, number>;
   attentionCountsByWorkspace: ReadonlyMap<string, number>;
   collapsed: boolean;
   sessions: SessionTile[];
@@ -38,6 +40,7 @@ export type ProjectNavigatorProps = {
 export function ProjectNavigator({
   activeSessionId,
   activeWorkspaceId,
+  activeAgentCountsByWorkspace,
   attentionCountsByWorkspace,
   collapsed,
   sessions,
@@ -64,6 +67,10 @@ export function ProjectNavigator({
   const recentResults = recentAgentResults(workspaces, sessions);
   const hiddenAttentionCount = hiddenProjects.reduce(
     (count, workspace) => count + (attentionCountsByWorkspace.get(workspace.id) ?? 0),
+    0,
+  );
+  const hiddenActiveAgentCount = hiddenProjects.reduce(
+    (count, workspace) => count + (activeAgentCountsByWorkspace.get(workspace.id) ?? 0),
     0,
   );
 
@@ -142,11 +149,21 @@ export function ProjectNavigator({
           {visibleProjects.map((workspace, visibleIndex) => {
             const active = workspace.id === activeWorkspaceId;
             const stableIndex = workspaces.findIndex((candidate) => candidate.id === workspace.id);
+            const activeAgentCount = activeAgentCountsByWorkspace.get(workspace.id) ?? 0;
             const attentionCount = attentionCountsByWorkspace.get(workspace.id) ?? 0;
             const hasAttention = attentionCount > 0;
             const workspaceSessions = sessions.filter((session) => isActiveNavigatorSession(session, workspace.id));
             const sessionsExpanded = expandedWorkspaceIds.has(workspace.id);
             const sessionGroupId = `project-${workspace.id}-sessions`;
+            const workspaceStatusId = `project-${workspace.id}-status`;
+            const workspaceStatus = [
+              hasAttention
+                ? `${attentionCount} decision${attentionCount === 1 ? " needs" : "s need"} review`
+                : null,
+              activeAgentCount > 0
+                ? `${activeAgentCount} active agent${activeAgentCount === 1 ? "" : "s"}`
+                : null,
+            ].filter((status): status is string => status !== null);
             return (
               <section
                 className={`project-item${active ? " is-active" : ""}`}
@@ -158,11 +175,8 @@ export function ProjectNavigator({
                     type="button"
                     className="project-row-button"
                     aria-current={active ? "location" : undefined}
-                    aria-label={`${workspace.label} workspace${
-                      hasAttention
-                        ? `, ${attentionCount} decision${attentionCount === 1 ? " needs" : "s need"} review`
-                        : ""
-                    }`}
+                    aria-describedby={workspaceStatus.length > 0 ? workspaceStatusId : undefined}
+                    aria-label={`${workspace.label} workspace`}
                     data-attention={hasAttention ? "true" : undefined}
                     data-label={workspace.label}
                     data-project-destination={workspace.id}
@@ -178,13 +192,31 @@ export function ProjectNavigator({
                     <Folder className="project-folder-icon" aria-hidden="true" size={15} />
                     <span className="project-row-label">{workspace.label}</span>
                     {stableIndex >= 0 && stableIndex < 5 && <kbd aria-hidden="true">⌘{stableIndex + 1}</kbd>}
-                    {hasAttention && (
-                      <span
-                        className="project-attention-signal"
-                        aria-label={`${attentionCount} decision${attentionCount === 1 ? " needs" : "s need"} review`}
-                      >
-                        <AlfredSignalGlyph />
-                        {attentionCount > 1 && <span className="project-attention-count">{attentionCount}</span>}
+                    {(activeAgentCount > 0 || hasAttention) && (
+                      <span className="project-row-signals">
+                        {activeAgentCount > 0 && (
+                          <span
+                            className="project-agent-signal"
+                            aria-hidden="true"
+                          >
+                            <AlfredSignalGlyph />
+                            <span>{activeAgentCount}</span>
+                          </span>
+                        )}
+                        {hasAttention && (
+                          <span
+                            className="project-attention-signal"
+                            aria-hidden="true"
+                          >
+                            <TriangleAlert className="project-attention-icon" aria-hidden="true" size={11} />
+                            {attentionCount > 1 && <span className="project-attention-count">{attentionCount}</span>}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                    {workspaceStatus.length > 0 && (
+                      <span className="visually-hidden" id={workspaceStatusId}>
+                        {workspaceStatus.join(", ")}
                       </span>
                     )}
                   </button>
@@ -234,16 +266,26 @@ export function ProjectNavigator({
           <button
             type="button"
             className="project-overflow-button"
-            aria-label={`Show ${hiddenProjects.length} more projects${hiddenAttentionCount > 0 ? ", hidden project needs review" : ""}`}
+            aria-label={`Show ${hiddenProjects.length} more projects${hiddenAttentionCount > 0 ? ", hidden project needs review" : ""}${hiddenActiveAgentCount > 0 ? ", hidden project has active agents" : ""}`}
             data-attention={hiddenAttentionCount > 0 ? "true" : undefined}
             onClick={() => setShowAllProjects(true)}
           >
             <span>Show {hiddenProjects.length} more</span>
-            {hiddenAttentionCount > 0 && (
-              <span className="project-attention-signal" aria-label="Hidden project needs review">
-                <AlfredSignalGlyph />
-                {hiddenAttentionCount > 1 && (
-                  <span className="project-attention-count">{hiddenAttentionCount}</span>
+            {(hiddenActiveAgentCount > 0 || hiddenAttentionCount > 0) && (
+              <span className="project-row-signals">
+                {hiddenActiveAgentCount > 0 && (
+                  <span className="project-agent-signal" aria-label="Hidden project has active agents">
+                    <AlfredSignalGlyph />
+                    <span>{hiddenActiveAgentCount}</span>
+                  </span>
+                )}
+                {hiddenAttentionCount > 0 && (
+                  <span className="project-attention-signal" aria-label="Hidden project needs review">
+                    <TriangleAlert className="project-attention-icon" aria-hidden="true" size={11} />
+                    {hiddenAttentionCount > 1 && (
+                      <span className="project-attention-count">{hiddenAttentionCount}</span>
+                    )}
+                  </span>
                 )}
               </span>
             )}

@@ -16,6 +16,8 @@ describe("WorkSurfaceToolbar", () => {
     const onTogglePreview = vi.fn();
     render(
       <WorkSurfaceToolbar
+        activeAgentCount={3}
+        agentsOpen={false}
         arrangeMode={false}
         branch="main"
         previewAvailable
@@ -28,6 +30,7 @@ describe("WorkSurfaceToolbar", () => {
         onApplyWorkMode={onApplyWorkMode}
         onOpenSavedSessions={vi.fn()}
         onToggleArrangeMode={onToggleArrangeMode}
+        onToggleAgents={vi.fn()}
         onTogglePreview={onTogglePreview}
       />,
     );
@@ -50,6 +53,8 @@ describe("WorkSurfaceToolbar", () => {
   it("keeps Preview unavailable until Alfred detects a local URL", () => {
     render(
       <WorkSurfaceToolbar
+        activeAgentCount={0}
+        agentsOpen={false}
         arrangeMode={false}
         previewAvailable={false}
         previewOpen={false}
@@ -62,10 +67,62 @@ describe("WorkSurfaceToolbar", () => {
         onApplyWorkMode={vi.fn()}
         onOpenSavedSessions={vi.fn()}
         onToggleArrangeMode={vi.fn()}
+        onToggleAgents={vi.fn()}
         onTogglePreview={vi.fn()}
       />,
     );
 
     expect(screen.getByRole("button", { name: "Preview" })).toBeDisabled();
+  });
+
+  it("opens the Agents drawer from a pressed toolbar control", async () => {
+    const onToggleAgents = vi.fn();
+    const { rerender } = render(
+      <WorkSurfaceToolbar
+        activeAgentCount={3}
+        agentsOpen={false}
+        arrangeMode={false}
+        previewAvailable={false}
+        previewOpen={false}
+        rootPath="/repo"
+        savedSessionCount={0}
+        branch="main"
+        visibleSessionCount={3}
+        workMode="desk"
+        onAddManualSession={vi.fn()}
+        onApplyWorkMode={vi.fn()}
+        onOpenSavedSessions={vi.fn()}
+        onToggleArrangeMode={vi.fn()}
+        onToggleAgents={onToggleAgents}
+        onTogglePreview={vi.fn()}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: "Agents, 3 active" });
+    expect(trigger).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(trigger);
+    expect(onToggleAgents).toHaveBeenCalledOnce();
+
+    rerender(
+      <WorkSurfaceToolbar
+        activeAgentCount={3}
+        agentsOpen
+        arrangeMode={false}
+        previewAvailable={false}
+        previewOpen={false}
+        rootPath="/repo"
+        savedSessionCount={0}
+        branch="main"
+        visibleSessionCount={3}
+        workMode="desk"
+        onAddManualSession={vi.fn()}
+        onApplyWorkMode={vi.fn()}
+        onOpenSavedSessions={vi.fn()}
+        onToggleArrangeMode={vi.fn()}
+        onToggleAgents={onToggleAgents}
+        onTogglePreview={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Agents, 3 active" })).toHaveAttribute("aria-pressed", "true");
   });
 });
