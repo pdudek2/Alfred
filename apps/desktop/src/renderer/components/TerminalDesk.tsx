@@ -15,6 +15,7 @@ import { getDesktopTerminalApi } from "../desktop-api";
 import type { TileLayout } from "../layout-state";
 import {
   canRelaunchRestoredSession,
+  isGeneratedSessionTitle,
   isLaunchBlocked,
   sessionInstanceKey,
   type SessionTile,
@@ -48,6 +49,38 @@ import { SessionStatusGlyph } from "./SessionStatusGlyph";
 const ARRANGE_GRID_ROW_HEIGHT = 84;
 const MIN_TERMINAL_FIT_HEIGHT = 48;
 const MIN_TERMINAL_FIT_WIDTH = 80;
+const MAX_CAPTURED_AGENT_INPUT = 512;
+
+type AgentTitleInputCapture = {
+  buffer: string;
+  title?: string;
+};
+
+function captureAgentTitleInput(buffer: string, data: string): AgentTitleInputCapture {
+  // ponytail: mirrors ordinary typing/backspace only; prefer runtime thread metadata if agents expose it later.
+  let nextBuffer = buffer;
+  const visibleData = data.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`, "g"), "");
+
+  for (const character of visibleData) {
+    if (character === "\r" || character === "\n") {
+      const title = normalizeSessionTitle(nextBuffer);
+      return title ? { buffer: "", title } : { buffer: "" };
+    }
+    if (character === "\x7f" || character === "\b") {
+      nextBuffer = nextBuffer.slice(0, -1);
+      continue;
+    }
+    if (character === "\x03" || character === "\x15") {
+      nextBuffer = "";
+      continue;
+    }
+    if (character >= " ") {
+      nextBuffer = `${nextBuffer}${character}`.slice(-MAX_CAPTURED_AGENT_INPUT);
+    }
+  }
+
+  return { buffer: nextBuffer };
+}
 
 export type WorktreeActionKind = "review" | "apply";
 
@@ -843,6 +876,7 @@ function ManualTerminalTile({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
+  const agentTitleInputRef = useRef("");
   const lastResizeRef = useRef<{ id: TerminalSessionId; cols: number; rows: number } | null>(null);
   const sessionIdRef = useRef<TerminalSessionId | null>(null);
   const [status, setStatus] = useState<LocalTerminalStatus>("connecting");
@@ -944,6 +978,7 @@ function ManualTerminalTile({
     source,
     workspaceId,
     agentKind,
+    detectedAgentKind,
     isolation,
     branchName,
     baseCwd,
@@ -984,6 +1019,7 @@ function ManualTerminalTile({
       source,
       workspaceId,
       agentKind,
+      detectedAgentKind,
       isolation,
       branchName,
       baseCwd,
@@ -1003,6 +1039,7 @@ function ManualTerminalTile({
     source,
     workspaceId,
     agentKind,
+    detectedAgentKind,
     isolation,
     branchName,
     baseCwd,
@@ -1072,6 +1109,7 @@ function ManualTerminalTile({
     const terminalApi = getDesktopTerminalApi();
     let disposed = false;
     const metadata = runtimeMetadataRef.current;
+    agentTitleInputRef.current = "";
 
     if (!container) {
       return;
@@ -1273,6 +1311,22 @@ function ManualTerminalTile({
     });
     const inputDisposable = terminal.onData((data) => {
       const sessionId = sessionIdRef.current;
+      const currentMetadata = runtimeMetadataRef.current;
+      const currentAgentKind = currentMetadata.detectedAgentKind ?? currentMetadata.agentKind;
+
+      if (
+        (currentAgentKind === "codex" || currentAgentKind === "claude")
+        && isGeneratedSessionTitle(currentMetadata.title)
+      ) {
+        const capture = captureAgentTitleInput(agentTitleInputRef.current, data);
+        agentTitleInputRef.current = capture.buffer;
+        if (capture.title) {
+          currentMetadata.title = capture.title;
+          onRenameSession(sessionKey, capture.title);
+        }
+      } else {
+        agentTitleInputRef.current = "";
+      }
 
       if (sessionId) {
         terminalApi.write({ id: sessionId, data });
@@ -1412,7 +1466,7 @@ function ManualTerminalTile({
       removeDataListener();
       removeExitListener();
     };
-  }, [runtimeBindingKey, runtimeId, sessionKey, setTileStatus]);
+  }, [onRenameSession, runtimeBindingKey, runtimeId, sessionKey, setTileStatus]);
 
   useEffect(() => {
     if (!surfaceActive || !selected || status !== "ready") return;

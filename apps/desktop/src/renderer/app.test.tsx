@@ -29,10 +29,11 @@ import type { ExternalSessionSummary, SessionsApi } from "../shared/sessions-ipc
 import type { DesktopPrivacySettings, DesktopSaveStatus, DesktopStateApi } from "../shared/desktop-state-ipc";
 import { appendActivityEvent, type SessionActivityEvent } from "../shared/session-activity";
 
-const { terminalConstructorOptions, terminalDisposeCalls, terminalFocusSessionIds } = vi.hoisted(() => ({
+const { terminalConstructorOptions, terminalDisposeCalls, terminalFocusSessionIds, terminalInputHandlers } = vi.hoisted(() => ({
   terminalConstructorOptions: [] as unknown[],
   terminalDisposeCalls: [] as unknown[],
   terminalFocusSessionIds: [] as string[],
+  terminalInputHandlers: [] as Array<(data: string) => void>,
 }));
 
 const rendererStyles = readFileSync(resolve(process.cwd(), "src/renderer/styles.css"), "utf8");
@@ -59,7 +60,10 @@ vi.mock("@xterm/xterm", () => ({
     loadAddon = vi.fn((addon: { activate?: (terminal: unknown) => void }) => {
       addon.activate?.(this);
     });
-    onData = vi.fn(() => ({ dispose: vi.fn() }));
+    onData = vi.fn((callback: (data: string) => void) => {
+      terminalInputHandlers.push(callback);
+      return { dispose: vi.fn() };
+    });
     open = vi.fn((element: HTMLElement) => {
       this.element = element;
     });
@@ -549,6 +553,7 @@ beforeEach(() => {
   terminalConstructorOptions.length = 0;
   terminalDisposeCalls.length = 0;
   terminalFocusSessionIds.length = 0;
+  terminalInputHandlers.length = 0;
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     callback(0);
@@ -799,7 +804,112 @@ describe("App integration", () => {
     } as TerminalDataEvent);
 
     expect(screen.getByRole("article", { name: "Release reviewer" })).toBeInTheDocument();
+    expect(terminalInputHandlers).toHaveLength(1);
+    act(() => {
+      terminalInputHandlers[0]?.("Replace the custom title\r");
+    });
     expect(renameTerminal).not.toHaveBeenCalled();
+  });
+
+  it("uses the first submitted Codex prompt as the generated session title", async () => {
+    const { renameTerminal } = installDesktopBridge(undefined, null, [
+      liveSnapshot("codex-1", { title: "Codex · session 1" }),
+    ]);
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: "Codex · session 1" })).toBeInTheDocument();
+    expect(terminalInputHandlers).toHaveLength(1);
+
+    act(() => {
+      terminalInputHandlers[0]?.("Fix ingesx");
+      terminalInputHandlers[0]?.("\x7ft retry\r");
+    });
+
+    expect(await screen.findByRole("article", { name: "Fix ingest retry" })).toBeInTheDocument();
+    expect(renameTerminal).toHaveBeenCalledWith({ clientId: "codex-1", title: "Fix ingest retry" });
+  });
+
+  it("backfills only generated Codex titles from the indexed conversation", async () => {
+    const externalSessionId = "019edc4b-0000-7000-9000-title";
+    const bufferedSessionId = "019fe5fd-fd77-7e93-9cb1-65f20f455abf";
+    const timedSessionId = "019fe61b-bfb3-7790-9cf6-c5b4ae97df0a";
+    const { renameTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [
+        liveSnapshot("codex-generated", {
+          title: "Codex · session 1",
+          args: ["resume", externalSessionId],
+          resumeTarget: { agentKind: "codex", sessionId: externalSessionId, source: "external-session-index" },
+        }),
+        liveSnapshot("codex-custom", {
+          title: "Release reviewer",
+          args: ["resume", externalSessionId],
+          resumeTarget: { agentKind: "codex", sessionId: externalSessionId, source: "external-session-index" },
+        }),
+        liveSnapshot("codex-buffered", {
+          title: "Codex · session 2",
+          buffer: `Failed to resume /tmp/rollout-2026-08-09T12-07-35-${bufferedSessionId}.jsonl`,
+        }),
+        liveSnapshot("codex-timed", {
+          title: "Codex · session 3",
+          createdAt: 1_786_271_998_928,
+          cwd: "/Users/patryk/Documents/Codex/2026-08-09/alfred-W16",
+        }),
+      ],
+      undefined,
+      undefined,
+      undefined,
+      [],
+      [
+        {
+          sessionKey: `external-codex:${externalSessionId}:200`,
+          lineageKey: `external-codex:${externalSessionId}`,
+          contentSessionKey: `external-codex:${externalSessionId}`,
+          source: "external-codex",
+          kind: "codex",
+          title: "Fix the retry loop",
+          project: { id: "A", label: "Alfred" },
+          locationLabel: "Alfred",
+          updatedAt: 200,
+          lifecycle: "resumable",
+          model: "gpt-5",
+          originator: "codex",
+        },
+        {
+          sessionKey: `external-codex:${bufferedSessionId}:201`,
+          lineageKey: `external-codex:${bufferedSessionId}`,
+          contentSessionKey: `external-codex:${bufferedSessionId}`,
+          source: "external-codex",
+          kind: "codex",
+          title: "Recover the rollout session",
+          project: { id: null, label: "External Codex" },
+          locationLabel: "alfred-W16",
+          updatedAt: 201,
+          lifecycle: "read-only",
+        },
+        {
+          sessionKey: `external-codex:${timedSessionId}:202`,
+          lineageKey: `external-codex:${timedSessionId}`,
+          contentSessionKey: `external-codex:${timedSessionId}`,
+          source: "external-codex",
+          kind: "codex",
+          title: "Explain the preview",
+          project: { id: null, label: "External Codex" },
+          locationLabel: "alfred-W16",
+          updatedAt: 202,
+          lifecycle: "read-only",
+        },
+      ],
+    );
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: "Fix the retry loop" })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: "Recover the rollout session" })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: "Explain the preview" })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: "Release reviewer" })).toBeInTheDocument();
+    expect(renameTerminal).toHaveBeenCalledWith({ clientId: "codex-generated", title: "Fix the retry loop" });
+    expect(renameTerminal).not.toHaveBeenCalledWith({ clientId: "codex-custom", title: expect.any(String) });
   });
 
   it("keeps Alfred shell hierarchy focused on workspace, decisions, and launch actions", async () => {
