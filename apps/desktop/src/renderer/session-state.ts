@@ -52,6 +52,10 @@ const ALFRED_SESSION_PREFIX = "alfred-";
 const MAX_ACTIVITY_EVENTS = 40;
 const GENERATED_TERMINAL_TITLE = /^(?:Manual · zsh|Codex · session|Claude · session) (\d+)$/;
 
+export function isGeneratedSessionTitle(title: string): boolean {
+  return GENERATED_TERMINAL_TITLE.test(title);
+}
+
 export function generatedTitleForDetectedAgent(
   session: Pick<SessionTile, "title">,
   kind: TerminalDataEvent["foregroundAgentKind"],
