@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { SessionTile } from "./session-state";
-import { isFreeChatPath, isFreeChatScope, isFreeChatSession, isNavigableLiveSession } from "./session-scope";
+import {
+  isActiveAgentSession,
+  isFreeChatPath,
+  isFreeChatScope,
+  isFreeChatSession,
+  isNavigableLiveSession,
+} from "./session-scope";
 
 function session(overrides: Partial<SessionTile> = {}): SessionTile {
   return {
@@ -52,4 +58,19 @@ describe("session scope", () => {
       expect(isFreeChatScope(inactiveFreeChat)).toBe(true);
     },
   );
+
+  it("counts only live Codex and Claude work as active agents", () => {
+    const { agentKind: _detectedKind, ...detectedAgent } = session({ detectedAgentKind: "claude" });
+    const { agentKind: _manualKind, ...manualSession } = session();
+    expect(isActiveAgentSession(session())).toBe(true);
+    expect(isActiveAgentSession(detectedAgent)).toBe(true);
+    expect(isActiveAgentSession(session({ activityEvents: [
+      { id: "approval", kind: "approval", title: "Waiting", detail: "Approve?", at: 10 },
+    ] }))).toBe(false);
+    expect(isActiveAgentSession(manualSession)).toBe(false);
+    expect(isActiveAgentSession(session({ stage: "staged" }))).toBe(false);
+    expect(isActiveAgentSession(session({ runtimeStatus: "exited" }))).toBe(false);
+    expect(isActiveAgentSession(session({ runtimeStatus: "unavailable" }))).toBe(false);
+    expect(isActiveAgentSession(session({ cwd: "/Users/patryk/Documents/Codex/idea" }))).toBe(false);
+  });
 });

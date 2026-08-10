@@ -90,3 +90,41 @@
 .work-surface-toolbar .work-saved-sessions svg {
   color: var(--ink-5);
 }
+
+.work-surface-toolbar .work-agents-toggle {
+  flex: 0 0 auto;
+  gap: 6px;
+  padding-inline: 9px;
+  border-color: var(--ink-3);
+  background: color-mix(in oklab, white 4%, transparent);
+  color: var(--ink-6);
+}
+
+.work-surface-toolbar .work-agents-toggle:hover,
+.work-surface-toolbar .work-agents-toggle:focus-visible,
+.work-surface-toolbar .work-agents-toggle[aria-pressed="true"] {
+  border-color: var(--ink-4);
+  background: color-mix(in oklab, white 8%, transparent);
+  color: var(--ink-7);
+}
+
+.work-surface-toolbar .work-agents-toggle[aria-pressed="true"] {
+  background: color-mix(in oklab, var(--signal-agent) 10%, var(--ink-1));
+}
+
+.work-surface-toolbar .work-agents-toggle .alfred-signal-glyph {
+  width: 12px;
+  height: 12px;
+  color: var(--signal-agent);
+}
+
+.work-surface-toolbar .work-agents-toggle strong {
+  color: var(--ink-5);
+  font: 600 10px/1 var(--sans);
+}
+
+@media (max-width: 980px) {
+  .work-surface-toolbar .work-agents-toggle > span {
+    display: none;
+  }
+}

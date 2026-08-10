@@ -33,6 +33,10 @@ export const privacySafeHiddenScreenshotSelectors = [
 ] as const;
 
 export const privacySafeScreenshotStyle = `
+  .agents-drawer__work-detail {
+    display: none !important;
+  }
+
   ${privacySafeScreenshotSelectors.join(",\n  ")} {
     color: transparent !important;
     -webkit-text-fill-color: transparent !important;

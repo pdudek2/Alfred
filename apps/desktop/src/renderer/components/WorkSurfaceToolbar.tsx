@@ -3,9 +3,13 @@ import type { Ref } from "react";
 import { shortenPath } from "../path-display";
 import type { WorkMode } from "../terminal-desk-types";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
+import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 import "./work-surface-toolbar.css";
 
 export type WorkSurfaceToolbarProps = {
+  activeAgentCount: number;
+  agentsOpen: boolean;
+  agentsTriggerRef?: Ref<HTMLButtonElement>;
   arrangeMode: boolean;
   branch: string | undefined;
   previewAvailable: boolean;
@@ -20,10 +24,14 @@ export type WorkSurfaceToolbarProps = {
   onApplyWorkMode: (mode: WorkMode) => void;
   onOpenSavedSessions: () => void;
   onToggleArrangeMode: () => void;
+  onToggleAgents: () => void;
   onTogglePreview: () => void;
 };
 
 export function WorkSurfaceToolbar({
+  activeAgentCount,
+  agentsOpen,
+  agentsTriggerRef,
   arrangeMode,
   branch,
   previewAvailable,
@@ -38,6 +46,7 @@ export function WorkSurfaceToolbar({
   onApplyWorkMode,
   onOpenSavedSessions,
   onToggleArrangeMode,
+  onToggleAgents,
   onTogglePreview,
 }: WorkSurfaceToolbarProps) {
   const location = rootPath ? shortenPath(rootPath) : "local desk";
@@ -88,6 +97,18 @@ export function WorkSurfaceToolbar({
       >
         <PanelRight aria-hidden="true" size={13} />
         <span>Preview</span>
+      </button>
+      <button
+        ref={agentsTriggerRef}
+        type="button"
+        className="work-agents-toggle"
+        aria-label={`Agents, ${activeAgentCount} active`}
+        aria-pressed={agentsOpen}
+        onClick={onToggleAgents}
+      >
+        <AlfredSignalGlyph />
+        <span>Agents</span>
+        <strong>{activeAgentCount} active</strong>
       </button>
       <span className="work-surface-context">
         {location}{branchDetail} · {visibleSessionCount} {sessionLabel}
