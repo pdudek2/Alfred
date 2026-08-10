@@ -71,3 +71,22 @@
   opacity: 0.42;
   cursor: default;
 }
+
+.work-surface-toolbar .work-saved-sessions {
+  flex: 0 0 auto;
+  border-color: var(--ink-3);
+  background: color-mix(in oklab, white 4%, transparent);
+  color: var(--ink-6);
+  font-family: var(--sans);
+  font-weight: 600;
+}
+
+.work-surface-toolbar .work-saved-sessions:hover,
+.work-surface-toolbar .work-saved-sessions:focus-visible {
+  border-color: var(--ink-4);
+  background: color-mix(in oklab, white 8%, transparent);
+}
+
+.work-surface-toolbar .work-saved-sessions svg {
+  color: var(--ink-5);
+}

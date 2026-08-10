@@ -86,7 +86,8 @@ import {
 import type { WorkMode } from "./terminal-desk-types";
 import { shortenPath } from "./path-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
-import type { SessionsPrimaryActionRequest } from "./sessions-projection";
+import { buildSessionsProjection, type SessionsPrimaryActionRequest } from "./sessions-projection";
+import { isReviewableWorktreeSession, isWorkSession } from "./session-scope";
 import { normalizeSessionTitle } from "../shared/session-title";
 import { shortLabelForWorkspace } from "../shared/workspace-label";
 import type {
@@ -255,8 +256,19 @@ export function App() {
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? DEFAULT_WORKSPACE;
   const activeWorkMode = workModesByWorkspace[activeWorkspace.id] ?? "desk";
+  const workSessions = terminalSessions.filter(isWorkSession);
   const activeSessions = terminalSessions.filter((session) => session.workspaceId === activeWorkspace.id);
-  const activePreviewCandidates = previewCandidates.filter((candidate) => candidate.workspaceId === activeWorkspace.id);
+  const activeWorkSessions = workSessions.filter((session) => session.workspaceId === activeWorkspace.id);
+  const activeSavedSessions = activeSessions.filter((session) => !isWorkSession(session));
+  const activeSavedSessionCount = buildSessionsProjection({
+    sessions: activeSavedSessions,
+    workspaces,
+    externalSessions: [],
+  }).total;
+  const activeWorkSessionIds = new Set(activeWorkSessions.map((session) => session.id));
+  const activePreviewCandidates = previewCandidates.filter(
+    (candidate) => candidate.workspaceId === activeWorkspace.id && activeWorkSessionIds.has(candidate.sessionId),
+  );
   const activeSelectedPreviewUrl =
     activePreviewCandidates.find((candidate) => candidate.url === selectedPreviewUrlsByWorkspace[activeWorkspace.id])
       ?.url ??
@@ -269,13 +281,13 @@ export function App() {
   const activeSelectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id] ?? null;
   const activeInspectedSession =
     activeSelectedSessionId
-      ? activeSessions.find((session) => session.id === activeSelectedSessionId) ?? activeSessions[0] ?? null
-      : activeSessions[0] ?? null;
+      ? activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeWorkSessions[0] ?? null
+      : activeWorkSessions[0] ?? null;
   const activeSelectedSession =
-    activeSessions.find((session) => session.id === activeSelectedSessionId) ?? activeSessions[0] ?? null;
+    activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeWorkSessions[0] ?? null;
   const activeCollapsedSessionIds = new Set(collapsedSessionIdsByWorkspace[activeWorkspace.id] ?? []);
   const activeContextDrawerOpen = contextDrawerOpenByWorkspace[activeWorkspace.id] ?? false;
-  const activeDispatchTargets = dispatchTargetsForWorkspace(activeWorkspace, activeSessions, activeSelectedSession);
+  const activeDispatchTargets = dispatchTargetsForWorkspace(activeWorkspace, activeWorkSessions, activeSelectedSession);
   const savedDispatchTarget = dispatchTargetsByWorkspace[activeWorkspace.id];
   const activeDispatchTarget =
     activeDispatchTargets.find((target) => dispatchTargetsEqual(target, savedDispatchTarget)) ??
@@ -295,6 +307,7 @@ export function App() {
       .map((item) => item.sessionId),
   );
   const activeRecoverableSessions = activeSessions.filter((session) => recoverySessionIds.has(session.id));
+  const activeWorkRecoverableSessions = activeRecoverableSessions.filter(isWorkSession);
   const sessionDetailsById: ReadonlyMap<
     string,
     Pick<SessionTile, "args" | "command" | "cwd">
@@ -384,10 +397,10 @@ export function App() {
     if (!addedSession) return;
 
     const previousWorkspaceSessions = terminalSessionsRef.current.filter(
-      (session) => session.workspaceId === activeWorkspace.id,
+      (session) => session.workspaceId === activeWorkspace.id && isWorkSession(session),
     );
     const workspaceSessions = nextSessions.filter(
-      (session) => session.workspaceId === activeWorkspace.id,
+      (session) => session.workspaceId === activeWorkspace.id && isWorkSession(session),
     );
     const currentLayouts = ensureTileLayouts(
       previousWorkspaceSessions,
@@ -832,7 +845,7 @@ export function App() {
   const handleApplyLayoutPreset = useCallback((
     preset: LayoutPreset,
     selectedSessionId = activeSelectedSessionId,
-    sessions = activeSessions,
+    sessions = activeWorkSessions,
   ) => {
     const layoutApi = getDesktopLayoutApi();
     const workspaceLayouts = applyLayoutPreset(sessions, preset, selectedSessionId);
@@ -843,7 +856,7 @@ export function App() {
       [activeWorkspace.id]: workspaceLayouts,
     });
     void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
-  }, [activeSelectedSessionId, activeSessions, activeWorkspace.id, tileLayoutsByWorkspace]);
+  }, [activeSelectedSessionId, activeWorkSessions, activeWorkspace.id, tileLayoutsByWorkspace]);
 
   const handleApplyWorkMode = useCallback((mode: WorkMode, selectedSessionId = activeSelectedSessionId) => {
     const preset: LayoutPreset = mode === "focus" ? "focus" : mode === "split" ? "two-up" : "grid";
@@ -917,23 +930,40 @@ export function App() {
     setActiveSurface("inbox");
   }, []);
 
+  const handleOpenSavedSessions = useCallback(() => {
+    setSessionsViewState((current) => ({
+      ...current,
+      query: "",
+      selectedProjectId: activeWorkspace.id,
+      source: "saved",
+      timeRange: "any",
+      pageIndex: 0,
+      selectedSessionKey: null,
+      navigatorScrollTop: 0,
+      readerScrollTop: 0,
+      readerPages: [],
+      focusTarget: "search",
+    }));
+    setActiveSurface("sessions");
+  }, [activeWorkspace.id]);
+
   const handleFocusSessionByDelta = useCallback((delta: number) => {
-    if (activeSessions.length === 0) return;
+    if (activeWorkSessions.length === 0) return;
     const currentIndex = Math.max(
       0,
-      activeSessions.findIndex((session) => session.id === activeSelectedSessionId),
+      activeWorkSessions.findIndex((session) => session.id === activeSelectedSessionId),
     );
-    const nextIndex = (currentIndex + delta + activeSessions.length) % activeSessions.length;
-    const nextSession = activeSessions[nextIndex];
+    const nextIndex = (currentIndex + delta + activeWorkSessions.length) % activeWorkSessions.length;
+    const nextSession = activeWorkSessions[nextIndex];
     if (nextSession) {
       handleFocusSession(nextSession.id);
     }
-  }, [activeSelectedSessionId, activeSessions, handleFocusSession]);
+  }, [activeSelectedSessionId, activeWorkSessions, handleFocusSession]);
 
   const handleMoveTile = useCallback((tileId: string, deltaCol: number, deltaRow: number) => {
     const layoutApi = getDesktopLayoutApi();
     const workspaceLayouts = moveTileLayout(
-      ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {}),
+      ensureTileLayouts(activeWorkSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {}),
       tileId,
       deltaCol,
       deltaRow,
@@ -943,12 +973,12 @@ export function App() {
       [activeWorkspace.id]: workspaceLayouts,
     });
     void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
-  }, [activeSessions, activeWorkspace.id, tileLayoutsByWorkspace]);
+  }, [activeWorkSessions, activeWorkspace.id, tileLayoutsByWorkspace]);
 
   const handleResizeTile = useCallback((tileId: string, deltaColSpan: number, deltaRowSpan: number) => {
     const layoutApi = getDesktopLayoutApi();
     const workspaceLayouts = resizeTileLayout(
-      ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {}),
+      ensureTileLayouts(activeWorkSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {}),
       tileId,
       deltaColSpan,
       deltaRowSpan,
@@ -958,7 +988,7 @@ export function App() {
       [activeWorkspace.id]: workspaceLayouts,
     });
     void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
-  }, [activeSessions, activeWorkspace.id, tileLayoutsByWorkspace]);
+  }, [activeWorkSessions, activeWorkspace.id, tileLayoutsByWorkspace]);
 
   const refreshLiveSessions = useCallback(async () => {
     const terminalApi = getDesktopTerminalApi();
@@ -997,7 +1027,9 @@ export function App() {
   }, [refreshLiveSessions, workModesByWorkspace]);
 
   const handleFocusSessionInWorkspace = useCallback((workspaceId: string, sessionId: string) => {
-    const targetSessions = terminalSessionsRef.current.filter((session) => session.workspaceId === workspaceId);
+    const targetSessions = terminalSessionsRef.current.filter((session) => (
+      session.workspaceId === workspaceId && (isWorkSession(session) || session.id === sessionId)
+    ));
     if (!targetSessions.some((session) => session.id === sessionId)) return;
 
     const layoutApi = getDesktopLayoutApi();
@@ -1060,21 +1092,21 @@ export function App() {
   useEffect(() => {
     setSelectedSessionIdsByWorkspace((current) => {
       const currentId = current[activeWorkspace.id];
-      if (activeSessions.length === 0) {
+      if (activeWorkSessions.length === 0) {
         if (!currentId) return current;
         const next = { ...current };
         delete next[activeWorkspace.id];
         return next;
       }
-      if (currentId && activeSessions.some((session) => session.id === currentId)) {
+      if (currentId && activeWorkSessions.some((session) => session.id === currentId)) {
         return current;
       }
       return {
         ...current,
-        [activeWorkspace.id]: activeSessions[0]?.id ?? "",
+        [activeWorkspace.id]: activeWorkSessions[0]?.id ?? "",
       };
     });
-  }, [activeSessions, activeWorkspace.id]);
+  }, [activeWorkSessions, activeWorkspace.id]);
 
   const closeSessionNow = useCallback(async (sessionId: string) => {
     const terminalApi = getDesktopTerminalApi();
@@ -1405,7 +1437,7 @@ export function App() {
   const handleCloseSelectedSession = useCallback(() => {
     const selectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id];
     const currentWorkspaceSessions = terminalSessionsRef.current.filter(
-      (session) => session.workspaceId === activeWorkspace.id,
+      (session) => session.workspaceId === activeWorkspace.id && isWorkSession(session),
     );
     const session =
       (selectedSessionId
@@ -1614,7 +1646,7 @@ export function App() {
       response = await alfredApi.requestPlan({
         dispatchTarget,
         prompt,
-        workspace: workspacePlanContext(activeWorkspace, activeSessions, dispatchTarget),
+        workspace: workspacePlanContext(activeWorkspace, activeWorkSessions, dispatchTarget),
       });
     } catch {
       setAlfredStatus(errored({ code: "network", message: "Alfred runtime request failed. Try again." }));
@@ -1654,7 +1686,7 @@ export function App() {
     if (stagedPlan) void alfredApi.setStagedPlan(stagedPlan);
     else void alfredApi.clearStagedPlan();
     return true;
-  }, [activeSessions, activeWorkspace, alfredStatus, globalStagedCount]);
+  }, [activeWorkSessions, activeWorkspace, alfredStatus, globalStagedCount]);
 
   const handleSubmitDispatch = useCallback((draft: string) => {
     const target = activeDispatchTarget;
@@ -1795,7 +1827,7 @@ export function App() {
       planId,
       sessionId,
       patch,
-      workspace: workspacePlanContext(activeWorkspace, activeSessions),
+      workspace: workspacePlanContext(activeWorkspace, activeWorkSessions),
     });
 
     if (!response.ok) {
@@ -1833,7 +1865,7 @@ export function App() {
     const nextPendingPlan = toSquadPlan({ plan: response.plan, defaultWorkspaceId: activeWorkspace.id });
     pendingPlanRef.current = nextPendingPlan;
     setPendingPlan(nextPendingPlan);
-  }, [activeSessions, activeWorkspace, pendingPlan?.id]);
+  }, [activeWorkSessions, activeWorkspace, pendingPlan?.id]);
 
   const handleOpenCommandPalette = useCallback(() => {
     setPrivacyPanelOpen(false);
@@ -2111,7 +2143,9 @@ export function App() {
       case "open-project": {
         const workspaceId = request.summary.project.id;
         if (!workspaceId || !workspaces.some((workspace) => workspace.id === workspaceId)) return;
-        const workspaceSessions = terminalSessionsRef.current.filter((session) => session.workspaceId === workspaceId);
+        const workspaceSessions = terminalSessionsRef.current.filter(
+          (session) => session.workspaceId === workspaceId && isWorkSession(session),
+        );
         const savedSessionId = selectedSessionIdsByWorkspace[workspaceId];
         const targetSession = workspaceSessions.find((session) => session.id === savedSessionId)
           ?? workspaceSessions[0];
@@ -2427,7 +2461,7 @@ export function App() {
   }, [activeWorkspaceId, workspaces]);
 
   const workSurfaceHidden = activeSurface !== "work";
-  const activeSessionCount = activeSessions.length;
+  const activeSessionCount = activeWorkSessions.length;
   const visibleWorkSessionCount = arrangeMode || activeWorkMode === "desk"
     ? activeSessionCount
     : activeWorkMode === "focus"
@@ -2614,11 +2648,13 @@ export function App() {
                 previewOpen={activePreviewDockOpen}
                 previewTriggerRef={previewTriggerRef}
                 rootPath={activeWorkspace.rootPath}
+                savedSessionCount={activeSavedSessionCount}
                 terminalLaunchDisabled={activeWorkspace.rootStatus === "missing"}
                 visibleSessionCount={visibleWorkSessionCount}
                 workMode={activeWorkMode}
                 onAddManualSession={handleAddManualSession}
                 onApplyWorkMode={handleApplyWorkMode}
+                onOpenSavedSessions={handleOpenSavedSessions}
                 onToggleArrangeMode={handleToggleArrangeMode}
                 onTogglePreview={handleTogglePreviewDock}
               />
@@ -2644,8 +2680,8 @@ export function App() {
                   arrangeMode={arrangeMode}
                   armedRecoverySessionIds={armedRecoverySessionIds}
                   collapsedSessionIds={activeCollapsedSessionIds}
-                  layouts={ensureTileLayouts(activeSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
-                  recoverableSessions={activeRecoverableSessions}
+                  layouts={ensureTileLayouts(activeWorkSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
+                  recoverableSessions={activeWorkRecoverableSessions}
                   revealSessionId={revealSessionId}
                   selectedSessionId={activeSelectedSessionId}
                   sessions={terminalSessions}
@@ -2714,11 +2750,15 @@ export function App() {
                   sessionsApi={getDesktopSessionsApi()}
                   state={sessionsViewState}
                   terminalApi={getDesktopTerminalApi()}
+                  worktreeActionPending={worktreeActionPending}
                   workspaces={workspaces}
+                  onApplyWorktree={handleApplyWorktree}
                   onBackToWork={handleExitSessionsToWork}
+                  onDiscardSavedSession={handleCloseSession}
                   onOpenPrivacySettings={handleOpenPrivacyPanel}
                   onPrimaryAction={handleSessionsPrimaryAction}
                   onRefreshExternalSessions={() => void handleRefreshExternalCodexSessions()}
+                  onReviewWorktree={handleReviewWorktree}
                   onStateChange={setSessionsViewState}
                 />
               </div>
@@ -2803,14 +2843,15 @@ export function App() {
             activeWorkspaceId={activeWorkspace.id}
             activeWorkMode={activeWorkMode}
             arrangeMode={arrangeMode}
-            allSessions={terminalSessions}
+            allSessions={workSessions}
             query={commandQuery}
             reviewQueuePreview={reviewQueuePreview}
             selectedSessionId={activeSelectedSessionId}
-            sessions={activeSessions}
+            sessions={activeWorkSessions}
             shortcutModifier={shortcutModifier}
             workspaces={workspaces}
             canCloseWorkspace={canCloseActiveWorkspace}
+            hasSavedSessions={activeSavedSessionCount > 0}
             onAddAgentSession={handleAddAgentSession}
             onAddManualSession={handleAddManualSession}
             onAddWorkspace={handleAddWorkspace}
@@ -3154,19 +3195,6 @@ function DiscardCheckoutDialog({
         </footer>
       </div>
     </div>
-  );
-}
-
-function isReviewableWorktreeSession(
-  session: Pick<
-    SessionTile,
-    "baseCwd" | "branchName" | "isolation" | "workspaceId" | "workspaceRootFingerprint"
-  > | null | undefined,
-): boolean {
-  if (session?.isolation === "shared") return false;
-  return Boolean(
-    session?.branchName
-    && (session.baseCwd || (session.workspaceId && session.workspaceRootFingerprint)),
   );
 }
 

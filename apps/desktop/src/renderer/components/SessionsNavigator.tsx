@@ -62,7 +62,7 @@ export function SessionsNavigator({
     : String(projection.total);
   const hasNextPage = (state.pageIndex + 1) * SESSIONS_PAGE_SIZE < projection.total;
   const projectOptions = workspaces.filter((workspace) => (
-    !isFreeChatsWorkspace(workspace)
+    (!isFreeChatsWorkspace(workspace) || (state.source === "saved" && state.selectedProjectId === workspace.id))
     && ((projectCounts[workspace.id] ?? 0) > 0 || state.selectedProjectId === workspace.id)
   ));
 
@@ -143,6 +143,7 @@ export function SessionsNavigator({
               >
                 <option value="all">All sources</option>
                 <option value="managed">Managed</option>
+                <option value="saved">Saved</option>
                 <option value="external-codex">Codex</option>
               </select>
             </label>

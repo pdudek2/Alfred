@@ -21,10 +21,12 @@ describe("WorkSurfaceToolbar", () => {
         previewAvailable
         previewOpen
         rootPath="/Users/patryk/Desktop/Alfred"
+        savedSessionCount={0}
         visibleSessionCount={4}
         workMode="desk"
         onAddManualSession={onAddManualSession}
         onApplyWorkMode={onApplyWorkMode}
+        onOpenSavedSessions={vi.fn()}
         onToggleArrangeMode={onToggleArrangeMode}
         onTogglePreview={onTogglePreview}
       />,
@@ -52,11 +54,13 @@ describe("WorkSurfaceToolbar", () => {
         previewAvailable={false}
         previewOpen={false}
         rootPath={undefined}
+        savedSessionCount={0}
         branch={undefined}
         visibleSessionCount={0}
         workMode="focus"
         onAddManualSession={vi.fn()}
         onApplyWorkMode={vi.fn()}
+        onOpenSavedSessions={vi.fn()}
         onToggleArrangeMode={vi.fn()}
         onTogglePreview={vi.fn()}
       />,

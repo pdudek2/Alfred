@@ -568,7 +568,7 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toMatch(/terminal-tile\.selected::before/);
   });
 
-  it("uses system type for chrome identity and mono only for technical workspace context", () => {
+  it("uses macOS system type for visible app chrome and mono only for technical content", () => {
     for (const selector of [
       ".project-navigator-header",
       ".project-row-button",
@@ -576,7 +576,13 @@ describe("renderer CSS contracts", () => {
       ".workbench-session-context > span",
       ".workbench-session-context > small",
       ".work-surface-toolbar button",
+      ".work-surface-context",
+      ".terminal-stage-header span",
+      ".arrange-hint",
       ".terminal-tile-header .tile-title b",
+      ".terminal-status-label",
+      ".tile-age",
+      ".tile-actions .continue-button span",
       ".tile-status",
     ]) {
       const bodies = allRulesIn(styles).filter(({ selectors }) => selectors.includes(selector));
@@ -584,7 +590,6 @@ describe("renderer CSS contracts", () => {
       expect(bodies.some(({ body }) => body.includes("var(--mono)")), selector).toBe(false);
     }
 
-    expect(topLevelExactRuleBodies(".work-surface-context").at(-1)).toContain("var(--mono)");
     expect(topLevelExactRuleBodies(".workbench-right-zone kbd").at(-1)).toContain("var(--mono)");
   });
 

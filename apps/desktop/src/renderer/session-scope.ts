@@ -1,5 +1,22 @@
 import type { SessionTile } from "./session-state";
 
+export function isWorkSession(session: Pick<SessionTile, "runtimeStatus">): boolean {
+  return session.runtimeStatus !== "restored";
+}
+
+export function isReviewableWorktreeSession(
+  session: Pick<
+    SessionTile,
+    "baseCwd" | "branchName" | "isolation" | "workspaceId" | "workspaceRootFingerprint"
+  > | null | undefined,
+): boolean {
+  if (session?.isolation === "shared") return false;
+  return Boolean(
+    session?.branchName
+    && (session.baseCwd || (session.workspaceId && session.workspaceRootFingerprint)),
+  );
+}
+
 export function isNavigableLiveSession(session: SessionTile): boolean {
   return session.stage === "live"
     && session.runtimeStatus !== "restored"
