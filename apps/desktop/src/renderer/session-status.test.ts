@@ -83,6 +83,12 @@ describe("session-status", () => {
     )).toEqual({ kind: "error", label: "error" });
 
     expect(terminalSessionDisplayStatus(
+      liveSession({ runtimeStatus: "exited", activityEvents: [blocker], lastOutputAt: 1_000 }),
+      "ready",
+      2_000,
+    )).toEqual({ kind: "error", label: "error" });
+
+    expect(terminalSessionDisplayStatus(
       liveSession({
         activityEvents: [blocker, { id: "progress", kind: "output", title: "Progress reported", detail: "Build complete", at: 2_000 }],
         lastOutputAt: 2_000,

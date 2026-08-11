@@ -249,7 +249,7 @@ function runtimeBlockerReasonFromLine(line: string): string | null {
   if (/\b(?:not logged in|login required|authentication required|sign in required)\b/i.test(line)) {
     return truncateActivityDetail(line);
   }
-  if (/\bmcp\b.*\b(?:server\b.*\bfailed to start|startup (?:failed|interrupted|interruption))\b/i.test(line)) {
+  if (/\bmcp\b.*\b(?:server\b.*\bfailed to start|startup (?:failed|failure|interrupted|interruption))\b/i.test(line)) {
     return truncateActivityDetail(line);
   }
   return null;

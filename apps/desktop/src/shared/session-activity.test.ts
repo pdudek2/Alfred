@@ -190,6 +190,13 @@ describe("session activity classifier", () => {
       detail: "MCP server github failed to start: interrupted",
       payload: { type: "error", message: "MCP server github failed to start: interrupted" },
     });
+
+    expect(classifyTerminalOutputActivity("MCP server startup failure")).toEqual({
+      kind: "error",
+      title: "Runtime blocked",
+      detail: "MCP server startup failure",
+      payload: { type: "error", message: "MCP server startup failure" },
+    });
   });
 
   it("recognizes Swift build completion after an earlier error", () => {
