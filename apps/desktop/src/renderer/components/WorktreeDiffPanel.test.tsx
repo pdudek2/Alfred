@@ -37,7 +37,7 @@ describe("WorktreeDiffPanel", () => {
     expect(screen.getByLabelText("Unchanged line 5")).toHaveTextContent("unchanged value");
   });
 
-  it("focuses Close diff and closes from the button or Escape", async () => {
+  it("reports whether Close diff or Escape dismissed the panel", async () => {
     const onClose = vi.fn();
     render(<WorktreeDiffPanel view={readyView} onClose={onClose} />);
 
@@ -46,7 +46,7 @@ describe("WorktreeDiffPanel", () => {
     fireEvent.click(close);
     fireEvent.keyDown(window, { key: "Escape" });
 
-    expect(onClose).toHaveBeenCalledTimes(2);
+    expect(onClose.mock.calls).toEqual([["button"], ["escape"]]);
   });
 
   it("renders loading and error states with one recovery action", () => {

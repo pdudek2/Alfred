@@ -31,19 +31,24 @@ export function parseUnifiedDiff(patch: string): {
     .split("\n")
     .filter((line, index, all) => line.length > 0 || index < all.length - 1)
     .map((text): WorktreeDiffLine => {
+      if (text.startsWith("diff --git ")) {
+        oldCursor = null;
+        newCursor = null;
+        return { kind: "meta", oldLine: null, newLine: null, text };
+      }
       const hunk = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(text);
       if (hunk) {
         oldCursor = Number(hunk[1]);
         newCursor = Number(hunk[2]);
         return { kind: "hunk", oldLine: null, newLine: null, text };
       }
-      if (oldCursor !== null && newCursor !== null && text.startsWith("+") && !text.startsWith("+++")) {
+      if (oldCursor !== null && newCursor !== null && text.startsWith("+")) {
         const line = newCursor;
         newCursor += 1;
         additions += 1;
         return { kind: "add", oldLine: null, newLine: line, text };
       }
-      if (oldCursor !== null && text.startsWith("-") && !text.startsWith("---")) {
+      if (oldCursor !== null && text.startsWith("-")) {
         const line = oldCursor;
         oldCursor += 1;
         deletions += 1;

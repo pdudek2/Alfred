@@ -20,4 +20,20 @@ describe("parseUnifiedDiff", () => {
     ]);
     expect(parseUnifiedDiff(patch)).toMatchObject({ additions: 1, deletions: 1 });
   });
+
+  it("treats added content beginning with two plus signs as an addition", () => {
+    const parsed = parseUnifiedDiff("@@ -3 +3 @@\n-old\n+++value\n next");
+
+    expect(parsed.lines[2]).toMatchObject({ kind: "add", oldLine: null, newLine: 3 });
+    expect(parsed.lines[3]).toMatchObject({ kind: "context", oldLine: 4, newLine: 4 });
+    expect(parsed.additions).toBe(1);
+  });
+
+  it("treats removed content beginning with two minus signs as a removal", () => {
+    const parsed = parseUnifiedDiff("@@ -8 +8 @@\n---value\n+new\n next");
+
+    expect(parsed.lines[1]).toMatchObject({ kind: "remove", oldLine: 8, newLine: null });
+    expect(parsed.lines[3]).toMatchObject({ kind: "context", oldLine: 9, newLine: 9 });
+    expect(parsed.deletions).toBe(1);
+  });
 });
