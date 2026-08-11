@@ -45,7 +45,7 @@ test("keeps active agents and decisions visible without reflowing the terminal",
   const drawer = page.getByRole("complementary", { name: "Agents" });
   await expect(drawer).toBeVisible();
   await expect(page.getByRole("button", { name: "Close Agents" })).toBeFocused();
-  await expect(drawer.getByRole("region", { name: "Needs a decision" })).toContainText("Fixture item 1");
+  await expect(drawer.getByRole("region", { name: "Needs you" })).toContainText("Fixture item 1");
   await expect(drawer.getByRole("region", { name: "In progress" })).toContainText("Codex · session 1");
   await expect(drawer.getByRole("region", { name: "In progress" })).toContainText("Claude · session 1");
 
