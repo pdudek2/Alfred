@@ -177,7 +177,7 @@ button:focus-visible {
   height: 100vh;
   border: 0;
   border-radius: 0;
-  overflow: hidden;
+  overflow: clip;
   box-shadow: none;
   background: var(--surface-canvas);
   display: grid;
@@ -2269,7 +2269,7 @@ body.arranging-pointer {
 .terminal-tile.kind-dev-server,
 .terminal-tile.kind-shell {
   border-color: var(--ink-3);
-  background: var(--ink-0);
+  background: var(--surface-terminal);
 }
 
 .terminal-tile.real-terminal.error,
