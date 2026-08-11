@@ -91,6 +91,7 @@ import { shortenPath } from "./path-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { buildSessionsProjection, type SessionsPrimaryActionRequest } from "./sessions-projection";
 import { isActiveAgentSession, isReviewableWorktreeSession, isWorkSession } from "./session-scope";
+import type { WorktreeDiffView } from "./worktree-diff";
 import { normalizeSessionTitle } from "../shared/session-title";
 import { shortLabelForWorkspace } from "../shared/workspace-label";
 import type {
@@ -115,6 +116,7 @@ import type {
   TerminalForgetResult,
   TerminalSessionIsolation,
   TerminalSessionSnapshot,
+  TerminalWorktreeDiffResult,
 } from "../shared/terminal-ipc";
 import {
   PREVIEW_DOCK_DEFAULT_WIDTH,
@@ -229,6 +231,7 @@ export function App() {
   const [previewDockOpenByWorkspace, setPreviewDockOpenByWorkspace] = useState<Record<string, boolean>>({});
   const [previewDockWidthsByWorkspace, setPreviewDockWidthsByWorkspace] = useState<Record<string, number>>({});
   const [worktreeActionPending, setWorktreeActionPending] = useState<Record<string, WorktreeActionKind | undefined>>({});
+  const [worktreeDiffView, setWorktreeDiffView] = useState<WorktreeDiffView | null>(null);
   const [collapsedSessionIdsByWorkspace, setCollapsedSessionIdsByWorkspace] = useState<Record<string, string[]>>({});
   const [contextDrawerOpenByWorkspace, setContextDrawerOpenByWorkspace] = useState<Record<string, boolean>>({});
   const [dispatchTargetsByWorkspace, setDispatchTargetsByWorkspace] = useState<Record<string, DispatchTargetSnapshot>>({});
@@ -1356,8 +1359,10 @@ export function App() {
     return Boolean(currentSession && sessionInstanceKey(currentSession) === actionKey);
   }, []);
 
-  const handleReviewWorktree = useCallback(async (sessionId: string) => {
-    const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
+  const handleOpenWorktreeDiff = useCallback(async (workspaceId: string, sessionId: string) => {
+    const session = terminalSessionsRef.current.find((item) => (
+      item.workspaceId === workspaceId && item.id === sessionId
+    ));
     if (!session || !isReviewableWorktreeSession(session)) {
       setTerminalSessions((sessions) =>
         appendSessionActivity(sessions, sessionId, {
@@ -1369,23 +1374,44 @@ export function App() {
       return;
     }
 
-    const terminalApi = getDesktopTerminalApi();
-    if (!terminalApi) {
-      setTerminalSessions((sessions) =>
-        appendSessionActivity(sessions, sessionId, {
-          kind: "error",
-          title: "Review diff failed",
-          detail: "Desktop terminal API is unavailable.",
-        }),
-      );
-      return;
-    }
-
     const actionKey = beginWorktreeAction(session, "review");
     if (!actionKey) return;
+    setAgentsDrawerOpen(false);
+    handleFocusSessionInWorkspace(workspaceId, sessionId);
+    setWorktreeDiffView({
+      status: "loading",
+      instanceKey: actionKey,
+      sessionId,
+      sessionTitle: session.title,
+    });
+
     try {
-      const result = await terminalApi.worktreeDiff({ clientId: sessionId });
-      if (!isCurrentSessionInstance(sessionId, actionKey)) return;
+      let result: TerminalWorktreeDiffResult;
+      const terminalApi = getDesktopTerminalApi();
+      try {
+        result = terminalApi
+          ? await terminalApi.worktreeDiff({ clientId: sessionId })
+          : { ok: false, error: "Desktop terminal API is unavailable." };
+      } catch (error) {
+        result = {
+          ok: false,
+          error: error instanceof Error ? error.message : "Checkout diff inspection failed.",
+        };
+      }
+
+      if (!isCurrentSessionInstance(sessionId, actionKey)) {
+        setWorktreeDiffView((current) =>
+          current?.instanceKey === actionKey ? null : current,
+        );
+        return;
+      }
+
+      setWorktreeDiffView((current) => {
+        if (current?.instanceKey !== actionKey || current.sessionId !== sessionId) return current;
+        return result.ok
+          ? { ...current, status: "ready", result }
+          : { ...current, status: "error", error: result.error };
+      });
       setTerminalSessions((sessions) =>
         sessions.some((item) => item.id === sessionId && sessionInstanceKey(item) === actionKey)
           ? appendSessionActivity(
@@ -1410,7 +1436,14 @@ export function App() {
     } finally {
       finishWorktreeAction(actionKey);
     }
-  }, [beginWorktreeAction, finishWorktreeAction, isCurrentSessionInstance]);
+  }, [beginWorktreeAction, finishWorktreeAction, handleFocusSessionInWorkspace, isCurrentSessionInstance]);
+
+  const handleReviewWorktree = useCallback((sessionId: string) => {
+    const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
+    void handleOpenWorktreeDiff(session?.workspaceId ?? activeWorkspaceId, sessionId);
+  }, [activeWorkspaceId, handleOpenWorktreeDiff]);
+
+  const handleCloseWorktreeDiff = useCallback(() => setWorktreeDiffView(null), []);
 
   const handleApplyWorktree = useCallback(async (sessionId: string) => {
     const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
@@ -2770,6 +2803,7 @@ export function App() {
                   surfaceActive={!workSurfaceHidden}
                   workMode={activeWorkMode}
                   worktreeActionPending={worktreeActionPending}
+                  worktreeDiffView={worktreeDiffView}
                   workspaceGitBranch={activeWorkspace.gitBranch}
                   workspaceLabel={activeWorkspace.label}
                   workspaceRootPath={activeWorkspace.rootPath}
@@ -2779,6 +2813,7 @@ export function App() {
                   onAddManualSession={handleAddManualSession}
                   onApplyWorktree={handleApplyWorktree}
                   onCloseSession={handleCloseSession}
+                  onCloseWorktreeDiff={handleCloseWorktreeDiff}
                   onContinueRestoredSession={handleContinueRestoredSession}
                   onOpenExternalTerminal={handleOpenSessionTerminal}
                   onOpenInbox={handleOpenInbox}
@@ -2885,7 +2920,7 @@ export function App() {
             onClose={() => setAgentsDrawerOpen(false)}
             onOpenInbox={handleOpenInbox}
             onOpenSession={handleOpenAgentSession}
-            onOpenWorktreeDiff={(_workspaceId, sessionId) => void handleReviewWorktree(sessionId)}
+            onOpenWorktreeDiff={(workspaceId, sessionId) => void handleOpenWorktreeDiff(workspaceId, sessionId)}
             onRunAttentionAction={handleRunAgentsAttentionAction}
           />
         </div>

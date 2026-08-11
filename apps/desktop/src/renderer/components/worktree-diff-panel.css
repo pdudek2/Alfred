@@ -1,0 +1,186 @@
+.terminal-grid-column.worktree-diff-hidden {
+  display: none;
+}
+
+.worktree-diff-panel {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  font-family: var(--sans);
+}
+
+.worktree-diff-panel__header {
+  min-height: 56px;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.worktree-diff-panel__header h2,
+.worktree-diff-panel__header p,
+.worktree-diff-panel__state,
+.worktree-diff-panel__empty {
+  margin: 0;
+}
+
+.worktree-diff-panel__header h2 {
+  font: 680 14px/1.2 var(--sans);
+}
+
+.worktree-diff-panel__header p {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font: 500 11px/1.2 var(--sans);
+}
+
+.worktree-diff-panel__header button {
+  min-height: 30px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  padding: 0 10px;
+  background: var(--surface-control);
+  color: var(--text-secondary);
+  font: 620 11px/1 var(--sans);
+  cursor: pointer;
+}
+
+.worktree-diff-panel__header button:hover,
+.worktree-diff-panel__header button:focus-visible {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.worktree-diff-panel__header button:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--signal-focus);
+}
+
+.worktree-diff-panel__state {
+  align-self: start;
+  padding: 18px 14px;
+  color: var(--text-muted);
+  font: 500 12px/1.4 var(--sans);
+}
+
+.worktree-diff-panel__state.is-error {
+  color: var(--signal-danger);
+}
+
+.worktree-diff-panel__body {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.worktree-diff-panel__summary {
+  min-height: 42px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 600 12px/1.2 var(--sans);
+}
+
+.worktree-diff-panel__summary strong {
+  margin-right: auto;
+  font: inherit;
+}
+
+.worktree-diff-panel__additions {
+  color: var(--signal-success);
+}
+
+.worktree-diff-panel__deletions {
+  color: var(--signal-danger);
+}
+
+.worktree-diff-panel__files {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.worktree-diff-panel__files li {
+  min-height: 34px;
+  padding: 0 14px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font: 600 11px/1.2 var(--sans);
+}
+
+.worktree-diff-panel__files li + li {
+  border-top: 1px solid var(--border);
+}
+
+.worktree-diff-panel__files code {
+  overflow: hidden;
+  color: var(--text-primary);
+  font: 500 11px/1.3 var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.worktree-diff-panel__code {
+  min-width: max-content;
+  padding: 8px 0 16px;
+}
+
+.worktree-diff-panel__line {
+  min-height: 22px;
+  display: grid;
+  grid-template-columns: 46px 46px minmax(max-content, 1fr);
+  align-items: stretch;
+  color: var(--text-secondary);
+  font: 500 11px/1.5 var(--mono);
+}
+
+.worktree-diff-panel__line > span {
+  border-right: 1px solid var(--border);
+  padding: 2px 8px;
+  color: var(--text-faint);
+  text-align: right;
+  user-select: none;
+}
+
+.worktree-diff-panel__line > code {
+  padding: 2px 10px;
+  font: inherit;
+  white-space: pre;
+}
+
+.worktree-diff-panel__line.is-add {
+  background: var(--signal-success-soft);
+  color: var(--signal-success);
+}
+
+.worktree-diff-panel__line.is-remove {
+  background: var(--signal-danger-soft);
+  color: var(--signal-danger);
+}
+
+.worktree-diff-panel__line.is-hunk {
+  color: var(--signal-focus);
+}
+
+.worktree-diff-panel__line.is-meta {
+  color: var(--text-muted);
+}
+
+.worktree-diff-panel__empty {
+  padding: 18px 14px;
+  color: var(--text-muted);
+  font: 500 12px/1.45 var(--sans);
+}

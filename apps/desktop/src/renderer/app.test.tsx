@@ -579,6 +579,7 @@ function renderTerminalDeskForSessions(
     onAddManualSession: vi.fn(),
     onApplyWorktree: vi.fn(),
     onCloseSession: vi.fn(),
+    onCloseWorktreeDiff: vi.fn(),
     onContinueRestoredSession: vi.fn(),
     onOpenExternalTerminal: vi.fn().mockResolvedValue(true),
     onOpenInbox: vi.fn(),
@@ -617,6 +618,7 @@ function renderTerminalDeskForSessions(
       surfaceActive
       workMode="desk"
       worktreeActionPending={{}}
+      worktreeDiffView={null}
       workspaceGitBranch="main"
       workspaceLabel="Alfred"
       workspaceRootPath="/Users/patryk/Desktop/Alfred"
@@ -5648,6 +5650,7 @@ describe("App integration", () => {
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("2 changed files");
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("src/app.tsx");
     });
+    await user.click(screen.getByRole("button", { name: "Close diff" }));
 
     await user.click(within(checkoutActions).getByRole("button", { name: "Apply to project" }));
 
@@ -5656,6 +5659,128 @@ describe("App integration", () => {
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Applied to project");
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("2 files applied");
     });
+  });
+
+  it("opens a real handoff diff from Agents without unmounting xterm and restores terminal focus", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-diff-reader",
+        clientId: "codex-diff-reader",
+        title: "Codex · diff reader",
+        source: "manual",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred/.alfred-worktrees/codex-diff-reader",
+        branchName: "alfred-codex-diff-reader",
+        baseCwd: "/Users/patryk/Desktop/Alfred",
+        shell: "codex",
+        command: "codex",
+        args: [],
+        buffer: "",
+      },
+    ]);
+    bridge.worktreeDiff.mockResolvedValue({
+      ok: true,
+      summary: "1 changed file",
+      files: [{ path: "src/live.ts", status: "M" }],
+      patch: [
+        "diff --git a/src/live.ts b/src/live.ts",
+        "@@ -1 +1 @@",
+        "-old value",
+        "+new value",
+      ].join("\n"),
+    });
+
+    render(<App />);
+    const tile = await screen.findByRole("article", { name: /Codex · diff reader/i });
+    const xtermHost = await screen.findByTestId("xterm-host");
+    await waitFor(() => expect(window.alfredDesktop?.terminal.onExit).toHaveBeenCalled());
+    await bridge.emitExit({ id: "runtime-diff-reader", exitCode: 0 });
+
+    await user.click(screen.getByRole("button", { name: "Agents, 0 active" }));
+    await user.click(screen.getByRole("button", { name: "Review handoff for Codex · diff reader" }));
+    await user.click(screen.getByRole("button", { name: "Open diff" }));
+
+    expect(bridge.worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-diff-reader" });
+    expect(await screen.findByRole("region", { name: "Worktree diff" })).toBeInTheDocument();
+    expect(screen.getByText("src/live.ts")).toBeInTheDocument();
+    expect(screen.getByLabelText("Removed line 1")).toHaveTextContent("-old value");
+    expect(screen.getByLabelText("Added line 1")).toHaveTextContent("+new value");
+    expect(xtermHost.isConnected).toBe(true);
+    expect(screen.getByTestId("terminal-grid").parentElement).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByTestId("terminal-grid").parentElement).toHaveAttribute("inert");
+
+    await user.click(screen.getByRole("button", { name: "Close diff" }));
+
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Worktree diff" })).not.toBeInTheDocument());
+    expect(xtermHost.isConnected).toBe(true);
+    expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
+    await waitFor(() => expect(tile).toHaveFocus());
+
+    await user.click(screen.getByRole("button", { name: "Review diff" }));
+    expect(await screen.findByRole("region", { name: "Worktree diff" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("region", { name: "Worktree diff" })).not.toBeInTheDocument();
+    expect(xtermHost.isConnected).toBe(true);
+  });
+
+  it("drops a pending diff when its session instance is replaced", async () => {
+    const user = userEvent.setup();
+    const pendingDiff = deferred<Awaited<ReturnType<TerminalApi["worktreeDiff"]>>>();
+    const bridge = installDesktopBridge(undefined, null, [
+      {
+        id: "runtime-stale-reader",
+        clientId: "codex-stale-reader",
+        title: "Original diff reader",
+        source: "manual",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/repo/.alfred-worktrees/codex-stale-reader",
+        baseCwd: "/repo",
+        branchName: "alfred-codex-stale-reader",
+        createdAt: 1,
+        shell: "codex",
+        command: "codex",
+        args: [],
+        buffer: "",
+      },
+    ]);
+    bridge.worktreeDiff.mockReturnValueOnce(pendingDiff.promise);
+
+    render(<App />);
+    const tile = await screen.findByRole("article", { name: /Original diff reader/i });
+    await user.dblClick(tile.querySelector(".tile-header")!);
+    await user.click(screen.getByRole("button", { name: "Review diff" }));
+    expect(await screen.findByText("Loading checkout diff…")).toBeInTheDocument();
+
+    vi.mocked(window.alfredDesktop!.terminal.list).mockResolvedValue({
+      sessions: [{
+        id: "runtime-replacement-reader",
+        clientId: "codex-stale-reader",
+        title: "Replacement session",
+        source: "manual",
+        workspaceId: "A",
+        cwd: "/repo",
+        createdAt: 999,
+        shell: "/bin/sh",
+        buffer: "replacement output",
+      }],
+      restoredSessions: [],
+    });
+    fireEvent.keyDown(window, { key: "1", ctrlKey: true });
+    expect(await screen.findByText("Replacement session", { selector: ".workbench-session-title" })).toBeInTheDocument();
+
+    await act(async () => pendingDiff.resolve({
+      ok: true,
+      summary: "1 stale file",
+      files: [{ path: "src/stale.ts", status: "M" }],
+      patch: "@@ -1 +1 @@\n-old\n+stale",
+    }));
+
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Worktree diff" })).not.toBeInTheDocument());
+    expect(screen.queryByText("src/stale.ts")).not.toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Replacement session/i })).not.toHaveTextContent("1 stale file");
   });
 
   it("keeps isolated checkout apply actions single-flight", async () => {
@@ -8468,17 +8593,19 @@ describe("App integration", () => {
     const checkoutActions = screen.getByRole("toolbar", { name: "Saved checkout actions" });
     await user.click(within(checkoutActions).getByRole("button", { name: "Review diff" }));
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-private" });
-    expect(await screen.findByRole("status", { name: "Saved session action result" })).toHaveTextContent(
-      "Checkout diff reviewed",
-    );
-    await user.click(within(checkoutActions).getByRole("button", { name: "Apply to project" }));
+    expect(await screen.findByRole("region", { name: "Worktree diff" })).toHaveTextContent("2 changed files");
+    await user.click(screen.getByRole("button", { name: "Close diff" }));
+    await selectSurface(user, "Sessions");
+    await user.click(await screen.findByRole("option", { name: /Codex recovery/i }));
+    const reopenedCheckoutActions = screen.getByRole("toolbar", { name: "Saved checkout actions" });
+    await user.click(within(reopenedCheckoutActions).getByRole("button", { name: "Apply to project" }));
     expect(worktreeApply).toHaveBeenCalledWith({ clientId: "codex-private" });
     await waitFor(() => {
       expect(screen.getByRole("status", { name: "Saved session action result" })).toHaveTextContent(
         "Applied to project",
       );
     });
-    expect(within(checkoutActions).getByRole("button", { name: "Discard saved session" })).toBeVisible();
+    expect(within(reopenedCheckoutActions).getByRole("button", { name: "Discard saved session" })).toBeVisible();
   });
 
   it("opens recovery-only worktree history without offering or recording a relaunch", async () => {
@@ -8568,6 +8695,8 @@ describe("App integration", () => {
         "Workspace root no longer matches this checkout.",
       );
     });
+    expect(screen.getByRole("alert")).toHaveTextContent("Workspace root no longer matches this checkout.");
+    await user.click(screen.getByRole("button", { name: "Back to terminal" }));
     expect(screen.getByRole("article", { name: /Codex recovery/i })).toBeInTheDocument();
   });
 

@@ -45,6 +45,8 @@ import { normalizeSessionTitle } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
+import { WorktreeDiffPanel } from "./WorktreeDiffPanel";
+import type { WorktreeDiffView } from "../worktree-diff";
 
 const ARRANGE_GRID_ROW_HEIGHT = 84;
 const MIN_TERMINAL_FIT_HEIGHT = 48;
@@ -97,6 +99,7 @@ type TerminalDeskProps = {
   surfaceActive: boolean;
   workMode: WorkMode;
   worktreeActionPending: Record<string, WorktreeActionKind | undefined>;
+  worktreeDiffView: WorktreeDiffView | null;
   workspaceGitBranch?: string | undefined;
   workspaceLabel: string;
   workspaceRootPath?: string | undefined;
@@ -106,6 +109,7 @@ type TerminalDeskProps = {
   onAddManualSession: () => void;
   onApplyWorktree: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
+  onCloseWorktreeDiff: () => void;
   onContinueRestoredSession: (sessionId: string) => void;
   onOpenExternalTerminal: (cwd: string) => Promise<boolean>;
   onOpenInbox: () => void;
@@ -144,6 +148,7 @@ export function TerminalDesk({
   surfaceActive,
   workMode,
   worktreeActionPending,
+  worktreeDiffView,
   workspaceGitBranch,
   workspaceLabel,
   workspaceRootPath,
@@ -153,6 +158,7 @@ export function TerminalDesk({
   onAddManualSession,
   onApplyWorktree,
   onCloseSession,
+  onCloseWorktreeDiff,
   onContinueRestoredSession,
   onOpenExternalTerminal,
   onOpenInbox,
@@ -221,7 +227,7 @@ export function TerminalDesk({
   }, []);
 
   useEffect(() => {
-    if (workMode !== "focus") return;
+    if (workMode !== "focus" || worktreeDiffView) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !event.defaultPrevented) {
@@ -234,7 +240,7 @@ export function TerminalDesk({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onApplyWorkMode, workMode]);
+  }, [onApplyWorkMode, workMode, worktreeDiffView]);
 
   useEffect(() => {
     if (!revealSessionId || workMode === "focus") return;
@@ -259,6 +265,15 @@ export function TerminalDesk({
     [arrangeMode, onFocusSession, onSelectSession],
   );
   const handleSelectSession = useCallback((sessionId: string) => onSelectSession(sessionId), [onSelectSession]);
+  const handleCloseDiff = useCallback(() => {
+    const targetSessionId = worktreeDiffView?.sessionId ?? selectedSession?.id;
+    onCloseWorktreeDiff();
+    requestAnimationFrame(() => {
+      const tile = Array.from(gridRef.current?.querySelectorAll<HTMLElement>("[data-session-id]") ?? [])
+        .find((candidate) => candidate.dataset.sessionId === targetSessionId);
+      (tile?.querySelector<HTMLElement>(".terminal-tile-header") ?? tile)?.focus();
+    });
+  }, [onCloseWorktreeDiff, selectedSession?.id, worktreeDiffView?.sessionId]);
   const startPointerArrange = useCallback(
     (tileId: string, mode: ArrangePointerMode, event: ReactPointerEvent<HTMLElement>) => {
       if (!arrangeMode) return;
@@ -365,7 +380,9 @@ export function TerminalDesk({
       <div className="terminal-stage-body">
         <div
           ref={gridColumnRef}
-          className="terminal-grid-column"
+          className={`terminal-grid-column ${worktreeDiffView ? "worktree-diff-hidden" : ""}`}
+          aria-hidden={worktreeDiffView ? "true" : undefined}
+          inert={worktreeDiffView ? true : undefined}
         >
           {recoverableSessions.length > 0 && (
             <RecoveryWorkspaceStrip
@@ -496,6 +513,9 @@ export function TerminalDesk({
           )}
           </div>
         </div>
+        {worktreeDiffView && (
+          <WorktreeDiffPanel view={worktreeDiffView} onClose={handleCloseDiff} />
+        )}
       </div>
     </section>
   );
@@ -1501,6 +1521,7 @@ function ManualTerminalTile({
       {showHeader && (
         <header
           className={`tile-header terminal-tile-header ${arrangeMode ? "drag-handle" : ""}`}
+          tabIndex={-1}
           onClick={!arrangeMode ? onSelectSession : undefined}
           onDoubleClick={!arrangeMode ? onFocusSession : undefined}
           onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
