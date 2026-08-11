@@ -41,7 +41,7 @@ import { recoveryHeadline } from "../recovery-display";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { restoredSessionActionLabel, restoredSessionActionTitle } from "../restored-session-action";
 import { isWorkSession } from "../session-scope";
-import { normalizeSessionTitle } from "../../shared/session-title";
+import { normalizeSessionTitle, stripTerminalControlSequences } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
@@ -61,7 +61,7 @@ type AgentTitleInputCapture = {
 function captureAgentTitleInput(buffer: string, data: string): AgentTitleInputCapture {
   // ponytail: mirrors ordinary typing/backspace only; prefer runtime thread metadata if agents expose it later.
   let nextBuffer = buffer;
-  const visibleData = data.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`, "g"), "");
+  const visibleData = stripTerminalControlSequences(data);
 
   for (const character of visibleData) {
     if (character === "\r" || character === "\n") {

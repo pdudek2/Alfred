@@ -14,6 +14,7 @@ import {
   type TerminalOutputActivityStreamState,
 } from "../shared/session-activity.js";
 import { normalizeAgentCommand } from "../shared/agent-command.js";
+import { normalizeSessionTitle } from "../shared/session-title.js";
 import { scratchWorkspacePath } from "./codex-scratch.js";
 import {
   terminalChannels,
@@ -557,7 +558,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
   });
 
   ipcMain.handle(terminalChannels.rename, async (event, request: TerminalRenameRequest): Promise<void> => {
-    const title = normalizedSessionTitle(request.title);
+    const title = normalizeSessionTitle(request.title);
     if (!title) {
       throw new Error("Session title is required.");
     }
@@ -684,7 +685,7 @@ function sessionMetadata(
   return {
     id,
     ...(request.clientId === undefined ? {} : { clientId: request.clientId }),
-    title: request.title ?? defaultSessionTitle(request.source ?? "manual", shell),
+    title: normalizeSessionTitle(request.title ?? "") || defaultSessionTitle(request.source ?? "manual", shell),
     source: request.source ?? "manual",
     ...(request.agentKind === undefined ? {} : { agentKind: request.agentKind }),
     ...(request.workspaceId === undefined ? {} : { workspaceId: request.workspaceId }),
@@ -1177,10 +1178,6 @@ function sendToSessionWindow(session: TerminalSession, channel: string, payload:
 
 function defaultSessionTitle(source: TerminalSessionSource, shell: string): string {
   return source === "alfred" ? shell : "Manual terminal";
-}
-
-function normalizedSessionTitle(value: string): string {
-  return value.trim().replace(/\s+/g, " ").slice(0, 80);
 }
 
 function killSession(

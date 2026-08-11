@@ -876,7 +876,7 @@ describe("App integration", () => {
           contentSessionKey: `external-codex:${externalSessionId}`,
           source: "external-codex",
           kind: "codex",
-          title: "Fix the retry loop",
+          title: "\u001b[31mFix the\u001b[0m \u001b]0;spoof\u0007retry loop",
           project: { id: "A", label: "Alfred" },
           locationLabel: "Alfred",
           updatedAt: 200,
@@ -1182,8 +1182,7 @@ describe("App integration", () => {
   });
 
   it("keeps five deterministic project destinations while preserving long accessible names", async () => {
-    const longSessionTitle = "Manual session with a deliberately descriptive title exceeding sixty characters 1";
-    const sixthLongSessionTitle = "Manual session with a deliberately descriptive title exceeding sixty characters 6";
+    const longSessionTitle = "Manual session with a deliberately descriptive title exceeding sixty characters";
     const workspaces = Array.from({ length: 7 }, (_, index) => ({
       id: `W${index + 1}`,
       label: `Workspace ${index + 1} with a deliberately descriptive label exceeding sixty characters`,
@@ -1206,8 +1205,7 @@ describe("App integration", () => {
     render(<App />);
 
     const navigator = await screen.findByRole("navigation", { name: "Projects and Free Chats" });
-    expect(within(navigator).getByRole("button", { name: longSessionTitle })).toHaveAccessibleName(longSessionTitle);
-    expect(within(navigator).getByRole("button", { name: sixthLongSessionTitle })).toHaveAccessibleName(sixthLongSessionTitle);
+    expect(within(navigator).getAllByRole("button", { name: longSessionTitle })).toHaveLength(6);
     expect(within(navigator).getByRole("button", { name: "Show 2 more projects" })).toBeInTheDocument();
     expect(document.querySelectorAll("[data-project-destination]")).toHaveLength(5);
     expect(screen.queryByText("Search sessions, chats, files")).not.toBeInTheDocument();

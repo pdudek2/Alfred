@@ -151,7 +151,7 @@ export function attachRuntimeSession(
       ...attachedSession,
       runtimeId: runtime.id,
       runtimeStatus: exitedBeforeAttachStatus ?? "live",
-      title: runtime.title,
+      title: normalizeSessionTitle(runtime.title) || session.title,
       cwd: runtime.cwd,
       ...(runtime.isolation === undefined ? {} : { isolation: runtime.isolation }),
       ...(runtime.branchName === undefined ? {} : { branchName: runtime.branchName }),
@@ -247,7 +247,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
   return snapshots.map((snapshot) => ({
     id: snapshot.clientId ?? `runtime-${snapshot.id}`,
     runtimeId: snapshot.id,
-    title: snapshot.title,
+    title: normalizeSessionTitle(snapshot.title),
     workspaceId: snapshot.workspaceId ?? "A",
     cwd: snapshot.cwd,
     ...(snapshot.workspaceRootFingerprint === undefined
@@ -275,7 +275,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
 export function hydratePersistedTerminalSessions(snapshots: PersistedTerminalSessionSnapshot[]): SessionTile[] {
   return snapshots.map((snapshot) => ({
     id: snapshot.clientId,
-    title: snapshot.title,
+    title: normalizeSessionTitle(snapshot.title),
     workspaceId: snapshot.workspaceId ?? "A",
     cwd: snapshot.cwd ?? "",
     ...(snapshot.workspaceRootFingerprint === undefined
@@ -310,7 +310,7 @@ export function hydrateStagedPlanSessions(
     const isolation = plannedSessionIsolation(session.kind, session.launchPreflight, planSessionIsolation(session));
     return {
       id: session.id,
-      title: session.title,
+      title: normalizeSessionTitle(session.title),
       workspaceId: session.workspaceId ?? defaultWorkspaceId,
       cwd: session.cwd ?? defaultCwd,
       source: "alfred",

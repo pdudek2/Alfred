@@ -22,7 +22,7 @@ import {
 } from "./session-state";
 import type { AlfredPlanSession } from "../shared/alfred-ipc";
 import type { AlfredStagedPlanSnapshot } from "../shared/alfred-ipc";
-import type { TerminalDataEvent, TerminalSessionSnapshot } from "../shared/terminal-ipc";
+import type { TerminalCreateResult, TerminalDataEvent, TerminalSessionSnapshot } from "../shared/terminal-ipc";
 
 function restoreSessionWithResumeTarget(sessionId: string) {
   const restored = hydratePersistedTerminalSessions([
@@ -109,6 +109,38 @@ describe("desktop session state", () => {
     const renamed = renameSession(initial, "manual-1", "  Spec   reviewer  ");
 
     expect(renamed[0]?.title).toBe("Spec reviewer");
+  });
+
+  it("sanitizes titles from live, restored, staged, and attached runtime ingress", () => {
+    const unsafeTitle = "\u001b[31mReview\u001b[0m \u001b]0;spoof\u0007PR";
+
+    expect(attachRuntimeSession([createInitialSessions("/repo")[0]!], "manual-1", {
+      id: "pty-attached",
+      title: unsafeTitle,
+      source: "manual",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+    } as TerminalCreateResult)[0]?.title).toBe("Review PR");
+    expect(hydrateLiveTerminalSessions([{
+      id: "pty-live",
+      title: unsafeTitle,
+      source: "manual",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+      buffer: "",
+    }])[0]?.title).toBe("Review PR");
+    expect(hydratePersistedTerminalSessions([{
+      clientId: "restored-1",
+      title: unsafeTitle,
+      source: "manual",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+    }])[0]?.title).toBe("Review PR");
+    expect(hydrateStagedPlanSessions({
+      id: "plan-1",
+      prompt: "prepare",
+      sessions: [{ id: "staged-1", kind: "codex", title: unsafeTitle, command: "codex", args: [] }],
+    }, "/repo")[0]?.title).toBe("Review PR");
   });
 
   it("adds new Codex sessions in the shared workspace by default", () => {

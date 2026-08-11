@@ -1066,7 +1066,10 @@ describe("terminal-manager IPC", () => {
       title: "Manual terminal",
     });
 
-    await invoke(terminalChannels.rename, { clientId: "manual-1", title: "  Spec   reviewer  " });
+    await invoke(terminalChannels.rename, {
+      clientId: "manual-1",
+      title: "  \u001b[31mSpec\u001b[0m \u001b]0;spoof\u0007 reviewer  ",
+    });
     await flushTerminalPersistence();
 
     expect(state.restoredTerminalSessions).toEqual([
