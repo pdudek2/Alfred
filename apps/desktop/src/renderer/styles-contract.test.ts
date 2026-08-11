@@ -1387,6 +1387,7 @@ describe("renderer CSS contracts", () => {
       [
         "--grid-bottom-safe-zone: 10px",
         "grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr))",
+        "grid-template-rows: none",
         "grid-auto-rows: max(560px, calc(100dvh - 150px))",
       ],
       terminalGridStart,
@@ -1614,6 +1615,12 @@ describe("renderer CSS contracts", () => {
       "terminal-tile (max-width: 620px)",
       ".tile-overflow-menu",
     );
+    const compactSecondaryActionReveals = [
+      ".terminal-tile:hover .tile-utility-actions",
+      ".terminal-tile:hover .tile-danger-actions",
+      ".terminal-tile:focus-within .tile-utility-actions",
+      ".terminal-tile:focus-within .tile-danger-actions",
+    ].map((selector) => containerExactRuleBodies("terminal-tile (max-width: 620px)", selector));
 
     expect(exactBlockFor(".terminal-tile")).toContain("container: terminal-tile / inline-size");
     expect(baseOverflowMenu).toHaveLength(1);
@@ -1635,6 +1642,11 @@ describe("renderer CSS contracts", () => {
     expect(compactDangerActions[0]).not.toContain("display:");
     expect(compactOverflowMenu).toHaveLength(1);
     expect(compactOverflowMenu[0]).toContain("display: inline-flex");
+    for (const compactSecondaryActionReveal of compactSecondaryActionReveals) {
+      expect(compactSecondaryActionReveal).toHaveLength(1);
+      expect(compactSecondaryActionReveal[0]).toContain("visibility: hidden");
+      expect(compactSecondaryActionReveal[0]).toContain("pointer-events: none");
+    }
   });
 
   it("keeps selected destinations recognizable in the collapsed project rail", () => {
