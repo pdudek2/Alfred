@@ -342,7 +342,7 @@ function HandoffDetail({
           {detail.branchName && (
             <div>
               <dt>Branch</dt>
-              <dd className="agents-drawer__handoff-mono">{detail.branchName}</dd>
+              <dd className="agents-drawer__handoff-detail">{detail.branchName}</dd>
             </div>
           )}
         </dl>

@@ -1076,11 +1076,28 @@ export function App() {
     if (!targetExists) return;
 
     const workMode = workModesByWorkspace[workspaceId] ?? "desk";
+    const focusLayouts = workMode === "focus"
+      ? applyLayoutPreset(
+        terminalSessionsRef.current.filter((session) => (
+          session.workspaceId === workspaceId && (isWorkSession(session) || session.id === sessionId)
+        )),
+        "focus",
+        sessionId,
+      )
+      : null;
+    const layoutApi = getDesktopLayoutApi();
     setActiveSurface("work");
     setActiveWorkspaceId(workspaceId);
     setSelectedSessionIdsByWorkspace((current) =>
       current[workspaceId] === sessionId ? current : { ...current, [workspaceId]: sessionId },
     );
+    if (focusLayouts) {
+      setTileLayoutsByWorkspace((current) => {
+        if (tileLayoutRecordsEqual(current[workspaceId], focusLayouts)) return current;
+        return { ...current, [workspaceId]: focusLayouts };
+      });
+      void layoutApi?.setWorkspaceLayout({ workspaceId, layouts: focusLayouts });
+    }
     void getDesktopLayoutApi()?.setWorkspaceViewState({
       workspaceId,
       viewState: { workMode, selectedSessionId: sessionId },

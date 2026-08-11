@@ -13,13 +13,21 @@ if (!stylesPath) {
 }
 
 const styles = readFileSync(stylesPath, "utf8");
-const previewDockStylesPath = [
-  resolve(process.cwd(), "src/renderer/components/workspace-preview-dock.css"),
-  resolve(process.cwd(), "apps/desktop/src/renderer/components/workspace-preview-dock.css"),
-].find((candidate) => existsSync(candidate));
+const productCssPaths = [
+  "styles.css",
+  "components/agents-drawer.css",
+  "components/project-navigator-signals.css",
+  "components/workspace-preview-dock.css",
+  "components/worktree-diff-panel.css",
+].map((relativePath) => [
+  resolve(process.cwd(), "src/renderer", relativePath),
+  resolve(process.cwd(), "apps/desktop/src/renderer", relativePath),
+].find((candidate) => existsSync(candidate)));
 
-if (!previewDockStylesPath) throw new Error("Unable to locate workspace-preview-dock.css");
-const previewDockStyles = readFileSync(previewDockStylesPath, "utf8");
+if (productCssPaths.some((path) => !path)) throw new Error("Unable to locate product CSS");
+const productStyles = productCssPaths.map((path) => readFileSync(path!, "utf8")).join("\n");
+const previewDockStylesPath = productCssPaths[3]!;
+const previewDockStyles = readFileSync(productCssPaths[3]!, "utf8");
 const lightningCssConfig = resolveConfig(
   { configFile: false, css: { transformer: "lightningcss" } },
   "build",
@@ -457,9 +465,7 @@ describe("renderer CSS contracts", () => {
     expect(singleTopLevelRuleBodyIn(styles, ":root")).toContain(
       '--sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif',
     );
-    expect(singleTopLevelRuleBodyIn(styles, ":root")).toContain(
-      '--mono: ui-monospace, "SFMono-Regular", Menlo, monospace',
-    );
+    expect(singleTopLevelRuleBodyIn(styles, ":root")).not.toContain(["--", "mono"].join(""));
 
     for (const selector of [".xterm-host", ".orchestrator-surface", ".surface-panel"]) {
       expect(allRulesIn(styles).filter(({ selectors }) => selectors.includes(selector)).map(({ body }) => body).join("\n"))
@@ -588,7 +594,7 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toMatch(/terminal-tile\.selected::before/);
   });
 
-  it("uses macOS system type for visible app chrome and mono only for technical content", () => {
+  it("uses macOS system type for visible app chrome and technical content", () => {
     for (const selector of [
       ".project-navigator-header",
       ".project-row-button",
@@ -607,10 +613,40 @@ describe("renderer CSS contracts", () => {
     ]) {
       const bodies = allRulesIn(styles).filter(({ selectors }) => selectors.includes(selector));
       expect(bodies.length, selector).toBeGreaterThan(0);
-      expect(bodies.some(({ body }) => body.includes("var(--mono)")), selector).toBe(false);
+      expect(bodies.some(({ body }) => body.includes("var(--sans)")), selector).toBe(true);
     }
 
-    expect(topLevelExactRuleBodies(".workbench-right-zone kbd").at(-1)).toContain("var(--mono)");
+    expect(topLevelExactRuleBodies(".workbench-right-zone kbd").at(-1)).toContain("var(--sans)");
+  });
+
+  it("keeps all product typography on the shared sans token", () => {
+    const prohibitedFontFragments = [
+      ["--", "mono"].join(""),
+      ["ui-", "mono", "space"].join(""),
+      ["SF", "Mono"].join(""),
+      ["SF ", "Mono"].join(""),
+      ["Men", "lo"].join(""),
+      ["Mona", "co"].join(""),
+      ["Conso", "las"].join(""),
+      ["Liberation ", "Mono"].join(""),
+      ["mono", "space"].join(""),
+    ];
+
+    expect(productStyles).not.toMatch(new RegExp(prohibitedFontFragments.join("|"), "i"));
+    for (const selector of [
+      ".xterm-host",
+      ".staged-command",
+      ".workbench-right-zone kbd",
+      ".inbox-docket__detail-main code",
+      ".sessions-run-details dd.technical",
+      ".worktree-diff-panel__files code",
+      ".worktree-diff-panel__line",
+      ".workspace-preview-dock .workspace-preview-fallback code",
+    ]) {
+      const bodies = allRulesIn(productStyles).filter(({ selectors }) => selectors.includes(selector));
+      expect(bodies.length, selector).toBeGreaterThan(0);
+      expect(bodies.some(({ body }) => body.includes("var(--sans)")), selector).toBe(true);
+    }
   });
 
   it("keeps the primary workbench context above the operational type floor", () => {
@@ -1584,7 +1620,7 @@ describe("renderer CSS contracts", () => {
       },
       {
         name: "shared overlay input typography",
-        startMarker: "/* Region titles: sans for chrome, mono only where data/terminal content needs it. */",
+        startMarker: "/* Region titles use the shared sans token. */",
         endMarker: ".agent-timeline-header {",
       },
     ];
@@ -1633,7 +1669,7 @@ describe("renderer CSS contracts", () => {
       "box-shadow: none",
     ]);
     expectCanonicalBase(".sessions-run-details dd", ["font: 520 13px/1.35 var(--sans)"]);
-    expectCanonicalBase(".sessions-run-details dd.technical", ["font-family: var(--mono)"]);
+    expectCanonicalBase(".sessions-run-details dd.technical", ["font-family: var(--sans)"]);
     expectCanonicalBase(".sessions-result.active:not([aria-selected=\"true\"])", [
       "background: color-mix(in oklab, white 3.5%, transparent)",
       "box-shadow: inset 0 0 0 1px var(--ink-4)",
@@ -2191,7 +2227,7 @@ describe("renderer CSS contracts", () => {
       ))
       .map((rule) => rule.body)
       .join("\n");
-    expect(privacyRuleBodies).not.toContain("font-family: var(--mono)");
+    expect(privacyRuleBodies).not.toContain(`font-family: ${["var(--", "mono)"].join("")}`);
     const blurredRules = allRulesIn(styles).filter((rule) =>
       /(?:-webkit-)?backdrop-filter:\s*blur\([^)]*\)/i.test(rule.body),
     );
@@ -2276,16 +2312,16 @@ describe("renderer CSS contracts", () => {
     const recoveryLabel = blockFor(".inbox-docket__recovery-toggle strong");
     const recoveryCaption = blockFor(".inbox-docket__recovery-toggle span");
     const inboxTypeFloors = [
-      [".inbox-docket__item-row time", "font: 500 12px/1 var(--mono)"],
+      [".inbox-docket__item-row time", "font: 500 12px/1 var(--sans)"],
       [".inbox-docket__detail-main h3", "font: 600 13px/1.2 var(--sans)"],
-      [".inbox-docket__detail-main code", "font: 500 12px/1.55 var(--mono)"],
+      [".inbox-docket__detail-main code", "font: 500 12px/1.55 var(--sans)"],
       [".inbox-docket__detail-main p", "font: 500 12px/1.45 var(--sans)"],
       [".inbox-docket__state dd", "font: 600 13px/1.2 var(--sans)"],
       [".inbox-docket__technical-block span", "font: 600 12px/1.2 var(--sans)"],
       [".inbox-docket__empty span", "font: 500 12px/1.4 var(--sans)"],
     ] as const;
 
-    expect(styles).toContain("--type-micro: 10px");
+    expect(styles).toContain("--type-micro: 11px");
     expect(summary).toContain("font: 500 12px/1.2 var(--sans)");
     expect(decisionCount).toContain("font: 500 12px/1.2 var(--sans)");
     expect(recoveryLabel).toContain("font: 500 13px/1.2 var(--sans)");
@@ -2315,7 +2351,7 @@ describe("renderer CSS contracts", () => {
     expect(drawer).not.toContain("transparent");
     expect(essentials).toContain("background: transparent");
     expect(essentials).toContain("border-bottom: 1px solid var(--line)");
-    expect(essentialsCommand).toContain("var(--mono)");
+    expect(essentialsCommand).toContain("var(--sans)");
     expect(disclosureToggle).toContain("var(--sans)");
     expect(disclosureToggle).not.toContain("uppercase");
     expect(factLabel).toContain("var(--sans)");
@@ -2397,7 +2433,7 @@ describe("renderer CSS contracts", () => {
     const expectedFonts = [
       [".renderer-crash-kicker", "font: 650 13px/1.2 var(--sans)"],
       [".workspace-popover button strong", "font: 600 13px/1.2 var(--sans)"],
-      [".workspace-popover button small", "font: 500 12px/1.35 var(--mono)"],
+      [".workspace-popover button small", "font: 500 12px/1.35 var(--sans)"],
       [".workspace-rename-form label span", "font: 600 12px/1.2 var(--sans)"],
       [".workspace-mission-form label span", "font: 600 12px/1.2 var(--sans)"],
       [".prepare-work-popover", "font: 500 13px/1.35 var(--sans)"],

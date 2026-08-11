@@ -126,7 +126,7 @@
   align-items: center;
   gap: 8px;
   color: var(--text-secondary);
-  font: 600 11px/1.2 var(--sans);
+  font: 600 12px/1.2 var(--sans);
 }
 
 .worktree-diff-panel__files li + li {
@@ -136,7 +136,7 @@
 .worktree-diff-panel__files code {
   overflow: hidden;
   color: var(--text-primary);
-  font: 500 11px/1.3 var(--mono);
+  font: 500 12px/1.3 var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -152,7 +152,7 @@
   grid-template-columns: 46px 46px minmax(max-content, 1fr);
   align-items: stretch;
   color: var(--text-secondary);
-  font: 500 11px/1.5 var(--mono);
+  font: 500 12px/1.5 var(--sans);
 }
 
 .worktree-diff-panel__line > span {

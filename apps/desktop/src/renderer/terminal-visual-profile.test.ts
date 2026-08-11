@@ -4,7 +4,7 @@ import { alfredGraphiteTerminalProfile, ghosttyVesperTerminalProfile } from "./t
 describe("alfredGraphiteTerminalProfile", () => {
   it("uses the approved graphite typography and cursor defaults", () => {
     expect(alfredGraphiteTerminalProfile.fontFamily).toBe(
-      '"SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+      'ui-monospace, "SFMono-Regular", Menlo, monospace',
     );
     expect(alfredGraphiteTerminalProfile.fontSize).toBe(12.5);
     expect(alfredGraphiteTerminalProfile.cursorBlink).toBe(true);

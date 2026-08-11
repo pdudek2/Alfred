@@ -12,7 +12,7 @@ export type TerminalVisualProfile = {
 export const alfredGraphiteTerminalProfile: TerminalVisualProfile = {
   cursorBlink: true,
   cursorStyle: "bar",
-  fontFamily: '"SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+  fontFamily: 'ui-monospace, "SFMono-Regular", Menlo, monospace',
   fontSize: 12.5,
   lineHeight: 1.62,
   theme: {
