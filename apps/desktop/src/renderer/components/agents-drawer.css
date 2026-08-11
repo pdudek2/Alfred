@@ -70,9 +70,18 @@
 
 .agents-drawer__header button:focus-visible,
 .agents-drawer__decision > button:focus-visible,
+.agents-drawer__handoff-list > button:focus-visible,
 .agents-drawer__work-list > button:focus-visible,
+.agents-drawer__handoff-actions button:focus-visible,
 .agents-drawer__footer button:focus-visible {
   box-shadow: inset 0 0 0 2px var(--signal-focus);
+}
+
+.agents-drawer__back {
+  width: auto !important;
+  padding: 0 6px !important;
+  gap: 4px;
+  font: 620 11px/1 var(--sans);
 }
 
 .agents-drawer__body {
@@ -203,6 +212,50 @@
   background: var(--surface-control-hover);
 }
 
+.agents-drawer__handoff-list > button {
+  min-width: 0;
+  width: 100%;
+  min-height: 46px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  padding: 7px 13px 7px 12px;
+  background: transparent;
+  color: var(--text-primary);
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 9px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.agents-drawer__handoff-list > button:hover {
+  background: color-mix(in oklab, var(--signal-focus) 5%, var(--surface-panel));
+}
+
+.agents-drawer__handoff-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.agents-drawer__handoff-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 640 12px/1.3 var(--sans);
+}
+
+.agents-drawer__handoff-copy small,
+.agents-drawer__handoff-state {
+  color: var(--text-muted);
+  font: 500 10.5px/1.25 var(--sans);
+}
+
+.agents-drawer__handoff-state {
+  justify-self: end;
+}
+
 .agents-drawer__work-list > button {
   min-width: 0;
   width: 100%;
@@ -289,6 +342,134 @@
   padding: 12px 15px;
   color: var(--text-muted);
   font: 500 11px/1.35 var(--sans);
+}
+
+.agents-drawer__handoff {
+  padding: 20px 15px;
+}
+
+.agents-drawer__handoff-intro h3,
+.agents-drawer__handoff h4 {
+  margin: 0;
+  font-family: var(--sans);
+}
+
+.agents-drawer__handoff-intro h3 {
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.agents-drawer__handoff-intro p,
+.agents-drawer__handoff-decision p {
+  margin: 7px 0 0;
+  color: var(--text-secondary);
+  font: 500 12px/1.45 var(--sans);
+}
+
+.agents-drawer__handoff-decision,
+.agents-drawer__handoff-evidence,
+.agents-drawer__handoff-changes {
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.agents-drawer__handoff h4 {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.agents-drawer__handoff-evidence dl {
+  margin: 9px 0 0;
+  display: grid;
+  gap: 7px;
+}
+
+.agents-drawer__handoff-evidence dl > div {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.agents-drawer__handoff-evidence dt,
+.agents-drawer__handoff-evidence dd {
+  margin: 0;
+  font: 500 11px/1.35 var(--sans);
+}
+
+.agents-drawer__handoff-evidence dt {
+  color: var(--text-muted);
+}
+
+.agents-drawer__handoff-evidence dd {
+  color: var(--text-primary);
+}
+
+.agents-drawer__handoff-evidence dd.is-attention {
+  color: var(--signal-agent);
+}
+
+.agents-drawer__handoff-evidence dd.is-danger {
+  color: var(--signal-danger);
+}
+
+.agents-drawer__handoff-evidence dd.is-ready {
+  color: var(--signal-success);
+}
+
+.agents-drawer__handoff-mono {
+  font-family: var(--mono) !important;
+}
+
+.agents-drawer__handoff-changes ul {
+  margin: 9px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 9px;
+}
+
+.agents-drawer__handoff-changes li {
+  display: grid;
+  gap: 2px;
+  font: 500 11px/1.35 var(--sans);
+}
+
+.agents-drawer__handoff-changes strong {
+  font-weight: 640;
+}
+
+.agents-drawer__handoff-changes span {
+  color: var(--text-secondary);
+}
+
+.agents-drawer__handoff-actions {
+  margin-top: 22px;
+  display: flex;
+  gap: 8px;
+}
+
+.agents-drawer__handoff-actions button:not(.agents-drawer__handoff-primary) {
+  min-height: 30px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  padding: 0 10px;
+  background: var(--surface-control);
+  color: var(--text-primary);
+  cursor: pointer;
+  font: 620 11px/1 var(--sans);
+}
+
+.agents-drawer__handoff-actions button:not(.agents-drawer__handoff-primary):hover {
+  background: var(--surface-control-hover);
+}
+
+.agents-drawer__handoff-primary {
+  border-color: color-mix(in oklab, var(--signal-focus) 38%, var(--border-strong));
+  background: color-mix(in oklab, var(--signal-focus) 10%, var(--surface-control));
+  color: var(--signal-focus-strong);
 }
 
 .agents-drawer__footer {

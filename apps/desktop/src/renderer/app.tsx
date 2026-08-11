@@ -2868,7 +2868,7 @@ export function App() {
             }}
           />
           <AgentsDrawer
-            activeSessions={activeAgentSessions}
+            sessions={terminalSessions}
             activeSessionId={activeSelectedSessionId}
             activeWorkspaceId={activeWorkspace.id}
             attentionItems={attentionItems}
@@ -2885,6 +2885,7 @@ export function App() {
             onClose={() => setAgentsDrawerOpen(false)}
             onOpenInbox={handleOpenInbox}
             onOpenSession={handleOpenAgentSession}
+            onOpenWorktreeDiff={(_workspaceId, sessionId) => void handleReviewWorktree(sessionId)}
             onRunAttentionAction={handleRunAgentsAttentionAction}
           />
         </div>
