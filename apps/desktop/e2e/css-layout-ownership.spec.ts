@@ -193,11 +193,13 @@ test("captures deterministic CSS ownership evidence across core states and overl
   const privacySelectors = [...privacySafeScreenshotSelectors, ...privacySafeHiddenScreenshotSelectors];
   const privacySelectorRuntimeMatches = new Map(privacySelectors.map((selector) => [selector, false]));
   await mkdir(evidenceDir, { recursive: true });
-  await setWindowSize(app, page, 1440, 920);
+  await setWindowSize(app, page, 1440, 900);
   await expect(page.getByTestId("workbench-header")).toBeVisible();
+  await expectAdaptiveWorkGrid(page, 1);
   await addManualTerminal(page);
   await expect(page.getByTestId("xterm-host")).toHaveCount(1);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
+  await expectAdaptiveWorkGrid(page, 2);
   await expect(page.locator(".workspace-title-trigger strong")).toHaveText("Fixture Alpha");
   await expect(page.getByTestId("workbench-header")).toHaveClass("workbench-header");
   await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "44");
@@ -220,6 +222,11 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await addManualTerminal(page);
   await expect(page.getByTestId("xterm-host")).toHaveCount(2);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
+  await expectAdaptiveWorkGrid(page, 3);
+  await addManualTerminal(page);
+  await expect(page.getByTestId("xterm-host")).toHaveCount(3);
+  await expect(page.getByTestId("terminal-tile")).toHaveCount(4);
+  await expectAdaptiveWorkGrid(page, 4);
   await expect(page.getByTestId("workbench-header")).toHaveClass("workbench-header");
   await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "44");
 
@@ -311,9 +318,21 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await page.getByRole("button", { name: "Close Context panel" }).click();
   await chooseWorkLayout(page, "Grid");
   await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
+  await addManualTerminal(page);
+  await expect(page.getByTestId("terminal-tile")).toHaveCount(5);
+  await expectAdaptiveWorkGrid(page, 5);
   await setWindowSize(app, page, 1120, 720);
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow Grid");
-  await capture("narrow", [...frameProbes, ...terminalProbes]);
+  const narrowWorkEvidence = await capture("narrow", [...frameProbes, ...terminalProbes]);
+  expect(narrowWorkEvidence.documentOverflowX, "Narrow Work must not create horizontal document overflow")
+    .toBeLessThanOrEqual(0);
+  await expectAdaptiveWorkGrid(page, 5);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const reducedMotionEvidence = await capture("narrow-reduced-motion", [...frameProbes, ...terminalProbes]);
+  expect(reducedMotionEvidence.documentOverflowX, "Reduced-motion Work must not create horizontal document overflow")
+    .toBeLessThanOrEqual(0);
+  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow reduced-motion Grid");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await openContext(page);
   const narrowContextGeometry = await readShellOwnerGeometry(page);
   expect(narrowContextGeometry.workspaceGridColumns.trim().split(/\s+/)).toHaveLength(2);
@@ -421,7 +440,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await narrowPrivacy.getByRole("button", { name: "Close privacy controls" }).click();
   await expect(narrowPrivacy).toHaveCount(0);
 
-  await setWindowSize(app, page, 1440, 920);
+  await setWindowSize(app, page, 1440, 900);
   await page.getByRole("button", { name: "Open command palette" }).click();
   await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
   await capture("command-palette", [...frameProbes, ...overlayProbes["command-palette"]]);
@@ -544,6 +563,48 @@ async function readShellOwnerGeometry(page: Page): Promise<{
       },
     };
   });
+}
+
+async function expectAdaptiveWorkGrid(page: Page, expectedTiles: number): Promise<void> {
+  const geometry = await page.getByTestId("terminal-grid").evaluate((grid, count) => {
+    const gridBounds = grid.getBoundingClientRect();
+    const tiles = Array.from(grid.querySelectorAll<HTMLElement>("[data-testid='terminal-tile']"))
+      .filter((tile) => tile.getAttribute("aria-hidden") !== "true")
+      .map((tile) => {
+        const bounds = tile.getBoundingClientRect();
+        return { bottom: bounds.bottom, height: bounds.height, left: bounds.left, top: bounds.top, width: bounds.width };
+      });
+    return {
+      classes: grid.className,
+      documentOverflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      grid: { height: gridBounds.height, width: gridBounds.width },
+      tiles,
+      expectedTiles: count,
+    };
+  }, expectedTiles);
+
+  expect(geometry.tiles).toHaveLength(geometry.expectedTiles);
+  expect(geometry.documentOverflowX).toBeLessThanOrEqual(0);
+  if (expectedTiles === 1) {
+    expect(geometry.classes).toContain("single");
+    expect(geometry.tiles[0]?.width).toBeGreaterThan(geometry.grid.width * 0.9);
+    expect(geometry.tiles[0]?.height).toBeGreaterThan(geometry.grid.height * 0.7);
+    return;
+  }
+  if (expectedTiles === 2) {
+    expect(geometry.classes).toContain("split");
+    expect(Math.abs((geometry.tiles[0]?.width ?? 0) - (geometry.tiles[1]?.width ?? 0))).toBeLessThanOrEqual(1);
+    expect(Math.abs((geometry.tiles[0]?.height ?? 0) - (geometry.tiles[1]?.height ?? 0))).toBeLessThanOrEqual(1);
+    return;
+  }
+  if (expectedTiles <= 4) {
+    expect(geometry.classes).toContain("dense");
+    const rows = new Set(geometry.tiles.map((tile) => Math.round(tile.top)));
+    expect(rows.size).toBe(2);
+    expect(Math.min(...geometry.tiles.map((tile) => tile.height))).toBeGreaterThan(geometry.grid.height * 0.25);
+    return;
+  }
+  expect(geometry.classes).toContain("many-up");
 }
 
 async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {

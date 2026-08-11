@@ -1855,11 +1855,10 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 .terminal-grid.laid-out {
   --grid-bottom-safe-zone: 76px;
-  flex: 0 0 auto;
-  align-content: start;
+  flex: 1 1 auto;
+  align-content: stretch;
+  height: 100%;
   min-height: 100%;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-auto-rows: 84px;
   padding-bottom: var(--grid-bottom-safe-zone);
   scroll-padding-bottom: var(--grid-bottom-safe-zone);
   background: var(--ink-0);
@@ -1871,11 +1870,18 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 .terminal-grid.laid-out.single {
   padding: 12px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
 }
 
-.terminal-grid.laid-out.split,
+.terminal-grid.laid-out.split {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .terminal-grid.laid-out.dense {
-  align-content: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
 }
 
 .terminal-grid.laid-out.dense.many-up {
@@ -3284,7 +3290,7 @@ body.arranging-pointer {
 
 .terminal-tile.staged {
   border-color: var(--ink-3);
-  background: var(--surface-terminal);
+  background: var(--surface-chrome);
   background-image: none;
   box-shadow: none;
 }
@@ -3354,6 +3360,9 @@ body.arranging-pointer {
 
 .staged-actions .approve-button {
   flex: 1;
+  border-color: color-mix(in oklab, var(--signal) 42%, transparent);
+  background: color-mix(in oklab, var(--signal) 11%, var(--ink-1));
+  color: var(--signal);
   font: 600 12px/1 var(--sans);
 }
 

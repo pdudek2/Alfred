@@ -726,7 +726,11 @@ describe("renderer CSS contracts", () => {
     expect(materialShadows).toHaveLength(5);
     expect(oversizedRadii).toEqual([]);
     expect(signalUses.every(({ selectors }) =>
-      selectors.every((selector) => selector.includes("attention") || selector.includes("waiting")),
+      selectors.every((selector) =>
+        selector.includes("attention")
+        || selector.includes("waiting")
+        || selector === ".staged-actions .approve-button",
+      ),
     )).toBe(true);
   });
 
@@ -1338,7 +1342,36 @@ describe("renderer CSS contracts", () => {
 
     const terminalGridStart = ".terminal-stage {";
     const terminalGridEnd = ".terminal-empty-state {";
-    expectTopLevelOwnerWithin(".terminal-grid.laid-out", ["--grid-bottom-safe-zone: 76px", "grid-auto-rows: 84px"], terminalGridStart, terminalGridEnd);
+    expectTopLevelOwnerWithin(
+      ".terminal-grid.laid-out",
+      ["--grid-bottom-safe-zone: 76px", "min-height: 100%", "height: 100%"],
+      terminalGridStart,
+      terminalGridEnd,
+    );
+    expectTopLevelOwnerWithin(
+      ".terminal-grid.laid-out.single",
+      ["grid-template-columns: minmax(0, 1fr)", "grid-template-rows: minmax(0, 1fr)"],
+      terminalGridStart,
+      terminalGridEnd,
+    );
+    expectTopLevelOwnerWithin(
+      ".terminal-grid.laid-out.split",
+      ["grid-template-columns: repeat(2, minmax(0, 1fr))", "grid-template-rows: minmax(0, 1fr)"],
+      terminalGridStart,
+      terminalGridEnd,
+    );
+    expectTopLevelOwnerWithin(
+      ".terminal-grid.laid-out.dense",
+      ["grid-template-columns: repeat(2, minmax(0, 1fr))", "grid-template-rows: repeat(2, minmax(0, 1fr))"],
+      terminalGridStart,
+      terminalGridEnd,
+    );
+    expectTopLevelOwnerWithin(
+      ".terminal-grid.arranging",
+      ["grid-template-columns: repeat(12, minmax(0, 1fr))", "grid-auto-rows: 84px"],
+      terminalGridStart,
+      terminalGridEnd,
+    );
     expectTopLevelOwnerWithin(
       ".terminal-grid.laid-out.dense.many-up",
       [
@@ -1387,6 +1420,12 @@ describe("renderer CSS contracts", () => {
       terminalTileStart,
       terminalTileEnd,
     );
+    expectCanonicalBase(".terminal-tile.staged", ["background: var(--surface-chrome)"]);
+    const stagedApprove = blockForContaining(
+      ".staged-actions .approve-button",
+      "border-color: color-mix(in oklab, var(--signal) 42%, transparent)",
+    );
+    expect(stagedApprove).toContain("color: var(--signal)");
     expectTopLevelOwnerWithin(".terminal-tile.collapsed", ["grid-template-rows: 44px 0", "min-height: 44px"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile:not(.arranging):hover", ["border-color: var(--border-strong)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-stage.mode-split .terminal-tile.focus-hidden", ["display: none"], terminalTileStart, terminalTileEnd);
