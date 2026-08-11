@@ -1628,9 +1628,11 @@ describe("renderer CSS contracts", () => {
     expect(compactMenuButton).toContain("width: 100%");
     expect(compactMenuButton).toContain("min-width: 0");
     expect(compactUtilityActions).toHaveLength(1);
-    expect(compactUtilityActions[0]).toContain("display: none");
+    expect(compactUtilityActions[0]).toContain("visibility: hidden");
+    expect(compactUtilityActions[0]).not.toContain("display:");
     expect(compactDangerActions).toHaveLength(1);
-    expect(compactDangerActions[0]).toContain("display: none");
+    expect(compactDangerActions[0]).toContain("visibility: hidden");
+    expect(compactDangerActions[0]).not.toContain("display:");
     expect(compactOverflowMenu).toHaveLength(1);
     expect(compactOverflowMenu[0]).toContain("display: inline-flex");
   });
@@ -2151,7 +2153,7 @@ describe("renderer CSS contracts", () => {
 
   it("keeps terminal tile chrome secondary to the xterm body", () => {
     const tile = exactBlockFor(".terminal-tile");
-    const header = exactBlockFor(".terminal-tile-header");
+    const header = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header");
     const selectedHeader = exactBlockFor(".terminal-tile.selected .terminal-tile-header");
     const tileTitle = blockFor(".terminal-tile-header .tile-title b");
     const xtermHost = exactBlockFor(".xterm-host");
@@ -2186,10 +2188,10 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps terminal tile titles readable before action chrome under constrained width", () => {
-    const title = blockFor(".terminal-tile-header .tile-title");
-    const titleText = blockFor(".terminal-tile-header .tile-title > div");
-    const titleLabel = blockFor(".terminal-tile-header .tile-title b");
-    const actions = blockFor(".terminal-tile-header .tile-actions");
+    const title = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title");
+    const titleText = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title > div");
+    const titleLabel = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title b");
+    const actions = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-actions");
     const primaryAction = blockFor(".tile-primary-actions .continue-button");
     const primaryActionText = blockFor(".tile-primary-actions .continue-button span");
     const statusText = singleTopLevelRuleBodyIn(styles, ".terminal-status-text");
@@ -2207,14 +2209,15 @@ describe("renderer CSS contracts", () => {
     expect(primaryActionText).toContain("overflow: hidden");
     expect(statusText).toContain("max-width");
     expect(constrainedStatusText).toHaveLength(1);
-    expect(constrainedStatusText[0]).toContain("display: none");
+    expect(constrainedStatusText[0]).toContain("max-width: 6ch");
+    expect(constrainedStatusText[0]).not.toContain("display:");
   });
 
   it("reserves terminal header geometry while revealing secondary utilities", () => {
-    const header = exactBlockFor(".terminal-tile-header");
-    const title = blockFor(".terminal-tile-header .tile-title");
-    const titleLabel = blockFor(".terminal-tile-header .tile-title b");
-    const location = blockFor(".terminal-tile-header .tile-title small");
+    const header = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header");
+    const title = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title");
+    const titleLabel = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title b");
+    const location = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title small");
     const activity = blockForContaining(".tile-activity", "flex: 1 1 220px");
     const actions = blockFor(".terminal-tile-header .tile-actions");
     const status = exactBlockFor(".tile-status-group");
@@ -2235,6 +2238,32 @@ describe("renderer CSS contracts", () => {
     expect(utilities).toContain("visibility: hidden");
     expect(utilities).not.toContain("display:");
     expect(utilityReveal).toContain("visibility: visible");
+  });
+
+  it("reduces header reservations for a minimum-span Arrange tile without hiding location or status", () => {
+    const narrowHeader = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".terminal-tile-header");
+    const narrowTitle = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".terminal-tile-header .tile-title");
+    const narrowActivity = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".tile-activity");
+    const narrowLocation = containerExactRuleBodies(
+      "terminal-tile (max-width: 520px)",
+      ".terminal-tile-header .tile-title small",
+    );
+    const narrowStatusText = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".terminal-status-text");
+
+    expect(narrowHeader).toEqual([expect.stringContaining("--terminal-status-zone: 72px")]);
+    expect(narrowTitle).toEqual([expect.stringContaining("min-width: var(--terminal-title-min)")]);
+    expect(narrowActivity).toEqual([expect.stringContaining("visibility: hidden")]);
+    expect(narrowActivity[0]).not.toContain("display:");
+    expect(narrowLocation).toHaveLength(1);
+    expect(narrowLocation[0]).not.toContain("display: none");
+    expect(narrowStatusText).toHaveLength(1);
+    expect(narrowStatusText[0]).not.toContain("display:");
+
+    const minimumSpanHeader = containerExactRuleBodies("terminal-tile (max-width: 420px)", ".terminal-tile-header");
+    const minimumSpanArrangeHandle = containerExactRuleBodies("terminal-tile (max-width: 420px)", ".arrange-handle");
+    expect(minimumSpanHeader).toEqual([expect.stringContaining("--terminal-status-zone: 56px")]);
+    expect(minimumSpanArrangeHandle).toEqual([expect.stringContaining("visibility: hidden")]);
+    expect(minimumSpanArrangeHandle[0]).not.toContain("display:");
   });
 
   it("keeps Work controls and dark scroll owners on the shared chrome rhythm", () => {

@@ -205,8 +205,23 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
     (before, after) => before.isSameNode(after) && before.isConnected,
     screenAfter,
   )).toBe(true);
+
   await chooseWorkLayout(page, "Grid");
-  await expectStableTerminalHeader(page);
+  await setLongTerminalHeaderTitle(page, "manual-1");
+  await setWindowSize(app, page, 1440, 900);
+  await expectStableTerminalHeader(page, "manual-1");
+
+  await setWindowSize(app, page, 1120, 720);
+  await expectStableTerminalHeader(page, "manual-1");
+
+  await chooseWorkLayout(page, "Arrange");
+  const minimumSpanTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
+  await minimumSpanTile.focus();
+  await page.keyboard.press("Shift+ArrowLeft");
+  await page.keyboard.press("Shift+ArrowLeft");
+  await page.keyboard.press("Shift+ArrowLeft");
+  await expect(minimumSpanTile).toHaveCSS("grid-column", "1 / span 3");
+  await expectStableTerminalHeader(page, "manual-1");
 
   harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();
@@ -220,9 +235,26 @@ async function selectSurface(
   await page.getByRole("menuitem", { name: surface }).click();
 }
 
-async function chooseWorkLayout(page: Page, layout: "Focus" | "Grid"): Promise<void> {
+async function chooseWorkLayout(page: Page, layout: "Focus" | "Grid" | "Arrange"): Promise<void> {
   await page.getByRole("button", { name: /^Open layout menu,/ }).click();
   await page.getByRole("menuitem", { name: layout, exact: true }).click();
+}
+
+async function setLongTerminalHeaderTitle(page: Page, sessionId: string): Promise<void> {
+  const tile = page.locator(`[data-testid="terminal-tile"][data-session-id="${sessionId}"]`);
+  const title = "Long terminal title keeps the real header truncation contract honest across narrow Arrange tiles".slice(0, 80);
+  await tile.hover();
+  const renameButton = tile.getByRole("button", { name: /^Rename / });
+  if (await renameButton.isVisible()) {
+    await renameButton.click();
+  } else {
+    await tile.getByRole("button", { name: /^More actions for / }).click();
+    await page.getByRole("menuitem", { name: "Rename session", exact: true }).click();
+  }
+  const rename = tile.getByRole("textbox", { name: /^Rename / });
+  await rename.fill(title);
+  await rename.press("Enter");
+  await expect(tile.locator(".tile-title b")).toHaveText(title);
 }
 
 async function expectMinimumHeight(locator: Locator, minimum: number): Promise<void> {
@@ -252,11 +284,17 @@ async function expectFixedCellTerminalFont(locator: Locator, size?: string): Pro
   expect(style.family).toContain("Menlo");
 }
 
-async function expectStableTerminalHeader(page: Page): Promise<void> {
-  const tile = page.locator('.terminal-tile:has(.terminal-tile-header):not([aria-hidden="true"])').first();
+async function expectStableTerminalHeader(page: Page, sessionId: string): Promise<void> {
+  const tile = page.locator(`[data-testid="terminal-tile"][data-session-id="${sessionId}"]:not([aria-hidden="true"])`);
   const header = tile.locator(".terminal-tile-header");
   await expect(header).toBeVisible();
   expect(await header.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  const title = header.locator(".tile-title b");
+  const location = header.locator(".tile-title small");
+  expect(await title.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
+  expect(await location.getAttribute("title")).toMatch(/^\//);
+  expect((await location.getAttribute("title"))?.length ?? 0).toBeGreaterThan(32);
+  expect(await location.evaluate((node) => node.clientWidth)).toBeGreaterThan(0);
   const before = await headerGeometry(header);
 
   await tile.hover();

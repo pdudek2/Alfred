@@ -3108,6 +3108,51 @@ describe("App integration", () => {
     expect(writeTerminal).not.toHaveBeenCalled();
   });
 
+  it("persists only the missing Arrange layout when an external Codex resume joins custom tiles", async () => {
+    const user = userEvent.setup();
+    const externalSessionId = "019edc4b-0000-7000-9000-custom-layout";
+    const customLayout = { tileId: "manual-1", col: 3, row: 7, colSpan: 6, rowSpan: 4 };
+    const { createTerminal, setWorkspaceLayout } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      {
+        layoutsByWorkspace: { A: { "manual-1": customLayout } },
+        viewStateByWorkspace: { A: { workMode: "desk" } },
+      },
+      undefined,
+      [],
+      [{
+        sessionKey: `external-codex:${externalSessionId}:200`,
+        lineageKey: `external-codex:${externalSessionId}`,
+        contentSessionKey: `external-codex:${externalSessionId}`,
+        source: "external-codex",
+        kind: "codex",
+        title: "Keep Arrange geometry",
+        project: { id: "A", label: "Alfred" },
+        locationLabel: "Alfred",
+        updatedAt: 200,
+        lifecycle: "resumable",
+      }],
+    );
+
+    render(<App />);
+
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(1));
+    setWorkspaceLayout.mockClear();
+    await selectSurface(user, "Sessions");
+    await user.click(await screen.findByRole("option", { name: /Keep Arrange geometry/i }));
+    await user.click(screen.getByRole("button", { name: "Resume in Work" }));
+
+    await waitFor(() => expect(setWorkspaceLayout).toHaveBeenCalledTimes(1));
+    const persistedLayouts = setWorkspaceLayout.mock.calls[0]?.[0]?.layouts;
+    expect(persistedLayouts?.["manual-1"]).toEqual(customLayout);
+    expect(Object.keys(persistedLayouts ?? {})).toHaveLength(2);
+    expect(Object.entries(persistedLayouts ?? {}).find(([id]) => id.startsWith("external-codex-"))?.[1])
+      .toEqual(expect.objectContaining({ tileId: expect.stringMatching(/^external-codex-/) }));
+  });
+
   it("atomically resumes one Codex lineage from two opaque keys that resolve concurrently", async () => {
     const user = userEvent.setup();
     const sharedSessionId = "019edc4b-0000-7000-9000-shared";
@@ -6853,6 +6898,34 @@ describe("App integration", () => {
     expect(killTerminal).toHaveBeenCalledWith({ id: "runtime-a" });
   });
 
+  it("removes only the closed tile from persisted custom Arrange geometry", async () => {
+    const user = userEvent.setup();
+    const remainingLayout = { tileId: "manual-1", col: 3, row: 7, colSpan: 6, rowSpan: 4 };
+    const closedLayout = { tileId: "manual-2", col: 1, row: 2, colSpan: 5, rowSpan: 3 };
+    const { setWorkspaceLayout } = installDesktopBridge(
+      undefined,
+      null,
+      [manualLiveSnapshot("manual-1", "Manual · zsh 1"), manualLiveSnapshot("manual-2", "Manual · zsh 2")],
+      undefined,
+      {
+        layoutsByWorkspace: { A: { "manual-1": remainingLayout, "manual-2": closedLayout } },
+        viewStateByWorkspace: { A: { workMode: "desk" } },
+      },
+    );
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 2/i });
+    setWorkspaceLayout.mockClear();
+    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 2" }));
+
+    await waitFor(() => expect(setWorkspaceLayout).toHaveBeenCalledTimes(1));
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+      workspaceId: "A",
+      layouts: { "manual-1": remainingLayout },
+    });
+  });
+
   it("offers concrete launch actions when the active workspace is empty", async () => {
     const user = userEvent.setup();
     const { createTerminal } = installDesktopBridge(undefined, null, [], undefined, undefined, {
@@ -7707,6 +7780,40 @@ describe("App integration", () => {
     });
   });
 
+  it("persists only missing Arrange layouts when a staged plan joins custom tiles", async () => {
+    const user = userEvent.setup();
+    const customLayout = { tileId: "manual-1", col: 3, row: 7, colSpan: 6, rowSpan: 4 };
+    const { setWorkspaceLayout } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      {
+        layoutsByWorkspace: { A: { "manual-1": customLayout } },
+        viewStateByWorkspace: { A: { workMode: "desk" } },
+      },
+    );
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    setWorkspaceLayout.mockClear();
+    await openPrepareWork(user);
+    await user.type(screen.getByLabelText("Dispatch instruction"), "stage with custom geometry");
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
+
+    await screen.findByRole("article", { name: /Staged Task A/i });
+    await waitFor(() => expect(setWorkspaceLayout).toHaveBeenCalledTimes(1));
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+      workspaceId: "A",
+      layouts: expect.objectContaining({
+        "manual-1": customLayout,
+        "alfred-1": expect.objectContaining({ tileId: "alfred-1" }),
+        "alfred-2": expect.objectContaining({ tileId: "alfred-2" }),
+      }),
+    });
+  });
+
   it("persists one stable plan ID exactly once in StrictMode", async () => {
     const user = userEvent.setup();
     const expectedPlanId = "00000000-0000-4000-8000-000000000001";
@@ -7964,12 +8071,16 @@ describe("App integration", () => {
 
   it("resumes a restored agent transcript from Sessions without mounting it first", async () => {
     const user = userEvent.setup();
+    const customLayout = { tileId: "manual-1", col: 3, row: 7, colSpan: 6, rowSpan: 4 };
     const { createTerminal, forgetTerminal, setWorkspaceLayout } = installDesktopBridge(
       undefined,
       null,
-      [],
+      [manualLiveSnapshot("manual-1", "Manual · zsh 1")],
       undefined,
-      undefined,
+      {
+        layoutsByWorkspace: { A: { "manual-1": customLayout } },
+        viewStateByWorkspace: { A: { workMode: "desk" } },
+      },
       undefined,
       [
         {
@@ -8021,7 +8132,14 @@ describe("App integration", () => {
     );
     expect(await screen.findByRole("article", { name: /Codex · session 9/i })).toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /Codex · saved sibling/i })).not.toBeInTheDocument();
-    expect(setWorkspaceLayout).not.toHaveBeenCalled();
+    await waitFor(() => expect(setWorkspaceLayout).toHaveBeenCalledTimes(1));
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+      workspaceId: "A",
+      layouts: expect.objectContaining({
+        "manual-1": customLayout,
+        "codex-9": expect.objectContaining({ tileId: "codex-9" }),
+      }),
+    });
     expect(screen.queryByRole("article", { name: /Manual · zsh 10/i })).not.toBeInTheDocument();
     expect(forgetTerminal).not.toHaveBeenCalled();
   });

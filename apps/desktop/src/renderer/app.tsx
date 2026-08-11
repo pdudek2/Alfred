@@ -142,6 +142,15 @@ type ShellActionResult = {
   error?: string;
 };
 
+function hasTileLayoutMembership(
+  sessions: SessionTile[],
+  layouts: Record<string, TileLayout>,
+): boolean {
+  const sessionIds = new Set(sessions.map((session) => session.id));
+  const layoutIds = Object.keys(layouts);
+  return sessionIds.size === layoutIds.length && layoutIds.every((id) => sessionIds.has(id));
+}
+
 type PendingDiscardConfirmation = {
   files: Array<{ path: string; status: string }>;
   sessionId: string;
@@ -233,6 +242,7 @@ export function App() {
   const announcedSessionStatusesRef = useRef<Map<string, string>>(new Map());
   const sessionStatusAnnouncementsReadyRef = useRef<boolean>(false);
   const workspaceStateHydratedRef = useRef<boolean>(false);
+  const workTileMembershipByWorkspaceRef = useRef<Record<string, string> | null>(null);
   const workspaceStatePersistenceSkipRef = useRef<WorkspaceStateSnapshot | null>(null);
   const shortcutModifier = navigator.platform.includes("Mac") ? "Cmd" : "Ctrl";
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? DEFAULT_WORKSPACE;
@@ -337,6 +347,62 @@ export function App() {
   }, [terminalSessions]);
 
   useEffect(() => {
+    if (!workspaceStateHydratedRef.current || workspaceHydrationStatus.status !== "ready") return;
+
+    const workSessionsByWorkspace = new Map<string, SessionTile[]>();
+    for (const session of terminalSessions) {
+      if (!isWorkSession(session)) continue;
+      const sessions = workSessionsByWorkspace.get(session.workspaceId) ?? [];
+      sessions.push(session);
+      workSessionsByWorkspace.set(session.workspaceId, sessions);
+    }
+
+    const workspaceIds = new Set([
+      ...workSessionsByWorkspace.keys(),
+      ...Object.keys(tileLayoutsByWorkspace),
+    ]);
+    const nextMembership = Object.fromEntries([...workspaceIds].map((workspaceId) => [
+      workspaceId,
+      (workSessionsByWorkspace.get(workspaceId) ?? []).map((session) => session.id).sort().join("\u0000"),
+    ]));
+    const previousMembership = workTileMembershipByWorkspaceRef.current;
+    workTileMembershipByWorkspaceRef.current = nextMembership;
+    if (previousMembership === null) {
+      const initialLayouts = [...workspaceIds].flatMap((workspaceId) => {
+        const sessions = workSessionsByWorkspace.get(workspaceId) ?? [];
+        const layouts = tileLayoutsByWorkspace[workspaceId] ?? {};
+        return hasTileLayoutMembership(sessions, layouts)
+          ? []
+          : [[workspaceId, ensureTileLayouts(sessions, layouts)] as const];
+      });
+      if (initialLayouts.length > 0) {
+        setTileLayoutsByWorkspace((current) => ({ ...current, ...Object.fromEntries(initialLayouts) }));
+      }
+      return;
+    }
+
+    const changes = [...workspaceIds].flatMap((workspaceId) => {
+      if (previousMembership[workspaceId] === nextMembership[workspaceId]) return [];
+      const sessions = workSessionsByWorkspace.get(workspaceId) ?? [];
+      const layouts = tileLayoutsByWorkspace[workspaceId] ?? {};
+      if (hasTileLayoutMembership(sessions, layouts)) return [];
+      return [{ workspaceId, layouts: ensureTileLayouts(sessions, layouts) }];
+    });
+
+    if (changes.length === 0) return;
+
+    setTileLayoutsByWorkspace((current) => ({
+      ...current,
+      ...Object.fromEntries(changes.map(({ workspaceId, layouts }) => [workspaceId, layouts])),
+    }));
+
+    const layoutApi = getDesktopLayoutApi();
+    for (const { workspaceId, layouts } of changes) {
+      void layoutApi?.setWorkspaceLayout({ workspaceId, layouts });
+    }
+  }, [terminalSessions, tileLayoutsByWorkspace, workspaceHydrationStatus.status]);
+
+  useEffect(() => {
     const previousStatuses = announcedSessionStatusesRef.current;
     const nextStatuses = new Map<string, string>();
     let nextAnnouncement: string | null = null;
@@ -389,18 +455,6 @@ export function App() {
   const commitAddedSession = useCallback((nextSessions: SessionTile[]) => {
     const addedSession = nextSessions.at(-1);
     if (!addedSession) return;
-
-    const previousWorkspaceSessions = terminalSessionsRef.current.filter(
-      (session) => session.workspaceId === activeWorkspace.id && isWorkSession(session),
-    );
-    const workspaceSessions = nextSessions.filter(
-      (session) => session.workspaceId === activeWorkspace.id && isWorkSession(session),
-    );
-    const currentLayouts = ensureTileLayouts(
-      previousWorkspaceSessions,
-      tileLayoutsByWorkspace[activeWorkspace.id] ?? {},
-    );
-    const workspaceLayouts = ensureTileLayouts(workspaceSessions, currentLayouts);
     const layoutApi = getDesktopLayoutApi();
 
     terminalSessionsRef.current = nextSessions;
@@ -410,20 +464,11 @@ export function App() {
       ...current,
       [activeWorkspace.id]: addedSession.id,
     }));
-    setTileLayoutsByWorkspace((current) => ({
-      ...current,
-      [activeWorkspace.id]: workspaceLayouts,
-    }));
-    void layoutApi?.setWorkspaceLayout({
-      workspaceId: activeWorkspace.id,
-      layouts: workspaceLayouts,
-    });
-
     void layoutApi?.setWorkspaceViewState({
       workspaceId: activeWorkspace.id,
       viewState: { workMode: activeWorkMode, selectedSessionId: addedSession.id },
     });
-  }, [activeWorkMode, activeWorkspace.id, tileLayoutsByWorkspace]);
+  }, [activeWorkMode, activeWorkspace.id]);
 
   const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, isolation: TerminalSessionIsolation = "shared") => {
     if (activeWorkspace.rootStatus === "missing") return;
@@ -2386,6 +2431,7 @@ export function App() {
     let cancelled = false;
 
     workspaceStateHydratedRef.current = false;
+    workTileMembershipByWorkspaceRef.current = null;
 
     if (!terminalApi) {
       setTerminalSessions([]);

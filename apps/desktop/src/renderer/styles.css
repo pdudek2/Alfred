@@ -3053,7 +3053,15 @@ body.arranging-pointer {
 @container terminal-tile (max-width: 620px) {
   .tile-utility-actions,
   .tile-danger-actions {
-    display: none;
+    flex: 0 0 0;
+    max-width: 0;
+    overflow: hidden;
+    padding-left: 0;
+    margin-left: 0;
+    border-left-width: 0;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
   }
 
   .tile-overflow-menu {
@@ -3090,16 +3098,45 @@ body.arranging-pointer {
 }
 
 @container terminal-tile (max-width: 520px) {
+  .terminal-tile-header {
+    --terminal-title-min: 72px;
+    --terminal-status-zone: 72px;
+    gap: 6px;
+  }
+
   .tile-header {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .tile-title small {
-    display: none;
+  .terminal-tile-header .tile-title {
+    flex-basis: 72px;
+    min-width: var(--terminal-title-min);
   }
 
+  .terminal-tile-header .tile-title > div {
+    flex: 1 1 0;
+  }
+
+  .terminal-tile-header .tile-title small {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .terminal-tile-header .tile-title .session-location-value { display: inline; }
+
   .tile-activity {
-    display: none;
+    flex: 0 1 0;
+    min-width: 0;
+    max-width: 0;
+    padding-inline: 0;
+    border-color: transparent;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
   }
 
   .tile-action-group {
@@ -3119,11 +3156,16 @@ body.arranging-pointer {
   }
 
   .terminal-status-text {
-    display: none;
+    max-width: 6ch;
   }
 }
 
 @container terminal-tile (max-width: 420px) {
+  .terminal-tile-header {
+    --terminal-title-min: 64px;
+    --terminal-status-zone: 56px;
+  }
+
   .tile-header {
     gap: 6px;
     padding-inline: 10px;
@@ -3137,14 +3179,24 @@ body.arranging-pointer {
     min-width: 32px;
   }
 
-  .tile-status {
-    width: 24px;
-    max-width: 24px;
-    padding: 0;
-    justify-content: center;
-    gap: 0;
-    font-size: 0;
+  .arrange-handle {
+    flex: 0 0 0;
+    width: 0;
+    border-color: transparent;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
   }
+
+  .tile-status {
+    width: auto;
+    max-width: 64px;
+    padding: 0 5px;
+    gap: 4px;
+    font-size: 11px;
+  }
+
+  .terminal-status-text { max-width: 5ch; }
 
   .tile-action-group {
     gap: 3px;
