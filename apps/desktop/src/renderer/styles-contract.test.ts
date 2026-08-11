@@ -382,7 +382,7 @@ function rulesForSelectorContaining(selector: string): Array<{ selectors: string
 }
 
 function rootToken(name: string): string {
-  const match = styles.match(new RegExp(`${name}:\\s*(#[0-9a-f]{6})`, "i"));
+  const match = styles.match(new RegExp(`${name}:\\s*([^;]+);`, "i"));
   return match?.[1] ?? "";
 }
 
@@ -500,22 +500,35 @@ describe("renderer CSS contracts", () => {
 
   it("defines the approved achromatic material ramp exactly once", () => {
     const expectedTokens = {
-      "--ink-0": "#080A0D",
-      "--ink-1": "#101318",
-      "--ink-2": "#14181E",
-      "--ink-3": "#20262D",
-      "--ink-4": "#5F6974",
-      "--ink-5": "#8B95A1",
-      "--ink-6": "#C5CBD2",
-      "--ink-7": "#F0F2F4",
+      "--ink-0": "#050506",
+      "--ink-1": "#0A0A0B",
+      "--ink-2": "#111113",
+      "--ink-3": "#1B1B1E",
+      "--ink-4": "#64646B",
+      "--ink-5": "#929299",
+      "--ink-6": "#CECED2",
+      "--ink-7": "#F3F3F4",
       "--signal": "#E29B6E",
+      "--surface-terminal": "#09090A",
+      "--surface-canvas": "#060607",
+      "--surface-panel": "#0E0E10",
+      "--surface-raised": "#151518",
+      "--surface-chrome": "#0C0C0E",
+      "--surface-control": "#151518",
+      "--surface-control-hover": "#1C1C20",
+      "--text-primary": "#F0F0F2",
+      "--text-secondary": "#CACACF",
+      "--text-muted": "#96969E",
+      "--text-faint": "#7E7E87",
+      "--border": "rgba(255, 255, 255, 0.05)",
+      "--border-strong": "rgba(255, 255, 255, 0.082)",
     };
 
     for (const [token, value] of Object.entries(expectedTokens)) {
       expect(tokenDefinitionCount(token), `${token} definition count`).toBe(1);
       expect(rootToken(token)).toBe(value);
     }
-    expect(rootToken("--signal-focus")).toBe("#63C2CE");
+    expect(rootToken("--signal-focus")).toBe("#4DA8B5");
     const root = singleTopLevelRuleBodyIn(styles, ":root");
     expect(root).toContain("--radius-control: 7px");
     expect(root).toContain("--radius-panel: 10px");
@@ -1715,9 +1728,9 @@ describe("renderer CSS contracts", () => {
     expect(tokenDefinitionCount("--text-muted")).toBe(1);
     expect(tokenDefinitionCount("--text-faint")).toBe(1);
 
-    expect(rootToken("--surface-chrome")).toBe("#101318");
-    expect(rootToken("--surface-control")).toBe("#171C22");
-    expect(rootToken("--surface-control-hover")).toBe("#1C2229");
+    expect(rootToken("--surface-chrome")).toBe("#0C0C0E");
+    expect(rootToken("--surface-control")).toBe("#151518");
+    expect(rootToken("--surface-control-hover")).toBe("#1C1C20");
     expect(styles).not.toMatch(/--flat-/);
     expect(styles).not.toMatch(/--proto-/);
     expect(styles).not.toMatch(/ALFRED CLEAN FLAT v4/);
@@ -1750,7 +1763,7 @@ describe("renderer CSS contracts", () => {
   it("keeps the CSS terminal surface on the approved graphite material", () => {
     const xtermHost = blockFor(".terminal-tile .xterm-host");
 
-    expect(rootToken("--ink-0")).toBe("#080A0D");
+    expect(rootToken("--ink-0")).toBe("#050506");
     expect(xtermHost).toContain("background: var(--ink-0)");
   });
 
