@@ -187,6 +187,11 @@ export function TerminalDesk({
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const gridColumnRef = useRef<HTMLDivElement | null>(null);
+  const closeDiffFocusRef = useRef<{
+    fallback: HTMLElement | null;
+    reason: WorktreeDiffCloseReason;
+    returnFocus: HTMLElement | null;
+  } | null>(null);
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
   const activeSessions = sessions.filter(
     (session) => session.workspaceId === activeWorkspaceId && isWorkSession(session),
@@ -269,22 +274,36 @@ export function TerminalDesk({
   const handleSelectSession = useCallback((sessionId: string) => onSelectSession(sessionId), [onSelectSession]);
   const handleCloseDiff = useCallback((reason: WorktreeDiffCloseReason) => {
     const targetSessionId = worktreeDiffView?.sessionId ?? selectedSession?.id;
+    const tiles = Array.from(gridRef.current?.querySelectorAll<HTMLElement>("[data-session-id]") ?? []);
+    const tile = tiles.find((candidate) => candidate.dataset.sessionId === targetSessionId)
+      ?? tiles.find((candidate) => candidate.dataset.sessionId === selectedSession?.id)
+      ?? tiles[0];
+    closeDiffFocusRef.current = {
+      fallback: tile?.querySelector<HTMLElement>(".terminal-tile-header") ?? tile ?? null,
+      reason,
+      returnFocus: worktreeDiffReturnFocus,
+    };
     onCloseWorktreeDiff();
-    requestAnimationFrame(() => {
-      const inertOwner = worktreeDiffReturnFocus?.closest("[inert]");
+  }, [onCloseWorktreeDiff, selectedSession?.id, worktreeDiffReturnFocus, worktreeDiffView?.sessionId]);
+
+  useEffect(() => {
+    if (worktreeDiffView || !closeDiffFocusRef.current) return;
+    const { fallback, reason, returnFocus } = closeDiffFocusRef.current;
+    closeDiffFocusRef.current = null;
+    const frame = requestAnimationFrame(() => {
+      const inertOwner = returnFocus?.closest("[inert]");
       if (
         reason === "button"
-        && worktreeDiffReturnFocus?.isConnected
+        && returnFocus?.isConnected
         && (!inertOwner || inertOwner === gridColumnRef.current)
       ) {
-        worktreeDiffReturnFocus.focus();
+        returnFocus.focus();
         return;
       }
-      const tile = Array.from(gridRef.current?.querySelectorAll<HTMLElement>("[data-session-id]") ?? [])
-        .find((candidate) => candidate.dataset.sessionId === targetSessionId);
-      (tile?.querySelector<HTMLElement>(".terminal-tile-header") ?? tile)?.focus();
+      fallback?.focus();
     });
-  }, [onCloseWorktreeDiff, selectedSession?.id, worktreeDiffReturnFocus, worktreeDiffView?.sessionId]);
+    return () => cancelAnimationFrame(frame);
+  }, [worktreeDiffView]);
   const startPointerArrange = useCallback(
     (tileId: string, mode: ArrangePointerMode, event: ReactPointerEvent<HTMLElement>) => {
       if (!arrangeMode) return;
