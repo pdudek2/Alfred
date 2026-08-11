@@ -196,30 +196,39 @@ export function TerminalDesk({
   const activeSessions = sessions.filter(
     (session) => session.workspaceId === activeWorkspaceId && isWorkSession(session),
   );
+  const workspaceUnavailable = workspaceRootStatus === "missing";
+  const visibleWorkspaceSessions = workspaceUnavailable
+    ? activeSessions.filter((session) => session.stage === "live")
+    : activeSessions;
   const activeLayouts = layouts;
-  const selectedSession = selectedSessionForDesk(activeSessions, selectedSessionId);
+  const selectedSession = selectedSessionForDesk(visibleWorkspaceSessions, selectedSessionId);
   const focusSession = workMode === "focus"
-    ? selectedSession ?? focusedSession(activeSessions, activeLayouts) ?? activeSessions[0] ?? null
+    ? selectedSession ?? focusedSession(visibleWorkspaceSessions, activeLayouts) ?? visibleWorkspaceSessions[0] ?? null
     : null;
   const splitSessions = workMode === "split"
-    ? splitSessionsForDesk(activeSessions, selectedSessionId, activeLayouts)
-    : activeSessions;
-  const visibleSessions = arrangeMode ? activeSessions : focusSession ? [focusSession] : splitSessions;
+    ? splitSessionsForDesk(visibleWorkspaceSessions, selectedSessionId, activeLayouts)
+    : visibleWorkspaceSessions;
+  const visibleSessions = arrangeMode ? visibleWorkspaceSessions : focusSession ? [focusSession] : splitSessions;
   const renderedSessions = sessions.filter(
     (session) => isWorkSession(session) && (
-      session.stage === "live" || session.workspaceId === activeWorkspaceId
+      session.stage === "live"
+      || (session.workspaceId === activeWorkspaceId && !workspaceUnavailable)
     ),
   );
   const visibleSessionIds = new Set(visibleSessions.map((session) => session.id));
   const inspectedSession = focusSession ?? selectedSession ?? visibleSessions[0] ?? null;
   const blockedStagedSession =
     inspectedSession?.stage === "staged" && isLaunchBlocked(inspectedSession) ? inspectedSession : null;
-  const showSplitEmptyState = workMode === "split" && activeSessions.length > 0 && visibleSessions.length < 2;
+  const showSplitEmptyState = workMode === "split" && visibleWorkspaceSessions.length > 0 && visibleSessions.length < 2;
   const gridDensity =
     workMode === "split" ? "split" : visibleSessions.length <= 1 ? "single" : visibleSessions.length === 2 ? "split" : "dense";
-  const manyUpGrid = !arrangeMode && workMode === "desk" && visibleSessions.length >= 5;
+  const stagedList = !arrangeMode
+    && workMode === "desk"
+    && visibleWorkspaceSessions.length > 0
+    && visibleWorkspaceSessions.every((session) => session.stage === "staged");
+  const manyUpGrid = !stagedList && !arrangeMode && workMode === "desk" && visibleSessions.length >= 5;
   const sixUpGrid = manyUpGrid && visibleSessions.length === 6;
-  const showLayoutControls = arrangeMode;
+  const showLayoutControls = arrangeMode && visibleWorkspaceSessions.length > 0;
 
   useEffect(() => {
     const column = gridColumnRef.current;
@@ -279,7 +288,7 @@ export function TerminalDesk({
       ?? tiles.find((candidate) => candidate.dataset.sessionId === selectedSession?.id)
       ?? tiles[0];
     closeDiffFocusRef.current = {
-      fallback: tile?.querySelector<HTMLElement>(".terminal-tile-header") ?? tile ?? null,
+      fallback: tile ?? null,
       reason,
       returnFocus: worktreeDiffReturnFocus,
     };
@@ -300,7 +309,7 @@ export function TerminalDesk({
         returnFocus.focus();
         return;
       }
-      fallback?.focus();
+      fallback?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
   }, [worktreeDiffView]);
@@ -435,11 +444,11 @@ export function TerminalDesk({
             />
           )}
           <div
-            className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}${manyUpGrid ? " many-up" : ""}${sixUpGrid ? " six-up" : ""}`}
+            className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}${manyUpGrid ? " many-up" : ""}${sixUpGrid ? " six-up" : ""}${stagedList ? " staged-list" : ""}`}
             data-testid="terminal-grid"
             ref={gridRef}
           >
-          {activeSessions.length === 0 && (
+          {visibleWorkspaceSessions.length === 0 && (
             <EmptyWorkspaceState
               onAddAgentSession={onAddAgentSession}
               onAddManualSession={onAddManualSession}
@@ -519,7 +528,7 @@ export function TerminalDesk({
               <StagedTilePreview
                 focusHidden={layoutHidden}
                 key={session.id}
-                layout={manyUpGrid ? undefined : layouts[session.id]}
+                layout={manyUpGrid || stagedList ? undefined : layouts[session.id]}
                 preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
                 tile={session}
                 selected={inspectedSession?.id === session.id}
@@ -687,7 +696,7 @@ function EmptyWorkspaceState({
         <strong>{heading}</strong>
         <p>
           {missing
-            ? "Choose the folder again to reconnect this workspace."
+            ? "Choose the folder again. Staged work stays parked until you reconnect this workspace."
             : workspaceHomeCopy(workspaceRootPath, workspaceGitBranch)}
         </p>
       </div>

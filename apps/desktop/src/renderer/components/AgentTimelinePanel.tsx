@@ -6,7 +6,6 @@ import { terminalSessionDisplayStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { shortenWorktreeLabel } from "../path-display";
-import { SessionStatusGlyph } from "./SessionStatusGlyph";
 
 export type AgentTimelinePanelProps = {
   onCopyActivityText?: (value: string) => Promise<void> | void;
@@ -234,7 +233,6 @@ export function AgentTimelinePanel({
       <header className="agent-timeline-header">
         <strong>{session.title}</strong>
         <span className={`agent-status-pill status-${displayStatus.kind}`}>
-          <SessionStatusGlyph kind={displayStatus.kind} label={displayStatus.label} />
           <span className="agent-status-text">{displayStatus.label}</span>
         </span>
       </header>
@@ -435,7 +433,6 @@ export function AgentTimelinePanel({
                   const payload = activityPayloadView(event);
                   return (
                     <li className={event.kind} key={event.id}>
-                      <span />
                       <div>
                         <b>{event.title}</b>
                         <p>{event.detail}</p>

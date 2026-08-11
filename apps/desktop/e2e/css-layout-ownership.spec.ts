@@ -252,6 +252,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await capture("arrange", [...frameProbes, ...terminalProbes]);
   await chooseWorkLayout(page, "Arrange");
   await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
+  await expect(page.getByText("Arrange mode", { exact: true })).toHaveCount(0);
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Arrange closed");
 
   await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
@@ -314,6 +315,12 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow Grid");
   await capture("narrow", [...frameProbes, ...terminalProbes]);
   await openContext(page);
+  const narrowContextGeometry = await readShellOwnerGeometry(page);
+  expect(narrowContextGeometry.workspaceGridColumns.trim().split(/\s+/)).toHaveLength(2);
+  expect(narrowContextGeometry.context.position).toBe("absolute");
+  expect(narrowContextGeometry.context.rightGap).toBeCloseTo(0, 0);
+  expect(narrowContextGeometry.context.width).toBeCloseTo(360, 0);
+  expect(narrowContextGeometry.context.overlapWithTerminal).toBeGreaterThan(0);
   const narrowContextEvidence = await capture("context-narrow", [...frameProbes, ...terminalProbes, ...contextProbes]);
   expect(narrowContextEvidence.documentOverflowX, "Narrow Context must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
@@ -333,6 +340,27 @@ test("captures deterministic CSS ownership evidence across core states and overl
       selector: ".context-drawer .agent-timeline-body",
     }],
   }), "Narrow Context controls must remain within their scroll owner").toEqual([]);
+
+  await selectSurface(page, "Sessions");
+  await expect(page.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
+  const narrowSessionsContext = await page.evaluate(() => {
+    const workspace = document.querySelector<HTMLElement>("[data-testid='workbench-shell']");
+    const sessionsSurface = document.querySelector<HTMLElement>(".sessions-surface");
+    const context = document.querySelector<HTMLElement>("[data-testid='context-column']");
+    if (!workspace || !sessionsSurface || !context) throw new Error("Narrow Sessions Context geometry is missing.");
+    const workspaceBounds = workspace.getBoundingClientRect();
+    const sessionsBounds = sessionsSurface.getBoundingClientRect();
+    const contextBounds = context.getBoundingClientRect();
+    return {
+      contextWidth: contextBounds.width,
+      rightGap: workspaceBounds.right - contextBounds.right,
+      sessionsWidth: sessionsBounds.width,
+      workspaceWidth: workspaceBounds.width,
+    };
+  });
+  expect(narrowSessionsContext.sessionsWidth).toBeCloseTo(narrowSessionsContext.workspaceWidth, 0);
+  expect(narrowSessionsContext.contextWidth).toBeCloseTo(360, 0);
+  expect(narrowSessionsContext.rightGap).toBeCloseTo(0, 0);
   await page.getByRole("button", { name: "Close Context panel" }).click();
   await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
   await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();

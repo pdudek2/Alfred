@@ -4084,6 +4084,67 @@ describe("App integration", () => {
     });
   });
 
+  it("parks staged work until its missing workspace folder is reconnected", async () => {
+    const user = userEvent.setup();
+    const stagedPlan: AlfredStagedPlanSnapshot = {
+      id: "plan-missing-workspace",
+      prompt: "resume prepared work",
+      sessions: [
+        {
+          id: "alfred-missing-work",
+          kind: "shell",
+          title: "Prepared task",
+          command: "pnpm",
+          args: ["test"],
+          workspaceId: "A",
+        },
+      ],
+    };
+    const { createTerminal } = installDesktopBridge(
+      undefined,
+      stagedPlan,
+      [],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          {
+            id: "A",
+            label: "Missing project",
+            shortLabel: "MP",
+            rootPath: "/Users/patryk/Desktop/MissingProject",
+            rootStatus: "missing",
+          },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+
+    render(<App />);
+
+    const emptyState = await screen.findByRole("status", { name: "Unavailable workspace folder" });
+    expect(emptyState).toHaveTextContent("Staged work stays parked until you reconnect this workspace.");
+    expect(screen.queryByRole("article", { name: /Staged Prepared task/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Launch Prepared task" })).not.toBeInTheDocument();
+
+    await openInboxFromCommandPalette(user);
+    expect(screen.queryByRole("button", { name: "Launch Prepared task in Missing project" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back to Work" }));
+
+    await user.click(within(emptyState).getByRole("button", { name: "Choose folder" }));
+
+    expect(await screen.findByRole("article", { name: /Staged Prepared task/i })).toBeInTheDocument();
+    expect(createTerminal).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Launch Prepared task" }));
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({
+        clientId: "alfred-missing-work",
+        cwd: "/Users/patryk/TrustedWorkspace",
+        workspaceId: "A",
+      }));
+    });
+  });
+
   it("keeps browser fallback terminal status consistent across tile and workspace", async () => {
     const user = userEvent.setup();
 
@@ -4560,7 +4621,7 @@ describe("App integration", () => {
     expect(createTerminal).toHaveBeenCalledTimes(1);
   });
 
-  it("starts Work in Arrange while keeping layout presets available", async () => {
+  it("starts Work in Grid and enters Arrange only when requested", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [], undefined, {
       layoutsByWorkspace: {},
@@ -4570,24 +4631,24 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open layout menu, Arrange selected" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Resize Manual · zsh 1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Resize Manual · zsh 1" })).not.toBeInTheDocument();
 
     const stage = screen.getByLabelText("terminals");
-    expect(stage).not.toHaveClass("headerless");
-    expect(stage.querySelector(".terminal-stage-header")).toBeInTheDocument();
-    expect(screen.getByText("Arrange mode")).toBeInTheDocument();
-    expect(screen.getByText("drag or arrows · Shift+arrows resize")).toBeInTheDocument();
+    expect(stage).toHaveClass("headerless");
+    expect(stage.querySelector(".terminal-stage-header")).not.toBeInTheDocument();
+    expect(screen.queryByText("Arrange mode")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Apply Full preset" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Apply Split preset" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Apply Grid preset" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Move right" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Widen" })).not.toBeInTheDocument();
 
-    await chooseWorkLayout(user, "Grid");
+    await chooseWorkLayout(user, "Arrange");
 
-    expect(screen.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Resize Manual · zsh 1" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open layout menu, Arrange selected" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resize Manual · zsh 1" })).toBeInTheDocument();
+    expect(screen.getByText("Arrange mode")).toBeInTheDocument();
   });
 
   it("switches desk work modes without entering arrange mode", async () => {
@@ -7333,7 +7394,7 @@ describe("App integration", () => {
 
     const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
 
-    expect(screen.getByRole("button", { name: "Open layout menu, Arrange selected" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeInTheDocument();
     expect(tile).toHaveStyle({ gridColumn: "3 / span 6", gridRow: "2 / span 4" });
   });
 
@@ -9648,7 +9709,7 @@ describe("App integration", () => {
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage preflight");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
-    expect(await screen.findByRole("article", { name: /Staged Safe task/i })).toHaveTextContent("normal workspace");
+    expect(await screen.findByRole("article", { name: /Staged Safe task/i })).toHaveTextContent("shared workspace");
     const blocked = screen.getByRole("article", { name: /Staged Blocked Codex/i });
     expect(blocked).toHaveTextContent("Launch blocked: Workspace has uncommitted or untracked changes.");
     await openInboxFromCommandPalette(user);

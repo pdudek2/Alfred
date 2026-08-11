@@ -1105,6 +1105,55 @@ describe("renderer CSS contracts", () => {
     expect(focusPeek[0]).toContain("content: attr(data-label)");
   });
 
+  it("keeps narrow Context over the work surface instead of creating a third fixed column", () => {
+    const narrowWorkContext = mediaExactRuleBodies(
+      "(max-width: 1180px)",
+      "html .workspace-layout.context-visible",
+    );
+    expect(narrowWorkContext).toHaveLength(1);
+    expect(narrowWorkContext[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
+
+    const narrowContext = mediaExactRuleBodies(
+      "(max-width: 1180px)",
+      "html .workspace-layout.context-visible > .context-column",
+    );
+    expect(narrowContext).toHaveLength(1);
+    expect(narrowContext[0]).toContain("position: absolute");
+    expect(narrowContext[0]).toContain("grid-column: auto");
+    expect(narrowContext[0]).toContain("width: min(360px, calc(100% - 46px))");
+
+    for (const selector of [
+      "html .workspace-layout.surface-inbox.context-visible > .context-column",
+      "html .workspace-layout.surface-sessions.context-visible > .context-column",
+    ]) {
+      const narrowSurfaceContext = mediaExactRuleBodies("(max-width: 1180px)", selector);
+      expect(narrowSurfaceContext).toHaveLength(1);
+      expect(narrowSurfaceContext[0]).toContain("grid-column: auto");
+    }
+  });
+
+  it("uses one flat staged queue and an unboxed Work empty state", () => {
+    const stagedList = singleTopLevelRuleBodyIn(styles, ".terminal-grid.staged-list");
+    const stagedTile = blockFor(".terminal-grid.staged-list .terminal-tile.staged");
+    const stagedHeader = singleTopLevelRuleBodyIn(styles, ".terminal-grid.staged-list .terminal-tile.staged > header");
+    const stagedTitle = singleTopLevelRuleBodyIn(styles, ".terminal-grid.staged-list .tile-title b");
+    const stagedCommand = singleTopLevelRuleBodyIn(styles, ".terminal-grid.staged-list .staged-command");
+    const emptyState = singleTopLevelRuleBodyIn(styles, ".terminal-empty-state");
+    const emptyFact = singleTopLevelRuleBodyIn(styles, ".terminal-empty-facts > div");
+
+    expect(stagedList).toContain("grid-template-columns: minmax(0, 1fr)");
+    expect(stagedList).toContain("gap: 0");
+    expect(stagedTile).toContain("border-radius: 0");
+    expect(stagedTile).toContain("background: transparent");
+    expect(stagedHeader).toContain("grid-template-columns: minmax(0, 1fr) auto");
+    expect(stagedTitle).toContain("font: 650 13px/1.2 var(--sans)");
+    expect(stagedCommand).toContain("color: var(--text-secondary)");
+    expect(emptyState).toContain("border: 0");
+    expect(emptyState).toContain("text-align: left");
+    expect(emptyFact).toContain("border: 0");
+    expect(emptyFact).toContain("background: transparent");
+  });
+
   it("keeps project session disclosure compact and visibly expanded", () => {
     const disclosure = singleTopLevelRuleBodyIn(styles, ".project-session-disclosure");
     const expanded = singleTopLevelRuleBodyIn(
@@ -2264,7 +2313,8 @@ describe("renderer CSS contracts", () => {
 
     expect(drawer).toContain("background: var(--ink-1)");
     expect(drawer).not.toContain("transparent");
-    expect(essentials).toContain("background: var(--surface-control)");
+    expect(essentials).toContain("background: transparent");
+    expect(essentials).toContain("border-bottom: 1px solid var(--line)");
     expect(essentialsCommand).toContain("var(--mono)");
     expect(disclosureToggle).toContain("var(--sans)");
     expect(disclosureToggle).not.toContain("uppercase");
@@ -2272,7 +2322,7 @@ describe("renderer CSS contracts", () => {
     expect(factValue).toContain("color: var(--text-secondary)");
     expect(pulseTitle).toContain("color: var(--text-primary)");
     expect(pulseBody).toContain("color: var(--text-muted)");
-    expect(handoffButton).toContain("background: var(--surface-control)");
+    expect(handoffButton).toContain("background: transparent");
     expect(styles).toContain(".context-drawer .agent-session-pulse span {");
     expect(styles).toContain("font: 650 13px/1.2 var(--sans)");
     expect(styles).toContain(".context-drawer .agent-session-pulse p {");

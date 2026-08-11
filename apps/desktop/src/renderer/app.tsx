@@ -191,7 +191,7 @@ function tileLayoutRecordsEqual(
 export function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(DEFAULT_WORKSPACES);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(DEFAULT_WORKSPACE_ID);
-  const [arrangeMode, setArrangeMode] = useState<boolean>(true);
+  const [arrangeMode, setArrangeMode] = useState<boolean>(false);
   const [workModesByWorkspace, setWorkModesByWorkspace] = useState<Record<string, WorkMode>>({
     [DEFAULT_WORKSPACE_ID]: "desk",
   });
@@ -308,7 +308,11 @@ export function App() {
     null;
   const canCloseActiveWorkspace =
     activeWorkspace.id !== DEFAULT_WORKSPACE_ID && workspaces.length > 1 && activeSessions.length === 0;
+  const unavailableWorkspaceIds = new Set(
+    workspaces.filter((workspace) => workspace.rootStatus === "missing").map((workspace) => workspace.id),
+  );
   const attentionItems = buildAttentionProjection(workspaces, terminalSessions).filter((item) => {
+    if (unavailableWorkspaceIds.has(item.workspaceId)) return false;
     const session = terminalSessions.find((candidate) => candidate.id === item.sessionId);
     return item.section !== "recovery"
       || session?.runtimeStatus !== "restored"
@@ -498,7 +502,26 @@ export function App() {
         setActiveWorkspaceId(snapshot.activeWorkspaceId);
         const rootPath = workspace?.rootPath;
         if (workspace && rootPath && workspace.rootStatus !== "missing") {
-          setTerminalSessions((sessions) => addManualSession(sessions, rootPath, workspace.id));
+          setTerminalSessions((sessions) => {
+            const workspaceSessions = sessions.filter((session) => session.workspaceId === workspace.id);
+            if (workspaceSessions.length === 0) return addManualSession(sessions, rootPath, workspace.id);
+
+            return sessions.map((session) => {
+              if (
+                session.workspaceId !== workspace.id
+                || session.stage !== "staged"
+                || session.cwd !== activeWorkspace.rootPath
+              ) return session;
+
+              return {
+                ...session,
+                cwd: rootPath,
+                ...(session.launchPreflight?.status === "ready" && session.launchPreflight.cwd === activeWorkspace.rootPath
+                  ? { launchPreflight: { ...session.launchPreflight, cwd: rootPath } }
+                  : {}),
+              };
+            });
+          });
         }
         return;
       }
@@ -524,7 +547,7 @@ export function App() {
     setWorkspaces([...workspaces, workspace]);
     setActiveWorkspaceId(workspace.id);
     setTerminalSessions((sessions) => addManualSession(sessions, "", workspace.id));
-  }, [activeWorkspace.id, activeWorkspace.rootStatus, workspaces]);
+  }, [activeWorkspace.id, activeWorkspace.rootPath, activeWorkspace.rootStatus, workspaces]);
 
   const handleCloseActiveWorkspace = useCallback(() => {
     if (!canCloseActiveWorkspace) return;
@@ -1775,6 +1798,9 @@ export function App() {
 
   const handleApproveTile = useCallback((tileId: string) => {
     const tile = terminalSessions.find((session) => session.id === tileId);
+    if (tile && workspaces.find((workspace) => workspace.id === tile.workspaceId)?.rootStatus === "missing") {
+      return;
+    }
     if (tile && isLaunchBlocked(tile)) {
       setTerminalSessions((sessions) =>
         appendSessionActivity(sessions, tileId, {
@@ -1803,7 +1829,7 @@ export function App() {
         detail: "The staged command was released to the terminal runtime.",
       }),
     );
-  }, [terminalSessions]);
+  }, [terminalSessions, workspaces]);
 
   const handleLaunchInboxItem = useCallback((sessionId: string) => {
     handleApproveTile(sessionId);
@@ -2446,7 +2472,7 @@ export function App() {
         const hydratedWorkspaceId = workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID;
         setRuntimeStatus(runtimeStatusResult);
         setTileLayoutsByWorkspace(layoutResult.layoutsByWorkspace);
-        setArrangeMode(layoutResult.viewStateByWorkspace[hydratedWorkspaceId]?.workMode === undefined);
+        setArrangeMode(false);
         setWorkModesByWorkspace({
           [DEFAULT_WORKSPACE_ID]: "desk",
           ...Object.fromEntries(

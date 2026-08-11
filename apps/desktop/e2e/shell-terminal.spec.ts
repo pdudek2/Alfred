@@ -187,10 +187,13 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await expect(page.locator(".project-navigator")).toHaveCSS("width", "46px");
   const contextBounds = await page.getByTestId("context-column").boundingBox();
   const terminalBounds = await page.locator(".terminal-stage").boundingBox();
+  const viewportWidth = await page.evaluate(() => window.innerWidth);
   expect(contextBounds).not.toBeNull();
   expect(terminalBounds).not.toBeNull();
   expect(terminalBounds!.width).toBeGreaterThanOrEqual(420);
-  expect(terminalBounds!.x + terminalBounds!.width).toBeLessThanOrEqual(contextBounds!.x);
+  expect(contextBounds!.width).toBeCloseTo(360, 0);
+  expect(contextBounds!.x + contextBounds!.width).toBeCloseTo(viewportWidth, 0);
+  expect(terminalBounds!.x + terminalBounds!.width).toBeGreaterThan(contextBounds!.x);
   await page.getByRole("button", { name: "Close Context panel" }).click();
 
   const surfacesTrigger = page.getByRole("button", { name: "Open Surfaces menu" });
