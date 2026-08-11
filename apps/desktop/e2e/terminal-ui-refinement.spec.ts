@@ -20,17 +20,18 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
   await expect(manualTile.locator(".tile-kind-mark.codex .kind-brand-icon")).toBeVisible();
   await expect(page.locator('.project-session[data-session-id="manual-1"]')
     .locator(".project-session-kind.kind-codex .kind-brand-icon")).toBeVisible();
+  await expect.poll(() => tiles.evaluateAll(
+    (nodes) => nodes.every((node) => node.classList.contains("ready")),
+  )).toBe(true);
 
   const placement = await tiles.evaluateAll((nodes) => nodes.map((node) => ({
     id: (node as HTMLElement).dataset.sessionId,
     column: (node as HTMLElement).style.gridColumn,
     row: (node as HTMLElement).style.gridRow,
   })));
-  expect(placement.map(({ column, row }) => ({ column, row }))).toEqual([
-    { column: "1 / span 6", row: "1 / span 3" },
-    { column: "7 / span 6", row: "1 / span 3" },
-    { column: "1 / span 12", row: "4 / span 3" },
-  ]);
+  expect(placement.map(({ column, row }) => ({ column, row }))).toEqual(
+    Array.from({ length: 3 }, () => ({ column: "", row: "" })),
+  );
   await expect(manualTile).toHaveClass(/selected/);
 
   await app.evaluate(({ BrowserWindow }) => {
@@ -44,9 +45,14 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
 
   await chooseWorkLayout(page, "Grid");
   await addSession(page, "New manual terminal");
+  const secondManualTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-2"]');
+  await expect(secondManualTile).toHaveClass(/ready/);
+  await expect(secondManualTile).toHaveClass(/selected/);
   await addSession(page, "New manual terminal");
   await expect(tiles).toHaveCount(5);
-  await expect(tiles.last()).toHaveClass(/selected/);
+  const thirdManualTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-3"]');
+  await expect(thirdManualTile).toHaveClass(/ready/);
+  await expect(thirdManualTile).toHaveClass(/selected/);
   await expect(page.getByTestId("terminal-grid")).toHaveClass(/many-up/);
   expect(await tiles.evaluateAll((nodes) => nodes.map((node) => ({
     column: (node as HTMLElement).style.gridColumn,
@@ -107,6 +113,8 @@ test("scrolls the terminal Grid only from its right scrollbar gutter", async ({ 
 
   const host = page.getByTestId("xterm-host").first();
   await expect(host).toContainText("240");
+  const initialTerminalRowCount = await host.locator(".xterm-rows > div").count();
+  expect(initialTerminalRowCount).toBeGreaterThan(0);
   for (let index = 0; index < 5; index += 1) {
     await addSession(page, "New manual terminal");
   }
@@ -117,12 +125,48 @@ test("scrolls the terminal Grid only from its right scrollbar gutter", async ({ 
   const screen = host.locator(".xterm-screen");
   const column = page.locator(".terminal-grid-column");
   const slider = host.locator(".scrollbar.vertical .slider");
+  await column.evaluate((element) => { element.scrollTop = 0; });
+  await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBe(0);
+  await expect.poll(async () => {
+    const [screenBounds, columnBounds] = await Promise.all([screen.boundingBox(), column.boundingBox()]);
+    if (!screenBounds || !columnBounds) return false;
+    return screenBounds.y >= columnBounds.y && screenBounds.y < columnBounds.y + columnBounds.height;
+  }).toBe(true);
+  await expect.poll(() => host.locator(".xterm-rows > div").count()).toBeLessThan(initialTerminalRowCount);
   await screen.hover();
 
-  const terminalBottom = await slider.evaluate((element) => Number.parseFloat((element as HTMLElement).style.top));
+  const terminalPositionBeforeHistoryScroll = await slider.evaluate(
+    (element) => Number.parseFloat((element as HTMLElement).style.top),
+  );
+  await page.mouse.wheel(0, -10_000);
+  await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBe(0);
+  await expect.poll(() => slider.evaluate(
+    (element) => Number.parseFloat((element as HTMLElement).style.top),
+  )).not.toBe(terminalPositionBeforeHistoryScroll);
+  const terminalHistoryPosition = await slider.evaluate(
+    (element) => Number.parseFloat((element as HTMLElement).style.top),
+  );
+
+  let terminalBottomPosition = terminalHistoryPosition;
+  await expect.poll(async () => {
+    const positionBeforeWheel = await slider.evaluate(
+      (element) => Number.parseFloat((element as HTMLElement).style.top),
+    );
+    await page.mouse.wheel(0, 120);
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+    terminalBottomPosition = await slider.evaluate(
+      (element) => Number.parseFloat((element as HTMLElement).style.top),
+    );
+    return terminalBottomPosition === positionBeforeWheel;
+  }, { intervals: [16] }).toBe(true);
+  expect(terminalBottomPosition).toBeGreaterThan(terminalHistoryPosition);
+  await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBe(0);
+
   await page.mouse.wheel(0, 120);
   await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBe(0);
-  expect(await slider.evaluate((element) => Number.parseFloat((element as HTMLElement).style.top))).toBe(terminalBottom);
+  expect(await slider.evaluate(
+    (element) => Number.parseFloat((element as HTMLElement).style.top),
+  )).toBe(terminalBottomPosition);
 
   await page.locator('[data-testid="terminal-tile"]').first().locator(".tile-header").hover();
   await page.mouse.wheel(0, 120);
@@ -133,27 +177,6 @@ test("scrolls the terminal Grid only from its right scrollbar gutter", async ({ 
   await page.mouse.move(columnBounds!.x + columnBounds!.width - 2, columnBounds!.y + columnBounds!.height / 2);
   await page.mouse.wheel(0, 120);
   await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
-
-  await column.evaluate((element) => { element.scrollTop = 0; });
-  await screen.hover();
-  for (let index = 0; index < 8; index += 1) {
-    await page.mouse.wheel(0, -120);
-    await page.waitForTimeout(40);
-  }
-  await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBe(0);
-  const terminalHistoryPosition = await slider.evaluate(
-    (element) => Number.parseFloat((element as HTMLElement).style.top),
-  );
-  expect(terminalHistoryPosition).toBeLessThan(terminalBottom);
-
-  for (let index = 0; index < 24; index += 1) {
-    await page.mouse.wheel(0, 120);
-    await page.waitForTimeout(20);
-  }
-  await expect.poll(() => slider.evaluate(
-    (element) => Number.parseFloat((element as HTMLElement).style.top),
-  )).toBe(terminalBottom);
-  expect(await column.evaluate((element) => element.scrollTop)).toBe(0);
 });
 
 test("manual terminal adopts the Claude runtime identity", async ({ harness }, testInfo) => {

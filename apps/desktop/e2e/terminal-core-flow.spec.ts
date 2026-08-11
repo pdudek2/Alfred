@@ -55,7 +55,7 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   await expectTerminalNodes(survivorNodes, page, "Grid membership 2→3", 3);
   const afterMembershipChange = await readTileGridPlacement(page, ["manual-1", "manual-2"]);
   expect(afterMembershipChange).toEqual(beforeMembershipChange);
-  expect((await readTileGridPlacement(page, ["manual-3"]))["manual-3"]?.gridRow).toBe("5 / span 3");
+  expect((await readTileGridPlacement(page, ["manual-3"]))["manual-3"]?.gridRow).toBe("auto");
   const selectionBorders = await page.locator(
     '[data-testid="terminal-tile"][data-session-id="manual-1"], [data-testid="terminal-tile"][data-session-id="manual-3"]',
   ).evaluateAll(

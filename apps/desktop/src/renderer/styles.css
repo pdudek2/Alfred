@@ -1888,6 +1888,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .terminal-grid.laid-out.dense.many-up {
   --grid-bottom-safe-zone: 10px;
   grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr));
+  grid-template-rows: none;
   grid-auto-rows: max(560px, calc(100dvh - 150px));
 }
 
@@ -3059,6 +3060,15 @@ body.arranging-pointer {
     padding-left: 0;
     margin-left: 0;
     border-left-width: 0;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .terminal-tile:hover .tile-utility-actions,
+  .terminal-tile:hover .tile-danger-actions,
+  .terminal-tile:focus-within .tile-utility-actions,
+  .terminal-tile:focus-within .tile-danger-actions {
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
