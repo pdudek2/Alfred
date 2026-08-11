@@ -7607,7 +7607,7 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
     setWorkspaceLayout.mockClear();
     await chooseWorkLayout(user, "Focus");
-    await user.click(screen.getByRole("button", { name: "Manual · zsh 2", exact: true }));
+    await user.click(screen.getByRole("button", { name: /^Manual · zsh 2$/ }));
     await chooseWorkLayout(user, "Split");
     await chooseWorkLayout(user, "Grid");
     await chooseWorkLayout(user, "Arrange");
