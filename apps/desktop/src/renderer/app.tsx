@@ -242,6 +242,7 @@ export function App() {
   const prepareWorkTriggerRef = useRef<HTMLButtonElement | null>(null);
   const previewTriggerRef = useRef<HTMLButtonElement | null>(null);
   const agentsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const worktreeDiffReturnFocusRef = useRef<HTMLElement | null>(null);
   const surfacesTriggerRef = useRef<HTMLButtonElement | null>(null);
   const privacyReturnFocusRef = useRef<HTMLElement | null>(null);
   const discardReturnFocusRef = useRef<HTMLElement | null>(null);
@@ -1376,6 +1377,10 @@ export function App() {
 
     const actionKey = beginWorktreeAction(session, "review");
     if (!actionKey) return;
+    worktreeDiffReturnFocusRef.current = document.activeElement instanceof HTMLElement
+      && document.activeElement !== document.body
+      ? document.activeElement
+      : null;
     setAgentsDrawerOpen(false);
     handleFocusSessionInWorkspace(workspaceId, sessionId);
     setWorktreeDiffView({
@@ -1443,7 +1448,10 @@ export function App() {
     void handleOpenWorktreeDiff(session?.workspaceId ?? activeWorkspaceId, sessionId);
   }, [activeWorkspaceId, handleOpenWorktreeDiff]);
 
-  const handleCloseWorktreeDiff = useCallback(() => setWorktreeDiffView(null), []);
+  const handleCloseWorktreeDiff = useCallback(() => {
+    worktreeDiffReturnFocusRef.current = null;
+    setWorktreeDiffView(null);
+  }, []);
 
   const handleApplyWorktree = useCallback(async (sessionId: string) => {
     const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
@@ -2803,6 +2811,7 @@ export function App() {
                   surfaceActive={!workSurfaceHidden}
                   workMode={activeWorkMode}
                   worktreeActionPending={worktreeActionPending}
+                  worktreeDiffReturnFocus={worktreeDiffReturnFocusRef.current}
                   worktreeDiffView={worktreeDiffView}
                   workspaceGitBranch={activeWorkspace.gitBranch}
                   workspaceLabel={activeWorkspace.label}

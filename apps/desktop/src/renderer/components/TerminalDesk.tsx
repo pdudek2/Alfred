@@ -45,7 +45,7 @@ import { normalizeSessionTitle } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
-import { WorktreeDiffPanel } from "./WorktreeDiffPanel";
+import { WorktreeDiffPanel, type WorktreeDiffCloseReason } from "./WorktreeDiffPanel";
 import type { WorktreeDiffView } from "../worktree-diff";
 
 const ARRANGE_GRID_ROW_HEIGHT = 84;
@@ -99,6 +99,7 @@ type TerminalDeskProps = {
   surfaceActive: boolean;
   workMode: WorkMode;
   worktreeActionPending: Record<string, WorktreeActionKind | undefined>;
+  worktreeDiffReturnFocus: HTMLElement | null;
   worktreeDiffView: WorktreeDiffView | null;
   workspaceGitBranch?: string | undefined;
   workspaceLabel: string;
@@ -148,6 +149,7 @@ export function TerminalDesk({
   surfaceActive,
   workMode,
   worktreeActionPending,
+  worktreeDiffReturnFocus,
   worktreeDiffView,
   workspaceGitBranch,
   workspaceLabel,
@@ -265,15 +267,24 @@ export function TerminalDesk({
     [arrangeMode, onFocusSession, onSelectSession],
   );
   const handleSelectSession = useCallback((sessionId: string) => onSelectSession(sessionId), [onSelectSession]);
-  const handleCloseDiff = useCallback(() => {
+  const handleCloseDiff = useCallback((reason: WorktreeDiffCloseReason) => {
     const targetSessionId = worktreeDiffView?.sessionId ?? selectedSession?.id;
     onCloseWorktreeDiff();
     requestAnimationFrame(() => {
+      const inertOwner = worktreeDiffReturnFocus?.closest("[inert]");
+      if (
+        reason === "button"
+        && worktreeDiffReturnFocus?.isConnected
+        && (!inertOwner || inertOwner === gridColumnRef.current)
+      ) {
+        worktreeDiffReturnFocus.focus();
+        return;
+      }
       const tile = Array.from(gridRef.current?.querySelectorAll<HTMLElement>("[data-session-id]") ?? [])
         .find((candidate) => candidate.dataset.sessionId === targetSessionId);
       (tile?.querySelector<HTMLElement>(".terminal-tile-header") ?? tile)?.focus();
     });
-  }, [onCloseWorktreeDiff, selectedSession?.id, worktreeDiffView?.sessionId]);
+  }, [onCloseWorktreeDiff, selectedSession?.id, worktreeDiffReturnFocus, worktreeDiffView?.sessionId]);
   const startPointerArrange = useCallback(
     (tileId: string, mode: ArrangePointerMode, event: ReactPointerEvent<HTMLElement>) => {
       if (!arrangeMode) return;

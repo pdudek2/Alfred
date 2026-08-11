@@ -2,12 +2,14 @@ import { useEffect, useMemo, useRef } from "react";
 import { parseUnifiedDiff, type WorktreeDiffLine, type WorktreeDiffView } from "../worktree-diff";
 import "./worktree-diff-panel.css";
 
+export type WorktreeDiffCloseReason = "button" | "escape";
+
 export function WorktreeDiffPanel({
   view,
   onClose,
 }: {
   view: WorktreeDiffView;
-  onClose: () => void;
+  onClose: (reason: WorktreeDiffCloseReason) => void;
 }) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
 
@@ -19,7 +21,7 @@ export function WorktreeDiffPanel({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
       event.preventDefault();
-      onClose();
+      onClose("escape");
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -32,7 +34,7 @@ export function WorktreeDiffPanel({
           <h2>Last review</h2>
           <p>{view.sessionTitle}</p>
         </div>
-        <button ref={closeRef} type="button" onClick={onClose}>
+        <button ref={closeRef} type="button" onClick={() => onClose("button")}>
           {view.status === "error" ? "Back to terminal" : "Close diff"}
         </button>
       </header>

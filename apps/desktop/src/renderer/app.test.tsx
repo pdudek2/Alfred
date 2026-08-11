@@ -37,6 +37,10 @@ const { terminalConstructorOptions, terminalDisposeCalls, terminalFocusSessionId
 }));
 
 const rendererStyles = readFileSync(resolve(process.cwd(), "src/renderer/styles.css"), "utf8");
+const worktreeDiffPanelStyles = readFileSync(
+  resolve(process.cwd(), "src/renderer/components/worktree-diff-panel.css"),
+  "utf8",
+);
 
 vi.mock("@xterm/xterm", () => ({
   Terminal: class {
@@ -618,6 +622,7 @@ function renderTerminalDeskForSessions(
       surfaceActive
       workMode="desk"
       worktreeActionPending={{}}
+      worktreeDiffReturnFocus={null}
       worktreeDiffView={null}
       workspaceGitBranch="main"
       workspaceLabel="Alfred"
@@ -5695,6 +5700,16 @@ describe("App integration", () => {
     render(<App />);
     const tile = await screen.findByRole("article", { name: /Codex · diff reader/i });
     const xtermHost = await screen.findByTestId("xterm-host");
+    const terminalGrid = screen.getByTestId("terminal-grid");
+    const gridColumn = terminalGrid.parentElement!;
+    const diffStyles = document.createElement("style");
+    diffStyles.textContent = worktreeDiffPanelStyles;
+    document.head.append(diffStyles);
+    const stableGridRect = domRect(960, 640);
+    vi.spyOn(gridColumn, "getBoundingClientRect").mockImplementation(() =>
+      getComputedStyle(gridColumn).display === "none" ? domRect(0, 0) : stableGridRect,
+    );
+    const gridRectBeforeDiff = gridColumn.getBoundingClientRect();
     await waitFor(() => expect(window.alfredDesktop?.terminal.onExit).toHaveBeenCalled());
     await bridge.emitExit({ id: "runtime-diff-reader", exitCode: 0 });
 
@@ -5708,8 +5723,18 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Removed line 1")).toHaveTextContent("-old value");
     expect(screen.getByLabelText("Added line 1")).toHaveTextContent("+new value");
     expect(xtermHost.isConnected).toBe(true);
-    expect(screen.getByTestId("terminal-grid").parentElement).toHaveAttribute("aria-hidden", "true");
-    expect(screen.getByTestId("terminal-grid").parentElement).toHaveAttribute("inert");
+    expect(gridColumn).toHaveAttribute("aria-hidden", "true");
+    expect(gridColumn).toHaveAttribute("inert");
+    const gridRectDuringDiff = gridColumn.getBoundingClientRect();
+    const hiddenGridDisplay = getComputedStyle(gridColumn).display;
+    const hiddenGridVisibility = getComputedStyle(gridColumn).visibility;
+    const diffPanelPosition = getComputedStyle(screen.getByRole("region", { name: "Worktree diff" })).position;
+    diffStyles.remove();
+    expect(gridRectBeforeDiff).toEqual(stableGridRect);
+    expect(gridRectDuringDiff).toEqual(stableGridRect);
+    expect(hiddenGridDisplay).not.toBe("none");
+    expect(hiddenGridVisibility).toBe("hidden");
+    expect(diffPanelPosition).toBe("absolute");
 
     await user.click(screen.getByRole("button", { name: "Close diff" }));
 
@@ -5718,11 +5743,18 @@ describe("App integration", () => {
     expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
     await waitFor(() => expect(tile).toHaveFocus());
 
-    await user.click(screen.getByRole("button", { name: "Review diff" }));
+    const reviewDiff = screen.getByRole("button", { name: "Review diff" });
+    await user.click(reviewDiff);
+    expect(await screen.findByRole("region", { name: "Worktree diff" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Close diff" }));
+    await waitFor(() => expect(reviewDiff).toHaveFocus());
+
+    await user.click(reviewDiff);
     expect(await screen.findByRole("region", { name: "Worktree diff" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("region", { name: "Worktree diff" })).not.toBeInTheDocument();
     expect(xtermHost.isConnected).toBe(true);
+    await waitFor(() => expect(tile).toHaveFocus());
   });
 
   it("drops a pending diff when its session instance is replaced", async () => {

@@ -1,8 +1,16 @@
+.terminal-stage-body:has(> .worktree-diff-panel) {
+  position: relative;
+}
+
 .terminal-grid-column.worktree-diff-hidden {
-  display: none;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .worktree-diff-panel {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
   min-width: 0;
   min-height: 0;
   flex: 1 1 auto;
