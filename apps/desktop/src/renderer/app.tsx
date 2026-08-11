@@ -1069,7 +1069,6 @@ export function App() {
     if (!targetExists) return;
 
     const workMode = workModesByWorkspace[workspaceId] ?? "desk";
-    const layoutApi = getDesktopLayoutApi();
     setActiveSurface("work");
     setActiveWorkspaceId(workspaceId);
     setSelectedSessionIdsByWorkspace((current) =>

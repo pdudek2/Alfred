@@ -1,12 +1,13 @@
 export const MAX_SESSION_TITLE_LENGTH = 80;
 
-const OSC_SEQUENCE = /\u001b\][\s\S]*?(?:\u0007|\u001b\\)/g;
-const CSI_SEQUENCE = /\u001b\[[0-?]*[ -/]*[@-~]/g;
-const ESCAPE_SEQUENCE = /\u001b(?:[ -/]*[@-~]|[78])?/g;
-const TITLE_CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g;
-const INCOMPLETE_OSC_SEQUENCE = /\u001b\](?:(?!\u0007|\u001b\\)[\s\S])*$/;
-const INCOMPLETE_CSI_SEQUENCE = /\u001b\[[0-?]*[ -/]*$/;
-const INCOMPLETE_ESCAPE_SEQUENCE = /\u001b[ -/]*$/;
+const ESCAPE = String.fromCharCode(0x1B);
+const BEL = String.fromCharCode(0x07);
+const OSC_SEQUENCE = new RegExp(`${ESCAPE}\\][\\s\\S]*?(?:${BEL}|${ESCAPE}\\\\)`, "g");
+const CSI_SEQUENCE = new RegExp(`${ESCAPE}\\[[0-?]*[ -/]*[@-~]`, "g");
+const ESCAPE_SEQUENCE = new RegExp(`${ESCAPE}(?:[ -/]*[@-~]|[78])?`, "g");
+const INCOMPLETE_OSC_SEQUENCE = new RegExp(`${ESCAPE}\\](?:(?!${BEL}|${ESCAPE}\\\\)[\\s\\S])*$`);
+const INCOMPLETE_CSI_SEQUENCE = new RegExp(`${ESCAPE}\\[[0-?]*[ -/]*$`);
+const INCOMPLETE_ESCAPE_SEQUENCE = new RegExp(`${ESCAPE}[ -/]*$`);
 
 export type TerminalControlStripResult = {
   text: string;
@@ -26,6 +27,15 @@ export function stripTerminalControlSequencesWithRemainder(value: string): Termi
   return { text: text.replace(OSC_SEQUENCE, "").replace(CSI_SEQUENCE, "").replace(ESCAPE_SEQUENCE, ""), remainder };
 }
 
+export function stripTitleControlCharacters(value: string): string {
+  return Array.from(value, (character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x08 || (code >= 0x0B && code <= 0x0C) || (code >= 0x0E && code <= 0x1F) || (code >= 0x7F && code <= 0x9F)
+      ? ""
+      : character;
+  }).join("");
+}
+
 export function normalizeSessionTitle(title: string): string {
-  return stripTerminalControlSequences(title).replace(TITLE_CONTROL, "").trim().replace(/\s+/g, " ").slice(0, MAX_SESSION_TITLE_LENGTH);
+  return stripTitleControlCharacters(stripTerminalControlSequences(title)).trim().replace(/\s+/g, " ").slice(0, MAX_SESSION_TITLE_LENGTH);
 }
