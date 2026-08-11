@@ -15,6 +15,9 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   const { app, page } = harness;
   await setWindowSize(app, page, 1440, 900);
 
+  await page.getByRole("toolbar", { name: "Work layout controls" })
+    .getByRole("button", { name: "New terminal" })
+    .click();
   const workScreen = page.locator(".xterm-screen").first();
   await expect(workScreen).toBeAttached();
   const screenBefore = await requiredHandle(workScreen, "initial Work xterm screen");

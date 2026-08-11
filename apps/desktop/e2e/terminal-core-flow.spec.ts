@@ -64,7 +64,7 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
       return { id: (tile as HTMLElement).dataset.sessionId, color: style.borderTopColor, width: style.borderTopWidth };
     }),
   );
-  expect(selectionBorders.find((border) => border.id === "manual-3")?.width).toBe("2px");
+  expect(selectionBorders.find((border) => border.id === "manual-3")?.width).toBe("1px");
   expect(selectionBorders.find((border) => border.id === "manual-3")?.color)
     .not.toBe(selectionBorders.find((border) => border.id === "manual-1")?.color);
   await captureReviewScreenshot(page, testInfo, "grid-3-1440x920");

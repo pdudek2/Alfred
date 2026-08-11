@@ -175,7 +175,10 @@ test.describe("deterministic mixed Decision Inbox", () => {
   test("terminal continuity and geometry preserve one xterm node and restore focus", async ({ harness }) => {
     const { app, page } = harness;
     await setWindowSize(app, page, 1440, 900);
-    const preservedAlphaScreen = page.locator('[data-session-id="restored-1"] .xterm-screen');
+    await page.getByRole("toolbar", { name: "Work layout controls" })
+      .getByRole("button", { name: "New terminal" })
+      .click();
+    const preservedAlphaScreen = page.locator('[data-session-id="manual-1"] .xterm-screen');
     await expect(preservedAlphaScreen).toBeAttached();
     const preservedAlphaHandle = await requiredHandle(
       preservedAlphaScreen,
@@ -333,7 +336,7 @@ test.describe("long Decision Inbox", () => {
 });
 
 async function bootstrapMixedInbox(page: Page): Promise<Locator> {
-  await expect(page.getByRole("article", { name: /Restored fixture 1/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Browse 3 saved sessions" })).toBeVisible();
   await openInbox(page);
   const inbox = page.getByRole("region", { name: "Inbox workspace" });
   await inbox.getByTestId("inbox-decision-select-B:fixture-item-2").click();
