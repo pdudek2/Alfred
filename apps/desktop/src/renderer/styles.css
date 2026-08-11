@@ -3407,9 +3407,6 @@ body.arranging-pointer {
 .terminal-grid.staged-list .staged-actions .approve-button {
   min-width: 82px;
   flex: 0 0 auto;
-  border-color: var(--border-strong);
-  background: var(--surface-control);
-  color: var(--text-primary);
 }
 
 .terminal-action-strip {
