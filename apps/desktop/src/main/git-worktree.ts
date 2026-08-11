@@ -58,6 +58,7 @@ export type AgentWorktreeChangeFile = {
 export type AgentWorktreeInspection = {
   summary: string;
   files: AgentWorktreeChangeFile[];
+  patch: string;
 };
 
 const execFile = promisify(execFileCallback) as ExecFile;
@@ -133,10 +134,16 @@ export async function inspectAgentWorktree(
     "Unable to inspect isolated Git worktree.",
   );
   const files = statusFilesFromPorcelainZ(status);
+  const patch = await gitOutputRaw(
+    run,
+    ["-C", cleanupTarget.worktreePath, "diff", "--no-ext-diff", "--no-color", "--unified=3", "HEAD", "--"],
+    "Unable to inspect isolated Git worktree diff.",
+  );
 
   return {
     summary: changedFilesSummary(files.length),
     files,
+    patch,
   };
 }
 

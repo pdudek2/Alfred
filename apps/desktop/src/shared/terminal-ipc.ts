@@ -138,7 +138,7 @@ export type TerminalWorktreeDiffRequest = {
 };
 
 export type TerminalWorktreeDiffResult =
-  | { ok: true; summary: string; files: Array<{ path: string; status: string }> }
+  | { ok: true; summary: string; files: Array<{ path: string; status: string }>; patch: string }
   | { ok: false; error: string };
 
 export type TerminalWorktreeApplyRequest = {

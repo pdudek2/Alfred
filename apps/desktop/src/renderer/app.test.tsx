@@ -343,6 +343,7 @@ function installDesktopBridge(
       { path: "src/app.tsx", status: "M" },
       { path: "notes/review.md", status: "??" },
     ],
+    patch: "",
   });
   let terminalSnapshots = [...terminalSessions];
   const createTerminal = vi.fn().mockImplementation((request: Parameters<TerminalApi["create"]>[0]) => {
@@ -8694,6 +8695,7 @@ describe("App integration", () => {
         ok: true,
         summary: "No changes",
         files: [],
+        patch: "",
       } as Awaited<ReturnType<TerminalApi["worktreeDiff"]>>,
     },
     {
@@ -8702,6 +8704,7 @@ describe("App integration", () => {
         ok: true,
         summary: "1 changed file",
         files: [{ path: "src/stale.ts", status: "M" }],
+        patch: "",
       } as Awaited<ReturnType<TerminalApi["worktreeDiff"]>>,
     },
   ])("ignores a stale $name result after the session instance is replaced", async ({ result }) => {

@@ -439,10 +439,20 @@ describe("git worktree preparation", () => {
   });
 
   it("inspects isolated worktree tracked and untracked changes from the managed root", async () => {
+    const patch = [
+      "diff --git a/src/app.tsx b/src/app.tsx",
+      "--- a/src/app.tsx",
+      "+++ b/src/app.tsx",
+      "@@ -4,2 +4,2 @@",
+      "-const tone = 'technical'",
+      "+const tone = 'graphite'",
+      " keepTerminalMounted()",
+    ].join("\n");
     const execFile = vi.fn(async (_file: string, args: string[]) => {
       if (args.includes("status")) {
-        return { stdout: " M apps/desktop/src/renderer/app.tsx\0?? notes/review.md\0", stderr: "" };
+        return { stdout: " M src/app.tsx\0?? notes/review.md\0", stderr: "" };
       }
+      if (args.includes("diff")) return { stdout: patch, stderr: "" };
       throw new Error(`unexpected git call: ${args.join(" ")}`);
     });
 
@@ -458,9 +468,10 @@ describe("git worktree preparation", () => {
     expect(result).toEqual({
       summary: "2 changed files",
       files: [
-        { path: "apps/desktop/src/renderer/app.tsx", status: "M" },
+        { path: "src/app.tsx", status: "M" },
         { path: "notes/review.md", status: "??" },
       ],
+      patch,
     });
     expect(execFile).toHaveBeenCalledWith(
       "git",
@@ -471,6 +482,20 @@ describe("git worktree preparation", () => {
         "--porcelain=v1",
         "-z",
         "--untracked-files=all",
+      ],
+      expect.any(Object),
+    );
+    expect(execFile).toHaveBeenCalledWith(
+      "git",
+      [
+        "-C",
+        "/managed/worktrees/alfred-44c8fe0e/alfred-codex-review",
+        "diff",
+        "--no-ext-diff",
+        "--no-color",
+        "--unified=3",
+        "HEAD",
+        "--",
       ],
       expect.any(Object),
     );
@@ -583,6 +608,7 @@ describe("git worktree preparation", () => {
       if (cwd === "/.alfred-worktrees/repo/alfred-codex-review" && args.includes("status")) {
         return { stdout: " M src/app.tsx\0?? notes/review.md\0", stderr: "" };
       }
+      if (args.includes("diff")) return { stdout: "", stderr: "" };
       if (args.includes("ls-files")) return { stdout: "notes/review.md\0", stderr: "" };
       throw new Error(`unexpected git call: ${args.join(" ")}`);
     });
