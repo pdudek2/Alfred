@@ -70,6 +70,9 @@ vi.mock("@xterm/xterm", () => ({
     });
     open = vi.fn((element: HTMLElement) => {
       this.element = element;
+      const screen = document.createElement("div");
+      screen.className = "xterm-screen";
+      element.append(screen);
     });
     resize = vi.fn((cols: number, rows: number) => {
       this.cols = cols;
@@ -699,6 +702,71 @@ async function waitForTerminalStartsToSettle() {
 }
 
 describe("App integration", () => {
+  it.each([
+    [1, "single"],
+    [2, "split"],
+    [3, "dense"],
+    [4, "dense"],
+  ] as const)("lets normal Grid auto-place %i visible sessions as %s", (count, density) => {
+    const sessions = Array.from({ length: count }, (_, index): SessionTile => ({
+      id: `manual-${index + 1}`,
+      title: `Manual · zsh ${index + 1}`,
+      workspaceId: "A",
+      cwd: "/repo",
+      source: "manual",
+      stage: "live",
+      runtimeStatus: "live",
+    }));
+    const layouts = Object.fromEntries(sessions.map((session, index) => [session.id, {
+      tileId: session.id,
+      col: index % 2 === 0 ? 1 : 7,
+      row: Math.floor(index / 2) * 8 + 1,
+      colSpan: 6,
+      rowSpan: 8,
+    }]));
+
+    renderTerminalDeskForSessions(sessions, layouts);
+
+    expect(screen.getByTestId("terminal-grid")).toHaveClass("laid-out", density);
+    for (const session of sessions) {
+      const tile = screen.getByRole("article", { name: session.title });
+      expect(tile.style.gridColumn).toBe("");
+      expect(tile.style.gridRow).toBe("");
+    }
+  });
+
+  it("keeps staged work pending beside a live terminal in normal Work", () => {
+    renderTerminalDeskForSessions([
+      {
+        id: "live-1",
+        title: "Manual · zsh 1",
+        workspaceId: "A",
+        cwd: "/repo",
+        source: "manual",
+        stage: "live",
+        runtimeStatus: "live",
+      },
+      {
+        id: "staged-1",
+        title: "Review command",
+        workspaceId: "A",
+        cwd: "/repo",
+        source: "alfred",
+        stage: "staged",
+        command: "pnpm",
+        args: ["test"],
+      },
+    ]);
+
+    const liveTile = screen.getByRole("article", { name: "Manual · zsh 1" });
+    const stagedTile = screen.getByRole("article", { name: "Staged Review command" });
+    expect(liveTile).toHaveClass("real-terminal");
+    expect(liveTile.querySelector("[data-testid='xterm-host']")).toBeInTheDocument();
+    expect(stagedTile).toHaveClass("staged");
+    expect(stagedTile).toHaveTextContent("staged");
+    expect(stagedTile.querySelector("[data-testid='xterm-host']")).toBeNull();
+  });
+
   it("lets dense Grid auto-place terminals instead of pinning short persisted rows", () => {
     const sessions = Array.from({ length: 6 }, (_, index): SessionTile => ({
       id: `manual-${index + 1}`,
@@ -1887,6 +1955,8 @@ describe("App integration", () => {
     if (!initialHost) {
       throw new Error("Expected at least one xterm host in the desk runtime surface.");
     }
+    const initialScreen = initialHost.querySelector(".xterm-screen");
+    if (!initialScreen) throw new Error("Expected the initial xterm screen.");
     const disposeCountBeforeTransitions = terminalDisposeCalls.length;
 
     await user.click(screen.getByRole("button", { name: /open inbox surface/i }));
@@ -1929,6 +1999,7 @@ describe("App integration", () => {
     expect(finalHosts).toHaveLength(initialHosts.length);
     expect(finalHosts[0]).toBe(initialHost);
     expect(finalHosts[0]?.isConnected).toBe(true);
+    expect(finalHosts[0]?.querySelector(".xterm-screen")).toBe(initialScreen);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
   });
 
@@ -4681,7 +4752,7 @@ describe("App integration", () => {
   it.each([
     ["New manual terminal", "Manual · zsh 2"],
     ["New Codex session", "Codex · session 1"],
-  ] as const)("keeps a newly added %s visible and full-width in Focus", async (menuItem, title) => {
+  ] as const)("keeps a newly added %s visible in Focus while persisting Arrange geometry", async (menuItem, title) => {
     const user = userEvent.setup();
     const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge();
     render(<App />);
@@ -4693,7 +4764,7 @@ describe("App integration", () => {
 
     const added = await screen.findByRole("article", { name: new RegExp(title, "i") });
     expect(added).not.toHaveAttribute("aria-hidden", "true");
-    expect(added).toHaveStyle({ gridColumn: "1 / span 12" });
+    expect(added).toHaveStyle({ gridColumn: "" });
     expect(setWorkspaceLayout).toHaveBeenLastCalledWith(
       expect.objectContaining({
         layouts: expect.objectContaining({
@@ -5352,7 +5423,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "New terminal" }));
 
     const newTerminal = await screen.findByRole("article", { name: /Manual · zsh 3/i });
-    expect(newTerminal).toHaveStyle({ gridColumn: "1 / span 12", gridRow: "1 / span 8" });
+    expect(newTerminal).toHaveStyle({ gridColumn: "", gridRow: "" });
     expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 3");
@@ -6782,12 +6853,13 @@ describe("App integration", () => {
 
     const grid = screen.getByLabelText("terminals").querySelector(".terminal-grid");
     expect(grid).toHaveClass("arranging");
+    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toHaveStyle({ gridColumn: "1 / span 12" });
 
     await chooseWorkLayout(user, "Arrange");
     expect(screen.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeInTheDocument();
 
     expect(grid).toHaveClass("laid-out");
-    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toHaveStyle({ gridColumn: "1 / span 12" });
+    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toHaveStyle({ gridColumn: "" });
   });
 
   it("closes a live terminal tile and kills its runtime session", async () => {
@@ -7469,6 +7541,10 @@ describe("App integration", () => {
     const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
 
     expect(screen.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeInTheDocument();
+    expect(tile).toHaveStyle({ gridColumn: "", gridRow: "" });
+
+    await chooseWorkLayout(userEvent.setup(), "Arrange");
+
     expect(tile).toHaveStyle({ gridColumn: "3 / span 6", gridRow: "2 / span 4" });
   });
 

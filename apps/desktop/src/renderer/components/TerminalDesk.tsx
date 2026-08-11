@@ -476,7 +476,7 @@ export function TerminalDesk({
                 cwd={session.cwd}
                 createdAt={session.createdAt}
                 key={session.id}
-                layout={manyUpGrid ? undefined : layouts[session.id]}
+                layout={arrangeMode ? layouts[session.id] : undefined}
                 preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
                 sessionKey={session.id}
                 runtimeId={session.runtimeId}
@@ -533,7 +533,7 @@ export function TerminalDesk({
               <StagedTilePreview
                 focusHidden={layoutHidden}
                 key={session.id}
-                layout={manyUpGrid || stagedList ? undefined : layouts[session.id]}
+                layout={arrangeMode ? layouts[session.id] : undefined}
                 preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
                 tile={session}
                 selected={inspectedSession?.id === session.id}
