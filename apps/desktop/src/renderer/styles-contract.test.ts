@@ -530,8 +530,8 @@ describe("renderer CSS contracts", () => {
     }
     expect(rootToken("--signal-focus")).toBe("#4DA8B5");
     const root = singleTopLevelRuleBodyIn(styles, ":root");
-    expect(root).toContain("--radius-control: 7px");
-    expect(root).toContain("--radius-panel: 10px");
+    expect(root).toContain("--radius-control: 8px");
+    expect(root).toContain("--radius-panel: 12px");
     expect(contrastRatio(rootToken("--ink-5"), rootToken("--ink-0"))).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(rootToken("--ink-5"), rootToken("--ink-1"))).toBeGreaterThanOrEqual(4.5);
   });
@@ -543,29 +543,35 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".desktop-alert-stack", ["grid-row: 2", "min-height: 0"]);
     expectCanonicalBase(".shell-action-alert", ["position: fixed", "z-index: 40"]);
     expect(exactBlockFor(".shell-action-alert")).not.toMatch(/animation|transition/);
-    expectCanonicalBase(".workspace-layout", ["grid-row: 3"]);
+    expectCanonicalBase(".workspace-layout", [
+      "background: var(--surface-canvas)",
+      "transition: grid-template-columns 210ms cubic-bezier(0.16, 1, 0.3, 1)",
+    ]);
     expectCanonicalBase(".project-navigator", [
       "width: 226px",
-      "border-right: 1px solid var(--ink-3)",
+      "border-right: 1px solid var(--border-strong)",
+      "background: var(--surface-panel)",
+      "transition: width 210ms cubic-bezier(0.16, 1, 0.3, 1)",
     ]);
     expectCanonicalBase(".project-navigator-header", ["min-height: 46px"]);
     expect(styles).not.toContain(".desktop-alert-stack:empty");
-    expectCanonicalBase(".workbench-header", ["height: 44px"]);
+    expectCanonicalBase(".workbench-header", [
+      "background: var(--surface-chrome)",
+      "box-shadow: inset 0 -1px 0 var(--border)",
+    ]);
     expectCanonicalBase(".workbench-primary-row", ["height: 44px"]);
     expectCanonicalBase(".desk-surface-panel", ["display: grid", "grid-template-rows: 46px minmax(0, 1fr)"]);
     expectCanonicalBase(".work-surface-toolbar", [
       "height: 46px",
-      "min-width: 0",
-      "border-bottom: 1px solid var(--ink-3)",
-      "background: color-mix(in oklab, var(--ink-1) 88%, transparent)",
-      "display: flex",
-      "align-items: center",
-      "gap: 8px",
+      "border-bottom: 1px solid var(--border)",
+      "background: var(--surface-chrome)",
     ]);
     expectCanonicalBase(".terminal-tile.chrome-headerless", ["grid-template-rows: minmax(0, 1fr)"]);
     expectCanonicalBase(".terminal-tile", [
-      "border: 1px solid var(--ink-3)",
-      "border-radius: 10px",
+      "border: 1px solid var(--border)",
+      "border-radius: var(--radius-panel)",
+      "background: var(--surface-terminal)",
+      "box-shadow: none",
       "grid-template-rows: 43px minmax(0, 1fr)",
     ]);
     expectCanonicalBase(".terminal-tile-header", ["height: 43px", "min-height: 43px"]);
@@ -574,8 +580,9 @@ describe("renderer CSS contracts", () => {
       ".terminal-tile.staged.selected",
     ]) {
       expectCanonicalBase(selector, [
-        "border-width: 2px",
-        "border-color: color-mix(in oklab, var(--signal-focus) 70%, var(--ink-3))",
+        "border-width: 1px",
+        "border-color: color-mix(in oklab, var(--signal-focus) 34%, var(--border-strong))",
+        "box-shadow: none",
       ]);
     }
     expect(styles).not.toMatch(/terminal-tile\.selected::before/);
@@ -628,7 +635,7 @@ describe("renderer CSS contracts", () => {
     );
     const liveSelectors = liveRules.flatMap(({ selectors }) => selectors);
     const legacyColorUses = liveRules.filter(({ body }) =>
-      /var\(--(?:signal-focus-strong|signal-danger|signal-agent(?:-soft)?|signal-success|codex-blue|claude-amber|cyan|brass|role-[^)]+|surface-[^)]+|text-[^)]+|border(?:-[^)]+)?|line(?:-strong)?|panel(?:-soft)?|terminal|muted|faint|passive|ink(?:-soft)?|radius-[^)]+)\)/.test(body),
+      /var\(--(?:signal-focus-strong|signal-danger|signal-agent(?:-soft)?|signal-success|codex-blue|claude-amber|cyan|brass|role-[^)]+|line(?:-strong)?|panel(?:-soft)?|terminal|muted|faint|passive|ink(?:-soft)?)\)/.test(body),
     );
     const focusSignalUses = liveRules.filter(({ body }) => body.includes("var(--signal-focus)"));
     const lowContrastControlUses = liveRules.filter(({ body }) => /color:\s*var\(--ink-4\)/.test(body));
@@ -653,7 +660,6 @@ describe("renderer CSS contracts", () => {
     expect(literalColorUses.map(({ selectors }) => selectors)).toEqual([
       ['html[data-alfred-window-material="native"] .mission-bar'],
       ['html[data-alfred-window-material="native"] .project-navigator'],
-      [".terminal-tile"],
     ]);
   });
 
@@ -671,18 +677,16 @@ describe("renderer CSS contracts", () => {
         .map((match) => ({ selectors, radius: match[1] })),
     );
 
-    expect(gradients.map(({ selectors }) => selectors)).toEqual([
-      [".terminal-tile.selected .terminal-tile-header"],
-    ]);
+    expect(gradients.map(({ selectors }) => selectors)).toEqual([]);
     expect(materialShadows.map(({ selectors }) => selectors)).toEqual(expect.arrayContaining([
       [".workbench-header"],
       [".chrome-menu-popover"],
       [".prepare-work-popover"],
       ['html[data-alfred-window-material="native"] .mission-bar'],
-      [".terminal-tile"],
+      [".terminal-tile:focus-visible"],
     ]));
     expect(materialShadows).toHaveLength(5);
-    expect(oversizedRadii).toEqual([{ selectors: [".terminal-tile"], radius: "10" }]);
+    expect(oversizedRadii).toEqual([]);
     expect(signalUses.every(({ selectors }) =>
       selectors.every((selector) => selector.includes("attention") || selector.includes("waiting")),
     )).toBe(true);
@@ -1115,10 +1119,10 @@ describe("renderer CSS contracts", () => {
 
   it("uses restrained project motion and disables it for reduced motion", () => {
     expect(singleTopLevelRuleBodyIn(styles, ".workspace-layout")).toContain(
-      "transition: grid-template-columns 180ms ease-out",
+      "transition: grid-template-columns 210ms cubic-bezier(0.16, 1, 0.3, 1)",
     );
     expect(singleTopLevelRuleBodyIn(styles, ".project-navigator")).toContain(
-      "transition: width 180ms ease-out",
+      "transition: width 210ms cubic-bezier(0.16, 1, 0.3, 1)",
     );
     expect(singleTopLevelRuleBodyIn(styles, ".project-session-disclosure svg")).toContain(
       "transition: transform 140ms ease-out",
@@ -1201,7 +1205,10 @@ describe("renderer CSS contracts", () => {
     expect(workspaceNavHover).toHaveLength(1);
     expect(workspaceNavFocus).toHaveLength(1);
     expect(workspaceNavHover[0]).toContain("background: var(--ink-2)");
-    expectCanonicalBase(".workbench-primary-row button", ["max-height: 32px", "border-radius: 7px"]);
+    expectCanonicalBase(".workbench-primary-row button", [
+      "max-height: 32px",
+      "border-radius: var(--radius-control)",
+    ]);
     expectCanonicalBase('.work-surface-toolbar button[aria-pressed="true"]', ["font-weight: 700"]);
     expectCanonicalBase(".chrome-menu-popover button", ["width: 100%"]);
   });
@@ -1231,8 +1238,8 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".terminal-tile", [
       "display: grid",
       "overflow: hidden",
-      "border-radius: 10px",
-      "background: var(--ink-0)",
+      "border-radius: var(--radius-panel)",
+      "background: var(--surface-terminal)",
       "grid-template-rows: 43px minmax(0, 1fr)",
     ]);
     expectCanonicalBase(".context-column", ["grid-column: 3", "position: static", "pointer-events: none"]);
@@ -1268,25 +1275,33 @@ describe("renderer CSS contracts", () => {
     expectTopLevelOwnerWithin(".terminal-stage.mode-focus .terminal-tile.focus-hidden", ["display: none"], terminalTileStart, terminalTileEnd);
     for (const selector of [".terminal-tile.real-terminal.selected", ".terminal-tile.staged.selected"]) {
       expectCanonicalBase(selector, [
-        "border-width: 2px",
-        "border-color: color-mix(in oklab, var(--signal-focus) 70%, var(--ink-3))",
+        "border-width: 1px",
+        "border-color: color-mix(in oklab, var(--signal-focus) 34%, var(--border-strong))",
         "box-shadow: none",
       ]);
     }
     expectTopLevelOwnerWithin(
       ".terminal-tile:focus-visible",
-      ["border-color: color-mix(in oklab, var(--signal-focus) 52%, var(--ink-3))", "box-shadow: none"],
+      [
+        "outline: none",
+        "border-color: color-mix(in oklab, var(--signal-focus) 58%, var(--border-strong))",
+        "box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--signal-focus) 18%, transparent)",
+      ],
       terminalTileStart,
       terminalTileEnd,
     );
     expectTopLevelOwnerWithin(
       ".terminal-tile:focus-within",
-      ["border-color: color-mix(in oklab, var(--signal-focus) 44%, var(--ink-3))", "box-shadow: none"],
+      [
+        "outline: none",
+        "border-color: color-mix(in oklab, var(--signal-focus) 46%, var(--border-strong))",
+        "box-shadow: none",
+      ],
       terminalTileStart,
       terminalTileEnd,
     );
     expectTopLevelOwnerWithin(".terminal-tile.collapsed", ["grid-template-rows: 44px 0", "min-height: 44px"], terminalTileStart, terminalTileEnd);
-    expectTopLevelOwnerWithin(".terminal-tile:not(.arranging):hover", ["border-color: var(--ink-5)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
+    expectTopLevelOwnerWithin(".terminal-tile:not(.arranging):hover", ["border-color: var(--border-strong)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-stage.mode-split .terminal-tile.focus-hidden", ["display: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.collapsed .xterm-host", ["height: 0", "pointer-events: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile.collapsed .terminal-viewport", ["min-height: 0"], terminalTileStart, terminalTileEnd);
@@ -1761,10 +1776,14 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps the CSS terminal surface on the approved graphite material", () => {
+    const tile = exactBlockFor(".terminal-tile");
     const xtermHost = blockFor(".terminal-tile .xterm-host");
+    const standaloneXtermHost = exactBlockFor(".xterm-host");
 
     expect(rootToken("--ink-0")).toBe("#050506");
-    expect(xtermHost).toContain("background: var(--ink-0)");
+    expect(tile).toContain("background: var(--surface-terminal)");
+    expect(xtermHost).toContain("background: var(--surface-terminal)");
+    expect(standaloneXtermHost).toContain("background: var(--surface-terminal)");
   });
 
   it("routes operational colors through signal tokens", () => {
@@ -1826,7 +1845,7 @@ describe("renderer CSS contracts", () => {
     const workbenchAction = exactBlockFor(".workbench-primary-row button");
 
     expect(workbenchAction).toContain("max-height: 32px");
-    expect(workbenchAction).toContain("border-radius: 7px");
+    expect(workbenchAction).toContain("border-radius: var(--radius-control)");
     expect(workbenchAction).toContain("background: transparent");
     expect(styles).not.toContain("--flat-control-height");
     expect(styles).not.toContain("--flat-control");
@@ -1848,7 +1867,7 @@ describe("renderer CSS contracts", () => {
 
     expect(workspacePopover).toContain("background:");
     expect(workspacePopover).not.toContain("linear-gradient");
-    expect(terminalTile).toContain("background: var(--ink-0)");
+    expect(terminalTile).toContain("background: var(--surface-terminal)");
     expect(terminalTile).not.toContain("linear-gradient");
     expect(activeWorkspace).toContain("background:");
     expect(styles).not.toContain("--flat-");
@@ -2000,13 +2019,16 @@ describe("renderer CSS contracts", () => {
     const dangerActions = blockForContaining(".tile-danger-actions", "opacity: 0");
     const utilityButtons = blockFor(".tile-utility-actions button,\n.tile-danger-actions button");
 
-    expect(tile).toContain("background: var(--ink-0)");
-    expect(tile).toContain("0 12px 30px -24px rgba(0, 0, 0, 0.9)");
+    expect(tile).toContain("background: var(--surface-terminal)");
+    expect(tile).toContain("box-shadow: none");
     expect(header).toContain("min-height");
-    expect(header).toContain("background: var(--ink-1)");
-    expect(selectedHeader).toContain("linear-gradient");
+    expect(header).toContain("background: var(--surface-chrome)");
+    expect(selectedHeader).not.toContain("linear-gradient");
+    expect(selectedHeader).toContain(
+      "background: color-mix(in oklab, var(--signal-focus) 4%, var(--surface-chrome))",
+    );
     expect(tileTitle).toContain("font: 650 13px/1.12 var(--sans)");
-    expect(xtermHost).toContain("background: var(--ink-0)");
+    expect(xtermHost).toContain("background: var(--surface-terminal)");
     expect(kindMark).toContain("width: 22px");
     expect(kindMarkText).toContain("display: none");
     expect(primaryActions).toContain("opacity: 1");
@@ -2142,12 +2164,12 @@ describe("renderer CSS contracts", () => {
     expect(dispatchChip).toContain("background-image: none");
   });
 
-  it("keeps live workbench controls within the 7px radius ceiling", () => {
+  it("keeps live workbench controls on the canonical control radius", () => {
     const workbenchControl = exactBlockFor(".workbench-primary-row button");
     const sessionControl = exactBlockFor(".work-surface-toolbar button");
 
-    expect(workbenchControl).toContain("border-radius: 7px");
-    expect(sessionControl).toContain("border-radius: 7px");
+    expect(workbenchControl).toContain("border-radius: var(--radius-control)");
+    expect(sessionControl).toContain("border-radius: var(--radius-control)");
   });
 
   it.each([
@@ -2274,7 +2296,7 @@ describe("renderer CSS contracts", () => {
     const navRowTitle = blockFor(".project-row-label,\n.project-session-title");
     const activeWorkspace = exactBlockFor('.project-row-button[aria-current="location"]');
 
-    expect(navPanel).toContain("background: var(--ink-1)");
+    expect(navPanel).toContain("background: var(--surface-panel)");
     expect(navSectionHeader).toContain("color: var(--ink-5)");
     expect(navSectionHeader).toContain("var(--sans)");
     expect(navRow).toContain("background: transparent");
