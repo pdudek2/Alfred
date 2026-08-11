@@ -51,10 +51,39 @@ const sessions: SessionTile[] = [
     agentKind: "claude",
     activityEvents: [{ id: "approval", kind: "approval", title: "Waiting", detail: "Approve?", at: 100 }],
   },
+  {
+    id: "recovery",
+    title: "Recover checkout",
+    workspaceId: "B",
+    cwd: "/repo/client/.worktrees/recover",
+    baseCwd: "/repo/client",
+    branchName: "recover-checkout",
+    source: "manual",
+    stage: "live",
+    runtimeStatus: "exited",
+    agentKind: "codex",
+    activityEvents: [{ id: "exit", kind: "lifecycle", title: "Session ended", detail: "Resume from the saved transcript.", at: 90 }],
+  },
 ];
 
+const recoveryItem: AttentionProjection = {
+  id: "B:recovery",
+  workspaceId: "B",
+  workspaceLabel: "ClientApp",
+  sessionId: "recovery",
+  sessionTitle: "Recover checkout",
+  kind: "recovery",
+  section: "recovery",
+  blocksAgent: false,
+  rank: null,
+  attentionAt: 90,
+  reason: "Saved agent session can be resumed.",
+  provenance: "runtime",
+  action: { kind: "relaunch", confirmation: "none" },
+};
+
 const baseProps: AgentsDrawerProps = {
-  activeSessions: [sessions[0]!],
+  sessions,
   activeSessionId: "working",
   activeWorkspaceId: "A",
   attentionItems: [attentionItem],
@@ -68,6 +97,7 @@ const baseProps: AgentsDrawerProps = {
   onClose: vi.fn(),
   onOpenInbox: vi.fn(),
   onOpenSession: vi.fn(),
+  onOpenWorktreeDiff: vi.fn(),
   onRunAttentionAction: vi.fn(),
 };
 
@@ -116,11 +146,58 @@ describe("AgentsDrawer", () => {
     expect(inProgress).toHaveTextContent("Tighten project rail");
     expect(inProgress).not.toHaveTextContent("Review checkout");
 
-    await user.click(within(decisions).getByRole("button", { name: "Open in Work Review checkout" }));
-    expect(onRunAttentionAction).toHaveBeenCalledWith(attentionItem);
+    expect(within(decisions).getByRole("button", { name: "Review handoff for Review checkout" })).toBeInTheDocument();
 
     await user.click(within(inProgress).getByRole("button", { name: "Open Tighten project rail in Alfred" }));
     expect(onOpenSession).toHaveBeenCalledWith("A", "working");
+
+    await user.click(within(decisions).getByRole("button", { name: "Review handoff for Review checkout" }));
+    await user.click(screen.getByRole("button", { name: "Open in Work Review checkout" }));
+    expect(onRunAttentionAction).toHaveBeenCalledWith(attentionItem);
+  });
+
+  it("opens a decision handoff and restores focus to its row on Escape", async () => {
+    const user = userEvent.setup();
+    render(drawer());
+
+    await user.click(screen.getByRole("button", { name: "Review handoff for Review checkout" }));
+    expect(screen.getByRole("heading", { name: "Handoff" })).toBeInTheDocument();
+    expect(screen.getByText("Choose whether to keep the generated migration.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open in Work Review checkout" })).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    const handoffRow = screen.getByRole("button", { name: "Review handoff for Review checkout" });
+    expect(screen.getByRole("heading", { name: "Agents" })).toBeInTheDocument();
+    expect(handoffRow).toHaveFocus();
+  });
+
+  it("restores focus to the decision that opened Handoff", async () => {
+    const user = userEvent.setup();
+    render(drawer({
+      attentionItems: [attentionItem, { ...attentionItem, id: "B:second", sessionTitle: "Second checkout" }],
+    }));
+
+    await user.click(screen.getByRole("button", { name: "Review handoff for Review checkout" }));
+    await user.keyboard("{Escape}");
+
+    expect(screen.getByRole("button", { name: "Review handoff for Review checkout" })).toHaveFocus();
+  });
+
+  it("shows recoverable sessions in Recent handoffs and opens diffs only for isolated checkouts", async () => {
+    const user = userEvent.setup();
+    const onOpenWorktreeDiff = vi.fn();
+    render(drawer({ attentionItems: [attentionItem, recoveryItem], onOpenWorktreeDiff }));
+
+    const recent = screen.getByRole("region", { name: "Recent handoffs" });
+    expect(recent).toHaveTextContent("Recover checkout");
+
+    await user.click(screen.getByRole("button", { name: "Review handoff for Recover checkout" }));
+    await user.click(screen.getByRole("button", { name: "Open diff" }));
+    expect(onOpenWorktreeDiff).toHaveBeenCalledWith("B", "recovery");
+
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Review handoff for Review checkout" }));
+    expect(screen.queryByRole("button", { name: "Open diff" })).not.toBeInTheDocument();
   });
 
   it("opens the full Inbox without presenting itself as a replacement", async () => {
@@ -168,6 +245,7 @@ describe("AgentsDrawer", () => {
   });
 
   it("restores the Agents trigger after launching staged work", async () => {
+    const user = userEvent.setup();
     const trigger = document.createElement("button");
     document.body.append(trigger);
     const launchItem: AttentionProjection = {
@@ -180,9 +258,20 @@ describe("AgentsDrawer", () => {
       kind: "staged-launch",
       action: { kind: "launch" },
     };
-    const view = render(drawer({ attentionItems: [launchItem], returnFocusRef: { current: trigger } }));
+    const view = render(drawer({
+      attentionItems: [launchItem],
+      returnFocusRef: { current: trigger },
+      sessions: [...sessions, {
+        ...sessions[0]!,
+        id: "staged",
+        title: "Run checks",
+        stage: "staged",
+        command: "pnpm test",
+      }],
+    }));
 
-    await userEvent.click(screen.getByRole("button", { name: "Launch Run checks" }));
+    await user.click(screen.getByRole("button", { name: "Review handoff for Run checks" }));
+    await user.click(screen.getByRole("button", { name: "Launch Run checks" }));
     view.rerender(drawer({ attentionItems: [launchItem], open: false, returnFocusRef: { current: trigger } }));
 
     await waitFor(() => expect(trigger).toHaveFocus());
@@ -191,7 +280,7 @@ describe("AgentsDrawer", () => {
   it("does not repeat an approval prompt after newer output resumes work", () => {
     const lastOutputAt = Date.now();
     render(drawer({
-      activeSessions: [{
+      sessions: [{
         ...sessions[0]!,
         lastOutputAt,
         activityEvents: [{
@@ -211,7 +300,7 @@ describe("AgentsDrawer", () => {
 
   it("marks the selected agent by workspace and session identity", () => {
     render(drawer({
-      activeSessions: [
+      sessions: [
         sessions[0]!,
         { ...sessions[0]!, workspaceId: "B", title: "Same id in ClientApp", agentKind: "claude" },
       ],
