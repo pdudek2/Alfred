@@ -1180,6 +1180,10 @@ describe("renderer CSS contracts", () => {
     const stagedHeader = singleTopLevelRuleBodyIn(styles, ".terminal-grid.staged-list .terminal-tile.staged > header");
     const stagedTitle = singleTopLevelRuleBodyIn(styles, ".terminal-grid.staged-list .tile-title b");
     const stagedCommand = singleTopLevelRuleBodyIn(styles, ".terminal-grid.staged-list .staged-command");
+    const stagedApprove = singleTopLevelRuleBodyIn(
+      styles,
+      ".terminal-grid.staged-list .staged-actions .approve-button",
+    );
     const emptyState = singleTopLevelRuleBodyIn(styles, ".terminal-empty-state");
     const emptyFact = singleTopLevelRuleBodyIn(styles, ".terminal-empty-facts > div");
 
@@ -1190,6 +1194,9 @@ describe("renderer CSS contracts", () => {
     expect(stagedHeader).toContain("grid-template-columns: minmax(0, 1fr) auto");
     expect(stagedTitle).toContain("font: 650 13px/1.2 var(--sans)");
     expect(stagedCommand).toContain("color: var(--text-secondary)");
+    expect(stagedApprove).toContain("min-width: 82px");
+    expect(stagedApprove).toContain("flex: 0 0 auto");
+    expect(stagedApprove).not.toMatch(/(?:border-color|background|color):/);
     expect(emptyState).toContain("border: 0");
     expect(emptyState).toContain("text-align: left");
     expect(emptyFact).toContain("border: 0");

@@ -186,6 +186,23 @@ const overlayProbes: Record<"command-palette" | "privacy", CssOwnerProbe[]> = {
 
 test.use({ fixtureOptions: { inboxItems: 1 } });
 
+test("keeps all-staged Launch accented at wide and narrow widths", async ({ harness }, testInfo) => {
+  const { app, page } = harness;
+  const launch = page.getByRole("button", { name: "Launch Fixture item 1" });
+
+  await setWindowSize(app, page, 1440, 900);
+  await expect(launch).toBeVisible();
+  await expect(launch).toHaveCSS("color", "rgb(226, 155, 110)");
+  await page.screenshot({ path: testInfo.outputPath("staged-only-wide.png"), style: privacySafeScreenshotStyle });
+
+  await setWindowSize(app, page, 1120, 720);
+  await expect(launch).toBeVisible();
+  await expect(launch).toHaveCSS("color", "rgb(226, 155, 110)");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
+    .toBeLessThanOrEqual(0);
+  await page.screenshot({ path: testInfo.outputPath("staged-only-narrow.png"), style: privacySafeScreenshotStyle });
+});
+
 test("captures deterministic CSS ownership evidence across core states and overlays", async ({ harness }, testInfo) => {
   const { app, marker, page } = harness;
   const evidenceDir = process.env.ALFRED_CSS_EVIDENCE_DIR ?? testInfo.outputDir;
@@ -231,6 +248,10 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "44");
 
   await capture("work-grid", [...frameProbes, ...terminalProbes]);
+  await expect(page.getByRole("button", { name: "Launch Fixture item 1" })).toHaveCSS(
+    "color",
+    "rgb(226, 155, 110)",
+  );
 
   await page.getByRole("button", { name: "Open launch menu" }).click();
   await page.getByRole("menuitem", { name: "Prepare Work" }).click();
