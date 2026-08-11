@@ -76,7 +76,7 @@ function ReadyDiff({ view }: { view: Extract<WorktreeDiffView, { status: "ready"
         <div className="worktree-diff-panel__code" role="table" aria-label="Unified diff">
           {parsed.lines.map((line, index) => (
             <div
-              className={`worktree-diff-panel__line is-${line.kind}`}
+              className={`worktree-diff-panel__line is-${line.kind} kind-${line.kind}`}
               role="row"
               aria-label={diffLineLabel(line)}
               key={`${index}:${line.text}`}
