@@ -6285,7 +6285,7 @@ describe("App integration", () => {
 
   it("routes Claude authentication and Codex MCP runtime blockers through Inbox back to Work", async () => {
     const user = userEvent.setup();
-    installDesktopBridge(
+    const bridge = installDesktopBridge(
       undefined,
       null,
       [
@@ -6339,6 +6339,9 @@ describe("App integration", () => {
     );
 
     render(<App />);
+    await act(async () => {
+      await bridge.emitExit({ id: "runtime-claude-auth", exitCode: 0 });
+    });
     await openInboxFromCommandPalette(user);
 
     const inbox = screen.getByRole("region", { name: "Inbox workspace" });
@@ -8530,7 +8533,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Open launch menu" }));
     await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(1));
-    expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("Reused risky recovery is now working.");
+    expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("Reused risky recovery is now idle.");
     await bridge.emitExit({ id: "runtime-reused-recovery", exitCode: 1 });
 
     const recoveryToggle = screen.getByRole("button", { name: "Recovery · 1 saved session" });

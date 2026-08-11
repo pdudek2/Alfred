@@ -36,7 +36,7 @@ describe("buildAttentionProjection", () => {
         session({
           id: "runtime-blocker",
           title: "Claude authentication",
-          runtimeStatus: "error",
+          runtimeStatus: "exited",
           command: "claude",
           activityEvents: [{
             id: "auth",

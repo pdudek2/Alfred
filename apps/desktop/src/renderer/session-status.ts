@@ -32,16 +32,17 @@ export function terminalSessionDisplayStatus(
       : { kind: "staged", label: "staged" };
   }
 
+  const latestEvent = session.activityEvents?.at(-1);
+  if (latestEvent && runtimeBlockerReason(latestEvent)) {
+    return { kind: "error", label: "error" };
+  }
+
   if (localStatus === "browser" || session.runtimeStatus === "unavailable") return { kind: "runtime", label: "unavailable" };
   if (localStatus === "error" || session.runtimeStatus === "error") return { kind: "error", label: "error" };
   if (localStatus === "exited" || session.runtimeStatus === "exited") return { kind: "done", label: "done" };
   if (localStatus === "restored" || session.runtimeStatus === "restored") return { kind: "restored", label: "restored" };
   if (localStatus === "connecting" || session.runtimeStatus === "starting") return { kind: "starting", label: "starting" };
 
-  const latestEvent = session.activityEvents?.at(-1);
-  if (latestEvent && runtimeBlockerReason(latestEvent)) {
-    return { kind: "error", label: "error" };
-  }
   if (session.lastOutputAt !== undefined && now - session.lastOutputAt <= ACTIVE_OUTPUT_WINDOW_MS) {
     if (latestEvent?.kind !== "approval" || session.lastOutputAt > latestEvent.at) {
       return { kind: "active", label: "working" };
