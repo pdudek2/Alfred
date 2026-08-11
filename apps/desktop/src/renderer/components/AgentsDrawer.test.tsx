@@ -171,6 +171,28 @@ describe("AgentsDrawer", () => {
     expect(handoffRow).toHaveFocus();
   });
 
+  it("focuses Back after opening a handoff", async () => {
+    const user = userEvent.setup();
+    render(drawer());
+
+    await user.click(screen.getByRole("button", { name: "Review handoff for Review checkout" }));
+
+    expect(screen.getByRole("button", { name: "Back to Agents" })).toHaveFocus();
+  });
+
+  it("closes on Escape when the selected handoff is removed", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const view = render(drawer({ onClose }));
+
+    await user.click(screen.getByRole("button", { name: "Review handoff for Review checkout" }));
+    view.rerender(drawer({ attentionItems: [], onClose }));
+    expect(screen.getByRole("heading", { name: "Agents" })).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("restores focus to the decision that opened Handoff", async () => {
     const user = userEvent.setup();
     render(drawer({

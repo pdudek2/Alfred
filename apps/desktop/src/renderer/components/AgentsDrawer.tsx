@@ -47,8 +47,10 @@ export function AgentsDrawer({
   onOpenWorktreeDiff,
   onRunAttentionAction,
 }: AgentsDrawerProps) {
+  const backButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const handoffReturnIdRef = useRef<string | null>(null);
+  const focusHandoffRef = useRef(false);
   const restoreHandoffFocusRef = useRef(false);
   const restoreFocusOnCloseRef = useRef(false);
   const wasOpenRef = useRef(open);
@@ -82,6 +84,12 @@ export function AgentsDrawer({
     setSelectedHandoffId(null);
   }, []);
 
+  const openHandoff = useCallback((id: string) => {
+    handoffReturnIdRef.current = id;
+    focusHandoffRef.current = true;
+    setSelectedHandoffId(id);
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const frame = requestAnimationFrame(() => closeButtonRef.current?.focus());
@@ -94,7 +102,7 @@ export function AgentsDrawer({
       if (event.key !== "Escape" || event.defaultPrevented) return;
       event.preventDefault();
       event.stopPropagation();
-      if (selectedHandoffId !== null) {
+      if (handoff) {
         returnToAgents();
       } else {
         requestClose();
@@ -102,7 +110,11 @@ export function AgentsDrawer({
     };
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [dismissalSuspended, open, requestClose, returnToAgents, selectedHandoffId]);
+  }, [dismissalSuspended, handoff, open, requestClose, returnToAgents]);
+
+  useEffect(() => {
+    if (selectedHandoffId !== null && !handoff) setSelectedHandoffId(null);
+  }, [handoff, selectedHandoffId]);
 
   useEffect(() => {
     const wasOpen = wasOpenRef.current;
@@ -125,6 +137,13 @@ export function AgentsDrawer({
     return () => cancelAnimationFrame(frame);
   }, [selectedHandoffId]);
 
+  useEffect(() => {
+    if (!handoff || !focusHandoffRef.current) return;
+    focusHandoffRef.current = false;
+    const frame = requestAnimationFrame(() => backButtonRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [handoff]);
+
   return (
     <aside
       className={`agents-drawer ${open ? "open" : "closed"}`}
@@ -135,7 +154,7 @@ export function AgentsDrawer({
     >
       <header className="agents-drawer__header">
         {handoff ? (
-          <button type="button" className="agents-drawer__back" aria-label="Back to Agents" onClick={returnToAgents}>
+          <button ref={backButtonRef} type="button" className="agents-drawer__back" aria-label="Back to Agents" onClick={returnToAgents}>
             <ArrowLeft aria-hidden="true" size={15} />
             <span>Back</span>
           </button>
@@ -184,10 +203,7 @@ export function AgentsDrawer({
                         type="button"
                         data-handoff-id={item.id}
                         aria-label={`Review handoff for ${item.sessionTitle}`}
-                        onClick={() => {
-                          handoffReturnIdRef.current = item.id;
-                          setSelectedHandoffId(item.id);
-                        }}
+                        onClick={() => openHandoff(item.id)}
                       >
                         Review handoff
                       </button>
@@ -216,10 +232,7 @@ export function AgentsDrawer({
                         key={item.id}
                         data-handoff-id={item.id}
                         aria-label={`Review handoff for ${item.sessionTitle}`}
-                        onClick={() => {
-                          handoffReturnIdRef.current = item.id;
-                          setSelectedHandoffId(item.id);
-                        }}
+                        onClick={() => openHandoff(item.id)}
                       >
                         <span className={`agents-drawer__agent-mark kind-${kind}`} aria-hidden="true">
                           <TileKindIcon kind={kind} size={13} />
