@@ -28,6 +28,32 @@ describe("session activity classifier", () => {
     expect(third.activities).toEqual([]);
   });
 
+  it("does not leak fragmented OSC payloads into streamed activity details", () => {
+    const belStart = classifyTerminalOutputChunk({ carry: "" }, "\u001b]0;spoof");
+    expect(belStart).toEqual({
+      activities: [],
+      state: { carry: "", terminalControlCarry: "\u001b]0;spoof" },
+    });
+    expect(classifyTerminalOutputChunk(belStart.state, "\u0007Error: build failed\n").activities).toEqual([
+      {
+        kind: "error",
+        title: "Error reported",
+        detail: "Error: build failed",
+        payload: { type: "error", message: "Error: build failed" },
+      },
+    ]);
+
+    const stStart = classifyTerminalOutputChunk({ carry: "" }, "\u001b]8;;https://example.com\u001b");
+    expect(stStart.state).toEqual({
+      carry: "",
+      terminalControlCarry: "\u001b]8;;https://example.com\u001b",
+    });
+    expect(classifyTerminalOutputChunk(stStart.state, "\\Warning: deprecated API\n").activities[0]).toMatchObject({
+      kind: "warning",
+      detail: "Warning: deprecated API",
+    });
+  });
+
   it("classifies complete lines while retaining only the unfinished tail", () => {
     const result = classifyTerminalOutputChunk(
       { carry: "" },

@@ -829,7 +829,9 @@ describe("App integration", () => {
     expect(terminalInputHandlers).toHaveLength(1);
 
     act(() => {
-      terminalInputHandlers[0]?.("Fix ingesx");
+      terminalInputHandlers[0]?.("\u001b]0;spoof");
+      terminalInputHandlers[0]?.("\u0007Fix \u001b]8;;https://example.com\u001b");
+      terminalInputHandlers[0]?.("\\ingesx");
       terminalInputHandlers[0]?.("\x7ft retry\r");
     });
 
