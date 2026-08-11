@@ -112,6 +112,9 @@ test("keeps active agents and decisions visible without reflowing the terminal",
 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await trigger.click();
+  await expect(back).toBeVisible();
+  await back.click();
+  await expect(drawer.getByRole("heading", { name: "Agents" })).toBeVisible();
   await openFixtureDiffHandoff(page, drawer);
   await expectReducedMotionTransitions(drawer);
   expect(await documentOverflow(page)).toBe(0);
@@ -179,6 +182,9 @@ test("keeps active agents and decisions visible without reflowing the terminal",
 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await trigger.click();
+  await expect(back).toBeVisible();
+  await back.click();
+  await expect(drawer.getByRole("heading", { name: "Agents" })).toBeVisible();
   await openFixtureDiffHandoff(page, drawer);
   await expectReducedMotionTransitions(drawer);
   expect(await documentOverflow(page)).toBe(0);
@@ -245,15 +251,11 @@ async function terminalOwnsFocus(page: Page): Promise<boolean> {
 
 async function openFixtureDiffHandoff(page: Page, drawer: Locator): Promise<void> {
   const review = drawer.getByRole("button", { name: "Review handoff for Fixture diff handoff" });
-  const transitionedFromList = await review.count() > 0;
-  if (transitionedFromList) {
-    await review.focus();
-    await page.keyboard.press("Enter");
-  }
+  await expect(review).toBeVisible();
+  await review.focus();
+  await page.keyboard.press("Enter");
   await expect(drawer.getByRole("heading", { name: "Handoff", exact: true })).toBeVisible();
-  if (transitionedFromList) {
-    await expect(drawer.getByRole("button", { name: "Back to Agents" })).toBeFocused();
-  }
+  await expect(drawer.getByRole("button", { name: "Back to Agents" })).toBeFocused();
   await expect(drawer.getByText("alfred-codex-fixture-handoff", { exact: true })).toBeVisible();
   const primaryAction = drawer.getByRole("button", { name: "Resume Fixture diff handoff" });
   await primaryAction.focus();
