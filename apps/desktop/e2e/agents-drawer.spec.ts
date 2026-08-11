@@ -71,6 +71,13 @@ test("keeps active agents and decisions visible without reflowing the terminal",
   const back = drawer.getByRole("button", { name: "Back to Agents" });
   await expect(back).toBeFocused();
   await expect(drawer.getByRole("heading", { name: "Decision" })).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(drawer.getByRole("heading", { name: "Agents" })).toBeVisible();
+  await expect(decisionHandoff).toBeFocused();
+
+  await decisionHandoff.click();
+  await expect(drawer.getByRole("heading", { name: "Handoff", exact: true })).toBeVisible();
+  await expect(back).toBeFocused();
   const primaryAction = drawer.getByRole("button", { name: "Launch Fixture item 1" });
   await primaryAction.focus();
   await expect(primaryAction).toBeFocused();
@@ -89,6 +96,7 @@ test("keeps active agents and decisions visible without reflowing the terminal",
   await openDiff.click();
   const diff = page.getByRole("region", { name: "Worktree diff" });
   await expect(diff).toBeVisible();
+  await expect(drawer).toBeHidden();
   await expect(diff.getByRole("button", { name: "Close diff" })).toBeFocused();
   await expectRealDiff(diff);
   await expectSameNode(xtermHostBefore, xtermHost, "wide diff replaced the connected xterm host");
@@ -102,6 +110,21 @@ test("keeps active agents and decisions visible without reflowing the terminal",
   await expect.poll(() => terminalOwnsFocus(page)).toBe(true);
   await expectSameNode(xtermHostBefore, xtermHost, "closing wide diff replaced the connected xterm host");
 
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await trigger.click();
+  await openFixtureDiffHandoff(page, drawer);
+  await expectReducedMotionTransitions(drawer);
+  expect(await documentOverflow(page)).toBe(0);
+  await page.screenshot({
+    path: path.join(evidenceDir, "agents-handoff-reduced-motion-wide-1440x900.png"),
+    style: privacySafeScreenshotStyle,
+  });
+  await page.keyboard.press("Escape");
+  await expect(drawer.getByRole("heading", { name: "Agents" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+
   await setWindowSize(app, page, 1120, 720);
   await navigator.getByRole("button", { name: "Collapse project navigator" }).click();
   await expect(navigator).toHaveCSS("width", "46px");
@@ -114,12 +137,34 @@ test("keeps active agents and decisions visible without reflowing the terminal",
   expect(await elementGeometry(grid)).toEqual(gridNarrowBefore);
   expect(await documentOverflow(page)).toBe(0);
 
+  await decisionHandoff.click();
+  await expect(drawer.getByRole("heading", { name: "Handoff", exact: true })).toBeVisible();
+  await expect(back).toBeFocused();
+  await expect(drawer.getByRole("heading", { name: "Decision" })).toBeVisible();
+  expect(await documentOverflow(page)).toBe(0);
+  await page.keyboard.press("Enter");
+  await expect(drawer.getByRole("heading", { name: "Agents" })).toBeVisible();
+  await expect(decisionHandoff).toBeFocused();
+
+  await decisionHandoff.click();
+  await expect(drawer.getByRole("heading", { name: "Handoff", exact: true })).toBeVisible();
+  await expect(back).toBeFocused();
+  await primaryAction.focus();
+  await expect(primaryAction).toBeFocused();
+  expect(await documentOverflow(page)).toBe(0);
+  await page.keyboard.press("Escape");
+  await expect(drawer.getByRole("heading", { name: "Agents" })).toBeVisible();
+  await expect(decisionHandoff).toBeFocused();
+
   await openFixtureDiffHandoff(page, drawer);
+  expect(await documentOverflow(page)).toBe(0);
   await page.screenshot({
     path: path.join(evidenceDir, "agents-handoff-narrow-1120x720.png"),
     style: privacySafeScreenshotStyle,
   });
   await drawer.getByRole("button", { name: "Open diff" }).click();
+  await expect(diff).toBeVisible();
+  await expect(drawer).toBeHidden();
   await expectRealDiff(diff);
   await expectSameNode(xtermHostBefore, xtermHost, "narrow diff replaced the connected xterm host");
   expect(await documentOverflow(page)).toBe(0);
@@ -135,16 +180,8 @@ test("keeps active agents and decisions visible without reflowing the terminal",
   await page.emulateMedia({ reducedMotion: "reduce" });
   await trigger.click();
   await openFixtureDiffHandoff(page, drawer);
-  expect(await drawer.evaluate((node) =>
-    Math.max(...getComputedStyle(node).transitionDuration.split(", ").map(Number.parseFloat)),
-  )).toBeLessThanOrEqual(0.000_001);
-  expect(await drawer.locator(".agents-drawer__handoff").evaluate((node) =>
-    [node, ...node.querySelectorAll("*")].every((element) =>
-      getComputedStyle(element).transitionDuration.split(", ").every((duration) =>
-        Number.parseFloat(duration) <= 0.000_001,
-      ),
-    ),
-  )).toBe(true);
+  await expectReducedMotionTransitions(drawer);
+  expect(await documentOverflow(page)).toBe(0);
   await page.screenshot({
     path: path.join(evidenceDir, "agents-handoff-reduced-motion-1120x720.png"),
     style: privacySafeScreenshotStyle,
@@ -187,6 +224,19 @@ async function setWindowSize(
 
 async function documentOverflow(page: Page): Promise<number> {
   return page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+}
+
+async function expectReducedMotionTransitions(drawer: Locator): Promise<void> {
+  expect(await drawer.evaluate((node) =>
+    Math.max(...getComputedStyle(node).transitionDuration.split(", ").map(Number.parseFloat)),
+  )).toBeLessThanOrEqual(0.000_001);
+  expect(await drawer.locator(".agents-drawer__handoff").evaluate((node) =>
+    [node, ...node.querySelectorAll("*")].every((element) =>
+      getComputedStyle(element).transitionDuration.split(", ").every((duration) =>
+        Number.parseFloat(duration) <= 0.000_001,
+      ),
+    ),
+  )).toBe(true);
 }
 
 async function terminalOwnsFocus(page: Page): Promise<boolean> {
