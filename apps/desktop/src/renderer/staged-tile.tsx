@@ -10,7 +10,6 @@ import type { SessionTile } from "./session-state";
 import type { ArrangePreview } from "./terminal-desk-types";
 import { sessionTileKind, tileKindMeta } from "./tile-kind";
 import { TileKindIcon } from "./tile-kind-icon";
-import { shortenPath } from "./path-display";
 
 type StagedTilePreviewProps = {
   arrangeMode: boolean;
@@ -69,6 +68,7 @@ export function StagedTilePreview({
     <article
       className={`terminal-tile staged kind-${kindMeta.className} ${selected ? "selected" : ""} ${focusHidden ? "focus-hidden" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
       data-testid="terminal-tile"
+      data-session-id={tile.id}
       aria-label={`Staged ${tile.title}`}
       aria-hidden={focusHidden ? "true" : undefined}
       style={gridStyle(layout, preview)}
@@ -101,7 +101,7 @@ export function StagedTilePreview({
           </span>
           <div>
             <b>{tile.title}</b>
-            <small>{kindMeta.label} · {tile.cwd ? shortenPath(tile.cwd) : "default cwd"}</small>
+            <small>{kindMeta.label}</small>
           </div>
         </div>
         <div className="tile-actions">
@@ -121,13 +121,10 @@ export function StagedTilePreview({
             Launch blocked: {launchBlockReason}
           </div>
         )}
-        <div className="staged-label">Will launch</div>
         <div className="staged-command">{fullCommand || "(no command)"}</div>
-        <div className={`staged-isolation ${launchBlocked ? "blocked" : ""}`}>{launchMode}</div>
-        {tile.launchPreflight?.status === "ready" && tile.launchPreflight.cwd && (
-          <div className="staged-cwd">target: {shortenPath(tile.launchPreflight.cwd)}</div>
-        )}
-        {tile.cwd && <div className="staged-cwd">cwd: {tile.cwd}</div>}
+        <div className={`staged-isolation ${launchBlocked ? "blocked" : ""}`}>
+          {isolated ? launchMode : "shared workspace"}
+        </div>
       </div>
       <div className="staged-actions">
         <button

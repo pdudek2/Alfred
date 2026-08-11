@@ -30,7 +30,6 @@ describe("CSS layout evidence support", () => {
     expect(privacySafeScreenshotStyle).toContain(".command-palette-list button small");
     expect(privacySafeScreenshotStyle).toContain(".workspace-title-trigger small");
     expect(privacySafeScreenshotStyle).toContain(".staged-command");
-    expect(privacySafeScreenshotStyle).toContain(".staged-cwd");
     expect(privacySafeScreenshotStyle).toContain(".agent-session-pulse");
     expect(privacySafeScreenshotStyle).toContain(".inbox-docket code");
     expect(privacySafeScreenshotStyle).toContain(".xterm-screen");
@@ -56,7 +55,6 @@ describe("CSS layout evidence support", () => {
       <span class="project-session-title">Fixture session</span>
       <div class="terminal-tile staged"><div class="tile-title"><small>fixture staged</small></div></div>
       <code class="staged-command">pnpm test</code>
-      <code class="staged-cwd">/fixture/project</code>
       <div class="inbox-docket__item-copy"><small>fixture detail</small></div>
       <div class="inbox-docket"><code>fixture evidence</code></div>
       <section class="sessions-surface">
