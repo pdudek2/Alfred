@@ -78,9 +78,7 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expect(agents).toHaveAttribute("aria-hidden", "false");
   await expectSans(agents);
   await agents.getByRole("button", { name: "Review handoff for Fixture diff handoff" }).click();
-  await settleFrames(page);
-  await expectWithinViewport(agents, "Handoff drawer");
-  await expectWithinViewport(agents.locator(".agents-drawer__handoff-primary"), "Handoff primary action");
+  await expectDrawerOpen(agents, agents.locator(".agents-drawer__handoff-primary"));
   await captureAuditScreenshot(page, "agents-handoff-wide");
   await agents.getByRole("button", { name: "Open diff" }).click();
   const diff = page.getByRole("region", { name: "Worktree diff" });
@@ -249,18 +247,6 @@ async function captureAuditScreenshot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: join(directory, `${name}.png`) });
 }
 
-async function settleFrames(page: Page): Promise<void> {
-  await page.evaluate(() => new Promise<void>((resolve) => {
-    let remaining = 12;
-    const next = () => {
-      remaining -= 1;
-      if (remaining === 0) resolve();
-      else requestAnimationFrame(next);
-    };
-    requestAnimationFrame(next);
-  }));
-}
-
 async function expectWithinViewport(locator: Locator, label: string): Promise<void> {
   await expect(locator).toBeVisible();
   const bounds = await locator.evaluate((node) => {
@@ -269,6 +255,41 @@ async function expectWithinViewport(locator: Locator, label: string): Promise<vo
   });
   expect(bounds.left, `${label} starts outside the viewport`).toBeGreaterThanOrEqual(0);
   expect(bounds.right, `${label} exceeds the viewport`).toBeLessThanOrEqual(bounds.viewport);
+}
+
+async function expectDrawerOpen(drawer: Locator, primaryAction: Locator): Promise<void> {
+  await expect.poll(async () => drawer.evaluate((node) => {
+    const style = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return {
+      ariaHidden: node.getAttribute("aria-hidden"),
+      inert: node.hasAttribute("inert"),
+      interactable: style.pointerEvents !== "none",
+      visible: style.visibility === "visible",
+      withinViewport: rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight,
+    };
+  })).toEqual({
+    ariaHidden: "false",
+    inert: false,
+    interactable: true,
+    visible: true,
+    withinViewport: true,
+  });
+  await expect.poll(async () => primaryAction.evaluate((node) => {
+    const style = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return {
+      disabled: (node as HTMLButtonElement).disabled,
+      interactable: style.pointerEvents !== "none",
+      visible: style.visibility === "visible",
+      withinViewport: rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight,
+    };
+  })).toEqual({
+    disabled: false,
+    interactable: true,
+    visible: true,
+    withinViewport: true,
+  });
 }
 
 async function expectDrawerClosed(drawer: Locator): Promise<void> {
