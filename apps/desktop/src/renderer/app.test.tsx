@@ -6283,6 +6283,77 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
   });
 
+  it("routes Claude authentication and Codex MCP runtime blockers through Inbox back to Work", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(
+      undefined,
+      null,
+      [
+        {
+          id: "runtime-claude-auth",
+          clientId: "CLAUDE-AUTH",
+          title: "Claude authentication",
+          source: "manual",
+          agentKind: "claude",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "claude",
+          command: "claude",
+          args: [],
+          buffer: "Not logged in\n",
+          activityEvents: [{
+            id: "claude-auth",
+            kind: "error",
+            title: "Runtime blocked",
+            detail: "Not logged in",
+            payload: { type: "error", message: "Not logged in" },
+            at: 100,
+          }],
+          lastActivityAt: 100,
+          lastOutputAt: 100,
+        },
+        {
+          id: "runtime-codex-mcp",
+          clientId: "CODEX-MCP",
+          title: "Codex MCP",
+          source: "manual",
+          agentKind: "codex",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "codex",
+          command: "codex",
+          args: [],
+          buffer: "MCP server github failed to start: interrupted\n",
+          activityEvents: [{
+            id: "codex-mcp",
+            kind: "error",
+            title: "Runtime blocked",
+            detail: "MCP server github failed to start: interrupted",
+            payload: { type: "error", message: "MCP server github failed to start: interrupted" },
+            at: 101,
+          }],
+          lastActivityAt: 101,
+          lastOutputAt: 101,
+        },
+      ],
+    );
+
+    render(<App />);
+    await openInboxFromCommandPalette(user);
+
+    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
+    expect(inbox).toHaveTextContent("Runtime blocked");
+    expect(inbox).toHaveTextContent("Not logged in");
+    expect(inbox).toHaveTextContent("MCP server github failed to start: interrupted");
+
+    await user.click(within(inbox).getByTestId("inbox-decision-select-A:CODEX-MCP"));
+    await user.click(within(inbox).getByRole("button", { name: "Open in Work Codex MCP in Alfred" }));
+
+    expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex MCP");
+  });
+
   it("opens inferred waiting work on Enter without writing approval text to the PTY", async () => {
     const user = userEvent.setup();
     const { createTerminal, writeTerminal } = installDesktopBridge(
@@ -8459,7 +8530,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Open launch menu" }));
     await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(1));
-    expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("Reused risky recovery is now running.");
+    expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("Reused risky recovery is now working.");
     await bridge.emitExit({ id: "runtime-reused-recovery", exitCode: 1 });
 
     const recoveryToggle = screen.getByRole("button", { name: "Recovery · 1 saved session" });

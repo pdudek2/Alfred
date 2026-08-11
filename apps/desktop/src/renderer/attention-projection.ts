@@ -3,11 +3,13 @@ import { sessionRelaunchSafety } from "./relaunch-safety";
 import { terminalSessionDisplayStatus, type SessionDisplayStatus } from "./session-status";
 import { isLaunchBlocked, type SessionTile } from "./session-state";
 import { checkSafety } from "../shared/terminal-command-safety";
+import { runtimeBlockerReason } from "../shared/session-activity";
 
 export type AttentionKind =
   | "agent-waiting"
   | "staged-launch"
   | "blocked-safety"
+  | "runtime-blocker"
   | "recovery";
 
 export type AttentionProvenance = "structured" | "inferred" | "runtime";
@@ -57,6 +59,7 @@ export function buildAttentionProjection(
     if (status.kind === "checking") return [];
 
     const projection =
+      projectRuntimeBlocker(session, workspace, status) ??
       projectBlockedSafety(session, workspace, status) ??
       projectAgentWaiting(session, workspace, status) ??
       projectStagedLaunch(session, workspace, status) ??
@@ -73,6 +76,29 @@ export function buildAttentionProjection(
   }
 
   return [...uniqueById.values()].sort(compareAttention);
+}
+
+function projectRuntimeBlocker(
+  session: SessionTile,
+  workspace: AttentionWorkspace,
+  status: SessionDisplayStatus,
+): AttentionProjection | null {
+  const latestEvent = session.activityEvents?.at(-1);
+  const reason = latestEvent ? runtimeBlockerReason(latestEvent) : null;
+  if (status.kind !== "error" || !latestEvent || !reason) return null;
+
+  return {
+    ...projectionIdentity(session, workspace),
+    kind: "runtime-blocker",
+    section: "needs-you",
+    blocksAgent: true,
+    rank: 0,
+    attentionAt: latestEvent.at,
+    reason,
+    provenance: "runtime",
+    ...projectionCommand(session),
+    action: { kind: "open-in-work" },
+  };
 }
 
 export function blockingAttentionCount(items: readonly AttentionProjection[]): number {

@@ -370,7 +370,7 @@ export function App() {
     let nextAnnouncement: string | null = null;
 
     for (const session of terminalSessions) {
-      const status = accessibleSessionStatusLabel(session);
+      const status = terminalSessionDisplayStatus(session).label;
       nextStatuses.set(session.id, status);
       const previousStatus = previousStatuses.get(session.id);
       if (previousStatus && previousStatus !== status) {
@@ -3613,30 +3613,6 @@ function mergeSessionInitialBuffer(
   }
 
   return incomingBuffer.length >= currentBuffer.length ? incomingBuffer : currentBuffer;
-}
-
-function accessibleSessionStatusLabel(session: SessionTile): string {
-  if (session.stage === "staged") {
-    if (session.stagedReviewStatus === "checking") return "checking";
-    return isLaunchBlocked(session) ? "blocked" : "ready";
-  }
-
-  if (session.runtimeStatus === undefined) return terminalSessionDisplayStatus(session).label;
-
-  switch (session.runtimeStatus) {
-    case "starting":
-      return "starting";
-    case "live":
-      return "running";
-    case "exited":
-      return "done";
-    case "error":
-      return "error";
-    case "restored":
-      return "restored";
-    case "unavailable":
-      return "unavailable";
-  }
 }
 
 function workspaceRootPath(state: WorkspaceStateSnapshot | null, workspaceId: string): string {

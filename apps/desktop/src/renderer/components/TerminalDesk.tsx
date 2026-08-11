@@ -972,10 +972,7 @@ function ManualTerminalTile({
     ...(activityEvents === undefined ? {} : { activityEvents }),
   } satisfies Parameters<typeof terminalSessionDisplayStatus>[0];
   const displayStatus = terminalSessionDisplayStatus(displaySession, tileStatus, displayClock);
-  const statusSession = {
-    ...(runtimeStatus === undefined ? {} : { runtimeStatus }),
-  } satisfies Pick<SessionTile, "runtimeStatus">;
-  const statusLabel = terminalStatusLabel(statusSession, tileStatus);
+  const statusLabel = displayStatus.label;
   const restartable = displayStatus.kind === "done" || displayStatus.kind === "error";
   const discardableSession = displayStatus.kind === "restored" || restartable;
   const existingCheckoutMetadata = isReusableIsolatedCheckoutMetadata({
@@ -1871,39 +1868,6 @@ function activityKindLabel(kind: NonNullable<SessionTile["activityEvents"]>[numb
       return "state";
     case "output":
       return "out";
-  }
-}
-
-function terminalStatusKind(
-  session: Pick<SessionTile, "runtimeStatus">,
-  localStatus: LocalTerminalStatus,
-): string {
-  if (localStatus === "error" || session.runtimeStatus === "error") return "error";
-  if (localStatus === "restored" || session.runtimeStatus === "restored") return "restored";
-  if (localStatus === "connecting" || session.runtimeStatus === "starting") return "starting";
-  if (localStatus === "exited" || session.runtimeStatus === "exited") return "exited";
-  if (localStatus === "browser" || session.runtimeStatus === "unavailable") return "unavailable";
-  return "running";
-}
-
-function terminalStatusLabel(
-  session: Pick<SessionTile, "runtimeStatus">,
-  localStatus: LocalTerminalStatus,
-): string {
-  switch (terminalStatusKind(session, localStatus)) {
-    case "running":
-    case "ready":
-      return "running";
-    case "starting":
-      return "starting";
-    case "restored":
-      return "restored";
-    case "exited":
-      return "exited";
-    case "error":
-      return "needs review";
-    default:
-      return terminalStatusKind(session, localStatus);
   }
 }
 

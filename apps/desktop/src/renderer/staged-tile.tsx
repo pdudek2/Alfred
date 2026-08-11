@@ -106,7 +106,7 @@ export function StagedTilePreview({
         </div>
         <div className="tile-actions">
           <span className={`tile-status ${checking ? "status-checking" : launchBlocked ? "status-blocked" : ""}`}>
-            {checking ? "checking" : launchBlocked ? "blocked" : "ready"}
+            {checking ? "checking" : launchBlocked ? "blocked" : "staged"}
           </span>
         </div>
       </header>

@@ -19,7 +19,7 @@ describe("session-status", () => {
   it("shows recent terminal output as active and old output as idle", () => {
     expect(terminalSessionDisplayStatus(liveSession({ lastOutputAt: 1_000 }), "ready", 10_000)).toEqual({
       kind: "active",
-      label: "active",
+      label: "working",
     });
     expect(terminalSessionDisplayStatus(liveSession({ lastOutputAt: 1_000 }), "ready", 30_000)).toEqual({
       kind: "idle",
@@ -44,7 +44,7 @@ describe("session-status", () => {
         "ready",
         90_000,
       ),
-    ).toEqual({ kind: "waiting", label: "waiting" });
+    ).toEqual({ kind: "waiting", label: "needs you" });
 
     expect(
       terminalSessionDisplayStatus(
@@ -63,7 +63,33 @@ describe("session-status", () => {
         "ready",
         3_000,
       ),
-    ).toEqual({ kind: "active", label: "active" });
+    ).toEqual({ kind: "active", label: "working" });
+  });
+
+  it("keeps an actionable runtime blocker ahead of output at the same timestamp until later work arrives", () => {
+    const blocker = {
+      id: "runtime-blocker",
+      kind: "error" as const,
+      title: "Runtime blocked",
+      detail: "Not logged in",
+      payload: { type: "error" as const, message: "Not logged in" },
+      at: 1_000,
+    };
+
+    expect(terminalSessionDisplayStatus(
+      liveSession({ activityEvents: [blocker], lastOutputAt: 1_000 }),
+      "ready",
+      2_000,
+    )).toEqual({ kind: "error", label: "error" });
+
+    expect(terminalSessionDisplayStatus(
+      liveSession({
+        activityEvents: [blocker, { id: "progress", kind: "output", title: "Progress reported", detail: "Build complete", at: 2_000 }],
+        lastOutputAt: 2_000,
+      }),
+      "ready",
+      3_000,
+    )).toEqual({ kind: "active", label: "working" });
   });
 
   it("maps terminal lifecycle states to user-facing labels", () => {
@@ -96,7 +122,7 @@ describe("session-status", () => {
     });
     expect(terminalSessionDisplayStatus(liveSession({ stage: "staged" }))).toEqual({
       kind: "staged",
-      label: "ready",
+      label: "staged",
     });
   });
 });

@@ -33,7 +33,7 @@ describe("AgentTimelinePanel", () => {
     };
     render(<AgentTimelinePanel session={session} />);
     expect(screen.getByText("claude — alfred")).toBeInTheDocument();
-    expect(screen.getByText("active")).toBeInTheDocument();
+    expect(screen.getByText("working")).toBeInTheDocument();
     expect(screen.getByText("claude --continue")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Details" }));
