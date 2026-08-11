@@ -51,6 +51,9 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await page.screenshot({
     path: testInfo.outputPath("j0-sans-xterm-1440x900.png"),
   });
+  await page.getByRole("toolbar", { name: "Work layout controls" })
+    .getByRole("button", { name: "New terminal" })
+    .click();
 
   const workspaceTrigger = page.getByRole("button", { name: "Workspace menu for Fixture Alpha" });
   await workspaceTrigger.click();
@@ -159,12 +162,27 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await expectSansFont(diff.locator(".worktree-diff-panel__files code").first());
   await expectSansFont(diff.locator(".worktree-diff-panel__line").first());
   await diff.getByRole("button", { name: "Close diff" }).click();
-  await page.getByRole("navigation", { name: "Projects and Free Chats" })
-    .getByRole("button", { name: "Manual · zsh 1", exact: true })
-    .click();
-  await expect(workScreen).toBeVisible();
-  await expect(workScreen).toContainText(terminalEvidence);
-  await page.locator(".xterm-helper-textarea").first().focus();
+  await chooseWorkLayout(page, "Grid");
+  const navigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
+  await navigator.getByRole("button", { name: "Manual · zsh 2", exact: true }).click();
+  await chooseWorkLayout(page, "Focus");
+  await expect(page.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeVisible();
+  const hiddenFirstTerminal = page.locator(
+    'article[data-testid="terminal-tile"][data-session-id="manual-1"]',
+  );
+  await expect(hiddenFirstTerminal).toHaveAttribute("aria-hidden", "true");
+  expect(Number.parseInt(await hiddenFirstTerminal.evaluate((node) => (
+    node instanceof HTMLElement ? node.style.gridRow : ""
+  )), 10)).toBeGreaterThanOrEqual(9);
+  await navigator.getByRole("button", { name: "Manual · zsh 1", exact: true }).click();
+  const firstTerminalScreen = hiddenFirstTerminal.locator(".xterm-screen");
+  await expect(hiddenFirstTerminal).not.toHaveAttribute("aria-hidden", "true");
+  await expect(firstTerminalScreen).toBeVisible();
+  await expect(firstTerminalScreen).toContainText(terminalEvidence);
+  await expect.poll(() => hiddenFirstTerminal.evaluate((node) => (
+    node instanceof HTMLElement ? node.style.gridRow : ""
+  ))).toBe("1 / span 8");
+  await firstTerminalScreen.locator(".xterm-helper-textarea").focus();
   await page.evaluate(() => new Promise<void>((resolve) => {
     let remainingFrames = 8;
     const nextFrame = () => {
@@ -177,9 +195,9 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await page.screenshot({
     path: testInfo.outputPath("j0-sans-xterm-1120x720.png"),
   });
-  await expectNativeTerminalInk(app, workScreen);
+  await expectNativeTerminalInk(app, firstTerminalScreen);
 
-  const screenAfter = await requiredHandle(page.locator(".xterm-screen").first(), "restored Work xterm screen");
+  const screenAfter = await requiredHandle(firstTerminalScreen, "restored Work xterm screen");
   expect(await screenBefore.evaluate(
     (before, after) => before.isSameNode(after) && before.isConnected,
     screenAfter,
@@ -195,6 +213,11 @@ async function selectSurface(
 ): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();
+}
+
+async function chooseWorkLayout(page: Page, layout: "Focus" | "Grid"): Promise<void> {
+  await page.getByRole("button", { name: /^Open layout menu,/ }).click();
+  await page.getByRole("menuitem", { name: layout, exact: true }).click();
 }
 
 async function expectMinimumHeight(locator: Locator, minimum: number): Promise<void> {

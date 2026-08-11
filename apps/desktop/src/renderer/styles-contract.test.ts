@@ -17,6 +17,7 @@ const productCssPaths = [
   "styles.css",
   "components/agents-drawer.css",
   "components/project-navigator-signals.css",
+  "components/work-surface-toolbar.css",
   "components/workspace-preview-dock.css",
   "components/worktree-diff-panel.css",
 ].map((relativePath) => [
@@ -26,8 +27,8 @@ const productCssPaths = [
 
 if (productCssPaths.some((path) => !path)) throw new Error("Unable to locate product CSS");
 const productStyles = productCssPaths.map((path) => readFileSync(path!, "utf8")).join("\n");
-const previewDockStylesPath = productCssPaths[3]!;
-const previewDockStyles = readFileSync(productCssPaths[3]!, "utf8");
+const previewDockStylesPath = productCssPaths[4]!;
+const previewDockStyles = readFileSync(productCssPaths[4]!, "utf8");
 const lightningCssConfig = resolveConfig(
   { configFile: false, css: { transformer: "lightningcss" } },
   "build",
@@ -632,6 +633,7 @@ describe("renderer CSS contracts", () => {
       ["mono", "space"].join(""),
     ];
 
+    expect(productCssPaths.some((path) => path?.endsWith("components/work-surface-toolbar.css"))).toBe(true);
     expect(productStyles).not.toMatch(new RegExp(prohibitedFontFragments.join("|"), "i"));
     for (const selector of [
       ".xterm-host",
