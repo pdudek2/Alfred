@@ -93,8 +93,26 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   const context = page.getByRole("complementary", { name: "Session context" });
   await expect(context).toBeVisible();
   await expectSansFont(context);
+  await page.screenshot({
+    path: testInfo.outputPath("j0-context-1440x900.png"),
+    style: privacySafeScreenshotStyle,
+  });
+  expect(await context.evaluate((node) => getComputedStyle(node).boxShadow)).not.toBe("none");
+  const contextTimeline = context.locator(".agent-timeline-panel");
+  await expect(contextTimeline).toBeVisible();
+  expect(await contextTimeline.evaluate((node) => {
+    const style = getComputedStyle(node);
+    return style.boxShadow === "none" && style.borderRadius === "0px";
+  })).toBe(true);
+  const contextScreen = await requiredHandle(workScreen, "Work xterm before closing Context");
   await context.getByRole("button", { name: "Close Context panel" }).click();
   await expect(surfacesTrigger).toBeFocused();
+  const contextScreenAfterClose = await requiredHandle(workScreen, "Work xterm after closing Context");
+  expect(await contextScreen.evaluate(
+    (before, after) => before.isSameNode(after) && before.isConnected,
+    contextScreenAfterClose,
+  )).toBe(true);
+  await expect(workScreen).toContainText(terminalEvidence);
 
   await selectSurface(page, "Local Data & Privacy");
   const privacy = page.getByRole("dialog", { name: "Local Data & Privacy" });
@@ -132,6 +150,35 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   });
 
   await setWindowSize(app, page, 1120, 720);
+  const sessionsScope = sessions.getByRole("group", { name: "Session scope controls" });
+  const projectScope = sessionsScope.getByRole("combobox", { name: "Project scope" });
+  await expect(projectScope).toBeVisible();
+  await expect(sessionsScope.getByRole("status", { name: "Conversation count" })).toBeVisible();
+  const scopeGeometry = await sessionsScope.evaluate((node) => {
+    const scope = node.getBoundingClientRect();
+    const heading = node.closest<HTMLElement>(".sessions-navigator__heading")?.getBoundingClientRect();
+    const select = node.querySelector("select")?.getBoundingClientRect();
+    return { heading, scope, select };
+  });
+  expect(scopeGeometry.heading && scopeGeometry.select).toBeTruthy();
+  expect(scopeGeometry.scope.top).toBeGreaterThanOrEqual(scopeGeometry.heading!.top);
+  expect(scopeGeometry.scope.bottom).toBeLessThanOrEqual(scopeGeometry.heading!.bottom);
+  expect(scopeGeometry.select!.width).toBeGreaterThanOrEqual(120);
+  await projectScope.focus();
+  await expect(projectScope).toBeFocused();
+  await expect(sessions.locator(".sessions-results")).toBeVisible();
+  await expect(sessions.locator(".sessions-reader")).toBeVisible();
+  expect(await collectControlOverflowEvidence(page, {
+    controlSelector: ".sessions-navigator__scope select, .sessions-navigator__scope > [role='status']",
+    verticalScrollOwners: [],
+  })).toEqual([]);
+  await sessions.locator(".sessions-navigator__heading").screenshot({
+    path: testInfo.outputPath("j0-sessions-controls-1120x720.png"),
+  });
+  await page.screenshot({
+    path: testInfo.outputPath("j0-sessions-1120x720.png"),
+    style: privacySafeScreenshotStyle,
+  });
   await runDetailsTrigger.click();
   const runDetails = page.getByRole("complementary", { name: "Run details" });
   await expect(runDetails).toBeVisible();

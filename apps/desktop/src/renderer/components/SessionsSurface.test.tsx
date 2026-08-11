@@ -284,6 +284,17 @@ describe("SessionsSurface", () => {
     expect(screen.queryByText(/History|Observatory/)).not.toBeInTheDocument();
   });
 
+  it("keeps scope and count together in the navigator toolbar without changing result or reader hierarchy", () => {
+    renderSurface({ sessions: [managedSession(0)] });
+
+    const navigator = screen.getByRole("complementary", { name: "Conversations" });
+    const scopeControls = within(navigator).getByRole("group", { name: "Session scope controls" });
+    expect(within(scopeControls).getByRole("combobox", { name: "Project scope" })).toBeVisible();
+    expect(within(scopeControls).getByRole("status", { name: "Conversation count" })).toHaveTextContent("1");
+    expect(screen.getByRole("listbox", { name: "Conversation results" }).parentElement).toBe(navigator);
+    expect(screen.getByRole("region", { name: "Sessions workspace" }).querySelectorAll(".sessions-reader")).toHaveLength(1);
+  });
+
   it("loads structured external messages only after selection and keeps explicit roles", async () => {
     const user = userEvent.setup();
     const sessionsApi = createSessionsApi();

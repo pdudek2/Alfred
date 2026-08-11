@@ -65,7 +65,7 @@ export function ContextColumn({
       data-testid="context-column"
     >
       <div
-        className={`side-dock-stack context-drawer ${contextOpen ? "open" : "closed"}`}
+        className={`context-drawer ${contextOpen ? "open" : "closed"}`}
         data-testid="context-drawer"
         aria-hidden={contextOpen ? "false" : "true"}
         inert={!contextOpen || undefined}

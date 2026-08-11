@@ -98,23 +98,25 @@ export function SessionsNavigator({
         </button>
         <strong>Conversations</strong>
         <span aria-hidden="true">/</span>
-        <select
-          aria-label="Project scope"
-          value={state.selectedProjectId}
-          onChange={(event) => onSelectProject(event.target.value)}
-        >
-          <option value="all">All projects</option>
-          {projectOptions.map((workspace) => (
-            <option key={workspace.id} value={workspace.id}>{workspace.label}</option>
-          ))}
-          <option value="free-chats">Free Chats</option>
-        </select>
-        <span
-          aria-label="Conversation count"
-          aria-live="polite"
-          aria-atomic="true"
-          role="status"
-        >{resultStatus}</span>
+        <div className="sessions-navigator__scope" role="group" aria-label="Session scope controls">
+          <select
+            aria-label="Project scope"
+            value={state.selectedProjectId}
+            onChange={(event) => onSelectProject(event.target.value)}
+          >
+            <option value="all">All projects</option>
+            {projectOptions.map((workspace) => (
+              <option key={workspace.id} value={workspace.id}>{workspace.label}</option>
+            ))}
+            <option value="free-chats">Free Chats</option>
+          </select>
+          <span
+            aria-label="Conversation count"
+            aria-live="polite"
+            aria-atomic="true"
+            role="status"
+          >{resultStatus}</span>
+        </div>
       </header>
       {showControls && (
         <>

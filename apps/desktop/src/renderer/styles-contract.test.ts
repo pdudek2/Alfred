@@ -1810,6 +1810,12 @@ describe("renderer CSS contracts", () => {
         || selector.startsWith(".sessions-"),
       [
         { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-surface", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-navigator__heading", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-navigator__heading > button", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-navigator__heading > strong", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-navigator__heading > span[aria-hidden=\"true\"]", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-navigator__scope", region: surfaceResponsiveRegion },
+        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-navigator__scope select", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-transcript", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-message", region: surfaceResponsiveRegion },
         { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-reader--details-open .sessions-reader__body", region: surfaceResponsiveRegion },
@@ -2027,9 +2033,36 @@ describe("renderer CSS contracts", () => {
     expect(openLayout).toContain("grid-template-columns: 226px minmax(420px, 1fr) 318px");
     expect(contextColumn).toContain("position: static");
     expect(contextColumn).toContain("width: auto");
+    expect(contextColumn).toContain("box-shadow: -14px 0 30px -30px rgba(0, 0, 0, 0.9)");
     expect(contextDrawer).toContain("height: 100%");
+    expect(contextDrawer).toContain("box-shadow: none");
     expect(styles).not.toContain(":has(.context-column.open)");
     expect(styles).not.toContain(".workspace-layout > .context-column.open");
+  });
+
+  it("keeps Sessions scope controls readable inside the existing navigator toolbar", () => {
+    const heading = singleTopLevelRuleBodyIn(styles, ".sessions-navigator__heading");
+    const scope = singleTopLevelRuleBodyIn(styles, ".sessions-navigator__scope");
+
+    expect(heading).toContain("flex-wrap: wrap");
+    expect(scope).toContain("display: flex");
+    expect(scope).toContain("flex: 1 1 156px");
+    expect(scope).toContain("min-width: 0");
+    expect(scope).toContain("justify-content: flex-end");
+    expect(singleTopLevelRuleBodyIn(styles, ".sessions-navigator__scope select")).toContain("flex: 1 1 120px");
+    expect(exactBlockFor(".sessions-navigator__scope > span[role=\"status\"]")).toContain("flex: 0 0 auto");
+    expect(mediaExactRuleBodies("(max-width: 1180px)", ".sessions-navigator__heading").at(-1)).toContain(
+      "grid-template-areas: \"back title divider\" \"scope scope scope\"",
+    );
+    expect(mediaExactRuleBodies("(max-width: 1180px)", ".sessions-navigator__heading").at(-1)).toContain(
+      "grid-template-rows: 32px 32px",
+    );
+    expect(mediaExactRuleBodies("(max-width: 1180px)", ".sessions-navigator__heading").at(-1)).toContain(
+      "min-height: 92px",
+    );
+    expect(mediaExactRuleBodies("(max-width: 1180px)", ".sessions-navigator__scope").at(-1)).toContain(
+      "grid-area: scope",
+    );
   });
 
   it("keeps the Inbox empty state as a compact line instead of a dashboard card", () => {
