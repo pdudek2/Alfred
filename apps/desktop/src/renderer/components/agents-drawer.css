@@ -115,7 +115,7 @@
 
 .agents-drawer__section > header > span {
   color: var(--text-muted);
-  font: 600 10px/1 var(--mono);
+  font: 600 11px/1 var(--sans);
 }
 
 .agents-drawer__decision-list,
@@ -419,8 +419,8 @@
   color: var(--signal-success);
 }
 
-.agents-drawer__handoff-mono {
-  font-family: var(--mono) !important;
+.agents-drawer__handoff-detail {
+  font-family: var(--sans) !important;
 }
 
 .agents-drawer__handoff-changes ul {

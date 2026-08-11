@@ -39,7 +39,7 @@
   --radius-control: 8px;
   --radius-panel: 12px;
   --control-height: 32px;
-  --type-micro: 10px;
+  --type-micro: 11px;
 
   --shadow-panel: 0 28px 80px rgba(0, 0, 0, 0.5);
 
@@ -61,7 +61,6 @@
     0 1px 0 rgba(255, 255, 255, 0.045) inset,
     0 18px 38px -26px rgba(0, 0, 0, 0.85);
   --border-subtle: var(--border);
-  --mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
   color: var(--ink);
   background: var(--night);
@@ -150,7 +149,7 @@ button:focus-visible {
   padding: 10px;
   background: rgba(0, 0, 0, 0.25);
   color: var(--ink-soft);
-  font: 12px/1.45 var(--mono);
+  font: 12px/1.45 var(--sans);
   white-space: pre-wrap;
 }
 
@@ -438,7 +437,7 @@ button:focus-visible {
 .workspace-title-trigger small {
   margin-top: 2px;
   color: var(--ink-5);
-  font: 500 12px/1.35 var(--mono);
+  font: 500 12px/1.35 var(--sans);
   white-space: nowrap;
 }
 
@@ -508,7 +507,7 @@ button:focus-visible {
 .workspace-popover button small {
   margin-top: 2px;
   color: var(--ink-5);
-  font: 500 12px/1.35 var(--mono);
+  font: 500 12px/1.35 var(--sans);
 }
 
 .workspace-popover hr {
@@ -627,7 +626,7 @@ button:focus-visible {
 .mission-name span {
   margin-top: 2px;
   color: var(--ink-5);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 12px;
 }
 
@@ -741,7 +740,7 @@ button:focus-visible {
 }
 
 .project-recents-header span {
-  font: 500 9px/1 var(--mono);
+  font: 500 11px/1 var(--sans);
 }
 
 .project-section-heading {
@@ -818,7 +817,7 @@ button:focus-visible {
 
 .project-recent-result time {
   color: var(--ink-5);
-  font: 500 9px/1 var(--mono);
+  font: 500 12px/1 var(--sans);
 }
 
 .project-list,
@@ -902,7 +901,7 @@ button:focus-visible {
 
 .project-row-button kbd {
   color: var(--ink-5);
-  font: 500 10px/1 var(--mono);
+  font: 500 11px/1 var(--sans);
 }
 
 .project-row-label,
@@ -930,7 +929,7 @@ button:focus-visible {
 
 .project-attention-count {
   color: var(--ink-5);
-  font: 650 9px/1 var(--mono);
+  font: 650 11px/1 var(--sans);
 }
 
 .project-workspace-actions {
@@ -1386,7 +1385,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 .workbench-right-zone kbd {
   color: var(--ink-5);
-  font: 500 10px/1 var(--mono);
+  font: 500 11px/1 var(--sans);
 }
 
 .work-surface-toolbar {
@@ -1764,7 +1763,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   padding: 0 9px;
   background: var(--ink-2);
   color: var(--ink-7);
-  font: 650 11px/24px var(--mono);
+  font: 650 11px/24px var(--sans);
 }
 
 /*
@@ -2120,8 +2119,8 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 .split-empty-state span {
   color: var(--ink-5);
-  font-family: var(--mono);
-  font-size: 10px;
+  font-family: var(--sans);
+  font-size: 11px;
   font-weight: 720;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2155,7 +2154,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   padding: 0 10px;
   background: var(--ink-1);
   color: var(--ink-5);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 11px;
 }
 
@@ -2401,7 +2400,7 @@ body.arranging-pointer {
 
 .terminal-tile-header .tile-title small {
   color: var(--ink-5);
-  font: 500 10px/1.2 var(--mono);
+  font: 500 12px/1.2 var(--sans);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2444,7 +2443,7 @@ body.arranging-pointer {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: var(--type-micro);
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -2524,8 +2523,8 @@ body.arranging-pointer {
   justify-content: center;
   gap: 4px;
   flex: 0 0 auto;
-  font-family: var(--mono);
-  font-size: 10px;
+  font-family: var(--sans);
+  font-size: 11px;
   line-height: 1;
 }
 
@@ -2556,7 +2555,7 @@ body.arranging-pointer {
 
 .tile-kind-prompt {
   color: currentColor;
-  font: 700 10px/1 var(--mono);
+  font: 700 11px/1 var(--sans);
   letter-spacing: -0.08em;
 }
 
@@ -2810,7 +2809,7 @@ body.arranging-pointer {
   min-width: 34px;
   color: var(--ink-5);
   font-family: var(--sans);
-  font-size: 11px;
+  font-size: 12px;
   text-align: right;
   white-space: nowrap;
 }
@@ -3258,6 +3257,7 @@ body.arranging-pointer {
   border-radius: 0;
   background: var(--surface-terminal);
   background-image: none;
+  font-family: var(--sans);
 }
 
 .xterm-host .xterm {
@@ -3312,7 +3312,7 @@ body.arranging-pointer {
 
 .staged-command {
   color: var(--ink-7);
-  font: 500 12px/1.45 var(--mono);
+  font: 500 12px/1.45 var(--sans);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: normal;
@@ -3553,7 +3553,7 @@ body.arranging-pointer {
   background: var(--ink-2);
   box-shadow: none;
   color: var(--ink-6);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -3667,8 +3667,8 @@ body.arranging-pointer {
   min-width: 0;
   flex: 1 1 auto;
   color: var(--ink-5);
-  font-family: var(--mono);
-  font-size: 10px;
+  font-family: var(--sans);
+  font-size: 11px;
   line-height: 1.2;
   letter-spacing: 0.02em;
   overflow: hidden;
@@ -3769,7 +3769,7 @@ body.arranging-pointer {
   display: inline-grid;
   place-items: center;
   color: var(--ink-5);
-  font: 500 10px/1 var(--mono);
+  font: 500 11px/1 var(--sans);
 }
 
 .composer-blocked-action {
@@ -3779,8 +3779,8 @@ body.arranging-pointer {
   padding: 0 8px;
   background: var(--ink-2);
   color: var(--ink-6);
-  font-family: var(--mono);
-  font-size: 10px;
+  font-family: var(--sans);
+  font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -4174,7 +4174,7 @@ body.arranging-pointer {
   min-width: 0;
   margin: 0;
   color: var(--text-primary);
-  font: 12px/1.35 var(--mono);
+  font: 12px/1.35 var(--sans);
   overflow-wrap: anywhere;
 }
 
@@ -4201,13 +4201,13 @@ body.arranging-pointer {
 
 .discard-checkout-body li span {
   color: color-mix(in oklab, var(--brass) 84%, white 8%);
-  font: 700 12px/1.2 var(--mono);
+  font: 700 12px/1.2 var(--sans);
 }
 
 .discard-checkout-body li code {
   min-width: 0;
   color: var(--text-secondary);
-  font: 12px/1.25 var(--mono);
+  font: 12px/1.25 var(--sans);
   overflow-wrap: anywhere;
 }
 
@@ -4298,8 +4298,8 @@ body.arranging-pointer {
   padding: 3px 7px;
   background: rgba(238, 243, 247, 0.035);
   color: var(--faint);
-  font-family: var(--mono);
-  font-size: 10px;
+  font-family: var(--sans);
+  font-size: 11px;
 }
 
 .command-palette-list {
@@ -4475,7 +4475,7 @@ body.arranging-pointer {
 .agent-timeline-header span {
   font-size: 11px;
   color: var(--muted);
-  font-family: var(--mono);
+  font-family: var(--sans);
 }
 
 .agent-status-pill {
@@ -4542,7 +4542,7 @@ body.arranging-pointer {
 }
 
 .agent-essentials-command {
-  font: 500 11.5px/1.4 var(--mono);
+  font: 500 11.5px/1.4 var(--sans);
   color: var(--text-primary);
 }
 
@@ -4617,8 +4617,8 @@ body.arranging-pointer {
 
 .agent-session-facts dt {
   color: var(--faint);
-  font-family: var(--mono);
-  font-size: 10px;
+  font-family: var(--sans);
+  font-size: 11px;
   text-transform: lowercase;
 }
 
@@ -4626,8 +4626,8 @@ body.arranging-pointer {
   min-width: 0;
   margin: 0;
   color: var(--ink-soft);
-  font-family: var(--mono);
-  font-size: 11px;
+  font-family: var(--sans);
+  font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4664,8 +4664,8 @@ body.arranging-pointer {
 .agent-staged-editor span,
 .agent-staged-edit-form label span {
   color: var(--brass);
-  font-family: var(--mono);
-  font-size: 10px;
+  font-family: var(--sans);
+  font-size: 11px;
   font-weight: 700;
   text-transform: lowercase;
 }
@@ -4712,7 +4712,7 @@ body.arranging-pointer {
   padding: 8px 9px;
   background: rgba(2, 4, 6, 0.66);
   color: var(--ink);
-  font: 12px var(--mono);
+  font: 12px var(--sans);
   outline: none;
 }
 
@@ -4772,7 +4772,7 @@ body.arranging-pointer {
   padding: 0 9px;
   background: color-mix(in oklab, white 4%, transparent);
   color: var(--ink-soft);
-  font: 700 10px var(--mono);
+  font: 700 11px var(--sans);
   cursor: pointer;
 }
 
@@ -4797,7 +4797,7 @@ body.arranging-pointer {
   padding: 0 10px;
   background: color-mix(in oklab, white 4%, transparent);
   color: var(--muted);
-  font: 700 10px var(--mono);
+  font: 700 11px var(--sans);
   letter-spacing: 0.01em;
 }
 
@@ -4820,8 +4820,8 @@ body.arranging-pointer {
 .agent-session-pulse span {
   display: block;
   color: currentColor;
-  font-family: var(--mono);
-  font-size: 10px;
+  font-family: var(--sans);
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: lowercase;
@@ -4849,8 +4849,8 @@ body.arranging-pointer {
   display: block;
   margin-top: 8px;
   color: var(--faint);
-  font-family: var(--mono);
-  font-size: 10px;
+  font-family: var(--sans);
+  font-size: 12px;
 }
 
 .agent-session-pulse.tone-ask { color: var(--brass); }
@@ -4903,14 +4903,14 @@ body.arranging-pointer {
 
 .agent-activity-object span {
   color: currentColor;
-  font: 700 10px var(--mono);
+  font: 700 11px var(--sans);
   text-transform: uppercase;
 }
 
 .agent-activity-object code {
   min-width: 0;
   color: var(--ink);
-  font: 600 11px var(--mono);
+  font: 600 12px var(--sans);
   overflow-wrap: anywhere;
 }
 
@@ -4921,7 +4921,7 @@ body.arranging-pointer {
   padding: 0 8px;
   background: color-mix(in oklab, currentColor 8%, transparent);
   color: currentColor;
-  font: 700 10px var(--mono);
+  font: 700 11px var(--sans);
   cursor: pointer;
 }
 
@@ -4958,8 +4958,8 @@ body.arranging-pointer {
   display: block;
   margin-top: 5px;
   color: var(--faint);
-  font-family: var(--mono);
-  font-size: 10px;
+  font-family: var(--sans);
+  font-size: 12px;
 }
 
 /* Depth layer: source-order component rules below now consume the canonical tactical tokens from :root. */
@@ -5011,7 +5011,7 @@ body.arranging-pointer {
    dense UI read as product surfaces instead of equal-weight text.
    ============================================================ */
 
-/* Region titles: sans for chrome, mono only where data/terminal content needs it. */
+/* Region titles use the shared sans token. */
 .agent-timeline-header strong,
 .command-palette-search input {
   font-family: var(--sans);
@@ -5449,7 +5449,7 @@ body.arranging-pointer {
 
 .inbox-docket__item-row time {
   color: var(--ink-5);
-  font: 500 12px/1 var(--mono);
+  font: 500 12px/1 var(--sans);
   white-space: nowrap;
 }
 
@@ -5517,7 +5517,7 @@ body.arranging-pointer {
   padding: 9px 11px;
   background: var(--ink-0);
   color: var(--ink-6);
-  font: 500 12px/1.55 var(--mono);
+  font: 500 12px/1.55 var(--sans);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
@@ -5587,7 +5587,7 @@ body.arranging-pointer {
 }
 
 .inbox-docket__facts .inbox-docket__technical {
-  font-family: var(--mono);
+  font-family: var(--sans);
 }
 
 .inbox-docket__state {
@@ -6105,7 +6105,7 @@ body.arranging-pointer {
 }
 
 .sessions-navigator__result-meta > span {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 12px;
 }
 
@@ -6419,7 +6419,7 @@ body.arranging-pointer {
 
 .sessions-recovery-review code {
   color: var(--ink-6);
-  font: 500 11px/1.45 var(--mono);
+  font: 500 12px/1.45 var(--sans);
   overflow-wrap: anywhere;
 }
 
@@ -6483,7 +6483,7 @@ body.arranging-pointer {
   overflow-x: auto;
   background: var(--ink-0);
   color: var(--ink-6);
-  font: 500 11px/1.65 var(--mono);
+  font: 500 12px/1.65 var(--sans);
   white-space: pre;
 }
 
@@ -6584,7 +6584,7 @@ body.arranging-pointer {
 }
 
 .sessions-run-details dd.technical {
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 12px;
 }
 
@@ -7082,14 +7082,14 @@ body.arranging-pointer {
 
 .agent-session-facts dt {
   color: var(--text-faint);
-  font: 650 10px/1.2 var(--sans);
+  font: 650 11px/1.2 var(--sans);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .agent-session-facts dd {
   color: var(--text-secondary);
-  font: 500 11px/1.35 var(--mono);
+  font: 500 12px/1.35 var(--sans);
 }
 
 .agent-activity-list {
@@ -7133,6 +7133,5 @@ body.arranging-pointer {
 /* ============================================================
    ALFRED UI DISCIPLINE v11
    One-capsule dispatch, sans section labels, identity ≠ signal.
-   Mono stays reserved for terminal content, paths, timestamps
-   and keyboard hints; cyan stays reserved for focus/selection.
+   Cyan stays reserved for focus/selection.
    ============================================================ */

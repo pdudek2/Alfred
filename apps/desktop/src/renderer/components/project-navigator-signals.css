@@ -12,7 +12,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 3px;
-  font: 650 9px/1 var(--mono);
+  font: 650 11px/1 var(--sans);
 }
 
 .project-agent-signal .alfred-signal-glyph,
