@@ -949,7 +949,7 @@ describe("renderer CSS contracts", () => {
     const desktopFrameBodies = topLevelExactRuleBodies(".desktop-frame");
     expect(desktopFrameBodies).toHaveLength(1);
     expect(desktopFrameBodies[0]).toContain("display: grid");
-    expect(desktopFrameBodies[0]).toContain("overflow: hidden");
+    expect(desktopFrameBodies[0]).toContain("overflow: clip");
     expect(mediaExactRuleBodies("(max-width: 980px)", ".desktop-frame")).toHaveLength(0);
 
     expectCanonicalBase(".mission-bar", [
@@ -1777,11 +1777,19 @@ describe("renderer CSS contracts", () => {
 
   it("keeps the CSS terminal surface on the approved graphite material", () => {
     const tile = exactBlockFor(".terminal-tile");
+    const kindTile = blockFor(
+      ".terminal-tile.kind-manual,\n"
+      + ".terminal-tile.kind-codex,\n"
+      + ".terminal-tile.kind-claude,\n"
+      + ".terminal-tile.kind-dev-server,\n"
+      + ".terminal-tile.kind-shell",
+    );
     const xtermHost = blockFor(".terminal-tile .xterm-host");
     const standaloneXtermHost = exactBlockFor(".xterm-host");
 
     expect(rootToken("--ink-0")).toBe("#050506");
     expect(tile).toContain("background: var(--surface-terminal)");
+    expect(kindTile).toContain("background: var(--surface-terminal)");
     expect(xtermHost).toContain("background: var(--surface-terminal)");
     expect(standaloneXtermHost).toContain("background: var(--surface-terminal)");
   });
