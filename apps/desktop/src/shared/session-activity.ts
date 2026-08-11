@@ -1,4 +1,4 @@
-import { stripTerminalControlSequences } from "./session-title.js";
+import { stripTerminalControlSequences, stripTerminalControlSequencesWithRemainder } from "./session-title.js";
 
 export type SessionActivityEventKind =
   | "approval"
@@ -44,6 +44,7 @@ export type SessionActivityInput = {
 
 export type TerminalOutputActivityStreamState = {
   carry: string;
+  terminalControlCarry?: string;
 };
 
 export type TerminalOutputActivityChunkResult = {
@@ -57,7 +58,8 @@ export function classifyTerminalOutputChunk(
   state: TerminalOutputActivityStreamState,
   data: string,
 ): TerminalOutputActivityChunkResult {
-  const normalized = stripTerminalControlSequences(`${state.carry}${data}`).replace(/\r/g, "\n");
+  const stripped = stripTerminalControlSequencesWithRemainder(`${state.terminalControlCarry ?? ""}${data}`);
+  const normalized = `${state.carry}${stripped.text}`.replace(/\r/g, "\n");
   const segments = normalized.split("\n");
   const unfinished = normalized.endsWith("\n") ? "" : (segments.pop() ?? "");
   const activities = segments.flatMap((segment) => {
@@ -73,6 +75,7 @@ export function classifyTerminalOutputChunk(
     activities,
     state: {
       carry: prompt ? "" : unfinished.slice(-MAX_ACTIVITY_CARRY),
+      ...(stripped.remainder ? { terminalControlCarry: stripped.remainder } : {}),
     },
   };
 }

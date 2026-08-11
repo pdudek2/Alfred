@@ -41,7 +41,7 @@ import { recoveryHeadline } from "../recovery-display";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { restoredSessionActionLabel, restoredSessionActionTitle } from "../restored-session-action";
 import { isWorkSession } from "../session-scope";
-import { normalizeSessionTitle, stripTerminalControlSequences } from "../../shared/session-title";
+import { normalizeSessionTitle, stripTerminalControlSequencesWithRemainder } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
@@ -56,12 +56,14 @@ const MAX_CAPTURED_AGENT_INPUT = 512;
 type AgentTitleInputCapture = {
   buffer: string;
   title?: string;
+  terminalControlCarry?: string;
 };
 
-function captureAgentTitleInput(buffer: string, data: string): AgentTitleInputCapture {
+function captureAgentTitleInput(state: AgentTitleInputCapture, data: string): AgentTitleInputCapture {
   // ponytail: mirrors ordinary typing/backspace only; prefer runtime thread metadata if agents expose it later.
-  let nextBuffer = buffer;
-  const visibleData = stripTerminalControlSequences(data);
+  let nextBuffer = state.buffer;
+  const stripped = stripTerminalControlSequencesWithRemainder(`${state.terminalControlCarry ?? ""}${data}`);
+  const visibleData = stripped.text;
 
   for (const character of visibleData) {
     if (character === "\r" || character === "\n") {
@@ -81,7 +83,10 @@ function captureAgentTitleInput(buffer: string, data: string): AgentTitleInputCa
     }
   }
 
-  return { buffer: nextBuffer };
+  return {
+    buffer: nextBuffer,
+    ...(stripped.remainder ? { terminalControlCarry: stripped.remainder } : {}),
+  };
 }
 
 export type WorktreeActionKind = "review" | "apply";
@@ -935,7 +940,7 @@ function ManualTerminalTile({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
-  const agentTitleInputRef = useRef("");
+  const agentTitleInputRef = useRef<AgentTitleInputCapture>({ buffer: "" });
   const lastResizeRef = useRef<{ id: TerminalSessionId; cols: number; rows: number } | null>(null);
   const sessionIdRef = useRef<TerminalSessionId | null>(null);
   const [status, setStatus] = useState<LocalTerminalStatus>("connecting");
@@ -1168,7 +1173,7 @@ function ManualTerminalTile({
     const terminalApi = getDesktopTerminalApi();
     let disposed = false;
     const metadata = runtimeMetadataRef.current;
-    agentTitleInputRef.current = "";
+    agentTitleInputRef.current = { buffer: "" };
 
     if (!container) {
       return;
@@ -1378,13 +1383,13 @@ function ManualTerminalTile({
         && isGeneratedSessionTitle(currentMetadata.title)
       ) {
         const capture = captureAgentTitleInput(agentTitleInputRef.current, data);
-        agentTitleInputRef.current = capture.buffer;
+        agentTitleInputRef.current = capture;
         if (capture.title) {
           currentMetadata.title = capture.title;
           onRenameSession(sessionKey, capture.title);
         }
       } else {
-        agentTitleInputRef.current = "";
+        agentTitleInputRef.current = { buffer: "" };
       }
 
       if (sessionId) {
