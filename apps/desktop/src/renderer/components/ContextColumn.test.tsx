@@ -58,7 +58,7 @@ afterEach(() => {
 });
 
 describe("ContextColumn", () => {
-  it("exposes one adjacent Session context dock with no nested dock card", () => {
+  it("exposes one elevated Session context boundary with no nested dock card", () => {
     renderContext({ contextOpen: true });
 
     const column = screen.getByRole("complementary", { name: "Session context" });
@@ -66,6 +66,7 @@ describe("ContextColumn", () => {
     expect(within(column).getByText("Context", { exact: true })).toBeVisible();
     expect(within(column).getByRole("button", { name: "Close Context panel" })).toBeVisible();
     expect(column.querySelectorAll(".context-drawer")).toHaveLength(1);
+    expect(column.querySelector(".side-dock-stack")).toBeNull();
   });
 
   it("closes on Escape and restores focus to the Surfaces trigger", async () => {

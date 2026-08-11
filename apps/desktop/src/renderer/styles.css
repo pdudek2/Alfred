@@ -5856,11 +5856,12 @@ body.arranging-pointer {
 
 .sessions-navigator__heading {
   min-width: 0;
-  height: 52px;
+  min-height: 52px;
   border-bottom: 1px solid var(--ink-3);
-  padding: 0 12px;
+  padding: 10px 12px;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -5916,19 +5917,27 @@ body.arranging-pointer {
   outline: none;
 }
 
-.sessions-navigator__heading select {
+.sessions-navigator__scope {
+  min-width: 0;
+  display: flex;
+  flex: 1 1 156px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.sessions-navigator__scope select {
+  min-width: 0;
+  flex: 1 1 120px;
   max-width: 128px;
   text-overflow: ellipsis;
 }
 
-.sessions-navigator__heading > span[role="status"] {
-  min-width: 0;
-  margin-left: auto;
-  overflow: hidden;
+.sessions-navigator__scope > span[role="status"] {
+  flex: 0 0 auto;
   color: var(--ink-5);
   font: 500 12px/1 var(--sans);
   font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -6716,6 +6725,41 @@ body.arranging-pointer {
     grid-template-columns: 300px minmax(0, 1fr);
   }
 
+  .sessions-navigator__heading {
+    min-height: 92px;
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    grid-template-areas: "back title divider" "scope scope scope";
+    grid-template-rows: 32px 32px;
+  }
+
+  .sessions-navigator__heading > button {
+    min-height: 32px;
+    grid-area: back;
+  }
+
+  .sessions-navigator__heading > strong {
+    min-width: 0;
+    grid-area: title;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sessions-navigator__heading > span[aria-hidden="true"] {
+    grid-area: divider;
+  }
+
+  .sessions-navigator__scope {
+    width: 100%;
+    grid-area: scope;
+    justify-content: flex-start;
+  }
+
+  .sessions-navigator__scope select {
+    flex: 0 1 128px;
+  }
+
   .sessions-transcript {
     width: min(760px, calc(100% - 42px));
   }
@@ -6863,6 +6907,7 @@ body.arranging-pointer {
   width: auto;
   overflow: hidden;
   border-left: 1px solid var(--ink-3);
+  box-shadow: -14px 0 30px -30px rgba(0, 0, 0, 0.9);
   background: var(--ink-1);
   pointer-events: none;
 }
