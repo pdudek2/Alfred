@@ -68,6 +68,22 @@ describe("ComposerBar", () => {
     expect(screen.getByTestId("dispatch-bar").querySelector(".alfred-mark")).toBeNull();
   });
 
+  it("renders the planning scope and workspace target as separate chip nodes", () => {
+    render(
+      <ComposerBar
+        blockedReason={undefined}
+        dispatchTarget={{ kind: "workspace", id: "fixture-alpha", label: "Fixture Alpha" }}
+        thinking={false}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    const chip = screen.getByRole("button", { name: "Change planning scope" });
+    expect(chip.children).toHaveLength(2);
+    expect(chip.children[0]).toHaveTextContent("workspace");
+    expect(chip.children[1]).toHaveTextContent("Fixture Alpha");
+  });
+
   it("blocks submit and keeps the draft editable while a plan is staged", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();

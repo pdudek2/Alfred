@@ -29,6 +29,8 @@ if (productCssPaths.some((path) => !path)) throw new Error("Unable to locate pro
 const productStyles = productCssPaths.map((path) => readFileSync(path!, "utf8")).join("\n");
 const previewDockStylesPath = productCssPaths[4]!;
 const previewDockStyles = readFileSync(productCssPaths[4]!, "utf8");
+const workSurfaceToolbarStylesPath = productCssPaths[3]!;
+const workSurfaceToolbarStyles = readFileSync(workSurfaceToolbarStylesPath, "utf8");
 const lightningCssConfig = resolveConfig(
   { configFile: false, css: { transformer: "lightningcss" } },
   "build",
@@ -722,8 +724,9 @@ describe("renderer CSS contracts", () => {
       [".prepare-work-popover"],
       ['html[data-alfred-window-material="native"] .mission-bar'],
       [".terminal-tile:focus-visible"],
+      [".project-session.is-active"],
     ]));
-    expect(materialShadows).toHaveLength(5);
+    expect(materialShadows).toHaveLength(6);
     expect(oversizedRadii).toEqual([]);
     expect(signalUses.every(({ selectors }) =>
       selectors.every((selector) =>
@@ -2193,18 +2196,69 @@ describe("renderer CSS contracts", () => {
     const constrainedStatusText = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".terminal-status-text");
 
     expect(/\.terminal-tile-header\s*\{[^}]*display:\s*flex;/.test(styles)).toBe(true);
-    expect(title).toContain("flex: 1 1 auto");
-    expect(title).toContain("min-width: 140px");
+    expect(title).toContain("flex: 1 1 220px");
+    expect(title).toContain("min-width: var(--terminal-title-min)");
     expect(titleText).toContain("min-width: 0");
     expect(titleLabel).toContain("overflow: hidden");
     expect(titleLabel).toContain("text-overflow: ellipsis");
-    expect(actions).toContain("flex: 0 1 auto");
+    expect(actions).toContain("flex: 0 0 auto");
     expect(actions).toContain("min-width: 0");
     expect(primaryAction).toContain("max-width");
     expect(primaryActionText).toContain("overflow: hidden");
     expect(statusText).toContain("max-width");
     expect(constrainedStatusText).toHaveLength(1);
     expect(constrainedStatusText[0]).toContain("display: none");
+  });
+
+  it("reserves terminal header geometry while revealing secondary utilities", () => {
+    const header = exactBlockFor(".terminal-tile-header");
+    const title = blockFor(".terminal-tile-header .tile-title");
+    const titleLabel = blockFor(".terminal-tile-header .tile-title b");
+    const location = blockFor(".terminal-tile-header .tile-title small");
+    const activity = blockForContaining(".tile-activity", "flex: 1 1 220px");
+    const actions = blockFor(".terminal-tile-header .tile-actions");
+    const status = exactBlockFor(".tile-status-group");
+    const utilities = blockForContaining(".tile-utility-actions", "visibility: hidden");
+    const utilityReveal = blockFor(".terminal-tile:hover .tile-utility-actions,\n.terminal-tile:hover .tile-danger-actions,\n.terminal-tile:focus-within .tile-utility-actions,\n.terminal-tile:focus-within .tile-danger-actions");
+
+    expect(header).toContain("--terminal-title-min: 160px");
+    expect(header).toContain("--terminal-activity-min: 152px");
+    expect(header).toContain("--terminal-status-zone: 152px");
+    expect(title).toContain("flex: 1 1 220px");
+    expect(title).toContain("min-width: var(--terminal-title-min)");
+    expect(titleLabel).toContain("text-overflow: ellipsis");
+    expect(location).toContain("min-width: 12ch");
+    expect(activity).toContain("flex: 1 1 220px");
+    expect(activity).toContain("min-width: var(--terminal-activity-min)");
+    expect(actions).toContain("flex: 0 0 auto");
+    expect(status).toContain("flex: 0 0 var(--terminal-status-zone)");
+    expect(utilities).toContain("visibility: hidden");
+    expect(utilities).not.toContain("display:");
+    expect(utilityReveal).toContain("visibility: visible");
+  });
+
+  it("keeps Work controls and dark scroll owners on the shared chrome rhythm", () => {
+    const toolbarControls = exactRuleBodiesIn(
+      workSurfaceToolbarStyles,
+      ".work-surface-toolbar > button",
+    ).join("\n");
+    const dispatchChip = exactBlockFor(".dispatch-target-chip");
+    const commandPalette = exactBlockFor(".command-palette-list");
+    const paletteScrollbar = exactBlockFor(".command-palette-list::-webkit-scrollbar");
+    const paletteThumb = exactBlockFor(".command-palette-list::-webkit-scrollbar-thumb");
+    const selectedSession = exactBlockFor(".project-session.is-active");
+
+    expect(toolbarControls).toContain("height: var(--control-height)");
+    expect(toolbarControls).toContain("min-height: var(--control-height)");
+    expect(toolbarControls).toContain("gap: 6px");
+    expect(dispatchChip).toContain("display: inline-flex");
+    expect(dispatchChip).toContain("gap: 7px");
+    expect(commandPalette).toContain("scrollbar-width: thin");
+    expect(commandPalette).toContain("scrollbar-color: var(--ink-3) transparent");
+    expect(paletteScrollbar).toContain("width: 8px");
+    expect(paletteThumb).toContain("background: var(--ink-3)");
+    expect(selectedSession).toContain("box-shadow: inset 2px 0 0");
+    expect(selectedSession).toContain("var(--signal-focus) 5%");
   });
 
   it("keeps the ready dispatch action neutral", () => {

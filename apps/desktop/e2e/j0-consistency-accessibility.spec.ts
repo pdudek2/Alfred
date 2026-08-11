@@ -77,6 +77,9 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await paletteTrigger.click();
   const palette = page.getByRole("dialog", { name: "Command palette" });
   await expect(palette).toBeVisible();
+  expect(await palette.locator(".command-palette-list").evaluate((node) => (
+    getComputedStyle(node).scrollbarColor
+  ))).not.toBe("auto");
   await expectMinimumHeight(palette.getByRole("option").first(), 40);
   await expectSansFont(palette.locator("[role='option'] span").first(), "13px");
   await expectSansFont(palette.locator("kbd").first());
@@ -171,9 +174,9 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
     'article[data-testid="terminal-tile"][data-session-id="manual-1"]',
   );
   await expect(hiddenFirstTerminal).toHaveAttribute("aria-hidden", "true");
-  expect(Number.parseInt(await hiddenFirstTerminal.evaluate((node) => (
+  expect(await hiddenFirstTerminal.evaluate((node) => (
     node instanceof HTMLElement ? node.style.gridRow : ""
-  )), 10)).toBeGreaterThanOrEqual(9);
+  ))).toBe("");
   await navigator.getByRole("button", { name: "Manual · zsh 1", exact: true }).click();
   const firstTerminalScreen = hiddenFirstTerminal.locator(".xterm-screen");
   await expect(hiddenFirstTerminal).not.toHaveAttribute("aria-hidden", "true");
@@ -181,7 +184,7 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await expect(firstTerminalScreen).toContainText(terminalEvidence);
   await expect.poll(() => hiddenFirstTerminal.evaluate((node) => (
     node instanceof HTMLElement ? node.style.gridRow : ""
-  ))).toBe("1 / span 8");
+  ))).toBe("");
   await firstTerminalScreen.locator(".xterm-helper-textarea").focus();
   await page.evaluate(() => new Promise<void>((resolve) => {
     let remainingFrames = 8;
@@ -202,6 +205,8 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
     (before, after) => before.isSameNode(after) && before.isConnected,
     screenAfter,
   )).toBe(true);
+  await chooseWorkLayout(page, "Grid");
+  await expectStableTerminalHeader(page);
 
   harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();
@@ -245,6 +250,31 @@ async function expectFixedCellTerminalFont(locator: Locator, size?: string): Pro
   expect(style.family).toContain("ui-monospace");
   expect(style.family).toContain("SFMono-Regular");
   expect(style.family).toContain("Menlo");
+}
+
+async function expectStableTerminalHeader(page: Page): Promise<void> {
+  const tile = page.locator('.terminal-tile:has(.terminal-tile-header):not([aria-hidden="true"])').first();
+  const header = tile.locator(".terminal-tile-header");
+  await expect(header).toBeVisible();
+  expect(await header.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  const before = await headerGeometry(header);
+
+  await tile.hover();
+  expect(await headerGeometry(header)).toEqual(before);
+  expect(await header.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+
+  await header.focus();
+  expect(await headerGeometry(header)).toEqual(before);
+  expect(await header.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+}
+
+async function headerGeometry(header: Locator): Promise<Array<{ width: number; x: number }>> {
+  return header.locator(".tile-title, .tile-activity, .tile-actions").evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const rect = node.getBoundingClientRect();
+      return { width: Math.round(rect.width), x: Math.round(rect.x) };
+    }),
+  );
 }
 
 async function expectNativeTerminalInk(app: ElectronApplication, screen: Locator): Promise<void> {

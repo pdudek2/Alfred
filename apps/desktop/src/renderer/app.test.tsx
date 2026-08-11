@@ -2443,7 +2443,11 @@ describe("App integration", () => {
     expect(dispatch).toHaveAccessibleName("Alfred dispatch");
     expect(screen.queryByRole("form", { name: /alfred composer/i })).not.toBeInTheDocument();
 
-    expect(within(dispatch).getByRole("button", { name: "Change planning scope" })).toBeInTheDocument();
+    const scopeTarget = within(dispatch).getByRole("button", { name: "Change planning scope" });
+    expect(scopeTarget).toBeInTheDocument();
+    expect(scopeTarget.children).toHaveLength(2);
+    expect(scopeTarget.children[0]).toHaveTextContent("workspace");
+    expect(scopeTarget.children[1]).toHaveTextContent("Alfred");
     expect(within(dispatch).getByText("workspace")).toBeInTheDocument();
     expect(within(dispatch).getByText("Alfred")).toBeInTheDocument();
     const input = within(dispatch).getByRole("textbox", { name: "Dispatch instruction" });
@@ -3193,15 +3197,12 @@ describe("App integration", () => {
     expect(resumeRequest).toBeDefined();
     const actualTileId = resumeRequest.clientId;
     const persistedView = setWorkspaceViewState.mock.calls.at(-1)?.[0];
-    const persistedLayout = setWorkspaceLayout.mock.calls.at(-1)?.[0];
     const renderedTileIds = screen.getAllByTestId("terminal-tile").map((tile) => tile.dataset.sessionId);
 
     expect(persistedView).toEqual({
       workspaceId: "A",
       viewState: { workMode: "focus", selectedSessionId: actualTileId },
     });
-    expect(Object.keys(persistedLayout.layouts)).toContain(actualTileId);
-    expect(Object.keys(persistedLayout.layouts).every((tileId) => renderedTileIds.includes(tileId))).toBe(true);
     expect(renderedTileIds.filter((tileId) => tileId?.startsWith("external-codex-"))).toEqual([actualTileId]);
     expect(terminalFocusSessionIds.at(-1)).toBe(actualTileId);
     expect(writeTerminal).not.toHaveBeenCalled();
@@ -3433,10 +3434,7 @@ describe("App integration", () => {
       workspaceId: "B",
       viewState: { workMode: "focus", selectedSessionId: "real-b" },
     });
-    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
-      workspaceId: "B",
-      layouts: expect.objectContaining({ "real-b": expect.objectContaining({ tileId: "real-b" }) }),
-    });
+    expect(setWorkspaceLayout).not.toHaveBeenCalled();
     expect(createTerminal).not.toHaveBeenCalled();
     expect(resolveExternalSession).not.toHaveBeenCalled();
     expect(writeTerminal).not.toHaveBeenCalled();
@@ -4733,16 +4731,11 @@ describe("App integration", () => {
     await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
     await screen.findByRole("article", { name: /Manual · zsh 2/i });
     expect(screen.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeInTheDocument();
+    setWorkspaceLayout.mockClear();
     await chooseWorkLayout(user, "Split");
 
     expect(screen.getByRole("button", { name: "Open layout menu, Split selected" })).toBeInTheDocument();
-    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
-      workspaceId: "A",
-      layouts: expect.objectContaining({
-        "manual-1": expect.objectContaining({ col: 7, colSpan: 6, rowSpan: 8 }),
-        "manual-2": expect.objectContaining({ col: 1, colSpan: 6, rowSpan: 8 }),
-      }),
-    });
+    expect(setWorkspaceLayout).not.toHaveBeenCalled();
 
     await chooseWorkLayout(user, "Grid");
 
@@ -4752,7 +4745,7 @@ describe("App integration", () => {
   it.each([
     ["New manual terminal", "Manual · zsh 2"],
     ["New Codex session", "Codex · session 1"],
-  ] as const)("keeps a newly added %s visible in Focus while persisting Arrange geometry", async (menuItem, title) => {
+  ] as const)("keeps a newly added %s visible in Focus while extending Arrange geometry", async (menuItem, title) => {
     const user = userEvent.setup();
     const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge();
     render(<App />);
@@ -4768,7 +4761,7 @@ describe("App integration", () => {
     expect(setWorkspaceLayout).toHaveBeenLastCalledWith(
       expect.objectContaining({
         layouts: expect.objectContaining({
-          [added.dataset.sessionId!]: expect.objectContaining({ colSpan: 12 }),
+          [added.dataset.sessionId!]: expect.any(Object),
         }),
       }),
     );
@@ -4782,7 +4775,7 @@ describe("App integration", () => {
     );
   });
 
-  it("repacks standard Grid layouts and selects each newly added terminal", async () => {
+  it("extends Arrange layouts and selects each newly added terminal", async () => {
     const user = userEvent.setup();
     const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge();
     render(<App />);
@@ -4793,27 +4786,27 @@ describe("App integration", () => {
     await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
     const second = await screen.findByRole("article", { name: /Manual · zsh 2/i });
 
-    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith(expect.objectContaining({
       workspaceId: "A",
       layouts: expect.objectContaining({
-        "manual-1": expect.objectContaining({ col: 1, row: 1, colSpan: 6, rowSpan: 8 }),
-        "manual-2": expect.objectContaining({ col: 7, row: 1, colSpan: 6, rowSpan: 8 }),
+        "manual-1": expect.objectContaining({ col: 1, row: 1, colSpan: 12, rowSpan: 8 }),
+        "manual-2": expect.any(Object),
       }),
-    });
+    }));
     expect(second).toHaveClass("selected");
 
     await user.click(screen.getByRole("button", { name: "Open launch menu" }));
     await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
     const third = await screen.findByRole("article", { name: /Manual · zsh 3/i });
 
-    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith(expect.objectContaining({
       workspaceId: "A",
       layouts: expect.objectContaining({
-        "manual-1": expect.objectContaining({ col: 1, row: 1, colSpan: 6, rowSpan: 3 }),
-        "manual-2": expect.objectContaining({ col: 7, row: 1, colSpan: 6, rowSpan: 3 }),
-        "manual-3": expect.objectContaining({ col: 1, row: 4, colSpan: 12, rowSpan: 3 }),
+        "manual-1": expect.objectContaining({ col: 1, row: 1, colSpan: 12, rowSpan: 8 }),
+        "manual-2": expect.any(Object),
+        "manual-3": expect.any(Object),
       }),
-    });
+    }));
     expect(third).toHaveClass("selected");
     expect(second).not.toHaveClass("selected");
     expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
@@ -4857,7 +4850,7 @@ describe("App integration", () => {
     }
   });
 
-  it("persists a layout preset exactly once after a session is added", async () => {
+  it("does not persist Arrange geometry when changing normal Work views", async () => {
     const user = userEvent.setup();
     const { setWorkspaceLayout } = installDesktopBridge();
 
@@ -4876,17 +4869,7 @@ describe("App integration", () => {
     await chooseWorkLayout(user, "Focus");
     expect(screen.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(setWorkspaceLayout).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          layouts: expect.objectContaining({
-            "manual-1": expect.any(Object),
-            "manual-2": expect.any(Object),
-          }),
-        }),
-      );
-    });
-    expect(setWorkspaceLayout).toHaveBeenCalledTimes(1);
+    expect(setWorkspaceLayout).not.toHaveBeenCalled();
   });
 
   it("shows a useful second pane prompt when split mode has one session", async () => {
@@ -5337,12 +5320,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
     expect(screen.queryByRole("tablist", { name: "Sessions" })).not.toBeInTheDocument();
-    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
-      workspaceId: "A",
-      layouts: expect.objectContaining({
-        "manual-2": expect.objectContaining({ col: 1, colSpan: 12 }),
-      }),
-    });
+    expect(setWorkspaceLayout).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole("button", { name: /Manual · zsh 1/i }));
 
@@ -5434,9 +5412,9 @@ describe("App integration", () => {
     expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
       workspaceId: "A",
       layouts: {
-        "manual-1": { tileId: "manual-1", col: 1, row: 9, colSpan: 12, rowSpan: 8 },
-        "manual-2": { tileId: "manual-2", col: 1, row: 17, colSpan: 12, rowSpan: 8 },
-        "manual-3": { tileId: "manual-3", col: 1, row: 1, colSpan: 12, rowSpan: 8 },
+        "manual-1": { tileId: "manual-1", col: 1, row: 1, colSpan: 12, rowSpan: 8 },
+        "manual-2": { tileId: "manual-2", col: 1, row: 9, colSpan: 12, rowSpan: 8 },
+        "manual-3": { tileId: "manual-3", col: 1, row: 17, colSpan: 12, rowSpan: 3 },
       },
     });
   });
@@ -5474,17 +5452,12 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
     await waitForTerminalStartsToSettle();
 
+    setWorkspaceLayout.mockClear();
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "split");
 
     expect(screen.getByRole("button", { name: "Open layout menu, Split selected" })).toBeInTheDocument();
-    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
-      workspaceId: "A",
-      layouts: expect.objectContaining({
-        "manual-1": expect.objectContaining({ colSpan: 6 }),
-        "manual-2": expect.objectContaining({ colSpan: 6 }),
-      }),
-    });
+    expect(setWorkspaceLayout).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "scratch");
@@ -5523,7 +5496,7 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
   });
 
-  it("persists cross-workspace focus layout exactly once from the command palette", async () => {
+  it("persists cross-workspace focus selection without changing Arrange geometry", async () => {
     const user = userEvent.setup();
     const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge(
       undefined,
@@ -5593,17 +5566,11 @@ describe("App integration", () => {
     });
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("API worker");
-    expect(setWorkspaceLayout).toHaveBeenCalledTimes(1);
+    expect(setWorkspaceLayout).not.toHaveBeenCalled();
     expect(setWorkspaceViewState).toHaveBeenCalledTimes(1);
     expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
       workspaceId: "CLIENT",
       viewState: { workMode: "focus", selectedSessionId: "client-codex" },
-    });
-    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
-      workspaceId: "CLIENT",
-      layouts: expect.objectContaining({
-        "client-codex": expect.objectContaining({ col: 1, colSpan: 12 }),
-      }),
     });
   });
 
@@ -6826,7 +6793,7 @@ describe("App integration", () => {
     expect(setWorkspaceLayout).toHaveBeenLastCalledWith(
       expect.objectContaining({
         layouts: expect.objectContaining({
-          "manual-1": expect.objectContaining({ col: 2, row: 2 }),
+          "manual-1": expect.objectContaining({ col: 1, row: 2 }),
         }),
       }),
     );
@@ -7548,6 +7515,73 @@ describe("App integration", () => {
     expect(tile).toHaveStyle({ gridColumn: "3 / span 6", gridRow: "2 / span 4" });
   });
 
+  it("keeps custom Arrange geometry while normal Work views and navigator selection change", async () => {
+    const user = userEvent.setup();
+    const customLayouts = {
+      "manual-1": { tileId: "manual-1", col: 3, row: 7, colSpan: 6, rowSpan: 4 },
+      "manual-2": { tileId: "manual-2", col: 1, row: 2, colSpan: 5, rowSpan: 3 },
+    };
+    const { setWorkspaceLayout } = installDesktopBridge(
+      undefined,
+      null,
+      [manualLiveSnapshot("manual-1", "Manual · zsh 1"), manualLiveSnapshot("manual-2", "Manual · zsh 2")],
+      undefined,
+      { layoutsByWorkspace: { A: customLayouts }, viewStateByWorkspace: { A: { workMode: "desk" } } },
+    );
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    setWorkspaceLayout.mockClear();
+    await chooseWorkLayout(user, "Focus");
+    await user.click(screen.getByRole("button", { name: "Manual · zsh 2", exact: true }));
+    await chooseWorkLayout(user, "Split");
+    await chooseWorkLayout(user, "Grid");
+    await chooseWorkLayout(user, "Arrange");
+
+    expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toHaveStyle({
+      gridColumn: "3 / span 6",
+      gridRow: "7 / span 4",
+    });
+    expect(screen.getByRole("article", { name: /Manual · zsh 2/i })).toHaveStyle({
+      gridColumn: "1 / span 5",
+      gridRow: "2 / span 3",
+    });
+    expect(setWorkspaceLayout).not.toHaveBeenCalled();
+  });
+
+  it("adds a normal Work tile without repacking custom Arrange geometry", async () => {
+    const user = userEvent.setup();
+    const customLayouts = {
+      "manual-1": { tileId: "manual-1", col: 3, row: 7, colSpan: 6, rowSpan: 4 },
+      "manual-2": { tileId: "manual-2", col: 1, row: 2, colSpan: 5, rowSpan: 3 },
+    };
+    const { setWorkspaceLayout } = installDesktopBridge(
+      undefined,
+      null,
+      [manualLiveSnapshot("manual-1", "Manual · zsh 1"), manualLiveSnapshot("manual-2", "Manual · zsh 2")],
+      undefined,
+      { layoutsByWorkspace: { A: customLayouts }, viewStateByWorkspace: { A: { workMode: "desk" } } },
+    );
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    setWorkspaceLayout.mockClear();
+    await user.click(screen.getByRole("button", { name: "New terminal" }));
+    await screen.findByRole("article", { name: /Manual · zsh 3/i });
+
+    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
+      workspaceId: "A",
+      layouts: expect.objectContaining(customLayouts),
+    });
+    expect(Object.keys(setWorkspaceLayout.mock.calls.at(-1)?.[0]?.layouts ?? {})).toEqual([
+      "manual-1",
+      "manual-2",
+      "manual-3",
+    ]);
+  });
+
   it("hydrates saved workspace view mode and selected session", async () => {
     installDesktopBridge(undefined, null, [], undefined, {
       layoutsByWorkspace: {},
@@ -7987,10 +8021,7 @@ describe("App integration", () => {
     );
     expect(await screen.findByRole("article", { name: /Codex · session 9/i })).toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /Codex · saved sibling/i })).not.toBeInTheDocument();
-    await waitFor(() => expect(setWorkspaceLayout).toHaveBeenCalled());
-    const savedLayoutRequest = setWorkspaceLayout.mock.calls.at(-1)?.[0];
-    expect(savedLayoutRequest?.workspaceId).toBe("A");
-    expect(Object.keys(savedLayoutRequest?.layouts ?? {})).toEqual(["codex-9"]);
+    expect(setWorkspaceLayout).not.toHaveBeenCalled();
     expect(screen.queryByRole("article", { name: /Manual · zsh 10/i })).not.toBeInTheDocument();
     expect(forgetTerminal).not.toHaveBeenCalled();
   });
