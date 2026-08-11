@@ -61,7 +61,11 @@ function handoffStateTone(
     case "restored":
     case "staged":
       return "ready";
-    default:
+    case "active":
+    case "starting":
+    case "checking":
+    case "idle":
+    case "runtime":
       return "working";
   }
 }
