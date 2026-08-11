@@ -745,7 +745,7 @@ function sessionPulseCard(
     return {
       at: session.lastActivityAt ?? 0,
       detail: sessionCommandLabel(session) ?? "Review the proposed session before launch.",
-      label: "ready to launch",
+      label: "staged",
       title: "Plan item staged",
       tone: "work",
     };

@@ -139,6 +139,8 @@ function detailHeading(item: AttentionProjection): string {
   switch (item.kind) {
     case "blocked-safety":
       return "Why launch is blocked";
+    case "runtime-blocker":
+      return "Runtime blocked";
     case "agent-waiting":
       return "Latest signal";
     case "staged-launch":
@@ -152,6 +154,8 @@ function attentionKindLabel(item: AttentionProjection): string {
   switch (item.kind) {
     case "blocked-safety":
       return "Safety review";
+    case "runtime-blocker":
+      return "Runtime blocked";
     case "agent-waiting":
       return "Agent waiting";
     case "staged-launch":
@@ -165,6 +169,8 @@ function attentionStateLabel(item: AttentionProjection): string {
   switch (item.kind) {
     case "blocked-safety":
       return "Blocked · safety";
+    case "runtime-blocker":
+      return "Needs you · runtime";
     case "agent-waiting":
       return "Needs response · inferred";
     case "staged-launch":
@@ -177,6 +183,7 @@ function attentionStateLabel(item: AttentionProjection): string {
 function glyphTone(item: AttentionProjection): "blocked" | "waiting" | "staged" | "recovery" {
   switch (item.kind) {
     case "blocked-safety":
+    case "runtime-blocker":
       return "blocked";
     case "agent-waiting":
       return "waiting";
@@ -190,6 +197,12 @@ function glyphTone(item: AttentionProjection): "blocked" | "waiting" | "staged" 
 function AttentionGlyph({ item }: { item: AttentionProjection }) {
   switch (item.kind) {
     case "blocked-safety":
+      return (
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M12 3 20 7v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7zM8 16l8-8" />
+        </svg>
+      );
+    case "runtime-blocker":
       return (
         <svg aria-hidden="true" viewBox="0 0 24 24">
           <path d="M12 3 20 7v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7zM8 16l8-8" />

@@ -54,7 +54,7 @@ describe("agent handoff projection", () => {
       ],
     }));
 
-    expect(detail.stateLabel).toBe("Waiting");
+    expect(detail.stateLabel).toBe("Needs you");
     expect(detail.stateTone).toBe("attention");
     expect(detail.outcome).toBe("Choose cache scope");
     expect(detail.decision).toBe("Choose cache scope");
@@ -101,7 +101,7 @@ describe("agent handoff projection", () => {
       activityEvents: [event("approval", "Waiting", "Old approval", 20)],
     }));
 
-    expect(detail.stateLabel).toBe("Active");
+    expect(detail.stateLabel).toBe("Working");
     expect(detail.stateTone).toBe("working");
     expect(detail.decision).toBeUndefined();
   });

@@ -176,6 +176,22 @@ describe("session activity classifier", () => {
     });
   });
 
+  it("classifies audited authentication and MCP startup blockers as actionable errors", () => {
+    expect(classifyTerminalOutputActivity("Not logged in")).toEqual({
+      kind: "error",
+      title: "Runtime blocked",
+      detail: "Not logged in",
+      payload: { type: "error", message: "Not logged in" },
+    });
+
+    expect(classifyTerminalOutputActivity("MCP server github failed to start: interrupted")).toEqual({
+      kind: "error",
+      title: "Runtime blocked",
+      detail: "MCP server github failed to start: interrupted",
+      payload: { type: "error", message: "MCP server github failed to start: interrupted" },
+    });
+  });
+
   it("recognizes Swift build completion after an earlier error", () => {
     expect(classifyTerminalOutputActivity("Build complete! (0.28s)")).toEqual({
       kind: "output",

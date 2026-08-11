@@ -29,6 +29,51 @@ function projectionIds(items: AttentionProjection[]): string[] {
 }
 
 describe("buildAttentionProjection", () => {
+  it("projects an unresolved audited runtime blocker before approvals and never as Recovery", () => {
+    const items = buildAttentionProjection(
+      workspaces,
+      [
+        session({
+          id: "runtime-blocker",
+          title: "Claude authentication",
+          runtimeStatus: "error",
+          command: "claude",
+          activityEvents: [{
+            id: "auth",
+            kind: "error",
+            title: "Runtime blocked",
+            detail: "Not logged in",
+            payload: { type: "error", message: "Not logged in" },
+            at: 100,
+          }],
+          lastOutputAt: 100,
+        }),
+        session({
+          id: "waiting",
+          title: "Waiting agent",
+          activityEvents: [{ id: "approval", kind: "approval", title: "Waiting", detail: "Approve?", at: 50 }],
+        }),
+        session({
+          id: "ordinary-error",
+          title: "Compiler failure",
+          activityEvents: [{ id: "compiler", kind: "error", title: "Error reported", detail: "tsc failed", at: 25 }],
+        }),
+      ],
+      NOW,
+    );
+
+    expect(items.map(({ kind, sessionId, rank, blocksAgent }) => ({ kind, sessionId, rank, blocksAgent }))).toEqual([
+      { kind: "runtime-blocker", sessionId: "runtime-blocker", rank: 0, blocksAgent: true },
+      { kind: "agent-waiting", sessionId: "waiting", rank: 1, blocksAgent: true },
+    ]);
+    expect(items[0]).toMatchObject({
+      section: "needs-you",
+      reason: "Not logged in",
+      provenance: "runtime",
+      action: { kind: "open-in-work" },
+    });
+  });
+
   it("classifies the four approved attention kinds and derives blocking counts", () => {
     const items = buildAttentionProjection(
       workspaces,

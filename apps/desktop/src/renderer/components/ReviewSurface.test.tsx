@@ -26,6 +26,16 @@ const WAITING = decision({
   action: { kind: "open-in-work" },
 });
 
+const RUNTIME_BLOCKER = decision({
+  id: "ALFRED:RUNTIME",
+  sessionId: "RUNTIME",
+  sessionTitle: "Claude authentication",
+  kind: "runtime-blocker",
+  rank: 0,
+  reason: "Not logged in",
+  action: { kind: "open-in-work" },
+});
+
 const STAGED = decision({
   id: "ALFRED:STAGED",
   sessionId: "STAGED",
@@ -195,6 +205,19 @@ describe("ReviewSurface", () => {
     expect(handlers.onLaunch).not.toHaveBeenCalled();
     expect(handlers.onRecover).not.toHaveBeenCalled();
     expect(handlers.onReviewEdit).not.toHaveBeenCalled();
+  });
+
+  it("renders a runtime blocker with its reason and Open in Work action", async () => {
+    const user = userEvent.setup();
+    const handlers = renderSurface([RUNTIME_BLOCKER]);
+
+    const item = screen.getByTestId("inbox-decision-ALFRED:RUNTIME");
+    expect(item).toHaveTextContent("Runtime blocked");
+    expect(item).toHaveTextContent("Not logged in");
+    expect(item).toHaveTextContent("Needs you · runtime");
+
+    await user.click(within(item).getByRole("button", { name: "Open in Work Claude authentication in Alfred" }));
+    expect(handlers.onOpenInWork).toHaveBeenCalledWith("ALFRED", "RUNTIME");
   });
 
   it("routes staged and recovery actions through their canonical handlers", async () => {

@@ -9,17 +9,17 @@ afterEach(() => {
 });
 
 const statusLabels: Record<SessionStatusGlyphKind, string> = {
-  active: "active",
+  active: "working",
   blocked: "blocked",
   done: "done",
   error: "error",
   idle: "idle",
   restored: "restored",
   runtime: "unavailable",
-  staged: "ready",
+  staged: "staged",
   checking: "checking",
   starting: "starting",
-  waiting: "waiting",
+  waiting: "needs you",
 };
 
 const statusCases = Object.entries(statusLabels) as ReadonlyArray<readonly [SessionStatusGlyphKind, string]>;

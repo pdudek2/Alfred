@@ -139,7 +139,7 @@ describe("AgentsDrawer", () => {
     render(drawer({ onOpenSession, onRunAttentionAction }));
 
     const panel = screen.getByRole("complementary", { name: "Agents" });
-    const decisions = within(panel).getByRole("region", { name: "Needs a decision" });
+    const decisions = within(panel).getByRole("region", { name: "Needs you" });
     const inProgress = within(panel).getByRole("region", { name: "In progress" });
     expect(decisions).toHaveTextContent("Review checkout");
     expect(decisions).toHaveTextContent("Choose whether to keep the generated migration.");
@@ -316,7 +316,7 @@ describe("AgentsDrawer", () => {
     }));
 
     const inProgress = screen.getByRole("region", { name: "In progress" });
-    expect(inProgress).toHaveTextContent("Working");
+    expect(inProgress).toHaveTextContent("working");
     expect(inProgress).not.toHaveTextContent("Allow edit?");
   });
 

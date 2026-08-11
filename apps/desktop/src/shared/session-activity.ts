@@ -42,6 +42,8 @@ export type SessionActivityInput = {
   payload?: SessionActivityPayload;
 };
 
+type RuntimeBlockerActivity = Pick<SessionActivityInput, "detail" | "kind">;
+
 export type TerminalOutputActivityStreamState = {
   carry: string;
   terminalControlCarry?: string;
@@ -159,6 +161,16 @@ function classifyOutputLine(line: string): SessionActivityInput | null {
   const toolActivity = classifyToolLine(line);
   if (toolActivity) return toolActivity;
 
+  const runtimeBlocker = runtimeBlockerReasonFromLine(line);
+  if (runtimeBlocker) {
+    return {
+      kind: "error",
+      title: "Runtime blocked",
+      detail: runtimeBlocker,
+      payload: { type: "error", message: runtimeBlocker },
+    };
+  }
+
   if (
     /\b(error|failed|failure|exception|traceback|fatal|permission denied|access denied|not permitted)\b/i.test(line)
   ) {
@@ -226,6 +238,20 @@ function classifyOutputLine(line: string): SessionActivityInput | null {
     };
   }
 
+  return null;
+}
+
+export function runtimeBlockerReason(activity: RuntimeBlockerActivity): string | null {
+  return activity.kind === "error" ? runtimeBlockerReasonFromLine(activity.detail) : null;
+}
+
+function runtimeBlockerReasonFromLine(line: string): string | null {
+  if (/\b(?:not logged in|login required|authentication required|sign in required)\b/i.test(line)) {
+    return truncateActivityDetail(line);
+  }
+  if (/\bmcp\b.*\b(?:server\b.*\bfailed to start|startup (?:failed|interrupted|interruption))\b/i.test(line)) {
+    return truncateActivityDetail(line);
+  }
   return null;
 }
 

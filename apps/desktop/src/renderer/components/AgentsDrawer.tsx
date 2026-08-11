@@ -180,7 +180,7 @@ export function AgentsDrawer({
           <>
             <section className="agents-drawer__section" aria-labelledby="agents-needs-decision">
               <header>
-                <h3 id="agents-needs-decision">Needs a decision</h3>
+                <h3 id="agents-needs-decision">Needs you</h3>
                 <span>{decisions.length}</span>
               </header>
               {decisions.length === 0 ? (
@@ -393,7 +393,5 @@ function latestAgentDetail(session: SessionTile): string {
     && session.lastOutputAt > event.at;
   if (event?.detail.trim() && !approvalWasSuperseded) return event.detail.trim();
 
-  if (status.kind === "starting") return "Starting";
-  if (status.kind === "active") return "Working";
-  return status.kind === "idle" ? "Quiet" : status.label;
+  return status.label;
 }
