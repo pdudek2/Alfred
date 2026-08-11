@@ -1,3 +1,5 @@
+import { stripTerminalControlSequences } from "./session-title.js";
+
 export type SessionActivityEventKind =
   | "approval"
   | "command"
@@ -55,7 +57,7 @@ export function classifyTerminalOutputChunk(
   state: TerminalOutputActivityStreamState,
   data: string,
 ): TerminalOutputActivityChunkResult {
-  const normalized = stripAnsi(`${state.carry}${data}`).replace(/\r/g, "\n");
+  const normalized = stripTerminalControlSequences(`${state.carry}${data}`).replace(/\r/g, "\n");
   const segments = normalized.split("\n");
   const unfinished = normalized.endsWith("\n") ? "" : (segments.pop() ?? "");
   const activities = segments.flatMap((segment) => {
@@ -143,7 +145,7 @@ export function classifyTerminalOutputActivities(data: string): SessionActivityI
 }
 
 function normalizedOutputLines(data: string): string[] {
-  return stripAnsi(data)
+  return stripTerminalControlSequences(data)
     .replace(/\r/g, "\n")
     .split("\n")
     .map((line) => line.trim())
@@ -289,12 +291,6 @@ function classifyToolLine(line: string): SessionActivityInput | null {
 
 function cleanActivityLine(value: string): string {
   return value.replace(/^[•●⏺]\s*/, "").trim();
-}
-
-function stripAnsi(value: string): string {
-  // Terminal output contains the ESC control byte by protocol; matching it is intentional.
-  // eslint-disable-next-line no-control-regex
-  return value.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "");
 }
 
 function truncateActivityDetail(value: string): string {

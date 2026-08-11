@@ -347,7 +347,7 @@ describe("buildSessionsProjection", () => {
     expect(JSON.stringify(projection.items)).not.toContain("recommended_plugins");
   });
 
-  it("keeps an external Codex thread name byte-for-byte through the renderer projection", () => {
+  it("keeps a clean external Codex thread name unchanged through the renderer projection", () => {
     const exactTitle = `Plan  redesignu  Alfreda — ${"szczegółowy kierunek ".repeat(6).trim()}`;
     const projection = buildSessionsProjection({
       sessions: [],
@@ -356,6 +356,20 @@ describe("buildSessionsProjection", () => {
     });
 
     expect(projection.items[0]?.title).toBe(exactTitle);
+  });
+
+  it("does not expose terminal controls in external Codex titles or snippets", () => {
+    const projection = buildSessionsProjection({
+      sessions: [],
+      workspaces,
+      externalSessions: [externalSession("sanitized", {
+        title: "\u001b[31mReview\u001b[0m \u001b]0;spoof\u0007PR",
+        snippet: "\u001b]8;;https://example.com\u001b\\Latest result\u001b]8;;\u0007",
+      })],
+    });
+
+    expect(projection.items[0]).toMatchObject({ title: "Review PR", snippet: "Latest result" });
+    expect(JSON.stringify(projection.items)).not.toContain("\u001b");
   });
 
   it("chooses a managed lineage representative independently of input order or external activity", () => {

@@ -184,7 +184,7 @@ function normalizeExternalSession(session: ExternalSessionSummary): SessionSumma
   const { snippet: _sourceSnippet, ...rest } = session;
   return {
     ...rest,
-    title: session.title,
+    title: sessionPresentationTitle(session.title, "Codex session"),
     ...(snippet ? { snippet } : {}),
     lineageKey: codexLineageKey(session.lineageKey) ?? session.lineageKey,
     delegatedRunCount: session.delegatedRunCount ?? 0,

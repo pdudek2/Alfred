@@ -118,6 +118,15 @@ describe("session activity classifier", () => {
     ]);
   });
 
+  it("removes OSC controls from activity output through the shared terminal sanitizer", () => {
+    expect(classifyTerminalOutputActivity("\u001b]0;spoof\u0007Error: build failed")).toEqual({
+      kind: "error",
+      title: "Error reported",
+      detail: "Error: build failed",
+      payload: { type: "error", message: "Error: build failed" },
+    });
+  });
+
   it("keeps explicit approval, error, and warning reasons as payload", () => {
     expect(classifyTerminalOutputActivity("Do you want to proceed? y/N")).toEqual({
       kind: "approval",
