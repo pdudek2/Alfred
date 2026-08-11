@@ -7,7 +7,11 @@
 .work-surface-toolbar .work-surface-layout .chrome-menu-trigger,
 .work-surface-toolbar > button,
 .work-surface-toolbar .work-preview-toggle {
+  height: var(--control-height);
+  min-height: var(--control-height);
+  max-height: var(--control-height);
   border-radius: var(--radius-control);
+  gap: 6px;
 }
 
 .work-surface-toolbar .work-surface-layout .chrome-menu-trigger {

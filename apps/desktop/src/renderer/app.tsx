@@ -34,11 +34,9 @@ import {
   type AttentionProjection,
 } from "./attention-projection";
 import {
-  applyLayoutPreset,
   ensureTileLayouts,
   moveTileLayout,
   resizeTileLayout,
-  type LayoutPreset,
   type TileLayout,
 } from "./layout-state";
 import {
@@ -161,32 +159,6 @@ const DEFAULT_PRIVACY_SETTINGS: DesktopPrivacySettings = {
   terminalScrollbackRetention: "redactedTail",
   externalSessionIndexingEnabled: true,
 };
-
-function tileLayoutRecordsEqual(
-  left: Record<string, TileLayout> | undefined,
-  right: Record<string, TileLayout>,
-): boolean {
-  const leftLayouts = left ?? {};
-  const leftKeys = Object.keys(leftLayouts);
-  const rightKeys = Object.keys(right);
-
-  if (leftKeys.length !== rightKeys.length) return false;
-
-  return rightKeys.every((tileId) => {
-    const leftLayout = leftLayouts[tileId];
-    const rightLayout = right[tileId];
-
-    if (!leftLayout || !rightLayout) return false;
-
-    return (
-      leftLayout.tileId === rightLayout.tileId &&
-      leftLayout.col === rightLayout.col &&
-      leftLayout.row === rightLayout.row &&
-      leftLayout.colSpan === rightLayout.colSpan &&
-      leftLayout.rowSpan === rightLayout.rowSpan
-    );
-  });
-}
 
 export function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(DEFAULT_WORKSPACES);
@@ -428,13 +400,7 @@ export function App() {
       previousWorkspaceSessions,
       tileLayoutsByWorkspace[activeWorkspace.id] ?? {},
     );
-    const workspaceLayouts = activeWorkMode === "focus"
-      ? applyLayoutPreset(workspaceSessions, "focus", addedSession.id)
-      : activeWorkMode === "split"
-        ? applyLayoutPreset(workspaceSessions, "two-up", addedSession.id)
-        : tileLayoutRecordsEqual(currentLayouts, applyLayoutPreset(previousWorkspaceSessions, "grid"))
-          ? applyLayoutPreset(workspaceSessions, "grid")
-          : ensureTileLayouts(workspaceSessions, currentLayouts);
+    const workspaceLayouts = ensureTileLayouts(workspaceSessions, currentLayouts);
     const layoutApi = getDesktopLayoutApi();
 
     terminalSessionsRef.current = nextSessions;
@@ -902,24 +868,7 @@ export function App() {
     persistActiveWorkspaceViewState({ previewDockWidth: width });
   }, [activeWorkspace.id, persistActiveWorkspaceViewState]);
 
-  const handleApplyLayoutPreset = useCallback((
-    preset: LayoutPreset,
-    selectedSessionId = activeSelectedSessionId,
-    sessions = activeWorkSessions,
-  ) => {
-    const layoutApi = getDesktopLayoutApi();
-    const workspaceLayouts = applyLayoutPreset(sessions, preset, selectedSessionId);
-    if (tileLayoutRecordsEqual(tileLayoutsByWorkspace[activeWorkspace.id], workspaceLayouts)) return;
-
-    setTileLayoutsByWorkspace({
-      ...tileLayoutsByWorkspace,
-      [activeWorkspace.id]: workspaceLayouts,
-    });
-    void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
-  }, [activeSelectedSessionId, activeWorkSessions, activeWorkspace.id, tileLayoutsByWorkspace]);
-
   const handleApplyWorkMode = useCallback((mode: WorkMode, selectedSessionId = activeSelectedSessionId) => {
-    const preset: LayoutPreset = mode === "focus" ? "focus" : mode === "split" ? "two-up" : "grid";
     const layoutApi = getDesktopLayoutApi();
     const viewStateChanged =
       activeWorkMode !== mode || (selectedSessionId !== null && activeSelectedSessionId !== selectedSessionId);
@@ -940,8 +889,7 @@ export function App() {
         },
       });
     }
-    handleApplyLayoutPreset(preset, selectedSessionId);
-  }, [activeSelectedSessionId, activeWorkMode, activeWorkspace.id, handleApplyLayoutPreset]);
+  }, [activeSelectedSessionId, activeWorkMode, activeWorkspace.id]);
 
   const handleSelectSession = useCallback((sessionId: string) => {
     if (selectedSessionIdsByWorkspace[activeWorkspace.id] === sessionId) return;
@@ -1076,28 +1024,12 @@ export function App() {
     if (!targetExists) return;
 
     const workMode = workModesByWorkspace[workspaceId] ?? "desk";
-    const focusLayouts = workMode === "focus"
-      ? applyLayoutPreset(
-        terminalSessionsRef.current.filter((session) => (
-          session.workspaceId === workspaceId && (isWorkSession(session) || session.id === sessionId)
-        )),
-        "focus",
-        sessionId,
-      )
-      : null;
     const layoutApi = getDesktopLayoutApi();
     setActiveSurface("work");
     setActiveWorkspaceId(workspaceId);
     setSelectedSessionIdsByWorkspace((current) =>
       current[workspaceId] === sessionId ? current : { ...current, [workspaceId]: sessionId },
     );
-    if (focusLayouts) {
-      setTileLayoutsByWorkspace((current) => {
-        if (tileLayoutRecordsEqual(current[workspaceId], focusLayouts)) return current;
-        return { ...current, [workspaceId]: focusLayouts };
-      });
-      void layoutApi?.setWorkspaceLayout({ workspaceId, layouts: focusLayouts });
-    }
     void getDesktopLayoutApi()?.setWorkspaceViewState({
       workspaceId,
       viewState: { workMode, selectedSessionId: sessionId },
@@ -1106,13 +1038,12 @@ export function App() {
   }, [refreshLiveSessions, workModesByWorkspace]);
 
   const handleFocusSessionInWorkspace = useCallback((workspaceId: string, sessionId: string) => {
-    const targetSessions = terminalSessionsRef.current.filter((session) => (
+    const targetExists = terminalSessionsRef.current.some((session) => (
       session.workspaceId === workspaceId && (isWorkSession(session) || session.id === sessionId)
     ));
-    if (!targetSessions.some((session) => session.id === sessionId)) return;
+    if (!targetExists) return;
 
     const layoutApi = getDesktopLayoutApi();
-    const workspaceLayouts = applyLayoutPreset(targetSessions, "focus", sessionId);
     const viewStateChanged =
       (workModesByWorkspace[workspaceId] ?? "desk") !== "focus" ||
       selectedSessionIdsByWorkspace[workspaceId] !== sessionId;
@@ -1134,13 +1065,6 @@ export function App() {
         [workspaceId]: "focus",
       };
     });
-    if (!tileLayoutRecordsEqual(tileLayoutsByWorkspace[workspaceId], workspaceLayouts)) {
-      setTileLayoutsByWorkspace({
-        ...tileLayoutsByWorkspace,
-        [workspaceId]: workspaceLayouts,
-      });
-      void layoutApi?.setWorkspaceLayout({ workspaceId, layouts: workspaceLayouts });
-    }
     if (viewStateChanged) {
       void layoutApi?.setWorkspaceViewState({
         workspaceId,
@@ -1152,7 +1076,6 @@ export function App() {
     activeWorkspaceId,
     refreshLiveSessions,
     selectedSessionIdsByWorkspace,
-    tileLayoutsByWorkspace,
     workModesByWorkspace,
   ]);
 

@@ -1006,7 +1006,8 @@ button:focus-visible {
 }
 
 .project-session.is-active {
-  background: color-mix(in oklab, var(--signal-focus) 10%, var(--ink-2));
+  background: color-mix(in oklab, var(--signal-focus) 5%, var(--ink-1));
+  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--signal-focus) 56%, transparent);
   color: var(--ink-7);
   font-weight: 620;
 }
@@ -1257,7 +1258,7 @@ html[data-alfred-window-material="native"] .project-row-button[aria-current="loc
 }
 
 html[data-alfred-window-material="native"] .project-session.is-active {
-  background: color-mix(in oklab, var(--signal-focus) 13%, transparent);
+  background: color-mix(in oklab, var(--signal-focus) 5%, transparent);
 }
 
 html[data-alfred-window-material="native"] .orchestrator-surface,
@@ -1393,11 +1394,11 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   height: 46px;
   min-width: 0;
   border-bottom: 1px solid var(--border);
-  padding: 7px 10px;
+  padding: 0 10px;
   background: var(--surface-chrome);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   overflow: hidden;
 }
 
@@ -2364,6 +2365,9 @@ body.arranging-pointer {
 }
 
 .terminal-tile-header {
+  --terminal-title-min: 160px;
+  --terminal-activity-min: 152px;
+  --terminal-status-zone: 152px;
   height: 43px;
   min-height: 43px;
   padding: 0 10px;
@@ -2376,8 +2380,8 @@ body.arranging-pointer {
 }
 
 .terminal-tile-header .tile-title {
-  flex: 1 1 auto;
-  min-width: 140px;
+  flex: 1 1 220px;
+  min-width: var(--terminal-title-min);
   overflow: hidden;
 }
 
@@ -2396,6 +2400,7 @@ body.arranging-pointer {
 }
 
 .terminal-tile-header .tile-title b {
+  min-width: 0;
   color: var(--ink-6);
   font: 650 13px/1.12 var(--sans);
   letter-spacing: 0;
@@ -2405,6 +2410,7 @@ body.arranging-pointer {
 }
 
 .terminal-tile-header .tile-title small {
+  min-width: 12ch;
   color: var(--ink-5);
   font: 500 12px/1.2 var(--sans);
   overflow: hidden;
@@ -2419,13 +2425,14 @@ body.arranging-pointer {
 }
 
 .terminal-tile-header .tile-actions {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
   overflow: hidden;
 }
 
 .tile-activity {
-  min-width: 0;
+  flex: 1 1 220px;
+  min-width: var(--terminal-activity-min);
   min-height: 24px;
   border: 1px solid var(--ink-3);
   border-radius: 7px;
@@ -2696,6 +2703,8 @@ body.arranging-pointer {
 }
 
 .tile-status-group {
+  flex: 0 0 var(--terminal-status-zone);
+  justify-content: flex-end;
   gap: 8px;
   color: var(--ink-5);
 }
@@ -2716,6 +2725,7 @@ body.arranging-pointer {
   padding-left: 12px;
   margin-left: 12px;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
   transition: opacity 120ms ease;
 }
@@ -2724,6 +2734,7 @@ body.arranging-pointer {
   padding-left: 12px;
   margin-left: 12px;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
   transition: opacity 120ms ease;
 }
@@ -2733,6 +2744,7 @@ body.arranging-pointer {
 .terminal-tile:focus-within .tile-utility-actions,
 .terminal-tile:focus-within .tile-danger-actions {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
 }
 
@@ -3734,6 +3746,8 @@ body.arranging-pointer {
   background: var(--ink-1);
   background-image: none;
   box-shadow: none;
+  display: inline-flex;
+  align-items: center;
 }
 
 .dispatch-target-chip:hover,
@@ -4311,9 +4325,28 @@ body.arranging-pointer {
 .command-palette-list {
   max-height: min(460px, 58vh);
   overflow: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-3) transparent;
   padding: 6px;
   display: grid;
   gap: 4px;
+}
+
+.command-palette-list::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.command-palette-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.command-palette-list::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 7px;
+  background: var(--ink-3);
+  background-clip: padding-box;
 }
 
 .command-palette-group {
