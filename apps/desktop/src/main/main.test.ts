@@ -201,6 +201,35 @@ describe("main quit persistence", () => {
     }
   });
 
+  it("contains rejected background window reopens", async () => {
+    const reopenFailure = new Error("desktop state unavailable");
+    const getState = vi.fn()
+      .mockResolvedValueOnce({ windowState: null })
+      .mockRejectedValueOnce(reopenFailure);
+    mocks.createPersistedDesktopStateStore.mockReturnValueOnce({ getState });
+    mocks.app.whenReady.mockResolvedValueOnce(undefined);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+
+    try {
+      await import("./main.js");
+      await flushMicrotasks();
+      const activate = mocks.appEventHandlers.get("activate");
+      expect(activate).toBeDefined();
+
+      activate?.();
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalledWith("Failed to reopen Alfred desktop.", reopenFailure);
+      expect(mocks.app.quit).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+      consoleError.mockRestore();
+    }
+  });
+
   it("routes persisted desktop state warnings to the main-process log", async () => {
     const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});

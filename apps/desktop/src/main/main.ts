@@ -115,6 +115,12 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
   await window.loadFile(rendererPath);
 }
 
+function createWindowInBackground(store: PersistedDesktopStateStore): void {
+  void createWindow(store).catch((error: unknown) => {
+    console.error("Failed to reopen Alfred desktop.", error);
+  });
+}
+
 export function windowMaterialConfiguration(
   platform: NodeJS.Platform = process.platform,
 ): { enabled: boolean; windowOptions: BrowserWindowConstructorOptions } {
@@ -199,7 +205,7 @@ if (!hasSingleInstanceLock) {
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        void createWindow(persistedDesktopStateStore);
+        createWindowInBackground(persistedDesktopStateStore);
       }
     });
   }).catch((error: unknown) => {
@@ -218,7 +224,7 @@ if (!hasSingleInstanceLock) {
       if (!confirmTerminalQuit()) {
         event.preventDefault();
         if (BrowserWindow.getAllWindows().length === 0 && desktopStateStore) {
-          void createWindow(desktopStateStore);
+          createWindowInBackground(desktopStateStore);
         }
         return;
       }
