@@ -815,6 +815,43 @@ describe("persisted-desktop-state", () => {
     expect(warnings).toEqual(["Failed to parse desktop state; preserved invalid file."]);
   });
 
+  it("rejects transient read failures and retries without replacing the existing state", async () => {
+    const filePath = await temporaryStateFile();
+    const originalState: DesktopStateSnapshot = {
+      ...DEFAULT_DESKTOP_STATE,
+      workspaces: [{ id: "A", label: "Original workspace", shortLabel: "O" }],
+    };
+    await createPersistedDesktopStateStore({ filePath }).setState(originalState);
+
+    const warnings: string[] = [];
+    const store = createPersistedDesktopStateStore({
+      filePath,
+      onWarning: (message) => warnings.push(message),
+    });
+    await chmod(filePath, 0o000);
+
+    try {
+      await expect(store.getState()).rejects.toThrow("Failed to read desktop state.");
+      expect(warnings).toEqual(["Failed to read desktop state."]);
+    } finally {
+      await chmod(filePath, 0o600);
+    }
+
+    const updated = await store.updateState((current) => ({
+      ...current,
+      windowState: {
+        bounds: { x: 64, y: 48, width: 1600, height: 1000 },
+        maximized: true,
+      },
+    }));
+
+    expect(updated.workspaces).toEqual(originalState.workspaces);
+    expect(JSON.parse(await readFile(filePath, "utf8"))).toMatchObject({
+      workspaces: originalState.workspaces,
+      windowState: updated.windowState,
+    });
+  });
+
   it("falls back safely when persisted state has an unsupported version", async () => {
     const filePath = await temporaryStateFile();
     const invalidContents = JSON.stringify({

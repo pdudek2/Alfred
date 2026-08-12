@@ -226,7 +226,7 @@ export function createPersistedDesktopStateStore(
     async updateState(
       updater: (current: DesktopStateSnapshot) => DesktopStateSnapshot | Promise<DesktopStateSnapshot>,
     ): Promise<DesktopStateSnapshot> {
-      const hydration = hydrate();
+      const hydration = failedState ? Promise.resolve() : hydrate();
       return enqueueMutation(async () => {
         await hydration;
         return persistState(await updater(cloneDesktopState(failedState ?? cachedState)));
@@ -718,8 +718,8 @@ async function readDesktopStateFile(
       return { state: cloneDesktopState(DEFAULT_DESKTOP_STATE), rewrite: false };
     }
 
-    onWarning?.("Failed to read desktop state; using defaults.", error);
-    return { state: cloneDesktopState(DEFAULT_DESKTOP_STATE), rewrite: false };
+    onWarning?.("Failed to read desktop state.", error);
+    throw new Error("Failed to read desktop state.", { cause: error });
   }
 
   let parsed: unknown;
