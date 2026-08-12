@@ -43,6 +43,7 @@ export type IngestStore = {
   markBatchAccepted(batch: IngestBatch, acceptedEvents: number, duplicateEvents: number): Promise<void>;
   ensureDevice(device: DevicePresence): Promise<void>;
   markDeviceSeen(workspaceId: string, deviceId: string, seenAt: Date): Promise<void>;
+  eventExists(workspaceId: string, eventId: string): Promise<boolean>;
   upsertProject(event: IngestEvent): Promise<ProjectRecord>;
   upsertRun(event: IngestEvent, projectId: string): Promise<RunRecord>;
   upsertRelation(event: IngestEvent, parentRunId: string, childRunId: string): Promise<void>;
@@ -69,6 +70,11 @@ export async function ingestBatch(db: Database | IngestStore, batch: IngestBatch
     let duplicateEvents = 0;
 
     for (const event of batch.events) {
+      if (await tx.eventExists(event.workspace_id, event.event_id)) {
+        duplicateEvents += 1;
+        continue;
+      }
+
       const project = await tx.upsertProject(event);
       const run = await tx.upsertRun(event, project.id);
 
@@ -240,6 +246,16 @@ export function createDrizzleIngestStore<
           updatedAt: updatedAtNow,
         })
         .where(and(eq(devices.workspaceId, workspaceId), eq(devices.id, deviceId)));
+    },
+
+    eventExists: async (workspaceId, eventId) => {
+      const [event] = await db
+        .select({ id: events.id })
+        .from(events)
+        .where(and(eq(events.workspaceId, workspaceId), eq(events.eventId, eventId)))
+        .limit(1);
+
+      return Boolean(event);
     },
 
     upsertProject: async (event) => {

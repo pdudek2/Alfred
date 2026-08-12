@@ -55,6 +55,7 @@ describe("production ingest store", () => {
     const [run] = await fixture.db
       .select({
         id: runs.id,
+        projectId: runs.projectId,
         status: runs.status,
         startedAt: runs.startedAt,
         completedAt: runs.completedAt,
@@ -337,6 +338,39 @@ describe("production ingest store", () => {
       accepted_events: 0,
       duplicate_events: 1,
       duplicate_batch: false,
+    });
+  });
+
+  it("ignores a canonical duplicate before changing its project or run", async () => {
+    const db = store();
+    await ingestBatch(db, makeBatch("00000000-0000-4000-8000-000000000501", {
+      project_key: "local-git-v1:0123456789abcdef",
+      project_name: "Alfred",
+    }));
+    const originalProjects = await fixture.db
+      .select({ id: projects.id, key: projects.projectKey, name: projects.name })
+      .from(projects);
+    const originalRun = await readRun();
+
+    const result = await ingestBatch(db, makeBatch("00000000-0000-4000-8000-000000000502", {
+      project_key: "Alfred",
+    }));
+
+    expect({
+      result,
+      projects: await fixture.db
+        .select({ id: projects.id, key: projects.projectKey, name: projects.name })
+        .from(projects),
+      runProjectId: (await readRun())?.projectId,
+    }).toEqual({
+      result: {
+        batch_id: "00000000-0000-4000-8000-000000000502",
+        accepted_events: 0,
+        duplicate_events: 1,
+        duplicate_batch: false,
+      },
+      projects: originalProjects,
+      runProjectId: originalRun?.projectId,
     });
   });
 

@@ -46,6 +46,7 @@ function makeRouteStore(): IngestStore & {
         seenAt,
       };
     },
+    eventExists: async () => false,
     upsertProject: async () => ({ id: "fixture-project" }),
     upsertRun: async () => ({ id: "fixture-run" }),
     upsertRelation: async () => undefined,
