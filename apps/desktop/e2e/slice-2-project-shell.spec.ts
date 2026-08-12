@@ -129,6 +129,11 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await chooseWorkLayout(page, "Grid");
   await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
   await setWindowSize(app, page, 1120, 720);
+  await expect.poll(() => page.getByTestId("terminal-grid").evaluate((grid) =>
+    Array.from(grid.querySelectorAll<HTMLElement>("[data-testid='terminal-tile']"))
+      .flatMap((tile) => tile.getAnimations())
+      .some((animation) => animation.playState === "running")
+  )).toBe(false);
   const narrow = await readNarrowProjectShell(page);
   expect(narrow.navigatorWidth).toBe(226);
   expect(narrow.gridTemplateColumns).toBe("226px 894px");
@@ -139,7 +144,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
     narrow.activeControlOverflows,
     `Narrow controls outside viewport: ${JSON.stringify(narrow.activeControlOverflows)}`,
   ).toEqual([]);
-  expect(narrow.visibleTileCount).toBe(6);
+  expect(narrow.visibleTileCount).toBe(3);
   expect(narrow.visibleTileHeaderHeights.length).toBeGreaterThan(0);
   expect(narrow.visibleTileHeaderHeights).toHaveLength(narrow.visibleTileCount);
   expect(narrow.visibleTileHeaderHeights.every((height) => height === 43)).toBe(true);

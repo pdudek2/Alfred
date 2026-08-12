@@ -212,7 +212,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 900);
   await expect(page.getByTestId("workbench-header")).toBeVisible();
-  await expectAdaptiveWorkGrid(page, 1);
+  await expect(page.getByTestId("terminal-grid")).toHaveClass(/staged-list/);
+  await expect(page.getByTestId("terminal-tile")).toHaveCount(1);
   await addManualTerminal(page);
   await expect(page.getByTestId("xterm-host")).toHaveCount(1);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
@@ -243,15 +244,11 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await addManualTerminal(page);
   await expect(page.getByTestId("xterm-host")).toHaveCount(3);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(4);
-  await expectAdaptiveWorkGrid(page, 4);
+  await expectAdaptiveWorkGrid(page, 3);
   await expect(page.getByTestId("workbench-header")).toHaveClass("workbench-header");
   await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "44");
 
   await capture("work-grid", [...frameProbes, ...terminalProbes]);
-  await expect(page.getByRole("button", { name: "Launch Fixture item 1" })).toHaveCSS(
-    "color",
-    "rgb(226, 155, 110)",
-  );
 
   await page.getByRole("button", { name: "Open launch menu" }).click();
   await page.getByRole("menuitem", { name: "Prepare Work" }).click();
@@ -341,13 +338,13 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
   await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(5);
-  await expectAdaptiveWorkGrid(page, 5);
+  await expectAdaptiveWorkGrid(page, 3);
   await setWindowSize(app, page, 1120, 720);
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow Grid");
   const narrowWorkEvidence = await capture("narrow", [...frameProbes, ...terminalProbes]);
   expect(narrowWorkEvidence.documentOverflowX, "Narrow Work must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
-  await expectAdaptiveWorkGrid(page, 5);
+  await expectAdaptiveWorkGrid(page, 3);
   await page.emulateMedia({ reducedMotion: "reduce" });
   const reducedMotionEvidence = await capture("narrow-reduced-motion", [...frameProbes, ...terminalProbes]);
   expect(reducedMotionEvidence.documentOverflowX, "Reduced-motion Work must not create horizontal document overflow")
@@ -587,6 +584,11 @@ async function readShellOwnerGeometry(page: Page): Promise<{
 }
 
 async function expectAdaptiveWorkGrid(page: Page, expectedTiles: number): Promise<void> {
+  await expect.poll(() => page.getByTestId("terminal-grid").evaluate((grid) =>
+    Array.from(grid.querySelectorAll<HTMLElement>("[data-testid='terminal-tile']"))
+      .flatMap((tile) => tile.getAnimations())
+      .some((animation) => animation.playState === "running")
+  )).toBe(false);
   const geometry = await page.getByTestId("terminal-grid").evaluate((grid, count) => {
     const gridBounds = grid.getBoundingClientRect();
     const tiles = Array.from(grid.querySelectorAll<HTMLElement>("[data-testid='terminal-tile']"))

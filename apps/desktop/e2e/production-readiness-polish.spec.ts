@@ -31,7 +31,7 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expectFixedCellFont(page.locator(".xterm-rows").first());
   await expectSans(page.locator('[data-testid="terminal-tile"]').first().locator(".tile-title small"));
 
-  // Normal Work geometry progresses through one, two, three, then many live sessions.
+  // Normal Work geometry progresses through one, two, then the bounded three-pane desk.
   await expect(page.getByTestId("terminal-grid")).toHaveClass(/single/);
   await addTerminal(page);
   await expect(page.getByTestId("terminal-grid")).toHaveClass(/split/);
@@ -39,7 +39,8 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expect(page.getByTestId("terminal-grid")).toHaveClass(/dense/);
   await addTerminal(page);
   await addTerminal(page);
-  await expect(page.getByTestId("terminal-grid")).toHaveClass(/many-up/);
+  await expect(page.getByTestId("terminal-grid")).toHaveClass(/three-pane/);
+  await expect(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])')).toHaveCount(3);
 
   await createRuntimeBlockers(page, paths.root);
   const identityText = await page.locator(".tile-title, .project-session-title, .workbench-session-title").allTextContents();

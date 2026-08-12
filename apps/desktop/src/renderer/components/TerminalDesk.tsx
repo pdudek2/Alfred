@@ -580,6 +580,7 @@ export function TerminalDesk({
               />
             ) : (
               <div
+                className="staged-tile-wrapper"
                 key={session.id}
                 data-presentation-slot={presentationSlot ?? undefined}
                 aria-hidden={layoutHidden ? "true" : undefined}
