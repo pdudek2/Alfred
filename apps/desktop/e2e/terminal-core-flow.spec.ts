@@ -54,8 +54,14 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   })).toBe(true);
   await expectTerminalNodes(survivorNodes, page, "Grid membership 2→3", 3);
   const afterMembershipChange = await readTileGridPlacement(page, ["manual-1", "manual-2"]);
-  expect(afterMembershipChange).toEqual(beforeMembershipChange);
-  expect((await readTileGridPlacement(page, ["manual-3"]))["manual-3"]?.gridRow).toBe("auto");
+  expect(afterMembershipChange).toMatchObject({
+    "manual-1": { gridColumn: "2", gridRow: "2" },
+    "manual-2": { gridColumn: "2", gridRow: "1" },
+  });
+  expect((await readTileGridPlacement(page, ["manual-3"]))["manual-3"]).toMatchObject({
+    gridColumn: "1",
+    gridRow: "1 / span 2",
+  });
   const selectionBorders = await page.locator(
     '[data-testid="terminal-tile"][data-session-id="manual-1"], [data-testid="terminal-tile"][data-session-id="manual-3"]',
   ).evaluateAll(
@@ -143,6 +149,7 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
 
   await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(4);
+  await expect(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])')).toHaveCount(3);
   await captureReviewScreenshot(page, testInfo, "grid-4-1120x720");
   await app.evaluate(({ BrowserWindow }) => {
     const [window] = BrowserWindow.getAllWindows();
