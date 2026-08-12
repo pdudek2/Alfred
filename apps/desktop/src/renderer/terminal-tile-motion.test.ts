@@ -43,8 +43,8 @@ describe("tileEntryKeyframes", () => {
 
 describe("useTerminalTileMotion", () => {
   beforeEach(() => {
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getRect() {
-      const element = this as HTMLElement;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getRect(this: HTMLElement) {
+      const element = this;
       const left = Number(element.dataset.left ?? 0);
       const top = Number(element.dataset.top ?? 0);
       const width = Number(element.dataset.width ?? 0);
