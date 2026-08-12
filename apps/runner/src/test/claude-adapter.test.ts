@@ -324,7 +324,7 @@ describe("collectClaudeEvents", () => {
       deviceId,
       privacyMode: "standard",
     });
-    appendFileSync(target, '\n{"sessionId":');
+    appendFileSync(target, '{"sessionId":');
 
     const second = await collectClaudeEvents({
       claudeHome,
@@ -336,6 +336,29 @@ describe("collectClaudeEvents", () => {
 
     expect(second.events).toEqual([]);
     expect(second.cursorUpdates[0]?.value).toBe(first.cursorUpdates[0]?.value);
+  });
+
+  it("advances a Claude cursor over terminated blank lines", async () => {
+    const claudeHome = createClaudeHome();
+    const target = join(claudeHome, "projects/-Users-patryk-Desktop-Alfred/claude-session-1.jsonl");
+    const first = await collectClaudeEvents({
+      claudeHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+    });
+    appendFileSync(target, "\n\n");
+
+    const second = await collectClaudeEvents({
+      claudeHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+      getCursor: () => first.cursorUpdates[0]?.value ?? null,
+    });
+
+    expect(second.events).toEqual([]);
+    expect(JSON.parse(second.cursorUpdates[0]!.value)).toMatchObject({ v: 1, line: 9 });
   });
 
   it("replays a replaced Claude file when the saved prefix no longer matches", async () => {
