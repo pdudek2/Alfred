@@ -7,13 +7,10 @@ import {
   devices,
   events,
   ingestBatches,
-  LOCAL_USER_ID,
   projects,
   runRelations,
   runs,
   updatedAtNow,
-  users,
-  workspaces,
   type Database,
 } from "@alfred/db";
 import type { IngestBatch, IngestEvent } from "@alfred/schema";
@@ -44,7 +41,6 @@ export type IngestStore = {
   transaction<T>(fn: (store: IngestStore) => Promise<T>): Promise<T>;
   insertBatchIfNew(batch: IngestBatch): Promise<boolean>;
   markBatchAccepted(batch: IngestBatch, acceptedEvents: number, duplicateEvents: number): Promise<void>;
-  ensureWorkspace(workspaceId: string): Promise<void>;
   ensureDevice(device: DevicePresence): Promise<void>;
   markDeviceSeen(workspaceId: string, deviceId: string, seenAt: Date): Promise<void>;
   upsertProject(event: IngestEvent): Promise<ProjectRecord>;
@@ -57,7 +53,6 @@ export async function ingestBatch(db: Database | IngestStore, batch: IngestBatch
   const store = isIngestStore(db) ? db : createDrizzleIngestStore(db);
 
   return store.transaction(async (tx) => {
-    await tx.ensureWorkspace(batch.workspace_id);
     await tx.ensureDevice(batch);
 
     const insertedBatch = await tx.insertBatchIfNew(batch);
@@ -119,7 +114,6 @@ export async function markRunnerHeartbeat(
   const seenAt = input.seenAt ?? new Date();
 
   await store.transaction(async (tx) => {
-    await tx.ensureWorkspace(input.workspaceId);
     await tx.ensureDevice({
       workspace_id: input.workspaceId,
       device_id: input.deviceId,
@@ -207,33 +201,6 @@ export function createDrizzleIngestStore<
             eq(ingestBatches.batchId, batch.batch_id),
           ),
         );
-    },
-
-    ensureWorkspace: async (workspaceId) => {
-      await db
-        .insert(users)
-        .values({
-          id: LOCAL_USER_ID,
-          email: "local@alfred.local",
-          displayName: "Local User",
-        })
-        .onConflictDoUpdate({
-          target: users.id,
-          set: { updatedAt: updatedAtNow },
-        });
-
-      await db
-        .insert(workspaces)
-        .values({
-          id: workspaceId,
-          ownerUserId: LOCAL_USER_ID,
-          workspaceKey: workspaceId,
-          name: "Personal Workspace",
-        })
-        .onConflictDoUpdate({
-          target: workspaces.id,
-          set: { updatedAt: updatedAtNow },
-        });
     },
 
     ensureDevice: async (batch) => {
