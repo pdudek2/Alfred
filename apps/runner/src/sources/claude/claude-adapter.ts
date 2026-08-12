@@ -1,12 +1,20 @@
-import { readFile } from "node:fs/promises";
 import { basename, dirname, relative } from "node:path";
 
 import { normalizeEvent } from "@alfred/adapters";
 import { IngestEventSchema, type IngestEvent, type PrivacyMode } from "@alfred/schema";
 import fg from "fast-glob";
 
+import { scanJsonlLines, type JsonlScannedLine } from "../jsonl-file.js";
 import type { SourceAdapter, SourceCollection } from "../source-adapter.js";
-import { newestCursor, sourceCursorKey } from "../source-cursor.js";
+import {
+  cursorMatchesFile,
+  encodeFileCursor,
+  parseStoredSourceCursor,
+  resolveSourceTimeFloor,
+  sourceCursorKey,
+  type SourceProjectPin,
+  type SourceTimeFloor,
+} from "../source-cursor.js";
 import { projectKeyFromCwdPath } from "../worktree-project-key.js";
 
 export type ClaudeAdapterConfig = {
@@ -60,25 +68,60 @@ export async function collectClaudeEvents(config: ClaudeAdapterConfig): Promise<
   });
   const events: IngestEvent[] = [];
   const cursorUpdates: SourceCollection["cursorUpdates"] = [];
+  let invalidCursorCount = 0;
+  let cursorMismatchCount = 0;
 
   for (const file of files.sort()) {
     const relativeSessionPath = relative(config.claudeHome, file);
     const cursorKey = sourceCursorKey("claude-code", relativeSessionPath);
-    const cursor = newestCursor(config.claudeSince, config.getCursor?.(cursorKey) ?? null);
-    const cursorMs = cursor === undefined ? undefined : Date.parse(cursor);
-    const records = await readJsonlFile(file, (lineNumber) => {
+    const parsed = parseStoredSourceCursor(config.getCursor?.(cursorKey) ?? null);
+    const scannedRecords: Array<{ line: JsonlScannedLine; record: unknown }> = [];
+    let storedPrefixHash: string | undefined;
+    let lastLine: JsonlScannedLine | undefined;
+    let invalidLineNumber: number | undefined;
+
+    for await (const line of scanJsonlLines(file, (lineNumber) => {
+      invalidLineNumber = lineNumber;
       config.onWarning?.(
         `Skipped corrupt claude-code JSONL in ${relativeSessionPath} at line ${lineNumber}`,
       );
-    });
-    const context = claudeSessionContext(records, file);
-    let newestOccurredAt: string | undefined;
+    })) {
+      if ("record" in line || line.lineNumber === invalidLineNumber) lastLine = line;
+      if (parsed.kind === "position" && line.lineNumber === parsed.cursor.line) {
+        storedPrefixHash = line.prefixHash;
+      }
+      if ("record" in line) scannedRecords.push({ line, record: line.record });
+    }
 
-    if (context.startedAt) {
+    const positionMatches = parsed.kind === "position"
+      && storedPrefixHash !== undefined
+      && cursorMatchesFile(parsed.cursor, storedPrefixHash);
+    if (parsed.kind === "invalid") invalidCursorCount += 1;
+    if (parsed.kind === "position" && !positionMatches) cursorMismatchCount += 1;
+
+    const records = scannedRecords.map(({ record }) => record);
+    const legacyContext = claudeSessionContext(records, file);
+    const project: SourceProjectPin = positionMatches && parsed.kind === "position"
+      ? parsed.cursor.project
+      : { key: legacyContext.projectKey, name: legacyContext.projectKey };
+    const context = { ...legacyContext, projectKey: project.key };
+    const positionalStart = positionMatches && parsed.kind === "position" ? parsed.cursor.line : 0;
+    const timeFloor = resolveSourceTimeFloor(
+      config.claudeSince,
+      positionMatches ? { kind: "none" } : parsed,
+    );
+    const startRecordIndex = records.findIndex(isClaudeConversationRecord);
+    const startRecordLine = scannedRecords[startRecordIndex]?.line.lineNumber;
+
+    if (context.startedAt && startRecordLine !== undefined && startRecordLine > positionalStart) {
       const startedAtMs = Date.parse(context.startedAt);
-      if (cursorMs === undefined || startedAtMs > cursorMs) {
+      if (
+        timeFloor === undefined
+        || startedAtMs > timeFloor.occurredAtMs
+        || (timeFloor.includeEqual && startedAtMs === timeFloor.occurredAtMs)
+      ) {
         try {
-          const event = parseEvent({
+          events.push(parseEvent({
             config,
             context,
             sourceEventId: `${context.sourceRunId}:started`,
@@ -88,62 +131,53 @@ export async function collectClaudeEvents(config: ClaudeAdapterConfig): Promise<
             payload: {
               cwd: context.cwd,
             },
-          });
-          events.push(event);
-          newestOccurredAt = event.occurred_at;
+          }));
         } catch {
           config.onWarning?.(
-            `Skipped invalid claude-code record in ${relative(config.claudeHome, file)} at index ${records.findIndex(isClaudeConversationRecord)}`,
+            `Skipped invalid claude-code record in ${relativeSessionPath} at index ${startRecordIndex}`,
           );
         }
       }
     }
 
-    records.forEach((record, index) => {
+    scannedRecords.forEach(({ line, record }, index) => {
+      if (line.lineNumber <= positionalStart) return;
+
       try {
-        const recordEvents = claudeRecordToEvents(record, index, config, context, file, cursorMs);
+        const recordEvents = claudeRecordToEvents(record, index, config, context, file, timeFloor);
         events.push(...recordEvents);
-        for (const event of recordEvents) {
-          if (!newestOccurredAt || event.occurred_at > newestOccurredAt) {
-            newestOccurredAt = event.occurred_at;
-          }
-        }
       } catch {
         config.onWarning?.(
-          `Skipped invalid claude-code record in ${relative(config.claudeHome, file)} at index ${index}`,
+          `Skipped invalid claude-code record in ${relativeSessionPath} at index ${index}`,
         );
       }
     });
 
-    if (newestOccurredAt) {
-      cursorUpdates.push({ key: cursorKey, value: newestOccurredAt });
+    if (lastLine) {
+      cursorUpdates.push({
+        key: cursorKey,
+        value: encodeFileCursor({
+          v: 1,
+          line: lastLine.lineNumber,
+          prefixHash: lastLine.prefixHash,
+          project,
+        }),
+      });
     }
+  }
+
+  if (invalidCursorCount > 0) {
+    config.onWarning?.(
+      `Reset ${invalidCursorCount} invalid claude-code cursor${invalidCursorCount === 1 ? "" : "s"}`,
+    );
+  }
+  if (cursorMismatchCount > 0) {
+    config.onWarning?.(
+      `Replayed ${cursorMismatchCount} claude-code session file${cursorMismatchCount === 1 ? "" : "s"} after cursor mismatch`,
+    );
   }
 
   return { events, cursorUpdates };
-}
-
-async function readJsonlFile(
-  path: string,
-  onInvalidLine?: (lineNumber: number) => void,
-): Promise<unknown[]> {
-  const content = await readFile(path, "utf8");
-  const records: unknown[] = [];
-  let lineNumber = 0;
-
-  for (const line of content.split(/\r?\n/)) {
-    lineNumber += 1;
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    try {
-      records.push(JSON.parse(trimmed) as unknown);
-    } catch {
-      onInvalidLine?.(lineNumber);
-    }
-  }
-
-  return records;
 }
 
 function claudeSessionContext(records: unknown[], file: string): ClaudeSessionContext {
@@ -171,7 +205,7 @@ function claudeRecordToEvents(
   config: ClaudeAdapterConfig,
   context: ClaudeSessionContext,
   file: string,
-  claudeSinceMs?: number,
+  timeFloor?: SourceTimeFloor,
 ): IngestEvent[] {
   if (!isRecord(record)) return [];
 
@@ -185,7 +219,11 @@ function claudeRecordToEvents(
     );
     return [];
   }
-  if (claudeSinceMs !== undefined && occurredAtMs <= claudeSinceMs) return [];
+  if (
+    timeFloor
+    && (occurredAtMs < timeFloor.occurredAtMs
+      || (!timeFloor.includeEqual && occurredAtMs === timeFloor.occurredAtMs))
+  ) return [];
   const normalizedOccurredAt = new Date(occurredAtMs).toISOString();
 
   const recordEventId = sourceEventIdForRecord(record, type, normalizedOccurredAt, index);

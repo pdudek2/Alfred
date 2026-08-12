@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -62,6 +62,87 @@ describe("collectClaudeEvents", () => {
     expect(events.every((event) => event.workspace_id === workspaceId)).toBe(true);
     expect(events.every((event) => event.device_id === deviceId)).toBe(true);
     expect(IngestEventSchema.array().safeParse(events).success).toBe(true);
+  });
+
+  it("collects a later Claude record with the same timestamp", async () => {
+    const claudeHome = createClaudeHome();
+    const first = await collectClaudeEvents({
+      claudeHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+    });
+    appendFileSync(
+      join(claudeHome, "projects/-Users-patryk-Desktop-Alfred/claude-session-1.jsonl"),
+      `\n${JSON.stringify({
+        sessionId: "claude-session-1",
+        type: "user",
+        uuid: "same-ms-later",
+        timestamp: "2026-04-28T12:00:06.000Z",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        message: { role: "user", content: "later" },
+      })}\n`,
+    );
+
+    const second = await collectClaudeEvents({
+      claudeHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+      getCursor: () => first.cursorUpdates[0]?.value ?? null,
+    });
+
+    expect(second.events.map((event) => event.source_event_id)).toEqual(["same-ms-later"]);
+  });
+
+  it("upgrades a legacy Claude timestamp by replaying equality and writing v1", async () => {
+    const result = await collectClaudeEvents({
+      claudeHome: createClaudeHome(),
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+      getCursor: () => "2026-04-28T12:00:06.000Z",
+    });
+
+    expect(result.events.map((event) => event.occurred_at)).toContain("2026-04-28T12:00:06.000Z");
+    expect(JSON.parse(result.cursorUpdates[0]!.value)).toMatchObject({
+      v: 1,
+      project: { key: "Alfred", name: "Alfred" },
+    });
+  });
+
+  it("keeps configured Claude since strict with a matched position", async () => {
+    const claudeHome = createClaudeHome();
+    const target = join(claudeHome, "projects/-Users-patryk-Desktop-Alfred/claude-session-1.jsonl");
+    const first = await collectClaudeEvents({
+      claudeHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+    });
+    appendFileSync(
+      target,
+      `\n${JSON.stringify({
+        sessionId: "claude-session-1",
+        type: "user",
+        uuid: "at-configured-floor",
+        timestamp: "2026-04-28T12:00:07.000Z",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        message: { role: "user", content: "at floor" },
+      })}\n`,
+    );
+
+    const second = await collectClaudeEvents({
+      claudeHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+      claudeSince: "2026-04-28T12:00:07.000Z",
+      getCursor: () => first.cursorUpdates[0]?.value ?? null,
+    });
+
+    expect(second.events).toEqual([]);
+    expect(JSON.parse(second.cursorUpdates[0]!.value)).toMatchObject({ v: 1, line: 9 });
   });
 
   it("skips Claude events at or before the configured since timestamp", async () => {
@@ -232,6 +313,85 @@ describe("collectClaudeEvents", () => {
       "Skipped corrupt claude-code JSONL in projects/-Users-patryk-Desktop-Alfred/corrupt-session.jsonl at line 2",
     ]);
     expect(warnings[0]).not.toContain("CLAUDE_CORRUPT_SECRET");
+  });
+
+  it("keeps a Claude cursor before an invalid unterminated tail", async () => {
+    const claudeHome = createClaudeHome();
+    const target = join(claudeHome, "projects/-Users-patryk-Desktop-Alfred/claude-session-1.jsonl");
+    const first = await collectClaudeEvents({
+      claudeHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+    });
+    appendFileSync(target, '\n{"sessionId":');
+
+    const second = await collectClaudeEvents({
+      claudeHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+      getCursor: () => first.cursorUpdates[0]?.value ?? null,
+    });
+
+    expect(second.events).toEqual([]);
+    expect(second.cursorUpdates[0]?.value).toBe(first.cursorUpdates[0]?.value);
+  });
+
+  it("replays a replaced Claude file when the saved prefix no longer matches", async () => {
+    const claudeHome = createClaudeHome();
+    const target = join(claudeHome, "projects/-Users-patryk-Desktop-Alfred/claude-session-1.jsonl");
+    const first = await collectClaudeEvents({
+      claudeHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+    });
+    writeFileSync(target, JSON.stringify({
+      sessionId: "replacement-claude-run",
+      type: "user",
+      uuid: "replacement-start",
+      timestamp: "2026-04-28T12:00:00.000Z",
+      cwd: "/Users/patryk/Desktop/Replacement",
+      message: { role: "user", content: "replacement" },
+    }));
+    const warnings: string[] = [];
+
+    const second = await collectClaudeEvents({
+      claudeHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+      getCursor: () => first.cursorUpdates[0]?.value ?? null,
+      onWarning: (message) => warnings.push(message),
+    });
+
+    expect(second.events.every((event) => event.source_run_id === "replacement-claude-run")).toBe(true);
+    expect(second.events.length).toBeGreaterThan(0);
+    expect(second.events.every((event) => event.project_key === "Replacement")).toBe(true);
+    expect(JSON.parse(second.cursorUpdates[0]!.value)).toMatchObject({
+      v: 1,
+      line: 1,
+      project: { key: "Replacement", name: "Replacement" },
+    });
+    expect(warnings).toContain("Replayed 1 claude-code session file after cursor mismatch");
+    expect(warnings.join("\n")).not.toContain(claudeHome);
+  });
+
+  it("resets an invalid Claude cursor without exposing its value", async () => {
+    const warnings: string[] = [];
+    const result = await collectClaudeEvents({
+      claudeHome: createClaudeHome(),
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+      getCursor: () => '{"secret":"CLAUDE_CURSOR_SECRET"}',
+      onWarning: (message) => warnings.push(message),
+    });
+
+    expect(JSON.parse(result.cursorUpdates[0]!.value)).toMatchObject({ v: 1 });
+    expect(warnings).toEqual(["Reset 1 invalid claude-code cursor"]);
+    expect(warnings.join("\n")).not.toContain("CLAUDE_CURSOR_SECRET");
   });
 });
 
