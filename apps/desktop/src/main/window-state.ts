@@ -57,19 +57,25 @@ export function attachWindowStatePersistence(
     }));
   };
 
+  const flushInBackground = (): void => {
+    void flush().catch((error: unknown) => {
+      console.warn("Failed to persist window state in background.", error);
+    });
+  };
+
   const schedule = (): void => {
     if (timer) {
       clearTimeout(timer);
     }
 
     if (debounceMs <= 0) {
-      void flush();
+      flushInBackground();
       return;
     }
 
     timer = setTimeout(() => {
       timer = null;
-      void flush();
+      flushInBackground();
     }, debounceMs);
   };
 
@@ -78,7 +84,7 @@ export function attachWindowStatePersistence(
   window.on("maximize", schedule);
   window.on("unmaximize", schedule);
   window.on("close", () => {
-    void flush();
+    flushInBackground();
   });
 
   return { flush };

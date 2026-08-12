@@ -104,4 +104,29 @@ describe("window-state", () => {
       },
     });
   });
+
+  it("contains rejected background window-state writes", async () => {
+    const window = new FakeWindow();
+    const store = fakeStore();
+    const rejection = new Error("disk unavailable");
+    vi.mocked(store.updateState).mockRejectedValue(rejection);
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+
+    try {
+      attachWindowStatePersistence(window, store, 0);
+      window.emit("resize");
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(warning).toHaveBeenCalledWith(
+        "Failed to persist window state in background.",
+        rejection,
+      );
+    } finally {
+      process.off("unhandledRejection", unhandled);
+      warning.mockRestore();
+    }
+  });
 });
