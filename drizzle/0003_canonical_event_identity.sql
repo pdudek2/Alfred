@@ -1,0 +1,1 @@
+DROP INDEX "events_workspace_source_event_unique";

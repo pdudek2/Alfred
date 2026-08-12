@@ -307,11 +307,6 @@ export const events = pgTable(
   },
   (table) => [
     uniqueIndex("events_workspace_event_id_unique").on(table.workspaceId, table.eventId),
-    uniqueIndex("events_workspace_source_event_unique").on(
-      table.workspaceId,
-      table.sourceId,
-      table.sourceEventId,
-    ),
     index("events_workspace_occurred_at_idx").on(table.workspaceId, table.occurredAt),
     index("events_run_id_idx").on(table.runId),
   ],

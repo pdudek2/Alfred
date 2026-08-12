@@ -293,6 +293,33 @@ describe("production ingest store", () => {
     });
   });
 
+  it("persists canonically distinct events that share a source event ID", async () => {
+    const started = makeBatch("00000000-0000-4000-8000-000000000221", {
+      event_id: "event-shared-source-started",
+      source_event_id: "shared-source-event",
+      source_run_id: "run-a",
+      type: "run.started",
+      status: "running",
+    });
+    const completed = makeBatch("00000000-0000-4000-8000-000000000222", {
+      event_id: "event-shared-source-completed",
+      source_event_id: "shared-source-event",
+      source_run_id: "run-b",
+      type: "run.completed",
+      status: "completed",
+    });
+
+    await expect(ingestBatch(store(), started)).resolves.toMatchObject({
+      accepted_events: 1,
+      duplicate_events: 0,
+    });
+    await expect(ingestBatch(store(), completed)).resolves.toMatchObject({
+      accepted_events: 1,
+      duplicate_events: 0,
+    });
+    await expect(fixture.db.select().from(events)).resolves.toHaveLength(2);
+  });
+
   it("keeps an existing run status when a technical event has no status", async () => {
     const db = store();
 
