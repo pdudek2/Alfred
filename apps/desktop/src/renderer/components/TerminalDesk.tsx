@@ -43,6 +43,7 @@ import { sessionRelaunchSafety } from "../relaunch-safety";
 import { restoredSessionActionLabel, restoredSessionActionTitle } from "../restored-session-action";
 import { isWorkSession } from "../session-scope";
 import { deskPresentationSlot, nextDeskPresentationIds, type DeskPresentationSlot } from "../terminal-desk-presentation";
+import { useTerminalTileMotion } from "../terminal-tile-motion";
 import { normalizeSessionTitle, stripTerminalControlSequencesWithRemainder } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
@@ -256,6 +257,8 @@ export function TerminalDesk({
   const sixUpGrid = manyUpGrid && visibleSessions.length === 6;
   const showLayoutControls = arrangeMode && visibleWorkspaceSessions.length > 0;
   const threePaneGrid = !arrangeMode && workMode === "desk" && !stagedList && visibleSessions.length === 3;
+
+  useTerminalTileMotion(gridRef);
 
   useLayoutEffect(() => {
     if (arrangeMode || workMode !== "desk" || stagedList) return;
@@ -548,7 +551,7 @@ export function TerminalDesk({
                 lastOutputAt={session.lastOutputAt}
                 collapsed={collapsedSessionIds.has(session.id)}
                 selected={inspectedSession?.id === session.id}
-                surfaceActive={surfaceActive}
+                surfaceActive={surfaceActive && !worktreeDiffView}
                 presentationSlot={presentationSlot}
                 showHeader={
                   arrangeMode ||
@@ -1002,6 +1005,7 @@ function ManualTerminalTile({
   const scheduleRepaintRef = useRef<((passes?: number) => void) | null>(null);
   const tileHidden = workspaceHidden || layoutHidden;
   const previousTileHiddenRef = useRef(tileHidden);
+  const previousSurfaceActiveRef = useRef(surfaceActive);
   const writeAndRepaintRef = useRef<((data: string) => void) | null>(null);
   useEffect(() => {
     const wasHidden = previousTileHiddenRef.current;
@@ -1583,8 +1587,15 @@ function ManualTerminalTile({
   }, [onRenameSession, runtimeBindingKey, runtimeId, sessionKey, setTileStatus]);
 
   useEffect(() => {
-    if (!surfaceActive || !selected || status !== "ready") return;
-    terminalRef.current?.focus();
+    const wasSurfaceActive = previousSurfaceActiveRef.current;
+    previousSurfaceActiveRef.current = surfaceActive;
+    if (!surfaceActive) return;
+    if (!wasSurfaceActive) {
+      scheduleRepaintRef.current?.(3);
+    }
+    if (selected && status === "ready") {
+      terminalRef.current?.focus();
+    }
   }, [selected, status, surfaceActive]);
 
   return (
