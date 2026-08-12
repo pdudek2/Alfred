@@ -677,7 +677,7 @@ async function chooseWorkLayout(
   item: "Focus" | "Split" | "Grid" | "Arrange",
 ): Promise<void> {
   await user.click(screen.getByRole("button", { name: /Open layout menu/ }));
-  await user.click(screen.getByRole("menuitem", { name: item }));
+  await user.click(screen.getByRole("menuitemradio", { name: item }));
 }
 
 async function submitCommandPalette(user: ReturnType<typeof userEvent.setup>, query: string) {

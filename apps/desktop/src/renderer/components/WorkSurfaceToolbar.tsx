@@ -56,6 +56,7 @@ export function WorkSurfaceToolbar({
     : visibleSessionCount;
   const sessionLabel = displayedSessionCount === 1 ? "visible session" : "visible sessions";
   const selectedLayoutLabel = arrangeMode ? "Arrange" : workModeLabel(workMode);
+  const selectedLayoutId = arrangeMode ? "arrange" : workMode === "desk" ? "grid" : workMode;
   const applyWorkMode = (mode: WorkMode) => {
     if (arrangeMode) onToggleArrangeMode();
     onApplyWorkMode(mode);
@@ -81,6 +82,7 @@ export function WorkSurfaceToolbar({
       <div className="work-surface-layout">
         <ChromeMenu
           label={`Open layout menu, ${selectedLayoutLabel} selected`}
+          selectedItemId={selectedLayoutId}
           title="Layout"
           items={layoutItems}
         >

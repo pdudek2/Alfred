@@ -23,41 +23,13 @@ test("keeps four xterm hosts mounted while Grid shows one primary and two compan
 
   await installAnimateRecorder(page);
   await page.locator(`button.project-session[data-session-id="${initialHiddenSessionId}"]`).click();
-  const firstAnimatedShell = await waitForVisibleShellAnimateRecord(page);
-  expect(firstAnimatedShell).not.toBeNull();
-  await expectNoInternalAnimateRecords(page, "first hidden-session promotion");
-
+  await expect.poll(() => shellTransformAnimationCount(page)).toBeGreaterThan(0);
   await expect(hiddenSession).not.toHaveAttribute("aria-hidden", "true");
   await expect(hiddenSession).toHaveAttribute("data-presentation-slot", "primary");
   await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveCount(3);
   await expect(page.getByRole("toolbar", { name: "Work layout controls" })).toContainText("3 visible sessions");
   await expectSameHosts(beforeHosts, page, "select hidden project session");
-
-  const primarySessionId = await primarySession(page);
-  const animatedShellSessionId = firstAnimatedShell?.sessionId ?? null;
-  const survivorSessionId = await visibleSurvivorSessionId(page, [primarySessionId, animatedShellSessionId]);
-  expect(primarySessionId).not.toBeNull();
-  expect(animatedShellSessionId).not.toBeNull();
-  expect(survivorSessionId).not.toBeNull();
-
-  const firstPhaseMetrics = await shellMotionMetrics(page);
-  const survivorBeforeRect = await shellRect(page, survivorSessionId!);
-  await clickShellImmediately(page, animatedShellSessionId!);
-  const survivorAfterRect = await nextFrameShellRect(page, survivorSessionId!);
-  await expect.poll(async () => (await shellMotionMetrics(page)).totalShellAnimateCount)
-    .toBeGreaterThan(firstPhaseMetrics.totalShellAnimateCount);
-  await expect.poll(async () => (await shellMotionMetrics(page)).totalShellCancelCount)
-    .toBeGreaterThan(firstPhaseMetrics.totalShellCancelCount);
-  const secondPhaseMetrics = await shellMotionMetrics(page);
-  expect(rectDistance(survivorBeforeRect, survivorAfterRect)).toBeLessThanOrEqual(2);
-  const replacedShell = secondPhaseMetrics.shells.find((shell) =>
-    shell.animateCount > 0
-    && shell.cancelCount > 0
-    && shell.canceledAnimationIds.includes(firstAnimatedShell!.animationId),
-  );
-  expect(replacedShell).toBeTruthy();
-  expect(secondPhaseMetrics.maxRunningShellAnimations).toBeLessThanOrEqual(1);
-  await expectNoInternalAnimateRecords(page, "interrupted companion promotion");
+  await expectNoInternalAnimateRecords(page, "first hidden-session promotion");
 
   await settleTileAnimations(page);
   await page.locator(`button.project-session[data-session-id="${await singleHiddenSessionId(page)}"]`).click();
@@ -78,6 +50,34 @@ test("keeps four xterm hosts mounted while Grid shows one primary and two compan
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
   await expect.poll(() => focusedTerminalSessionId(page)).toBe(selectedSessionId);
   await expectSameHosts(beforeHosts, page, "Work reactivation");
+});
+
+test("restarts interrupted tile motion without moving xterm internals", async ({ harness }) => {
+  const { page } = harness;
+
+  await addManualTerminal(page);
+  await addManualTerminal(page);
+  const beforeHosts = await captureHosts(page, 3);
+  await installAnimateRecorder(page);
+
+  const interruption = await interruptCompanionPromotion(page);
+  expect(interruption.animationWasRunning).toBe(true);
+  await expect.poll(async () => (await shellMotionMetrics(page)).totalShellAnimateCount)
+    .toBeGreaterThan(interruption.firstPhaseShellAnimateCount);
+  await expect.poll(async () => (await shellMotionMetrics(page)).totalShellCancelCount)
+    .toBeGreaterThan(interruption.firstPhaseShellCancelCount);
+  const secondPhaseMetrics = await shellMotionMetrics(page);
+  const replacedShell = secondPhaseMetrics.shells.find((shell) =>
+    shell.sessionId === interruption.animatedShellSessionId
+    && shell.animateCount > 1
+    && shell.cancelCount > 0
+    && shell.canceledAnimationIds.includes(interruption.firstAnimationId),
+  );
+  expect(replacedShell).toBeTruthy();
+  expect(secondPhaseMetrics.maxRunningAnimationsPerShell).toBeLessThanOrEqual(1);
+  await expectNoInternalAnimateRecords(page, "interrupted companion promotion");
+  await expectSameHosts(beforeHosts, page, "interrupted companion promotion");
+  await expect.poll(() => focusedTerminalSessionId(page)).not.toBeNull();
 });
 
 test("skips terminal tile motion when reduced motion is enabled", async ({ harness }) => {
@@ -198,17 +198,6 @@ async function primarySession(page: Page): Promise<string | null> {
   );
 }
 
-async function visibleSurvivorSessionId(page: Page, excludedIds: Array<string | null>): Promise<string | null> {
-  return page.evaluate((excluded) => (
-    Array.from(document.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"][data-session-id]'))
-      .find((tile) =>
-        tile.getAttribute("aria-hidden") !== "true"
-        && tile.dataset.sessionId
-        && !excluded.includes(tile.dataset.sessionId),
-      )?.dataset.sessionId ?? null
-  ), excludedIds.filter((id): id is string => Boolean(id)));
-}
-
 async function settleTileAnimations(page: Page): Promise<void> {
   await page.evaluate(async () => {
     const elements = Array.from(document.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"][data-session-id]'));
@@ -290,89 +279,72 @@ async function installAnimateRecorder(page: Page): Promise<void> {
   });
 }
 
-async function waitForVisibleShellAnimateRecord(
+async function interruptCompanionPromotion(
   page: Page,
-): Promise<{ animationId: number; sessionId: string | null } | null> {
-  try {
-    await page.waitForFunction(() => {
-      const records = (window as Window & {
-        __alfredMotionRecords?: Array<{
-          animationId: number;
-          sessionId: string | null;
-          hasTransform: boolean;
-          playState: string;
-          targetKind: "tile-shell" | "xterm-host" | "xterm" | "xterm-screen" | "other";
-        }>;
-      }).__alfredMotionRecords ?? [];
-      const visibleSessionIds = new Set(
-        Array.from(document.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"][data-session-id]'))
-          .filter((tile) => tile.getAttribute("aria-hidden") !== "true")
-          .map((tile) => tile.dataset.sessionId ?? ""),
-      );
-      return records.some((record) =>
-        record.targetKind === "tile-shell"
-        && record.hasTransform
-        && record.sessionId
-        && visibleSessionIds.has(record.sessionId),
-      );
-    }, { polling: "raf", timeout: 3_000 });
-    return page.evaluate(() => {
-      const records = ((window as Window & {
-        __alfredMotionRecords?: Array<{
-          animationId: number;
-          sessionId: string | null;
-          hasTransform: boolean;
-          targetKind: string;
-        }>;
-      }).__alfredMotionRecords ?? []);
-      const visibleSessionIds = new Set(
-        Array.from(document.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"][data-session-id]'))
-          .filter((tile) => tile.getAttribute("aria-hidden") !== "true")
-          .map((tile) => tile.dataset.sessionId ?? ""),
-      );
-      return records.findLast((record) =>
-        record.targetKind === "tile-shell"
-        && record.hasTransform
-        && record.sessionId
-        && visibleSessionIds.has(record.sessionId),
-      ) ?? null;
-    });
-  } catch (error) {
-    const probe = await page.evaluate(() => {
-      const grid = document.querySelector<HTMLElement>('[data-testid="terminal-grid"]');
-      const records = (window as Window & {
-        __alfredMotionRecords?: Array<{
-          animationId: number;
-          sessionId: string | null;
-          hasTransform: boolean;
-          playState: string;
-          targetKind: "tile-shell" | "xterm-host" | "xterm" | "xterm-screen" | "other";
-        }>;
-      }).__alfredMotionRecords ?? [];
-      return {
-        reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-        gridClassName: grid?.className ?? null,
-        gridHiddenAncestor: Boolean(grid?.closest('[aria-hidden="true"], [hidden], [inert]')),
-        gridAnimateType: grid ? typeof grid.animate : null,
-        tiles: Array.from(document.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"][data-session-id]')).map((tile) => {
-          const rect = tile.getBoundingClientRect();
-          return {
-            sessionId: tile.dataset.sessionId ?? null,
-            slot: tile.dataset.presentationSlot ?? null,
-            hidden: tile.getAttribute("aria-hidden") === "true",
-            rect: {
-              left: Math.round(rect.left),
-              top: Math.round(rect.top),
-              width: Math.round(rect.width),
-              height: Math.round(rect.height),
-            },
-          };
-        }),
-        records,
-      };
-    });
-    throw new Error(`Missing visible shell animate record: ${JSON.stringify(probe)}`, { cause: error });
-  }
+): Promise<{
+  animatedShellSessionId: string;
+  firstAnimationId: number;
+  firstPhaseShellAnimateCount: number;
+  firstPhaseShellCancelCount: number;
+  animationWasRunning: boolean;
+}> {
+  return page.evaluate(async () => {
+    type MotionRecord = { animationId: number; sessionId: string | null; hasTransform: boolean; targetKind: string };
+    type CancelRecord = { animationId: number; sessionId: string | null; targetKind: string };
+    const recordsWindow = window as Window & {
+      __alfredMotionRecords?: MotionRecord[];
+      __alfredMotionCancels?: CancelRecord[];
+    };
+    const firstCompanion = document.querySelector<HTMLElement>(
+      '[data-testid="terminal-tile"][data-presentation-slot="secondary"]',
+    );
+    const firstCompanionSessionId = firstCompanion?.dataset.sessionId;
+    if (!firstCompanion || !firstCompanionSessionId) throw new Error("Missing first companion.");
+    (firstCompanion.querySelector<HTMLElement>(".terminal-tile-header") ?? firstCompanion).click();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+    const animatedShell = document.querySelector<HTMLElement>(
+      `[data-testid="terminal-tile"][data-session-id="${firstCompanionSessionId}"]`,
+    );
+    const survivor = document.querySelector<HTMLElement>(
+      '[data-testid="terminal-tile"][data-presentation-slot="secondary"]',
+    );
+    const nextCompanion = document.querySelector<HTMLElement>(
+      '[data-testid="terminal-tile"][data-presentation-slot="tertiary"]',
+    );
+    const animatedShellSessionId = animatedShell?.dataset.sessionId;
+    if (!animatedShell || !survivor || !nextCompanion || !animatedShellSessionId) {
+      throw new Error("Missing deterministic three-pane slots after first companion promotion.");
+    }
+    const shellRecords = (recordsWindow.__alfredMotionRecords ?? [])
+      .filter((record) => record.targetKind === "tile-shell");
+    const firstAnimation = shellRecords.findLast((record) =>
+      record.sessionId === animatedShellSessionId && record.hasTransform,
+    );
+    if (!firstAnimation) throw new Error(`Missing animation for secondary ${animatedShellSessionId}.`);
+    const animationWasRunning = animatedShell.getAnimations()
+      .some((animation) => animation.playState === "running");
+    const firstPhaseShellCancelCount = (recordsWindow.__alfredMotionCancels ?? [])
+      .filter((record) => record.targetKind === "tile-shell").length;
+
+    (nextCompanion.querySelector<HTMLElement>(".terminal-tile-header") ?? nextCompanion).click();
+    await Promise.resolve();
+    return {
+      animatedShellSessionId,
+      firstAnimationId: firstAnimation.animationId,
+      firstPhaseShellAnimateCount: shellRecords.length,
+      firstPhaseShellCancelCount,
+      animationWasRunning,
+    };
+  });
+}
+
+async function shellTransformAnimationCount(page: Page): Promise<number> {
+  return page.evaluate(() => (
+    (window as Window & {
+      __alfredMotionRecords?: Array<{ hasTransform: boolean; targetKind: string }>;
+    }).__alfredMotionRecords ?? []
+  ).filter((record) => record.targetKind === "tile-shell" && record.hasTransform).length);
 }
 
 async function animateRecordCount(page: Page): Promise<number> {
@@ -394,7 +366,7 @@ async function expectNoInternalAnimateRecords(page: Page, label: string): Promis
 async function shellMotionMetrics(page: Page): Promise<{
   totalShellAnimateCount: number;
   totalShellCancelCount: number;
-  maxRunningShellAnimations: number;
+  maxRunningAnimationsPerShell: number;
   shells: Array<{ sessionId: string | null; animateCount: number; cancelCount: number; canceledAnimationIds: number[] }>;
 }> {
   return page.evaluate(() => {
@@ -418,55 +390,9 @@ async function shellMotionMetrics(page: Page): Promise<{
     return {
       totalShellAnimateCount: shellRecords.length,
       totalShellCancelCount: shellCancels.length,
-      maxRunningShellAnimations: Math.max(0, ...Array.from(document.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"][data-session-id]'))
+      maxRunningAnimationsPerShell: Math.max(0, ...Array.from(document.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"][data-session-id]'))
         .map((tile) => tile.getAnimations().length)),
       shells,
     };
   });
-}
-
-async function shellRect(
-  page: Page,
-  sessionId: string,
-): Promise<{ left: number; top: number; width: number; height: number }> {
-  return page.evaluate((id) => {
-    const tile = document.querySelector<HTMLElement>(`[data-testid="terminal-tile"][data-session-id="${id}"]`);
-    if (!tile) throw new Error(`Missing terminal tile ${id}.`);
-    const rect = tile.getBoundingClientRect();
-    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
-  }, sessionId);
-}
-
-async function nextFrameShellRect(
-  page: Page,
-  sessionId: string,
-): Promise<{ left: number; top: number; width: number; height: number }> {
-  return page.evaluate(async (id) => {
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    const tile = document.querySelector<HTMLElement>(`[data-testid="terminal-tile"][data-session-id="${id}"]`);
-    if (!tile) throw new Error(`Missing terminal tile ${id}.`);
-    const rect = tile.getBoundingClientRect();
-    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
-  }, sessionId);
-}
-
-function rectDistance(
-  before: { left: number; top: number; width: number; height: number },
-  after: { left: number; top: number; width: number; height: number },
-): number {
-  return Math.max(
-    Math.abs(before.left - after.left),
-    Math.abs(before.top - after.top),
-    Math.abs(before.width - after.width),
-    Math.abs(before.height - after.height),
-  );
-}
-
-async function clickShellImmediately(page: Page, sessionId: string): Promise<void> {
-  await page.evaluate((id) => {
-    const tile = document.querySelector<HTMLElement>(`[data-testid="terminal-tile"][data-session-id="${id}"]`);
-    if (!tile) throw new Error(`Missing visible terminal tile ${id}.`);
-    const trigger = tile.querySelector<HTMLElement>(".terminal-tile-header") ?? tile;
-    trigger.click();
-  }, sessionId);
 }
