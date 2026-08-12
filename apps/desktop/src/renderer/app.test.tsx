@@ -8989,6 +8989,87 @@ describe("App integration", () => {
     );
   });
 
+  it("blocks Discard when saved-checkout inspection rejects", async () => {
+    const user = userEvent.setup();
+    const { worktreeDiff } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [{
+        clientId: "codex-discard-inspection-rejection",
+        title: "Discard inspection rejection",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/repo/.alfred-worktrees/codex-discard-inspection-rejection",
+        baseCwd: "/repo",
+        isolation: "worktree",
+        branchName: "alfred-codex-discard-inspection-rejection",
+        shell: "codex",
+        command: "codex",
+        args: [],
+      }],
+    );
+    worktreeDiff.mockRejectedValueOnce(new Error("fixture bridge rejection"));
+
+    render(<App />);
+    await openSavedSessions(user);
+    await user.click(await screen.findByRole("option", { name: /Discard inspection rejection/i }));
+    const discard = screen.getByRole("button", { name: "Discard saved session" });
+    await user.click(discard);
+
+    expect(await screen.findByRole("alert", { name: "Saved session action failed" })).toHaveTextContent(
+      "Desktop terminal request failed. Try again.",
+    );
+    expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Discard inspection rejection/i })).toBeInTheDocument();
+    expect(discard).toHaveFocus();
+  });
+
+  it("reports a rejected saved-checkout Apply and releases the action", async () => {
+    const user = userEvent.setup();
+    const { worktreeApply } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      [{
+        clientId: "codex-apply-rejection",
+        title: "Apply rejection checkout",
+        source: "alfred",
+        agentKind: "codex",
+        workspaceId: "A",
+        cwd: "/repo/.alfred-worktrees/codex-apply-rejection",
+        baseCwd: "/repo",
+        isolation: "worktree",
+        branchName: "alfred-codex-apply-rejection",
+        shell: "codex",
+        command: "codex",
+        args: [],
+      }],
+    );
+    worktreeApply.mockRejectedValueOnce(new Error("fixture bridge rejection"));
+
+    render(<App />);
+    await openSavedSessions(user);
+    await user.click(await screen.findByRole("option", { name: /Apply rejection checkout/i }));
+    const apply = screen.getByRole("button", { name: "Apply to project" });
+    await user.click(apply);
+
+    expect(await screen.findByRole("alert", { name: "Saved session action failed" })).toHaveTextContent(
+      "Apply failed",
+    );
+    expect(screen.getByRole("alert", { name: "Saved session action failed" })).toHaveTextContent(
+      "Desktop terminal request failed. Try again.",
+    );
+    expect(apply).not.toBeDisabled();
+  });
+
   it("keeps a privacy-cleared saved checkout manageable in Sessions", async () => {
     const user = userEvent.setup();
     const { createTerminal, worktreeApply, worktreeDiff } = installDesktopBridge(
