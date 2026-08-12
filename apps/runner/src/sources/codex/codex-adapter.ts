@@ -5,9 +5,17 @@ import { IngestEventSchema, type IngestEvent, type PrivacyMode } from "@alfred/s
 import fg from "fast-glob";
 
 import type { SourceAdapter, SourceCollection } from "../source-adapter.js";
-import { newestCursor, sourceCursorKey } from "../source-cursor.js";
+import { scanJsonlLines, type JsonlScannedLine } from "../jsonl-file.js";
+import {
+  cursorMatchesFile,
+  encodeFileCursor,
+  parseStoredSourceCursor,
+  resolveSourceTimeFloor,
+  sourceCursorKey,
+  type SourceProjectPin,
+  type SourceTimeFloor,
+} from "../source-cursor.js";
 import { projectKeyFromCwdPath } from "../worktree-project-key.js";
-import { readJsonlRecords } from "./codex-jsonl.js";
 
 export type CodexAdapterConfig = {
   codexHome: string;
@@ -34,40 +42,103 @@ export async function collectCodexEvents(config: CodexAdapterConfig): Promise<So
   });
   const events: IngestEvent[] = [];
   const cursorUpdates: SourceCollection["cursorUpdates"] = [];
+  let invalidCursorCount = 0;
+  let cursorMismatchCount = 0;
 
   for (const file of files.sort()) {
     const relativeSessionPath = relative(config.codexHome, file);
     const cursorKey = sourceCursorKey("codex-cli", relativeSessionPath);
-    const cursor = newestCursor(config.codexSince, config.getCursor?.(cursorKey) ?? null);
-    const cursorMs = cursor === undefined ? undefined : Date.parse(cursor);
-    const context = await codexSessionContextFromFile(file);
-    let newestOccurredAt: string | undefined;
-    let index = 0;
+    const parsed = parseStoredSourceCursor(config.getCursor?.(cursorKey) ?? null);
+    let sourceRunId = basename(file, ".jsonl");
+    let cwd: string | undefined;
+    let foundContext = false;
+    let storedPrefixHash: string | undefined;
+    let lastLine: JsonlScannedLine | undefined;
+    let invalidLineNumber: number | undefined;
 
-    for await (const record of readJsonlRecords(file, (lineNumber) => {
+    for await (const line of scanJsonlLines(file, (lineNumber) => {
+      invalidLineNumber = lineNumber;
       config.onWarning?.(
         `Skipped corrupt codex-cli JSONL in ${relativeSessionPath} at line ${lineNumber}`,
       );
     })) {
-      try {
-        const event = codexRecordToEvent(record, index, config, context, file, cursorMs);
-        if (event) {
-          events.push(event);
-          if (!newestOccurredAt || event.occurred_at > newestOccurredAt) {
-            newestOccurredAt = event.occurred_at;
-          }
-        }
-      } catch {
-        config.onWarning?.(
-          `Skipped invalid codex-cli record in ${relative(config.codexHome, file)} at index ${index}`,
-        );
+      if ("record" in line || line.lineNumber === invalidLineNumber) lastLine = line;
+      if (parsed.kind === "position" && line.lineNumber === parsed.cursor.line) {
+        storedPrefixHash = line.prefixHash;
       }
-      index += 1;
+      if (foundContext || !("record" in line) || !isRecord(line.record)) continue;
+
+      const record = line.record;
+      if (record.type === "session_meta" && isRecord(record.payload)) {
+        sourceRunId = stringValue(record.payload.id) ?? sourceRunId;
+        cwd = stringValue(record.payload.cwd);
+        foundContext = true;
+      } else if (record.type === "session.start") {
+        sourceRunId = stringValue(record.id) ?? stringValue(record.session_id) ?? sourceRunId;
+        cwd = stringValue(record.cwd);
+        foundContext = true;
+      }
     }
 
-    if (newestOccurredAt) {
-      cursorUpdates.push({ key: cursorKey, value: newestOccurredAt });
+    const positionMatches = parsed.kind === "position"
+      && storedPrefixHash !== undefined
+      && cursorMatchesFile(parsed.cursor, storedPrefixHash);
+    if (parsed.kind === "invalid") invalidCursorCount += 1;
+    if (parsed.kind === "position" && !positionMatches) cursorMismatchCount += 1;
+
+    const computedLegacyProjectKey = projectKeyFromCwd(cwd);
+    const project: SourceProjectPin = positionMatches && parsed.kind === "position"
+      ? parsed.cursor.project
+      : { key: computedLegacyProjectKey, name: computedLegacyProjectKey };
+    const context: CodexSessionContext = {
+      sourceRunId,
+      ...(cwd ? { cwd } : {}),
+      project,
+    };
+    const positionalStart = positionMatches && parsed.kind === "position" ? parsed.cursor.line : 0;
+    const timeFloor = resolveSourceTimeFloor(
+      config.codexSince,
+      positionMatches ? { kind: "none" } : parsed,
+    );
+    let index = 0;
+
+    for await (const line of scanJsonlLines(file)) {
+      if (!("record" in line)) continue;
+      const recordIndex = index++;
+      if (line.lineNumber <= positionalStart) continue;
+
+      try {
+        const event = codexRecordToEvent(line.record, recordIndex, config, context, file, timeFloor);
+        if (event) events.push(event);
+      } catch {
+        config.onWarning?.(
+          `Skipped invalid codex-cli record in ${relative(config.codexHome, file)} at index ${recordIndex}`,
+        );
+      }
     }
+
+    if (lastLine) {
+      cursorUpdates.push({
+        key: cursorKey,
+        value: encodeFileCursor({
+          v: 1,
+          line: lastLine.lineNumber,
+          prefixHash: lastLine.prefixHash,
+          project,
+        }),
+      });
+    }
+  }
+
+  if (invalidCursorCount > 0) {
+    config.onWarning?.(
+      `Reset ${invalidCursorCount} invalid codex-cli cursor${invalidCursorCount === 1 ? "" : "s"}`,
+    );
+  }
+  if (cursorMismatchCount > 0) {
+    config.onWarning?.(
+      `Replayed ${cursorMismatchCount} codex-cli session file${cursorMismatchCount === 1 ? "" : "s"} after cursor mismatch`,
+    );
   }
 
   return { events, cursorUpdates };
@@ -79,7 +150,7 @@ function codexRecordToEvent(
   config: CodexAdapterConfig,
   context: CodexSessionContext,
   file: string,
-  codexSinceMs?: number,
+  timeFloor?: SourceTimeFloor,
 ): IngestEvent | null {
   if (!isRecord(record)) return null;
 
@@ -93,31 +164,30 @@ function codexRecordToEvent(
     );
     return null;
   }
-  if (codexSinceMs !== undefined && occurredAtMs <= codexSinceMs) return null;
+  if (
+    timeFloor
+    && (occurredAtMs < timeFloor.occurredAtMs
+      || (!timeFloor.includeEqual && occurredAtMs === timeFloor.occurredAtMs))
+  ) return null;
   const normalizedOccurredAt = new Date(occurredAtMs).toISOString();
 
   if (isRecord(record.payload)) {
     return codexEnvelopeToEvent(record.payload, type, normalizedOccurredAt, index, config, context);
   }
 
-  const sourceRunId = stringValue(record.session_id) ?? stringValue(record.id);
-  if (!sourceRunId) return null;
-
   const sourceEventId = stringValue(record.id) ?? `${type}:${normalizedOccurredAt}:${index}`;
-  const cwd = stringValue(record.cwd);
-  const projectKey = projectKeyFromCwd(cwd);
 
   if (type === "session.start") {
     return parseEvent({
       config,
-      projectKey,
-      sourceRunId,
+      projectKey: context.project.key,
+      sourceRunId: context.sourceRunId,
       sourceEventId,
       type: "run.started",
       status: "running",
       occurredAt: normalizedOccurredAt,
       payload: {
-        cwd,
+        cwd: context.cwd,
       },
     });
   }
@@ -125,8 +195,8 @@ function codexRecordToEvent(
   if (type === "tool.call") {
     return parseEvent({
       config,
-      projectKey,
-      sourceRunId,
+      projectKey: context.project.key,
+      sourceRunId: context.sourceRunId,
       sourceEventId,
       type: "tool.started",
       occurredAt: normalizedOccurredAt,
@@ -140,8 +210,8 @@ function codexRecordToEvent(
     const status = stringValue(record.status);
     return parseEvent({
       config,
-      projectKey,
-      sourceRunId,
+      projectKey: context.project.key,
+      sourceRunId: context.sourceRunId,
       sourceEventId,
       type: status === "failed" ? "tool.failed" : "tool.completed",
       occurredAt: normalizedOccurredAt,
@@ -156,8 +226,8 @@ function codexRecordToEvent(
     const status = stringValue(record.status);
     return parseEvent({
       config,
-      projectKey,
-      sourceRunId,
+      projectKey: context.project.key,
+      sourceRunId: context.sourceRunId,
       sourceEventId,
       type: status === "failed" ? "run.failed" : "run.completed",
       status: status === "failed" ? "failed" : "completed",
@@ -174,28 +244,8 @@ function codexRecordToEvent(
 type CodexSessionContext = {
   sourceRunId: string;
   cwd?: string;
-  projectKey: string;
+  project: SourceProjectPin;
 };
-
-async function codexSessionContextFromFile(file: string): Promise<CodexSessionContext> {
-  let payload: Record<string, unknown> = {};
-
-  for await (const record of readJsonlRecords(file)) {
-    if (isRecord(record) && record.type === "session_meta" && isRecord(record.payload)) {
-      payload = record.payload;
-      break;
-    }
-  }
-
-  const sourceRunId = stringValue(payload.id) ?? basename(file, ".jsonl");
-  const cwd = stringValue(payload.cwd);
-
-  return {
-    sourceRunId,
-    ...(cwd ? { cwd } : {}),
-    projectKey: projectKeyFromCwd(cwd),
-  };
-}
 
 function codexEnvelopeToEvent(
   payload: Record<string, unknown>,
@@ -211,7 +261,7 @@ function codexEnvelopeToEvent(
   if (envelopeType === "session_meta") {
     return parseEvent({
       config,
-      projectKey: context.projectKey,
+      projectKey: context.project.key,
       sourceRunId: context.sourceRunId,
       sourceEventId,
       type: "run.started",
@@ -230,7 +280,7 @@ function codexEnvelopeToEvent(
   if (payloadType === "task_complete") {
     return parseEvent({
       config,
-      projectKey: context.projectKey,
+      projectKey: context.project.key,
       sourceRunId: context.sourceRunId,
       sourceEventId,
       type: "agent.waiting",
@@ -245,7 +295,7 @@ function codexEnvelopeToEvent(
   if (payloadType === "turn_aborted") {
     return parseEvent({
       config,
-      projectKey: context.projectKey,
+      projectKey: context.project.key,
       sourceRunId: context.sourceRunId,
       sourceEventId,
       type: "run.failed",
@@ -261,7 +311,7 @@ function codexEnvelopeToEvent(
   if (payloadType === "function_call" || payloadType === "custom_tool_call" || payloadType === "tool_search_call") {
     return parseEvent({
       config,
-      projectKey: context.projectKey,
+      projectKey: context.project.key,
       sourceRunId: context.sourceRunId,
       sourceEventId,
       type: "tool.started",
@@ -281,7 +331,7 @@ function codexEnvelopeToEvent(
   ) {
     return parseEvent({
       config,
-      projectKey: context.projectKey,
+      projectKey: context.project.key,
       sourceRunId: context.sourceRunId,
       sourceEventId,
       type: "tool.completed",
@@ -296,7 +346,7 @@ function codexEnvelopeToEvent(
   if (payloadType === "exec_command_end") {
     return parseEvent({
       config,
-      projectKey: projectKeyFromCwd(stringValue(payload.cwd) ?? context.cwd),
+      projectKey: context.project.key,
       sourceRunId: context.sourceRunId,
       sourceEventId,
       type: "command.executed",
