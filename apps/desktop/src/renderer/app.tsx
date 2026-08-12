@@ -2475,8 +2475,8 @@ export function App() {
       terminalApi.list(),
       alfredApi?.getStagedPlan().catch(() => ({ plan: null })) ?? Promise.resolve({ plan: null }),
       alfredApi?.getRuntimeStatus().catch(() => null) ?? Promise.resolve(null),
-      layoutApi?.getLayouts().catch(() => emptyLayouts) ?? Promise.resolve(emptyLayouts),
-      workspaceApi?.getWorkspaceState().catch(() => null) ?? Promise.resolve(null),
+      layoutApi?.getLayouts() ?? Promise.resolve(emptyLayouts),
+      workspaceApi?.getWorkspaceState() ?? Promise.resolve(null),
     ])
       .then(([terminalResult, stagedPlanResult, runtimeStatusResult, layoutResult, workspaceStateResult]) => {
         if (cancelled) return;
