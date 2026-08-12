@@ -4751,6 +4751,53 @@ describe("App integration", () => {
     });
   });
 
+  it.each([
+    ["layout", "getLayouts"],
+    ["workspace", "getWorkspaceState"],
+  ] as const)("keeps authoritative %s hydration retryable after a rejected read", async (_, readKey) => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      {
+        layoutsByWorkspace: {},
+        viewStateByWorkspace: { W2: { workMode: "focus" } },
+      },
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A" },
+          { id: "W2", label: "Workspace 2", shortLabel: "W2", rootPath: "/tmp/workspace-2" },
+        ],
+        activeWorkspaceId: "W2",
+      },
+    );
+    bridge[readKey].mockRejectedValueOnce(new Error(`transient ${readKey} hydration failure`));
+
+    render(<App />);
+
+    const hydrationAlert = await screen.findByRole("alert");
+    expect(hydrationAlert).toHaveTextContent("Workspace not loaded");
+    expect(hydrationAlert).toHaveTextContent("Failed to hydrate desktop state.");
+    expect(bridge.setWorkspaceState).not.toHaveBeenCalled();
+    expect(bridge.setWorkspaceLayout).not.toHaveBeenCalled();
+    expect(bridge.setWorkspaceViewState).not.toHaveBeenCalled();
+
+    await user.click(within(hydrationAlert).getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByRole("button", { name: "Workspace 2 workspace" })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
+    expect(screen.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("Workspace not loaded")).not.toBeInTheDocument();
+      expect(bridge.setWorkspaceState).toHaveBeenCalled();
+    });
+  });
+
   it("does not create a duplicate PTY when the shell rerenders", async () => {
     const user = userEvent.setup();
     const { createTerminal } = installDesktopBridge();
