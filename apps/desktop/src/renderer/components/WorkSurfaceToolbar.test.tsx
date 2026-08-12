@@ -9,6 +9,32 @@ afterEach(() => {
 });
 
 describe("WorkSurfaceToolbar", () => {
+  it("caps normal Grid session count at three visible sessions", () => {
+    render(
+      <WorkSurfaceToolbar
+        activeAgentCount={0}
+        agentsOpen={false}
+        arrangeMode={false}
+        branch="main"
+        previewAvailable={false}
+        previewOpen={false}
+        rootPath="/Users/patryk/Desktop/Alfred"
+        savedSessionCount={0}
+        visibleSessionCount={5}
+        workMode="desk"
+        onAddManualSession={vi.fn()}
+        onApplyWorkMode={vi.fn()}
+        onOpenSavedSessions={vi.fn()}
+        onToggleArrangeMode={vi.fn()}
+        onToggleAgents={vi.fn()}
+        onTogglePreview={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("toolbar", { name: "Work layout controls" }))
+      .toHaveTextContent("3 visible sessions");
+  });
+
   it("routes the compact layout menu, Preview toggle, and new-terminal control", async () => {
     const onApplyWorkMode = vi.fn();
     const onToggleArrangeMode = vi.fn();
@@ -45,7 +71,7 @@ describe("WorkSurfaceToolbar", () => {
     expect(onToggleArrangeMode).toHaveBeenCalledOnce();
     expect(onTogglePreview).toHaveBeenCalledOnce();
     expect(onAddManualSession).toHaveBeenCalledOnce();
-    expect(screen.getByText("…/Desktop/Alfred · main · 4 visible sessions")).toBeInTheDocument();
+    expect(screen.getByText("…/Desktop/Alfred · main · 3 visible sessions")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByRole("tablist", { name: "Sessions" })).not.toBeInTheDocument();
   });

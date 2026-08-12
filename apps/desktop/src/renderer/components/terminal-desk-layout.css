@@ -1,0 +1,21 @@
+.terminal-stage.mode-desk .terminal-tile.focus-hidden { display: none; }
+
+.terminal-grid.laid-out.dense.three-pane {
+  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.terminal-grid.three-pane [data-presentation-slot="primary"] {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+
+.terminal-grid.three-pane [data-presentation-slot="secondary"] {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.terminal-grid.three-pane [data-presentation-slot="tertiary"] {
+  grid-column: 2;
+  grid-row: 2;
+}

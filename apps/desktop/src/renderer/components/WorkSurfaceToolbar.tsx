@@ -51,7 +51,10 @@ export function WorkSurfaceToolbar({
 }: WorkSurfaceToolbarProps) {
   const location = rootPath ? shortenPath(rootPath) : "local desk";
   const branchDetail = branch ? ` · ${branch}` : "";
-  const sessionLabel = visibleSessionCount === 1 ? "visible session" : "visible sessions";
+  const displayedSessionCount = !arrangeMode && workMode === "desk"
+    ? Math.min(3, visibleSessionCount)
+    : visibleSessionCount;
+  const sessionLabel = displayedSessionCount === 1 ? "visible session" : "visible sessions";
   const selectedLayoutLabel = arrangeMode ? "Arrange" : workModeLabel(workMode);
   const applyWorkMode = (mode: WorkMode) => {
     if (arrangeMode) onToggleArrangeMode();
@@ -111,7 +114,7 @@ export function WorkSurfaceToolbar({
         <strong>{activeAgentCount} active</strong>
       </button>
       <span className="work-surface-context">
-        {location}{branchDetail} · {visibleSessionCount} {sessionLabel}
+        {location}{branchDetail} · {displayedSessionCount} {sessionLabel}
       </span>
       {savedSessionCount > 0 && (
         <button
