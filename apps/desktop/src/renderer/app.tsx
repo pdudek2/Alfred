@@ -2466,13 +2466,15 @@ export function App() {
             ),
           ),
         });
-        setSelectedSessionIdsByWorkspace(
-          Object.fromEntries(
-            Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
-              viewState.selectedSessionId ? [[workspaceId, viewState.selectedSessionId]] : [],
-            ),
+        const hydratedSelectedSessionIds = Object.fromEntries(
+          Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
+            viewState.selectedSessionId ? [[workspaceId, viewState.selectedSessionId]] : [],
           ),
         );
+        setSelectedSessionIdsByWorkspace((current) => ({
+          ...hydratedSelectedSessionIds,
+          ...current,
+        }));
         setCollapsedSessionIdsByWorkspace(
           Object.fromEntries(
             Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
