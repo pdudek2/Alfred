@@ -4641,6 +4641,42 @@ describe("App integration", () => {
     });
   });
 
+  it("keeps a session selected when startup hydration resolves after local launches", async () => {
+    const user = userEvent.setup();
+    const hydration = deferred<Awaited<ReturnType<TerminalApi["list"]>>>();
+    const bridge = installDesktopBridge(undefined, null, [], undefined, {
+      layoutsByWorkspace: {},
+      viewStateByWorkspace: {},
+    });
+    window.alfredDesktop!.terminal.list = vi.fn().mockReturnValue(hydration.promise);
+
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Open launch menu" }));
+    await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
+    await user.click(screen.getByRole("button", { name: "Open launch menu" }));
+    await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
+    const selectedTile = await screen.findByRole("article", { name: /Manual · zsh 2/i });
+    expect(selectedTile).toHaveClass("selected");
+
+    await act(async () => {
+      hydration.resolve({
+        sessions: [
+          manualLiveSnapshot("manual-1", "Manual · zsh 1"),
+          manualLiveSnapshot("manual-2", "Manual · zsh 2"),
+        ],
+        restoredSessions: [],
+      });
+      await hydration.promise;
+    });
+
+    expect(selectedTile).toHaveClass("selected");
+    expect(bridge.setWorkspaceViewState).toHaveBeenLastCalledWith({
+      workspaceId: "A",
+      viewState: { workMode: "desk", selectedSessionId: "manual-2" },
+    });
+  });
+
   it("retries renderer hydration without invoking save retry and gates workspace autosave until success", async () => {
     const user = userEvent.setup();
     const { createTerminal, retrySave, setWorkspaceState } = installDesktopBridge();
