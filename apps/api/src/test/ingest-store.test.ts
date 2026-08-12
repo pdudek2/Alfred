@@ -116,6 +116,26 @@ describe("production ingest store", () => {
       .resolves.toEqual([{ name: "alfred" }]);
   });
 
+  it("keeps a historical readable key separate from the canonical project", async () => {
+    await fixture.db.insert(projects).values({
+      workspaceId,
+      projectKey: "Alfred",
+      name: "Alfred",
+    });
+    await ingestBatch(store(), makeBatch("00000000-0000-4000-8000-000000000401", {
+      project_key: "local-git-v1:0123456789abcdef",
+      project_name: "Alfred",
+    }));
+
+    const rows = await fixture.db
+      .select({ key: projects.projectKey, name: projects.name })
+      .from(projects);
+    expect(rows.sort((left, right) => left.key.localeCompare(right.key))).toEqual([
+      { key: "Alfred", name: "Alfred" },
+      { key: "local-git-v1:0123456789abcdef", name: "Alfred" },
+    ]);
+  });
+
   it("preserves the bootstrap workspace owner during ingest and heartbeat", async () => {
     await ingestBatch(store(), makeBatch());
 
