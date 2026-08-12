@@ -30,9 +30,10 @@ export function tileFlipKeyframes(previous: TileRect, current: TileRect): Keyfra
 
   return [
     {
+      transformOrigin: "top left",
       transform: `translate3d(${formatMotionNumber(deltaX)}px, ${formatMotionNumber(deltaY)}px, 0) scale(${formatMotionNumber(scaleX)}, ${formatMotionNumber(scaleY)})`,
     },
-    { transform: "none" },
+    { transformOrigin: "top left", transform: "none" },
   ];
 }
 
@@ -74,14 +75,29 @@ export function useTerminalTileMotion(gridRef: RefObject<HTMLElement | null>): v
       const sessionId = tile.dataset.sessionId;
       if (!sessionId) continue;
 
-      const currentRect = readTileRect(tile);
-      nextRects.set(sessionId, currentRect);
+      const committedRect = readCommittedTileRect(tile);
+      nextRects.set(sessionId, committedRect);
 
       const previousRect = rectsRef.current.get(sessionId);
-      const keyframes = previousRect ? tileFlipKeyframes(previousRect, currentRect) : tileEntryKeyframes();
-      if (!keyframes || typeof tile.animate !== "function") continue;
+      const ownedAnimation = animationsRef.current.get(tile);
+      if (!previousRect) {
+        if (typeof tile.animate !== "function") continue;
+        const animation = tile.animate(tileEntryKeyframes(), { duration: MOTION_DURATION_MS, easing: MOTION_EASING });
+        animationsRef.current.set(tile, animation);
+        continue;
+      }
 
-      animationsRef.current.get(tile)?.cancel();
+      const layoutChanged = tileFlipKeyframes(previousRect, committedRect);
+      if (!layoutChanged) continue;
+      if (typeof tile.animate !== "function") continue;
+
+      const visualRect = ownedAnimation ? readVisualTileRect(tile) : previousRect;
+      const keyframes = tileFlipKeyframes(visualRect, committedRect);
+      ownedAnimation?.cancel();
+      if (!keyframes) {
+        animationsRef.current.delete(tile);
+        continue;
+      }
       const animation = tile.animate(keyframes, { duration: MOTION_DURATION_MS, easing: MOTION_EASING });
       animationsRef.current.set(tile, animation);
     }
@@ -91,7 +107,8 @@ export function useTerminalTileMotion(gridRef: RefObject<HTMLElement | null>): v
 }
 
 function collectVisibleTiles(grid: HTMLElement): HTMLElement[] {
-  return Array.from(grid.querySelectorAll<HTMLElement>("[data-session-id]")).filter((tile) => !isHiddenTile(tile));
+  return Array.from(grid.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"][data-session-id]'))
+    .filter((tile) => !isHiddenTile(tile));
 }
 
 function shouldAnimateGrid(grid: HTMLElement): boolean {
@@ -109,7 +126,7 @@ function snapshotRects(tiles: HTMLElement[]): Map<string, TileRect> {
   for (const tile of tiles) {
     const sessionId = tile.dataset.sessionId;
     if (!sessionId) continue;
-    rects.set(sessionId, readTileRect(tile));
+    rects.set(sessionId, readCommittedTileRect(tile));
   }
   return rects;
 }
@@ -121,9 +138,22 @@ function cancelOwnedAnimations(animationsRef: { current: Map<HTMLElement, TileAn
   animationsRef.current.clear();
 }
 
-function readTileRect(tile: HTMLElement): TileRect {
+function readVisualTileRect(tile: HTMLElement): TileRect {
   const { left, top, width, height } = tile.getBoundingClientRect();
   return { left, top, width, height };
+}
+
+function readCommittedTileRect(tile: HTMLElement): TileRect {
+  const offsetParent = tile.offsetParent;
+  const anchorRect = offsetParent instanceof HTMLElement
+    ? offsetParent.getBoundingClientRect()
+    : { left: 0, top: 0 };
+  return {
+    left: anchorRect.left + tile.offsetLeft,
+    top: anchorRect.top + tile.offsetTop,
+    width: tile.offsetWidth,
+    height: tile.offsetHeight,
+  };
 }
 
 function isHiddenTile(tile: HTMLElement): boolean {
