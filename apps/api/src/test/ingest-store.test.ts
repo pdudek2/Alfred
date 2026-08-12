@@ -89,6 +89,33 @@ describe("production ingest store", () => {
     await expect(fixture.db.select().from(events)).resolves.toHaveLength(1);
   });
 
+  it("stores and refreshes the readable name for an opaque project key", async () => {
+    const db = store();
+    await ingestBatch(db, makeBatch("00000000-0000-4000-8000-000000000301", {
+      project_key: "local-git-v1:abc123",
+      project_name: "Alfred",
+    }));
+    await ingestBatch(db, makeBatch("00000000-0000-4000-8000-000000000302", {
+      event_id: "event-000000000002",
+      source_event_id: "source-event-2",
+      project_key: "local-git-v1:abc123",
+      project_name: "Alfred Desktop",
+    }));
+    await ingestBatch(db, makeBatch("00000000-0000-4000-8000-000000000303", {
+      event_id: "event-000000000003",
+      source_event_id: "source-event-3",
+      project_key: "local-git-v1:abc123",
+    }));
+    await expect(fixture.db.select({ key: projects.projectKey, name: projects.name }).from(projects))
+      .resolves.toEqual([{ key: "local-git-v1:abc123", name: "Alfred Desktop" }]);
+  });
+
+  it("keeps the project key as the name for older runners", async () => {
+    await ingestBatch(store(), makeBatch());
+    await expect(fixture.db.select({ name: projects.name }).from(projects))
+      .resolves.toEqual([{ name: "alfred" }]);
+  });
+
   it("preserves the bootstrap workspace owner during ingest and heartbeat", async () => {
     await ingestBatch(store(), makeBatch());
 

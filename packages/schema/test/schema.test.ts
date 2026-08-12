@@ -35,6 +35,18 @@ describe("schema contracts", () => {
     expect(parsed.events[0].privacy_mode).toBe("standard");
   });
 
+  it("accepts a bounded readable project name without requiring it from old runners", () => {
+    expect(IngestBatchSchema.parse(validBatch).events[0]?.project_name).toBeUndefined();
+    expect(IngestBatchSchema.parse({
+      ...validBatch,
+      events: [{ ...validEvent, project_name: "  Alfred  " }],
+    }).events[0]?.project_name).toBe("Alfred");
+    expect(() => IngestBatchSchema.parse({
+      ...validBatch,
+      events: [{ ...validEvent, project_name: "x".repeat(161) }],
+    })).toThrow();
+  });
+
   it("rejects invalid ingest source ids", () => {
     const batch = {
       ...validBatch,
