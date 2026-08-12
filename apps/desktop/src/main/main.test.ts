@@ -52,6 +52,7 @@ const mocks = vi.hoisted(() => {
         workspaces: [{ id: "A", name: "Repo", rootPath: "/repo" }],
       })),
     })),
+    didCancelTerminalQuit: vi.fn(() => false),
     dialog: { showMessageBoxSync: vi.fn(() => 0) },
     flushTerminalPersistence: vi.fn(async () => {}),
     getTerminalSessionCount: vi.fn(() => 0),
@@ -108,7 +109,7 @@ vi.mock("./persisted-desktop-state.js", () => ({
 vi.mock("./quit-guard.js", () => ({
   QUIT_GUARD_CANCEL_BUTTON: 0,
   QUIT_GUARD_CONFIRM_BUTTON: 1,
-  didCancelTerminalQuit: vi.fn(() => false),
+  didCancelTerminalQuit: mocks.didCancelTerminalQuit,
   shouldConfirmTerminalQuit: mocks.shouldConfirmTerminalQuit,
 }));
 
@@ -149,6 +150,7 @@ describe("main quit persistence", () => {
     vi.resetModules();
     vi.clearAllMocks();
     mocks.appEventHandlers.clear();
+    mocks.didCancelTerminalQuit.mockReturnValue(false);
     mocks.getTerminalSessionCount.mockReturnValue(0);
     mocks.shouldConfirmTerminalQuit.mockReturnValue(false);
     mocks.flushTerminalPersistence.mockResolvedValue(undefined);
@@ -221,6 +223,41 @@ describe("main quit persistence", () => {
       activate?.();
       await new Promise((resolve) => setImmediate(resolve));
 
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalledWith("Failed to reopen Alfred desktop.", reopenFailure);
+      expect(mocks.app.quit).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+      consoleError.mockRestore();
+    }
+  });
+
+  it("contains rejected window reopens after cancelling terminal quit", async () => {
+    const reopenFailure = new Error("desktop state unavailable");
+    const getState = vi.fn()
+      .mockResolvedValueOnce({ windowState: null })
+      .mockRejectedValueOnce(reopenFailure);
+    mocks.createPersistedDesktopStateStore.mockReturnValueOnce({ getState });
+    mocks.app.whenReady.mockResolvedValueOnce(undefined);
+    mocks.shouldConfirmTerminalQuit.mockReturnValueOnce(true);
+    mocks.didCancelTerminalQuit.mockReturnValueOnce(true);
+    mocks.BrowserWindow.getAllWindows.mockReturnValueOnce([]);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+
+    try {
+      await import("./main.js");
+      await flushMicrotasks();
+      await new Promise((resolve) => setImmediate(resolve));
+      const beforeQuit = mocks.appEventHandlers.get("before-quit") as BeforeQuitHandler | undefined;
+      expect(beforeQuit).toBeDefined();
+
+      const event = { preventDefault: vi.fn() };
+      beforeQuit?.(event);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(event.preventDefault).toHaveBeenCalledTimes(1);
       expect(unhandled).not.toHaveBeenCalled();
       expect(consoleError).toHaveBeenCalledWith("Failed to reopen Alfred desktop.", reopenFailure);
       expect(mocks.app.quit).not.toHaveBeenCalled();
