@@ -1,5 +1,4 @@
-import { createReadStream } from "node:fs";
-import { createInterface } from "node:readline";
+import { scanJsonlLines } from "../jsonl-file.js";
 
 export async function readJsonlFile(
   path: string,
@@ -18,27 +17,9 @@ export async function* readJsonlRecords(
   path: string,
   onInvalidLine?: (lineNumber: number) => void,
 ): AsyncGenerator<unknown> {
-  const stream = createReadStream(path, { encoding: "utf8" });
-  const lines = createInterface({
-    input: stream,
-    crlfDelay: Infinity,
-  });
-  let lineNumber = 0;
-
-  try {
-    for await (const line of lines) {
-      lineNumber += 1;
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-
-      try {
-        yield JSON.parse(trimmed) as unknown;
-      } catch {
-        onInvalidLine?.(lineNumber);
-      }
+  for await (const line of scanJsonlLines(path, onInvalidLine)) {
+    if ("record" in line) {
+      yield line.record;
     }
-  } finally {
-    lines.close();
-    stream.destroy();
   }
 }
