@@ -12,10 +12,13 @@ import {
   parseStoredSourceCursor,
   resolveSourceTimeFloor,
   sourceCursorKey,
-  type SourceProjectPin,
   type SourceTimeFloor,
 } from "../source-cursor.js";
-import { projectKeyFromCwdPath } from "../worktree-project-key.js";
+import {
+  legacyProjectIdentity,
+  resolveProjectIdentity,
+  type ProjectIdentity,
+} from "../project-identity.js";
 
 export type ClaudeAdapterConfig = {
   claudeHome: string;
@@ -29,7 +32,7 @@ export type ClaudeAdapterConfig = {
 
 type ClaudeSessionContext = {
   sourceRunId: string;
-  projectKey: string;
+  project: ProjectIdentity;
   startedAt?: string;
   startRecordUuid?: string;
   cwd?: string;
@@ -98,11 +101,13 @@ export async function collectClaudeEvents(config: ClaudeAdapterConfig): Promise<
     if (parsed.kind === "position" && !positionMatches) cursorMismatchCount += 1;
 
     const records = scannedRecords.map(({ record }) => record);
-    const legacyContext = claudeSessionContext(records, file);
-    const project: SourceProjectPin = positionMatches && parsed.kind === "position"
-      ? parsed.cursor.project
-      : { key: legacyContext.projectKey, name: legacyContext.projectKey };
-    const context = { ...legacyContext, projectKey: project.key };
+    const context = await claudeSessionContext(
+      records,
+      file,
+      positionMatches && parsed.kind === "position" ? parsed.cursor.project : undefined,
+      parsed.kind === "legacy-time",
+    );
+    const project = context.project;
     const positionalStart = positionMatches && parsed.kind === "position" ? parsed.cursor.line : 0;
     const timeFloor = resolveSourceTimeFloor(
       config.claudeSince,
@@ -178,7 +183,12 @@ export async function collectClaudeEvents(config: ClaudeAdapterConfig): Promise<
   return { events, cursorUpdates };
 }
 
-function claudeSessionContext(records: unknown[], file: string): ClaudeSessionContext {
+async function claudeSessionContext(
+  records: unknown[],
+  file: string,
+  pinnedProject?: ProjectIdentity,
+  useLegacyProject = false,
+): Promise<ClaudeSessionContext> {
   const sourceRunId =
     firstString(records, "sessionId") ??
     basename(file, ".jsonl");
@@ -186,10 +196,20 @@ function claudeSessionContext(records: unknown[], file: string): ClaudeSessionCo
   const cwd = isRecord(contextRecord) ? stringValue(contextRecord.cwd) : undefined;
   const startedAt = isRecord(contextRecord) ? stringValue(contextRecord.timestamp) : undefined;
   const startRecordUuid = isRecord(contextRecord) ? stringValue(contextRecord.uuid) : undefined;
+  const fallbackName = projectNameFromClaudeProjectPath(file);
+  const project = pinnedProject
+    ? { key: pinnedProject.key, name: pinnedProject.name ?? pinnedProject.key }
+    : useLegacyProject
+      ? legacyProjectIdentity({ ...(cwd ? { cwd } : {}), fallbackName })
+      : await resolveProjectIdentity({
+          ...(cwd ? { cwd } : {}),
+          fallbackPath: dirname(file),
+          fallbackName,
+        });
 
   return {
     sourceRunId,
-    projectKey: projectKeyFromCwd(cwd) ?? projectKeyFromClaudeProjectPath(file),
+    project,
     toolNameById: toolNameMap(records),
     ...(startedAt ? { startedAt } : {}),
     ...(startRecordUuid ? { startRecordUuid } : {}),
@@ -369,7 +389,8 @@ function parseEvent(input: ParseEventInput): IngestEvent {
   const normalizedInput = {
     workspaceId: input.config.workspaceId,
     deviceId: input.config.deviceId,
-    projectKey: input.context.projectKey,
+    projectKey: input.context.project.key,
+    projectName: input.context.project.name,
     sourceId: "claude-code" as const,
     sourceRunId: input.context.sourceRunId,
     sourceEventId: input.sourceEventId,
@@ -421,11 +442,7 @@ function firstString(records: unknown[], key: string): string | undefined {
   return undefined;
 }
 
-function projectKeyFromCwd(cwd: string | undefined): string | undefined {
-  return projectKeyFromCwdPath(cwd);
-}
-
-function projectKeyFromClaudeProjectPath(file: string): string {
+function projectNameFromClaudeProjectPath(file: string): string {
   const encodedProject = basename(dirname(file));
   const normalizedProject = encodedProject.replace(/^-+/, "");
   const commonRootMarkers = [
