@@ -707,7 +707,7 @@ describe("App integration", () => {
     [2, "split"],
     [3, "dense"],
     [4, "dense"],
-  ] as const)("lets normal Grid auto-place %i visible sessions as %s", (count, density) => {
+  ] as const)("lets normal Grid auto-place %i mounted sessions as %s", (count, density) => {
     const sessions = Array.from({ length: count }, (_, index): SessionTile => ({
       id: `manual-${index + 1}`,
       title: `Manual · zsh ${index + 1}`,
@@ -728,8 +728,14 @@ describe("App integration", () => {
     renderTerminalDeskForSessions(sessions, layouts);
 
     expect(screen.getByTestId("terminal-grid")).toHaveClass("laid-out", density);
+    expect(document.querySelectorAll('[data-testid="terminal-tile"]')).toHaveLength(count);
+    expect(document.querySelectorAll('[data-testid="terminal-tile"]:not([aria-hidden="true"])'))
+      .toHaveLength(Math.min(count, 3));
     for (const session of sessions) {
-      const tile = screen.getByRole("article", { name: session.title });
+      const tile = document.querySelector<HTMLElement>(
+        `[data-testid="terminal-tile"][data-session-id="${session.id}"]`,
+      );
+      if (!tile) throw new Error(`Terminal tile ${session.id} is missing.`);
       expect(tile.style.gridColumn).toBe("");
       expect(tile.style.gridRow).toBe("");
     }
@@ -787,15 +793,21 @@ describe("App integration", () => {
 
     renderTerminalDeskForSessions(sessions, layouts);
 
-    expect(screen.getByTestId("terminal-grid")).toHaveClass("laid-out", "dense", "many-up", "six-up");
+    expect(screen.getByTestId("terminal-grid")).toHaveClass("laid-out", "dense", "three-pane");
+    expect(screen.getByTestId("terminal-grid")).not.toHaveClass("many-up", "six-up");
+    expect(document.querySelectorAll('[data-testid="terminal-tile"]')).toHaveLength(6);
+    expect(document.querySelectorAll('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveLength(3);
     for (const session of sessions) {
-      const tile = screen.getByRole("article", { name: session.title });
+      const tile = document.querySelector<HTMLElement>(
+        `[data-testid="terminal-tile"][data-session-id="${session.id}"]`,
+      );
+      if (!tile) throw new Error(`Terminal tile ${session.id} is missing.`);
       expect(tile.style.gridColumn).toBe("");
       expect(tile.style.gridRow).toBe("");
     }
   });
 
-  it("uses the long scrolling Grid once five terminals would otherwise become short", () => {
+  it("keeps five terminals mounted while presenting only the three-pane Grid", () => {
     const sessions = Array.from({ length: 5 }, (_, index): SessionTile => ({
       id: `manual-${index + 1}`,
       title: `Manual · zsh ${index + 1}`,
@@ -815,9 +827,15 @@ describe("App integration", () => {
 
     renderTerminalDeskForSessions(sessions, layouts);
 
-    expect(screen.getByTestId("terminal-grid")).toHaveClass("laid-out", "dense", "many-up");
+    expect(screen.getByTestId("terminal-grid")).toHaveClass("laid-out", "dense", "three-pane");
+    expect(screen.getByTestId("terminal-grid")).not.toHaveClass("many-up");
+    expect(document.querySelectorAll('[data-testid="terminal-tile"]')).toHaveLength(5);
+    expect(document.querySelectorAll('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveLength(2);
     for (const session of sessions) {
-      const tile = screen.getByRole("article", { name: session.title });
+      const tile = document.querySelector<HTMLElement>(
+        `[data-testid="terminal-tile"][data-session-id="${session.id}"]`,
+      );
+      if (!tile) throw new Error(`Terminal tile ${session.id} is missing.`);
       expect(tile.style.gridColumn).toBe("");
       expect(tile.style.gridRow).toBe("");
     }
@@ -984,7 +1002,8 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("article", { name: "Fix the retry loop" })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: "Recover the rollout session" })).toBeInTheDocument();
-    expect(screen.getByRole("article", { name: "Explain the preview" })).toBeInTheDocument();
+    expect(document.querySelector('[data-testid="terminal-tile"][data-session-id="codex-timed"]'))
+      .toHaveAttribute("aria-label", "Explain the preview");
     expect(screen.getByRole("article", { name: "Release reviewer" })).toBeInTheDocument();
     expect(renameTerminal).toHaveBeenCalledWith({ clientId: "codex-generated", title: "Fix the retry loop" });
     expect(renameTerminal).not.toHaveBeenCalledWith({ clientId: "codex-custom", title: expect.any(String) });

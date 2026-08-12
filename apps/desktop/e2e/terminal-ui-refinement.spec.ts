@@ -50,74 +50,95 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
   await expect(secondManualTile).toHaveClass(/selected/);
   await addSession(page, "New manual terminal");
   await expect(tiles).toHaveCount(5);
+  await expect(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])')).toHaveCount(3);
   const thirdManualTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-3"]');
   await expect(thirdManualTile).toHaveClass(/ready/);
   await expect(thirdManualTile).toHaveClass(/selected/);
-  await expect(page.getByTestId("terminal-grid")).toHaveClass(/many-up/);
-  expect(await tiles.evaluateAll((nodes) => nodes.map((node) => ({
-    column: (node as HTMLElement).style.gridColumn,
-    row: (node as HTMLElement).style.gridRow,
-  })))).toEqual(Array.from({ length: 5 }, () => ({ column: "", row: "" })));
+  await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(2);
+
+  await chooseWorkLayout(page, "Arrange");
+  await expect(tiles).toHaveCount(5);
+  await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(0);
+  await chooseWorkLayout(page, "Grid");
 
   await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1686, height: 980 });
   });
-  const wideFiveUp = await tileGeometry(tiles);
-  expect(uniqueCoordinates(wideFiveUp, "left")).toHaveLength(3);
-  expect(uniqueCoordinates(wideFiveUp, "top")).toHaveLength(2);
-  expect(Math.min(...wideFiveUp.map(({ height }) => height))).toBeGreaterThan(760);
+  await settleTerminalTileAnimations(page);
+  const wideFiveUp = await tileGeometry(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])'));
+  expect(coordinateBandCount(wideFiveUp, "left")).toBe(2);
+  expect(coordinateBandCount(wideFiveUp, "top")).toBe(2);
+  const wideFiveSortedHeights = [...wideFiveUp.map((tile) => tile.height)].sort((a, b) => b - a);
+  expect(wideFiveSortedHeights[0]).toBeGreaterThan(wideFiveSortedHeights[1]);
+  expect(wideFiveSortedHeights[0]).toBeGreaterThan(wideFiveSortedHeights[2]);
   expect(wideFiveUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-5-1686x980.png") });
 
   await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1120, height: 720 });
   });
-  const narrowFiveUp = await tileGeometry(tiles);
-  expect(uniqueCoordinates(narrowFiveUp, "left")).toHaveLength(2);
-  expect(uniqueCoordinates(narrowFiveUp, "top")).toHaveLength(3);
-  expect(Math.min(...narrowFiveUp.map(({ height }) => height))).toBeGreaterThanOrEqual(540);
+  await settleTerminalTileAnimations(page);
+  const narrowFiveUp = await tileGeometry(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])'));
+  expect(coordinateBandCount(narrowFiveUp, "left")).toBe(2);
+  expect(coordinateBandCount(narrowFiveUp, "top")).toBe(2);
+  const narrowFiveSortedHeights = [...narrowFiveUp.map((tile) => tile.height)].sort((a, b) => b - a);
+  expect(narrowFiveSortedHeights[0]).toBeGreaterThan(narrowFiveSortedHeights[1]);
+  expect(narrowFiveSortedHeights[0]).toBeGreaterThan(narrowFiveSortedHeights[2]);
   expect(narrowFiveUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-5-1120x720.png") });
 
   await addSession(page, "New manual terminal");
   await expect(tiles).toHaveCount(6);
+  await expect(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])')).toHaveCount(3);
+  await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(3);
+  await chooseWorkLayout(page, "Arrange");
+  await expect(tiles).toHaveCount(6);
+  await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(0);
+  await chooseWorkLayout(page, "Grid");
 
   await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1686, height: 980 });
   });
-  await expect(page.getByTestId("terminal-grid")).toHaveClass(/many-up/);
-  await expect(page.getByTestId("terminal-grid")).toHaveClass(/six-up/);
-  const wideSixUp = await tileGeometry(tiles);
-  expect(uniqueCoordinates(wideSixUp, "left")).toHaveLength(3);
-  expect(uniqueCoordinates(wideSixUp, "top")).toHaveLength(2);
-  expect(Math.min(...wideSixUp.map(({ height }) => height))).toBeGreaterThan(760);
+  await settleTerminalTileAnimations(page);
+  const wideSixUp = await tileGeometry(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])'));
+  expect(coordinateBandCount(wideSixUp, "left")).toBe(2);
+  expect(coordinateBandCount(wideSixUp, "top")).toBe(2);
+  const wideSixSortedHeights = [...wideSixUp.map((tile) => tile.height)].sort((a, b) => b - a);
+  expect(wideSixSortedHeights[0]).toBeGreaterThan(wideSixSortedHeights[1]);
+  expect(wideSixSortedHeights[0]).toBeGreaterThan(wideSixSortedHeights[2]);
   expect(wideSixUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-6-1686x980.png") });
 
   await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1120, height: 720 });
   });
-  const narrowSixUp = await tileGeometry(tiles);
-  expect(uniqueCoordinates(narrowSixUp, "left")).toHaveLength(2);
-  expect(uniqueCoordinates(narrowSixUp, "top")).toHaveLength(3);
-  expect(Math.min(...narrowSixUp.map(({ height }) => height))).toBeGreaterThanOrEqual(540);
+  await settleTerminalTileAnimations(page);
+  const narrowSixUp = await tileGeometry(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])'));
+  expect(coordinateBandCount(narrowSixUp, "left")).toBe(2);
+  expect(coordinateBandCount(narrowSixUp, "top")).toBe(2);
+  const narrowSixSortedHeights = [...narrowSixUp.map((tile) => tile.height)].sort((a, b) => b - a);
+  expect(narrowSixSortedHeights[0]).toBeGreaterThan(narrowSixSortedHeights[1]);
+  expect(narrowSixSortedHeights[0]).toBeGreaterThan(narrowSixSortedHeights[2]);
   expect(narrowSixUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-6-1120x720.png") });
 });
 
-test("scrolls the terminal Grid only from its right scrollbar gutter", async ({ harness }) => {
+test("scrolls the arranged terminal Grid only from its right scrollbar gutter", async ({ harness }) => {
   const { app, page } = harness;
-  const input = page.getByRole("textbox", { name: "Terminal input" }).first();
+  const terminalTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
+  const input = terminalTile.getByRole("textbox", { name: "Terminal input" });
   await input.fill("seq 1 240");
   await input.press("Enter");
 
-  const host = page.getByTestId("xterm-host").first();
+  const host = terminalTile.getByTestId("xterm-host");
   await expect(host).toContainText("240");
   const initialTerminalRowCount = await host.locator(".xterm-rows > div").count();
   expect(initialTerminalRowCount).toBeGreaterThan(0);
   for (let index = 0; index < 5; index += 1) {
     await addSession(page, "New manual terminal");
   }
+  await page.locator('button.project-session[data-session-id="manual-1"]').click();
+  await expect(terminalTile).not.toHaveAttribute("aria-hidden", "true");
   await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1120, height: 720 });
   });
@@ -168,10 +189,13 @@ test("scrolls the terminal Grid only from its right scrollbar gutter", async ({ 
     (element) => Number.parseFloat((element as HTMLElement).style.top),
   )).toBe(terminalBottomPosition);
 
-  await page.locator('[data-testid="terminal-tile"]').first().locator(".tile-header").hover();
+  await terminalTile.locator(".tile-header").hover();
   await page.mouse.wheel(0, 120);
   await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBe(0);
 
+  await chooseWorkLayout(page, "Arrange");
+  await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(0);
+  await column.evaluate((element) => { element.scrollTop = 0; });
   const columnBounds = await column.boundingBox();
   expect(columnBounds).not.toBeNull();
   await page.mouse.move(columnBounds!.x + columnBounds!.width - 2, columnBounds!.y + columnBounds!.height / 2);
@@ -212,9 +236,24 @@ async function tileGeometry(tiles: import("@playwright/test").Locator) {
   }));
 }
 
-function uniqueCoordinates(
+function coordinateBandCount(
   geometry: Awaited<ReturnType<typeof tileGeometry>>,
   axis: "left" | "top",
-): number[] {
-  return [...new Set(geometry.map((tile) => tile[axis]))];
+  tolerance = 2,
+): number {
+  const values = geometry.map((tile) => tile[axis]).sort((a, b) => a - b);
+  if (values.length === 0) return 0;
+  return values.slice(1).reduce(
+    (bands, value, index) => bands + (value - values[index]! > tolerance ? 1 : 0),
+    1,
+  );
+}
+
+async function settleTerminalTileAnimations(page: import("@playwright/test").Page): Promise<void> {
+  await page.evaluate(async () => {
+    const tiles = Array.from(document.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"]'));
+    await Promise.allSettled(
+      tiles.flatMap((tile) => tile.getAnimations()).map((animation) => animation.finished),
+    );
+  });
 }
