@@ -7,6 +7,7 @@ export const IngestEventSchema = z.object({
   workspace_id: z.string().uuid(),
   device_id: z.string().uuid(),
   project_key: z.string().min(1),
+  project_name: z.string().trim().min(1).max(160).optional(),
   source_id: AgentSource,
   source_run_id: z.string().min(1),
   source_event_id: z.string().min(1),

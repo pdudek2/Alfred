@@ -21,6 +21,7 @@ describe("normalizeEvent", () => {
       workspaceId: "00000000-0000-4000-8000-000000000001",
       deviceId: "00000000-0000-4000-8000-000000000101",
       projectKey: "Alfred",
+      projectName: "Alfred",
       sourceId: "codex-cli",
       sourceRunId: "run-1",
       sourceEventId: "event-1",
@@ -38,6 +39,7 @@ describe("normalizeEvent", () => {
     expect(event.event_id).toHaveLength(64);
     expect(parsed).toMatchObject({
       parent_source_run_id: "parent-run-1",
+      project_name: "Alfred",
       payload: { title: "Start" },
       status: "running",
     });

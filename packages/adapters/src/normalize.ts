@@ -6,6 +6,7 @@ export type NormalizedEventInput = {
   workspaceId: string;
   deviceId: string;
   projectKey: string;
+  projectName?: string;
   sourceId: AgentSource;
   sourceRunId: string;
   sourceEventId: string;
@@ -34,6 +35,7 @@ export function normalizeEvent(input: NormalizedEventInput) {
     workspace_id: input.workspaceId,
     device_id: input.deviceId,
     project_key: input.projectKey,
+    ...(input.projectName ? { project_name: input.projectName } : {}),
     source_id: input.sourceId,
     source_run_id: input.sourceRunId,
     source_event_id: input.sourceEventId,

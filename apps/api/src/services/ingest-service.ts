@@ -243,16 +243,20 @@ export function createDrizzleIngestStore<
     },
 
     upsertProject: async (event) => {
+      const projectName = event.project_name ?? event.project_key;
       const [project] = await db
         .insert(projects)
         .values({
           workspaceId: event.workspace_id,
           projectKey: event.project_key,
-          name: event.project_key,
+          name: projectName,
         })
         .onConflictDoUpdate({
           target: [projects.workspaceId, projects.projectKey],
-          set: { updatedAt: updatedAtNow },
+          set: {
+            ...(event.project_name ? { name: event.project_name } : {}),
+            updatedAt: updatedAtNow,
+          },
         })
         .returning({ id: projects.id });
 
