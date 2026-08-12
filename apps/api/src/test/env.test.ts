@@ -12,6 +12,8 @@ const vercelEnv = {
   RUNNER_DEVICE_TOKEN: "fixture-runner-token",
 } satisfies NodeJS.ProcessEnv;
 
+const hostedDatabaseUrl = "postgresql://alfred:secret@db.example.test:5432/alfred";
+
 describe("api env", () => {
   it("allows local dev auth with development defaults", () => {
     expect(
@@ -67,6 +69,20 @@ describe("api env", () => {
         ALFRED_ALLOW_DEV_AUTH: "1",
         NODE_ENV: "production",
         DATABASE_URL: "postgresql://alfred:secret@db.example.test:5432/alfred",
+      }),
+    ).toThrow(/RUNNER_DEVICE_TOKEN/);
+  });
+
+  it.each([
+    { NODE_ENV: "production" },
+    { VERCEL: "1" },
+  ])("rejects the public development token in hosted runtime: %o", (hostedSignal) => {
+    expect(() =>
+      parseApiEnv({
+        ...hostedSignal,
+        DATABASE_URL: hostedDatabaseUrl,
+        DEV_AUTH_ENABLED: "false",
+        RUNNER_DEVICE_TOKEN: "dev-device-token",
       }),
     ).toThrow(/RUNNER_DEVICE_TOKEN/);
   });

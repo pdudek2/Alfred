@@ -70,10 +70,8 @@ export function parseApiEnv(input: NodeJS.ProcessEnv) {
     throw new Error("DATABASE_URL is required in hosted runtime");
   }
 
-  const hostedDevAuth = parsed.DEV_AUTH_ENABLED && hostedRuntime;
-
-  if (hostedDevAuth && parsed.RUNNER_DEVICE_TOKEN === DEFAULT_RUNNER_DEVICE_TOKEN) {
-    throw new Error("RUNNER_DEVICE_TOKEN must be explicitly set when dev auth is enabled in hosted runtime");
+  if (hostedRuntime && parsed.RUNNER_DEVICE_TOKEN === DEFAULT_RUNNER_DEVICE_TOKEN) {
+    throw new Error("RUNNER_DEVICE_TOKEN must not use the public development token in hosted runtime");
   }
 
   return parsed;
