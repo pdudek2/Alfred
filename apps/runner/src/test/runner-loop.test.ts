@@ -4,12 +4,13 @@ import { tmpdir } from "node:os";
 
 import Database from "better-sqlite3";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { IngestBatchSchema, type IngestEvent } from "@alfred/schema";
+import { IngestBatchSchema, type IngestBatch, type IngestEvent } from "@alfred/schema";
 
 import { runRunnerLoop, runRunnerOnce } from "../index.js";
 import { OutboxDb } from "../outbox/outbox-db.js";
 import { flushOutboxOnce } from "../outbox/outbox-worker.js";
 import type { SourceCollection } from "../sources/source-adapter.js";
+import { sourceCursorKey } from "../sources/source-cursor.js";
 
 const workspaceId = "00000000-0000-4000-8000-000000000001";
 const deviceId = "00000000-0000-4000-8000-000000000101";
@@ -615,6 +616,59 @@ describe("flushOutboxOnce", () => {
         Authorization: "Bearer token-1",
       },
     });
+  });
+
+  it("persists a positional cursor and sends a same-timestamp append after restart", async () => {
+    const dir = trackedTempDir("alfred-runner-positional-restart-");
+    const codexHome = join(dir, ".codex");
+    const sessionPath = join(codexHome, "sessions/2026/04/28/session.jsonl");
+    const outboxPath = join(dir, "outbox.sqlite");
+    mkdirSync(join(codexHome, "sessions/2026/04/28"), { recursive: true });
+    writeFileSync(sessionPath, JSON.stringify({
+      timestamp: "2026-04-28T10:00:00.000Z",
+      type: "session.start",
+      id: "restart-run",
+      cwd: "/Users/patryk/Desktop/Alfred",
+    }));
+    const sentEventIds: string[][] = [];
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as IngestBatch;
+      sentEventIds.push(body.events.map((event) => event.source_event_id));
+      return new Response("{}", { status: 202 });
+    });
+    const config = {
+      apiUrl: "http://127.0.0.1:4301",
+      deviceToken: "token-1",
+      workspaceId,
+      deviceId,
+      privacyMode: "standard" as const,
+      outboxPath,
+      codexHome,
+    };
+
+    await expect(runRunnerOnce(config, { fetchImpl })).resolves.toEqual({
+      collectedEvents: 1,
+      flushedEvents: 1,
+    });
+    appendFileSync(sessionPath, `\n${JSON.stringify({
+      timestamp: "2026-04-28T10:00:00.000Z",
+      type: "tool.call",
+      id: "same-ms-after-restart",
+      session_id: "restart-run",
+      tool: "exec_command",
+    })}\n`);
+    await expect(runRunnerOnce(config, { fetchImpl })).resolves.toEqual({
+      collectedEvents: 1,
+      flushedEvents: 1,
+    });
+    expect(sentEventIds).toEqual([["restart-run"], ["same-ms-after-restart"]]);
+
+    const outbox = new OutboxDb(outboxPath);
+    expect(JSON.parse(outbox.getSourceCursor(sourceCursorKey(
+      "codex-cli",
+      "sessions/2026/04/28/session.jsonl",
+    ))!)).toMatchObject({ v: 1 });
+    outbox.close();
   });
 
   it("keeps independent cursors for concurrent Codex session files", async () => {
