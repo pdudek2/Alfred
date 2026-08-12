@@ -4,6 +4,7 @@ import { AlertTriangle, Check, ChevronDown, ChevronUp, Ellipsis, Pencil, Play, R
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -41,12 +42,14 @@ import { recoveryHeadline } from "../recovery-display";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { restoredSessionActionLabel, restoredSessionActionTitle } from "../restored-session-action";
 import { isWorkSession } from "../session-scope";
+import { deskPresentationSlot, nextDeskPresentationIds, type DeskPresentationSlot } from "../terminal-desk-presentation";
 import { normalizeSessionTitle, stripTerminalControlSequencesWithRemainder } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 import { WorktreeDiffPanel, type WorktreeDiffCloseReason } from "./WorktreeDiffPanel";
 import type { WorktreeDiffView } from "../worktree-diff";
+import "./terminal-desk-layout.css";
 
 const ARRANGE_GRID_ROW_HEIGHT = 84;
 const MIN_TERMINAL_FIT_HEIGHT = 48;
@@ -198,6 +201,7 @@ export function TerminalDesk({
     returnFocus: HTMLElement | null;
   } | null>(null);
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
+  const [deskPresentationIdsByWorkspace, setDeskPresentationIdsByWorkspace] = useState<Record<string, string[]>>({});
   const activeSessions = sessions.filter(
     (session) => session.workspaceId === activeWorkspaceId && isWorkSession(session),
   );
@@ -207,13 +211,34 @@ export function TerminalDesk({
     : activeSessions;
   const activeLayouts = layouts;
   const selectedSession = selectedSessionForDesk(visibleWorkspaceSessions, selectedSessionId);
+  const stagedList = !arrangeMode
+    && workMode === "desk"
+    && visibleWorkspaceSessions.length > 0
+    && visibleWorkspaceSessions.every((session) => session.stage === "staged");
+  const previousDeskPresentationIds = deskPresentationIdsByWorkspace[activeWorkspaceId] ?? [];
+  const deskPresentationIds = !arrangeMode && workMode === "desk" && !stagedList
+    ? nextDeskPresentationIds(
+      visibleWorkspaceSessions.map((session) => session.id),
+      selectedSessionId,
+      previousDeskPresentationIds,
+    )
+    : previousDeskPresentationIds;
+  const deskSessions = deskPresentationIds
+    .map((sessionId) => visibleWorkspaceSessions.find((session) => session.id === sessionId) ?? null)
+    .filter((session): session is SessionTile => session !== null);
   const focusSession = workMode === "focus"
     ? selectedSession ?? focusedSession(visibleWorkspaceSessions, activeLayouts) ?? visibleWorkspaceSessions[0] ?? null
     : null;
   const splitSessions = workMode === "split"
     ? splitSessionsForDesk(visibleWorkspaceSessions, selectedSessionId, activeLayouts)
     : visibleWorkspaceSessions;
-  const visibleSessions = arrangeMode ? visibleWorkspaceSessions : focusSession ? [focusSession] : splitSessions;
+  const visibleSessions = arrangeMode
+    ? visibleWorkspaceSessions
+    : focusSession
+      ? [focusSession]
+      : workMode === "desk" && !stagedList
+        ? deskSessions
+        : splitSessions;
   const renderedSessions = sessions.filter(
     (session) => isWorkSession(session) && (
       session.stage === "live"
@@ -227,13 +252,27 @@ export function TerminalDesk({
   const showSplitEmptyState = workMode === "split" && visibleWorkspaceSessions.length > 0 && visibleSessions.length < 2;
   const gridDensity =
     workMode === "split" ? "split" : visibleSessions.length <= 1 ? "single" : visibleSessions.length === 2 ? "split" : "dense";
-  const stagedList = !arrangeMode
-    && workMode === "desk"
-    && visibleWorkspaceSessions.length > 0
-    && visibleWorkspaceSessions.every((session) => session.stage === "staged");
   const manyUpGrid = !stagedList && !arrangeMode && workMode === "desk" && visibleSessions.length >= 5;
   const sixUpGrid = manyUpGrid && visibleSessions.length === 6;
   const showLayoutControls = arrangeMode && visibleWorkspaceSessions.length > 0;
+  const threePaneGrid = !arrangeMode && workMode === "desk" && !stagedList && visibleSessions.length === 3;
+
+  useLayoutEffect(() => {
+    if (arrangeMode || workMode !== "desk" || stagedList) return;
+    setDeskPresentationIdsByWorkspace((current) => {
+      const currentIds = current[activeWorkspaceId] ?? [];
+      if (
+        currentIds.length === deskPresentationIds.length
+        && currentIds.every((id, index) => id === deskPresentationIds[index])
+      ) {
+        return current;
+      }
+      return {
+        ...current,
+        [activeWorkspaceId]: deskPresentationIds,
+      };
+    });
+  }, [activeWorkspaceId, arrangeMode, deskPresentationIds, stagedList, workMode]);
 
   useEffect(() => {
     const column = gridColumnRef.current;
@@ -449,7 +488,7 @@ export function TerminalDesk({
             />
           )}
           <div
-            className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}${manyUpGrid ? " many-up" : ""}${sixUpGrid ? " six-up" : ""}${stagedList ? " staged-list" : ""}`}
+            className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}${manyUpGrid ? " many-up" : ""}${sixUpGrid ? " six-up" : ""}${stagedList ? " staged-list" : ""}${threePaneGrid ? " three-pane" : ""}`}
             data-testid="terminal-grid"
             ref={gridRef}
           >
@@ -466,10 +505,10 @@ export function TerminalDesk({
           )}
           {renderedSessions.map((session) => {
             const workspaceHidden = session.workspaceId !== activeWorkspaceId;
-            const layoutHidden = !workspaceHidden && !arrangeMode && Boolean(
-              (focusSession && session.id !== focusSession.id) ||
-                (workMode === "split" && !visibleSessionIds.has(session.id)),
-            );
+            const layoutHidden = !workspaceHidden && !arrangeMode && !visibleSessionIds.has(session.id);
+            const presentationSlot = threePaneGrid
+              ? deskPresentationSlot(session.id, deskPresentationIds)
+              : null;
             return session.stage === "live" ? (
               <ManualTerminalTile
                 arrangeMode={arrangeMode}
@@ -504,6 +543,7 @@ export function TerminalDesk({
                 collapsed={collapsedSessionIds.has(session.id)}
                 selected={inspectedSession?.id === session.id}
                 surfaceActive={surfaceActive}
+                presentationSlot={presentationSlot}
                 showHeader={
                   arrangeMode ||
                   workMode !== "focus" ||
@@ -530,22 +570,29 @@ export function TerminalDesk({
                 onToggleCollapse={() => onToggleCollapseSession(session.id)}
               />
             ) : (
-              <StagedTilePreview
-                focusHidden={layoutHidden}
+              <div
                 key={session.id}
-                layout={arrangeMode ? layouts[session.id] : undefined}
-                preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
-                tile={session}
-                selected={inspectedSession?.id === session.id}
-                onFocusSession={() => handleFocusSession(session.id)}
-                onSelectSession={() => handleSelectSession(session.id)}
-                onApprove={onApproveTile}
-                onArrangeKeyDown={(event) => handleArrangeKeyDown(session.id, event)}
-                onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
-                onReject={onRejectTile}
-                onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
-                arrangeMode={arrangeMode}
-              />
+                data-presentation-slot={presentationSlot ?? undefined}
+                aria-hidden={layoutHidden ? "true" : undefined}
+                inert={layoutHidden ? true : undefined}
+                style={layoutHidden ? { display: "none" } : undefined}
+              >
+                <StagedTilePreview
+                  focusHidden={layoutHidden}
+                  layout={arrangeMode ? layouts[session.id] : undefined}
+                  preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
+                  tile={session}
+                  selected={inspectedSession?.id === session.id}
+                  onFocusSession={() => handleFocusSession(session.id)}
+                  onSelectSession={() => handleSelectSession(session.id)}
+                  onApprove={onApproveTile}
+                  onArrangeKeyDown={(event) => handleArrangeKeyDown(session.id, event)}
+                  onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
+                  onReject={onRejectTile}
+                  onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
+                  arrangeMode={arrangeMode}
+                />
+              </div>
             );
           })}
           {showSplitEmptyState && (
@@ -880,6 +927,7 @@ function ManualTerminalTile({
   workspaceRootFingerprint,
   title,
   layoutHidden = false,
+  presentationSlot = null,
   workspaceHidden,
   command,
   args,
@@ -932,6 +980,7 @@ function ManualTerminalTile({
   workspaceRootFingerprint?: string | undefined;
   title: string;
   layoutHidden?: boolean;
+  presentationSlot?: DeskPresentationSlot | null;
   workspaceHidden: boolean;
   command?: string | undefined;
   args?: string[] | undefined;
@@ -1539,9 +1588,10 @@ function ManualTerminalTile({
       className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${workspaceHidden ? "workspace-hidden" : ""} ${layoutHidden ? "focus-hidden" : ""} ${collapsed ? "collapsed" : ""} ${arrangeMode ? "arranging" : ""} ${showHeader ? "" : "chrome-headerless"} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
       data-testid={workspaceHidden ? "background-terminal-tile" : "terminal-tile"}
       data-session-id={sessionKey}
+      data-presentation-slot={presentationSlot ?? undefined}
       aria-label={latestActivity ? `${title}, ${latestActivity.title}: ${latestActivity.detail}` : title}
       aria-hidden={workspaceHidden || layoutHidden ? "true" : undefined}
-      inert={workspaceHidden || undefined}
+      inert={workspaceHidden || layoutHidden ? true : undefined}
       style={gridStyle(layout, preview)}
       tabIndex={workspaceHidden || layoutHidden ? -1 : 0}
       onFocus={(event) => {
