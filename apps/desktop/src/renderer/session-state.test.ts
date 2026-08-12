@@ -143,6 +143,40 @@ describe("desktop session state", () => {
     }, "/repo")[0]?.title).toBe("Review PR");
   });
 
+  it("falls back to safe nonblank titles when hydrated titles sanitize empty", () => {
+    expect(hydrateLiveTerminalSessions([{
+      id: "pty-live",
+      title: "\u001b]0;spoof\u0007\u001b[2J\u0000",
+      source: "manual",
+      cwd: "/repo",
+      shell: "/bin/zsh",
+      buffer: "",
+    }])[0]?.title).toBe("Manual session");
+
+    expect(hydratePersistedTerminalSessions([{
+      clientId: "restored-codex",
+      title: "\u001b]0;spoof\u0007\u001b[2J\u0000",
+      source: "alfred",
+      agentKind: "codex",
+      command: "codex",
+      args: [],
+      cwd: "/repo",
+      shell: "codex",
+    }])[0]?.title).toBe("Codex session");
+
+    expect(hydrateStagedPlanSessions({
+      id: "plan-empty-title",
+      prompt: "prepare",
+      sessions: [{
+        id: "staged-claude",
+        kind: "claude",
+        title: "\u001b]0;spoof\u0007\u001b[2J\u0000",
+        command: "claude",
+        args: [],
+      }],
+    }, "/repo")[0]?.title).toBe("Claude session");
+  });
+
   it("adds new Codex sessions in the shared workspace by default", () => {
     const next = addAgentSession([], "codex", "/repo", "A");
 
@@ -1015,6 +1049,27 @@ describe("staged sessions", () => {
       isolation: "shared",
       launchPreflight: expect.objectContaining({ status: "blocked" }),
     });
+  });
+
+  it("addStagedSessions sanitizes runtime plan titles and falls back when they sanitize empty", () => {
+    const initial = createInitialSessions("/repo");
+    const next = addStagedSessions(initial, [
+      {
+        kind: "codex",
+        title: "\u001b[31mReview\u001b[0m \u001b]0;spoof\u0007PR",
+        command: "codex",
+        args: [],
+      },
+      {
+        kind: "claude",
+        title: "\u001b]0;spoof\u0007\u001b[2J\u0000",
+        command: "claude",
+        args: [],
+      },
+    ], "/repo");
+
+    expect(next.slice(1).map((session) => session.title)).toEqual(["Review PR", "Claude session"]);
+    expect(next.slice(1).map((session) => session.id)).toEqual(["alfred-1", "alfred-2"]);
   });
 
   it("hydrates staged tiles from a persisted Alfred plan snapshot", () => {
