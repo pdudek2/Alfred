@@ -89,8 +89,26 @@ describe("production ingest store", () => {
     await expect(fixture.db.select().from(events)).resolves.toHaveLength(1);
   });
 
-  it("preserves the bootstrap workspace owner during ingest", async () => {
+  it("preserves the bootstrap workspace owner during ingest and heartbeat", async () => {
     await ingestBatch(store(), makeBatch());
+
+    await expect(
+      fixture.db
+        .select({ id: users.id, email: users.email })
+        .from(users),
+    ).resolves.toEqual([{ id: bootstrapUserId, email: bootstrapEmail }]);
+
+    await expect(
+      fixture.db
+        .select({ id: workspaces.id, ownerUserId: workspaces.ownerUserId })
+        .from(workspaces),
+    ).resolves.toEqual([{ id: workspaceId, ownerUserId: bootstrapUserId }]);
+
+    await markRunnerHeartbeat(store(), {
+      workspaceId,
+      deviceId,
+      seenAt: new Date("2026-01-01T10:05:00.000Z"),
+    });
 
     await expect(
       fixture.db
