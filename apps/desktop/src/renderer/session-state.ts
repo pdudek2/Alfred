@@ -66,6 +66,21 @@ export function generatedTitleForDetectedAgent(
   return `${kind === "codex" ? "Codex" : "Claude"} · session ${match[1]}`;
 }
 
+type SessionTitleFallbackInput = {
+  agentKind?: AgentKind;
+  command?: string;
+};
+
+function fallbackSessionTitle({ agentKind, command }: SessionTitleFallbackInput): string {
+  if (agentKind === "codex" || command === "codex") return "Codex session";
+  if (agentKind === "claude" || command === "claude") return "Claude session";
+  return "Manual session";
+}
+
+function normalizedSessionTitleWithFallback(title: string, fallback: SessionTitleFallbackInput): string {
+  return normalizeSessionTitle(title) || fallbackSessionTitle(fallback);
+}
+
 export function createInitialSessions(cwd: string, workspaceId = "A"): SessionTile[] {
   return [createManualSession(1, cwd, workspaceId)];
 }
@@ -247,7 +262,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
   return snapshots.map((snapshot) => ({
     id: snapshot.clientId ?? `runtime-${snapshot.id}`,
     runtimeId: snapshot.id,
-    title: normalizeSessionTitle(snapshot.title),
+    title: normalizedSessionTitleWithFallback(snapshot.title, snapshot),
     workspaceId: snapshot.workspaceId ?? "A",
     cwd: snapshot.cwd,
     ...(snapshot.workspaceRootFingerprint === undefined
@@ -275,7 +290,7 @@ export function hydrateLiveTerminalSessions(snapshots: TerminalSessionSnapshot[]
 export function hydratePersistedTerminalSessions(snapshots: PersistedTerminalSessionSnapshot[]): SessionTile[] {
   return snapshots.map((snapshot) => ({
     id: snapshot.clientId,
-    title: normalizeSessionTitle(snapshot.title),
+    title: normalizedSessionTitleWithFallback(snapshot.title, snapshot),
     workspaceId: snapshot.workspaceId ?? "A",
     cwd: snapshot.cwd ?? "",
     ...(snapshot.workspaceRootFingerprint === undefined
@@ -310,7 +325,7 @@ export function hydrateStagedPlanSessions(
     const isolation = plannedSessionIsolation(session.kind, session.launchPreflight, planSessionIsolation(session));
     return {
       id: session.id,
-      title: normalizeSessionTitle(session.title),
+      title: normalizedSessionTitleWithFallback(session.title, session),
       workspaceId: session.workspaceId ?? defaultWorkspaceId,
       cwd: session.cwd ?? defaultCwd,
       source: "alfred",
@@ -418,7 +433,7 @@ export function addStagedSessions(
     const isolation = plannedSessionIsolation(session.kind, session.launchPreflight, planSessionIsolation(session));
     const tile: SessionTile = {
       id: `${ALFRED_SESSION_PREFIX}${nextIndex}`,
-      title: session.title,
+      title: normalizedSessionTitleWithFallback(session.title, session),
       workspaceId,
       cwd: session.cwd ?? defaultCwd,
       source: "alfred",
