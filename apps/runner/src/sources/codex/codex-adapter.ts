@@ -12,10 +12,13 @@ import {
   parseStoredSourceCursor,
   resolveSourceTimeFloor,
   sourceCursorKey,
-  type SourceProjectPin,
   type SourceTimeFloor,
 } from "../source-cursor.js";
-import { projectKeyFromCwdPath } from "../worktree-project-key.js";
+import {
+  legacyProjectIdentity,
+  resolveProjectIdentity,
+  type ProjectIdentity,
+} from "../project-identity.js";
 
 export type CodexAdapterConfig = {
   codexHome: string;
@@ -84,10 +87,14 @@ export async function collectCodexEvents(config: CodexAdapterConfig): Promise<So
     if (parsed.kind === "invalid") invalidCursorCount += 1;
     if (parsed.kind === "position" && !positionMatches) cursorMismatchCount += 1;
 
-    const computedLegacyProjectKey = projectKeyFromCwd(cwd);
-    const project: SourceProjectPin = positionMatches && parsed.kind === "position"
-      ? parsed.cursor.project
-      : { key: computedLegacyProjectKey, name: computedLegacyProjectKey };
+    const project: ProjectIdentity = positionMatches && parsed.kind === "position"
+      ? {
+          key: parsed.cursor.project.key,
+          name: parsed.cursor.project.name ?? parsed.cursor.project.key,
+        }
+      : parsed.kind === "legacy-time"
+        ? legacyProjectIdentity({ ...(cwd ? { cwd } : {}), fallbackName: "Unknown project" })
+        : await resolveProjectIdentity({ ...(cwd ? { cwd } : {}), fallbackName: "Unknown project" });
     const context: CodexSessionContext = {
       sourceRunId,
       ...(cwd ? { cwd } : {}),
@@ -178,7 +185,7 @@ function codexRecordToEvent(
   if (type === "session.start") {
     return parseEvent({
       config,
-      projectKey: context.project.key,
+      project: context.project,
       sourceRunId: context.sourceRunId,
       sourceEventId,
       type: "run.started",
@@ -193,7 +200,7 @@ function codexRecordToEvent(
   if (type === "tool.call") {
     return parseEvent({
       config,
-      projectKey: context.project.key,
+      project: context.project,
       sourceRunId: context.sourceRunId,
       sourceEventId,
       type: "tool.started",
@@ -208,7 +215,7 @@ function codexRecordToEvent(
     const status = stringValue(record.status);
     return parseEvent({
       config,
-      projectKey: context.project.key,
+      project: context.project,
       sourceRunId: context.sourceRunId,
       sourceEventId,
       type: status === "failed" ? "tool.failed" : "tool.completed",
@@ -224,7 +231,7 @@ function codexRecordToEvent(
     const status = stringValue(record.status);
     return parseEvent({
       config,
-      projectKey: context.project.key,
+      project: context.project,
       sourceRunId: context.sourceRunId,
       sourceEventId,
       type: status === "failed" ? "run.failed" : "run.completed",
@@ -242,7 +249,7 @@ function codexRecordToEvent(
 type CodexSessionContext = {
   sourceRunId: string;
   cwd?: string;
-  project: SourceProjectPin;
+  project: ProjectIdentity;
 };
 
 function codexEnvelopeToEvent(
@@ -259,7 +266,7 @@ function codexEnvelopeToEvent(
   if (envelopeType === "session_meta") {
     return parseEvent({
       config,
-      projectKey: context.project.key,
+      project: context.project,
       sourceRunId: context.sourceRunId,
       sourceEventId,
       type: "run.started",
@@ -278,7 +285,7 @@ function codexEnvelopeToEvent(
   if (payloadType === "task_complete") {
     return parseEvent({
       config,
-      projectKey: context.project.key,
+      project: context.project,
       sourceRunId: context.sourceRunId,
       sourceEventId,
       type: "agent.waiting",
@@ -293,7 +300,7 @@ function codexEnvelopeToEvent(
   if (payloadType === "turn_aborted") {
     return parseEvent({
       config,
-      projectKey: context.project.key,
+      project: context.project,
       sourceRunId: context.sourceRunId,
       sourceEventId,
       type: "run.failed",
@@ -309,7 +316,7 @@ function codexEnvelopeToEvent(
   if (payloadType === "function_call" || payloadType === "custom_tool_call" || payloadType === "tool_search_call") {
     return parseEvent({
       config,
-      projectKey: context.project.key,
+      project: context.project,
       sourceRunId: context.sourceRunId,
       sourceEventId,
       type: "tool.started",
@@ -329,7 +336,7 @@ function codexEnvelopeToEvent(
   ) {
     return parseEvent({
       config,
-      projectKey: context.project.key,
+      project: context.project,
       sourceRunId: context.sourceRunId,
       sourceEventId,
       type: "tool.completed",
@@ -344,7 +351,7 @@ function codexEnvelopeToEvent(
   if (payloadType === "exec_command_end") {
     return parseEvent({
       config,
-      projectKey: context.project.key,
+      project: context.project,
       sourceRunId: context.sourceRunId,
       sourceEventId,
       type: "command.executed",
@@ -363,7 +370,7 @@ function codexEnvelopeToEvent(
 
 type ParseEventInput = {
   config: CodexAdapterConfig;
-  projectKey: string;
+  project: ProjectIdentity;
   sourceRunId: string;
   sourceEventId: string;
   type:
@@ -384,7 +391,8 @@ function parseEvent(input: ParseEventInput): IngestEvent {
   const normalizedInput = {
     workspaceId: input.config.workspaceId,
     deviceId: input.config.deviceId,
-    projectKey: input.projectKey,
+    projectKey: input.project.key,
+    projectName: input.project.name,
     sourceId: "codex-cli" as const,
     sourceRunId: input.sourceRunId,
     sourceEventId: input.sourceEventId,
@@ -398,10 +406,6 @@ function parseEvent(input: ParseEventInput): IngestEvent {
   return IngestEventSchema.parse(
     normalizeEvent(normalizedInput),
   );
-}
-
-function projectKeyFromCwd(cwd: string | undefined): string {
-  return projectKeyFromCwdPath(cwd) ?? "unknown-project";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

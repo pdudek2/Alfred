@@ -65,7 +65,10 @@ export async function resolveProjectIdentity(
 export function legacyProjectIdentity(
   input: Pick<ProjectIdentityInput, "cwd" | "fallbackName">,
 ): ProjectIdentity {
-  const legacyKey = projectKeyFromCwdPath(input.cwd);
+  const parts = input.cwd ? normalize(input.cwd).split(/[\\/]+/).filter(Boolean) : [];
+  const markerIndex = parts.lastIndexOf(".alfred-worktrees");
+  const worktreeProject = markerIndex >= 0 ? parts[markerIndex + 1] : undefined;
+  const legacyKey = worktreeProject ?? (input.cwd ? basename(input.cwd) || undefined : undefined);
   if (legacyKey) return { key: legacyKey, name: readableName(legacyKey) ?? "Unknown project" };
 
   const fallbackName = readableName(input.fallbackName);
@@ -73,22 +76,6 @@ export function legacyProjectIdentity(
     key: fallbackName && fallbackName !== "Unknown project" ? fallbackName : "unknown-project",
     name: fallbackName ?? "Unknown project",
   };
-}
-
-export function projectKeyFromCwdPath(cwd: string | undefined): string | undefined {
-  if (!cwd) return undefined;
-
-  const legacyProject = legacyAlfredWorktreeProject(cwd);
-  if (legacyProject) return legacyProject;
-
-  return basename(cwd) || undefined;
-}
-
-function legacyAlfredWorktreeProject(cwd: string): string | undefined {
-  const parts = normalize(cwd).split(/[\\/]+/).filter(Boolean);
-  const markerIndex = parts.lastIndexOf(".alfred-worktrees");
-  if (markerIndex < 0) return undefined;
-  return parts[markerIndex + 1] || undefined;
 }
 
 async function canonicalPath(

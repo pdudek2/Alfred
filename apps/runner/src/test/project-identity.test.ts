@@ -10,7 +10,6 @@ import {
   legacyProjectIdentity,
   resolveProjectIdentity,
 } from "../sources/project-identity.js";
-import { projectKeyFromCwdPath } from "../sources/worktree-project-key.js";
 
 const execFile = promisify(execFileCallback);
 const roots: string[] = [];
@@ -112,13 +111,14 @@ describe("project identity", () => {
     }, options)).resolves.toMatchObject({ name: "x".repeat(160) });
   });
 
-  it("preserves the legacy worktree and basename keys through the compatibility export", () => {
+  it("preserves the legacy worktree and basename identities", () => {
     const worktree = "/Users/patryk/Desktop/.alfred-worktrees/Alfred/audit-hardening";
-    expect(projectKeyFromCwdPath(worktree)).toBe("Alfred");
-    expect(projectKeyFromCwdPath("/Users/patryk/Desktop/client")).toBe("client");
-    expect(projectKeyFromCwdPath(undefined)).toBeUndefined();
     expect(legacyProjectIdentity({ cwd: worktree, fallbackName: "Ignored" }))
       .toEqual({ key: "Alfred", name: "Alfred" });
+    expect(legacyProjectIdentity({ cwd: "/Users/patryk/Desktop/client" }))
+      .toEqual({ key: "client", name: "client" });
+    expect(legacyProjectIdentity({ cwd: "/Users/patryk/Desktop/.alfred-worktrees" }))
+      .toEqual({ key: ".alfred-worktrees", name: ".alfred-worktrees" });
     expect(legacyProjectIdentity({ fallbackName: " Free Chat " }))
       .toEqual({ key: "Free Chat", name: "Free Chat" });
   });

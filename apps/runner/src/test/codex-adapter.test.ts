@@ -1,18 +1,22 @@
+import { execFile as execFileCallback } from "node:child_process";
 import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
+import { promisify } from "node:util";
 
 import { IngestEventSchema } from "@alfred/schema";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { collectCodexEvents } from "../sources/codex/codex-adapter.js";
 import { readJsonlFile, readJsonlRecords } from "../sources/codex/codex-jsonl.js";
+import { encodeFileCursor, type FileCursorV1 } from "../sources/source-cursor.js";
 
 const workspaceId = "00000000-0000-4000-8000-000000000001";
 const deviceId = "00000000-0000-4000-8000-000000000101";
 const tempDirs: string[] = [];
+const runGit = promisify(execFileCallback);
 
 function fixturePath() {
   return fileURLToPath(new URL("./fixtures/codex-session.jsonl", import.meta.url));
@@ -27,6 +31,37 @@ function createCodexHome(sourceFixturePath = fixturePath()) {
   const target = join(codexHome, "sessions/2026/04/28/session.jsonl");
   mkdirSync(dirname(target), { recursive: true });
   copyFileSync(sourceFixturePath, target);
+  return codexHome;
+}
+
+async function createIdentityGitFixture() {
+  const root = trackedTempDir("alfred-runner-projects-");
+  const first = join(root, "one", "client");
+  const second = join(root, "two", "client");
+  const worktree = join(root, ".alfred-worktrees", "client", "feature");
+  mkdirSync(first, { recursive: true });
+  mkdirSync(second, { recursive: true });
+  await runGit("git", ["-C", first, "init"]);
+  await runGit("git", ["-C", second, "init"]);
+  await runGit("git", [
+    "-C", first,
+    "-c", "user.name=Alfred Test",
+    "-c", "user.email=alfred@example.test",
+    "commit", "--allow-empty", "-m", "initial",
+  ]);
+  await runGit("git", ["-C", first, "worktree", "add", "-b", "feature", worktree, "HEAD"]);
+  return { first, second, worktree };
+}
+
+function createCodexHomeForCwd(cwd: string, sourceRunId: string) {
+  const codexHome = trackedTempDir("alfred-codex-project-");
+  const target = join(codexHome, "sessions/2026/08/12", `${sourceRunId}.jsonl`);
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, `${JSON.stringify({
+    timestamp: "2026-08-12T10:00:00.000Z",
+    type: "session_meta",
+    payload: { id: sourceRunId, cwd },
+  })}\n`);
   return codexHome;
 }
 
@@ -95,15 +130,55 @@ describe("collectCodexEvents", () => {
     expect(events.every((event) => event.source_id === "codex-cli")).toBe(true);
     expect(events.every((event) => event.workspace_id === workspaceId)).toBe(true);
     expect(events.every((event) => event.device_id === deviceId)).toBe(true);
-    expect(events.every((event) => event.project_key === "Alfred")).toBe(true);
+    expect(events.every((event) => typeof event.project_name === "string")).toBe(true);
+    expect(events.every((event) => /^local-(?:git|path)-v1:[a-f0-9]{16}$/.test(event.project_key))).toBe(true);
     expect(IngestEventSchema.array().safeParse(events).success).toBe(true);
+  });
+
+  it("uses one canonical Git identity for a clone and its linked worktree", async () => {
+    const repos = await createIdentityGitFixture();
+    const collect = (cwd: string, id: string) => collectCodexEvents({
+      codexHome: createCodexHomeForCwd(cwd, id),
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+    });
+    const first = await collect(repos.first, "first-run");
+    const worktree = await collect(repos.worktree, "worktree-run");
+    const second = await collect(repos.second, "second-run");
+
+    expect(first.events[0]).toMatchObject({ project_name: "client" });
+    expect(worktree.events[0]?.project_key).toBe(first.events[0]?.project_key);
+    expect(second.events[0]?.project_key).not.toBe(first.events[0]?.project_key);
+    expect(first.events[0]?.project_key).toMatch(/^local-git-v1:[a-f0-9]{16}$/);
+  });
+
+  it("preserves the legacy Codex worktree identity while upgrading an ISO cursor", async () => {
+    const repos = await createIdentityGitFixture();
+    const worktreeCodexHome = createCodexHomeForCwd(repos.worktree, "legacy-worktree-run");
+    const legacy = await collectCodexEvents({
+      codexHome: worktreeCodexHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+      getCursor: () => "2026-04-28T10:00:00.000Z",
+    });
+
+    expect(legacy.events.length).toBeGreaterThan(0);
+    expect(legacy.events.every((event) => event.project_key === "client")).toBe(true);
+    expect(JSON.parse(legacy.cursorUpdates[0]!.value)).toMatchObject({
+      project: { key: "client", name: "client" },
+    });
   });
 
   it("collects a later Codex record with the same timestamp", async () => {
     const codexHome = createCodexHome();
     const first = await collectCodexEvents({ codexHome, workspaceId, deviceId, privacyMode: "standard" });
-    const stored = first.cursorUpdates[0]?.value;
-    expect(stored).toBeDefined();
+    const saved = JSON.parse(first.cursorUpdates[0]!.value) as FileCursorV1;
+    const pinnedCursor = encodeFileCursor({
+      ...saved,
+      project: { key: "pinned", name: "Pinned project" },
+    });
 
     appendFileSync(
       join(codexHome, "sessions/2026/04/28/session.jsonl"),
@@ -121,9 +196,13 @@ describe("collectCodexEvents", () => {
       workspaceId,
       deviceId,
       privacyMode: "standard",
-      getCursor: () => stored ?? null,
+      getCursor: () => pinnedCursor,
     });
     expect(second.events.map((event) => event.source_event_id)).toEqual(["same-ms-later"]);
+    expect(second.events[0]).toMatchObject({
+      project_key: "pinned",
+      project_name: "Pinned project",
+    });
   });
 
   it("upgrades a legacy Codex timestamp by replaying equality and writing v1", async () => {
@@ -214,33 +293,6 @@ describe("collectCodexEvents", () => {
     });
   });
 
-  it("attributes legacy Alfred worktree cwd to the base project", async () => {
-    const codexHome = trackedTempDir("alfred-codex-home-");
-    const target = join(codexHome, "sessions/2026/06/19/worktree-session.jsonl");
-    mkdirSync(dirname(target), { recursive: true });
-    writeFileSync(
-      target,
-      `${JSON.stringify({
-        timestamp: "2026-06-19T08:00:00.000Z",
-        type: "session.start",
-        id: "codex-worktree-run",
-        cwd: "/Users/patryk/Desktop/.alfred-worktrees/Alfred/audit-hardening",
-      })}\n`,
-    );
-
-    const { events } = await collectCodexEvents({
-      codexHome,
-      workspaceId,
-      deviceId,
-      privacyMode: "standard",
-    });
-
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
-      project_key: "Alfred",
-    });
-  });
-
   it("pins one project for a Codex source file despite tool payload cwd", async () => {
     const codexHome = trackedTempDir("alfred-codex-home-");
     const target = join(codexHome, "sessions/2026/04/28/session.jsonl");
@@ -276,7 +328,8 @@ describe("collectCodexEvents", () => {
       privacyMode: "standard",
     });
 
-    expect(result.events.map((event) => event.project_key)).toEqual(["Alfred", "Alfred"]);
+    expect(new Set(result.events.map((event) => event.project_key)).size).toBe(1);
+    expect(new Set(result.events.map((event) => event.project_name)).size).toBe(1);
   });
 
   it("uses distinct source event ids for call and output payloads with the same call id", async () => {
@@ -420,11 +473,12 @@ describe("collectCodexEvents", () => {
     const codexHome = createCodexHome();
     const target = join(codexHome, "sessions/2026/04/28/session.jsonl");
     const first = await collectCodexEvents({ codexHome, workspaceId, deviceId, privacyMode: "standard" });
+    const replacementCwd = trackedTempDir("alfred-replacement-project-");
     writeFileSync(target, JSON.stringify({
       timestamp: "2026-04-28T10:00:00.000Z",
       type: "session.start",
       id: "replacement-run",
-      cwd: "/Users/patryk/Desktop/Replacement",
+      cwd: replacementCwd,
     }));
     const warnings: string[] = [];
     const second = await collectCodexEvents({
@@ -436,7 +490,9 @@ describe("collectCodexEvents", () => {
       onWarning: (message) => warnings.push(message),
     });
     expect(second.events.map((event) => event.source_run_id)).toEqual(["replacement-run"]);
-    expect(second.events[0]).toMatchObject({ project_key: "Replacement" });
+    expect(second.events[0]).toMatchObject({ project_name: "Unknown project" });
+    expect(second.events[0]?.project_key).toMatch(/^local-path-v1:[a-f0-9]{16}$/);
+    expect(second.events[0]?.project_key).not.toBe(first.events[0]?.project_key);
     expect(warnings).toContain("Replayed 1 codex-cli session file after cursor mismatch");
     expect(warnings.join("\n")).not.toContain(codexHome);
   });
