@@ -20,24 +20,18 @@ type InMemoryEnsuredDevice = {
 
 function makeRouteStore(): IngestStore & {
   getEnsuredDevice: () => InMemoryEnsuredDevice | undefined;
-  getEnsuredWorkspace: () => string | undefined;
   getDeviceSeen: () => InMemoryDeviceSeen | undefined;
 } {
-  let ensuredWorkspace: string | undefined;
   let ensuredDevice: InMemoryEnsuredDevice | undefined;
   let deviceSeen: InMemoryDeviceSeen | undefined;
 
   const store: IngestStore & {
     getEnsuredDevice: () => InMemoryEnsuredDevice | undefined;
-    getEnsuredWorkspace: () => string | undefined;
     getDeviceSeen: () => InMemoryDeviceSeen | undefined;
   } = {
     transaction: async (fn) => fn(store),
     insertBatchIfNew: async () => true,
     markBatchAccepted: async () => undefined,
-    ensureWorkspace: async (seenWorkspaceId) => {
-      ensuredWorkspace = seenWorkspaceId;
-    },
     ensureDevice: async (device) => {
       ensuredDevice = {
         workspaceId: device.workspace_id,
@@ -57,7 +51,6 @@ function makeRouteStore(): IngestStore & {
     upsertRelation: async () => undefined,
     insertEvent: async () => true,
     getEnsuredDevice: () => ensuredDevice,
-    getEnsuredWorkspace: () => ensuredWorkspace,
     getDeviceSeen: () => deviceSeen,
   };
   return store;
@@ -125,7 +118,6 @@ describe("ingest", () => {
 
     expect(accepted.status).toBe(202);
     await expect(accepted.json()).resolves.toMatchObject({ ok: true });
-    expect(store.getEnsuredWorkspace()).toBe(workspaceId);
     expect(store.getEnsuredDevice()).toMatchObject({
       workspaceId,
       deviceId,

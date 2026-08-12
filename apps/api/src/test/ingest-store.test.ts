@@ -5,11 +5,14 @@ import {
   projects,
   runRelations,
   runs,
+  users,
   workspaces,
+  type Database,
 } from "@alfred/db";
 import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { seedBootstrapAuth } from "../auth/bootstrap-auth";
 import {
   createDrizzleIngestStore,
   ingestBatch,
@@ -27,11 +30,21 @@ import {
 
 type Fixture = Awaited<ReturnType<typeof createPgliteIngestDatabase>>;
 
+const bootstrapUserId = "00000000-0000-4000-8000-000000000099";
+const bootstrapEmail = "owner@example.test";
+
 describe("production ingest store", () => {
   let fixture: Fixture;
 
   beforeEach(async () => {
     fixture = await createPgliteIngestDatabase();
+    await seedBootstrapAuth(fixture.db as unknown as Database, {
+      adminEmail: bootstrapEmail,
+      deviceId,
+      deviceToken: "fixture-device-token",
+      userId: bootstrapUserId,
+      workspaceId,
+    });
   }, 20_000);
 
   afterEach(async () => {
@@ -74,6 +87,22 @@ describe("production ingest store", () => {
     await expect(fixture.db.select().from(projects)).resolves.toHaveLength(1);
     await expect(fixture.db.select().from(runs)).resolves.toHaveLength(1);
     await expect(fixture.db.select().from(events)).resolves.toHaveLength(1);
+  });
+
+  it("preserves the bootstrap workspace owner during ingest", async () => {
+    await ingestBatch(store(), makeBatch());
+
+    await expect(
+      fixture.db
+        .select({ id: users.id, email: users.email })
+        .from(users),
+    ).resolves.toEqual([{ id: bootstrapUserId, email: bootstrapEmail }]);
+
+    await expect(
+      fixture.db
+        .select({ id: workspaces.id, ownerUserId: workspaces.ownerUserId })
+        .from(workspaces),
+    ).resolves.toEqual([{ id: workspaceId, ownerUserId: bootstrapUserId }]);
   });
 
   it("accepts the same batch twice without duplicating events", async () => {
