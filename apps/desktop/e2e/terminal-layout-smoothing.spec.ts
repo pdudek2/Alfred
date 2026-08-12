@@ -1,5 +1,6 @@
 import type { ElementHandle, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { chooseWorkLayout } from "./support/work-layout";
 
 test("keeps four xterm hosts mounted while Grid shows one primary and two companions", async ({ harness }) => {
   const { page } = harness;
@@ -26,6 +27,24 @@ test("keeps four xterm hosts mounted while Grid shows one primary and two compan
   await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveCount(3);
   await expect(page.getByRole("toolbar", { name: "Work layout controls" })).toContainText("3 visible sessions");
   await expectSameHosts(beforeHosts, page, "select hidden project session");
+});
+
+test.describe("staged Arrange layout", () => {
+  test.use({ fixtureOptions: { inboxItems: 1 } });
+
+  test("keeps staged Arrange placement on the direct terminal-grid child", async ({ harness }) => {
+    const { page } = harness;
+
+    const stagedTile = page.locator('[data-testid="terminal-tile"][data-session-id="fixture-item-1"]');
+    await expect(stagedTile).toBeVisible();
+    await chooseWorkLayout(page, "Arrange");
+    await expect(page.getByText("Arrange mode", { exact: true })).toBeVisible();
+
+    await expect.poll(async () => readDirectGridChildStyle(page, "fixture-item-1")).toEqual({
+      gridColumn: "1 / span 12",
+      gridRow: "1 / span 8",
+    });
+  });
 });
 
 async function addManualTerminal(page: Page): Promise<void> {
@@ -64,4 +83,25 @@ async function expectSameHosts(
     );
     expect(same, `${transition}: xterm host ${index + 1} changed`).toBe(true);
   }
+}
+
+async function readDirectGridChildStyle(
+  page: Page,
+  sessionId: string,
+): Promise<{ gridColumn: string; gridRow: string }> {
+  return page.evaluate((id) => {
+    const tile = document.querySelector(`[data-testid="terminal-tile"][data-session-id="${id}"]`);
+    if (!(tile instanceof HTMLElement)) {
+      throw new Error(`Terminal tile ${id} is missing.`);
+    }
+    const wrapper = tile.parentElement;
+    const grid = document.querySelector('[data-testid="terminal-grid"]');
+    if (!(wrapper instanceof HTMLElement) || !(grid instanceof HTMLElement) || wrapper.parentElement !== grid) {
+      throw new Error(`Terminal tile ${id} is not wrapped as a direct terminal-grid child.`);
+    }
+    return {
+      gridColumn: wrapper.style.gridColumn,
+      gridRow: wrapper.style.gridRow,
+    };
+  }, sessionId);
 }

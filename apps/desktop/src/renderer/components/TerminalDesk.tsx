@@ -509,6 +509,12 @@ export function TerminalDesk({
             const presentationSlot = threePaneGrid
               ? deskPresentationSlot(session.id, deskPresentationIds)
               : null;
+            const stagedWrapperStyle = layoutHidden
+              ? { display: "none" }
+              : gridStyle(
+                arrangeMode ? layouts[session.id] : undefined,
+                arrangePreview?.tileId === session.id ? arrangePreview : undefined,
+              );
             return session.stage === "live" ? (
               <ManualTerminalTile
                 arrangeMode={arrangeMode}
@@ -575,12 +581,10 @@ export function TerminalDesk({
                 data-presentation-slot={presentationSlot ?? undefined}
                 aria-hidden={layoutHidden ? "true" : undefined}
                 inert={layoutHidden ? true : undefined}
-                style={layoutHidden ? { display: "none" } : undefined}
+                style={stagedWrapperStyle}
               >
                 <StagedTilePreview
                   focusHidden={layoutHidden}
-                  layout={arrangeMode ? layouts[session.id] : undefined}
-                  preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
                   tile={session}
                   selected={inspectedSession?.id === session.id}
                   onFocusSession={() => handleFocusSession(session.id)}
