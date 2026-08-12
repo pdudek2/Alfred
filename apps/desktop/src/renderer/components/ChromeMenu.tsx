@@ -12,6 +12,7 @@ type ChromeMenuProps = {
   children: ReactNode;
   items: ChromeMenuItem[];
   label: string;
+  selectedItemId?: string;
   title: string;
   triggerRef?: Ref<HTMLButtonElement>;
 };
@@ -31,7 +32,7 @@ function mergeTriggerRefs(
   };
 }
 
-export function ChromeMenu({ children, items, label, title, triggerRef }: ChromeMenuProps) {
+export function ChromeMenu({ children, items, label, selectedItemId, title, triggerRef }: ChromeMenuProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const localTriggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
@@ -39,15 +40,10 @@ export function ChromeMenu({ children, items, label, title, triggerRef }: Chrome
   useEffect(() => {
     if (!open) return;
 
-    const frame = requestAnimationFrame(() => {
-      rootRef.current
-        ?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')
-        ?.focus();
-    });
     const enabledItems = () =>
       Array.from(
         rootRef.current?.querySelectorAll<HTMLButtonElement>(
-          '[role="menuitem"]:not(:disabled)',
+          '[role="menuitem"]:not(:disabled), [role="menuitemradio"]:not(:disabled)',
         ) ?? [],
       );
     const focusAt = (index: number) => {
@@ -59,6 +55,11 @@ export function ChromeMenu({ children, items, label, title, triggerRef }: Chrome
       });
       menuItems[nextIndex]?.focus();
     };
+    const frame = requestAnimationFrame(() => {
+      const menuItems = enabledItems();
+      const selectedIndex = menuItems.findIndex((item) => item.ariaChecked === "true");
+      focusAt(selectedIndex >= 0 ? selectedIndex : 0);
+    });
     let tabCloseTimer: number | undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -102,7 +103,7 @@ export function ChromeMenu({ children, items, label, title, triggerRef }: Chrome
       document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("pointerdown", handlePointerDown);
     };
-  }, [open]);
+  }, [open, selectedItemId]);
 
   const runItem = (item: ChromeMenuItem) => {
     if (item.disabled) return;
@@ -110,7 +111,9 @@ export function ChromeMenu({ children, items, label, title, triggerRef }: Chrome
     localTriggerRef.current?.focus();
     item.run();
   };
-  const firstEnabledItemId = items.find((item) => !item.disabled)?.id;
+  const initialItemId = items.some((item) => item.id === selectedItemId && !item.disabled)
+    ? selectedItemId
+    : items.find((item) => !item.disabled)?.id;
 
   return (
     <div className="chrome-menu" ref={rootRef}>
@@ -132,9 +135,10 @@ export function ChromeMenu({ children, items, label, title, triggerRef }: Chrome
             <button
               key={item.id}
               type="button"
-              role="menuitem"
+              role={selectedItemId ? "menuitemradio" : "menuitem"}
+              aria-checked={selectedItemId ? item.id === selectedItemId : undefined}
               disabled={item.disabled}
-              tabIndex={item.id === firstEnabledItemId ? 0 : -1}
+              tabIndex={item.id === initialItemId ? 0 : -1}
               onClick={() => runItem(item)}
             >
               <span>{item.label}</span>

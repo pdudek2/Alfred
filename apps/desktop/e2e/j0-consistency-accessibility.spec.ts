@@ -284,7 +284,7 @@ async function selectSurface(
 
 async function chooseWorkLayout(page: Page, layout: "Focus" | "Grid" | "Arrange"): Promise<void> {
   await page.getByRole("button", { name: /^Open layout menu,/ }).click();
-  await page.getByRole("menuitem", { name: layout, exact: true }).click();
+  await page.getByRole("menuitemradio", { name: layout, exact: true }).click();
 }
 
 async function setLongTerminalHeaderTitle(page: Page, sessionId: string): Promise<void> {

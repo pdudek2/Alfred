@@ -51,8 +51,12 @@ export function WorkSurfaceToolbar({
 }: WorkSurfaceToolbarProps) {
   const location = rootPath ? shortenPath(rootPath) : "local desk";
   const branchDetail = branch ? ` · ${branch}` : "";
-  const sessionLabel = visibleSessionCount === 1 ? "visible session" : "visible sessions";
+  const displayedSessionCount = !arrangeMode && workMode === "desk"
+    ? Math.min(3, visibleSessionCount)
+    : visibleSessionCount;
+  const sessionLabel = displayedSessionCount === 1 ? "visible session" : "visible sessions";
   const selectedLayoutLabel = arrangeMode ? "Arrange" : workModeLabel(workMode);
+  const selectedLayoutId = arrangeMode ? "arrange" : workMode === "desk" ? "grid" : workMode;
   const applyWorkMode = (mode: WorkMode) => {
     if (arrangeMode) onToggleArrangeMode();
     onApplyWorkMode(mode);
@@ -78,6 +82,7 @@ export function WorkSurfaceToolbar({
       <div className="work-surface-layout">
         <ChromeMenu
           label={`Open layout menu, ${selectedLayoutLabel} selected`}
+          selectedItemId={selectedLayoutId}
           title="Layout"
           items={layoutItems}
         >
@@ -111,7 +116,7 @@ export function WorkSurfaceToolbar({
         <strong>{activeAgentCount} active</strong>
       </button>
       <span className="work-surface-context">
-        {location}{branchDetail} · {visibleSessionCount} {sessionLabel}
+        {location}{branchDetail} · {displayedSessionCount} {sessionLabel}
       </span>
       {savedSessionCount > 0 && (
         <button
