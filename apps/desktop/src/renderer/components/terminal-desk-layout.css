@@ -1,5 +1,9 @@
 .terminal-stage.mode-desk .terminal-tile.focus-hidden { display: none; }
 
+.terminal-grid.laid-out > .staged-tile-wrapper > .terminal-tile.staged {
+  height: 100%;
+}
+
 .terminal-grid.laid-out.dense.three-pane {
   grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
   grid-template-rows: repeat(2, minmax(0, 1fr));
