@@ -794,7 +794,8 @@ describe("App integration", () => {
     renderTerminalDeskForSessions(sessions, layouts);
 
     expect(screen.getByTestId("terminal-grid")).toHaveClass("laid-out", "dense", "three-pane");
-    expect(screen.getByTestId("terminal-grid")).not.toHaveClass("many-up", "six-up");
+    expect(screen.getByTestId("terminal-grid")).not.toHaveClass("many-up");
+    expect(screen.getByTestId("terminal-grid")).not.toHaveClass("six-up");
     expect(document.querySelectorAll('[data-testid="terminal-tile"]')).toHaveLength(6);
     expect(document.querySelectorAll('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveLength(3);
     for (const session of sessions) {
