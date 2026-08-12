@@ -1280,6 +1280,20 @@ export function App() {
         summary: result.summary,
         files: result.files,
       });
+    }).catch(() => {
+      const currentSession = terminalSessionsRef.current.find((item) => item.id === sessionId);
+      if (!currentSession || sessionInstanceKey(currentSession) !== discardSessionInstanceKey) return;
+      setTerminalSessions((sessions) =>
+        sessions.some(
+          (item) => item.id === sessionId && sessionInstanceKey(item) === discardSessionInstanceKey,
+        )
+          ? appendSessionActivity(sessions, sessionId, {
+              kind: "warning",
+              title: "Discard checkout blocked",
+              detail: "Desktop terminal request failed. Try again.",
+            })
+          : sessions,
+      );
     });
   }, [closeSessionNow]);
 
@@ -1510,6 +1524,18 @@ export function App() {
                       : { type: "error", message: result.error },
                   },
             )
+          : sessions,
+      );
+    } catch {
+      if (!isCurrentSessionInstance(sessionId, actionKey)) return;
+      setTerminalSessions((sessions) =>
+        sessions.some((item) => item.id === sessionId && sessionInstanceKey(item) === actionKey)
+          ? appendSessionActivity(sessions, sessionId, {
+              kind: "error",
+              title: "Apply failed",
+              detail: "Desktop terminal request failed. Try again.",
+              payload: { type: "error", message: "Desktop terminal request failed. Try again." },
+            })
           : sessions,
       );
     } finally {
