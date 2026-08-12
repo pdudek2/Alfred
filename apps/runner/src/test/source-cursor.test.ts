@@ -35,6 +35,20 @@ describe("source cursor", () => {
     expect(parseStoredSourceCursor('{"v":1,"line":-1}')).toEqual({ kind: "invalid" });
   });
 
+  it("rejects positional cursors without a complete project pin", () => {
+    expect(parseStoredSourceCursor(JSON.stringify({
+      v: 1,
+      line: 8,
+      prefixHash: "a".repeat(64),
+    }))).toEqual({ kind: "invalid" });
+    expect(parseStoredSourceCursor(JSON.stringify({
+      v: 1,
+      line: 8,
+      prefixHash: "a".repeat(64),
+      project: { key: "Alfred" },
+    }))).toEqual({ kind: "invalid" });
+  });
+
   it("replays equality only when the stored legacy time is the active floor", () => {
     expect(resolveSourceTimeFloor("2026-04-28T09:00:00.000Z", {
       kind: "legacy-time",
@@ -47,7 +61,12 @@ describe("source cursor", () => {
   });
 
   it("skips to a saved line only when its prefix hash matches", () => {
-    const cursor = { v: 1 as const, line: 8, prefixHash: "b".repeat(64) };
+    const cursor = {
+      v: 1 as const,
+      line: 8,
+      prefixHash: "b".repeat(64),
+      project: { key: "Alfred", name: "Alfred" },
+    };
     expect(cursorMatchesFile(cursor, "b".repeat(64))).toBe(true);
     expect(cursorMatchesFile(cursor, "c".repeat(64))).toBe(false);
   });

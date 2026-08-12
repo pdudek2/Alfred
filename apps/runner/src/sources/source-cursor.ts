@@ -5,13 +5,13 @@ export function sourceCursorKey(
   return JSON.stringify([sourceId, relativeSessionPath]);
 }
 
-export type SourceProjectPin = { key: string; name?: string };
+export type SourceProjectPin = { key: string; name: string };
 
 export type FileCursorV1 = {
   v: 1;
   line: number;
   prefixHash: string;
-  project?: SourceProjectPin;
+  project: SourceProjectPin;
 };
 
 export type ParsedSourceCursor =
@@ -36,7 +36,8 @@ function isProjectPin(value: unknown): value is SourceProjectPin {
   return isRecord(value)
     && typeof value.key === "string"
     && value.key.length > 0
-    && (value.name === undefined || (typeof value.name === "string" && value.name.length > 0));
+    && typeof value.name === "string"
+    && value.name.length > 0;
 }
 
 function isFileCursor(value: unknown): value is FileCursorV1 {
@@ -47,7 +48,7 @@ function isFileCursor(value: unknown): value is FileCursorV1 {
     && value.line >= 0
     && typeof value.prefixHash === "string"
     && PREFIX_HASH.test(value.prefixHash)
-    && (value.project === undefined || isProjectPin(value.project));
+    && isProjectPin(value.project);
 }
 
 export function parseStoredSourceCursor(
