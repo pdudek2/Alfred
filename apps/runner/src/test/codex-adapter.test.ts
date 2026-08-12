@@ -386,7 +386,7 @@ describe("collectCodexEvents", () => {
     const codexHome = createCodexHome();
     const target = join(codexHome, "sessions/2026/04/28/session.jsonl");
     const first = await collectCodexEvents({ codexHome, workspaceId, deviceId, privacyMode: "standard" });
-    appendFileSync(target, '\n{"timestamp":');
+    appendFileSync(target, '{"timestamp":');
     const second = await collectCodexEvents({
       codexHome,
       workspaceId,
@@ -396,6 +396,24 @@ describe("collectCodexEvents", () => {
     });
     expect(second.events).toEqual([]);
     expect(second.cursorUpdates[0]?.value).toBe(first.cursorUpdates[0]?.value);
+  });
+
+  it("advances a Codex cursor over terminated blank lines", async () => {
+    const codexHome = createCodexHome();
+    const target = join(codexHome, "sessions/2026/04/28/session.jsonl");
+    const first = await collectCodexEvents({ codexHome, workspaceId, deviceId, privacyMode: "standard" });
+    appendFileSync(target, "\n\n");
+
+    const second = await collectCodexEvents({
+      codexHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+      getCursor: () => first.cursorUpdates[0]?.value ?? null,
+    });
+
+    expect(second.events).toEqual([]);
+    expect(JSON.parse(second.cursorUpdates[0]!.value)).toMatchObject({ v: 1, line: 6 });
   });
 
   it("replays a replaced Codex file when the saved prefix no longer matches", async () => {

@@ -78,15 +78,13 @@ export async function collectClaudeEvents(config: ClaudeAdapterConfig): Promise<
     const scannedRecords: Array<{ line: JsonlScannedLine; record: unknown }> = [];
     let storedPrefixHash: string | undefined;
     let lastLine: JsonlScannedLine | undefined;
-    let invalidLineNumber: number | undefined;
 
     for await (const line of scanJsonlLines(file, (lineNumber) => {
-      invalidLineNumber = lineNumber;
       config.onWarning?.(
         `Skipped corrupt claude-code JSONL in ${relativeSessionPath} at line ${lineNumber}`,
       );
     })) {
-      if ("record" in line || line.lineNumber === invalidLineNumber) lastLine = line;
+      lastLine = line;
       if (parsed.kind === "position" && line.lineNumber === parsed.cursor.line) {
         storedPrefixHash = line.prefixHash;
       }
