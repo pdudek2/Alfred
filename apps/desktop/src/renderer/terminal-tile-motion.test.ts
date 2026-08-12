@@ -44,20 +44,20 @@ describe("tileEntryKeyframes", () => {
 describe("useTerminalTileMotion", () => {
   beforeEach(() => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function getRect(this: HTMLElement) {
-      const element = this;
-      const left = Number(element.dataset.left ?? 0);
-      const top = Number(element.dataset.top ?? 0);
-      const width = Number(element.dataset.width ?? 0);
-      const height = Number(element.dataset.height ?? 0);
+      const dataset = this.dataset;
+      const left = Number(dataset.left ?? 0);
+      const top = Number(dataset.top ?? 0);
+      const width = Number(dataset.width ?? 0);
+      const height = Number(dataset.height ?? 0);
       return {
-        x: Number(element.dataset.visualLeft ?? left),
-        y: Number(element.dataset.visualTop ?? top),
-        left: Number(element.dataset.visualLeft ?? left),
-        top: Number(element.dataset.visualTop ?? top),
-        width: Number(element.dataset.visualWidth ?? width),
-        height: Number(element.dataset.visualHeight ?? height),
-        right: Number(element.dataset.visualLeft ?? left) + Number(element.dataset.visualWidth ?? width),
-        bottom: Number(element.dataset.visualTop ?? top) + Number(element.dataset.visualHeight ?? height),
+        x: Number(dataset.visualLeft ?? left),
+        y: Number(dataset.visualTop ?? top),
+        left: Number(dataset.visualLeft ?? left),
+        top: Number(dataset.visualTop ?? top),
+        width: Number(dataset.visualWidth ?? width),
+        height: Number(dataset.visualHeight ?? height),
+        right: Number(dataset.visualLeft ?? left) + Number(dataset.visualWidth ?? width),
+        bottom: Number(dataset.visualTop ?? top) + Number(dataset.visualHeight ?? height),
         toJSON: () => ({}),
       } satisfies DOMRect;
     });
