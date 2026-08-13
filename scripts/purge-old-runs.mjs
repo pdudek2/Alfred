@@ -109,6 +109,10 @@ function selfTest() {
     const bv = JSON.stringify(b);
     if (av !== bv) throw new Error(`self-test failed: ${label}: ${av} !== ${bv}`);
   };
+  const assertThrows = (fn, label) => {
+    try { fn(); } catch { return; }
+    throw new Error(`self-test failed: ${label}: did not throw`);
+  };
   assertEq(parseArgs(["--before", "2026-01-01T00:00:00Z"]).before, "2026-01-01T00:00:00Z", "parse before");
   assertEq(parseArgs(["--execute"]).execute, true, "parse execute");
   assertEq(
@@ -116,6 +120,12 @@ function selfTest() {
     "2026-04-28T00:00:00.000Z",
     "iso roundtrip",
   );
+  assertEq(
+    validateIsoTimestamp("2026-04-28T02:30:00+02:00"),
+    "2026-04-28T00:30:00.000Z",
+    "offset normalization",
+  );
+  assertThrows(() => validateIsoTimestamp("04/05/2026"), "locale timestamp rejection");
   let threw = false;
   try { validateIsoTimestamp("not-a-date"); } catch { threw = true; }
   if (!threw) throw new Error("self-test failed: bad iso did not throw");

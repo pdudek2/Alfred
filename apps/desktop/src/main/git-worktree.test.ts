@@ -463,6 +463,28 @@ describe("git worktree preparation", () => {
     }
   });
 
+  it("propagates unsupported untracked entry copy errors", async () => {
+    const copyError = Object.assign(new Error("unsupported file type"), {
+      code: "ERR_FS_CP_FIFO_PIPE",
+    });
+    const execFile = vi.fn(async (_file: string, args: string[]) => {
+      if (args.includes("rev-parse")) return { stdout: "/repo\n", stderr: "" };
+      if (args.includes("status")) return { stdout: "?? fixture.pipe\n", stderr: "" };
+      if (args.includes("worktree")) return { stdout: "prepared\n", stderr: "" };
+      if (args.includes("ls-files")) return { stdout: "fixture.pipe\0", stderr: "" };
+      throw new Error(`unexpected git call: ${args.join(" ")}`);
+    });
+
+    await expect(prepareAgentWorktree(
+      { agentKind: "codex", clientId: "codex-1", cwd: "/repo" },
+      {
+        cp: vi.fn(async () => { throw copyError; }),
+        execFile,
+        mkdir: vi.fn(async () => undefined),
+      },
+    )).rejects.toMatchObject({ code: "ERR_FS_CP_FIFO_PIPE" });
+  });
+
   it("still blocks isolated launch for unresolved merge conflicts", async () => {
     const execFile = vi.fn(async (_file: string, args: string[]) => {
       if (args.includes("rev-parse")) return { stdout: "/repo\n", stderr: "" };
