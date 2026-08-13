@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readlink, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -399,12 +399,12 @@ describe("git worktree preparation", () => {
       return { stdout: "", stderr: "" };
     });
     const mkdir = vi.fn(async () => undefined);
-    const copyFile = vi.fn(async () => undefined);
+    const cp = vi.fn(async () => undefined);
 
     const result = await prepareAgentWorktree(
       { agentKind: "codex", clientId: "codex-1", cwd: "/repo" },
       {
-        copyFile,
+        cp,
         execFile,
         mkdir,
         now: () => new Date("2026-05-09T19:15:30.000Z"),
@@ -413,18 +413,54 @@ describe("git worktree preparation", () => {
     );
 
     expect(result.snapshot).toEqual({ trackedChanges: false, untrackedFiles: 2 });
-    expect(copyFile).toHaveBeenCalledWith(
+    expect(cp).toHaveBeenCalledWith(
       "/repo/scratch.md",
       "/.alfred-worktrees/repo/alfred-codex-codex-1-20260509191530-abc123/scratch.md",
+      expect.objectContaining({ dereference: false, errorOnExist: true, force: false }),
     );
-    expect(copyFile).toHaveBeenCalledWith(
+    expect(cp).toHaveBeenCalledWith(
       "/repo/notes/todo.md",
       "/.alfred-worktrees/repo/alfred-codex-codex-1-20260509191530-abc123/notes/todo.md",
+      expect.objectContaining({ dereference: false, errorOnExist: true, force: false }),
     );
     expect(mkdir).toHaveBeenCalledWith(
       "/.alfred-worktrees/repo/alfred-codex-codex-1-20260509191530-abc123/notes",
       { recursive: true },
     );
+  });
+
+  it("preserves untracked symlinks in the isolated worktree snapshot", async () => {
+    const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "alfred-snapshot-symlink-"));
+    const baseCwd = path.join(temporaryRoot, "repo");
+    const worktreeStoreRoot = path.join(temporaryRoot, "worktrees");
+
+    try {
+      await mkdir(baseCwd, { recursive: true });
+      await writeFile(path.join(baseCwd, "target.txt"), "target");
+      await symlink("target.txt", path.join(baseCwd, "link.txt"));
+
+      const execFile = vi.fn(async (_file: string, args: string[]) => {
+        if (args.includes("rev-parse")) return { stdout: `${baseCwd}\n`, stderr: "" };
+        if (args.includes("status")) return { stdout: "?? link.txt\n", stderr: "" };
+        if (args.includes("ls-files")) return { stdout: "link.txt\0", stderr: "" };
+        if (args.includes("worktree")) {
+          await mkdir(args.at(-2)!, { recursive: true });
+          return { stdout: "prepared\n", stderr: "" };
+        }
+        throw new Error(`unexpected git call: ${args.join(" ")}`);
+      });
+
+      const result = await prepareAgentWorktree(
+        { agentKind: "codex", branchName: "alfred-codex-symlink", cwd: baseCwd },
+        { execFile, worktreeStoreRoot },
+      );
+
+      const copiedLink = path.join(result.cwd, "link.txt");
+      expect((await lstat(copiedLink)).isSymbolicLink()).toBe(true);
+      expect(await readlink(copiedLink)).toBe("target.txt");
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
   });
 
   it("still blocks isolated launch for unresolved merge conflicts", async () => {
@@ -513,13 +549,13 @@ describe("git worktree preparation", () => {
       if (args.includes("ls-files")) return { stdout: "notes/review.md\0", stderr: "" };
       throw new Error(`unexpected git call: ${args.join(" ")}`);
     });
-    const copyFile = vi.fn(async () => undefined);
+    const cp = vi.fn(async () => undefined);
     const mkdir = vi.fn(async () => undefined);
     const rm = vi.fn(async () => undefined);
 
     const result = await applyAgentWorktreePatch(
       { baseCwd: "/repo", branchName: "alfred-codex-review" },
-      { copyFile, execFile, mkdir, rm },
+      { cp, execFile, mkdir, rm },
     );
 
     expect(result).toEqual({ appliedFiles: 2 });
@@ -560,13 +596,48 @@ describe("git worktree preparation", () => {
       ],
       expect.any(Object),
     );
-    expect(copyFile).toHaveBeenCalledWith(
+    expect(cp).toHaveBeenCalledWith(
       "/.alfred-worktrees/repo/alfred-codex-review/notes/review.md",
       "/repo/notes/review.md",
-      expect.any(Number),
+      expect.objectContaining({ dereference: false, errorOnExist: true, force: false }),
     );
     expect(mkdir).toHaveBeenCalledWith("/repo/notes", { recursive: true });
     expect(rm).toHaveBeenCalledWith(expect.stringContaining("alfred-codex-review"), { force: true });
+  });
+
+  it("preserves untracked symlinks when applying an isolated worktree", async () => {
+    const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "alfred-apply-symlink-"));
+    const baseCwd = path.join(temporaryRoot, "repo");
+    const worktreeStoreRoot = path.join(temporaryRoot, "worktrees");
+    const branchName = "alfred-codex-symlink";
+
+    try {
+      await mkdir(baseCwd, { recursive: true });
+      const worktreePath = path.join(managedProjectWorktreeRoot(worktreeStoreRoot, baseCwd), branchName);
+      await mkdir(worktreePath, { recursive: true });
+      await writeFile(path.join(worktreePath, "target.txt"), "target");
+      await symlink("target.txt", path.join(worktreePath, "link.txt"));
+
+      const execFile = vi.fn(async (_file: string, args: string[]) => {
+        const cwd = args[1];
+        if (cwd === baseCwd && args.includes("status")) return { stdout: "", stderr: "" };
+        if (cwd === worktreePath && args.includes("status")) return { stdout: "?? link.txt\0", stderr: "" };
+        if (args.includes("diff")) return { stdout: "", stderr: "" };
+        if (args.includes("ls-files")) return { stdout: "link.txt\0", stderr: "" };
+        throw new Error(`unexpected git call: ${args.join(" ")}`);
+      });
+
+      await applyAgentWorktreePatch(
+        { baseCwd, branchName, cwd: worktreePath },
+        { execFile, worktreeStoreRoot },
+      );
+
+      const appliedLink = path.join(baseCwd, "link.txt");
+      expect((await lstat(appliedLink)).isSymbolicLink()).toBe(true);
+      expect(await readlink(appliedLink)).toBe("target.txt");
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
   });
 
   it("allows untracked files under directories created by the tracked patch", async () => {
@@ -584,20 +655,20 @@ describe("git worktree preparation", () => {
     const lstat = vi.fn(async () => {
       throw Object.assign(new Error("not a directory"), { code: "ENOTDIR" });
     });
-    const copyFile = vi.fn(async () => undefined);
+    const cp = vi.fn(async () => undefined);
     const mkdir = vi.fn(async () => undefined);
 
     const result = await applyAgentWorktreePatch(
       { baseCwd: "/repo", branchName: "alfred-codex-review" },
-      { copyFile, execFile, lstat, mkdir, rm: vi.fn(async () => undefined) },
+      { cp, execFile, lstat, mkdir, rm: vi.fn(async () => undefined) },
     );
 
     expect(result).toEqual({ appliedFiles: 2 });
     expect(lstat).toHaveBeenCalledWith("/repo/notes/review.md");
-    expect(copyFile).toHaveBeenCalledWith(
+    expect(cp).toHaveBeenCalledWith(
       "/.alfred-worktrees/repo/alfred-codex-review/notes/review.md",
       "/repo/notes/review.md",
-      expect.any(Number),
+      expect.objectContaining({ dereference: false, errorOnExist: true, force: false }),
     );
   });
 

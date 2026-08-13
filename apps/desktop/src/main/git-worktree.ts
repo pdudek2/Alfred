@@ -1,7 +1,7 @@
 import { execFile as execFileCallback } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { constants as fsConstants, realpathSync } from "node:fs";
-import { copyFile, lstat, mkdir, rm } from "node:fs/promises";
+import { realpathSync } from "node:fs";
+import { cp, lstat, mkdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -14,7 +14,7 @@ type ExecFile = (
 ) => Promise<{ stdout: string; stderr: string }>;
 
 type PrepareAgentWorktreeOptions = {
-  copyFile?: typeof copyFile;
+  cp?: typeof cp;
   execFile?: ExecFile;
   lstat?: typeof lstat;
   mkdir?: typeof mkdir;
@@ -149,7 +149,7 @@ export async function inspectAgentWorktree(
 
 export async function applyAgentWorktreePatch(
   request: AgentWorktreeCleanupRequest,
-  options: Pick<PrepareAgentWorktreeOptions, "copyFile" | "execFile" | "lstat" | "mkdir" | "rm" | "worktreeStoreRoot"> = {},
+  options: Pick<PrepareAgentWorktreeOptions, "cp" | "execFile" | "lstat" | "mkdir" | "rm" | "worktreeStoreRoot"> = {},
 ): Promise<{ appliedFiles: number }> {
   const run = options.execFile ?? execFile;
   const rmImpl = options.rm ?? rm;
@@ -266,13 +266,13 @@ export async function preflightAgentWorktree(
 
 async function applyDirtySnapshot(
   result: AgentWorktreeResult,
-  options: Pick<PrepareAgentWorktreeOptions, "copyFile" | "execFile" | "mkdir" | "rm" | "worktreeStoreRoot">,
+  options: Pick<PrepareAgentWorktreeOptions, "cp" | "execFile" | "mkdir" | "rm" | "worktreeStoreRoot">,
 ): Promise<void> {
   if (!result.snapshot) return;
 
   const run = options.execFile ?? execFile;
   const mkdirImpl = options.mkdir ?? mkdir;
-  const copyFileImpl = options.copyFile ?? copyFile;
+  const cpImpl = options.cp ?? cp;
   const rmImpl = options.rm ?? rm;
   const worktreePath = worktreeRootPath(result, options);
 
@@ -309,7 +309,7 @@ async function applyDirtySnapshot(
     const sourcePath = path.join(result.baseCwd, relativePath);
     const destinationPath = path.join(worktreePath, relativePath);
     await mkdirImpl(path.dirname(destinationPath), { recursive: true });
-    await copyFileImpl(sourcePath, destinationPath);
+    await copyEntry(sourcePath, destinationPath, cpImpl);
   }
 }
 
@@ -435,17 +435,27 @@ async function copyUntrackedWorktreeFiles(
   worktreePath: string,
   baseCwd: string,
   relativePaths: string[],
-  options: Pick<PrepareAgentWorktreeOptions, "copyFile" | "mkdir">,
+  options: Pick<PrepareAgentWorktreeOptions, "cp" | "mkdir">,
 ): Promise<void> {
-  const copyFileImpl = options.copyFile ?? copyFile;
+  const cpImpl = options.cp ?? cp;
   const mkdirImpl = options.mkdir ?? mkdir;
 
   for (const relativePath of relativePaths) {
     const sourcePath = path.join(worktreePath, relativePath);
     const destinationPath = path.join(baseCwd, relativePath);
     await mkdirImpl(path.dirname(destinationPath), { recursive: true });
-    await copyFileImpl(sourcePath, destinationPath, fsConstants.COPYFILE_EXCL);
+    await copyEntry(sourcePath, destinationPath, cpImpl);
   }
+}
+
+async function copyEntry(sourcePath: string, destinationPath: string, cpImpl: typeof cp): Promise<void> {
+  await cpImpl(sourcePath, destinationPath, {
+    dereference: false,
+    errorOnExist: true,
+    force: false,
+    recursive: false,
+    verbatimSymlinks: true,
+  });
 }
 
 function safeSnapshotRelativePath(value: string): boolean {
