@@ -7,6 +7,16 @@ export type JsonlScannedLine = {
   record?: unknown;
 };
 
+const JSONL_FILE_ACCESS_CODES = new Set(["EACCES", "EIO", "EISDIR", "ENOENT", "EPERM"]);
+
+export function isJsonlFileAccessError(error: unknown): boolean {
+  return typeof error === "object"
+    && error !== null
+    && "code" in error
+    && typeof error.code === "string"
+    && JSONL_FILE_ACCESS_CODES.has(error.code);
+}
+
 export async function* scanJsonlLines(
   path: string,
   onInvalidLine?: (lineNumber: number) => void,

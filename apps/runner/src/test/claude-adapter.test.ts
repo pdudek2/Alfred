@@ -1,5 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -397,6 +397,33 @@ describe("collectClaudeEvents", () => {
       "Skipped corrupt claude-code JSONL in projects/-Users-patryk-Desktop-Alfred/corrupt-session.jsonl at line 2",
     ]);
     expect(warnings[0]).not.toContain("CLAUDE_CORRUPT_SECRET");
+  });
+
+  it("keeps healthy files when one Claude session file is unreadable", async () => {
+    const claudeHome = createClaudeHome();
+    const unreadablePath = join(
+      claudeHome,
+      "projects/-Users-patryk-Desktop-Alfred/z-unreadable.jsonl",
+    );
+    writeFileSync(unreadablePath, "CLAUDE_UNREADABLE_SECRET");
+    const warnings: string[] = [];
+
+    chmodSync(unreadablePath, 0o000);
+    const result = await collectClaudeEvents({
+      claudeHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+      onWarning: (message) => warnings.push(message),
+    }).finally(() => chmodSync(unreadablePath, 0o600));
+
+    expect(result.events).toHaveLength(6);
+    expect(result.cursorUpdates).toHaveLength(1);
+    expect(warnings).toEqual([
+      "Skipped unreadable claude-code session file projects/-Users-patryk-Desktop-Alfred/z-unreadable.jsonl",
+    ]);
+    expect(warnings.join(" ")).not.toContain(claudeHome);
+    expect(warnings.join(" ")).not.toContain("CLAUDE_UNREADABLE_SECRET");
   });
 
   it("keeps a Claude cursor before an invalid unterminated tail", async () => {

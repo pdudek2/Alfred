@@ -1,5 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -433,6 +433,30 @@ describe("collectCodexEvents", () => {
       "Skipped corrupt codex-cli JSONL in sessions/2026/04/28/corrupt-session.jsonl at line 2",
     ]);
     expect(warnings[0]).not.toContain("CODEX_CORRUPT_SECRET");
+  });
+
+  it("keeps healthy files when one Codex session file is unreadable", async () => {
+    const codexHome = createCodexHome();
+    const unreadablePath = join(codexHome, "sessions/2026/04/28/z-unreadable.jsonl");
+    writeFileSync(unreadablePath, "CODEX_UNREADABLE_SECRET");
+    const warnings: string[] = [];
+
+    chmodSync(unreadablePath, 0o000);
+    const result = await collectCodexEvents({
+      codexHome,
+      workspaceId,
+      deviceId,
+      privacyMode: "standard",
+      onWarning: (message) => warnings.push(message),
+    }).finally(() => chmodSync(unreadablePath, 0o600));
+
+    expect(result.events).toHaveLength(4);
+    expect(result.cursorUpdates).toHaveLength(1);
+    expect(warnings).toEqual([
+      "Skipped unreadable codex-cli session file sessions/2026/04/28/z-unreadable.jsonl",
+    ]);
+    expect(warnings.join(" ")).not.toContain(codexHome);
+    expect(warnings.join(" ")).not.toContain("CODEX_UNREADABLE_SECRET");
   });
 
   it("does not advance a Codex cursor over an invalid unterminated tail", async () => {

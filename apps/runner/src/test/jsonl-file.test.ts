@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { scanJsonlLines } from "../sources/jsonl-file.js";
+import { isJsonlFileAccessError, scanJsonlLines } from "../sources/jsonl-file.js";
 
 async function scan(path: string) {
   const lines = [];
@@ -13,6 +13,12 @@ async function scan(path: string) {
 }
 
 describe("scanJsonlLines", () => {
+  it("classifies only bounded filesystem access failures as skippable", () => {
+    expect(isJsonlFileAccessError(Object.assign(new Error("denied"), { code: "EACCES" }))).toBe(true);
+    expect(isJsonlFileAccessError(Object.assign(new Error("exhausted"), { code: "EMFILE" }))).toBe(false);
+    expect(isJsonlFileAccessError(new TypeError("fixture bug"))).toBe(false);
+  });
+
   it("keeps prefix hashes stable across append and accepts a valid final line without newline", async () => {
     const dir = mkdtempSync(join(tmpdir(), "alfred-jsonl-cursor-"));
     const file = join(dir, "session.jsonl");
