@@ -5,7 +5,7 @@ import { IngestEventSchema, type IngestEvent, type PrivacyMode } from "@alfred/s
 import fg from "fast-glob";
 
 import type { SourceAdapter, SourceCollection } from "../source-adapter.js";
-import { scanJsonlLines, type JsonlScannedLine } from "../jsonl-file.js";
+import { isJsonlFileAccessError, scanJsonlLines, type JsonlScannedLine } from "../jsonl-file.js";
 import {
   cursorMatchesFile,
   encodeFileCursor,
@@ -50,88 +50,102 @@ export async function collectCodexEvents(config: CodexAdapterConfig): Promise<So
 
   for (const file of files.sort()) {
     const relativeSessionPath = relative(config.codexHome, file);
-    const cursorKey = sourceCursorKey("codex-cli", relativeSessionPath);
-    const parsed = parseStoredSourceCursor(config.getCursor?.(cursorKey) ?? null);
-    let sourceRunId = basename(file, ".jsonl");
-    let cwd: string | undefined;
-    let foundContext = false;
-    let storedPrefixHash: string | undefined;
-    let lastLine: JsonlScannedLine | undefined;
+    const eventStart = events.length;
+    const cursorStart = cursorUpdates.length;
+    const invalidCursorStart = invalidCursorCount;
+    const mismatchStart = cursorMismatchCount;
 
-    for await (const line of scanJsonlLines(file, (lineNumber) => {
-      config.onWarning?.(
-        `Skipped corrupt codex-cli JSONL in ${relativeSessionPath} at line ${lineNumber}`,
-      );
-    })) {
-      lastLine = line;
-      if (parsed.kind === "position" && line.lineNumber === parsed.cursor.line) {
-        storedPrefixHash = line.prefixHash;
-      }
-      if (foundContext || !("record" in line) || !isRecord(line.record)) continue;
+    try {
+      const cursorKey = sourceCursorKey("codex-cli", relativeSessionPath);
+      const parsed = parseStoredSourceCursor(config.getCursor?.(cursorKey) ?? null);
+      let sourceRunId = basename(file, ".jsonl");
+      let cwd: string | undefined;
+      let foundContext = false;
+      let storedPrefixHash: string | undefined;
+      let lastLine: JsonlScannedLine | undefined;
 
-      const record = line.record;
-      if (record.type === "session_meta" && isRecord(record.payload)) {
-        sourceRunId = stringValue(record.payload.id) ?? sourceRunId;
-        cwd = stringValue(record.payload.cwd);
-        foundContext = true;
-      } else if (record.type === "session.start") {
-        sourceRunId = stringValue(record.id) ?? stringValue(record.session_id) ?? sourceRunId;
-        cwd = stringValue(record.cwd);
-        foundContext = true;
-      }
-    }
-
-    const positionMatches = parsed.kind === "position"
-      && storedPrefixHash !== undefined
-      && cursorMatchesFile(parsed.cursor, storedPrefixHash);
-    if (parsed.kind === "invalid") invalidCursorCount += 1;
-    if (parsed.kind === "position" && !positionMatches) cursorMismatchCount += 1;
-
-    const project: ProjectIdentity = positionMatches && parsed.kind === "position"
-      ? {
-          key: parsed.cursor.project.key,
-          name: parsed.cursor.project.name ?? parsed.cursor.project.key,
-        }
-      : parsed.kind === "legacy-time"
-        ? legacyProjectIdentity({ ...(cwd ? { cwd } : {}), fallbackName: "Unknown project" })
-        : await resolveProjectIdentity({ ...(cwd ? { cwd } : {}), fallbackName: "Unknown project" });
-    const context: CodexSessionContext = {
-      sourceRunId,
-      ...(cwd ? { cwd } : {}),
-      project,
-    };
-    const positionalStart = positionMatches && parsed.kind === "position" ? parsed.cursor.line : 0;
-    const timeFloor = resolveSourceTimeFloor(
-      config.codexSince,
-      positionMatches ? { kind: "none" } : parsed,
-    );
-    let index = 0;
-
-    for await (const line of scanJsonlLines(file)) {
-      if (!("record" in line)) continue;
-      const recordIndex = index++;
-      if (line.lineNumber <= positionalStart) continue;
-
-      try {
-        const event = codexRecordToEvent(line.record, recordIndex, config, context, file, timeFloor);
-        if (event) events.push(event);
-      } catch {
+      for await (const line of scanJsonlLines(file, (lineNumber) => {
         config.onWarning?.(
-          `Skipped invalid codex-cli record in ${relative(config.codexHome, file)} at index ${recordIndex}`,
+          `Skipped corrupt codex-cli JSONL in ${relativeSessionPath} at line ${lineNumber}`,
         );
-      }
-    }
+      })) {
+        lastLine = line;
+        if (parsed.kind === "position" && line.lineNumber === parsed.cursor.line) {
+          storedPrefixHash = line.prefixHash;
+        }
+        if (foundContext || !("record" in line) || !isRecord(line.record)) continue;
 
-    if (lastLine) {
-      cursorUpdates.push({
-        key: cursorKey,
-        value: encodeFileCursor({
-          v: 1,
-          line: lastLine.lineNumber,
-          prefixHash: lastLine.prefixHash,
-          project,
-        }),
-      });
+        const record = line.record;
+        if (record.type === "session_meta" && isRecord(record.payload)) {
+          sourceRunId = stringValue(record.payload.id) ?? sourceRunId;
+          cwd = stringValue(record.payload.cwd);
+          foundContext = true;
+        } else if (record.type === "session.start") {
+          sourceRunId = stringValue(record.id) ?? stringValue(record.session_id) ?? sourceRunId;
+          cwd = stringValue(record.cwd);
+          foundContext = true;
+        }
+      }
+
+      const positionMatches = parsed.kind === "position"
+        && storedPrefixHash !== undefined
+        && cursorMatchesFile(parsed.cursor, storedPrefixHash);
+      if (parsed.kind === "invalid") invalidCursorCount += 1;
+      if (parsed.kind === "position" && !positionMatches) cursorMismatchCount += 1;
+
+      const project: ProjectIdentity = positionMatches && parsed.kind === "position"
+        ? {
+            key: parsed.cursor.project.key,
+            name: parsed.cursor.project.name ?? parsed.cursor.project.key,
+          }
+        : parsed.kind === "legacy-time"
+          ? legacyProjectIdentity({ ...(cwd ? { cwd } : {}), fallbackName: "Unknown project" })
+          : await resolveProjectIdentity({ ...(cwd ? { cwd } : {}), fallbackName: "Unknown project" });
+      const context: CodexSessionContext = {
+        sourceRunId,
+        ...(cwd ? { cwd } : {}),
+        project,
+      };
+      const positionalStart = positionMatches && parsed.kind === "position" ? parsed.cursor.line : 0;
+      const timeFloor = resolveSourceTimeFloor(
+        config.codexSince,
+        positionMatches ? { kind: "none" } : parsed,
+      );
+      let index = 0;
+
+      for await (const line of scanJsonlLines(file)) {
+        if (!("record" in line)) continue;
+        const recordIndex = index++;
+        if (line.lineNumber <= positionalStart) continue;
+
+        try {
+          const event = codexRecordToEvent(line.record, recordIndex, config, context, file, timeFloor);
+          if (event) events.push(event);
+        } catch {
+          config.onWarning?.(
+            `Skipped invalid codex-cli record in ${relative(config.codexHome, file)} at index ${recordIndex}`,
+          );
+        }
+      }
+
+      if (lastLine) {
+        cursorUpdates.push({
+          key: cursorKey,
+          value: encodeFileCursor({
+            v: 1,
+            line: lastLine.lineNumber,
+            prefixHash: lastLine.prefixHash,
+            project,
+          }),
+        });
+      }
+    } catch (error) {
+      if (!isJsonlFileAccessError(error)) throw error;
+      events.length = eventStart;
+      cursorUpdates.length = cursorStart;
+      invalidCursorCount = invalidCursorStart;
+      cursorMismatchCount = mismatchStart;
+      config.onWarning?.(`Skipped unreadable codex-cli session file ${relativeSessionPath}`);
     }
   }
 

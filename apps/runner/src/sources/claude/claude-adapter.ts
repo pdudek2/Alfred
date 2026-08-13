@@ -4,7 +4,7 @@ import { normalizeEvent } from "@alfred/adapters";
 import { IngestEventSchema, type IngestEvent, type PrivacyMode } from "@alfred/schema";
 import fg from "fast-glob";
 
-import { scanJsonlLines, type JsonlScannedLine } from "../jsonl-file.js";
+import { isJsonlFileAccessError, scanJsonlLines, type JsonlScannedLine } from "../jsonl-file.js";
 import type { SourceAdapter, SourceCollection } from "../source-adapter.js";
 import {
   cursorMatchesFile,
@@ -76,96 +76,110 @@ export async function collectClaudeEvents(config: ClaudeAdapterConfig): Promise<
 
   for (const file of files.sort()) {
     const relativeSessionPath = relative(config.claudeHome, file);
-    const cursorKey = sourceCursorKey("claude-code", relativeSessionPath);
-    const parsed = parseStoredSourceCursor(config.getCursor?.(cursorKey) ?? null);
-    const scannedRecords: Array<{ line: JsonlScannedLine; record: unknown }> = [];
-    let storedPrefixHash: string | undefined;
-    let lastLine: JsonlScannedLine | undefined;
+    const eventStart = events.length;
+    const cursorStart = cursorUpdates.length;
+    const invalidCursorStart = invalidCursorCount;
+    const mismatchStart = cursorMismatchCount;
 
-    for await (const line of scanJsonlLines(file, (lineNumber) => {
-      config.onWarning?.(
-        `Skipped corrupt claude-code JSONL in ${relativeSessionPath} at line ${lineNumber}`,
-      );
-    })) {
-      lastLine = line;
-      if (parsed.kind === "position" && line.lineNumber === parsed.cursor.line) {
-        storedPrefixHash = line.prefixHash;
+    try {
+      const cursorKey = sourceCursorKey("claude-code", relativeSessionPath);
+      const parsed = parseStoredSourceCursor(config.getCursor?.(cursorKey) ?? null);
+      const scannedRecords: Array<{ line: JsonlScannedLine; record: unknown }> = [];
+      let storedPrefixHash: string | undefined;
+      let lastLine: JsonlScannedLine | undefined;
+
+      for await (const line of scanJsonlLines(file, (lineNumber) => {
+        config.onWarning?.(
+          `Skipped corrupt claude-code JSONL in ${relativeSessionPath} at line ${lineNumber}`,
+        );
+      })) {
+        lastLine = line;
+        if (parsed.kind === "position" && line.lineNumber === parsed.cursor.line) {
+          storedPrefixHash = line.prefixHash;
+        }
+        if ("record" in line) scannedRecords.push({ line, record: line.record });
       }
-      if ("record" in line) scannedRecords.push({ line, record: line.record });
-    }
 
-    const positionMatches = parsed.kind === "position"
-      && storedPrefixHash !== undefined
-      && cursorMatchesFile(parsed.cursor, storedPrefixHash);
-    if (parsed.kind === "invalid") invalidCursorCount += 1;
-    if (parsed.kind === "position" && !positionMatches) cursorMismatchCount += 1;
+      const positionMatches = parsed.kind === "position"
+        && storedPrefixHash !== undefined
+        && cursorMatchesFile(parsed.cursor, storedPrefixHash);
+      if (parsed.kind === "invalid") invalidCursorCount += 1;
+      if (parsed.kind === "position" && !positionMatches) cursorMismatchCount += 1;
 
-    const records = scannedRecords.map(({ record }) => record);
-    const context = await claudeSessionContext(
-      records,
-      file,
-      positionMatches && parsed.kind === "position" ? parsed.cursor.project : undefined,
-      parsed.kind === "legacy-time",
-    );
-    const project = context.project;
-    const positionalStart = positionMatches && parsed.kind === "position" ? parsed.cursor.line : 0;
-    const timeFloor = resolveSourceTimeFloor(
-      config.claudeSince,
-      positionMatches ? { kind: "none" } : parsed,
-    );
-    const startRecordIndex = records.findIndex(isClaudeConversationRecord);
-    const startRecordLine = scannedRecords[startRecordIndex]?.line.lineNumber;
+      const records = scannedRecords.map(({ record }) => record);
+      const context = await claudeSessionContext(
+        records,
+        file,
+        positionMatches && parsed.kind === "position" ? parsed.cursor.project : undefined,
+        parsed.kind === "legacy-time",
+      );
+      const project = context.project;
+      const positionalStart = positionMatches && parsed.kind === "position" ? parsed.cursor.line : 0;
+      const timeFloor = resolveSourceTimeFloor(
+        config.claudeSince,
+        positionMatches ? { kind: "none" } : parsed,
+      );
+      const startRecordIndex = records.findIndex(isClaudeConversationRecord);
+      const startRecordLine = scannedRecords[startRecordIndex]?.line.lineNumber;
 
-    if (context.startedAt && startRecordLine !== undefined && startRecordLine > positionalStart) {
-      const startedAtMs = Date.parse(context.startedAt);
-      if (
-        timeFloor === undefined
-        || startedAtMs > timeFloor.occurredAtMs
-        || (timeFloor.includeEqual && startedAtMs === timeFloor.occurredAtMs)
-      ) {
-        try {
-          events.push(parseEvent({
-            config,
-            context,
-            sourceEventId: `${context.sourceRunId}:started`,
-            type: "run.started",
-            status: "running",
-            occurredAt: new Date(startedAtMs).toISOString(),
-            payload: {
-              cwd: context.cwd,
-            },
-          }));
-        } catch {
-          config.onWarning?.(
-            `Skipped invalid claude-code record in ${relativeSessionPath} at index ${startRecordIndex}`,
-          );
+      if (context.startedAt && startRecordLine !== undefined && startRecordLine > positionalStart) {
+        const startedAtMs = Date.parse(context.startedAt);
+        if (
+          timeFloor === undefined
+          || startedAtMs > timeFloor.occurredAtMs
+          || (timeFloor.includeEqual && startedAtMs === timeFloor.occurredAtMs)
+        ) {
+          try {
+            events.push(parseEvent({
+              config,
+              context,
+              sourceEventId: `${context.sourceRunId}:started`,
+              type: "run.started",
+              status: "running",
+              occurredAt: new Date(startedAtMs).toISOString(),
+              payload: {
+                cwd: context.cwd,
+              },
+            }));
+          } catch {
+            config.onWarning?.(
+              `Skipped invalid claude-code record in ${relativeSessionPath} at index ${startRecordIndex}`,
+            );
+          }
         }
       }
-    }
 
-    scannedRecords.forEach(({ line, record }, index) => {
-      if (line.lineNumber <= positionalStart) return;
+      scannedRecords.forEach(({ line, record }, index) => {
+        if (line.lineNumber <= positionalStart) return;
 
-      try {
-        const recordEvents = claudeRecordToEvents(record, index, config, context, file, timeFloor);
-        events.push(...recordEvents);
-      } catch {
-        config.onWarning?.(
-          `Skipped invalid claude-code record in ${relativeSessionPath} at index ${index}`,
-        );
-      }
-    });
-
-    if (lastLine) {
-      cursorUpdates.push({
-        key: cursorKey,
-        value: encodeFileCursor({
-          v: 1,
-          line: lastLine.lineNumber,
-          prefixHash: lastLine.prefixHash,
-          project,
-        }),
+        try {
+          const recordEvents = claudeRecordToEvents(record, index, config, context, file, timeFloor);
+          events.push(...recordEvents);
+        } catch {
+          config.onWarning?.(
+            `Skipped invalid claude-code record in ${relativeSessionPath} at index ${index}`,
+          );
+        }
       });
+
+      if (lastLine) {
+        cursorUpdates.push({
+          key: cursorKey,
+          value: encodeFileCursor({
+            v: 1,
+            line: lastLine.lineNumber,
+            prefixHash: lastLine.prefixHash,
+            project,
+          }),
+        });
+      }
+    } catch (error) {
+      if (!isJsonlFileAccessError(error)) throw error;
+      events.length = eventStart;
+      cursorUpdates.length = cursorStart;
+      invalidCursorCount = invalidCursorStart;
+      cursorMismatchCount = mismatchStart;
+      config.onWarning?.(`Skipped unreadable claude-code session file ${relativeSessionPath}`);
     }
   }
 
