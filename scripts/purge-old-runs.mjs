@@ -50,11 +50,17 @@ function validateIsoTimestamp(value) {
   if (typeof value !== "string" || value.length === 0) {
     throw new Error("--before must be a non-empty ISO 8601 timestamp");
   }
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.exec(value);
+  const year = Number(match?.[1]);
+  const month = Number(match?.[2]);
+  const day = Number(match?.[3]);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const timestamp = Date.parse(value);
+  if (!match || month < 1 || month > 12 || day < 1 || day > daysInMonth[month - 1] || Number.isNaN(timestamp)) {
     throw new Error(`--before is not a valid ISO timestamp: ${value}`);
   }
-  return d.toISOString();
+  return new Date(timestamp).toISOString();
 }
 
 function validateUuidOrNull(value) {
@@ -86,7 +92,7 @@ function printHelp() {
       "Usage: node scripts/purge-old-runs.mjs --before <ISO> [options]",
       "",
       "Options:",
-      "  --before <ISO>        Cutoff ISO 8601 timestamp (required).",
+      "  --before <ISO>        Full ISO date-time with Z or an explicit offset (required).",
       "  --workspace <uuid>    Restrict purge to a workspace.",
       "  --execute             Actually delete rows. Default is dry-run.",
       "  --database-url <url>  Override DATABASE_URL.",
