@@ -21,6 +21,47 @@ describe("purge old runs helper", () => {
 
     assert.doesNotMatch(source, /\.pnpm\/pg@/);
   });
+
+  it("rejects ambiguous or impossible cutoffs before database access", async () => {
+    for (const cutoff of [
+      "04/05/2026",
+      "2026-04-28",
+      "2026-04-28T00:00:00",
+      "2026-02-30T00:00:00Z",
+      "2026-04-28T00:00:00+0200",
+    ]) {
+      const result = await runNode([
+        scriptPath,
+        "--before",
+        cutoff,
+        "--database-url",
+        "postgresql://alfred:alfred@127.0.0.1:1/alfred",
+      ]);
+
+      assert.equal(result.code, 1, `${cutoff}\n${result.stdout}\n${result.stderr}`);
+      assert.match(result.stderr, /--before is not a valid ISO timestamp/);
+      assert.doesNotMatch(result.stdout, /mode:/);
+    }
+  });
+
+  it("accepts full cutoffs with Z or an explicit offset", async () => {
+    for (const [cutoff, normalized] of [
+      ["2026-04-28T00:00:00Z", "2026-04-28T00:00:00.000Z"],
+      ["2026-04-28T02:30:00+02:00", "2026-04-28T00:30:00.000Z"],
+      ["2026-04-28T00:00:00.123Z", "2026-04-28T00:00:00.123Z"],
+    ]) {
+      const result = await runNode([
+        scriptPath,
+        "--before",
+        cutoff,
+        "--database-url",
+        "postgresql://alfred:alfred@127.0.0.1:1/alfred",
+      ]);
+
+      assert.equal(result.code, 0, result.stderr);
+      assert.match(result.stdout, new RegExp(`cutoff:\\s+${normalized.replaceAll(".", "\\.")}`));
+    }
+  });
 });
 
 function runNode(args) {
