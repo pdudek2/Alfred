@@ -2804,11 +2804,9 @@ export function App() {
                 agentsOpen={agentsDrawerOpen}
                 agentsTriggerRef={agentsTriggerRef}
                 arrangeMode={arrangeMode}
-                branch={activeWorkspace.gitBranch}
                 previewAvailable={previewVisible}
                 previewOpen={activePreviewDockOpen}
                 previewTriggerRef={previewTriggerRef}
-                rootPath={activeWorkspace.rootPath}
                 savedSessionCount={activeSavedSessionCount}
                 terminalLaunchDisabled={activeWorkspace.rootStatus === "missing"}
                 visibleSessionCount={visibleWorkSessionCount}

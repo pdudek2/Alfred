@@ -190,6 +190,7 @@ export function ProjectNavigator({
                     title={workspace.label}
                   >
                     <Folder className="project-folder-icon" aria-hidden="true" size={15} />
+                    <span className="project-row-monogram" aria-hidden="true">{workspace.shortLabel}</span>
                     <span className="project-row-label">{workspace.label}</span>
                     {stableIndex >= 0 && stableIndex < 5 && <kbd aria-hidden="true">⌘{stableIndex + 1}</kbd>}
                     {(activeAgentCount > 0 || hasAttention) && (

@@ -9,16 +9,62 @@ afterEach(() => {
 });
 
 describe("WorkSurfaceToolbar", () => {
+  it("shows how many Grid sessions are visible out of the workspace total", () => {
+    render(
+      <WorkSurfaceToolbar
+        activeAgentCount={0}
+        agentsOpen={false}
+        arrangeMode={false}
+        previewAvailable={false}
+        previewOpen={false}
+        savedSessionCount={0}
+        visibleSessionCount={6}
+        workMode="desk"
+        onAddManualSession={vi.fn()}
+        onApplyWorkMode={vi.fn()}
+        onOpenSavedSessions={vi.fn()}
+        onToggleArrangeMode={vi.fn()}
+        onToggleAgents={vi.fn()}
+        onTogglePreview={vi.fn()}
+      />,
+    );
+
+    const context = screen.getByTestId("work-session-count");
+    expect(context).toHaveTextContent("3 of 6 sessions");
+  });
+
+  it("leaves the workspace path to the primary window header", () => {
+    render(
+      <WorkSurfaceToolbar
+        activeAgentCount={0}
+        agentsOpen={false}
+        arrangeMode={false}
+        previewAvailable={false}
+        previewOpen={false}
+        savedSessionCount={0}
+        visibleSessionCount={2}
+        workMode="desk"
+        onAddManualSession={vi.fn()}
+        onApplyWorkMode={vi.fn()}
+        onOpenSavedSessions={vi.fn()}
+        onToggleArrangeMode={vi.fn()}
+        onToggleAgents={vi.fn()}
+        onTogglePreview={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("toolbar", { name: "Work layout controls" }))
+      .not.toHaveTextContent("Desktop/Alfred");
+  });
+
   it("caps normal Grid session count at three visible sessions", () => {
     render(
       <WorkSurfaceToolbar
         activeAgentCount={0}
         agentsOpen={false}
         arrangeMode={false}
-        branch="main"
         previewAvailable={false}
         previewOpen={false}
-        rootPath="/Users/patryk/Desktop/Alfred"
         savedSessionCount={0}
         visibleSessionCount={5}
         workMode="desk"
@@ -32,7 +78,7 @@ describe("WorkSurfaceToolbar", () => {
     );
 
     expect(screen.getByRole("toolbar", { name: "Work layout controls" }))
-      .toHaveTextContent("3 visible sessions");
+      .toHaveTextContent("3 of 5 sessions");
   });
 
   it("routes the compact layout menu, Preview toggle, and new-terminal control", async () => {
@@ -45,10 +91,8 @@ describe("WorkSurfaceToolbar", () => {
         activeAgentCount={3}
         agentsOpen={false}
         arrangeMode={false}
-        branch="main"
         previewAvailable
         previewOpen
-        rootPath="/Users/patryk/Desktop/Alfred"
         savedSessionCount={0}
         visibleSessionCount={4}
         workMode="desk"
@@ -71,7 +115,7 @@ describe("WorkSurfaceToolbar", () => {
     expect(onToggleArrangeMode).toHaveBeenCalledOnce();
     expect(onTogglePreview).toHaveBeenCalledOnce();
     expect(onAddManualSession).toHaveBeenCalledOnce();
-    expect(screen.getByText("…/Desktop/Alfred · main · 3 visible sessions")).toBeInTheDocument();
+    expect(screen.getByTestId("work-session-count")).toHaveTextContent("3 of 4 sessions");
     expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByRole("tablist", { name: "Sessions" })).not.toBeInTheDocument();
   });
@@ -82,10 +126,8 @@ describe("WorkSurfaceToolbar", () => {
         activeAgentCount={0}
         agentsOpen={false}
         arrangeMode={false}
-        branch={undefined}
         previewAvailable={false}
         previewOpen={false}
-        rootPath="/repo"
         savedSessionCount={0}
         visibleSessionCount={3}
         workMode="desk"
@@ -116,9 +158,7 @@ describe("WorkSurfaceToolbar", () => {
         arrangeMode={false}
         previewAvailable={false}
         previewOpen={false}
-        rootPath={undefined}
         savedSessionCount={0}
-        branch={undefined}
         visibleSessionCount={0}
         workMode="focus"
         onAddManualSession={vi.fn()}
@@ -142,9 +182,7 @@ describe("WorkSurfaceToolbar", () => {
         arrangeMode={false}
         previewAvailable={false}
         previewOpen={false}
-        rootPath="/repo"
         savedSessionCount={0}
-        branch="main"
         visibleSessionCount={3}
         workMode="desk"
         onAddManualSession={vi.fn()}
@@ -168,9 +206,7 @@ describe("WorkSurfaceToolbar", () => {
         arrangeMode={false}
         previewAvailable={false}
         previewOpen={false}
-        rootPath="/repo"
         savedSessionCount={0}
-        branch="main"
         visibleSessionCount={3}
         workMode="desk"
         onAddManualSession={vi.fn()}

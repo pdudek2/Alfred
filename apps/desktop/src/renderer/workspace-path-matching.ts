@@ -20,7 +20,19 @@ export function pathMatchesWorkspace(cwd: string, rootPath: string | undefined):
   const root = normalizePosixPath(rootPath);
   if (!root) return false;
 
-  return isSameOrChildPath(cwd, root) || isSameOrChildPath(cwd, legacyProjectWorktreeRoot(root));
+  const candidate = normalizePosixPath(cwd);
+  if (!candidate) return false;
+
+  return isSameOrChildPath(candidate, root) || isSameOrChildPath(candidate, legacyProjectWorktreeRoot(root));
+}
+
+export function pathsReferToSameLocation(
+  left: string | undefined,
+  right: string | undefined,
+): boolean {
+  const normalizedLeft = normalizePosixPath(left);
+  const normalizedRight = normalizePosixPath(right);
+  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
 }
 
 function legacyProjectWorktreeRoot(rootPath: string): string {
@@ -39,7 +51,10 @@ function normalizePosixPath(path: string | undefined): string | null {
   const trimmed = path?.trim();
   if (!trimmed) return null;
   const withoutTrailingSlashes = trimmed.replace(/\/+$/g, "");
-  return withoutTrailingSlashes || "/";
+  const normalized = withoutTrailingSlashes || "/";
+  return normalized === "/private/var" || normalized.startsWith("/private/var/")
+    ? normalized.slice("/private".length)
+    : normalized;
 }
 
 function dirname(path: string): string {
