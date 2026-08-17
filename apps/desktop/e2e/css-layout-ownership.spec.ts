@@ -203,6 +203,102 @@ test("keeps all-staged Launch accented at wide and narrow widths", async ({ harn
   await page.screenshot({ path: testInfo.outputPath("staged-only-narrow.png"), style: privacySafeScreenshotStyle });
 });
 
+test.describe("staged plan layout", () => {
+  test.use({ fixtureOptions: { inboxItems: 4 } });
+
+  test("keeps every staged action inside its row at supported widths", async ({ harness }, testInfo) => {
+    const { app, page } = harness;
+    const grid = page.getByTestId("terminal-grid");
+
+    for (const [width, height] of [[1440, 900], [1120, 720]] as const) {
+      await setWindowSize(app, page, width, height);
+      await expect(grid).toHaveClass(/staged-list/);
+      await expect(grid.getByTestId("terminal-tile")).toHaveCount(2);
+      await expect.poll(() => grid.evaluate((node) =>
+        Array.from(node.querySelectorAll<HTMLElement>("[data-testid='terminal-tile']"))
+          .flatMap((tile) => tile.getAnimations())
+          .some((animation) => animation.playState === "running")
+      )).toBe(false);
+
+      const geometry = await grid.evaluate((node) => ({
+        clientWidth: node.clientWidth,
+        columns: getComputedStyle(node).gridTemplateColumns.trim().split(/\s+/),
+        documentOverflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        scrollWidth: node.scrollWidth,
+        scrollOwnerOverflowX: (() => {
+          const owner = node.closest<HTMLElement>(".terminal-grid-column");
+          return owner ? owner.scrollWidth - owner.clientWidth : Number.NaN;
+        })(),
+        tiles: Array.from(node.querySelectorAll<HTMLElement>("[data-testid='terminal-tile']")).map((tile) => {
+          const tileBounds = tile.getBoundingClientRect();
+          const actionBounds = tile.querySelector<HTMLElement>(".staged-actions")?.getBoundingClientRect();
+          return {
+            actionLeft: actionBounds?.left ?? Number.NaN,
+            actionRight: actionBounds?.right ?? Number.NaN,
+            tileLeft: tileBounds.left,
+            tileRight: tileBounds.right,
+          };
+        }),
+      }));
+
+      expect(geometry.columns).toHaveLength(1);
+      expect(geometry.documentOverflowX).toBeLessThanOrEqual(0);
+      expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
+      expect(geometry.scrollOwnerOverflowX).toBeLessThanOrEqual(0);
+      for (const tile of geometry.tiles) {
+        expect(tile.actionLeft).toBeGreaterThanOrEqual(tile.tileLeft);
+        expect(tile.actionRight).toBeLessThanOrEqual(tile.tileRight);
+      }
+      await page.screenshot({
+        path: testInfo.outputPath(`staged-plan-${width}x${height}.png`),
+        style: privacySafeScreenshotStyle,
+      });
+    }
+    harness.assertNoRuntimeErrors();
+  });
+});
+
+test.describe("Prepare Work composer layout", () => {
+  test.use({ fixtureOptions: {} });
+
+  test("grows through three prompt lines and scrolls beyond them", async ({ harness }, testInfo) => {
+    const { page } = harness;
+    await page.getByRole("button", { name: "Open launch menu" }).click();
+    await page.getByRole("menuitem", { name: "Prepare Work" }).click();
+    const prepareWork = page.getByRole("dialog", { name: "Prepare Work" });
+    const input = prepareWork.getByRole("textbox", { name: "Dispatch instruction" });
+    const readControlHeights = () => prepareWork.evaluate((node) => ({
+      prepare: node.querySelector<HTMLElement>(".composer-send")?.getBoundingClientRect().height,
+      target: node.querySelector<HTMLElement>(".dispatch-target-chip")?.getBoundingClientRect().height,
+    }));
+    const initialHeight = await input.evaluate((node) => node.clientHeight);
+    const initialControlHeights = await readControlHeights();
+
+    await input.fill("first prompt line\nsecond prompt line\nthird prompt line");
+    const threeLines = await input.evaluate((node) => ({
+      clientHeight: node.clientHeight,
+      scrollHeight: node.scrollHeight,
+    }));
+    expect(threeLines.clientHeight).toBeGreaterThan(initialHeight);
+    expect(threeLines.scrollHeight).toBeLessThanOrEqual(threeLines.clientHeight + 1);
+    expect(await readControlHeights()).toEqual(initialControlHeights);
+
+    await input.fill("first prompt line\nsecond prompt line\nthird prompt line\nfourth prompt line");
+    const fourLines = await input.evaluate((node) => ({
+      clientHeight: node.clientHeight,
+      scrollHeight: node.scrollHeight,
+    }));
+    expect(fourLines.clientHeight).toBe(threeLines.clientHeight);
+    expect(fourLines.scrollHeight).toBeGreaterThan(fourLines.clientHeight);
+    expect(await readControlHeights()).toEqual(initialControlHeights);
+    await page.screenshot({
+      path: testInfo.outputPath("prepare-work-four-lines.png"),
+      style: privacySafeScreenshotStyle,
+    });
+    harness.assertNoRuntimeErrors();
+  });
+});
+
 test("captures deterministic CSS ownership evidence across core states and overlays", async ({ harness }, testInfo) => {
   const { app, marker, page } = harness;
   const evidenceDir = process.env.ALFRED_CSS_EVIDENCE_DIR ?? testInfo.outputDir;
