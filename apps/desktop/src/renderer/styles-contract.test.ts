@@ -1178,7 +1178,7 @@ describe("renderer CSS contracts", () => {
   });
 
   it("uses one flat staged queue and an unboxed Work empty state", () => {
-    const stagedList = singleTopLevelRuleBodyIn(styles, ".terminal-grid.staged-list");
+    const stagedList = singleTopLevelRuleBodyIn(styles, ".terminal-grid.laid-out.staged-list");
     const stagedTile = blockFor(".terminal-grid.staged-list .terminal-tile.staged");
     const stagedHeader = singleTopLevelRuleBodyIn(styles, ".terminal-grid.staged-list .terminal-tile.staged > header");
     const stagedTitle = singleTopLevelRuleBodyIn(styles, ".terminal-grid.staged-list .tile-title b");
@@ -1191,6 +1191,7 @@ describe("renderer CSS contracts", () => {
     const emptyFact = singleTopLevelRuleBodyIn(styles, ".terminal-empty-facts > div");
 
     expect(stagedList).toContain("grid-template-columns: minmax(0, 1fr)");
+    expect(stagedList).toContain("grid-template-rows: none");
     expect(stagedList).toContain("gap: 0");
     expect(stagedTile).toContain("border-radius: 0");
     expect(stagedTile).toContain("background: transparent");
@@ -2427,8 +2428,8 @@ describe("renderer CSS contracts", () => {
     expect(tileUtilities).toContain("pointer-events: none");
     expect(tileDangerActions).toContain("opacity: 0");
     expect(tileDangerActions).toContain("pointer-events: none");
-    expect(dispatchBar).toContain("grid-template-rows: var(--control-height) 14px");
-    expect(dispatchCapsule).toContain("height: var(--control-height)");
+    expect(dispatchBar).toContain("grid-template-rows: auto 14px");
+    expect(dispatchCapsule).toContain("min-height: var(--control-height)");
     expect(dispatchCapsule).toContain("background: var(--ink-0)");
     expect(dispatchChip).toContain("background-image: none");
   });

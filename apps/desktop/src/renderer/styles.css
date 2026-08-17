@@ -1892,9 +1892,10 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   grid-auto-rows: max(560px, calc(100dvh - 150px));
 }
 
-.terminal-grid.staged-list {
+.terminal-grid.laid-out.staged-list {
   min-height: 100%;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: none;
   grid-auto-rows: auto;
   align-content: start;
   gap: 0;
@@ -3559,7 +3560,7 @@ body.arranging-pointer {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: var(--control-height) 14px;
+  grid-template-rows: auto 14px;
   gap: 3px;
 }
 
@@ -3599,8 +3600,8 @@ body.arranging-pointer {
 .dispatch-bar .composer-input {
   flex: 1 1 auto;
   height: auto;
-  min-height: 0;
-  max-height: none;
+  min-height: calc(var(--control-height) - 6px);
+  max-height: calc(3lh + 8px);
   border: 0;
   border-radius: 5px;
   padding: 4px 10px;
@@ -3608,6 +3609,8 @@ body.arranging-pointer {
   background-image: none;
   box-shadow: none;
   font-size: 12px;
+  field-sizing: content;
+  overflow-y: auto;
 }
 
 .dispatch-bar .composer-input:focus-visible {
@@ -3664,7 +3667,7 @@ body.arranging-pointer {
 .dispatch-bar .composer-send {
   grid-column: 4;
   flex: 0 0 auto;
-  height: auto;
+  height: calc(var(--control-height) - 6px);
   min-height: 0;
   max-height: none;
   min-width: 76px;
@@ -3781,14 +3784,14 @@ body.arranging-pointer {
 
 .dispatch-capsule {
   min-width: 0;
-  height: var(--control-height);
+  min-height: var(--control-height);
   border: 1px solid var(--ink-3);
   border-radius: 7px;
   padding: 2px;
   background: var(--ink-0);
   box-shadow: none;
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 6px;
 }
 
@@ -3798,7 +3801,7 @@ body.arranging-pointer {
 
 .dispatch-target-chip {
   flex: 0 1 auto;
-  height: auto;
+  height: calc(var(--control-height) - 6px);
   min-height: 0;
   max-height: none;
   border: 0;
