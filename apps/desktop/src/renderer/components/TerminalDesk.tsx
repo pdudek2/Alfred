@@ -44,6 +44,7 @@ import { restoredSessionActionLabel, restoredSessionActionTitle } from "../resto
 import { isWorkSession } from "../session-scope";
 import { deskPresentationSlot, nextDeskPresentationIds, type DeskPresentationSlot } from "../terminal-desk-presentation";
 import { useTerminalTileMotion } from "../terminal-tile-motion";
+import { pathsReferToSameLocation } from "../workspace-path-matching";
 import { normalizeSessionTitle, stripTerminalControlSequencesWithRemainder } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
@@ -531,6 +532,7 @@ export function TerminalDesk({
                 runtimeStatus={session.runtimeStatus}
                 relaunchArmed={armedRecoverySessionIds.has(session.id)}
                 workspaceId={session.workspaceId}
+                workspaceRootPath={workspaceRootPath}
                 workspaceRootFingerprint={session.workspaceRootFingerprint}
                 title={session.title}
                 layoutHidden={layoutHidden}
@@ -932,6 +934,7 @@ function ManualTerminalTile({
   sessionKey,
   source,
   workspaceId,
+  workspaceRootPath,
   workspaceRootFingerprint,
   title,
   layoutHidden = false,
@@ -985,6 +988,7 @@ function ManualTerminalTile({
   sessionKey: string;
   source: SessionTile["source"];
   workspaceId: string;
+  workspaceRootPath?: string | undefined;
   workspaceRootFingerprint?: string | undefined;
   title: string;
   layoutHidden?: boolean;
@@ -1080,6 +1084,9 @@ function ManualTerminalTile({
         ? `isolated worktree from ${baseCwd}`
         : "isolated worktree"
     : resolvedCwd ?? "runtime cwd";
+  const locationMatchesWorkspaceRoot = pathsReferToSameLocation(cwd, workspaceRootPath)
+    && pathsReferToSameLocation(resolvedCwd, workspaceRootPath);
+  const showSessionLocation = isolatedCheckout || !locationMatchesWorkspaceRoot;
   const externalTerminalCwd = resolvedCwd || cwd;
   const worktreeRecoverySession = discardableSession && isolatedCheckout;
   const recoveryOnly = tileStatus === "restored" && worktreeRecoverySession && !relaunchCapable;
@@ -1681,10 +1688,12 @@ function ManualTerminalTile({
             ) : (
               <b>{title}</b>
             )}
-            <small title={sessionLocationTitle} aria-label={`${sessionLocationMetaLabel} ${sessionLocationTitle}`}>
-              <span className="session-location-meta">{sessionLocationMetaLabel}</span>
-              <span className="session-location-value">{sessionLocationLabel}</span>
-            </small>
+            {showSessionLocation && (
+              <small title={sessionLocationTitle} aria-label={`${sessionLocationMetaLabel} ${sessionLocationTitle}`}>
+                <span className="session-location-meta">{sessionLocationMetaLabel}</span>
+                <span className="session-location-value">{sessionLocationLabel}</span>
+              </small>
+            )}
           </div>
         </div>
         {latestActivity && (

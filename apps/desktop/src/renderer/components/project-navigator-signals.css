@@ -31,7 +31,15 @@
 }
 
 .project-navigator.is-collapsed .project-row-signals {
+  position: absolute;
+  top: 1px;
+  right: 1px;
   gap: 0;
+}
+
+.project-navigator.is-collapsed .project-agent-signal > span,
+.project-navigator.is-collapsed .project-attention-count {
+  display: none;
 }
 
 .project-navigator.is-collapsed .project-row-signals:has(.project-attention-signal) .project-agent-signal {

@@ -634,7 +634,7 @@ button:focus-visible {
   grid-row: 3;
   min-height: 0;
   display: grid;
-  grid-template-columns: 226px minmax(0, 1fr);
+  grid-template-columns: clamp(226px, 16vw, 280px) minmax(0, 1fr);
   gap: 0;
   padding: 0;
   background: var(--surface-canvas);
@@ -650,7 +650,7 @@ button:focus-visible {
   grid-column: 1;
   min-width: 0;
   min-height: 0;
-  width: 226px;
+  width: clamp(226px, 16vw, 280px);
   border-right: 1px solid var(--border-strong);
   background: var(--surface-panel);
   display: grid;
@@ -899,6 +899,10 @@ button:focus-visible {
   color: var(--ink-5);
 }
 
+.project-row-monogram {
+  display: none;
+}
+
 .project-row-button kbd {
   color: var(--ink-5);
   font: 500 11px/1 var(--sans);
@@ -1115,9 +1119,33 @@ button:focus-visible {
 }
 
 .project-navigator.is-collapsed .project-row-button {
-  grid-template-columns: 18px auto;
+  position: relative;
+  width: 34px;
+  grid-template-columns: minmax(0, 1fr);
   justify-content: center;
+  margin-inline: auto;
   padding-inline: 4px;
+}
+
+.project-navigator.is-collapsed .project-folder-icon {
+  display: none;
+}
+
+.project-navigator.is-collapsed .project-row-monogram {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--ink-2);
+  color: var(--ink-6);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 10px/1 var(--sans);
+  letter-spacing: -0.02em;
+}
+
+.project-navigator.is-collapsed .project-item.is-active::before {
+  display: none;
 }
 
 .project-navigator.is-collapsed .project-session-list {
@@ -1131,6 +1159,7 @@ button:focus-visible {
 
 .project-navigator.is-collapsed .project-row-button[aria-current="location"],
 .project-navigator.is-collapsed .project-session.is-active {
+  border-left: 2px solid var(--signal-focus);
   background: color-mix(in oklab, var(--signal-focus) 10%, var(--ink-2));
   color: var(--ink-7);
 }
@@ -1167,7 +1196,7 @@ button:focus-visible {
   pointer-events: none;
 }
 .workspace-layout.preview-visible {
-  grid-template-columns: 226px minmax(0, 1fr);
+  grid-template-columns: clamp(226px, 16vw, 280px) minmax(0, 1fr);
 }
 
 .side-dock-stack {
@@ -1412,9 +1441,10 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 .work-surface-context {
   margin-left: auto;
-  flex: 0 1 220px;
+  flex: 0 0 auto;
   color: var(--ink-5);
-  font: 500 11px/1 var(--sans);
+  font: 600 12px/1 var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .chrome-menu {
@@ -1495,8 +1525,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 @media (max-width: 1120px) {
-  .workbench-right-zone kbd,
-  .work-surface-context {
+  .workbench-right-zone kbd {
     display: none;
   }
 }
@@ -6889,7 +6918,7 @@ body.arranging-pointer {
 }
 
 .workspace-layout.context-visible {
-  grid-template-columns: 226px minmax(420px, 1fr) 318px;
+  grid-template-columns: clamp(226px, 16vw, 280px) minmax(420px, 1fr) 318px;
 }
 
 .workspace-layout.context-visible:has(.project-navigator.is-collapsed) {

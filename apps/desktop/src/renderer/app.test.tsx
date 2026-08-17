@@ -702,6 +702,34 @@ async function waitForTerminalStartsToSettle() {
 }
 
 describe("App integration", () => {
+  it("shows a tile path only when it differs from the workspace root", () => {
+    renderTerminalDeskForSessions([
+      {
+        id: "root-session",
+        title: "Root session",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred",
+        source: "manual",
+        stage: "live",
+        runtimeStatus: "live",
+      },
+      {
+        id: "nested-session",
+        title: "Nested session",
+        workspaceId: "A",
+        cwd: "/Users/patryk/Desktop/Alfred/apps/desktop",
+        source: "manual",
+        stage: "live",
+        runtimeStatus: "live",
+      },
+    ]);
+
+    expect(within(screen.getByRole("article", { name: "Root session" })).queryByText("cwd"))
+      .not.toBeInTheDocument();
+    expect(within(screen.getByRole("article", { name: "Nested session" })).getByText("cwd"))
+      .toBeInTheDocument();
+  });
+
   it.each([
     [1, "single"],
     [2, "split"],

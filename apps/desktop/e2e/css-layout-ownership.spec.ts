@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
@@ -294,6 +294,103 @@ test.describe("Prepare Work composer layout", () => {
     await page.screenshot({
       path: testInfo.outputPath("prepare-work-four-lines.png"),
       style: privacySafeScreenshotStyle,
+    });
+    harness.assertNoRuntimeErrors();
+  });
+});
+
+test.describe("work session and project identity", () => {
+  test.use({ fixtureOptions: { projectShell: true } });
+
+  test("keeps the hidden-session count and project identity readable", async ({ harness }, testInfo) => {
+    const { app, page, paths } = harness;
+    await setWindowSize(app, page, 1800, 900);
+
+    await page.getByRole("button", { name: "Open launch menu" }).click();
+    await page.getByRole("menuitem", { name: "New Codex session" }).click();
+    for (let index = 0; index < 4; index += 1) await addManualTerminal(page);
+    await expect(page.getByTestId("xterm-host")).toHaveCount(6);
+
+    const toolbar = page.getByRole("toolbar", { name: "Work layout controls" });
+    await expect(toolbar.getByTestId("work-session-count")).toHaveText("3 of 6 sessions");
+    await expect(page.locator(".workbench-context-detail")).toBeVisible();
+    await expect(page.locator(".session-location-meta")).toHaveCount(0);
+
+    const activeProject = page.getByRole("button", { name: "Fixture Alpha workspace" });
+    const projectLabel = activeProject.locator(".project-row-label");
+    const expandedGeometry = await projectLabel.evaluate((node) => ({
+      clientWidth: node.clientWidth,
+      scrollWidth: node.scrollWidth,
+      navigatorWidth: node.closest<HTMLElement>(".project-navigator")?.getBoundingClientRect().width ?? 0,
+    }));
+    expect(expandedGeometry.navigatorWidth).toBeGreaterThanOrEqual(260);
+    expect(expandedGeometry.navigatorWidth).toBeLessThanOrEqual(280);
+    expect(expandedGeometry.scrollWidth).toBeLessThanOrEqual(expandedGeometry.clientWidth);
+
+    const selectedTile = page.locator("[data-testid='terminal-tile'].selected:not([aria-hidden='true'])");
+    const selectedInput = selectedTile.getByRole("textbox", { name: "Terminal input" });
+    const selectedHost = selectedTile.getByTestId("xterm-host");
+    const canonicalWorkspacePath = await realpath(paths.workspaceA);
+    await selectedInput.fill("pwd -P");
+    await selectedInput.press("Enter");
+    await expect(selectedHost).toContainText(canonicalWorkspacePath);
+    await expect(selectedTile.locator(".session-location-meta")).toHaveCount(0);
+    const identityScreenshotStyle = `${privacySafeScreenshotStyle}
+      .work-surface-context,
+      .project-row-label {
+        color: var(--ink-5) !important;
+        -webkit-text-fill-color: currentColor !important;
+      }
+    `;
+    await page.screenshot({
+      path: testInfo.outputPath("session-and-project-identity-1800x900.png"),
+      style: identityScreenshotStyle,
+    });
+
+    await page.getByRole("button", { name: "Collapse project navigator" }).click();
+    await expect(activeProject.locator(".project-row-monogram")).toHaveText("FA");
+    await expect(activeProject).toHaveCSS("border-left-width", "2px");
+    const collapsedProjectGeometry = await activeProject.evaluate((node) => {
+      const button = node.getBoundingClientRect();
+      const signal = node.querySelector<HTMLElement>(".project-row-signals")?.getBoundingClientRect();
+      return {
+        button: { bottom: button.bottom, left: button.left, right: button.right, top: button.top },
+        signal: signal
+          ? { bottom: signal.bottom, left: signal.left, right: signal.right, top: signal.top }
+          : null,
+      };
+    });
+    expect(collapsedProjectGeometry.signal).not.toBeNull();
+    expect(collapsedProjectGeometry.signal!.left).toBeGreaterThanOrEqual(collapsedProjectGeometry.button.left);
+    expect(collapsedProjectGeometry.signal!.right).toBeLessThanOrEqual(collapsedProjectGeometry.button.right);
+    expect(collapsedProjectGeometry.signal!.top).toBeGreaterThanOrEqual(collapsedProjectGeometry.button.top);
+    expect(collapsedProjectGeometry.signal!.bottom).toBeLessThanOrEqual(collapsedProjectGeometry.button.bottom);
+    const inactiveProject = page.getByRole("button", { name: "Fixture Beta workspace" });
+    const [activeProjectHeight, inactiveProjectHeight] = await Promise.all([
+      activeProject.evaluate((node) => node.getBoundingClientRect().height),
+      inactiveProject.evaluate((node) => node.getBoundingClientRect().height),
+    ]);
+    expect(Math.abs(activeProjectHeight - inactiveProjectHeight)).toBeLessThanOrEqual(1);
+    const [activeMonogramOffset, inactiveMonogramOffset] = await Promise.all([
+      activeProject.evaluate((node) => {
+        const button = node.getBoundingClientRect();
+        const monogram = node.querySelector<HTMLElement>(".project-row-monogram")!.getBoundingClientRect();
+        return monogram.top - button.top;
+      }),
+      inactiveProject.evaluate((node) => {
+        const button = node.getBoundingClientRect();
+        const monogram = node.querySelector<HTMLElement>(".project-row-monogram")!.getBoundingClientRect();
+        return monogram.top - button.top;
+      }),
+    ]);
+    expect(Math.abs(activeMonogramOffset - inactiveMonogramOffset)).toBeLessThanOrEqual(1);
+
+    await setWindowSize(app, page, 1120, 720);
+    await expect(toolbar.getByTestId("work-session-count")).toBeVisible();
+    await expect(toolbar.getByTestId("work-session-count")).toHaveText("3 of 6 sessions");
+    await page.screenshot({
+      path: testInfo.outputPath("session-and-project-identity-1120x720.png"),
+      style: identityScreenshotStyle,
     });
     harness.assertNoRuntimeErrors();
   });

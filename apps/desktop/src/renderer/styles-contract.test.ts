@@ -557,7 +557,7 @@ describe("renderer CSS contracts", () => {
       "transition: grid-template-columns 210ms cubic-bezier(0.16, 1, 0.3, 1)",
     ]);
     expectCanonicalBase(".project-navigator", [
-      "width: 226px",
+      "width: clamp(226px, 16vw, 280px)",
       "border-right: 1px solid var(--border-strong)",
       "background: var(--surface-panel)",
       "transition: width 210ms cubic-bezier(0.16, 1, 0.3, 1)",
@@ -1022,7 +1022,7 @@ describe("renderer CSS contracts", () => {
       "min-width: 0",
       "display: grid",
       "grid-template-rows: auto minmax(0, 1fr) auto",
-      "width: 226px",
+      "width: clamp(226px, 16vw, 280px)",
     ]);
     expectCanonicalBase(".project-navigator.is-collapsed", ["width: 46px"]);
     const workspaceNavScrollBodies = exactRuleBodies(".project-navigator-scroll");
@@ -1051,7 +1051,7 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps one canonical owner for the Slice 2 shell", () => {
-    expectCanonicalBase(".project-navigator", ["width: 226px", "overflow: hidden"]);
+    expectCanonicalBase(".project-navigator", ["width: clamp(226px, 16vw, 280px)", "overflow: hidden"]);
     expectCanonicalBase(".workbench-header", ["height: 44px"]);
     expectCanonicalBase(".work-surface-toolbar", ["display: flex"]);
     expectCanonicalBase(".context-column", ["grid-column: 3", "position: static", "width: auto"]);
@@ -1087,7 +1087,7 @@ describe("renderer CSS contracts", () => {
     const contextDrawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
 
     expect(openShell).toContain(
-      "grid-template-columns: 226px minmax(420px, 1fr) 318px",
+      "grid-template-columns: clamp(226px, 16vw, 280px) minmax(420px, 1fr) 318px",
     );
     expect(contextColumn).toContain("grid-column: 3");
     expect(contextColumn).toContain("position: static");
@@ -1449,7 +1449,10 @@ describe("renderer CSS contracts", () => {
     const contextEnd = ".agent-timeline-panel {\n  border-color: var(--border);";
     expectTopLevelOwnerWithin(".context-column.closed", ["display: none"], contextStart, contextEnd);
     expectTopLevelOwnerWithin(".context-column.open", ["pointer-events: auto"], contextStart, contextEnd);
-    expectCanonicalBase(".workspace-layout", ["grid-template-columns: 226px minmax(0, 1fr)", "position: relative"]);
+    expectCanonicalBase(".workspace-layout", [
+      "grid-template-columns: clamp(226px, 16vw, 280px) minmax(0, 1fr)",
+      "position: relative",
+    ]);
     expectTopLevelOwnerWithin(
       ".context-column",
       ["grid-column: 3", "position: static", "width: auto"],
@@ -1661,6 +1664,7 @@ describe("renderer CSS contracts", () => {
     );
 
     expect(activeProject).toContain("var(--signal-focus) 10%");
+    expect(activeProject).toContain("border-left: 2px solid var(--signal-focus)");
     expect(activeProject).toContain("color: var(--ink-7)");
     expect(activeSession).toBe(activeProject);
   });
@@ -2043,7 +2047,7 @@ describe("renderer CSS contracts", () => {
     const contextColumn = singleTopLevelRuleBodyIn(styles, ".context-column");
     const contextDrawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
 
-    expect(openLayout).toContain("grid-template-columns: 226px minmax(420px, 1fr) 318px");
+    expect(openLayout).toContain("grid-template-columns: clamp(226px, 16vw, 280px) minmax(420px, 1fr) 318px");
     expect(contextColumn).toContain("position: static");
     expect(contextColumn).toContain("width: auto");
     expect(contextColumn).toContain("box-shadow: -14px 0 30px -30px rgba(0, 0, 0, 0.9)");
@@ -2144,7 +2148,7 @@ describe("renderer CSS contracts", () => {
     expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-session-context > span")).toHaveLength(0);
     expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-session-context > small")).toHaveLength(0);
     expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-right-zone kbd")).toHaveLength(1);
-    expect(mediaExactRuleBodies("(max-width: 1120px)", ".work-surface-context")).toHaveLength(1);
+    expect(mediaExactRuleBodies("(max-width: 1120px)", ".work-surface-context")).toHaveLength(0);
     expect(mediaExactRuleBodies("(max-width: 980px)", ".workbench-session-title")).toHaveLength(1);
   });
 

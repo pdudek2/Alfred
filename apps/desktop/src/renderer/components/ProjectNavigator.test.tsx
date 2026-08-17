@@ -387,6 +387,12 @@ describe("ProjectNavigator", () => {
 
     expect(screen.getByRole("group", { name: "Alfred sessions" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Alfred workspace" })).toHaveAttribute("data-label", "Alfred");
+    expect(
+      screen.getByRole("button", { name: "Alfred workspace" }).querySelector(".project-row-monogram"),
+    ).toHaveTextContent("A");
+    expect(
+      screen.getByRole("button", { name: "ClientApp workspace" }).querySelector(".project-row-monogram"),
+    ).toHaveTextContent("CLI");
     expect(screen.getByRole("button", { name: "Codex · Slice 2" })).toHaveAttribute(
       "data-label",
       "Codex · Slice 2",

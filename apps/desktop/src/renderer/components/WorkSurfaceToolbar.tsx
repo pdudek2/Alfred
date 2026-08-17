@@ -1,6 +1,5 @@
 import { Archive, ChevronDown, PanelRight, Plus } from "lucide-react";
 import type { Ref } from "react";
-import { shortenPath } from "../path-display";
 import type { WorkMode } from "../terminal-desk-types";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
@@ -11,11 +10,9 @@ export type WorkSurfaceToolbarProps = {
   agentsOpen: boolean;
   agentsTriggerRef?: Ref<HTMLButtonElement>;
   arrangeMode: boolean;
-  branch: string | undefined;
   previewAvailable: boolean;
   previewOpen: boolean;
   previewTriggerRef?: Ref<HTMLButtonElement>;
-  rootPath: string | undefined;
   savedSessionCount: number;
   terminalLaunchDisabled?: boolean;
   visibleSessionCount: number;
@@ -33,11 +30,9 @@ export function WorkSurfaceToolbar({
   agentsOpen,
   agentsTriggerRef,
   arrangeMode,
-  branch,
   previewAvailable,
   previewOpen,
   previewTriggerRef,
-  rootPath,
   savedSessionCount,
   terminalLaunchDisabled = false,
   visibleSessionCount,
@@ -49,12 +44,13 @@ export function WorkSurfaceToolbar({
   onToggleAgents,
   onTogglePreview,
 }: WorkSurfaceToolbarProps) {
-  const location = rootPath ? shortenPath(rootPath) : "local desk";
-  const branchDetail = branch ? ` · ${branch}` : "";
   const displayedSessionCount = !arrangeMode && workMode === "desk"
     ? Math.min(3, visibleSessionCount)
     : visibleSessionCount;
   const sessionLabel = displayedSessionCount === 1 ? "visible session" : "visible sessions";
+  const sessionSummary = displayedSessionCount < visibleSessionCount
+    ? `${displayedSessionCount} of ${visibleSessionCount} sessions`
+    : `${displayedSessionCount} ${sessionLabel}`;
   const selectedLayoutLabel = arrangeMode ? "Arrange" : workModeLabel(workMode);
   const selectedLayoutId = arrangeMode ? "arrange" : workMode === "desk" ? "grid" : workMode;
   const applyWorkMode = (mode: WorkMode) => {
@@ -115,8 +111,8 @@ export function WorkSurfaceToolbar({
         <span>Agents</span>
         <strong>{activeAgentCount} active</strong>
       </button>
-      <span className="work-surface-context">
-        {location}{branchDetail} · {displayedSessionCount} {sessionLabel}
+      <span className="work-surface-context" data-testid="work-session-count">
+        {sessionSummary}
       </span>
       {savedSessionCount > 0 && (
         <button
