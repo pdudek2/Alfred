@@ -1315,13 +1315,28 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".chrome-menu-popover button", ["width: 100%"]);
   });
 
-  it("draws a focus-only ring on project and session destinations", () => {
+  it("draws one visible focus ring across Work destinations and controls", () => {
+    const buttonFocus = singleTopLevelRuleBodyIn(styles, "button:focus-visible");
+    const recentFocus = topLevelExactRuleBodies(".project-recent-result:focus-visible");
     const projectFocus = topLevelExactRuleBodies(".project-row-button:focus-visible");
     const sessionFocus = topLevelExactRuleBodies(".project-session:focus-visible");
+    expect(styles).toContain("--focus-border: var(--signal-focus)");
+    expect(buttonFocus).toContain("outline: 2px solid var(--focus-border)");
+    expect(buttonFocus).toContain("outline-offset: 2px");
+    for (const selector of [
+      ".project-navigator-header button:focus-visible",
+      ".project-navigator-footer button:focus-visible",
+      ".project-session-disclosure:focus-visible",
+      ".project-overflow-button:focus-visible",
+      ".work-surface-toolbar button:focus-visible",
+    ]) {
+      expect(singleTopLevelRuleBodyIn(styles, selector)).not.toContain("outline: none");
+    }
+    expect(recentFocus).toHaveLength(2);
     expect(projectFocus).toHaveLength(1);
     expect(sessionFocus).toHaveLength(1);
-    for (const focus of [...projectFocus, ...sessionFocus]) {
-      expect(focus).toContain("outline: 2px solid var(--ink-6)");
+    for (const focus of [recentFocus[1]!, ...projectFocus, ...sessionFocus]) {
+      expect(focus).toContain("outline: 2px solid var(--focus-border)");
       expect(focus).toContain("outline-offset: -2px");
       expect(focus).not.toContain("outline: none");
     }
