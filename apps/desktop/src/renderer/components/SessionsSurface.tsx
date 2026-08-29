@@ -210,14 +210,14 @@ export function SessionsSurface({
   if (!loadingExternalSessions && projection.items.length === 0) {
     if (hasActiveFilters) {
       emptyState = {
-        title: "No conversations match these filters",
-        detail: "Clear the current project, source, time, and search filters to see every available conversation.",
+        title: "No sessions match these filters",
+        detail: "Clear the current project, source, time, and search filters to see every available session.",
         primaryAction: { label: "Clear filters", onClick: clearFilters },
         secondaryAction: { label: "Back to Work", onClick: onBackToWork },
       };
     } else if (!externalSessionIndexingEnabled) {
       emptyState = {
-        title: "No conversations yet",
+        title: "No sessions yet",
         detail: "Start an agent in Work, or turn on Codex history in Local Data & Privacy.",
         primaryAction: { label: "Start new work", onClick: onBackToWork },
         ...(onOpenPrivacySettings
@@ -233,7 +233,7 @@ export function SessionsSurface({
       };
     } else {
       emptyState = {
-        title: "No conversations yet",
+        title: "No sessions yet",
         detail: "Start Codex or Claude in Work. Active and finished runs will appear here.",
         primaryAction: { label: "Start new work", onClick: onBackToWork },
       };

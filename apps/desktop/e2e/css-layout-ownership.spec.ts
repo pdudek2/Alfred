@@ -483,7 +483,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expect(sessions).toBeVisible();
   await expect(page.locator(".project-navigator")).toHaveCount(0);
   await sessions
-    .getByRole("listbox", { name: "Conversation results" })
+    .getByRole("listbox", { name: "Session results" })
     .getByRole("option")
     .first()
     .click();
