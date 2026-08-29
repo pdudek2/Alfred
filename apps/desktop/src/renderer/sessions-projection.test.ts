@@ -372,6 +372,20 @@ describe("buildSessionsProjection", () => {
     expect(JSON.stringify(projection.items)).not.toContain("\u001b");
   });
 
+  it("drops a snippet when it only repeats the normalized session title", () => {
+    const projection = buildSessionsProjection({
+      sessions: [],
+      workspaces,
+      externalSessions: [externalSession("repeated", {
+        title: "Review Alfred navigation",
+        snippet: "  Review Alfred navigation  ",
+      })],
+    });
+
+    expect(projection.items[0]).toMatchObject({ title: "Review Alfred navigation" });
+    expect(projection.items[0]).not.toHaveProperty("snippet");
+  });
+
   it("chooses a managed lineage representative independently of input order or external activity", () => {
     const externalId = "019fff00-7777-7222-8333-444444444444";
     const external = externalSession(externalId, { updatedAt: 1_000 });

@@ -8,7 +8,7 @@ import {
 import type { SessionsProjectionPage } from "../sessions-projection";
 import { isFreeChatPath } from "../session-scope";
 import type { SessionsViewState } from "../sessions-view-state";
-import { sessionAgeLabel } from "../session-time";
+import { sessionAgeLabel, sessionDateTimeLabel } from "../session-time";
 
 type SessionsNavigatorProps = {
   activeSessionKey: string | null;
@@ -91,12 +91,12 @@ export function SessionsNavigator({
   };
 
   return (
-    <aside className="sessions-navigator" aria-label="Conversations">
+    <aside className="sessions-navigator" aria-label="Sessions">
       <header className="sessions-navigator__heading">
         <button type="button" aria-label="Back to Work" onClick={onBackToWork}>
           <ChevronLeft aria-hidden="true" size={15} />
         </button>
-        <strong>Conversations</strong>
+        <strong>Sessions</strong>
         <span aria-hidden="true">/</span>
         <div className="sessions-navigator__scope" role="group" aria-label="Session scope controls">
           <select
@@ -111,7 +111,7 @@ export function SessionsNavigator({
             <option value="free-chats">Free Chats</option>
           </select>
           <span
-            aria-label="Conversation count"
+            aria-label="Session count"
             aria-live="polite"
             aria-atomic="true"
             role="status"
@@ -126,7 +126,7 @@ export function SessionsNavigator({
               ref={searchRef}
               type="search"
               aria-label="Search sessions"
-              placeholder="Search conversations…"
+              placeholder="Search sessions…"
               value={state.query}
               onChange={(event: ChangeEvent<HTMLInputElement>) => onStatePatch({ query: event.target.value, pageIndex: 0 })}
               onFocus={() => onFocusTargetChange("search")}
@@ -190,7 +190,7 @@ export function SessionsNavigator({
         ref={navigatorRef}
         className="sessions-results"
         role="listbox"
-        aria-label="Conversation results"
+        aria-label="Session results"
         aria-activedescendant={selectedDomId}
         tabIndex={0}
         onFocus={() => onFocusTargetChange("results")}
@@ -211,12 +211,19 @@ export function SessionsNavigator({
               onSelectSession(session);
             }}
           >
-            <span className="sessions-navigator__result-title"><strong>{session.title}</strong><time>{sessionAgeLabel(session.updatedAt)}</time></span>
+            <span className="sessions-navigator__result-title">
+              <strong>{session.title}</strong>
+            </span>
             {session.snippet && <span>{session.snippet}</span>}
             <span className="sessions-navigator__result-meta">
               <b>{session.kind === "manual" ? "Manual" : session.kind === "claude" ? "Claude" : "Codex"}</b>
               <span>{session.branch ?? session.locationLabel}</span>
               {(session.delegatedRunCount ?? 0) > 0 && <em>{session.delegatedRunCount} delegated</em>}
+              <time dateTime={new Date(session.updatedAt).toISOString()}>
+                <span>{sessionAgeLabel(session.updatedAt)}</span>
+                <span aria-hidden="true">·</span>
+                <small>{sessionDateTimeLabel(session.updatedAt)}</small>
+              </time>
             </span>
           </button>
         ))}
@@ -226,11 +233,11 @@ export function SessionsNavigator({
           <summary>
             {projection.technicalRunCount} internal run{projection.technicalRunCount === 1 ? "" : "s"} hidden
           </summary>
-          <p>These records could not be attached to a verified parent conversation.</p>
+          <p>These records could not be attached to a verified parent session.</p>
         </details>
       )}
       {(state.pageIndex > 0 || hasNextPage) && (
-        <nav className="sessions-navigator__pagination" aria-label="Conversation result pages">
+        <nav className="sessions-navigator__pagination" aria-label="Session result pages">
           <button type="button" disabled={state.pageIndex === 0} onClick={() => onStatePatch({ pageIndex: Math.max(0, state.pageIndex - 1), navigatorScrollTop: 0 })}>Previous</button>
           <span>Page {state.pageIndex + 1}</span>
           <button type="button" disabled={!hasNextPage} onClick={() => onStatePatch({ pageIndex: state.pageIndex + 1, navigatorScrollTop: 0 })}>Next</button>

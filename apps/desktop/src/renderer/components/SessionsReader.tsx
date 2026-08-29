@@ -118,7 +118,7 @@ export function SessionsReader({
             <span aria-hidden="true">/</span>
             <strong>{selected.title}</strong>
           </nav>
-        ) : <strong>{emptyState ? "Get started" : "Select a conversation"}</strong>}
+        ) : <strong>{emptyState ? "Get started" : "Select a session"}</strong>}
         <span className="sessions-reader__toolbar-spacer" />
         {selected && (
           <button
@@ -196,7 +196,7 @@ export function SessionsReader({
             </div>
           ) : !selected ? (
             <div className="sessions-reader__empty">
-              <strong>Choose a conversation from the list.</strong>
+              <strong>Choose a session from the list.</strong>
             </div>
           ) : (
             <article aria-label={selected.title} className="sessions-transcript">
@@ -295,7 +295,7 @@ export function SessionsReader({
                     closeDetails("reader");
                   }}
                 >
-                  {readerMode === "raw" ? "Clean conversation" : "Raw transcript"}
+                  {readerMode === "raw" ? "Clean transcript" : "Raw transcript"}
                 </button>
               )}
               <button type="button" onClick={() => closeDetails()}>Done</button>

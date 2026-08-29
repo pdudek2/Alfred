@@ -38,19 +38,23 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
   await selectSurface(page, "Sessions");
   const sessions = page.getByRole("region", { name: "Sessions workspace" });
   await expect(sessions).toBeVisible();
+  await expect(sessions.getByRole("complementary", { name: "Sessions" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Projects and Free Chats" })).toHaveCount(0);
   await expect(sessions.getByRole("navigation", { name: "Projects" })).toHaveCount(0);
   const projectScope = sessions.getByRole("combobox", { name: "Project scope" });
   await expect(projectScope).toHaveValue("all");
   await expect(projectScope.getByRole("option", { name: "Fixture Alpha" })).toBeAttached();
   const search = page.getByRole("searchbox", { name: "Search sessions" });
-  const results = sessions.getByRole("listbox", { name: "Conversation results" });
+  const results = sessions.getByRole("listbox", { name: "Session results" });
   await expect(search).toBeFocused();
 
   await page.getByRole("combobox", { name: "Session source" })
     .selectOption("external-codex");
   await expect(results.getByRole("option")).toHaveCount(12);
   expect(await page.locator(".sessions-result").count()).toBeLessThanOrEqual(80);
+  const mappedSession = results.getByRole("option", { name: /Mapped resumable session 01/i });
+  await expect(mappedSession.locator(":scope > span:not([class])")).toHaveCount(0);
+  await expect(mappedSession.locator("time small")).toContainText("20 Jul 2026");
 
   await search.fill("Free chat");
   await expect(results.getByRole("option")).toHaveCount(3);
@@ -59,7 +63,7 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
   await search.fill("");
   await expect(results.getByRole("option")).toHaveCount(12);
 
-  await results.getByRole("option", { name: /Mapped resumable session 01/i }).click();
+  await mappedSession.click();
   await expect(page.getByRole("button", { name: "Resume in Work" })).toBeVisible();
   await expect(page.getByText("Transcript is incomplete.", { exact: true })).toBeVisible();
 

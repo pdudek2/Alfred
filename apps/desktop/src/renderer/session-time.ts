@@ -27,3 +27,15 @@ export function sessionAgeTitle(createdAt: number | undefined): string | undefin
     timeStyle: "short",
   }).format(createdAt)}`;
 }
+
+export function sessionDateTimeLabel(updatedAt: number | undefined): string | null {
+  if (updatedAt === undefined) return null;
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(updatedAt);
+}

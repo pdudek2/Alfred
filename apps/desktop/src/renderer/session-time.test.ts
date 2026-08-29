@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sessionAgeLabel } from "./session-time";
+import { sessionAgeLabel, sessionDateTimeLabel } from "./session-time";
 
 describe("session time", () => {
   it("formats short, hourly, daily, and weekly session ages", () => {
@@ -12,5 +12,11 @@ describe("session time", () => {
     expect(sessionAgeLabel(now - 2 * 60 * 60_000 - 16 * 60_000, now)).toBe("2h 16m");
     expect(sessionAgeLabel(now - 3 * 24 * 60 * 60_000 - 4 * 60 * 60_000, now)).toBe("3d 4h");
     expect(sessionAgeLabel(now - 15 * 24 * 60 * 60_000, now)).toBe("2w");
+  });
+
+  it("formats a stable absolute timestamp for session history", () => {
+    expect(sessionDateTimeLabel(undefined)).toBeNull();
+    const localTimestamp = new Date(2026, 6, 20, 12, 15).getTime();
+    expect(sessionDateTimeLabel(localTimestamp)).toBe("20 Jul 2026, 12:15");
   });
 });
