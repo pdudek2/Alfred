@@ -96,7 +96,7 @@ test("keeps the production Work story trustworthy across every utility surface",
   const sessions = page.getByRole("region", { name: "Sessions workspace" });
   await expect(sessions).toBeVisible();
   await expectSans(sessions.locator("time").first());
-  await sessions.getByRole("listbox", { name: "Conversation results" })
+  await sessions.getByRole("listbox", { name: "Session results" })
     .getByRole("option", { name: /Mapped resumable session 01/i }).click();
   await captureAuditScreenshot(page, "sessions-wide");
 

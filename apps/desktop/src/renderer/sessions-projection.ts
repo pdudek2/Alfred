@@ -181,11 +181,12 @@ export function buildSessionsProjection({
 
 function normalizeExternalSession(session: ExternalSessionSummary): SessionSummary {
   const snippet = session.snippet ? sessionPresentationText(session.snippet) : "";
+  const title = sessionPresentationTitle(session.title, "Codex session");
   const { snippet: _sourceSnippet, ...rest } = session;
   return {
     ...rest,
-    title: sessionPresentationTitle(session.title, "Codex session"),
-    ...(snippet ? { snippet } : {}),
+    title,
+    ...(snippet && snippet.toLowerCase() !== title.toLowerCase() ? { snippet } : {}),
     lineageKey: codexLineageKey(session.lineageKey) ?? session.lineageKey,
     delegatedRunCount: session.delegatedRunCount ?? 0,
     lifecycle: session.project.id ? session.lifecycle : "read-only",
