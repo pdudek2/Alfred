@@ -153,6 +153,24 @@ afterEach(() => {
 });
 
 describe("SessionsSurface", () => {
+  it("uses Sessions vocabulary and gives each result a useful date without repeating its title", () => {
+    renderSurface({
+      externalSessions: [externalSession(0, {
+        title: "Review Alfred navigation",
+        snippet: "Review Alfred navigation",
+        updatedAt: new Date(2026, 6, 20, 12, 15).getTime(),
+      })],
+    });
+
+    const navigator = screen.getByRole("complementary", { name: "Sessions" });
+    expect(within(navigator).getByText("Sessions", { selector: "strong" })).toBeVisible();
+    expect(screen.getByRole("status", { name: "Session count" })).toHaveTextContent("1");
+    expect(screen.getByRole("searchbox", { name: "Search sessions" })).toHaveAttribute("placeholder", "Search sessions…");
+    const result = within(screen.getByRole("listbox", { name: "Session results" })).getByRole("option");
+    expect(within(result).getAllByText("Review Alfred navigation")).toHaveLength(1);
+    expect(result).toHaveTextContent("20 Jul 2026, 12:15");
+  });
+
   it("integrates project scope into Conversations without a second project rail", async () => {
     const user = userEvent.setup();
     const scopedWorkspaces: SessionsProjectInput[] = [
@@ -179,15 +197,15 @@ describe("SessionsSurface", () => {
     expect(within(projectScope).getByRole("option", { name: "ClientApp" })).toBeInTheDocument();
     expect(within(projectScope).getByRole("option", { name: "Free Chats" })).toBeInTheDocument();
     expect(within(projectScope).queryByRole("option", { name: "Workspace 99" })).not.toBeInTheDocument();
-    expect(screen.getByRole("status", { name: "Conversation count" })).toHaveTextContent("2");
-    expect(screen.getByRole("listbox", { name: "Conversation results" })).toBeVisible();
+    expect(screen.getByRole("status", { name: "Session count" })).toHaveTextContent("2");
+    expect(screen.getByRole("listbox", { name: "Session results" })).toBeVisible();
     expect(screen.getByRole("main", { name: "Session reader" })).toBeVisible();
-    expect(within(screen.getByRole("listbox", { name: "Conversation results" })).getAllByRole("option")).toHaveLength(2);
+    expect(within(screen.getByRole("listbox", { name: "Session results" })).getAllByRole("option")).toHaveLength(2);
 
     await user.selectOptions(projectScope, "B");
     expect(screen.getByRole("option", { name: /Client release/ })).toBeVisible();
     expect(screen.queryByRole("option", { name: /Alfred architecture/ })).not.toBeInTheDocument();
-    expect(within(screen.getByRole("listbox", { name: "Conversation results" })).queryByRole("heading", { name: "ClientApp" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("listbox", { name: "Session results" })).queryByRole("heading", { name: "ClientApp" })).not.toBeInTheDocument();
   });
 
   it("uses compact labelled selects for source and time without changing filter state", async () => {
@@ -262,7 +280,7 @@ describe("SessionsSurface", () => {
     expect(screen.queryByRole("option", { name: /Internal delegated task/ })).not.toBeInTheDocument();
     const disclosure = screen.getByText("1 internal run hidden").closest("details");
     expect(disclosure).not.toHaveAttribute("open");
-    expect(within(disclosure as HTMLElement).getByText(/could not be attached to a verified parent conversation/i)).toBeInTheDocument();
+    expect(within(disclosure as HTMLElement).getByText(/could not be attached to a verified parent session/i)).toBeInTheDocument();
   });
 
   it("mounts the Sessions workspace with focused search and at most 80 options", () => {
@@ -271,27 +289,27 @@ describe("SessionsSurface", () => {
     });
 
     const surface = screen.getByRole("region", { name: "Sessions workspace" });
-    const results = screen.getByRole("listbox", { name: "Conversation results" });
+    const results = screen.getByRole("listbox", { name: "Session results" });
     const firstOption = within(results).getAllByRole("option")[0];
     expect(surface).toBeVisible();
     expect(results).toHaveClass("sessions-results");
     expect(firstOption).toHaveClass("sessions-result", "active");
     expect(firstOption).toHaveAttribute("aria-selected", "false");
-    expect(screen.getByText("Choose a conversation from the list.")).toBeInTheDocument();
+    expect(screen.getByText("Choose a session from the list.")).toBeInTheDocument();
     expect(surface.querySelector(".sessions-navigator__results")).toBeNull();
     expect(screen.getByRole("searchbox", { name: "Search sessions" })).toHaveFocus();
-    expect(within(screen.getByRole("listbox", { name: "Conversation results" })).getAllByRole("option")).toHaveLength(80);
+    expect(within(screen.getByRole("listbox", { name: "Session results" })).getAllByRole("option")).toHaveLength(80);
     expect(screen.queryByText(/History|Observatory/)).not.toBeInTheDocument();
   });
 
   it("keeps scope and count together in the navigator toolbar without changing result or reader hierarchy", () => {
     renderSurface({ sessions: [managedSession(0)] });
 
-    const navigator = screen.getByRole("complementary", { name: "Conversations" });
+    const navigator = screen.getByRole("complementary", { name: "Sessions" });
     const scopeControls = within(navigator).getByRole("group", { name: "Session scope controls" });
     expect(within(scopeControls).getByRole("combobox", { name: "Project scope" })).toBeVisible();
-    expect(within(scopeControls).getByRole("status", { name: "Conversation count" })).toHaveTextContent("1");
-    expect(screen.getByRole("listbox", { name: "Conversation results" }).parentElement).toBe(navigator);
+    expect(within(scopeControls).getByRole("status", { name: "Session count" })).toHaveTextContent("1");
+    expect(screen.getByRole("listbox", { name: "Session results" }).parentElement).toBe(navigator);
     expect(screen.getByRole("region", { name: "Sessions workspace" }).querySelectorAll(".sessions-reader")).toHaveLength(1);
   });
 
@@ -583,7 +601,7 @@ describe("SessionsSurface", () => {
       terminalApi,
     });
 
-    await user.click(within(screen.getByRole("listbox", { name: "Conversation results" })).getByRole("option"));
+    await user.click(within(screen.getByRole("listbox", { name: "Session results" })).getByRole("option"));
     expect(await screen.findByRole("article", { name: /Managed session 2/ })).toHaveTextContent("restored line");
     expect(terminalApi.snapshot).not.toHaveBeenCalled();
   });
@@ -602,7 +620,7 @@ describe("SessionsSurface", () => {
       terminalApi,
     });
 
-    await user.click(within(screen.getByRole("listbox", { name: "Conversation results" })).getByRole("option"));
+    await user.click(within(screen.getByRole("listbox", { name: "Session results" })).getByRole("option"));
     const article = await screen.findByRole("article", { name: /ANSI transcript/ });
     expect(article).toHaveTextContent("% pnpm dev");
     expect(article).toHaveTextContent("ready");
@@ -621,7 +639,7 @@ describe("SessionsSurface", () => {
 
     renderSurface({ sessions: [restoredSession] });
 
-    await user.click(within(screen.getByRole("listbox", { name: "Conversation results" })).getByRole("option"));
+    await user.click(within(screen.getByRole("listbox", { name: "Session results" })).getByRole("option"));
     const article = await screen.findByRole("article", { name: /Boundary ANSI transcript/ });
     const block = article.querySelector("[data-testid='transcript-block']");
     expect(block).toHaveTextContent("x".repeat(100));
@@ -650,7 +668,7 @@ describe("SessionsSurface", () => {
     const user = userEvent.setup();
     const onOpenPrivacySettings = vi.fn();
     const view = renderSurface({ loadingExternalSessions: true });
-    expect(screen.getByRole("status", { name: "Conversation count" })).toHaveTextContent("…");
+    expect(screen.getByRole("status", { name: "Session count" })).toHaveTextContent("…");
     expect(screen.getByRole("searchbox", { name: "Search sessions" })).toBeInTheDocument();
 
     view.unmount();
@@ -667,10 +685,10 @@ describe("SessionsSurface", () => {
     expect(screen.getByRole("option", { name: /Managed session 1/ })).toBeInTheDocument();
 
     await user.type(screen.getByRole("searchbox", { name: "Search sessions" }), "no such session");
-    expect(screen.getByText("No conversations match these filters")).toBeInTheDocument();
-    expect(screen.queryByText("No conversations found.")).not.toBeInTheDocument();
+    expect(screen.getByText("No sessions match these filters")).toBeInTheDocument();
+    expect(screen.queryByText("No sessions found.")).not.toBeInTheDocument();
     expect(screen.queryByRole("article")).not.toBeInTheDocument();
-    expect(within(screen.getByRole("listbox", { name: "Conversation results" })).queryByRole("option", { selected: true })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("listbox", { name: "Session results" })).queryByRole("option", { selected: true })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(screen.getByRole("option", { name: /Managed session 1/ })).toBeInTheDocument();
 
@@ -694,7 +712,7 @@ describe("SessionsSurface", () => {
     expect(screen.queryByRole("searchbox", { name: "Search sessions" })).not.toBeInTheDocument();
     const reader = screen.getByRole("main", { name: "Session reader" });
     expect(within(reader).getByText("Codex history couldn't be loaded")).toBeInTheDocument();
-    expect(screen.queryByText("No conversations found.")).not.toBeInTheDocument();
+    expect(screen.queryByText("No sessions found.")).not.toBeInTheDocument();
 
     await user.click(within(reader).getByRole("button", { name: "Start new work" }));
     expect(onBackToWork).toHaveBeenCalledOnce();
@@ -785,7 +803,7 @@ describe("SessionsSurface", () => {
       terminalApi: createTerminalApi(),
     });
     const search = screen.getByRole("searchbox", { name: "Search sessions" });
-    const listbox = screen.getByRole("listbox", { name: "Conversation results" });
+    const listbox = screen.getByRole("listbox", { name: "Session results" });
     const options = within(listbox).getAllByRole("option");
 
     await user.tab();
@@ -823,7 +841,7 @@ describe("SessionsSurface", () => {
       { sessions: [managedSession(0)] },
       { ...createInitialSessionsViewState(), focusTarget: "results" },
     );
-    expect(screen.getByRole("listbox", { name: "Conversation results" })).toHaveFocus();
+    expect(screen.getByRole("listbox", { name: "Session results" })).toHaveFocus();
 
     resultView.unmount();
     renderSurface(
@@ -1000,7 +1018,7 @@ describe("SessionsSurface", () => {
 
     const surface = screen.getByRole("region", { name: "Sessions workspace" });
     expect(surface).toHaveClass("sessions-surface--reduced-motion");
-    expect(screen.getByRole("listbox", { name: "Conversation results" })).toHaveProperty("scrollTop", 70);
+    expect(screen.getByRole("listbox", { name: "Session results" })).toHaveProperty("scrollTop", 70);
     expect(surface.querySelector(".sessions-reader__scroll")).toHaveProperty("scrollTop", 90);
     expect(screen.getByRole("article", { name: /Phase I/ })).not.toHaveAttribute("aria-live");
   });

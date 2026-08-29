@@ -137,7 +137,7 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   const sessions = page.getByRole("region", { name: "Sessions workspace" });
   await expectSansFont(sessions);
   await sessions
-    .getByRole("listbox", { name: "Conversation results" })
+    .getByRole("listbox", { name: "Session results" })
     .getByRole("option", { name: /Mapped resumable session 01/i })
     .click();
   const runDetailsTrigger = page.getByRole("button", { name: "Run details" });
@@ -153,7 +153,7 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   const sessionsScope = sessions.getByRole("group", { name: "Session scope controls" });
   const projectScope = sessionsScope.getByRole("combobox", { name: "Project scope" });
   await expect(projectScope).toBeVisible();
-  await expect(sessionsScope.getByRole("status", { name: "Conversation count" })).toBeVisible();
+  await expect(sessionsScope.getByRole("status", { name: "Session count" })).toBeVisible();
   const scopeGeometry = await sessionsScope.evaluate((node) => {
     const scope = node.getBoundingClientRect();
     const heading = node.closest<HTMLElement>(".sessions-navigator__heading")?.getBoundingClientRect();
