@@ -56,7 +56,7 @@
   --cyan: var(--signal-focus);
   --brass: var(--signal-agent);
   --claude-amber: #c9a26d;
-  --focus-border: var(--border-focus);
+  --focus-border: var(--signal-focus);
   --depth-card:
     0 1px 0 rgba(255, 255, 255, 0.045) inset,
     0 18px 38px -26px rgba(0, 0, 0, 0.85);
@@ -88,7 +88,7 @@ button {
 }
 
 button:focus-visible {
-  outline: 1px solid var(--focus-border);
+  outline: 2px solid var(--focus-border);
   outline-offset: 2px;
 }
 
@@ -707,7 +707,6 @@ button:focus-visible {
 .project-navigator-footer button:focus-visible {
   background: var(--ink-2);
   color: var(--ink-7);
-  outline: none;
 }
 
 .project-navigator-scroll {
@@ -774,11 +773,10 @@ button:focus-visible {
 .project-recent-result:focus-visible {
   background: var(--ink-2);
   color: var(--ink-7);
-  outline: none;
 }
 
 .project-recent-result:focus-visible {
-  outline: 2px solid var(--ink-6);
+  outline: 2px solid var(--focus-border);
   outline-offset: -2px;
 }
 
@@ -891,7 +889,7 @@ button:focus-visible {
 .project-row-button:focus-visible {
   background: var(--ink-2);
   color: var(--ink-7);
-  outline: 2px solid var(--ink-6);
+  outline: 2px solid var(--focus-border);
   outline-offset: -2px;
 }
 
@@ -959,7 +957,6 @@ button:focus-visible {
 .project-session-disclosure:focus-visible {
   background: var(--ink-2);
   color: var(--ink-7);
-  outline: none;
 }
 
 .project-session-disclosure[aria-expanded="true"] svg {
@@ -1038,7 +1035,7 @@ button:focus-visible {
 .project-session:focus-visible {
   background: var(--ink-2);
   color: var(--ink-7);
-  outline: 2px solid var(--ink-6);
+  outline: 2px solid var(--focus-border);
   outline-offset: -2px;
 }
 
@@ -1059,7 +1056,6 @@ button:focus-visible {
 .project-overflow-button:focus-visible {
   background: var(--ink-2);
   color: var(--ink-7);
-  outline: none;
 }
 
 .project-overflow-button:disabled {
@@ -1389,7 +1385,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   border-color: var(--ink-5);
   background: var(--ink-2);
   color: var(--ink-7);
-  outline: none;
 }
 
 .workbench-primary-row button[aria-pressed="true"],
@@ -2956,6 +2951,7 @@ body.arranging-pointer {
 .terminal-tile:hover .tile-actions button,
 .tile-actions button:focus-visible {
   opacity: 1;
+  outline-offset: -2px;
 }
 
 .tile-primary-actions button {
