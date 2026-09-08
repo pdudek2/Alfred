@@ -842,18 +842,9 @@ button:focus-visible {
 }
 
 .project-item {
-  position: relative;
   min-width: 0;
-}
-
-.project-item.is-active::before {
-  content: "";
-  position: absolute;
-  top: 35px;
-  bottom: 8px;
-  left: 17px;
-  width: 1px;
-  background: var(--ink-4);
+  display: grid;
+  gap: 3px;
 }
 
 .project-row {
@@ -861,6 +852,11 @@ button:focus-visible {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
+  border-radius: 8px;
+}
+
+.project-row.is-active {
+  background: color-mix(in oklab, var(--ink-7) 4%, transparent);
 }
 
 .project-overflow-button {
@@ -898,7 +894,7 @@ button:focus-visible {
 }
 
 .project-row-button[aria-current="location"] {
-  background: color-mix(in oklab, white 7%, var(--ink-1));
+  background: transparent;
   color: var(--ink-7);
 }
 
@@ -996,7 +992,7 @@ button:focus-visible {
 
 .project-session-list {
   position: relative;
-  padding: 2px 0 6px 24px;
+  padding: 0 0 6px 24px;
 }
 
 .project-session {
