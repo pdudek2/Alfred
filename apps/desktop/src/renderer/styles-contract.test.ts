@@ -2275,7 +2275,7 @@ describe("renderer CSS contracts", () => {
     expect(primaryActionText).toContain("overflow: hidden");
     expect(statusText).toContain("max-width");
     expect(constrainedStatusText).toHaveLength(1);
-    expect(constrainedStatusText[0]).toContain("max-width: 6ch");
+    expect(constrainedStatusText[0]).toContain("max-width: none");
     expect(constrainedStatusText[0]).not.toContain("display:");
   });
 
@@ -2316,7 +2316,7 @@ describe("renderer CSS contracts", () => {
     );
     const narrowStatusText = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".terminal-status-text");
 
-    expect(narrowHeader).toEqual([expect.stringContaining("--terminal-status-zone: 72px")]);
+    expect(narrowHeader).toEqual([expect.stringContaining("--terminal-status-zone: max-content")]);
     expect(narrowTitle).toEqual([expect.stringContaining("min-width: var(--terminal-title-min)")]);
     expect(narrowActivity).toEqual([expect.stringContaining("visibility: hidden")]);
     expect(narrowActivity[0]).not.toContain("display:");
@@ -2327,7 +2327,7 @@ describe("renderer CSS contracts", () => {
 
     const minimumSpanHeader = containerExactRuleBodies("terminal-tile (max-width: 420px)", ".terminal-tile-header");
     const minimumSpanArrangeHandle = containerExactRuleBodies("terminal-tile (max-width: 420px)", ".arrange-handle");
-    expect(minimumSpanHeader).toEqual([expect.stringContaining("--terminal-status-zone: 56px")]);
+    expect(minimumSpanHeader[0]).not.toContain("--terminal-status-zone:");
     expect(minimumSpanArrangeHandle).toEqual([expect.stringContaining("visibility: hidden")]);
     expect(minimumSpanArrangeHandle[0]).not.toContain("display:");
   });

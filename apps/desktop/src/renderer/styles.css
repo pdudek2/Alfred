@@ -3168,7 +3168,7 @@ body.arranging-pointer {
 @container terminal-tile (max-width: 520px) {
   .terminal-tile-header {
     --terminal-title-min: 72px;
-    --terminal-status-zone: 72px;
+    --terminal-status-zone: max-content;
     gap: 6px;
   }
 
@@ -3224,14 +3224,13 @@ body.arranging-pointer {
   }
 
   .terminal-status-text {
-    max-width: 6ch;
+    max-width: none;
   }
 }
 
 @container terminal-tile (max-width: 420px) {
   .terminal-tile-header {
     --terminal-title-min: 64px;
-    --terminal-status-zone: 56px;
   }
 
   .tile-header {
@@ -3264,7 +3263,6 @@ body.arranging-pointer {
     font-size: 11px;
   }
 
-  .terminal-status-text { max-width: 5ch; }
 
   .tile-action-group {
     gap: 3px;
