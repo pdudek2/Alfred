@@ -170,7 +170,7 @@ export function ProjectNavigator({
                 key={workspace.id}
                 role="listitem"
               >
-                <div className="project-row">
+                <div className={`project-row${active ? " is-active" : ""}`}>
                   <button
                     type="button"
                     className="project-row-button"
