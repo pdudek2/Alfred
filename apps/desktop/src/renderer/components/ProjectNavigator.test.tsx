@@ -182,6 +182,9 @@ describe("ProjectNavigator", () => {
 
     const sessionGroup = screen.getByRole("group", { name: "Alfred sessions" });
     expect(sessionGroup).toBeVisible();
+    const activeSession = within(sessionGroup).getByRole("button", { name: "Codex · Slice 2" });
+    expect(activeSession).toHaveTextContent(/Codex · (?:idle|running|active)/i);
+    expect(activeSession).toHaveAccessibleDescription(/Codex · (?:idle|running|active)/i);
     expect(screen.getByRole("button", { name: "Collapse Alfred sessions" })).toHaveAttribute(
       "aria-expanded",
       "true",

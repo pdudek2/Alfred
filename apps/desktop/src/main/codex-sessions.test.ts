@@ -46,6 +46,29 @@ describe("Codex sessions reader", () => {
     });
   });
 
+  it("assigns a nested project by its longest matching root", async () => {
+    const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
+    const parentRoot = path.join(codexHome, "very-long-parent-project-name");
+    const childRoot = path.join(parentRoot, "x");
+    const managedWorktreeRootPath = path.join(codexHome, "managed-worktrees-with-a-long-root-name");
+    const sessionDir = path.join(codexHome, "sessions", "2026", "09", "08");
+    await mkdir(childRoot, { recursive: true });
+    await mkdir(sessionDir, { recursive: true });
+    await writeFile(
+      path.join(sessionDir, "nested.jsonl"),
+      codexLines({ id: "nested-session", cwd: childRoot, title: "Nested project session" }),
+    );
+
+    const listed = await createCodexSessionsReader({ codexHome, managedWorktreeRootPath }).listExternalSessions({
+      projects: [
+        { id: "PARENT", label: "Parent", rootPath: parentRoot },
+        { id: "CHILD", label: "Child", rootPath: childRoot },
+      ],
+    });
+
+    expect(listed.sessions[0]).toMatchObject({ project: { id: "CHILD", label: "Child" } });
+  });
+
   it("returns display-safe opaque summaries in cursor pages and resolves selected keys", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
     const workspaceA = "/workspaces/alfred";

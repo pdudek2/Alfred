@@ -1,12 +1,20 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_DESKTOP_STATE, DEFAULT_WORKSPACE, createPersistedDesktopStateStore } from "./persisted-desktop-state.js";
 import { createWorkspaceStore as createWorkspaceStoreBase } from "./workspace-store.js";
 import type { WorkspaceStateSnapshot } from "../shared/workspace-ipc.js";
 
 let temporaryDirectory: string | null = null;
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
 
 function createWorkspaceStore(
   options: Parameters<typeof createWorkspaceStoreBase>[0] = {},
@@ -268,6 +276,89 @@ describe("workspace-store", () => {
       ],
       activeWorkspaceId: "CLIENT",
     });
+  });
+
+  it.each(["main", "stale-branch"])(
+    "does not overwrite a newer workspace binding when branch lookup returns %s",
+    async (branchResult) => {
+      const filePath = await temporaryStateFile();
+      const persistedStateStore = createPersistedDesktopStateStore({ filePath });
+      await persistedStateStore.setState({
+        ...DEFAULT_DESKTOP_STATE,
+        workspaces: [{
+          id: "CLIENT",
+          label: "Client",
+          shortLabel: "CLI",
+          rootPath: "/repo/client",
+          gitBranch: "main",
+        }],
+        activeWorkspaceId: "CLIENT",
+        layoutsByWorkspace: {},
+      });
+      const branchLookup = deferred<string | undefined>();
+      const resolveGitBranch = vi.fn(() => branchLookup.promise);
+      const store = createWorkspaceStore({ persistedStateStore, resolveGitBranch });
+
+      const refreshing = store.getWorkspaceState();
+      await vi.waitFor(() => expect(resolveGitBranch).toHaveBeenCalledWith("/repo/client"));
+      await persistedStateStore.updateState((current) => ({
+        ...current,
+        workspaces: current.workspaces.map((workspace) => ({
+          ...workspace,
+          label: "Rebound client",
+          rootPath: "/repo/rebound",
+        })),
+      }));
+      branchLookup.resolve(branchResult);
+
+      await expect(refreshing).resolves.toEqual({
+        workspaces: [{
+          id: "CLIENT",
+          label: "Rebound client",
+          shortLabel: "CLI",
+          rootPath: "/repo/rebound",
+          gitBranch: "main",
+        }],
+        activeWorkspaceId: "CLIENT",
+      });
+    },
+  );
+
+  it("does not let an older branch refresh overwrite a newer result", async () => {
+    const filePath = await temporaryStateFile();
+    const persistedStateStore = createPersistedDesktopStateStore({ filePath });
+    await persistedStateStore.setState({
+      ...DEFAULT_DESKTOP_STATE,
+      workspaces: [{
+        id: "CLIENT",
+        label: "Client",
+        shortLabel: "CLI",
+        rootPath: "/repo/client",
+        gitBranch: "main",
+      }],
+      activeWorkspaceId: "CLIENT",
+      layoutsByWorkspace: {},
+    });
+    const olderLookup = deferred<string | undefined>();
+    const newerLookup = deferred<string | undefined>();
+    const resolveGitBranch = vi.fn()
+      .mockImplementationOnce(() => olderLookup.promise)
+      .mockImplementationOnce(() => newerLookup.promise);
+    const store = createWorkspaceStore({ persistedStateStore, resolveGitBranch });
+
+    const olderRefresh = store.getWorkspaceState();
+    await vi.waitFor(() => expect(resolveGitBranch).toHaveBeenCalledTimes(1));
+    const newerRefresh = store.getWorkspaceState();
+    await vi.waitFor(() => expect(resolveGitBranch).toHaveBeenCalledTimes(2));
+    newerLookup.resolve("newer-branch");
+    await expect(newerRefresh).resolves.toEqual(expect.objectContaining({
+      workspaces: [expect.objectContaining({ gitBranch: "newer-branch" })],
+    }));
+    olderLookup.resolve("older-branch");
+
+    await expect(olderRefresh).resolves.toEqual(expect.objectContaining({
+      workspaces: [expect.objectContaining({ gitBranch: "newer-branch" })],
+    }));
   });
 
   it("reports a missing workspace folder without persisting the transient status", async () => {

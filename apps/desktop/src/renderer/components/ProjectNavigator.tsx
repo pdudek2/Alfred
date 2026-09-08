@@ -1,5 +1,5 @@
 import { Check, ChevronRight, CircleSlash, Folder, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, TriangleAlert } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import { isFreeChatSession, isNavigableLiveSession } from "../session-scope";
 import type { SessionTile } from "../session-state";
@@ -394,11 +394,14 @@ function NavigatorSessionButton({
 }) {
   const status = terminalSessionDisplayStatus(session);
   const kind = sessionTileKind(session);
+  const statusId = useId();
+  const agentLabel = recentAgentLabel(session) ?? "Terminal";
   return (
     <button
       type="button"
       className={`project-session${active ? " is-active" : ""}`}
       aria-current={active ? "page" : undefined}
+      aria-describedby={statusId}
       aria-label={session.title}
       data-label={session.title}
       data-session-id={session.id}
@@ -408,7 +411,10 @@ function NavigatorSessionButton({
       <span className={`project-session-kind kind-${kind}`} aria-hidden="true">
         <TileKindIcon kind={kind} size={14} />
       </span>
-      <span className="project-session-title">{session.title}</span>
+      <span className="project-session-copy">
+        <span className="project-session-title">{session.title}</span>
+        <small className="project-session-meta" id={statusId}>{agentLabel} · {status.label}</small>
+      </span>
     </button>
   );
 }

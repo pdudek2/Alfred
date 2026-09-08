@@ -15,11 +15,13 @@ export type WorkbenchHeaderProps = {
   shortcutModifier: "Cmd" | "Ctrl";
   surfacesTriggerRef?: Ref<HTMLButtonElement>;
   workspaceDetail: string;
+  workspaceRootMissing?: boolean;
   onAddAgentSession: (kind: "codex" | "claude") => void;
   onAddManualSession: () => void;
   onOpenCommandPalette: () => void;
   onOpenInbox: () => void;
   onOpenPrepareWork: () => void;
+  onReconnectWorkspace: () => void;
   onOpenPrivacyControls: () => void;
   onSelectSurface: (surface: PrimarySurface) => void;
   onToggleContext: () => void;
@@ -34,11 +36,13 @@ export function WorkbenchHeader({
   shortcutModifier,
   surfacesTriggerRef,
   workspaceDetail,
+  workspaceRootMissing = false,
   onAddAgentSession,
   onAddManualSession,
   onOpenCommandPalette,
   onOpenInbox,
   onOpenPrepareWork,
+  onReconnectWorkspace,
   onOpenPrivacyControls,
   onSelectSurface,
   onToggleContext,
@@ -55,10 +59,37 @@ export function WorkbenchHeader({
       : "Alfred";
   const inboxLabel = `Open Inbox surface${inboxCount > 0 ? `, ${inboxCount} item${inboxCount === 1 ? "" : "s"}` : ""}`;
   const launchItems: ChromeMenuItem[] = [
-    { id: "prepare-work", label: "Prepare Work", run: onOpenPrepareWork },
-    { id: "new-codex", label: "New Codex session", run: () => onAddAgentSession("codex") },
-    { id: "new-claude", label: "New Claude session", run: () => onAddAgentSession("claude") },
-    { id: "new-manual", label: "New manual terminal", run: onAddManualSession },
+    ...(workspaceRootMissing
+      ? [{ id: "reconnect-workspace", label: "Reconnect project folder", run: onReconnectWorkspace }]
+      : []),
+    {
+      id: "prepare-work",
+      label: "Prepare Work",
+      ...(workspaceRootMissing ? { detail: "Reconnect the project folder first" } : {}),
+      disabled: workspaceRootMissing,
+      run: onOpenPrepareWork,
+    },
+    {
+      id: "new-codex",
+      label: "New Codex session",
+      ...(workspaceRootMissing ? { detail: "Reconnect the project folder first" } : {}),
+      disabled: workspaceRootMissing,
+      run: () => onAddAgentSession("codex"),
+    },
+    {
+      id: "new-claude",
+      label: "New Claude session",
+      ...(workspaceRootMissing ? { detail: "Reconnect the project folder first" } : {}),
+      disabled: workspaceRootMissing,
+      run: () => onAddAgentSession("claude"),
+    },
+    {
+      id: "new-manual",
+      label: "New manual terminal",
+      ...(workspaceRootMissing ? { detail: "Reconnect the project folder first" } : {}),
+      disabled: workspaceRootMissing,
+      run: onAddManualSession,
+    },
   ];
   const surfaceItems: ChromeMenuItem[] = [
     { id: "work", label: "Work", run: () => onSelectSurface("work") },

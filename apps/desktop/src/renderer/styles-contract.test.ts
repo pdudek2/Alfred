@@ -539,8 +539,8 @@ describe("renderer CSS contracts", () => {
     }
     expect(rootToken("--signal-focus")).toBe("#4DA8B5");
     const root = singleTopLevelRuleBodyIn(styles, ":root");
-    expect(root).toContain("--radius-control: 8px");
-    expect(root).toContain("--radius-panel: 12px");
+    expect(root).toContain("--radius-control: 10px");
+    expect(root).toContain("--radius-panel: 14px");
     expect(contrastRatio(rootToken("--ink-5"), rootToken("--ink-0"))).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(rootToken("--ink-5"), rootToken("--ink-1"))).toBeGreaterThanOrEqual(4.5);
   });
@@ -713,7 +713,7 @@ describe("renderer CSS contracts", () => {
     const signalUses = ownerRules.filter(({ body }) => /var\(--signal\)/.test(body));
     const oversizedRadii = ownerRules.flatMap(({ selectors, body }) =>
       [...body.matchAll(/border-radius:\s*(\d+(?:\.\d+)?)px/g)]
-        .filter((match) => Number(match[1]) > 9)
+        .filter((match) => Number(match[1]) > 16)
         .map((match) => ({ selectors, radius: match[1] })),
     );
 
@@ -725,8 +725,9 @@ describe("renderer CSS contracts", () => {
       ['html[data-alfred-window-material="native"] .mission-bar'],
       [".terminal-tile:focus-visible"],
       [".project-session.is-active"],
+      [".workspace-layout.surface-work > .orchestrator-surface"],
     ]));
-    expect(materialShadows).toHaveLength(6);
+    expect(materialShadows).toHaveLength(7);
     expect(oversizedRadii).toEqual([]);
     expect(signalUses.every(({ selectors }) =>
       selectors.every((selector) =>
@@ -1364,13 +1365,13 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".composer-bar", ["display: grid", "min-width: 0"]);
     expectCanonicalBase(".composer-input", ["box-sizing: border-box", "resize: none"]);
     expectCanonicalBase(".composer-send", ["display: inline-flex", "cursor: pointer"]);
-    expectCanonicalBase(".dispatch-target-chip", ["border-radius: 5px", "background-image: none"]);
+    expectCanonicalBase(".dispatch-target-chip", ["border-radius: 9px", "background-image: none"]);
 
     const terminalGridStart = ".terminal-stage {";
     const terminalGridEnd = ".terminal-empty-state {";
     expectTopLevelOwnerWithin(
       ".terminal-grid.laid-out",
-      ["--grid-bottom-safe-zone: 76px", "min-height: 100%", "height: 100%"],
+      ["--grid-bottom-safe-zone: 10px", "min-height: 100%", "height: 100%"],
       terminalGridStart,
       terminalGridEnd,
     );
@@ -2351,8 +2352,8 @@ describe("renderer CSS contracts", () => {
     expect(commandPalette).toContain("scrollbar-color: var(--ink-3) transparent");
     expect(paletteScrollbar).toContain("width: 8px");
     expect(paletteThumb).toContain("background: var(--ink-3)");
-    expect(selectedSession).toContain("box-shadow: inset 2px 0 0");
-    expect(selectedSession).toContain("var(--signal-focus) 5%");
+    expect(selectedSession).toContain("box-shadow: inset 0 0 0 1px");
+    expect(selectedSession).toContain("var(--signal-focus) 10%");
   });
 
   it("keeps the ready dispatch action neutral", () => {
@@ -2591,12 +2592,12 @@ describe("renderer CSS contracts", () => {
     expect(navSectionHeader).toContain("var(--sans)");
     expect(navRow).toContain("background: transparent");
     expectCanonicalBase(".project-row-button", [
-      "min-height: 36px",
-      "border-radius: 8px",
+      "min-height: 40px",
+      "border-radius: 10px",
     ]);
     expectCanonicalBase(".project-session", [
-      "min-height: 32px",
-      "border-radius: 7px",
+      "min-height: 44px",
+      "border-radius: 10px",
     ]);
     expect(projectRow).toContain("grid-template-columns: minmax(0, 1fr) auto auto");
     expect(navRow).toContain("grid-template-columns: 17px minmax(0, 1fr) auto auto");

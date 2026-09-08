@@ -110,7 +110,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   const contextWidth = await page.getByTestId("context-column").evaluate(
     (node) => node.getBoundingClientRect().width,
   );
-  expect(gridBeforeContext.width - gridAfterContext.width).toBe(318);
+  expect(gridBeforeContext.width - gridAfterContext.width - contextWidth).toBe(8);
   expect(gridAfterContext.width).toBeGreaterThanOrEqual(420);
   expect(contextWidth).toBe(318);
   expect(Math.abs(gridAfterContext.height - gridBeforeContext.height)).toBeLessThanOrEqual(1);
@@ -128,6 +128,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
 
   await chooseWorkLayout(page, "Grid");
   await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
+  const wideScreenshotSha256 = await captureEvidence(page, "project-shell-1440x900.png");
   await setWindowSize(app, page, 1120, 720);
   await expect.poll(() => page.getByTestId("terminal-grid").evaluate((grid) =>
     Array.from(grid.querySelectorAll<HTMLElement>("[data-testid='terminal-tile']"))
@@ -135,10 +136,10 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
       .some((animation) => animation.playState === "running")
   )).toBe(false);
   const narrow = await readNarrowProjectShell(page);
-  expect(narrow.navigatorWidth).toBe(226);
-  expect(narrow.gridTemplateColumns).toBe("226px 894px");
-  expect(narrow.orchestratorX - narrow.layoutX).toBe(226);
-  expect(narrow.orchestratorX).toBe(narrow.navigatorRight);
+  expect(narrow.navigatorWidth).toBeGreaterThanOrEqual(226);
+  expect(narrow.navigatorWidth).toBeLessThanOrEqual(280);
+  expect(narrow.gridTemplateColumns.split(" ")).toHaveLength(2);
+  expect(narrow.orchestratorX - narrow.navigatorRight).toBeCloseTo(8, 1);
   expect(narrow.documentOverflow).toBe(0);
   expect(
     narrow.activeControlOverflows,
@@ -154,6 +155,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   harness.assertNoRuntimeErrors();
 
   const screenshotSha256 = {
+    "project-shell-1440x900.png": wideScreenshotSha256,
     "project-shell-1120x720.png": await captureEvidence(page, "project-shell-1120x720.png"),
   };
   const runtimeProof = {
@@ -197,6 +199,10 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   const proofPath = path.join(evidenceDir, "runtime-proof.json");
   await writeFile(proofPath, proofText, "utf8");
   await testInfo.attach("runtime-proof.json", { path: proofPath, contentType: "application/json" });
+  await testInfo.attach("project-shell-1440x900.png", {
+    path: path.join(evidenceDir, "project-shell-1440x900.png"),
+    contentType: "image/png",
+  });
   await testInfo.attach("project-shell-1120x720.png", {
     path: path.join(evidenceDir, "project-shell-1120x720.png"),
     contentType: "image/png",

@@ -224,7 +224,13 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     terminalChannels.snapshot,
     async (event, request: TerminalSnapshotRequest): Promise<TerminalSnapshotResult> => {
       const session = getOwnedSession(event.sender, request.id);
-      return session ? toSnapshot(session) : null;
+      if (session) return toSnapshot(session);
+
+      const window = BrowserWindow.fromWebContents(event.sender);
+      const recentExit = recentTerminalExits.get(request.id);
+      if (!window || !recentExit || !canAttachOwnerToWindow(recentExit.ownerWindowId, window)) return null;
+      recentExit.ownerWindowId = window.id;
+      return recentExit.snapshot;
     },
   );
 

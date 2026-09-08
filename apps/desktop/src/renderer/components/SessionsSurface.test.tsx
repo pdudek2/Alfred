@@ -606,6 +606,33 @@ describe("SessionsSurface", () => {
     expect(terminalApi.snapshot).not.toHaveBeenCalled();
   });
 
+  it("reads the cached final scrollback for an exited managed session", async () => {
+    const user = userEvent.setup();
+    const session = managedSession(3, {
+      runtimeStatus: "exited",
+      title: "Finished implementation",
+      initialBuffer: "older renderer buffer\n",
+    });
+    const terminalApi = createTerminalApi([{
+      id: session.runtimeId!,
+      clientId: session.id,
+      title: session.title,
+      source: "manual",
+      workspaceId: "A",
+      cwd: session.cwd,
+      shell: "/bin/zsh",
+      buffer: "final cached result\n",
+    }]);
+    renderSurface({ sessions: [session], terminalApi });
+
+    await user.click(screen.getByRole("option", { name: /Finished implementation/ }));
+
+    expect(await screen.findByRole("article", { name: /Finished implementation/ })).toHaveTextContent(
+      "final cached result",
+    );
+    expect(terminalApi.snapshot).toHaveBeenCalledWith({ id: session.runtimeId });
+  });
+
   it("strips ANSI escape sequences from managed transcript buffers", async () => {
     const user = userEvent.setup();
     const terminalApi = createTerminalApi();

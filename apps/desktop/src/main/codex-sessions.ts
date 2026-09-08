@@ -656,11 +656,14 @@ async function projectForCwd(
   }
   const project = projects
     .filter((candidate) => candidate.canonicalRoots.some((root) => pathMatchesWorkspace(canonicalCwd, root)))
-    .sort((left, right) => longestRoot(right) - longestRoot(left))[0];
+    .sort((left, right) => longestMatchingRoot(right, canonicalCwd) - longestMatchingRoot(left, canonicalCwd))[0];
   return project ? { id: project.id, label: boundedDisplayText(project.label) } : { id: null, label: "External Codex" };
 }
-function longestRoot(project: CanonicalSessionsProject): number {
-  return project.canonicalRoots.reduce((longest, root) => Math.max(longest, root.length), 0);
+function longestMatchingRoot(project: CanonicalSessionsProject, cwd: string): number {
+  return project.canonicalRoots.reduce(
+    (longest, root) => pathMatchesWorkspace(cwd, root) ? Math.max(longest, root.length) : longest,
+    0,
+  );
 }
 function pathMatchesWorkspace(cwd: string, root: string): boolean {
   return Boolean(cwd && root && (cwd === root || cwd.startsWith(`${root}${path.sep}`)));

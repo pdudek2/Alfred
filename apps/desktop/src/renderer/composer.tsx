@@ -9,6 +9,8 @@ type ComposerBarProps = {
   lastDispatchDestination?: string | null | undefined;
   requestError?: string | undefined;
   thinking: boolean;
+  draft?: string;
+  onDraftChange?: (value: string) => void;
   onBlockedAction?: (() => void) | undefined;
   onCycleDispatchTarget?: (() => void) | undefined;
   onSubmit: (value: string) => boolean | Promise<boolean>;
@@ -26,8 +28,12 @@ export function ComposerBar({
   onBlockedAction,
   onCycleDispatchTarget,
   onSubmit,
+  draft: controlledDraft,
+  onDraftChange,
 }: ComposerBarProps) {
-  const [draft, setDraft] = useState<string>("");
+  const [localDraft, setLocalDraft] = useState<string>("");
+  const draft = controlledDraft ?? localDraft;
+  const setDraft = onDraftChange ?? setLocalDraft;
   const blocked = blockedReason !== undefined;
   const composerDisabled = disabled || thinking || !dispatchTarget;
   const canSubmit = !composerDisabled && !blocked && draft.trim().length > 0;
@@ -53,7 +59,7 @@ export function ComposerBar({
     if (!canSubmit) return;
     const submitted = await onSubmit(draft);
     if (submitted) setDraft("");
-  }, [canSubmit, draft, onSubmit]);
+  }, [canSubmit, draft, onSubmit, setDraft]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -61,10 +67,6 @@ export function ComposerBar({
         event.preventDefault();
         void handleSubmit();
         return;
-      }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setDraft("");
       }
     },
     [handleSubmit],

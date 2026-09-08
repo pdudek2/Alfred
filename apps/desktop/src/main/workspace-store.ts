@@ -133,7 +133,13 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
 
   async function refreshWorkspaceBranches(state: DesktopStateSnapshot): Promise<DesktopStateSnapshot> {
     let changed = false;
-    const workspaces = await Promise.all(
+    const previousById = new Map<string, { rootPath: string | undefined; gitBranch: string | undefined }>(
+      state.workspaces.map((workspace) => [workspace.id, {
+        rootPath: workspace.rootPath,
+        gitBranch: workspace.gitBranch,
+      }]),
+    );
+    const workspaces: WorkspaceStateSnapshot["workspaces"] = await Promise.all(
       state.workspaces.map(async (workspace) => {
         if (!workspace.rootPath) return workspace;
         const gitBranch = await (options.resolveGitBranch ?? resolveGitBranch)(workspace.rootPath);
@@ -147,11 +153,28 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
       }),
     );
 
-    if (!changed) return state;
-    const refreshedById = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
+    if (!changed) return persistedStateStore.getState();
+    const refreshedById = new Map<string, { rootPath: string | undefined; gitBranch: string | undefined }>(workspaces.map((workspace) => [workspace.id, {
+      rootPath: workspace.rootPath,
+      gitBranch: workspace.gitBranch,
+    }]));
     return persistedStateStore.updateState((current) => ({
       ...current,
-      workspaces: current.workspaces.map((workspace) => refreshedById.get(workspace.id) ?? workspace),
+      workspaces: current.workspaces.map((workspace) => {
+        const refreshed = refreshedById.get(workspace.id);
+        const previous = previousById.get(workspace.id);
+        if (
+          !refreshed
+          || !previous
+          || workspace.rootPath !== previous.rootPath
+          || workspace.gitBranch !== previous.gitBranch
+        ) return workspace;
+        if (refreshed.gitBranch === undefined) {
+          const { gitBranch: _staleGitBranch, ...withoutGitBranch } = workspace;
+          return withoutGitBranch;
+        }
+        return { ...workspace, gitBranch: refreshed.gitBranch };
+      }),
     }));
   }
 
