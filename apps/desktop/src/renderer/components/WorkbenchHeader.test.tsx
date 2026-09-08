@@ -35,6 +35,7 @@ const baseProps = {
   onOpenCommandPalette: vi.fn(),
   onOpenInbox: vi.fn(),
   onOpenPrepareWork: vi.fn(),
+  onReconnectWorkspace: vi.fn(),
   onOpenPrivacyControls: vi.fn(),
   onSelectSurface: vi.fn(),
   onToggleContext: vi.fn(),
@@ -97,6 +98,21 @@ describe("WorkbenchHeader", () => {
     expect(screen.getByRole("menuitem", { name: "New Codex session" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "New Claude session" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "New manual terminal" })).toBeInTheDocument();
+  });
+
+  it("explains a missing project folder and offers the recovery action", async () => {
+    const user = userEvent.setup();
+    const onReconnectWorkspace = vi.fn();
+    renderHeader({ workspaceRootMissing: true, onReconnectWorkspace });
+
+    await user.click(screen.getByRole("button", { name: "Open launch menu" }));
+    expect(screen.getByRole("menuitem", { name: /^Prepare Work/ })).toBeDisabled();
+    expect(screen.getByRole("menuitem", { name: /^New Codex session/ })).toHaveTextContent(
+      "Reconnect the project folder first",
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Reconnect project folder" }));
+
+    expect(onReconnectWorkspace).toHaveBeenCalledOnce();
   });
 
   it("announces the exact blocking Inbox count", () => {

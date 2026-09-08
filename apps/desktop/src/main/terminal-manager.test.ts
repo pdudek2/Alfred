@@ -1427,12 +1427,18 @@ describe("terminal-manager IPC", () => {
       }),
       event: { id: created.id, clientId: "fast-exit", exitCode: 7, signal: 9 },
     });
+    await expect(
+      invoke<TerminalSnapshotResult>(terminalChannels.snapshot, { id: created.id }),
+    ).resolves.toEqual(expect.objectContaining({ buffer: "failed before attach\n" }));
 
     const otherWindow = fakeWindow(2);
     liveWindows.push(otherWindow);
     await expect(
       invoke("alfred:terminal:reconcile", { id: created.id }, senderFor(otherWindow)),
     ).resolves.toEqual({ state: "missing" });
+    await expect(
+      invoke<TerminalSnapshotResult>(terminalChannels.snapshot, { id: created.id }, senderFor(otherWindow)),
+    ).resolves.toBeNull();
   });
 
   it("keeps only the newest 64 terminal exit records available for reconciliation", async () => {

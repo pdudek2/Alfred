@@ -219,6 +219,7 @@ export function App() {
   const [lastDispatchDestination, setLastDispatchDestination] = useState<string | null>(null);
   const [pendingDiscardConfirmation, setPendingDiscardConfirmation] = useState<PendingDiscardConfirmation | null>(null);
   const [prepareWorkOpen, setPrepareWorkOpen] = useState(false);
+  const [prepareWorkDraftsByWorkspace, setPrepareWorkDraftsByWorkspace] = useState<Record<string, string>>({});
   const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const prepareWorkTriggerRef = useRef<HTMLButtonElement | null>(null);
   const previewTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -459,6 +460,8 @@ export function App() {
 
     terminalSessionsRef.current = nextSessions;
     setTerminalSessions(nextSessions);
+    setAgentsDrawerOpen(false);
+    setActiveSurface("work");
     setRevealSessionId(activeWorkMode === "focus" ? null : addedSession.id);
     setSelectedSessionIdsByWorkspace((current) => ({
       ...current,
@@ -578,6 +581,7 @@ export function App() {
     setCollapsedSessionIdsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setContextDrawerOpenByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setDispatchTargetsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
+    setPrepareWorkDraftsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setSelectedPreviewUrlsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setPreviewRefreshKeysByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setPreviewDockOpenByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
@@ -707,6 +711,8 @@ export function App() {
   }, [activeDispatchTarget, activeDispatchTargets, activeWorkspace.id, persistActiveWorkspaceViewState]);
 
   const handleBeginRenameActiveWorkspace = useCallback(() => {
+    setAgentsDrawerOpen(false);
+    setActiveSurface("work");
     setWorkspaceRenameDraft(activeWorkspace.label);
     setWorkspaceRenameEditing(true);
     setWorkspaceMenuOpen(true);
@@ -2684,11 +2690,13 @@ export function App() {
             shortcutModifier={shortcutModifier}
             surfacesTriggerRef={surfacesTriggerRef}
             workspaceDetail={workspaceDetail(activeWorkspace)}
+            workspaceRootMissing={activeWorkspace.rootStatus === "missing"}
             onAddAgentSession={handleAddAgentSession}
             onAddManualSession={handleAddManualSession}
             onOpenCommandPalette={handleOpenCommandPalette}
             onOpenInbox={handleOpenInbox}
             onOpenPrepareWork={() => setPrepareWorkOpen(true)}
+            onReconnectWorkspace={() => void handleBindWorkspaceFromFolder()}
             onOpenPrivacyControls={handleOpenPrivacyPanel}
             onSelectSurface={handleSelectPrimarySurface}
             onToggleContext={handleToggleContextDrawer}
@@ -2988,7 +2996,12 @@ export function App() {
               lastDispatchDestination={lastDispatchDestination}
               requestError={alfredStatus.kind === "error" ? alfredStatus.error.message : undefined}
               thinking={isThinking(alfredStatus)}
+              draft={prepareWorkDraftsByWorkspace[activeWorkspace.id] ?? ""}
               disabled={commandPaletteOpen || privacyPanelOpen}
+              onDraftChange={(draft) => setPrepareWorkDraftsByWorkspace((current) => ({
+                ...current,
+                [activeWorkspace.id]: draft,
+              }))}
               onBlockedAction={
                 stagedWorkspaceId
                   ? () => handleSelectWorkspace(stagedWorkspaceId)
@@ -2997,7 +3010,10 @@ export function App() {
               onCycleDispatchTarget={handleCycleDispatchTarget}
               onSubmit={async (draft) => {
                 const submitted = await handleSubmitDispatch(draft);
-                if (submitted) setPrepareWorkOpen(false);
+                if (submitted) {
+                  setPrepareWorkDraftsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
+                  setPrepareWorkOpen(false);
+                }
                 return submitted;
               }}
             />

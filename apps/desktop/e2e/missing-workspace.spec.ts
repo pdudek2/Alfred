@@ -24,6 +24,12 @@ test("keeps a workspace recoverable when its saved folder is missing", async ({ 
   await page.keyboard.press("Meta+T");
   await expect(page.getByTestId("terminal-tile")).toHaveCount(0);
 
+  await page.getByRole("button", { name: "Open launch menu" }).click();
+  await expect(page.getByRole("menuitem", { name: /^Prepare Work/ })).toBeDisabled();
+  await expect(page.getByRole("menuitem", { name: /^New manual terminal/ }))
+    .toContainText("Reconnect the project folder first");
+  await page.keyboard.press("Escape");
+
   await page.getByRole("button", { name: "Open command palette" }).click();
   await page.getByRole("textbox", { name: "Search commands" }).fill("manual terminal");
   await expect(page.getByRole("option", { name: /New manual terminal/ })).toBeDisabled();

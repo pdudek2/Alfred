@@ -515,10 +515,10 @@ async function readManagedTranscript(
 ): Promise<string | null> {
   if (!session) return null;
   if (session.runtimeStatus === "restored") return session.initialBuffer ?? null;
-  if ((session.runtimeStatus === "live" || session.runtimeStatus === "starting") && session.runtimeId && terminalApi) {
-    return (await terminalApi.snapshot({ id: session.runtimeId }))?.buffer ?? null;
+  if (session.runtimeId && terminalApi) {
+    return (await terminalApi.snapshot({ id: session.runtimeId }))?.buffer ?? session.initialBuffer ?? null;
   }
-  return null;
+  return session.initialBuffer ?? null;
 }
 
 function terminalTranscriptPage(

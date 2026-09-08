@@ -1084,6 +1084,53 @@ describe("App integration", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it("keeps the Prepare Work draft after closing and revisiting Work", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await openPrepareWork(user);
+    await user.type(screen.getByRole("textbox", { name: "Dispatch instruction" }), "keep this draft");
+    await user.keyboard("{Escape}");
+    await selectSurface(user, "Sessions");
+    await selectSurface(user, "Work");
+    await openPrepareWork(user);
+
+    expect(screen.getByRole("textbox", { name: "Dispatch instruction" })).toHaveValue("keep this draft");
+  });
+
+  it("starts a global New session from Sessions and returns to the selected Work tile", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await selectSurface(user, "Sessions");
+    await user.click(screen.getByRole("button", { name: "Open launch menu" }));
+    await user.click(screen.getByRole("menuitem", { name: "New manual terminal" }));
+
+    expect(await screen.findByRole("article", { name: /Manual · zsh 2/i })).toHaveClass("selected");
+    expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-work");
+  });
+
+  it("opens the global Rename action from Sessions on the Work surface", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge();
+
+    render(<App />);
+
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
+    await selectSurface(user, "Sessions");
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await submitCommandPalette(user, "rename current workspace");
+
+    expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-work");
+    expect(screen.getByRole("dialog", { name: "Rename workspace" })).toBeInTheDocument();
+  });
+
   it("keeps Focus active when Prepare Work handles Escape", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
@@ -4226,14 +4273,15 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "New terminal" })).toBeDisabled();
     expect(createTerminal).not.toHaveBeenCalled();
 
-    await user.click(within(emptyState).getByRole("button", { name: "Choose folder" }));
+    await user.click(screen.getByRole("button", { name: "Open launch menu" }));
+    expect(screen.getByRole("menuitem", { name: /^Prepare Work/ })).toBeDisabled();
+    expect(screen.getByRole("menuitem", { name: /^New manual terminal/ })).toBeDisabled();
+    expect(screen.getAllByText("Reconnect the project folder first").length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("menuitem", { name: "Reconnect project folder" }));
     expect(bindFolderToWorkspace).toHaveBeenCalledWith({ workspaceId: "A" });
     expect(createTerminal).not.toHaveBeenCalled();
 
-    await user.click(
-      within(await screen.findByRole("status", { name: "Unavailable workspace folder" }))
-        .getByRole("button", { name: "Choose folder" }),
-    );
+    await user.click(within(emptyState).getByRole("button", { name: "Choose folder" }));
     expect(bindFolderToWorkspace).toHaveBeenCalledTimes(2);
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
@@ -4648,6 +4696,9 @@ describe("App integration", () => {
       "location",
     );
     expect(await screen.findByRole("status", { name: "Empty workspace" })).toHaveTextContent("Workspace 2");
+    await openPrepareWork(user);
+    await user.type(screen.getByRole("textbox", { name: "Dispatch instruction" }), "discarded workspace draft");
+    await user.keyboard("{Escape}");
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await submitCommandPalette(user, "close current");
@@ -4665,6 +4716,14 @@ describe("App integration", () => {
         activeWorkspaceId: "A",
       });
     });
+
+    await user.click(screen.getByRole("button", { name: "Add workspace" }));
+    expect(await screen.findByRole("button", { name: "Workspace 2 workspace" })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
+    await openPrepareWork(user);
+    expect(screen.getByRole("textbox", { name: "Dispatch instruction" })).toHaveValue("");
   });
 
   it("hydrates persisted workspaces and opens the last active workspace", async () => {
@@ -8868,7 +8927,7 @@ describe("App integration", () => {
 
     render(<App />);
     await openInboxFromCommandPalette(user);
-    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
+    let inbox = screen.getByRole("region", { name: "Inbox workspace" });
     await user.click(within(inbox).getByRole("button", { name: "Recovery · 1 saved session" }));
     await user.click(within(inbox).getByRole("button", { name: "Review relaunch Original risky recovery in Alfred" }));
     await user.click(within(inbox).getByRole("button", { name: "Discard Original risky recovery" }));
@@ -8892,6 +8951,8 @@ describe("App integration", () => {
     expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("Reused risky recovery is now idle.");
     await bridge.emitExit({ id: "runtime-reused-recovery", exitCode: 1 });
 
+    await openInboxFromCommandPalette(user);
+    inbox = screen.getByRole("region", { name: "Inbox workspace" });
     const recoveryToggle = screen.getByRole("button", { name: "Recovery · 1 saved session" });
     if (recoveryToggle.getAttribute("aria-expanded") !== "true") await user.click(recoveryToggle);
     await user.click(within(inbox).getByRole("button", { name: "Review relaunch Reused risky recovery in Alfred" }));
