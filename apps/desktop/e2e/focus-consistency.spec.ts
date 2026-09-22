@@ -49,8 +49,9 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
 });
 
 async function focusFromKeyboard(page: Page, control: Locator): Promise<void> {
+  await control.focus();
+  await page.keyboard.press("Shift+Tab");
   await page.keyboard.press("Tab");
-  await control.evaluate((node) => (node as HTMLElement).focus());
   await expect(control).toBeFocused();
   expect(await control.evaluate((node) => node.matches(":focus-visible"))).toBe(true);
 }
