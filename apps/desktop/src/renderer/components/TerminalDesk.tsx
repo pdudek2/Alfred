@@ -95,6 +95,7 @@ function captureAgentTitleInput(state: AgentTitleInputCapture, data: string): Ag
 }
 
 export type WorktreeActionKind = "review" | "apply";
+export type TerminalStartAttempt = { readonly workspaceId: string };
 
 type TerminalDeskProps = {
   activeWorkspaceId: string;
@@ -127,13 +128,13 @@ type TerminalDeskProps = {
   onRestartSession: (sessionId: string) => void;
   onApplyWorkMode: (mode: WorkMode) => void;
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
-  onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
+  onRuntimeSessionFailed: (tileId: string, attempt: TerminalStartAttempt, reason?: string) => void;
   onRuntimeSessionExited: (event: TerminalExitEvent) => void;
   onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
   onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
   onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
-  onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
-  onRuntimeSessionStarting: (tileId: string) => boolean;
+  onRuntimeSessionReady: (tileId: string, attempt: TerminalStartAttempt, runtime: TerminalCreateResult) => void;
+  onRuntimeSessionStarting: (tileId: string, attempt: TerminalStartAttempt) => boolean;
   onRuntimeSessionUnavailable: (tileId: string) => void;
   onRenameSession: (sessionId: string, title: string) => void;
   onFocusSession: (sessionId: string) => void;
@@ -969,13 +970,13 @@ function ManualTerminalTile({
   onSelectSession: () => void;
   onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
-  onRuntimeSessionFailed: (tileId: string, reason?: string) => void;
+  onRuntimeSessionFailed: (tileId: string, attempt: TerminalStartAttempt, reason?: string) => void;
   onRuntimeSessionExited: (event: TerminalExitEvent) => void;
   onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
   onRuntimeSessionReplayBuffer: (sessionId: string, runtimeId: TerminalSessionId, buffer: string) => void;
   onRuntimeSessionSnapshot: (sessionId: string, snapshot: TerminalSessionSnapshot) => void;
-  onRuntimeSessionReady: (tileId: string, runtime: TerminalCreateResult) => void;
-  onRuntimeSessionStarting: (tileId: string) => boolean;
+  onRuntimeSessionReady: (tileId: string, attempt: TerminalStartAttempt, runtime: TerminalCreateResult) => void;
+  onRuntimeSessionStarting: (tileId: string, attempt: TerminalStartAttempt) => boolean;
   onRuntimeSessionUnavailable: (tileId: string) => void;
   onOpenExternalTerminal: (cwd: string) => Promise<boolean>;
   onRenameSession: (sessionId: string, title: string) => void;
@@ -1518,7 +1519,8 @@ function ManualTerminalTile({
       };
     }
 
-    if (!callbacks.onRuntimeSessionStarting(sessionKey)) {
+    const attempt: TerminalStartAttempt = { workspaceId: metadata.workspaceId };
+    if (!callbacks.onRuntimeSessionStarting(sessionKey, attempt)) {
       return () => {
         disposed = true;
         inputDisposable.dispose();
@@ -1562,7 +1564,7 @@ function ManualTerminalTile({
 
     createTerminalSession
       .then((session) => {
-        runtimeCallbacksRef.current.onRuntimeSessionReady(sessionKey, session);
+        runtimeCallbacksRef.current.onRuntimeSessionReady(sessionKey, attempt, session);
 
         if (disposed) {
           return;
@@ -1575,7 +1577,7 @@ function ManualTerminalTile({
       })
       .catch((error: unknown) => {
         const reason = error instanceof Error ? error.message : String(error);
-        runtimeCallbacksRef.current.onRuntimeSessionFailed(sessionKey, reason);
+        runtimeCallbacksRef.current.onRuntimeSessionFailed(sessionKey, attempt, reason);
         if (disposed) {
           return;
         }
