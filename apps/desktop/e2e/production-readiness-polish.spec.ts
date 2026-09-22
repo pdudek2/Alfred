@@ -29,7 +29,7 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expect(screen).toBeAttached();
   const screenBefore = await requiredHandle(screen, "launched fixture xterm");
   await expectFixedCellFont(page.locator(".xterm-rows").first());
-  await expectSans(page.locator('[data-testid="terminal-tile"]').first().locator(".tile-title small"));
+  await expectSans(page.locator('[data-testid="terminal-tile"]').first().locator(".terminal-status-label"));
 
   // Normal Work geometry progresses through one, two, then the bounded three-pane desk.
   await expect(page.getByTestId("terminal-grid")).toHaveClass(/single/);
