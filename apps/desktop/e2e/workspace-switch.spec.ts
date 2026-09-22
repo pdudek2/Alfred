@@ -96,11 +96,8 @@ test("workspace switch keeps the same xterm node and streams background output",
   const afterReturnSnapshot = await snapshotMainProcessTerminal(page, runtimeId);
   expect(afterReturnSnapshot.id).toBe(runtimeId);
   expect(afterReturnSnapshot.buffer).toContain(marker);
-  const cwdLabel = terminalTiles.locator('[aria-label^="cwd "]');
-  await expect(cwdLabel).toHaveCount(1);
-  const cwdAriaLabel = await cwdLabel.getAttribute("aria-label");
-  if (cwdAriaLabel === null) throw new Error("Terminal CWD label is missing.");
-  const actualCwd = cwdAriaLabel.slice("cwd ".length);
+  const actualCwd = afterReturnRuntimes.sessions[0]?.cwd;
+  if (!actualCwd) throw new Error("Workspace A runtime CWD is missing after return.");
   expect(await realpath(actualCwd)).toBe(await realpath(paths.workspaceA));
 
   const secondMarker = `ALFRED_E2E_AFTER_SWITCH_${randomUUID()}`;

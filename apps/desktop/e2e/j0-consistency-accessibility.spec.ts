@@ -1,5 +1,7 @@
+import { realpath } from "node:fs/promises";
 import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { settleTerminalTileAnimations } from "./support/work-layout";
 import { collectControlOverflowEvidence } from "./support/control-overflow-evidence";
 import { privacySafeScreenshotStyle } from "./support/privacy-safe-screenshot";
 
@@ -13,9 +15,8 @@ test.use({
 });
 
 test("keeps J0 utility surfaces accessible without replacing xterm", async ({ harness }, testInfo) => {
-  const { app, page } = harness;
+  const { app, page, paths } = harness;
   await setWindowSize(app, page, 1440, 900);
-  await showWindowForNativeObservation(app);
 
   await page.getByRole("toolbar", { name: "Work layout controls" })
     .getByRole("button", { name: "New terminal" })
@@ -24,7 +25,7 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await expect(workScreen).toBeAttached();
   const screenBefore = await requiredHandle(workScreen, "initial Work xterm screen");
   await expectFixedCellTerminalFont(page.locator(".xterm-rows").first(), "12.5px");
-  await expectSansFont(page.getByTestId("terminal-tile").first().locator(".tile-title small"));
+  await expectSansFont(page.locator(".terminal-tile.real-terminal .terminal-status-label").first());
 
   const runtimeId = await page.evaluate(async () => {
     const terminalApi = window.alfredDesktop?.terminal;
@@ -256,10 +257,10 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await chooseWorkLayout(page, "Grid");
   await setLongTerminalHeaderTitle(page, "manual-1");
   await setWindowSize(app, page, 1440, 900);
-  await expectStableTerminalHeader(page, "manual-1");
+  await expectStableTerminalHeader(page, "manual-1", paths.workspaceA);
 
   await setWindowSize(app, page, 1120, 720);
-  await expectStableTerminalHeader(page, "manual-1");
+  await expectStableTerminalHeader(page, "manual-1", paths.workspaceA);
 
   await chooseWorkLayout(page, "Arrange");
   const minimumSpanTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
@@ -268,7 +269,7 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await page.keyboard.press("Shift+ArrowLeft");
   await page.keyboard.press("Shift+ArrowLeft");
   await expect(minimumSpanTile).toHaveCSS("grid-column", "1 / span 3");
-  await expectStableTerminalHeader(page, "manual-1");
+  await expectStableTerminalHeader(page, "manual-1", paths.workspaceA);
 
   harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();
@@ -331,17 +332,24 @@ async function expectFixedCellTerminalFont(locator: Locator, size?: string): Pro
   expect(style.family).toContain("Menlo");
 }
 
-async function expectStableTerminalHeader(page: Page, sessionId: string): Promise<void> {
+async function expectStableTerminalHeader(page: Page, sessionId: string, expectedCwd: string): Promise<void> {
   const tile = page.locator(`[data-testid="terminal-tile"][data-session-id="${sessionId}"]:not([aria-hidden="true"])`);
   const header = tile.locator(".terminal-tile-header");
   await expect(header).toBeVisible();
+  await header.scrollIntoViewIfNeeded();
   expect(await header.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   const title = header.locator(".tile-title b");
-  const location = header.locator(".tile-title small");
   expect(await title.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
-  expect(await location.getAttribute("title")).toMatch(/^\//);
-  expect((await location.getAttribute("title"))?.length ?? 0).toBeGreaterThan(32);
-  expect(await location.evaluate((node) => node.clientWidth)).toBeGreaterThan(0);
+  // Project-root cwd belongs to the workbench header; only distinct cwd appears in a tile.
+  await expect(header.locator(".session-location-value")).toHaveCount(0);
+  await expect(page.locator(".workbench-context-detail")).toContainText("workspace-a");
+  const cwd = await page.evaluate(async (clientId) => {
+    const sessions = await window.alfredDesktop?.terminal.list();
+    return sessions?.sessions.find((session) => session.clientId === clientId)?.cwd;
+  }, sessionId);
+  if (!cwd) throw new Error("Terminal cwd is missing");
+  expect(await realpath(cwd)).toBe(await realpath(expectedCwd));
+  await settleTerminalTileAnimations(page);
   const before = await headerGeometry(header);
 
   await tile.hover();
@@ -356,8 +364,9 @@ async function expectStableTerminalHeader(page: Page, sessionId: string): Promis
 async function headerGeometry(header: Locator): Promise<Array<{ width: number; x: number }>> {
   return header.locator(".tile-title, .tile-activity, .tile-actions").evaluateAll((nodes) =>
     nodes.map((node) => {
-      const rect = node.getBoundingClientRect();
-      return { width: Math.round(rect.width), x: Math.round(rect.x) };
+      // Compare header layout, independently of the enclosing tile's FLIP transform.
+      const element = node as HTMLElement;
+      return { width: element.offsetWidth, x: element.offsetLeft };
     }),
   );
 }
@@ -406,15 +415,4 @@ async function setWindowSize(
     width,
     height,
   });
-}
-
-async function showWindowForNativeObservation(app: ElectronApplication): Promise<void> {
-  await app.evaluate(({ BrowserWindow }) => {
-    const [window] = BrowserWindow.getAllWindows();
-    if (!window) throw new Error("Electron window is missing.");
-    window.show();
-  });
-  await expect.poll(() => app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]?.isVisible() ?? false,
-  )).toBe(true);
 }

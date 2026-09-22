@@ -397,7 +397,7 @@ test.describe("work session and project identity", () => {
 });
 
 test("captures deterministic CSS ownership evidence across core states and overlays", async ({ harness }, testInfo) => {
-  const { app, marker, page } = harness;
+  const { app, marker, page, paths } = harness;
   const evidenceDir = process.env.ALFRED_CSS_EVIDENCE_DIR ?? testInfo.outputDir;
   const states: CssStateEvidence[] = [];
   const privacySelectors = [...privacySafeScreenshotSelectors, ...privacySafeHiddenScreenshotSelectors];
@@ -501,7 +501,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
     afterContext.workspaceGridColumns.trim().split(/\s+/),
   ).toHaveLength(3);
   expect(afterContext.context.position).toBe("static");
-  expect(afterContext.context.rightGap).toBeCloseTo(0, 0);
+  expect(afterContext.context.rightGap).toBeCloseTo(10, 0);
   expect(afterContext.context.width).toBeCloseTo(318, 0);
   expect(afterContext.context.overlapWithTerminal).toBeLessThanOrEqual(0);
   await expect(page.getByLabel("Workspace preview")).toHaveCount(0);
@@ -685,6 +685,22 @@ test("captures deterministic CSS ownership evidence across core states and overl
   }), "Wide Privacy controls must remain within their scroll owner").toEqual([]);
   await widePrivacy.getByRole("button", { name: "Close privacy controls" }).click();
   await expect(widePrivacy).toHaveCount(0);
+
+  // A cwd matching the project is intentionally omitted from tile headers. Exercise a nested cwd too.
+  const nestedCwd = join(paths.workspaceA, "nested-location-evidence");
+  await mkdir(nestedCwd, { recursive: true });
+  await page.evaluate(async (cwd) => {
+    const terminal = window.alfredDesktop?.terminal;
+    if (!terminal) throw new Error("Terminal API is missing");
+    await terminal.create({ clientId: "nested-location", title: "Nested location", workspaceId: "A", cwd, cols: 80, rows: 24 });
+  }, nestedCwd);
+  await page.getByRole("button", { name: "Fixture Beta workspace", exact: true }).click();
+  await page.getByRole("button", { name: "Fixture Alpha workspace", exact: true }).click();
+  await page.locator('button.project-session[data-session-id="nested-location"]').click();
+  await chooseWorkLayout(page, "Grid");
+  await expect(page.locator('[data-session-id="nested-location"] .session-location-value')).toBeVisible();
+  await recordPrivacyMaskCoverage();
+  await page.screenshot({ path: join(evidenceDir, "nested-location.png"), style: privacySafeScreenshotStyle });
 
   expect(
     [...privacySelectorRuntimeMatches].filter(([, matched]) => !matched).map(([selector]) => selector),

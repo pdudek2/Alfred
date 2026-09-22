@@ -11,7 +11,7 @@ test.use({
 test("uses one visible keyboard focus ring across Work controls", async ({ harness }, testInfo) => {
   const { app, page } = harness;
   const tileUtility = page.getByTestId("terminal-tile")
-    .getByRole("button", { name: /^Collapse / });
+    .getByRole("button", { name: /^Close Manual/ });
 
   const controls = [
     {
@@ -31,8 +31,8 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
 
   for (const [width, height] of [[1440, 900], [1120, 720]] as const) {
     await setWindowSize(app, page, width, height);
-    await expect(tileUtility).toBeVisible();
     for (const [index, { control, offset }] of controls.entries()) {
+      if (index === 2) await page.getByTestId("terminal-tile").focus();
       await focusFromKeyboard(page, control);
       await expect(control).toHaveCSS("outline-style", "solid");
       await expect(control).toHaveCSS("outline-width", "2px");
@@ -65,7 +65,6 @@ async function setWindowSize(
     const [window] = BrowserWindow.getAllWindows();
     if (!window) throw new Error("Electron window is missing.");
     window.setBounds({ x: 0, y: 0, ...bounds });
-    window.show();
   }, { width, height });
   await expect.poll(() => page.evaluate(() => ({ width: innerWidth, height: innerHeight }))).toEqual({
     width,

@@ -1,5 +1,5 @@
 import { expect, test } from "./support/electron-app";
-import { chooseWorkLayout } from "./support/work-layout";
+import { chooseWorkLayout, settleTerminalTileAnimations } from "./support/work-layout";
 
 test("terminal identity marks and compact Grid stay visible", async ({ harness }, testInfo) => {
   const { app, page } = harness;
@@ -247,13 +247,4 @@ function coordinateBandCount(
     (bands, value, index) => bands + (value - values[index]! > tolerance ? 1 : 0),
     1,
   );
-}
-
-async function settleTerminalTileAnimations(page: import("@playwright/test").Page): Promise<void> {
-  await page.evaluate(async () => {
-    const tiles = Array.from(document.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"]'));
-    await Promise.allSettled(
-      tiles.flatMap((tile) => tile.getAnimations()).map((animation) => animation.finished),
-    );
-  });
 }
