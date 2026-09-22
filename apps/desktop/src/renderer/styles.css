@@ -1910,8 +1910,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   --grid-bottom-safe-zone: 10px;
   flex: 1 1 auto;
   align-content: stretch;
-  height: 100%;
-  min-height: 100%;
+  min-height: 0;
   padding-bottom: var(--grid-bottom-safe-zone);
   scroll-padding-bottom: var(--grid-bottom-safe-zone);
   background: var(--ink-0);
@@ -1945,7 +1944,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .terminal-grid.laid-out.staged-list {
-  min-height: 100%;
+  min-height: 0;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: none;
   grid-auto-rows: auto;
@@ -2163,8 +2162,8 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .split-empty-state {
-  grid-column: 7 / span 6;
-  grid-row: 1 / span 8;
+  grid-column: 2;
+  grid-row: 1;
   min-width: 0;
   min-height: 320px;
   border: 1px dashed var(--ink-3);
@@ -3108,6 +3107,7 @@ body.arranging-pointer {
 @container terminal-tile (max-width: 620px) {
   .tile-utility-actions,
   .tile-danger-actions {
+    display: none;
     flex: 0 0 0;
     max-width: 0;
     overflow: hidden;
@@ -3243,6 +3243,7 @@ body.arranging-pointer {
   }
 
   .arrange-handle {
+    display: none;
     flex: 0 0 0;
     width: 0;
     border-color: transparent;
@@ -3474,6 +3475,10 @@ body.arranging-pointer {
   border-top: 1px solid var(--ink-3);
 }
 
+.terminal-tile.staged.arranging .staged-actions {
+  padding-right: 48px;
+}
+
 .staged-actions .approve-button,
 .staged-actions .reject-button {
   min-height: 34px;
@@ -3536,6 +3541,8 @@ body.arranging-pointer {
 }
 
 .terminal-action-strip {
+  flex-shrink: 0;
+  font: 400 12px/1.4 var(--sans);
   min-height: 38px;
   border: 1px solid var(--ink-3);
   border-radius: 7px;

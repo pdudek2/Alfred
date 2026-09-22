@@ -13,6 +13,7 @@ import { TileKindIcon } from "./tile-kind-icon";
 
 type StagedTilePreviewProps = {
   arrangeMode: boolean;
+  blockedDescriptionId?: string | undefined;
   focusHidden?: boolean;
   layout?: TileLayout | undefined;
   preview?: ArrangePreview | undefined;
@@ -29,6 +30,7 @@ type StagedTilePreviewProps = {
 
 export function StagedTilePreview({
   arrangeMode,
+  blockedDescriptionId,
   focusHidden = false,
   layout,
   preview,
@@ -57,6 +59,9 @@ export function StagedTilePreview({
   const edited = tile.stagedReviewStatus === "edited";
   const launchBlocked = tile.launchPreflight?.status === "blocked" || Boolean(tile.safetyNote);
   const launchBlockReason = tile.launchPreflight?.status === "blocked" ? tile.launchPreflight.reason : tile.safetyNote ?? null;
+  const hasAdditionalBlockReason = tile.launchPreflight?.status === "blocked"
+    && Boolean(tile.safetyNote?.trim())
+    && tile.launchPreflight.reason.trim() !== tile.safetyNote?.trim();
   const approveLabel = checking ? "Checking" : launchBlocked ? "Blocked" : "Launch";
   const approveAriaLabel = checking
     ? `Checking edited command: ${tile.title}`
@@ -70,6 +75,7 @@ export function StagedTilePreview({
       data-testid="terminal-tile"
       data-session-id={tile.id}
       aria-label={`Staged ${tile.title}`}
+      aria-describedby={blockedDescriptionId}
       aria-hidden={focusHidden ? "true" : undefined}
       style={gridStyle(layout, preview)}
       tabIndex={focusHidden ? -1 : 0}
@@ -116,7 +122,7 @@ export function StagedTilePreview({
             edited · rechecked
           </div>
         )}
-        {launchBlocked && (
+        {launchBlocked && (!blockedDescriptionId || hasAdditionalBlockReason) && (
           <div className="staged-safety-chip blocked" role="note">
             Launch blocked: {launchBlockReason}
           </div>

@@ -88,7 +88,7 @@ import type { WorkMode } from "./terminal-desk-types";
 import { shortenPath } from "./path-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { buildSessionsProjection, type SessionsPrimaryActionRequest } from "./sessions-projection";
-import { isActiveAgentSession, isReviewableWorktreeSession, isWorkSession } from "./session-scope";
+import { isActiveAgentSession, isFreeChatScope, isReviewableWorktreeSession, isWorkSession } from "./session-scope";
 import type { WorktreeDiffView } from "./worktree-diff";
 import { normalizeSessionTitle } from "../shared/session-title";
 import { shortLabelForWorkspace } from "../shared/workspace-label";
@@ -320,7 +320,10 @@ export function App() {
     },
   ]));
   const needsYouCount = blockingAttentionCount(attentionItems);
-  const attentionCountsByWorkspace = blockingAttentionCountByWorkspace(attentionItems);
+  const projectSessionIds = new Set(terminalSessions.filter((session) => !isFreeChatScope(session)).map((session) => session.id));
+  const attentionCountsByWorkspace = blockingAttentionCountByWorkspace(
+    attentionItems.filter((item) => projectSessionIds.has(item.sessionId)),
+  );
   const activeAgentSessions = terminalSessions.filter(isActiveAgentSession);
   const activeAgentCountsByWorkspace = activeAgentSessions.reduce((counts, session) => {
     counts.set(session.workspaceId, (counts.get(session.workspaceId) ?? 0) + 1);
@@ -1929,12 +1932,8 @@ export function App() {
   }, [armedRecoverySessionIds]);
 
   useEffect(() => {
-    if (
-      (activeSurface === "inbox" || activeSurface === "sessions")
-      || armedRecoverySessionIds.size === 0
-    ) return;
-    setArmedRecoverySessionIds(new Set());
-  }, [activeSurface, armedRecoverySessionIds]);
+    setArmedRecoverySessionIds((current) => current.size === 0 ? current : new Set());
+  }, [activeSurface, activeWorkspaceId]);
 
   const handleRejectTile = useCallback((tileId: string) => {
     const alfredApi = getDesktopAlfredApi();
@@ -2671,6 +2670,13 @@ export function App() {
         }
       }}
       onKeyDownCapture={(event) => {
+        if (event.key === "Escape" && activeSurface === "work" && armedRecoverySessionIds.size > 0
+          && !activeAccessibleDismissalOwner(event.currentTarget)) {
+          event.preventDefault();
+          event.stopPropagation();
+          setArmedRecoverySessionIds(new Set());
+          return;
+        }
         if (!inboxOwnsEscape || event.key !== "Escape") return;
         const dismissalOwner = activeAccessibleDismissalOwner(event.currentTarget);
         if (dismissalOwner) {
