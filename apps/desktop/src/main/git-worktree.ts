@@ -128,6 +128,19 @@ export async function inspectAgentWorktree(
 ): Promise<AgentWorktreeInspection> {
   const run = options.execFile ?? execFile;
   const cleanupTarget = resolveAgentWorktreeCleanupTarget(request, options);
+  const baseHead = await gitOutput(
+    run,
+    ["-C", request.baseCwd, "rev-parse", "HEAD"],
+    "Unable to inspect base workspace history.",
+  );
+  const unappliedCommits = await gitOutput(
+    run,
+    ["-C", cleanupTarget.worktreePath, "rev-list", "--count", `${baseHead}..HEAD`],
+    "Unable to inspect isolated Git worktree history.",
+  );
+  if (unappliedCommits !== "0") {
+    throw new Error("Isolated checkout has commits not present in the base workspace. Merge them manually before applying.");
+  }
   const status = await gitOutputRaw(
     run,
     ["-C", cleanupTarget.worktreePath, "status", "--porcelain=v1", "-z", "--untracked-files=all"],
