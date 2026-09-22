@@ -8622,6 +8622,49 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Review relaunch" })).toBeInTheDocument();
   });
 
+  it("keeps Work restart confirmation until confirm, Escape, or navigation", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, emitExit } = installDesktopBridge(undefined, null, [{ ...manualLiveSnapshot("work-restart", "Work restart"),
+      command: "/bin/sh", args: ["-c", "rm -rf dist"],
+    }]);
+    createTerminal.mockRejectedValueOnce(new Error("expected restart failure"));
+    render(<StrictMode><App /></StrictMode>);
+    await screen.findByRole("article", { name: /Work restart/ });
+    await waitFor(() => expect(window.alfredDesktop?.terminal.onExit).toHaveBeenCalled());
+    await emitExit({ id: "runtime-work-restart", exitCode: 1 });
+    const review = () => screen.getByRole("button", { name: "Review restart Work restart" });
+    const confirm = () => screen.getByRole("button", { name: "Confirm restart Work restart" });
+    await user.click(review());
+    expect(confirm()).toBeVisible();
+    expect(createTerminal).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(review()).toBeVisible();
+    await user.click(review());
+    await selectSurface(user, "Sessions");
+    // Recovery navigation disarms first, then allows leaving.
+    if (!screen.queryByRole("region", { name: "Sessions workspace" })) await selectSurface(user, "Sessions");
+    await selectSurface(user, "Work");
+    expect(review()).toBeVisible();
+    await user.click(review());
+    await user.click(confirm());
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(1));
+  });
+
+  it.each([true, false])("keeps Free Chat decisions in Inbox without project attention (freeChat=%s)", async (freeChat) => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [liveSnapshot("decision", {
+      cwd: freeChat ? "/Users/patryk/Documents/Codex/free-chat" : "/Users/patryk/Desktop/Alfred",
+      activityEvents: [{ id: "approval", kind: "approval", title: "Needs approval", detail: "Proceed?", at: Date.now() }],
+    })]);
+    render(<App />);
+    await screen.findByRole("article", { name: /Codex · decision/ });
+    const project = screen.getByRole("button", { name: "Alfred workspace" });
+    if (freeChat) expect(project).not.toHaveAttribute("data-attention", "true");
+    else expect(project).toHaveAttribute("data-attention", "true");
+    await openInboxFromCommandPalette(user);
+    expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveTextContent("Proceed?");
+  });
+
   it("restarts unsafe exited sessions once after one review warning in StrictMode", async () => {
     const user = userEvent.setup();
     const { createTerminal, emitExit } = installDesktopBridge(undefined, null, [{
@@ -10354,6 +10397,9 @@ describe("App integration", () => {
     });
     expect(deskDetails).toHaveTextContent("Cannot launch yet");
     expect(deskDetails).toHaveTextContent("rm -rf detected");
+    const tile = screen.getByRole("article", { name: "Staged Risky cleanup" });
+    expect(tile).toHaveAccessibleDescription(/rm -rf detected/);
+    expect(tile.querySelector(".staged-safety-chip")).not.toBeInTheDocument();
   });
 
   it("keeps preflight-blocked staged tiles queued while launching ready tiles", async () => {

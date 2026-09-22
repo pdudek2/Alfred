@@ -252,7 +252,7 @@ export function TerminalDesk({
   const inspectedSession = focusSession ?? selectedSession ?? visibleSessions[0] ?? null;
   const blockedStagedSession =
     inspectedSession?.stage === "staged" && isLaunchBlocked(inspectedSession) ? inspectedSession : null;
-  const showSplitEmptyState = workMode === "split" && visibleWorkspaceSessions.length > 0 && visibleSessions.length < 2;
+  const showSplitEmptyState = !arrangeMode && workMode === "split" && visibleWorkspaceSessions.length > 0 && visibleSessions.length < 2;
   const gridDensity =
     workMode === "split" ? "split" : visibleSessions.length <= 1 ? "single" : visibleSessions.length === 2 ? "split" : "dense";
   const manyUpGrid = !stagedList && !arrangeMode && workMode === "desk" && visibleSessions.length >= 5;
@@ -591,6 +591,7 @@ export function TerminalDesk({
                 style={stagedWrapperStyle}
               >
                 <StagedTilePreview
+                  blockedDescriptionId={blockedStagedSession?.id === session.id ? `blocked-launch-${session.id}` : undefined}
                   focusHidden={layoutHidden}
                   tile={session}
                   selected={inspectedSession?.id === session.id}
@@ -637,6 +638,7 @@ function BlockedStagedLaunchDetails({
       className="terminal-action-strip"
       role="note"
       aria-label={`Blocked launch details for ${session.title}`}
+      id={`blocked-launch-${session.id}`}
     >
       <AlertTriangle size={14} aria-hidden="true" />
       <span>
