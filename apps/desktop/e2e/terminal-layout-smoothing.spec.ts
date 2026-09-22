@@ -318,7 +318,7 @@ async function interruptCompanionPromotion(
     }
     const shellRecords = (recordsWindow.__alfredMotionRecords ?? [])
       .filter((record) => record.targetKind === "tile-shell");
-    const firstAnimation = shellRecords.findLast((record) =>
+    const firstAnimation = shellRecords.reverse().find((record) =>
       record.sessionId === animatedShellSessionId && record.hasTransform,
     );
     if (!firstAnimation) throw new Error(`Missing animation for secondary ${animatedShellSessionId}.`);

@@ -124,11 +124,24 @@ function defaultAllowedCwdRoots(): string[] {
   ];
 }
 
+function persistedStateStoreMethods(getState: () => DesktopStateSnapshot): Pick<
+  PersistedDesktopStateStore,
+  "getFilePath" | "getSaveStatus" | "onSaveStatus" | "retrySave"
+> {
+  return {
+    getFilePath: vi.fn(() => "/test/desktop-state.json"),
+    getSaveStatus: vi.fn(() => ({ status: "saved" as const })),
+    onSaveStatus: vi.fn(() => () => {}),
+    retrySave: vi.fn(async () => getState()),
+  };
+}
+
 function storeWithRestoredSessions(
   restoredTerminalSessions: PersistedTerminalSessionSnapshot[],
 ): PersistedDesktopStateStore {
   let state = stateWithRestoredSessions(restoredTerminalSessions);
   return {
+    ...persistedStateStoreMethods(() => state),
     getState: vi.fn(async () => state),
     setState: vi.fn(async (next) => {
       state = next;
@@ -234,6 +247,7 @@ describe("terminal-manager IPC", () => {
   it("persists transcript snapshots and returns them as restored sessions after restart", async () => {
     let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -343,6 +357,7 @@ describe("terminal-manager IPC", () => {
   it("limits persisted terminal scrollback to the latest 80,000 characters", async () => {
     let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -376,6 +391,7 @@ describe("terminal-manager IPC", () => {
   it("redacts persisted terminal scrollback and activity", async () => {
     let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -434,6 +450,7 @@ describe("terminal-manager IPC", () => {
       ],
     };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -457,7 +474,7 @@ describe("terminal-manager IPC", () => {
     expect(persisted?.buffer).not.toContain("abc123def4567890");
 
     const listed = await invoke<TerminalListResult>(terminalChannels.list);
-    const restored = listed.restoredSessions[0];
+    const restored = listed.restoredSessions?.[0];
     expect(restored?.title).toBe(rawTitle);
     expect(restored?.buffer).toBe(rawBuffer);
   });
@@ -472,6 +489,7 @@ describe("terminal-manager IPC", () => {
       restoredTerminalSessions: [],
     };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -538,6 +556,7 @@ describe("terminal-manager IPC", () => {
     };
     let state = stateWithRestoredSessions([sharedRestored, isolatedRestored]);
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -551,7 +570,7 @@ describe("terminal-manager IPC", () => {
     const oldPty = new FakePty();
     const newPty = new FakePty();
     const ptys = [oldPty, newPty];
-    const prepareAgentWorktree = vi.fn(async (request: { clientId?: string }) => ({
+    const prepareAgentWorktree = vi.fn(async (request: import("./git-worktree.js").AgentWorktreeRequest) => ({
       baseCwd: "/repo",
       branchName: `alfred-codex-${request.clientId}`,
       cwd: `/alfred/userData/worktrees/${request.clientId}`,
@@ -669,6 +688,7 @@ describe("terminal-manager IPC", () => {
       restoredTerminalSessions: [],
     };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -719,6 +739,7 @@ describe("terminal-manager IPC", () => {
   it("keeps launch persistence disabled when terminal creation crosses Clear", async () => {
     let state = stateWithRestoredSessions([]);
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -829,6 +850,7 @@ describe("terminal-manager IPC", () => {
     const hydration = deferred<DesktopStateSnapshot>();
     let state = stateWithRestoredSessions([]);
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(() => hydration.promise),
       setState: vi.fn(async (next) => {
         state = next;
@@ -920,6 +942,7 @@ describe("terminal-manager IPC", () => {
       },
     };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(() => hydration.promise),
       setState: vi.fn(async (next) => {
         state = next;
@@ -978,6 +1001,7 @@ describe("terminal-manager IPC", () => {
     const hydration = deferred<DesktopStateSnapshot>();
     let state = stateWithRestoredSessions([]);
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(() => hydration.promise),
       setState: vi.fn(async (next) => {
         state = next;
@@ -1049,6 +1073,7 @@ describe("terminal-manager IPC", () => {
   it("renames live sessions and persists the updated title", async () => {
     let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -1103,6 +1128,7 @@ describe("terminal-manager IPC", () => {
       ],
     };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -1133,6 +1159,7 @@ describe("terminal-manager IPC", () => {
     };
     let state = stateWithRestoredSessions([persistedSnapshot]);
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -1204,6 +1231,7 @@ describe("terminal-manager IPC", () => {
     };
     let persistedState = stateWithRestoredSessions([]);
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => persistedState),
       getState: vi.fn(() => hydration.promise),
       setState: vi.fn(async (next) => {
         persistedState = next;
@@ -1248,6 +1276,7 @@ describe("terminal-manager IPC", () => {
     };
     let persistedState = stateWithRestoredSessions([persistedSnapshot]);
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => persistedState),
       getState: vi.fn(() => hydration.promise),
       setState: vi.fn(async (next) => {
         persistedState = next;
@@ -1284,6 +1313,7 @@ describe("terminal-manager IPC", () => {
   it("flushes pending terminal snapshots without waiting for the debounce timer", async () => {
     let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -1321,6 +1351,7 @@ describe("terminal-manager IPC", () => {
   it("records a stopped-on-quit event before killing app-scoped sessions", async () => {
     let state: DesktopStateSnapshot = { ...DEFAULT_DESKTOP_STATE, restoredTerminalSessions: [] };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -1780,10 +1811,10 @@ describe("terminal-manager IPC", () => {
       clientId: snapshot.clientId,
       cols: 80,
       command: agentKind,
-      cwd: snapshot.cwd,
+      ...(snapshot.cwd === undefined ? {} : { cwd: snapshot.cwd }),
       rows: 24,
       source: snapshot.source,
-      workspaceId: snapshot.workspaceId,
+      ...(snapshot.workspaceId === undefined ? {} : { workspaceId: snapshot.workspaceId }),
     };
 
     const prepared = await invoke<{ launchTicketId: string }>(terminalChannels.prepareLaunch, request);
@@ -1921,10 +1952,10 @@ describe("terminal-manager IPC", () => {
     });
     const request: TerminalCreateRequest = {
       clientId: snapshot.clientId,
-      command: snapshot.command,
-      args: snapshot.args,
+      ...(snapshot.command === undefined ? {} : { command: snapshot.command }),
+      ...(snapshot.args === undefined ? {} : { args: snapshot.args }),
       cols: 80,
-      cwd: snapshot.cwd,
+      ...(snapshot.cwd === undefined ? {} : { cwd: snapshot.cwd }),
       rows: 24,
       source: "manual",
     };
@@ -1993,10 +2024,10 @@ describe("terminal-manager IPC", () => {
     });
     const request: TerminalCreateRequest = {
       clientId: snapshot.clientId,
-      command: snapshot.command,
-      args: snapshot.args,
+      ...(snapshot.command === undefined ? {} : { command: snapshot.command }),
+      ...(snapshot.args === undefined ? {} : { args: snapshot.args }),
       cols: 80,
-      cwd: snapshot.cwd,
+      ...(snapshot.cwd === undefined ? {} : { cwd: snapshot.cwd }),
       rows: 24,
       source: "manual",
     };
@@ -2039,10 +2070,10 @@ describe("terminal-manager IPC", () => {
     });
     const request: TerminalCreateRequest = {
       clientId: snapshot.clientId,
-      command: snapshot.command,
-      args: snapshot.args,
+      ...(snapshot.command === undefined ? {} : { command: snapshot.command }),
+      ...(snapshot.args === undefined ? {} : { args: snapshot.args }),
       cols: 80,
-      cwd: snapshot.cwd,
+      ...(snapshot.cwd === undefined ? {} : { cwd: snapshot.cwd }),
       rows: 24,
       source: "manual",
     };
@@ -3007,10 +3038,10 @@ describe("terminal-manager IPC", () => {
     });
     const request: TerminalCreateRequest = {
       clientId: snapshot.clientId,
-      command: snapshot.command,
-      args: snapshot.args,
+      ...(snapshot.command === undefined ? {} : { command: snapshot.command }),
+      ...(snapshot.args === undefined ? {} : { args: snapshot.args }),
       cols: 80,
-      cwd: snapshot.cwd,
+      ...(snapshot.cwd === undefined ? {} : { cwd: snapshot.cwd }),
       rows: 24,
       source: "manual",
     };
@@ -3072,6 +3103,7 @@ describe("terminal-manager IPC", () => {
       ],
     };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -3126,6 +3158,7 @@ describe("terminal-manager IPC", () => {
       ],
     };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -3181,6 +3214,7 @@ describe("terminal-manager IPC", () => {
       ],
     };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -3282,6 +3316,7 @@ describe("terminal-manager IPC", () => {
       ],
     };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -3363,6 +3398,7 @@ describe("terminal-manager IPC", () => {
       ],
     };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -3412,6 +3448,7 @@ describe("terminal-manager IPC", () => {
       ],
     };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;
@@ -3461,6 +3498,7 @@ describe("terminal-manager IPC", () => {
       ],
     };
     const store: PersistedDesktopStateStore = {
+      ...persistedStateStoreMethods(() => state),
       getState: vi.fn(async () => state),
       setState: vi.fn(async (next) => {
         state = next;

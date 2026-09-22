@@ -315,7 +315,7 @@ function runtimeMessage(
   text: string,
   url?: string,
 ): RuntimeMessage {
-  return { source, level, text: redactText(text), url };
+  return { source, level, text: redactText(text), ...(url === undefined ? {} : { url }) };
 }
 
 function isExpectedConnectionRefused(message: RuntimeMessage, url: string): boolean {

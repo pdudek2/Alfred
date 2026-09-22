@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { pathToFileURL } from "node:url";
+import type { BrowserWindow as ElectronBrowserWindow } from "electron";
 
 type AppEventHandler = (...args: unknown[]) => unknown;
 type BeforeQuitHandler = (event: { preventDefault: () => void }) => void;
@@ -46,12 +47,12 @@ const mocks = vi.hoisted(() => {
           },
         };
       }),
-      { getAllWindows: vi.fn(() => []) },
+      { getAllWindows: vi.fn((): ElectronBrowserWindow[] => []) },
     ),
     configureLayoutPersistence: vi.fn(),
     configureStagedPlanPersistence: vi.fn(),
     configureTerminalPersistence: vi.fn(),
-    createPersistedDesktopStateStore: vi.fn(() => ({
+    createPersistedDesktopStateStore: vi.fn((_options: { userDataPath?: string; onWarning?: (message: string, error: unknown) => void }) => ({
       getState: vi.fn(async () => ({ windowState: null })),
     })),
     createWorkspaceStore: vi.fn(() => ({
@@ -189,7 +190,7 @@ describe("main quit persistence", () => {
 
       expect(consoleError).toHaveBeenCalledWith("Failed to flush desktop state before quit.", flushFailure);
       expect(mocks.app.quit).toHaveBeenCalledTimes(1);
-      expect(mocks.app.quit.mock.invocationCallOrder[0]).toBeGreaterThan(consoleError.mock.invocationCallOrder[0]);
+      expect(mocks.app.quit.mock.invocationCallOrder[0]).toBeGreaterThan(consoleError.mock.invocationCallOrder[0]!);
     } finally {
       consoleError.mockRestore();
     }
@@ -441,7 +442,7 @@ describe("main quit persistence", () => {
       focus: vi.fn(),
     };
     mocks.BrowserWindow.getAllWindows.mockReturnValueOnce([
-      existingWindow as unknown as InstanceType<typeof mocks.BrowserWindow>,
+      existingWindow as unknown as ElectronBrowserWindow,
     ]);
 
     await import("./main.js");

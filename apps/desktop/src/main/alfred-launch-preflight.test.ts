@@ -72,7 +72,7 @@ describe("preflightAlfredPlan", () => {
       args: [],
       cwd: "apps/desktop",
       isolation: "worktree",
-    };
+    } satisfies Parameters<typeof preflightAlfredPlan>[0]["sessions"][number];
 
     const result = await preflightAlfredPlan(
       {
