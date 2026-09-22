@@ -202,7 +202,7 @@ export const test = base.extend<Fixtures>({
         const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
         if (!terminalApi) throw new Error("Desktop terminal API is unavailable during cleanup.");
         const { sessions } = await terminalApi.list();
-        for (const session of sessions) terminalApi.kill({ id: session.id });
+        await Promise.all(sessions.map((session) => terminalApi.kill({ id: session.id })));
       });
       await expect.poll(() => page.evaluate(async () => {
         const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
