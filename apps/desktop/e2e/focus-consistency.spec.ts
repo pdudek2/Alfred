@@ -10,6 +10,8 @@ test.use({
 
 test("uses one visible keyboard focus ring across Work controls", async ({ harness }, testInfo) => {
   const { app, page } = harness;
+  // Initial xterm startup claims focus asynchronously; begin after that handoff.
+  await expect(page.getByRole("textbox", { name: "Terminal input" })).toBeFocused();
   const tileUtility = page.getByTestId("terminal-tile")
     .getByRole("button", { name: /^Close Manual/ });
 
