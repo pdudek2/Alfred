@@ -1,4 +1,5 @@
-import { BrowserWindow, ipcMain } from "electron";
+import { isTrustedIpcRecipient, trustedIpc } from "./trusted-ipc.js";
+import { BrowserWindow } from "electron";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { chmod, mkdir } from "node:fs/promises";
@@ -195,7 +196,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
   const clientIdsBeingForgotten = new Set<string>();
   const launchPreparationsInFlight = new Map<string, number>();
 
-  ipcMain.handle(terminalChannels.list, async (event): Promise<TerminalListResult> => {
+  trustedIpc.handle(terminalChannels.list, async (event): Promise<TerminalListResult> => {
     const window = BrowserWindow.fromWebContents(event.sender);
 
     if (!window) {
@@ -220,7 +221,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     };
   });
 
-  ipcMain.handle(
+  trustedIpc.handle(
     terminalChannels.snapshot,
     async (event, request: TerminalSnapshotRequest): Promise<TerminalSnapshotResult> => {
       const session = getOwnedSession(event.sender, request.id);
@@ -234,7 +235,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     },
   );
 
-  ipcMain.handle(
+  trustedIpc.handle(
     terminalChannels.reconcile,
     async (event, request: TerminalReconcileRequest): Promise<TerminalReconcileResult> => {
       const window = BrowserWindow.fromWebContents(event.sender);
@@ -267,7 +268,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     },
   );
 
-  ipcMain.handle(
+  trustedIpc.handle(
     terminalChannels.prepareLaunch,
     async (_event, request: TerminalCreateRequest) => {
       const safeRequest = validateTerminalCreateRequest(request);
@@ -319,7 +320,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     },
   );
 
-  ipcMain.handle(
+  trustedIpc.handle(
     terminalChannels.create,
     async (event, request: TerminalCreateRequest): Promise<TerminalCreateResult> => {
       const window = BrowserWindow.fromWebContents(event.sender);
@@ -470,7 +471,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     },
   );
 
-  ipcMain.on(terminalChannels.write, (event, request: TerminalWriteRequest) => {
+  trustedIpc.on(terminalChannels.write, (event, request: TerminalWriteRequest) => {
     const session = getOwnedSession(event.sender, request.id);
     if (!session) return;
     const input = consumeAgentCommandInput(session.commandInput, request.data);
@@ -479,18 +480,18 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     session.pty.write(request.data);
   });
 
-  ipcMain.on(terminalChannels.resize, (event, request: TerminalResizeRequest) => {
+  trustedIpc.on(terminalChannels.resize, (event, request: TerminalResizeRequest) => {
     const session = getOwnedSession(event.sender, request.id);
     session?.pty.resize(normalizeDimension(request.cols, 80), normalizeDimension(request.rows, 24));
   });
 
-  ipcMain.on(terminalChannels.kill, (event, request: TerminalKillRequest) => {
+  trustedIpc.on(terminalChannels.kill, (event, request: TerminalKillRequest) => {
     if (getOwnedSession(event.sender, request.id)) {
       killSession(request.id, "close");
     }
   });
 
-  ipcMain.handle(terminalChannels.forget, async (event, request: TerminalForgetRequest): Promise<TerminalForgetResult> => {
+  trustedIpc.handle(terminalChannels.forget, async (event, request: TerminalForgetRequest): Promise<TerminalForgetResult> => {
     if (!request?.clientId?.trim()) {
       return { ok: false, error: "Session id is required." };
     }
@@ -563,7 +564,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     }
   });
 
-  ipcMain.handle(terminalChannels.rename, async (event, request: TerminalRenameRequest): Promise<void> => {
+  trustedIpc.handle(terminalChannels.rename, async (event, request: TerminalRenameRequest): Promise<void> => {
     const title = normalizeSessionTitle(request.title);
     if (!title) {
       throw new Error("Session title is required.");
@@ -587,7 +588,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     }
   });
 
-  ipcMain.handle(
+  trustedIpc.handle(
     terminalChannels.worktreeDiff,
     async (event, request: TerminalWorktreeDiffRequest): Promise<TerminalWorktreeDiffResult> => {
       const operation = await worktreeOperationRequest(event.sender, request?.clientId, options);
@@ -607,7 +608,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     },
   );
 
-  ipcMain.handle(
+  trustedIpc.handle(
     terminalChannels.worktreeApply,
     async (event, request: TerminalWorktreeApplyRequest): Promise<TerminalWorktreeApplyResult> => {
       const operation = await worktreeOperationRequest(event.sender, request?.clientId, options);
@@ -1175,7 +1176,7 @@ function hasLiveWindow(windowId: number): boolean {
 }
 
 function sendToSessionWindow(session: TerminalSession, channel: string, payload: unknown): void {
-  if (!session.window || session.window.isDestroyed()) {
+  if (!session.window || session.window.isDestroyed() || !isTrustedIpcRecipient(session.window.webContents)) {
     return;
   }
 

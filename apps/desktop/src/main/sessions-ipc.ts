@@ -1,4 +1,5 @@
-import { app, ipcMain } from "electron";
+import { trustedIpc } from "./trusted-ipc.js";
+import { app } from "electron";
 import os from "node:os";
 import path from "node:path";
 import { createCodexSessionsReader } from "./codex-sessions.js";
@@ -48,7 +49,7 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
       }));
   };
 
-  ipcMain.handle(sessionsChannels.listExternal, async (_event, request) => {
+  trustedIpc.handle(sessionsChannels.listExternal, async (_event, request) => {
     if (!(await isEnabled())) { await invalidateCaches(); return { sessions: [], nextCursor: null, total: 0 }; }
     const projects = await authoritativeProjects(request);
     const sanitizedRequest = sanitizeListRequest(request, projects);
@@ -58,11 +59,11 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
     if (!(await isEnabled())) { await invalidateCaches(); return { sessions: [], nextCursor: null, total: 0 }; }
     return result;
   });
-  ipcMain.handle(sessionsChannels.releaseListSnapshot, (_event, request) => {
+  trustedIpc.handle(sessionsChannels.releaseListSnapshot, (_event, request) => {
     if (!isListSnapshotReleaseRequest(request)) throw new Error("Invalid external sessions snapshot release request.");
     return queueMutation(() => reader.releaseListSnapshot(request));
   });
-  ipcMain.handle(sessionsChannels.resolveExternal, async (_event, request): Promise<ResolveExternalSessionResult> => {
+  trustedIpc.handle(sessionsChannels.resolveExternal, async (_event, request): Promise<ResolveExternalSessionResult> => {
     if (!(await isEnabled())) { await invalidateCaches(); return { kind: "none" }; }
     const result = await reader.resolveExternalSession(request);
     if (result.kind !== "resume" || !options.workspaceStore) return result;
@@ -72,7 +73,7 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
       ? result
       : { kind: "add-project" };
   });
-  ipcMain.handle(sessionsChannels.readTranscriptPage, async (_event, request): Promise<TranscriptPage> => {
+  trustedIpc.handle(sessionsChannels.readTranscriptPage, async (_event, request): Promise<TranscriptPage> => {
     if (!isTranscriptPageRequest(request)) throw new Error("Invalid transcript page request.");
     if (!(await isEnabled())) { await invalidateCaches(); return emptyTranscriptPage(request.sessionKey); }
     const requestGeneration = cacheGeneration;
@@ -81,11 +82,11 @@ export function registerSessionsIpc(options: RegisterSessionsOptions = {}): void
     if (!(await isEnabled())) { await invalidateCaches(); return emptyTranscriptPage(request.sessionKey); }
     return result;
   });
-  ipcMain.handle(sessionsChannels.getDiagnostics, async () => {
+  trustedIpc.handle(sessionsChannels.getDiagnostics, async () => {
     if (!(await isEnabled())) await invalidateCaches();
     return queueMutation(() => reader.getDiagnostics());
   });
-  ipcMain.handle(sessionsChannels.clearCaches, () => {
+  trustedIpc.handle(sessionsChannels.clearCaches, () => {
     return invalidateCaches();
   });
 }

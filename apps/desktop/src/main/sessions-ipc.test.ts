@@ -15,6 +15,11 @@ vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn((channel: string, handler: (event: unknown, request: unknown) => unknown) => handlers.set(channel, handler)) },
 }));
 
+vi.mock("./trusted-ipc.js", async () => {
+  const { ipcMain } = await import("electron");
+  return { trustedIpc: ipcMain };
+});
+
 describe("sessions IPC", () => {
   it("replaces renderer project roots with authoritative workspace roots before discovery", async () => {
     const reader = {

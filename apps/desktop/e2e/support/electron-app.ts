@@ -46,6 +46,8 @@ export type ElectronHarness = {
   marker: string;
   assertNoRuntimeErrors(): void;
   expectConnectionRefused(url: string): void;
+  expectMainError(fragment: string): void;
+  expectRendererError(fragment: string): void;
   closeActiveTerminals(): Promise<void>;
   close(): Promise<void>;
 };
@@ -172,6 +174,22 @@ export const test = base.extend<Fixtures>({
       for (const message of matching) expectedMessages.add(message);
     };
 
+    const expectRendererError = (fragment: string): void => {
+      const matching = messages.filter((message) =>
+        message.source === "renderer" && message.level === "error" && message.text.includes(fragment)
+      );
+      expect(matching).toHaveLength(1);
+      expectedMessages.add(matching[0]!);
+    };
+
+    const expectMainError = (fragment: string): void => {
+      const matching = messages.filter((message) =>
+        message.source === "main-stderr" && message.level === "error" && message.text.includes(fragment)
+      );
+      expect(matching).toHaveLength(1);
+      expectedMessages.add(matching[0]!);
+    };
+
     const closeActiveTerminals = async (): Promise<void> => {
       if (page.isClosed()) return;
 
@@ -238,7 +256,7 @@ export const test = base.extend<Fixtures>({
     };
 
     try {
-      await use({ app, page, paths, marker, assertNoRuntimeErrors, expectConnectionRefused, closeActiveTerminals, close });
+      await use({ app, page, paths, marker, assertNoRuntimeErrors, expectConnectionRefused, expectMainError, expectRendererError, closeActiveTerminals, close });
       assertNoRuntimeErrors();
     } finally {
       if (testInfo.status !== testInfo.expectedStatus && !page.isClosed()) {

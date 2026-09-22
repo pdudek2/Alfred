@@ -207,6 +207,11 @@ function emit(channel: string, request: unknown, sender: object = senderFor(live
   handler({ sender }, request);
 }
 
+vi.mock("./trusted-ipc.js", async () => {
+  const { ipcMain } = await import("electron");
+  return { trustedIpc: ipcMain, isTrustedIpcRecipient: () => true };
+});
+
 describe("terminal-manager IPC", () => {
   beforeEach(() => {
     killAllTerminalSessions();

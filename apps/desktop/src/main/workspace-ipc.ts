@@ -1,4 +1,5 @@
-import { BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { trustedIpc } from "./trusted-ipc.js";
+import { BrowserWindow, dialog, shell } from "electron";
 import path from "node:path";
 import {
   workspaceChannels,
@@ -19,7 +20,7 @@ type WorkspaceIpcOptions = {
 };
 
 export function registerWorkspaceIpc(store: WorkspaceStore, options: WorkspaceIpcOptions = {}): void {
-  ipcMain.handle(
+  trustedIpc.handle(
     workspaceChannels.bindFolder,
     async (event, request: WorkspaceBindFolderRequest): Promise<WorkspaceStateSnapshot> => {
       const window = BrowserWindow.fromWebContents(event.sender);
@@ -34,7 +35,7 @@ export function registerWorkspaceIpc(store: WorkspaceStore, options: WorkspaceIp
       return store.bindWorkspaceToPath({ workspaceId: request.workspaceId, rootPath: result.filePaths[0] ?? "" });
     },
   );
-  ipcMain.handle(workspaceChannels.createFromFolder, async (event): Promise<WorkspaceStateSnapshot> => {
+  trustedIpc.handle(workspaceChannels.createFromFolder, async (event): Promise<WorkspaceStateSnapshot> => {
     const window = BrowserWindow.fromWebContents(event.sender);
     const result = window
       ? await dialog.showOpenDialog(window, { properties: ["openDirectory"] })
@@ -46,19 +47,19 @@ export function registerWorkspaceIpc(store: WorkspaceStore, options: WorkspaceIp
 
     return store.createWorkspaceFromPath(result.filePaths[0] ?? "");
   });
-  ipcMain.handle(workspaceChannels.get, (): Promise<WorkspaceStateSnapshot> => store.getWorkspaceState());
-  ipcMain.handle(workspaceChannels.openExternalUrl, (_event, request) => openExternalUrl(request));
-  ipcMain.handle(workspaceChannels.openExternalTerminal, async (_event, request) =>
+  trustedIpc.handle(workspaceChannels.get, (): Promise<WorkspaceStateSnapshot> => store.getWorkspaceState());
+  trustedIpc.handle(workspaceChannels.openExternalUrl, (_event, request) => openExternalUrl(request));
+  trustedIpc.handle(workspaceChannels.openExternalTerminal, async (_event, request) =>
     openExternalTerminal(request, { allowedRoots: await allowedWorkspaceRoots(store, options) }),
   );
-  ipcMain.handle(workspaceChannels.revealPath, async (_event, request) => {
+  trustedIpc.handle(workspaceChannels.revealPath, async (_event, request) => {
     const result = await resolveWorkspacePathForReveal(request, { allowedRoots: await allowedWorkspaceRoots(store, options) });
     if (result.ok) {
       shell.showItemInFolder(result.resolvedPath);
     }
     return result;
   });
-  ipcMain.handle(
+  trustedIpc.handle(
     workspaceChannels.set,
     (_event, request: WorkspaceStateSetRequest): Promise<WorkspaceStateSnapshot> => store.setWorkspaceState(request),
   );
