@@ -49,6 +49,9 @@ test("keeps active agents and decisions visible without reflowing the terminal",
   await expect(drawer.getByRole("region", { name: "In progress" })).toContainText("Codex · session 1");
   await expect(drawer.getByRole("region", { name: "In progress" })).toContainText("Claude · session 1");
 
+  await expect(drawer).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+  expect(await drawer.evaluate((node) => node.getBoundingClientRect().right)).toBeLessThanOrEqual(1440);
+
   const gridAfter = await elementGeometry(grid);
   const triggerBox = await trigger.boundingBox();
   const drawerBox = await drawer.boundingBox();
