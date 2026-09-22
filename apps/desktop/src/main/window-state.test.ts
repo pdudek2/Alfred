@@ -43,6 +43,10 @@ class FakeWindow {
 function fakeStore(initialState: DesktopStateSnapshot = DEFAULT_DESKTOP_STATE): PersistedDesktopStateStore {
   let state = initialState;
   return {
+    getFilePath: vi.fn(() => "/test/desktop-state.json"),
+    getSaveStatus: vi.fn(() => ({ status: "saved" as const })),
+    onSaveStatus: vi.fn(() => () => {}),
+    retrySave: vi.fn(async () => state),
     getState: vi.fn(async () => state),
     setState: vi.fn(async (nextState) => {
       state = nextState;

@@ -13,6 +13,7 @@ export const cssEvidenceStateNames = [
   "context-wide",
   "context-narrow",
   "narrow",
+  "narrow-reduced-motion",
   "narrow-inbox",
   "command-palette",
   "privacy-wide",
