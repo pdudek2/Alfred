@@ -44,6 +44,11 @@ vi.mock("./terminal-manager.js", () => ({
   applyTerminalPrivacyPolicyInMemory: mocks.applyTerminalPrivacyPolicyInMemory,
 }));
 
+vi.mock("./trusted-ipc.js", async () => {
+  const { ipcMain } = await import("electron");
+  return { trustedIpc: ipcMain, isTrustedIpcRecipient: () => true };
+});
+
 describe("desktop-state IPC", () => {
   it("updates privacy settings through the persisted state store", async () => {
     mocks.handlers.clear();
