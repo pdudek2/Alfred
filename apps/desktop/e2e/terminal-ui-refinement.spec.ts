@@ -1,5 +1,5 @@
 import { expect, test } from "./support/electron-app";
-import { chooseWorkLayout } from "./support/work-layout";
+import { chooseWorkLayout, settleTerminalTileAnimations } from "./support/work-layout";
 
 test("terminal identity marks and compact Grid stay visible", async ({ harness }, testInfo) => {
   const { app, page } = harness;
@@ -69,8 +69,8 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
   expect(coordinateBandCount(wideFiveUp, "left")).toBe(2);
   expect(coordinateBandCount(wideFiveUp, "top")).toBe(2);
   const wideFiveSortedHeights = [...wideFiveUp.map((tile) => tile.height)].sort((a, b) => b - a);
-  expect(wideFiveSortedHeights[0]).toBeGreaterThan(wideFiveSortedHeights[1]);
-  expect(wideFiveSortedHeights[0]).toBeGreaterThan(wideFiveSortedHeights[2]);
+  expect(wideFiveSortedHeights[0]!).toBeGreaterThan(wideFiveSortedHeights[1]!);
+  expect(wideFiveSortedHeights[0]!).toBeGreaterThan(wideFiveSortedHeights[2]!);
   expect(wideFiveUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-5-1686x980.png") });
 
@@ -82,8 +82,8 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
   expect(coordinateBandCount(narrowFiveUp, "left")).toBe(2);
   expect(coordinateBandCount(narrowFiveUp, "top")).toBe(2);
   const narrowFiveSortedHeights = [...narrowFiveUp.map((tile) => tile.height)].sort((a, b) => b - a);
-  expect(narrowFiveSortedHeights[0]).toBeGreaterThan(narrowFiveSortedHeights[1]);
-  expect(narrowFiveSortedHeights[0]).toBeGreaterThan(narrowFiveSortedHeights[2]);
+  expect(narrowFiveSortedHeights[0]!).toBeGreaterThan(narrowFiveSortedHeights[1]!);
+  expect(narrowFiveSortedHeights[0]!).toBeGreaterThan(narrowFiveSortedHeights[2]!);
   expect(narrowFiveUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-5-1120x720.png") });
 
@@ -104,8 +104,8 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
   expect(coordinateBandCount(wideSixUp, "left")).toBe(2);
   expect(coordinateBandCount(wideSixUp, "top")).toBe(2);
   const wideSixSortedHeights = [...wideSixUp.map((tile) => tile.height)].sort((a, b) => b - a);
-  expect(wideSixSortedHeights[0]).toBeGreaterThan(wideSixSortedHeights[1]);
-  expect(wideSixSortedHeights[0]).toBeGreaterThan(wideSixSortedHeights[2]);
+  expect(wideSixSortedHeights[0]!).toBeGreaterThan(wideSixSortedHeights[1]!);
+  expect(wideSixSortedHeights[0]!).toBeGreaterThan(wideSixSortedHeights[2]!);
   expect(wideSixUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-6-1686x980.png") });
 
@@ -117,8 +117,8 @@ test("terminal identity marks and compact Grid stay visible", async ({ harness }
   expect(coordinateBandCount(narrowSixUp, "left")).toBe(2);
   expect(coordinateBandCount(narrowSixUp, "top")).toBe(2);
   const narrowSixSortedHeights = [...narrowSixUp.map((tile) => tile.height)].sort((a, b) => b - a);
-  expect(narrowSixSortedHeights[0]).toBeGreaterThan(narrowSixSortedHeights[1]);
-  expect(narrowSixSortedHeights[0]).toBeGreaterThan(narrowSixSortedHeights[2]);
+  expect(narrowSixSortedHeights[0]!).toBeGreaterThan(narrowSixSortedHeights[1]!);
+  expect(narrowSixSortedHeights[0]!).toBeGreaterThan(narrowSixSortedHeights[2]!);
   expect(narrowSixUp.every(({ clientWidth, scrollWidth }) => scrollWidth <= clientWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("terminal-identities-grid-6-1120x720.png") });
 });
@@ -247,13 +247,4 @@ function coordinateBandCount(
     (bands, value, index) => bands + (value - values[index]! > tolerance ? 1 : 0),
     1,
   );
-}
-
-async function settleTerminalTileAnimations(page: import("@playwright/test").Page): Promise<void> {
-  await page.evaluate(async () => {
-    const tiles = Array.from(document.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"]'));
-    await Promise.allSettled(
-      tiles.flatMap((tile) => tile.getAnimations()).map((animation) => animation.finished),
-    );
-  });
 }

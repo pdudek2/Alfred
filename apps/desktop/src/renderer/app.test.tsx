@@ -702,6 +702,122 @@ async function waitForTerminalStartsToSettle() {
 }
 
 describe("App integration", () => {
+  it("kills a terminal created after its pending tile was closed", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge();
+    const pending = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
+    bridge.createTerminal.mockImplementationOnce(() => pending.promise);
+
+    render(<App />);
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
+    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
+    expect(screen.queryByTestId("terminal-tile")).not.toBeInTheDocument();
+
+    await act(async () => {
+      pending.resolve(liveSnapshot("manual-1", { id: "late-runtime" }));
+      await pending.promise;
+    });
+    expect(bridge.killTerminal).toHaveBeenCalledWith({ id: "late-runtime" });
+    expect(screen.queryByTestId("terminal-tile")).not.toBeInTheDocument();
+  });
+
+  it("releases a rejected pending start after close so the client ID can be reused", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge();
+    const pending = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
+    bridge.createTerminal.mockImplementationOnce(() => pending.promise);
+
+    render(<App />);
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
+    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
+    await act(async () => {
+      pending.reject(new Error("start rejected"));
+      try { await pending.promise; } catch { /* expected */ }
+    });
+
+    await user.click(within(screen.getByRole("toolbar", { name: "Work layout controls" })).getByRole("button", { name: "New terminal" }));
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
+    expect(bridge.createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({ clientId: "manual-1" }));
+    expect(await screen.findByTestId("terminal-tile")).toBeInTheDocument();
+    expect(bridge.killTerminal).not.toHaveBeenCalled();
+  });
+
+  it("kills the old pending start without changing a new tile with the same client ID", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge();
+    const pending = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
+    bridge.createTerminal.mockImplementationOnce(() => pending.promise);
+
+    render(<App />);
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
+    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
+    await user.click(within(screen.getByRole("toolbar", { name: "Work layout controls" })).getByRole("button", { name: "New terminal" }));
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByTestId("terminal-tile")).toHaveClass("ready"));
+    const host = screen.getByTestId("xterm-host");
+
+    await act(async () => {
+      pending.resolve(liveSnapshot("manual-1", { id: "late-runtime" }));
+      await pending.promise;
+    });
+    expect(bridge.killTerminal).toHaveBeenCalledWith({ id: "late-runtime" });
+    expect(bridge.killTerminal).not.toHaveBeenCalledWith({ id: "runtime-1" });
+    expect(screen.getByTestId("xterm-host")).toBe(host);
+    expect(screen.getByTestId("terminal-tile")).toHaveClass("ready");
+  });
+
+  it("keeps a second close pending when the older start settles first", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge();
+    const first = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
+    const second = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
+    bridge.createTerminal.mockImplementationOnce(() => first.promise).mockImplementationOnce(() => second.promise);
+
+    render(<App />);
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
+    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
+    await user.click(within(screen.getByRole("toolbar", { name: "Work layout controls" })).getByRole("button", { name: "New terminal" }));
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
+    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
+
+    await act(async () => {
+      first.resolve(liveSnapshot("manual-1", { id: "old-runtime" }));
+      await first.promise;
+    });
+    await act(async () => {
+      second.resolve(liveSnapshot("manual-1", { id: "new-runtime" }));
+      await second.promise;
+    });
+    expect(bridge.killTerminal).toHaveBeenCalledWith({ id: "old-runtime" });
+    expect(bridge.killTerminal).toHaveBeenCalledWith({ id: "new-runtime" });
+    expect(screen.queryByTestId("terminal-tile")).not.toBeInTheDocument();
+  });
+
+  it("does not attach an old pending start to a reused client ID in another workspace", async () => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge();
+    const pending = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
+    bridge.createTerminal.mockImplementationOnce(() => pending.promise);
+
+    render(<App />);
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
+    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
+    await user.click(screen.getByRole("button", { name: "Add workspace" }));
+    await user.click(within(screen.getByRole("status", { name: "Empty workspace" })).getByRole("button", { name: "New terminal" }));
+    await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
+    expect(bridge.createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({ clientId: "manual-1", workspaceId: "W2" }));
+    await waitFor(() => expect(screen.getByTestId("terminal-tile")).toHaveClass("ready"));
+
+    await act(async () => {
+      pending.resolve(liveSnapshot("manual-1", { id: "late-runtime", workspaceId: "A" }));
+      await pending.promise;
+    });
+    expect(bridge.killTerminal).toHaveBeenCalledWith({ id: "late-runtime" });
+    expect(screen.getByRole("button", { name: "Workspace 2 workspace" })).toHaveAttribute("aria-current", "location");
+    expect(screen.getAllByTestId("terminal-tile")).toHaveLength(1);
+    expect(screen.getByTestId("terminal-tile")).toHaveClass("ready");
+  });
+
   it("shows a tile path only when it differs from the workspace root", () => {
     renderTerminalDeskForSessions([
       {
@@ -8506,6 +8622,49 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Review relaunch" })).toBeInTheDocument();
   });
 
+  it("keeps Work restart confirmation until confirm, Escape, or navigation", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, emitExit } = installDesktopBridge(undefined, null, [{ ...manualLiveSnapshot("work-restart", "Work restart"),
+      command: "/bin/sh", args: ["-c", "rm -rf dist"],
+    }]);
+    createTerminal.mockRejectedValueOnce(new Error("expected restart failure"));
+    render(<StrictMode><App /></StrictMode>);
+    await screen.findByRole("article", { name: /Work restart/ });
+    await waitFor(() => expect(window.alfredDesktop?.terminal.onExit).toHaveBeenCalled());
+    await emitExit({ id: "runtime-work-restart", exitCode: 1 });
+    const review = () => screen.getByRole("button", { name: "Review restart Work restart" });
+    const confirm = () => screen.getByRole("button", { name: "Confirm restart Work restart" });
+    await user.click(review());
+    expect(confirm()).toBeVisible();
+    expect(createTerminal).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(review()).toBeVisible();
+    await user.click(review());
+    await selectSurface(user, "Sessions");
+    // Recovery navigation disarms first, then allows leaving.
+    if (!screen.queryByRole("region", { name: "Sessions workspace" })) await selectSurface(user, "Sessions");
+    await selectSurface(user, "Work");
+    expect(review()).toBeVisible();
+    await user.click(review());
+    await user.click(confirm());
+    await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(1));
+  });
+
+  it.each([true, false])("keeps Free Chat decisions in Inbox without project attention (freeChat=%s)", async (freeChat) => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [liveSnapshot("decision", {
+      cwd: freeChat ? "/Users/patryk/Documents/Codex/free-chat" : "/Users/patryk/Desktop/Alfred",
+      activityEvents: [{ id: "approval", kind: "approval", title: "Needs approval", detail: "Proceed?", at: Date.now() }],
+    })]);
+    render(<App />);
+    await screen.findByRole("article", { name: /Codex · decision/ });
+    const project = screen.getByRole("button", { name: "Alfred workspace" });
+    if (freeChat) expect(project).not.toHaveAttribute("data-attention", "true");
+    else expect(project).toHaveAttribute("data-attention", "true");
+    await openInboxFromCommandPalette(user);
+    expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveTextContent("Proceed?");
+  });
+
   it("restarts unsafe exited sessions once after one review warning in StrictMode", async () => {
     const user = userEvent.setup();
     const { createTerminal, emitExit } = installDesktopBridge(undefined, null, [{
@@ -10238,6 +10397,9 @@ describe("App integration", () => {
     });
     expect(deskDetails).toHaveTextContent("Cannot launch yet");
     expect(deskDetails).toHaveTextContent("rm -rf detected");
+    const tile = screen.getByRole("article", { name: "Staged Risky cleanup" });
+    expect(tile).toHaveAccessibleDescription(/rm -rf detected/);
+    expect(tile.querySelector(".staged-safety-chip")).not.toBeInTheDocument();
   });
 
   it("keeps preflight-blocked staged tiles queued while launching ready tiles", async () => {

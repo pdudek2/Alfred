@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { trustedIpc } from "./trusted-ipc.js";
 import {
   layoutChannels,
   type WorkspaceLayoutSetRequest,
@@ -8,12 +8,12 @@ import {
 import { getLayoutsSnapshot, setWorkspaceLayoutSnapshot, setWorkspaceViewStateSnapshot } from "./layout-store.js";
 
 export function registerLayoutIpc(): void {
-  ipcMain.handle(layoutChannels.get, (): Promise<WorkspaceLayoutsSnapshot> => getLayoutsSnapshot());
-  ipcMain.handle(
+  trustedIpc.handle(layoutChannels.get, (): Promise<WorkspaceLayoutsSnapshot> => getLayoutsSnapshot());
+  trustedIpc.handle(
     layoutChannels.setWorkspace,
     (_event, request: WorkspaceLayoutSetRequest): Promise<WorkspaceLayoutsSnapshot> => setWorkspaceLayoutSnapshot(request),
   );
-  ipcMain.handle(
+  trustedIpc.handle(
     layoutChannels.setWorkspaceViewState,
     (_event, request: WorkspaceViewStateSetRequest): Promise<WorkspaceLayoutsSnapshot> =>
       setWorkspaceViewStateSnapshot(request),

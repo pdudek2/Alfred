@@ -452,7 +452,7 @@ describe("persisted-desktop-state", () => {
     const state = await store.getState();
     const session = state.restoredTerminalSessions[0];
 
-    expect(session?.buffer.length).toBeLessThanOrEqual(80_000);
+    expect(session?.buffer?.length).toBeLessThanOrEqual(80_000);
     expect(session?.buffer).not.toContain("Bearer abc.def.ghi");
     expect(session?.buffer).toContain("Authorization: [redacted]");
     expect(session?.title).toBe("Manual [redacted-path:44c8fe0e]");

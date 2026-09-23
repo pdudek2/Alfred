@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { trustedIpc } from "./trusted-ipc.js";
 import {
   alfredChannels,
   type AlfredPlanRequest,
@@ -23,22 +23,22 @@ import {
 let inFlight = false;
 
 export function registerAlfredIpc(): void {
-  ipcMain.handle(alfredChannels.runtimeStatus, (): AlfredRuntimeStatus => ({
+  trustedIpc.handle(alfredChannels.runtimeStatus, (): AlfredRuntimeStatus => ({
     model: DEFAULT_MODEL,
     openRouterConfigured: Boolean(process.env.OPENROUTER_API_KEY),
   }));
-  ipcMain.handle(alfredChannels.planGet, (): Promise<AlfredStagedPlanSnapshotResponse> => getStagedPlanSnapshot());
-  ipcMain.handle(
+  trustedIpc.handle(alfredChannels.planGet, (): Promise<AlfredStagedPlanSnapshotResponse> => getStagedPlanSnapshot());
+  trustedIpc.handle(
     alfredChannels.planSet,
     (_event, request: AlfredStagedPlanSetRequest): Promise<AlfredStagedPlanSnapshotResponse> =>
       setStagedPlanSnapshot(request),
   );
-  ipcMain.handle(
+  trustedIpc.handle(
     alfredChannels.planResolve,
     (_event, request: AlfredStagedPlanResolveRequest): Promise<AlfredStagedPlanSnapshotResponse> =>
       resolveStagedPlanSessions(request),
   );
-  ipcMain.handle(
+  trustedIpc.handle(
     alfredChannels.planSessionUpdate,
     async (_event, request: AlfredStagedPlanSessionUpdateRequest): Promise<AlfredStagedPlanSessionUpdateResponse> => {
       try {
@@ -55,8 +55,8 @@ export function registerAlfredIpc(): void {
       }
     },
   );
-  ipcMain.handle(alfredChannels.planClear, (): Promise<AlfredStagedPlanSnapshotResponse> => clearStagedPlanSnapshot());
-  ipcMain.handle(
+  trustedIpc.handle(alfredChannels.planClear, (): Promise<AlfredStagedPlanSnapshotResponse> => clearStagedPlanSnapshot());
+  trustedIpc.handle(
     alfredChannels.planRequest,
     async (_event, request: AlfredPlanRequest): Promise<AlfredPlanResponse> => {
       if (inFlight) {

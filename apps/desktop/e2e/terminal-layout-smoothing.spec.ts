@@ -14,7 +14,7 @@ test("keeps four xterm hosts mounted while Grid shows one primary and two compan
   await expect(page.locator('[data-presentation-slot="primary"]')).toHaveCount(1);
   await expect(page.locator('[data-presentation-slot="secondary"]')).toHaveCount(1);
   await expect(page.locator('[data-presentation-slot="tertiary"]')).toHaveCount(1);
-  await expect(page.getByRole("toolbar", { name: "Work layout controls" })).toContainText("3 visible sessions");
+  await expect(page.getByRole("toolbar", { name: "Work layout controls" })).toContainText("3 of 4");
 
   const beforeHosts = await captureHosts(page, 4);
   const initialHiddenSessionId = await singleHiddenSessionId(page);
@@ -27,7 +27,7 @@ test("keeps four xterm hosts mounted while Grid shows one primary and two compan
   await expect(hiddenSession).not.toHaveAttribute("aria-hidden", "true");
   await expect(hiddenSession).toHaveAttribute("data-presentation-slot", "primary");
   await expect(page.locator('[data-testid="terminal-tile"]:visible')).toHaveCount(3);
-  await expect(page.getByRole("toolbar", { name: "Work layout controls" })).toContainText("3 visible sessions");
+  await expect(page.getByRole("toolbar", { name: "Work layout controls" })).toContainText("3 of 4");
   await expectSameHosts(beforeHosts, page, "select hidden project session");
   await expectNoInternalAnimateRecords(page, "first hidden-session promotion");
 
@@ -318,7 +318,7 @@ async function interruptCompanionPromotion(
     }
     const shellRecords = (recordsWindow.__alfredMotionRecords ?? [])
       .filter((record) => record.targetKind === "tile-shell");
-    const firstAnimation = shellRecords.findLast((record) =>
+    const firstAnimation = shellRecords.reverse().find((record) =>
       record.sessionId === animatedShellSessionId && record.hasTransform,
     );
     if (!firstAnimation) throw new Error(`Missing animation for secondary ${animatedShellSessionId}.`);

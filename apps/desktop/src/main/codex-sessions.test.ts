@@ -1,4 +1,5 @@
 import { mkdir, symlink, unlink, utimes, writeFile } from "node:fs/promises";
+import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -235,8 +236,9 @@ describe("Codex sessions reader", () => {
   it("rejects unknown content-shaped transcript keys without exposing local paths", async () => {
     const codexHome = mkdtempSync(path.join(tmpdir(), "alfred-codex-home-"));
     const reader = createCodexSessionsReader({ codexHome });
-    const error = await reader.readTranscriptPage({ sessionKey: "external-codex:not-listed" }).catch((reason: unknown) => reason as Error);
+    const error = await reader.readTranscriptPage({ sessionKey: "external-codex:not-listed" }).catch((reason: unknown) => reason);
 
+    assert(error instanceof Error);
     expect(error).toMatchObject({ message: "Unknown external session." });
     expect(`${error.message}:${JSON.stringify(error)}`).not.toContain(codexHome);
   });
@@ -567,7 +569,7 @@ describe("Codex sessions reader", () => {
   });
 
   it("bounds transcript pages by 50 blocks and 256 KiB and rejects opaque or stale cursors", async () => {
-    const records = [{ type: "session_meta", payload: { id: "bounded", cwd: "/repo" } }];
+    const records: Array<Record<string, unknown>> = [{ type: "session_meta", payload: { id: "bounded", cwd: "/repo" } }];
     for (let index = 0; index < 60; index += 1) {
       records.push({ type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: `message-${index}` }] } });
     }
@@ -718,8 +720,9 @@ describe("Codex sessions reader", () => {
     const reader = createCodexSessionsReader({ codexHome });
     const listed = await reader.listExternalSessions({ projects: [{ id: "A", label: "Repo", rootPath: "/repo" }] });
     await unlink(file);
-    const error = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey }).catch((reason: unknown) => reason as Error);
+    const error = await reader.readTranscriptPage({ sessionKey: listed.sessions[0]!.sessionKey }).catch((reason: unknown) => reason);
 
+    assert(error instanceof Error);
     expect(error).toMatchObject({ message: "Unable to read external session transcript." });
     expect(`${error.message}:${JSON.stringify(error)}`).not.toContain(file);
     expect(`${error.message}:${JSON.stringify(error)}`).not.toContain(codexHome);

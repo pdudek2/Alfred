@@ -1,6 +1,8 @@
-import { lstat, mkdir, mkdtemp, readlink, rm, symlink, writeFile } from "node:fs/promises";
+import { execFile as execFileCallback } from "node:child_process";
+import { lstat, mkdir, mkdtemp, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 import {
   applyAgentWorktreePatch,
@@ -13,6 +15,12 @@ import {
   preflightAgentWorktree,
   workspaceRootFingerprint,
 } from "./git-worktree.js";
+
+const execFileAsync = promisify(execFileCallback);
+
+async function git(cwd: string, ...args: string[]): Promise<string> {
+  return (await execFileAsync("git", ["-C", cwd, ...args])).stdout.trim();
+}
 
 describe("git worktree preparation", () => {
   it("creates a stable opaque workspace root fingerprint", () => {
@@ -496,6 +504,77 @@ describe("git worktree preparation", () => {
       .rejects.toThrow("Workspace has unresolved merge conflicts.");
   });
 
+  it.each([
+    ["own commit", "commit", true, 0],
+    ["own commit and dirty file", "commit-dirty", true, 0],
+    ["no differences", "clean", false, 0],
+    ["only dirty file", "dirty", false, 1],
+    ["commit integrated into base", "integrated", false, 0],
+    ["diverged history", "diverged", true, 0],
+  ] as const)("handles %s in real Git repositories", async (_name, scenario, rejects, appliedFiles) => {
+    const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "alfred-worktree-history-"));
+    const baseCwd = path.join(temporaryRoot, "repo");
+    const worktreeStoreRoot = path.join(temporaryRoot, "worktrees");
+
+    try {
+      await mkdir(baseCwd);
+      await git(baseCwd, "init", "-q");
+      await git(baseCwd, "config", "user.name", "Fixture");
+      await git(baseCwd, "config", "user.email", "fixture@example.test");
+      await writeFile(path.join(baseCwd, "feature.txt"), "baseline\n");
+      await git(baseCwd, "add", "feature.txt");
+      await git(baseCwd, "commit", "-qm", "baseline");
+
+      const request = await prepareAgentWorktree(
+        { cwd: baseCwd, branchName: "alfred-codex-review" },
+        { worktreeStoreRoot },
+      );
+      const worktreeCwd = request.cwd;
+
+      if (["commit", "commit-dirty", "integrated", "diverged"].includes(scenario)) {
+        await writeFile(path.join(worktreeCwd, "feature.txt"), "agent implementation\n");
+        await git(worktreeCwd, "add", "feature.txt");
+        await git(worktreeCwd, "commit", "-qm", "agent implementation");
+      }
+      if (scenario === "commit-dirty") {
+        await writeFile(path.join(worktreeCwd, "notes.txt"), "still editing\n");
+      }
+      if (scenario === "dirty") {
+        await writeFile(path.join(worktreeCwd, "feature.txt"), "uncommitted implementation\n");
+      }
+      if (scenario === "integrated") {
+        await git(baseCwd, "merge", "--ff-only", request.branchName);
+      }
+      if (scenario === "diverged") {
+        await writeFile(path.join(baseCwd, "base-only.txt"), "base change\n");
+        await git(baseCwd, "add", "base-only.txt");
+        await git(baseCwd, "commit", "-qm", "base change");
+      }
+
+      const baseBefore = [await git(baseCwd, "rev-parse", "HEAD"), await git(baseCwd, "status", "--porcelain")];
+      const worktreeBefore = [await git(worktreeCwd, "rev-parse", "HEAD"), await git(worktreeCwd, "status", "--porcelain")];
+      const baseFileBefore = await readFile(path.join(baseCwd, "feature.txt"), "utf8");
+
+      if (rejects) {
+        await expect(inspectAgentWorktree(request, { worktreeStoreRoot }))
+          .rejects.toThrow("commits not present in the base workspace. Merge them manually");
+        await expect(applyAgentWorktreePatch(request, { worktreeStoreRoot }))
+          .rejects.toThrow("commits not present in the base workspace. Merge them manually");
+        expect([await git(baseCwd, "rev-parse", "HEAD"), await git(baseCwd, "status", "--porcelain")]).toEqual(baseBefore);
+        expect([await git(worktreeCwd, "rev-parse", "HEAD"), await git(worktreeCwd, "status", "--porcelain")]).toEqual(worktreeBefore);
+        expect(await readFile(path.join(baseCwd, "feature.txt"), "utf8")).toBe(baseFileBefore);
+      } else {
+        const inspected = await inspectAgentWorktree(request, { worktreeStoreRoot });
+        expect(inspected.files).toHaveLength(appliedFiles);
+        expect(await applyAgentWorktreePatch(request, { worktreeStoreRoot })).toEqual({ appliedFiles });
+        expect(await readFile(path.join(baseCwd, "feature.txt"), "utf8"))
+          .toBe(scenario === "dirty" ? "uncommitted implementation\n" : baseFileBefore);
+      }
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  });
+
   it("inspects isolated worktree tracked and untracked changes from the managed root", async () => {
     const patch = [
       "diff --git a/src/app.tsx b/src/app.tsx",
@@ -507,6 +586,8 @@ describe("git worktree preparation", () => {
       " keepTerminalMounted()",
     ].join("\n");
     const execFile = vi.fn(async (_file: string, args: string[]) => {
+      if (args.includes("rev-parse")) return { stdout: "base-head\n", stderr: "" };
+      if (args.includes("rev-list")) return { stdout: "0\n", stderr: "" };
       if (args.includes("status")) {
         return { stdout: " M src/app.tsx\0?? notes/review.md\0", stderr: "" };
       }
@@ -562,6 +643,8 @@ describe("git worktree preparation", () => {
   it("applies clean isolated worktree changes into a clean base workspace", async () => {
     const execFile = vi.fn(async (_file: string, args: string[]) => {
       const cwd = args[1];
+      if (args.includes("rev-parse")) return { stdout: "base-head\n", stderr: "" };
+      if (args.includes("rev-list")) return { stdout: "0\n", stderr: "" };
       if (cwd === "/repo" && args.includes("status")) return { stdout: "", stderr: "" };
       if (cwd === "/.alfred-worktrees/repo/alfred-codex-review" && args.includes("status")) {
         return { stdout: " M src/app.tsx\0?? notes/review.md\0", stderr: "" };
@@ -642,6 +725,8 @@ describe("git worktree preparation", () => {
 
       const execFile = vi.fn(async (_file: string, args: string[]) => {
         const cwd = args[1];
+        if (args.includes("rev-parse")) return { stdout: "base-head\n", stderr: "" };
+        if (args.includes("rev-list")) return { stdout: "0\n", stderr: "" };
         if (cwd === baseCwd && args.includes("status")) return { stdout: "", stderr: "" };
         if (cwd === worktreePath && args.includes("status")) return { stdout: "?? link.txt\0", stderr: "" };
         if (args.includes("diff")) return { stdout: "", stderr: "" };
@@ -665,6 +750,8 @@ describe("git worktree preparation", () => {
   it("allows untracked files under directories created by the tracked patch", async () => {
     const execFile = vi.fn(async (_file: string, args: string[]) => {
       const cwd = args[1];
+      if (args.includes("rev-parse")) return { stdout: "base-head\n", stderr: "" };
+      if (args.includes("rev-list")) return { stdout: "0\n", stderr: "" };
       if (cwd === "/repo" && args.includes("status")) return { stdout: "", stderr: "" };
       if (cwd === "/.alfred-worktrees/repo/alfred-codex-review" && args.includes("status")) {
         return { stdout: " D notes\0?? notes/review.md\0", stderr: "" };
@@ -697,6 +784,8 @@ describe("git worktree preparation", () => {
   it("blocks untracked files under a base file when the tracked patch does not replace that parent", async () => {
     const execFile = vi.fn(async (_file: string, args: string[]) => {
       const cwd = args[1];
+      if (args.includes("rev-parse")) return { stdout: "base-head\n", stderr: "" };
+      if (args.includes("rev-list")) return { stdout: "0\n", stderr: "" };
       if (cwd === "/repo" && args.includes("status")) return { stdout: "", stderr: "" };
       if (cwd === "/.alfred-worktrees/repo/alfred-codex-review" && args.includes("status")) {
         return { stdout: " M src/app.tsx\0?? notes/review.md\0", stderr: "" };

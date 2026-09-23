@@ -1,4 +1,5 @@
-import { BrowserWindow, ipcMain, shell } from "electron";
+import { isTrustedIpcRecipient, trustedIpc } from "./trusted-ipc.js";
+import { BrowserWindow, shell } from "electron";
 import {
   desktopStateChannels,
   type DesktopPrivacySettings,
@@ -18,17 +19,17 @@ import {
 export function registerDesktopStateIpc(store: PersistedDesktopStateStore): void {
   store.onSaveStatus((status) => {
     for (const window of BrowserWindow.getAllWindows()) {
-      if (!window.isDestroyed()) {
+      if (!window.isDestroyed() && isTrustedIpcRecipient(window.webContents)) {
         window.webContents.send(desktopStateChannels.saveStatus, status);
       }
     }
   });
 
-  ipcMain.handle(desktopStateChannels.getPrivacySettings, async (): Promise<DesktopPrivacySettings> => {
+  trustedIpc.handle(desktopStateChannels.getPrivacySettings, async (): Promise<DesktopPrivacySettings> => {
     return (await store.getState()).privacySettings;
   });
 
-  ipcMain.handle(
+  trustedIpc.handle(
     desktopStateChannels.updatePrivacySettings,
     async (_event, request: DesktopPrivacySettings): Promise<DesktopPrivacySettings> => {
       const privacySettings = normalizeDesktopPrivacySettings(request);
@@ -45,7 +46,7 @@ export function registerDesktopStateIpc(store: PersistedDesktopStateStore): void
     },
   );
 
-  ipcMain.handle(
+  trustedIpc.handle(
     desktopStateChannels.clearSavedTerminalData,
     async (): Promise<DesktopStateClearSavedTerminalDataResult> => {
       try {
@@ -73,7 +74,7 @@ export function registerDesktopStateIpc(store: PersistedDesktopStateStore): void
     },
   );
 
-  ipcMain.handle(desktopStateChannels.revealStateFile, (): DesktopStateRevealFileResult => {
+  trustedIpc.handle(desktopStateChannels.revealStateFile, (): DesktopStateRevealFileResult => {
     const resolvedPath = store.getFilePath();
     try {
       shell.showItemInFolder(resolvedPath);
@@ -87,7 +88,7 @@ export function registerDesktopStateIpc(store: PersistedDesktopStateStore): void
     }
   });
 
-  ipcMain.handle(desktopStateChannels.retrySave, async (): Promise<DesktopSaveStatus> => {
+  trustedIpc.handle(desktopStateChannels.retrySave, async (): Promise<DesktopSaveStatus> => {
     try {
       await store.retrySave();
     } catch {
