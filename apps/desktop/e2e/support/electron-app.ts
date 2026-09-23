@@ -46,6 +46,8 @@ export type ElectronHarness = {
   marker: string;
   assertNoRuntimeErrors(): void;
   expectConnectionRefused(url: string): void;
+  expectMainError(fragment: string): void;
+  expectRendererError(fragment: string): void;
   closeActiveTerminals(): Promise<void>;
   close(): Promise<void>;
 };
@@ -172,6 +174,22 @@ export const test = base.extend<Fixtures>({
       for (const message of matching) expectedMessages.add(message);
     };
 
+    const expectRendererError = (fragment: string): void => {
+      const matching = messages.filter((message) =>
+        message.source === "renderer" && message.level === "error" && message.text.includes(fragment)
+      );
+      expect(matching).toHaveLength(1);
+      expectedMessages.add(matching[0]!);
+    };
+
+    const expectMainError = (fragment: string): void => {
+      const matching = messages.filter((message) =>
+        message.source === "main-stderr" && message.level === "error" && message.text.includes(fragment)
+      );
+      expect(matching).toHaveLength(1);
+      expectedMessages.add(matching[0]!);
+    };
+
     const closeActiveTerminals = async (): Promise<void> => {
       if (page.isClosed()) return;
 
@@ -184,7 +202,7 @@ export const test = base.extend<Fixtures>({
         const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
         if (!terminalApi) throw new Error("Desktop terminal API is unavailable during cleanup.");
         const { sessions } = await terminalApi.list();
-        for (const session of sessions) terminalApi.kill({ id: session.id });
+        await Promise.all(sessions.map((session) => terminalApi.kill({ id: session.id })));
       });
       await expect.poll(() => page.evaluate(async () => {
         const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
@@ -238,7 +256,7 @@ export const test = base.extend<Fixtures>({
     };
 
     try {
-      await use({ app, page, paths, marker, assertNoRuntimeErrors, expectConnectionRefused, closeActiveTerminals, close });
+      await use({ app, page, paths, marker, assertNoRuntimeErrors, expectConnectionRefused, expectMainError, expectRendererError, closeActiveTerminals, close });
       assertNoRuntimeErrors();
     } finally {
       if (testInfo.status !== testInfo.expectedStatus && !page.isClosed()) {
@@ -297,7 +315,7 @@ function runtimeMessage(
   text: string,
   url?: string,
 ): RuntimeMessage {
-  return { source, level, text: redactText(text), url };
+  return { source, level, text: redactText(text), ...(url === undefined ? {} : { url }) };
 }
 
 function isExpectedConnectionRefused(message: RuntimeMessage, url: string): boolean {

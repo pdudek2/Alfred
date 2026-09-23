@@ -147,7 +147,7 @@ test.describe("deterministic mixed Decision Inbox", () => {
       const session = [...listed.sessions, ...(listed.restoredSessions ?? [])].find(
         (candidate) => candidate.clientId === "restored-1",
       );
-      const sentinelCount = session?.buffer.match(/unsafe recovery confirmed/g)?.length ?? 0;
+      const sentinelCount = session?.buffer?.match(/unsafe recovery confirmed/g)?.length ?? 0;
       return session ? { command: session.command, cwd: session.cwd, sentinelCount } : null;
     }).toEqual({ command: "/bin/sh", cwd: canonicalWorkspaceA, sentinelCount: 1 });
 

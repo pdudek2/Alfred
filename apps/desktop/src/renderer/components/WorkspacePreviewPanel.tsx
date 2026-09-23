@@ -146,6 +146,7 @@ export function WorkspacePreviewPanel({
                 src={selected.url}
                 title={`Preview of ${selected.url}`}
                 referrerPolicy="no-referrer"
+                sandbox="allow-forms allow-same-origin allow-scripts"
               />
             )}
             {reachability === "offline" && (

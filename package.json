@@ -2,6 +2,9 @@
   "name": "alfred-refoundation",
   "private": true,
   "packageManager": "pnpm@10.0.0",
+  "engines": {
+    "node": ">=22 <23"
+  },
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
@@ -21,7 +24,7 @@
     "smoke:cloud": "node scripts/cloud-smoke.mjs",
     "smoke:cloud:runner": "ALFRED_CLOUD_SMOKE_MODE=runner-auth node scripts/cloud-smoke.mjs",
     "smoke:electron": "pnpm --filter @alfred/desktop smoke:electron",
-    "test": "node --test scripts/test/*.test.mjs && turbo run test",
+    "test": "node scripts/check-runner-native.mjs && node --test scripts/test/*.test.mjs && turbo run test",
     "test:scripts": "node --test scripts/test/*.test.mjs",
     "typecheck": "turbo run typecheck",
     "verify:quality": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",

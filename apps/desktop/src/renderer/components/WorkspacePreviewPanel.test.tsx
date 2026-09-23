@@ -117,6 +117,8 @@ describe("WorkspacePreviewPanel", () => {
     );
 
     expect(screen.getByText("127.0.0.1:5173/forecast")).toBeInTheDocument();
+    expect(screen.getByTitle("Preview of http://127.0.0.1:5173/forecast"))
+      .toHaveAttribute("sandbox", "allow-forms allow-same-origin allow-scripts");
     await user.click(screen.getByRole("button", { name: "Open preview externally" }));
     expect(onOpenExternal).toHaveBeenCalledWith("http://127.0.0.1:5173/forecast");
 

@@ -42,6 +42,11 @@ async function planRequestHandler(): Promise<(event: unknown, request: AlfredPla
   return handler as (event: unknown, request: AlfredPlanRequest) => Promise<AlfredPlanResponse>;
 }
 
+vi.mock("./trusted-ipc.js", async () => {
+  const { ipcMain } = await import("electron");
+  return { trustedIpc: ipcMain };
+});
+
 describe("Alfred plan IPC", () => {
   let consoleError: ReturnType<typeof vi.spyOn>;
 

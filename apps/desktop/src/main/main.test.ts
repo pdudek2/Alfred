@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { pathToFileURL } from "node:url";
+import type { BrowserWindow as ElectronBrowserWindow } from "electron";
 
 type AppEventHandler = (...args: unknown[]) => unknown;
 type BeforeQuitHandler = (event: { preventDefault: () => void }) => void;
@@ -35,15 +37,22 @@ const mocks = vi.hoisted(() => {
           once: vi.fn(),
           restore: vi.fn(),
           show: vi.fn(),
-          webContents: { openDevTools: vi.fn() },
+          webContents: {
+            id: 1,
+            on: vi.fn(),
+            once: vi.fn(),
+            openDevTools: vi.fn(),
+            session: { webRequest: { onBeforeRequest: vi.fn() } },
+            setWindowOpenHandler: vi.fn(),
+          },
         };
       }),
-      { getAllWindows: vi.fn(() => []) },
+      { getAllWindows: vi.fn((): ElectronBrowserWindow[] => []) },
     ),
     configureLayoutPersistence: vi.fn(),
     configureStagedPlanPersistence: vi.fn(),
     configureTerminalPersistence: vi.fn(),
-    createPersistedDesktopStateStore: vi.fn(() => ({
+    createPersistedDesktopStateStore: vi.fn((_options: { userDataPath?: string; onWarning?: (message: string, error: unknown) => void }) => ({
       getState: vi.fn(async () => ({ windowState: null })),
     })),
     createWorkspaceStore: vi.fn(() => ({
@@ -181,7 +190,7 @@ describe("main quit persistence", () => {
 
       expect(consoleError).toHaveBeenCalledWith("Failed to flush desktop state before quit.", flushFailure);
       expect(mocks.app.quit).toHaveBeenCalledTimes(1);
-      expect(mocks.app.quit.mock.invocationCallOrder[0]).toBeGreaterThan(consoleError.mock.invocationCallOrder[0]);
+      expect(mocks.app.quit.mock.invocationCallOrder[0]).toBeGreaterThan(consoleError.mock.invocationCallOrder[0]!);
     } finally {
       consoleError.mockRestore();
     }
@@ -333,6 +342,65 @@ describe("main quit persistence", () => {
     expect(window?.show).toHaveBeenCalledTimes(1);
   });
 
+  it("blocks foreign main-frame navigation and popup windows while allowing Preview subframes", async () => {
+    mocks.app.whenReady.mockResolvedValueOnce(undefined);
+    await import("./main.js");
+    await flushMicrotasks();
+
+    const window = mocks.BrowserWindow.mock.results[0]?.value;
+    const navigation = window.webContents.on.mock.calls.find(([name]: [string]) =>
+      name === "will-frame-navigate"
+    )?.[1] as ((event: { url: string; isMainFrame: boolean; preventDefault: () => void }) => void) | undefined;
+    const redirect = window.webContents.on.mock.calls.find(([name]: [string]) =>
+      name === "will-redirect"
+    )?.[1] as typeof navigation;
+    expect(navigation).toBeTypeOf("function");
+    expect(redirect).toBeTypeOf("function");
+
+    const foreign = { url: "http://127.0.0.1:9999/takeover", isMainFrame: true, preventDefault: vi.fn() };
+    navigation?.(foreign);
+    redirect?.(foreign);
+    expect(foreign.preventDefault).toHaveBeenCalledTimes(2);
+
+    const preview = { ...foreign, isMainFrame: false, preventDefault: vi.fn() };
+    navigation?.(preview);
+    redirect?.(preview);
+    expect(preview.preventDefault).not.toHaveBeenCalled();
+
+    const ownPageUrl = pathToFileURL(window.loadFile.mock.calls[0]?.[0] as string);
+    const loadQuery = window.loadFile.mock.calls[0]?.[1]?.query as Record<string, string> | undefined;
+    for (const [key, value] of Object.entries(loadQuery ?? {})) ownPageUrl.searchParams.set(key, value);
+    const ownPage = { ...foreign, url: ownPageUrl.toString(), preventDefault: vi.fn() };
+    navigation?.(ownPage);
+    expect(ownPage.preventDefault).not.toHaveBeenCalled();
+    expect(window.webContents.setWindowOpenHandler.mock.calls[0]?.[0]()).toEqual({ action: "deny" });
+  });
+
+  it("blocks Preview from loading Alfred's configured dev origin, including another path", async () => {
+    vi.stubEnv("VITE_DEV_SERVER_URL", "http://127.0.0.1:4310/");
+    mocks.app.whenReady.mockResolvedValueOnce(undefined);
+    try {
+      await import("./main.js");
+      await flushMicrotasks();
+
+      const window = mocks.BrowserWindow.mock.results[0]?.value;
+      expect(window.loadURL).toHaveBeenCalledWith(expect.stringMatching(/^http:\/\/127\.0\.0\.1:4310\//));
+      const request = window.webContents.session.webRequest.onBeforeRequest.mock.calls[0]?.[1] as
+        ((details: { webContentsId: number; resourceType: string; url: string }, callback: (result: { cancel: boolean }) => void) => void);
+      const check = (url: string, resourceType = "subFrame", webContentsId = 1) => {
+        const callback = vi.fn();
+        request({ url, resourceType, webContentsId }, callback);
+        return callback.mock.calls[0]?.[0];
+      };
+      expect(check("http://127.0.0.1:4310/other")).toEqual({ cancel: true });
+      expect(check("http://127.0.0.1:4311/")).toEqual({ cancel: false });
+      expect(check("http://127.0.0.1:4310/other", "mainFrame")).toEqual({ cancel: false });
+      expect(check("http://127.0.0.1:4310/other", "subFrame", 2)).toEqual({ cancel: false });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("wires authoritative workspace-root resolution into terminal IPC", async () => {
     mocks.app.whenReady.mockResolvedValueOnce(undefined);
 
@@ -374,7 +442,7 @@ describe("main quit persistence", () => {
       focus: vi.fn(),
     };
     mocks.BrowserWindow.getAllWindows.mockReturnValueOnce([
-      existingWindow as unknown as InstanceType<typeof mocks.BrowserWindow>,
+      existingWindow as unknown as ElectronBrowserWindow,
     ]);
 
     await import("./main.js");

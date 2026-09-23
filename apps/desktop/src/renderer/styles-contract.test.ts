@@ -1371,7 +1371,7 @@ describe("renderer CSS contracts", () => {
     const terminalGridEnd = ".terminal-empty-state {";
     expectTopLevelOwnerWithin(
       ".terminal-grid.laid-out",
-      ["--grid-bottom-safe-zone: 10px", "min-height: 100%", "height: 100%"],
+      ["--grid-bottom-safe-zone: 10px", "min-height: 0", "flex: 1 1 auto"],
       terminalGridStart,
       terminalGridEnd,
     );
@@ -1656,10 +1656,10 @@ describe("renderer CSS contracts", () => {
     expect(compactMenuButton).toContain("min-width: 0");
     expect(compactUtilityActions).toHaveLength(1);
     expect(compactUtilityActions[0]).toContain("visibility: hidden");
-    expect(compactUtilityActions[0]).not.toContain("display:");
+    expect(compactUtilityActions[0]).toContain("display: none");
     expect(compactDangerActions).toHaveLength(1);
     expect(compactDangerActions[0]).toContain("visibility: hidden");
-    expect(compactDangerActions[0]).not.toContain("display:");
+    expect(compactDangerActions[0]).toContain("display: none");
     expect(compactOverflowMenu).toHaveLength(1);
     expect(compactOverflowMenu[0]).toContain("display: inline-flex");
     for (const compactSecondaryActionReveal of compactSecondaryActionReveals) {
@@ -2329,7 +2329,7 @@ describe("renderer CSS contracts", () => {
     const minimumSpanArrangeHandle = containerExactRuleBodies("terminal-tile (max-width: 420px)", ".arrange-handle");
     expect(minimumSpanHeader[0]).not.toContain("--terminal-status-zone:");
     expect(minimumSpanArrangeHandle).toEqual([expect.stringContaining("visibility: hidden")]);
-    expect(minimumSpanArrangeHandle[0]).not.toContain("display:");
+    expect(minimumSpanArrangeHandle[0]).toContain("display: none");
   });
 
   it("keeps Work controls and dark scroll owners on the shared chrome rhythm", () => {

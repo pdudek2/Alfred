@@ -5,7 +5,7 @@ import {
   type BrowserWindowConstructorOptions,
   type MessageBoxSyncOptions,
 } from "electron";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 import { config as loadDotenv } from "dotenv";
 import { resolveDesktopAppIconPath } from "./app-icon.js";
@@ -27,6 +27,7 @@ import { configureStagedPlanPersistence, isStagedSessionLaunchAllowed } from "./
 import { allowedWorkspaceRoots, registerWorkspaceIpc } from "./workspace-ipc.js";
 import { createWorkspaceStore } from "./workspace-store.js";
 import { resolveDefaultWorkspaceRootPath } from "./default-workspace-root.js";
+import { configureTrustedIpc, isTrustedDocumentOrigin, isTrustedDocumentUrl } from "./trusted-ipc.js";
 import {
   attachWindowStatePersistence,
   restoreWindowPresentation,
@@ -58,6 +59,11 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
   const persistedWindowState = (await persistedDesktopStateStore.getState()).windowState;
   const appIconPath = resolveDesktopAppIconPath(app.getAppPath());
   const windowMaterial = windowMaterialConfiguration();
+  const rendererPath = path.join(__dirname, "../renderer/index.html");
+  const rendererUrl = isDev
+    ? new URL(process.env.VITE_DEV_SERVER_URL!)
+    : pathToFileURL(rendererPath);
+  if (windowMaterial.enabled) rendererUrl.searchParams.set(WINDOW_MATERIAL_QUERY_KEY, "native");
   const window = new BrowserWindow({
     ...windowOptionsFromState(persistedWindowState),
     minWidth: 1120,
@@ -73,6 +79,21 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
       preload: path.join(__dirname, "preload.cjs"),
     },
   });
+  configureTrustedIpc(window.webContents, rendererUrl.toString());
+  const blockForeignNavigation = (details: { url: string; isMainFrame: boolean; preventDefault(): void }) => {
+    if (details.isMainFrame && !isTrustedDocumentUrl(details.url, rendererUrl.toString())) details.preventDefault();
+  };
+  window.webContents.on("will-frame-navigate", blockForeignNavigation);
+  window.webContents.on("will-redirect", blockForeignNavigation);
+  const trustedContentsId = window.webContents.id;
+  window.webContents.session.webRequest.onBeforeRequest({ urls: ["<all_urls>"] }, (details, callback) => {
+    callback({
+      cancel: details.webContentsId === trustedContentsId
+        && details.resourceType === "subFrame"
+        && isTrustedDocumentOrigin(details.url, rendererUrl.toString()),
+    });
+  });
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   activeWindowStatePersistence = attachWindowStatePersistence(window, persistedDesktopStateStore);
 
   window.once("ready-to-show", () => {
@@ -96,10 +117,6 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
   });
 
   if (isDev) {
-    const rendererUrl = new URL(process.env.VITE_DEV_SERVER_URL!);
-    if (windowMaterial.enabled) {
-      rendererUrl.searchParams.set(WINDOW_MATERIAL_QUERY_KEY, "native");
-    }
     await window.loadURL(rendererUrl.toString());
     if (openDevToolsInDev) {
       window.webContents.openDevTools({ mode: "detach" });
@@ -107,7 +124,6 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
     return;
   }
 
-  const rendererPath = path.join(__dirname, "../renderer/index.html");
   if (windowMaterial.enabled) {
     await window.loadFile(rendererPath, { query: { [WINDOW_MATERIAL_QUERY_KEY]: "native" } });
     return;

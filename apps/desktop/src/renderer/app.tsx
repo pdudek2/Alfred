@@ -22,7 +22,7 @@ import { PrepareWorkPopover } from "./components/PrepareWorkPopover";
 import { ProjectNavigator, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
 import { ReviewSurface } from "./components/ReviewSurface";
 import { SessionsSurface } from "./components/SessionsSurface";
-import { TerminalDesk, type WorktreeActionKind } from "./components/TerminalDesk";
+import { TerminalDesk, type TerminalStartAttempt, type WorktreeActionKind } from "./components/TerminalDesk";
 import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHeader";
 import { WorkSurfaceToolbar } from "./components/WorkSurfaceToolbar";
 import { WorkspaceActionsMenu } from "./components/WorkspaceActionsMenu";
@@ -88,7 +88,7 @@ import type { WorkMode } from "./terminal-desk-types";
 import { shortenPath } from "./path-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { buildSessionsProjection, type SessionsPrimaryActionRequest } from "./sessions-projection";
-import { isActiveAgentSession, isReviewableWorktreeSession, isWorkSession } from "./session-scope";
+import { isActiveAgentSession, isFreeChatScope, isReviewableWorktreeSession, isWorkSession } from "./session-scope";
 import type { WorktreeDiffView } from "./worktree-diff";
 import { normalizeSessionTitle } from "../shared/session-title";
 import { shortLabelForWorkspace } from "../shared/workspace-label";
@@ -233,8 +233,8 @@ export function App() {
   const restoreWorkFocusPendingRef = useRef(false);
   const contextReturnFocusRef = useRef<HTMLButtonElement | null>(null);
   const contextFocusRequestKeyRef = useRef(0);
-  const closingSessionIdsRef = useRef(new Map<string, { instanceKey: string }>());
-  const startingSessionIdsRef = useRef<Set<string>>(new Set());
+  const closingSessionIdsRef = useRef(new Map<string, { instanceKey: string; attempt?: TerminalStartAttempt }>());
+  const startingSessionIdsRef = useRef(new Map<string, { attempt: TerminalStartAttempt; cancelled: boolean }>());
   const resumingExternalSessionKeysRef = useRef<Set<string>>(new Set());
   const externalResumeReservationsRef = useRef<Map<string, { tileId: string; workspaceId: string }>>(new Map());
   const worktreeActionPendingRef = useRef<Set<string>>(new Set());
@@ -320,7 +320,10 @@ export function App() {
     },
   ]));
   const needsYouCount = blockingAttentionCount(attentionItems);
-  const attentionCountsByWorkspace = blockingAttentionCountByWorkspace(attentionItems);
+  const projectSessionIds = new Set(terminalSessions.filter((session) => !isFreeChatScope(session)).map((session) => session.id));
+  const attentionCountsByWorkspace = blockingAttentionCountByWorkspace(
+    attentionItems.filter((item) => projectSessionIds.has(item.sessionId)),
+  );
   const activeAgentSessions = terminalSessions.filter(isActiveAgentSession);
   const activeAgentCountsByWorkspace = activeAgentSessions.reduce((counts, session) => {
     counts.set(session.workspaceId, (counts.get(session.workspaceId) ?? 0) + 1);
@@ -1165,7 +1168,9 @@ export function App() {
     const session = terminalSessionsRef.current.find((item) => item.id === sessionId);
     if (!session || closingSessionIdsRef.current.has(sessionId)) return;
 
-    const closingOperation = { instanceKey: sessionInstanceKey(session) };
+    const closingOperation: { instanceKey: string; attempt?: TerminalStartAttempt } = {
+      instanceKey: sessionInstanceKey(session),
+    };
     const finishClosing = () => {
       if (closingSessionIdsRef.current.get(sessionId) === closingOperation) {
         closingSessionIdsRef.current.delete(sessionId);
@@ -1174,6 +1179,12 @@ export function App() {
     closingSessionIdsRef.current.set(sessionId, closingOperation);
     const destructiveWorktreeCleanup =
       session.runtimeStatus === "restored" || session.runtimeStatus === "exited" || session.runtimeStatus === "error";
+    const pendingStart = startingSessionIdsRef.current.get(sessionId);
+    if (pendingStart) {
+      pendingStart.cancelled = true;
+      closingOperation.attempt = pendingStart.attempt;
+    }
+
     if (destructiveWorktreeCleanup) {
       let result: TerminalForgetResult;
       try {
@@ -1591,23 +1602,38 @@ export function App() {
     void closeSessionNow(confirmation.sessionId);
   }, [closeSessionNow, pendingDiscardConfirmation]);
 
-  const handleRuntimeSessionStarting = useCallback((tileId: string): boolean => {
-    if (startingSessionIdsRef.current.has(tileId)) {
+  const handleRuntimeSessionStarting = useCallback((tileId: string, attempt: TerminalStartAttempt): boolean => {
+    const current = startingSessionIdsRef.current.get(tileId);
+    if (current && !current.cancelled) {
       return false;
     }
 
-    startingSessionIdsRef.current.add(tileId);
+    startingSessionIdsRef.current.set(tileId, { attempt, cancelled: false });
+    const closingOperation = closingSessionIdsRef.current.get(tileId);
+    if (closingOperation && !closingOperation.attempt) closingOperation.attempt = attempt;
     return true;
   }, []);
 
-  const handleRuntimeSessionReady = useCallback((tileId: string, runtime: TerminalCreateResult) => {
+  const handleRuntimeSessionReady = useCallback((tileId: string, attempt: TerminalStartAttempt, runtime: TerminalCreateResult) => {
     const terminalApi = getDesktopTerminalApi();
     const alfredApi = getDesktopAlfredApi();
-
+    const pendingStart = startingSessionIdsRef.current.get(tileId);
     const closingOperation = closingSessionIdsRef.current.get(tileId);
-    if (closingOperation) {
+    const currentSession = terminalSessionsRef.current.find((session) => session.id === tileId);
+    if (
+      !pendingStart
+      || pendingStart.attempt !== attempt
+      || pendingStart.cancelled
+      || closingOperation
+      || !currentSession
+      || currentSession.workspaceId !== attempt.workspaceId
+      || runtime.clientId !== tileId
+      || runtime.workspaceId !== attempt.workspaceId
+      || (currentSession.runtimeId && currentSession.runtimeId !== runtime.id)
+    ) {
       terminalApi?.kill({ id: runtime.id });
-      if (closingSessionIdsRef.current.get(tileId) === closingOperation) {
+      if (pendingStart?.attempt === attempt) startingSessionIdsRef.current.delete(tileId);
+      if (closingOperation?.attempt === attempt && closingSessionIdsRef.current.get(tileId) === closingOperation) {
         closingSessionIdsRef.current.delete(tileId);
       }
       return;
@@ -1642,8 +1668,11 @@ export function App() {
     }
   }, []);
 
-  const handleRuntimeSessionFailed = useCallback((tileId: string, reason?: string) => {
+  const handleRuntimeSessionFailed = useCallback((tileId: string, attempt: TerminalStartAttempt, reason?: string) => {
+    const pendingStart = startingSessionIdsRef.current.get(tileId);
+    if (pendingStart?.attempt !== attempt) return;
     startingSessionIdsRef.current.delete(tileId);
+    if (pendingStart.cancelled) return;
     setTerminalSessions((sessions) =>
       appendSessionActivity(markSessionStartFailed(sessions, tileId), tileId, {
         kind: "error",
@@ -1903,12 +1932,8 @@ export function App() {
   }, [armedRecoverySessionIds]);
 
   useEffect(() => {
-    if (
-      (activeSurface === "inbox" || activeSurface === "sessions")
-      || armedRecoverySessionIds.size === 0
-    ) return;
-    setArmedRecoverySessionIds(new Set());
-  }, [activeSurface, armedRecoverySessionIds]);
+    setArmedRecoverySessionIds((current) => current.size === 0 ? current : new Set());
+  }, [activeSurface, activeWorkspaceId]);
 
   const handleRejectTile = useCallback((tileId: string) => {
     const alfredApi = getDesktopAlfredApi();
@@ -2645,6 +2670,13 @@ export function App() {
         }
       }}
       onKeyDownCapture={(event) => {
+        if (event.key === "Escape" && activeSurface === "work" && armedRecoverySessionIds.size > 0
+          && !activeAccessibleDismissalOwner(event.currentTarget)) {
+          event.preventDefault();
+          event.stopPropagation();
+          setArmedRecoverySessionIds(new Set());
+          return;
+        }
         if (!inboxOwnsEscape || event.key !== "Escape") return;
         const dismissalOwner = activeAccessibleDismissalOwner(event.currentTarget);
         if (dismissalOwner) {

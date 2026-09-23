@@ -11,7 +11,7 @@
     "smoke:electron": "electron --version && playwright test --config playwright.config.ts",
     "start": "electron .",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.eslint.json --noEmit"
   },
   "dependencies": {
     "@alfred/schema": "workspace:*",

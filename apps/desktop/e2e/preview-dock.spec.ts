@@ -97,7 +97,7 @@ test("Preview stays on demand and preserves xterm while loaded, resized, and off
   }
 });
 
-async function expectSameNode(before: ElementHandle<HTMLElement>, current: Locator): Promise<void> {
+async function expectSameNode(before: ElementHandle<HTMLElement | SVGElement>, current: Locator): Promise<void> {
   const after = await current.elementHandle();
   if (!after) throw new Error("Expected the current xterm host.");
   expect(await before.evaluate((node, next) => node.isSameNode(next) && node.isConnected, after)).toBe(true);
