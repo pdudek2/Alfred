@@ -188,6 +188,20 @@ describe("redactPayload", () => {
     expect(redactText("deploy --token 'abc def'")).toBe("deploy --token [redacted]");
   });
 
+  it("redacts secret-named keys in JSON text the same way as object keys", () => {
+    expect(
+      redactText('token response: {"access_token":"at-SYNTHETIC","client_secret":"cs-SYNTHETIC","refreshToken":"rt-SYNTHETIC","expires_in":3600,"scope":"repo"} ok'),
+    ).toBe('token response: {"access_token":"[redacted]","client_secret":"[redacted]","refreshToken":"[redacted]","expires_in":3600,"scope":"repo"} ok');
+    expect(redactText(String.raw`{"password": "pa\"ss-TAIL-SYNTHETIC", "user": "keep"}`)).toBe(
+      '{"password": "[redacted]", "user": "keep"}',
+    );
+    expect(redactText("{'apiKey': 'ak-SYNTHETIC'}")).toBe("{'apiKey': '[redacted]'}");
+    expect(redactPayload({ summary: '{"access_token":"at-SYNTHETIC"}' }, "standard")).toEqual({
+      summary: '{"access_token":"[redacted]"}',
+    });
+    expect(redactText('{"name": "alfred", "status": "ok", "count": 2}')).toBe('{"name": "alfred", "status": "ok", "count": 2}');
+  });
+
   it("redacts multi-token authorization assignment values", () => {
     expect(redactText("AUTHORIZATION=Bearer abc.def.ghi")).toBe("AUTHORIZATION=[redacted]");
     expect(redactText("AUTHORIZATION=Basic dXNlcjpwYXNz")).toBe("AUTHORIZATION=[redacted]");

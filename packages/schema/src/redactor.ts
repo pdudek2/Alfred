@@ -3,8 +3,9 @@ import { createHash } from "node:crypto";
 import type { PrivacyMode } from "./enums.js";
 
 const MINIMAL_KEYS = new Set(["summary", "status", "tool_name", "exit_code"]);
-const SECRET_KEY_PATTERN =
-  /(token|secret|password|passwd|passphrase|api[_-]?key|apikey|authorization|bearer|credential|cookie|private[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|session[_-]?id|signature)/i;
+const SECRET_KEY_WORDS =
+  "token|secret|password|passwd|passphrase|api[_-]?key|apikey|authorization|bearer|credential|cookie|private[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|session[_-]?id|signature";
+const SECRET_KEY_PATTERN = new RegExp(`(${SECRET_KEY_WORDS})`, "i");
 const SECRET_ASSIGNMENT_PATTERN =
   /\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|PASSPHRASE|API[_-]?KEY|AUTHORIZATION|CREDENTIAL|COOKIE|PRIVATE[_-]?KEY|ACCESS[_-]?TOKEN|REFRESH[_-]?TOKEN|CLIENT[_-]?SECRET|SESSION[_-]?ID|SIGNATURE)[A-Z0-9_]*)(\s*[:=]\s*)("[^"]+"|'[^']+'|(?:Bearer|Basic)\s+[^\s"'`;,]+|[^\s"'`;,]+)/gi;
 const CLI_SECRET_ARG_PATTERN =
@@ -15,8 +16,12 @@ const HEADER_SECRET_PATTERN =
   /\b(authorization|x-api-key|api-key)(\s*:\s*)((?:Bearer|Basic)\s+[^\s"'`;,]+|[^\s"'`;,]+)/gi;
 const URI_USERINFO_PATTERN =
   /\b([a-z][a-z0-9+.-]*:\/\/)([^/\s:@]+):([^@\s/]+)@/gi;
-const JSON_SECRET_ASSIGNMENT_PATTERN =
-  /(["'](?:api[_-]?key|token|secret|password)["']\s*:\s*)(["'])([^"']+)\2/gi;
+// A quoted key ending in a secret word (access_token, refreshToken — not api_key_description),
+// then a quoted string value that may contain escapes.
+const JSON_SECRET_ASSIGNMENT_PATTERN = new RegExp(
+  String.raw`((["'])[^"'\\\r\n]*(?:${SECRET_KEY_WORDS})\2\s*:\s*)("(?:[^"\\\r\n]|\\.)*"|'(?:[^'\\\r\n]|\\.)*')`,
+  "gi",
+);
 const COOKIE_HEADER_PATTERN =
   /(["'])(\s*cookie\s*:\s*)(?=[!#$%&'*+\-.^_`|~0-9A-Za-z]+\s*=)[^\r\n]*?\1|\b(cookie)(\s*:\s*)(?=[!#$%&'*+\-.^_`|~0-9A-Za-z]+\s*=)[^\r\n]+/gi;
 const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g;
@@ -106,7 +111,7 @@ function redactValue(value: unknown, key?: string, options: RedactValueOptions =
 function redactSecretText(value: string, options: RedactValueOptions = STANDARD_REDACTION_OPTIONS): string {
   const withoutStructuredSecrets = value
     .replace(URI_USERINFO_PATTERN, (_match, scheme) => `${scheme}${REDACTED}@`)
-    .replace(JSON_SECRET_ASSIGNMENT_PATTERN, (_match, prefix, quote) => `${prefix}${quote}${REDACTED}${quote}`)
+    .replace(JSON_SECRET_ASSIGNMENT_PATTERN, (_match, prefix, _keyQuote, value: string) => `${prefix}${value[0]}${REDACTED}${value[0]}`)
     .replace(COOKIE_HEADER_PATTERN, (_match, quote, quotedPrefix, header, separator) =>
       quote ? `${quote}${quotedPrefix}${REDACTED}${quote}` : `${header}${separator}${REDACTED}`,
     )
