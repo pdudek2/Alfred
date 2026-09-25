@@ -15,6 +15,7 @@ import {
   getTerminalSessionCount,
   killAllTerminalSessions,
   registerTerminalIpc,
+  waitForTerminalExits,
 } from "./terminal-manager.js";
 import { registerAlfredIpc } from "./alfred-orchestrator.js";
 import { registerLayoutIpc } from "./layout-ipc.js";
@@ -45,6 +46,9 @@ const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
 const openDevToolsInDev = process.env.ALFRED_DESKTOP_OPEN_DEVTOOLS === "1";
 const keepE2eWindowHidden = process.env.ALFRED_E2E_HIDDEN === "1";
 const WINDOW_MATERIAL_QUERY_KEY = "alfred-window-material";
+// Quit waits for killed PTYs to report exit so node-pty's exit callback never runs during Node teardown.
+// ponytail: a process ignoring SIGHUP only delays quit by this bound; add SIGKILL escalation if one shows up.
+const QUIT_TERMINAL_EXIT_TIMEOUT_MS = 2_000;
 let terminalQuitConfirmed = false;
 let terminalPersistenceFlushedForQuit = false;
 let desktopStateStore: PersistedDesktopStateStore | null = null;
@@ -257,7 +261,11 @@ if (!hasSingleInstanceLock) {
     if (!terminalPersistenceFlushedForQuit) {
       event.preventDefault();
       killAllTerminalSessions();
-      void Promise.all([flushTerminalPersistence(), activeWindowStatePersistence?.flush() ?? Promise.resolve()])
+      void Promise.all([
+        flushTerminalPersistence(),
+        activeWindowStatePersistence?.flush() ?? Promise.resolve(),
+        waitForTerminalExits(QUIT_TERMINAL_EXIT_TIMEOUT_MS),
+      ])
         .then(() => {
           terminalPersistenceFlushedForQuit = true;
           app.quit();

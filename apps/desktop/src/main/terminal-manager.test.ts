@@ -12,6 +12,7 @@ import {
   killAllTerminalSessions,
   registerTerminalIpc as registerTerminalIpcBase,
   resetTerminalPersistenceForTests,
+  waitForTerminalExits,
 } from "./terminal-manager.js";
 import { terminalChannels } from "../shared/terminal-ipc.js";
 import type {
@@ -1425,6 +1426,43 @@ describe("terminal-manager IPC", () => {
       windowId: 1,
     });
     expect(listed.sessions).toEqual([]);
+  });
+
+  it("waits for closed and quit-killed terminals to report exit, bounded by a timeout", async () => {
+    const closedPty = new FakePty();
+    const quitPty = new FakePty();
+    const ptys = [closedPty, quitPty];
+    registerTerminalIpc({
+      loadNodePty: async () => ({ spawn: vi.fn(() => ptys.shift()) }) as never,
+    });
+    const closed = await invoke<{ id: string }>(terminalChannels.create, { command: "node", cols: 80, cwd: "/repo", rows: 24 });
+    await invoke(terminalChannels.create, { command: "node", cols: 80, cwd: "/repo", rows: 24 });
+
+    emit(terminalChannels.kill, { id: closed.id });
+    killAllTerminalSessions();
+    let settled = false;
+    const waiting = waitForTerminalExits(60_000).then(() => { settled = true; });
+
+    closedPty.onExitHandler?.({ exitCode: 0, signal: 1 });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    quitPty.onExitHandler?.({ exitCode: 0, signal: 1 });
+    await waiting;
+    expect(settled).toBe(true);
+
+    vi.useFakeTimers();
+    try {
+      const stuckPty = new FakePty();
+      ptys.push(stuckPty);
+      await invoke(terminalChannels.create, { command: "node", cols: 80, cwd: "/repo", rows: 24 });
+      killAllTerminalSessions();
+      const timedOut = waitForTerminalExits(2_000);
+      await vi.advanceTimersByTimeAsync(2_000);
+      await expect(timedOut).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps app-only environment out of terminal sessions while preserving the user environment", async () => {
