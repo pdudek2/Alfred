@@ -53,7 +53,13 @@ let activeWindowStatePersistence: WindowStatePersistenceHandle | null = null;
 // Load repo-root .env before any IPC registration so OPENROUTER_API_KEY is visible.
 // Repo root is two levels up from app.getAppPath() (apps/desktop) — same logic as
 // terminal-manager.ts:defaultTerminalCwd().
-loadDotenv({ path: path.resolve(app.getAppPath(), "../..", ".env") });
+// Keys the .env adds are app-only config: terminals must not inherit them. Keys already in the
+// launch environment are the user's own and stay (dotenv does not override them).
+const launchEnvKeys = new Set(Object.keys(process.env));
+const appOnlyEnvKeys: ReadonlySet<string> = new Set(
+  Object.keys(loadDotenv({ path: path.resolve(app.getAppPath(), "../..", ".env") }).parsed ?? {})
+    .filter((key) => !launchEnvKeys.has(key)),
+);
 
 async function createWindow(persistedDesktopStateStore: PersistedDesktopStateStore): Promise<void> {
   const persistedWindowState = (await persistedDesktopStateStore.getState()).windowState;
@@ -206,6 +212,7 @@ if (!hasSingleInstanceLock) {
       workspaceStore,
     });
     registerTerminalIpc({
+      appOnlyEnvKeys,
       allowedCwdRoots: async () => allowedWorkspaceRoots(workspaceStore, { managedWorktreeRootPath, scratchRootPath }),
       isStagedCommandAllowed: isStagedSessionLaunchAllowed,
       managedWorktreeRootPath,
