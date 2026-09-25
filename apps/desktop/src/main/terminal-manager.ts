@@ -76,6 +76,8 @@ type WorktreeOperationSession = {
 };
 type TerminalIpcOptions = {
   allowedCwdRoots?: () => Promise<string[]>;
+  /** Variables Alfred loaded for itself (repo .env); never inherited by terminal sessions. */
+  appOnlyEnvKeys?: ReadonlySet<string>;
   applyAgentWorktreePatch?: ApplyAgentWorktreePatch;
   cleanupAgentWorktree?: typeof defaultCleanupAgentWorktree;
   inspectAgentWorktree?: InspectAgentWorktree;
@@ -393,7 +395,9 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           rows: normalizeDimension(request.rows, 24),
           cwd,
           env: {
-            ...process.env,
+            ...Object.fromEntries(
+              Object.entries(process.env).filter(([key]) => !options.appOnlyEnvKeys?.has(key)),
+            ),
             TERM: "xterm-256color",
             COLORTERM: "truecolor",
           },

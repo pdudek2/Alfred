@@ -1465,6 +1465,27 @@ describe("terminal-manager IPC", () => {
     }
   });
 
+  it("keeps app-only environment out of terminal sessions while preserving the user environment", async () => {
+    vi.stubEnv("ALFRED_TEST_APP_ONLY_SECRET", "synthetic-app-secret");
+    vi.stubEnv("ALFRED_TEST_USER_TOKEN", "synthetic-user-token");
+    const pty = new FakePty();
+    const nodePty = fakeNodePty(pty);
+    registerTerminalIpc({
+      appOnlyEnvKeys: new Set(["ALFRED_TEST_APP_ONLY_SECRET"]),
+      loadNodePty: async () => nodePty as never,
+    });
+
+    await invoke(terminalChannels.create, { command: "node", cols: 80, cwd: "/repo", rows: 24 });
+
+    const env = (nodePty.spawn.mock.calls[0] as unknown as [string, string[], { env: Record<string, string> }])[2].env;
+    expect(env).not.toHaveProperty("ALFRED_TEST_APP_ONLY_SECRET");
+    expect(env).toMatchObject({
+      ALFRED_TEST_USER_TOKEN: "synthetic-user-token",
+      PATH: process.env.PATH,
+      TERM: "xterm-256color",
+    });
+  });
+
   it("reconciles a terminal that exits before the renderer attaches its exit listener", async () => {
     vi.spyOn(Date, "now").mockReturnValue(5_000);
     const pty = new FakePty();

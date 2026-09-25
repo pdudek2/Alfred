@@ -67,7 +67,7 @@ const mocks = vi.hoisted(() => {
     getTerminalSessionCount: vi.fn(() => 0),
     isStagedSessionLaunchAllowed: vi.fn(() => true),
     killAllTerminalSessions: vi.fn(),
-    loadDotenv: vi.fn(),
+    loadDotenv: vi.fn(() => ({ parsed: {} })),
     registerAlfredIpc: vi.fn(),
     registerDesktopStateIpc: vi.fn(),
     registerLayoutIpc: vi.fn(),
@@ -442,6 +442,25 @@ describe("main quit persistence", () => {
     expect(mocks.registerSessionsIpc).toHaveBeenCalledWith(expect.objectContaining({
       managedWorktreeRootPath: "/tmp/alfred-user-data/worktrees",
     }));
+  });
+
+  it("keeps only keys added by the repo .env out of terminal sessions", async () => {
+    vi.stubEnv("ALFRED_TEST_LAUNCH_KEY", "user-value");
+    mocks.loadDotenv.mockReturnValueOnce({
+      parsed: { ALFRED_TEST_APP_KEY: "app-value", ALFRED_TEST_LAUNCH_KEY: "dotenv-value" },
+    });
+    mocks.app.whenReady.mockResolvedValueOnce(undefined);
+
+    try {
+      await import("./main.js");
+      await flushMicrotasks();
+
+      expect(mocks.registerTerminalIpc).toHaveBeenCalledWith(expect.objectContaining({
+        appOnlyEnvKeys: new Set(["ALFRED_TEST_APP_KEY"]),
+      }));
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("exits immediately when another Alfred instance owns the desktop profile", async () => {
