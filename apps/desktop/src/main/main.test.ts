@@ -77,6 +77,7 @@ const mocks = vi.hoisted(() => {
     resolveDefaultWorkspaceRootPath: vi.fn(() => "/Users/patryk/Desktop/Alfred"),
     restoreWindowPresentation: vi.fn(),
     shouldConfirmTerminalQuit: vi.fn(() => false),
+    waitForTerminalExits: vi.fn(async () => {}),
     windowOptionsFromState: vi.fn(() => ({})),
   };
 });
@@ -137,6 +138,7 @@ vi.mock("./terminal-manager.js", () => ({
   getTerminalSessionCount: mocks.getTerminalSessionCount,
   killAllTerminalSessions: mocks.killAllTerminalSessions,
   registerTerminalIpc: mocks.registerTerminalIpc,
+  waitForTerminalExits: mocks.waitForTerminalExits,
 }));
 
 vi.mock("./window-state.js", () => ({
@@ -194,6 +196,28 @@ describe("main quit persistence", () => {
     } finally {
       consoleError.mockRestore();
     }
+  });
+
+  it("waits for killed terminals to report exit before letting Electron tear down Node", async () => {
+    const terminalExits = deferredPromise<void>();
+    mocks.waitForTerminalExits.mockReturnValueOnce(terminalExits.promise);
+
+    await import("./main.js");
+    const beforeQuit = mocks.appEventHandlers.get("before-quit") as BeforeQuitHandler | undefined;
+    beforeQuit?.({ preventDefault: vi.fn() });
+    await flushMicrotasks();
+
+    expect(mocks.killAllTerminalSessions).toHaveBeenCalledTimes(1);
+    expect(mocks.waitForTerminalExits).toHaveBeenCalledTimes(1);
+    expect(mocks.waitForTerminalExits.mock.invocationCallOrder[0]).toBeGreaterThan(
+      mocks.killAllTerminalSessions.mock.invocationCallOrder[0]!,
+    );
+    expect(mocks.app.quit).not.toHaveBeenCalled();
+
+    terminalExits.resolve();
+    await flushMicrotasks();
+
+    expect(mocks.app.quit).toHaveBeenCalledTimes(1);
   });
 
   it("logs startup rejection before closing the desktop app", async () => {

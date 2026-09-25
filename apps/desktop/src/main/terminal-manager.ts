@@ -139,6 +139,10 @@ const sessions = new Map<TerminalSessionId, TerminalSession>();
 const restoredSessionSnapshots = new Map<string, PersistedTerminalSessionSnapshot>();
 const forgottenClientIds = new Set<string>();
 const recentTerminalExits = new Map<TerminalSessionId, RecentTerminalExit>();
+// Spawned PTYs whose exit has not reached JS yet, including ones already removed from `sessions`.
+// node-pty reports exit through a ThreadSafeFunction; if that call lands while Electron tears
+// down Node, node-addon-api cannot throw into JS and aborts the process (uncaught Napi::Error).
+const pendingPtyExits = new Set<Promise<void>>();
 const require = createRequire(import.meta.url);
 const NODE_PTY_HELPER_MODE = 0o755;
 const MAX_BUFFER_LENGTH = 200_000;
@@ -188,6 +192,7 @@ export function resetTerminalPersistenceForTests(): void {
   restoredSessionSnapshots.clear();
   forgottenClientIds.clear();
   recentTerminalExits.clear();
+  pendingPtyExits.clear();
   persistDebounceMs = 250;
 }
 
@@ -442,7 +447,14 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         });
       });
 
+      let reportPtyExit = () => {};
+      const ptyExit = new Promise<void>((resolve) => {
+        reportPtyExit = resolve;
+      });
+      pendingPtyExits.add(ptyExit);
       session.pty.onExit(({ exitCode, signal }) => {
+        pendingPtyExits.delete(ptyExit);
+        reportPtyExit();
         if (!sessions.has(session.id)) return;
         const identity = {
           id: session.id,
@@ -637,6 +649,19 @@ export function killAllTerminalSessions(): void {
   for (const id of sessions.keys()) {
     killSession(id, "quit");
   }
+}
+
+/** Resolves once every spawned PTY has reported its exit to JS, or after `timeoutMs`. */
+export async function waitForTerminalExits(timeoutMs: number): Promise<void> {
+  if (pendingPtyExits.size === 0) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    Promise.all(pendingPtyExits),
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, timeoutMs);
+    }),
+  ]);
+  clearTimeout(timer);
 }
 
 export async function flushTerminalPersistence(): Promise<void> {
