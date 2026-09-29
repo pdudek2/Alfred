@@ -77,7 +77,7 @@ import {
   type SessionActivityEvent,
   type SessionTile,
 } from "./session-state";
-import { terminalSessionDisplayStatus } from "./session-status";
+import { sessionState } from "./session-status";
 import { createInitialSessionsViewState } from "./sessions-view-state";
 import {
   recordPreviewUrlsFromText,
@@ -412,7 +412,7 @@ export function App() {
     let nextAnnouncement: string | null = null;
 
     for (const session of terminalSessions) {
-      const status = terminalSessionDisplayStatus(session).label;
+      const status = sessionState(session).label;
       nextStatuses.set(session.id, status);
       const previousStatus = previousStatuses.get(session.id);
       if (previousStatus && previousStatus !== status) {
@@ -3751,7 +3751,7 @@ function workspacePlanContext(
             return {
               title: session.title,
               kind: session.agentKind ?? "shell",
-              status: terminalSessionDisplayStatus(session).label,
+              status: sessionState(session).label,
               ...(session.cwd ? { cwd: session.cwd } : {}),
               ...(command ? { command } : {}),
             };

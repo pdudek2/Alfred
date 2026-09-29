@@ -39,7 +39,7 @@ describe("workspace-session-summary", () => {
         ],
         now,
       ),
-    ).toBe("1 error · 1 needs you · 1 working · 1 idle");
+    ).toBe("1 needs you · 1 running · 1 idle · 1 failed");
   });
 
   it("describes an empty workspace plainly", () => {

@@ -2864,18 +2864,6 @@ body.arranging-pointer {
   color: var(--ink-5);
 }
 
-.session-status-glyph.status-waiting { color: var(--ink-5); }
-.session-status-glyph.status-active,
-.session-status-glyph.status-checking,
-.session-status-glyph.status-starting,
-.session-status-glyph.status-runtime,
-.session-status-glyph.status-blocked,
-.session-status-glyph.status-error,
-.session-status-glyph.status-restored,
-.session-status-glyph.status-done,
-.session-status-glyph.status-idle,
-.session-status-glyph.status-staged { color: var(--ink-5); }
-
 .tile-age {
   min-width: 34px;
   color: var(--ink-5);
@@ -2899,14 +2887,7 @@ body.arranging-pointer {
 .terminal-tile.real-terminal.exited .tile-status,
 .terminal-tile.real-terminal.error .tile-status,
 .terminal-tile.real-terminal.browser .tile-status,
-.terminal-tile.real-terminal.restored .tile-status,
-.terminal-tile.real-terminal .tile-status.status-active,
-.terminal-tile.real-terminal .tile-status.status-idle,
-.terminal-tile.real-terminal .tile-status.status-done,
-.terminal-tile.real-terminal .tile-status.status-error,
-.terminal-tile.real-terminal .tile-status.status-runtime,
-.terminal-tile.real-terminal .tile-status.status-restored { color: var(--ink-5); }
-.terminal-tile.real-terminal .tile-status.status-waiting { color: var(--ink-5); }
+.terminal-tile.real-terminal.restored .tile-status { color: var(--ink-5); }
 .terminal-tile.staged .tile-status.status-blocked,
 .terminal-tile.staged .tile-status.status-checking { color: var(--ink-5); }
 
@@ -2946,7 +2927,6 @@ body.arranging-pointer {
 
 .terminal-tile.real-terminal.error .tile-status::before,
 .terminal-tile.real-terminal.session-waiting .tile-status::before,
-.terminal-tile.selected .tile-status.status-active::before,
 .terminal-tile.staged .tile-status.status-blocked::before {
   box-shadow: none;
 }
@@ -4655,12 +4635,11 @@ body.arranging-pointer {
   color: inherit;
 }
 
-.agent-status-pill.status-active { color: var(--cyan); }
-.agent-status-pill.status-waiting,
-.agent-status-pill.status-checking,
-.agent-status-pill.status-runtime { color: var(--brass); }
-.agent-status-pill.status-blocked,
-.agent-status-pill.status-error { color: var(--signal-danger); }
+.agent-status-pill.status-working,
+.agent-status-pill.status-running { color: var(--cyan); }
+.agent-status-pill.status-needs-you,
+.agent-status-pill.status-unavailable { color: var(--brass); }
+.agent-status-pill.status-failed { color: var(--signal-danger); }
 
 .agent-timeline-body {
   flex: 1 1 auto;

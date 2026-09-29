@@ -22,7 +22,7 @@ import {
   type SessionTile,
 } from "../session-state";
 import { StagedTilePreview } from "../staged-tile";
-import { terminalSessionDisplayStatus, type LocalTerminalStatus } from "../session-status";
+import { isRestartable, sessionState, type LocalTerminalStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
@@ -1032,14 +1032,17 @@ function ManualTerminalTile({
   const tileStatus = restoredTranscript ? "restored" : status;
   const displaySession = {
     stage: "live",
+    ...(agentKind === undefined ? {} : { agentKind }),
+    ...(detectedAgentKind === undefined ? {} : { detectedAgentKind }),
+    ...(command === undefined ? {} : { command }),
     ...(runtimeStatus === undefined ? {} : { runtimeStatus }),
     ...(lastOutputAt === undefined ? {} : { lastOutputAt }),
     ...(activityEvents === undefined ? {} : { activityEvents }),
-  } satisfies Parameters<typeof terminalSessionDisplayStatus>[0];
-  const displayStatus = terminalSessionDisplayStatus(displaySession, tileStatus, displayClock);
+  } satisfies Parameters<typeof sessionState>[0];
+  const displayStatus = sessionState(displaySession, tileStatus, displayClock);
   const statusLabel = displayStatus.label;
-  const restartable = displayStatus.kind === "done" || displayStatus.kind === "error";
-  const discardableSession = displayStatus.kind === "restored" || restartable;
+  const restartable = isRestartable(displayStatus);
+  const discardableSession = displayStatus.kind === "asleep" || restartable;
   const existingCheckoutMetadata = isReusableIsolatedCheckoutMetadata({
     isolation,
     branchName,

@@ -3,7 +3,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent
 import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import { isFreeChatSession, isNavigableLiveSession } from "../session-scope";
 import type { SessionTile } from "../session-state";
-import { terminalSessionDisplayStatus } from "../session-status";
+import { isRestartable, sessionState } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 import { sessionTileKind } from "../tile-kind";
@@ -340,7 +340,7 @@ type RecentAgentResult = {
   session: SessionTile;
   workspaceLabel: string;
   agentLabel: "Claude" | "Codex";
-  status: "done" | "error";
+  status: "done" | "failed";
   activityAt?: number;
   ageLabel: string | null;
 };
@@ -353,8 +353,9 @@ function recentAgentResults(
 
   return sessions.flatMap((session): RecentAgentResult[] => {
     const agentLabel = recentAgentLabel(session);
-    const status = terminalSessionDisplayStatus(session).kind;
-    if (!agentLabel || (status !== "done" && status !== "error")) return [];
+    const state = sessionState(session);
+    if (!agentLabel || !isRestartable(state)) return [];
+    const status = state.kind === "done" ? "done" : "failed";
 
     const activityAt = session.lastActivityAt ?? session.lastOutputAt ?? session.createdAt;
     return [{
@@ -392,7 +393,7 @@ function NavigatorSessionButton({
   session: SessionTile;
   onClick: () => void;
 }) {
-  const status = terminalSessionDisplayStatus(session);
+  const status = sessionState(session);
   const kind = sessionTileKind(session);
   const statusId = useId();
   const agentLabel = recentAgentLabel(session) ?? "Terminal";
