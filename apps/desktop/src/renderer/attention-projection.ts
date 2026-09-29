@@ -1,6 +1,6 @@
 import { formatCommand } from "./command-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
-import { terminalSessionDisplayStatus, type SessionDisplayStatus } from "./session-status";
+import { sessionState, type SessionDisplayStatus } from "./session-status";
 import { isLaunchBlocked, type SessionTile } from "./session-state";
 import { checkSafety } from "../shared/terminal-command-safety";
 import { runtimeBlockerReason } from "../shared/session-activity";
@@ -55,8 +55,8 @@ export function buildAttentionProjection(
       id: session.workspaceId,
       label: session.workspaceId,
     };
-    const status = terminalSessionDisplayStatus(session, "ready", now);
-    if (status.kind === "checking") return [];
+    const status = sessionState(session, "ready", now);
+    if (session.stage === "staged" && session.stagedReviewStatus === "checking") return [];
 
     const projection =
       projectRuntimeBlocker(session, workspace, status) ??
@@ -85,7 +85,7 @@ function projectRuntimeBlocker(
 ): AttentionProjection | null {
   const latestEvent = session.activityEvents?.at(-1);
   const reason = latestEvent ? runtimeBlockerReason(latestEvent) : null;
-  if (status.kind !== "error" || !latestEvent || !reason) return null;
+  if (status.kind !== "needs-you" || status.reason !== "runtime-blocker" || !latestEvent || !reason) return null;
 
   return {
     ...projectionIdentity(session, workspace),
@@ -121,7 +121,7 @@ function projectBlockedSafety(
   workspace: AttentionWorkspace,
   status: SessionDisplayStatus,
 ): AttentionProjection | null {
-  if (status.kind !== "blocked" || session.stage !== "staged" || !isLaunchBlocked(session)) return null;
+  if (status.kind !== "needs-you" || status.reason !== "blocked-launch" || !isLaunchBlocked(session)) return null;
 
   const reason = session.safetyNote?.trim()
     || (session.launchPreflight?.status === "blocked" ? session.launchPreflight.reason : "Launch needs safety review.");
@@ -145,7 +145,7 @@ function projectAgentWaiting(
   workspace: AttentionWorkspace,
   status: SessionDisplayStatus,
 ): AttentionProjection | null {
-  if (status.kind !== "waiting") return null;
+  if (status.kind !== "needs-you" || status.reason !== "approval") return null;
   const approval = session.activityEvents?.at(-1);
   if (approval?.kind !== "approval") return null;
 
@@ -170,7 +170,7 @@ function projectStagedLaunch(
   workspace: AttentionWorkspace,
   status: SessionDisplayStatus,
 ): AttentionProjection | null {
-  if (status.kind !== "staged" || !session.command?.trim()) return null;
+  if (status.kind !== "draft" || !session.command?.trim()) return null;
   const command = formatCommand(session);
 
   return {
@@ -192,9 +192,9 @@ function projectRecovery(
   workspace: AttentionWorkspace,
   status: SessionDisplayStatus,
 ): AttentionProjection | null {
-  if (status.kind !== "restored" && status.kind !== "done" && status.kind !== "error") return null;
+  if (status.kind !== "asleep" && status.kind !== "done" && status.kind !== "failed") return null;
 
-  const resumable = status.kind === "restored" && isResumableAgent(session);
+  const resumable = status.kind === "asleep" && isResumableAgent(session);
   if (!resumable && !session.command?.trim()) return null;
   if (!resumable && checkSafety(session.command!, session.args ?? []).unsafe) return null;
 
@@ -206,7 +206,7 @@ function projectRecovery(
     ? safety.reason
     : resumable
       ? "Saved agent session can be resumed."
-      : status.kind === "restored"
+      : status.kind === "asleep"
         ? "Saved session can be relaunched."
         : "Ended session can be relaunched.";
 

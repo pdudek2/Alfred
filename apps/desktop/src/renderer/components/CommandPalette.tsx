@@ -9,7 +9,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import type { SessionTile } from "../session-state";
-import { terminalSessionDisplayStatus } from "../session-status";
+import { isRestartable, sessionState } from "../session-status";
 import type { WorkMode } from "../terminal-desk-types";
 import type { AttentionProjection } from "../attention-projection";
 import type { AgentKind } from "../../shared/alfred-ipc";
@@ -518,7 +518,7 @@ export function CommandPalette({
 }
 
 function sessionStatusLabel(session: SessionTile): string {
-  return terminalSessionDisplayStatus(session).label;
+  return sessionState(session).label;
 }
 
 function compareSessionsForPalette(a: SessionTile, b: SessionTile, activeWorkspaceId: string): number {
@@ -532,8 +532,7 @@ function compareSessionsForPalette(a: SessionTile, b: SessionTile, activeWorkspa
 }
 
 function isRestartableSession(session: SessionTile): boolean {
-  const status = terminalSessionDisplayStatus(session);
-  return status.kind === "done" || status.kind === "error";
+  return isRestartable(sessionState(session));
 }
 
 function trapDialogFocus(event: ReactKeyboardEvent, panel: HTMLElement | null): void {

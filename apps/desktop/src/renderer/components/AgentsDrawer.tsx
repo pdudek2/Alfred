@@ -5,7 +5,7 @@ import type { AttentionProjection } from "../attention-projection";
 import { presentActivityEvents } from "../activity-presentation";
 import { isActiveAgentSession } from "../session-scope";
 import type { SessionTile } from "../session-state";
-import { terminalSessionDisplayStatus } from "../session-status";
+import { sessionState } from "../session-status";
 import { TileKindIcon } from "../tile-kind-icon";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { attentionActionLabel } from "./InboxDecisionItem";
@@ -385,10 +385,10 @@ function activityAt(session: SessionTile): number {
 }
 
 function latestAgentDetail(session: SessionTile): string {
-  const status = terminalSessionDisplayStatus(session);
+  const status = sessionState(session);
   const event = presentActivityEvents(session.activityEvents ?? [], { limit: 1 }).visibleEvents[0];
   const approvalWasSuperseded = event?.kind === "approval"
-    && status.kind === "active"
+    && status.kind === "working"
     && session.lastOutputAt !== undefined
     && session.lastOutputAt > event.at;
   if (event?.detail.trim() && !approvalWasSuperseded) return event.detail.trim();

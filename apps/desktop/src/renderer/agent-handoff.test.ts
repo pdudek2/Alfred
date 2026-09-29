@@ -7,6 +7,7 @@ function session(overrides: Partial<SessionTile> = {}): SessionTile {
   return {
     id: "agent-1",
     title: "Codex · auth",
+    agentKind: "codex",
     workspaceId: "ALFRED",
     cwd: "/repo",
     source: "manual",
@@ -82,7 +83,7 @@ describe("agent handoff projection", () => {
     expect(detail).toMatchObject({
       outcome: "Transcript restored",
       canReviewDiff: true,
-      stateLabel: "Restored",
+      stateLabel: "Asleep",
       stateTone: "ready",
     });
     expect(detail.decision).toBeUndefined();
@@ -114,7 +115,7 @@ describe("agent handoff projection", () => {
 
     expect(detail.activity).toEqual([]);
     expect(detail.outcome).toBe("Launch needs safety review.");
-    expect(detail.stateLabel).toBe("Blocked");
+    expect(detail.stateLabel).toBe("Needs you");
     expect(detail.stateTone).toBe("danger");
   });
 

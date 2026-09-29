@@ -703,7 +703,7 @@ describe("AgentTimelinePanel", () => {
     expect(pulse).toBeDefined();
     if (!pulse) throw new Error("Session pulse not rendered");
     expect(within(pulse).getByText("Current state")).toBeInTheDocument();
-    expect(within(pulse).getByText("Plan item staged")).toBeInTheDocument();
+    expect(within(pulse).getByText("Draft in the plan")).toBeInTheDocument();
     expect(within(pulse).getByText("pnpm test --filter @alfred/desktop")).toBeInTheDocument();
   });
 
@@ -882,7 +882,7 @@ describe("AgentTimelinePanel", () => {
 
     render(<AgentTimelinePanel session={session} />);
 
-    expect(screen.getByText("blocked")).toBeInTheDocument();
+    expect(screen.getByText("needs you")).toBeInTheDocument();
     expect(screen.getByText("Safety review required")).toBeInTheDocument();
     expect(screen.getAllByText("rm -rf detected").length).toBeGreaterThan(0);
   });

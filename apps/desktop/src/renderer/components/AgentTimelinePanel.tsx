@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import type { AlfredStagedSessionPatch } from "../../shared/alfred-ipc";
 import { meaningfulSignalEvents, presentActivityEvents } from "../activity-presentation";
 import type { SessionActivityEvent, SessionTile } from "../session-state";
-import { terminalSessionDisplayStatus } from "../session-status";
+import { sessionState } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { shortenWorktreeLabel } from "../path-display";
@@ -68,7 +68,7 @@ export function AgentTimelinePanel({
   const kindMeta = tileKindMeta(sessionTileKind(session));
   const command = sessionCommandLabel(session) ?? "";
   const runtimeStatus = session.runtimeStatus ?? (session.runtimeId ? "live" : "starting");
-  const displayStatus = terminalSessionDisplayStatus(session);
+  const displayStatus = sessionState(session);
   const activityEvents = session.activityEvents ?? [];
   const presentedActivity = presentActivityEvents(activityEvents, {
     includeRaw: showRawActivity,
@@ -696,7 +696,7 @@ function summarizeActivityEvents(events: NonNullable<SessionTile["activityEvents
 
 function sessionPulseCard(
   session: SessionTile,
-  displayStatus: ReturnType<typeof terminalSessionDisplayStatus>,
+  displayStatus: ReturnType<typeof sessionState>,
   events: NonNullable<SessionTile["activityEvents"]>,
 ): SessionPulseCard | null {
   if (session.stage === "staged" && session.safetyNote) {
@@ -709,7 +709,7 @@ function sessionPulseCard(
     };
   }
 
-  if (displayStatus.kind === "waiting") {
+  if (displayStatus.kind === "needs-you" && displayStatus.reason === "approval") {
     const approval = latestEventOfKind(events, "approval");
     return {
       at: approval?.at ?? session.lastActivityAt ?? 0,
@@ -720,7 +720,7 @@ function sessionPulseCard(
     };
   }
 
-  if (displayStatus.kind === "error") {
+  if (displayStatus.kind === "failed" || (displayStatus.kind === "needs-you" && displayStatus.reason === "runtime-blocker")) {
     const error = latestEventOfKind(events, "error");
     return {
       at: error?.at ?? session.lastActivityAt ?? 0,
@@ -731,27 +731,27 @@ function sessionPulseCard(
     };
   }
 
-  if (displayStatus.kind === "blocked") {
+  if (displayStatus.kind === "needs-you" && displayStatus.reason === "blocked-launch") {
     return {
       at: session.lastActivityAt ?? 0,
       detail: session.safetyNote ?? "This staged command needs manual review before launch.",
-      label: "blocked",
+      label: "needs you",
       title: "Safety review required",
       tone: "issue",
     };
   }
 
-  if (displayStatus.kind === "staged") {
+  if (displayStatus.kind === "draft") {
     return {
       at: session.lastActivityAt ?? 0,
       detail: sessionCommandLabel(session) ?? "Review the proposed session before launch.",
-      label: "staged",
-      title: "Plan item staged",
+      label: "draft",
+      title: "Draft in the plan",
       tone: "work",
     };
   }
 
-  if (displayStatus.kind === "starting") {
+  if (session.runtimeStatus === "starting") {
     return {
       at: session.lastActivityAt ?? 0,
       detail: "Alfred is attaching the terminal runtime.",
@@ -761,7 +761,7 @@ function sessionPulseCard(
     };
   }
 
-  if (displayStatus.kind === "restored") {
+  if (displayStatus.kind === "asleep") {
     const codingAgent = session.agentKind === "codex" ||
       session.agentKind === "claude" ||
       session.command === "codex" ||

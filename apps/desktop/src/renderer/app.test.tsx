@@ -5904,7 +5904,7 @@ describe("App integration", () => {
     expect(within(palette).queryByText("Open API worker")).not.toBeInTheDocument();
     await user.type(within(palette).getByRole("textbox", { name: "Search commands" }), "api worker");
 
-    expect(within(palette).getByRole("option", { name: /ClientApp · idle · .*ClientApp/i })).toHaveTextContent("Open API worker");
+    expect(within(palette).getByRole("option", { name: /ClientApp · your turn · .*ClientApp/i })).toHaveTextContent("Open API worker");
     setWorkspaceLayout.mockClear();
     setWorkspaceViewState.mockClear();
     await pressCommandPaletteEnter(within(palette).getByRole("textbox", { name: "Search commands" }));
@@ -7477,7 +7477,7 @@ describe("App integration", () => {
     await emitExit({ id: "runtime-a", exitCode: 1 });
 
     await waitFor(() => {
-      expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("Manual · zsh 9 is now error.");
+      expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("Manual · zsh 9 is now failed.");
     });
   });
 
