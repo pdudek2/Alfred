@@ -51,10 +51,9 @@ export function attachWindowStatePersistence(
 
     if (window.isDestroyed()) return;
 
-    await store.updateState((current) => ({
-      ...current,
-      windowState: snapshotWindowState(window),
-    }));
+    // Snapshot now: the updater may run after the window is destroyed.
+    const windowState = snapshotWindowState(window);
+    await store.updateState((current) => ({ ...current, windowState }));
   };
 
   const flushInBackground = (): void => {
