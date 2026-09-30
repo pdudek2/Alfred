@@ -49,8 +49,10 @@ export const SESSION_STATE_LABELS: Record<SessionStateKind, string> = {
   unavailable: "unavailable",
 };
 
-// ponytail: output window until the main process reports hooks, OSC 9 and the PTY foreground process.
+// Fallback for sessions that report nothing (hand-typed agents, Windows): recent output means busy.
 const ACTIVE_OUTPUT_WINDOW_MS = 15_000;
+// A hook "working" signal is dropped if neither output nor a newer signal arrives (e.g. an interrupted turn sends no Stop).
+const SIGNALLED_WORKING_STALE_MS = 60_000;
 
 function state(kind: Exclude<SessionStateKind, "needs-you">): SessionDisplayStatus {
   return { kind, label: SESSION_STATE_LABELS[kind] };
@@ -72,12 +74,14 @@ export function sessionState(
     SessionTile,
     | "activityEvents"
     | "agentKind"
+    | "agentSignal"
     | "command"
     | "detectedAgentKind"
     | "lastOutputAt"
     | "launchPreflight"
     | "runtimeStatus"
     | "safetyNote"
+    | "shellBusy"
     | "stage"
     | "stagedReviewStatus"
   >,
@@ -102,6 +106,14 @@ export function sessionState(
   const agent = isAgentSession(session);
   const busy = agent ? state("working") : state("running");
   if (localStatus === "connecting" || session.runtimeStatus === "starting") return busy;
+
+  const signal = agent ? session.agentSignal : undefined;
+  if (signal?.state === "needs-you") return needsYou("approval");
+  if (signal?.state === "your-turn") return state("your-turn");
+  if (signal?.state === "working" && now - Math.max(signal.at, session.lastOutputAt ?? 0) <= SIGNALLED_WORKING_STALE_MS) {
+    return busy;
+  }
+  if (!agent && session.shellBusy !== undefined) return session.shellBusy ? busy : state("idle");
 
   if (session.lastOutputAt !== undefined && now - session.lastOutputAt <= ACTIVE_OUTPUT_WINDOW_MS) {
     if (latestEvent?.kind !== "approval" || session.lastOutputAt > latestEvent.at) return busy;

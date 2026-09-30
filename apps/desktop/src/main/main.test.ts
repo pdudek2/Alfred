@@ -92,6 +92,9 @@ vi.mock("electron", () => ({
   dialog: mocks.dialog,
 }));
 
+vi.mock("./agent-signals.js", () => ({
+  createAgentSignalBridge: vi.fn(async () => ({ bridge: "agent-signals", close: vi.fn(async () => {}) })),
+}));
 vi.mock("./alfred-orchestrator.js", () => ({
   registerAlfredIpc: mocks.registerAlfredIpc,
 }));
@@ -432,6 +435,7 @@ describe("main quit persistence", () => {
     await flushMicrotasks();
 
     expect(mocks.registerTerminalIpc).toHaveBeenCalledWith(expect.objectContaining({
+      agentSignals: expect.objectContaining({ bridge: "agent-signals" }),
       resolveWorkspaceRoot: expect.any(Function),
     }));
     const options = mocks.registerTerminalIpc.mock.calls[0]?.[0] as

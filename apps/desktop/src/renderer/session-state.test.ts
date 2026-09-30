@@ -743,6 +743,35 @@ describe("desktop session state", () => {
     expect(next[0]?.activityEvents).toBeUndefined();
   });
 
+  it("applies agent signals and shell state without treating them as output", () => {
+    const tile = {
+      id: "manual-4",
+      runtimeId: "pty-a",
+      title: "Manual · zsh 4",
+      workspaceId: "A",
+      cwd: "/repo",
+      source: "manual" as const,
+      stage: "live" as const,
+      runtimeStatus: "live" as const,
+      lastOutputAt: 100,
+    };
+    const signal = { state: "needs-you" as const, source: "hook" as const, at: 200, detail: "Bash: ls" };
+
+    const signalled = recordSessionOutputActivity(
+      [tile],
+      { id: "pty-a", data: "", activities: [], agentSignal: signal, shellBusy: true },
+      300,
+    );
+    expect(signalled[0]).toMatchObject({ agentSignal: signal, shellBusy: true, lastOutputAt: 100 });
+
+    const unchanged = recordSessionOutputActivity([signalled[0]!], { id: "pty-a", data: "out", activities: [] }, 400);
+    expect(unchanged[0]).toMatchObject({ agentSignal: signal, shellBusy: true, lastOutputAt: 400 });
+
+    const cleared = recordSessionOutputActivity([unchanged[0]!], { id: "pty-a", data: "", activities: [], agentSignal: null }, 500);
+    expect(cleared[0]?.agentSignal).toBeUndefined();
+    expect(cleared[0]?.shellBusy).toBe(true);
+  });
+
   it.each([
     ["codex", "Codex · session 4"],
     ["claude", "Claude · session 4"],

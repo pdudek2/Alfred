@@ -1751,6 +1751,8 @@ export function App() {
           ...session,
           detectedAgentKind: snapshot.foregroundAgentKind,
           initialBuffer: snapshot.buffer,
+          ...(snapshot.agentSignal === undefined ? {} : { agentSignal: snapshot.agentSignal }),
+          ...(snapshot.shellBusy === undefined ? {} : { shellBusy: snapshot.shellBusy }),
           ...(mergedActivityEvents === undefined ? {} : { activityEvents: mergedActivityEvents }),
           ...(mergedLastActivityAt === undefined ? {} : { lastActivityAt: mergedLastActivityAt }),
           ...(mergedLastOutputAt === undefined ? {} : { lastOutputAt: mergedLastOutputAt }),

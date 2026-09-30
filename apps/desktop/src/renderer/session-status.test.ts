@@ -98,6 +98,27 @@ describe("sessionState", () => {
     expect(sessionState(liveSession(), "browser")).toEqual({ kind: "unavailable", label: "unavailable" });
   });
 
+  it("trusts what an agent reports about itself over output timing", () => {
+    const claude = { agentKind: "claude" as const, lastOutputAt: 1_000 };
+    const signal = (state: "working" | "needs-you" | "your-turn", at: number) => ({
+      agentSignal: { state, source: "hook" as const, at },
+    });
+    expect(sessionState(liveSession({ ...claude, ...signal("needs-you", 900) }), "ready", 5_000)).toEqual({
+      kind: "needs-you",
+      label: "needs you",
+      reason: "approval",
+    });
+    expect(sessionState(liveSession({ ...claude, ...signal("your-turn", 900) }), "ready", 2_000).kind).toBe("your-turn");
+    expect(sessionState(liveSession({ ...claude, ...signal("working", 900) }), "ready", 40_000).kind).toBe("working");
+    // An interrupted turn sends no Stop, so a stale "working" falls back to output timing.
+    expect(sessionState(liveSession({ ...claude, ...signal("working", 900) }), "ready", 100_000).kind).toBe("your-turn");
+  });
+
+  it("uses the shell foreground instead of output timing for plain terminals", () => {
+    expect(sessionState(liveSession({ shellBusy: true, lastOutputAt: 1_000 }), "ready", 100_000).kind).toBe("running");
+    expect(sessionState(liveSession({ shellBusy: false, lastOutputAt: 99_000 }), "ready", 100_000).kind).toBe("idle");
+  });
+
   it("shows plan items as Draft unless launch is blocked", () => {
     expect(sessionState(liveSession({ stage: "staged", stagedReviewStatus: "checking" }))).toEqual({
       kind: "draft",
