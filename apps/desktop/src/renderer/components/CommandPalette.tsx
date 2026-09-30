@@ -9,7 +9,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import type { SessionTile } from "../session-state";
-import { terminalSessionDisplayStatus } from "../session-status";
+import { isRestartable, sessionState } from "../session-status";
 import type { WorkMode } from "../terminal-desk-types";
 import type { AttentionProjection } from "../attention-projection";
 import type { AgentKind } from "../../shared/alfred-ipc";
@@ -135,9 +135,9 @@ export function CommandPalette({
   const activeWorkspaceBound = Boolean(activeWorkspace?.rootPath) && activeWorkspaceAvailable;
   const launchDetail = activeWorkspaceAvailable
     ? activeWorkspaceBound
-      ? "this workspace"
+      ? "this project"
       : "the scratch desk"
-    : "Choose the workspace folder first";
+    : "Choose the project folder first";
   const normalizedQuery = query.trim().toLowerCase();
   const workspaceById = useMemo(
     () => new Map(workspaces.map((workspace) => [workspace.id, workspace])),
@@ -159,8 +159,8 @@ export function CommandPalette({
         id: "new-terminal",
         label: "New manual terminal",
         detail: activeWorkspaceAvailable
-          ? `${shortcutModifier} T · start a shell in ${activeWorkspaceBound ? "this workspace" : "the scratch desk"}`
-          : "Choose the workspace folder first",
+          ? `${shortcutModifier} T · start a shell in ${activeWorkspaceBound ? "this project" : "the scratch project"}`
+          : "Choose the project folder first",
         disabled: !activeWorkspaceAvailable,
         run: onAddManualSession,
       },
@@ -183,7 +183,7 @@ export function CommandPalette({
         label: "New Codex isolated checkout",
         detail: activeWorkspaceBound
           ? "Create a temporary Git worktree for risky or parallel edits"
-          : "Bind a workspace folder to create a temporary Git worktree for risky or parallel edits",
+          : "Bind a project folder to create a temporary Git worktree for risky or parallel edits",
         disabled: !activeWorkspaceBound,
         run: () => onAddAgentSession("codex", "worktree"),
       },
@@ -192,48 +192,48 @@ export function CommandPalette({
         label: "New Claude isolated checkout",
         detail: activeWorkspaceBound
           ? "Create a temporary Git worktree for risky or parallel edits"
-          : "Bind a workspace folder to create a temporary Git worktree for risky or parallel edits",
+          : "Bind a project folder to create a temporary Git worktree for risky or parallel edits",
         disabled: !activeWorkspaceBound,
         run: () => onAddAgentSession("claude", "worktree"),
       },
       {
         id: "new-workspace",
-        label: "New scratch workspace",
+        label: "New scratch project",
         detail: "Create an empty desk without choosing a folder",
         run: onAddWorkspace,
       },
       {
         id: "close-workspace",
-        label: "Close current workspace",
+        label: "Close current project",
         detail: canCloseWorkspace
-          ? `Remove ${activeWorkspace?.label ?? "this workspace"} from the sidebar`
+          ? `Remove ${activeWorkspace?.label ?? "this project"} from the sidebar`
           : activeWorkspaceId === "A"
-            ? "Pinned workspace"
+            ? "Pinned project"
             : hasSavedSessions
-            ? "Discard saved sessions first"
+            ? "Discard asleep sessions first"
             : sessions.length > 0
               ? "Available when every session is closed"
-              : "No workspace selected",
+              : "No project selected",
         disabled: !canCloseWorkspace,
         run: onCloseWorkspace,
       },
       {
         id: "rename-workspace",
-        label: "Rename current workspace",
-        detail: activeWorkspace ? `Current name: ${activeWorkspace.label}` : "No active workspace",
+        label: "Rename current project",
+        detail: activeWorkspace ? `Current name: ${activeWorkspace.label}` : "No active project",
         disabled: !activeWorkspace,
         run: onRenameWorkspace,
       },
       {
         id: "reveal-workspace-folder",
-        label: "Reveal workspace folder",
+        label: "Reveal project folder",
         detail: activeWorkspace?.rootPath ? shortenPath(activeWorkspace.rootPath) : "No folder bound",
         disabled: !activeWorkspace?.rootPath,
         run: onOpenWorkspaceFolder,
       },
       {
         id: "open-workspace-terminal",
-        label: "Open workspace in external terminal",
+        label: "Open project in external terminal",
         detail: activeWorkspace?.rootPath
           ? `Open ${shortenPath(activeWorkspace.rootPath)} outside Alfred`
           : "No folder bound",
@@ -245,16 +245,16 @@ export function CommandPalette({
         label: `Switch to ${workspace.label}`,
         detail:
           workspace.id === activeWorkspaceId
-            ? "Current workspace"
+            ? "Current project"
             : workspace.gitBranch
-              ? `${shortenPath(workspace.rootPath ?? "local desk")} · ${workspace.gitBranch}`
-              : shortenPath(workspace.rootPath ?? "local desk"),
+              ? `${shortenPath(workspace.rootPath ?? "local project")} · ${workspace.gitBranch}`
+              : shortenPath(workspace.rootPath ?? "local project"),
         run: () => onSelectWorkspace(workspace.id),
       })),
       ...searchableSessions.map((session) => {
         const workspace = workspaceById.get(session.workspaceId);
-        const workspaceLabel = workspace?.label ?? `Workspace ${session.workspaceId}`;
-        const location = session.branchName ?? session.cwd ?? workspace?.rootPath ?? "default workspace";
+        const workspaceLabel = workspace?.label ?? `Project ${session.workspaceId}`;
+        const location = session.branchName ?? session.cwd ?? workspace?.rootPath ?? "default project";
         return {
           id: `focus-session-${session.workspaceId}-${session.id}`,
           label: `Open ${session.title}`,
@@ -295,7 +295,7 @@ export function CommandPalette({
       },
       {
         id: "restart-selected-session",
-        label: "Restart focused session",
+        label: "Resume focused session",
         detail: selectedSession
           ? selectedRestartable
             ? selectedSession.title
@@ -518,7 +518,7 @@ export function CommandPalette({
 }
 
 function sessionStatusLabel(session: SessionTile): string {
-  return terminalSessionDisplayStatus(session).label;
+  return sessionState(session).label;
 }
 
 function compareSessionsForPalette(a: SessionTile, b: SessionTile, activeWorkspaceId: string): number {
@@ -532,8 +532,7 @@ function compareSessionsForPalette(a: SessionTile, b: SessionTile, activeWorkspa
 }
 
 function isRestartableSession(session: SessionTile): boolean {
-  const status = terminalSessionDisplayStatus(session);
-  return status.kind === "done" || status.kind === "error";
+  return isRestartable(sessionState(session));
 }
 
 function trapDialogFocus(event: ReactKeyboardEvent, panel: HTMLElement | null): void {
@@ -580,7 +579,7 @@ type CommandPaletteRow =
 
 function groupPaletteCommands(commands: CommandPaletteItem[]): CommandPaletteRow[] {
   const rows: CommandPaletteRow[] = [];
-  const groupOrder = ["Launch", "Workspaces", "Review and recovery", "Focused session", "Desk layout", "Commands"];
+  const groupOrder = ["Launch", "Projects", "Review and resume", "Focused session", "Desk layout", "Commands"];
 
   for (const group of groupOrder) {
     const groupCommands = commands.filter((command) => commandGroupLabel(command.id) === group);
@@ -602,14 +601,14 @@ function commandGroupLabel(commandId: string): string {
     commandId.includes("review") ||
     commandId === "open-inbox"
   ) {
-    return "Review and recovery";
+    return "Review and resume";
   }
 
   if (
     commandId.includes("workspace") ||
     commandId.startsWith("switch-workspace")
   ) {
-    return "Workspaces";
+    return "Projects";
   }
 
   if (

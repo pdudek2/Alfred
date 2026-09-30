@@ -230,7 +230,7 @@ describe("ReviewSurface", () => {
       section: "recovery",
       blocksAgent: false,
       rank: null,
-      reason: "Saved agent session can be resumed.",
+      reason: "Asleep agent session can be resumed.",
       action: { kind: "resume" },
     });
     const handlers = renderSurface([STAGED, recovery]);
@@ -239,7 +239,7 @@ describe("ReviewSurface", () => {
     expect(handlers.onLaunch).toHaveBeenCalledWith("STAGED");
     expect(handlers.onOpenInWork).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
+    await user.click(screen.getByRole("button", { name: "Asleep · 1 asleep session" }));
     await user.click(screen.getByRole("button", { name: "Resume Saved Codex in Alfred" }));
     expect(handlers.onRecover).toHaveBeenCalledWith("ALFRED", "RECOVERY");
     expect(handlers.onReviewEdit).not.toHaveBeenCalled();
@@ -249,24 +249,24 @@ describe("ReviewSurface", () => {
     const recoveryItems = Array.from({ length: 7 }, (_, index) => decision({
       id: `ALFRED:RECOVERY-${index + 1}`,
       sessionId: `RECOVERY-${index + 1}`,
-      sessionTitle: `Saved session ${index + 1}`,
+      sessionTitle: `Asleep session ${index + 1}`,
       kind: "recovery",
       section: "recovery",
       blocksAgent: false,
       rank: null,
-      reason: "Ended session can be relaunched.",
+      reason: "Ended session can be resumed.",
       action: { kind: "relaunch", confirmation: "none" },
     }));
 
     renderSurface([STAGED, ...recoveryItems]);
 
     expect(screen.getByText("1 need you · 7 recovery")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Recovery · 7 saved sessions" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Asleep · 7 asleep sessions" })).toHaveAttribute(
       "aria-expanded",
       "false",
     );
-    expect(screen.queryByText("Saved session 1")).not.toBeInTheDocument();
-    expect(screen.queryByText("Saved session 7")).not.toBeInTheDocument();
+    expect(screen.queryByText("Asleep session 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Asleep session 7")).not.toBeInTheDocument();
   });
 
   it("shows every Recovery item after expansion without a five-item cap", async () => {
@@ -274,21 +274,21 @@ describe("ReviewSurface", () => {
     const recoveryItems = Array.from({ length: 7 }, (_, index) => decision({
       id: `ALFRED:RECOVERY-${index + 1}`,
       sessionId: `RECOVERY-${index + 1}`,
-      sessionTitle: `Saved session ${index + 1}`,
+      sessionTitle: `Asleep session ${index + 1}`,
       kind: "recovery",
       section: "recovery",
       blocksAgent: false,
       rank: null,
-      reason: "Ended session can be relaunched.",
+      reason: "Ended session can be resumed.",
       action: { kind: "relaunch", confirmation: "none" },
     }));
     renderSurface(recoveryItems);
 
-    await user.click(screen.getByRole("button", { name: "Recovery · 7 saved sessions" }));
+    await user.click(screen.getByRole("button", { name: "Asleep · 7 asleep sessions" }));
 
     expect(screen.getAllByTestId(/inbox-recovery-item-/)).toHaveLength(7);
-    expect(screen.getByText("Saved session 1")).toBeVisible();
-    expect(screen.getByText("Saved session 7")).toBeVisible();
+    expect(screen.getByText("Asleep session 1")).toBeVisible();
+    expect(screen.getByText("Asleep session 7")).toBeVisible();
   });
 
   it("routes safe resume and relaunch immediately through the existing recovery handler", async () => {
@@ -301,7 +301,7 @@ describe("ReviewSurface", () => {
       section: "recovery",
       blocksAgent: false,
       rank: null,
-      reason: "Saved agent session can be resumed.",
+      reason: "Asleep agent session can be resumed.",
       action: { kind: "resume" },
     });
     const relaunch = decision({
@@ -312,14 +312,14 @@ describe("ReviewSurface", () => {
       section: "recovery",
       blocksAgent: false,
       rank: null,
-      reason: "Ended session can be relaunched.",
+      reason: "Ended session can be resumed.",
       action: { kind: "relaunch", confirmation: "none" },
     });
     const handlers = renderSurface([resume, relaunch]);
 
-    await user.click(screen.getByRole("button", { name: "Recovery · 2 saved sessions" }));
+    await user.click(screen.getByRole("button", { name: "Asleep · 2 asleep sessions" }));
     await user.click(screen.getByRole("button", { name: "Resume Saved Codex in Alfred" }));
-    await user.click(screen.getByRole("button", { name: "Relaunch Safe shell in Alfred" }));
+    await user.click(screen.getByRole("button", { name: "Resume Safe shell in Alfred" }));
 
     expect(handlers.onRecover).toHaveBeenNthCalledWith(1, "ALFRED", "RESUME");
     expect(handlers.onRecover).toHaveBeenNthCalledWith(2, "ALFRED", "RELAUNCH");
@@ -341,27 +341,27 @@ describe("ReviewSurface", () => {
     });
     const details = new Map([
       ["UNSAFE", {
-        cwd: "/Users/patryk/Desktop/Very Long Workspace",
+        cwd: "/Users/patryk/Desktop/Very Long Project",
         command: "find",
         args: ["/Users/patryk/Desktop", "-exec", "mv", "{}", "/archive", ";"],
       }],
     ]);
     const handlers = renderSurface([unsafe]);
-    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
+    await user.click(screen.getByRole("button", { name: "Asleep · 1 asleep session" }));
 
-    expect(screen.queryByText("/Users/patryk/Desktop/Very Long Workspace")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Review relaunch Clean Desktop in Alfred" }));
+    expect(screen.queryByText("/Users/patryk/Desktop/Very Long Project")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Review resume Clean Desktop in Alfred" }));
     expect(handlers.onRecover).toHaveBeenCalledOnce();
 
     handlers.rerenderSurface([unsafe], {
       armedRecoverySessionIds: new Set(["UNSAFE"]),
       sessionDetailsById: details,
     });
-    expect(screen.getByText("/Users/patryk/Desktop/Very Long Workspace")).toBeVisible();
+    expect(screen.getByText("/Users/patryk/Desktop/Very Long Project")).toBeVisible();
     expect(screen.getByText("find /Users/patryk/Desktop -exec mv {} /archive ;")).toBeVisible();
     expect(screen.getByText("find -exec mutates files when replayed")).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: "Confirm relaunch Clean Desktop in Alfred" }));
+    await user.click(screen.getByRole("button", { name: "Confirm resume Clean Desktop in Alfred" }));
     expect(handlers.onRecover).toHaveBeenCalledTimes(2);
   });
 
@@ -375,14 +375,14 @@ describe("ReviewSurface", () => {
       section: "recovery",
       blocksAgent: false,
       rank: null,
-      reason: "Saved session can be relaunched.",
+      reason: "Asleep session can be resumed.",
       action: { kind: "relaunch", confirmation: "none" },
     });
     const handlers = renderSurface([SAFETY, recovery]);
 
     expect(screen.queryByRole("button", { name: "Discard Saved shell" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Discard Safety cleanup" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
+    await user.click(screen.getByRole("button", { name: "Asleep · 1 asleep session" }));
     await user.click(screen.getByRole("button", { name: "Discard Saved shell" }));
 
     expect(handlers.onDiscardRecovery).toHaveBeenCalledWith("RECOVERY");
@@ -399,11 +399,11 @@ describe("ReviewSurface", () => {
       section: "recovery",
       blocksAgent: false,
       rank: null,
-      reason: "Saved session can be relaunched.",
+      reason: "Asleep session can be resumed.",
       action: { kind: "relaunch", confirmation: "none" },
     });
     const handlers = renderSurface([STAGED, recovery]);
-    const recoveryToggle = screen.getByRole("button", { name: "Recovery · 1 saved session" });
+    const recoveryToggle = screen.getByRole("button", { name: "Asleep · 1 asleep session" });
     recoveryToggle.focus();
 
     await user.keyboard("{Enter}");
@@ -423,11 +423,11 @@ describe("ReviewSurface", () => {
       section: "recovery",
       blocksAgent: false,
       rank: null,
-      reason: "Saved session can be relaunched.",
+      reason: "Asleep session can be resumed.",
       action: { kind: "relaunch", confirmation: "none" },
     });
     const handlers = renderSurface([STAGED, recovery]);
-    const recoveryToggle = screen.getByRole("button", { name: "Recovery · 1 saved session" });
+    const recoveryToggle = screen.getByRole("button", { name: "Asleep · 1 asleep session" });
     recoveryToggle.focus();
 
     await user.keyboard("{Control>}{Enter}{/Control}");
@@ -450,14 +450,14 @@ describe("ReviewSurface", () => {
     });
     const handlers = renderSurface([STAGED, recovery]);
 
-    await user.click(screen.getByRole("button", { name: "Recovery · 1 saved session" }));
-    const reviewButton = screen.getByRole("button", { name: "Review relaunch Saved shell in Alfred" });
+    await user.click(screen.getByRole("button", { name: "Asleep · 1 asleep session" }));
+    const reviewButton = screen.getByRole("button", { name: "Review resume Saved shell in Alfred" });
     await user.click(reviewButton);
     handlers.rerenderSurface([STAGED, recovery], {
       armedRecoverySessionIds: new Set(["UNSAFE"]),
     });
 
-    const confirmButton = screen.getByRole("button", { name: "Confirm relaunch Saved shell in Alfred" });
+    const confirmButton = screen.getByRole("button", { name: "Confirm resume Saved shell in Alfred" });
     expect(confirmButton).toHaveFocus();
 
     await user.keyboard("{Enter}");
@@ -533,7 +533,7 @@ describe("ReviewSurface", () => {
       section: "recovery",
       blocksAgent: false,
       rank: null,
-      reason: "Saved session can be resumed.",
+      reason: "Asleep session can be resumed.",
       action: { kind: "resume" },
     });
     const handlers = renderSurface([SAFETY]);
@@ -544,8 +544,8 @@ describe("ReviewSurface", () => {
     primaryAction.focus();
     handlers.rerenderSurface([movedToRecovery]);
 
-    expect(screen.getByRole("button", { name: "Recovery · 1 saved session" })).toHaveFocus();
-    expect(screen.getByRole("button", { name: "Recovery · 1 saved session" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Asleep · 1 asleep session" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Asleep · 1 asleep session" })).toHaveAttribute(
       "aria-expanded",
       "false",
     );
@@ -576,7 +576,7 @@ describe("ReviewSurface", () => {
       ...STAGED,
       id: "ALFRED:UNKNOWN-TIME",
       sessionId: "UNKNOWN-TIME",
-      sessionTitle: "Untimestamped staged command",
+      sessionTitle: "Untimestamped draft command",
       attentionAt: 0,
     });
     renderSurface([item]);
@@ -593,7 +593,7 @@ describe("ReviewSurface", () => {
       ...STAGED,
       id: "ALFRED:FRESH",
       sessionId: "FRESH",
-      sessionTitle: "Fresh staged command",
+      sessionTitle: "Fresh draft command",
       attentionAt: now,
     });
     renderSurface([item]);

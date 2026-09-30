@@ -17,6 +17,7 @@ import {
   registerTerminalIpc,
   waitForTerminalExits,
 } from "./terminal-manager.js";
+import { createAgentSignalBridge } from "./agent-signals.js";
 import { registerAlfredIpc } from "./alfred-orchestrator.js";
 import { registerLayoutIpc } from "./layout-ipc.js";
 import { registerSessionsIpc } from "./sessions-ipc.js";
@@ -215,7 +216,16 @@ if (!hasSingleInstanceLock) {
       managedWorktreeRootPath,
       workspaceStore,
     });
+    const agentSignals = await createAgentSignalBridge({
+      dir: path.join(app.getPath("userData"), "agent-signals"),
+      execPath: process.execPath,
+    }).catch((error: unknown) => {
+      console.error("Agent state signals are unavailable; sessions fall back to output timing.", error);
+      return null;
+    });
+    app.on("will-quit", () => void agentSignals?.close());
     registerTerminalIpc({
+      agentSignals,
       appOnlyEnvKeys,
       allowedCwdRoots: async () => allowedWorkspaceRoots(workspaceStore, { managedWorktreeRootPath, scratchRootPath }),
       isStagedCommandAllowed: isStagedSessionLaunchAllowed,

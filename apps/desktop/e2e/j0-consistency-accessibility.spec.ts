@@ -56,9 +56,9 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
     .getByRole("button", { name: "New terminal" })
     .click();
 
-  const workspaceTrigger = page.getByRole("button", { name: "Workspace menu for Fixture Alpha" });
+  const workspaceTrigger = page.getByRole("button", { name: "Project menu for Fixture Alpha" });
   await workspaceTrigger.click();
-  const workspaceActions = page.getByRole("dialog", { name: "Workspace actions" });
+  const workspaceActions = page.getByRole("dialog", { name: "Project actions" });
   await expect(workspaceActions).toBeVisible();
   await expectMinimumHeight(workspaceActions.getByRole("button").first(), 40);
   await expectSansFont(workspaceActions.locator("button strong").first(), "13px");
@@ -206,7 +206,7 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   const agents = page.getByTestId("agents-drawer");
   await expect(agents).toHaveAttribute("aria-hidden", "false");
   await expectSansFont(agents);
-  await agents.getByRole("button", { name: "Review handoff for Fixture diff handoff" }).click();
+  await agents.getByRole("button", { name: "Open Fixture diff handoff" }).click();
   await agents.getByRole("button", { name: "Open diff" }).click();
   const diff = page.getByRole("region", { name: "Worktree diff" });
   await expect(diff).toBeVisible();

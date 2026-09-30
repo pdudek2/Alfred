@@ -39,25 +39,25 @@ test("workspace switch keeps the same xterm node and streams background output",
   const beforeSwitchRuntimes = await listMainProcessTerminals(page);
   expect(beforeSwitchRuntimes.sessions).toHaveLength(1);
   const runtimeId = beforeSwitchRuntimes.sessions[0]?.id;
-  if (runtimeId === undefined) throw new Error("Workspace A runtime is missing before switch.");
+  if (runtimeId === undefined) throw new Error("Project A runtime is missing before switch.");
   const alphaTile = page.locator('article[data-session-id="manual-1"]');
   const alphaScreen = alphaTile.locator(".xterm-screen");
   await expect(alphaScreen).toBeAttached();
   const screenBefore = await alphaScreen.elementHandle();
-  if (!screenBefore) throw new Error("Workspace A xterm screen is missing before switch.");
+  if (!screenBefore) throw new Error("Project A xterm screen is missing before switch.");
 
   const projectNavigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
   const betaWorkspace = projectNavigator.getByRole("button", {
-    name: "Fixture Beta workspace",
+    name: "Fixture Beta project",
     exact: true,
   });
   const alphaWorkspace = projectNavigator.getByRole("button", {
-    name: "Fixture Alpha workspace",
+    name: "Fixture Alpha project",
     exact: true,
   });
   await betaWorkspace.click();
   await expect(betaWorkspace).toHaveAttribute("aria-current", "location");
-  await expect(page.getByRole("status", { name: "Empty workspace" })).toBeVisible();
+  await expect(page.getByRole("status", { name: "Empty project" })).toBeVisible();
   await expect(alphaWorkspace).not.toHaveAttribute("aria-current");
   await expect(alphaTile).toHaveAttribute("data-testid", "background-terminal-tile");
   expect(await screenBefore.evaluate((node) => node.isConnected)).toBe(true);
@@ -83,7 +83,7 @@ test("workspace switch keeps the same xterm node and streams background output",
   await expect(terminalTiles).toHaveCount(1);
   await expect(terminalHost).toContainText(marker);
   const screenAfter = await alphaTile.locator(".xterm-screen").elementHandle();
-  if (!screenAfter) throw new Error("Workspace A xterm screen is missing after return.");
+  if (!screenAfter) throw new Error("Project A xterm screen is missing after return.");
   const sameNode = await screenBefore.evaluate(
     (before, after) => before.isSameNode(after) && before.isConnected,
     screenAfter,
@@ -97,7 +97,7 @@ test("workspace switch keeps the same xterm node and streams background output",
   expect(afterReturnSnapshot.id).toBe(runtimeId);
   expect(afterReturnSnapshot.buffer).toContain(marker);
   const actualCwd = afterReturnRuntimes.sessions[0]?.cwd;
-  if (!actualCwd) throw new Error("Workspace A runtime CWD is missing after return.");
+  if (!actualCwd) throw new Error("Project A runtime CWD is missing after return.");
   expect(await realpath(actualCwd)).toBe(await realpath(paths.workspaceA));
 
   const secondMarker = `ALFRED_E2E_AFTER_SWITCH_${randomUUID()}`;

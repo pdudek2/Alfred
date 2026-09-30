@@ -151,7 +151,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await selectSurface(page, "Context");
   await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
   await expect(page.getByTestId("workbench-shell")).toHaveClass(/context-visible/);
-  await expect(page.getByLabel("Workspace preview")).toHaveCount(0);
+  await expect(page.getByLabel("Project preview")).toHaveCount(0);
   await expect(page.getByRole("complementary", { name: "Session context" })).toBeVisible();
   identityTransitions["Work→Context"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
   expect(identityTransitions["Work→Context"]).toBe(true);

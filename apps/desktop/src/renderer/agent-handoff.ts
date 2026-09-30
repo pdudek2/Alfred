@@ -1,7 +1,7 @@
 import { presentActivityEvents } from "./activity-presentation";
 import type { AttentionProjection } from "./attention-projection";
 import { isReviewableWorktreeSession } from "./session-scope";
-import { terminalSessionDisplayStatus } from "./session-status";
+import { sessionState, type SessionDisplayStatus } from "./session-status";
 import type { SessionTile } from "./session-state";
 
 export type AgentHandoffDetail = {
@@ -22,7 +22,7 @@ export function buildAgentHandoffDetail(
   item: AttentionProjection,
   session: SessionTile,
 ): AgentHandoffDetail {
-  const status = terminalSessionDisplayStatus(session);
+  const status = sessionState(session);
   const activity = presentActivityEvents(session.activityEvents ?? [], { limit: 3 }).visibleEvents
     .map(({ id, title, detail }) => ({ id, title, detail }));
 
@@ -35,7 +35,7 @@ export function buildAgentHandoffDetail(
     sessionId: item.sessionId,
     sessionTitle: item.sessionTitle,
     stateLabel: status.label[0]!.toUpperCase() + status.label.slice(1),
-    stateTone: handoffStateTone(status.kind),
+    stateTone: handoffStateTone(status),
     workspaceId: item.workspaceId,
     workspaceLabel: item.workspaceLabel,
   };
@@ -48,24 +48,22 @@ export function recentHandoffItems(items: readonly AttentionProjection[]): Atten
     .slice(0, 5);
 }
 
-function handoffStateTone(
-  status: ReturnType<typeof terminalSessionDisplayStatus>["kind"],
-): AgentHandoffDetail["stateTone"] {
-  switch (status) {
-    case "waiting":
+function handoffStateTone(status: SessionDisplayStatus): AgentHandoffDetail["stateTone"] {
+  switch (status.kind) {
+    case "needs-you":
+      return status.reason === "approval" ? "attention" : "danger";
+    case "your-turn":
       return "attention";
-    case "blocked":
-    case "error":
+    case "failed":
       return "danger";
     case "done":
-    case "restored":
-    case "staged":
+    case "asleep":
+    case "draft":
       return "ready";
-    case "active":
-    case "starting":
-    case "checking":
+    case "working":
+    case "running":
     case "idle":
-    case "runtime":
+    case "unavailable":
       return "working";
   }
 }

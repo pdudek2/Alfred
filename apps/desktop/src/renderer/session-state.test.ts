@@ -36,7 +36,7 @@ function restoreSessionWithResumeTarget(sessionId: string) {
       args: ["resume", "stale-session-id"],
       resumeTarget: { agentKind: "codex", sessionId, source: "codex-session-index" },
       shell: "codex",
-      buffer: "saved codex output\n",
+      buffer: "asleep codex output\n",
     },
   ]);
 
@@ -54,7 +54,7 @@ function restoreSessionWithoutResumeTarget() {
       command: "codex",
       args: ["resume", "unknown-session-id"],
       shell: "codex",
-      buffer: "saved codex output\n",
+      buffer: "asleep codex output\n",
     },
   ]);
 
@@ -438,7 +438,7 @@ describe("desktop session state", () => {
         command: "pnpm",
         args: ["test"],
         shell: "pnpm",
-        buffer: "saved output\n",
+        buffer: "asleep output\n",
         createdAt: 300,
         lastOutputAt: 320,
       },
@@ -456,7 +456,7 @@ describe("desktop session state", () => {
       lastOutputAt: 320,
       command: "pnpm",
       args: ["test"],
-      initialBuffer: "saved output\n",
+      initialBuffer: "asleep output\n",
     });
   });
 
@@ -471,7 +471,7 @@ describe("desktop session state", () => {
         command: "codex",
         args: ["do the original audit"],
         shell: "codex",
-        buffer: "saved codex output\n",
+        buffer: "asleep codex output\n",
       },
       {
         clientId: "alfred-claude",
@@ -482,7 +482,7 @@ describe("desktop session state", () => {
         command: "claude",
         args: ["do the original UI review"],
         shell: "claude",
-        buffer: "saved claude output\n",
+        buffer: "asleep claude output\n",
       },
     ]);
 
@@ -491,14 +491,14 @@ describe("desktop session state", () => {
       runtimeStatus: "starting",
       command: "codex",
       args: ["resume", "--last"],
-      initialBuffer: "saved codex output\n",
+      initialBuffer: "asleep codex output\n",
     });
     expect(relaunchRestoredSession(restored, "alfred-claude")[1]).toMatchObject({
       id: "alfred-claude",
       runtimeStatus: "starting",
       command: "claude",
       args: ["--continue"],
-      initialBuffer: "saved claude output\n",
+      initialBuffer: "asleep claude output\n",
     });
   });
 
@@ -515,7 +515,7 @@ describe("desktop session state", () => {
         args: ["resume", codexSessionId],
         resumeTarget: { agentKind: "codex", sessionId: codexSessionId, source: "external-session-index" },
         shell: "codex",
-        buffer: "saved external output\n",
+        buffer: "asleep external output\n",
       },
     ]);
 
@@ -525,7 +525,7 @@ describe("desktop session state", () => {
       command: "codex",
       args: ["resume", codexSessionId],
       resumeTarget: { agentKind: "codex", sessionId: codexSessionId, source: "external-session-index" },
-      initialBuffer: "saved external output\n",
+      initialBuffer: "asleep external output\n",
     });
   });
 
@@ -555,7 +555,7 @@ describe("desktop session state", () => {
         args: ["do the original audit"],
         resumeTarget: { agentKind: "codex", sessionId: codexSessionId, source: "codex-session-index" },
         shell: "codex",
-        buffer: "saved codex output\n",
+        buffer: "asleep codex output\n",
       },
     ]);
 
@@ -582,7 +582,7 @@ describe("desktop session state", () => {
         command: "codex",
         args: [],
         shell: "codex",
-        buffer: "saved output\n",
+        buffer: "asleep output\n",
       },
     ]);
 
@@ -591,7 +591,7 @@ describe("desktop session state", () => {
 
     expect(failed[0]).toMatchObject({
       runtimeStatus: "restored",
-      initialBuffer: "saved output\n",
+      initialBuffer: "asleep output\n",
     });
   });
 
@@ -741,6 +741,35 @@ describe("desktop session state", () => {
 
     expect(next[0]).toMatchObject({ lastOutputAt: 240 });
     expect(next[0]?.activityEvents).toBeUndefined();
+  });
+
+  it("applies agent signals and shell state without treating them as output", () => {
+    const tile = {
+      id: "manual-4",
+      runtimeId: "pty-a",
+      title: "Manual · zsh 4",
+      workspaceId: "A",
+      cwd: "/repo",
+      source: "manual" as const,
+      stage: "live" as const,
+      runtimeStatus: "live" as const,
+      lastOutputAt: 100,
+    };
+    const signal = { state: "needs-you" as const, source: "hook" as const, at: 200, detail: "Bash: ls" };
+
+    const signalled = recordSessionOutputActivity(
+      [tile],
+      { id: "pty-a", data: "", activities: [], agentSignal: signal, shellBusy: true },
+      300,
+    );
+    expect(signalled[0]).toMatchObject({ agentSignal: signal, shellBusy: true, lastOutputAt: 100 });
+
+    const unchanged = recordSessionOutputActivity([signalled[0]!], { id: "pty-a", data: "out", activities: [] }, 400);
+    expect(unchanged[0]).toMatchObject({ agentSignal: signal, shellBusy: true, lastOutputAt: 400 });
+
+    const cleared = recordSessionOutputActivity([unchanged[0]!], { id: "pty-a", data: "", activities: [], agentSignal: null }, 500);
+    expect(cleared[0]?.agentSignal).toBeUndefined();
+    expect(cleared[0]?.shellBusy).toBe(true);
   });
 
   it.each([
@@ -1014,7 +1043,7 @@ describe("staged sessions", () => {
         status: "blocked",
         code: "git_not_ready",
         label: "Git not ready",
-        reason: "Workspace has uncommitted or untracked changes.",
+        reason: "Project has uncommitted or untracked changes.",
       },
     },
   ];
@@ -1165,8 +1194,8 @@ describe("staged sessions", () => {
         args: [],
         launchPreflight: {
           status: "ready",
-          label: "Shared workspace",
-          detail: "Workspace is not Git; will launch in the selected folder.",
+          label: "Shared project",
+          detail: "Project is not Git; will launch in the selected folder.",
           isolation: "shared",
         },
       },

@@ -45,7 +45,7 @@ describe("WorkspaceActionsMenu", () => {
   it("distinguishes workspace actions from session disclosure", () => {
     render(<WorkspaceActionsMenu {...props({ menuOpen: false })} />);
 
-    const trigger = screen.getByRole("button", { name: "Workspace menu for Alfred" });
+    const trigger = screen.getByRole("button", { name: "Project menu for Alfred" });
     expect(trigger.querySelector(".lucide-ellipsis")).toBeInTheDocument();
     expect(trigger.querySelector(".lucide-chevron-down")).not.toBeInTheDocument();
   });
@@ -69,11 +69,11 @@ describe("WorkspaceActionsMenu", () => {
     const menuProps = props();
     const { rerender } = render(<WorkspaceActionsMenu {...menuProps} />);
 
-    await user.click(screen.getByRole("button", { name: /Rename workspace/i }));
+    await user.click(screen.getByRole("button", { name: /Rename project/i }));
     expect(menuProps.onStartRename).toHaveBeenCalledTimes(1);
 
     rerender(<WorkspaceActionsMenu {...menuProps} renameEditing renameDraft="New Alfred" />);
-    const input = screen.getByRole("textbox", { name: "Workspace name" });
+    const input = screen.getByRole("textbox", { name: "Project name" });
     expect(input).toHaveFocus();
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(menuProps.onSaveRename).toHaveBeenCalledOnce();
@@ -106,7 +106,7 @@ describe("WorkspaceActionsMenu", () => {
     const menuProps = props();
     render(<WorkspaceActionsMenu {...menuProps} />);
 
-    await user.click(screen.getByRole("button", { name: "Close workspace" }));
+    await user.click(screen.getByRole("button", { name: "Close project" }));
 
     expect(menuProps.onCloseWorkspace).toHaveBeenCalledTimes(1);
     expect(menuProps.onClose).toHaveBeenCalledTimes(1);
@@ -115,7 +115,7 @@ describe("WorkspaceActionsMenu", () => {
   it("does not expose close workspace when the guarded action is unavailable", () => {
     render(<WorkspaceActionsMenu {...props({ canCloseWorkspace: false })} />);
 
-    expect(screen.queryByRole("button", { name: "Close workspace" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Close project" })).not.toBeInTheDocument();
   });
 
   it("closes on document Escape even when focus is outside the menu", () => {
@@ -134,7 +134,7 @@ describe("WorkspaceActionsMenu", () => {
   it("positions the open popover against its trigger in viewport coordinates", () => {
     const menuProps = props({ menuOpen: false });
     const { rerender } = render(<WorkspaceActionsMenu {...menuProps} />);
-    const trigger = screen.getByRole("button", { name: "Workspace menu for Alfred" });
+    const trigger = screen.getByRole("button", { name: "Project menu for Alfred" });
     vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue({
       bottom: 72,
       height: 28,
@@ -149,7 +149,7 @@ describe("WorkspaceActionsMenu", () => {
 
     rerender(<WorkspaceActionsMenu {...menuProps} menuOpen />);
 
-    expect(screen.getByRole("dialog", { name: "Workspace actions" })).toHaveStyle({
+    expect(screen.getByRole("dialog", { name: "Project actions" })).toHaveStyle({
       left: "218px",
       top: "80px",
     });
@@ -157,7 +157,7 @@ describe("WorkspaceActionsMenu", () => {
 
   it("portals the popover outside clipped navigation ancestors", () => {
     const { container } = render(<WorkspaceActionsMenu {...props()} />);
-    const popover = screen.getByRole("dialog", { name: "Workspace actions" });
+    const popover = screen.getByRole("dialog", { name: "Project actions" });
 
     expect(popover.parentElement).toBe(document.body);
     expect(container).not.toContainElement(popover);

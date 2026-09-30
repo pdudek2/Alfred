@@ -85,7 +85,7 @@ describe("sessionsPrimaryAction", () => {
 
     expect(sessionsPrimaryAction(live)).toEqual({ kind: "reveal", label: "Reveal in Work" });
     expect(sessionsPrimaryAction(restored)).toMatchObject({ kind: "recover", label: "Resume in Work" });
-    expect(sessionsPrimaryAction(restoredManual)).toEqual({ kind: "recover", label: "Relaunch" });
+    expect(sessionsPrimaryAction(restoredManual)).toEqual({ kind: "recover", label: "Resume" });
     expect(sessionsPrimaryAction(mappedExternal)).toEqual({ kind: "resume-external", label: "Resume in Work" });
     expect(sessionsPrimaryAction(untrustedExternal)).toEqual({ kind: "add-project", label: "Add Project…" });
     expect(sessionsPrimaryAction(endedMapped)).toEqual({ kind: "open-project", label: "Open Project" });
@@ -131,7 +131,7 @@ describe("buildSessionsProjection", () => {
     });
     const restoredClaude = managedSession({
       id: "restored-claude",
-      title: "Claude · saved work",
+      title: "Claude · asleep work",
       agentKind: "claude",
       command: "claude",
       runtimeStatus: "restored",
@@ -153,7 +153,7 @@ describe("buildSessionsProjection", () => {
     });
     const restoredFreeChat = managedSession({
       id: "restored-free-chat",
-      title: "Codex · saved scratch idea",
+      title: "Codex · asleep scratch idea",
       workspaceId: "FREE",
       cwd: "/Users/patryk/Documents/Codex/saved-idea",
       runtimeStatus: "restored",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { terminalSessionDisplayStatus } from "./session-status";
-import type { SessionTile } from "./session-state";
+import { sessionState } from "./session-status";
+import type { SessionActivityEvent, SessionTile } from "./session-state";
 
 function liveSession(overrides: Partial<SessionTile> = {}): SessionTile {
   return {
@@ -15,120 +15,120 @@ function liveSession(overrides: Partial<SessionTile> = {}): SessionTile {
   };
 }
 
-describe("session-status", () => {
-  it("shows recent terminal output as active and old output as idle", () => {
-    expect(terminalSessionDisplayStatus(liveSession({ lastOutputAt: 1_000 }), "ready", 10_000)).toEqual({
-      kind: "active",
+const approval: SessionActivityEvent = {
+  id: "a1",
+  kind: "approval",
+  title: "Waiting for approval",
+  detail: "Do you want to proceed?",
+  at: 1_000,
+};
+
+const blocker: SessionActivityEvent = {
+  id: "runtime-blocker",
+  kind: "error",
+  title: "Runtime blocked",
+  detail: "Not logged in",
+  payload: { type: "error", message: "Not logged in" },
+  at: 1_000,
+};
+
+describe("sessionState", () => {
+  it("splits recent output into Working for agents and Running for shells", () => {
+    expect(sessionState(liveSession({ agentKind: "codex", lastOutputAt: 1_000 }), "ready", 10_000)).toEqual({
+      kind: "working",
       label: "working",
     });
-    expect(terminalSessionDisplayStatus(liveSession({ lastOutputAt: 1_000 }), "ready", 30_000)).toEqual({
-      kind: "idle",
-      label: "idle",
+    expect(sessionState(liveSession({ agentKind: "shell", lastOutputAt: 1_000 }), "ready", 10_000)).toEqual({
+      kind: "running",
+      label: "running",
     });
   });
 
-  it("shows approval activity as waiting until a later event replaces it", () => {
-    expect(
-      terminalSessionDisplayStatus(
-        liveSession({
-          activityEvents: [
-            {
-              id: "a1",
-              kind: "approval",
-              title: "Waiting for approval",
-              detail: "Do you want to proceed?",
-              at: 1_000,
-            },
-          ],
-        }),
-        "ready",
-        90_000,
-      ),
-    ).toEqual({ kind: "waiting", label: "needs you" });
+  it("gives a quiet agent Your turn and a quiet shell Idle", () => {
+    expect(sessionState(liveSession({ agentKind: "claude", lastOutputAt: 1_000 }), "ready", 30_000)).toEqual({
+      kind: "your-turn",
+      label: "your turn",
+    });
+    expect(sessionState(liveSession({ lastOutputAt: 1_000 }), "ready", 30_000)).toEqual({ kind: "idle", label: "idle" });
+  });
 
+  it("treats a shell running a detected agent as an agent session", () => {
+    expect(sessionState(liveSession({ detectedAgentKind: "claude", lastOutputAt: 1_000 }), "ready", 30_000).kind)
+      .toBe("your-turn");
+  });
+
+  it("shows an approval as Needs you until later output replaces it", () => {
+    expect(sessionState(liveSession({ agentKind: "codex", activityEvents: [approval] }), "ready", 90_000)).toEqual({
+      kind: "needs-you",
+      label: "needs you",
+      reason: "approval",
+    });
     expect(
-      terminalSessionDisplayStatus(
+      sessionState(liveSession({ agentKind: "codex", lastOutputAt: 2_000, activityEvents: [approval] }), "ready", 3_000),
+    ).toEqual({ kind: "working", label: "working" });
+  });
+
+  it("keeps a runtime blocker as Needs you, even after its process ended, until later work arrives", () => {
+    expect(sessionState(liveSession({ activityEvents: [blocker], lastOutputAt: 1_000 }), "ready", 2_000)).toEqual({
+      kind: "needs-you",
+      label: "needs you",
+      reason: "runtime-blocker",
+    });
+    expect(
+      sessionState(liveSession({ runtimeStatus: "exited", activityEvents: [blocker], lastOutputAt: 1_000 }), "ready", 2_000),
+    ).toEqual({ kind: "needs-you", label: "needs you", reason: "runtime-blocker" });
+    expect(
+      sessionState(
         liveSession({
+          activityEvents: [blocker, { id: "progress", kind: "output", title: "Progress reported", detail: "Build complete", at: 2_000 }],
           lastOutputAt: 2_000,
-          activityEvents: [
-            {
-              id: "a1",
-              kind: "approval",
-              title: "Waiting for approval",
-              detail: "Do you want to proceed?",
-              at: 1_000,
-            },
-          ],
         }),
         "ready",
         3_000,
-      ),
-    ).toEqual({ kind: "active", label: "working" });
+      ).kind,
+    ).toBe("running");
   });
 
-  it("keeps an actionable runtime blocker ahead of output at the same timestamp until later work arrives", () => {
-    const blocker = {
-      id: "runtime-blocker",
-      kind: "error" as const,
-      title: "Runtime blocked",
-      detail: "Not logged in",
-      payload: { type: "error" as const, message: "Not logged in" },
-      at: 1_000,
-    };
-
-    expect(terminalSessionDisplayStatus(
-      liveSession({ activityEvents: [blocker], lastOutputAt: 1_000 }),
-      "ready",
-      2_000,
-    )).toEqual({ kind: "error", label: "error" });
-
-    expect(terminalSessionDisplayStatus(
-      liveSession({ runtimeStatus: "exited", activityEvents: [blocker], lastOutputAt: 1_000 }),
-      "ready",
-      2_000,
-    )).toEqual({ kind: "error", label: "error" });
-
-    expect(terminalSessionDisplayStatus(
-      liveSession({
-        activityEvents: [blocker, { id: "progress", kind: "output", title: "Progress reported", detail: "Build complete", at: 2_000 }],
-        lastOutputAt: 2_000,
-      }),
-      "ready",
-      3_000,
-    )).toEqual({ kind: "active", label: "working" });
+  it("maps lifecycle to Done, Failed and Asleep, and starting to the busy state", () => {
+    expect(sessionState(liveSession({ runtimeStatus: "starting" }), "connecting").kind).toBe("running");
+    expect(sessionState(liveSession({ agentKind: "codex", runtimeStatus: "starting" }), "connecting").kind).toBe("working");
+    expect(sessionState(liveSession({ runtimeStatus: "exited" }))).toEqual({ kind: "done", label: "done" });
+    expect(sessionState(liveSession({ runtimeStatus: "error" }))).toEqual({ kind: "failed", label: "failed" });
+    expect(sessionState(liveSession({ runtimeStatus: "restored" }), "restored")).toEqual({ kind: "asleep", label: "asleep" });
+    expect(sessionState(liveSession(), "browser")).toEqual({ kind: "unavailable", label: "unavailable" });
   });
 
-  it("maps terminal lifecycle states to user-facing labels", () => {
-    expect(terminalSessionDisplayStatus(liveSession({ runtimeStatus: "starting" }), "connecting")).toEqual({
-      kind: "starting",
-      label: "starting",
+  it("trusts what an agent reports about itself over output timing", () => {
+    const claude = { agentKind: "claude" as const, lastOutputAt: 1_000 };
+    const signal = (state: "working" | "needs-you" | "your-turn", at: number) => ({
+      agentSignal: { state, source: "hook" as const, at },
     });
-    expect(terminalSessionDisplayStatus(liveSession({ runtimeStatus: "exited" }), "ready")).toEqual({
-      kind: "done",
-      label: "done",
+    expect(sessionState(liveSession({ ...claude, ...signal("needs-you", 900) }), "ready", 5_000)).toEqual({
+      kind: "needs-you",
+      label: "needs you",
+      reason: "approval",
     });
-    expect(terminalSessionDisplayStatus(liveSession({ runtimeStatus: "error" }), "ready")).toEqual({
-      kind: "error",
-      label: "error",
-    });
-    expect(terminalSessionDisplayStatus(liveSession({ runtimeStatus: "restored" }), "restored")).toEqual({
-      kind: "restored",
-      label: "restored",
-    });
+    expect(sessionState(liveSession({ ...claude, ...signal("your-turn", 900) }), "ready", 2_000).kind).toBe("your-turn");
+    expect(sessionState(liveSession({ ...claude, ...signal("working", 900) }), "ready", 40_000).kind).toBe("working");
+    // An interrupted turn sends no Stop, so a stale "working" falls back to output timing.
+    expect(sessionState(liveSession({ ...claude, ...signal("working", 900) }), "ready", 100_000).kind).toBe("your-turn");
   });
 
-  it("keeps staged safety separate from live runtime state", () => {
-    expect(terminalSessionDisplayStatus(liveSession({ stage: "staged", stagedReviewStatus: "checking" }))).toEqual({
-      kind: "checking",
-      label: "checking",
+  it("uses the shell foreground instead of output timing for plain terminals", () => {
+    expect(sessionState(liveSession({ shellBusy: true, lastOutputAt: 1_000 }), "ready", 100_000).kind).toBe("running");
+    expect(sessionState(liveSession({ shellBusy: false, lastOutputAt: 99_000 }), "ready", 100_000).kind).toBe("idle");
+  });
+
+  it("shows plan items as Draft unless launch is blocked", () => {
+    expect(sessionState(liveSession({ stage: "staged", stagedReviewStatus: "checking" }))).toEqual({
+      kind: "draft",
+      label: "draft",
     });
-    expect(terminalSessionDisplayStatus(liveSession({ stage: "staged", safetyNote: "rm -rf" }))).toEqual({
-      kind: "blocked",
-      label: "blocked",
-    });
-    expect(terminalSessionDisplayStatus(liveSession({ stage: "staged" }))).toEqual({
-      kind: "staged",
-      label: "staged",
+    expect(sessionState(liveSession({ stage: "staged" }))).toEqual({ kind: "draft", label: "draft" });
+    expect(sessionState(liveSession({ stage: "staged", safetyNote: "rm -rf" }))).toEqual({
+      kind: "needs-you",
+      label: "needs you",
+      reason: "blocked-launch",
     });
   });
 });

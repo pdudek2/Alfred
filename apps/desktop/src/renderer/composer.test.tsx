@@ -143,7 +143,7 @@ describe("ComposerBar", () => {
     render(
       <ComposerBar
         blockedActionLabel="Open ClientApp"
-        blockedReason="Review staged items in ClientApp workspace first."
+        blockedReason="Review draft items in ClientApp project first."
         dispatchTarget={dispatchTarget}
         thinking={false}
         onBlockedAction={onBlockedAction}
@@ -151,7 +151,7 @@ describe("ComposerBar", () => {
       />,
     );
 
-    expect(screen.getByRole("status")).toHaveTextContent("Review staged items in ClientApp workspace first.");
+    expect(screen.getByRole("status")).toHaveTextContent("Review draft items in ClientApp project first.");
     await user.click(screen.getByRole("button", { name: "Open ClientApp" }));
 
     expect(onBlockedAction).toHaveBeenCalledOnce();

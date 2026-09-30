@@ -20,6 +20,7 @@ import { scratchWorkspacePath } from "./codex-scratch.js";
 import {
   terminalChannels,
   type PersistedTerminalSessionSnapshot,
+  type TerminalAgentSignal,
   type TerminalCreateRequest,
   type TerminalCreateResult,
   type TerminalForgetRequest,
@@ -43,6 +44,13 @@ import {
   type TerminalWorktreeDiffRequest,
   type TerminalWorktreeDiffResult,
 } from "../shared/terminal-ipc.js";
+import {
+  isShellProcess,
+  parseOsc9,
+  signalFromOsc9,
+  type AgentSignalBridge,
+  type AgentSignalUpdate,
+} from "./agent-signals.js";
 import { checkSafety } from "./alfred-safety.js";
 import {
   applyAgentWorktreePatch as defaultApplyAgentWorktreePatch,
@@ -75,6 +83,8 @@ type WorktreeOperationSession = {
   workspaceRootFingerprint?: string | undefined;
 };
 type TerminalIpcOptions = {
+  /** Hooks and notifications that let Claude and Codex report their own state. */
+  agentSignals?: AgentSignalBridge | null;
   allowedCwdRoots?: () => Promise<string[]>;
   /** Variables Alfred loaded for itself (repo .env); never inherited by terminal sessions. */
   appOnlyEnvKeys?: ReadonlySet<string>;
@@ -118,6 +128,9 @@ type TerminalSession = {
   activityEvents?: SessionActivityEvent[];
   activityStream: TerminalOutputActivityStreamState;
   commandInput: string;
+  agentSignal?: TerminalAgentSignal | undefined;
+  oscCarry: string;
+  shellBusy?: boolean | undefined;
   foregroundAgentKind?: TerminalForegroundAgentKind | undefined;
   submittedAgentKind?: TerminalForegroundAgentKind | undefined;
   lastActivityAt?: number;
@@ -202,6 +215,13 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
   const clientIdsInFlight = new Set<string>();
   const clientIdsBeingForgotten = new Set<string>();
   const launchPreparationsInFlight = new Map<string, number>();
+
+  options.agentSignals?.setListener((sessionId, update) => {
+    const session = sessions.get(sessionId);
+    if (!session) return;
+    const applied = applyAgentSignal(session, update, "hook", Date.now());
+    sendSignalUpdate(session, { activities: applied.activities, agentSignal: applied.signal });
+  });
 
   trustedIpc.handle(terminalChannels.list, async (event): Promise<TerminalListResult> => {
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -389,7 +409,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         const resolved = resolveCommand(safeRequest);
         const id = randomUUID();
         const metadata = sessionMetadata(id, safeRequest, launchCwd, resolved.command, Date.now());
-        const pty = nodePty.spawn(resolved.command, resolved.args, {
+        const pty = nodePty.spawn(resolved.command, [...(options.agentSignals?.launchArgs(safeRequest.command) ?? []), ...resolved.args], {
           name: "xterm-256color",
           cols: normalizeDimension(request.cols, 80),
           rows: normalizeDimension(request.rows, 24),
@@ -400,6 +420,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
             ),
             TERM: "xterm-256color",
             COLORTERM: "truecolor",
+            ...options.agentSignals?.env(id),
           },
         });
         session = {
@@ -408,6 +429,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           activityEvents: [],
           activityStream: { carry: "" },
           commandInput: "",
+          oscCarry: "",
           ownerWindowId: window.id,
           persistLaunchData: launchStartedWithPersistence
             && launchClearGeneration === privacyClearGeneration
@@ -427,12 +449,33 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       }
       rememberSessionSnapshot(session);
 
+      if (options.agentSignals && isCodexSession(session)) {
+        // Codex only sends OSC 9 notifications while it believes its terminal is unfocused.
+        setTimeout(() => {
+          if (sessions.get(session.id) === session) session.pty.write("\x1b[O");
+        }, 250).unref();
+      }
+
       session.pty.onData((data) => {
         const now = Date.now();
         const activeAgentKind = updateForegroundAgentKind(session);
         appendToBuffer(session, data);
         session.lastOutputAt = now;
         const activities = recordOutputActivity(session, data, now);
+        let agentSignal: TerminalAgentSignal | undefined;
+        if (isCodexSession(session)) {
+          const osc = parseOsc9(session.oscCarry, data);
+          session.oscCarry = osc.carry;
+          for (const message of osc.messages) {
+            const update = signalFromOsc9(message);
+            if (update) {
+              const applied = applyAgentSignal(session, update, "osc9", now);
+              agentSignal = applied.signal;
+              activities.push(...applied.activities);
+            }
+          }
+        }
+        const shellBusy = updateShellBusy(session);
         if (effectivePrivacySettings.terminalScrollbackRetention === "off") {
           session.persistLaunchData = false;
           clearSessionReplayData(session);
@@ -444,6 +487,8 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           data,
           ...(activeAgentKind === undefined ? {} : { foregroundAgentKind: activeAgentKind }),
           activities,
+          ...(agentSignal === undefined ? {} : { agentSignal }),
+          ...(shellBusy === undefined ? {} : { shellBusy }),
         });
       });
 
@@ -494,6 +539,8 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     session.commandInput = input.buffer;
     if (input.submitted) session.submittedAgentKind = input.agentKind;
     session.pty.write(request.data);
+    if (clearWaitingSignal(session)) sendSignalUpdate(session, { agentSignal: null });
+    scheduleShellBusySample(session);
   });
 
   trustedIpc.on(terminalChannels.resize, (event, request: TerminalResizeRequest) => {
@@ -775,6 +822,8 @@ function toSnapshot(session: TerminalSession): TerminalSessionSnapshot {
     ...toCreateResult(session),
     buffer: session.buffer,
     ...(activeAgentKind === undefined ? {} : { foregroundAgentKind: activeAgentKind }),
+    ...(session.agentSignal === undefined ? {} : { agentSignal: session.agentSignal }),
+    ...(session.shellBusy === undefined ? {} : { shellBusy: session.shellBusy }),
     ...(session.activityEvents === undefined ? {} : { activityEvents: cloneActivityEvents(session.activityEvents) }),
     ...(session.lastActivityAt === undefined ? {} : { lastActivityAt: session.lastActivityAt }),
     ...(session.lastOutputAt === undefined ? {} : { lastOutputAt: session.lastOutputAt }),
@@ -1240,6 +1289,78 @@ function killSession(
       });
   rememberSessionSnapshot(session);
   session.pty.kill();
+}
+
+function isCodexSession(session: TerminalSession): boolean {
+  return session.command === "codex" || session.agentKind === "codex" || session.foregroundAgentKind === "codex";
+}
+
+function applyAgentSignal(
+  session: TerminalSession,
+  update: AgentSignalUpdate,
+  source: TerminalAgentSignal["source"],
+  now: number,
+): { activities: SessionActivityEvent[]; signal: TerminalAgentSignal } {
+  const signal: TerminalAgentSignal = {
+    state: update.state,
+    source,
+    at: now,
+    ...(update.detail === undefined ? {} : { detail: update.detail }),
+  };
+  session.agentSignal = signal;
+  const approval = update.state === "needs-you"
+    ? recordSessionActivity(session, {
+        kind: "approval",
+        title: "Waiting for approval",
+        detail: update.detail ?? "Waiting for approval",
+        payload: { type: "approval", prompt: update.detail ?? "Waiting for approval" },
+      }, now)
+    : null;
+  return { activities: approval ? [approval] : [], signal };
+}
+
+/** Your answer resolves an approval; a Codex notification also ends when you type. Claude's Stop stays until its next hook. */
+function clearWaitingSignal(session: TerminalSession): boolean {
+  const signal = session.agentSignal;
+  if (!signal || (signal.state !== "needs-you" && signal.source !== "osc9")) return false;
+  session.agentSignal = undefined;
+  return true;
+}
+
+function sendSignalUpdate(
+  session: TerminalSession,
+  update: { activities?: SessionActivityEvent[]; agentSignal?: TerminalAgentSignal | null; shellBusy?: boolean },
+): void {
+  sendToSessionWindow(session, terminalChannels.data, {
+    id: session.id,
+    ...(session.clientId === undefined ? {} : { clientId: session.clientId }),
+    data: "",
+    activities: update.activities ?? [],
+    ...(update.agentSignal === undefined ? {} : { agentSignal: update.agentSignal }),
+    ...(update.shellBusy === undefined ? {} : { shellBusy: update.shellBusy }),
+  });
+}
+
+/** Returns the new value only when it changed. Windows and agent sessions do not sample. */
+function updateShellBusy(session: TerminalSession): boolean | undefined {
+  if (session.command !== undefined || process.platform === "win32") return undefined;
+  try {
+    const busy = !isShellProcess(session.pty.process);
+    if (busy === session.shellBusy) return undefined;
+    session.shellBusy = busy;
+    return busy;
+  } catch {
+    return undefined; // The PTY may disappear between input and inspection.
+  }
+}
+
+function scheduleShellBusySample(session: TerminalSession): void {
+  if (session.command !== undefined || process.platform === "win32") return;
+  setTimeout(() => {
+    if (sessions.get(session.id) !== session) return;
+    const shellBusy = updateShellBusy(session);
+    if (shellBusy !== undefined) sendSignalUpdate(session, { shellBusy });
+  }, 150).unref();
 }
 
 function disposeSession(id: TerminalSessionId): void {

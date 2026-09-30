@@ -7,6 +7,7 @@ function session(overrides: Partial<SessionTile> = {}): SessionTile {
   return {
     id: "agent-1",
     title: "Codex · auth",
+    agentKind: "codex",
     workspaceId: "ALFRED",
     cwd: "/repo",
     source: "manual",
@@ -69,20 +70,20 @@ describe("agent handoff projection", () => {
       section: "recovery",
       blocksAgent: false,
       rank: null,
-      reason: "Saved agent session can be resumed.",
+      reason: "Asleep agent session can be resumed.",
       action: { kind: "resume" },
     }), session({
       runtimeStatus: "restored",
       isolation: "worktree",
       branchName: "resume-auth",
       baseCwd: "/repo",
-      activityEvents: [event("lifecycle", "Restored", "Transcript restored", 10)],
+      activityEvents: [event("lifecycle", "Restored", "Session asleep", 10)],
     }));
 
     expect(detail).toMatchObject({
-      outcome: "Transcript restored",
+      outcome: "Session asleep",
       canReviewDiff: true,
-      stateLabel: "Restored",
+      stateLabel: "Asleep",
       stateTone: "ready",
     });
     expect(detail.decision).toBeUndefined();
@@ -114,7 +115,7 @@ describe("agent handoff projection", () => {
 
     expect(detail.activity).toEqual([]);
     expect(detail.outcome).toBe("Launch needs safety review.");
-    expect(detail.stateLabel).toBe("Blocked");
+    expect(detail.stateLabel).toBe("Needs you");
     expect(detail.stateTone).toBe("danger");
   });
 

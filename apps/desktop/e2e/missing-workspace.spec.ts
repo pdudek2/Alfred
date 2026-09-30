@@ -9,7 +9,7 @@ test.use({
 
 test("keeps a workspace recoverable when its saved folder is missing", async ({ harness }) => {
   const { page } = harness;
-  const unavailable = page.getByRole("status", { name: "Unavailable workspace folder" });
+  const unavailable = page.getByRole("status", { name: "Unavailable project folder" });
 
   await expect(unavailable).toBeVisible();
   await expect(unavailable).toContainText("Folder unavailable");

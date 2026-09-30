@@ -65,7 +65,7 @@ describe("WorkspacePreviewDock", () => {
     );
 
     expect(screen.getByText("terminal work")).toBeInTheDocument();
-    expect(screen.getByLabelText("Workspace preview")).toBeInTheDocument();
+    expect(screen.getByLabelText("Project preview")).toBeInTheDocument();
 
     rerender(
       <WorkspacePreviewDock
@@ -80,7 +80,7 @@ describe("WorkspacePreviewDock", () => {
     );
 
     expect(screen.getByText("terminal work")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Workspace preview")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument();
   });
 });
 

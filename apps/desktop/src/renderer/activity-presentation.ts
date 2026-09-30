@@ -96,6 +96,8 @@ function isUsefulLifecycle(event: SessionActivityEvent): boolean {
     text.includes("applied to project") ||
     text.includes("checkout diff reviewed") ||
     text.includes("relaunching session") ||
+    text.includes("resuming session") ||
+    text.includes("session asleep") ||
     text.includes("restarting session")
   );
 }
