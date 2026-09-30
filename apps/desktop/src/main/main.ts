@@ -50,8 +50,10 @@ const WINDOW_MATERIAL_QUERY_KEY = "alfred-window-material";
 // Quit waits for killed PTYs to report exit so node-pty's exit callback never runs during Node teardown.
 // ponytail: a process ignoring SIGHUP only delays quit by this bound; add SIGKILL escalation if one shows up.
 const QUIT_TERMINAL_EXIT_TIMEOUT_MS = 2_000;
+const QUIT_SAVE_PROMPT_DELAY_MS = 5_000;
 let terminalQuitConfirmed = false;
 let terminalPersistenceFlushedForQuit = false;
+let quitFlushInProgress = false;
 let desktopStateStore: PersistedDesktopStateStore | null = null;
 let activeWindowStatePersistence: WindowStatePersistenceHandle | null = null;
 
@@ -270,26 +272,67 @@ if (!hasSingleInstanceLock) {
 
     if (!terminalPersistenceFlushedForQuit) {
       event.preventDefault();
+      // One flush at a time: a second Quit while saving must not start another.
+      if (quitFlushInProgress) return;
+      quitFlushInProgress = true;
       killAllTerminalSessions();
+      const finishQuit = (): void => {
+        if (terminalPersistenceFlushedForQuit) return;
+        terminalPersistenceFlushedForQuit = true;
+        stopSlowSavePrompt();
+        app.quit();
+      };
+      const stopSlowSavePrompt = promptWhenQuitSaveIsSlow(() => terminalPersistenceFlushedForQuit, () => {
+        console.warn("Quitting before the desktop state finished saving.");
+        finishQuit();
+      });
       void Promise.all([
         flushTerminalPersistence(),
         activeWindowStatePersistence?.flush() ?? Promise.resolve(),
         waitForTerminalExits(QUIT_TERMINAL_EXIT_TIMEOUT_MS),
       ])
-        .then(() => {
-          terminalPersistenceFlushedForQuit = true;
-          app.quit();
-        })
+        .then(finishQuit)
         .catch((error: unknown) => {
           console.error("Failed to flush desktop state before quit.", error);
-          terminalPersistenceFlushedForQuit = true;
-          app.quit();
+          finishQuit();
         });
       return;
     }
 
     killAllTerminalSessions();
   });
+}
+
+// A timeout is not a cancel: the save keeps running while the user chooses.
+function promptWhenQuitSaveIsSlow(isDone: () => boolean, quitAnyway: () => void): () => void {
+  const prompt = new AbortController();
+  let timer: NodeJS.Timeout | undefined;
+  const arm = (): void => {
+    timer = setTimeout(() => {
+      void dialog
+        .showMessageBox({
+          type: "warning",
+          buttons: ["Keep waiting", "Quit anyway"],
+          cancelId: 0,
+          defaultId: 0,
+          message: "Alfred hasn't finished saving",
+          detail: "Saving is taking longer than usual. Quitting now may lose your latest changes.",
+          noLink: true,
+          signal: prompt.signal,
+        })
+        .then(({ response }) => {
+          if (isDone()) return;
+          if (response === 1) quitAnyway();
+          else arm();
+        })
+        .catch(() => undefined);
+    }, QUIT_SAVE_PROMPT_DELAY_MS);
+  };
+  arm();
+  return () => {
+    clearTimeout(timer);
+    prompt.abort();
+  };
 }
 
 function confirmTerminalQuit(parentWindow?: BrowserWindow): boolean {
