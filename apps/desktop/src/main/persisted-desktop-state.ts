@@ -191,7 +191,8 @@ export function createPersistedDesktopStateStore(
     async getState(): Promise<DesktopStateSnapshot> {
       await hydrate();
 
-      return cloneDesktopState(cachedState);
+      // After a failed save, readers see the same unsaved state that mutations build on.
+      return cloneDesktopState(failedState ?? cachedState);
     },
 
     getFilePath(): string {
