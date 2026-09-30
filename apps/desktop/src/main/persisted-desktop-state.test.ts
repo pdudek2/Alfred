@@ -928,6 +928,41 @@ describe("persisted-desktop-state", () => {
     expect(await readFile(filePath, "utf8")).not.toContain("secret");
   });
 
+  it("reads the same unsaved state that the next mutation builds on after a failed save", async () => {
+    const filePath = await temporaryStateFile();
+    const store = createPersistedDesktopStateStore({ filePath, onWarning: () => undefined });
+    await store.getState();
+    const unsaved = {
+      ...DEFAULT_DESKTOP_STATE,
+      privacySettings: { ...DEFAULT_PRIVACY_SETTINGS, externalSessionIndexingEnabled: false },
+    };
+
+    await chmod(path.dirname(filePath), 0o500);
+    try {
+      await expect(store.setState(unsaved)).rejects.toThrow("Failed to persist desktop state.");
+
+      await expect(store.getState()).resolves.toMatchObject({
+        privacySettings: { externalSessionIndexingEnabled: false },
+      });
+      let seenByMutation: boolean | undefined;
+      await expect(
+        store.updateState((current) => {
+          seenByMutation = current.privacySettings.externalSessionIndexingEnabled;
+          return current;
+        }),
+      ).rejects.toThrow("Failed to persist desktop state.");
+      expect(seenByMutation).toBe(false);
+      expect(store.getSaveStatus()).toMatchObject({ status: "saveFailed" });
+    } finally {
+      await chmod(path.dirname(filePath), 0o700);
+    }
+
+    await expect(store.retrySave()).resolves.toMatchObject({
+      privacySettings: { externalSessionIndexingEnabled: false },
+    });
+    expect(store.getSaveStatus()).toEqual({ status: "saved" });
+  });
+
   it("rejects state updates when the desktop state file cannot be written", async () => {
     const warnings: string[] = [];
     const store = createPersistedDesktopStateStore({
