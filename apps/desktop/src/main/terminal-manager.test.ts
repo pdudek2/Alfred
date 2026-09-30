@@ -1486,6 +1486,55 @@ describe("terminal-manager IPC", () => {
     });
   });
 
+  it.each([
+    ["Clear", () => applyTerminalPrivacyPolicyInMemory({ ...DEFAULT_DESKTOP_STATE.privacySettings }, true)],
+    [
+      "retention off",
+      () => applyTerminalPrivacyPolicyInMemory({ ...DEFAULT_DESKTOP_STATE.privacySettings, terminalScrollbackRetention: "off" }),
+    ],
+  ])("drops the exited terminal output and launch arguments on %s", async (_name, applyPolicy) => {
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+    const created = await invoke<{ id: string }>(terminalChannels.create, {
+      args: ["PRIVATE_ARGUMENT"],
+      clientId: "exited-private",
+      command: "node",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+    });
+    pty.onDataHandler?.("PRIVATE_OUTPUT_BEFORE_CLEAR\n");
+    pty.onExitHandler?.({ exitCode: 0 });
+
+    applyPolicy();
+
+    const reconciled = await invoke<{ state: string; snapshot: object; event: { exitCode: number } }>(
+      "alfred:terminal:reconcile",
+      { id: created.id, clientId: "exited-private" },
+    );
+    expect(reconciled.state).toBe("exited");
+    expect(reconciled.event.exitCode).toBe(0);
+    expect(JSON.stringify(reconciled.snapshot)).not.toMatch(/PRIVATE_OUTPUT_BEFORE_CLEAR|PRIVATE_ARGUMENT/);
+  });
+
+  it("does not keep output of a terminal that exits while retention is off", async () => {
+    applyTerminalPrivacyPolicyInMemory({ ...DEFAULT_DESKTOP_STATE.privacySettings, terminalScrollbackRetention: "off" });
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+    const created = await invoke<{ id: string }>(terminalChannels.create, {
+      clientId: "exits-off",
+      command: "node",
+      cols: 80,
+      cwd: "/repo",
+      rows: 24,
+    });
+    pty.onDataHandler?.("PRIVATE_OUTPUT_WHILE_OFF\n");
+    pty.onExitHandler?.({ exitCode: 1 });
+
+    const snapshot = await invoke<object>(terminalChannels.snapshot, { id: created.id });
+    expect(JSON.stringify(snapshot)).not.toContain("PRIVATE_OUTPUT_WHILE_OFF");
+  });
+
   it("reconciles a terminal that exits before the renderer attaches its exit listener", async () => {
     vi.spyOn(Date, "now").mockReturnValue(5_000);
     const pty = new FakePty();
