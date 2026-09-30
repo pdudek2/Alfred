@@ -109,6 +109,27 @@ describe("window-state", () => {
     });
   });
 
+  it("snapshots the window before the store runs the updater", async () => {
+    const window = new FakeWindow();
+    const store = fakeStore();
+    let runUpdater: () => Promise<unknown> = async () => undefined;
+    vi.mocked(store.updateState).mockImplementation(async (updater) => {
+      runUpdater = async () => updater(DEFAULT_DESKTOP_STATE);
+      return DEFAULT_DESKTOP_STATE;
+    });
+    const handle = attachWindowStatePersistence(window, store, 0);
+
+    window.bounds = { x: 64, y: 48, width: 1600, height: 1000 };
+    await handle.flush();
+    window.getNormalBounds = () => {
+      throw new Error("Object has been destroyed");
+    };
+
+    await expect(runUpdater()).resolves.toMatchObject({
+      windowState: { bounds: { x: 64, y: 48, width: 1600, height: 1000 } },
+    });
+  });
+
   it("contains rejected background window-state writes", async () => {
     const window = new FakeWindow();
     const store = fakeStore();
