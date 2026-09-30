@@ -552,6 +552,8 @@ export function TerminalDesk({
                 initialBuffer={session.initialBuffer}
                 activityEvents={session.activityEvents}
                 lastOutputAt={session.lastOutputAt}
+                agentSignal={session.agentSignal}
+                shellBusy={session.shellBusy}
                 collapsed={collapsedSessionIds.has(session.id)}
                 selected={inspectedSession?.id === session.id}
                 surfaceActive={surfaceActive && !worktreeDiffView}
@@ -906,6 +908,8 @@ function ManualTerminalTile({
   activityEvents,
   initialBuffer,
   lastOutputAt,
+  agentSignal,
+  shellBusy,
   layout,
   preview,
   relaunchArmed,
@@ -960,6 +964,8 @@ function ManualTerminalTile({
   activityEvents?: SessionTile["activityEvents"];
   initialBuffer?: string | undefined;
   lastOutputAt?: number | undefined;
+  agentSignal?: SessionTile["agentSignal"] | undefined;
+  shellBusy?: boolean | undefined;
   layout?: TileLayout | undefined;
   preview?: ArrangePreview | undefined;
   relaunchArmed: boolean;
@@ -1037,6 +1043,8 @@ function ManualTerminalTile({
     ...(command === undefined ? {} : { command }),
     ...(runtimeStatus === undefined ? {} : { runtimeStatus }),
     ...(lastOutputAt === undefined ? {} : { lastOutputAt }),
+    ...(agentSignal === undefined ? {} : { agentSignal }),
+    ...(shellBusy === undefined ? {} : { shellBusy }),
     ...(activityEvents === undefined ? {} : { activityEvents }),
   } satisfies Parameters<typeof sessionState>[0];
   const displayStatus = sessionState(displaySession, tileStatus, displayClock);
@@ -1419,7 +1427,9 @@ function ManualTerminalTile({
     const removeDataListener = terminalApi.onData((event) => {
       const resolvedRuntimeId = sessionIdRef.current;
       if (resolvedRuntimeId ? event.id === resolvedRuntimeId : event.clientId === sessionKey) {
-        if (snapshotHandshakePending) {
+        if (event.data === "") {
+          // Signal-only event: state changed without terminal output.
+        } else if (snapshotHandshakePending) {
           snapshotHandshakeOutput += event.data;
         } else {
           writeAndRepaint(event.data);

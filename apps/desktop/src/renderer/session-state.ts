@@ -5,6 +5,7 @@ import {
   type SessionActivityInput,
 } from "../shared/session-activity";
 import type {
+  TerminalAgentSignal,
   TerminalCreateResult,
   TerminalDataEvent,
   TerminalExitEvent,
@@ -43,6 +44,10 @@ export type SessionTile = {
   activityEvents?: SessionActivityEvent[];
   lastActivityAt?: number;
   lastOutputAt?: number;
+  /** Reported by the agent itself (hooks or terminal notifications). */
+  agentSignal?: TerminalAgentSignal;
+  /** True while a program other than the shell holds the foreground (plain terminals only). */
+  shellBusy?: boolean;
 };
 
 export type { SessionActivityEvent, SessionActivityEventKind, SessionActivityInput } from "../shared/session-activity";
@@ -520,12 +525,17 @@ export function recordSessionOutputActivity(
       ? item.lastActivityAt
       : Math.max(item.lastActivityAt ?? acceptedLastActivityAt, acceptedLastActivityAt);
     const outputAt = acceptedLastActivityAt ?? now;
+    const { agentSignal: _previousSignal, ...withoutSignal } = item;
+    const agentSignal = event.agentSignal === undefined ? item.agentSignal : event.agentSignal;
 
     return {
-      ...item,
+      ...withoutSignal,
       title: generatedTitleForDetectedAgent(item, event.foregroundAgentKind),
       detectedAgentKind: event.foregroundAgentKind,
-      lastOutputAt: Math.max(item.lastOutputAt ?? outputAt, outputAt),
+      // Signal-only events (empty data) are not terminal output.
+      ...(event.data === "" ? {} : { lastOutputAt: Math.max(item.lastOutputAt ?? outputAt, outputAt) }),
+      ...(agentSignal == null ? {} : { agentSignal }),
+      ...(event.shellBusy === undefined ? (item.shellBusy === undefined ? {} : { shellBusy: item.shellBusy }) : { shellBusy: event.shellBusy }),
       ...(activityEvents.length === 0 ? {} : { activityEvents }),
       ...(lastActivityAt === undefined ? {} : { lastActivityAt }),
     };

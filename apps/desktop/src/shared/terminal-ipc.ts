@@ -56,6 +56,8 @@ export type TerminalCreateResult = {
 export type TerminalSessionSnapshot = TerminalCreateResult & {
   buffer: string;
   foregroundAgentKind?: TerminalForegroundAgentKind;
+  agentSignal?: TerminalAgentSignal;
+  shellBusy?: boolean;
   activityEvents?: SessionActivityEvent[];
   lastActivityAt?: number;
   lastOutputAt?: number;
@@ -156,12 +158,24 @@ export type TerminalExitEvent = {
   signal?: number;
 };
 
+/** What an agent or shell reports about itself; see the session model contract §3. */
+export type TerminalAgentSignal = {
+  state: "working" | "needs-you" | "your-turn";
+  source: "hook" | "osc9";
+  at: number;
+  detail?: string;
+};
+
 export type TerminalDataEvent = {
   id: TerminalSessionId;
   clientId?: string;
   data: string;
   foregroundAgentKind?: TerminalForegroundAgentKind;
   activities: SessionActivityEvent[];
+  /** A new signal, or null when it was cleared. Absent means unchanged. */
+  agentSignal?: TerminalAgentSignal | null;
+  /** Whether a program other than the shell holds the foreground. Absent means unchanged. */
+  shellBusy?: boolean;
 };
 
 export type TerminalApi = {

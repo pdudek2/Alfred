@@ -3912,4 +3912,100 @@ describe("terminal-manager IPC", () => {
     ).rejects.toThrow("Terminal session requires an owning window.");
     expect(getTerminalSessionCount()).toBe(0);
   });
+
+  describe("agent state signals", () => {
+    type Listener = (sessionId: string, update: { detail?: string; state: "working" | "needs-you" | "your-turn" }) => void;
+
+    function fakeBridge() {
+      let listener: Listener | null = null;
+      return {
+        bridge: {
+          close: async () => {},
+          env: (sessionId: string) => ({ ALFRED_HOOK_SOCKET: "/tmp/alfred.sock", ALFRED_SESSION_ID: sessionId }),
+          launchArgs: (command: string | undefined) =>
+            command === "claude" ? ["--settings", "/tmp/hooks.json"] : command === "codex" ? ["-c", "tui.notifications=true"] : [],
+          setListener: (next: Listener | null) => {
+            listener = next;
+          },
+        },
+        fire: (sessionId: string, update: Parameters<Listener>[1]) => listener?.(sessionId, update),
+      };
+    }
+
+    const lastDataEvent = () => sentEvents.filter((event) => event.channel === terminalChannels.data).at(-1)?.payload as
+      | Record<string, unknown>
+      | undefined;
+
+    it("launches Claude with hooks and turns hook events into signals that input can clear", async () => {
+      const { bridge, fire } = fakeBridge();
+      const pty = new FakePty();
+      const nodePty = fakeNodePty(pty);
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => nodePty as never });
+
+      const created = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "claude",
+        args: ["--resume"],
+        clientId: "claude-1",
+        cols: 80,
+        command: "claude",
+        cwd: "/repo",
+        rows: 24,
+      });
+
+      expect(nodePty.spawn).toHaveBeenCalledWith(
+        "claude",
+        ["--settings", "/tmp/hooks.json", "--resume"],
+        expect.objectContaining({
+          env: expect.objectContaining({ ALFRED_HOOK_SOCKET: "/tmp/alfred.sock", ALFRED_SESSION_ID: created.id }),
+        }),
+      );
+
+      fire(created.id, { state: "needs-you", detail: "Bash: ls" });
+      expect(lastDataEvent()).toMatchObject({
+        data: "",
+        agentSignal: { state: "needs-you", source: "hook", detail: "Bash: ls" },
+        activities: [expect.objectContaining({ kind: "approval", detail: "Bash: ls" })],
+      });
+
+      emit(terminalChannels.write, { id: created.id, data: "\r" });
+      expect(lastDataEvent()).toMatchObject({ data: "", agentSignal: null });
+
+      fire(created.id, { state: "your-turn" });
+      emit(terminalChannels.write, { id: created.id, data: "h" });
+      expect(lastDataEvent()).toMatchObject({ agentSignal: { state: "your-turn", source: "hook" } });
+    });
+
+    it("reads Codex OSC 9 notifications and marks its terminal unfocused after launch", async () => {
+      const { bridge } = fakeBridge();
+      const pty = new FakePty();
+      registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => fakeNodePty(pty) as never });
+      await invoke(terminalChannels.create, { agentKind: "codex", clientId: "codex-1", cols: 80, command: "codex", cwd: "/repo", rows: 24 });
+
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(pty.writes).toContain("\x1b[O");
+
+      pty.onDataHandler?.("working\x1b]9;Approval requested: /bin/zsh -lc 'ls'\x07");
+      expect(lastDataEvent()).toMatchObject({
+        agentSignal: { state: "needs-you", source: "osc9", detail: "Approval requested: /bin/zsh -lc 'ls'" },
+      });
+    });
+
+    it("tracks whether a plain terminal has a program in the foreground", async () => {
+      const pty = new FakePty();
+      registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+      const created = await invoke<{ id: string }>(terminalChannels.create, { clientId: "manual-1", cols: 80, cwd: "/repo", rows: 24 });
+
+      pty.onDataHandler?.("prompt % ");
+      expect(lastDataEvent()).toMatchObject({ shellBusy: false });
+
+      pty.process = "sleep";
+      emit(terminalChannels.write, { id: created.id, data: "sleep 5\r" });
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      expect(lastDataEvent()).toMatchObject({ data: "", shellBusy: true });
+
+      pty.process = "zsh";
+      pty.onDataHandler?.("done\nprompt % ");
+      expect(lastDataEvent()).toMatchObject({ shellBusy: false });
+    });
+  });
 });
