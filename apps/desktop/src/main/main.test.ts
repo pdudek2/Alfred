@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pathToFileURL } from "node:url";
 import type { BrowserWindow as ElectronBrowserWindow } from "electron";
 
@@ -62,7 +62,7 @@ const mocks = vi.hoisted(() => {
       })),
     })),
     didCancelTerminalQuit: vi.fn(() => false),
-    dialog: { showMessageBoxSync: vi.fn(() => 0) },
+    dialog: { showMessageBoxSync: vi.fn(() => 0), showMessageBox: vi.fn(async () => ({ response: 0 })) },
     flushTerminalPersistence: vi.fn(async () => {}),
     getTerminalSessionCount: vi.fn(() => 0),
     isStagedSessionLaunchAllowed: vi.fn(() => true),
@@ -199,6 +199,67 @@ describe("main quit persistence", () => {
     } finally {
       consoleError.mockRestore();
     }
+  });
+
+  describe("when the quit save hangs", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    async function startHangingQuit() {
+      const terminalFlush = deferredPromise<void>();
+      mocks.flushTerminalPersistence.mockReturnValueOnce(terminalFlush.promise);
+      await import("./main.js");
+      const beforeQuit = mocks.appEventHandlers.get("before-quit") as BeforeQuitHandler | undefined;
+      beforeQuit?.({ preventDefault: vi.fn() });
+      return { beforeQuit, terminalFlush };
+    }
+
+    it("asks after a delay and starts no second flush on repeated Quit", async () => {
+      const { beforeQuit } = await startHangingQuit();
+      const repeated = { preventDefault: vi.fn() };
+      beforeQuit?.(repeated);
+
+      expect(repeated.preventDefault).toHaveBeenCalledTimes(1);
+      expect(mocks.flushTerminalPersistence).toHaveBeenCalledTimes(1);
+      expect(mocks.dialog.showMessageBox).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(mocks.dialog.showMessageBox).toHaveBeenCalledTimes(1);
+      expect(mocks.app.quit).not.toHaveBeenCalled();
+    });
+
+    it("keeps waiting, asks again, and quits when the save finishes", async () => {
+      const { terminalFlush } = await startHangingQuit();
+
+      await vi.advanceTimersByTimeAsync(5_000);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(mocks.dialog.showMessageBox).toHaveBeenCalledTimes(2);
+      expect(mocks.app.quit).not.toHaveBeenCalled();
+
+      terminalFlush.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mocks.app.quit).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(mocks.dialog.showMessageBox).toHaveBeenCalledTimes(2);
+    });
+
+    it("quits anyway on request without cancelling or repeating the save", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      mocks.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
+      await startHangingQuit();
+
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(mocks.app.quit).toHaveBeenCalledTimes(1);
+      expect(mocks.flushTerminalPersistence).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith("Quitting before the desktop state finished saving.");
+      warn.mockRestore();
+    });
   });
 
   it("waits for killed terminals to report exit before letting Electron tear down Node", async () => {
