@@ -34,7 +34,7 @@ test.describe("deterministic mixed Decision Inbox", () => {
     await expect(inbox.getByRole("list", {
       name: "Needs you items",
     }).locator(":scope > li[aria-expanded='true']")).toHaveCount(1);
-    const recoveryToggle = inbox.getByRole("button", { name: "Recovery · 6 saved sessions" });
+    const recoveryToggle = inbox.getByRole("button", { name: "Asleep · 6 asleep sessions" });
     await expect(recoveryToggle).toHaveAttribute(
       "aria-expanded",
       "false",
@@ -97,12 +97,12 @@ test.describe("deterministic mixed Decision Inbox", () => {
   }) => {
     const { page, paths } = harness;
     const inbox = await bootstrapMixedInbox(page);
-    const recoveryToggle = inbox.getByRole("button", { name: "Recovery · 6 saved sessions" });
+    const recoveryToggle = inbox.getByRole("button", { name: "Asleep · 6 asleep sessions" });
     await recoveryToggle.click();
-    await expect(inbox.getByRole("list", { name: "Recovery items" }).locator(":scope > li")).toHaveCount(6);
+    await expect(inbox.getByRole("list", { name: "Asleep sessions" }).locator(":scope > li")).toHaveCount(6);
 
     const unsafeAction = inbox.getByRole("button", {
-      name: "Review relaunch Restored fixture 1 in Fixture Alpha",
+      name: "Review resume Restored fixture 1 in Fixture Alpha",
     });
     const beforeReview = await listMainProcessTerminals(page);
     expect(beforeReview.sessions.some((session) => session.clientId === "restored-1")).toBe(false);
@@ -111,7 +111,7 @@ test.describe("deterministic mixed Decision Inbox", () => {
     await unsafeAction.click();
 
     const confirm = inbox.getByRole("button", {
-      name: "Confirm relaunch Restored fixture 1 in Fixture Alpha",
+      name: "Confirm resume Restored fixture 1 in Fixture Alpha",
     });
     await expect(confirm).toBeVisible();
     await expect(inbox.getByText("shell command replay needs review", { exact: true })).toBeVisible();
@@ -131,12 +131,12 @@ test.describe("deterministic mixed Decision Inbox", () => {
     await expect(inbox).toBeVisible();
     await expect(confirm).toHaveCount(0);
     await expect(inbox.getByRole("button", {
-      name: "Review relaunch Restored fixture 1 in Fixture Alpha",
+      name: "Review resume Restored fixture 1 in Fixture Alpha",
     })).toBeVisible();
     await expect(inbox.getByText(paths.workspaceA, { exact: true })).toHaveCount(0);
 
     await inbox.getByRole("button", {
-      name: "Review relaunch Restored fixture 1 in Fixture Alpha",
+      name: "Review resume Restored fixture 1 in Fixture Alpha",
     }).click();
     await expect(confirm).toBeVisible();
     await confirm.click();
@@ -159,7 +159,7 @@ test.describe("deterministic mixed Decision Inbox", () => {
     const { app, page } = harness;
     await setWindowSize(app, page, 1120, 720);
     const inbox = await bootstrapMixedInbox(page);
-    const recoveryToggle = inbox.getByRole("button", { name: "Recovery · 6 saved sessions" });
+    const recoveryToggle = inbox.getByRole("button", { name: "Asleep · 6 asleep sessions" });
     await recoveryToggle.scrollIntoViewIfNeeded();
 
     await assertNoHorizontalOverflow(page, "Inbox", [recoveryToggle]);
@@ -213,11 +213,11 @@ test.describe("deterministic mixed Decision Inbox", () => {
 
       await openInbox(page);
       inbox = page.getByRole("region", { name: "Inbox workspace" });
-      await inbox.getByRole("button", { name: "Recovery · 6 saved sessions" }).scrollIntoViewIfNeeded();
+      await inbox.getByRole("button", { name: "Asleep · 6 asleep sessions" }).scrollIntoViewIfNeeded();
       await assertNoHorizontalOverflow(page, "Inbox", [
         inbox.locator(".inbox-docket__toolbar"),
         inbox.getByTestId("inbox-decision-select-B:fixture-item-2"),
-        inbox.getByRole("button", { name: "Recovery · 6 saved sessions" }),
+        inbox.getByRole("button", { name: "Asleep · 6 asleep sessions" }),
       ]);
       await inbox.getByTestId("inbox-decision-select-B:fixture-item-2").click();
       await inbox.getByRole("button", { name: "Open in Work Fixture item 2 in Fixture Beta" }).click();
@@ -336,7 +336,7 @@ test.describe("long Decision Inbox", () => {
 });
 
 async function bootstrapMixedInbox(page: Page): Promise<Locator> {
-  await expect(page.getByRole("button", { name: "Browse 3 saved sessions" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Browse 3 asleep sessions" })).toBeVisible();
   await openInbox(page);
   const inbox = page.getByRole("region", { name: "Inbox workspace" });
   await inbox.getByTestId("inbox-decision-select-B:fixture-item-2").click();

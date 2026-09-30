@@ -70,7 +70,7 @@ export function WorkSurfaceToolbar({
         type="button"
         aria-label="New terminal"
         disabled={terminalLaunchDisabled}
-        title={terminalLaunchDisabled ? "Choose the workspace folder first" : "New terminal"}
+        title={terminalLaunchDisabled ? "Choose the project folder first" : "New terminal"}
         onClick={onAddManualSession}
       >
         <Plus aria-hidden="true" size={14} />
@@ -118,12 +118,12 @@ export function WorkSurfaceToolbar({
         <button
           type="button"
           className="work-saved-sessions"
-          aria-label={`Browse ${savedSessionCount} saved session${savedSessionCount === 1 ? "" : "s"}`}
-          title="Open saved sessions"
+          aria-label={`Browse ${savedSessionCount} asleep session${savedSessionCount === 1 ? "" : "s"}`}
+          title="Open asleep sessions"
           onClick={onOpenSavedSessions}
         >
           <Archive aria-hidden="true" size={13} />
-          <span>{savedSessionCount} saved</span>
+          <span>{savedSessionCount} asleep</span>
         </button>
       )}
     </div>

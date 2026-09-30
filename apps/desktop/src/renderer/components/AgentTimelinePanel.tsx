@@ -80,10 +80,10 @@ export function AgentTimelinePanel({
   const isolatedCheckout = isIsolatedCheckoutSession(session);
   const handoffActions = sessionHandoffActions(session, command);
   const worktreeLifecycleActions = isolatedCheckout ? isolatedCheckoutLifecycleActions() : [];
-  const cwdFactLabel = session.cwd ? shortenWorktreeLabel(session.cwd) : "default workspace";
+  const cwdFactLabel = session.cwd ? shortenWorktreeLabel(session.cwd) : "default project";
   const branchFactLabel = session.branchName ? shortenWorktreeLabel(session.branchName) : null;
   const baseFactLabel = session.baseCwd ? shortenWorktreeLabel(session.baseCwd) : null;
-  const isolationFactLabel = isolatedCheckout ? "isolated worktree" : session.isolation === "shared" ? "shared workspace" : null;
+  const isolationFactLabel = isolatedCheckout ? "isolated worktree" : session.isolation === "shared" ? "shared project" : null;
   const canEditStagedSession = isEditableStagedSession(session) && Boolean(onUpdateStagedSession);
   const startEdit = () => {
     setEditDraft({
@@ -258,10 +258,10 @@ export function AgentTimelinePanel({
           )}
         </section>
         {canEditStagedSession && !editMode && (
-          <section className="agent-staged-editor" aria-label={`Edit staged command for ${session.title}`}>
+          <section className="agent-staged-editor" aria-label={`Edit draft command for ${session.title}`}>
             <div className="agent-staged-editor-copy">
               <strong>{session.stagedReviewStatus === "edited" ? "Edited and rechecked" : "Adjust before launch"}</strong>
-              <p>Command, arguments, and cwd can be corrected before Alfred releases this tile.</p>
+              <p>Command, arguments, and cwd can be corrected before Alfred releases this session.</p>
             </div>
             <button type="button" onClick={startEdit}>
               Edit command
@@ -271,7 +271,7 @@ export function AgentTimelinePanel({
         {canEditStagedSession && editMode && (
           <form
             className="agent-staged-edit-form"
-            aria-label={`Edit staged command for ${session.title}`}
+            aria-label={`Edit draft command for ${session.title}`}
             onSubmit={(event) => void submitEdit(event)}
             onKeyDown={handleEditKeyDown}
           >
@@ -327,7 +327,7 @@ export function AgentTimelinePanel({
           <div
             className="agent-handoff-buttons agent-handoff-row"
             role="group"
-            aria-label={`Handoff actions for ${session.title}`}
+            aria-label={`Session actions for ${session.title}`}
           >
             {handoffActions.map((action) => (
               <HandoffActionButton
@@ -734,7 +734,7 @@ function sessionPulseCard(
   if (displayStatus.kind === "needs-you" && displayStatus.reason === "blocked-launch") {
     return {
       at: session.lastActivityAt ?? 0,
-      detail: session.safetyNote ?? "This staged command needs manual review before launch.",
+      detail: session.safetyNote ?? "This draft command needs manual review before launch.",
       label: "needs you",
       title: "Safety review required",
       tone: "issue",
@@ -770,10 +770,10 @@ function sessionPulseCard(
     return {
       at: session.lastActivityAt ?? session.lastOutputAt ?? 0,
       detail: codingAgent
-        ? "Saved scrollback is available. Resume continues the latest agent conversation in this workspace."
-        : "Saved scrollback is available. Relaunch starts a fresh process in this tile.",
+        ? "Scrollback is kept. Resume continues the latest agent conversation in this project."
+        : "Scrollback is kept. Resume starts a fresh process in this session.",
       label: "resume",
-      title: "Transcript restored",
+      title: "Session asleep",
       tone: "recovery",
     };
   }
@@ -781,7 +781,7 @@ function sessionPulseCard(
   if (displayStatus.kind === "done") {
     return {
       at: session.lastActivityAt ?? session.lastOutputAt ?? 0,
-      detail: "The process ended; scrollback remains available in the tile.",
+      detail: "The process ended; scrollback remains available in the session.",
       label: "ended",
       title: "Process finished",
       tone: "recovery",
@@ -855,7 +855,7 @@ function runtimeEventTitle(status: SessionTile["runtimeStatus"]): string {
     case "live":
       return "Session attached";
     case "restored":
-      return "Transcript restored";
+      return "Session asleep";
     case "unavailable":
       return "Starting terminal";
     case "starting":
@@ -870,11 +870,11 @@ function runtimeEventCopy(status: SessionTile["runtimeStatus"]): string {
     case "error":
       return "The runtime could not create this terminal.";
     case "exited":
-      return "The process has ended; scrollback remains available in the tile.";
+      return "The process has ended; scrollback remains available in the session.";
     case "live":
-      return "Terminal output is streaming in the workspace.";
+      return "Terminal output is streaming in the project.";
     case "restored":
-      return "This is the last saved scrollback. Start a new terminal to continue work.";
+      return "This is the last kept scrollback. Start a new terminal to continue work.";
     case "unavailable":
       return "Alfred is attaching the runtime process.";
     case "starting":

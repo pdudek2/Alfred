@@ -54,7 +54,7 @@ export function StagedTilePreview({
     ? tile.launchPreflight?.status === "ready" && tile.launchPreflight.branchName
       ? `isolated checkout: ${tile.launchPreflight.branchName}`
       : "isolated checkout"
-    : "normal workspace";
+    : "normal project";
   const checking = tile.stagedReviewStatus === "checking";
   const edited = tile.stagedReviewStatus === "edited";
   const launchBlocked = tile.launchPreflight?.status === "blocked" || Boolean(tile.safetyNote);
@@ -74,7 +74,7 @@ export function StagedTilePreview({
       className={`terminal-tile staged kind-${kindMeta.className} ${selected ? "selected" : ""} ${focusHidden ? "focus-hidden" : ""} ${arrangeMode ? "arranging" : ""} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
       data-testid="terminal-tile"
       data-session-id={tile.id}
-      aria-label={`Staged ${tile.title}`}
+      aria-label={`Draft ${tile.title}`}
       aria-describedby={blockedDescriptionId}
       aria-hidden={focusHidden ? "true" : undefined}
       style={gridStyle(layout, preview)}
@@ -129,7 +129,7 @@ export function StagedTilePreview({
         )}
         <div className="staged-command">{fullCommand || "(no command)"}</div>
         <div className={`staged-isolation ${launchBlocked ? "blocked" : ""}`}>
-          {isolated ? launchMode : "shared workspace"}
+          {isolated ? launchMode : "shared project"}
         </div>
       </div>
       <div className="staged-actions">

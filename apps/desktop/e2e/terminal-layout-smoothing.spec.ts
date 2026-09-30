@@ -95,7 +95,7 @@ test("skips terminal tile motion when reduced motion is enabled", async ({ harne
   expect(await animateRecordCount(page)).toBe(0);
 });
 
-test.describe("staged Arrange layout", () => {
+test.describe("draft Arrange layout", () => {
   test.use({ fixtureOptions: { inboxItems: 1 } });
 
   test("keeps staged Arrange placement on the direct terminal-grid child", async ({ harness }) => {

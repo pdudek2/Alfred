@@ -31,7 +31,7 @@ export class RendererErrorBoundary extends Component<RendererErrorBoundaryProps,
         <section className="renderer-crash-card">
           <p className="renderer-crash-kicker">Renderer crashed</p>
           <h1>Alfred hit a UI error.</h1>
-          <p>{error.message || "The renderer stopped while drawing the workspace."}</p>
+          <p>{error.message || "The renderer stopped while drawing the project."}</p>
           {this.state.componentStack && <pre>{this.state.componentStack}</pre>}
           <button type="button" onClick={() => window.location.reload()}>
             Reload Alfred

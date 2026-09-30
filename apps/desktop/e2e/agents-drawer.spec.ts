@@ -21,9 +21,9 @@ test("keeps active agents and decisions visible without reflowing the terminal",
 
   const navigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
   await addSession(page, "New Codex session");
-  await navigator.getByRole("button", { name: /Fixture Beta workspace/i }).click();
+  await navigator.getByRole("button", { name: /Fixture Beta project/i }).click();
   await addSession(page, "New Claude session");
-  await navigator.getByRole("button", { name: /Fixture Alpha workspace/i }).click();
+  await navigator.getByRole("button", { name: /Fixture Alpha project/i }).click();
 
   const xtermHost = page.locator('[data-session-id="codex-1"] [data-testid="xterm-host"]');
   await expect(xtermHost).toBeAttached();
@@ -31,8 +31,8 @@ test("keeps active agents and decisions visible without reflowing the terminal",
 
   const trigger = page.getByRole("button", { name: "Agents, 2 active" });
   await expect(trigger).toBeVisible();
-  const alphaProject = navigator.getByRole("button", { name: "Fixture Alpha workspace" });
-  const betaProject = navigator.getByRole("button", { name: "Fixture Beta workspace" });
+  const alphaProject = navigator.getByRole("button", { name: "Fixture Alpha project" });
+  const betaProject = navigator.getByRole("button", { name: "Fixture Beta project" });
   await expect(alphaProject).toBeVisible();
   await expect(alphaProject).toHaveAccessibleDescription("1 decision needs review, 1 active agent");
   await expect(betaProject).toBeVisible();
@@ -68,9 +68,9 @@ test("keeps active agents and decisions visible without reflowing the terminal",
     style: privacySafeScreenshotStyle,
   });
 
-  const decisionHandoff = drawer.getByRole("button", { name: /Review handoff for Fixture item 1/i });
+  const decisionHandoff = drawer.getByRole("button", { name: /Open Fixture item 1/i });
   await decisionHandoff.click();
-  await expect(drawer.getByRole("heading", { name: "Handoff", exact: true })).toBeVisible();
+  await expect(drawer.getByRole("heading", { name: "Session", exact: true })).toBeVisible();
   const back = drawer.getByRole("button", { name: "Back to Agents" });
   await expect(back).toBeFocused();
   await expect(drawer.getByRole("heading", { name: "Decision" })).toBeVisible();
@@ -79,7 +79,7 @@ test("keeps active agents and decisions visible without reflowing the terminal",
   await expect(decisionHandoff).toBeFocused();
 
   await decisionHandoff.click();
-  await expect(drawer.getByRole("heading", { name: "Handoff", exact: true })).toBeVisible();
+  await expect(drawer.getByRole("heading", { name: "Session", exact: true })).toBeVisible();
   await expect(back).toBeFocused();
   const primaryAction = drawer.getByRole("button", { name: "Launch Fixture item 1" });
   await primaryAction.focus();
@@ -144,7 +144,7 @@ test("keeps active agents and decisions visible without reflowing the terminal",
   expect(await documentOverflow(page)).toBe(0);
 
   await decisionHandoff.click();
-  await expect(drawer.getByRole("heading", { name: "Handoff", exact: true })).toBeVisible();
+  await expect(drawer.getByRole("heading", { name: "Session", exact: true })).toBeVisible();
   await expect(back).toBeFocused();
   await expect(drawer.getByRole("heading", { name: "Decision" })).toBeVisible();
   expect(await documentOverflow(page)).toBe(0);
@@ -153,7 +153,7 @@ test("keeps active agents and decisions visible without reflowing the terminal",
   await expect(decisionHandoff).toBeFocused();
 
   await decisionHandoff.click();
-  await expect(drawer.getByRole("heading", { name: "Handoff", exact: true })).toBeVisible();
+  await expect(drawer.getByRole("heading", { name: "Session", exact: true })).toBeVisible();
   await expect(back).toBeFocused();
   await primaryAction.focus();
   await expect(primaryAction).toBeFocused();
@@ -253,11 +253,11 @@ async function terminalOwnsFocus(page: Page): Promise<boolean> {
 }
 
 async function openFixtureDiffHandoff(page: Page, drawer: Locator): Promise<void> {
-  const review = drawer.getByRole("button", { name: "Review handoff for Fixture diff handoff" });
+  const review = drawer.getByRole("button", { name: "Open Fixture diff handoff" });
   await expect(review).toBeVisible();
   await review.focus();
   await page.keyboard.press("Enter");
-  await expect(drawer.getByRole("heading", { name: "Handoff", exact: true })).toBeVisible();
+  await expect(drawer.getByRole("heading", { name: "Session", exact: true })).toBeVisible();
   await expect(drawer.getByRole("button", { name: "Back to Agents" })).toBeFocused();
   await expect(drawer.getByText("alfred-codex-fixture-handoff", { exact: true })).toBeVisible();
   const primaryAction = drawer.getByRole("button", { name: "Resume Fixture diff handoff" });

@@ -177,7 +177,7 @@ export function SessionsSurface({
     if (action.kind === "recover" && selectedRecoverySafety && !selectedRecoverySafety.safe) {
       action = {
         kind: "recover",
-        label: selectedRecoveryArmed ? "Confirm relaunch" : "Review relaunch",
+        label: selectedRecoveryArmed ? "Confirm resume" : "Review resume",
       };
     }
     return {

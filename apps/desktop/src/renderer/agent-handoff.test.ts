@@ -70,18 +70,18 @@ describe("agent handoff projection", () => {
       section: "recovery",
       blocksAgent: false,
       rank: null,
-      reason: "Saved agent session can be resumed.",
+      reason: "Asleep agent session can be resumed.",
       action: { kind: "resume" },
     }), session({
       runtimeStatus: "restored",
       isolation: "worktree",
       branchName: "resume-auth",
       baseCwd: "/repo",
-      activityEvents: [event("lifecycle", "Restored", "Transcript restored", 10)],
+      activityEvents: [event("lifecycle", "Restored", "Session asleep", 10)],
     }));
 
     expect(detail).toMatchObject({
-      outcome: "Transcript restored",
+      outcome: "Session asleep",
       canReviewDiff: true,
       stateLabel: "Asleep",
       stateTone: "ready",

@@ -145,7 +145,7 @@ export function SessionsNavigator({
               >
                 <option value="all">All sources</option>
                 <option value="managed">Managed</option>
-                <option value="saved">Saved</option>
+                <option value="saved">Asleep</option>
                 <option value="external-codex">Codex</option>
               </select>
             </label>

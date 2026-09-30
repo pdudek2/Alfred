@@ -19,14 +19,14 @@ describe("recovery-display", () => {
       { ...baseSession, id: "failed", runtimeStatus: "error" },
     ] as SessionTile[];
 
-    expect(recoveryHeadline(sessions)).toBe("3 recovery items ready");
-    expect(recoverySummary(sessions)).toBe("1 saved · 1 ended · 1 failed");
+    expect(recoveryHeadline(sessions)).toBe("3 sessions to resume");
+    expect(recoverySummary(sessions)).toBe("1 asleep · 1 ended · 1 failed");
   });
 
   it("uses saved session copy only for restored transcripts", () => {
     expect(recoveryHeadline([
       { ...baseSession, id: "saved-1", runtimeStatus: "restored" },
       { ...baseSession, id: "saved-2", runtimeStatus: "restored" },
-    ] as SessionTile[])).toBe("2 saved sessions ready");
+    ] as SessionTile[])).toBe("2 asleep sessions ready");
   });
 });

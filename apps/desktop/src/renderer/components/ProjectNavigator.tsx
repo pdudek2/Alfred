@@ -145,7 +145,7 @@ export function ProjectNavigator({
           <div className="project-section-heading">Projects</div>
         )}
 
-        <div className="project-list" role="list" aria-label="Workspaces">
+        <div className="project-list" role="list" aria-label="Projects">
           {visibleProjects.map((workspace, visibleIndex) => {
             const active = workspace.id === activeWorkspaceId;
             const stableIndex = workspaces.findIndex((candidate) => candidate.id === workspace.id);
@@ -176,7 +176,7 @@ export function ProjectNavigator({
                     className="project-row-button"
                     aria-current={active ? "location" : undefined}
                     aria-describedby={workspaceStatus.length > 0 ? workspaceStatusId : undefined}
-                    aria-label={`${workspace.label} workspace`}
+                    aria-label={`${workspace.label} project`}
                     data-attention={hasAttention ? "true" : undefined}
                     data-label={workspace.label}
                     data-project-destination={workspace.id}
@@ -327,7 +327,7 @@ export function ProjectNavigator({
       </div>
 
       <footer className="project-navigator-footer">
-        <button type="button" aria-label="Add workspace" onClick={onAddWorkspace}>
+        <button type="button" aria-label="Add project" onClick={onAddWorkspace}>
           <Plus aria-hidden="true" size={15} />
           <span>Add project</span>
         </button>

@@ -29,10 +29,10 @@ test("Preview stays on demand and preserves xterm while loaded, resized, and off
     const previewToggle = page.getByRole("button", { name: "Preview" });
     await expect(previewToggle).toBeEnabled();
     await expect(previewToggle).toHaveAttribute("aria-pressed", "false");
-    await expect(page.getByLabel("Workspace preview")).toHaveCount(0);
+    await expect(page.getByLabel("Project preview")).toHaveCount(0);
 
     await previewToggle.click();
-    const preview = page.getByLabel("Workspace preview");
+    const preview = page.getByLabel("Project preview");
     const frame = page.getByTitle(`Preview of ${url}`);
     await expect(preview).toBeVisible();
     await expect(frame).toBeVisible();

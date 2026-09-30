@@ -55,10 +55,10 @@ export function WorkspaceActionsMenu({
   const revealLabel = navigator.platform.includes("Mac") ? "Reveal in Finder" : "Reveal folder";
   const terminalLabel = navigator.platform.includes("Mac") ? "Open in Ghostty" : "Open in external terminal";
   const popoverLabel = renameEditing
-    ? "Rename workspace"
+    ? "Rename project"
     : missionEditing
-      ? "Workspace mission brief"
-      : "Workspace actions";
+      ? "Project mission brief"
+      : "Project actions";
   const missionActionLabel = missionBrief ? "Edit mission brief..." : "Add mission brief...";
   const missionSummary = missionBrief?.goal || missionBrief?.doneWhen[0] || "Give Alfred persistent context";
   const handleMissionCancel = () => {
@@ -158,7 +158,7 @@ export function WorkspaceActionsMenu({
         ref={triggerRef}
         aria-haspopup="dialog"
         aria-expanded={menuOpen}
-        aria-label={`Workspace menu for ${workspaceLabel}`}
+        aria-label={`Project menu for ${workspaceLabel}`}
         onClick={onToggleMenu}
       >
         <span>
@@ -178,7 +178,7 @@ export function WorkspaceActionsMenu({
               }}
             >
               <label>
-                <span>Workspace name</span>
+                <span>Project name</span>
                 <input
                   ref={inputRef}
                   value={renameDraft}
@@ -258,7 +258,7 @@ export function WorkspaceActionsMenu({
               <hr />
               <button type="button" onClick={onStartRename}>
                 <Pencil size={14} />
-                <span><strong>Rename workspace...</strong><small>Keep this desk readable</small></span>
+                <span><strong>Rename project...</strong><small>Keep this project readable</small></span>
               </button>
               <button type="button" onClick={() => { setMissionDraft(missionBriefToDraft(missionBrief)); setMissionEditing(true); }}>
                 <ListChecks size={14} />
@@ -270,11 +270,11 @@ export function WorkspaceActionsMenu({
                   <button
                     type="button"
                     className="danger"
-                    aria-label="Close workspace"
+                    aria-label="Close project"
                     onClick={() => { onCloseWorkspace(); onClose(); }}
                   >
                     <Trash2 size={14} />
-                    <span><strong>Close workspace</strong><small>Remove this empty workspace</small></span>
+                    <span><strong>Close project</strong><small>Remove this empty project</small></span>
                   </button>
                 </>
               )}
