@@ -12,6 +12,14 @@ const baseEvent = {
 } satisfies Pick<SessionActivityEvent, "at" | "id">;
 
 describe("activity presentation", () => {
+  it.each(["Resuming session", "Relaunching session", "Session asleep"])(
+    "keeps the %s lifecycle event visible, including titles saved before the vocabulary change",
+    (title) => {
+      const event: SessionActivityEvent = { ...baseEvent, kind: "lifecycle", title, detail: "Alfred is starting a fresh process." };
+      expect(presentActivityEvents([event]).visibleEvents.map((item) => item.title)).toEqual([title]);
+    },
+  );
+
   it("moves hook and repeated git-check noise into raw while keeping real work visible", () => {
     const events: SessionActivityEvent[] = [
       {

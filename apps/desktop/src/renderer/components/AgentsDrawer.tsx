@@ -159,7 +159,7 @@ export function AgentsDrawer({
             <span>Back</span>
           </button>
         ) : <h2>Agents</h2>}
-        {handoff && <h2>Handoff</h2>}
+        {handoff && <h2>Session</h2>}
         <button ref={closeButtonRef} type="button" aria-label="Close Agents" onClick={requestClose}>
           <X aria-hidden="true" size={15} />
         </button>
@@ -202,7 +202,7 @@ export function AgentsDrawer({
                       <button
                         type="button"
                         data-handoff-id={item.id}
-                        aria-label={`Review handoff for ${item.sessionTitle}`}
+                        aria-label={`Open ${item.sessionTitle}`}
                         onClick={() => openHandoff(item.id)}
                       >
                         Review handoff
@@ -216,7 +216,7 @@ export function AgentsDrawer({
             {recentHandoffs.length > 0 && (
               <section className="agents-drawer__section" aria-labelledby="agents-recent-handoffs">
                 <header>
-                  <h3 id="agents-recent-handoffs">Recent handoffs</h3>
+                  <h3 id="agents-recent-handoffs">Asleep</h3>
                   <span>{recentHandoffs.length}</span>
                 </header>
                 <div className="agents-drawer__handoff-list">
@@ -231,7 +231,7 @@ export function AgentsDrawer({
                         type="button"
                         key={item.id}
                         data-handoff-id={item.id}
-                        aria-label={`Review handoff for ${item.sessionTitle}`}
+                        aria-label={`Open ${item.sessionTitle}`}
                         onClick={() => openHandoff(item.id)}
                       >
                         <span className={`agents-drawer__agent-mark kind-${kind}`} aria-hidden="true">
@@ -336,7 +336,7 @@ function HandoffDetail({
             <dd className={`is-${detail.stateTone}`}>{detail.stateLabel}</dd>
           </div>
           <div>
-            <dt>Workspace</dt>
+            <dt>Project</dt>
             <dd>{detail.workspaceLabel}</dd>
           </div>
           {detail.branchName && (

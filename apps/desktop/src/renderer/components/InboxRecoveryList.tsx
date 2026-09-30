@@ -26,13 +26,13 @@ export function InboxRecoveryList({
   const [expanded, setExpanded] = useState(false);
   if (items.length === 0) return null;
 
-  const savedSessionLabel = `${items.length} saved session${items.length === 1 ? "" : "s"}`;
-  const summaryLabel = `Recovery · ${savedSessionLabel}`;
+  const savedSessionLabel = `${items.length} asleep session${items.length === 1 ? "" : "s"}`;
+  const summaryLabel = `Asleep · ${savedSessionLabel}`;
 
   return (
     <section
       className="inbox-docket__recovery"
-      aria-label="Recovery"
+      aria-label="Asleep"
       onKeyDown={(event) => {
         if (RECOVERY_DOCKET_KEYS.has(event.key)) {
           event.stopPropagation();
@@ -50,11 +50,11 @@ export function InboxRecoveryList({
       >
         <RotateCcw aria-hidden="true" size={13} />
         <strong>{summaryLabel}</strong>
-        <span>{expanded ? "Hide saved sessions" : `Show all ${items.length}`}</span>
+        <span>{expanded ? "Hide asleep sessions" : `Show all ${items.length}`}</span>
       </button>
 
       {expanded && (
-        <ol className="inbox-docket__recovery-list" aria-label="Recovery items" id="inbox-recovery-items">
+        <ol className="inbox-docket__recovery-list" aria-label="Asleep sessions" id="inbox-recovery-items">
           {items.map((item) => {
             const armed = armedRecoverySessionIds.has(item.sessionId);
             const unsafe = item.action.kind === "relaunch" && item.action.confirmation === "required";
@@ -69,7 +69,7 @@ export function InboxRecoveryList({
                 key={item.id}
               >
                 <div className="inbox-docket__recovery-row">
-                  <span className="inbox-docket__glyph inbox-docket__glyph--recovery" role="img" aria-label="Recovery">
+                  <span className="inbox-docket__glyph inbox-docket__glyph--recovery" role="img" aria-label="Asleep">
                     <RotateCcw aria-hidden="true" size={14} />
                   </span>
                   <span className="inbox-docket__recovery-copy">
@@ -131,8 +131,8 @@ export function InboxRecoveryList({
 export function recoveryActionLabel(item: AttentionProjection, armed: boolean): string {
   if (item.action.kind === "resume") return "Resume";
   if (item.action.kind === "relaunch") {
-    if (item.action.confirmation === "required") return armed ? "Confirm relaunch" : "Review relaunch";
-    return "Relaunch";
+    if (item.action.confirmation === "required") return armed ? "Confirm resume" : "Review resume";
+    return "Resume";
   }
   throw new Error(`Unsupported Recovery action: ${JSON.stringify(item.action)}`);
 }

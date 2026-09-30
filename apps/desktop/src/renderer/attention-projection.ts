@@ -205,10 +205,10 @@ function projectRecovery(
   const reason = !safety.safe
     ? safety.reason
     : resumable
-      ? "Saved agent session can be resumed."
+      ? "Asleep agent session can be resumed."
       : status.kind === "asleep"
-        ? "Saved session can be relaunched."
-        : "Ended session can be relaunched.";
+        ? "Asleep session can be resumed."
+        : "Ended session can be resumed.";
 
   return {
     ...projectionIdentity(session, workspace),

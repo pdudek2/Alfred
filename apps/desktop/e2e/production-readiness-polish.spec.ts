@@ -78,7 +78,7 @@ test("keeps the production Work story trustworthy across every utility surface",
   const agents = page.getByTestId("agents-drawer");
   await expect(agents).toHaveAttribute("aria-hidden", "false");
   await expectSans(agents);
-  await agents.getByRole("button", { name: "Review handoff for Fixture diff handoff" }).click();
+  await agents.getByRole("button", { name: "Open Fixture diff handoff" }).click();
   await expectDrawerOpen(agents, agents.locator(".agents-drawer__handoff-primary"));
   await captureAuditScreenshot(page, "agents-handoff-wide");
   await agents.getByRole("button", { name: "Open diff" }).click();
@@ -151,25 +151,25 @@ test("keeps the production Work story trustworthy across every utility surface",
   await harness.closeActiveTerminals();
 });
 
-test.describe("captures protective empty and missing workspace evidence", () => {
+test.describe("captures protective empty and missing project evidence", () => {
   test("keeps an empty workspace calm while another runtime remains connected", async ({ harness }) => {
     const { app, page } = harness;
     await setWindowSize(app, page, 1120, 720);
     const navigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
-    await navigator.getByRole("button", { name: "Fixture Beta workspace", exact: true }).click();
-    await expect(page.getByRole("status", { name: "Empty workspace" })).toBeVisible();
+    await navigator.getByRole("button", { name: "Fixture Beta project", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Empty project" })).toBeVisible();
     await captureAuditScreenshot(page, "empty-workspace-narrow");
     harness.assertNoRuntimeErrors();
     await harness.closeActiveTerminals();
   });
 });
 
-test.describe("missing workspace fixture", () => {
+test.describe("missing project fixture", () => {
   test.use({ fixtureOptions: { activeWorkspaceId: "A", missingWorkspaceId: "A" } });
   test("keeps a missing workspace non-launchable", async ({ harness }) => {
     const { app, page } = harness;
     await setWindowSize(app, page, 1120, 720);
-    const unavailable = page.getByRole("status", { name: "Unavailable workspace folder" });
+    const unavailable = page.getByRole("status", { name: "Unavailable project folder" });
     await expect(unavailable).toBeVisible();
     await expect(unavailable.getByRole("button", { name: "New terminal" })).toHaveCount(0);
     await captureAuditScreenshot(page, "missing-workspace-narrow");

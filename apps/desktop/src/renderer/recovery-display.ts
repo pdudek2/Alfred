@@ -26,21 +26,21 @@ export function recoveryCounts(sessions: SessionTile[]): RecoveryCounts {
 
 export function recoveryHeadline(sessions: SessionTile[]): string {
   const counts = recoveryCounts(sessions);
-  if (counts.total === 0) return "No recovery items";
-  if (counts.saved === counts.total) return `${counts.total} saved session${counts.total === 1 ? "" : "s"} ready`;
+  if (counts.total === 0) return "Nothing asleep";
+  if (counts.saved === counts.total) return `${counts.total} asleep session${counts.total === 1 ? "" : "s"} ready`;
   if (counts.failed === counts.total) {
-    return `${counts.total} failed session${counts.total === 1 ? "" : "s"} need${counts.total === 1 ? "s" : ""} restart`;
+    return `${counts.total} failed session${counts.total === 1 ? "" : "s"} need${counts.total === 1 ? "s" : ""} resume`;
   }
   if (counts.ended === counts.total) {
-    return `${counts.total} ended session${counts.total === 1 ? "" : "s"} ready to restart`;
+    return `${counts.total} ended session${counts.total === 1 ? "" : "s"} ready to resume`;
   }
-  return `${counts.total} recovery item${counts.total === 1 ? "" : "s"} ready`;
+  return `${counts.total} session${counts.total === 1 ? "" : "s"} to resume`;
 }
 
 export function recoverySummary(sessions: SessionTile[]): string {
   const counts = recoveryCounts(sessions);
   return [
-    counts.saved > 0 ? `${counts.saved} saved` : null,
+    counts.saved > 0 ? `${counts.saved} asleep` : null,
     counts.ended > 0 ? `${counts.ended} ended` : null,
     counts.failed > 0 ? `${counts.failed} failed` : null,
   ].filter((item): item is string => item !== null).join(" · ");

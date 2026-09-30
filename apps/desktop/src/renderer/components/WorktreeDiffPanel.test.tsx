@@ -70,12 +70,12 @@ describe("WorktreeDiffPanel", () => {
           instanceKey: "codex-1:1",
           sessionId: "codex-1",
           sessionTitle: "Codex review",
-          error: "Workspace root no longer matches this checkout.",
+          error: "Project root no longer matches this checkout.",
         }}
         onClose={vi.fn()}
       />,
     );
-    expect(screen.getByRole("alert")).toHaveTextContent("Workspace root no longer matches this checkout.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Project root no longer matches this checkout.");
     expect(screen.getByRole("button", { name: "Back to terminal" })).toBeInTheDocument();
   });
 

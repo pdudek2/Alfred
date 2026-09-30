@@ -18,7 +18,7 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
   const controls = [
     {
       control: page.getByRole("navigation", { name: "Projects and Free Chats" })
-        .getByRole("button", { name: "Fixture Alpha workspace" }),
+        .getByRole("button", { name: "Fixture Alpha project" }),
       offset: "-2px",
     },
     {

@@ -756,18 +756,18 @@ function EmptyWorkspaceState({
     <div
       className="terminal-empty-state"
       role="status"
-      aria-label={missing ? "Unavailable workspace folder" : "Empty workspace"}
+      aria-label={missing ? "Unavailable project folder" : "Empty project"}
     >
       <div className="terminal-empty-copy">
-        <span>{missing ? "Folder unavailable" : bound ? "Project ready" : "Scratch workspace"}</span>
+        <span>{missing ? "Folder unavailable" : bound ? "Project ready" : "Scratch project"}</span>
         <strong>{heading}</strong>
         <p>
           {missing
-            ? "Choose the folder again. Staged work stays parked until you reconnect this workspace."
+            ? "Choose the folder again. Draft work stays parked until you reconnect this project."
             : workspaceHomeCopy(workspaceRootPath, workspaceGitBranch)}
         </p>
       </div>
-      <dl className="terminal-empty-facts" aria-label="workspace details">
+      <dl className="terminal-empty-facts" aria-label="project details">
         <div>
           <dt>workspace</dt>
           <dd>{workspaceLabel}</dd>
@@ -783,7 +783,7 @@ function EmptyWorkspaceState({
           </div>
         )}
       </dl>
-      <div className="terminal-empty-actions" aria-label="empty workspace actions">
+      <div className="terminal-empty-actions" aria-label="empty project actions">
         {missing ? (
           <button type="button" className="terminal-empty-primary-action" onClick={onBindWorkspace}>
             Choose folder
@@ -797,7 +797,7 @@ function EmptyWorkspaceState({
             >
               Start Codex
             </button>
-            <div className="terminal-empty-secondary-actions" role="group" aria-label="secondary empty workspace actions">
+            <div className="terminal-empty-secondary-actions" role="group" aria-label="secondary empty project actions">
               <button type="button" onClick={() => onAddAgentSession("claude")}>
                 Start Claude
               </button>
@@ -836,10 +836,9 @@ function blockedLaunchDetail(session: Pick<SessionTile, "launchPreflight" | "saf
   return "Preflight failed.";
 }
 
-function relaunchButtonLabel(action: "relaunch" | "restart", unsafe: boolean, armed: boolean): string {
-  if (!unsafe) return action === "relaunch" ? "Relaunch" : "Restart";
-  if (armed) return action === "relaunch" ? "Confirm relaunch" : "Confirm restart";
-  return action === "relaunch" ? "Review relaunch" : "Review restart";
+function resumeButtonLabel(unsafe: boolean, armed: boolean): string {
+  if (!unsafe) return "Resume";
+  return armed ? "Confirm resume" : "Review resume";
 }
 
 type RestoredSessionButtonSession = {
@@ -1398,7 +1397,7 @@ function ManualTerminalTile({
         terminal.writeln(
           metadata.runtimeStatus === "exited"
             ? "This terminal process has ended."
-            : "This terminal failed to start. Use Restart to create a fresh runtime.",
+            : "This terminal failed to start. Use Resume to create a fresh runtime.",
         );
         scheduleRepaint();
       }
@@ -1754,13 +1753,13 @@ function ManualTerminalTile({
                 <button
                   type="button"
                   className={`continue-button ${relaunchNeedsReview ? "unsafe" : ""} ${relaunchArmed ? "armed" : ""}`}
-                  aria-label={`${relaunchButtonLabel("restart", relaunchNeedsReview, relaunchArmed)} ${title}`}
+                  aria-label={`${resumeButtonLabel(relaunchNeedsReview, relaunchArmed)} ${title}`}
                   onClick={onRestartSession}
                   onPointerDown={(event) => event.stopPropagation()}
-                  title={relaunchNeedsReview ? relaunchSafety.reason : "Restart this session"}
+                  title={relaunchNeedsReview ? relaunchSafety.reason : "Resume this session"}
                 >
                   {relaunchNeedsReview ? <AlertTriangle size={13} /> : <RotateCcw size={13} />}
-                  <span>{relaunchButtonLabel("restart", relaunchNeedsReview, relaunchArmed)}</span>
+                  <span>{resumeButtonLabel(relaunchNeedsReview, relaunchArmed)}</span>
                 </button>
               )}
             </div>

@@ -177,7 +177,7 @@ describe("SessionsSurface", () => {
       ...workspaces,
       { id: "B", label: "ClientApp", rootPath: "/Users/patryk/Desktop/ClientApp" },
       { id: "FREE", label: "Free Chat", rootPath: "/Users/patryk/Documents/Codex" },
-      { id: "EMPTY", label: "Workspace 99" },
+      { id: "EMPTY", label: "Project 99" },
     ];
     renderSurface({
       workspaces: scopedWorkspaces,
@@ -196,7 +196,7 @@ describe("SessionsSurface", () => {
     expect(within(projectScope).getByRole("option", { name: "All projects" })).toBeInTheDocument();
     expect(within(projectScope).getByRole("option", { name: "ClientApp" })).toBeInTheDocument();
     expect(within(projectScope).getByRole("option", { name: "Free Chats" })).toBeInTheDocument();
-    expect(within(projectScope).queryByRole("option", { name: "Workspace 99" })).not.toBeInTheDocument();
+    expect(within(projectScope).queryByRole("option", { name: "Project 99" })).not.toBeInTheDocument();
     expect(screen.getByRole("status", { name: "Session count" })).toHaveTextContent("2");
     expect(screen.getByRole("listbox", { name: "Session results" })).toBeVisible();
     expect(screen.getByRole("main", { name: "Session reader" })).toBeVisible();
@@ -952,7 +952,7 @@ describe("SessionsSurface", () => {
       args: ["-rf", "dist"],
       command: "rm",
       cwd: "/Users/patryk/Desktop/Alfred",
-      initialBuffer: "saved output\n",
+      initialBuffer: "asleep output\n",
       runtimeStatus: "restored",
       title: "Unsafe recovery",
     });
@@ -960,10 +960,10 @@ describe("SessionsSurface", () => {
 
     const initial = renderSurface({ sessions: [unsafe], onPrimaryAction });
     await user.click(screen.getByRole("option", { name: /Unsafe recovery/ }));
-    expect(screen.queryByRole("region", { name: "Relaunch review" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Review relaunch" }));
+    expect(screen.queryByRole("region", { name: "Resume review" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Review resume" }));
     expect(onPrimaryAction).toHaveBeenLastCalledWith(expect.objectContaining({
-      action: { kind: "recover", label: "Review relaunch" },
+      action: { kind: "recover", label: "Review resume" },
       target: { workspaceId: "A", sessionId: "managed-10" },
     }));
 
@@ -978,13 +978,13 @@ describe("SessionsSurface", () => {
         ...createInitialSessionsViewState(),
         selectedSessionKey: "managed:managed-10",
         readerPages: [transcriptPage("managed:managed-10", [
-          { id: "saved", kind: "terminal", text: "saved output" },
+          { id: "saved", kind: "terminal", text: "asleep output" },
         ])],
       },
     );
 
-    expect(screen.getByRole("button", { name: "Confirm relaunch" })).toBeInTheDocument();
-    const review = screen.getByRole("region", { name: "Relaunch review" });
+    expect(screen.getByRole("button", { name: "Confirm resume" })).toBeInTheDocument();
+    const review = screen.getByRole("region", { name: "Resume review" });
     expect(review).toHaveTextContent("rm -rf dist");
     expect(review).toHaveTextContent("/Users/patryk/Desktop/Alfred");
     expect(review).toHaveTextContent("rm -rf would be replayed");
@@ -1038,7 +1038,7 @@ describe("SessionsSurface", () => {
       navigatorScrollTop: 70,
       readerScrollTop: 90,
       readerPages: [transcriptPage("managed:managed-0", [
-        { id: "terminal", kind: "terminal", text: "saved output" },
+        { id: "terminal", kind: "terminal", text: "asleep output" },
       ])],
     };
     renderSurface({ sessions: [managedSession(0)] }, state);

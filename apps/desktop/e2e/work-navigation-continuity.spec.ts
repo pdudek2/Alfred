@@ -28,10 +28,10 @@ test("keeps Prepare Work and global session actions continuous across surfaces",
 
   await selectSurface(page, "Sessions");
   await page.getByRole("button", { name: "Open command palette" }).click();
-  await page.getByRole("textbox", { name: "Search commands" }).fill("rename current workspace");
-  await page.getByRole("option", { name: /Rename current workspace/ }).click();
+  await page.getByRole("textbox", { name: "Search commands" }).fill("rename current project");
+  await page.getByRole("option", { name: /Rename current project/ }).click();
   await expect(page.getByTestId("workbench-shell")).toHaveClass(/surface-work/);
-  await expect(page.getByRole("dialog", { name: "Rename workspace" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Rename project" })).toBeVisible();
 
   harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();

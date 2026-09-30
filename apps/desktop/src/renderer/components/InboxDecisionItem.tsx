@@ -131,7 +131,7 @@ export function attentionActionLabel(item: AttentionProjection): string {
     case "resume":
       return "Resume";
     case "relaunch":
-      return item.action.confirmation === "required" ? "Review relaunch" : "Relaunch";
+      return item.action.confirmation === "required" ? "Review resume" : "Resume";
   }
 }
 
@@ -144,9 +144,9 @@ function detailHeading(item: AttentionProjection): string {
     case "agent-waiting":
       return "Latest signal";
     case "staged-launch":
-      return "Staged command";
+      return "Draft command";
     case "recovery":
-      return "Recovery";
+      return "Asleep";
   }
 }
 
@@ -159,9 +159,9 @@ function attentionKindLabel(item: AttentionProjection): string {
     case "agent-waiting":
       return "Agent waiting";
     case "staged-launch":
-      return "Staged launch";
+      return "Draft launch";
     case "recovery":
-      return "Recovery";
+      return "Asleep";
   }
 }
 
@@ -174,9 +174,9 @@ function attentionStateLabel(item: AttentionProjection): string {
     case "agent-waiting":
       return "Needs response · inferred";
     case "staged-launch":
-      return "Staged · structured";
+      return "Draft · structured";
     case "recovery":
-      return "Recovery · runtime";
+      return "Asleep · runtime";
   }
 }
 

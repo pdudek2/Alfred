@@ -77,7 +77,7 @@ const recoveryItem: AttentionProjection = {
   blocksAgent: false,
   rank: null,
   attentionAt: 90,
-  reason: "Saved agent session can be resumed.",
+  reason: "Asleep agent session can be resumed.",
   provenance: "runtime",
   action: { kind: "relaunch", confirmation: "none" },
 };
@@ -146,12 +146,12 @@ describe("AgentsDrawer", () => {
     expect(inProgress).toHaveTextContent("Tighten project rail");
     expect(inProgress).not.toHaveTextContent("Review checkout");
 
-    expect(within(decisions).getByRole("button", { name: "Review handoff for Review checkout" })).toBeInTheDocument();
+    expect(within(decisions).getByRole("button", { name: "Open Review checkout" })).toBeInTheDocument();
 
     await user.click(within(inProgress).getByRole("button", { name: "Open Tighten project rail in Alfred" }));
     expect(onOpenSession).toHaveBeenCalledWith("A", "working");
 
-    await user.click(within(decisions).getByRole("button", { name: "Review handoff for Review checkout" }));
+    await user.click(within(decisions).getByRole("button", { name: "Open Review checkout" }));
     await user.click(screen.getByRole("button", { name: "Open in Work Review checkout" }));
     expect(onRunAttentionAction).toHaveBeenCalledWith(attentionItem);
   });
@@ -160,13 +160,13 @@ describe("AgentsDrawer", () => {
     const user = userEvent.setup();
     render(drawer());
 
-    await user.click(screen.getByRole("button", { name: "Review handoff for Review checkout" }));
-    expect(screen.getByRole("heading", { name: "Handoff" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open Review checkout" }));
+    expect(screen.getByRole("heading", { name: "Session" })).toBeInTheDocument();
     expect(screen.getByText("Choose whether to keep the generated migration.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open in Work Review checkout" })).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
-    const handoffRow = screen.getByRole("button", { name: "Review handoff for Review checkout" });
+    const handoffRow = screen.getByRole("button", { name: "Open Review checkout" });
     expect(screen.getByRole("heading", { name: "Agents" })).toBeInTheDocument();
     expect(handoffRow).toHaveFocus();
   });
@@ -175,7 +175,7 @@ describe("AgentsDrawer", () => {
     const user = userEvent.setup();
     render(drawer());
 
-    await user.click(screen.getByRole("button", { name: "Review handoff for Review checkout" }));
+    await user.click(screen.getByRole("button", { name: "Open Review checkout" }));
 
     expect(screen.getByRole("button", { name: "Back to Agents" })).toHaveFocus();
   });
@@ -185,7 +185,7 @@ describe("AgentsDrawer", () => {
     const onClose = vi.fn();
     const view = render(drawer({ onClose }));
 
-    await user.click(screen.getByRole("button", { name: "Review handoff for Review checkout" }));
+    await user.click(screen.getByRole("button", { name: "Open Review checkout" }));
     view.rerender(drawer({ attentionItems: [], onClose }));
     expect(screen.getByRole("heading", { name: "Agents" })).toBeInTheDocument();
 
@@ -199,10 +199,10 @@ describe("AgentsDrawer", () => {
       attentionItems: [attentionItem, { ...attentionItem, id: "B:second", sessionTitle: "Second checkout" }],
     }));
 
-    await user.click(screen.getByRole("button", { name: "Review handoff for Review checkout" }));
+    await user.click(screen.getByRole("button", { name: "Open Review checkout" }));
     await user.keyboard("{Escape}");
 
-    expect(screen.getByRole("button", { name: "Review handoff for Review checkout" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Open Review checkout" })).toHaveFocus();
   });
 
   it("shows recoverable sessions in Recent handoffs and opens diffs only for isolated checkouts", async () => {
@@ -210,15 +210,15 @@ describe("AgentsDrawer", () => {
     const onOpenWorktreeDiff = vi.fn();
     render(drawer({ attentionItems: [attentionItem, recoveryItem], onOpenWorktreeDiff }));
 
-    const recent = screen.getByRole("region", { name: "Recent handoffs" });
+    const recent = screen.getByRole("region", { name: "Asleep" });
     expect(recent).toHaveTextContent("Recover checkout");
 
-    await user.click(screen.getByRole("button", { name: "Review handoff for Recover checkout" }));
+    await user.click(screen.getByRole("button", { name: "Open Recover checkout" }));
     await user.click(screen.getByRole("button", { name: "Open diff" }));
     expect(onOpenWorktreeDiff).toHaveBeenCalledWith("B", "recovery");
 
     await user.keyboard("{Escape}");
-    await user.click(screen.getByRole("button", { name: "Review handoff for Review checkout" }));
+    await user.click(screen.getByRole("button", { name: "Open Review checkout" }));
     expect(screen.queryByRole("button", { name: "Open diff" })).not.toBeInTheDocument();
   });
 
@@ -272,7 +272,7 @@ describe("AgentsDrawer", () => {
     document.body.append(trigger);
     const launchItem: AttentionProjection = {
       ...attentionItem,
-      id: "A:staged",
+      id: "A:draft",
       workspaceId: "A",
       workspaceLabel: "Alfred",
       sessionId: "staged",
@@ -292,7 +292,7 @@ describe("AgentsDrawer", () => {
       }],
     }));
 
-    await user.click(screen.getByRole("button", { name: "Review handoff for Run checks" }));
+    await user.click(screen.getByRole("button", { name: "Open Run checks" }));
     await user.click(screen.getByRole("button", { name: "Launch Run checks" }));
     view.rerender(drawer({ attentionItems: [launchItem], open: false, returnFocusRef: { current: trigger } }));
 

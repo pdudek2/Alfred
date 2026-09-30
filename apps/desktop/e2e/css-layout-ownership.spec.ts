@@ -203,7 +203,7 @@ test("keeps all-staged Launch accented at wide and narrow widths", async ({ harn
   await page.screenshot({ path: testInfo.outputPath("staged-only-narrow.png"), style: privacySafeScreenshotStyle });
 });
 
-test.describe("staged plan layout", () => {
+test.describe("draft plan layout", () => {
   test.use({ fixtureOptions: { inboxItems: 4 } });
 
   test("keeps every staged action inside its row at supported widths", async ({ harness }, testInfo) => {
@@ -316,7 +316,7 @@ test.describe("work session and project identity", () => {
     await expect(page.locator(".workbench-context-detail")).toBeVisible();
     await expect(page.locator(".session-location-meta")).toHaveCount(0);
 
-    const activeProject = page.getByRole("button", { name: "Fixture Alpha workspace" });
+    const activeProject = page.getByRole("button", { name: "Fixture Alpha project" });
     const projectLabel = activeProject.locator(".project-row-label");
     const expandedGeometry = await projectLabel.evaluate((node) => ({
       clientWidth: node.clientWidth,
@@ -365,7 +365,7 @@ test.describe("work session and project identity", () => {
     expect(collapsedProjectGeometry.signal!.right).toBeLessThanOrEqual(collapsedProjectGeometry.button.right);
     expect(collapsedProjectGeometry.signal!.top).toBeGreaterThanOrEqual(collapsedProjectGeometry.button.top);
     expect(collapsedProjectGeometry.signal!.bottom).toBeLessThanOrEqual(collapsedProjectGeometry.button.bottom);
-    const inactiveProject = page.getByRole("button", { name: "Fixture Beta workspace" });
+    const inactiveProject = page.getByRole("button", { name: "Fixture Beta project" });
     const [activeProjectHeight, inactiveProjectHeight] = await Promise.all([
       activeProject.evaluate((node) => node.getBoundingClientRect().height),
       inactiveProject.evaluate((node) => node.getBoundingClientRect().height),
@@ -504,7 +504,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   expect(afterContext.context.rightGap).toBeCloseTo(10, 0);
   expect(afterContext.context.width).toBeCloseTo(318, 0);
   expect(afterContext.context.overlapWithTerminal).toBeLessThanOrEqual(0);
-  await expect(page.getByLabel("Workspace preview")).toHaveCount(0);
+  await expect(page.getByLabel("Project preview")).toHaveCount(0);
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Context");
   const wideContextEvidence = await capture("context-wide", [...frameProbes, ...terminalProbes, ...contextProbes]);
   expect(wideContextEvidence.documentOverflowX, "Wide Context must not create horizontal document overflow")
@@ -694,8 +694,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
     if (!terminal) throw new Error("Terminal API is missing");
     await terminal.create({ clientId: "nested-location", title: "Nested location", workspaceId: "A", cwd, cols: 80, rows: 24 });
   }, nestedCwd);
-  await page.getByRole("button", { name: "Fixture Beta workspace", exact: true }).click();
-  await page.getByRole("button", { name: "Fixture Alpha workspace", exact: true }).click();
+  await page.getByRole("button", { name: "Fixture Beta project", exact: true }).click();
+  await page.getByRole("button", { name: "Fixture Alpha project", exact: true }).click();
   await page.locator('button.project-session[data-session-id="nested-location"]').click();
   await chooseWorkLayout(page, "Grid");
   await expect(page.locator('[data-session-id="nested-location"] .session-location-value')).toBeVisible();
