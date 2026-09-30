@@ -3,7 +3,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent
 import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import { isFreeChatSession, isNavigableLiveSession } from "../session-scope";
 import type { SessionTile } from "../session-state";
-import { terminalSessionDisplayStatus } from "../session-status";
+import { isRestartable, sessionState } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 import { sessionTileKind } from "../tile-kind";
@@ -145,7 +145,7 @@ export function ProjectNavigator({
           <div className="project-section-heading">Projects</div>
         )}
 
-        <div className="project-list" role="list" aria-label="Workspaces">
+        <div className="project-list" role="list" aria-label="Projects">
           {visibleProjects.map((workspace, visibleIndex) => {
             const active = workspace.id === activeWorkspaceId;
             const stableIndex = workspaces.findIndex((candidate) => candidate.id === workspace.id);
@@ -176,7 +176,7 @@ export function ProjectNavigator({
                     className="project-row-button"
                     aria-current={active ? "location" : undefined}
                     aria-describedby={workspaceStatus.length > 0 ? workspaceStatusId : undefined}
-                    aria-label={`${workspace.label} workspace`}
+                    aria-label={`${workspace.label} project`}
                     data-attention={hasAttention ? "true" : undefined}
                     data-label={workspace.label}
                     data-project-destination={workspace.id}
@@ -327,7 +327,7 @@ export function ProjectNavigator({
       </div>
 
       <footer className="project-navigator-footer">
-        <button type="button" aria-label="Add workspace" onClick={onAddWorkspace}>
+        <button type="button" aria-label="Add project" onClick={onAddWorkspace}>
           <Plus aria-hidden="true" size={15} />
           <span>Add project</span>
         </button>
@@ -340,7 +340,7 @@ type RecentAgentResult = {
   session: SessionTile;
   workspaceLabel: string;
   agentLabel: "Claude" | "Codex";
-  status: "done" | "error";
+  status: "done" | "failed";
   activityAt?: number;
   ageLabel: string | null;
 };
@@ -353,8 +353,9 @@ function recentAgentResults(
 
   return sessions.flatMap((session): RecentAgentResult[] => {
     const agentLabel = recentAgentLabel(session);
-    const status = terminalSessionDisplayStatus(session).kind;
-    if (!agentLabel || (status !== "done" && status !== "error")) return [];
+    const state = sessionState(session);
+    if (!agentLabel || !isRestartable(state)) return [];
+    const status = state.kind === "done" ? "done" : "failed";
 
     const activityAt = session.lastActivityAt ?? session.lastOutputAt ?? session.createdAt;
     return [{
@@ -392,7 +393,7 @@ function NavigatorSessionButton({
   session: SessionTile;
   onClick: () => void;
 }) {
-  const status = terminalSessionDisplayStatus(session);
+  const status = sessionState(session);
   const kind = sessionTileKind(session);
   const statusId = useId();
   const agentLabel = recentAgentLabel(session) ?? "Terminal";

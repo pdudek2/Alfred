@@ -29,7 +29,7 @@ const baseProps = {
   inboxCount: 4,
   selectedSession: liveA,
   shortcutModifier: "Cmd",
-  workspaceDetail: "Alfred · /workspace",
+  workspaceDetail: "Alfred · /project",
   onAddAgentSession: vi.fn(),
   onAddManualSession: vi.fn(),
   onOpenCommandPalette: vi.fn(),

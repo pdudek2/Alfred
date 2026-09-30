@@ -24,7 +24,7 @@ export function restoredSessionActionLabel(
   }
 
   if (claudeAgent) {
-    if (!unsafe) return "Continue latest";
+    if (!unsafe) return "Resume latest";
     return armed ? "Confirm continue latest" : "Review continue latest";
   }
 
@@ -34,12 +34,12 @@ export function restoredSessionActionLabel(
 
 export function restoredSessionActionTitle(session: RestoredActionSession): string {
   if ((session.agentKind === "codex" || session.command === "codex") && !hasExactCodexResumeTarget(session)) {
-    return "Resume the latest Codex conversation for this workspace.";
+    return "Resume the latest Codex conversation for this project.";
   }
   if (session.agentKind === "claude" || session.command === "claude") {
-    return "Continue the latest Claude conversation for this workspace.";
+    return "Resume the latest Claude conversation for this project.";
   }
-  return "Resume this saved session";
+  return "Resume this session";
 }
 
 export function hasExactCodexResumeTarget(session: Pick<RestoredActionSession, "args" | "resumeTarget">): boolean {
@@ -48,6 +48,6 @@ export function hasExactCodexResumeTarget(session: Pick<RestoredActionSession, "
 }
 
 function relaunchActionLabel(unsafe: boolean, armed: boolean): string {
-  if (!unsafe) return "Relaunch";
-  return armed ? "Confirm relaunch" : "Review relaunch";
+  if (!unsafe) return "Resume";
+  return armed ? "Confirm resume" : "Review resume";
 }

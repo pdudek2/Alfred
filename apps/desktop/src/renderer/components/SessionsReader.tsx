@@ -140,7 +140,7 @@ export function SessionsReader({
           <div
             className="sessions-reader__saved-actions"
             role="toolbar"
-            aria-label={savedActions.checkout ? "Saved checkout actions" : "Saved session actions"}
+            aria-label={savedActions.checkout ? "Asleep checkout actions" : "Asleep session actions"}
           >
             {savedActions.checkout && (
               <>
@@ -163,7 +163,7 @@ export function SessionsReader({
             <button
               type="button"
               className="sessions-reader__discard"
-              aria-label="Discard saved session"
+              aria-label="Discard asleep session"
               disabled={savedActions.pendingAction !== undefined}
               onClick={savedActions.onDiscard}
             >
@@ -213,16 +213,16 @@ export function SessionsReader({
                   className={`sessions-saved-action-feedback${savedActionFeedback.warning ? " warning" : ""}`}
                   role={savedActionFeedback.warning ? "alert" : "status"}
                   aria-label={savedActionFeedback.warning
-                    ? "Saved session action failed"
-                    : "Saved session action result"}
+                    ? "Asleep session action failed"
+                    : "Asleep session action result"}
                 >
                   <strong>{savedActionFeedback.title}</strong>
                   <span>{savedActionFeedback.detail}</span>
                 </section>
               )}
               {recoveryReview && (
-                <section className="sessions-recovery-review" aria-label="Relaunch review">
-                  <strong>Confirm relaunch</strong>
+                <section className="sessions-recovery-review" aria-label="Resume review">
+                  <strong>Confirm resume</strong>
                   <span>{recoveryReview.reason}</span>
                   <code>{recoveryReview.command}</code>
                   <span>{recoveryReview.cwd}</span>

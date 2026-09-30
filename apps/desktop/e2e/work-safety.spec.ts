@@ -34,13 +34,13 @@ test.describe("Work restart", () => {
   test("keeps unsafe restart confirmation until the second click", async ({ harness }, testInfo) => {
     const { page } = harness;
     await page.getByRole("button", { name: "Open Inbox surface" }).click();
-    await page.getByRole("button", { name: "Recovery · 1 saved session", exact: true }).click();
-    await page.getByRole("button", { name: "Review relaunch Restored fixture 1 in Fixture Alpha" }).click();
-    await page.getByRole("button", { name: "Confirm relaunch Restored fixture 1 in Fixture Alpha" }).click();
+    await page.getByRole("button", { name: "Asleep · 1 asleep session", exact: true }).click();
+    await page.getByRole("button", { name: "Review resume Restored fixture 1 in Fixture Alpha" }).click();
+    await page.getByRole("button", { name: "Confirm resume Restored fixture 1 in Fixture Alpha" }).click();
     await chooseWorkLayout(page, "Grid");
     const tile = page.locator('article[data-session-id="restored-1"]');
-    const review = tile.getByRole("button", { name: "Review restart Restored fixture 1", exact: true });
-    const confirm = tile.getByRole("button", { name: "Confirm restart Restored fixture 1", exact: true });
+    const review = tile.getByRole("button", { name: "Review resume Restored fixture 1", exact: true });
+    const confirm = tile.getByRole("button", { name: "Confirm resume Restored fixture 1", exact: true });
     await review.click();
     await expect(confirm).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("work-restart-confirmation.png") });

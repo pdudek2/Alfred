@@ -71,14 +71,14 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   const navigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
   await expect(navigator).toBeVisible();
 
-  const projectButtons = navigator.getByRole("list", { name: "Workspaces" })
-    .getByRole("button", { name: / workspace(?:,|$)/i });
+  const projectButtons = navigator.getByRole("list", { name: "Projects" })
+    .getByRole("button", { name: / project(?:,|$)/i });
   await expect(projectButtons).toHaveCount(5);
   const projectOverflow = navigator.getByRole("button", { name: "Show 2 more projects" });
   await expect(projectOverflow).toBeVisible();
   await projectOverflow.click();
   await expect(projectButtons).toHaveCount(7);
-  await expect(navigator.getByRole("button", { name: `${longProjectLabel} workspace` })).toBeVisible();
+  await expect(navigator.getByRole("button", { name: `${longProjectLabel} project` })).toBeVisible();
 
   const workToolbar = page.getByRole("toolbar", { name: "Work layout controls" });
   await workToolbar.getByRole("button", { name: "New terminal" }).click();
@@ -96,7 +96,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await expect(freeChats.getByRole("button", { name: "Restored scratch fixture 1" })).toHaveCount(0);
   await expect((await listMainProcessTerminals(page)).restoredSessions).toHaveLength(1);
   await expect(header.getByRole("button", { name: "Open Inbox surface" })).toBeVisible();
-  await expect(navigator.getByRole("button", { name: "Fixture Beta workspace" })).not.toHaveAttribute(
+  await expect(navigator.getByRole("button", { name: "Fixture Beta project" })).not.toHaveAttribute(
     "data-attention",
   );
 
@@ -246,24 +246,24 @@ async function seedProjectShellTerminals(page: Page, workspaceACwd: string): Pro
 }
 
 async function operateNarrowWorkspaceActions(page: Page, navigator: Locator) {
-  const trigger = navigator.getByRole("button", { name: "Workspace menu for Fixture Alpha" });
+  const trigger = navigator.getByRole("button", { name: "Project menu for Fixture Alpha" });
   await expect(trigger).toHaveCount(1);
   await expect(trigger).toBeVisible();
   await trigger.click();
 
-  const actions = page.getByRole("dialog", { name: "Workspace actions" });
+  const actions = page.getByRole("dialog", { name: "Project actions" });
   await expect(actions).toBeVisible();
   await expect(actions.getByRole("button", { name: /Add mission brief/i })).toBeVisible();
-  await actions.getByRole("button", { name: /Rename workspace/i }).click();
+  await actions.getByRole("button", { name: /Rename project/i }).click();
 
-  const rename = page.getByRole("dialog", { name: "Rename workspace" });
-  const input = rename.getByRole("textbox", { name: "Workspace name" });
+  const rename = page.getByRole("dialog", { name: "Rename project" });
+  const input = rename.getByRole("textbox", { name: "Project name" });
   await expect(rename).toBeVisible();
   await expect(input).toBeFocused();
   await input.fill("Fixture Alpha Narrow");
   await input.press("Enter");
-  await expect(navigator.getByRole("button", { name: "Fixture Alpha Narrow workspace" })).toBeVisible();
-  await expect(navigator.getByRole("button", { name: "Workspace menu for Fixture Alpha Narrow" })).toBeVisible();
+  await expect(navigator.getByRole("button", { name: "Fixture Alpha Narrow project" })).toBeVisible();
+  await expect(navigator.getByRole("button", { name: "Project menu for Fixture Alpha Narrow" })).toBeVisible();
 
   return {
     missionBriefEntryVisible: true,
@@ -280,7 +280,7 @@ async function openContext(page: Page): Promise<void> {
 
 async function switchProject(page: Page, label: "Fixture Alpha" | "Fixture Beta"): Promise<void> {
   const destination = page.getByRole("navigation", { name: "Projects and Free Chats" })
-    .getByRole("button", { name: `${label} workspace` });
+    .getByRole("button", { name: `${label} project` });
   await destination.click();
   await expect(destination).toHaveAttribute("aria-current", "location");
 }
@@ -342,7 +342,7 @@ async function readNarrowProjectShell(page: Page): Promise<NarrowProjectShell> {
     const navigator = document.querySelector<HTMLElement>("[data-testid='project-navigator']");
     if (!navigator) throw new Error("Project navigator is missing.");
     const layout = document.querySelector<HTMLElement>(".workspace-layout");
-    if (!layout) throw new Error("Workspace layout is missing.");
+    if (!layout) throw new Error("Project layout is missing.");
     const orchestrator = layout.querySelector<HTMLElement>(":scope > .orchestrator-surface");
     if (!orchestrator) throw new Error("Orchestrator surface is missing.");
     const layoutRect = layout.getBoundingClientRect();

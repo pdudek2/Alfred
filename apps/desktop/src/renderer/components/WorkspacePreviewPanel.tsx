@@ -85,7 +85,7 @@ export function WorkspacePreviewPanel({
   return (
     <aside
       className="workspace-preview-panel"
-      aria-label="Workspace preview"
+      aria-label="Project preview"
       aria-busy={reachability === "checking"}
       onKeyDown={handleKeyDown}
     >

@@ -1,5 +1,5 @@
 import type { SessionTile } from "./session-state";
-import { terminalSessionDisplayStatus } from "./session-status";
+import { sessionState } from "./session-status";
 import { sessionTileKind } from "./tile-kind";
 
 export function isWorkSession(session: Pick<SessionTile, "runtimeStatus">): boolean {
@@ -35,8 +35,8 @@ export function isActiveAgentSession(session: SessionTile): boolean {
       : null;
   if (!agentKind || !isNavigableLiveSession(session) || isFreeChatScope(session)) return false;
 
-  const status = terminalSessionDisplayStatus(session).kind;
-  return status === "starting" || status === "active" || status === "idle";
+  const status = sessionState(session).kind;
+  return status === "working" || status === "your-turn";
 }
 
 export function isFreeChatScope(session: Pick<SessionTile, "cwd">): boolean {

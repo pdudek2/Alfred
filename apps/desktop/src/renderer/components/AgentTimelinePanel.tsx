@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import type { AlfredStagedSessionPatch } from "../../shared/alfred-ipc";
 import { meaningfulSignalEvents, presentActivityEvents } from "../activity-presentation";
 import type { SessionActivityEvent, SessionTile } from "../session-state";
-import { terminalSessionDisplayStatus } from "../session-status";
+import { sessionState } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { shortenWorktreeLabel } from "../path-display";
@@ -68,7 +68,7 @@ export function AgentTimelinePanel({
   const kindMeta = tileKindMeta(sessionTileKind(session));
   const command = sessionCommandLabel(session) ?? "";
   const runtimeStatus = session.runtimeStatus ?? (session.runtimeId ? "live" : "starting");
-  const displayStatus = terminalSessionDisplayStatus(session);
+  const displayStatus = sessionState(session);
   const activityEvents = session.activityEvents ?? [];
   const presentedActivity = presentActivityEvents(activityEvents, {
     includeRaw: showRawActivity,
@@ -80,10 +80,10 @@ export function AgentTimelinePanel({
   const isolatedCheckout = isIsolatedCheckoutSession(session);
   const handoffActions = sessionHandoffActions(session, command);
   const worktreeLifecycleActions = isolatedCheckout ? isolatedCheckoutLifecycleActions() : [];
-  const cwdFactLabel = session.cwd ? shortenWorktreeLabel(session.cwd) : "default workspace";
+  const cwdFactLabel = session.cwd ? shortenWorktreeLabel(session.cwd) : "default project";
   const branchFactLabel = session.branchName ? shortenWorktreeLabel(session.branchName) : null;
   const baseFactLabel = session.baseCwd ? shortenWorktreeLabel(session.baseCwd) : null;
-  const isolationFactLabel = isolatedCheckout ? "isolated worktree" : session.isolation === "shared" ? "shared workspace" : null;
+  const isolationFactLabel = isolatedCheckout ? "isolated worktree" : session.isolation === "shared" ? "shared project" : null;
   const canEditStagedSession = isEditableStagedSession(session) && Boolean(onUpdateStagedSession);
   const startEdit = () => {
     setEditDraft({
@@ -258,10 +258,10 @@ export function AgentTimelinePanel({
           )}
         </section>
         {canEditStagedSession && !editMode && (
-          <section className="agent-staged-editor" aria-label={`Edit staged command for ${session.title}`}>
+          <section className="agent-staged-editor" aria-label={`Edit draft command for ${session.title}`}>
             <div className="agent-staged-editor-copy">
               <strong>{session.stagedReviewStatus === "edited" ? "Edited and rechecked" : "Adjust before launch"}</strong>
-              <p>Command, arguments, and cwd can be corrected before Alfred releases this tile.</p>
+              <p>Command, arguments, and cwd can be corrected before Alfred releases this session.</p>
             </div>
             <button type="button" onClick={startEdit}>
               Edit command
@@ -271,7 +271,7 @@ export function AgentTimelinePanel({
         {canEditStagedSession && editMode && (
           <form
             className="agent-staged-edit-form"
-            aria-label={`Edit staged command for ${session.title}`}
+            aria-label={`Edit draft command for ${session.title}`}
             onSubmit={(event) => void submitEdit(event)}
             onKeyDown={handleEditKeyDown}
           >
@@ -327,7 +327,7 @@ export function AgentTimelinePanel({
           <div
             className="agent-handoff-buttons agent-handoff-row"
             role="group"
-            aria-label={`Handoff actions for ${session.title}`}
+            aria-label={`Session actions for ${session.title}`}
           >
             {handoffActions.map((action) => (
               <HandoffActionButton
@@ -696,7 +696,7 @@ function summarizeActivityEvents(events: NonNullable<SessionTile["activityEvents
 
 function sessionPulseCard(
   session: SessionTile,
-  displayStatus: ReturnType<typeof terminalSessionDisplayStatus>,
+  displayStatus: ReturnType<typeof sessionState>,
   events: NonNullable<SessionTile["activityEvents"]>,
 ): SessionPulseCard | null {
   if (session.stage === "staged" && session.safetyNote) {
@@ -709,7 +709,7 @@ function sessionPulseCard(
     };
   }
 
-  if (displayStatus.kind === "waiting") {
+  if (displayStatus.kind === "needs-you" && displayStatus.reason === "approval") {
     const approval = latestEventOfKind(events, "approval");
     return {
       at: approval?.at ?? session.lastActivityAt ?? 0,
@@ -720,7 +720,7 @@ function sessionPulseCard(
     };
   }
 
-  if (displayStatus.kind === "error") {
+  if (displayStatus.kind === "failed" || (displayStatus.kind === "needs-you" && displayStatus.reason === "runtime-blocker")) {
     const error = latestEventOfKind(events, "error");
     return {
       at: error?.at ?? session.lastActivityAt ?? 0,
@@ -731,27 +731,27 @@ function sessionPulseCard(
     };
   }
 
-  if (displayStatus.kind === "blocked") {
+  if (displayStatus.kind === "needs-you" && displayStatus.reason === "blocked-launch") {
     return {
       at: session.lastActivityAt ?? 0,
-      detail: session.safetyNote ?? "This staged command needs manual review before launch.",
-      label: "blocked",
+      detail: session.safetyNote ?? "This draft command needs manual review before launch.",
+      label: "needs you",
       title: "Safety review required",
       tone: "issue",
     };
   }
 
-  if (displayStatus.kind === "staged") {
+  if (displayStatus.kind === "draft") {
     return {
       at: session.lastActivityAt ?? 0,
       detail: sessionCommandLabel(session) ?? "Review the proposed session before launch.",
-      label: "staged",
-      title: "Plan item staged",
+      label: "draft",
+      title: "Draft in the plan",
       tone: "work",
     };
   }
 
-  if (displayStatus.kind === "starting") {
+  if (session.runtimeStatus === "starting") {
     return {
       at: session.lastActivityAt ?? 0,
       detail: "Alfred is attaching the terminal runtime.",
@@ -761,7 +761,7 @@ function sessionPulseCard(
     };
   }
 
-  if (displayStatus.kind === "restored") {
+  if (displayStatus.kind === "asleep") {
     const codingAgent = session.agentKind === "codex" ||
       session.agentKind === "claude" ||
       session.command === "codex" ||
@@ -770,10 +770,10 @@ function sessionPulseCard(
     return {
       at: session.lastActivityAt ?? session.lastOutputAt ?? 0,
       detail: codingAgent
-        ? "Saved scrollback is available. Resume continues the latest agent conversation in this workspace."
-        : "Saved scrollback is available. Relaunch starts a fresh process in this tile.",
+        ? "Scrollback is kept. Resume continues the latest agent conversation in this project."
+        : "Scrollback is kept. Resume starts a fresh process in this session.",
       label: "resume",
-      title: "Transcript restored",
+      title: "Session asleep",
       tone: "recovery",
     };
   }
@@ -781,7 +781,7 @@ function sessionPulseCard(
   if (displayStatus.kind === "done") {
     return {
       at: session.lastActivityAt ?? session.lastOutputAt ?? 0,
-      detail: "The process ended; scrollback remains available in the tile.",
+      detail: "The process ended; scrollback remains available in the session.",
       label: "ended",
       title: "Process finished",
       tone: "recovery",
@@ -855,7 +855,7 @@ function runtimeEventTitle(status: SessionTile["runtimeStatus"]): string {
     case "live":
       return "Session attached";
     case "restored":
-      return "Transcript restored";
+      return "Session asleep";
     case "unavailable":
       return "Starting terminal";
     case "starting":
@@ -870,11 +870,11 @@ function runtimeEventCopy(status: SessionTile["runtimeStatus"]): string {
     case "error":
       return "The runtime could not create this terminal.";
     case "exited":
-      return "The process has ended; scrollback remains available in the tile.";
+      return "The process has ended; scrollback remains available in the session.";
     case "live":
-      return "Terminal output is streaming in the workspace.";
+      return "Terminal output is streaming in the project.";
     case "restored":
-      return "This is the last saved scrollback. Start a new terminal to continue work.";
+      return "This is the last kept scrollback. Start a new terminal to continue work.";
     case "unavailable":
       return "Alfred is attaching the runtime process.";
     case "starting":

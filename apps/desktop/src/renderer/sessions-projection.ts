@@ -13,7 +13,7 @@ import { canRelaunchRestoredSession, type SessionTile } from "./session-state";
 export type ManagedSessionTarget = { workspaceId: string; sessionId: string };
 export type SessionsPrimaryAction =
   | { kind: "reveal"; label: "Reveal in Work" }
-  | { kind: "recover"; label: "Resume in Work" | "Relaunch" | "Review relaunch" | "Confirm relaunch" }
+  | { kind: "recover"; label: "Resume in Work" | "Resume" | "Review resume" | "Confirm resume" }
   | { kind: "resume-external"; label: "Resume in Work" }
   | { kind: "add-project"; label: "Add Project…" }
   | { kind: "open-project"; label: "Open Project" };
@@ -35,7 +35,7 @@ export function sessionsPrimaryAction(summary: SessionSummary): SessionsPrimaryA
     return { kind: "reveal", label: "Reveal in Work" };
   }
   if (summary.source === "managed" && summary.lifecycle === "recoverable") {
-    return { kind: "recover", label: summary.kind === "manual" ? "Relaunch" : "Resume in Work" };
+    return { kind: "recover", label: summary.kind === "manual" ? "Resume" : "Resume in Work" };
   }
   if (summary.source === "external-codex" && summary.lifecycle === "resumable" && summary.project.id) {
     return { kind: "resume-external", label: "Resume in Work" };

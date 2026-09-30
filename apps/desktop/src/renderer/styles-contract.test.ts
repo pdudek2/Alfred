@@ -1545,7 +1545,6 @@ describe("renderer CSS contracts", () => {
       [".terminal-tile.kind-dev-server", 1],
       [".terminal-tile.real-terminal.browser", 1],
       [".terminal-tile.staged", 1],
-      [".terminal-tile.selected .tile-status.status-active::before", 1],
       [".terminal-tile-header .tile-title", 1],
       [".terminal-tile-header .tile-title b", 1],
       [".terminal-tile-header .tile-title small", 1],
@@ -2376,15 +2375,12 @@ describe("renderer CSS contracts", () => {
   });
 
   it("reserves the signal color for Alfred's four-point waiting glyph", () => {
-    const startingGlyphRule = ruleForSelectorContaining(".session-status-glyph.status-starting");
-    const waitingGlyphRule = ruleForSelectorContaining(".session-status-glyph.status-waiting");
+    const glyphRule = singleTopLevelRuleBodyIn(styles, ".session-status-glyph");
     const inboxSignalRule = ruleForSelectorContaining(".inbox-docket__glyph--waiting");
     const projectSignalRule = singleTopLevelRuleBodyIn(styles, ".project-attention-signal");
 
-    expect(startingGlyphRule.selectors).toContain(".session-status-glyph.status-checking");
-    expect(startingGlyphRule.selectors).toContain(".session-status-glyph.status-runtime");
-    expect(startingGlyphRule.body).toContain("color: var(--ink-5)");
-    expect(waitingGlyphRule.body).toContain("color: var(--ink-5)");
+    expect(glyphRule).toContain("color: var(--ink-5)");
+    expect(styles).not.toMatch(/\.session-status-glyph\.status-/);
     expect(inboxSignalRule.body).toContain("color: var(--signal)");
     expect(projectSignalRule).toContain("color: var(--signal)");
   });

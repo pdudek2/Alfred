@@ -182,7 +182,7 @@ describe("AgentTimelinePanel", () => {
       />,
     );
 
-    const handoff = screen.getByRole("group", { name: "Handoff actions for codex — feature" });
+    const handoff = screen.getByRole("group", { name: "Session actions for codex — feature" });
 
     await user.click(within(handoff).getByRole("button", { name: "Reveal folder for codex — feature" }));
     await user.click(within(handoff).getByRole("button", { name: "Open external terminal for codex — feature" }));
@@ -232,7 +232,7 @@ describe("AgentTimelinePanel", () => {
     expect(within(facts).getByText("…/Desktop/Alfred")).toHaveAttribute("title", baseCwd);
     expect(facts).not.toHaveTextContent(branchName);
 
-    const handoff = within(container).getByRole("group", { name: "Handoff actions for codex — path noise" });
+    const handoff = within(container).getByRole("group", { name: "Session actions for codex — path noise" });
     await user.click(within(handoff).getByRole("button", { name: "Copy cwd for codex — path noise" }));
 
     expect(onCopyActivityText).toHaveBeenCalledWith(cwd);
@@ -253,7 +253,7 @@ describe("AgentTimelinePanel", () => {
     };
 
     const { rerender, container } = render(<AgentTimelinePanel session={legacyWorktreeSession} />);
-    const lifecycle = within(container).getByRole("group", { name: "Handoff actions for codex — isolated" });
+    const lifecycle = within(container).getByRole("group", { name: "Session actions for codex — isolated" });
 
     expect(within(lifecycle).getByText("Review diff")).toBeInTheDocument();
     expect(within(lifecycle).getByText("Apply to project")).toBeInTheDocument();
@@ -320,7 +320,7 @@ describe("AgentTimelinePanel", () => {
     expect(within(timeline).getByText("Progress reported")).toBeInTheDocument();
     expect(within(timeline).getByText("✓ tests passed")).toBeInTheDocument();
     expect(screen.getByText("1 command · 1 signal")).toBeInTheDocument();
-    expect(container).not.toHaveTextContent("Terminal output is streaming in the workspace.");
+    expect(container).not.toHaveTextContent("Terminal output is streaming in the project.");
   });
 
   it("keeps the timeline to a short important preview", async () => {
@@ -703,7 +703,7 @@ describe("AgentTimelinePanel", () => {
     expect(pulse).toBeDefined();
     if (!pulse) throw new Error("Session pulse not rendered");
     expect(within(pulse).getByText("Current state")).toBeInTheDocument();
-    expect(within(pulse).getByText("Plan item staged")).toBeInTheDocument();
+    expect(within(pulse).getByText("Draft in the plan")).toBeInTheDocument();
     expect(within(pulse).getByText("pnpm test --filter @alfred/desktop")).toBeInTheDocument();
   });
 
@@ -777,7 +777,7 @@ describe("AgentTimelinePanel", () => {
     );
 
     expect(screen.getByLabelText("Command")).toHaveValue("codex resume abc");
-    expect(screen.getByRole("form", { name: /Edit staged command for/ })).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: /Edit draft command for/ })).toBeInTheDocument();
   });
 
   it.each(["codex", "claude"] as const)(
@@ -882,7 +882,7 @@ describe("AgentTimelinePanel", () => {
 
     render(<AgentTimelinePanel session={session} />);
 
-    expect(screen.getByText("blocked")).toBeInTheDocument();
+    expect(screen.getByText("needs you")).toBeInTheDocument();
     expect(screen.getByText("Safety review required")).toBeInTheDocument();
     expect(screen.getAllByText("rm -rf detected").length).toBeGreaterThan(0);
   });

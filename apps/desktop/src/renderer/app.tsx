@@ -77,7 +77,7 @@ import {
   type SessionActivityEvent,
   type SessionTile,
 } from "./session-state";
-import { terminalSessionDisplayStatus } from "./session-status";
+import { sessionState } from "./session-status";
 import { createInitialSessionsViewState } from "./sessions-view-state";
 import {
   recordPreviewUrlsFromText,
@@ -333,14 +333,14 @@ export function App() {
   const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
   const stagedWorkspaceLabel =
     pendingPlan && pendingPlan.workspaceId !== activeWorkspace.id
-      ? workspaces.find((workspace) => workspace.id === pendingPlan.workspaceId)?.label ?? "another workspace"
+      ? workspaces.find((workspace) => workspace.id === pendingPlan.workspaceId)?.label ?? "another project"
       : undefined;
   const stagedWorkspaceId =
     pendingPlan && pendingPlan.workspaceId !== activeWorkspace.id ? pendingPlan.workspaceId : null;
   const composerBlockedReason =
     globalStagedCount > 0
       ? stagedWorkspaceLabel
-        ? `Review staged items in ${stagedWorkspaceLabel} workspace first.`
+        ? `Review draft items in ${stagedWorkspaceLabel} project first.`
         : "Resolve the current Alfred plan before asking for another."
       : runtimeStatus && !runtimeStatus.openRouterConfigured
         ? "Set OPENROUTER_API_KEY in repo .env to use Alfred."
@@ -412,7 +412,7 @@ export function App() {
     let nextAnnouncement: string | null = null;
 
     for (const session of terminalSessions) {
-      const status = terminalSessionDisplayStatus(session).label;
+      const status = sessionState(session).label;
       nextStatuses.set(session.id, status);
       const previousStatus = previousStatuses.get(session.id);
       if (previousStatus && previousStatus !== status) {
@@ -558,7 +558,7 @@ export function App() {
     const index = workspaces.length + 1;
     const workspace: Workspace = {
       id: `W${index}`,
-      label: `Workspace ${index}`,
+      label: `Project ${index}`,
       shortLabel: `W${index}`,
     };
     setWorkspaces([...workspaces, workspace]);
@@ -797,7 +797,7 @@ export function App() {
     if (!rootPath) return;
     await runShellAction(
       () => getDesktopWorkspaceApi()?.revealPath({ cwd: rootPath, path: "." }),
-      "Workspace folder is unavailable.",
+      "Project folder is unavailable.",
     );
   }, [activeWorkspace.rootPath, runShellAction]);
 
@@ -806,7 +806,7 @@ export function App() {
     if (!rootPath) return;
     await runShellAction(
       () => getDesktopWorkspaceApi()?.openExternalTerminal({ cwd: rootPath }),
-      "Workspace terminal is unavailable.",
+      "Project terminal is unavailable.",
     );
   }, [activeWorkspace.rootPath, runShellAction]);
 
@@ -820,17 +820,17 @@ export function App() {
   const handleRevealActivityFile = useCallback(async (filePath: string, cwd: string) => {
     const succeeded = await runShellAction(
       () => getDesktopWorkspaceApi()?.revealPath({ cwd, path: filePath }),
-      "Workspace runtime is unavailable.",
+      "Project runtime is unavailable.",
     );
-    if (!succeeded) throw new Error("Workspace runtime is unavailable.");
+    if (!succeeded) throw new Error("Project runtime is unavailable.");
   }, [runShellAction]);
 
   const handleOpenExternalTerminalForCwd = useCallback(async (cwd: string) => {
     const succeeded = await runShellAction(
       () => getDesktopWorkspaceApi()?.openExternalTerminal({ cwd }),
-      "Workspace runtime is unavailable.",
+      "Project runtime is unavailable.",
     );
-    if (!succeeded) throw new Error("Workspace runtime is unavailable.");
+    if (!succeeded) throw new Error("Project runtime is unavailable.");
   }, [runShellAction]);
 
   const handleCopySessionCwd = useCallback((cwd: string) => {
@@ -1323,7 +1323,7 @@ export function App() {
       setArmedRecoverySessionIds(new Set(armedRecoverySessionIds).add(sessionId));
       setTerminalSessions(appendSessionActivity(sessions, sessionId, {
         kind: "warning",
-        title: "Review before relaunch",
+        title: "Review before resuming",
         detail: relaunchSafety.reason,
       }));
       return;
@@ -1335,8 +1335,8 @@ export function App() {
     setTerminalSessions(
       appendSessionActivity(relaunchRestoredSession(sessions, sessionId), sessionId, {
         kind: "lifecycle",
-        title: "Relaunching session",
-        detail: "Alfred is starting a fresh process from this saved transcript.",
+        title: "Resuming session",
+        detail: "Alfred is starting a fresh process from this asleep session.",
       }),
     );
   }, [armedRecoverySessionIds]);
@@ -1350,7 +1350,7 @@ export function App() {
       setArmedRecoverySessionIds(new Set(armedRecoverySessionIds).add(sessionId));
       setTerminalSessions(appendSessionActivity(sessions, sessionId, {
         kind: "warning",
-        title: "Review before restart",
+        title: "Review before resuming",
         detail: restartSafety.reason,
       }));
       return;
@@ -1362,8 +1362,8 @@ export function App() {
     setTerminalSessions(
       appendSessionActivity(restartSession(sessions, sessionId), sessionId, {
         kind: "lifecycle",
-        title: "Restarting session",
-        detail: "Alfred is starting a fresh process in this tile.",
+        title: "Resuming session",
+        detail: "Alfred is starting a fresh process in this session.",
       }),
     );
   }, [armedRecoverySessionIds]);
@@ -1530,7 +1530,7 @@ export function App() {
                 ? {
                     kind: "lifecycle",
                     title: "Applied to project",
-                    detail: `${changedFileCountLabel(result.appliedFiles)} applied to the base workspace. Review and commit normally.`,
+                    detail: `${changedFileCountLabel(result.appliedFiles)} applied to the base project. Review and commit normally.`,
                   }
                 : {
                     kind: result.needsManualReview ? "warning" : "error",
@@ -1650,7 +1650,7 @@ export function App() {
       return appendSessionActivity(attached, tileId, {
         kind: "lifecycle",
         title: "Session attached",
-        detail: `${runtime.shell} is running in ${runtime.cwd || "the workspace"}.`,
+        detail: `${runtime.shell} is running in ${runtime.cwd || "the project"}.`,
       }, attachmentAt);
     });
     if (runtime.source === "alfred") {
@@ -1751,6 +1751,8 @@ export function App() {
           ...session,
           detectedAgentKind: snapshot.foregroundAgentKind,
           initialBuffer: snapshot.buffer,
+          ...(snapshot.agentSignal === undefined ? {} : { agentSignal: snapshot.agentSignal }),
+          ...(snapshot.shellBusy === undefined ? {} : { shellBusy: snapshot.shellBusy }),
           ...(mergedActivityEvents === undefined ? {} : { activityEvents: mergedActivityEvents }),
           ...(mergedLastActivityAt === undefined ? {} : { lastActivityAt: mergedLastActivityAt }),
           ...(mergedLastOutputAt === undefined ? {} : { lastOutputAt: mergedLastOutputAt }),
@@ -1871,7 +1873,7 @@ export function App() {
       appendSessionActivity(approveStaged(sessions, tileId), tileId, {
         kind: "approval",
         title: "Approved for launch",
-        detail: "The staged command was released to the terminal runtime.",
+        detail: "The draft command was released to the terminal runtime.",
       }),
     );
   }, [terminalSessions, workspaces]);
@@ -1956,7 +1958,7 @@ export function App() {
     const alfredApi = getDesktopAlfredApi();
     const planId = pendingPlan?.id;
     if (!alfredApi || !planId) {
-      throw new Error("No staged plan is available to edit.");
+      throw new Error("No draft plan is available to edit.");
     }
 
     setTerminalSessions((sessions) =>
@@ -2001,7 +2003,7 @@ export function App() {
         sessionId,
         {
           kind: "plan",
-          title: "Staged command edited",
+          title: "Draft command edited",
           detail: "Alfred rechecked the command before launch.",
         },
       ),
@@ -2768,7 +2770,7 @@ export function App() {
           {workspaceHydrationStatus.status === "failed" && (
             <div className="desktop-save-banner" role="alert">
               <div>
-                <strong>Workspace not loaded</strong>
+                <strong>Project not loaded</strong>
                 <span>{workspaceHydrationStatus.message}</span>
               </div>
               <button type="button" onClick={handleRetryWorkspaceHydration}>
@@ -3277,7 +3279,7 @@ function PrivacyPanel({
 
           <section className="privacy-action-row">
             <div>
-              <strong>Saved transcripts</strong>
+              <strong>Asleep sessions</strong>
               <span>
                 Clear Alfred&apos;s persisted terminal buffers and activity previews.
                 This can&apos;t be undone.
@@ -3539,7 +3541,7 @@ function ensureWorkspacesForSessions(workspaces: Workspace[], sessions: SessionT
     existingIds.add(session.workspaceId);
     additions.push({
       id: session.workspaceId,
-      label: `Workspace ${session.workspaceId}`,
+      label: `Project ${session.workspaceId}`,
       shortLabel: session.workspaceId,
     });
   }
@@ -3713,7 +3715,7 @@ function createScratchWorkspaceState(workspaces: Workspace[]): WorkspaceStateSna
 
   const workspace: Workspace = {
     id,
-    label: `Workspace ${index}`,
+    label: `Project ${index}`,
     shortLabel: id,
   };
 
@@ -3751,7 +3753,7 @@ function workspacePlanContext(
             return {
               title: session.title,
               kind: session.agentKind ?? "shell",
-              status: terminalSessionDisplayStatus(session).label,
+              status: sessionState(session).label,
               ...(session.cwd ? { cwd: session.cwd } : {}),
               ...(command ? { command } : {}),
             };
