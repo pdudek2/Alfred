@@ -895,6 +895,39 @@ describe("persisted-desktop-state", () => {
     }
   });
 
+  it("opens with the migrated state when the migration rewrite cannot be saved, then retries", async () => {
+    const filePath = await temporaryStateFile();
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: DESKTOP_STATE_VERSION,
+        workspaces: [{ id: "A", label: "Alfred", shortLabel: "A" }],
+        activeWorkspaceId: "A",
+        privacySettings: { terminalScrollbackRetention: "off", externalSessionIndexingEnabled: false },
+        restoredTerminalSessions: [
+          { clientId: "legacy-1", title: "Shell", source: "alfred", workspaceId: "A", buffer: "secret" },
+        ],
+      }),
+      "utf8",
+    );
+    await chmod(path.dirname(filePath), 0o500);
+    const store = createPersistedDesktopStateStore({ filePath, onWarning: () => undefined });
+
+    try {
+      await expect(store.getState()).resolves.toMatchObject({
+        privacySettings: { externalSessionIndexingEnabled: false },
+        restoredTerminalSessions: [],
+      });
+      expect(store.getSaveStatus()).toMatchObject({ status: "saveFailed" });
+    } finally {
+      await chmod(path.dirname(filePath), 0o700);
+    }
+
+    await expect(store.retrySave()).resolves.toMatchObject({ restoredTerminalSessions: [] });
+    expect(store.getSaveStatus()).toEqual({ status: "saved" });
+    expect(await readFile(filePath, "utf8")).not.toContain("secret");
+  });
+
   it("rejects state updates when the desktop state file cannot be written", async () => {
     const warnings: string[] = [];
     const store = createPersistedDesktopStateStore({

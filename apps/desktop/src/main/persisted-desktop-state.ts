@@ -137,12 +137,13 @@ export function createPersistedDesktopStateStore(
     const hydration = enqueueMutation(async () => {
       if (hydrated) return;
       const result = await readDesktopStateFile(filePath, options.onWarning);
-      if (result.rewrite) {
-        await persistState(result.state);
-        return;
-      }
       cachedState = result.state;
       hydrated = true;
+      if (result.rewrite) {
+        // A failed migration write must not block startup: the state was read fine,
+        // persistState already records saveFailed and retrySave can write it again.
+        await persistState(result.state).catch(() => undefined);
+      }
     });
     hydrationPromise = hydration;
     void hydration.catch(() => {

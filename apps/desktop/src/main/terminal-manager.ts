@@ -514,11 +514,13 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           detail: `The terminal process exited with code ${exitCode}.`,
         });
         rememberSessionSnapshot(session);
-        recentTerminalExits.set(session.id, {
+        const recentExit = {
           event: payload,
           ownerWindowId: session.ownerWindowId,
           snapshot: toSnapshot(session),
-        });
+        };
+        if (effectivePrivacySettings.terminalScrollbackRetention === "off") scrubExitedSnapshot(recentExit);
+        recentTerminalExits.set(session.id, recentExit);
         while (recentTerminalExits.size > MAX_RECENT_TERMINAL_EXITS) {
           const oldestId = recentTerminalExits.keys().next().value;
           if (!oldestId) break;
@@ -893,7 +895,15 @@ function clearSessionReplayData(session: TerminalSession): void {
   delete session.lastOutputAt;
 }
 
+// Keeps only what the renderer needs to show that the process ended.
+function scrubExitedSnapshot(exit: RecentTerminalExit): void {
+  const { args: _args, activityEvents: _events, lastActivityAt: _activity, lastOutputAt: _output, ...rest } =
+    exit.snapshot;
+  exit.snapshot = { ...rest, buffer: "" };
+}
+
 function disableLiveSessionPersistence(changed?: Set<string>): void {
+  for (const exit of recentTerminalExits.values()) scrubExitedSnapshot(exit);
   for (const session of sessions.values()) {
     if (!session.clientId) continue;
     session.persistLaunchData = false;
