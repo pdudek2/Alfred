@@ -623,6 +623,7 @@ function renderTerminalDeskForSessions(
       selectedSessionId={nextSessions[0]?.id ?? null}
       sessions={nextSessions}
       surfaceActive
+      terminalFocusRequestKey={0}
       workMode="desk"
       worktreeActionPending={{}}
       worktreeDiffReturnFocus={null}
@@ -641,11 +642,18 @@ function renderTerminalDeskForSessions(
   };
 }
 
-async function openInboxFromCommandPalette(user: ReturnType<typeof userEvent.setup>) {
+async function openNeedsYouFromCommandPalette(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "Open command palette" }));
-  await submitCommandPalette(user, "open inbox");
+  await submitCommandPalette(user, "open needs you");
   await waitFor(() => {
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
+    expect(screen.getByRole("dialog", { name: "Needs you" })).toBeVisible();
+  });
+}
+
+async function openNeedsYou(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("button", { name: /^Needs you, / }));
+  await waitFor(() => {
+    expect(screen.getByRole("dialog", { name: "Needs you" })).toBeVisible();
   });
 }
 
@@ -1300,12 +1308,6 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Open Inbox surface/i }));
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
-
-    await selectSurface(user, "Work");
-    expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-work");
-
     await selectSurface(user, "History");
     expect(screen.getByRole("region", { name: "History" })).toBeVisible();
 
@@ -1324,10 +1326,9 @@ describe("App integration", () => {
     expect(within(panel).getByText("Projects")).toBeInTheDocument();
     expect(within(panel).getByRole("button", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     expect(within(panel).getByRole("list", { name: /projects/i })).toBeInTheDocument();
-    expect(within(panel).queryByText("Inbox")).not.toBeInTheDocument();
   });
 
-  it("keeps Recovery out of the project signal and blocking Inbox count", async () => {
+  it("keeps Recovery out of the project signal and Needs you count", async () => {
     installDesktopBridge(
       undefined,
       null,
@@ -1352,7 +1353,7 @@ describe("App integration", () => {
 
     const panel = await screen.findByTestId("project-navigator");
     expect(within(panel).getByRole("button", { name: "Alfred project" })).not.toHaveAttribute("data-attention");
-    expect(screen.getByRole("button", { name: "Open Inbox surface" })).not.toHaveTextContent("1");
+    expect(screen.queryByRole("button", { name: /^Needs you, / })).not.toBeInTheDocument();
   });
 
   it("keeps the project heading free of count badges", async () => {
@@ -1492,7 +1493,7 @@ describe("App integration", () => {
     expect(screen.queryByText("Search sessions, chats, files")).not.toBeInTheDocument();
   });
 
-  it("removes the Work project navigator from global Inbox and Sessions", async () => {
+  it("removes the Work project navigator from History", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
@@ -1501,22 +1502,13 @@ describe("App integration", () => {
       name: "Projects and Free Chats",
     })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /open inbox surface/i }));
-    expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-inbox");
-    expect(screen.queryByRole("navigation", {
-      name: "Projects and Free Chats",
-    })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Back to Work" })).toBeVisible();
-
-    await user.click(screen.getByRole("button", { name: "Back to Work" }));
-    expect(screen.getByRole("navigation", {
-      name: "Projects and Free Chats",
-    })).toBeInTheDocument();
-
     await selectSurface(user, "History");
     expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-sessions");
     expect(screen.queryByRole("navigation", { name: "Projects and Free Chats" })).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "History" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Back to Work" }));
+    expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-work");
+    expect(screen.getByRole("navigation", { name: "Projects and Free Chats" })).toBeInTheDocument();
   });
 
   it("unmounts Sessions on Escape and falls back to the active workspace when the focused target disappears", async () => {
@@ -1906,7 +1898,7 @@ describe("App integration", () => {
     expect(launchTrigger).not.toHaveFocus();
   });
 
-  it("keeps the xterm renderer mounted while moving from Work to Inbox and Sessions and back", async () => {
+  it("keeps the xterm renderer mounted while moving from Work to History and back", async () => {
     const user = userEvent.setup();
     const { createTerminal } = installDesktopBridge();
 
@@ -1922,16 +1914,10 @@ describe("App integration", () => {
     const constructorCountBeforeSurfaceSwitch = terminalConstructorOptions.length;
     const disposeCountBeforeSurfaceSwitch = terminalDisposeCalls.length;
 
-    await user.click(screen.getByRole("button", { name: /Open Inbox surface/i }));
-
-    expect(await screen.findByRole("region", { name: "Inbox workspace" })).toBeInTheDocument();
-    expect(runtimeSurface).toHaveAttribute("aria-hidden", "true");
-    expect(xtermHost.isConnected).toBe(true);
-    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeSurfaceSwitch);
-
     await selectSurface(user, "History");
 
     expect(await screen.findByRole("region", { name: "History" })).toBeInTheDocument();
+    expect(runtimeSurface).toHaveAttribute("aria-hidden", "true");
     expect(xtermHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeSurfaceSwitch);
 
@@ -2184,7 +2170,7 @@ describe("App integration", () => {
     expect(document.querySelectorAll(".terminal-tile.focus-hidden [data-testid='xterm-host']")).toHaveLength(1);
   });
 
-  it("keeps xterm hosts mounted across Work, Inbox, Sessions, Context, and Focus", async () => {
+  it("keeps xterm hosts mounted across Work, History, Context, and Focus", async () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge();
     render(<App />);
@@ -2204,9 +2190,6 @@ describe("App integration", () => {
     if (!initialScreen) throw new Error("Expected the initial xterm screen.");
     const disposeCountBeforeTransitions = terminalDisposeCalls.length;
 
-    await user.click(screen.getByRole("button", { name: /open inbox surface/i }));
-    expect(initialHost.isConnected).toBe(true);
-    expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
     await selectSurface(user, "History");
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
@@ -3962,17 +3945,54 @@ describe("App integration", () => {
     expect(screen.queryByRole("dialog", { name: "Local Data & Privacy" })).not.toBeInTheDocument();
   });
 
-  it("opens Inbox from the command palette when there are no queued decisions", async () => {
+  it("opens Needs you from the command palette when there are no queued decisions", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
 
     render(<App />);
 
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
-    await openInboxFromCommandPalette(user);
+    const paletteTrigger = screen.getByRole("button", { name: "Open command palette" });
+    await openNeedsYouFromCommandPalette(user);
 
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveTextContent("Nothing needs you");
+    const popover = screen.getByRole("dialog", { name: "Needs you" });
+    expect(popover).toHaveTextContent("Nothing needs you");
+    await waitFor(() => expect(popover).toHaveFocus());
+    await user.keyboard("{Escape}");
+    expect(popover).not.toBeInTheDocument();
+    await waitFor(() => expect(paletteTrigger).toHaveFocus());
+  });
+
+  it.each([false, true])("opens Needs you through the palette without toggling it closed (alreadyOpen=%s)", async (alreadyOpen) => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [liveSnapshot("palette-waiting", {
+      title: "Palette waiting agent",
+      activityEvents: [{ id: "approval", kind: "approval", title: "Waiting", detail: "Proceed?", at: 100 }],
+      lastActivityAt: 100,
+    })]);
+    render(<App />);
+    await screen.findByRole("article", { name: /Palette waiting agent/ });
+    const trigger = await screen.findByRole("button", { name: "Needs you, 1 session" });
+    if (alreadyOpen) await openNeedsYou(user);
+    else trigger.focus();
+    await user.keyboard("{Meta>}k{/Meta}");
+    const palette = screen.getByRole("dialog", { name: "Command palette" });
+    const search = within(palette).getByRole("textbox", { name: "Search commands" });
+    await user.type(search, "open needs you");
+    expect(within(palette).getByText("Review and resume")).toBeInTheDocument();
+    expect(within(palette).getByRole("option", { name: /Open Needs you/ })).toHaveTextContent(
+      "Alfred · Palette waiting agent",
+    );
+    await pressCommandPaletteEnter(search);
+    await waitFor(() => expect(palette).not.toBeInTheDocument());
+    const popover = await screen.findByRole("dialog", { name: "Needs you" });
+    const open = within(popover).getByRole("button", { name: "Open Palette waiting agent in Alfred" });
+    await waitFor(() => expect(open).toHaveFocus());
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(popover).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("treats Sessions as the bounded session navigator and reader", async () => {
@@ -4487,9 +4507,9 @@ describe("App integration", () => {
     expect(screen.queryByRole("article", { name: /Draft Prepared task/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Launch Prepared task" })).not.toBeInTheDocument();
 
-    await openInboxFromCommandPalette(user);
-    expect(screen.queryByRole("button", { name: "Launch Prepared task in Missing project" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Back to Work" }));
+    await openNeedsYouFromCommandPalette(user);
+    expect(screen.getByRole("dialog", { name: "Needs you" })).toHaveTextContent("Nothing needs you");
+    await user.keyboard("{Escape}");
 
     await user.click(within(emptyState).getByRole("button", { name: "Choose folder" }));
 
@@ -6576,7 +6596,7 @@ describe("App integration", () => {
     });
   });
 
-  it("opens the global Inbox and focuses attention in another workspace", async () => {
+  it("opens the global Needs you and focuses attention in another workspace", async () => {
     const user = userEvent.setup();
     installDesktopBridge(
       undefined,
@@ -6640,18 +6660,17 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await openInboxFromCommandPalette(user);
+    await openNeedsYou(user);
 
-    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    expect(inbox).toHaveTextContent("ClientApp");
-    expect(inbox).toHaveTextContent("Codex · review");
-    expect(inbox).toHaveTextContent("Alfred");
-    expect(inbox).toHaveTextContent("Local Codex · review");
+    const popover = screen.getByRole("dialog", { name: "Needs you" });
+    expect(popover).toHaveTextContent("ClientApp");
+    expect(popover).toHaveTextContent("Codex · review");
+    expect(popover).toHaveTextContent("Alfred");
+    expect(popover).toHaveTextContent("Local Codex · review");
 
-    await user.click(within(inbox).getByTestId("inbox-decision-select-W2:codex-w2"));
-    await user.keyboard("{Enter}");
+    await user.click(within(popover).getByRole("button", { name: "Open Codex · review in ClientApp" }));
 
-    expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Needs you" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ClientApp project/i })).toHaveAttribute(
       "aria-current",
       "location",
@@ -6660,12 +6679,12 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
 
     await user.click(screen.getByRole("button", { name: /Alfred project/i }));
-    await openInboxFromCommandPalette(user);
+    await openNeedsYou(user);
 
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Needs you" })).toBeInTheDocument();
   });
 
-  it("uses the command palette Inbox as the decision entry point for current workspace items", async () => {
+  it("uses the command palette Needs you as the decision entry point for current workspace items", async () => {
     const user = userEvent.setup();
     installDesktopBridge(
       undefined,
@@ -6694,18 +6713,18 @@ describe("App integration", () => {
     render(<App />);
 
     await screen.findByRole("article", { name: /Codex · review/i });
-    expect(screen.getByRole("button", { name: "Open Inbox surface, 1 item" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Needs you, 1 session" })).toBeInTheDocument();
 
-    await openInboxFromCommandPalette(user);
+    await openNeedsYouFromCommandPalette(user);
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
-    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    await user.click(inbox.querySelector<HTMLButtonElement>(".inbox-docket__primary")!);
+    const popover = screen.getByRole("dialog", { name: "Needs you" });
+    await user.click(within(popover).getByRole("button", { name: "Open Codex · review in Alfred" }));
 
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex · review");
   });
 
-  it("routes Claude authentication and Codex MCP runtime blockers through Inbox back to Work", async () => {
+  it("routes Claude authentication and Codex MCP runtime blockers through Needs you back to Work", async () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge(
       undefined,
@@ -6764,19 +6783,56 @@ describe("App integration", () => {
     await act(async () => {
       await bridge.emitExit({ id: "runtime-claude-auth", exitCode: 0 });
     });
-    await openInboxFromCommandPalette(user);
+    await openNeedsYou(user);
 
-    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    expect(inbox).toHaveTextContent("Runtime blocked");
-    expect(inbox).toHaveTextContent("Not logged in");
-    expect(inbox).toHaveTextContent("MCP server github failed to start: interrupted");
+    const popover = screen.getByRole("dialog", { name: "Needs you" });
+    expect(popover).toHaveTextContent("Not logged in");
+    expect(popover).toHaveTextContent("MCP server github failed to start: interrupted");
 
-    await user.click(within(inbox).getByTestId("inbox-decision-select-A:CODEX-MCP"));
-    await user.click(within(inbox).getByRole("button", { name: "Open in Work Codex MCP in Alfred" }));
+    await user.click(within(popover).getByRole("button", { name: "Open Codex MCP in Alfred" }));
 
-    expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Needs you" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Codex MCP");
+  });
+
+  it("refocuses the already selected terminal from Needs you without remounting it", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [liveSnapshot("waiting", {
+      title: "Waiting agent",
+      activityEvents: [{
+        id: "approval-1",
+        kind: "approval",
+        title: "Waiting for approval",
+        detail: "Allow edit in app.tsx?",
+        payload: { type: "approval", prompt: "Allow edit in app.tsx?" },
+        at: 100,
+      }],
+      lastActivityAt: 100,
+    })]);
+
+    render(<App />);
+    await waitFor(() => expect(terminalFocusSessionIds).toContain("waiting"));
+    await chooseWorkLayout(user, "Focus");
+    const terminalHost = screen.getByTestId("xterm-host");
+    const constructorCount = terminalConstructorOptions.length;
+    const disposeCount = terminalDisposeCalls.length;
+
+    for (const activation of ["click", "{Enter}", " "]) {
+      await openNeedsYou(user);
+      const open = screen.getByRole("button", { name: "Open Waiting agent in Alfred" });
+      await waitFor(() => expect(open).toHaveFocus());
+      terminalFocusSessionIds.length = 0;
+
+      if (activation === "click") await user.click(open);
+      else await user.keyboard(activation);
+
+      expect(screen.queryByRole("dialog", { name: "Needs you" })).not.toBeInTheDocument();
+      expect(terminalFocusSessionIds).toEqual(["waiting"]);
+      expect(screen.getByTestId("xterm-host")).toBe(terminalHost);
+      expect(terminalConstructorOptions).toHaveLength(constructorCount);
+      expect(terminalDisposeCalls).toHaveLength(disposeCount);
+    }
   });
 
   it("opens inferred waiting work on Enter without writing approval text to the PTY", async () => {
@@ -6813,16 +6869,17 @@ describe("App integration", () => {
     );
 
     render(<App />);
-    await openInboxFromCommandPalette(user);
+    await selectSurface(user, "History");
+    await openNeedsYou(user);
     const terminalHost = screen.getByTestId("xterm-host");
     const terminalFocus = vi.fn();
     terminalHost.addEventListener("focusin", terminalFocus);
 
-    expect(screen.getByRole("button", { name: "Open in Work Waiting agent in Alfred" })).toBeVisible();
-    expect(screen.getByTestId("inbox-decision-select-A:WAITING")).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Open Waiting agent in Alfred" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open Waiting agent in Alfred" })).toHaveFocus());
     await user.keyboard("{Enter}");
 
-    expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Needs you" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(screen.getByTestId("desk-runtime-surface")).not.toHaveAttribute("aria-hidden", "true");
     expect(screen.getByTestId("xterm-host")).toBe(terminalHost);
@@ -6832,7 +6889,7 @@ describe("App integration", () => {
     expect(writeTerminal).not.toHaveBeenCalled();
   });
 
-  it("launches staged work from the global Inbox in its workspace", async () => {
+  it("launches staged work from Work in its workspace", async () => {
     const user = userEvent.setup();
     const { createTerminal, resolveStagedPlan } = installDesktopBridge(
       undefined,
@@ -6865,11 +6922,8 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await openInboxFromCommandPalette(user);
-    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    await user.click(within(inbox).getByRole("button", { name: "Launch Client task in ClientApp" }));
-
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
+    await user.click(await screen.findByRole("button", { name: "ClientApp project" }));
+    await user.click(await screen.findByRole("button", { name: "Launch Client task" }));
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -6937,13 +6991,13 @@ describe("App integration", () => {
     });
 
     render(<App />);
-    await openInboxFromCommandPalette(user);
-    await user.click(screen.getByRole("button", { name: "Launch Immediate approval in Alfred" }));
+    await user.click(await screen.findByRole("button", { name: "Launch Immediate approval" }));
 
-    const waiting = await screen.findByTestId("inbox-decision-A:alfred-waiting");
-    expect(waiting).toHaveTextContent("Needs response · inferred");
+    await openNeedsYou(user);
+    const waiting = screen.getByRole("dialog", { name: "Needs you" });
+    expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("Immediate approval is now needs you.");
     expect(within(waiting).getByRole("button", {
-      name: "Open in Work Immediate approval in Alfred",
+      name: "Open Immediate approval in Alfred",
     })).toBeEnabled();
   });
 
@@ -6970,8 +7024,7 @@ describe("App integration", () => {
     bridge.createTerminal.mockImplementation(() => creation.promise);
 
     render(<App />);
-    await openInboxFromCommandPalette(user);
-    await user.click(screen.getByRole("button", { name: "Launch Early approval in Alfred" }));
+    await user.click(await screen.findByRole("button", { name: "Launch Early approval" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
 
     const earlyEvent: TerminalDataEvent & { clientId: string } = {
@@ -6990,7 +7043,7 @@ describe("App integration", () => {
       ],
     };
     await bridge.emitData(earlyEvent);
-    expect(document.querySelector('[data-session-id="alfred-early-waiting"]')).toHaveAttribute(
+    expect(document.querySelector('[data-testid="terminal-tile"][data-session-id="alfred-early-waiting"]')).toHaveAttribute(
       "aria-label",
       "Early approval, Approval required: Approval required: continue?",
     );
@@ -7009,8 +7062,9 @@ describe("App integration", () => {
     });
     await creation.promise;
 
-    const waiting = await screen.findByTestId("inbox-decision-A:alfred-early-waiting");
-    expect(waiting).toHaveTextContent("Needs response · inferred");
+    await openNeedsYou(user);
+    const waiting = screen.getByRole("dialog", { name: "Needs you" });
+    await waitFor(() => expect(waiting).toHaveTextContent("Approval required: continue?"));
   });
 
   it("routes an early exit by client id without reviving the finished runtime when create resolves", async () => {
@@ -7034,8 +7088,7 @@ describe("App integration", () => {
     bridge.createTerminal.mockImplementation(() => creation.promise);
 
     render(<App />);
-    await openInboxFromCommandPalette(user);
-    await user.click(screen.getByRole("button", { name: "Launch Early exit in Alfred" }));
+    await user.click(await screen.findByRole("button", { name: "Launch Early exit" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
 
     await bridge.emitExit({
@@ -7066,7 +7119,7 @@ describe("App integration", () => {
     expect(within(history).getByRole("button", { name: "Resume" })).toBeInTheDocument();
   });
 
-  it("shows unsafe commands as blocked in the global Inbox", async () => {
+  it("shows unsafe commands as blocked in the global Needs you", async () => {
     const user = userEvent.setup();
     const { createTerminal, resolveStagedPlan } = installDesktopBridge(
       undefined,
@@ -7101,14 +7154,15 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await openInboxFromCommandPalette(user);
+    await openNeedsYou(user);
 
-    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    expect(inbox).toHaveTextContent("ClientApp");
-    expect(inbox).toHaveTextContent("rm -rf dist");
-    expect(inbox).toHaveTextContent("rm -rf detected");
+    const popover = screen.getByRole("dialog", { name: "Needs you" });
+    expect(popover).toHaveTextContent("ClientApp");
+    expect(popover).toHaveTextContent("rm -rf detected");
 
-    expect(within(inbox).getByRole("button", { name: "Review / Edit Risky cleanup in ClientApp" })).toBeEnabled();
+    expect(within(popover).getByRole("button", { name: "Edit Risky cleanup in ClientApp" })).toBeEnabled();
+    await user.click(within(popover).getByRole("button", { name: "Edit Risky cleanup in ClientApp" }));
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("rm -rf dist");
     expect(resolveStagedPlan).not.toHaveBeenCalled();
     expect(createTerminal).not.toHaveBeenCalled();
   });
@@ -8084,9 +8138,6 @@ describe("App integration", () => {
         }),
       }),
     );
-    await user.click(screen.getByRole("button", { name: "Open Inbox surface, 2 items" }));
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
-    await selectSurface(user, "Work");
     expect(await screen.findByRole("article", { name: /Draft Task A/i })).toBeInTheDocument();
     const stagedTaskB = await screen.findByRole("article", { name: /Draft Task B/i });
     const stagedTaskBHeader = stagedTaskB.querySelector(".tile-header")!;
@@ -8680,7 +8731,7 @@ describe("App integration", () => {
     await waitFor(() => expect(createTerminal).toHaveBeenCalledTimes(1));
   });
 
-  it.each([true, false])("keeps Free Chat decisions in Inbox without project attention (freeChat=%s)", async (freeChat) => {
+  it.each([true, false])("keeps Free Chat decisions in Needs you without project attention (freeChat=%s)", async (freeChat) => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [liveSnapshot("decision", {
       cwd: freeChat ? "/Users/patryk/Documents/Codex/free-chat" : "/Users/patryk/Desktop/Alfred",
@@ -8691,8 +8742,8 @@ describe("App integration", () => {
     const project = screen.getByRole("button", { name: "Alfred project" });
     if (freeChat) expect(project).not.toHaveAttribute("data-attention", "true");
     else expect(project).toHaveAttribute("data-attention", "true");
-    await openInboxFromCommandPalette(user);
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveTextContent("Proceed?");
+    await openNeedsYou(user);
+    expect(screen.getByRole("dialog", { name: "Needs you" })).toHaveTextContent("Proceed?");
   });
 
   it("restarts unsafe exited sessions once after one review warning in StrictMode", async () => {
@@ -8788,13 +8839,13 @@ describe("App integration", () => {
     },
   );
 
-  it("lets Privacy consume Escape over Inbox and restore the surviving trigger", async () => {
+  it("lets Privacy consume Escape over History and restore the surviving trigger", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
 
     render(<App />);
-    await openInboxFromCommandPalette(user);
-    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
+    await selectSurface(user, "History");
+    const history = screen.getByRole("region", { name: "History" });
 
     await selectSurface(user, "Local Data & Privacy");
     const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
@@ -8804,7 +8855,7 @@ describe("App integration", () => {
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("dialog", { name: "Local Data & Privacy" })).not.toBeInTheDocument();
-    expect(inbox).toBeVisible();
+    expect(history).toBeVisible();
     expect(surfaces).toHaveFocus();
   });
 
@@ -9329,10 +9380,6 @@ describe("App integration", () => {
     render(<App />);
     expect(screen.queryByRole("article", { name: /Codex recovery/i })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Open Inbox surface" }));
-    expect(screen.queryByRole("button", { name: /Resume|Continue|Resume/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Asleep · 1 asleep session/i })).not.toBeInTheDocument();
-
     await selectSurface(user, "History");
     await user.click(await screen.findByRole("option", { name: /Codex recovery/i }));
     expect(screen.queryByRole("button", { name: /Resume|Continue|Resume/i })).not.toBeInTheDocument();
@@ -9722,7 +9769,7 @@ describe("App integration", () => {
     expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9", cleanupWorktree: true });
   });
 
-  it("routes aggregate recovery commands through the canonical Inbox", async () => {
+  it("opens History for recovery without starting or discarding sessions", async () => {
     const user = userEvent.setup();
     const { createTerminal, forgetTerminal } = installDesktopBridge(
       undefined,
@@ -9742,10 +9789,9 @@ describe("App integration", () => {
     );
 
     render(<App />);
-    await user.click(screen.getByRole("button", { name: "Open command palette" }));
-    await submitCommandPalette(user, "open inbox");
+    await selectSurface(user, "History");
 
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "History" })).toBeVisible();
     expect(createTerminal).not.toHaveBeenCalled();
     expect(forgetTerminal).not.toHaveBeenCalled();
   });
@@ -9885,7 +9931,7 @@ describe("App integration", () => {
 
     expect(await screen.findByRole("button", { name: "Browse 1 asleep session" })).toHaveTextContent("1 asleep");
     expect(screen.queryByLabelText("Session recovery")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open Inbox surface" })).not.toHaveTextContent("1");
+    expect(screen.queryByRole("button", { name: /^Needs you, / })).not.toBeInTheDocument();
   });
 
   it("keeps restored transcripts recoverable when relaunch all cannot start a process", async () => {
@@ -10202,9 +10248,7 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Draft Safe task/i })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Draft Risky task/i })).toBeInTheDocument();
 
-    await openInboxFromCommandPalette(user);
-    await user.click(screen.getByTestId("inbox-decision-select-A:alfred-1"));
-    await user.click(screen.getByRole("button", { name: "Launch Safe task in Alfred" }));
+    await user.click(screen.getByRole("button", { name: "Launch Safe task" }));
 
     await waitFor(() => {
       expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
@@ -10212,8 +10256,8 @@ describe("App integration", () => {
     await selectSurface(user, "Work");
     expect(screen.queryByRole("article", { name: /Draft Safe task/i })).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Safe task/i })).toBeInTheDocument();
-    await openInboxFromCommandPalette(user);
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveTextContent("Risky task");
+    await openNeedsYou(user);
+    expect(screen.getByRole("dialog", { name: "Needs you" })).toHaveTextContent("Risky task");
     expect(clearStagedPlan).not.toHaveBeenCalled();
   });
 
@@ -10249,15 +10293,15 @@ describe("App integration", () => {
     await screen.findByRole("article", { name: /Draft Safe build/i });
     await screen.findByRole("article", { name: /Draft Risky cleanup/i });
 
-    await openInboxFromCommandPalette(user);
-    const blockedItem = screen.getByTestId("inbox-decision-select-A:alfred-2").closest("li");
-    if (!blockedItem) throw new Error("Expected blocked Inbox item");
+    await openNeedsYou(user);
+    const blockedItem = screen.getByRole("button", { name: "Edit Risky cleanup in Alfred" }).closest("li");
+    if (!blockedItem) throw new Error("Expected blocked Needs you item");
 
-    expect(blockedItem).toHaveTextContent("Review / Edit");
+    expect(blockedItem).toHaveTextContent("Edit");
     expect(blockedItem).toHaveTextContent("rm -rf detected");
     expect(within(blockedItem).queryByText(/^Blocked$/)).not.toBeInTheDocument();
 
-    const reviewDetails = within(blockedItem).getByRole("button", { name: "Review / Edit Risky cleanup in Alfred" });
+    const reviewDetails = within(blockedItem).getByRole("button", { name: "Edit Risky cleanup in Alfred" });
     expect(reviewDetails).toBeEnabled();
     expect(screen.queryByRole("note", { name: "Blocked launch details for Risky cleanup" })).not.toBeInTheDocument();
 
@@ -10317,10 +10361,10 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Draft Safe task/i })).toHaveTextContent("shared project");
     const blocked = screen.getByRole("article", { name: /Draft Blocked Codex/i });
     expect(blocked).toHaveTextContent("Launch blocked: Project has uncommitted or untracked changes.");
-    await openInboxFromCommandPalette(user);
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveTextContent("Blocked Codex");
+    await openNeedsYou(user);
+    expect(screen.getByRole("dialog", { name: "Needs you" })).toHaveTextContent("Blocked Codex");
     const reviewDetails = screen.getByRole("button", {
-      name: "Review / Edit Blocked Codex in Alfred",
+      name: "Edit Blocked Codex in Alfred",
     });
     expect(reviewDetails).toBeEnabled();
 
@@ -10334,10 +10378,8 @@ describe("App integration", () => {
     );
     expect(createTerminal).not.toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-2" }));
 
-    await openInboxFromCommandPalette(user);
-
-    await user.click(screen.getByTestId("inbox-decision-select-A:alfred-1"));
-    await user.click(screen.getByRole("button", { name: "Launch Safe task in Alfred" }));
+    await chooseWorkLayout(user, "Grid");
+    await user.click(screen.getByRole("button", { name: "Launch Safe task" }));
 
     await waitFor(() => {
       expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
@@ -10345,8 +10387,8 @@ describe("App integration", () => {
     expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-1" }));
     expect(createTerminal).not.toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-2" }));
     expect(screen.queryByRole("article", { name: /Draft Safe task/i })).not.toBeInTheDocument();
-    await openInboxFromCommandPalette(user);
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveTextContent("Blocked Codex");
+    await openNeedsYou(user);
+    expect(screen.getByRole("dialog", { name: "Needs you" })).toHaveTextContent("Blocked Codex");
   });
 
   it("launches a preflighted worktree branch for staged coding agents", async () => {
@@ -10538,16 +10580,14 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
     await screen.findByRole("article", { name: /Draft Safe task/i });
 
-    await openInboxFromCommandPalette(user);
-    await user.click(screen.getByTestId("inbox-decision-select-A:alfred-1"));
-    await user.click(screen.getByRole("button", { name: "Launch Safe task in Alfred" }));
+    await user.click(screen.getByRole("button", { name: "Launch Safe task" }));
 
     await selectSurface(user, "Work");
     await waitFor(() => {
       expect(screen.getByRole("article", { name: /Draft Safe task/i })).toBeInTheDocument();
     });
-    await openInboxFromCommandPalette(user);
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveTextContent("Risky task");
+    await openNeedsYou(user);
+    expect(screen.getByRole("dialog", { name: "Needs you" })).toHaveTextContent("Risky task");
     expect(resolveStagedPlan).not.toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
   });
 
@@ -10637,9 +10677,9 @@ describe("App integration", () => {
         }],
       },
     });
-    await openInboxFromCommandPalette(user);
+    await openNeedsYou(user);
     await user.click(screen.getByRole("button", {
-      name: "Review / Edit Blocked Codex in Alfred",
+      name: "Edit Blocked Codex in Alfred",
     }));
 
     expect(screen.getByTestId("desk-runtime-surface")).toBeVisible();
