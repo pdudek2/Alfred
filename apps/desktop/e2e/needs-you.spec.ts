@@ -283,7 +283,25 @@ async function bootstrapMixedAttention(page: Page): Promise<Locator> {
     lastKind: "approval",
   });
   // Wait for renderer hydration before opening the list.
-  await expect(page.getByRole("button", { name: "Needs you, 2 sessions" })).toBeVisible();
+  try {
+    await expect(page.getByRole("button", { name: "Needs you, 2 sessions" })).toBeVisible();
+  } catch (error) {
+    // Name what the renderer and main process saw for the waiting session, so a CI-only miss is diagnosable.
+    const main = (await listMainProcessTerminals(page)).sessions.find((session) => session.clientId === "fixture-item-2");
+    const tile = await page.locator('[data-session-id="fixture-item-2"]').first().innerText().catch(() => "(no tile)");
+    const trigger = await page.getByRole("button", { name: /^Needs you, / }).getAttribute("aria-label").catch(() => null);
+    throw new Error(`${String(error)}\n${JSON.stringify({
+      trigger,
+      tile: tile.replace(/\s+/g, " ").slice(0, 160),
+      now: Date.now(),
+      main: main && {
+        lastOutputAt: main.lastOutputAt,
+        shellBusy: main.shellBusy,
+        buffer: main.buffer?.slice(-200),
+        events: main.activityEvents?.map(({ kind, title, at }) => ({ kind, title, at })),
+      },
+    })}`, { cause: error });
+  }
   await page.getByRole("button", { name: "Needs you, 2 sessions" }).click();
   const popover = page.getByRole("dialog", { name: "Needs you" });
   await expect(popover).toBeVisible();
