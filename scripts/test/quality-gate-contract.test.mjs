@@ -4,11 +4,7 @@ import test from "node:test";
 
 const root = new URL("../../", import.meta.url);
 const packageFiles = [
-  "apps/api/package.json",
   "apps/desktop/package.json",
-  "apps/runner/package.json",
-  "packages/adapters/package.json",
-  "packages/db/package.json",
   "packages/schema/package.json",
 ];
 

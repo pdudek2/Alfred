@@ -9,8 +9,6 @@ coverage/
 .worktrees/
 .alfred-worktrees/
 output/
-api/.generated/
-vercel-static/
 
 # Local documentation and artifacts
 docs/
@@ -28,12 +26,6 @@ apps/desktop/PRODUCT.md
 AGENTS.md
 WORKING_CONTEXT.md
 
-# Local runner state
-.alfred-runner/
-*.sqlite
-*.sqlite-shm
-*.sqlite-wal
-
 # Logs
 *.log
 
@@ -46,6 +38,5 @@ WORKING_CONTEXT.md
 .idea/
 *.swp
 *.swo
-.vercel
 .secrets/
 .env*.local
