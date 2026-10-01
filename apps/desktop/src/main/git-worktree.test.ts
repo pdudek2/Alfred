@@ -493,6 +493,30 @@ describe("git worktree preparation", () => {
     )).rejects.toMatchObject({ code: "ERR_FS_CP_FIFO_PIPE" });
   });
 
+  it("removes the new worktree and branch when the dirty snapshot cannot be applied", async () => {
+    const calls: string[][] = [];
+    const execFile = vi.fn(async (_file: string, args: string[]) => {
+      calls.push(args);
+      if (args.includes("rev-parse")) return { stdout: "/repo\n", stderr: "" };
+      if (args.includes("status")) return { stdout: "?? fixture.txt\n", stderr: "" };
+      if (args.includes("worktree") || args.includes("branch")) return { stdout: "ok\n", stderr: "" };
+      if (args.includes("ls-files")) return { stdout: "fixture.txt\0", stderr: "" };
+      throw new Error(`unexpected git call: ${args.join(" ")}`);
+    });
+
+    await expect(prepareAgentWorktree(
+      { agentKind: "codex", clientId: "codex-1", cwd: "/repo" },
+      {
+        cp: vi.fn(async () => { throw new Error("copy failed"); }),
+        execFile,
+        mkdir: vi.fn(async () => undefined),
+      },
+    )).rejects.toThrow("copy failed");
+
+    expect(calls.some((args) => args.includes("worktree") && args.includes("remove") && args.includes("--force"))).toBe(true);
+    expect(calls.some((args) => args.includes("branch") && args.includes("-D"))).toBe(true);
+  });
+
   it("still blocks isolated launch for unresolved merge conflicts", async () => {
     const execFile = vi.fn(async (_file: string, args: string[]) => {
       if (args.includes("rev-parse")) return { stdout: "/repo\n", stderr: "" };
