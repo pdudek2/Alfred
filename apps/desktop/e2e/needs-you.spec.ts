@@ -1,6 +1,8 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
+import { terminalChannels, type TerminalListResult } from "../src/shared/terminal-ipc";
+import { chooseWorkLayout, settleTerminalTileAnimations } from "./support/work-layout";
 import { expect, test } from "./support/electron-app";
 import { neutralScreenshotPointer, privacySafeScreenshotStyle } from "./support/privacy-safe-screenshot";
 
@@ -127,6 +129,173 @@ test("reviews the real diff of an asleep checkout without replacing the live xte
   harness.assertNoRuntimeErrors();
 });
 
+const mixedFixture = {
+  inboxItems: 4,
+  blockedInboxItem: 1,
+  waitingInboxItem: 2,
+  restoredSessions: 6,
+  unsafeRecoveryItem: 1,
+} as const;
+
+test.describe("mixed Needs you actions", () => {
+  test.use({ fixtureOptions: mixedFixture });
+
+  test("canonical counts and actions share blockers and use real handlers", async ({ harness }) => {
+    const { app, page } = harness;
+    const popover = await bootstrapMixedAttention(page);
+    const trigger = page.getByRole("button", { name: "Needs you, 2 sessions" });
+    const rows = popover.getByRole("list", { name: "Blocked on you" }).getByRole("listitem");
+    await expect(trigger).toHaveText("2 need you");
+    await expect(rows).toHaveCount(2);
+    const headerCount = Number((await trigger.innerText()).match(/^\d+/)?.[0]);
+    expect(await rows.count()).toBe(headerCount);
+    await expect(popover).not.toContainText("Fixture item 3");
+    await expect(popover).not.toContainText("Fixture item 4");
+    await expect(popover).not.toContainText("Restored fixture");
+    expect(await rows.locator("button").allTextContents()).toEqual(["Edit", "Open"]);
+    await expect(popover.getByText("Fixture safety policy blocks launch outside the approved root.", { exact: true }))
+      .toBeVisible();
+    await expect(popover.getByText("Approval required: allow deterministic fixture?", { exact: true })).toBeVisible();
+
+    await installTerminalWriteProbe(app);
+    expect(await terminalWriteCount(app)).toBe(0);
+    await popover.getByRole("button", { name: "Open Fixture item 2 in Fixture Beta" }).click();
+    await expect(popover).toBeHidden();
+    await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
+    await expect(page.locator('[data-session-id="fixture-item-2"] .xterm-screen textarea')).toBeFocused();
+    expect(await terminalWriteCount(app)).toBe(0);
+
+    await trigger.click();
+    await popover.getByRole("button", { name: "Edit Fixture item 1 in Fixture Alpha" }).click();
+    await expect(popover).toBeHidden();
+    const context = page.getByRole("complementary", { name: "Session context" });
+    await expect(context).toBeVisible();
+    await expect(context).toContainText("Fixture item 1");
+    await expect(page.getByRole("button", { name: "Fixture Alpha project" })).toHaveAttribute("aria-current", "location");
+    expect(await terminalWriteCount(app)).toBe(0);
+    expect((await listMainProcessTerminals(page)).sessions.some((session) => session.clientId === "fixture-item-1"))
+      .toBe(false);
+
+    // Ready drafts still launch from Work using the real handler.
+    await context.getByRole("button", { name: "Close Context panel" }).click();
+    await chooseWorkLayout(page, "Grid");
+    // Selecting a draft tile reorders the staged list, so a first click on an unselected
+    // tile's Launch lands elsewhere. Select it first; the plan line replaces these tiles.
+    await page.getByRole("article", { name: "Draft Fixture item 3" }).locator(".tile-header").click();
+    await page.getByRole("button", { name: "Launch Fixture item 3" }).click();
+    await expect.poll(async () => {
+      const listed = await listMainProcessTerminals(page);
+      const snapshot = [...listed.sessions, ...(listed.restoredSessions ?? [])].find(
+        (session) => session.clientId === "fixture-item-3",
+      );
+      return snapshot
+        ? { args: snapshot.args, command: snapshot.command, workspaceId: snapshot.workspaceId }
+        : null;
+    }).toEqual({ args: ["fixture item 3\n"], command: "/usr/bin/printf", workspaceId: "A" });
+    await expect(trigger).toHaveText("2 need you");
+
+    harness.assertNoRuntimeErrors();
+    await harness.closeActiveTerminals();
+  });
+
+  test("terminal continuity and geometry preserve one xterm node across History and Needs you", async ({ harness }) => {
+    const { app, page } = harness;
+    await bootstrapMixedAttention(page);
+    await page.keyboard.press("Escape");
+    const screen = page.locator('[data-session-id="fixture-item-2"] .xterm-screen');
+    const before = await requiredHandle(screen, "waiting runtime xterm screen");
+
+    for (const [width, height] of [[1440, 900], [1120, 720]] as const) {
+      await setWindowSize(app, page, width, height);
+      const grid = page.getByTestId("terminal-grid");
+      await page.getByRole("button", { name: "Open Surfaces menu" }).click();
+      await page.getByRole("menuitem", { name: "History" }).click();
+      await expect(page.getByRole("region", { name: "History" })).toBeVisible();
+      await expectSameNode(before, screen, "Work→History replaced the xterm screen");
+      expect(await documentOverflow(page)).toBe(0);
+      await page.getByRole("button", { name: "Back to Work" }).click();
+      await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
+      await expectSameNode(before, screen, "History→Work replaced the xterm screen");
+      await expect(screen.locator("textarea")).toBeFocused();
+      await settleTerminalTileAnimations(page);
+      const gridBefore = await elementGeometry(grid);
+
+      const trigger = page.getByRole("button", { name: "Needs you, 2 sessions" });
+      await trigger.click();
+      const popover = page.getByRole("dialog", { name: "Needs you" });
+      await expect(popover).toBeVisible();
+      await expectSameNode(before, screen, "opening Needs you replaced the xterm screen");
+      expect(await elementGeometry(grid)).toEqual(gridBefore);
+      expect(await popover.evaluate((node) => node.getBoundingClientRect().right)).toBeLessThanOrEqual(width);
+      expect(await documentOverflow(page)).toBe(0);
+      await page.keyboard.press("Escape");
+      await expect(popover).toBeHidden();
+      await expect(trigger).toBeFocused();
+      await expectSameNode(before, screen, "closing Needs you replaced the xterm screen");
+    }
+
+    harness.assertNoRuntimeErrors();
+    await harness.closeActiveTerminals();
+  });
+
+  test("keyboard navigation keeps row focus and runs actions with Enter and Space", async ({ harness }) => {
+    const { page } = harness;
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const popover = await bootstrapMixedAttention(page);
+    const first = popover.getByRole("button", { name: "Edit Fixture item 1 in Fixture Alpha" });
+    const last = popover.getByRole("button", { name: "Open Fixture item 2 in Fixture Beta" });
+    await expect(first).toBeFocused();
+    await first.press("End");
+    await expect(last).toBeFocused();
+    await last.press("Home");
+    await expect(first).toBeFocused();
+    await first.press("ArrowDown");
+    await expect(last).toBeFocused();
+    await last.press("ArrowUp");
+    await expect(first).toBeFocused();
+    await first.press("ArrowDown");
+    await last.press("Enter");
+    await expect(popover).toBeHidden();
+    await expect(page.locator('[data-session-id="fixture-item-2"] .xterm-screen textarea')).toBeFocused();
+
+    await page.getByRole("button", { name: "Needs you, 2 sessions" }).click();
+    await expect(first).toBeFocused();
+    await first.press("Space");
+    await expect(popover).toBeHidden();
+    await expect(page.getByRole("complementary", { name: "Session context" })).toBeVisible();
+
+    harness.assertNoRuntimeErrors();
+    await harness.closeActiveTerminals();
+  });
+});
+
+async function bootstrapMixedAttention(page: Page): Promise<Locator> {
+  await page.getByRole("button", { name: "Fixture Beta project" }).click();
+  await page.getByRole("button", { name: "Launch Fixture item 2" }).click();
+  await expect(page.locator('[data-session-id="fixture-item-2"] .xterm-screen')).toBeAttached();
+  await expect.poll(async () => {
+    const session = (await listMainProcessTerminals(page)).sessions.find(
+      (candidate) => candidate.clientId === "fixture-item-2",
+    );
+    return session ? { buffer: session.buffer, lastKind: session.activityEvents?.at(-1)?.kind ?? null } : null;
+  }).toEqual({
+    buffer: expect.stringContaining("Approval required: allow deterministic fixture?"),
+    lastKind: "approval",
+  });
+  // Wait for renderer hydration before opening the list.
+  await expect(page.getByRole("button", { name: "Needs you, 2 sessions" })).toBeVisible();
+  await page.getByRole("button", { name: "Needs you, 2 sessions" }).click();
+  const popover = page.getByRole("dialog", { name: "Needs you" });
+  await expect(popover).toBeVisible();
+  await expect(popover).toContainText("Approval required: allow deterministic fixture?");
+  await expect(popover.getByRole("button").first()).toBeFocused();
+  return popover;
+}
+
+type DesktopTerminalWindow = Window & {
+  alfredDesktop?: { terminal: { list(): Promise<TerminalListResult> } };
+};
+
 async function setWindowSize(
   app: ElectronApplication,
   page: Page,
@@ -187,5 +356,30 @@ async function elementGeometry(locator: Locator): Promise<{ x: number; y: number
   return locator.evaluate((node) => {
     const { x, y, width, height } = node.getBoundingClientRect();
     return { x, y, width, height };
+  });
+}
+
+async function listMainProcessTerminals(page: Page): Promise<TerminalListResult> {
+  return page.evaluate(async () => {
+    const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;
+    if (!terminalApi) throw new Error("Desktop terminal API is unavailable.");
+    return terminalApi.list();
+  });
+}
+
+async function installTerminalWriteProbe(app: ElectronApplication): Promise<void> {
+  await app.evaluate(({ ipcMain }, channel) => {
+    const probe = globalThis as typeof globalThis & { __alfredE2ETerminalWriteCount?: number };
+    probe.__alfredE2ETerminalWriteCount = 0;
+    ipcMain.on(channel, () => {
+      probe.__alfredE2ETerminalWriteCount = (probe.__alfredE2ETerminalWriteCount ?? 0) + 1;
+    });
+  }, terminalChannels.write);
+}
+
+async function terminalWriteCount(app: ElectronApplication): Promise<number> {
+  return app.evaluate(() => {
+    const probe = globalThis as typeof globalThis & { __alfredE2ETerminalWriteCount?: number };
+    return probe.__alfredE2ETerminalWriteCount ?? 0;
   });
 }

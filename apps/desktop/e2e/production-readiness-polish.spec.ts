@@ -50,18 +50,17 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expect(page.getByTestId("terminal-grid").getByText("Codex MCP startup", { exact: true })).toBeVisible();
   await captureAuditScreenshot(page, "work-live-blockers-wide");
 
-  const inboxTrigger = page.getByRole("button", { name: /Open Inbox surface/ });
-  await inboxTrigger.click();
-  const inbox = page.getByRole("region", { name: "Inbox workspace" });
-  await expect(inbox).toBeVisible();
-  await expect(inbox.getByText("Not logged in", { exact: true })).toHaveCount(1);
-  await expect(inbox.getByText("MCP server github failed to start: interrupted", { exact: true })).toHaveCount(1);
-  await expectSans(inbox);
-  await captureAuditScreenshot(page, "inbox-blockers-wide");
-  const codexDecision = inbox.getByText("MCP server github failed to start: interrupted", { exact: true })
+  const needsYouTrigger = page.getByRole("button", { name: /^Needs you, / });
+  await needsYouTrigger.click();
+  const blockers = page.getByRole("dialog", { name: "Needs you" });
+  await expect(blockers).toBeVisible();
+  await expect(blockers.getByText("Not logged in", { exact: true })).toHaveCount(1);
+  await expect(blockers.getByText("MCP server github failed to start: interrupted", { exact: true })).toHaveCount(1);
+  await expectSans(blockers);
+  await captureAuditScreenshot(page, "needs-you-blockers-wide");
+  const codexDecision = blockers.getByText("MCP server github failed to start: interrupted", { exact: true })
     .locator("xpath=ancestor::li[1]");
-  await codexDecision.getByRole("button").first().click();
-  await codexDecision.getByRole("button", { name: /Open in Work Codex MCP startup/ }).click();
+  await codexDecision.getByRole("button", { name: /Open Codex MCP startup/ }).click();
   const codexTile = page.getByTestId("terminal-tile").filter({ hasText: "Codex MCP startup" });
   await expect(codexTile).toBeVisible();
   await expect(codexTile.getByRole("textbox", { name: "Terminal input" })).toBeFocused();

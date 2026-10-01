@@ -1,16 +1,15 @@
-import { ChevronDown, Command, Layers3, ListChecks, Plus } from "lucide-react";
+import { ChevronDown, Command, Layers3, Plus } from "lucide-react";
 import type { Ref } from "react";
 import type { SessionTile } from "../session-state";
 import { AlfredMark } from "./AlfredMark";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 
-export type PrimarySurface = "work" | "inbox" | "sessions";
+export type PrimarySurface = "work" | "sessions";
 
 export type WorkbenchHeaderProps = {
   activeSurface: PrimarySurface;
   commandPaletteTriggerRef?: Ref<HTMLButtonElement>;
-  inboxCount: number;
   needsYouCount: number;
   needsYouOpen: boolean;
   needsYouTriggerRef?: Ref<HTMLButtonElement>;
@@ -23,7 +22,6 @@ export type WorkbenchHeaderProps = {
   onAddAgentSession: (kind: "codex" | "claude") => void;
   onAddManualSession: () => void;
   onOpenCommandPalette: () => void;
-  onOpenInbox: () => void;
   onOpenPrepareWork: () => void;
   onReconnectWorkspace: () => void;
   onOpenPrivacyControls: () => void;
@@ -35,7 +33,6 @@ export type WorkbenchHeaderProps = {
 export function WorkbenchHeader({
   activeSurface,
   commandPaletteTriggerRef,
-  inboxCount,
   needsYouCount,
   needsYouOpen,
   needsYouTriggerRef,
@@ -48,7 +45,6 @@ export function WorkbenchHeader({
   onAddAgentSession,
   onAddManualSession,
   onOpenCommandPalette,
-  onOpenInbox,
   onOpenPrepareWork,
   onReconnectWorkspace,
   onOpenPrivacyControls,
@@ -56,17 +52,8 @@ export function WorkbenchHeader({
   onToggleContext,
   onToggleNeedsYou,
 }: WorkbenchHeaderProps) {
-  const surfaceTitle = activeSurface === "inbox"
-    ? "Inbox"
-    : activeSurface === "sessions"
-      ? "History"
-      : "Work";
-  const surfaceDetail = activeSurface === "work"
-    ? workspaceDetail
-    : activeSurface === "inbox"
-      ? "All projects"
-      : "Alfred";
-  const inboxLabel = `Open Inbox surface${inboxCount > 0 ? `, ${inboxCount} item${inboxCount === 1 ? "" : "s"}` : ""}`;
+  const surfaceTitle = activeSurface === "sessions" ? "History" : "Work";
+  const surfaceDetail = activeSurface === "work" ? workspaceDetail : "Alfred";
   const launchItems: ChromeMenuItem[] = [
     ...(workspaceRootMissing
       ? [{ id: "reconnect-workspace", label: "Reconnect project folder", run: onReconnectWorkspace }]
@@ -153,10 +140,6 @@ export function WorkbenchHeader({
               <span>{needsYouCount} {needsYouCount === 1 ? "needs" : "need"} you</span>
             </button>
           )}
-          <button type="button" aria-label={inboxLabel} title="Inbox" onClick={onOpenInbox}>
-            <ListChecks aria-hidden="true" size={14} />
-            {inboxCount > 0 && <span className="workbench-attention-count">{inboxCount}</span>}
-          </button>
           <button
             ref={commandPaletteTriggerRef}
             type="button"

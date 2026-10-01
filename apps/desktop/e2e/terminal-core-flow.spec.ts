@@ -81,22 +81,16 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   const identityTransitions = ["Grid membership 2→3 (survivors stable)"];
   const surfaceGeometries = [await readActiveSurfaceGeometry(page, "Work initial")];
 
-  await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
-  await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
-  await expectTerminalNodes(terminalNodes, page, "Inbox");
-  identityTransitions.push("Work→Inbox");
-  surfaceGeometries.push(await readActiveSurfaceGeometry(page, "Inbox"));
-
   await selectSurface(page, "History");
   await expect(page.getByRole("region", { name: "History" })).toBeVisible();
   await expectTerminalNodes(terminalNodes, page, "Sessions");
-  identityTransitions.push("Inbox→Sessions");
+  identityTransitions.push("Work→History");
   surfaceGeometries.push(await readActiveSurfaceGeometry(page, "Sessions"));
 
   await selectSurface(page, "Work");
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
   await expectTerminalNodes(terminalNodes, page, "Work restored");
-  identityTransitions.push("Sessions→Work");
+  identityTransitions.push("History→Work");
   surfaceGeometries.push(await readActiveSurfaceGeometry(page, "Work restored"));
   await expect(page.getByTestId("xterm-host").first()).toContainText(marker);
 
