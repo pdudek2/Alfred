@@ -517,6 +517,26 @@ describe("git worktree preparation", () => {
     expect(calls.some((args) => args.includes("branch") && args.includes("-D"))).toBe(true);
   });
 
+  it("gives slow and output-heavy git operations their own limits", async () => {
+    const seen = new Map<string, { maxBuffer?: number | undefined; timeout?: number | undefined }>();
+    const execFile = vi.fn(async (_file: string, args: string[], options?: { cwd?: string | undefined; maxBuffer?: number | undefined; timeout?: number | undefined }) => {
+      seen.set(args[2] ?? "", options ?? {});
+      if (args.includes("rev-parse")) return { stdout: "/repo\n", stderr: "" };
+      return { stdout: "", stderr: "" };
+    });
+
+    await prepareAgentWorktree(
+      { agentKind: "codex", clientId: "codex-1", cwd: "/repo" },
+      { execFile, mkdir: vi.fn(async () => undefined) },
+    );
+
+    expect(seen.get("rev-parse")).toMatchObject({ timeout: 2_500 });
+    expect(seen.get("rev-parse")?.maxBuffer).toBeUndefined();
+    expect(seen.get("status")?.timeout).toBeGreaterThan(2_500);
+    expect(seen.get("status")?.maxBuffer).toBeGreaterThan(1024 * 1024);
+    expect(seen.get("worktree")?.timeout).toBeGreaterThanOrEqual(60_000);
+  });
+
   it("still blocks isolated launch for unresolved merge conflicts", async () => {
     const execFile = vi.fn(async (_file: string, args: string[]) => {
       if (args.includes("rev-parse")) return { stdout: "/repo\n", stderr: "" };
