@@ -42,7 +42,7 @@ describe("checkSafety", () => {
   describe("allows safe commands", () => {
     it.each([
       ["pnpm", ["dev"]],
-      ["pnpm", ["--filter", "@alfred/api", "test"]],
+      ["pnpm", ["--filter", "@alfred/desktop", "test"]],
       ["codex", []],
       ["claude", ["--mode", "code"]],
       ["next", ["dev"]],
