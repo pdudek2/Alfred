@@ -1993,7 +1993,7 @@ describe("App integration", () => {
     expect(screen.getByTestId("context-column")).toHaveClass("open");
   });
 
-  it("keeps global agent work in an overlay drawer and lets higher overlays consume Escape first", async () => {
+  it("lists blocked sessions across projects in Needs you and lets higher overlays consume Escape first", async () => {
     const user = userEvent.setup();
     installDesktopBridge(
       undefined,
@@ -2030,8 +2030,8 @@ describe("App integration", () => {
     );
     render(<App />);
 
-    const trigger = await screen.findByRole("button", { name: "Agents, 1 active" });
     const xtermHost = await screen.findByTestId("xterm-host");
+    const trigger = await screen.findByRole("button", { name: "Needs you, 1 session" });
     const navigator = screen.getByTestId("project-navigator");
     expect(within(navigator).getByRole("button", { name: "Alfred project" })).toHaveAccessibleDescription(
       "1 active agent",
@@ -2040,25 +2040,37 @@ describe("App integration", () => {
       "1 decision needs review",
     );
 
+    await selectSurface(user, "Context");
     await user.click(trigger);
 
-    const drawer = screen.getByTestId("agents-drawer");
-    expect(drawer).toHaveAttribute("aria-hidden", "false");
-    expect(drawer).toHaveTextContent("Tighten project rail");
-    expect(drawer).toHaveTextContent("Review checkout");
+    const popover = screen.getByRole("dialog", { name: "Needs you" });
+    expect(popover).toHaveTextContent("Review checkout");
+    expect(popover).toHaveTextContent("ClientApp");
+    expect(popover).toHaveTextContent("Choose whether to keep the migration.");
+    expect(popover).not.toHaveTextContent("Tighten project rail");
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const openRow = screen.getByRole("button", { name: "Open Review checkout in ClientApp" });
+    await waitFor(() => expect(openRow).toHaveFocus());
     expect(xtermHost.isConnected).toBe(true);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Close Agents" })).toHaveFocus());
 
-    const commandPaletteTrigger = screen.getByRole("button", { name: "Open command palette" });
-    await user.click(commandPaletteTrigger);
+    await user.keyboard("{Meta>}k{/Meta}");
+    expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
-    expect(drawer).toHaveAttribute("aria-hidden", "false");
-    await waitFor(() => expect(commandPaletteTrigger).toHaveFocus());
+    expect(popover).toBeInTheDocument();
 
+    openRow.focus();
     await user.keyboard("{Escape}");
-    expect(drawer).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByRole("dialog", { name: "Needs you" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("context-column")).toHaveClass("open");
     await waitFor(() => expect(trigger).toHaveFocus());
+
+    await user.keyboard("{Meta>}j{/Meta}");
+    expect(screen.getByRole("dialog", { name: "Needs you" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open Review checkout in ClientApp" }));
+
+    expect(screen.queryByRole("dialog", { name: "Needs you" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("workbench-header")).toHaveTextContent("Review checkout"));
     expect(xtermHost.isConnected).toBe(true);
   });
 
@@ -6138,7 +6150,7 @@ describe("App integration", () => {
     });
   });
 
-  it("opens a real handoff diff from Agents without unmounting xterm and restores terminal focus", async () => {
+  it("opens a real worktree diff without unmounting xterm and restores focus", async () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge(undefined, null, [
       {
@@ -6185,9 +6197,9 @@ describe("App integration", () => {
     await waitFor(() => expect(window.alfredDesktop?.terminal.onExit).toHaveBeenCalled());
     await bridge.emitExit({ id: "runtime-diff-reader", exitCode: 0 });
 
-    await user.click(screen.getByRole("button", { name: "Agents, 0 active" }));
-    await user.click(screen.getByRole("button", { name: "Open Codex · diff reader" }));
-    await user.click(screen.getByRole("button", { name: "Open diff" }));
+    await chooseWorkLayout(user, "Focus");
+    const reviewDiff = await screen.findByRole("button", { name: "Review diff" });
+    await user.click(reviewDiff);
 
     expect(bridge.worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-diff-reader" });
     expect(await screen.findByRole("region", { name: "Worktree diff" })).toBeInTheDocument();
@@ -6213,9 +6225,8 @@ describe("App integration", () => {
     await waitFor(() => expect(screen.queryByRole("region", { name: "Worktree diff" })).not.toBeInTheDocument());
     expect(xtermHost.isConnected).toBe(true);
     expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
-    await waitFor(() => expect(tile).toHaveFocus());
+    await waitFor(() => expect(reviewDiff).toHaveFocus());
 
-    const reviewDiff = screen.getByRole("button", { name: "Review diff" });
     await user.click(reviewDiff);
     expect(await screen.findByRole("region", { name: "Worktree diff" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Close diff" }));

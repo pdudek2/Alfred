@@ -1,0 +1,130 @@
+.needs-you-popover {
+  position: fixed;
+  top: 46px;
+  right: 12px;
+  z-index: 110;
+  width: 440px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  border-radius: var(--radius-panel);
+  padding: 8px;
+  background: var(--surface-panel);
+  box-shadow: inset 0 0 0 1px var(--border-strong), var(--shadow-panel);
+  font: 400 13px/18px var(--sans);
+}
+
+.needs-you-popover:focus {
+  outline: none;
+}
+
+.needs-you-popover__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 8px 12px 6px;
+}
+
+.needs-you-popover__header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font: 500 13px/18px var(--sans);
+}
+
+.needs-you-popover__header kbd {
+  color: var(--text-faint);
+  font: 400 12px/16px var(--sans);
+}
+
+.needs-you-popover__empty {
+  margin: 0;
+  padding: 6px 12px 10px;
+  color: var(--text-muted);
+}
+
+.needs-you-popover__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.needs-you-popover__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.needs-you-popover__row:has(button:focus-visible),
+.needs-you-popover__row:hover {
+  background: var(--surface-control);
+}
+
+.needs-you-popover__glyph {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  color: var(--signal);
+}
+
+.needs-you-popover__copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.needs-you-popover__title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.needs-you-popover__title strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font: 500 13px/18px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.needs-you-popover__title span {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font: 400 12px/16px var(--sans);
+  white-space: nowrap;
+}
+
+.needs-you-popover__copy p {
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.needs-you-popover__row button {
+  flex: 0 0 auto;
+  height: 26px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: var(--surface-control);
+  color: var(--text-primary);
+  font: 500 12px/16px var(--sans);
+  cursor: pointer;
+}
+
+.needs-you-popover__row button:hover {
+  background: var(--surface-control-hover);
+}
+
+.needs-you-popover__row button:focus-visible {
+  outline: 1px solid var(--signal-focus);
+  outline-offset: 1px;
+}
