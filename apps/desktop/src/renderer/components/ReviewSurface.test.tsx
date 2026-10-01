@@ -69,22 +69,14 @@ function renderSurface(attentionItems: AttentionProjection[] = DECISIONS) {
     onLaunch: vi.fn(),
     onOpenInWork: vi.fn(),
     onRecover: vi.fn(),
-    onDiscardRecovery: vi.fn(),
     onReviewEdit: vi.fn(),
     onBackToWork: vi.fn(),
   };
-  const renderProps = {
-    armedRecoverySessionIds: new Set<string>(),
-    sessionDetailsById: new Map(),
-  };
-  const view = render(<ReviewSurface attentionItems={attentionItems} {...renderProps} {...handlers} />);
+  const view = render(<ReviewSurface attentionItems={attentionItems} {...handlers} />);
   return {
     ...handlers,
-    rerenderSurface: (
-      nextItems: AttentionProjection[],
-      props: Partial<typeof renderProps> = {},
-    ) => {
-      view.rerender(<ReviewSurface attentionItems={nextItems} {...renderProps} {...props} {...handlers} />);
+    rerenderSurface: (nextItems: AttentionProjection[]) => {
+      view.rerender(<ReviewSurface attentionItems={nextItems} {...handlers} />);
     },
   };
 }
@@ -122,7 +114,7 @@ describe("ReviewSurface", () => {
     expect(surface).toHaveAttribute("data-secondary-chrome-height", "52");
     expect(within(surface).getByRole("heading", { name: "Inbox" })).toBeVisible();
     expect(within(surface).getByText("All projects", { exact: true })).toBeVisible();
-    expect(within(surface).getByText("3 need you · 0 recovery", { exact: true })).toBeVisible();
+    expect(within(surface).getByText("3 need you", { exact: true })).toBeVisible();
     expect(within(surface).queryByRole("navigation", { name: "Primary surfaces" })).not.toBeInTheDocument();
     expect(surface.querySelector(".inbox-docket__statusbar")).not.toBeInTheDocument();
     expect(surface.querySelector(".review-surface")).not.toBeInTheDocument();
@@ -220,7 +212,7 @@ describe("ReviewSurface", () => {
     expect(handlers.onOpenInWork).toHaveBeenCalledWith("ALFRED", "RUNTIME");
   });
 
-  it("routes staged and recovery actions through their canonical handlers", async () => {
+  it("routes staged actions through their canonical handler and leaves recovery to History", async () => {
     const user = userEvent.setup();
     const recovery = decision({
       id: "ALFRED:RECOVERY",
@@ -239,230 +231,9 @@ describe("ReviewSurface", () => {
     expect(handlers.onLaunch).toHaveBeenCalledWith("STAGED");
     expect(handlers.onOpenInWork).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "Asleep · 1 asleep session" }));
-    await user.click(screen.getByRole("button", { name: "Resume Saved Codex in Alfred" }));
-    expect(handlers.onRecover).toHaveBeenCalledWith("ALFRED", "RECOVERY");
+    expect(screen.queryByText("Saved Codex")).not.toBeInTheDocument();
+    expect(handlers.onRecover).not.toHaveBeenCalled();
     expect(handlers.onReviewEdit).not.toHaveBeenCalled();
-  });
-
-  it("keeps Recovery outside the waiting count and collapsed into one summary line", () => {
-    const recoveryItems = Array.from({ length: 7 }, (_, index) => decision({
-      id: `ALFRED:RECOVERY-${index + 1}`,
-      sessionId: `RECOVERY-${index + 1}`,
-      sessionTitle: `Asleep session ${index + 1}`,
-      kind: "recovery",
-      section: "recovery",
-      blocksAgent: false,
-      rank: null,
-      reason: "Ended session can be resumed.",
-      action: { kind: "relaunch", confirmation: "none" },
-    }));
-
-    renderSurface([STAGED, ...recoveryItems]);
-
-    expect(screen.getByText("1 need you · 7 recovery")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Asleep · 7 asleep sessions" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    expect(screen.queryByText("Asleep session 1")).not.toBeInTheDocument();
-    expect(screen.queryByText("Asleep session 7")).not.toBeInTheDocument();
-  });
-
-  it("shows every Recovery item after expansion without a five-item cap", async () => {
-    const user = userEvent.setup();
-    const recoveryItems = Array.from({ length: 7 }, (_, index) => decision({
-      id: `ALFRED:RECOVERY-${index + 1}`,
-      sessionId: `RECOVERY-${index + 1}`,
-      sessionTitle: `Asleep session ${index + 1}`,
-      kind: "recovery",
-      section: "recovery",
-      blocksAgent: false,
-      rank: null,
-      reason: "Ended session can be resumed.",
-      action: { kind: "relaunch", confirmation: "none" },
-    }));
-    renderSurface(recoveryItems);
-
-    await user.click(screen.getByRole("button", { name: "Asleep · 7 asleep sessions" }));
-
-    expect(screen.getAllByTestId(/inbox-recovery-item-/)).toHaveLength(7);
-    expect(screen.getByText("Asleep session 1")).toBeVisible();
-    expect(screen.getByText("Asleep session 7")).toBeVisible();
-  });
-
-  it("routes safe resume and relaunch immediately through the existing recovery handler", async () => {
-    const user = userEvent.setup();
-    const resume = decision({
-      id: "ALFRED:RESUME",
-      sessionId: "RESUME",
-      sessionTitle: "Saved Codex",
-      kind: "recovery",
-      section: "recovery",
-      blocksAgent: false,
-      rank: null,
-      reason: "Asleep agent session can be resumed.",
-      action: { kind: "resume" },
-    });
-    const relaunch = decision({
-      id: "ALFRED:RELAUNCH",
-      sessionId: "RELAUNCH",
-      sessionTitle: "Safe shell",
-      kind: "recovery",
-      section: "recovery",
-      blocksAgent: false,
-      rank: null,
-      reason: "Ended session can be resumed.",
-      action: { kind: "relaunch", confirmation: "none" },
-    });
-    const handlers = renderSurface([resume, relaunch]);
-
-    await user.click(screen.getByRole("button", { name: "Asleep · 2 asleep sessions" }));
-    await user.click(screen.getByRole("button", { name: "Resume Saved Codex in Alfred" }));
-    await user.click(screen.getByRole("button", { name: "Resume Safe shell in Alfred" }));
-
-    expect(handlers.onRecover).toHaveBeenNthCalledWith(1, "ALFRED", "RESUME");
-    expect(handlers.onRecover).toHaveBeenNthCalledWith(2, "ALFRED", "RELAUNCH");
-  });
-
-  it("reveals unsafe recovery details only while armed and confirms through the same handler", async () => {
-    const user = userEvent.setup();
-    const unsafe = decision({
-      id: "ALFRED:UNSAFE",
-      sessionId: "UNSAFE",
-      sessionTitle: "Clean Desktop",
-      kind: "recovery",
-      section: "recovery",
-      blocksAgent: false,
-      rank: null,
-      reason: "find -exec mutates files when replayed",
-      command: "find truncated",
-      action: { kind: "relaunch", confirmation: "required" },
-    });
-    const details = new Map([
-      ["UNSAFE", {
-        cwd: "/Users/patryk/Desktop/Very Long Project",
-        command: "find",
-        args: ["/Users/patryk/Desktop", "-exec", "mv", "{}", "/archive", ";"],
-      }],
-    ]);
-    const handlers = renderSurface([unsafe]);
-    await user.click(screen.getByRole("button", { name: "Asleep · 1 asleep session" }));
-
-    expect(screen.queryByText("/Users/patryk/Desktop/Very Long Project")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Review resume Clean Desktop in Alfred" }));
-    expect(handlers.onRecover).toHaveBeenCalledOnce();
-
-    handlers.rerenderSurface([unsafe], {
-      armedRecoverySessionIds: new Set(["UNSAFE"]),
-      sessionDetailsById: details,
-    });
-    expect(screen.getByText("/Users/patryk/Desktop/Very Long Project")).toBeVisible();
-    expect(screen.getByText("find /Users/patryk/Desktop -exec mv {} /archive ;")).toBeVisible();
-    expect(screen.getByText("find -exec mutates files when replayed")).toBeVisible();
-
-    await user.click(screen.getByRole("button", { name: "Confirm resume Clean Desktop in Alfred" }));
-    expect(handlers.onRecover).toHaveBeenCalledTimes(2);
-  });
-
-  it("offers Discard only as a secondary action inside expanded Recovery", async () => {
-    const user = userEvent.setup();
-    const recovery = decision({
-      id: "ALFRED:RECOVERY",
-      sessionId: "RECOVERY",
-      sessionTitle: "Saved shell",
-      kind: "recovery",
-      section: "recovery",
-      blocksAgent: false,
-      rank: null,
-      reason: "Asleep session can be resumed.",
-      action: { kind: "relaunch", confirmation: "none" },
-    });
-    const handlers = renderSurface([SAFETY, recovery]);
-
-    expect(screen.queryByRole("button", { name: "Discard Saved shell" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Discard Safety cleanup" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Asleep · 1 asleep session" }));
-    await user.click(screen.getByRole("button", { name: "Discard Saved shell" }));
-
-    expect(handlers.onDiscardRecovery).toHaveBeenCalledWith("RECOVERY");
-    expect(screen.queryByRole("button", { name: "Discard Safety cleanup" })).not.toBeInTheDocument();
-  });
-
-  it("keeps Recovery keyboard actions from running the selected Needs You decision", async () => {
-    const user = userEvent.setup();
-    const recovery = decision({
-      id: "ALFRED:RECOVERY",
-      sessionId: "RECOVERY",
-      sessionTitle: "Saved shell",
-      kind: "recovery",
-      section: "recovery",
-      blocksAgent: false,
-      rank: null,
-      reason: "Asleep session can be resumed.",
-      action: { kind: "relaunch", confirmation: "none" },
-    });
-    const handlers = renderSurface([STAGED, recovery]);
-    const recoveryToggle = screen.getByRole("button", { name: "Asleep · 1 asleep session" });
-    recoveryToggle.focus();
-
-    await user.keyboard("{Enter}");
-
-    expect(recoveryToggle).toHaveAttribute("aria-expanded", "true");
-    expect(handlers.onLaunch).not.toHaveBeenCalled();
-    expect(screen.getByText("Saved shell")).toBeVisible();
-  });
-
-  it("keeps modified Enter in Recovery from running the selected Needs You decision", async () => {
-    const user = userEvent.setup();
-    const recovery = decision({
-      id: "ALFRED:RECOVERY",
-      sessionId: "RECOVERY",
-      sessionTitle: "Saved shell",
-      kind: "recovery",
-      section: "recovery",
-      blocksAgent: false,
-      rank: null,
-      reason: "Asleep session can be resumed.",
-      action: { kind: "relaunch", confirmation: "none" },
-    });
-    const handlers = renderSurface([STAGED, recovery]);
-    const recoveryToggle = screen.getByRole("button", { name: "Asleep · 1 asleep session" });
-    recoveryToggle.focus();
-
-    await user.keyboard("{Control>}{Enter}{/Control}");
-
-    expect(handlers.onLaunch).not.toHaveBeenCalled();
-  });
-
-  it("updates the focused Recovery action after arming and Enter runs the visible confirmation", async () => {
-    const user = userEvent.setup();
-    const recovery = decision({
-      id: "ALFRED:UNSAFE",
-      sessionId: "UNSAFE",
-      sessionTitle: "Saved shell",
-      kind: "recovery",
-      section: "recovery",
-      blocksAgent: false,
-      rank: null,
-      reason: "Review the exact command before relaunching.",
-      action: { kind: "relaunch", confirmation: "required" },
-    });
-    const handlers = renderSurface([STAGED, recovery]);
-
-    await user.click(screen.getByRole("button", { name: "Asleep · 1 asleep session" }));
-    const reviewButton = screen.getByRole("button", { name: "Review resume Saved shell in Alfred" });
-    await user.click(reviewButton);
-    handlers.rerenderSurface([STAGED, recovery], {
-      armedRecoverySessionIds: new Set(["UNSAFE"]),
-    });
-
-    const confirmButton = screen.getByRole("button", { name: "Confirm resume Saved shell in Alfred" });
-    expect(confirmButton).toHaveFocus();
-
-    await user.keyboard("{Enter}");
-    expect(handlers.onRecover).toHaveBeenLastCalledWith("ALFRED", "UNSAFE");
-    expect(handlers.onRecover).toHaveBeenCalledTimes(2);
   });
 
   it("offers a blocked decision only Review / Edit and routes only that action", async () => {
@@ -526,7 +297,7 @@ describe("ReviewSurface", () => {
     expect(primaryAction).toHaveFocus();
   });
 
-  it("restores focus to the Inbox surface when a selected decision moves to compact Recovery", () => {
+  it("restores focus to the Inbox surface when a selected decision moves to History", () => {
     const movedToRecovery = decision({
       ...SAFETY,
       kind: "recovery",
@@ -544,11 +315,7 @@ describe("ReviewSurface", () => {
     primaryAction.focus();
     handlers.rerenderSurface([movedToRecovery]);
 
-    expect(screen.getByRole("button", { name: "Asleep · 1 asleep session" })).toHaveFocus();
-    expect(screen.getByRole("button", { name: "Asleep · 1 asleep session" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
+    expect(screen.getByRole("region", { name: "Inbox workspace" })).toHaveFocus();
   });
 
   it("keeps long reason and command values complete in details and accessible names", () => {

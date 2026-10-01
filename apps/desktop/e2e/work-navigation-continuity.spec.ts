@@ -14,19 +14,19 @@ test("keeps Prepare Work and global session actions continuous across surfaces",
   const draft = page.getByRole("textbox", { name: "Dispatch instruction" });
   await draft.fill("preserve this project draft");
   await page.keyboard.press("Escape");
-  await selectSurface(page, "Sessions");
+  await selectSurface(page, "History");
   await selectSurface(page, "Work");
   await openLaunchItem(page, "Prepare Work");
   await expect(page.getByRole("textbox", { name: "Dispatch instruction" }))
     .toHaveValue("preserve this project draft");
   await page.keyboard.press("Escape");
 
-  await selectSurface(page, "Sessions");
+  await selectSurface(page, "History");
   await openLaunchItem(page, "New manual terminal");
   await expect(page.getByTestId("workbench-shell")).toHaveClass(/surface-work/);
   await expect(page.getByRole("article", { name: /Manual · zsh 2/i })).toHaveClass(/selected/);
 
-  await selectSurface(page, "Sessions");
+  await selectSurface(page, "History");
   await page.getByRole("button", { name: "Open command palette" }).click();
   await page.getByRole("textbox", { name: "Search commands" }).fill("rename current project");
   await page.getByRole("option", { name: /Rename current project/ }).click();
@@ -61,7 +61,7 @@ test("reads final scrollback after a managed terminal exits", async ({ harness }
     return (await terminal?.snapshot({ id }))?.buffer ?? "";
   }, runtimeId)).toContain("final scrollback proof");
 
-  await selectSurface(page, "Sessions");
+  await selectSurface(page, "History");
   const results = page.getByRole("listbox", { name: "Session results" });
   await results.getByRole("option", { name: /Manual · zsh 1/i }).click();
   await expect(page.getByRole("article", { name: /Manual · zsh 1/i }))
@@ -76,7 +76,7 @@ async function openLaunchItem(page: Page, label: string): Promise<void> {
   await page.getByRole("menuitem", { name: label, exact: true }).click();
 }
 
-async function selectSurface(page: Page, label: "Work" | "Sessions"): Promise<void> {
+async function selectSurface(page: Page, label: "Work" | "History"): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: label, exact: true }).click();
 }
