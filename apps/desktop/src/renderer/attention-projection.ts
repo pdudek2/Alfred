@@ -101,15 +101,27 @@ function projectRuntimeBlocker(
   };
 }
 
+// Contract section 3: Needs you means the session cannot continue without the
+// user. A draft waits for a Launch click but blocks nothing, so it is excluded.
+export function isNeedsYouAttention(item: AttentionProjection): boolean {
+  return item.kind === "agent-waiting"
+    || item.kind === "blocked-safety"
+    || item.kind === "runtime-blocker";
+}
+
+export function needsYouItems(items: readonly AttentionProjection[]): AttentionProjection[] {
+  return items.filter(isNeedsYouAttention);
+}
+
 export function blockingAttentionCount(items: readonly AttentionProjection[]): number {
-  return items.reduce((count, item) => count + Number(item.blocksAgent), 0);
+  return items.reduce((count, item) => count + Number(isNeedsYouAttention(item)), 0);
 }
 
 export function blockingAttentionCountByWorkspace(
   items: readonly AttentionProjection[],
 ): ReadonlyMap<string, number> {
   return items.reduce((counts, item) => {
-    if (item.blocksAgent) {
+    if (isNeedsYouAttention(item)) {
       counts.set(item.workspaceId, (counts.get(item.workspaceId) ?? 0) + 1);
     }
     return counts;

@@ -15,7 +15,7 @@ if (!stylesPath) {
 const styles = readFileSync(stylesPath, "utf8");
 const productCssPaths = [
   "styles.css",
-  "components/agents-drawer.css",
+  "components/needs-you-popover.css",
   "components/project-navigator-signals.css",
   "components/work-surface-toolbar.css",
   "components/workspace-preview-dock.css",
@@ -733,6 +733,7 @@ describe("renderer CSS contracts", () => {
       selectors.every((selector) =>
         selector.includes("attention")
         || selector.includes("waiting")
+        || selector.includes("needs-you")
         || selector === ".staged-actions .approve-button",
       ),
     )).toBe(true);
