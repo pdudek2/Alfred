@@ -10,7 +10,7 @@ import type { AgentKind } from "../shared/alfred-ipc.js";
 type ExecFile = (
   file: string,
   args: string[],
-  options?: { cwd?: string | undefined; timeout?: number | undefined },
+  options?: { cwd?: string | undefined; maxBuffer?: number | undefined; timeout?: number | undefined },
 ) => Promise<{ stdout: string; stderr: string }>;
 
 type PrepareAgentWorktreeOptions = {
@@ -632,9 +632,26 @@ async function gitOutput(run: ExecFile, args: string[], fallbackMessage: string)
   return (await gitOutputRaw(run, args, fallbackMessage)).trim();
 }
 
+// Limits follow the cost of the git subcommand. Measured on a 20k-file repo: `worktree add`
+// took 2.4 s (the old shared limit was 2.5 s) and `status` output grows with untracked files.
+const GIT_QUICK_TIMEOUT_MS = 2_500;
+const GIT_LISTING_TIMEOUT_MS = 15_000;
+const GIT_CHECKOUT_TIMEOUT_MS = 60_000;
+const GIT_LISTING_MAX_BUFFER = 64 * 1024 * 1024;
+
+function gitLimits(args: string[]): { maxBuffer?: number; timeout: number } {
+  // Every call starts with `-C <dir>`, so the subcommand is the third argument.
+  const subcommand = args[2];
+  if (subcommand === "worktree" || subcommand === "apply") return { timeout: GIT_CHECKOUT_TIMEOUT_MS };
+  if (subcommand === "status" || subcommand === "diff" || subcommand === "ls-files") {
+    return { maxBuffer: GIT_LISTING_MAX_BUFFER, timeout: GIT_LISTING_TIMEOUT_MS };
+  }
+  return { timeout: GIT_QUICK_TIMEOUT_MS };
+}
+
 async function gitOutputRaw(run: ExecFile, args: string[], fallbackMessage: string): Promise<string> {
   try {
-    const { stdout } = await run("git", args, { cwd: os.homedir(), timeout: 2_500 });
+    const { stdout } = await run("git", args, { cwd: os.homedir(), ...gitLimits(args) });
     return stdout;
   } catch (error: unknown) {
     throw new Error(`${fallbackMessage} ${errorMessage(error)}`, { cause: error });
