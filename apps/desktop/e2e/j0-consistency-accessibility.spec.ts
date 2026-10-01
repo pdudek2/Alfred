@@ -134,8 +134,8 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await expectMinimumHeight(inbox.locator(".inbox-docket__primary"), 32);
   await inbox.getByRole("button", { name: "Back to Work" }).click();
 
-  await selectSurface(page, "Sessions");
-  const sessions = page.getByRole("region", { name: "Sessions workspace" });
+  await selectSurface(page, "History");
+  const sessions = page.getByRole("region", { name: "History" });
   await expectSansFont(sessions);
   await sessions
     .getByRole("listbox", { name: "Session results" })
@@ -208,7 +208,7 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await page.keyboard.press("Escape");
   await expect(needsYou).toBeHidden();
   await page.getByRole("button", { name: /^Browse \d+ asleep sessions?$/ }).click();
-  const asleep = page.getByRole("region", { name: "Sessions workspace" });
+  const asleep = page.getByRole("region", { name: "History" });
   await asleep.getByRole("listbox", { name: "Session results" })
     .getByRole("option", { name: /Fixture diff handoff/ }).click();
   await asleep.getByRole("toolbar", { name: "Asleep checkout actions" })
@@ -282,7 +282,7 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
 
 async function selectSurface(
   page: Page,
-  surface: "Work" | "Sessions" | "Context" | "Local Data & Privacy",
+  surface: "Work" | "History" | "Context" | "Local Data & Privacy",
 ): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();

@@ -318,8 +318,8 @@ test.describe("long Decision Inbox", () => {
     await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
 
     await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-    await page.getByRole("menuitem", { name: "Sessions" }).click();
-    await expect(page.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
+    await page.getByRole("menuitem", { name: "History" }).click();
+    await expect(page.getByRole("region", { name: "History" })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
     const inboxSwitcher = page.getByTestId("workbench-header")

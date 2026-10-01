@@ -25,6 +25,9 @@ test("lists only blocked sessions across projects without reflowing the terminal
   const xtermHost = page.locator('[data-session-id="codex-1"] [data-testid="xterm-host"]');
   await expect(xtermHost).toBeAttached();
   const xtermHostBefore = await requiredHandle(xtermHost, "connected Codex xterm host");
+  // A new session focuses its terminal asynchronously; let that settle so it
+  // does not race the popover's initial focus.
+  await expect.poll(() => terminalOwnsFocus(page)).toBe(true);
 
   // Fixture item 1 is blocked by preflight; Fixture item 2 is a plain draft
   // and must stay out of Needs you.
@@ -101,7 +104,7 @@ test("reviews the real diff of an asleep checkout without replacing the live xte
   const xtermHostBefore = await requiredHandle(xtermHost, "connected Codex xterm host");
 
   await page.getByRole("button", { name: /^Browse \d+ asleep sessions?$/ }).click();
-  const sessions = page.getByRole("region", { name: "Sessions workspace" });
+  const sessions = page.getByRole("region", { name: "History" });
   await expect(sessions).toBeVisible();
   await sessions.getByRole("listbox", { name: "Session results" })
     .getByRole("option", { name: /Fixture diff handoff/ }).click();

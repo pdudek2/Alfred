@@ -87,8 +87,8 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   identityTransitions.push("Work→Inbox");
   surfaceGeometries.push(await readActiveSurfaceGeometry(page, "Inbox"));
 
-  await selectSurface(page, "Sessions");
-  await expect(page.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
+  await selectSurface(page, "History");
+  await expect(page.getByRole("region", { name: "History" })).toBeVisible();
   await expectTerminalNodes(terminalNodes, page, "Sessions");
   identityTransitions.push("Inbox→Sessions");
   surfaceGeometries.push(await readActiveSurfaceGeometry(page, "Sessions"));
@@ -206,7 +206,7 @@ async function captureReviewScreenshot(
   });
 }
 
-async function selectSurface(page: Page, surface: "Work" | "Sessions"): Promise<void> {
+async function selectSurface(page: Page, surface: "Work" | "History"): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();
 }

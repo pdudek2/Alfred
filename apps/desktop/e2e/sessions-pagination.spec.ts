@@ -23,8 +23,8 @@ test("Sessions exposes all 120 external summaries through bounded UI pages and l
     "utf8",
   );
 
-  await selectSurface(page, "Sessions");
-  const sessions = page.getByRole("region", { name: "Sessions workspace" });
+  await selectSurface(page, "History");
+  const sessions = page.getByRole("region", { name: "History" });
   const results = sessions.getByRole("listbox", { name: "Session results" });
   await page.getByRole("combobox", { name: "Session source" })
     .selectOption("external-codex");
@@ -61,7 +61,7 @@ test("Sessions exposes all 120 external summaries through bounded UI pages and l
   await harness.closeActiveTerminals();
 });
 
-async function selectSurface(page: import("@playwright/test").Page, surface: "Sessions"): Promise<void> {
+async function selectSurface(page: import("@playwright/test").Page, surface: "History"): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();
 }
