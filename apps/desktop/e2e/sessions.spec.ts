@@ -64,7 +64,7 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
   await expect(results.getByRole("option")).toHaveCount(12);
 
   await mappedSession.click();
-  await expect(page.getByRole("button", { name: "Resume in Work" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Resume" })).toBeVisible();
   await expect(page.getByText("Transcript is incomplete.", { exact: true })).toBeVisible();
 
   await results.getByRole("option", { name: /Free chat session 04/i }).click();

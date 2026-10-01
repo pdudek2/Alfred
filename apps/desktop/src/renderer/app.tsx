@@ -308,17 +308,6 @@ export function App() {
   );
   const activeRecoverableSessions = activeSessions.filter((session) => recoverySessionIds.has(session.id));
   const activeWorkRecoverableSessions = activeRecoverableSessions.filter(isWorkSession);
-  const sessionDetailsById: ReadonlyMap<
-    string,
-    Pick<SessionTile, "args" | "command" | "cwd">
-  > = new Map(terminalSessions.map((session) => [
-    session.id,
-    {
-      cwd: session.cwd,
-      ...(session.command === undefined ? {} : { command: session.command }),
-      ...(session.args === undefined ? {} : { args: session.args }),
-    },
-  ]));
   const needsYouAttention = needsYouItems(attentionItems);
   const needsYouCount = needsYouAttention.length;
   // Inbox still holds drafts and recovery until History and the plan line replace it.
@@ -2931,9 +2920,6 @@ export function App() {
               <div className="surface-panel active">
                 <ReviewSurface
                   attentionItems={attentionItems}
-                  armedRecoverySessionIds={armedRecoverySessionIds}
-                  sessionDetailsById={sessionDetailsById}
-                  onDiscardRecovery={handleCloseSession}
                   onLaunch={handleLaunchInboxItem}
                   onOpenInWork={handleFocusSessionInWorkspace}
                   onRecover={handleRecoverInboxItem}

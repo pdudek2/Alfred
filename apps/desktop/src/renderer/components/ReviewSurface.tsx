@@ -1,35 +1,26 @@
 import { ChevronLeft } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { AttentionProjection } from "../attention-projection";
-import type { SessionTile } from "../session-state";
 import { InboxDecisionItem } from "./InboxDecisionItem";
-import { InboxRecoveryList } from "./InboxRecoveryList";
 
 type ReviewSurfaceProps = {
   attentionItems: AttentionProjection[];
-  armedRecoverySessionIds: ReadonlySet<string>;
-  sessionDetailsById: ReadonlyMap<string, Pick<SessionTile, "args" | "command" | "cwd">>;
   onLaunch: (sessionId: string) => void;
   onOpenInWork: (workspaceId: string, sessionId: string) => void;
   onRecover: (workspaceId: string, sessionId: string) => void;
-  onDiscardRecovery: (sessionId: string) => void;
   onReviewEdit: (workspaceId: string, sessionId: string) => void;
   onBackToWork: () => void;
 };
 
 export function ReviewSurface({
   attentionItems,
-  armedRecoverySessionIds,
-  sessionDetailsById,
   onLaunch,
   onOpenInWork,
   onRecover,
-  onDiscardRecovery,
   onReviewEdit,
   onBackToWork,
 }: ReviewSurfaceProps) {
   const decisions = attentionItems.filter((item) => item.section === "needs-you");
-  const recoveryItems = attentionItems.filter((item) => item.section === "recovery");
   const [selectedAttentionId, setSelectedAttentionId] = useState(
     () => decisions[0]?.id ?? null,
   );
@@ -84,9 +75,7 @@ export function ReviewSurface({
 
   useLayoutEffect(() => {
     if (!selectedAttentionId) {
-      const recoveryToggle = surfaceRef.current?.querySelector<HTMLButtonElement>("[data-inbox-recovery-toggle]");
-      if (recoveryToggle) recoveryToggle.focus();
-      else surfaceRef.current?.focus();
+      surfaceRef.current?.focus();
       return;
     }
     const escapedId = typeof CSS !== "undefined" && typeof CSS.escape === "function"
@@ -144,7 +133,7 @@ export function ReviewSurface({
           <small>All projects</small>
         </span>
         <span className="inbox-docket__summary">
-          {decisions.length} need you · {recoveryItems.length} recovery
+          {decisions.length} need you
         </span>
       </header>
 
@@ -156,8 +145,7 @@ export function ReviewSurface({
 
         {decisions.length === 0 ? (
           <div className="inbox-docket__empty" role="status">
-            <strong>{recoveryItems.length > 0 ? "Queue clear" : "Nothing needs you"}</strong>
-            {recoveryItems.length > 0 && <span>No decisions are blocking work.</span>}
+            <strong>Nothing needs you</strong>
           </div>
         ) : (
           <ol className="inbox-docket__list" aria-label="Needs you items">
@@ -172,13 +160,6 @@ export function ReviewSurface({
             ))}
           </ol>
         )}
-        <InboxRecoveryList
-          armedRecoverySessionIds={armedRecoverySessionIds}
-          items={recoveryItems}
-          sessionDetailsById={sessionDetailsById}
-          onDiscard={onDiscardRecovery}
-          onRecover={onRecover}
-        />
       </div>
 
     </section>

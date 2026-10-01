@@ -649,12 +649,12 @@ async function openInboxFromCommandPalette(user: ReturnType<typeof userEvent.set
   });
 }
 
-async function openInboxRecovery(user: ReturnType<typeof userEvent.setup>) {
-  await openInboxFromCommandPalette(user);
-  const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-  const toggle = within(inbox).getByRole("button", { name: /Asleep · \d+ asleep sessions?/ });
-  if (toggle.getAttribute("aria-expanded") !== "true") await user.click(toggle);
-  return inbox;
+async function openHistorySession(user: ReturnType<typeof userEvent.setup>, title: string) {
+  if (!screen.queryByRole("region", { name: "History" })) await selectSurface(user, "History");
+  const history = screen.getByRole("region", { name: "History" });
+  const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  await user.click(await within(history).findByRole("option", { name: new RegExp(escaped) }));
+  return history;
 }
 
 async function openSavedSessions(user: ReturnType<typeof userEvent.setup>) {
@@ -3325,7 +3325,7 @@ describe("App integration", () => {
 
     await selectSurface(user, "History");
     await user.click(await screen.findByRole("option", { name: /Load Alfred memory/i }));
-    const resume = screen.getByRole("button", { name: "Resume in Work" });
+    const resume = screen.getByRole("button", { name: "Resume" });
     fireEvent.click(resume);
     fireEvent.click(resume);
 
@@ -3388,7 +3388,7 @@ describe("App integration", () => {
     setWorkspaceLayout.mockClear();
     await selectSurface(user, "History");
     await user.click(await screen.findByRole("option", { name: /Keep Arrange geometry/i }));
-    await user.click(screen.getByRole("button", { name: "Resume in Work" }));
+    await user.click(screen.getByRole("button", { name: "Resume" }));
 
     await waitFor(() => expect(setWorkspaceLayout).toHaveBeenCalledTimes(1));
     const persistedLayouts = setWorkspaceLayout.mock.calls[0]?.[0]?.layouts;
@@ -3459,9 +3459,9 @@ describe("App integration", () => {
     await selectSurface(user, "History");
 
     await user.click(await screen.findByRole("option", { name: /Concurrent first/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Resume in Work" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
     await user.click(screen.getByRole("option", { name: /Concurrent second/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Resume in Work" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
     await waitFor(() => expect(resolveExternalSession).toHaveBeenCalledTimes(2));
 
     await act(async () => {
@@ -3551,7 +3551,7 @@ describe("App integration", () => {
     expect(screen.queryByTestId("xterm-host")).not.toBeInTheDocument();
     await user.click(savedSessionsButton);
     await user.click(await screen.findByRole("option", { name: /Restored Sessions action/i }));
-    await user.click(screen.getByRole("button", { name: "Resume in Work" }));
+    await user.click(screen.getByRole("button", { name: "Resume" }));
 
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledTimes(1);
@@ -7043,8 +7043,8 @@ describe("App integration", () => {
       clientId: "alfred-early-exit",
       exitCode: 0,
     });
-    await openInboxFromCommandPalette(user);
-    expect(screen.getByRole("button", { name: "Asleep · 1 asleep session" })).toBeInTheDocument();
+    const history = await openHistorySession(user, "Early exit");
+    expect(within(history).getByRole("button", { name: "Resume" })).toBeInTheDocument();
 
     await act(async () => {
       creation.resolve({
@@ -7063,7 +7063,7 @@ describe("App integration", () => {
       await creation.promise;
     });
 
-    expect(screen.getByRole("button", { name: "Asleep · 1 asleep session" })).toBeInTheDocument();
+    expect(within(history).getByRole("button", { name: "Resume" })).toBeInTheDocument();
   });
 
   it("shows unsafe commands as blocked in the global Inbox", async () => {
@@ -7407,10 +7407,8 @@ describe("App integration", () => {
     });
     await emitExit({ id: "runtime-a", exitCode: 0 });
 
-    await openInboxFromCommandPalette(user);
-    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    await user.click(within(inbox).getByRole("button", { name: "Asleep · 1 asleep session" }));
-    await user.click(within(inbox).getByRole("button", { name: "Resume Manual · zsh 9 in Alfred" }));
+    const history = await openHistorySession(user, "Manual · zsh 9");
+    await user.click(within(history).getByRole("button", { name: "Resume" }));
 
     expect(forgetTerminal).not.toHaveBeenCalled();
     await waitFor(() => {
@@ -8457,7 +8455,7 @@ describe("App integration", () => {
     setWorkspaceLayout.mockClear();
     await user.click(savedSessionsButton);
     await user.click(await screen.findByRole("option", { name: /Codex · session 9/i }));
-    await user.click(screen.getByRole("button", { name: "Resume in Work" }));
+    await user.click(screen.getByRole("button", { name: "Resume" }));
 
     expect(createTerminal).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -8512,7 +8510,7 @@ describe("App integration", () => {
 
     await user.click(await screen.findByRole("button", { name: "Browse 1 asleep session" }));
     await user.click(await screen.findByRole("option", { name: /Codex · exact session/i }));
-    expect(screen.getByRole("button", { name: "Resume in Work" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Resume" })).toBeVisible();
   });
 
   it("offers a restored Codex fallback from saved Sessions", async () => {
@@ -8543,7 +8541,7 @@ describe("App integration", () => {
 
     await user.click(await screen.findByRole("button", { name: "Browse 1 asleep session" }));
     await user.click(await screen.findByRole("option", { name: /Codex · unknown target/i }));
-    expect(screen.getByRole("button", { name: "Resume in Work" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Resume" })).toBeVisible();
   });
 
   it("requires explicit review before relaunching a mutating restored command", async () => {
@@ -8573,39 +8571,38 @@ describe("App integration", () => {
 
     expect(screen.queryByRole("article", { name: /Clean Desktop/i })).not.toBeInTheDocument();
 
-    await openInboxFromCommandPalette(user);
-    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    await user.click(within(inbox).getByRole("button", { name: "Asleep · 1 asleep session" }));
-    expect(inbox).not.toHaveTextContent("/Users/patryk/Desktop/Very Long Project");
+    const history = await openHistorySession(user, "Clean Desktop");
+    expect(within(history).queryByRole("region", { name: "Resume review" })).not.toBeInTheDocument();
 
-    await user.click(within(inbox).getByRole("button", { name: "Review resume Clean Desktop in Alfred" }));
+    await user.click(within(history).getByRole("button", { name: "Review resume" }));
 
     expect(createTerminal).not.toHaveBeenCalled();
-    expect(inbox).toHaveTextContent("find -exec mutates files when replayed");
-    expect(inbox).toHaveTextContent("/Users/patryk/Desktop/Very Long Project");
-    expect(inbox).toHaveTextContent("find /Users/patryk/Desktop -maxdepth 1 -exec mv {} /Users/patryk/Desktop/Alfred ;");
-    expect(within(inbox).getByRole("button", { name: "Confirm resume Clean Desktop in Alfred" })).toBeInTheDocument();
+    const review = within(history).getByRole("region", { name: "Resume review" });
+    expect(review).toHaveTextContent("find -exec mutates files when replayed");
+    expect(review).toHaveTextContent("/Users/patryk/Desktop/Very Long Project");
+    expect(review).toHaveTextContent("find /Users/patryk/Desktop -maxdepth 1 -exec mv {} /Users/patryk/Desktop/Alfred ;");
+    expect(within(history).getByRole("button", { name: "Confirm resume" })).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
 
     expect(createTerminal).not.toHaveBeenCalled();
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
-    expect(within(inbox).queryByRole("button", { name: "Confirm resume Clean Desktop in Alfred" })).not.toBeInTheDocument();
-    expect(within(inbox).getByRole("button", { name: "Review resume Clean Desktop in Alfred" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "History" })).toBeVisible();
+    expect(within(history).queryByRole("button", { name: "Confirm resume" })).not.toBeInTheDocument();
+    expect(within(history).getByRole("button", { name: "Review resume" })).toBeInTheDocument();
 
+    within(history).getByRole("button", { name: "Review resume" }).focus();
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "History" })).not.toBeInTheDocument();
 
-    await openInboxFromCommandPalette(user);
-    const reopenedInbox = screen.getByRole("region", { name: "Inbox workspace" });
-    await user.click(within(reopenedInbox).getByRole("button", { name: "Asleep · 1 asleep session" }));
-    await user.click(within(reopenedInbox).getByRole("button", { name: "Review resume Clean Desktop in Alfred" }));
-    await user.click(within(reopenedInbox).getByRole("button", { name: "Confirm resume Clean Desktop in Alfred" }));
+    const reopenedHistory = await openHistorySession(user, "Clean Desktop");
+    expect(within(reopenedHistory).queryByRole("button", { name: "Confirm resume" })).not.toBeInTheDocument();
+    await user.click(within(reopenedHistory).getByRole("button", { name: "Review resume" }));
+    await user.click(within(reopenedHistory).getByRole("button", { name: "Confirm resume" }));
 
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "clean-desktop" }));
     });
-    expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "History" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Clean Desktop");
   });
@@ -8739,8 +8736,8 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Review resume" })).toBeInTheDocument();
   });
 
-  it.each(["Work", "History"] as const)(
-    "disarms unsafe Asleep before global navigation can open %s",
+  it.each(["Back to Work", "Surfaces menu"] as const)(
+    "disarms unsafe Asleep before leaving History through %s",
     async (surfaceLabel) => {
       const user = userEvent.setup();
       const { createTerminal } = installDesktopBridge(
@@ -8752,8 +8749,8 @@ describe("App integration", () => {
         undefined,
         [
           {
-            clientId: `unsafe-switch-${surfaceLabel.toLowerCase()}`,
-            title: `Unsafe ${surfaceLabel} switch`,
+            clientId: `unsafe-switch-${surfaceLabel === "Back to Work" ? "back" : "menu"}`,
+            title: "Unsafe switch",
             cwd: "/repo",
             source: "manual",
             isolation: "shared",
@@ -8766,139 +8763,30 @@ describe("App integration", () => {
       );
 
       render(<App />);
-      await openInboxFromCommandPalette(user);
-      const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-      await user.click(within(inbox).getByRole("button", { name: "Asleep · 1 asleep session" }));
-      await user.click(within(inbox).getByRole("button", {
-        name: `Review resume Unsafe ${surfaceLabel} switch in Alfred`,
-      }));
-      expect(within(inbox).getByRole("button", {
-        name: `Confirm resume Unsafe ${surfaceLabel} switch in Alfred`,
-      })).toBeInTheDocument();
+      const history = await openHistorySession(user, "Unsafe switch");
+      await user.click(within(history).getByRole("button", { name: "Review resume" }));
+      expect(within(history).getByRole("button", { name: "Confirm resume" })).toBeInTheDocument();
 
-      const leaveInbox = async () => {
-        if (surfaceLabel === "Work") {
-          await user.click(within(inbox).getByRole("button", { name: "Back to Work" }));
+      const leaveHistory = async () => {
+        if (surfaceLabel === "Back to Work") {
+          await user.click(within(history).getByRole("button", { name: "Back to Work" }));
         } else {
-          await selectSurface(user, "History");
+          await selectSurface(user, "Work");
         }
       };
-      await leaveInbox();
+      await leaveHistory();
 
-      expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
-      expect(within(inbox).getByRole("button", {
-        name: `Review resume Unsafe ${surfaceLabel} switch in Alfred`,
-      })).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "History" })).toBeVisible();
+      expect(within(history).getByRole("button", { name: "Review resume" })).toBeInTheDocument();
       expect(createTerminal).not.toHaveBeenCalled();
 
-      await leaveInbox();
+      await leaveHistory();
 
-      if (surfaceLabel === "Work") {
-        expect(screen.getByTestId("desk-runtime-surface")).not.toHaveAttribute("aria-hidden");
-      } else {
-        expect(screen.getByRole("region", { name: "History" })).toBeVisible();
-      }
-      expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
+      expect(screen.getByTestId("desk-runtime-surface")).not.toHaveAttribute("aria-hidden");
+      expect(screen.queryByRole("region", { name: "History" })).not.toBeInTheDocument();
       expect(createTerminal).not.toHaveBeenCalled();
     },
   );
-
-  it("disarms unsafe Recovery before Context can consume Escape", async () => {
-    const user = userEvent.setup();
-    const { createTerminal } = installDesktopBridge(
-      undefined,
-      null,
-      [],
-      undefined,
-      undefined,
-      undefined,
-      [
-        {
-          clientId: "unsafe-context",
-          title: "Unsafe context recovery",
-          cwd: "/repo",
-          source: "manual",
-          isolation: "shared",
-          shell: "/bin/sh",
-          command: "/bin/sh",
-          args: ["-c", "/usr/bin/printf 'confirmed restore\\n'"],
-          buffer: "asleep output\n",
-        },
-      ],
-    );
-
-    render(<App />);
-    await openInboxFromCommandPalette(user);
-    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    await user.click(within(inbox).getByRole("button", { name: "Asleep · 1 asleep session" }));
-    await user.click(within(inbox).getByRole("button", { name: "Review resume Unsafe context recovery in Alfred" }));
-    expect(within(inbox).getByRole("button", { name: "Confirm resume Unsafe context recovery in Alfred" })).toBeInTheDocument();
-
-    await selectSurface(user, "Context");
-    expect(screen.getByTestId("context-column")).toHaveClass("open");
-    const closeContext = screen.getByRole("button", { name: "Close Context panel" });
-    closeContext.focus();
-    expect(closeContext).toHaveFocus();
-    await user.keyboard("{Escape}");
-
-    expect(screen.getByTestId("context-column")).toHaveClass("open");
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
-    expect(within(inbox).queryByRole("button", { name: "Confirm resume Unsafe context recovery in Alfred" })).not.toBeInTheDocument();
-    expect(within(inbox).getByRole("button", { name: "Review resume Unsafe context recovery in Alfred" })).toBeInTheDocument();
-    expect(createTerminal).not.toHaveBeenCalled();
-
-    expect(closeContext).toHaveFocus();
-    await user.keyboard("{Escape}");
-
-    expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
-    expect(screen.getByTestId("desk-runtime-surface")).not.toHaveAttribute("aria-hidden");
-    expect(screen.getByTestId("context-column")).toHaveClass("open");
-    expect(createTerminal).not.toHaveBeenCalled();
-  });
-
-  it("lets the command-palette shortcut bubble from a focused Recovery control", async () => {
-    const user = userEvent.setup();
-    installDesktopBridge(
-      undefined,
-      null,
-      [],
-      undefined,
-      undefined,
-      undefined,
-      [
-        {
-          clientId: "shortcut-recovery",
-          title: "Shortcut recovery",
-          cwd: "/repo",
-          source: "manual",
-          isolation: "shared",
-          shell: "zsh",
-          command: "zsh",
-          args: [],
-          buffer: "asleep output\n",
-        },
-      ],
-    );
-
-    render(<App />);
-    await openInboxFromCommandPalette(user);
-    const recoveryToggle = screen.getByRole("button", { name: "Asleep · 1 asleep session" });
-    recoveryToggle.focus();
-
-    await user.keyboard("{Control>}k{/Control}");
-
-    expect(screen.getByRole("dialog", { name: "Command palette" })).toBeInTheDocument();
-
-    await user.keyboard("{Escape}");
-
-    expect(screen.queryByRole("dialog", { name: "Command palette" })).not.toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
-
-    recoveryToggle.focus();
-    await user.keyboard("{Escape}");
-
-    expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
-  });
 
   it("lets Privacy consume Escape over Inbox and restore the surviving trigger", async () => {
     const user = userEvent.setup();
@@ -8918,44 +8806,6 @@ describe("App integration", () => {
     expect(screen.queryByRole("dialog", { name: "Local Data & Privacy" })).not.toBeInTheDocument();
     expect(inbox).toBeVisible();
     expect(surfaces).toHaveFocus();
-  });
-
-  it("keeps Recovery non-blocking and exposes Discard only after expansion", async () => {
-    const { forgetTerminal } = installDesktopBridge(
-      undefined,
-      null,
-      [],
-      undefined,
-      undefined,
-      undefined,
-      [
-        {
-          clientId: "manual-9",
-          title: "Manual · zsh 9",
-          cwd: "/repo",
-          source: "manual",
-          shell: "/bin/zsh",
-          command: "zsh",
-          args: [],
-          buffer: "asleep output\n",
-        },
-      ],
-    );
-
-    render(<App />);
-
-    expect(await screen.findByRole("button", { name: "Open Inbox surface" })).not.toHaveTextContent("1");
-
-    await openInboxFromCommandPalette(userEvent.setup());
-    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-
-    expect(inbox).toHaveTextContent("Asleep · 1 asleep session");
-    expect(inbox).not.toHaveTextContent("Manual · zsh 9");
-    expect(within(inbox).queryByRole("button", { name: /Discard/i })).not.toBeInTheDocument();
-    await userEvent.click(within(inbox).getByRole("button", { name: "Asleep · 1 asleep session" }));
-    expect(inbox).toHaveTextContent("Manual · zsh 9");
-    expect(within(inbox).getByRole("button", { name: "Discard Manual · zsh 9" })).toBeInTheDocument();
-    expect(forgetTerminal).not.toHaveBeenCalled();
   });
 
   it("routes Recovery Discard through the existing worktree inspection guard", async () => {
@@ -8985,10 +8835,8 @@ describe("App integration", () => {
     );
 
     render(<App />);
-    await openInboxFromCommandPalette(user);
-    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    await user.click(within(inbox).getByRole("button", { name: "Asleep · 1 asleep session" }));
-    await user.click(within(inbox).getByRole("button", { name: "Discard Codex · guarded recovery" }));
+    const history = await openHistorySession(user, "Codex · guarded recovery");
+    await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
 
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-recovery" });
     expect(screen.getByRole("dialog", { name: "Discard isolated checkout" })).toBeInTheDocument();
@@ -9021,13 +8869,11 @@ describe("App integration", () => {
     );
 
     render(<App />);
-    await openInboxFromCommandPalette(user);
-    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    await user.click(within(inbox).getByRole("button", { name: "Asleep · 1 asleep session" }));
-    await user.click(within(inbox).getByRole("button", { name: "Review resume Guarded armed recovery in Alfred" }));
-    expect(within(inbox).getByRole("button", { name: "Confirm resume Guarded armed recovery in Alfred" })).toBeInTheDocument();
+    const history = await openHistorySession(user, "Guarded armed recovery");
+    await user.click(within(history).getByRole("button", { name: "Review resume" }));
+    expect(within(history).getByRole("button", { name: "Confirm resume" })).toBeInTheDocument();
 
-    const discardTrigger = within(inbox).getByRole("button", { name: "Discard Guarded armed recovery" });
+    const discardTrigger = within(history).getByRole("button", { name: "Discard asleep session" });
     await user.click(discardTrigger);
     const dialog = await screen.findByRole("dialog", { name: "Discard isolated checkout" });
     const firstControl = within(dialog).getByRole("button", { name: "Close discard dialog" });
@@ -9046,14 +8892,14 @@ describe("App integration", () => {
 
     expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
     expect(discardTrigger).toHaveFocus();
-    expect(screen.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
-    expect(within(inbox).getByRole("button", { name: "Confirm resume Guarded armed recovery in Alfred" })).toBeInTheDocument();
-    expect(within(inbox).getByText("Guarded armed recovery")).toBeVisible();
+    expect(screen.getByRole("region", { name: "History" })).toBeVisible();
+    expect(within(history).getByRole("button", { name: "Confirm resume" })).toBeInTheDocument();
+    expect(within(history).getByRole("option", { name: /Guarded armed recovery/ })).toBeVisible();
     expect(forgetTerminal).not.toHaveBeenCalled();
     expect(createTerminal).not.toHaveBeenCalled();
   });
 
-  it("clears armed Recovery state on immediate Discard so Escape exits Inbox", async () => {
+  it("clears armed recovery state on immediate Discard so Escape leaves History", async () => {
     const user = userEvent.setup();
     const { createTerminal, forgetTerminal } = installDesktopBridge(
       undefined,
@@ -9078,18 +8924,16 @@ describe("App integration", () => {
     );
 
     render(<App />);
-    await openInboxFromCommandPalette(user);
-    const inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    await user.click(within(inbox).getByRole("button", { name: "Asleep · 1 asleep session" }));
-    await user.click(within(inbox).getByRole("button", { name: "Review resume Armed shared recovery in Alfred" }));
-    await user.click(within(inbox).getByRole("button", { name: "Discard Armed shared recovery" }));
+    const history = await openHistorySession(user, "Armed shared recovery");
+    await user.click(within(history).getByRole("button", { name: "Review resume" }));
+    await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
 
     expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "armed-shared", cleanupWorktree: true });
     expect(createTerminal).not.toHaveBeenCalled();
-    inbox.focus();
+    within(history).getByRole("button", { name: "Back to Work" }).focus();
     await user.keyboard("{Escape}");
 
-    expect(screen.queryByRole("region", { name: "Inbox workspace" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "History" })).not.toBeInTheDocument();
   });
 
   it("clears armed Recovery state after confirmed worktree Discard before reusing the session ID", async () => {
@@ -9118,11 +8962,9 @@ describe("App integration", () => {
     );
 
     render(<App />);
-    await openInboxFromCommandPalette(user);
-    let inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    await user.click(within(inbox).getByRole("button", { name: "Asleep · 1 asleep session" }));
-    await user.click(within(inbox).getByRole("button", { name: "Review resume Original risky recovery in Alfred" }));
-    await user.click(within(inbox).getByRole("button", { name: "Discard Original risky recovery" }));
+    let history = await openHistorySession(user, "Original risky recovery");
+    await user.click(within(history).getByRole("button", { name: "Review resume" }));
+    await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
     await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
     expect(bridge.forgetTerminal).toHaveBeenCalledWith({ clientId: "manual-1", cleanupWorktree: true });
 
@@ -9143,17 +8985,14 @@ describe("App integration", () => {
     expect(screen.getByTestId("session-status-announcer")).toHaveTextContent("Reused risky recovery is now idle.");
     await bridge.emitExit({ id: "runtime-reused-recovery", exitCode: 1 });
 
-    await openInboxFromCommandPalette(user);
-    inbox = screen.getByRole("region", { name: "Inbox workspace" });
-    const recoveryToggle = screen.getByRole("button", { name: "Asleep · 1 asleep session" });
-    if (recoveryToggle.getAttribute("aria-expanded") !== "true") await user.click(recoveryToggle);
-    await user.click(within(inbox).getByRole("button", { name: "Review resume Reused risky recovery in Alfred" }));
+    history = await openHistorySession(user, "Reused risky recovery");
+    await user.click(within(history).getByRole("button", { name: "Review resume" }));
 
-    expect(within(inbox).getByRole("button", { name: "Confirm resume Reused risky recovery in Alfred" })).toBeInTheDocument();
+    expect(within(history).getByRole("button", { name: "Confirm resume" })).toBeInTheDocument();
     expect(bridge.createTerminal).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps isolated saved-session cleanup wired through Inbox", async () => {
+  it("keeps isolated saved-session cleanup wired through History", async () => {
     const user = userEvent.setup();
     const { forgetTerminal, worktreeDiff } = installDesktopBridge(
       undefined,
@@ -9181,8 +9020,8 @@ describe("App integration", () => {
 
     render(<App />);
     expect(screen.queryByRole("article", { name: /Codex · session 9/i })).not.toBeInTheDocument();
-    const inbox = await openInboxRecovery(user);
-    await user.click(within(inbox).getByRole("button", { name: "Discard Codex · session 9" }));
+    const history = await openHistorySession(user, "Codex · session 9");
+    await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
 
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-9" });
     const discardDialog = screen.getByRole("dialog", { name: "Discard isolated checkout" });
@@ -9191,14 +9030,14 @@ describe("App integration", () => {
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Discard isolated checkout" })).not.toBeInTheDocument();
-    expect(inbox).toBeVisible();
-    expect(within(inbox).getByText("Codex · session 9")).toBeInTheDocument();
+    expect(history).toBeVisible();
+    expect(within(history).getByRole("option", { name: /Codex · session 9/ })).toBeInTheDocument();
 
-    await user.click(within(inbox).getByRole("button", { name: "Discard Codex · session 9" }));
+    await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
     await user.click(await screen.findByRole("button", { name: "Discard checkout permanently" }));
 
     expect(screen.queryByRole("article", { name: /Codex · session 9/i })).not.toBeInTheDocument();
-    await waitFor(() => expect(within(inbox).queryByText("Codex · session 9")).not.toBeInTheDocument());
+    await waitFor(() => expect(within(history).queryByText("Codex · session 9")).not.toBeInTheDocument());
     expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9", cleanupWorktree: true });
   });
 
@@ -9583,15 +9422,15 @@ describe("App integration", () => {
     forgetTerminal.mockReturnValue(pendingForget.promise);
 
     render(<App />);
-    const inbox = await openInboxRecovery(user);
-    const discard = within(inbox).getByRole("button", { name: "Discard Codex · session 9" });
+    const history = await openHistorySession(user, "Codex · session 9");
+    const discard = within(history).getByRole("button", { name: "Discard asleep session" });
     fireEvent.click(discard);
     fireEvent.click(discard);
 
     expect(forgetTerminal).toHaveBeenCalledTimes(1);
     await act(async () => pendingForget.resolve({ ok: true }));
     await waitFor(() => {
-      expect(within(inbox).queryByText("Codex · session 9")).not.toBeInTheDocument();
+      expect(within(history).queryByText("Codex · session 9")).not.toBeInTheDocument();
     });
   });
 
@@ -9634,9 +9473,9 @@ describe("App integration", () => {
     bridge.forgetTerminal.mockReturnValueOnce(pendingForget.promise);
 
     render(<App />);
-    const inbox = await openInboxRecovery(user);
-    await user.click(within(inbox).getByRole("button", { name: "Discard Original recovery" }));
-    await user.click(within(inbox).getByRole("button", { name: "Resume Original recovery in Alfred" }));
+    const history = await openHistorySession(user, "Original recovery");
+    await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
+    await user.click(within(history).getByRole("button", { name: "Resume" }));
     await waitFor(() => {
       expect(bridge.killTerminal).toHaveBeenCalledWith({ id: "runtime-1" });
     });
@@ -9725,8 +9564,8 @@ describe("App integration", () => {
     bridge.worktreeDiff.mockReturnValueOnce(pendingDiff.promise);
 
     render(<App />);
-    const inbox = await openInboxRecovery(user);
-    await user.click(within(inbox).getByRole("button", { name: "Discard Original checkout" }));
+    const history = await openHistorySession(user, "Original checkout");
+    await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
     expect(bridge.worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-stale-diff" });
 
     vi.mocked(window.alfredDesktop!.terminal.list).mockResolvedValue({
@@ -9785,7 +9624,7 @@ describe("App integration", () => {
     render(<App />);
     await openSavedSessions(user);
     await user.click(await screen.findByRole("option", { name: /Codex · session 9/i }));
-    await user.click(screen.getByRole("button", { name: "Resume in Work" }));
+    await user.click(screen.getByRole("button", { name: "Resume" }));
 
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
@@ -9832,7 +9671,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("button", { name: "Discard checkout Codex · shared session" })).not.toBeInTheDocument();
     await openSavedSessions(user);
     await user.click(await screen.findByRole("option", { name: /Codex · shared session/i }));
-    await user.click(screen.getByRole("button", { name: "Resume in Work" }));
+    await user.click(screen.getByRole("button", { name: "Resume" }));
 
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
@@ -9875,11 +9714,11 @@ describe("App integration", () => {
     );
 
     render(<App />);
-    const inbox = await openInboxRecovery(user);
-    expect(screen.queryByRole("button", { name: "Discard checkout Codex · session 9" })).not.toBeInTheDocument();
-    await user.click(within(inbox).getByRole("button", { name: "Discard Codex · session 9" }));
+    const history = await openHistorySession(user, "Codex · session 9");
+    expect(within(history).queryByRole("button", { name: "Review diff" })).not.toBeInTheDocument();
+    await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
 
-    await waitFor(() => expect(within(inbox).queryByText("Codex · session 9")).not.toBeInTheDocument());
+    await waitFor(() => expect(within(history).queryByText("Codex · session 9")).not.toBeInTheDocument());
     expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "codex-9", cleanupWorktree: true });
   });
 
@@ -9964,7 +9803,7 @@ describe("App integration", () => {
     expect(screen.getByRole("option", { name: /Codex · session 9/i })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Destructive restored shell/i })).toBeInTheDocument();
     await user.click(screen.getByRole("option", { name: /Codex · session 9/i }));
-    await user.click(screen.getByRole("button", { name: "Resume in Work" }));
+    await user.click(screen.getByRole("button", { name: "Resume" }));
 
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
@@ -10084,18 +9923,17 @@ describe("App integration", () => {
 
     render(<App />);
 
-    await openInboxFromCommandPalette(userEvent.setup());
-    await userEvent.click(screen.getByRole("button", { name: "Asleep · 2 asleep sessions" }));
-    await userEvent.click(screen.getByRole("button", { name: "Resume Manual · zsh 9 in Alfred" }));
+    const user = userEvent.setup();
+    const history = await openHistorySession(user, "Manual · zsh 9");
+    await user.click(within(history).getByRole("button", { name: "Resume" }));
 
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "manual-9" }));
     });
-    await openInboxFromCommandPalette(userEvent.setup());
-    const reopenedInbox = screen.getByRole("region", { name: "Inbox workspace" });
-    await userEvent.click(within(reopenedInbox).getByRole("button", { name: "Asleep · 2 asleep sessions" }));
-    expect(reopenedInbox).toHaveTextContent("Manual · zsh 9");
-    expect(reopenedInbox).toHaveTextContent("Manual · zsh 10");
+    if (!screen.queryByRole("region", { name: "History" })) await selectSurface(user, "History");
+    const reopenedHistory = screen.getByRole("region", { name: "History" });
+    expect(reopenedHistory).toHaveTextContent("Manual · zsh 9");
+    expect(reopenedHistory).toHaveTextContent("Manual · zsh 10");
     expect(forgetTerminal).not.toHaveBeenCalled();
   });
 

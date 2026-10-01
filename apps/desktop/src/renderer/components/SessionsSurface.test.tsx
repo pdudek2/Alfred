@@ -372,7 +372,7 @@ describe("SessionsSurface", () => {
     expect(details).toHaveTextContent("gpt-5.6-sol");
     expect(details).toHaveTextContent("3 internal runs");
     expect(within(details).getByRole("button", { name: "Raw transcript" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Resume in Work" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
   });
 
   it("closes integrated Run details before leaving Sessions and restores trigger focus", async () => {
@@ -917,16 +917,16 @@ describe("SessionsSurface", () => {
     }));
 
     await user.click(screen.getByRole("option", { name: /Restored managed/ }));
-    await user.click(screen.getByRole("button", { name: "Resume in Work" }));
+    await user.click(screen.getByRole("button", { name: "Resume" }));
     expect(onPrimaryAction).toHaveBeenLastCalledWith(expect.objectContaining({
-      action: { kind: "recover", label: "Resume in Work" },
+      action: { kind: "recover", label: "Resume" },
       target: { workspaceId: "A", sessionId: "managed-1" },
     }));
 
     await user.click(screen.getByRole("option", { name: /Mapped external/ }));
-    await user.click(screen.getByRole("button", { name: "Resume in Work" }));
+    await user.click(screen.getByRole("button", { name: "Resume" }));
     expect(onPrimaryAction).toHaveBeenLastCalledWith(expect.objectContaining({
-      action: { kind: "resume-external", label: "Resume in Work" },
+      action: { kind: "resume-external", label: "Resume" },
       summary: expect.objectContaining({ sessionKey: mappedExternal.sessionKey }),
     }));
 
