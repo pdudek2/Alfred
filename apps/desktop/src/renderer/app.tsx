@@ -78,7 +78,7 @@ import {
   type SessionActivityEvent,
   type SessionTile,
 } from "./session-state";
-import { sessionState } from "./session-status";
+import { nextApprovalRevealAt, sessionState } from "./session-status";
 import { createInitialSessionsViewState, type SessionsViewState } from "./sessions-view-state";
 import {
   recordPreviewUrlsFromText,
@@ -299,6 +299,13 @@ export function App() {
   const unavailableWorkspaceIds = new Set(
     workspaces.filter((workspace) => workspace.rootStatus === "missing").map((workspace) => workspace.id),
   );
+  const [, setApprovalRevealTick] = useState(0);
+  const approvalRevealAt = nextApprovalRevealAt(terminalSessions);
+  useEffect(() => {
+    if (approvalRevealAt === null) return;
+    const timer = setTimeout(() => setApprovalRevealTick((tick) => tick + 1), Math.max(0, approvalRevealAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [approvalRevealAt]);
   const attentionItems = buildAttentionProjection(workspaces, terminalSessions).filter((item) => {
     if (unavailableWorkspaceIds.has(item.workspaceId)) return false;
     const session = terminalSessions.find((candidate) => candidate.id === item.sessionId);
