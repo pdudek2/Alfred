@@ -389,6 +389,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         throw error;
       }
       let session: TerminalSession;
+      let createdWorktree: AgentWorktreeResult | null = null;
       try {
         const canonicalCwd = await resolveValidatedTerminalCwd(safeRequest, options);
         const restoredSnapshot = safeRequest.clientId && restoredSessionSnapshots.has(safeRequest.clientId)
@@ -404,6 +405,9 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           canonicalCwd,
         );
         const cwd = typeof launchCwd === "string" ? launchCwd : launchCwd.cwd;
+        // Only a checkout created by this attempt is ours to remove; a reused one holds earlier work.
+        const reusedCheckout = Boolean(safeRequest.baseCwd && safeRequest.branchName);
+        if (typeof launchCwd !== "string" && !reusedCheckout) createdWorktree = launchCwd;
         await ensureScratchCwdExists(cwd, options.scratchRootPath);
         const nodePty = await (options.loadNodePty ?? loadNodePty)();
         const resolved = resolveCommand(safeRequest);
@@ -441,6 +445,19 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
         sessions.set(id, session);
       } catch (error) {
         if (reservedClientId) clientIdsInFlight.delete(reservedClientId);
+        if (createdWorktree) {
+          await (options.cleanupAgentWorktree ?? defaultCleanupAgentWorktree)(
+            {
+              baseCwd: createdWorktree.baseCwd,
+              branchName: createdWorktree.branchName,
+              cwd: createdWorktree.cwd,
+              force: true,
+            },
+            options.managedWorktreeRootPath === undefined ? {} : { worktreeStoreRoot: options.managedWorktreeRootPath },
+          ).catch((cleanupError: unknown) => {
+            console.warn("Failed to remove the checkout of a terminal that did not start.", cleanupError);
+          });
+        }
         throw error;
       }
       if (reservedClientId) clientIdsInFlight.delete(reservedClientId);
