@@ -462,7 +462,6 @@ export function TerminalDesk({
           aria-hidden={worktreeDiffView ? "true" : undefined}
           inert={worktreeDiffView ? true : undefined}
         >
-          {hasDrafts && planLine}
           {recoverableSessions.length > 0 && (
             <RecoveryWorkspaceStrip
               sessions={recoverableSessions}
@@ -477,6 +476,7 @@ export function TerminalDesk({
               onReviewWorktree={onReviewWorktree}
             />
           )}
+          {hasDrafts && planLine}
           <div
             className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}${manyUpGrid ? " many-up" : ""}${sixUpGrid ? " six-up" : ""}${threePaneGrid ? " three-pane" : ""}`}
             data-testid="terminal-grid"

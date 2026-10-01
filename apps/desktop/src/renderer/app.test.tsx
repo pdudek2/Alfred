@@ -2806,7 +2806,7 @@ describe("App integration", () => {
     await openPlan(user);
     const draft = screen.getByRole("listitem", { name: "Draft Run old command" });
 
-    await user.click(within(draft).getByRole("button", { name: "Edit" }));
+    await user.click(within(draft).getByRole("button", { name: /^Edit / }));
     await user.click(screen.getByRole("button", { name: "Edit command" }));
 
     fireEvent.change(screen.getByLabelText("Command"), { target: { value: "pnpm" } });
@@ -8398,7 +8398,7 @@ describe("App integration", () => {
       },
     });
 
-    await user.click(within(draft).getByRole("button", { name: "Edit" }));
+    await user.click(within(draft).getByRole("button", { name: /^Edit / }));
     await user.click(screen.getByRole("button", { name: "Edit command" }));
     fireEvent.change(screen.getByLabelText("Command"), { target: { value: "pnpm" } });
     fireEvent.change(screen.getByLabelText("Arguments"), { target: { value: "test\n--watch" } });
@@ -10342,7 +10342,7 @@ describe("App integration", () => {
     expect(within(blockedDraft).queryByRole("button", { name: "Launch Risky cleanup" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /2 drafts · 1 needs you/ })).toBeInTheDocument();
 
-    await user.click(within(blockedDraft).getByRole("button", { name: "Edit" }));
+    await user.click(within(blockedDraft).getByRole("button", { name: /^Edit / }));
 
     // Edit opens the draft in Context and leaves the layout alone; drafts are not grid tiles.
     expect(await screen.findByRole("region", { name: "Edit draft command for Risky cleanup" })).toBeInTheDocument();
@@ -10701,7 +10701,7 @@ describe("App integration", () => {
     await screen.findByRole("listitem", { name: /Draft Risky task/i });
 
     const draft = screen.getByRole("listitem", { name: "Draft Risky task" });
-    expect(within(draft).getByRole("button", { name: "Edit" })).toBeEnabled();
+    expect(within(draft).getByRole("button", { name: /^Edit / })).toBeEnabled();
     expect(within(draft).getByRole("button", { name: "Discard Risky task" })).toBeEnabled();
     expect(within(draft).queryByRole("button", { name: "Launch Risky task" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Launch ready drafts" })).toBeDisabled();
