@@ -84,9 +84,9 @@ describe("sessionsPrimaryAction", () => {
     });
 
     expect(sessionsPrimaryAction(live)).toEqual({ kind: "reveal", label: "Reveal in Work" });
-    expect(sessionsPrimaryAction(restored)).toMatchObject({ kind: "recover", label: "Resume in Work" });
+    expect(sessionsPrimaryAction(restored)).toMatchObject({ kind: "recover", label: "Resume" });
     expect(sessionsPrimaryAction(restoredManual)).toEqual({ kind: "recover", label: "Resume" });
-    expect(sessionsPrimaryAction(mappedExternal)).toEqual({ kind: "resume-external", label: "Resume in Work" });
+    expect(sessionsPrimaryAction(mappedExternal)).toEqual({ kind: "resume-external", label: "Resume" });
     expect(sessionsPrimaryAction(untrustedExternal)).toEqual({ kind: "add-project", label: "Add Project…" });
     expect(sessionsPrimaryAction(endedMapped)).toEqual({ kind: "open-project", label: "Open Project" });
     expect(sessionsPrimaryAction(readOnlyUnknown)).toBeNull();
@@ -94,7 +94,7 @@ describe("sessionsPrimaryAction", () => {
 });
 
 describe("buildSessionsProjection", () => {
-  it("projects recovery-only Codex as read-only without a Resume in Work action", () => {
+  it("projects recovery-only Codex as read-only without a Resume action", () => {
     const { command: _command, ...recoveryOnly } = managedSession({
       id: "codex-private",
       title: "Codex recovery",

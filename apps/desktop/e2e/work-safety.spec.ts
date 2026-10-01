@@ -33,10 +33,11 @@ test.describe("Work restart", () => {
   test.use({ fixtureOptions: { restoredSessions: 1, unsafeRecoveryItem: 1 } });
   test("keeps unsafe restart confirmation until the second click", async ({ harness }, testInfo) => {
     const { page } = harness;
-    await page.getByRole("button", { name: "Open Inbox surface" }).click();
-    await page.getByRole("button", { name: "Asleep · 1 asleep session", exact: true }).click();
-    await page.getByRole("button", { name: "Review resume Restored fixture 1 in Fixture Alpha" }).click();
-    await page.getByRole("button", { name: "Confirm resume Restored fixture 1 in Fixture Alpha" }).click();
+    await page.getByRole("button", { name: "Browse 1 asleep session" }).click();
+    const history = page.getByRole("region", { name: "History" });
+    await history.getByRole("option", { name: /Restored fixture 1/ }).click();
+    await history.getByRole("button", { name: "Review resume" }).click();
+    await history.getByRole("button", { name: "Confirm resume" }).click();
     await chooseWorkLayout(page, "Grid");
     const tile = page.locator('article[data-session-id="restored-1"]');
     const review = tile.getByRole("button", { name: "Review resume Restored fixture 1", exact: true });
