@@ -171,7 +171,13 @@ function DraftRow({
       )}
       <div className="plan-line__actions">
         {blockReason && !checking ? (
-          <button type="button" className="plan-line__button" data-plan-row onClick={() => onEdit(draft.id)}>
+          <button
+            type="button"
+            className="plan-line__button"
+            data-plan-row
+            aria-label={`Edit ${draft.title}`}
+            onClick={() => onEdit(draft.id)}
+          >
             Edit
           </button>
         ) : (
