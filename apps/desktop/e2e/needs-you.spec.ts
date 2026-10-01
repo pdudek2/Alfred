@@ -61,6 +61,10 @@ test("lists only blocked sessions across projects without reflowing the terminal
   // hands the keyboard back to that terminal.
   await xtermHost.click();
   await expect.poll(() => terminalOwnsFocus(page)).toBe(true);
+  // Ctrl+J is a newline inside Claude and shells; the terminal keeps it.
+  await page.keyboard.press("Control+J");
+  await expect(popover).toBeHidden();
+  await expect.poll(() => terminalOwnsFocus(page)).toBe(true);
   await page.keyboard.press("Meta+J");
   await expect(popover).toBeVisible();
   await page.keyboard.press("Escape");
