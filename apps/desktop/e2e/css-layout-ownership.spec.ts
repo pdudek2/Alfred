@@ -23,6 +23,7 @@ import {
   privacySafeScreenshotSelectors,
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
+import { openPlan } from "./support/plan-line";
 import { chooseWorkLayout } from "./support/work-layout";
 
 const frameProbes: CssOwnerProbe[] = [
@@ -173,18 +174,19 @@ const overlayProbes: Record<"command-palette" | "privacy", CssOwnerProbe[]> = {
 
 test.use({ fixtureOptions: { inboxItems: 1 } });
 
-test("keeps all-staged Launch accented at wide and narrow widths", async ({ harness }, testInfo) => {
+test("keeps the drafts-only plan line neutral at wide and narrow widths", async ({ harness }, testInfo) => {
   const { app, page } = harness;
-  const launch = page.getByRole("button", { name: "Launch Fixture item 1" });
+  const launch = page.locator(".plan-line").getByRole("button", { name: "Launch 1 ready draft" });
 
+  // Only "waits for you" carries the signal colour; launching a ready draft is a plain action.
   await setWindowSize(app, page, 1440, 900);
   await expect(launch).toBeVisible();
-  await expect(launch).toHaveCSS("color", "rgb(226, 155, 110)");
+  await expect(launch).toHaveCSS("color", "rgb(240, 240, 242)");
+  await expect(page.getByTestId("terminal-tile")).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("staged-only-wide.png"), style: privacySafeScreenshotStyle });
 
   await setWindowSize(app, page, 1120, 720);
   await expect(launch).toBeVisible();
-  await expect(launch).toHaveCSS("color", "rgb(226, 155, 110)");
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
     .toBeLessThanOrEqual(0);
   await page.screenshot({ path: testInfo.outputPath("staged-only-narrow.png"), style: privacySafeScreenshotStyle });
@@ -193,48 +195,33 @@ test("keeps all-staged Launch accented at wide and narrow widths", async ({ harn
 test.describe("draft plan layout", () => {
   test.use({ fixtureOptions: { inboxItems: 4 } });
 
-  test("keeps every staged action inside its row at supported widths", async ({ harness }, testInfo) => {
+  test("keeps every draft action inside its row at supported widths", async ({ harness }, testInfo) => {
     const { app, page } = harness;
-    const grid = page.getByTestId("terminal-grid");
+    const drafts = await openPlan(page);
 
     for (const [width, height] of [[1440, 900], [1120, 720]] as const) {
       await setWindowSize(app, page, width, height);
-      await expect(grid).toHaveClass(/staged-list/);
-      await expect(grid.getByTestId("terminal-tile")).toHaveCount(2);
-      await expect.poll(() => grid.evaluate((node) =>
-        Array.from(node.querySelectorAll<HTMLElement>("[data-testid='terminal-tile']"))
-          .flatMap((tile) => tile.getAnimations())
-          .some((animation) => animation.playState === "running")
-      )).toBe(false);
-
-      const geometry = await grid.evaluate((node) => ({
-        clientWidth: node.clientWidth,
-        columns: getComputedStyle(node).gridTemplateColumns.trim().split(/\s+/),
+      await expect(drafts.getByRole("listitem")).toHaveCount(2);
+      const geometry = await drafts.evaluate((node) => ({
         documentOverflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-        scrollWidth: node.scrollWidth,
-        scrollOwnerOverflowX: (() => {
-          const owner = node.closest<HTMLElement>(".terminal-grid-column");
-          return owner ? owner.scrollWidth - owner.clientWidth : Number.NaN;
-        })(),
-        tiles: Array.from(node.querySelectorAll<HTMLElement>("[data-testid='terminal-tile']")).map((tile) => {
-          const tileBounds = tile.getBoundingClientRect();
-          const actionBounds = tile.querySelector<HTMLElement>(".staged-actions")?.getBoundingClientRect();
+        listRight: node.getBoundingClientRect().right,
+        rows: Array.from(node.querySelectorAll<HTMLElement>("li")).map((row) => {
+          const rowBounds = row.getBoundingClientRect();
+          const actionBounds = row.querySelector<HTMLElement>(".plan-line__actions")?.getBoundingClientRect();
           return {
             actionLeft: actionBounds?.left ?? Number.NaN,
             actionRight: actionBounds?.right ?? Number.NaN,
-            tileLeft: tileBounds.left,
-            tileRight: tileBounds.right,
+            rowLeft: rowBounds.left,
+            rowRight: rowBounds.right,
           };
         }),
       }));
 
-      expect(geometry.columns).toHaveLength(1);
       expect(geometry.documentOverflowX).toBeLessThanOrEqual(0);
-      expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
-      expect(geometry.scrollOwnerOverflowX).toBeLessThanOrEqual(0);
-      for (const tile of geometry.tiles) {
-        expect(tile.actionLeft).toBeGreaterThanOrEqual(tile.tileLeft);
-        expect(tile.actionRight).toBeLessThanOrEqual(tile.tileRight);
+      expect(geometry.listRight).toBeLessThanOrEqual(width);
+      for (const row of geometry.rows) {
+        expect(row.actionLeft).toBeGreaterThanOrEqual(row.rowLeft);
+        expect(row.actionRight).toBeLessThanOrEqual(row.rowRight);
       }
       await page.screenshot({
         path: testInfo.outputPath(`staged-plan-${width}x${height}.png`),
@@ -392,10 +379,11 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 900);
   await expect(page.getByTestId("workbench-header")).toBeVisible();
-  await expect(page.getByTestId("terminal-grid")).toHaveClass(/staged-list/);
-  await expect(page.getByTestId("terminal-tile")).toHaveCount(1);
+  await expect(page.locator(".plan-line")).toBeVisible();
+  await expect(page.getByTestId("terminal-tile")).toHaveCount(0);
   await addManualTerminal(page);
-  await expect(page.getByTestId("xterm-host")).toHaveCount(1);
+  await addManualTerminal(page);
+  await expect(page.getByTestId("xterm-host")).toHaveCount(2);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
   await expectAdaptiveWorkGrid(page, 2);
   await expect(page.locator(".workspace-title-trigger strong")).toHaveText("Fixture Alpha");
@@ -418,11 +406,11 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expect(firstHost).toContainText(marker);
 
   await addManualTerminal(page);
-  await expect(page.getByTestId("xterm-host")).toHaveCount(2);
+  await expect(page.getByTestId("xterm-host")).toHaveCount(3);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
   await expectAdaptiveWorkGrid(page, 3);
   await addManualTerminal(page);
-  await expect(page.getByTestId("xterm-host")).toHaveCount(3);
+  await expect(page.getByTestId("xterm-host")).toHaveCount(4);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(4);
   await expectAdaptiveWorkGrid(page, 3);
   await expect(page.getByTestId("workbench-header")).toHaveClass("workbench-header");
