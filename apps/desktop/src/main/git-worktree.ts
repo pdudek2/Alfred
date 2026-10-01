@@ -93,7 +93,16 @@ export async function prepareAgentWorktree(
     ["-C", result.baseCwd, "worktree", "add", "-b", result.branchName, worktreePath, "HEAD"],
     "Unable to create isolated Git worktree.",
   );
-  await applyDirtySnapshot(result, options);
+  try {
+    await applyDirtySnapshot(result, options);
+  } catch (error) {
+    // `worktree add -b` succeeded, so this attempt owns the checkout and nothing has run in it yet.
+    await cleanupAgentWorktree(
+      { baseCwd: result.baseCwd, branchName: result.branchName, cwd: result.cwd, force: true },
+      options,
+    ).catch(() => undefined);
+    throw error;
+  }
 
   return result;
 }
