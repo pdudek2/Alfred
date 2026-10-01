@@ -1535,6 +1535,67 @@ describe("terminal-manager IPC", () => {
     expect(JSON.stringify(snapshot)).not.toContain("PRIVATE_OUTPUT_WHILE_OFF");
   });
 
+  describe("a failed launch of an isolated checkout", () => {
+    const created = {
+      baseCwd: "/repo",
+      branchName: "alfred-codex-failed-launch",
+      cwd: "/alfred/userData/worktrees/failed-launch",
+    };
+    const launch = {
+      agentKind: "codex",
+      clientId: "failed-launch",
+      command: "codex",
+      cols: 80,
+      cwd: "/repo",
+      isolation: "worktree",
+      rows: 24,
+    };
+
+    function failingLaunch(stage: "loadNodePty" | "spawn") {
+      const cleanupAgentWorktree = vi.fn(async () => undefined);
+      const failure = new Error(`${stage} failed`);
+      registerTerminalIpc({
+        cleanupAgentWorktree,
+        loadNodePty: stage === "loadNodePty"
+          ? async () => { throw failure; }
+          : async () => ({ spawn: vi.fn(() => { throw failure; }) }) as never,
+        managedWorktreeRootPath: "/alfred/userData/worktrees",
+        prepareAgentWorktree: vi.fn(async () => created),
+      });
+      return { cleanupAgentWorktree, failure };
+    }
+
+    it.each(["loadNodePty", "spawn"] as const)("removes the checkout it created when %s fails", async (stage) => {
+      const { cleanupAgentWorktree, failure } = failingLaunch(stage);
+
+      await expect(invoke(terminalChannels.create, launch)).rejects.toThrow(failure.message);
+
+      expect(cleanupAgentWorktree).toHaveBeenCalledWith(
+        { ...created, force: true },
+        { worktreeStoreRoot: "/alfred/userData/worktrees" },
+      );
+    });
+
+    it("keeps a reused checkout that holds earlier work", async () => {
+      const cleanupAgentWorktree = vi.fn(async () => undefined);
+      registerTerminalIpc({
+        cleanupAgentWorktree,
+        loadNodePty: async () => { throw new Error("loadNodePty failed"); },
+        managedWorktreeRootPath: "/alfred/userData/worktrees",
+        prepareAgentWorktree: vi.fn(),
+      });
+
+      const reused = {
+        ...created,
+        cwd: path.join(managedProjectWorktreeRoot("/alfred/userData/worktrees", "/repo"), created.branchName),
+      };
+
+      await expect(invoke(terminalChannels.create, { ...launch, ...reused })).rejects.toThrow("loadNodePty failed");
+
+      expect(cleanupAgentWorktree).not.toHaveBeenCalled();
+    });
+  });
+
   it("reconciles a terminal that exits before the renderer attaches its exit listener", async () => {
     vi.spyOn(Date, "now").mockReturnValue(5_000);
     const pty = new FakePty();
