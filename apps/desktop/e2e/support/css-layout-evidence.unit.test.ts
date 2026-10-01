@@ -29,7 +29,7 @@ describe("CSS layout evidence support", () => {
     expect(privacySafeScreenshotStyle).not.toContain(".observatory-");
     expect(privacySafeScreenshotStyle).toContain(".command-palette-list button small");
     expect(privacySafeScreenshotStyle).toContain(".workspace-title-trigger small");
-    expect(privacySafeScreenshotStyle).toContain(".staged-command");
+    expect(privacySafeScreenshotStyle).toContain(".plan-line__sub");
     expect(privacySafeScreenshotStyle).toContain(".agent-session-pulse");
     expect(privacySafeScreenshotStyle).toContain(".xterm-screen");
     expect(privacySafeScreenshotStyle).toContain("opacity: 0 !important");
@@ -51,8 +51,6 @@ describe("CSS layout evidence support", () => {
       <button class="workspace-title-trigger"><small>/fixture/workspace</small></button>
       <span class="project-row-label">Fixture project</span>
       <span class="project-session-title">Fixture session</span>
-      <div class="terminal-tile staged"><div class="tile-title"><small>fixture staged</small></div></div>
-      <code class="staged-command">pnpm test</code>
       <section class="sessions-surface">
         <aside class="sessions-navigator">
           <label class="sessions-navigator__search"><input value="private query"></label>

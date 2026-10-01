@@ -1933,60 +1933,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   grid-auto-rows: max(560px, calc(100dvh - 150px));
 }
 
-.terminal-grid.laid-out.staged-list {
-  min-height: 0;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: none;
-  grid-auto-rows: auto;
-  align-content: start;
-  gap: 0;
-  padding: 10px 18px;
-  background: var(--surface-canvas);
-}
-
-.terminal-grid.staged-list .terminal-tile.staged {
-  min-height: 88px;
-  border: 0;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-  grid-template-columns: minmax(190px, 0.8fr) minmax(260px, 1.4fr) auto;
-  grid-template-rows: minmax(88px, auto);
-  align-items: stretch;
-}
-
-.terminal-grid.staged-list .terminal-tile.staged:hover,
-.terminal-grid.staged-list .terminal-tile.staged:focus-within,
-.terminal-grid.staged-list .terminal-tile.staged:focus-visible {
-  border-color: var(--border-strong);
-  background: color-mix(in oklab, var(--surface-control) 46%, transparent);
-  box-shadow: none;
-}
-
-.terminal-grid.staged-list .terminal-tile.staged > header {
-  min-height: 88px;
-  border: 0;
-  padding: 12px 14px;
-  background: transparent;
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-
-.terminal-grid.staged-list .terminal-tile.staged .tile-status {
-  min-height: auto;
-  border: 0;
-  padding: 0;
-  background: transparent;
-}
-
-.terminal-grid.staged-list .terminal-tile.staged .tile-status::before {
-  display: none;
-}
-
-.terminal-grid.staged-list .tile-title b {
-  color: var(--text-primary);
-  font: 650 13px/1.2 var(--sans);
-}
-
 .terminal-stage.arranging .terminal-stage-body {
   overflow: hidden;
 }
@@ -2878,8 +2824,6 @@ body.arranging-pointer {
 .terminal-tile.real-terminal.error .tile-status,
 .terminal-tile.real-terminal.browser .tile-status,
 .terminal-tile.real-terminal.restored .tile-status { color: var(--ink-5); }
-.terminal-tile.staged .tile-status.status-blocked,
-.terminal-tile.staged .tile-status.status-checking { color: var(--ink-5); }
 
 .terminal-tile.real-terminal.browser .tile-status.status-runtime {
   color: var(--ink-5);
@@ -2916,8 +2860,7 @@ body.arranging-pointer {
 }
 
 .terminal-tile.real-terminal.error .tile-status::before,
-.terminal-tile.real-terminal.session-waiting .tile-status::before,
-.terminal-tile.staged .tile-status.status-blocked::before {
+.terminal-tile.real-terminal.session-waiting .tile-status::before {
   box-shadow: none;
 }
 
@@ -3385,129 +3328,12 @@ body.arranging-pointer {
   scrollbar-color: var(--ink-3) transparent;
 }
 
-.terminal-tile.staged {
-  border-color: var(--ink-3);
-  background: var(--surface-chrome);
-  background-image: none;
-  box-shadow: none;
-}
-
-.terminal-tile.real-terminal.selected,
-.terminal-tile.staged.selected {
+.terminal-tile.real-terminal.selected {
   outline: none;
   outline-offset: 2px;
   border-width: 1px;
   border-color: color-mix(in oklab, var(--signal-focus) 34%, var(--border-strong));
   box-shadow: none;
-}
-
-.staged-body {
-  min-width: 0;
-  min-height: 0;
-  padding: 12px;
-  display: grid;
-  gap: 6px;
-  align-content: start;
-  color: var(--ink-6);
-  font-family: var(--sans);
-  font-size: 12px;
-}
-
-.staged-command {
-  color: var(--ink-7);
-  font: 500 12px/1.45 var(--sans);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: normal;
-}
-
-.staged-isolation,
-.staged-safety-chip,
-.staged-edited-chip {
-  justify-self: start;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--ink-5);
-  font: 500 11px/1.35 var(--sans);
-}
-
-.staged-isolation.blocked,
-.staged-safety-chip.blocked {
-  color: var(--ink-6);
-}
-
-.staged-actions {
-  display: flex;
-  gap: 8px;
-  padding: 8px;
-  border-top: 1px solid var(--ink-3);
-}
-
-.terminal-tile.staged.arranging .staged-actions {
-  padding-right: 48px;
-}
-
-.staged-actions .approve-button,
-.staged-actions .reject-button {
-  min-height: 34px;
-  border: 1px solid var(--ink-3);
-  border-radius: 7px;
-  background: var(--ink-1);
-  color: var(--ink-6);
-  cursor: pointer;
-}
-
-.staged-actions .approve-button {
-  flex: 1;
-  border-color: color-mix(in oklab, var(--signal) 42%, transparent);
-  background: color-mix(in oklab, var(--signal) 11%, var(--ink-1));
-  color: var(--signal);
-  font: 600 12px/1 var(--sans);
-}
-
-.staged-actions .approve-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
-}
-
-.staged-actions .reject-button {
-  width: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.staged-actions .reject-button:hover,
-.staged-actions .reject-button:focus-visible {
-  border-color: var(--ink-5);
-  background: var(--ink-2);
-  color: var(--ink-7);
-}
-
-.terminal-grid.staged-list .staged-body {
-  min-height: 88px;
-  padding: 13px 16px;
-  border-left: 1px solid var(--border);
-  gap: 5px;
-}
-
-.terminal-grid.staged-list .staged-command {
-  color: var(--text-secondary);
-  font-size: 11.5px;
-}
-
-.terminal-grid.staged-list .staged-actions {
-  min-height: 88px;
-  border-top: 0;
-  padding: 26px 12px;
-  align-items: center;
-}
-
-.terminal-grid.staged-list .staged-actions .approve-button {
-  min-width: 82px;
-  flex: 0 0 auto;
 }
 
 .terminal-action-strip {
