@@ -109,9 +109,13 @@ The local API listens on `127.0.0.1:4301`. Its health route is public:
 curl -sS http://127.0.0.1:4301/health
 ```
 
-`ALFRED_ALLOW_DEV_AUTH=1` enables only the local static runner device-token
-fallback; it does not create a human session. Runner ingest uses Bearer device
-tokens at `/v1/ingest/heartbeat` and `/v1/ingest/batches`, with Vercel aliases
+`ALFRED_ALLOW_DEV_AUTH=1` lets the API start without `RUNNER_DEVICE_TOKEN` by
+using the public development token and the local default IDs. The local
+bootstrap seeds that device into the database, so ingest is still checked
+against the database; if the database is unavailable the request fails and is
+not served from a static fallback (that fallback exists only under
+`NODE_ENV=test`). It does not create a human session. Runner ingest uses
+Bearer device tokens at `/v1/ingest/heartbeat` and `/v1/ingest/batches`, with Vercel aliases
 at `/api/v1/ingest/heartbeat` and `/api/v1/ingest/batches`.
 
 `vercel.json` is deliberately API-only. Hosted runtime configuration requires:
