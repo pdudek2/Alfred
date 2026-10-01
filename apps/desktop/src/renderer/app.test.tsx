@@ -1685,6 +1685,28 @@ describe("App integration", () => {
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
   });
 
+  it("drops the draft plan from the view when saved data is cleared", async () => {
+    const user = userEvent.setup();
+    const stagedPlan: AlfredStagedPlanSnapshot = {
+      id: "plan-to-clear",
+      prompt: "PRIVATE_PROMPT",
+      sessions: [{ id: "alfred-clear-1", kind: "shell", title: "Draft to clear", command: "echo", args: ["one"] }],
+    };
+    const { clearSavedTerminalData } = installDesktopBridge(undefined, stagedPlan);
+    render(<App />);
+
+    expect(await screen.findByRole("article", { name: /Draft to clear/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open command palette" }));
+    await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
+    const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
+    await user.click(within(dialog).getByRole("button", { name: "Clear saved transcripts…" }));
+    await user.click(within(dialog).getByRole("button", { name: "Clear saved transcripts" }));
+
+    await waitFor(() => expect(clearSavedTerminalData).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.queryByRole("article", { name: /Draft to clear/i })).not.toBeInTheDocument());
+  });
+
   it("does not refresh external Codex sessions when indexing is disabled", async () => {
     const user = userEvent.setup();
     const { listExternalSessions } = installDesktopBridge(

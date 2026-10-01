@@ -2120,6 +2120,17 @@ export function App() {
     }
   }, [privacySettings.externalSessionIndexingEnabled, workspaces]);
 
+  // The main process already dropped the saved plan; drop its draft sessions from the view too.
+  const dropPendingPlan = useCallback(() => {
+    const plan = pendingPlanRef.current;
+    if (!plan) return;
+    pendingPlanRef.current = null;
+    setPendingPlan(null);
+    setTerminalSessions((sessions) =>
+      sessions.filter((session) => !(session.stage === "staged" && plan.sessionIds.includes(session.id))),
+    );
+  }, []);
+
   const handleUpdatePrivacySettings = useCallback(async (nextSettings: DesktopPrivacySettings) => {
     const desktopStateApi = getDesktopStateApi();
     setPrivacySettings(nextSettings);
@@ -2135,10 +2146,11 @@ export function App() {
     try {
       const persisted = await desktopStateApi.updatePrivacySettings(nextSettings);
       setPrivacySettings(persisted);
+      if (persisted.terminalScrollbackRetention === "off") dropPendingPlan();
     } catch {
       setDesktopSaveStatus({ status: "saveFailed", message: "Failed to persist desktop state.", failedAt: Date.now() });
     }
-  }, []);
+  }, [dropPendingPlan]);
 
   const handleClearSavedTerminalData = useCallback(async () => {
     const desktopStateApi = getDesktopStateApi();
@@ -2146,6 +2158,7 @@ export function App() {
 
     const result = await desktopStateApi.clearSavedTerminalData();
     if (result.ok) {
+      dropPendingPlan();
       setTerminalSessions((sessions) =>
         sessions.map((session) => {
           const {
@@ -2160,7 +2173,7 @@ export function App() {
       );
     }
     return result;
-  }, []);
+  }, [dropPendingPlan]);
 
   const handleRevealStateFile = useCallback(async () => {
     const desktopStateApi = getDesktopStateApi();
@@ -3281,7 +3294,7 @@ function PrivacyPanel({
             <div>
               <strong>Asleep sessions</strong>
               <span>
-                Clear Alfred&apos;s persisted terminal buffers and activity previews.
+                Clear Alfred&apos;s persisted terminal buffers, activity previews, and the draft plan.
                 This can&apos;t be undone.
               </span>
             </div>
