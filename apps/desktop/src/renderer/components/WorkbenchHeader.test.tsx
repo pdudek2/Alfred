@@ -39,6 +39,9 @@ const baseProps = {
   onOpenPrivacyControls: vi.fn(),
   onSelectSurface: vi.fn(),
   onToggleContext: vi.fn(),
+  needsYouCount: 0,
+  needsYouOpen: false,
+  onToggleNeedsYou: vi.fn(),
 } satisfies WorkbenchHeaderProps;
 
 function renderHeader(overrides: Partial<WorkbenchHeaderProps> = {}) {
@@ -121,6 +124,25 @@ describe("WorkbenchHeader", () => {
     const inbox = screen.getByRole("button", { name: "Open Inbox surface, 2 items" });
     expect(inbox).toHaveTextContent("2");
     expect(inbox.querySelector(".workbench-attention-count")).toHaveTextContent("2");
+  });
+
+  it("hides the Needs you count at zero and toggles the popover from it", async () => {
+    const user = userEvent.setup();
+    const onToggleNeedsYou = vi.fn();
+    const { rerender } = renderHeader({ needsYouCount: 0, onToggleNeedsYou });
+    expect(screen.queryByRole("button", { name: /^Needs you/ })).not.toBeInTheDocument();
+
+    rerender(<WorkbenchHeader {...baseProps} needsYouCount={1} onToggleNeedsYou={onToggleNeedsYou} />);
+    const single = screen.getByRole("button", { name: "Needs you, 1 session" });
+    expect(single).toHaveTextContent("1 needs you");
+    expect(single).toHaveAttribute("aria-expanded", "false");
+
+    rerender(<WorkbenchHeader {...baseProps} needsYouCount={3} needsYouOpen onToggleNeedsYou={onToggleNeedsYou} />);
+    const trigger = screen.getByRole("button", { name: "Needs you, 3 sessions" });
+    expect(trigger).toHaveTextContent("3 need you");
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    await user.click(trigger);
+    expect(onToggleNeedsYou).toHaveBeenCalledOnce();
   });
 
   it("exposes every replaced rail destination from the primary row", async () => {

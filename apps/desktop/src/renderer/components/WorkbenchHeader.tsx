@@ -2,6 +2,7 @@ import { ChevronDown, Command, Layers3, ListChecks, Plus } from "lucide-react";
 import type { Ref } from "react";
 import type { SessionTile } from "../session-state";
 import { AlfredMark } from "./AlfredMark";
+import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
 
 export type PrimarySurface = "work" | "inbox" | "sessions";
@@ -10,6 +11,9 @@ export type WorkbenchHeaderProps = {
   activeSurface: PrimarySurface;
   commandPaletteTriggerRef?: Ref<HTMLButtonElement>;
   inboxCount: number;
+  needsYouCount: number;
+  needsYouOpen: boolean;
+  needsYouTriggerRef?: Ref<HTMLButtonElement>;
   prepareWorkTriggerRef?: Ref<HTMLButtonElement>;
   selectedSession: SessionTile | null;
   shortcutModifier: "Cmd" | "Ctrl";
@@ -25,12 +29,16 @@ export type WorkbenchHeaderProps = {
   onOpenPrivacyControls: () => void;
   onSelectSurface: (surface: PrimarySurface) => void;
   onToggleContext: () => void;
+  onToggleNeedsYou: () => void;
 };
 
 export function WorkbenchHeader({
   activeSurface,
   commandPaletteTriggerRef,
   inboxCount,
+  needsYouCount,
+  needsYouOpen,
+  needsYouTriggerRef,
   prepareWorkTriggerRef,
   selectedSession,
   shortcutModifier,
@@ -46,6 +54,7 @@ export function WorkbenchHeader({
   onOpenPrivacyControls,
   onSelectSurface,
   onToggleContext,
+  onToggleNeedsYou,
 }: WorkbenchHeaderProps) {
   const surfaceTitle = activeSurface === "inbox"
     ? "Inbox"
@@ -129,6 +138,21 @@ export function WorkbenchHeader({
           </ChromeMenu>
         </div>
         <div className="workbench-right-zone">
+          {needsYouCount > 0 && (
+            <button
+              ref={needsYouTriggerRef}
+              type="button"
+              className="workbench-needs-you"
+              aria-label={`Needs you, ${needsYouCount} session${needsYouCount === 1 ? "" : "s"}`}
+              aria-expanded={needsYouOpen}
+              aria-haspopup="dialog"
+              title={`Needs you (${shortcutModifier === "Cmd" ? "⌘J" : "Ctrl J"})`}
+              onClick={onToggleNeedsYou}
+            >
+              <AlfredSignalGlyph />
+              <span>{needsYouCount} {needsYouCount === 1 ? "needs" : "need"} you</span>
+            </button>
+          )}
           <button type="button" aria-label={inboxLabel} title="Inbox" onClick={onOpenInbox}>
             <ListChecks aria-hidden="true" size={14} />
             {inboxCount > 0 && <span className="workbench-attention-count">{inboxCount}</span>}

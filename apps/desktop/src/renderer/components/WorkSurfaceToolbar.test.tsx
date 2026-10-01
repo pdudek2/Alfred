@@ -12,8 +12,6 @@ describe("WorkSurfaceToolbar", () => {
   it("shows how many Grid sessions are visible out of the workspace total", () => {
     render(
       <WorkSurfaceToolbar
-        activeAgentCount={0}
-        agentsOpen={false}
         arrangeMode={false}
         previewAvailable={false}
         previewOpen={false}
@@ -24,7 +22,6 @@ describe("WorkSurfaceToolbar", () => {
         onApplyWorkMode={vi.fn()}
         onOpenSavedSessions={vi.fn()}
         onToggleArrangeMode={vi.fn()}
-        onToggleAgents={vi.fn()}
         onTogglePreview={vi.fn()}
       />,
     );
@@ -36,8 +33,6 @@ describe("WorkSurfaceToolbar", () => {
   it("leaves the workspace path to the primary window header", () => {
     render(
       <WorkSurfaceToolbar
-        activeAgentCount={0}
-        agentsOpen={false}
         arrangeMode={false}
         previewAvailable={false}
         previewOpen={false}
@@ -48,7 +43,6 @@ describe("WorkSurfaceToolbar", () => {
         onApplyWorkMode={vi.fn()}
         onOpenSavedSessions={vi.fn()}
         onToggleArrangeMode={vi.fn()}
-        onToggleAgents={vi.fn()}
         onTogglePreview={vi.fn()}
       />,
     );
@@ -60,8 +54,6 @@ describe("WorkSurfaceToolbar", () => {
   it("caps normal Grid session count at three visible sessions", () => {
     render(
       <WorkSurfaceToolbar
-        activeAgentCount={0}
-        agentsOpen={false}
         arrangeMode={false}
         previewAvailable={false}
         previewOpen={false}
@@ -72,7 +64,6 @@ describe("WorkSurfaceToolbar", () => {
         onApplyWorkMode={vi.fn()}
         onOpenSavedSessions={vi.fn()}
         onToggleArrangeMode={vi.fn()}
-        onToggleAgents={vi.fn()}
         onTogglePreview={vi.fn()}
       />,
     );
@@ -88,8 +79,6 @@ describe("WorkSurfaceToolbar", () => {
     const onTogglePreview = vi.fn();
     render(
       <WorkSurfaceToolbar
-        activeAgentCount={3}
-        agentsOpen={false}
         arrangeMode={false}
         previewAvailable
         previewOpen
@@ -100,7 +89,6 @@ describe("WorkSurfaceToolbar", () => {
         onApplyWorkMode={onApplyWorkMode}
         onOpenSavedSessions={vi.fn()}
         onToggleArrangeMode={onToggleArrangeMode}
-        onToggleAgents={vi.fn()}
         onTogglePreview={onTogglePreview}
       />,
     );
@@ -123,8 +111,6 @@ describe("WorkSurfaceToolbar", () => {
   it("announces and initially focuses the selected layout option", async () => {
     render(
       <WorkSurfaceToolbar
-        activeAgentCount={0}
-        agentsOpen={false}
         arrangeMode={false}
         previewAvailable={false}
         previewOpen={false}
@@ -135,7 +121,6 @@ describe("WorkSurfaceToolbar", () => {
         onApplyWorkMode={vi.fn()}
         onOpenSavedSessions={vi.fn()}
         onToggleArrangeMode={vi.fn()}
-        onToggleAgents={vi.fn()}
         onTogglePreview={vi.fn()}
       />,
     );
@@ -153,8 +138,6 @@ describe("WorkSurfaceToolbar", () => {
   it("keeps Preview unavailable until Alfred detects a local URL", () => {
     render(
       <WorkSurfaceToolbar
-        activeAgentCount={0}
-        agentsOpen={false}
         arrangeMode={false}
         previewAvailable={false}
         previewOpen={false}
@@ -165,58 +148,10 @@ describe("WorkSurfaceToolbar", () => {
         onApplyWorkMode={vi.fn()}
         onOpenSavedSessions={vi.fn()}
         onToggleArrangeMode={vi.fn()}
-        onToggleAgents={vi.fn()}
         onTogglePreview={vi.fn()}
       />,
     );
 
     expect(screen.getByRole("button", { name: "Preview" })).toBeDisabled();
-  });
-
-  it("opens the Agents drawer from a pressed toolbar control", async () => {
-    const onToggleAgents = vi.fn();
-    const { rerender } = render(
-      <WorkSurfaceToolbar
-        activeAgentCount={3}
-        agentsOpen={false}
-        arrangeMode={false}
-        previewAvailable={false}
-        previewOpen={false}
-        savedSessionCount={0}
-        visibleSessionCount={3}
-        workMode="desk"
-        onAddManualSession={vi.fn()}
-        onApplyWorkMode={vi.fn()}
-        onOpenSavedSessions={vi.fn()}
-        onToggleArrangeMode={vi.fn()}
-        onToggleAgents={onToggleAgents}
-        onTogglePreview={vi.fn()}
-      />,
-    );
-
-    const trigger = screen.getByRole("button", { name: "Agents, 3 active" });
-    expect(trigger).toHaveAttribute("aria-pressed", "false");
-    await userEvent.click(trigger);
-    expect(onToggleAgents).toHaveBeenCalledOnce();
-
-    rerender(
-      <WorkSurfaceToolbar
-        activeAgentCount={3}
-        agentsOpen
-        arrangeMode={false}
-        previewAvailable={false}
-        previewOpen={false}
-        savedSessionCount={0}
-        visibleSessionCount={3}
-        workMode="desk"
-        onAddManualSession={vi.fn()}
-        onApplyWorkMode={vi.fn()}
-        onOpenSavedSessions={vi.fn()}
-        onToggleArrangeMode={vi.fn()}
-        onToggleAgents={onToggleAgents}
-        onTogglePreview={vi.fn()}
-      />,
-    );
-    expect(screen.getByRole("button", { name: "Agents, 3 active" })).toHaveAttribute("aria-pressed", "true");
   });
 });

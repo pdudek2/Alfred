@@ -45,17 +45,3 @@
 .project-navigator.is-collapsed .project-row-signals:has(.project-attention-signal) .project-agent-signal {
   display: none;
 }
-
-@media (max-width: 1180px) {
-  .workspace-layout.agents-visible .project-row-button {
-    gap: 2px;
-  }
-
-  .workspace-layout.agents-visible .project-row-signals {
-    gap: 0;
-  }
-
-  .workspace-layout.agents-visible .project-row-signals:has(.project-attention-signal) .project-agent-signal {
-    display: none;
-  }
-}
