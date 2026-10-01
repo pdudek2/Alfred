@@ -85,7 +85,7 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expect(needsYou).toBeHidden();
 
   await page.getByRole("button", { name: /^Browse \d+ asleep sessions?$/ }).click();
-  const asleep = page.getByRole("region", { name: "Sessions workspace" });
+  const asleep = page.getByRole("region", { name: "History" });
   await asleep.getByRole("listbox", { name: "Session results" })
     .getByRole("option", { name: /Fixture diff handoff/ }).click();
   await asleep.getByRole("toolbar", { name: "Asleep checkout actions" })
@@ -99,8 +99,8 @@ test("keeps the production Work story trustworthy across every utility surface",
   await captureAuditScreenshot(page, "worktree-diff-wide");
   await diff.getByRole("button", { name: "Close diff" }).click();
 
-  await selectSurface(page, "Sessions");
-  const sessions = page.getByRole("region", { name: "Sessions workspace" });
+  await selectSurface(page, "History");
+  const sessions = page.getByRole("region", { name: "History" });
   await expect(sessions).toBeVisible();
   // Browsing asleep sessions above left Sessions filtered to this project's Asleep rows.
   await sessions.getByRole("combobox", { name: "Project scope" }).selectOption("all");
@@ -218,7 +218,7 @@ async function appendFixtureAgentOutput(root: string, agent: "claude" | "codex",
   await appendFile(join(root, marker), message, "utf8");
 }
 
-async function selectSurface(page: Page, surface: "Work" | "Sessions" | "Context" | "Local Data & Privacy"): Promise<void> {
+async function selectSurface(page: Page, surface: "Work" | "History" | "Context" | "Local Data & Privacy"): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();
 }

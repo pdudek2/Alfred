@@ -204,7 +204,7 @@ export function SessionsReader({
                 <h1>{selected.title}</h1>
                 <p>
                   {selected.project.label} · {
-                    selected.source === "managed" ? "Managed session" : "External Codex"
+                    selected.source === "managed" ? "From Alfred" : "Codex CLI"
                   }
                 </p>
               </header>
@@ -274,7 +274,7 @@ export function SessionsReader({
             </header>
             <dl>
               <RunDetail label="Project" value={selected.project.label} />
-              <RunDetail label="Source" value={selected.source === "managed" ? "Managed session" : "External Codex"} />
+              <RunDetail label="Source" value={selected.source === "managed" ? "From Alfred" : "Codex CLI"} />
               <RunDetail label="Location" value={selected.locationLabel} technical />
               {selected.branch && <RunDetail label="Branch" value={selected.branch} technical />}
               {selected.model && <RunDetail label="Model" value={selected.model} technical />}

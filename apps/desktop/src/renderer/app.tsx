@@ -78,7 +78,7 @@ import {
   type SessionTile,
 } from "./session-state";
 import { sessionState } from "./session-status";
-import { createInitialSessionsViewState } from "./sessions-view-state";
+import { createInitialSessionsViewState, type SessionsViewState } from "./sessions-view-state";
 import {
   recordPreviewUrlsFromText,
   removePreviewSessionCandidates,
@@ -308,17 +308,6 @@ export function App() {
   );
   const activeRecoverableSessions = activeSessions.filter((session) => recoverySessionIds.has(session.id));
   const activeWorkRecoverableSessions = activeRecoverableSessions.filter(isWorkSession);
-  const sessionDetailsById: ReadonlyMap<
-    string,
-    Pick<SessionTile, "args" | "command" | "cwd">
-  > = new Map(terminalSessions.map((session) => [
-    session.id,
-    {
-      cwd: session.cwd,
-      ...(session.command === undefined ? {} : { command: session.command }),
-      ...(session.args === undefined ? {} : { args: session.args }),
-    },
-  ]));
   const needsYouAttention = needsYouItems(attentionItems);
   const needsYouCount = needsYouAttention.length;
   // Inbox still holds drafts and recovery until History and the plan line replace it.
@@ -980,13 +969,13 @@ export function App() {
     setActiveSurface("inbox");
   }, []);
 
-  const handleOpenSavedSessions = useCallback(() => {
+  const openProjectHistory = useCallback((source: SessionsViewState["source"]) => {
     setNeedsYouOpen(false);
     setSessionsViewState((current) => ({
       ...current,
       query: "",
       selectedProjectId: activeWorkspace.id,
-      source: "saved",
+      source,
       timeRange: "any",
       pageIndex: 0,
       selectedSessionKey: null,
@@ -997,6 +986,9 @@ export function App() {
     }));
     setActiveSurface("sessions");
   }, [activeWorkspace.id]);
+  const handleOpenSavedSessions = useCallback(() => openProjectHistory("saved"), [openProjectHistory]);
+  // Sessions to resume include ended ones, not only asleep, so show everything Alfred ran here.
+  const handleOpenRecoveryHistory = useCallback(() => openProjectHistory("managed"), [openProjectHistory]);
 
   const handleFocusSessionByDelta = useCallback((delta: number) => {
     if (activeWorkSessions.length === 0) return;
@@ -2900,7 +2892,7 @@ export function App() {
                   onCloseWorktreeDiff={handleCloseWorktreeDiff}
                   onContinueRestoredSession={handleContinueRestoredSession}
                   onOpenExternalTerminal={handleOpenSessionTerminal}
-                  onOpenInbox={handleOpenInbox}
+                  onOpenHistory={handleOpenRecoveryHistory}
                   onSessionRevealed={handleSessionRevealed}
                   onRestartSession={handleRestartSession}
                   onApplyWorkMode={handleApplyWorkMode}
@@ -2928,9 +2920,6 @@ export function App() {
               <div className="surface-panel active">
                 <ReviewSurface
                   attentionItems={attentionItems}
-                  armedRecoverySessionIds={armedRecoverySessionIds}
-                  sessionDetailsById={sessionDetailsById}
-                  onDiscardRecovery={handleCloseSession}
                   onLaunch={handleLaunchInboxItem}
                   onOpenInWork={handleFocusSessionInWorkspace}
                   onRecover={handleRecoverInboxItem}
@@ -3248,7 +3237,7 @@ function PrivacyPanel({
           <section className="privacy-control-row">
             <div>
               <strong>External Codex indexing</strong>
-              <span>{settings.externalSessionIndexingEnabled ? "Sessions can index local Codex transcripts." : "Sessions will not scan external Codex transcripts."}</span>
+              <span>{settings.externalSessionIndexingEnabled ? "History can index local Codex transcripts." : "History will not scan external Codex transcripts."}</span>
             </div>
             <label className="privacy-toggle">
               <input

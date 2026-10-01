@@ -29,17 +29,13 @@ test.describe("deterministic mixed Decision Inbox", () => {
     await expect(inbox.getByRole("heading", { name: "Inbox" })).toBeVisible();
     await expect(inbox.getByText("All projects", { exact: true })).toBeVisible();
     await expect(inbox.locator(".inbox-docket__statusbar")).toHaveCount(0);
-    await expect(inbox.getByText("4 need you · 6 recovery", { exact: true })).toBeVisible();
+    await expect(inbox.getByText("4 need you", { exact: true })).toBeVisible();
     await expect(inbox.getByRole("list", { name: "Needs you items" }).locator(":scope > li")).toHaveCount(4);
     await expect(inbox.getByRole("list", {
       name: "Needs you items",
     }).locator(":scope > li[aria-expanded='true']")).toHaveCount(1);
-    const recoveryToggle = inbox.getByRole("button", { name: "Asleep · 6 asleep sessions" });
-    await expect(recoveryToggle).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    expect((await recoveryToggle.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
+    // Asleep sessions live in History now, not in the Inbox.
+    await expect(inbox.getByText(/asleep session/)).toHaveCount(0);
 
     const blockerIds = await inbox
       .getByRole("list", { name: "Needs you items" })
@@ -92,32 +88,32 @@ test.describe("deterministic mixed Decision Inbox", () => {
     await harness.closeActiveTerminals();
   });
 
-  test("recovery safety requires review, supports Escape disarm, and starts only on confirm", async ({
+  test("History recovery safety requires review, supports Escape disarm, and starts only on confirm", async ({
     harness,
   }) => {
     const { page, paths } = harness;
-    const inbox = await bootstrapMixedInbox(page);
-    const recoveryToggle = inbox.getByRole("button", { name: "Asleep · 6 asleep sessions" });
-    await recoveryToggle.click();
-    await expect(inbox.getByRole("list", { name: "Asleep sessions" }).locator(":scope > li")).toHaveCount(6);
+    await bootstrapMixedInbox(page);
+    await page.getByRole("button", { name: "Open Surfaces menu" }).click();
+    await page.getByRole("menuitem", { name: "History" }).click();
+    const history = page.getByRole("region", { name: "History" });
+    await history.getByRole("combobox", { name: "Session source" }).selectOption("saved");
+    await expect(history.getByRole("listbox", { name: "Session results" }).getByRole("option")).toHaveCount(6);
+    await history.getByRole("option", { name: /Restored fixture 1\b/ }).click();
 
-    const unsafeAction = inbox.getByRole("button", {
-      name: "Review resume Restored fixture 1 in Fixture Alpha",
-    });
+    const unsafeAction = history.getByRole("button", { name: "Review resume" });
     const beforeReview = await listMainProcessTerminals(page);
     expect(beforeReview.sessions.some((session) => session.clientId === "restored-1")).toBe(false);
     expect(beforeReview.restoredSessions?.find((session) => session.clientId === "restored-1")?.buffer)
       .not.toContain("unsafe recovery confirmed");
     await unsafeAction.click();
 
-    const confirm = inbox.getByRole("button", {
-      name: "Confirm resume Restored fixture 1 in Fixture Alpha",
-    });
+    const confirm = history.getByRole("button", { name: "Confirm resume" });
+    const review = history.getByRole("region", { name: "Resume review" });
     await expect(confirm).toBeVisible();
-    await expect(inbox.getByText("shell command replay needs review", { exact: true })).toBeVisible();
-    await expect(inbox.getByText(paths.workspaceA, { exact: true })).toBeVisible();
+    await expect(review.getByText("shell command replay needs review", { exact: true })).toBeVisible();
+    await expect(review.getByText(paths.workspaceA, { exact: true })).toBeVisible();
     await expect(
-      inbox.getByText(
+      review.getByText(
         "/bin/sh -c /usr/bin/printf 'unsafe recovery confirmed\\n'",
         { exact: true },
       ),
@@ -128,16 +124,12 @@ test.describe("deterministic mixed Decision Inbox", () => {
       .not.toContain("unsafe recovery confirmed");
 
     await page.keyboard.press("Escape");
-    await expect(inbox).toBeVisible();
+    await expect(history).toBeVisible();
     await expect(confirm).toHaveCount(0);
-    await expect(inbox.getByRole("button", {
-      name: "Review resume Restored fixture 1 in Fixture Alpha",
-    })).toBeVisible();
-    await expect(inbox.getByText(paths.workspaceA, { exact: true })).toHaveCount(0);
+    await expect(history.getByRole("button", { name: "Review resume" })).toBeVisible();
+    await expect(review).toHaveCount(0);
 
-    await inbox.getByRole("button", {
-      name: "Review resume Restored fixture 1 in Fixture Alpha",
-    }).click();
+    await history.getByRole("button", { name: "Review resume" }).click();
     await expect(confirm).toBeVisible();
     await confirm.click();
     await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
@@ -150,23 +142,6 @@ test.describe("deterministic mixed Decision Inbox", () => {
       const sentinelCount = session?.buffer?.match(/unsafe recovery confirmed/g)?.length ?? 0;
       return session ? { command: session.command, cwd: session.cwd, sentinelCount } : null;
     }).toEqual({ command: "/bin/sh", cwd: canonicalWorkspaceA, sentinelCount: 1 });
-
-    harness.assertNoRuntimeErrors();
-    await harness.closeActiveTerminals();
-  });
-
-  test("recovery toggle remains within rendered viewport pixels at 1120 by 720", async ({ harness }) => {
-    const { app, page } = harness;
-    await setWindowSize(app, page, 1120, 720);
-    const inbox = await bootstrapMixedInbox(page);
-    const recoveryToggle = inbox.getByRole("button", { name: "Asleep · 6 asleep sessions" });
-    await recoveryToggle.scrollIntoViewIfNeeded();
-
-    await assertNoHorizontalOverflow(page, "Inbox", [recoveryToggle]);
-    expect(await recoveryToggle.evaluate((control) => {
-      const rect = control.getBoundingClientRect();
-      return document.elementFromPoint(rect.left + rect.width / 2, innerHeight - 1) === control;
-    })).toBe(true);
 
     harness.assertNoRuntimeErrors();
     await harness.closeActiveTerminals();
@@ -213,11 +188,9 @@ test.describe("deterministic mixed Decision Inbox", () => {
 
       await openInbox(page);
       inbox = page.getByRole("region", { name: "Inbox workspace" });
-      await inbox.getByRole("button", { name: "Asleep · 6 asleep sessions" }).scrollIntoViewIfNeeded();
       await assertNoHorizontalOverflow(page, "Inbox", [
         inbox.locator(".inbox-docket__toolbar"),
         inbox.getByTestId("inbox-decision-select-B:fixture-item-2"),
-        inbox.getByRole("button", { name: "Asleep · 6 asleep sessions" }),
       ]);
       await inbox.getByTestId("inbox-decision-select-B:fixture-item-2").click();
       await inbox.getByRole("button", { name: "Open in Work Fixture item 2 in Fixture Beta" }).click();
@@ -318,8 +291,8 @@ test.describe("long Decision Inbox", () => {
     await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
 
     await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-    await page.getByRole("menuitem", { name: "Sessions" }).click();
-    await expect(page.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
+    await page.getByRole("menuitem", { name: "History" }).click();
+    await expect(page.getByRole("region", { name: "History" })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
     const inboxSwitcher = page.getByTestId("workbench-header")

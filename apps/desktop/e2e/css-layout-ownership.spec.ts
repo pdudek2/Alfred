@@ -478,8 +478,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Inbox");
   await capture("inbox", [...sessionsFrameProbes, ...inboxProbes]);
 
-  await selectSurface(page, "Sessions");
-  const sessions = page.getByRole("region", { name: "Sessions workspace" });
+  await selectSurface(page, "History");
+  const sessions = page.getByRole("region", { name: "History" });
   await expect(sessions).toBeVisible();
   await expect(page.locator(".project-navigator")).toHaveCount(0);
   await sessions
@@ -571,8 +571,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
     }],
   }), "Narrow Context controls must remain within their scroll owner").toEqual([]);
 
-  await selectSurface(page, "Sessions");
-  await expect(page.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
+  await selectSurface(page, "History");
+  await expect(page.getByRole("region", { name: "History" })).toBeVisible();
   const narrowSessionsContext = await page.evaluate(() => {
     const workspace = document.querySelector<HTMLElement>("[data-testid='workbench-shell']");
     const sessionsSurface = document.querySelector<HTMLElement>(".sessions-surface");
@@ -751,7 +751,7 @@ async function addManualTerminal(page: Page): Promise<void> {
 
 async function selectSurface(
   page: Page,
-  surface: "Work" | "Sessions" | "Context" | "Local Data & Privacy",
+  surface: "Work" | "History" | "Context" | "Local Data & Privacy",
 ): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();

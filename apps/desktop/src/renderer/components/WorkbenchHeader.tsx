@@ -59,7 +59,7 @@ export function WorkbenchHeader({
   const surfaceTitle = activeSurface === "inbox"
     ? "Inbox"
     : activeSurface === "sessions"
-      ? "Sessions"
+      ? "History"
       : "Work";
   const surfaceDetail = activeSurface === "work"
     ? workspaceDetail
@@ -102,7 +102,7 @@ export function WorkbenchHeader({
   ];
   const surfaceItems: ChromeMenuItem[] = [
     { id: "work", label: "Work", run: () => onSelectSurface("work") },
-    { id: "sessions", label: "Sessions", run: () => onSelectSurface("sessions") },
+    { id: "sessions", label: "History", run: () => onSelectSurface("sessions") },
     { id: "context", label: "Context", run: onToggleContext },
     { id: "privacy", label: "Local Data & Privacy", run: onOpenPrivacyControls },
   ];
