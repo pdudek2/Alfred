@@ -56,7 +56,7 @@ type CommandPaletteProps = {
   onFocusNextSession: () => void;
   onFocusPreviousSession: () => void;
   onOpenContext: () => void;
-  onOpenInbox: () => void;
+  onOpenNeedsYou: () => void;
   onOpenPrivacyControls: () => void;
   onRestartSession: (sessionId: string) => void;
   onSelectWorkspace: (workspaceId: string) => void;
@@ -94,7 +94,7 @@ export function CommandPalette({
   onFocusNextSession,
   onFocusPreviousSession,
   onOpenContext,
-  onOpenInbox,
+  onOpenNeedsYou,
   onOpenPrivacyControls,
   onRestartSession,
   onSelectWorkspace,
@@ -275,12 +275,12 @@ export function CommandPalette({
         run: onOpenContext,
       },
       {
-        id: "open-inbox",
-        label: "Open Inbox",
+        id: "open-needs-you",
+        label: "Open Needs you",
         detail: reviewQueuePreview
           ? `${reviewQueuePreview.workspaceLabel} · ${reviewQueuePreview.sessionTitle}`
           : "No queued decisions",
-        run: onOpenInbox,
+        run: onOpenNeedsYou,
       },
       {
         id: "close-selected-session",
@@ -400,7 +400,7 @@ export function CommandPalette({
       onFocusNextSession,
       onFocusPreviousSession,
       onOpenContext,
-      onOpenInbox,
+      onOpenNeedsYou,
       onOpenPrivacyControls,
       onRestartSession,
       onSelectWorkspace,
@@ -599,7 +599,7 @@ function groupPaletteCommands(commands: CommandPaletteItem[]): CommandPaletteRow
 function commandGroupLabel(commandId: string): string {
   if (
     commandId.includes("review") ||
-    commandId === "open-inbox"
+    commandId === "open-needs-you"
   ) {
     return "Review and resume";
   }

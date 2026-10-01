@@ -95,7 +95,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await expect(activeSessionGroup.getByRole("button", { name: "Restored scratch fixture 1" })).toHaveCount(0);
   await expect(freeChats.getByRole("button", { name: "Restored scratch fixture 1" })).toHaveCount(0);
   await expect((await listMainProcessTerminals(page)).restoredSessions).toHaveLength(1);
-  await expect(header.getByRole("button", { name: "Open Inbox surface" })).toBeVisible();
+  await expect(header.getByRole("button", { name: "Open Surfaces menu" })).toBeVisible();
   await expect(navigator.getByRole("button", { name: "Fixture Beta project" })).not.toHaveAttribute(
     "data-attention",
   );

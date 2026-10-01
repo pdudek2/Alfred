@@ -26,14 +26,12 @@ const liveB: SessionTile = {
 
 const baseProps = {
   activeSurface: "work",
-  inboxCount: 4,
   selectedSession: liveA,
   shortcutModifier: "Cmd",
   workspaceDetail: "Alfred · /project",
   onAddAgentSession: vi.fn(),
   onAddManualSession: vi.fn(),
   onOpenCommandPalette: vi.fn(),
-  onOpenInbox: vi.fn(),
   onOpenPrepareWork: vi.fn(),
   onReconnectWorkspace: vi.fn(),
   onOpenPrivacyControls: vi.fn(),
@@ -68,32 +66,21 @@ describe("WorkbenchHeader", () => {
     expect(screen.queryByText(liveA.title)).not.toBeInTheDocument();
   });
 
-  it("uses Inbox as the single global decision-surface name", () => {
-    renderHeader({ activeSurface: "inbox", selectedSession: liveA });
-
-    const header = screen.getByTestId("workbench-header");
-    expect(header).toHaveAttribute("data-chrome-height", "44");
-    expect(header).toHaveTextContent("Inbox");
-    expect(header).not.toHaveTextContent("Decision Inbox");
-    expect(within(header).getByText("All projects")).toBeInTheDocument();
-    expect(screen.queryByText(liveA.title)).not.toBeInTheDocument();
-  });
-
   it("keeps surface navigation attached to the visible surface name", async () => {
     const user = userEvent.setup();
-    renderHeader({ activeSurface: "inbox" });
+    renderHeader({ activeSurface: "sessions" });
 
     const surfaces = screen.getByRole("button", { name: "Open Surfaces menu" });
-    expect(surfaces).toHaveTextContent("Inbox");
+    expect(surfaces).toHaveTextContent("History");
 
     await user.click(surfaces);
     expect(screen.getByRole("menuitem", { name: "History" })).toBeInTheDocument();
   });
 
-  it("exposes Inbox Surfaces command palette and the existing launch destinations", async () => {
+  it("exposes Needs you Surfaces command palette and the existing launch destinations", async () => {
     const user = userEvent.setup();
-    renderHeader();
-    expect(screen.getByRole("button", { name: /Open Inbox/ })).toBeInTheDocument();
+    renderHeader({ needsYouCount: 1 });
+    expect(screen.getByRole("button", { name: "Needs you, 1 session" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Surfaces menu" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open command palette" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open launch menu" }));
@@ -116,14 +103,6 @@ describe("WorkbenchHeader", () => {
     await user.click(screen.getByRole("menuitem", { name: "Reconnect project folder" }));
 
     expect(onReconnectWorkspace).toHaveBeenCalledOnce();
-  });
-
-  it("announces the exact blocking Inbox count", () => {
-    renderHeader({ inboxCount: 2 });
-
-    const inbox = screen.getByRole("button", { name: "Open Inbox surface, 2 items" });
-    expect(inbox).toHaveTextContent("2");
-    expect(inbox.querySelector(".workbench-attention-count")).toHaveTextContent("2");
   });
 
   it("hides the Needs you count at zero and toggles the popover from it", async () => {

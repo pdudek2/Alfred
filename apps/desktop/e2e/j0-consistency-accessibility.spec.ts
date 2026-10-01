@@ -127,13 +127,6 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await privacy.getByRole("button", { name: "Close privacy controls" }).click();
   await expect(surfacesTrigger).toBeFocused();
 
-  await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
-  const inbox = page.getByRole("region", { name: "Inbox workspace" });
-  await expect(inbox).toBeVisible();
-  await expectSansFont(inbox);
-  await expectMinimumHeight(inbox.locator(".inbox-docket__primary"), 32);
-  await inbox.getByRole("button", { name: "Back to Work" }).click();
-
   await selectSurface(page, "History");
   const sessions = page.getByRole("region", { name: "History" });
   await expectSansFont(sessions);

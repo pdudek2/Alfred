@@ -108,6 +108,7 @@ type TerminalDeskProps = {
   selectedSessionId: string | null;
   sessions: SessionTile[];
   surfaceActive: boolean;
+  terminalFocusRequestKey: number;
   workMode: WorkMode;
   worktreeActionPending: Record<string, WorktreeActionKind | undefined>;
   worktreeDiffReturnFocus: HTMLElement | null;
@@ -158,6 +159,7 @@ export function TerminalDesk({
   selectedSessionId,
   sessions,
   surfaceActive,
+  terminalFocusRequestKey,
   workMode,
   worktreeActionPending,
   worktreeDiffReturnFocus,
@@ -557,6 +559,7 @@ export function TerminalDesk({
                 collapsed={collapsedSessionIds.has(session.id)}
                 selected={inspectedSession?.id === session.id}
                 surfaceActive={surfaceActive && !worktreeDiffView}
+                terminalFocusRequestKey={terminalFocusRequestKey}
                 presentationSlot={presentationSlot}
                 showHeader={
                   arrangeMode ||
@@ -688,7 +691,7 @@ function RecoveryWorkspaceStrip({ sessions, onOpenHistory }: { sessions: Session
       <p>
         <strong>{recoveryHeadline(sessions)}</strong>
         <span aria-hidden="true"> · </span>
-        <button type="button" className="recovery-inbox-link" onClick={onOpenHistory}>
+        <button type="button" className="recovery-history-link" onClick={onOpenHistory}>
           Open in History
         </button>
       </p>
@@ -934,6 +937,7 @@ function ManualTerminalTile({
   onToggleCollapse,
   selected,
   surfaceActive,
+  terminalFocusRequestKey,
   showHeader,
   runtimeId,
   runtimeStatus,
@@ -990,6 +994,7 @@ function ManualTerminalTile({
   onToggleCollapse: () => void;
   selected: boolean;
   surfaceActive: boolean;
+  terminalFocusRequestKey: number;
   showHeader: boolean;
   runtimeId?: TerminalSessionId | undefined;
   runtimeStatus?: SessionTile["runtimeStatus"] | undefined;
@@ -1620,7 +1625,7 @@ function ManualTerminalTile({
     if (selected && status === "ready") {
       terminalRef.current?.focus();
     }
-  }, [selected, status, surfaceActive]);
+  }, [selected, status, surfaceActive, terminalFocusRequestKey]);
 
   return (
     <article

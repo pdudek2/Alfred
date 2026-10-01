@@ -14,8 +14,6 @@ export const privacySafeScreenshotSelectors = [
   ".project-session-title",
   ".terminal-tile.staged .tile-title small",
   ".staged-command",
-  ".inbox-docket__item-copy small",
-  ".inbox-docket code",
   ".sessions-navigator__search input",
   ".sessions-result > span",
   ".sessions-reader__breadcrumb > strong",
