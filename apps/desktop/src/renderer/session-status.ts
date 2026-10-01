@@ -54,6 +54,25 @@ const ACTIVE_OUTPUT_WINDOW_MS = 15_000;
 // A hook "working" signal is dropped if neither output nor a newer signal arrives (e.g. an interrupted turn sends no Stop).
 const SIGNALLED_WORKING_STALE_MS = 60_000;
 
+/**
+ * When recent output stops masking an approval prompt. Needs you counts outside a tile have no clock
+ * of their own, so the app re-renders at this moment to surface the prompt.
+ */
+export function nextApprovalRevealAt(
+  sessions: Pick<SessionTile, "activityEvents" | "lastOutputAt" | "stage">[],
+  now = Date.now(),
+): number | null {
+  let next: number | null = null;
+  for (const session of sessions) {
+    const latestEvent = session.activityEvents?.at(-1);
+    if (session.stage === "staged" || latestEvent?.kind !== "approval" || session.lastOutputAt === undefined) continue;
+    // The output window is inclusive, so the prompt shows one millisecond after it ends.
+    const revealAt = session.lastOutputAt + ACTIVE_OUTPUT_WINDOW_MS + 1;
+    if (revealAt > now && (next === null || revealAt < next)) next = revealAt;
+  }
+  return next;
+}
+
 function state(kind: Exclude<SessionStateKind, "needs-you">): SessionDisplayStatus {
   return { kind, label: SESSION_STATE_LABELS[kind] };
 }
