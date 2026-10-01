@@ -4,11 +4,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 const typedProjects = [
-  "./apps/api/tsconfig.json",
   "./apps/desktop/tsconfig.eslint.json",
-  "./apps/runner/tsconfig.json",
-  "./packages/adapters/tsconfig.json",
-  "./packages/db/tsconfig.json",
   "./packages/schema/tsconfig.json",
 ];
 
@@ -20,9 +16,7 @@ export default tseslint.config(
       "**/coverage/**",
       "**/.turbo/**",
       "**/.worktrees/**",
-      "**/.vercel/**",
       "**/output/**",
-      "api/.generated/**",
       ".agent-memory/**",
       "docs/audits/**",
     ],

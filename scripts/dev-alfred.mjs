@@ -11,28 +11,11 @@ const supportsProcessGroups = process.platform !== "win32";
 
 const processes = [
   {
-    name: "api",
-    command: pnpmCommand,
-    args: ["--filter", "@alfred/api", "dev"],
-    env: {
-      ALFRED_ALLOW_DEV_AUTH: "1",
-      API_PORT: "4301",
-    },
-  },
-  {
     name: "desktop",
     command: pnpmCommand,
     args: ["--filter", "@alfred/desktop", "dev:electron"],
     env: {
       DESKTOP_PORT: "4310",
-    },
-  },
-  {
-    name: "runner",
-    command: pnpmCommand,
-    args: ["runner:local"],
-    env: {
-      ALFRED_RUNNER_POLL_MS: "5000",
     },
   },
 ];
