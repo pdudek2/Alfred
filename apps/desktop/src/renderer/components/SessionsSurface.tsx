@@ -416,7 +416,7 @@ export function SessionsSurface({
   return (
     <section
       className={`sessions-surface${reducedMotion ? " sessions-surface--reduced-motion" : ""}`}
-      aria-label="Sessions workspace"
+      aria-label="History"
       data-secondary-chrome-height="52"
       onKeyDown={(event) => {
         if (event.key !== "Escape") return;

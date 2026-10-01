@@ -124,7 +124,7 @@ type TerminalDeskProps = {
   onCloseWorktreeDiff: () => void;
   onContinueRestoredSession: (sessionId: string) => void;
   onOpenExternalTerminal: (cwd: string) => Promise<boolean>;
-  onOpenInbox: () => void;
+  onOpenHistory: () => void;
   onRestartSession: (sessionId: string) => void;
   onApplyWorkMode: (mode: WorkMode) => void;
   onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
@@ -174,7 +174,7 @@ export function TerminalDesk({
   onCloseWorktreeDiff,
   onContinueRestoredSession,
   onOpenExternalTerminal,
-  onOpenInbox,
+  onOpenHistory,
   onRestartSession,
   onApplyWorkMode,
   onMoveTile,
@@ -475,7 +475,7 @@ export function TerminalDesk({
           {recoverableSessions.length > 0 && (
             <RecoveryWorkspaceStrip
               sessions={recoverableSessions}
-              onOpenInbox={onOpenInbox}
+              onOpenHistory={onOpenHistory}
             />
           )}
           {blockedStagedSession && (
@@ -681,15 +681,15 @@ function WorktreeActionStrip({
   );
 }
 
-function RecoveryWorkspaceStrip({ sessions, onOpenInbox }: { sessions: SessionTile[]; onOpenInbox: () => void }) {
+function RecoveryWorkspaceStrip({ sessions, onOpenHistory }: { sessions: SessionTile[]; onOpenHistory: () => void }) {
   return (
     <section className="recovery-workspace-strip" aria-label="Session recovery">
       <RotateCcw size={13} aria-hidden="true" />
       <p>
         <strong>{recoveryHeadline(sessions)}</strong>
         <span aria-hidden="true"> · </span>
-        <button type="button" className="recovery-inbox-link" onClick={onOpenInbox}>
-          Review in Inbox
+        <button type="button" className="recovery-inbox-link" onClick={onOpenHistory}>
+          Open in History
         </button>
       </p>
     </section>

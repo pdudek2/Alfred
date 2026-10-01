@@ -35,10 +35,10 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
   await expect(workScreen).toBeAttached();
   const screenBefore = await requiredHandle(workScreen, "Work xterm screen");
 
-  await selectSurface(page, "Sessions");
-  const sessions = page.getByRole("region", { name: "Sessions workspace" });
+  await selectSurface(page, "History");
+  const sessions = page.getByRole("region", { name: "History" });
   await expect(sessions).toBeVisible();
-  await expect(sessions.getByRole("complementary", { name: "Sessions" })).toBeVisible();
+  await expect(sessions.getByRole("complementary", { name: "History" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Projects and Free Chats" })).toHaveCount(0);
   await expect(sessions.getByRole("navigation", { name: "Projects" })).toHaveCount(0);
   const projectScope = sessions.getByRole("combobox", { name: "Project scope" });
@@ -123,7 +123,7 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
     await trigger.click();
     const runDetails = page.getByRole("complementary", { name: "Run details" });
     await expect(runDetails).toBeVisible();
-    await expect(runDetails).toContainText("External Codex");
+    await expect(runDetails).toContainText("Codex CLI");
     await expect(page.getByRole("dialog", { name: "Run details" })).toHaveCount(0);
     await expect(page.locator(".sessions-run-details__backdrop")).toHaveCount(0);
 
@@ -198,7 +198,7 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
   await harness.closeActiveTerminals();
 });
 
-async function selectSurface(page: Page, surface: "Work" | "Sessions"): Promise<void> {
+async function selectSurface(page: Page, surface: "Work" | "History"): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();
 }

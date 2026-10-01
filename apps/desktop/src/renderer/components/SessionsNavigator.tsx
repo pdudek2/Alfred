@@ -91,12 +91,12 @@ export function SessionsNavigator({
   };
 
   return (
-    <aside className="sessions-navigator" aria-label="Sessions">
+    <aside className="sessions-navigator" aria-label="History">
       <header className="sessions-navigator__heading">
         <button type="button" aria-label="Back to Work" onClick={onBackToWork}>
           <ChevronLeft aria-hidden="true" size={15} />
         </button>
-        <strong>Sessions</strong>
+        <strong>History</strong>
         <span aria-hidden="true">/</span>
         <div className="sessions-navigator__scope" role="group" aria-label="Session scope controls">
           <select
@@ -144,9 +144,9 @@ export function SessionsNavigator({
                 })}
               >
                 <option value="all">All sources</option>
-                <option value="managed">Managed</option>
+                <option value="managed">From Alfred</option>
                 <option value="saved">Asleep</option>
-                <option value="external-codex">Codex</option>
+                <option value="external-codex">Codex CLI</option>
               </select>
             </label>
             <label>

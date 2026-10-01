@@ -64,7 +64,7 @@ describe("WorkbenchHeader", () => {
 
   it("shows surface identity outside Work without leaking the selected session", () => {
     renderHeader({ activeSurface: "sessions", selectedSession: liveA });
-    expect(screen.getByRole("button", { name: "Open Surfaces menu" })).toHaveTextContent("Sessions");
+    expect(screen.getByRole("button", { name: "Open Surfaces menu" })).toHaveTextContent("History");
     expect(screen.queryByText(liveA.title)).not.toBeInTheDocument();
   });
 
@@ -87,7 +87,7 @@ describe("WorkbenchHeader", () => {
     expect(surfaces).toHaveTextContent("Inbox");
 
     await user.click(surfaces);
-    expect(screen.getByRole("menuitem", { name: "Sessions" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "History" })).toBeInTheDocument();
   });
 
   it("exposes Inbox Surfaces command palette and the existing launch destinations", async () => {
@@ -153,7 +153,7 @@ describe("WorkbenchHeader", () => {
     const menu = screen.getByRole("menu", { name: "Surfaces" });
     expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
       "Work",
-      "Sessions",
+      "History",
       "Context",
       "Local Data & Privacy",
     ]);

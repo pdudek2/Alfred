@@ -44,8 +44,8 @@ test("keeps four xterm hosts mounted while Grid shows one primary and two compan
 
   await openInbox(page);
   await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
-  await selectSurface(page, "Sessions");
-  await expect(page.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
+  await selectSurface(page, "History");
+  await expect(page.getByRole("region", { name: "History" })).toBeVisible();
   await selectSurface(page, "Work");
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
   await expect.poll(() => focusedTerminalSessionId(page)).toBe(selectedSessionId);
@@ -122,7 +122,7 @@ async function openInbox(page: Page): Promise<void> {
   await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
 }
 
-async function selectSurface(page: Page, surface: "Work" | "Sessions"): Promise<void> {
+async function selectSurface(page: Page, surface: "Work" | "History"): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();
 }

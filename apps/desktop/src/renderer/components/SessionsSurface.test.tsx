@@ -162,8 +162,8 @@ describe("SessionsSurface", () => {
       })],
     });
 
-    const navigator = screen.getByRole("complementary", { name: "Sessions" });
-    expect(within(navigator).getByText("Sessions", { selector: "strong" })).toBeVisible();
+    const navigator = screen.getByRole("complementary", { name: "History" });
+    expect(within(navigator).getByText("History", { selector: "strong" })).toBeVisible();
     expect(screen.getByRole("status", { name: "Session count" })).toHaveTextContent("1");
     expect(screen.getByRole("searchbox", { name: "Search sessions" })).toHaveAttribute("placeholder", "Search sessions…");
     const result = within(screen.getByRole("listbox", { name: "Session results" })).getByRole("option");
@@ -220,11 +220,11 @@ describe("SessionsSurface", () => {
 
     const source = screen.getByRole("combobox", { name: "Session source" });
     const timeRange = screen.getByRole("combobox", { name: "Session time range" });
-    expect(screen.getByRole("region", { name: "Sessions workspace" }))
+    expect(screen.getByRole("region", { name: "History" }))
       .toHaveAttribute("data-secondary-chrome-height", "52");
     expect(within(source).getByRole("option", { name: "All sources" })).toBeInTheDocument();
-    expect(within(source).getByRole("option", { name: "Managed" })).toBeInTheDocument();
-    expect(within(source).getByRole("option", { name: "Codex" })).toBeInTheDocument();
+    expect(within(source).getByRole("option", { name: "From Alfred" })).toBeInTheDocument();
+    expect(within(source).getByRole("option", { name: "Codex CLI" })).toBeInTheDocument();
     expect(within(timeRange).getByRole("option", { name: "Any time" })).toBeInTheDocument();
 
     await user.selectOptions(source, "external-codex");
@@ -288,7 +288,7 @@ describe("SessionsSurface", () => {
       sessions: Array.from({ length: 90 }, (_, index) => managedSession(index)),
     });
 
-    const surface = screen.getByRole("region", { name: "Sessions workspace" });
+    const surface = screen.getByRole("region", { name: "History" });
     const results = screen.getByRole("listbox", { name: "Session results" });
     const firstOption = within(results).getAllByRole("option")[0];
     expect(surface).toBeVisible();
@@ -299,18 +299,18 @@ describe("SessionsSurface", () => {
     expect(surface.querySelector(".sessions-navigator__results")).toBeNull();
     expect(screen.getByRole("searchbox", { name: "Search sessions" })).toHaveFocus();
     expect(within(screen.getByRole("listbox", { name: "Session results" })).getAllByRole("option")).toHaveLength(80);
-    expect(screen.queryByText(/History|Observatory/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Observatory/)).not.toBeInTheDocument();
   });
 
   it("keeps scope and count together in the navigator toolbar without changing result or reader hierarchy", () => {
     renderSurface({ sessions: [managedSession(0)] });
 
-    const navigator = screen.getByRole("complementary", { name: "Sessions" });
+    const navigator = screen.getByRole("complementary", { name: "History" });
     const scopeControls = within(navigator).getByRole("group", { name: "Session scope controls" });
     expect(within(scopeControls).getByRole("combobox", { name: "Project scope" })).toBeVisible();
     expect(within(scopeControls).getByRole("status", { name: "Session count" })).toHaveTextContent("1");
     expect(screen.getByRole("listbox", { name: "Session results" }).parentElement).toBe(navigator);
-    expect(screen.getByRole("region", { name: "Sessions workspace" }).querySelectorAll(".sessions-reader")).toHaveLength(1);
+    expect(screen.getByRole("region", { name: "History" }).querySelectorAll(".sessions-reader")).toHaveLength(1);
   });
 
   it("loads structured external messages only after selection and keeps explicit roles", async () => {
@@ -367,7 +367,7 @@ describe("SessionsSurface", () => {
     expect(details).toHaveAttribute("id", "sessions-run-details");
     expect(within(details).getByRole("button", { name: "Close Run details" })).toHaveFocus();
     expect(document.querySelector(".sessions-run-details__backdrop")).not.toBeInTheDocument();
-    expect(details).toHaveTextContent("External Codex");
+    expect(details).toHaveTextContent("Codex CLI");
     expect(details).toHaveTextContent("sessions-single-column");
     expect(details).toHaveTextContent("gpt-5.6-sol");
     expect(details).toHaveTextContent("3 internal runs");
@@ -859,7 +859,7 @@ describe("SessionsSurface", () => {
     expect(search).toHaveFocus();
     expect(search).toHaveProperty("selectionStart", 0);
 
-    fireEvent.keyDown(screen.getByRole("region", { name: "Sessions workspace" }), { key: "Escape" });
+    fireEvent.keyDown(screen.getByRole("region", { name: "History" }), { key: "Escape" });
     expect(onBackToWork).toHaveBeenCalledOnce();
   });
 
@@ -1043,7 +1043,7 @@ describe("SessionsSurface", () => {
     };
     renderSurface({ sessions: [managedSession(0)] }, state);
 
-    const surface = screen.getByRole("region", { name: "Sessions workspace" });
+    const surface = screen.getByRole("region", { name: "History" });
     expect(surface).toHaveClass("sessions-surface--reduced-motion");
     expect(screen.getByRole("listbox", { name: "Session results" })).toHaveProperty("scrollTop", 70);
     expect(surface.querySelector(".sessions-reader__scroll")).toHaveProperty("scrollTop", 90);

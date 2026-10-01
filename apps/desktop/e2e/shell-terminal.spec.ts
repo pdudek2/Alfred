@@ -140,8 +140,8 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     visibleTileCount: 1,
   };
 
-  await selectSurface(page, "Sessions");
-  await expect(page.getByRole("region", { name: "Sessions workspace" })).toBeVisible();
+  await selectSurface(page, "History");
+  await expect(page.getByRole("region", { name: "History" })).toBeVisible();
   identityTransitions["Focus→Sessions"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
   expect(identityTransitions["Focus→Sessions"]).toBe(true);
   await selectSurface(page, "Work");
@@ -284,7 +284,7 @@ async function addManualTerminal(page: Page): Promise<void> {
 
 async function selectSurface(
   page: Page,
-  surface: "Work" | "Sessions" | "Context" | "Local Data & Privacy",
+  surface: "Work" | "History" | "Context" | "Local Data & Privacy",
 ): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();
