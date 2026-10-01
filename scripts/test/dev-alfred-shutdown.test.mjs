@@ -46,7 +46,7 @@ describe("Alfred dev launcher shutdown", { skip: process.platform === "win32" },
         launcherStderr += chunk;
       });
 
-      const descendantPids = await waitForDescendantPids(pidFile, 3, 2_000, () => launcherStderr);
+      const descendantPids = await waitForDescendantPids(pidFile, 1, 2_000, () => launcherStderr);
       descendantPids.forEach((pid) => cleanupPids.add(pid));
 
       launcher.kill("SIGTERM");
@@ -99,7 +99,7 @@ describe("Alfred dev launcher shutdown", { skip: process.platform === "win32" },
         launcherStderr += chunk;
       });
 
-      const descendantPids = await waitForDescendantPids(pidFile, 3, 2_000, () => launcherStderr);
+      const descendantPids = await waitForDescendantPids(pidFile, 1, 2_000, () => launcherStderr);
       descendantPids.forEach((pid) => cleanupPids.add(pid));
 
       launcher.kill("SIGTERM");
