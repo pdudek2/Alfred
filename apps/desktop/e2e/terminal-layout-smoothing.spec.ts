@@ -42,8 +42,6 @@ test("keeps four xterm hosts mounted while Grid shows one primary and two compan
   expect(selectedSessionId).not.toBeNull();
   await expect.poll(() => focusedTerminalSessionId(page)).toBe(selectedSessionId);
 
-  await openInbox(page);
-  await expect(page.getByRole("region", { name: "Inbox workspace" })).toBeVisible();
   await selectSurface(page, "History");
   await expect(page.getByRole("region", { name: "History" })).toBeVisible();
   await selectSurface(page, "Work");
@@ -116,10 +114,6 @@ test.describe("draft Arrange layout", () => {
 async function addManualTerminal(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Open launch menu" }).click();
   await page.getByRole("menuitem", { name: "New manual terminal" }).click();
-}
-
-async function openInbox(page: Page): Promise<void> {
-  await page.getByTestId("workbench-header").getByRole("button", { name: /Open Inbox surface/i }).click();
 }
 
 async function selectSurface(page: Page, surface: "Work" | "History"): Promise<void> {

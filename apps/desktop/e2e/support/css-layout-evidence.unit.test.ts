@@ -31,7 +31,6 @@ describe("CSS layout evidence support", () => {
     expect(privacySafeScreenshotStyle).toContain(".workspace-title-trigger small");
     expect(privacySafeScreenshotStyle).toContain(".staged-command");
     expect(privacySafeScreenshotStyle).toContain(".agent-session-pulse");
-    expect(privacySafeScreenshotStyle).toContain(".inbox-docket code");
     expect(privacySafeScreenshotStyle).toContain(".xterm-screen");
     expect(privacySafeScreenshotStyle).toContain("opacity: 0 !important");
     expect(privacySafeScreenshotSelectors).not.toContain("body *");
@@ -54,8 +53,6 @@ describe("CSS layout evidence support", () => {
       <span class="project-session-title">Fixture session</span>
       <div class="terminal-tile staged"><div class="tile-title"><small>fixture staged</small></div></div>
       <code class="staged-command">pnpm test</code>
-      <div class="inbox-docket__item-copy"><small>fixture detail</small></div>
-      <div class="inbox-docket"><code>fixture evidence</code></div>
       <section class="sessions-surface">
         <aside class="sessions-navigator">
           <label class="sessions-navigator__search"><input value="private query"></label>
@@ -88,7 +85,7 @@ describe("CSS layout evidence support", () => {
     expect(captureReadinessForState("command-palette")).toEqual({
       selector: ".command-palette-list [role='option'][aria-selected='true']",
     });
-    expect(captureReadinessForState("inbox")).toBeNull();
+    expect(captureReadinessForState("sessions")).toBeNull();
     expect(captureReadinessForState("prepare-work")).toBeNull();
   });
 });

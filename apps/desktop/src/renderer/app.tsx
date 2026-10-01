@@ -6,6 +6,7 @@ import {
   X,
 } from "lucide-react";
 import { type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   getDesktopAlfredApi,
   getDesktopLayoutApi,
@@ -20,7 +21,6 @@ import { ContextColumn } from "./components/ContextColumn";
 import { NeedsYouPopover } from "./components/NeedsYouPopover";
 import { PrepareWorkPopover } from "./components/PrepareWorkPopover";
 import { ProjectNavigator, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
-import { ReviewSurface } from "./components/ReviewSurface";
 import { SessionsSurface } from "./components/SessionsSurface";
 import { TerminalDesk, type TerminalStartAttempt, type WorktreeActionKind } from "./components/TerminalDesk";
 import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHeader";
@@ -204,6 +204,7 @@ export function App() {
   const [workspaceRenameEditing, setWorkspaceRenameEditing] = useState<boolean>(false);
   const [projectNavigatorCollapsed, setProjectNavigatorCollapsed] = useState(false);
   const [needsYouOpen, setNeedsYouOpen] = useState(false);
+  const [terminalFocusRequestKey, setTerminalFocusRequestKey] = useState(0);
   const [armedRecoverySessionIds, setArmedRecoverySessionIds] = useState<Set<string>>(() => new Set());
   const [runtimeStatus, setRuntimeStatus] = useState<AlfredRuntimeStatus | null>(null);
   const [previewCandidates, setPreviewCandidates] = useState<PreviewUrlCandidate[]>([]);
@@ -310,8 +311,6 @@ export function App() {
   const activeWorkRecoverableSessions = activeRecoverableSessions.filter(isWorkSession);
   const needsYouAttention = needsYouItems(attentionItems);
   const needsYouCount = needsYouAttention.length;
-  // Inbox still holds drafts and recovery until History and the plan line replace it.
-  const inboxCount = attentionItems.filter((item) => item.section === "needs-you").length;
   const projectSessionIds = new Set(terminalSessions.filter((session) => !isFreeChatScope(session)).map((session) => session.id));
   const attentionCountsByWorkspace = blockingAttentionCountByWorkspace(
     attentionItems.filter((item) => projectSessionIds.has(item.sessionId)),
@@ -962,13 +961,6 @@ export function App() {
     });
     handleApplyWorkMode("focus", sessionId);
   }, [activeWorkspace.id, handleApplyWorkMode]);
-  const handleOpenInbox = useCallback(() => {
-    setNeedsYouOpen(false);
-    setCommandPaletteOpen(false);
-    setCommandQuery("");
-    setActiveSurface("inbox");
-  }, []);
-
   const openProjectHistory = useCallback((source: SessionsViewState["source"]) => {
     setNeedsYouOpen(false);
     setSessionsViewState((current) => ({
@@ -1857,11 +1849,7 @@ export function App() {
     );
   }, [terminalSessions, workspaces]);
 
-  const handleLaunchInboxItem = useCallback((sessionId: string) => {
-    handleApproveTile(sessionId);
-  }, [handleApproveTile]);
-
-  const handleRecoverInboxItem = useCallback((workspaceId: string, sessionId: string) => {
+  const handleRecoverSession = useCallback((workspaceId: string, sessionId: string) => {
     const session = terminalSessions.find((item) => item.id === sessionId);
     if (!session) return;
     const shouldFocusAfterRecovery = sessionRelaunchSafety(session).safe || armedRecoverySessionIds.has(sessionId);
@@ -1883,7 +1871,7 @@ export function App() {
 
   const handleSelectPrimarySurface = useCallback((nextSurface: PrimarySurface) => {
     if (
-      (activeSurface === "inbox" || activeSurface === "sessions") &&
+      activeSurface === "sessions" &&
       nextSurface !== activeSurface &&
       armedRecoverySessionIds.size > 0
     ) {
@@ -1893,15 +1881,6 @@ export function App() {
     setNeedsYouOpen(false);
     setActiveSurface(nextSurface);
   }, [activeSurface, armedRecoverySessionIds]);
-
-  const handleExitInboxToWork = useCallback(() => {
-    if (armedRecoverySessionIds.size > 0) {
-      setArmedRecoverySessionIds(new Set());
-      return;
-    }
-    restoreWorkFocusPendingRef.current = true;
-    setActiveSurface("work");
-  }, [armedRecoverySessionIds]);
 
   const handleExitSessionsToWork = useCallback(() => {
     if (armedRecoverySessionIds.size > 0) {
@@ -2198,7 +2177,16 @@ export function App() {
       return;
     }
     handleFocusSessionInWorkspace(item.workspaceId, item.sessionId);
+    setTerminalFocusRequestKey((key) => key + 1);
   }, [handleFocusSessionInWorkspace, handleReviewBlockedSession]);
+
+  const handleOpenNeedsYou = useCallback(() => {
+    flushSync(() => {
+      setCommandPaletteOpen(false);
+      setCommandQuery("");
+    });
+    setNeedsYouOpen(true);
+  }, []);
 
   const handleToggleNeedsYou = useCallback(() => {
     setNeedsYouOpen((open) => !open);
@@ -2287,7 +2275,7 @@ export function App() {
         if (request.target) handleFocusSessionInWorkspace(request.target.workspaceId, request.target.sessionId);
         return;
       case "recover":
-        if (request.target) handleRecoverInboxItem(request.target.workspaceId, request.target.sessionId);
+        if (request.target) handleRecoverSession(request.target.workspaceId, request.target.sessionId);
         return;
       case "resume-external":
         void handleResumeExternalCodexSession(request.summary);
@@ -2315,7 +2303,7 @@ export function App() {
   }, [
     handleAddExternalCodexProject,
     handleFocusSessionInWorkspace,
-    handleRecoverInboxItem,
+    handleRecoverSession,
     handleResumeExternalCodexSession,
     selectedSessionIdsByWorkspace,
     workspaces,
@@ -2645,7 +2633,6 @@ export function App() {
     : activeWorkMode === "focus"
       ? Math.min(1, activeSessionCount)
       : Math.min(2, activeSessionCount);
-  const inboxOwnsEscape = activeSurface === "inbox";
 
   return (
     <main
@@ -2668,27 +2655,6 @@ export function App() {
           setArmedRecoverySessionIds(new Set());
           return;
         }
-        if (!inboxOwnsEscape || event.key !== "Escape") return;
-        const dismissalOwner = activeAccessibleDismissalOwner(event.currentTarget);
-        if (dismissalOwner) {
-          if (event.target instanceof Node && dismissalOwner.contains(event.target)) return;
-          event.preventDefault();
-          event.stopPropagation();
-          dismissalOwner.dispatchEvent(new KeyboardEvent("keydown", {
-            key: event.key,
-            code: event.code,
-            bubbles: true,
-            cancelable: true,
-            altKey: event.altKey,
-            ctrlKey: event.ctrlKey,
-            metaKey: event.metaKey,
-            shiftKey: event.shiftKey,
-          }));
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        handleExitInboxToWork();
       }}
     >
       <div
@@ -2707,7 +2673,6 @@ export function App() {
           <WorkbenchHeader
             activeSurface={activeSurface}
             commandPaletteTriggerRef={commandPaletteTriggerRef}
-            inboxCount={inboxCount}
             needsYouCount={needsYouCount}
             needsYouOpen={needsYouOpen}
             needsYouTriggerRef={needsYouTriggerRef}
@@ -2720,7 +2685,6 @@ export function App() {
             onAddAgentSession={handleAddAgentSession}
             onAddManualSession={handleAddManualSession}
             onOpenCommandPalette={handleOpenCommandPalette}
-            onOpenInbox={handleOpenInbox}
             onOpenPrepareWork={() => setPrepareWorkOpen(true)}
             onReconnectWorkspace={() => void handleBindWorkspaceFromFolder()}
             onOpenPrivacyControls={handleOpenPrivacyPanel}
@@ -2876,6 +2840,7 @@ export function App() {
                   selectedSessionId={activeSelectedSessionId}
                   sessions={terminalSessions}
                   surfaceActive={!workSurfaceHidden}
+                  terminalFocusRequestKey={terminalFocusRequestKey}
                   workMode={activeWorkMode}
                   worktreeActionPending={worktreeActionPending}
                   worktreeDiffReturnFocus={worktreeDiffReturnFocusRef.current}
@@ -2916,18 +2881,6 @@ export function App() {
                 />
               </WorkspacePreviewDock>
             </div>
-            {activeSurface === "inbox" && (
-              <div className="surface-panel active">
-                <ReviewSurface
-                  attentionItems={attentionItems}
-                  onLaunch={handleLaunchInboxItem}
-                  onOpenInWork={handleFocusSessionInWorkspace}
-                  onRecover={handleRecoverInboxItem}
-                  onReviewEdit={handleReviewBlockedSession}
-                  onBackToWork={handleExitInboxToWork}
-                />
-              </div>
-            )}
             {activeSurface === "sessions" && (
               <div className="surface-panel active">
                 <SessionsSurface
@@ -2962,8 +2915,7 @@ export function App() {
               prepareWorkOpen ||
               workspaceMenuOpen ||
               pendingDiscardConfirmation !== null ||
-              needsYouOpen ||
-              inboxOwnsEscape
+              needsYouOpen
             }
             focusRequestKey={contextFocusRequestKeyRef.current}
             returnFocusRef={contextReturnFocusRef}
@@ -3078,8 +3030,8 @@ export function App() {
             onFocusSessionInWorkspace={handleFocusSessionInWorkspace}
             onFocusNextSession={() => handleFocusSessionByDelta(1)}
             onFocusPreviousSession={() => handleFocusSessionByDelta(-1)}
+            onOpenNeedsYou={handleOpenNeedsYou}
             onOpenContext={handleOpenContextFromCommandPalette}
-            onOpenInbox={handleOpenInbox}
             onOpenPrivacyControls={handleOpenPrivacyPanel}
             onRestartSession={handleRestartSession}
             onSelectWorkspace={handleSelectWorkspace}
