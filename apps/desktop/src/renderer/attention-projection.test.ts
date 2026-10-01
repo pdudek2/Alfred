@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   blockingAttentionCount,
   blockingAttentionCountByWorkspace,
+  needsYouItems,
   buildAttentionProjection,
   type AttentionProjection,
 } from "./attention-projection";
@@ -164,11 +165,14 @@ describe("buildAttentionProjection", () => {
       action: { kind: "resume" },
     });
 
-    expect(blockingAttentionCount(items)).toBe(3);
+    // A draft waits for Launch but does not block anything, so it is not
+    // counted as Needs you.
+    expect(blockingAttentionCount(items)).toBe(2);
     expect(blockingAttentionCountByWorkspace(items)).toEqual(new Map([
-      ["ALFRED", 2],
+      ["ALFRED", 1],
       ["CLIENT", 1],
     ]));
+    expect(needsYouItems(items).map((item) => item.kind)).toEqual(["blocked-safety", "agent-waiting"]);
   });
 
   it("omits statuses and ended records that do not have a real attention action", () => {

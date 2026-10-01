@@ -74,17 +74,24 @@ test("keeps the production Work story trustworthy across every utility surface",
   await context.getByRole("button", { name: "Close Context panel" }).click();
   await expect(page.getByRole("button", { name: "Open Surfaces menu" })).toBeFocused();
 
-  await page.getByRole("button", { name: /^Agents,/ }).click();
-  const agents = page.getByTestId("agents-drawer");
-  await expect(agents).toHaveAttribute("aria-hidden", "false");
-  await expectSans(agents);
-  await agents.getByRole("button", { name: "Open Fixture diff handoff" }).click();
-  await expectDrawerOpen(agents, agents.locator(".agents-drawer__handoff-primary"));
-  await captureAuditScreenshot(page, "agents-handoff-wide");
-  await agents.getByRole("button", { name: "Open diff" }).click();
+  await page.getByRole("button", { name: /^Needs you, / }).click();
+  const needsYou = page.getByRole("dialog", { name: "Needs you" });
+  await expect(needsYou).toBeVisible();
+  await expect(needsYou).toContainText("Codex MCP startup");
+  await expectSans(needsYou);
+  await expectWithinViewport(needsYou, "Needs you");
+  await captureAuditScreenshot(page, "needs-you-wide");
+  await page.keyboard.press("Escape");
+  await expect(needsYou).toBeHidden();
+
+  await page.getByRole("button", { name: /^Browse \d+ asleep sessions?$/ }).click();
+  const asleep = page.getByRole("region", { name: "Sessions workspace" });
+  await asleep.getByRole("listbox", { name: "Session results" })
+    .getByRole("option", { name: /Fixture diff handoff/ }).click();
+  await asleep.getByRole("toolbar", { name: "Asleep checkout actions" })
+    .getByRole("button", { name: "Review diff" }).click();
   const diff = page.getByRole("region", { name: "Worktree diff" });
   await expect(diff).toBeVisible();
-  await expectDrawerClosed(agents);
   await expectNoDocumentOrBodyOverflow(page);
   await expectWithinViewport(diff, "Worktree diff");
   await expectSans(diff.locator("code").first());
@@ -95,6 +102,9 @@ test("keeps the production Work story trustworthy across every utility surface",
   await selectSurface(page, "Sessions");
   const sessions = page.getByRole("region", { name: "Sessions workspace" });
   await expect(sessions).toBeVisible();
+  // Browsing asleep sessions above left Sessions filtered to this project's Asleep rows.
+  await sessions.getByRole("combobox", { name: "Project scope" }).selectOption("all");
+  await sessions.getByRole("combobox", { name: "Session source" }).selectOption("all");
   await expectSans(sessions.locator("time").first());
   await sessions.getByRole("listbox", { name: "Session results" })
     .getByRole("option", { name: /Mapped resumable session 01/i }).click();
@@ -256,64 +266,6 @@ async function expectWithinViewport(locator: Locator, label: string): Promise<vo
   });
   expect(bounds.left, `${label} starts outside the viewport`).toBeGreaterThanOrEqual(0);
   expect(bounds.right, `${label} exceeds the viewport`).toBeLessThanOrEqual(bounds.viewport);
-}
-
-async function expectDrawerOpen(drawer: Locator, primaryAction: Locator): Promise<void> {
-  await expect.poll(async () => drawer.evaluate((node) => {
-    const style = getComputedStyle(node);
-    const rect = node.getBoundingClientRect();
-    return {
-      ariaHidden: node.getAttribute("aria-hidden"),
-      inert: node.hasAttribute("inert"),
-      interactable: style.pointerEvents !== "none",
-      visible: style.visibility === "visible",
-      withinViewport: rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight,
-    };
-  })).toEqual({
-    ariaHidden: "false",
-    inert: false,
-    interactable: true,
-    visible: true,
-    withinViewport: true,
-  });
-  await expect.poll(async () => primaryAction.evaluate((node) => {
-    const style = getComputedStyle(node);
-    const rect = node.getBoundingClientRect();
-    return {
-      disabled: (node as HTMLButtonElement).disabled,
-      interactable: style.pointerEvents !== "none",
-      visible: style.visibility === "visible",
-      withinViewport: rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight,
-    };
-  })).toEqual({
-    disabled: false,
-    interactable: true,
-    visible: true,
-    withinViewport: true,
-  });
-}
-
-async function expectDrawerClosed(drawer: Locator): Promise<void> {
-  await expect.poll(async () => drawer.evaluate((node) => {
-    const style = getComputedStyle(node);
-    const rect = node.getBoundingClientRect();
-    const visibleWidth = Math.max(0, Math.min(rect.right, innerWidth) - Math.max(rect.left, 0));
-    return {
-      ariaHidden: node.getAttribute("aria-hidden"),
-      finalTransformApplied: style.transform !== "none",
-      inert: node.hasAttribute("inert"),
-      pointerEvents: style.pointerEvents,
-      visibility: style.visibility,
-      visibleWidth,
-    };
-  })).toEqual({
-    ariaHidden: "true",
-    finalTransformApplied: true,
-    inert: true,
-    pointerEvents: "none",
-    visibility: "hidden",
-    visibleWidth: 0,
-  });
 }
 
 async function expectNoDocumentOrBodyOverflow(page: Page): Promise<void> {

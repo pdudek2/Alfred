@@ -32,8 +32,8 @@ export const privacySafeHiddenScreenshotSelectors = [
 ] as const;
 
 export const privacySafeScreenshotStyle = `
-  .agents-drawer__work-detail {
-    display: none !important;
+  .needs-you-popover__copy p {
+    color: transparent !important;
   }
 
   ${privacySafeScreenshotSelectors.join(",\n  ")} {

@@ -17,7 +17,7 @@ import {
 import { ComposerBar } from "./composer";
 import { CommandPalette } from "./components/CommandPalette";
 import { ContextColumn } from "./components/ContextColumn";
-import { AgentsDrawer } from "./components/AgentsDrawer";
+import { NeedsYouPopover } from "./components/NeedsYouPopover";
 import { PrepareWorkPopover } from "./components/PrepareWorkPopover";
 import { ProjectNavigator, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
 import { ReviewSurface } from "./components/ReviewSurface";
@@ -28,8 +28,8 @@ import { WorkSurfaceToolbar } from "./components/WorkSurfaceToolbar";
 import { WorkspaceActionsMenu } from "./components/WorkspaceActionsMenu";
 import { WorkspacePreviewDock } from "./components/WorkspacePreviewDock";
 import {
-  blockingAttentionCount,
   blockingAttentionCountByWorkspace,
+  needsYouItems,
   buildAttentionProjection,
   type AttentionProjection,
 } from "./attention-projection";
@@ -203,7 +203,7 @@ export function App() {
   const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState<string>("");
   const [workspaceRenameEditing, setWorkspaceRenameEditing] = useState<boolean>(false);
   const [projectNavigatorCollapsed, setProjectNavigatorCollapsed] = useState(false);
-  const [agentsDrawerOpen, setAgentsDrawerOpen] = useState(false);
+  const [needsYouOpen, setNeedsYouOpen] = useState(false);
   const [armedRecoverySessionIds, setArmedRecoverySessionIds] = useState<Set<string>>(() => new Set());
   const [runtimeStatus, setRuntimeStatus] = useState<AlfredRuntimeStatus | null>(null);
   const [previewCandidates, setPreviewCandidates] = useState<PreviewUrlCandidate[]>([]);
@@ -223,7 +223,7 @@ export function App() {
   const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const prepareWorkTriggerRef = useRef<HTMLButtonElement | null>(null);
   const previewTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const agentsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const needsYouTriggerRef = useRef<HTMLButtonElement | null>(null);
   const worktreeDiffReturnFocusRef = useRef<HTMLElement | null>(null);
   const surfacesTriggerRef = useRef<HTMLButtonElement | null>(null);
   const privacyReturnFocusRef = useRef<HTMLElement | null>(null);
@@ -319,7 +319,10 @@ export function App() {
       ...(session.args === undefined ? {} : { args: session.args }),
     },
   ]));
-  const needsYouCount = blockingAttentionCount(attentionItems);
+  const needsYouAttention = needsYouItems(attentionItems);
+  const needsYouCount = needsYouAttention.length;
+  // Inbox still holds drafts and recovery until History and the plan line replace it.
+  const inboxCount = attentionItems.filter((item) => item.section === "needs-you").length;
   const projectSessionIds = new Set(terminalSessions.filter((session) => !isFreeChatScope(session)).map((session) => session.id));
   const attentionCountsByWorkspace = blockingAttentionCountByWorkspace(
     attentionItems.filter((item) => projectSessionIds.has(item.sessionId)),
@@ -463,7 +466,7 @@ export function App() {
 
     terminalSessionsRef.current = nextSessions;
     setTerminalSessions(nextSessions);
-    setAgentsDrawerOpen(false);
+    setNeedsYouOpen(false);
     setActiveSurface("work");
     setRevealSessionId(activeWorkMode === "focus" ? null : addedSession.id);
     setSelectedSessionIdsByWorkspace((current) => ({
@@ -625,7 +628,7 @@ export function App() {
   const handleToggleContextDrawer = useCallback(() => {
     const nextOpen = !activeContextDrawerOpen;
     if (nextOpen) {
-      setAgentsDrawerOpen(false);
+      setNeedsYouOpen(false);
       contextReturnFocusRef.current = surfacesTriggerRef.current;
       contextFocusRequestKeyRef.current += 1;
       setPreviewDockOpenByWorkspace((current) => ({
@@ -643,7 +646,7 @@ export function App() {
   }, [activeContextDrawerOpen, activeWorkspace.id, persistActiveWorkspaceViewState]);
 
   const handleOpenContextFromCommandPalette = useCallback(() => {
-    setAgentsDrawerOpen(false);
+    setNeedsYouOpen(false);
     contextReturnFocusRef.current = commandPaletteTriggerRef.current;
     contextFocusRequestKeyRef.current += 1;
     setPreviewDockOpenByWorkspace((current) => ({
@@ -666,22 +669,6 @@ export function App() {
       };
     });
   }, [activeWorkspace.id]);
-
-  const handleToggleAgentsDrawer = useCallback(() => {
-    const nextOpen = !agentsDrawerOpen;
-    if (nextOpen) {
-      setContextDrawerOpenByWorkspace((current) => ({
-        ...current,
-        [activeWorkspace.id]: false,
-      }));
-      setPreviewDockOpenByWorkspace((current) => ({
-        ...current,
-        [activeWorkspace.id]: false,
-      }));
-      persistActiveWorkspaceViewState({ previewDockOpen: false });
-    }
-    setAgentsDrawerOpen(nextOpen);
-  }, [activeWorkspace.id, agentsDrawerOpen, persistActiveWorkspaceViewState]);
 
   const handleToggleCollapseSession = useCallback((sessionId: string) => {
     const existing = collapsedSessionIdsByWorkspace[activeWorkspace.id] ?? [];
@@ -714,7 +701,7 @@ export function App() {
   }, [activeDispatchTarget, activeDispatchTargets, activeWorkspace.id, persistActiveWorkspaceViewState]);
 
   const handleBeginRenameActiveWorkspace = useCallback(() => {
-    setAgentsDrawerOpen(false);
+    setNeedsYouOpen(false);
     setActiveSurface("work");
     setWorkspaceRenameDraft(activeWorkspace.label);
     setWorkspaceRenameEditing(true);
@@ -885,7 +872,7 @@ export function App() {
     if (!previewVisible) return;
     const nextOpen = !activePreviewDockOpen;
     if (nextOpen) {
-      setAgentsDrawerOpen(false);
+      setNeedsYouOpen(false);
       setContextDrawerOpenByWorkspace((current) => ({
         ...current,
         [activeWorkspace.id]: false,
@@ -987,14 +974,14 @@ export function App() {
     handleApplyWorkMode("focus", sessionId);
   }, [activeWorkspace.id, handleApplyWorkMode]);
   const handleOpenInbox = useCallback(() => {
-    setAgentsDrawerOpen(false);
+    setNeedsYouOpen(false);
     setCommandPaletteOpen(false);
     setCommandQuery("");
     setActiveSurface("inbox");
   }, []);
 
   const handleOpenSavedSessions = useCallback(() => {
-    setAgentsDrawerOpen(false);
+    setNeedsYouOpen(false);
     setSessionsViewState((current) => ({
       ...current,
       query: "",
@@ -1419,7 +1406,7 @@ export function App() {
       && document.activeElement !== document.body
       ? document.activeElement
       : null;
-    setAgentsDrawerOpen(false);
+    setNeedsYouOpen(false);
     handleFocusSessionInWorkspace(workspaceId, sessionId);
     setWorktreeDiffView({
       status: "loading",
@@ -1911,7 +1898,7 @@ export function App() {
       setArmedRecoverySessionIds(new Set());
       return;
     }
-    setAgentsDrawerOpen(false);
+    setNeedsYouOpen(false);
     setActiveSurface(nextSurface);
   }, [activeSurface, armedRecoverySessionIds]);
 
@@ -2212,33 +2199,22 @@ export function App() {
     }));
   }, [handleFocusSessionInWorkspace]);
 
-  const handleOpenAgentSession = useCallback((workspaceId: string, sessionId: string) => {
-    setAgentsDrawerOpen(false);
-    handleFocusSessionInWorkspace(workspaceId, sessionId);
-  }, [handleFocusSessionInWorkspace]);
-
-  const handleRunAgentsAttentionAction = useCallback((item: AttentionProjection) => {
-    setAgentsDrawerOpen(false);
-    switch (item.action.kind) {
-      case "open-in-work":
-        handleFocusSessionInWorkspace(item.workspaceId, item.sessionId);
-        return;
-      case "launch":
-        handleLaunchInboxItem(item.sessionId);
-        return;
-      case "review-edit":
-        handleReviewBlockedSession(item.workspaceId, item.sessionId);
-        return;
-      case "resume":
-      case "relaunch":
-        handleRecoverInboxItem(item.workspaceId, item.sessionId);
+  const handleRunNeedsYouAction = useCallback((item: AttentionProjection) => {
+    setNeedsYouOpen(false);
+    if (item.action.kind === "review-edit") {
+      handleReviewBlockedSession(item.workspaceId, item.sessionId);
+      return;
     }
-  }, [
-    handleFocusSessionInWorkspace,
-    handleLaunchInboxItem,
-    handleRecoverInboxItem,
-    handleReviewBlockedSession,
-  ]);
+    handleFocusSessionInWorkspace(item.workspaceId, item.sessionId);
+  }, [handleFocusSessionInWorkspace, handleReviewBlockedSession]);
+
+  const handleToggleNeedsYou = useCallback(() => {
+    setNeedsYouOpen((open) => !open);
+  }, []);
+
+  const handleCloseNeedsYou = useCallback(() => {
+    setNeedsYouOpen(false);
+  }, []);
 
   const handleResumeExternalCodexSession = useCallback(async (summary: SessionSummary) => {
     const sessionKey = summary.sessionKey;
@@ -2404,6 +2380,7 @@ export function App() {
         const appShortcut =
           shortcutPressed && (
             /^[1-9]$/.test(event.key) ||
+            key === "j" ||
             key === "k" ||
             key === "t" ||
             key === "w" ||
@@ -2431,6 +2408,12 @@ export function App() {
           event.preventDefault();
           handleSelectWorkspace(workspace.id);
         }
+        return;
+      }
+
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === "j") {
+        event.preventDefault();
+        handleToggleNeedsYou();
         return;
       }
 
@@ -2490,6 +2473,7 @@ export function App() {
     handleOpenCommandPalette,
     handleOpenSessionTerminal,
     handleSelectWorkspace,
+    handleToggleNeedsYou,
     privacyPanelOpen,
     workspaces,
   ]);
@@ -2731,7 +2715,10 @@ export function App() {
           <WorkbenchHeader
             activeSurface={activeSurface}
             commandPaletteTriggerRef={commandPaletteTriggerRef}
-            inboxCount={needsYouCount}
+            inboxCount={inboxCount}
+            needsYouCount={needsYouCount}
+            needsYouOpen={needsYouOpen}
+            needsYouTriggerRef={needsYouTriggerRef}
             prepareWorkTriggerRef={prepareWorkTriggerRef}
             selectedSession={activeSelectedSession}
             shortcutModifier={shortcutModifier}
@@ -2747,6 +2734,7 @@ export function App() {
             onOpenPrivacyControls={handleOpenPrivacyPanel}
             onSelectSurface={handleSelectPrimarySurface}
             onToggleContext={handleToggleContextDrawer}
+            onToggleNeedsYou={handleToggleNeedsYou}
           />
         </div>
 
@@ -2800,7 +2788,6 @@ export function App() {
             `surface-${activeSurface}`,
             activePreviewDockOpen ? "preview-visible" : "",
             activeContextDrawerOpen ? "context-visible" : "",
-            agentsDrawerOpen && activeSurface === "work" ? "agents-visible" : "",
           ].filter(Boolean).join(" ")}
           data-testid="workbench-shell"
         >
@@ -2855,9 +2842,6 @@ export function App() {
               inert={workSurfaceHidden || undefined}
             >
               <WorkSurfaceToolbar
-                activeAgentCount={activeAgentSessions.length}
-                agentsOpen={agentsDrawerOpen}
-                agentsTriggerRef={agentsTriggerRef}
                 arrangeMode={arrangeMode}
                 previewAvailable={previewVisible}
                 previewOpen={activePreviewDockOpen}
@@ -2870,7 +2854,6 @@ export function App() {
                 onApplyWorkMode={handleApplyWorkMode}
                 onOpenSavedSessions={handleOpenSavedSessions}
                 onToggleArrangeMode={handleToggleArrangeMode}
-                onToggleAgents={handleToggleAgentsDrawer}
                 onTogglePreview={handleTogglePreviewDock}
               />
               <WorkspacePreviewDock
@@ -2990,6 +2973,7 @@ export function App() {
               prepareWorkOpen ||
               workspaceMenuOpen ||
               pendingDiscardConfirmation !== null ||
+              needsYouOpen ||
               inboxOwnsEscape
             }
             focusRequestKey={contextFocusRequestKeyRef.current}
@@ -3003,28 +2987,17 @@ export function App() {
               onUpdateStagedSession: handleUpdateStagedSession,
             }}
           />
-          <AgentsDrawer
-            sessions={terminalSessions}
-            activeSessionId={activeSelectedSessionId}
-            activeWorkspaceId={activeWorkspace.id}
-            attentionItems={attentionItems}
-            dismissalSuspended={
-              commandPaletteOpen ||
-              privacyPanelOpen ||
-              prepareWorkOpen ||
-              workspaceMenuOpen ||
-              pendingDiscardConfirmation !== null
-            }
-            open={activeSurface === "work" && agentsDrawerOpen}
-            returnFocusRef={agentsTriggerRef}
-            workspaces={workspaces}
-            onClose={() => setAgentsDrawerOpen(false)}
-            onOpenInbox={handleOpenInbox}
-            onOpenSession={handleOpenAgentSession}
-            onOpenWorktreeDiff={(workspaceId, sessionId) => void handleOpenWorktreeDiff(workspaceId, sessionId)}
-            onRunAttentionAction={handleRunAgentsAttentionAction}
-          />
         </div>
+        {needsYouOpen && (
+          <NeedsYouPopover
+            dismissalSuspended={commandPaletteOpen || privacyPanelOpen || pendingDiscardConfirmation !== null}
+            items={needsYouAttention}
+            shortcutLabel={shortcutModifier === "Cmd" ? "⌘J" : "Ctrl J"}
+            triggerRef={needsYouTriggerRef}
+            onClose={handleCloseNeedsYou}
+            onRunAction={handleRunNeedsYouAction}
+          />
+        )}
         {prepareWorkOpen && (
           <PrepareWorkPopover
             dismissalSuspended={commandPaletteOpen || privacyPanelOpen}

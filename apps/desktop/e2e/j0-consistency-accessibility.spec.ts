@@ -201,13 +201,18 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await expect(runDetailsTrigger).toBeFocused();
 
   await selectSurface(page, "Work");
-  const agentsTrigger = page.getByRole("button", { name: /^Agents,/ });
-  await agentsTrigger.click();
-  const agents = page.getByTestId("agents-drawer");
-  await expect(agents).toHaveAttribute("aria-hidden", "false");
-  await expectSansFont(agents);
-  await agents.getByRole("button", { name: "Open Fixture diff handoff" }).click();
-  await agents.getByRole("button", { name: "Open diff" }).click();
+  await page.keyboard.press("Meta+J");
+  const needsYou = page.getByRole("dialog", { name: "Needs you" });
+  await expect(needsYou).toContainText("Nothing needs you right now.");
+  await expectSansFont(needsYou);
+  await page.keyboard.press("Escape");
+  await expect(needsYou).toBeHidden();
+  await page.getByRole("button", { name: /^Browse \d+ asleep sessions?$/ }).click();
+  const asleep = page.getByRole("region", { name: "Sessions workspace" });
+  await asleep.getByRole("listbox", { name: "Session results" })
+    .getByRole("option", { name: /Fixture diff handoff/ }).click();
+  await asleep.getByRole("toolbar", { name: "Asleep checkout actions" })
+    .getByRole("button", { name: "Review diff" }).click();
   const diff = page.getByRole("region", { name: "Worktree diff" });
   await expect(diff).toBeVisible();
   await expectSansFont(diff.locator(".worktree-diff-panel__files code").first());
