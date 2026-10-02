@@ -13,62 +13,64 @@ import { checkSafety } from "./alfred-safety.js";
 import { preflightAlfredPlanSession, type AlfredLaunchPreflightOptions } from "./alfred-launch-preflight.js";
 import type { PersistedDesktopStateStore } from "./persisted-desktop-state.js";
 
-let stagedPlan: AlfredStagedPlanSnapshot | null = null;
+type StagedPlans = Record<string, AlfredStagedPlanSnapshot>;
+let stagedPlans: StagedPlans = {};
+let mutationQueue: Promise<unknown> = Promise.resolve();
 let persistedStateStore: PersistedDesktopStateStore | null = null;
 
 export function configureStagedPlanPersistence(store: PersistedDesktopStateStore): void {
   persistedStateStore = store;
-  stagedPlan = null;
+  stagedPlans = {};
 }
 
-export async function getStagedPlanSnapshot(): Promise<AlfredStagedPlanSnapshotResponse> {
-  if (persistedStateStore) {
-    return { plan: clonePlan((await persistedStateStore.getState()).stagedPlan) };
-  }
+export async function getStagedPlansSnapshot(): Promise<AlfredStagedPlanSnapshotResponse> {
+  const plans = persistedStateStore ? (await persistedStateStore.getState()).stagedPlans : stagedPlans;
+  return snapshot(plans);
+}
 
-  return { plan: clonePlan(stagedPlan) };
+async function updatePlans(
+  transform: (plans: StagedPlans) => StagedPlans | Promise<StagedPlans>,
+): Promise<AlfredStagedPlanSnapshotResponse> {
+  if (persistedStateStore) {
+    const next = await persistedStateStore.updateState(async (current) => ({
+      ...current,
+      stagedPlans: await transform(current.stagedPlans),
+    }));
+    return snapshot(next.stagedPlans);
+  }
+  const operation = mutationQueue.then(async () => {
+    stagedPlans = await transform(stagedPlans);
+    return snapshot(stagedPlans);
+  });
+  mutationQueue = operation.catch(() => undefined);
+  return operation;
 }
 
 export async function setStagedPlanSnapshot(
   request: AlfredStagedPlanSetRequest,
 ): Promise<AlfredStagedPlanSnapshotResponse> {
-  if (persistedStateStore) {
-    const next = await persistedStateStore.updateState((current) => ({ ...current, stagedPlan: clonePlan(request) }));
-    return { plan: clonePlan(next.stagedPlan) };
+  if (typeof request?.workspaceId !== "string" || !request.workspaceId.trim() || !Array.isArray(request.sessions) || request.sessions.some(
+    (session) => !session || (session.workspaceId !== undefined && session.workspaceId !== request.workspaceId),
+  )) {
+    throw Object.assign(new Error("Staged plan sessions must belong to the plan workspace."), { code: "malformed" });
   }
-
-  stagedPlan = clonePlan(request);
-  return getStagedPlanSnapshot();
+  const plan = cloneExistingPlan(request);
+  return updatePlans((plans) => {
+    const next = { ...plans };
+    if (plan.sessions.length) next[plan.workspaceId] = plan;
+    else delete next[plan.workspaceId];
+    return next;
+  });
 }
 
 export async function resolveStagedPlanSessions(
   request: AlfredStagedPlanResolveRequest,
 ): Promise<AlfredStagedPlanSnapshotResponse> {
-  if (persistedStateStore) {
-    const next = await persistedStateStore.updateState((current) => {
-      const currentPlan = current.stagedPlan;
-      if (!currentPlan || request.sessionIds.length === 0) return current;
-
-      const resolved = new Set(request.sessionIds);
-      const remainingSessions = currentPlan.sessions.filter((session) => !resolved.has(session.id));
-      const nextPlan = remainingSessions.length === 0 ? null : { ...currentPlan, sessions: remainingSessions };
-
-      return { ...current, stagedPlan: nextPlan };
-    });
-    return { plan: clonePlan(next.stagedPlan) };
-  }
-
-  const currentPlan = stagedPlan;
-  if (!currentPlan || request.sessionIds.length === 0) {
-    return getStagedPlanSnapshot();
-  }
-
   const resolved = new Set(request.sessionIds);
-  const remainingSessions = currentPlan.sessions.filter((session) => !resolved.has(session.id));
-  const nextPlan = remainingSessions.length === 0 ? null : { ...currentPlan, sessions: remainingSessions };
-
-  stagedPlan = nextPlan;
-  return getStagedPlanSnapshot();
+  return updatePlans((plans) => Object.fromEntries(Object.entries(plans).flatMap(([workspaceId, plan]) => {
+    const sessions = plan.sessions.filter((session) => !resolved.has(session.id));
+    return sessions.length ? [[workspaceId, { ...plan, sessions }]] : [];
+  })));
 }
 
 export async function updateStagedPlanSession(
@@ -78,41 +80,29 @@ export async function updateStagedPlanSession(
   const invalidRequest = validateUpdateRequest(request);
   if (invalidRequest) return { ok: false, error: invalidRequest };
 
-  if (persistedStateStore) {
-    let error: AlfredError | null = null;
-    const next = await persistedStateStore.updateState(async (current) => {
-      const update = await applyStagedPlanSessionUpdate(current.stagedPlan, request, options.preflightOptions ?? {});
-      if (!update.ok) {
-        error = update.error;
-        return current;
-      }
-
-      return { ...current, stagedPlan: update.plan };
-    });
-
-    if (error) return { ok: false, error };
-    if (!next.stagedPlan) {
-      return { ok: false, error: notFoundError("Staged plan is no longer available.") };
-    }
-
-    return { ok: true, plan: cloneExistingPlan(next.stagedPlan) };
-  }
-
-  const update = await applyStagedPlanSessionUpdate(stagedPlan, request, options.preflightOptions ?? {});
-  if (!update.ok) return update;
-
-  stagedPlan = update.plan;
-  return { ok: true, plan: cloneExistingPlan(stagedPlan) };
+  let result: AlfredStagedPlanSessionUpdateResponse = {
+    ok: false, error: notFoundError("Staged plan is no longer available."),
+  };
+  await updatePlans(async (plans) => {
+    const plan = Object.values(plans).find((item) => item.id === request.planId) ?? null;
+    result = await applyStagedPlanSessionUpdate(plan, request, options.preflightOptions ?? {});
+    return result.ok ? { ...plans, [result.plan.workspaceId]: cloneExistingPlan(result.plan) } : plans;
+  });
+  return result;
 }
 
-export async function clearStagedPlanSnapshot(): Promise<AlfredStagedPlanSnapshotResponse> {
-  if (persistedStateStore) {
-    const next = await persistedStateStore.updateState((current) => ({ ...current, stagedPlan: null }));
-    return { plan: clonePlan(next.stagedPlan) };
-  }
+export async function clearStagedPlanSnapshot(
+  request: { workspaceId: string },
+): Promise<AlfredStagedPlanSnapshotResponse> {
+  return updatePlans((plans) => {
+    const next = { ...plans };
+    delete next[request.workspaceId];
+    return next;
+  });
+}
 
-  stagedPlan = null;
-  return getStagedPlanSnapshot();
+function snapshot(plans: StagedPlans): AlfredStagedPlanSnapshotResponse {
+  return { plans: Object.values(plans).map(cloneExistingPlan) };
 }
 
 export async function isStagedSessionLaunchAllowed(request: {
@@ -122,8 +112,8 @@ export async function isStagedSessionLaunchAllowed(request: {
 }): Promise<boolean> {
   if (!request.clientId || !request.command) return false;
 
-  const { plan } = await getStagedPlanSnapshot();
-  const session = plan?.sessions.find((item) => item.id === request.clientId);
+  const { plans } = await getStagedPlansSnapshot();
+  const session = plans.flatMap((plan) => plan.sessions).find((item) => item.id === request.clientId);
   if (!session) return false;
   if (session.safetyNote) return false;
   if (session.launchPreflight?.status === "blocked") return false;
@@ -133,7 +123,8 @@ export async function isStagedSessionLaunchAllowed(request: {
 
 export function resetStagedPlanPersistence(): void {
   persistedStateStore = null;
-  stagedPlan = null;
+  stagedPlans = {};
+  mutationQueue = Promise.resolve();
 }
 
 async function applyStagedPlanSessionUpdate(
@@ -279,11 +270,6 @@ function hasOwn(value: object, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
 
-function clonePlan(plan: AlfredStagedPlanSnapshot | null): AlfredStagedPlanSnapshot | null {
-  if (!plan) return null;
-  return cloneExistingPlan(plan);
-}
-
 function cloneExistingPlan(plan: AlfredStagedPlanSnapshot): AlfredStagedPlanSnapshot {
   return {
     ...plan,
@@ -291,6 +277,7 @@ function cloneExistingPlan(plan: AlfredStagedPlanSnapshot): AlfredStagedPlanSnap
       const normalizedSession = normalizeAgentCommand(session);
       return {
         ...normalizedSession,
+        workspaceId: plan.workspaceId,
         args: [...normalizedSession.args],
         ...(normalizedSession.launchPreflight === undefined
           ? {}

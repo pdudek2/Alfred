@@ -178,7 +178,7 @@ function installDesktopBridge(
       ],
     },
   },
-  stagedPlan: AlfredStagedPlanSnapshot | null = null,
+  stagedPlans: AlfredStagedPlanSnapshot[] | null = null,
   terminalSessions: TerminalSessionSnapshot[] = [],
   runtimeStatus: AlfredRuntimeStatus | null = {
     model: "anthropic/claude-sonnet-4-6",
@@ -205,7 +205,7 @@ function installDesktopBridge(
   createTerminal: ReturnType<typeof vi.fn>;
   forgetTerminal: ReturnType<typeof vi.fn>;
   getLayouts: ReturnType<typeof vi.fn>;
-  getStagedPlan: ReturnType<typeof vi.fn>;
+  getStagedPlans: ReturnType<typeof vi.fn>;
   getRuntimeStatus: ReturnType<typeof vi.fn>;
   killTerminal: ReturnType<typeof vi.fn>;
   renameTerminal: ReturnType<typeof vi.fn>;
@@ -249,12 +249,12 @@ function installDesktopBridge(
   const dataListeners = new Set<(event: TerminalDataEvent) => void>();
   const exitListeners = new Set<(event: TerminalExitEvent) => void>();
   const saveStatusListeners = new Set<(status: DesktopSaveStatus) => void>();
-  const clearStagedPlan = vi.fn().mockResolvedValue({ plan: null });
-  const getStagedPlan = vi.fn().mockResolvedValue({ plan: stagedPlan });
+  const clearStagedPlan = vi.fn().mockResolvedValue({ plans: [] });
+  const getStagedPlans = vi.fn().mockResolvedValue({ plans: stagedPlans ?? [] });
   const getRuntimeStatus = vi.fn().mockResolvedValue(runtimeStatus);
   const requestPlan = vi.fn().mockResolvedValue(planResponse);
-  const resolveStagedPlan = vi.fn().mockResolvedValue({ plan: null });
-  const setStagedPlan = vi.fn().mockImplementation((request) => Promise.resolve({ plan: request }));
+  const resolveStagedPlan = vi.fn().mockResolvedValue({ plans: [] });
+  const setStagedPlan = vi.fn().mockImplementation((request) => Promise.resolve({ plans: [request] }));
   const updateStagedSession = vi.fn().mockImplementation((request) =>
     Promise.resolve({ ok: false, error: { code: "not_found", message: `No draft session ${request.sessionId}` } }),
   );
@@ -411,7 +411,7 @@ function installDesktopBridge(
     alfred: {
       clearStagedPlan,
       getRuntimeStatus,
-      getStagedPlan,
+      getStagedPlans,
       requestPlan,
       resolveStagedPlan,
       setStagedPlan,
@@ -454,7 +454,7 @@ function installDesktopBridge(
     forgetTerminal,
     getLayouts,
     getRuntimeStatus,
-    getStagedPlan,
+    getStagedPlans,
     killTerminal,
     renameTerminal,
     openExternalTerminal,
@@ -1684,11 +1684,12 @@ describe("App integration", () => {
   it("drops the draft plan from the view when saved data is cleared", async () => {
     const user = userEvent.setup();
     const stagedPlan: AlfredStagedPlanSnapshot = {
+      workspaceId: "A",
       id: "plan-to-clear",
       prompt: "PRIVATE_PROMPT",
       sessions: [{ id: "alfred-clear-1", kind: "shell", title: "Draft to clear", command: "echo", args: ["one"] }],
     };
-    const { clearSavedTerminalData } = installDesktopBridge(undefined, stagedPlan);
+    const { clearSavedTerminalData } = installDesktopBridge(undefined, [stagedPlan]);
     render(<App />);
 
     await openPlan(user);
@@ -2257,6 +2258,7 @@ describe("App integration", () => {
   it("keeps restored memory out of Work and opens it in project-scoped Sessions", async () => {
     const user = userEvent.setup();
     const stagedPlan: AlfredStagedPlanSnapshot = {
+      workspaceId: "A",
       id: "plan-visible-count",
       prompt: "prepare visible work",
       sessions: [
@@ -2289,7 +2291,7 @@ describe("App integration", () => {
     ];
     installDesktopBridge(
       undefined,
-      stagedPlan,
+      [stagedPlan],
       [],
       undefined,
       undefined,
@@ -2400,14 +2402,15 @@ describe("App integration", () => {
     const user = userEvent.setup();
     installDesktopBridge(
       undefined,
-      {
+      [{
+        workspaceId: "A",
         id: "plan-staged-focus",
         name: "Draft focus",
         prompt: "review draft work",
         sessions: [
           { id: "staged-focus", kind: "shell", title: "Review me", command: "echo", args: ["ok"] },
         ],
-      },
+      }],
       [liveSnapshot("one"), liveSnapshot("two")],
     );
 
@@ -4489,6 +4492,7 @@ describe("App integration", () => {
   it("parks staged work until its missing workspace folder is reconnected", async () => {
     const user = userEvent.setup();
     const stagedPlan: AlfredStagedPlanSnapshot = {
+      workspaceId: "A",
       id: "plan-missing-workspace",
       prompt: "resume prepared work",
       sessions: [
@@ -4504,7 +4508,7 @@ describe("App integration", () => {
     };
     const { createTerminal } = installDesktopBridge(
       undefined,
-      stagedPlan,
+      [stagedPlan],
       [],
       undefined,
       undefined,
@@ -6917,7 +6921,8 @@ describe("App integration", () => {
     const user = userEvent.setup();
     const { createTerminal, resolveStagedPlan } = installDesktopBridge(
       undefined,
-      {
+      [{
+        workspaceId: "W2",
         id: "plan-w2",
         name: "Client plan",
         prompt: "prepare client work",
@@ -6931,7 +6936,7 @@ describe("App integration", () => {
             workspaceId: "W2",
           },
         ],
-      },
+      }],
       [],
       undefined,
       undefined,
@@ -6967,7 +6972,8 @@ describe("App integration", () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge(
       undefined,
-      {
+      [{
+        workspaceId: "A",
         id: "plan-immediate-approval",
         prompt: "wait for approval",
         sessions: [
@@ -6980,7 +6986,7 @@ describe("App integration", () => {
             workspaceId: "A",
           },
         ],
-      },
+      }],
     );
     bridge.createTerminal.mockImplementation(async (request) => {
       const snapshot: TerminalSessionSnapshot = {
@@ -7031,7 +7037,8 @@ describe("App integration", () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge(
       undefined,
-      {
+      [{
+        workspaceId: "A",
         id: "plan-early-approval",
         prompt: "wait for early approval",
         sessions: [
@@ -7044,7 +7051,7 @@ describe("App integration", () => {
             workspaceId: "A",
           },
         ],
-      },
+      }],
     );
     const creation = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
     bridge.createTerminal.mockImplementation(() => creation.promise);
@@ -7098,7 +7105,8 @@ describe("App integration", () => {
     const user = userEvent.setup();
     const bridge = installDesktopBridge(
       undefined,
-      {
+      [{
+        workspaceId: "A",
         id: "plan-early-exit",
         prompt: "exit before create resolves",
         sessions: [{
@@ -7109,7 +7117,7 @@ describe("App integration", () => {
           args: ["done\\n"],
           workspaceId: "A",
         }],
-      },
+      }],
     );
     const creation = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
     bridge.createTerminal.mockImplementation(() => creation.promise);
@@ -7151,7 +7159,8 @@ describe("App integration", () => {
     const user = userEvent.setup();
     const { createTerminal, resolveStagedPlan } = installDesktopBridge(
       undefined,
-      {
+      [{
+        workspaceId: "W2",
         id: "plan-w2",
         name: "Risky client plan",
         prompt: "prepare cleanup",
@@ -7167,7 +7176,7 @@ describe("App integration", () => {
             workspaceId: "W2",
           },
         ],
-      },
+      }],
       [],
       undefined,
       undefined,
@@ -8424,14 +8433,15 @@ describe("App integration", () => {
 
   it("hydrates Alfred drafts on the plan line from the desktop runtime", async () => {
     const user = userEvent.setup();
-    installDesktopBridge(undefined, {
+    installDesktopBridge(undefined, [{
+      workspaceId: "A",
       id: "plan-restore",
       name: "Restored squad",
       prompt: "restore this plan",
       sessions: [
         { id: "alfred-7", kind: "shell", title: "Restored shell", command: "echo", args: ["ok"] },
       ],
-    });
+    }]);
 
     render(<App />);
 
@@ -8442,11 +8452,12 @@ describe("App integration", () => {
       .toHaveTextContent("Resolve the current Alfred plan");
   });
 
-  it("jumps from the composer to a workspace with staged Alfred work", async () => {
+  it("lets another project ask Alfred while one project has drafts", async () => {
     const user = userEvent.setup();
-    installDesktopBridge(
+    const { requestPlan, setStagedPlan } = installDesktopBridge(
       undefined,
-      {
+      [{
+        workspaceId: "W2",
         id: "plan-w2",
         name: "Project 2 plan",
         prompt: "prepare client work",
@@ -8460,7 +8471,7 @@ describe("App integration", () => {
             workspaceId: "W2",
           },
         ],
-      },
+      }],
       [],
       undefined,
       undefined,
@@ -8477,10 +8488,13 @@ describe("App integration", () => {
 
     await openPrepareWork(user);
     const composer = screen.getByRole("form", { name: "Alfred dispatch" });
-    expect(await within(composer).findByRole("status")).toHaveTextContent(
-      "Review draft items in ClientApp project first.",
-    );
-    await user.click(screen.getByRole("button", { name: "Open ClientApp" }));
+    expect(within(composer).getByRole("status")).toBeEmptyDOMElement();
+    expect(screen.queryByRole("button", { name: "Open ClientApp" })).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("Dispatch instruction"), "prepare Alfred independently");
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
+    await waitFor(() => expect(requestPlan).toHaveBeenCalledOnce());
+    expect(setStagedPlan).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: "A" }));
+    await user.click(screen.getByRole("button", { name: /ClientApp project/ }));
 
     expect(screen.getByRole("button", { name: /ClientApp project/ })).toHaveAttribute(
       "aria-current",
@@ -8488,6 +8502,62 @@ describe("App integration", () => {
     );
     await openPlan(user);
     expect(await screen.findByRole("listitem", { name: /Draft Client task/i })).toBeInTheDocument();
+    await openPrepareWork(user);
+    expect(within(screen.getByRole("form", { name: "Alfred dispatch" })).getByRole("status"))
+      .toHaveTextContent("Resolve the current Alfred plan");
+  });
+
+  it("keeps another project's plan when launching a draft and discarding the last local draft", async () => {
+    const user = userEvent.setup();
+    const { createTerminal, resolveStagedPlan } = installDesktopBridge(
+      undefined,
+      [
+        {
+          id: "plan-a", workspaceId: "A", name: "Alfred work", prompt: "prepare Alfred",
+          sessions: [
+            { id: "alfred-a-launch", kind: "shell", title: "Launch locally", command: "echo", args: ["a"] },
+            { id: "alfred-a-discard", kind: "shell", title: "Discard locally", command: "echo", args: ["b"] },
+          ],
+        },
+        {
+          id: "plan-b", workspaceId: "B", name: "Client work", prompt: "prepare client",
+          sessions: [{ id: "alfred-b", kind: "shell", title: "Client draft", command: "echo", args: ["client"] }],
+        },
+      ],
+      [], undefined, undefined,
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/repo/alfred" },
+          { id: "B", label: "ClientApp", shortLabel: "CLI", rootPath: "/repo/client" },
+        ],
+        activeWorkspaceId: "A",
+      },
+    );
+    render(<App />);
+
+    await openPlan(user);
+    await user.click(screen.getByRole("button", { name: "Launch Launch locally" }));
+    await waitFor(() => expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-a-launch"] }));
+    expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({
+      clientId: "alfred-a-launch", workspaceId: "A", cwd: "/repo/alfred",
+    }));
+
+    await user.click(screen.getByRole("button", { name: /ClientApp project/ }));
+    expect(screen.getByRole("button", { name: /Client work.*1 draft/ })).toBeInTheDocument();
+    await openPlan(user);
+    expect(screen.getByRole("listitem", { name: "Draft Client draft" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^Alfred project/ }));
+    await openPlan(user);
+    await user.click(screen.getByRole("button", { name: "Discard Discard locally" }));
+    await waitFor(() => expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-a-discard"] }));
+    expect(screen.queryByRole("button", { name: /\d+ drafts?/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /ClientApp project/ }));
+    expect(screen.getByRole("button", { name: /Client work.*1 draft/ })).toBeInTheDocument();
+    await openPlan(user);
+    expect(screen.getByRole("listitem", { name: "Draft Client draft" })).toBeInTheDocument();
+    expect(resolveStagedPlan).not.toHaveBeenCalledWith({ sessionIds: ["alfred-b"] });
   });
 
   it("resumes a restored agent transcript from Sessions without mounting it first", async () => {
@@ -10018,6 +10088,7 @@ describe("App integration", () => {
 
   it("does not duplicate a restored draft on the plan line when its terminal is already live", async () => {
     const stagedPlan: AlfredStagedPlanSnapshot = {
+      workspaceId: "A",
       id: "plan-restore",
       prompt: "restore this plan",
       sessions: [
@@ -10036,7 +10107,7 @@ describe("App integration", () => {
       args: ["ok"],
       buffer: "already running",
     };
-    const { resolveStagedPlan } = installDesktopBridge(undefined, stagedPlan, [liveSnapshot]);
+    const { resolveStagedPlan } = installDesktopBridge(undefined, [stagedPlan], [liveSnapshot]);
 
     render(<App />);
 
@@ -10050,6 +10121,7 @@ describe("App integration", () => {
 
   it("keeps one restored runtime and resolves a stale staged plan with the same client identity", async () => {
     const stagedPlan: AlfredStagedPlanSnapshot = {
+      workspaceId: "A",
       id: "plan-collision",
       prompt: "review the actionable draft plan",
       sessions: [
@@ -10070,7 +10142,7 @@ describe("App integration", () => {
     };
     const { resolveStagedPlan } = installDesktopBridge(
       undefined,
-      stagedPlan,
+      [stagedPlan],
       [],
       undefined,
       undefined,

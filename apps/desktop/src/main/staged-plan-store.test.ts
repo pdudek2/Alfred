@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearStagedPlanSnapshot,
   configureStagedPlanPersistence,
-  getStagedPlanSnapshot,
+  getStagedPlansSnapshot,
   isStagedSessionLaunchAllowed,
   resetStagedPlanPersistence,
   resolveStagedPlanSessions,
@@ -17,11 +17,13 @@ import type { AlfredStagedPlanSnapshot } from "../shared/alfred-ipc.js";
 
 const createPlan = (): AlfredStagedPlanSnapshot => ({
   id: "plan-1",
+  workspaceId: "A",
   name: "Demo",
   prompt: "prepare",
   sessions: [
     {
       id: "alfred-1",
+      workspaceId: "A",
       kind: "shell",
       title: "A",
       command: "echo",
@@ -35,6 +37,7 @@ const createPlan = (): AlfredStagedPlanSnapshot => ({
     },
     {
       id: "alfred-2",
+      workspaceId: "A",
       kind: "codex",
       title: "B",
       command: "codex",
@@ -60,7 +63,7 @@ async function temporaryStateFile(): Promise<string> {
 describe("staged-plan-store", () => {
   beforeEach(async () => {
     resetStagedPlanPersistence();
-    await clearStagedPlanSnapshot();
+    await clearStagedPlanSnapshot({ workspaceId: "A" });
   });
 
   afterEach(async () => {
@@ -70,24 +73,79 @@ describe("staged-plan-store", () => {
     }
   });
 
+  it.each([false, true])("keeps independent plans through concurrent set, resolve and clear (persisted: %s)", async (persisted) => {
+    if (persisted) configureStagedPlanPersistence(createPersistedDesktopStateStore({ filePath: await temporaryStateFile() }));
+    const a = createPlan();
+    const b = { ...createPlan(), id: "plan-b", workspaceId: "B", sessions: createPlan().sessions.map(
+      (session) => ({ ...session, id: `${session.id}-b`, workspaceId: "B" }),
+    ) };
+    await Promise.all([setStagedPlanSnapshot(a), setStagedPlanSnapshot(b)]);
+    expect((await getStagedPlansSnapshot()).plans).toEqual([a, b]);
+    expect((await resolveStagedPlanSessions({ sessionIds: ["alfred-1", "alfred-1-b", "alfred-2-b"] })).plans).toEqual([
+      { ...a, sessions: [a.sessions[1]] },
+    ]);
+    await setStagedPlanSnapshot(b);
+    expect((await clearStagedPlanSnapshot({ workspaceId: "A" })).plans).toEqual([b]);
+  });
+
+  it("authorizes a draft in a non-first plan only with its exact command and args", async () => {
+    await setStagedPlanSnapshot(createPlan());
+    const session = { ...createPlan().sessions[0]!, id: "draft-b", workspaceId: "B" };
+    await setStagedPlanSnapshot({ ...createPlan(), id: "plan-b", workspaceId: "B", sessions: [session] });
+    await expect(isStagedSessionLaunchAllowed({ clientId: "draft-b", command: "echo", args: ["a"] })).resolves.toBe(true);
+    await expect(isStagedSessionLaunchAllowed({ clientId: "draft-b", command: "sh", args: ["a"] })).resolves.toBe(false);
+    await expect(isStagedSessionLaunchAllowed({ clientId: "draft-b", command: "echo", args: [] })).resolves.toBe(false);
+  });
+
+  it("rejects missing plan workspace and sessions belonging to another workspace", async () => {
+    const plan = createPlan();
+    await expect(setStagedPlanSnapshot({ ...plan, workspaceId: "" })).rejects.toMatchObject({ code: "malformed" });
+    await expect(setStagedPlanSnapshot({ ...plan, sessions: [{ ...plan.sessions[0]!, workspaceId: "B" }] })).rejects.toMatchObject({ code: "malformed" });
+    expect((await getStagedPlansSnapshot()).plans).toEqual([]);
+  });
+
+  it.each([false, true])("preserves another project's concurrent write during an asynchronous edit (persisted: %s)", async (persisted) => {
+    if (persisted) configureStagedPlanPersistence(createPersistedDesktopStateStore({ filePath: await temporaryStateFile() }));
+    await setStagedPlanSnapshot(createPlan());
+    const b = { ...createPlan(), id: "plan-b", workspaceId: "B", sessions: [{ ...createPlan().sessions[0]!, id: "draft-b", workspaceId: "B" }] };
+    const edit = updateStagedPlanSession({ planId: "plan-1", sessionId: "alfred-1", patch: { title: "Edited" } }, {
+      preflightOptions: { commandExists: async () => { await Promise.resolve(); return true; } },
+    });
+    await Promise.all([edit, setStagedPlanSnapshot(b)]);
+    expect((await getStagedPlansSnapshot()).plans).toEqual([
+      expect.objectContaining({ id: "plan-1", sessions: [expect.objectContaining({ title: "Edited" }), expect.any(Object)] }), b,
+    ]);
+  });
+
+  it("returns an edited plan without exposing mutable in-memory state", async () => {
+    await setStagedPlanSnapshot(createPlan());
+    const result = await updateStagedPlanSession({ planId: "plan-1", sessionId: "alfred-1", patch: { title: "Edited" } }, {
+      preflightOptions: { commandExists: async () => true },
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    result.plan.sessions[0]!.args.push("changed");
+    expect((await getStagedPlansSnapshot()).plans[0]!.sessions[0]!.args).toEqual(["a"]);
+    await expect(isStagedSessionLaunchAllowed({ clientId: "alfred-1", command: "echo", args: ["a"] })).resolves.toBe(true);
+  });
+
   it("stores and returns a cloned staged plan snapshot", async () => {
     const plan = createPlan();
     const response = await setStagedPlanSnapshot(plan);
 
-    expect(response.plan).toEqual(plan);
+    expect(response.plans).toEqual([plan]);
     plan.sessions[0]?.args.push("mutated");
-    expect((await getStagedPlanSnapshot()).plan?.sessions[0]?.args).toEqual(["a"]);
+    expect((await getStagedPlansSnapshot()).plans[0]?.sessions[0]?.args).toEqual(["a"]);
   });
 
   it("removes resolved sessions and clears the plan when none remain", async () => {
     const plan = createPlan();
     await setStagedPlanSnapshot(plan);
 
-    expect((await resolveStagedPlanSessions({ sessionIds: ["alfred-1"] })).plan).toEqual({
+    expect((await resolveStagedPlanSessions({ sessionIds: ["alfred-1"] })).plans).toEqual([{
       ...plan,
       sessions: [plan.sessions[1]],
-    });
-    expect((await resolveStagedPlanSessions({ sessionIds: ["alfred-2"] })).plan).toBeNull();
+    }]);
+    expect((await resolveStagedPlanSessions({ sessionIds: ["alfred-2"] })).plans).toEqual([]);
   });
 
   it("allows launch only for matching safe staged sessions", async () => {
@@ -108,8 +166,8 @@ describe("staged-plan-store", () => {
     const plan = createPlan();
     await setStagedPlanSnapshot(plan);
 
-    await expect(clearStagedPlanSnapshot()).resolves.toEqual({ plan: null });
-    await expect(getStagedPlanSnapshot()).resolves.toEqual({ plan: null });
+    await expect(clearStagedPlanSnapshot({ workspaceId: "A" })).resolves.toEqual({ plans: [] });
+    await expect(getStagedPlansSnapshot()).resolves.toEqual({ plans: [] });
   });
 
   it("persists staged plans when configured with desktop state storage", async () => {
@@ -118,9 +176,9 @@ describe("staged-plan-store", () => {
     const persistedStateStore = createPersistedDesktopStateStore({ filePath });
     configureStagedPlanPersistence(persistedStateStore);
 
-    await expect(setStagedPlanSnapshot(plan)).resolves.toEqual({ plan });
+    await expect(setStagedPlanSnapshot(plan)).resolves.toEqual({ plans: [plan] });
     await expect(createPersistedDesktopStateStore({ filePath }).getState()).resolves.toEqual(
-      expect.objectContaining({ stagedPlan: plan }),
+      expect.objectContaining({ stagedPlans: { A: plan } }),
     );
   });
 
@@ -154,7 +212,7 @@ describe("staged-plan-store", () => {
       },
     });
     await expect(createPersistedDesktopStateStore({ filePath }).getState()).resolves.toEqual(
-      expect.objectContaining({ stagedPlan: response.plan }),
+      expect.objectContaining({ stagedPlans: { A: response.plan } }),
     );
   });
 
@@ -324,7 +382,7 @@ describe("staged-plan-store", () => {
       ok: false,
       error: { code: "not_found", message: "The staged plan has changed. Refresh before editing this session." },
     });
-    await expect(persistedStateStore.getState()).resolves.toEqual(expect.objectContaining({ stagedPlan: plan }));
+    await expect(persistedStateStore.getState()).resolves.toEqual(expect.objectContaining({ stagedPlans: { A: plan } }));
 
     await expect(
       updateStagedPlanSession({
@@ -338,7 +396,7 @@ describe("staged-plan-store", () => {
       error: { code: "not_found", message: "The staged session is no longer available." },
     });
     await expect(createPersistedDesktopStateStore({ filePath }).getState()).resolves.toEqual(
-      expect.objectContaining({ stagedPlan: plan }),
+      expect.objectContaining({ stagedPlans: { A: plan } }),
     );
   });
 });

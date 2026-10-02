@@ -119,53 +119,57 @@ export async function createDesktopFixture(
     ) {
       throw new Error("blockedInboxItem and waitingInboxItem must identify different items.");
     }
-    const stagedPlan: AlfredStagedPlanSnapshot | null =
-      inboxItems === 0
-        ? null
-        : {
-            id: "fixture-plan",
-            prompt: "Run deterministic fixture commands.",
-            name: "Fixture plan",
-            sessions: Array.from({ length: inboxItems }, (_, index) => {
-              const number = index + 1;
-              const workspaceId = number % 2 === 0 ? "B" : "A";
-              const cwd = workspaceId === "A" ? paths.workspaceA : paths.workspaceB;
-              const waiting = number === options.waitingInboxItem;
-              const blocked = number === options.blockedInboxItem;
-              return {
-                id: `fixture-item-${number}`,
-                workspaceId,
-                kind: "shell" as const,
-                title: `Fixture item ${number}`,
-                cwd,
-                command: waiting ? "/bin/sh" : "/usr/bin/printf",
-                args: waiting
-                  ? [
-                      "-c",
-                      "/bin/echo 'Approval required: allow deterministic fixture?'; exec /bin/cat",
-                    ]
-                  : [`fixture item ${number}\n`],
-                isolation: "shared" as const,
-                launchPreflight: blocked
-                  ? {
-                      status: "blocked" as const,
-                      code: "cwd_outside_workspace" as const,
-                      label: "Blocked",
-                      reason: "Fixture safety policy blocks launch outside the approved root.",
-                      detail: "Edit the working directory before launch.",
-                    }
-                  : {
-                      status: "ready" as const,
-                      label: "Ready",
-                      detail: waiting
-                        ? "Deterministic PTY waits for explicit input."
-                        : "Deterministic local fixture command.",
-                      isolation: "shared" as const,
-                      cwd,
-                    },
-              };
-            }),
-          };
+    const stagedSessions = Array.from({ length: inboxItems }, (_, index) => {
+      const number = index + 1;
+      const workspaceId = number % 2 === 0 ? "B" : "A";
+      const cwd = workspaceId === "A" ? paths.workspaceA : paths.workspaceB;
+      const waiting = number === options.waitingInboxItem;
+      const blocked = number === options.blockedInboxItem;
+      return {
+        id: `fixture-item-${number}`,
+        workspaceId,
+        kind: "shell" as const,
+        title: `Fixture item ${number}`,
+        cwd,
+        command: waiting ? "/bin/sh" : "/usr/bin/printf",
+        args: waiting
+          ? [
+              "-c",
+              "/bin/echo 'Approval required: allow deterministic fixture?'; exec /bin/cat",
+            ]
+          : [`fixture item ${number}\n`],
+        isolation: "shared" as const,
+        launchPreflight: blocked
+          ? {
+              status: "blocked" as const,
+              code: "cwd_outside_workspace" as const,
+              label: "Blocked",
+              reason: "Fixture safety policy blocks launch outside the approved root.",
+              detail: "Edit the working directory before launch.",
+            }
+          : {
+              status: "ready" as const,
+              label: "Ready",
+              detail: waiting
+                ? "Deterministic PTY waits for explicit input."
+                : "Deterministic local fixture command.",
+              isolation: "shared" as const,
+              cwd,
+            },
+      };
+    });
+    const stagedPlans: Record<string, AlfredStagedPlanSnapshot> = {};
+    for (const session of stagedSessions) {
+      const workspaceId = session.workspaceId;
+      const plan = stagedPlans[workspaceId] ??= {
+        id: `fixture-plan:${workspaceId}`,
+        workspaceId,
+        prompt: "Run deterministic fixture commands.",
+        name: "Fixture plan",
+        sessions: [],
+      };
+      plan.sessions.push(session);
+    }
     const restoredTerminalSessions: PersistedTerminalSessionSnapshot[] = Array.from(
       { length: restoredSessions },
       (_, index) => {
@@ -213,7 +217,7 @@ export async function createDesktopFixture(
       version: DESKTOP_STATE_VERSION,
       workspaces,
       activeWorkspaceId: options.activeWorkspaceId ?? "A",
-      stagedPlan,
+      stagedPlans,
       restoredTerminalSessions,
       privacySettings: {
         terminalScrollbackRetention: "redactedTail",
