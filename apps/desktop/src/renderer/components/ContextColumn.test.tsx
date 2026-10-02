@@ -57,19 +57,37 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-describe("ContextColumn", () => {
-  it("exposes one elevated Session context boundary with no nested dock card", () => {
+describe("Details tab", () => {
+  it("shows empty Changes and Location for the focused session", () => {
+    renderContext({ session: { ...sessionA, agentKind: "codex", branchName: "feature/details", isolation: "worktree", baseCwd: "/workspace" } });
+    expect(screen.getByRole("heading", { name: "Changes" })).toBeVisible();
+    expect(screen.getByText("No worktree changes.")).toBeVisible();
+    const location = screen.getByRole("region", { name: "Location" });
+    expect(location.querySelector("dl")).toBeNull();
+    expect(location).toHaveTextContent("/workspace/a");
+    expect(location).toHaveTextContent("feature/details");
+    expect(within(location).getByTitle("/workspace/a")).toHaveTextContent("/workspace/a");
+  });
+
+  it("closes Details on Escape even when focus is outside", () => {
+    const onCloseContext = vi.fn();
+    renderContext({ contextOpen: true, onCloseContext });
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onCloseContext).toHaveBeenCalledOnce();
+  });
+
+  it("exposes one elevated Details boundary with no nested dock card", () => {
     renderContext({ contextOpen: true });
 
-    const column = screen.getByRole("complementary", { name: "Session context" });
+    const column = screen.getByRole("complementary", { name: "Details" });
     expect(column).toHaveAttribute("data-testid", "context-column");
-    expect(within(column).getByText("Context", { exact: true })).toBeVisible();
-    expect(within(column).getByRole("button", { name: "Close Context panel" })).toBeVisible();
+    expect(within(column).getByText("Details", { exact: true })).toBeVisible();
+    expect(within(column).getByRole("button", { name: "Close Details panel" })).toBeVisible();
     expect(column.querySelectorAll(".context-drawer")).toHaveLength(1);
     expect(column.querySelector(".side-dock-stack")).toBeNull();
   });
 
-  it("closes on Escape and restores focus to the Surfaces trigger", async () => {
+  it("closes on Escape and restores focus to the Details trigger", async () => {
     const trigger = document.createElement("button");
     document.body.append(trigger);
     trigger.focus();
@@ -77,7 +95,8 @@ describe("ContextColumn", () => {
     const onCloseContext = vi.fn();
     const { rerender } = renderContext({ contextOpen: true, returnFocusRef, onCloseContext });
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    screen.getByRole("button", { name: "Close Details panel" }).focus();
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(onCloseContext).toHaveBeenCalledOnce();
     rerender(contextWith({ contextOpen: false, returnFocusRef, onCloseContext }));
     await waitFor(() => expect(trigger).toHaveFocus());
@@ -87,26 +106,27 @@ describe("ContextColumn", () => {
     const onCloseContext = vi.fn();
     renderContext({ contextOpen: true, dismissalSuspended: true, onCloseContext });
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    screen.getByRole("button", { name: "Close Details panel" }).focus();
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
 
     expect(onCloseContext).not.toHaveBeenCalled();
   });
 
-  it("focuses the close control when Context opens", async () => {
+  it("focuses the close control when Details opens", async () => {
     const { rerender } = renderContext({ contextOpen: false });
 
     rerender(contextWith({ contextOpen: true, focusRequestKey: 1 }));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Close Context panel" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Close Details panel" })).toHaveFocus());
   });
 
-  it("does not restore Surfaces focus when Context closes from external workspace state", async () => {
+  it("does not restore Details focus when Details closes from external workspace state", async () => {
     const surfacesTrigger = document.createElement("button");
     const workspaceTrigger = document.createElement("button");
     document.body.append(surfacesTrigger, workspaceTrigger);
     const returnFocusRef = { current: surfacesTrigger };
     const { rerender } = renderContext({ contextOpen: true, focusRequestKey: 1, returnFocusRef });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Close Context panel" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Close Details panel" })).toHaveFocus());
 
     workspaceTrigger.focus();
     rerender(contextWith({ contextOpen: false, returnFocusRef }));

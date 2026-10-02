@@ -109,11 +109,12 @@ describe("WorkbenchHeader", () => {
     renderHeader();
 
     await user.click(screen.getByRole("button", { name: "Open Surfaces menu" }));
+    expect(screen.getByRole("button", { name: "Details" })).toHaveTextContent("⌘I");
     const menu = screen.getByRole("menu", { name: "Surfaces" });
     expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
       "Work",
       "History",
-      "Context",
+      "Details",
       "Local Data & Privacy",
     ]);
   });

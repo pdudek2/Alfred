@@ -507,14 +507,14 @@ test("captures deterministic CSS ownership evidence across core states and overl
   expect(afterContext.context.width).toBeCloseTo(318, 0);
   expect(afterContext.context.overlapWithTerminal).toBeLessThanOrEqual(0);
   await expect(page.getByLabel("Project preview")).toHaveCount(0);
-  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Context");
+  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Details");
   const wideContextEvidence = await capture("context-wide", [...frameProbes, ...terminalProbes, ...contextProbes]);
   expect(wideContextEvidence.documentOverflowX, "Wide Context must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
-  const wideContext = page.getByRole("complementary", { name: "Session context" });
+  const wideContext = page.getByRole("complementary", { name: "Details" });
   const wideContextControls = [
-    wideContext.getByRole("button", { name: "Close Context panel" }),
-    wideContext.getByRole("button", { name: /Open external terminal/ }),
+    wideContext.getByRole("button", { name: "Close Details panel" }),
+    wideContext.getByRole("button", { name: /Open in terminal/ }),
   ];
   for (const control of wideContextControls) {
     expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
@@ -528,7 +528,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
     }],
   }), "Wide Context controls must remain within their scroll owner").toEqual([]);
 
-  await page.getByRole("button", { name: "Close Context panel" }).click();
+  await page.getByRole("button", { name: "Close Details panel" }).click();
   await chooseWorkLayout(page, "Grid");
   await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
   await addManualTerminal(page);
@@ -556,10 +556,10 @@ test("captures deterministic CSS ownership evidence across core states and overl
   const narrowContextEvidence = await capture("context-narrow", [...frameProbes, ...terminalProbes, ...contextProbes]);
   expect(narrowContextEvidence.documentOverflowX, "Narrow Context must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
-  const narrowContext = page.getByRole("complementary", { name: "Session context" });
+  const narrowContext = page.getByRole("complementary", { name: "Details" });
   const narrowContextControls = [
-    narrowContext.getByRole("button", { name: "Close Context panel" }),
-    narrowContext.getByRole("button", { name: /Open external terminal/ }),
+    narrowContext.getByRole("button", { name: "Close Details panel" }),
+    narrowContext.getByRole("button", { name: /Open in terminal/ }),
   ];
   for (const control of narrowContextControls) {
     expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
@@ -593,7 +593,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   expect(narrowSessionsContext.sessionsWidth).toBeCloseTo(narrowSessionsContext.workspaceWidth, 0);
   expect(narrowSessionsContext.contextWidth).toBeCloseTo(360, 0);
   expect(narrowSessionsContext.rightGap).toBeCloseTo(0, 0);
-  await page.getByRole("button", { name: "Close Context panel" }).click();
+  await page.getByRole("button", { name: "Close Details panel" }).click();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow History");
   const narrowSessionsEvidence = await capture("narrow-sessions", [...sessionsFrameProbes, ...sessionsProbes]);
   expect(
@@ -744,14 +744,18 @@ async function addManualTerminal(page: Page): Promise<void> {
 
 async function selectSurface(
   page: Page,
-  surface: "Work" | "History" | "Context" | "Local Data & Privacy",
+  surface: "Work" | "History" | "Details" | "Local Data & Privacy",
 ): Promise<void> {
+  if (surface === "Details") {
+    await page.getByRole("button", { name: "Details", exact: true }).click();
+    return;
+  }
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();
 }
 
 async function openContext(page: Page): Promise<void> {
-  await selectSurface(page, "Context");
+  await selectSurface(page, "Details");
   await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
 }
 
