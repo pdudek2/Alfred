@@ -8,13 +8,14 @@ import {
   type AlfredStagedPlanSessionUpdateResponse,
   type AlfredStagedPlanResolveRequest,
   type AlfredStagedPlanSetRequest,
+  type AlfredStagedPlanClearRequest,
   type AlfredStagedPlanSnapshotResponse,
 } from "../shared/alfred-ipc.js";
 import { runLlmPlan, DEFAULT_MODEL } from "./alfred-llm.js";
 import { preflightAlfredPlan } from "./alfred-launch-preflight.js";
 import {
   clearStagedPlanSnapshot,
-  getStagedPlanSnapshot,
+  getStagedPlansSnapshot,
   resolveStagedPlanSessions,
   setStagedPlanSnapshot,
   updateStagedPlanSession,
@@ -27,7 +28,7 @@ export function registerAlfredIpc(): void {
     model: DEFAULT_MODEL,
     openRouterConfigured: Boolean(process.env.OPENROUTER_API_KEY),
   }));
-  trustedIpc.handle(alfredChannels.planGet, (): Promise<AlfredStagedPlanSnapshotResponse> => getStagedPlanSnapshot());
+  trustedIpc.handle(alfredChannels.planGet, (): Promise<AlfredStagedPlanSnapshotResponse> => getStagedPlansSnapshot());
   trustedIpc.handle(
     alfredChannels.planSet,
     (_event, request: AlfredStagedPlanSetRequest): Promise<AlfredStagedPlanSnapshotResponse> =>
@@ -55,7 +56,7 @@ export function registerAlfredIpc(): void {
       }
     },
   );
-  trustedIpc.handle(alfredChannels.planClear, (): Promise<AlfredStagedPlanSnapshotResponse> => clearStagedPlanSnapshot());
+  trustedIpc.handle(alfredChannels.planClear, (_event, request: AlfredStagedPlanClearRequest): Promise<AlfredStagedPlanSnapshotResponse> => clearStagedPlanSnapshot(request));
   trustedIpc.handle(
     alfredChannels.planRequest,
     async (_event, request: AlfredPlanRequest): Promise<AlfredPlanResponse> => {

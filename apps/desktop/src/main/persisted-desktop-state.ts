@@ -55,7 +55,7 @@ export type DesktopWindowState = {
 export type DesktopStateSnapshot = WorkspaceStateSnapshot & {
   layoutsByWorkspace: Record<string, Record<string, TileLayout>>;
   viewStateByWorkspace: Record<string, WorkspaceViewState>;
-  stagedPlan: AlfredStagedPlanSnapshot | null;
+  stagedPlans: Record<string, AlfredStagedPlanSnapshot>;
   restoredTerminalSessions: PersistedTerminalSessionSnapshot[];
   windowState: DesktopWindowState;
   privacySettings: DesktopPrivacySettings;
@@ -112,7 +112,7 @@ export const DEFAULT_DESKTOP_STATE: DesktopStateSnapshot = {
   activeWorkspaceId: DEFAULT_WORKSPACE.id,
   layoutsByWorkspace: {},
   viewStateByWorkspace: {},
-  stagedPlan: null,
+  stagedPlans: {},
   restoredTerminalSessions: [],
   windowState: DEFAULT_DESKTOP_WINDOW_STATE,
   privacySettings: DEFAULT_PRIVACY_SETTINGS,
@@ -271,7 +271,7 @@ export function normalizeDesktopState(value: unknown): DesktopStateSnapshot {
     activeWorkspaceId,
     layoutsByWorkspace: normalizeLayoutsByWorkspace(value.layoutsByWorkspace),
     viewStateByWorkspace: normalizeViewStateByWorkspace(value.viewStateByWorkspace),
-    stagedPlan: normalizeStagedPlan(value.stagedPlan),
+    stagedPlans: normalizeStagedPlans(value.stagedPlans, value.stagedPlan, activeWorkspaceId),
     restoredTerminalSessions: normalizeRestoredTerminalSessions(value.restoredTerminalSessions, privacySettings),
     windowState: normalizeWindowState(value.windowState),
     privacySettings,
@@ -469,13 +469,44 @@ function normalizeStringList(value: unknown): string[] {
   return normalized;
 }
 
+function normalizeStagedPlans(
+  value: unknown,
+  legacy: unknown,
+  activeWorkspaceId: string,
+): Record<string, AlfredStagedPlanSnapshot> {
+  const plans: Record<string, AlfredStagedPlanSnapshot> = {};
+  if (isRecord(legacy) && typeof legacy.id === "string" && Array.isArray(legacy.sessions)) {
+    const grouped = new Map<string, unknown[]>();
+    for (const session of legacy.sessions) {
+      if (!isRecord(session)) continue;
+      const workspaceId = typeof session.workspaceId === "string" && session.workspaceId
+        ? session.workspaceId : activeWorkspaceId;
+      grouped.set(workspaceId, [...(grouped.get(workspaceId) ?? []), session]);
+    }
+    for (const [workspaceId, sessions] of grouped) {
+      const plan = normalizeStagedPlan({ ...legacy, id: `${legacy.id}:${workspaceId}`, workspaceId, sessions });
+      if (plan) plans[workspaceId] = plan;
+    }
+  }
+  if (isRecord(value)) {
+    for (const [workspaceId, item] of Object.entries(value)) {
+      if (!isRecord(item) || item.workspaceId !== workspaceId) continue;
+      const plan = normalizeStagedPlan(item);
+      if (plan) plans[workspaceId] = plan;
+    }
+  }
+  return plans;
+}
+
 function normalizeStagedPlan(value: unknown): AlfredStagedPlanSnapshot | null {
-  if (!isRecord(value) || typeof value.id !== "string" || typeof value.prompt !== "string" || !Array.isArray(value.sessions)) {
+  if (!isRecord(value) || typeof value.workspaceId !== "string" || !value.workspaceId.trim() || typeof value.id !== "string" || typeof value.prompt !== "string" || !Array.isArray(value.sessions)) {
     return null;
   }
 
+  const workspaceId = value.workspaceId;
   const sessions = value.sessions.flatMap((session) => {
     if (!isRecord(session)) return [];
+    if (session.workspaceId !== undefined && session.workspaceId !== workspaceId) return [];
     if (
       typeof session.id !== "string" ||
       !isAgentKind(session.kind) ||
@@ -494,7 +525,7 @@ function normalizeStagedPlan(value: unknown): AlfredStagedPlanSnapshot | null {
       command: session.command,
       args: [...session.args],
       ...(typeof session.cwd === "string" ? { cwd: session.cwd } : {}),
-      ...(typeof session.workspaceId === "string" ? { workspaceId: session.workspaceId } : {}),
+      workspaceId,
       ...(isTerminalSessionIsolation(session.isolation) ? { isolation: session.isolation } : {}),
       ...(typeof session.safetyNote === "string" ? { safetyNote: session.safetyNote } : {}),
       ...(isAlfredLaunchPreflight(session.launchPreflight) ? { launchPreflight: cloneLaunchPreflight(session.launchPreflight) } : {}),
@@ -505,6 +536,7 @@ function normalizeStagedPlan(value: unknown): AlfredStagedPlanSnapshot | null {
 
   return {
     id: value.id,
+    workspaceId: value.workspaceId,
     prompt: value.prompt,
     ...(typeof value.name === "string" ? { name: value.name } : {}),
     sessions,
@@ -806,7 +838,7 @@ function cloneDesktopState(state: DesktopStateSnapshot): DesktopStateSnapshot {
     viewStateByWorkspace: Object.fromEntries(
       Object.entries(state.viewStateByWorkspace).map(([workspaceId, viewState]) => [workspaceId, { ...viewState }]),
     ),
-    stagedPlan: cloneStagedPlan(state.stagedPlan),
+    stagedPlans: Object.fromEntries(Object.entries(state.stagedPlans).map(([id, plan]) => [id, cloneStagedPlan(plan)])),
     restoredTerminalSessions: state.restoredTerminalSessions.map((session) => cloneRestoredTerminalSession(session)),
     windowState: cloneWindowState(state.windowState),
     privacySettings: { ...state.privacySettings },
@@ -825,8 +857,7 @@ function cloneMissionBrief(brief: WorkspaceMissionBrief): WorkspaceMissionBrief 
   };
 }
 
-function cloneStagedPlan(plan: AlfredStagedPlanSnapshot | null): AlfredStagedPlanSnapshot | null {
-  if (!plan) return null;
+function cloneStagedPlan(plan: AlfredStagedPlanSnapshot): AlfredStagedPlanSnapshot {
   return {
     ...plan,
     sessions: plan.sessions.map((session) => ({

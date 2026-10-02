@@ -86,6 +86,7 @@ export type AlfredStagedSession = AlfredPlanSession & {
 };
 
 export type AlfredStagedPlanSnapshot = {
+  workspaceId: string;
   id: string;
   prompt: string;
   name?: string;
@@ -94,12 +95,16 @@ export type AlfredStagedPlanSnapshot = {
 
 export type AlfredStagedPlanSetRequest = AlfredStagedPlanSnapshot;
 
+export type AlfredStagedPlanClearRequest = {
+  workspaceId: string;
+};
+
 export type AlfredStagedPlanResolveRequest = {
   sessionIds: string[];
 };
 
 export type AlfredStagedPlanSnapshotResponse = {
-  plan: AlfredStagedPlanSnapshot | null;
+  plans: AlfredStagedPlanSnapshot[];
 };
 
 export type AlfredStagedSessionPatch = {
@@ -129,11 +134,11 @@ export type AlfredRuntimeStatus = {
 export type AlfredApi = {
   requestPlan(request: AlfredPlanRequest): Promise<AlfredPlanResponse>;
   getRuntimeStatus(): Promise<AlfredRuntimeStatus>;
-  getStagedPlan(): Promise<AlfredStagedPlanSnapshotResponse>;
+  getStagedPlans(): Promise<AlfredStagedPlanSnapshotResponse>;
   setStagedPlan(request: AlfredStagedPlanSetRequest): Promise<AlfredStagedPlanSnapshotResponse>;
   updateStagedSession(request: AlfredStagedPlanSessionUpdateRequest): Promise<AlfredStagedPlanSessionUpdateResponse>;
   resolveStagedPlan(request: AlfredStagedPlanResolveRequest): Promise<AlfredStagedPlanSnapshotResponse>;
-  clearStagedPlan(): Promise<AlfredStagedPlanSnapshotResponse>;
+  clearStagedPlan(request: AlfredStagedPlanClearRequest): Promise<AlfredStagedPlanSnapshotResponse>;
 };
 
 export const alfredChannels = {

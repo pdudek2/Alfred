@@ -137,6 +137,7 @@ describe("desktop session state", () => {
       shell: "/bin/zsh",
     }])[0]?.title).toBe("Review PR");
     expect(hydrateStagedPlanSessions({
+      workspaceId: "A",
       id: "plan-1",
       prompt: "prepare",
       sessions: [{ id: "staged-1", kind: "codex", title: unsafeTitle, command: "codex", args: [] }],
@@ -165,6 +166,7 @@ describe("desktop session state", () => {
     }])[0]?.title).toBe("Codex session");
 
     expect(hydrateStagedPlanSessions({
+      workspaceId: "A",
       id: "plan-empty-title",
       prompt: "prepare",
       sessions: [{
@@ -1103,6 +1105,7 @@ describe("staged sessions", () => {
 
   it("hydrates staged tiles from a persisted Alfred plan snapshot", () => {
     const snapshot: AlfredStagedPlanSnapshot = {
+      workspaceId: "A",
       id: "plan-1",
       prompt: "prepare",
       sessions: [

@@ -323,7 +323,6 @@ export function hydratePersistedTerminalSessions(snapshots: PersistedTerminalSes
 export function hydrateStagedPlanSessions(
   plan: AlfredStagedPlanSnapshot | null,
   defaultCwd: string,
-  defaultWorkspaceId = "A",
 ): SessionTile[] {
   if (!plan) return [];
   return plan.sessions.map((session) => {
@@ -331,7 +330,7 @@ export function hydrateStagedPlanSessions(
     return {
       id: session.id,
       title: normalizedSessionTitleWithFallback(session.title, session),
-      workspaceId: session.workspaceId ?? defaultWorkspaceId,
+      workspaceId: plan.workspaceId,
       cwd: session.cwd ?? defaultCwd,
       source: "alfred",
       stage: "staged",

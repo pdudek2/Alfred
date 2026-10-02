@@ -184,7 +184,7 @@ export function App() {
   const [revealSessionId, setRevealSessionId] = useState<string | null>(null);
   const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
   const [shellActionError, setShellActionError] = useState<string | null>(null);
-  const [pendingPlan, setPendingPlan] = useState<SquadPlan | null>(null);
+  const [pendingPlans, setPendingPlans] = useState<Record<string, SquadPlan>>({});
   const [commandPaletteOpen, setCommandPaletteOpen] = useState<boolean>(false);
   const [commandQuery, setCommandQuery] = useState<string>("");
   const [privacyPanelOpen, setPrivacyPanelOpen] = useState<boolean>(false);
@@ -241,7 +241,7 @@ export function App() {
   const externalResumeReservationsRef = useRef<Map<string, { tileId: string; workspaceId: string }>>(new Map());
   const worktreeActionPendingRef = useRef<Set<string>>(new Set());
   const terminalSessionsRef = useRef<SessionTile[]>([]);
-  const pendingPlanRef = useRef<SquadPlan | null>(null);
+  const pendingPlansRef = useRef<Record<string, SquadPlan>>({});
   const announcedSessionStatusesRef = useRef<Map<string, string>>(new Map());
   const sessionStatusAnnouncementsReadyRef = useRef<boolean>(false);
   const workspaceStateHydratedRef = useRef<boolean>(false);
@@ -325,9 +325,9 @@ export function App() {
   const activeNeedsYouIds = new Set(
     needsYouAttention.filter((item) => item.workspaceId === activeWorkspace.id).map((item) => item.sessionId),
   );
-  // A plan can stage drafts in several projects; each project's line shows only its own drafts.
-  const activePlanName = pendingPlan && activeDrafts.some((draft) => pendingPlan.sessionIds.includes(draft.id))
-    ? pendingPlan.name ?? pendingPlan.prompt
+  const activePlan = pendingPlans[activeWorkspace.id];
+  const activePlanName = activePlan && activeDrafts.some((draft) => activePlan.sessionIds.includes(draft.id))
+    ? activePlan.name ?? activePlan.prompt
     : "Draft plan";
   const projectSessionIds = new Set(terminalSessions.filter((session) => !isFreeChatScope(session)).map((session) => session.id));
   const attentionCountsByWorkspace = blockingAttentionCountByWorkspace(
@@ -339,18 +339,9 @@ export function App() {
     return counts;
   }, new Map<string, number>());
   const reviewQueuePreview = attentionItems.find((item) => item.blocksAgent) ?? null;
-  const globalStagedCount = terminalSessions.filter((s) => s.stage === "staged").length;
-  const stagedWorkspaceLabel =
-    pendingPlan && pendingPlan.workspaceId !== activeWorkspace.id
-      ? workspaces.find((workspace) => workspace.id === pendingPlan.workspaceId)?.label ?? "another project"
-      : undefined;
-  const stagedWorkspaceId =
-    pendingPlan && pendingPlan.workspaceId !== activeWorkspace.id ? pendingPlan.workspaceId : null;
   const composerBlockedReason =
-    globalStagedCount > 0
-      ? stagedWorkspaceLabel
-        ? `Review draft items in ${stagedWorkspaceLabel} project first.`
-        : "Resolve the current Alfred plan before asking for another."
+    activeDrafts.length > 0
+      ? "Resolve the current Alfred plan before asking for another."
       : runtimeStatus && !runtimeStatus.openRouterConfigured
         ? "Set OPENROUTER_API_KEY in repo .env to use Alfred."
         : undefined;
@@ -1647,16 +1638,8 @@ export function App() {
     });
     if (runtime.source === "alfred") {
       void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
-      const currentPlan = pendingPlanRef.current;
-      if (currentPlan?.sessionIds.includes(tileId)) {
-        const remaining = currentPlan.sessionIds.filter((id) => id !== tileId);
-        pendingPlanRef.current = remaining.length === 0 ? null : { ...currentPlan, sessionIds: remaining };
-        setPendingPlan((plan) => {
-          if (!plan || plan.id !== currentPlan.id || !plan.sessionIds.includes(tileId)) return plan;
-          const currentRemaining = plan.sessionIds.filter((id) => id !== tileId);
-          return currentRemaining.length === 0 ? null : { ...plan, sessionIds: currentRemaining };
-        });
-      }
+      pendingPlansRef.current = removePendingPlanSession(pendingPlansRef.current, tileId);
+      setPendingPlans(pendingPlansRef.current);
     }
   }, []);
 
@@ -1772,7 +1755,7 @@ export function App() {
   const handleSubmitPrompt = useCallback(async (dispatchTarget: DispatchTargetSnapshot, draft: string): Promise<boolean> => {
     const prompt = draft.trim();
     if (!prompt) return false;
-    if (!canRequestPlan(alfredStatus, globalStagedCount)) return false;
+    if (!canRequestPlan(alfredStatus, activeDrafts.length)) return false;
     const alfredApi = getDesktopAlfredApi();
     if (!alfredApi) {
       setAlfredStatus(errored({ code: "network", message: "Alfred runtime is unavailable. Open the desktop app." }));
@@ -1806,25 +1789,20 @@ export function App() {
     const stagedPlan = createStagedPlanSnapshot({
       ...(response.plan.name === undefined ? {} : { name: response.plan.name }),
       prompt,
+      workspaceId: activeWorkspace.id,
       sessions: stagedSessions,
     });
-    const nextPendingPlan = stagedPlan
-      ? {
-          id: stagedPlan.id,
-          ...(stagedPlan.name === undefined ? {} : { name: stagedPlan.name }),
-          prompt: stagedPlan.prompt,
-          sessionIds: stagedPlan.sessions.map((session) => session.id),
-          workspaceId: activeWorkspace.id,
-        }
-      : null;
+    const nextPendingPlan = toSquadPlan({ plan: stagedPlan });
 
     setTerminalSessions((current) => [...current, ...stagedSessions]);
-    pendingPlanRef.current = nextPendingPlan;
-    setPendingPlan(nextPendingPlan);
+    pendingPlansRef.current = nextPendingPlan
+      ? { ...pendingPlansRef.current, [activeWorkspace.id]: nextPendingPlan }
+      : omitWorkspaceRecord(pendingPlansRef.current, activeWorkspace.id);
+    setPendingPlans(pendingPlansRef.current);
     if (stagedPlan) void alfredApi.setStagedPlan(stagedPlan);
-    else void alfredApi.clearStagedPlan();
+    else void alfredApi.clearStagedPlan({ workspaceId: activeWorkspace.id });
     return true;
-  }, [activeWorkSessions, activeWorkspace, alfredStatus, globalStagedCount]);
+  }, [activeDrafts.length, activeWorkSessions, activeWorkspace, alfredStatus]);
 
   const handleSubmitDispatch = useCallback((draft: string) => {
     const target = activeDispatchTarget;
@@ -1922,25 +1900,20 @@ export function App() {
 
   const handleRejectTile = useCallback((tileId: string) => {
     const alfredApi = getDesktopAlfredApi();
-    const owningPlan = pendingPlanRef.current;
-    const planOwnsTile = owningPlan?.sessionIds.includes(tileId) ?? false;
+    const owningPlan = Object.values(pendingPlansRef.current).find((plan) => plan.sessionIds.includes(tileId));
     setTerminalSessions((sessions) => rejectStaged(sessions, tileId));
-    if (!owningPlan || !planOwnsTile) return;
+    if (!owningPlan) return;
 
-    const remaining = owningPlan.sessionIds.filter((id) => id !== tileId);
-    pendingPlanRef.current = remaining.length === 0 ? null : { ...owningPlan, sessionIds: remaining };
-    setPendingPlan((current) => {
-      if (!current || current.id !== owningPlan.id || !current.sessionIds.includes(tileId)) return current;
-      const currentRemaining = current.sessionIds.filter((id) => id !== tileId);
-      return currentRemaining.length === 0 ? null : { ...current, sessionIds: currentRemaining };
-    });
+    pendingPlansRef.current = removePendingPlanSession(pendingPlansRef.current, tileId);
+    setPendingPlans(pendingPlansRef.current);
     void alfredApi?.resolveStagedPlan({ sessionIds: [tileId] });
   }, []);
 
   const handleUpdateStagedSession = useCallback(async (sessionId: string, patch: AlfredStagedSessionPatch) => {
     const alfredApi = getDesktopAlfredApi();
-    const planId = pendingPlan?.id;
-    if (!alfredApi || !planId) {
+    const owningPlan = Object.values(pendingPlansRef.current).find((plan) => plan.sessionIds.includes(sessionId));
+    const owningWorkspace = workspaces.find((workspace) => workspace.id === owningPlan?.workspaceId);
+    if (!alfredApi || !owningPlan || !owningWorkspace) {
       throw new Error("No draft plan is available to edit.");
     }
 
@@ -1953,10 +1926,13 @@ export function App() {
     );
 
     const response = await alfredApi.updateStagedSession({
-      planId,
+      planId: owningPlan.id,
       sessionId,
       patch,
-      workspace: workspacePlanContext(activeWorkspace, activeWorkSessions),
+      workspace: workspacePlanContext(
+        owningWorkspace,
+        terminalSessionsRef.current.filter((session) => session.workspaceId === owningWorkspace.id && isWorkSession(session)),
+      ),
     });
 
     if (!response.ok) {
@@ -1980,7 +1956,7 @@ export function App() {
 
     setTerminalSessions((sessions) =>
       appendSessionActivity(
-        replaceStagedSessionsFromPlan(sessions, response.plan, activeWorkspace.rootPath ?? "", activeWorkspace.id).map((session) =>
+        replaceStagedSessionsFromPlan(sessions, response.plan, owningWorkspace.rootPath ?? "").map((session) =>
           session.id === sessionId ? { ...session, stagedReviewStatus: "edited" } : session,
         ),
         sessionId,
@@ -1991,10 +1967,12 @@ export function App() {
         },
       ),
     );
-    const nextPendingPlan = toSquadPlan({ plan: response.plan, defaultWorkspaceId: activeWorkspace.id });
-    pendingPlanRef.current = nextPendingPlan;
-    setPendingPlan(nextPendingPlan);
-  }, [activeWorkSessions, activeWorkspace, pendingPlan?.id]);
+    const nextPendingPlan = toSquadPlan({ plan: response.plan });
+    pendingPlansRef.current = nextPendingPlan
+      ? { ...pendingPlansRef.current, [owningWorkspace.id]: nextPendingPlan }
+      : omitWorkspaceRecord(pendingPlansRef.current, owningWorkspace.id);
+    setPendingPlans(pendingPlansRef.current);
+  }, [workspaces]);
 
   const handleOpenCommandPalette = useCallback(() => {
     setPrivacyPanelOpen(false);
@@ -2103,15 +2081,11 @@ export function App() {
     }
   }, [privacySettings.externalSessionIndexingEnabled, workspaces]);
 
-  // The main process already dropped the saved plan; drop its draft sessions from the view too.
+  // The main process already dropped the saved plans; drop their draft sessions from the view too.
   const dropPendingPlan = useCallback(() => {
-    const plan = pendingPlanRef.current;
-    if (!plan) return;
-    pendingPlanRef.current = null;
-    setPendingPlan(null);
-    setTerminalSessions((sessions) =>
-      sessions.filter((session) => !(session.stage === "staged" && plan.sessionIds.includes(session.id))),
-    );
+    pendingPlansRef.current = {};
+    setPendingPlans({});
+    setTerminalSessions((sessions) => sessions.filter((session) => session.stage !== "staged"));
   }, []);
 
   const handleUpdatePrivacySettings = useCallback(async (nextSettings: DesktopPrivacySettings) => {
@@ -2516,7 +2490,7 @@ export function App() {
 
     Promise.all([
       terminalApi.list(),
-      alfredApi?.getStagedPlan().catch(() => ({ plan: null })) ?? Promise.resolve({ plan: null }),
+      alfredApi?.getStagedPlans().catch(() => ({ plans: [] })) ?? Promise.resolve({ plans: [] }),
       alfredApi?.getRuntimeStatus().catch(() => null) ?? Promise.resolve(null),
       layoutApi?.getLayouts() ?? Promise.resolve(emptyLayouts),
       workspaceApi?.getWorkspaceState() ?? Promise.resolve(null),
@@ -2588,16 +2562,14 @@ export function App() {
         const hydratedWorkspaceMissing =
           workspaceStateResult?.workspaces.find((workspace) => workspace.id === hydratedWorkspaceId)?.rootStatus
           === "missing";
-        const stagedSessions = hydrateStagedPlanSessions(
-          stagedPlanResult.plan,
-          hydratedWorkspaceRootPath,
+        const stagedSessions = stagedPlanResult.plans.flatMap((plan) =>
+          hydrateStagedPlanSessions(plan, workspaceRootPath(workspaceStateResult, plan.workspaceId)),
         ).filter(
           (session) => !liveClientIds.has(session.id) && !restoredClientIds.has(session.id),
         );
-        const alreadyLaunchedStagedIds =
-          stagedPlanResult.plan?.sessions
-            .map((session) => session.id)
-            .filter((id) => liveClientIds.has(id) || restoredClientIds.has(id)) ?? [];
+        const alreadyLaunchedStagedIds = stagedPlanResult.plans
+          .flatMap((plan) => plan.sessions.map((session) => session.id))
+          .filter((id) => liveClientIds.has(id) || restoredClientIds.has(id));
         if (alreadyLaunchedStagedIds.length > 0) {
           void alfredApi?.resolveStagedPlan({ sessionIds: alreadyLaunchedStagedIds });
         }
@@ -2615,12 +2587,12 @@ export function App() {
         );
         setTerminalSessions(hydratedSessions);
         setPreviewCandidates(previewCandidatesFromSessions(hydratedSessions));
-        const hydratedPendingPlan = toSquadPlan({
-          plan: stagedPlanResult.plan,
-          omittedSessionIds: alreadyLaunchedStagedIds,
-        });
-        pendingPlanRef.current = hydratedPendingPlan;
-        setPendingPlan(hydratedPendingPlan);
+        const hydratedPendingPlans = Object.fromEntries(stagedPlanResult.plans.flatMap((plan) => {
+          const pendingPlan = toSquadPlan({ plan, omittedSessionIds: alreadyLaunchedStagedIds });
+          return pendingPlan ? [[plan.workspaceId, pendingPlan]] : [];
+        }));
+        pendingPlansRef.current = hydratedPendingPlans;
+        setPendingPlans(hydratedPendingPlans);
         workspaceStateHydratedRef.current = true;
         setWorkspaceHydrationStatus({ status: "ready" });
       })
@@ -2990,11 +2962,6 @@ export function App() {
           >
             <ComposerBar
               autoFocus
-              blockedActionLabel={
-                stagedWorkspaceId && stagedWorkspaceLabel
-                  ? `Open ${stagedWorkspaceLabel}`
-                  : undefined
-              }
               blockedReason={composerBlockedReason}
               dispatchTarget={activeDispatchTarget}
               lastDispatchDestination={lastDispatchDestination}
@@ -3006,11 +2973,6 @@ export function App() {
                 ...current,
                 [activeWorkspace.id]: draft,
               }))}
-              onBlockedAction={
-                stagedWorkspaceId
-                  ? () => handleSelectWorkspace(stagedWorkspaceId)
-                  : undefined
-              }
               onCycleDispatchTarget={handleCycleDispatchTarget}
               onSubmit={async (draft) => {
                 const submitted = await handleSubmitDispatch(draft);
@@ -3425,10 +3387,12 @@ function changedFileCountLabel(count: number): string {
 function createStagedPlanSnapshot({
   name,
   prompt,
+  workspaceId,
   sessions,
 }: {
   name?: string;
   prompt: string;
+  workspaceId: string;
   sessions: SessionTile[];
 }): AlfredStagedPlanSnapshot | null {
   if (sessions.length === 0) return null;
@@ -3447,18 +3411,26 @@ function createStagedPlanSnapshot({
 
   return {
     id: crypto.randomUUID(),
+    workspaceId,
     ...(name === undefined ? {} : { name }),
     prompt,
     sessions: planSessions,
   };
 }
 
+function removePendingPlanSession(plans: Record<string, SquadPlan>, sessionId: string): Record<string, SquadPlan> {
+  const plan = Object.values(plans).find((candidate) => candidate.sessionIds.includes(sessionId));
+  if (!plan) return plans;
+  const sessionIds = plan.sessionIds.filter((id) => id !== sessionId);
+  return sessionIds.length === 0
+    ? omitWorkspaceRecord(plans, plan.workspaceId)
+    : { ...plans, [plan.workspaceId]: { ...plan, sessionIds } };
+}
+
 function toSquadPlan({
-  defaultWorkspaceId = DEFAULT_WORKSPACE_ID,
   omittedSessionIds = [],
   plan,
 }: {
-  defaultWorkspaceId?: string;
   omittedSessionIds?: string[];
   plan: AlfredStagedPlanSnapshot | null;
 }): SquadPlan | null {
@@ -3471,7 +3443,7 @@ function toSquadPlan({
     ...(plan.name === undefined ? {} : { name: plan.name }),
     prompt: plan.prompt,
     sessionIds,
-    workspaceId: plan.sessions.find((session) => session.workspaceId)?.workspaceId ?? defaultWorkspaceId,
+    workspaceId: plan.workspaceId,
   };
 }
 
@@ -3479,9 +3451,8 @@ function replaceStagedSessionsFromPlan(
   sessions: SessionTile[],
   plan: AlfredStagedPlanSnapshot,
   defaultCwd: string,
-  defaultWorkspaceId: string,
 ): SessionTile[] {
-  const replacements = hydrateStagedPlanSessions(plan, defaultCwd, defaultWorkspaceId);
+  const replacements = hydrateStagedPlanSessions(plan, defaultCwd);
   const replacementsById = new Map(replacements.map((session) => [session.id, session]));
   const existingIds = new Set(sessions.map((session) => session.id));
   const replacedIds = new Set<string>();

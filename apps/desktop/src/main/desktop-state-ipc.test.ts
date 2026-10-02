@@ -134,6 +134,7 @@ describe("desktop-state IPC", () => {
 
   const planWithSecret = {
     id: "plan-secret",
+    workspaceId: "A",
     prompt: "PRIVATE_PROMPT",
     sessions: [
       {
@@ -148,25 +149,25 @@ describe("desktop-state IPC", () => {
 
   it("drops the draft plan when saved terminal data is cleared", async () => {
     mocks.handlers.clear();
-    const store = createMemoryStore({ ...DEFAULT_DESKTOP_STATE, stagedPlan: planWithSecret });
+    const store = createMemoryStore({ ...DEFAULT_DESKTOP_STATE, stagedPlans: { A: planWithSecret } });
     registerDesktopStateIpc(store);
 
     await mocks.handlers.get(desktopStateChannels.clearSavedTerminalData)?.();
 
-    expect((await store.getState()).stagedPlan).toBeNull();
+    expect((await store.getState()).stagedPlans).toEqual({});
   });
 
   it("drops the draft plan when retention is turned off, but keeps it when turned on", async () => {
     mocks.handlers.clear();
-    const store = createMemoryStore({ ...DEFAULT_DESKTOP_STATE, stagedPlan: planWithSecret });
+    const store = createMemoryStore({ ...DEFAULT_DESKTOP_STATE, stagedPlans: { A: planWithSecret } });
     registerDesktopStateIpc(store);
     const update = mocks.handlers.get(desktopStateChannels.updatePrivacySettings);
 
     await update?.(undefined, { terminalScrollbackRetention: "redactedTail", externalSessionIndexingEnabled: true });
-    expect((await store.getState()).stagedPlan).not.toBeNull();
+    expect((await store.getState()).stagedPlans).toEqual({ A: planWithSecret });
 
     await update?.(undefined, { terminalScrollbackRetention: "off", externalSessionIndexingEnabled: true });
-    expect((await store.getState()).stagedPlan).toBeNull();
+    expect((await store.getState()).stagedPlans).toEqual({});
   });
 
   it("reveals the main-owned desktop state file path", async () => {
