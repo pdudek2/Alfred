@@ -16,6 +16,8 @@ export type WorkbenchHeaderProps = {
   prepareWorkTriggerRef?: Ref<HTMLButtonElement>;
   selectedSession: SessionTile | null;
   shortcutModifier: "Cmd" | "Ctrl";
+  detailsTriggerRef?: Ref<HTMLButtonElement>;
+  detailsOpen?: boolean;
   surfacesTriggerRef?: Ref<HTMLButtonElement>;
   workspaceDetail: string;
   workspaceRootMissing?: boolean;
@@ -39,6 +41,8 @@ export function WorkbenchHeader({
   prepareWorkTriggerRef,
   selectedSession,
   shortcutModifier,
+  detailsTriggerRef,
+  detailsOpen = false,
   surfacesTriggerRef,
   workspaceDetail,
   workspaceRootMissing = false,
@@ -90,7 +94,7 @@ export function WorkbenchHeader({
   const surfaceItems: ChromeMenuItem[] = [
     { id: "work", label: "Work", run: () => onSelectSurface("work") },
     { id: "sessions", label: "History", run: () => onSelectSurface("sessions") },
-    { id: "context", label: "Context", run: onToggleContext },
+    { id: "context", label: "Details", run: onToggleContext },
     { id: "privacy", label: "Local Data & Privacy", run: onOpenPrivacyControls },
   ];
 
@@ -125,6 +129,11 @@ export function WorkbenchHeader({
           </ChromeMenu>
         </div>
         <div className="workbench-right-zone">
+          <button ref={detailsTriggerRef} type="button" aria-label="Details" aria-expanded={detailsOpen}
+            aria-keyshortcuts={shortcutModifier === "Cmd" ? "Meta+i" : "Control+i"}
+            title={`Details (${shortcutModifier === "Cmd" ? "⌘I" : "Ctrl I"})`} onClick={onToggleContext}>
+            <span>Details</span><kbd>{shortcutModifier === "Cmd" ? "⌘I" : "Ctrl I"}</kbd>
+          </button>
           {needsYouCount > 0 && (
             <button
               ref={needsYouTriggerRef}

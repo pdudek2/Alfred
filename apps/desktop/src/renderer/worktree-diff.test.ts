@@ -2,6 +2,19 @@ import { describe, expect, it } from "vitest";
 import { parseUnifiedDiff } from "./worktree-diff";
 
 describe("parseUnifiedDiff", () => {
+  it("counts changes per file, including deletion and quoted UTF-8 paths", () => {
+    const patch = [
+      "diff --git a/a.ts b/a.ts", "--- a/a.ts", "+++ b/a.ts", "@@ -1 +1 @@", "-old", "+new",
+      "diff --git a/old.ts b/old.ts", "--- a/old.ts", "+++ /dev/null", "@@ -1 +0,0 @@", "-removed",
+      'diff --git "a/za\\305\\274.ts" "b/za\\305\\274.ts"', '--- /dev/null', '+++ "b/za\\305\\274.ts"', "@@ -0,0 +1 @@", "+added",
+    ].join("\n");
+    expect(parseUnifiedDiff(patch).files).toEqual({
+      "a.ts": { additions: 1, deletions: 1 },
+      "old.ts": { additions: 0, deletions: 1 },
+      "zaż.ts": { additions: 1, deletions: 0 },
+    });
+  });
+
   it("tracks line numbers and totals through a unified diff hunk", () => {
     const patch = [
       "diff --git a/src/app.tsx b/src/app.tsx",

@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { CircleCheck } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode, type FormEvent, type KeyboardEvent } from "react";
 import type { AlfredStagedSessionPatch } from "../../shared/alfred-ipc";
-import { meaningfulSignalEvents, presentActivityEvents } from "../activity-presentation";
+import { presentActivityEvents } from "../activity-presentation";
 import type { SessionActivityEvent, SessionTile } from "../session-state";
 import { sessionState } from "../session-status";
-import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
-import { sessionTileKind, tileKindMeta } from "../tile-kind";
-import { shortenWorktreeLabel } from "../path-display";
+import { sessionAgeLabel } from "../session-time";
 
 export type AgentTimelinePanelProps = {
   onCopyActivityText?: (value: string) => Promise<void> | void;
@@ -13,6 +12,8 @@ export type AgentTimelinePanelProps = {
   onRevealActivityFile?: (filePath: string, cwd: string) => Promise<void> | void;
   onUpdateStagedSession?: (sessionId: string, patch: AlfredStagedSessionPatch) => Promise<void>;
   session: SessionTile | null;
+  projectName?: string;
+  changes?: ReactNode;
 };
 
 export function AgentTimelinePanel({
@@ -21,6 +22,8 @@ export function AgentTimelinePanel({
   onRevealActivityFile,
   onUpdateStagedSession,
   session,
+  projectName,
+  changes,
 }: AgentTimelinePanelProps) {
   const ageClock = useSessionAgeClock(session?.createdAt);
   const commandInputRef = useRef<HTMLInputElement | null>(null);
@@ -31,8 +34,6 @@ export function AgentTimelinePanel({
   const [payloadActionState, setPayloadActionState] = useState<Record<string, string>>({});
   const [sessionActionState, setSessionActionState] = useState<Record<string, string>>({});
   const [showRawActivity, setShowRawActivity] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
-  const [showActivity, setShowActivity] = useState(false);
 
   useEffect(() => {
     setEditMode(false);
@@ -42,8 +43,6 @@ export function AgentTimelinePanel({
     setPayloadActionState({});
     setSessionActionState({});
     setShowRawActivity(false);
-    setShowDetails(false);
-    setShowActivity(false);
   }, [session?.id]);
 
   useEffect(() => {
@@ -59,31 +58,23 @@ export function AgentTimelinePanel({
           <span>no selected session</span>
         </header>
         <div className="agent-timeline-body">
-          <p className="agent-timeline-empty">Select a terminal to inspect its runtime, command, and activity.</p>
+          {changes ?? <section className="details-section"><header className="details-section-heading"><h2>Changes</h2></header><p className="details-empty">No worktree changes.</p></section>}
+          <section className="details-section" aria-label="Activity"><header className="details-section-heading"><h2>Activity</h2></header><p className="details-empty">No activity yet.</p></section>
+          <section className="details-section" aria-label="Location"><header className="details-section-heading"><h2>Location</h2></header><p className="details-empty">Select a session to see its location.</p></section>
         </div>
       </aside>
     );
   }
 
-  const kindMeta = tileKindMeta(sessionTileKind(session));
-  const command = sessionCommandLabel(session) ?? "";
-  const runtimeStatus = session.runtimeStatus ?? (session.runtimeId ? "live" : "starting");
   const displayStatus = sessionState(session);
   const activityEvents = session.activityEvents ?? [];
   const presentedActivity = presentActivityEvents(activityEvents, {
     includeRaw: showRawActivity,
     limit: activityEvents.length,
   });
-  const ageLabel = sessionAgeLabel(session.createdAt, ageClock);
-  const activitySummary = summarizeActivityEvents(activityEvents);
-  const pulseCard = sessionPulseCard(session, displayStatus, activityEvents);
-  const isolatedCheckout = isIsolatedCheckoutSession(session);
-  const handoffActions = sessionHandoffActions(session, command);
-  const worktreeLifecycleActions = isolatedCheckout ? isolatedCheckoutLifecycleActions() : [];
-  const cwdFactLabel = session.cwd ? shortenWorktreeLabel(session.cwd) : "default project";
-  const branchFactLabel = session.branchName ? shortenWorktreeLabel(session.branchName) : null;
-  const baseFactLabel = session.baseCwd ? shortenWorktreeLabel(session.baseCwd) : null;
-  const isolationFactLabel = isolatedCheckout ? "isolated worktree" : session.isolation === "shared" ? "shared project" : null;
+  const locationName = session.branchName || (isIsolatedCheckoutSession(session)
+    ? session.cwd.replace(/\/+$/, "").split("/").at(-1) : null) || projectName || session.workspaceId;
+  const handoffActions = sessionHandoffActions(session);
   const canEditStagedSession = isEditableStagedSession(session) && Boolean(onUpdateStagedSession);
   const startEdit = () => {
     setEditDraft({
@@ -202,31 +193,7 @@ export function AgentTimelinePanel({
       });
     }, 1600);
   };
-  const displayedEvents: SessionActivityEvent[] =
-    activityEvents.length > 0
-      ? presentedActivity.visibleEvents
-      : [
-          {
-            id: `${session.id}-runtime-status`,
-            kind: session.stage === "staged" ? "approval" : runtimeStatus === "error" ? "error" : "lifecycle",
-            title: session.stage === "staged" ? "Queued by Alfred" : runtimeEventTitle(runtimeStatus),
-            detail:
-              session.stage === "staged"
-                ? "Review the proposed command before it starts."
-                : runtimeEventCopy(runtimeStatus),
-            at: session.lastActivityAt ?? 0,
-          },
-        ];
-  const visibleTimelineEvents = showRawActivity ? displayedEvents : displayedEvents.slice(0, TIMELINE_PREVIEW_LIMIT);
-  const hiddenPreviewCount = Math.max(0, displayedEvents.length - visibleTimelineEvents.length);
-  const hasDetails = Boolean(
-    isolationFactLabel ||
-      session.branchName ||
-      session.baseCwd ||
-      activitySummary ||
-      session.lastActivityAt ||
-      session.lastOutputAt,
-  );
+  const visibleTimelineEvents = presentedActivity.visibleEvents;
 
   return (
     <aside className="agent-timeline-panel" aria-label="Agent activity">
@@ -237,31 +204,13 @@ export function AgentTimelinePanel({
         </span>
       </header>
       <div className="agent-timeline-body">
-        <section className="agent-context-essentials" aria-label="Session essentials">
-          <p>
-            <span className="agent-essentials-kind">{kindMeta.label}</span>
-            <span aria-hidden="true">·</span>
-            <span className="agent-essentials-cwd" {...fullFactValueProps(session.cwd, cwdFactLabel)}>
-              {cwdFactLabel}
-            </span>
-          </p>
-          {(command || ageLabel) && (
-            <p>
-              {command && (
-                <code className="agent-essentials-command" title={command}>
-                  {command}
-                </code>
-              )}
-              {command && ageLabel && <span aria-hidden="true">·</span>}
-              {ageLabel && <span title={sessionAgeTitle(session.createdAt)}>{ageLabel}</span>}
-            </p>
-          )}
-        </section>
+        {changes ?? <section className="details-section" aria-label="Changes"><header className="details-section-heading"><h2>Changes</h2></header><p className="details-empty">No worktree changes.</p></section>}
+        {session.stage === "staged" && session.safetyNote && !canEditStagedSession && <p className="details-empty">{session.safetyNote}</p>}
         {canEditStagedSession && !editMode && (
           <section className="agent-staged-editor" aria-label={`Edit draft command for ${session.title}`}>
             <div className="agent-staged-editor-copy">
               <strong>{session.stagedReviewStatus === "edited" ? "Edited and rechecked" : "Adjust before launch"}</strong>
-              <p>Command, arguments, and cwd can be corrected before Alfred releases this session.</p>
+              <p>{session.safetyNote ?? "Command, arguments, and cwd can be corrected before Alfred releases this session."}</p>
             </div>
             <button type="button" onClick={startEdit}>
               Edit command
@@ -313,19 +262,52 @@ export function AgentTimelinePanel({
             </div>
           </form>
         )}
-        {pulseCard && (
-          <section className={`agent-session-pulse tone-${pulseCard.tone}`} aria-label="Current state">
-            <span>Current state</span>
-            <strong>{pulseCard.title}</strong>
-            <p>{pulseCard.detail}</p>
-            {pulseCard.at > 0 && (
-              <time dateTime={new Date(pulseCard.at).toISOString()}>{formatActivityTime(pulseCard.at)}</time>
-            )}
-          </section>
-        )}
-        {(handoffActions.length > 0 || worktreeLifecycleActions.length > 0) && (
+        <section className="details-section" aria-label="Activity">
+          <header className="details-section-heading"><h2>Activity</h2></header>
+              {presentedActivity.hiddenRawCount > 0 && (
+                <button type="button" className="agent-raw-toggle" onClick={() => setShowRawActivity(true)}>
+                  Show raw ({presentedActivity.hiddenRawCount})
+                </button>
+              )}
+              {showRawActivity && presentedActivity.rawEvents.length > 0 && (
+                <button type="button" className="agent-raw-toggle" onClick={() => setShowRawActivity(false)}>
+                  Hide raw
+                </button>
+              )}
+              {visibleTimelineEvents.length === 0 && <p className="details-empty">No activity yet.</p>}
+              <ol className="agent-activity-list">
+                {visibleTimelineEvents.map((event) => {
+                  const payload = activityPayloadView(event);
+                  return (
+                    <li className={event.kind} key={event.id}>
+                      <CircleCheck size={14} aria-hidden="true" />
+                      {payload ? (
+                        <button className="details-activity-text" type="button"
+                          title={payload.value}
+                          aria-label={`${payload.actionLabel} ${payload.label}: ${payload.value}`}
+                          disabled={payloadActionState[event.id] === "opening" || payloadActionState[event.id] === "copying"}
+                          onClick={() => void handlePayloadAction(event, payload)}>
+                          <span>{event.title}</span>{event.detail && <> · <span>{event.detail}</span></>}
+                          {payloadActionState[event.id] && <span role="status"> · {payloadActionState[event.id]}</span>}
+                        </button>
+                      ) : (
+                        <span className="details-activity-text"><span>{event.title}</span>{event.detail && <> · <span>{event.detail}</span></>}</span>
+                      )}
+                      {event.at > 0 && <time dateTime={new Date(event.at).toISOString()} title={formatActivityTime(event.at)}>
+                        {ageClock - event.at < 60_000 ? `${Math.max(0, Math.floor((ageClock - event.at) / 1000))}s` : sessionAgeLabel(event.at, ageClock)}
+                      </time>}
+                    </li>
+                  );
+                })}
+              </ol>
+        </section>
+        <section className="details-section" aria-label="Location">
+          <header className="details-section-heading"><h2>Location</h2></header>
+          <p className="details-location-name">{locationName}</p>
+          <p className="details-location-path" title={session.cwd}>{session.cwd || "Default project folder"}</p>
+        {handoffActions.length > 0 && (
           <div
-            className="agent-handoff-buttons agent-handoff-row"
+            className="details-location-actions"
             role="group"
             aria-label={`Session actions for ${session.title}`}
           >
@@ -337,143 +319,18 @@ export function AgentTimelinePanel({
                 onAction={handleSessionAction}
               />
             ))}
-            {worktreeLifecycleActions.map((action) => (
-              <span key={action.id} className="agent-preview-chip">
-                {action.label}
-              </span>
-            ))}
           </div>
         )}
-        {hasDetails && (
-          <section className="agent-context-disclosure" aria-label="Session details">
-            <button
-              type="button"
-              className="agent-disclosure-toggle"
-              aria-expanded={showDetails}
-              onClick={() => setShowDetails((value) => !value)}
-            >
-              Details
-            </button>
-            {showDetails && (
-              <>
-                <dl className="agent-session-facts" aria-label="session details">
-                  {isolationFactLabel && (
-                    <div>
-                      <dt>isolation</dt>
-                      <dd>{isolationFactLabel}</dd>
-                    </div>
-                  )}
-                  {session.branchName && (
-                    <div>
-                      <dt>branch</dt>
-                      <dd {...fullFactValueProps(session.branchName, branchFactLabel ?? session.branchName)}>
-                        {branchFactLabel}
-                      </dd>
-                    </div>
-                  )}
-                  {session.baseCwd && (
-                    <div>
-                      <dt>base</dt>
-                      <dd {...fullFactValueProps(session.baseCwd, baseFactLabel ?? session.baseCwd)}>{baseFactLabel}</dd>
-                    </div>
-                  )}
-                  {activitySummary && (
-                    <div>
-                      <dt>activity</dt>
-                      <dd>{activitySummary}</dd>
-                    </div>
-                  )}
-                  {session.lastActivityAt && (
-                    <div>
-                      <dt>last activity</dt>
-                      <dd>{formatActivityTime(session.lastActivityAt)}</dd>
-                    </div>
-                  )}
-                  {session.lastOutputAt && (
-                    <div>
-                      <dt>last output</dt>
-                      <dd>{formatActivityTime(session.lastOutputAt)}</dd>
-                    </div>
-                  )}
-                </dl>
-              </>
-            )}
-          </section>
-        )}
-        <section className="agent-context-disclosure" aria-label="Recent activity">
-          <button
-            type="button"
-            className="agent-disclosure-toggle"
-            aria-expanded={showActivity}
-            onClick={() => setShowActivity((value) => !value)}
-          >
-            Activity ({displayedEvents.length})
-          </button>
-          {showActivity && (
-            <>
-              <p className="agent-activity-note">
-                {showRawActivity
-                  ? "Raw stream with debug activity included."
-                  : hiddenPreviewCount > 0
-                    ? `${hiddenPreviewCount} older ${hiddenPreviewCount === 1 ? "event" : "events"} hidden; debug noise stays out.`
-                    : "Important activity, with debug noise hidden."}
-              </p>
-              {presentedActivity.hiddenRawCount > 0 && (
-                <button type="button" className="agent-raw-toggle" onClick={() => setShowRawActivity(true)}>
-                  Show raw ({presentedActivity.hiddenRawCount})
-                </button>
-              )}
-              {showRawActivity && presentedActivity.rawEvents.length > 0 && (
-                <button type="button" className="agent-raw-toggle" onClick={() => setShowRawActivity(false)}>
-                  Hide raw
-                </button>
-              )}
-              <ol className="agent-activity-list">
-                {visibleTimelineEvents.map((event) => {
-                  const payload = activityPayloadView(event);
-                  return (
-                    <li className={event.kind} key={event.id}>
-                      <div>
-                        <b>{event.title}</b>
-                        <p>{event.detail}</p>
-                        {payload && (
-                          <div className={`agent-activity-object type-${payload.type}`}>
-                            <span>{payload.label}</span>
-                            <code>{payload.value}</code>
-                            <button
-                              type="button"
-                              onClick={() => void handlePayloadAction(event, payload)}
-                              disabled={
-                                payloadActionState[event.id] === "opening" || payloadActionState[event.id] === "copying"
-                              }
-                              aria-label={`${payload.actionLabel} ${payload.label}: ${payload.value}`}
-                            >
-                              {payloadActionState[event.id] ?? payload.actionLabel}
-                            </button>
-                          </div>
-                        )}
-                        {event.at > 0 && (
-                          <time dateTime={new Date(event.at).toISOString()}>{formatActivityTime(event.at)}</time>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
-            </>
-          )}
         </section>
       </div>
     </aside>
   );
 }
 
-type SessionPulseTone = "ask" | "issue" | "recovery" | "signal" | "work";
-
 type SessionHandoffAction =
   | {
       ariaLabel: string;
-      id: "copy-cwd" | "copy-command";
+      id: "copy-cwd";
       kind: "copy";
       label: string;
       value: string;
@@ -494,26 +351,12 @@ type ActivityPayloadView = {
   value: string;
 };
 
-type SessionPulseCard = {
-  at: number;
-  detail: string;
-  label: string;
-  title: string;
-  tone: SessionPulseTone;
-};
-
-type IsolatedCheckoutLifecycleAction = {
-  id: "review-diff" | "apply-to-project";
-  label: string;
-};
-
 type StagedEditDraft = {
   args: string;
   command: string;
   cwd: string;
 };
 
-const TIMELINE_PREVIEW_LIMIT = 4;
 
 function emptyEditDraft(): StagedEditDraft {
   return {
@@ -559,60 +402,18 @@ function HandoffActionButton({
   );
 }
 
-function fullFactValueProps(value: string | undefined, displayValue: string): { title?: string; "aria-label"?: string } {
-  if (!value || value === displayValue) return {};
-  return { title: value, "aria-label": value };
-}
-
 function isIsolatedCheckoutSession(session: Pick<SessionTile, "isolation" | "branchName" | "baseCwd">): boolean {
   if (session.isolation === "shared") return false;
   return Boolean(session.branchName && session.baseCwd) || session.isolation === "worktree";
 }
 
-function isolatedCheckoutLifecycleActions(): IsolatedCheckoutLifecycleAction[] {
+function sessionHandoffActions(session: SessionTile): SessionHandoffAction[] {
+  if (!session.cwd) return [];
   return [
-    { id: "review-diff", label: "Review diff" },
-    { id: "apply-to-project", label: "Apply to project" },
+    { id: "open-terminal", kind: "open-terminal", label: "Open in terminal", ariaLabel: `Open in terminal for ${session.title}`, cwd: session.cwd },
+    { id: "reveal-folder", kind: "reveal-folder", label: "Show in Finder", ariaLabel: `Show in Finder for ${session.title}`, cwd: session.cwd },
+    { id: "copy-cwd", kind: "copy", label: "Copy path", ariaLabel: `Copy path for ${session.title}`, value: session.cwd },
   ];
-}
-
-function sessionHandoffActions(session: SessionTile, command: string): SessionHandoffAction[] {
-  const actions: SessionHandoffAction[] = [];
-  if (session.cwd) {
-    actions.push({
-      id: "reveal-folder",
-      kind: "reveal-folder",
-      label: "Reveal",
-      ariaLabel: `Reveal folder for ${session.title}`,
-      cwd: session.cwd,
-    });
-    actions.push({
-      id: "open-terminal",
-      kind: "open-terminal",
-      label: "Open terminal",
-      ariaLabel: `Open external terminal for ${session.title}`,
-      cwd: session.cwd,
-    });
-    actions.push({
-      id: "copy-cwd",
-      kind: "copy",
-      label: "Copy cwd",
-      ariaLabel: `Copy cwd for ${session.title}`,
-      value: session.cwd,
-    });
-  }
-
-  if (command) {
-    actions.push({
-      id: "copy-command",
-      kind: "copy",
-      label: "Copy command",
-      ariaLabel: `Copy command for ${session.title}`,
-      value: command,
-    });
-  }
-
-  return actions;
 }
 
 function sessionHandoffActionKey(sessionId: string, actionId: SessionHandoffAction["id"]): string {
@@ -650,7 +451,6 @@ function useSessionAgeClock(createdAt: number | undefined): number {
 
   useEffect(() => {
     setNow(Date.now());
-    if (createdAt === undefined) return;
 
     const intervalId = window.setInterval(() => setNow(Date.now()), 5_000);
     return () => {
@@ -667,217 +467,4 @@ function formatActivityTime(value: number): string {
     minute: "2-digit",
     second: "2-digit",
   }).format(value);
-}
-
-function summarizeActivityEvents(events: NonNullable<SessionTile["activityEvents"]>): string | null {
-  if (events.length === 0) return null;
-
-  const labels: Array<[NonNullable<SessionTile["activityEvents"]>[number]["kind"], string]> = [
-    ["command", "command"],
-    ["file", "file"],
-    ["plan", "plan"],
-    ["tool", "tool"],
-    ["approval", "ask"],
-    ["error", "error"],
-    ["warning", "warning"],
-    ["output", "signal"],
-    ["lifecycle", "state"],
-  ];
-
-  return labels
-    .map(([kind, label]) => {
-      const count = events.filter((event) => event.kind === kind).length;
-      if (count === 0) return null;
-      return `${count} ${label}${count === 1 ? "" : "s"}`;
-    })
-    .filter((item): item is string => item !== null)
-    .join(" · ");
-}
-
-function sessionPulseCard(
-  session: SessionTile,
-  displayStatus: ReturnType<typeof sessionState>,
-  events: NonNullable<SessionTile["activityEvents"]>,
-): SessionPulseCard | null {
-  if (session.stage === "staged" && session.safetyNote) {
-    return {
-      at: session.lastActivityAt ?? 0,
-      detail: session.safetyNote,
-      label: "review before launch",
-      title: "Safety review required",
-      tone: "issue",
-    };
-  }
-
-  if (displayStatus.kind === "needs-you" && displayStatus.reason === "approval") {
-    const approval = latestEventOfKind(events, "approval");
-    return {
-      at: approval?.at ?? session.lastActivityAt ?? 0,
-      detail: approval?.detail ?? "The session is waiting for your response.",
-      label: "needs you",
-      title: approval?.title ?? "Waiting for approval",
-      tone: "ask",
-    };
-  }
-
-  if (displayStatus.kind === "failed" || (displayStatus.kind === "needs-you" && displayStatus.reason === "runtime-blocker")) {
-    const error = latestEventOfKind(events, "error");
-    return {
-      at: error?.at ?? session.lastActivityAt ?? 0,
-      detail: error?.detail ?? "The session reported an error.",
-      label: "check this",
-      title: error?.title ?? "Error reported",
-      tone: "issue",
-    };
-  }
-
-  if (displayStatus.kind === "needs-you" && displayStatus.reason === "blocked-launch") {
-    return {
-      at: session.lastActivityAt ?? 0,
-      detail: session.safetyNote ?? "This draft command needs manual review before launch.",
-      label: "needs you",
-      title: "Safety review required",
-      tone: "issue",
-    };
-  }
-
-  if (displayStatus.kind === "draft") {
-    return {
-      at: session.lastActivityAt ?? 0,
-      detail: sessionCommandLabel(session) ?? "Review the proposed session before launch.",
-      label: "draft",
-      title: "Draft in the plan",
-      tone: "work",
-    };
-  }
-
-  if (session.runtimeStatus === "starting") {
-    return {
-      at: session.lastActivityAt ?? 0,
-      detail: "Alfred is attaching the terminal runtime.",
-      label: "starting",
-      title: "Starting session",
-      tone: "signal",
-    };
-  }
-
-  if (displayStatus.kind === "asleep") {
-    const codingAgent = session.agentKind === "codex" ||
-      session.agentKind === "claude" ||
-      session.command === "codex" ||
-      session.command === "claude";
-
-    return {
-      at: session.lastActivityAt ?? session.lastOutputAt ?? 0,
-      detail: codingAgent
-        ? "Scrollback is kept. Resume continues the latest agent conversation in this project."
-        : "Scrollback is kept. Resume starts a fresh process in this session.",
-      label: "resume",
-      title: "Session asleep",
-      tone: "recovery",
-    };
-  }
-
-  if (displayStatus.kind === "done") {
-    return {
-      at: session.lastActivityAt ?? session.lastOutputAt ?? 0,
-      detail: "The process ended; scrollback remains available in the session.",
-      label: "ended",
-      title: "Process finished",
-      tone: "recovery",
-    };
-  }
-
-  const warning = latestEventOfKind(events, "warning");
-  if (warning) {
-    return {
-      at: warning.at,
-      detail: warning.detail,
-      label: "review",
-      title: warning.title,
-      tone: "issue",
-    };
-  }
-
-  const latestSignal = latestStructuredSignal(events);
-  if (latestSignal) {
-    return {
-      at: latestSignal.at,
-      detail: latestSignal.detail,
-      label: latestSignal.kind === "output" ? "latest output" : "latest signal",
-      title: latestSignal.title,
-      tone: latestSignal.kind === "plan" ? "work" : "signal",
-    };
-  }
-
-  return null;
-}
-
-function sessionCommandLabel(session: SessionTile): string | null {
-  if (!session.command) return null;
-  return [session.command, ...(session.args ?? [])].map(shellQuoteToken).join(" ");
-}
-
-const SHELL_SAFE_TOKEN = /^[A-Za-z0-9_./:@%+=,-]+$/;
-
-function shellQuoteToken(value: string): string {
-  if (value.length === 0) return "''";
-  if (SHELL_SAFE_TOKEN.test(value)) return value;
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
-
-function latestEventOfKind(
-  events: NonNullable<SessionTile["activityEvents"]>,
-  kind: NonNullable<SessionTile["activityEvents"]>[number]["kind"],
-): NonNullable<SessionTile["activityEvents"]>[number] | null {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index];
-    if (event?.kind === kind) return event;
-  }
-
-  return null;
-}
-
-function latestStructuredSignal(
-  events: NonNullable<SessionTile["activityEvents"]>,
-): NonNullable<SessionTile["activityEvents"]>[number] | null {
-  return meaningfulSignalEvents(events).at(-1) ?? null;
-}
-
-function runtimeEventTitle(status: SessionTile["runtimeStatus"]): string {
-  if (status === undefined) return "Starting terminal";
-
-  switch (status) {
-    case "error":
-      return "Start failed";
-    case "exited":
-      return "Process exited";
-    case "live":
-      return "Session attached";
-    case "restored":
-      return "Session asleep";
-    case "unavailable":
-      return "Starting terminal";
-    case "starting":
-      return "Starting terminal";
-  }
-}
-
-function runtimeEventCopy(status: SessionTile["runtimeStatus"]): string {
-  if (status === undefined) return "Alfred is attaching the runtime process.";
-
-  switch (status) {
-    case "error":
-      return "The runtime could not create this terminal.";
-    case "exited":
-      return "The process has ended; scrollback remains available in the session.";
-    case "live":
-      return "Terminal output is streaming in the project.";
-    case "restored":
-      return "This is the last kept scrollback. Start a new terminal to continue work.";
-    case "unavailable":
-      return "Alfred is attaching the runtime process.";
-    case "starting":
-      return "Alfred is attaching the runtime process.";
-  }
 }

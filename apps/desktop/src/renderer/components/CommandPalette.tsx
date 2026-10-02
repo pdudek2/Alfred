@@ -270,7 +270,7 @@ export function CommandPalette({
       },
       {
         id: "open-context",
-        label: "Open Context",
+        label: "Details",
         detail: "Inspect the focused session",
         run: onOpenContext,
       },

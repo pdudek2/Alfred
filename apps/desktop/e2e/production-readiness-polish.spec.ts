@@ -65,12 +65,12 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expect(codexTile).toBeVisible();
   await expect(codexTile.getByRole("textbox", { name: "Terminal input" })).toBeFocused();
 
-  await selectSurface(page, "Context");
-  const context = page.getByRole("complementary", { name: "Session context" });
+  await selectSurface(page, "Details");
+  const context = page.getByRole("complementary", { name: "Details" });
   await expect(context).toBeVisible();
   await expectSans(context);
   await captureAuditScreenshot(page, "context-wide");
-  await context.getByRole("button", { name: "Close Context panel" }).click();
+  await context.getByRole("button", { name: "Close Details panel" }).click();
   await expect(page.getByRole("button", { name: "Open Surfaces menu" })).toBeFocused();
 
   await page.getByRole("button", { name: /^Needs you, / }).click();
@@ -217,7 +217,7 @@ async function appendFixtureAgentOutput(root: string, agent: "claude" | "codex",
   await appendFile(join(root, marker), message, "utf8");
 }
 
-async function selectSurface(page: Page, surface: "Work" | "History" | "Context" | "Local Data & Privacy"): Promise<void> {
+async function selectSurface(page: Page, surface: "Work" | "History" | "Details" | "Local Data & Privacy"): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();
 }

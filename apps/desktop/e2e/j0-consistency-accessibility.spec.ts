@@ -90,15 +90,16 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await expect(paletteTrigger).toBeFocused();
 
   const surfacesTrigger = page.getByRole("button", { name: "Open Surfaces menu" });
-  await selectSurface(page, "Context");
-  const context = page.getByRole("complementary", { name: "Session context" });
+  const detailsTrigger = page.getByRole("button", { name: "Details", exact: true });
+  await selectSurface(page, "Details");
+  const context = page.getByRole("complementary", { name: "Details" });
   await expect(context).toBeVisible();
   await expectSansFont(context);
   await page.screenshot({
     path: testInfo.outputPath("j0-context-1440x900.png"),
     style: privacySafeScreenshotStyle,
   });
-  expect(await context.evaluate((node) => getComputedStyle(node).boxShadow)).not.toBe("none");
+  expect(await context.evaluate((node) => getComputedStyle(node).boxShadow)).toBe("none");
   const contextTimeline = context.locator(".agent-timeline-panel");
   await expect(contextTimeline).toBeVisible();
   expect(await contextTimeline.evaluate((node) => {
@@ -106,8 +107,8 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
     return style.boxShadow === "none" && style.borderRadius === "0px";
   })).toBe(true);
   const contextScreen = await requiredHandle(workScreen, "Work xterm before closing Context");
-  await context.getByRole("button", { name: "Close Context panel" }).click();
-  await expect(surfacesTrigger).toBeFocused();
+  await context.getByRole("button", { name: "Close Details panel" }).click();
+  await expect(detailsTrigger).toBeFocused();
   const contextScreenAfterClose = await requiredHandle(workScreen, "Work xterm after closing Context");
   expect(await contextScreen.evaluate(
     (before, after) => before.isSameNode(after) && before.isConnected,
@@ -274,8 +275,12 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
 
 async function selectSurface(
   page: Page,
-  surface: "Work" | "History" | "Context" | "Local Data & Privacy",
+  surface: "Work" | "History" | "Details" | "Local Data & Privacy",
 ): Promise<void> {
+  if (surface === "Details") {
+    await page.getByRole("button", { name: "Details", exact: true }).click();
+    return;
+  }
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();
 }

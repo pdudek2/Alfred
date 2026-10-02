@@ -148,14 +148,14 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
   identityTransitions["Sessions→Work"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
   expect(identityTransitions["Sessions→Work"]).toBe(true);
-  await selectSurface(page, "Context");
+  await selectSurface(page, "Details");
   await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
   await expect(page.getByTestId("workbench-shell")).toHaveClass(/context-visible/);
   await expect(page.getByLabel("Project preview")).toHaveCount(0);
-  await expect(page.getByRole("complementary", { name: "Session context" })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Details" })).toBeVisible();
   identityTransitions["Work→Context"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
   expect(identityTransitions["Work→Context"]).toBe(true);
-  await page.getByRole("button", { name: "Close Context panel" }).click();
+  await page.getByRole("button", { name: "Close Details panel" }).click();
 
   await chooseWorkLayout(page, "Grid");
   await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
@@ -183,7 +183,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   identityTransitions["Context→narrow Grid"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
   expect(identityTransitions["Context→narrow Grid"]).toBe(true);
 
-  await selectSurface(page, "Context");
+  await selectSurface(page, "Details");
   await expect(page.locator(".project-navigator")).toHaveCSS("width", "46px");
   const contextBounds = await page.getByTestId("context-column").boundingBox();
   const terminalBounds = await page.locator(".terminal-stage").boundingBox();
@@ -194,7 +194,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(contextBounds!.width).toBeCloseTo(360, 0);
   expect(contextBounds!.x + contextBounds!.width).toBeCloseTo(viewportWidth, 0);
   expect(terminalBounds!.x + terminalBounds!.width).toBeGreaterThan(contextBounds!.x);
-  await page.getByRole("button", { name: "Close Context panel" }).click();
+  await page.getByRole("button", { name: "Close Details panel" }).click();
 
   const surfacesTrigger = page.getByRole("button", { name: "Open Surfaces menu" });
   await selectSurface(page, "Local Data & Privacy");
@@ -284,8 +284,12 @@ async function addManualTerminal(page: Page): Promise<void> {
 
 async function selectSurface(
   page: Page,
-  surface: "Work" | "History" | "Context" | "Local Data & Privacy",
+  surface: "Work" | "History" | "Details" | "Local Data & Privacy",
 ): Promise<void> {
+  if (surface === "Details") {
+    await page.getByRole("button", { name: "Details", exact: true }).click();
+    return;
+  }
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
   await page.getByRole("menuitem", { name: surface }).click();
 }

@@ -89,9 +89,9 @@ test("lists only blocked sessions across projects without reflowing the terminal
 
   await edit.click();
   await expect(popover).toBeHidden();
-  const context = page.getByRole("complementary", { name: "Session context" });
+  const context = page.getByRole("complementary", { name: "Details" });
   await expect(context).toBeVisible();
-  await expect(context.getByRole("button", { name: "Close Context panel" })).toBeFocused();
+  await expect(context.getByRole("button", { name: "Close Details panel" })).toBeFocused();
   await expectSameNode(xtermHostBefore, xtermHost, "Needs you Edit replaced the connected xterm host");
   harness.assertNoRuntimeErrors();
 });
@@ -169,7 +169,7 @@ test.describe("mixed Needs you actions", () => {
     await trigger.click();
     await popover.getByRole("button", { name: "Edit Fixture item 1 in Fixture Alpha" }).click();
     await expect(popover).toBeHidden();
-    const context = page.getByRole("complementary", { name: "Session context" });
+    const context = page.getByRole("complementary", { name: "Details" });
     await expect(context).toBeVisible();
     await expect(context).toContainText("Fixture item 1");
     await expect(page.getByRole("button", { name: "Fixture Alpha project" })).toHaveAttribute("aria-current", "location");
@@ -180,7 +180,7 @@ test.describe("mixed Needs you actions", () => {
       .toBe(false);
 
     // Ready drafts still launch from the plan line using the real handler.
-    await context.getByRole("button", { name: "Close Context panel" }).click();
+    await context.getByRole("button", { name: "Close Details panel" }).click();
     const drafts = await openPlan(page);
     await drafts.getByRole("button", { name: "Launch Fixture item 3" }).click();
     await expect.poll(async () => {
@@ -262,7 +262,7 @@ test.describe("mixed Needs you actions", () => {
     await expect(first).toBeFocused();
     await first.press("Space");
     await expect(popover).toBeHidden();
-    await expect(page.getByRole("complementary", { name: "Session context" })).toBeVisible();
+    await expect(page.getByRole("complementary", { name: "Details" })).toBeVisible();
 
     harness.assertNoRuntimeErrors();
     await harness.closeActiveTerminals();
