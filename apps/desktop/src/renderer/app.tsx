@@ -23,6 +23,7 @@ import { PrepareWorkPopover } from "./components/PrepareWorkPopover";
 import { ProjectNavigator, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
 import { SessionsSurface } from "./components/SessionsSurface";
 import { TerminalDesk, type TerminalStartAttempt, type WorktreeActionKind } from "./components/TerminalDesk";
+import { PlanLine } from "./components/PlanLine";
 import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHeader";
 import { WorkSurfaceToolbar } from "./components/WorkSurfaceToolbar";
 import { WorkspaceActionsMenu } from "./components/WorkspaceActionsMenu";
@@ -77,7 +78,7 @@ import {
   type SessionActivityEvent,
   type SessionTile,
 } from "./session-state";
-import { sessionState } from "./session-status";
+import { nextApprovalRevealAt, sessionState } from "./session-status";
 import { createInitialSessionsViewState, type SessionsViewState } from "./sessions-view-state";
 import {
   recordPreviewUrlsFromText,
@@ -252,6 +253,9 @@ export function App() {
   const workSessions = terminalSessions.filter(isWorkSession);
   const activeSessions = terminalSessions.filter((session) => session.workspaceId === activeWorkspace.id);
   const activeWorkSessions = workSessions.filter((session) => session.workspaceId === activeWorkspace.id);
+  // Terminals in the grid; drafts sit on the plan line instead.
+  const activeTerminalSessions = activeWorkSessions.filter((session) => session.stage !== "staged");
+  const activeDrafts = activeWorkSessions.filter((session) => session.stage === "staged");
   const activeSavedSessions = activeSessions.filter((session) => !isWorkSession(session));
   const activeSavedSessionCount = buildSessionsProjection({
     sessions: activeSavedSessions,
@@ -278,10 +282,10 @@ export function App() {
   const activeSelectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id] ?? null;
   const activeInspectedSession =
     activeSelectedSessionId
-      ? activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeWorkSessions[0] ?? null
-      : activeWorkSessions[0] ?? null;
+      ? activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeTerminalSessions[0] ?? null
+      : activeTerminalSessions[0] ?? null;
   const activeSelectedSession =
-    activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeWorkSessions[0] ?? null;
+    activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeTerminalSessions[0] ?? null;
   const activeCollapsedSessionIds = new Set(collapsedSessionIdsByWorkspace[activeWorkspace.id] ?? []);
   const activeContextDrawerOpen = contextDrawerOpenByWorkspace[activeWorkspace.id] ?? false;
   const activeDispatchTargets = dispatchTargetsForWorkspace(activeWorkspace, activeWorkSessions, activeSelectedSession);
@@ -295,6 +299,13 @@ export function App() {
   const unavailableWorkspaceIds = new Set(
     workspaces.filter((workspace) => workspace.rootStatus === "missing").map((workspace) => workspace.id),
   );
+  const [, setApprovalRevealTick] = useState(0);
+  const approvalRevealAt = nextApprovalRevealAt(terminalSessions);
+  useEffect(() => {
+    if (approvalRevealAt === null) return;
+    const timer = setTimeout(() => setApprovalRevealTick((tick) => tick + 1), Math.max(0, approvalRevealAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [approvalRevealAt]);
   const attentionItems = buildAttentionProjection(workspaces, terminalSessions).filter((item) => {
     if (unavailableWorkspaceIds.has(item.workspaceId)) return false;
     const session = terminalSessions.find((candidate) => candidate.id === item.sessionId);
@@ -311,6 +322,13 @@ export function App() {
   const activeWorkRecoverableSessions = activeRecoverableSessions.filter(isWorkSession);
   const needsYouAttention = needsYouItems(attentionItems);
   const needsYouCount = needsYouAttention.length;
+  const activeNeedsYouIds = new Set(
+    needsYouAttention.filter((item) => item.workspaceId === activeWorkspace.id).map((item) => item.sessionId),
+  );
+  // A plan can stage drafts in several projects; each project's line shows only its own drafts.
+  const activePlanName = pendingPlan && activeDrafts.some((draft) => pendingPlan.sessionIds.includes(draft.id))
+    ? pendingPlan.name ?? pendingPlan.prompt
+    : "Draft plan";
   const projectSessionIds = new Set(terminalSessions.filter((session) => !isFreeChatScope(session)).map((session) => session.id));
   const attentionCountsByWorkspace = blockingAttentionCountByWorkspace(
     attentionItems.filter((item) => projectSessionIds.has(item.sessionId)),
@@ -346,7 +364,8 @@ export function App() {
 
     const workSessionsByWorkspace = new Map<string, SessionTile[]>();
     for (const session of terminalSessions) {
-      if (!isWorkSession(session)) continue;
+      // Drafts are not grid tiles, so they get a layout only once they launch.
+      if (!isWorkSession(session) || session.stage === "staged") continue;
       const sessions = workSessionsByWorkspace.get(session.workspaceId) ?? [];
       sessions.push(session);
       workSessionsByWorkspace.set(session.workspaceId, sessions);
@@ -983,22 +1002,22 @@ export function App() {
   const handleOpenRecoveryHistory = useCallback(() => openProjectHistory("managed"), [openProjectHistory]);
 
   const handleFocusSessionByDelta = useCallback((delta: number) => {
-    if (activeWorkSessions.length === 0) return;
+    if (activeTerminalSessions.length === 0) return;
     const currentIndex = Math.max(
       0,
-      activeWorkSessions.findIndex((session) => session.id === activeSelectedSessionId),
+      activeTerminalSessions.findIndex((session) => session.id === activeSelectedSessionId),
     );
-    const nextIndex = (currentIndex + delta + activeWorkSessions.length) % activeWorkSessions.length;
-    const nextSession = activeWorkSessions[nextIndex];
+    const nextIndex = (currentIndex + delta + activeTerminalSessions.length) % activeTerminalSessions.length;
+    const nextSession = activeTerminalSessions[nextIndex];
     if (nextSession) {
       handleFocusSession(nextSession.id);
     }
-  }, [activeSelectedSessionId, activeWorkSessions, handleFocusSession]);
+  }, [activeSelectedSessionId, activeTerminalSessions, handleFocusSession]);
 
   const handleMoveTile = useCallback((tileId: string, deltaCol: number, deltaRow: number) => {
     const layoutApi = getDesktopLayoutApi();
     const workspaceLayouts = moveTileLayout(
-      ensureTileLayouts(activeWorkSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {}),
+      ensureTileLayouts(activeTerminalSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {}),
       tileId,
       deltaCol,
       deltaRow,
@@ -1008,12 +1027,12 @@ export function App() {
       [activeWorkspace.id]: workspaceLayouts,
     });
     void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
-  }, [activeWorkSessions, activeWorkspace.id, tileLayoutsByWorkspace]);
+  }, [activeTerminalSessions, activeWorkspace.id, tileLayoutsByWorkspace]);
 
   const handleResizeTile = useCallback((tileId: string, deltaColSpan: number, deltaRowSpan: number) => {
     const layoutApi = getDesktopLayoutApi();
     const workspaceLayouts = resizeTileLayout(
-      ensureTileLayouts(activeWorkSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {}),
+      ensureTileLayouts(activeTerminalSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {}),
       tileId,
       deltaColSpan,
       deltaRowSpan,
@@ -1023,7 +1042,7 @@ export function App() {
       [activeWorkspace.id]: workspaceLayouts,
     });
     void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
-  }, [activeWorkSessions, activeWorkspace.id, tileLayoutsByWorkspace]);
+  }, [activeTerminalSessions, activeWorkspace.id, tileLayoutsByWorkspace]);
 
   const refreshLiveSessions = useCallback(async () => {
     const terminalApi = getDesktopTerminalApi();
@@ -1118,21 +1137,23 @@ export function App() {
   useEffect(() => {
     setSelectedSessionIdsByWorkspace((current) => {
       const currentId = current[activeWorkspace.id];
-      if (activeWorkSessions.length === 0) {
+      if (currentId && activeWorkSessions.some((session) => session.id === currentId)) {
+        return current;
+      }
+      // Fall back to a terminal only; a draft is selected when someone opens it.
+      const fallbackId = activeTerminalSessions[0]?.id;
+      if (!fallbackId) {
         if (!currentId) return current;
         const next = { ...current };
         delete next[activeWorkspace.id];
         return next;
       }
-      if (currentId && activeWorkSessions.some((session) => session.id === currentId)) {
-        return current;
-      }
       return {
         ...current,
-        [activeWorkspace.id]: activeWorkSessions[0]?.id ?? "",
+        [activeWorkspace.id]: fallbackId,
       };
     });
-  }, [activeWorkSessions, activeWorkspace.id]);
+  }, [activeTerminalSessions, activeWorkSessions, activeWorkspace.id]);
 
   const closeSessionNow = useCallback(async (sessionId: string) => {
     const terminalApi = getDesktopTerminalApi();
@@ -1849,6 +1870,10 @@ export function App() {
     );
   }, [terminalSessions, workspaces]);
 
+  const handleLaunchDrafts = useCallback((sessionIds: string[]) => {
+    sessionIds.forEach(handleApproveTile);
+  }, [handleApproveTile]);
+
   const handleRecoverSession = useCallback((workspaceId: string, sessionId: string) => {
     const session = terminalSessions.find((item) => item.id === sessionId);
     if (!session) return;
@@ -2155,7 +2180,15 @@ export function App() {
     contextReturnFocusRef.current = null;
     contextFocusRequestKeyRef.current += 1;
     const layoutApi = getDesktopLayoutApi();
-    handleFocusSessionInWorkspace(workspaceId, sessionId);
+    if (terminalSessionsRef.current.some((session) => session.id === sessionId && session.stage === "staged")) {
+      // Drafts are not in the grid, so select the draft for Context instead of focusing a tile.
+      setActiveSurface("work");
+      setActiveWorkspaceId(workspaceId);
+      setSelectedSessionIdsByWorkspace((current) => ({ ...current, [workspaceId]: sessionId }));
+      void layoutApi?.setWorkspaceViewState({ workspaceId, viewState: { selectedSessionId: sessionId } });
+    } else {
+      handleFocusSessionInWorkspace(workspaceId, sessionId);
+    }
     setPreviewDockOpenByWorkspace((current) => ({
       ...current,
       [workspaceId]: false,
@@ -2627,7 +2660,7 @@ export function App() {
   }, [activeWorkspaceId, workspaces]);
 
   const workSurfaceHidden = activeSurface !== "work";
-  const activeSessionCount = activeWorkSessions.length;
+  const activeSessionCount = activeTerminalSessions.length;
   const visibleWorkSessionCount = arrangeMode || activeWorkMode === "desk"
     ? activeSessionCount
     : activeWorkMode === "focus"
@@ -2834,7 +2867,7 @@ export function App() {
                   arrangeMode={arrangeMode}
                   armedRecoverySessionIds={armedRecoverySessionIds}
                   collapsedSessionIds={activeCollapsedSessionIds}
-                  layouts={ensureTileLayouts(activeWorkSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
+                  layouts={ensureTileLayouts(activeTerminalSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
                   recoverableSessions={activeWorkRecoverableSessions}
                   revealSessionId={revealSessionId}
                   selectedSessionId={activeSelectedSessionId}
@@ -2873,11 +2906,21 @@ export function App() {
                   onRenameSession={handleRenameSession}
                   onFocusSession={handleFocusSession}
                   onSelectSession={handleSelectSession}
-                  onApproveTile={handleApproveTile}
-                  onRejectTile={handleRejectTile}
                   onResizeTile={handleResizeTile}
                   onReviewWorktree={handleReviewWorktree}
                   onToggleCollapseSession={handleToggleCollapseSession}
+                  planLine={
+                    <PlanLine
+                      key={activeWorkspace.id}
+                      drafts={activeDrafts}
+                      name={activePlanName}
+                      needsYouIds={activeNeedsYouIds}
+                      onDiscard={handleRejectTile}
+                      onEdit={(sessionId) => handleReviewBlockedSession(activeWorkspace.id, sessionId)}
+                      onLaunch={handleApproveTile}
+                      onLaunchAll={handleLaunchDrafts}
+                    />
+                  }
                 />
               </WorkspacePreviewDock>
             </div>

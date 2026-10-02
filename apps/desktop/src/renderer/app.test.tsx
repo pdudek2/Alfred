@@ -669,6 +669,12 @@ async function openSavedSessions(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("button", { name: /Browse \d+ asleep sessions?/ }));
 }
 
+// Drafts live in the plan line's list, which starts closed.
+async function openPlan(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("button", { name: /\d+ drafts?/, expanded: false }));
+  return screen.getByRole("list", { name: /^Drafts in / });
+}
+
 async function openPrepareWork(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "Open launch menu" }));
   await user.click(screen.getByRole("menuitem", { name: "Prepare Work" }));
@@ -893,7 +899,7 @@ describe("App integration", () => {
     }
   });
 
-  it("keeps staged work pending beside a live terminal in normal Work", () => {
+  it("keeps drafts out of the terminal grid beside a live terminal in normal Work", () => {
     renderTerminalDeskForSessions([
       {
         id: "live-1",
@@ -917,12 +923,10 @@ describe("App integration", () => {
     ]);
 
     const liveTile = screen.getByRole("article", { name: "Manual · zsh 1" });
-    const stagedTile = screen.getByRole("article", { name: "Draft Review command" });
     expect(liveTile).toHaveClass("real-terminal");
     expect(liveTile.querySelector("[data-testid='xterm-host']")).toBeInTheDocument();
-    expect(stagedTile).toHaveClass("staged");
-    expect(stagedTile).toHaveTextContent("staged");
-    expect(stagedTile.querySelector("[data-testid='xterm-host']")).toBeNull();
+    expect(within(screen.getByTestId("terminal-grid")).getAllByRole("article")).toEqual([liveTile]);
+    expect(document.querySelector('[data-testid="terminal-tile"][data-session-id="staged-1"]')).toBeNull();
   });
 
   it("lets dense Grid auto-place terminals instead of pinning short persisted rows", () => {
@@ -1687,7 +1691,8 @@ describe("App integration", () => {
     const { clearSavedTerminalData } = installDesktopBridge(undefined, stagedPlan);
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Draft to clear/i })).toBeInTheDocument();
+    await openPlan(user);
+    expect(await screen.findByRole("listitem", { name: /Draft to clear/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
     await user.click(screen.getByRole("option", { name: /Local Data & Privacy/i }));
@@ -1696,7 +1701,8 @@ describe("App integration", () => {
     await user.click(within(dialog).getByRole("button", { name: "Clear saved transcripts" }));
 
     await waitFor(() => expect(clearSavedTerminalData).toHaveBeenCalledOnce());
-    await waitFor(() => expect(screen.queryByRole("article", { name: /Draft to clear/i })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("listitem", { name: /Draft to clear/i })).not.toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: /\d+ drafts?/ })).not.toBeInTheDocument();
   });
 
   it("does not refresh external Codex sessions when indexing is disabled", async () => {
@@ -2302,23 +2308,28 @@ describe("App integration", () => {
     render(<App />);
 
     const toolbar = await screen.findByRole("toolbar", { name: "Work layout controls" });
-    await waitFor(() => expect(toolbar).toHaveTextContent("2 visible sessions"));
+    await openPlan(user);
+    expect(screen.getByRole("listitem", { name: "Draft Draft one" })).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "Draft Draft two" })).toBeInTheDocument();
+    expect(toolbar).toHaveTextContent("0 visible sessions");
     const savedSessionsButton = within(toolbar).getByRole("button", { name: "Browse 2 asleep sessions" });
     expect(savedSessionsButton).toHaveTextContent("2 asleep");
-    expect(screen.getAllByTestId("terminal-tile").filter((tile) => tile.getAttribute("aria-hidden") !== "true")).toHaveLength(2);
+    expect(screen.queryAllByTestId("terminal-tile")).toHaveLength(0);
+    expect(screen.getByRole("status", { name: "Empty project" })).toHaveTextContent("Nothing is running");
     expect(screen.queryByRole("article", { name: /Codex · restored visible/i })).not.toBeInTheDocument();
 
     await chooseWorkLayout(user, "Focus");
     expect(screen.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeInTheDocument();
-    expect(toolbar).toHaveTextContent("1 visible session");
+    expect(toolbar).toHaveTextContent("0 visible sessions");
 
     await chooseWorkLayout(user, "Split");
     expect(screen.getByRole("button", { name: "Open layout menu, Split selected" })).toBeInTheDocument();
-    expect(toolbar).toHaveTextContent("2 visible sessions");
+    expect(toolbar).toHaveTextContent("0 visible sessions");
 
     await chooseWorkLayout(user, "Arrange");
     expect(screen.getByRole("button", { name: "Open layout menu, Arrange selected" })).toBeInTheDocument();
-    expect(toolbar).toHaveTextContent("2 visible sessions");
+    expect(toolbar).toHaveTextContent("0 visible sessions");
+    expect(screen.queryAllByTestId("terminal-tile")).toHaveLength(0);
 
     await user.click(savedSessionsButton);
     expect(screen.getByRole("combobox", { name: "Project scope" })).toHaveValue("A");
@@ -2385,7 +2396,7 @@ describe("App integration", () => {
     expect(terminalDisposeCalls).toHaveLength(0);
   });
 
-  it("omits live session tabs when a staged tile owns Focus", async () => {
+  it("keeps drafts on the plan line while Focus shows only a live terminal", async () => {
     const user = userEvent.setup();
     installDesktopBridge(
       undefined,
@@ -2402,14 +2413,25 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const stagedTile = await screen.findByRole("article", { name: /Draft Review me/i });
-    await user.dblClick(stagedTile.querySelector(".tile-header")!);
+    await screen.findByRole("article", { name: /Codex · one/i });
+    const xtermHosts = screen.getAllByTestId("xterm-host");
+    await chooseWorkLayout(user, "Focus");
+    await openPlan(user);
+    const draft = screen.getByRole("listitem", { name: "Draft Review me" });
+    await user.dblClick(within(draft).getByText("Review me"));
 
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
     expect(screen.queryByRole("tablist", { name: "History" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Rename Codex · one" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Close Codex · one" })).not.toBeInTheDocument();
-    expect(stagedTile.querySelector(".tile-header")).not.toBeNull();
+    expect(draft).toBeInTheDocument();
+    const visibleTiles = screen.getAllByTestId("terminal-tile").filter(
+      (tile) => tile.getAttribute("aria-hidden") !== "true",
+    );
+    expect(visibleTiles).toHaveLength(1);
+    expect(visibleTiles[0]).toHaveAccessibleName(/Codex · one/i);
+    expect(screen.getAllByTestId("xterm-host")).toEqual(xtermHosts);
+    expect(terminalDisposeCalls).toHaveLength(0);
   });
 
   it.each(["Split", "Grid"] as const)("%s keeps tile headers and omits session tabs", async (name) => {
@@ -2772,7 +2794,7 @@ describe("App integration", () => {
       ok: true,
       plan: {
         name: "Editable plan",
-        sessions: [{ kind: "shell", title: "Run old command", command: "echo", args: ["old"] }],
+        sessions: [{ kind: "shell", title: "Run old command", command: "echo", args: ["old"], safetyNote: "Review the old command before launch." }],
       },
     });
 
@@ -2781,10 +2803,10 @@ describe("App integration", () => {
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage editable shell");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
-    const stagedTile = await screen.findByRole("article", { name: /Draft Run old command/i });
+    await openPlan(user);
+    const draft = screen.getByRole("listitem", { name: "Draft Run old command" });
 
-    await user.dblClick(stagedTile.querySelector(".tile-header")!);
-    await selectSurface(user, "Context");
+    await user.click(within(draft).getByRole("button", { name: /^Edit / }));
     await user.click(screen.getByRole("button", { name: "Edit command" }));
 
     fireEvent.change(screen.getByLabelText("Command"), { target: { value: "pnpm" } });
@@ -4504,7 +4526,8 @@ describe("App integration", () => {
 
     const emptyState = await screen.findByRole("status", { name: "Unavailable project folder" });
     expect(emptyState).toHaveTextContent("Draft work stays parked until you reconnect this project.");
-    expect(screen.queryByRole("article", { name: /Draft Prepared task/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("listitem", { name: /Draft Prepared task/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\d+ drafts?/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Launch Prepared task" })).not.toBeInTheDocument();
 
     await openNeedsYouFromCommandPalette(user);
@@ -4513,7 +4536,8 @@ describe("App integration", () => {
 
     await user.click(within(emptyState).getByRole("button", { name: "Choose folder" }));
 
-    expect(await screen.findByRole("article", { name: /Draft Prepared task/i })).toBeInTheDocument();
+    await openPlan(user);
+    expect(await screen.findByRole("listitem", { name: /Draft Prepared task/i })).toBeInTheDocument();
     expect(createTerminal).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Launch Prepared task" }));
     await waitFor(() => {
@@ -6923,6 +6947,7 @@ describe("App integration", () => {
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: "ClientApp project" }));
+    await openPlan(user);
     await user.click(await screen.findByRole("button", { name: "Launch Client task" }));
     await waitFor(() => {
       expect(createTerminal).toHaveBeenCalledWith(
@@ -6991,6 +7016,7 @@ describe("App integration", () => {
     });
 
     render(<App />);
+    await openPlan(user);
     await user.click(await screen.findByRole("button", { name: "Launch Immediate approval" }));
 
     await openNeedsYou(user);
@@ -7024,6 +7050,7 @@ describe("App integration", () => {
     bridge.createTerminal.mockImplementation(() => creation.promise);
 
     render(<App />);
+    await openPlan(user);
     await user.click(await screen.findByRole("button", { name: "Launch Early approval" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
 
@@ -7088,6 +7115,7 @@ describe("App integration", () => {
     bridge.createTerminal.mockImplementation(() => creation.promise);
 
     render(<App />);
+    await openPlan(user);
     await user.click(await screen.findByRole("button", { name: "Launch Early exit" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
 
@@ -8105,7 +8133,8 @@ describe("App integration", () => {
     await user.type(screen.getByLabelText("Dispatch instruction"), "prepare agents");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
-    await screen.findByRole("article", { name: /Draft Task A/i });
+    await openPlan(user);
+    await screen.findByRole("listitem", { name: /Draft Task A/i });
     expect(requestPlan).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: "prepare agents",
@@ -8118,7 +8147,7 @@ describe("App integration", () => {
     );
   });
 
-  it("turns the first Alfred prompt into staged tiles", async () => {
+  it("turns the first Alfred prompt into plan line drafts outside the terminal grid", async () => {
     const user = userEvent.setup();
     const { requestPlan, setStagedPlan } = installDesktopBridge();
 
@@ -8138,21 +8167,19 @@ describe("App integration", () => {
         }),
       }),
     );
-    expect(await screen.findByRole("article", { name: /Draft Task A/i })).toBeInTheDocument();
-    const stagedTaskB = await screen.findByRole("article", { name: /Draft Task B/i });
-    const stagedTaskBHeader = stagedTaskB.querySelector(".tile-header")!;
+    await openPlan(user);
+    expect(await screen.findByRole("listitem", { name: /Draft Task A/i })).toBeInTheDocument();
+    const draftTaskB = screen.getByRole("listitem", { name: "Draft Task B" });
+    expect(draftTaskB).toHaveTextContent("pnpm dev");
+    expect(draftTaskB.querySelector("[data-testid='xterm-host']")).toBeNull();
 
-    await user.click(stagedTaskBHeader);
+    await user.click(within(draftTaskB).getByText("Task B"));
+    await user.dblClick(within(draftTaskB).getByText("Task B"));
 
     expect(screen.getByLabelText("terminals")).toHaveClass("mode-desk");
-    expect(stagedTaskB).toHaveClass("selected");
+    expect(screen.getAllByTestId("terminal-tile")).toHaveLength(1);
     await selectSurface(user, "Context");
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Task B");
-
-    await user.dblClick(stagedTaskBHeader);
-
-    expect(screen.getByLabelText("terminals")).toHaveClass("mode-focus");
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Task B");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
 
     await waitFor(() => {
       expect(setStagedPlan).toHaveBeenCalledWith(
@@ -8168,7 +8195,7 @@ describe("App integration", () => {
     });
   });
 
-  it("persists only missing Arrange layouts when a staged plan joins custom tiles", async () => {
+  it("keeps Arrange layouts limited to live terminals when a draft plan joins custom tiles", async () => {
     const user = userEvent.setup();
     const customLayout = { tileId: "manual-1", col: 3, row: 7, colSpan: 6, rowSpan: 4 };
     const { setWorkspaceLayout } = installDesktopBridge(
@@ -8190,16 +8217,15 @@ describe("App integration", () => {
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage with custom geometry");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
-    await screen.findByRole("article", { name: /Draft Task A/i });
-    await waitFor(() => expect(setWorkspaceLayout).toHaveBeenCalledTimes(1));
-    expect(setWorkspaceLayout).toHaveBeenLastCalledWith({
-      workspaceId: "A",
-      layouts: expect.objectContaining({
-        "manual-1": customLayout,
-        "alfred-1": expect.objectContaining({ tileId: "alfred-1" }),
-        "alfred-2": expect.objectContaining({ tileId: "alfred-2" }),
-      }),
-    });
+    await openPlan(user);
+    await screen.findByRole("listitem", { name: /Draft Task A/i });
+
+    await chooseWorkLayout(user, "Arrange");
+    const liveTile = screen.getByRole("article", { name: /Manual · zsh 1/i });
+    expect(screen.getAllByTestId("terminal-tile")).toEqual([liveTile]);
+    expect(liveTile.style.gridColumn).toBe("3 / span 6");
+    expect(liveTile.style.gridRow).toBe("7 / span 4");
+    expect(setWorkspaceLayout).not.toHaveBeenCalled();
   });
 
   it("persists one stable plan ID exactly once in StrictMode", async () => {
@@ -8226,7 +8252,8 @@ describe("App integration", () => {
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "create stable plan");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
-    await screen.findByRole("article", { name: /Draft Stable task/i });
+    await openPlan(user);
+    await screen.findByRole("listitem", { name: /Draft Stable task/i });
 
     expect(randomUuid).toHaveBeenCalledTimes(1);
     expect(setStagedPlan).toHaveBeenCalledTimes(1);
@@ -8281,7 +8308,8 @@ describe("App integration", () => {
       await Promise.resolve();
     });
 
-    expect(await screen.findByRole("article", { name: /Draft Interleaved task/i })).toBeInTheDocument();
+    await openPlan(user);
+    expect(await screen.findByRole("listitem", { name: /Draft Interleaved task/i })).toBeInTheDocument();
     await user.click(liveTile.querySelector(".tile-header")!);
     await selectSurface(user, "Context");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Approval arrived while planning");
@@ -8329,13 +8357,13 @@ describe("App integration", () => {
     });
   });
 
-  it("saves staged shell edits through Alfred and replaces the queued tile from the returned plan", async () => {
+  it("saves staged shell edits through Alfred and replaces the plan line draft from the returned plan", async () => {
     const user = userEvent.setup();
     const { setStagedPlan, updateStagedSession } = installDesktopBridge({
       ok: true,
       plan: {
         name: "Editable plan",
-        sessions: [{ kind: "shell", title: "Run old command", command: "echo", args: ["old"] }],
+        sessions: [{ kind: "shell", title: "Run old command", command: "echo", args: ["old"], safetyNote: "Review the old command before launch." }],
       },
     });
 
@@ -8344,7 +8372,8 @@ describe("App integration", () => {
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage editable shell");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
-    const stagedTile = await screen.findByRole("article", { name: /Draft Run old command/i });
+    await openPlan(user);
+    const draft = screen.getByRole("listitem", { name: "Draft Run old command" });
 
     await waitFor(() => {
       expect(setStagedPlan).toHaveBeenCalled();
@@ -8363,13 +8392,13 @@ describe("App integration", () => {
             command: "pnpm",
             args: ["test", "--watch"],
             cwd: "apps/desktop",
+            safetyNote: undefined,
           },
         ],
       },
     });
 
-    await user.dblClick(stagedTile.querySelector(".tile-header")!);
-    await selectSurface(user, "Context");
+    await user.click(within(draft).getByRole("button", { name: /^Edit / }));
     await user.click(screen.getByRole("button", { name: "Edit command" }));
     fireEvent.change(screen.getByLabelText("Command"), { target: { value: "pnpm" } });
     fireEvent.change(screen.getByLabelText("Arguments"), { target: { value: "test\n--watch" } });
@@ -8388,11 +8417,12 @@ describe("App integration", () => {
         workspace: expect.objectContaining({ id: "A", label: "Alfred" }),
       });
     });
-    expect(await screen.findByRole("article", { name: /Draft Run tests/i })).toHaveTextContent("edited · rechecked");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("pnpm test --watch");
+    await openPlan(user);
+    expect(screen.getByRole("listitem", { name: "Draft Run tests" })).toHaveTextContent("Shell · edited");
   });
 
-  it("hydrates staged Alfred tiles from the desktop runtime", async () => {
+  it("hydrates Alfred drafts on the plan line from the desktop runtime", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, {
       id: "plan-restore",
@@ -8405,9 +8435,11 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("article", { name: /Draft Restored shell/i })).toBeInTheDocument();
+    await openPlan(user);
+    expect(await screen.findByRole("listitem", { name: /Draft Restored shell/i })).toBeInTheDocument();
     await openPrepareWork(user);
-    expect(screen.getByRole("status")).toHaveTextContent("Resolve the current Alfred plan");
+    expect(within(screen.getByRole("form", { name: "Alfred dispatch" })).getByRole("status"))
+      .toHaveTextContent("Resolve the current Alfred plan");
   });
 
   it("jumps from the composer to a workspace with staged Alfred work", async () => {
@@ -8454,7 +8486,8 @@ describe("App integration", () => {
       "aria-current",
       "location",
     );
-    expect(await screen.findByRole("article", { name: /Draft Client task/i })).toBeInTheDocument();
+    await openPlan(user);
+    expect(await screen.findByRole("listitem", { name: /Draft Client task/i })).toBeInTheDocument();
   });
 
   it("resumes a restored agent transcript from Sessions without mounting it first", async () => {
@@ -9983,7 +10016,7 @@ describe("App integration", () => {
     expect(forgetTerminal).not.toHaveBeenCalled();
   });
 
-  it("does not duplicate a restored staged tile that is already live", async () => {
+  it("does not duplicate a restored draft on the plan line when its terminal is already live", async () => {
     const stagedPlan: AlfredStagedPlanSnapshot = {
       id: "plan-restore",
       prompt: "restore this plan",
@@ -10010,7 +10043,8 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-7"] });
     });
-    expect(screen.queryByRole("article", { name: /Draft Restored shell/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("listitem", { name: /Draft Restored shell/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\d+ drafts?/ })).not.toBeInTheDocument();
     expect(screen.queryByText("Resolve the current Alfred plan")).not.toBeInTheDocument();
   });
 
@@ -10053,11 +10087,12 @@ describe("App integration", () => {
     });
     expect(screen.queryAllByTestId("terminal-tile")).toHaveLength(0);
     expect(screen.queryByText("stale restored output")).not.toBeInTheDocument();
-    expect(screen.queryByRole("article", { name: /Draft Actionable draft command/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("listitem", { name: /Draft Actionable draft command/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\d+ drafts?/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Launch Actionable draft command/i })).not.toBeInTheDocument();
   });
 
-  it("blocks a second Alfred prompt while staged tiles exist", async () => {
+  it("blocks a second Alfred prompt while plan line drafts exist", async () => {
     const user = userEvent.setup();
     const { requestPlan } = installDesktopBridge();
 
@@ -10069,7 +10104,8 @@ describe("App integration", () => {
 
     await user.type(composer, "first");
     await user.click(send);
-    await screen.findByRole("article", { name: /Draft Task A/i });
+    await openPlan(user);
+    await screen.findByRole("listitem", { name: /Draft Task A/i });
 
     await openPrepareWork(user);
     const blockedComposer = screen.getByLabelText("Dispatch instruction");
@@ -10102,7 +10138,7 @@ describe("App integration", () => {
     expect(requestPlan).not.toHaveBeenCalled();
   });
 
-  it("unlocks Alfred after rejecting the staged plan", async () => {
+  it("unlocks Alfred after discarding every draft from the plan line", async () => {
     const user = userEvent.setup();
     const { requestPlan } = installDesktopBridge();
 
@@ -10114,10 +10150,14 @@ describe("App integration", () => {
 
     await user.type(composer, "first");
     await user.click(send);
-    await screen.findByRole("article", { name: /Draft Task A/i });
+    await openPlan(user);
+    await screen.findByRole("listitem", { name: /Draft Task A/i });
 
-    await user.click(within(screen.getByRole("article", { name: /Draft Task A/i })).getByRole("button", { name: "Reject Task A" }));
-    await user.click(within(screen.getByRole("article", { name: /Draft Task B/i })).getByRole("button", { name: "Reject Task B" }));
+    await user.click(within(screen.getByRole("listitem", { name: /Draft Task A/i })).getByRole("button", { name: "Discard Task A" }));
+    expect(screen.queryByRole("listitem", { name: "Draft Task A" })).not.toBeInTheDocument();
+    await user.click(within(screen.getByRole("listitem", { name: /Draft Task B/i })).getByRole("button", { name: "Discard Task B" }));
+    expect(screen.queryByRole("listitem", { name: "Draft Task B" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\d+ drafts?/ })).not.toBeInTheDocument();
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "second after reject");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
@@ -10125,7 +10165,7 @@ describe("App integration", () => {
     expect(requestPlan).toHaveBeenCalledTimes(2);
   });
 
-  it("resolves a rejected staged tile exactly once in StrictMode", async () => {
+  it("resolves a discarded draft exactly once in StrictMode", async () => {
     const user = userEvent.setup();
     const { resolveStagedPlan } = installDesktopBridge();
 
@@ -10138,14 +10178,15 @@ describe("App integration", () => {
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "reject one");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
-    const task = await screen.findByRole("article", { name: /Draft Task A/i });
-    await user.click(within(task).getByRole("button", { name: "Reject Task A" }));
+    await openPlan(user);
+    const task = await screen.findByRole("listitem", { name: /Draft Task A/i });
+    await user.click(within(task).getByRole("button", { name: "Discard Task A" }));
 
     expect(resolveStagedPlan).toHaveBeenCalledTimes(1);
     expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
   });
 
-  it("does not resolve a sibling rejection twice while runtime-ready shrinks the pending plan", async () => {
+  it("does not resolve a sibling discard twice while runtime-ready shrinks the pending plan", async () => {
     const user = userEvent.setup();
     const runtimeReady = deferred<Awaited<ReturnType<TerminalApi["create"]>>>();
     const bridge = installDesktopBridge(undefined, null, [{
@@ -10167,11 +10208,12 @@ describe("App integration", () => {
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "launch and reject together");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
-    await screen.findByRole("article", { name: /Draft Task A/i });
+    await openPlan(user);
+    await screen.findByRole("listitem", { name: /Draft Task A/i });
     await user.click(screen.getByRole("button", { name: "Launch Task A" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(1));
-    const taskB = screen.getByRole("article", { name: /Draft Task B/i });
-    const rejectTaskB = within(taskB).getByRole("button", { name: "Reject Task B" });
+    const taskB = screen.getByRole("listitem", { name: /Draft Task B/i });
+    const discardTaskB = within(taskB).getByRole("button", { name: "Discard Task B" });
 
     await act(async () => {
       runtimeReady.resolve({
@@ -10188,8 +10230,8 @@ describe("App integration", () => {
       });
       await runtimeReady.promise;
       await Promise.resolve();
-      fireEvent.click(rejectTaskB);
-      fireEvent.click(rejectTaskB);
+      fireEvent.click(discardTaskB);
+      fireEvent.click(discardTaskB);
     });
 
     const resolvedSessionIds = bridge.resolveStagedPlan.mock.calls.map(([request]) => request.sessionIds);
@@ -10197,7 +10239,7 @@ describe("App integration", () => {
     expect(resolvedSessionIds.filter(([id]) => id === "alfred-2")).toHaveLength(1);
   });
 
-  it("resolves a staged tile after approval starts its terminal", async () => {
+  it("resolves a plan line draft after Launch starts its terminal", async () => {
     const user = userEvent.setup();
     const { resolveStagedPlan } = installDesktopBridge();
 
@@ -10206,7 +10248,8 @@ describe("App integration", () => {
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "start one");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
-    await screen.findByRole("article", { name: /Draft Task A/i });
+    await openPlan(user);
+    await screen.findByRole("listitem", { name: /Draft Task A/i });
 
     await user.click(screen.getByRole("button", { name: "Launch Task A" }));
 
@@ -10215,7 +10258,7 @@ describe("App integration", () => {
     });
   });
 
-  it("launches safe staged tiles while unsafe tiles remain staged", async () => {
+  it("launches safe plan line drafts while unsafe drafts remain queued", async () => {
     const user = userEvent.setup();
     const { clearStagedPlan, resolveStagedPlan } = installDesktopBridge({
       ok: true,
@@ -10245,8 +10288,9 @@ describe("App integration", () => {
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage mixed launch");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
-    expect(await screen.findByRole("article", { name: /Draft Safe task/i })).toBeInTheDocument();
-    expect(screen.getByRole("article", { name: /Draft Risky task/i })).toBeInTheDocument();
+    await openPlan(user);
+    expect(await screen.findByRole("listitem", { name: /Draft Safe task/i })).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: /Draft Risky task/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Launch Safe task" }));
 
@@ -10254,7 +10298,9 @@ describe("App integration", () => {
       expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
     });
     await selectSurface(user, "Work");
-    expect(screen.queryByRole("article", { name: /Draft Safe task/i })).not.toBeInTheDocument();
+    await openPlan(user);
+    expect(screen.queryByRole("listitem", { name: /Draft Safe task/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "Draft Risky task" })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Safe task/i })).toBeInTheDocument();
     await openNeedsYou(user);
     expect(screen.getByRole("dialog", { name: "Needs you" })).toHaveTextContent("Risky task");
@@ -10290,34 +10336,63 @@ describe("App integration", () => {
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage risky cleanup");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
-    await screen.findByRole("article", { name: /Draft Safe build/i });
-    await screen.findByRole("article", { name: /Draft Risky cleanup/i });
+    const drafts = await openPlan(user);
+    const blockedDraft = within(drafts).getByRole("listitem", { name: "Draft Risky cleanup" });
+    expect(blockedDraft).toHaveTextContent("Blocked: rm -rf detected");
+    expect(within(blockedDraft).queryByRole("button", { name: "Launch Risky cleanup" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /2 drafts · 1 needs you/ })).toBeInTheDocument();
 
+    await user.click(within(blockedDraft).getByRole("button", { name: /^Edit / }));
+
+    // Edit opens the draft in Context and leaves the layout alone; drafts are not grid tiles.
+    expect(await screen.findByRole("region", { name: "Edit draft command for Risky cleanup" })).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: /^Drafts in / })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Open layout menu, Grid selected/ })).toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: /Risky cleanup/ })).not.toBeInTheDocument();
+
+    // Needs you offers the same Edit and lands in the same place.
     await openNeedsYou(user);
     const blockedItem = screen.getByRole("button", { name: "Edit Risky cleanup in Alfred" }).closest("li");
     if (!blockedItem) throw new Error("Expected blocked Needs you item");
-
-    expect(blockedItem).toHaveTextContent("Edit");
     expect(blockedItem).toHaveTextContent("rm -rf detected");
-    expect(within(blockedItem).queryByText(/^Blocked$/)).not.toBeInTheDocument();
-
-    const reviewDetails = within(blockedItem).getByRole("button", { name: "Edit Risky cleanup in Alfred" });
-    expect(reviewDetails).toBeEnabled();
-    expect(screen.queryByRole("note", { name: "Blocked launch details for Risky cleanup" })).not.toBeInTheDocument();
-
-    await user.click(reviewDetails);
-
-    const deskDetails = await screen.findByRole("note", {
-      name: "Blocked launch details for Risky cleanup",
-    });
-    expect(deskDetails).toHaveTextContent("Cannot launch yet");
-    expect(deskDetails).toHaveTextContent("rm -rf detected");
-    const tile = screen.getByRole("article", { name: "Draft Risky cleanup" });
-    expect(tile).toHaveAccessibleDescription(/rm -rf detected/);
-    expect(tile.querySelector(".staged-safety-chip")).not.toBeInTheDocument();
+    await user.click(within(blockedItem).getByRole("button", { name: "Edit Risky cleanup in Alfred" }));
+    expect(await screen.findByRole("region", { name: "Edit draft command for Risky cleanup" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Open layout menu, Grid selected/ })).toBeInTheDocument();
   });
 
-  it("keeps preflight-blocked staged tiles queued while launching ready tiles", async () => {
+  it("launches every ready draft from the plan line and keeps the blocked one", async () => {
+    const user = userEvent.setup();
+    const { createTerminal } = installDesktopBridge({
+      ok: true,
+      plan: {
+        name: "Mixed plan",
+        sessions: [
+          { kind: "shell", title: "Build", command: "pnpm", args: ["build"] },
+          { kind: "shell", title: "Lint", command: "pnpm", args: ["lint"] },
+          { kind: "shell", title: "Wipe dist", command: "rm", args: ["-rf", "dist"], safetyNote: "rm -rf detected" },
+        ],
+      },
+    });
+
+    render(<App />);
+
+    await openPrepareWork(user);
+    await user.type(screen.getByLabelText("Dispatch instruction"), "stage mixed plan");
+    await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
+    const createsBefore = createTerminal.mock.calls.length;
+
+    await user.click(await screen.findByRole("button", { name: "Launch 2 ready drafts" }));
+
+    await waitFor(() => expect(createTerminal.mock.calls.length - createsBefore).toBe(2));
+    expect(await screen.findByRole("button", { name: /1 draft · 1 needs you/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Launch ready drafts" })).toBeDisabled();
+    const drafts = await openPlan(user);
+    expect(within(drafts).getAllByRole("listitem").map((item) => item.getAttribute("aria-label"))).toEqual([
+      "Draft Wipe dist",
+    ]);
+  });
+
+  it("keeps preflight-blocked drafts on the plan line while launching ready drafts", async () => {
     const user = userEvent.setup();
     const { createTerminal, resolveStagedPlan } = installDesktopBridge({
       ok: true,
@@ -10358,9 +10433,12 @@ describe("App integration", () => {
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage preflight");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
 
-    expect(await screen.findByRole("article", { name: /Draft Safe task/i })).toHaveTextContent("shared project");
-    const blocked = screen.getByRole("article", { name: /Draft Blocked Codex/i });
-    expect(blocked).toHaveTextContent("Launch blocked: Project has uncommitted or untracked changes.");
+    await openPlan(user);
+    expect(screen.getByRole("listitem", { name: "Draft Safe task" })).toHaveTextContent("Shell");
+    expect(screen.getByRole("listitem", { name: "Draft Safe task" })).toHaveTextContent("pnpm test");
+    const blocked = screen.getByRole("listitem", { name: /Draft Blocked Codex/i });
+    expect(blocked).toHaveTextContent("Blocked: Project has uncommitted or untracked changes.");
+    expect(within(blocked).queryByRole("button", { name: "Launch Blocked Codex" })).not.toBeInTheDocument();
     await openNeedsYou(user);
     expect(screen.getByRole("dialog", { name: "Needs you" })).toHaveTextContent("Blocked Codex");
     const reviewDetails = screen.getByRole("button", {
@@ -10373,12 +10451,14 @@ describe("App integration", () => {
     expect(screen.getByTestId("desk-runtime-surface")).not.toHaveAttribute("aria-hidden", "true");
     expect(screen.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
     expect(screen.getByRole("complementary", { name: "Agent activity" })).toHaveTextContent("Blocked Codex");
-    expect(screen.getByRole("note", { name: "Blocked launch details for Blocked Codex" })).toHaveTextContent(
-      "Project has uncommitted or untracked changes.",
-    );
+    expect(screen.getByRole("region", { name: "Edit draft command for Blocked Codex" })).toBeInTheDocument();
     expect(createTerminal).not.toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-2" }));
 
     await chooseWorkLayout(user, "Grid");
+    await openPlan(user);
+    expect(screen.getByRole("listitem", { name: "Draft Blocked Codex" })).toHaveTextContent(
+      "Blocked: Project has uncommitted or untracked changes.",
+    );
     await user.click(screen.getByRole("button", { name: "Launch Safe task" }));
 
     await waitFor(() => {
@@ -10386,7 +10466,7 @@ describe("App integration", () => {
     });
     expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-1" }));
     expect(createTerminal).not.toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-2" }));
-    expect(screen.queryByRole("article", { name: /Draft Safe task/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("listitem", { name: /Draft Safe task/i })).not.toBeInTheDocument();
     await openNeedsYou(user);
     expect(screen.getByRole("dialog", { name: "Needs you" })).toHaveTextContent("Blocked Codex");
   });
@@ -10422,7 +10502,8 @@ describe("App integration", () => {
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage codex");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
-    await screen.findByText("isolated checkout: alfred-codex-preflight");
+    await openPlan(user);
+    expect(screen.getByRole("listitem", { name: "Draft Codex task" })).toHaveTextContent("Codex · isolated worktree");
 
     await user.click(screen.getByRole("button", { name: "Launch Codex task" }));
 
@@ -10499,21 +10580,21 @@ describe("App integration", () => {
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage codex");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
-    const tile = await screen.findByRole("article", { name: /Draft Codex task/i });
-    await screen.findByText("isolated checkout: alfred-codex-preflight");
+    await openPlan(user);
+    const draft = screen.getByRole("listitem", { name: "Draft Codex task" });
+    expect(draft).toHaveTextContent("Codex · isolated worktree");
 
-    await user.click(within(tile).getByRole("button", { name: "Launch Codex task" }));
+    await user.click(within(draft).getByRole("button", { name: "Launch Codex task" }));
 
     await waitFor(() => {
       const codexCalls = createTerminal.mock.calls.filter(([request]) => request.clientId === "alfred-1");
       expect(codexCalls).toHaveLength(1);
     });
-    await waitFor(() => {
-      expect(screen.queryByText("isolated checkout: alfred-codex-preflight")).not.toBeInTheDocument();
-    });
+    await openPlan(user);
+    expect(screen.getByRole("listitem", { name: "Draft Codex task" })).toHaveTextContent("Codex · isolated worktree");
 
     await user.click(
-      within(screen.getByRole("article", { name: /Draft Codex task/i })).getByRole("button", {
+      within(screen.getByRole("listitem", { name: /Draft Codex task/i })).getByRole("button", {
         name: "Launch Codex task",
       }),
     );
@@ -10531,7 +10612,7 @@ describe("App integration", () => {
     expect(codexCalls[1]?.branchName).toBeUndefined();
   });
 
-  it("keeps a safe staged tile queued when its terminal fails to start", async () => {
+  it("keeps a safe draft on the plan line when its terminal fails to start", async () => {
     const user = userEvent.setup();
     const { createTerminal, resolveStagedPlan } = installDesktopBridge({
       ok: true,
@@ -10578,20 +10659,22 @@ describe("App integration", () => {
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage mixed launch");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
-    await screen.findByRole("article", { name: /Draft Safe task/i });
+    await openPlan(user);
+    await screen.findByRole("listitem", { name: /Draft Safe task/i });
 
     await user.click(screen.getByRole("button", { name: "Launch Safe task" }));
 
     await selectSurface(user, "Work");
+    await openPlan(user);
     await waitFor(() => {
-      expect(screen.getByRole("article", { name: /Draft Safe task/i })).toBeInTheDocument();
+      expect(screen.getByRole("listitem", { name: /Draft Safe task/i })).toBeInTheDocument();
     });
     await openNeedsYou(user);
     expect(screen.getByRole("dialog", { name: "Needs you" })).toHaveTextContent("Risky task");
     expect(resolveStagedPlan).not.toHaveBeenCalledWith({ sessionIds: ["alfred-1"] });
   });
 
-  it("blocks unsafe staged tiles until they are edited or discarded", async () => {
+  it("offers Edit and Discard on blocked plan line drafts without a Launch action", async () => {
     const user = userEvent.setup();
     const { resolveStagedPlan } = installDesktopBridge({
       ok: true,
@@ -10614,10 +10697,15 @@ describe("App integration", () => {
     await openPrepareWork(user);
     await user.type(screen.getByLabelText("Dispatch instruction"), "stage risky cleanup");
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
-    await screen.findByRole("article", { name: /Draft Risky task/i });
+    await openPlan(user);
+    await screen.findByRole("listitem", { name: /Draft Risky task/i });
 
-    expect(screen.getByRole("button", { name: "Launch blocked: Risky task" })).toBeDisabled();
-    expect(screen.getByRole("article", { name: /Draft Risky task/i })).toHaveTextContent("rm -rf detected");
+    const draft = screen.getByRole("listitem", { name: "Draft Risky task" });
+    expect(within(draft).getByRole("button", { name: /^Edit / })).toBeEnabled();
+    expect(within(draft).getByRole("button", { name: "Discard Risky task" })).toBeEnabled();
+    expect(within(draft).queryByRole("button", { name: "Launch Risky task" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Launch ready drafts" })).toBeDisabled();
+    expect(draft).toHaveTextContent("Blocked: rm -rf detected");
     expect(resolveStagedPlan).not.toHaveBeenCalled();
   });
 
@@ -10713,7 +10801,10 @@ describe("App integration", () => {
         workspace: expect.any(Object),
       });
     });
-    expect(screen.getByRole("button", { name: /Launch/ })).toBeEnabled();
+    await openPlan(user);
+    const editedDraft = screen.getByRole("listitem", { name: "Draft Blocked Codex" });
+    expect(editedDraft).toHaveTextContent("Codex · edited");
+    expect(within(editedDraft).getByRole("button", { name: "Launch Blocked Codex" })).toBeEnabled();
     expect(screen.queryByText(/old blocker/i)).not.toBeInTheDocument();
   });
 
@@ -10761,7 +10852,8 @@ describe("App integration", () => {
     expect(composer).toHaveValue("retry this plan");
 
     await user.click(screen.getByRole("button", { name: /Prepare work (?:in|with) / }));
-    expect(await screen.findByRole("article", { name: /Draft Task A/i })).toBeInTheDocument();
+    await openPlan(user);
+    expect(await screen.findByRole("listitem", { name: /Draft Task A/i })).toBeInTheDocument();
     expect(requestPlan).toHaveBeenCalledTimes(2);
   });
 });

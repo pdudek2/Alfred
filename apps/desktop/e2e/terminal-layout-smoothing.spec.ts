@@ -96,18 +96,21 @@ test("skips terminal tile motion when reduced motion is enabled", async ({ harne
 test.describe("draft Arrange layout", () => {
   test.use({ fixtureOptions: { inboxItems: 1 } });
 
-  test("keeps staged Arrange placement on the direct terminal-grid child", async ({ harness }) => {
+  test("keeps drafts on the plan line instead of the Arrange grid", async ({ harness }) => {
     const { page } = harness;
 
-    const stagedTile = page.locator('[data-testid="terminal-tile"][data-session-id="fixture-item-1"]');
-    await expect(stagedTile).toBeVisible();
+    await expect(page.locator(".plan-line")).toBeVisible();
     await chooseWorkLayout(page, "Arrange");
-    await expect(page.getByText("Arrange mode", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open layout menu, Arrange selected" })).toBeVisible();
+    await expect(page.locator(".plan-line")).toBeVisible();
+    await expect(page.getByTestId("terminal-grid").locator('[data-session-id="fixture-item-1"]')).toHaveCount(0);
 
-    await expect.poll(async () => readDirectGridChildStyle(page, "fixture-item-1")).toEqual({
-      gridColumn: "1 / span 12",
-      gridRow: "1 / span 8",
-    });
+    // Once launched, the draft takes its Arrange placement as a grid tile.
+    await page.locator(".plan-line").getByRole("button", { name: "Launch 1 ready draft" }).click();
+    await expect(page.getByText("Arrange mode", { exact: true })).toBeVisible();
+    const launched = page.getByTestId("terminal-grid").locator('[data-testid="terminal-tile"][data-session-id="fixture-item-1"]');
+    await expect(launched).toHaveCSS("grid-column", "1 / span 12");
+    await expect(launched).toHaveCSS("grid-row", "1 / span 8");
   });
 });
 
@@ -152,27 +155,6 @@ async function expectSameHosts(
     );
     expect(same, `${transition}: xterm host ${index + 1} changed`).toBe(true);
   }
-}
-
-async function readDirectGridChildStyle(
-  page: Page,
-  sessionId: string,
-): Promise<{ gridColumn: string; gridRow: string }> {
-  return page.evaluate((id) => {
-    const tile = document.querySelector(`[data-testid="terminal-tile"][data-session-id="${id}"]`);
-    if (!(tile instanceof HTMLElement)) {
-      throw new Error(`Terminal tile ${id} is missing.`);
-    }
-    const wrapper = tile.parentElement;
-    const grid = document.querySelector('[data-testid="terminal-grid"]');
-    if (!(wrapper instanceof HTMLElement) || !(grid instanceof HTMLElement) || wrapper.parentElement !== grid) {
-      throw new Error(`Terminal tile ${id} is not wrapped as a direct terminal-grid child.`);
-    }
-    return {
-      gridColumn: wrapper.style.gridColumn,
-      gridRow: wrapper.style.gridRow,
-    };
-  }, sessionId);
 }
 
 async function singleHiddenSessionId(page: Page): Promise<string> {

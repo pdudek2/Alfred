@@ -11,17 +11,16 @@ import {
   type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
 import { getDesktopTerminalApi } from "../desktop-api";
 import type { TileLayout } from "../layout-state";
 import {
   canRelaunchRestoredSession,
   isGeneratedSessionTitle,
-  isLaunchBlocked,
   sessionInstanceKey,
   type SessionTile,
 } from "../session-state";
-import { StagedTilePreview } from "../staged-tile";
 import { isRestartable, sessionState, type LocalTerminalStatus } from "../session-status";
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
@@ -140,12 +139,11 @@ type TerminalDeskProps = {
   onRenameSession: (sessionId: string, title: string) => void;
   onFocusSession: (sessionId: string) => void;
   onSelectSession: (sessionId: string) => void;
-  onApproveTile: (tileId: string) => void;
-  onRejectTile: (tileId: string) => void;
   onResizeTile: (tileId: string, deltaColSpan: number, deltaRowSpan: number) => void;
   onReviewWorktree: (sessionId: string) => void;
   onSessionRevealed: (sessionId: string) => void;
   onToggleCollapseSession: (sessionId: string) => void;
+  planLine?: ReactNode;
 };
 
 export function TerminalDesk({
@@ -191,12 +189,11 @@ export function TerminalDesk({
   onRenameSession,
   onFocusSession,
   onSelectSession,
-  onApproveTile,
-  onRejectTile,
   onResizeTile,
   onReviewWorktree,
   onSessionRevealed,
   onToggleCollapseSession,
+  planLine,
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const gridColumnRef = useRef<HTMLDivElement | null>(null);
@@ -211,17 +208,14 @@ export function TerminalDesk({
     (session) => session.workspaceId === activeWorkspaceId && isWorkSession(session),
   );
   const workspaceUnavailable = workspaceRootStatus === "missing";
-  const visibleWorkspaceSessions = workspaceUnavailable
-    ? activeSessions.filter((session) => session.stage === "live")
-    : activeSessions;
+  // Drafts live on the plan line, not in the grid.
+  const visibleWorkspaceSessions = activeSessions.filter((session) => session.stage === "live");
+  const hasDrafts = !workspaceUnavailable && activeSessions.some((session) => session.stage === "staged");
+  const draftSelected = activeSessions.some((session) => session.id === selectedSessionId && session.stage === "staged");
   const activeLayouts = layouts;
   const selectedSession = selectedSessionForDesk(visibleWorkspaceSessions, selectedSessionId);
-  const stagedList = !arrangeMode
-    && workMode === "desk"
-    && visibleWorkspaceSessions.length > 0
-    && visibleWorkspaceSessions.every((session) => session.stage === "staged");
   const previousDeskPresentationIds = deskPresentationIdsByWorkspace[activeWorkspaceId] ?? [];
-  const deskPresentationIds = !arrangeMode && workMode === "desk" && !stagedList
+  const deskPresentationIds = !arrangeMode && workMode === "desk"
     ? nextDeskPresentationIds(
       visibleWorkspaceSessions.map((session) => session.id),
       selectedSessionId,
@@ -241,31 +235,25 @@ export function TerminalDesk({
     ? visibleWorkspaceSessions
     : focusSession
       ? [focusSession]
-      : workMode === "desk" && !stagedList
+      : workMode === "desk"
         ? deskSessions
         : splitSessions;
-  const renderedSessions = sessions.filter(
-    (session) => isWorkSession(session) && (
-      session.stage === "live"
-      || (session.workspaceId === activeWorkspaceId && !workspaceUnavailable)
-    ),
-  );
+  const renderedSessions = sessions.filter((session) => isWorkSession(session) && session.stage === "live");
   const visibleSessionIds = new Set(visibleSessions.map((session) => session.id));
-  const inspectedSession = focusSession ?? selectedSession ?? visibleSessions[0] ?? null;
-  const blockedStagedSession =
-    inspectedSession?.stage === "staged" && isLaunchBlocked(inspectedSession) ? inspectedSession : null;
+  // A draft opened in Context must not hand the selection (and terminal focus) to a live tile.
+  const inspectedSession = draftSelected ? null : focusSession ?? selectedSession ?? visibleSessions[0] ?? null;
   const showSplitEmptyState = !arrangeMode && workMode === "split" && visibleWorkspaceSessions.length > 0 && visibleSessions.length < 2;
   const gridDensity =
     workMode === "split" ? "split" : visibleSessions.length <= 1 ? "single" : visibleSessions.length === 2 ? "split" : "dense";
-  const manyUpGrid = !stagedList && !arrangeMode && workMode === "desk" && visibleSessions.length >= 5;
+  const manyUpGrid = !arrangeMode && workMode === "desk" && visibleSessions.length >= 5;
   const sixUpGrid = manyUpGrid && visibleSessions.length === 6;
   const showLayoutControls = arrangeMode && visibleWorkspaceSessions.length > 0;
-  const threePaneGrid = !arrangeMode && workMode === "desk" && !stagedList && visibleSessions.length === 3;
+  const threePaneGrid = !arrangeMode && workMode === "desk" && visibleSessions.length === 3;
 
   useTerminalTileMotion(gridRef);
 
   useLayoutEffect(() => {
-    if (arrangeMode || workMode !== "desk" || stagedList) return;
+    if (arrangeMode || workMode !== "desk") return;
     setDeskPresentationIdsByWorkspace((current) => {
       const currentIds = current[activeWorkspaceId] ?? [];
       if (
@@ -279,7 +267,7 @@ export function TerminalDesk({
         [activeWorkspaceId]: deskPresentationIds,
       };
     });
-  }, [activeWorkspaceId, arrangeMode, deskPresentationIds, stagedList, workMode]);
+  }, [activeWorkspaceId, arrangeMode, deskPresentationIds, workMode]);
 
   useEffect(() => {
     const column = gridColumnRef.current;
@@ -480,12 +468,6 @@ export function TerminalDesk({
               onOpenHistory={onOpenHistory}
             />
           )}
-          {blockedStagedSession && (
-            <BlockedStagedLaunchDetails
-              session={blockedStagedSession}
-              onReviewDetails={() => handleFocusSession(blockedStagedSession.id)}
-            />
-          )}
           {focusSession && isReviewableIsolatedCheckout(focusSession) && (
             <WorktreeActionStrip
               pendingAction={worktreeActionPending[sessionInstanceKey(focusSession)]}
@@ -494,13 +476,15 @@ export function TerminalDesk({
               onReviewWorktree={onReviewWorktree}
             />
           )}
+          {hasDrafts && planLine}
           <div
-            className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}${manyUpGrid ? " many-up" : ""}${sixUpGrid ? " six-up" : ""}${stagedList ? " staged-list" : ""}${threePaneGrid ? " three-pane" : ""}`}
+            className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}${manyUpGrid ? " many-up" : ""}${sixUpGrid ? " six-up" : ""}${threePaneGrid ? " three-pane" : ""}`}
             data-testid="terminal-grid"
             ref={gridRef}
           >
           {visibleWorkspaceSessions.length === 0 && (
             <EmptyWorkspaceState
+              hasDrafts={hasDrafts}
               onAddAgentSession={onAddAgentSession}
               onAddManualSession={onAddManualSession}
               onBindWorkspace={onBindWorkspace}
@@ -516,13 +500,7 @@ export function TerminalDesk({
             const presentationSlot = threePaneGrid
               ? deskPresentationSlot(session.id, deskPresentationIds)
               : null;
-            const stagedWrapperStyle = layoutHidden
-              ? { display: "none" }
-              : gridStyle(
-                arrangeMode ? layouts[session.id] : undefined,
-                arrangePreview?.tileId === session.id ? arrangePreview : undefined,
-              );
-            return session.stage === "live" ? (
+            return (
               <ManualTerminalTile
                 arrangeMode={arrangeMode}
                 cwd={session.cwd}
@@ -586,30 +564,6 @@ export function TerminalDesk({
                 onRenameSession={onRenameSession}
                 onToggleCollapse={() => onToggleCollapseSession(session.id)}
               />
-            ) : (
-              <div
-                className="staged-tile-wrapper"
-                key={session.id}
-                data-presentation-slot={presentationSlot ?? undefined}
-                aria-hidden={layoutHidden ? "true" : undefined}
-                inert={layoutHidden ? true : undefined}
-                style={stagedWrapperStyle}
-              >
-                <StagedTilePreview
-                  blockedDescriptionId={blockedStagedSession?.id === session.id ? `blocked-launch-${session.id}` : undefined}
-                  focusHidden={layoutHidden}
-                  tile={session}
-                  selected={inspectedSession?.id === session.id}
-                  onFocusSession={() => handleFocusSession(session.id)}
-                  onSelectSession={() => handleSelectSession(session.id)}
-                  onApprove={onApproveTile}
-                  onArrangeKeyDown={(event) => handleArrangeKeyDown(session.id, event)}
-                  onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
-                  onReject={onRejectTile}
-                  onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
-                  arrangeMode={arrangeMode}
-                />
-              </div>
             );
           })}
           {showSplitEmptyState && (
@@ -625,33 +579,6 @@ export function TerminalDesk({
           <WorktreeDiffPanel view={worktreeDiffView} onClose={handleCloseDiff} />
         )}
       </div>
-    </section>
-  );
-}
-
-function BlockedStagedLaunchDetails({
-  session,
-  onReviewDetails,
-}: {
-  session: SessionTile;
-  onReviewDetails: () => void;
-}) {
-  const detail = blockedLaunchDetail(session);
-
-  return (
-    <section
-      className="terminal-action-strip"
-      role="note"
-      aria-label={`Blocked launch details for ${session.title}`}
-      id={`blocked-launch-${session.id}`}
-    >
-      <AlertTriangle size={14} aria-hidden="true" />
-      <span>
-        <strong>Cannot launch yet</strong>: {detail}
-      </span>
-      <button type="button" onClick={onReviewDetails}>
-        Review details
-      </button>
     </section>
   );
 }
@@ -731,6 +658,7 @@ function SplitModeEmptyState({
 }
 
 function EmptyWorkspaceState({
+  hasDrafts,
   onAddAgentSession,
   onAddManualSession,
   onBindWorkspace,
@@ -739,6 +667,7 @@ function EmptyWorkspaceState({
   workspaceRootPath,
   workspaceRootStatus,
 }: {
+  hasDrafts: boolean;
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
   onBindWorkspace: () => void;
@@ -751,9 +680,11 @@ function EmptyWorkspaceState({
   const missing = workspaceRootStatus === "missing";
   const heading = missing
     ? `Reconnect ${workspaceLabel}`
-    : bound
-      ? `Start work in ${workspaceLabel}`
-      : "Start with Codex";
+    : hasDrafts
+      ? "Nothing is running"
+      : bound
+        ? `Start work in ${workspaceLabel}`
+        : "Start with Codex";
 
   return (
     <div
@@ -762,15 +693,17 @@ function EmptyWorkspaceState({
       aria-label={missing ? "Unavailable project folder" : "Empty project"}
     >
       <div className="terminal-empty-copy">
-        <span>{missing ? "Folder unavailable" : bound ? "Project ready" : "Scratch project"}</span>
+        {!hasDrafts && <span>{missing ? "Folder unavailable" : bound ? "Project ready" : "Scratch project"}</span>}
         <strong>{heading}</strong>
         <p>
           {missing
             ? "Choose the folder again. Draft work stays parked until you reconnect this project."
-            : workspaceHomeCopy(workspaceRootPath, workspaceGitBranch)}
+            : hasDrafts
+              ? "Launch the plan above, or start a session in this project."
+              : workspaceHomeCopy(workspaceRootPath, workspaceGitBranch)}
         </p>
       </div>
-      <dl className="terminal-empty-facts" aria-label="project details">
+      {!hasDrafts && <dl className="terminal-empty-facts" aria-label="project details">
         <div>
           <dt>workspace</dt>
           <dd>{workspaceLabel}</dd>
@@ -785,7 +718,7 @@ function EmptyWorkspaceState({
             <dd>{workspaceGitBranch}</dd>
           </div>
         )}
-      </dl>
+      </dl>}
       <div className="terminal-empty-actions" aria-label="empty project actions">
         {missing ? (
           <button type="button" className="terminal-empty-primary-action" onClick={onBindWorkspace}>
@@ -830,13 +763,6 @@ function workspaceHomeCopy(rootPath: string | undefined, gitBranch: string | und
   }
 
   return "Start Codex here, or choose a project folder when repository context matters.";
-}
-
-function blockedLaunchDetail(session: Pick<SessionTile, "launchPreflight" | "safetyNote">): string {
-  const safetyNote = session.safetyNote?.trim();
-  if (safetyNote) return safetyNote;
-  if (session.launchPreflight?.status === "blocked") return session.launchPreflight.reason;
-  return "Preflight failed.";
 }
 
 function resumeButtonLabel(unsafe: boolean, armed: boolean): string {

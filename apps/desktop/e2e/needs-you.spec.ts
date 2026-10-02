@@ -2,7 +2,8 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
 import { terminalChannels, type TerminalListResult } from "../src/shared/terminal-ipc";
-import { chooseWorkLayout, settleTerminalTileAnimations } from "./support/work-layout";
+import { openPlan } from "./support/plan-line";
+import { settleTerminalTileAnimations } from "./support/work-layout";
 import { expect, test } from "./support/electron-app";
 import { neutralScreenshotPointer, privacySafeScreenshotStyle } from "./support/privacy-safe-screenshot";
 
@@ -172,17 +173,16 @@ test.describe("mixed Needs you actions", () => {
     await expect(context).toBeVisible();
     await expect(context).toContainText("Fixture item 1");
     await expect(page.getByRole("button", { name: "Fixture Alpha project" })).toHaveAttribute("aria-current", "location");
+    // Editing a draft opens Context without switching the project to Focus.
+    await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
     expect(await terminalWriteCount(app)).toBe(0);
     expect((await listMainProcessTerminals(page)).sessions.some((session) => session.clientId === "fixture-item-1"))
       .toBe(false);
 
-    // Ready drafts still launch from Work using the real handler.
+    // Ready drafts still launch from the plan line using the real handler.
     await context.getByRole("button", { name: "Close Context panel" }).click();
-    await chooseWorkLayout(page, "Grid");
-    // Selecting a draft tile reorders the staged list, so a first click on an unselected
-    // tile's Launch lands elsewhere. Select it first; the plan line replaces these tiles.
-    await page.getByRole("article", { name: "Draft Fixture item 3" }).locator(".tile-header").click();
-    await page.getByRole("button", { name: "Launch Fixture item 3" }).click();
+    const drafts = await openPlan(page);
+    await drafts.getByRole("button", { name: "Launch Fixture item 3" }).click();
     await expect.poll(async () => {
       const listed = await listMainProcessTerminals(page);
       const snapshot = [...listed.sessions, ...(listed.restoredSessions ?? [])].find(
@@ -271,7 +271,7 @@ test.describe("mixed Needs you actions", () => {
 
 async function bootstrapMixedAttention(page: Page): Promise<Locator> {
   await page.getByRole("button", { name: "Fixture Beta project" }).click();
-  await page.getByRole("button", { name: "Launch Fixture item 2" }).click();
+  await (await openPlan(page)).getByRole("button", { name: "Launch Fixture item 2" }).click();
   await expect(page.locator('[data-session-id="fixture-item-2"] .xterm-screen')).toBeAttached();
   await expect.poll(async () => {
     const session = (await listMainProcessTerminals(page)).sessions.find(
@@ -283,7 +283,25 @@ async function bootstrapMixedAttention(page: Page): Promise<Locator> {
     lastKind: "approval",
   });
   // Wait for renderer hydration before opening the list.
-  await expect(page.getByRole("button", { name: "Needs you, 2 sessions" })).toBeVisible();
+  try {
+    await expect(page.getByRole("button", { name: "Needs you, 2 sessions" })).toBeVisible();
+  } catch (error) {
+    // Name what the renderer and main process saw for the waiting session, so a CI-only miss is diagnosable.
+    const main = (await listMainProcessTerminals(page)).sessions.find((session) => session.clientId === "fixture-item-2");
+    const tile = await page.locator('[data-session-id="fixture-item-2"]').first().innerText().catch(() => "(no tile)");
+    const trigger = await page.getByRole("button", { name: /^Needs you, / }).getAttribute("aria-label").catch(() => null);
+    throw new Error(`${String(error)}\n${JSON.stringify({
+      trigger,
+      tile: tile.replace(/\s+/g, " ").slice(0, 160),
+      now: Date.now(),
+      main: main && {
+        lastOutputAt: main.lastOutputAt,
+        shellBusy: main.shellBusy,
+        buffer: main.buffer?.slice(-200),
+        events: main.activityEvents?.map(({ kind, title, at }) => ({ kind, title, at })),
+      },
+    })}`, { cause: error });
+  }
   await page.getByRole("button", { name: "Needs you, 2 sessions" }).click();
   const popover = page.getByRole("dialog", { name: "Needs you" });
   await expect(popover).toBeVisible();

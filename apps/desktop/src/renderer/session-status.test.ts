@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sessionState } from "./session-status";
+import { nextApprovalRevealAt, sessionState } from "./session-status";
 import type { SessionActivityEvent, SessionTile } from "./session-state";
 
 function liveSession(overrides: Partial<SessionTile> = {}): SessionTile {
@@ -117,6 +117,18 @@ describe("sessionState", () => {
   it("uses the shell foreground instead of output timing for plain terminals", () => {
     expect(sessionState(liveSession({ shellBusy: true, lastOutputAt: 1_000 }), "ready", 100_000).kind).toBe("running");
     expect(sessionState(liveSession({ shellBusy: false, lastOutputAt: 99_000 }), "ready", 100_000).kind).toBe("idle");
+  });
+
+  it("reports when recent output stops hiding an approval prompt", () => {
+    const approval = { id: "a", kind: "approval", title: "Approval", detail: "allow?", at: 1_000 } as SessionActivityEvent;
+    // A trailing chunk stamped just after the prompt keeps the session busy for the output window.
+    const waiting = liveSession({ activityEvents: [approval], lastOutputAt: 1_005 });
+    expect(sessionState(waiting, "ready", 10_000).kind).toBe("running");
+    expect(nextApprovalRevealAt([waiting], 10_000)).toBe(16_006);
+    expect(sessionState(waiting, "ready", 16_005).kind).toBe("running");
+    expect(sessionState(waiting, "ready", 16_006).kind).toBe("needs-you");
+    expect(nextApprovalRevealAt([waiting], 16_006)).toBeNull();
+    expect(nextApprovalRevealAt([liveSession({ lastOutputAt: 1_005 })], 10_000)).toBeNull();
   });
 
   it("shows plan items as Draft unless launch is blocked", () => {

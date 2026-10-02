@@ -18,13 +18,13 @@ test("keeps the production Work story trustworthy across every utility surface",
   const { app, page, paths } = harness;
   await setWindowSize(app, page, 1440, 900);
 
-  // One staged row must stay visually distinct before it becomes connected live work.
-  const stagedTile = page.getByTestId("terminal-tile").first();
-  await expect(stagedTile).toHaveClass(/staged/);
-  await expect(stagedTile.locator(".staged-body")).toBeVisible();
-  await expect(stagedTile.locator(".xterm-screen")).toHaveCount(0);
+  // The draft waits on the plan line, outside the grid, until it becomes connected live work.
+  const planLine = page.locator(".plan-line");
+  await expect(planLine).toBeVisible();
+  await expect(page.getByTestId("terminal-tile")).toHaveCount(0);
   await captureAuditScreenshot(page, "work-staged-wide");
-  await stagedTile.getByRole("button", { name: "Launch Fixture item 1" }).click();
+  await planLine.getByRole("button", { name: "Launch 1 ready draft" }).click();
+  await expect(planLine).toHaveCount(0);
   const screen = page.locator('[data-testid="terminal-tile"][data-session-id="fixture-item-1"] .xterm-screen');
   await expect(screen).toBeAttached();
   const screenBefore = await requiredHandle(screen, "launched fixture xterm");

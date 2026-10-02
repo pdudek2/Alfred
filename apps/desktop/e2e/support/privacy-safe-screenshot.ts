@@ -12,8 +12,6 @@ export const privacySafeScreenshotSelectors = [
   ".workspace-title-trigger small",
   ".project-row-label",
   ".project-session-title",
-  ".terminal-tile.staged .tile-title small",
-  ".staged-command",
   ".sessions-navigator__search input",
   ".sessions-result > span",
   ".sessions-reader__breadcrumb > strong",
@@ -30,7 +28,8 @@ export const privacySafeHiddenScreenshotSelectors = [
 ] as const;
 
 export const privacySafeScreenshotStyle = `
-  .needs-you-popover__copy p {
+  .needs-you-popover__copy p,
+  .plan-line__sub {
     color: transparent !important;
   }
 
