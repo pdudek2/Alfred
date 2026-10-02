@@ -16,6 +16,7 @@ import {
   getDesktopWorkspaceApi,
 } from "./desktop-api";
 import { CommandPalette } from "./components/CommandPalette";
+import { DetailsChanges } from "./components/DetailsChanges";
 import { ContextColumn } from "./components/ContextColumn";
 import { NeedsYouPopover } from "./components/NeedsYouPopover";
 import { NewSessionSheet, type NewSessionKind } from "./components/NewSessionSheet";
@@ -241,13 +242,14 @@ export function App() {
   const previewTriggerRef = useRef<HTMLButtonElement | null>(null);
   const needsYouTriggerRef = useRef<HTMLButtonElement | null>(null);
   const worktreeDiffReturnFocusRef = useRef<HTMLElement | null>(null);
+  const contextReturnFocusRef = useRef<HTMLElement | null>(null);
+  const detailsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const surfacesTriggerRef = useRef<HTMLButtonElement | null>(null);
   const privacyReturnFocusRef = useRef<HTMLElement | null>(null);
   const discardReturnFocusRef = useRef<HTMLElement | null>(null);
   const workReturnFocusRef = useRef<HTMLElement | null>(null);
   const workReturnFocusLabelRef = useRef<string | null>(null);
   const restoreWorkFocusPendingRef = useRef(false);
-  const contextReturnFocusRef = useRef<HTMLButtonElement | null>(null);
   const contextFocusRequestKeyRef = useRef(0);
   const closingSessionIdsRef = useRef(new Map<string, { instanceKey: string; attempt?: TerminalStartAttempt }>());
   const startingSessionIdsRef = useRef(new Map<string, { attempt: TerminalStartAttempt; cancelled: boolean }>());
@@ -633,8 +635,9 @@ export function App() {
   const handleToggleContextDrawer = useCallback(() => {
     const nextOpen = !activeContextDrawerOpen;
     if (nextOpen) {
+      contextReturnFocusRef.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+        ? document.activeElement : detailsTriggerRef.current;
       setNeedsYouOpen(false);
-      contextReturnFocusRef.current = surfacesTriggerRef.current;
       contextFocusRequestKeyRef.current += 1;
       setPreviewDockOpenByWorkspace((current) => ({
         ...current,
@@ -642,6 +645,7 @@ export function App() {
       }));
       persistActiveWorkspaceViewState({ previewDockOpen: false });
     }
+    if (!nextOpen) contextReturnFocusRef.current?.focus();
     setContextDrawerOpenByWorkspace((current) => {
       return {
         ...current,
@@ -651,8 +655,8 @@ export function App() {
   }, [activeContextDrawerOpen, activeWorkspace.id, persistActiveWorkspaceViewState]);
 
   const handleOpenContextFromCommandPalette = useCallback(() => {
-    setNeedsYouOpen(false);
     contextReturnFocusRef.current = commandPaletteTriggerRef.current;
+    setNeedsYouOpen(false);
     contextFocusRequestKeyRef.current += 1;
     setPreviewDockOpenByWorkspace((current) => ({
       ...current,
@@ -2154,11 +2158,11 @@ export function App() {
   }, []);
 
   const handleReviewBlockedSession = useCallback((workspaceId: string, sessionId: string) => {
-    contextReturnFocusRef.current = null;
+    contextReturnFocusRef.current = detailsTriggerRef.current;
     contextFocusRequestKeyRef.current += 1;
     const layoutApi = getDesktopLayoutApi();
     if (terminalSessionsRef.current.some((session) => session.id === sessionId && session.stage === "staged")) {
-      // Drafts are not in the grid, so select the draft for Context instead of focusing a tile.
+      // Drafts are not in the grid, so select the draft for Details instead of focusing a tile.
       setActiveSurface("work");
       setActiveWorkspaceId(workspaceId);
       setSelectedSessionIdsByWorkspace((current) => ({ ...current, [workspaceId]: sessionId }));
@@ -2370,6 +2374,7 @@ export function App() {
         const appShortcut =
           shortcutPressed && (
             /^[1-9]$/.test(event.key) ||
+            key === "i" ||
             key === "j" ||
             key === "k" ||
             key === "t" ||
@@ -2406,6 +2411,12 @@ export function App() {
           event.preventDefault();
           handleSelectWorkspace(workspace.id);
         }
+        return;
+      }
+
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === "i") {
+        event.preventDefault();
+        if (!newSessionOpen && !workspaceMenuOpen && !pendingDiscardConfirmation) handleToggleContextDrawer();
         return;
       }
 
@@ -2474,6 +2485,9 @@ export function App() {
     handleOpenSessionTerminal,
     handleSelectWorkspace,
     handleToggleNeedsYou,
+    handleToggleContextDrawer,
+    workspaceMenuOpen,
+    pendingDiscardConfirmation,
     privacyPanelOpen,
     workspaces,
   ]);
@@ -2691,6 +2705,8 @@ export function App() {
             selectedSession={activeSelectedSession}
             shortcutModifier={shortcutModifier}
             surfacesTriggerRef={surfacesTriggerRef}
+            detailsTriggerRef={detailsTriggerRef}
+            detailsOpen={activeContextDrawerOpen}
             workspaceDetail={workspaceDetail(activeWorkspace)}
             onOpenCommandPalette={handleOpenCommandPalette}
             onOpenNewSession={() => openNewSession()}
@@ -2934,13 +2950,23 @@ export function App() {
               newSessionOpen ||
               workspaceMenuOpen ||
               pendingDiscardConfirmation !== null ||
-              needsYouOpen
+              needsYouOpen ||
+              worktreeDiffView !== null
             }
             focusRequestKey={contextFocusRequestKeyRef.current}
             returnFocusRef={contextReturnFocusRef}
             onCloseContext={handleCloseContextDrawer}
             timelineProps={{
               session: activeInspectedSession,
+              projectName: activeWorkspace.label,
+              changes: <DetailsChanges
+                open={activeContextDrawerOpen}
+                session={activeInspectedSession}
+                projectName={activeWorkspace.label}
+                pending={Boolean(activeInspectedSession && worktreeActionPending[sessionInstanceKey(activeInspectedSession)])}
+                onReview={handleReviewWorktree}
+                onApply={handleApplyWorktree}
+              />,
               onCopyActivityText: handleCopyActivityText,
               onOpenExternalTerminal: handleOpenExternalTerminalForCwd,
               onRevealActivityFile: handleRevealActivityFile,

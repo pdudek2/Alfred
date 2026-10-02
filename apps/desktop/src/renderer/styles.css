@@ -5871,9 +5871,9 @@ body.arranging-pointer {
   position: static;
   width: auto;
   overflow: hidden;
-  border-left: 1px solid var(--ink-3);
-  box-shadow: -14px 0 30px -30px rgba(0, 0, 0, 0.9);
-  background: var(--ink-1);
+  border-left: 1px solid var(--border);
+  box-shadow: none;
+  background: var(--surface-chrome);
   pointer-events: none;
 }
 
@@ -5892,7 +5892,7 @@ body.arranging-pointer {
   height: 100%;
   border: 0;
   border-radius: 0;
-  background: var(--ink-1);
+  background: var(--surface-chrome);
   box-shadow: none;
   display: grid;
   grid-template-rows: 46px minmax(0, 1fr);
@@ -5901,17 +5901,17 @@ body.arranging-pointer {
 
 .context-drawer-header {
   min-height: 46px;
-  border-bottom: 1px solid var(--ink-3);
+  border-bottom: 1px solid var(--border);
   padding: 0 8px 0 14px;
-  background: color-mix(in oklab, var(--ink-1) 86%, transparent);
+  background: var(--surface-chrome);
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
 .context-drawer-header span {
-  color: var(--ink-7);
-  font: 650 13px/1 var(--sans);
+  color: var(--text-primary);
+  font: 500 13px/18px var(--sans);
   letter-spacing: 0;
   text-transform: none;
 }
@@ -5931,136 +5931,67 @@ body.arranging-pointer {
   min-height: 0;
   border: 0;
   border-radius: 0;
-  background: var(--ink-1);
+  background: var(--surface-chrome);
   box-shadow: none;
   overflow: hidden;
   animation: none;
 }
 
-.context-drawer .agent-timeline-body {
-  min-height: 0;
-  padding: 0 14px 18px;
-  overflow-x: hidden;
-  overflow-y: auto;
-}
+.context-drawer-header > div { display: flex; align-items: baseline; gap: 12px; }
+.context-drawer-header kbd { font: 400 12px/16px var(--sans); color: var(--text-faint); }
+.context-drawer .agent-timeline-body { display: block; min-height: 0; padding: 0 0 18px; overflow-x: hidden; overflow-y: auto; }
+.context-drawer .agent-timeline-header { padding: 10px 10px 0; }
+.context-drawer .details-section { padding: 0; min-width: 0; }
+.context-drawer .details-section h2 { margin: 0; color: var(--text-secondary); font: 500 12px/16px var(--sans); text-transform: none; letter-spacing: normal; }
+.details-section-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; padding: 16px 10px 4px; }
+.details-section-heading > span { color: var(--text-muted); font: 400 12px/16px var(--sans); font-variant-numeric: tabular-nums; }
+.details-empty { margin: 0; padding: 4px 10px; color: var(--text-muted); font: 400 12px/17px var(--sans); }
+.details-stats { margin-left: auto; font-variant-numeric: tabular-nums; }
+.details-files { list-style: none; margin: 0; padding: 0; }
+.details-files li { display: flex; align-items: center; gap: 10px; height: 28px; padding: 0 10px; font: 400 13px/18px var(--sans); color: var(--text-secondary); }
+.details-files li > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: text; }
+.details-files li > span:not(:first-child) { font: 400 12px/16px var(--sans); font-variant-numeric: tabular-nums; }
+.details-additions { color: var(--signal-success); }
+.details-deletions { color: var(--signal-danger); }
+.details-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 10px 0; }
+.details-actions button { height: 30px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-control); color: var(--text-primary); font: 400 13px/18px var(--sans); }
+.details-actions button:hover { background: var(--surface-control-hover); }
+.details-actions button:disabled { opacity: .5; cursor: default; }
+.context-drawer .agent-activity-list { padding: 0; margin: 0; gap: 0; }
+.context-drawer .agent-activity-list li { display: flex; align-items: flex-start; gap: 9px; padding: 5px 10px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.context-drawer .agent-activity-list li::before { display: none; }
+.context-drawer .agent-activity-list li > svg { flex-shrink: 0; margin-top: 2px; color: var(--text-muted); }
+.context-drawer .details-activity-text { flex: 1; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; text-align: left; color: var(--text-secondary); font: 400 13px/18px var(--sans); overflow-wrap: anywhere; }
+.context-drawer .agent-activity-list time { margin: 0; flex-shrink: 0; padding-top: 1px; color: var(--text-muted); font: 400 12px/16px var(--sans); font-variant-numeric: tabular-nums; }
+.details-location-name { margin: 0; padding: 2px 10px; color: var(--text-secondary); font: 400 13px/18px var(--sans); overflow-wrap: anywhere; }
+.details-location-path { margin: 0; padding: 0 10px 6px; color: var(--text-muted); font: 400 12px/17px var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }
+.details-location-actions { display: flex; flex-wrap: wrap; gap: 14px; padding: 0 10px; }
+.details-location-actions button { padding: 0; min-height: 32px; border: 0; background: transparent; box-shadow: none; color: var(--text-secondary); font: 400 13px/18px var(--sans); }
+.context-drawer .agent-staged-editor,
+.context-drawer .agent-staged-edit-form { background: transparent; border: 0; border-radius: 0; padding: 16px 10px 0; }
+.context-drawer .agent-staged-edit-form :is(input, textarea) { font: 400 13px/18px var(--sans); background: var(--surface-control); border-color: var(--border-strong); box-shadow: none; }
+.context-drawer :is(button, summary, input, textarea):focus-visible { outline: 2px solid var(--text-secondary); outline-offset: 2px; }
 
-.context-drawer .agent-session-pulse {
-  margin: 0;
-  border: 0;
-  border-bottom: 1px solid var(--ink-3);
-  border-radius: 0;
-  padding: 14px 0;
-  background: transparent;
-  box-shadow: none;
-}
 
-.context-drawer .agent-session-pulse span {
-  font: 650 13px/1.2 var(--sans);
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.context-drawer .agent-session-pulse p {
-  font: 500 12px/1.45 var(--sans);
-}
-
-.context-drawer .agent-status-text {
-  font: 600 13px/1 var(--sans);
-}
-
+.context-drawer .agent-status-pill { background: transparent; border: 0; box-shadow: none; color: var(--text-muted); }
+.context-drawer .agent-status-pill:is(.status-needs-you, .status-your-turn) { color: var(--signal); }
+.context-drawer .agent-status-text { color: inherit; font: 500 13px/18px var(--sans); }
+.context-drawer .agent-staged-editor button,
+.context-drawer .agent-staged-edit-actions button,
 .context-drawer .agent-handoff-buttons button,
-.context-drawer .agent-disclosure-toggle,
 .context-drawer .agent-raw-toggle {
   min-height: 32px;
-  font: 600 13px/1 var(--sans);
-}
-
-.context-drawer .agent-staged-editor button,
-.context-drawer .agent-staged-edit-actions button {
-  min-height: 32px;
-  font: 600 13px/1 var(--sans);
-}
-
-.context-drawer .agent-staged-editor strong,
-.context-drawer .agent-staged-edit-form label > span {
-  font: 600 13px/1.2 var(--sans);
-}
-
-.context-drawer .agent-timeline-header {
-  min-height: 48px;
-  border-bottom: 1px solid var(--line);
-  padding: 12px 14px;
-  align-items: center;
-}
-
-.context-drawer .agent-status-pill {
-  border: 0;
-  padding: 0;
-  background: transparent;
-}
-
-.context-drawer .agent-context-essentials {
-  margin: 0;
-  padding: 14px 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-}
-
-.context-drawer .agent-staged-editor,
-.context-drawer .agent-staged-edit-form {
-  margin: 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  padding: 14px 0;
-  background: transparent;
+  background: var(--surface-control);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-strong);
+  font: 400 12px/16px var(--sans);
   box-shadow: none;
 }
-
+.context-drawer .agent-staged-edit-form label > span { color: var(--text-muted); font: 500 12px/16px var(--sans); }
+.context-drawer .agent-context-essentials { margin: 0; padding: 2px 0; background: transparent; border: 0; box-shadow: none; }
 .context-drawer .agent-staged-editor-copy p,
-.context-drawer .agent-staged-edit-heading p {
-  margin-top: 4px;
-}
+.context-drawer .agent-staged-edit-heading p { color: var(--text-muted); font: 400 12px/17px var(--sans); }
 
-.context-drawer .agent-handoff-row {
-  margin: 0;
-  border-bottom: 1px solid var(--line);
-  padding: 10px 0 14px;
-}
-
-.context-drawer .agent-handoff-buttons button {
-  border-color: transparent;
-  background: transparent;
-}
-
-.context-drawer .agent-context-disclosure {
-  margin: 0;
-  border-top: 0;
-  border-bottom: 1px solid var(--line);
-  padding: 6px 0;
-}
-
-.context-drawer .agent-session-facts {
-  padding: 5px 0 10px;
-}
-
-.context-drawer .agent-session-facts dt {
-  font: 600 11px/1.2 var(--sans);
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.context-drawer .agent-session-facts dd {
-  font: 500 11px/1.4 var(--sans);
-}
-
-.context-drawer .agent-activity-list li {
-  display: block;
-  border-left: 2px solid var(--border-strong);
-  padding-left: 10px;
-}
 
 @media (prefers-reduced-transparency: reduce) {
   .context-drawer,
