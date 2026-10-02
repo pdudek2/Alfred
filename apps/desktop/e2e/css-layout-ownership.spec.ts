@@ -97,10 +97,10 @@ const contextProbes: CssOwnerProbe[] = [
   },
 ];
 
-const prepareWorkProbes: CssOwnerProbe[] = [
-  { name: "prepare-work", selector: ".prepare-work-popover", required: true,
+const newSessionProbes: CssOwnerProbe[] = [
+  { name: "new-session", selector: ".new-session-sheet", required: true,
     properties: ["display", "width", "min-width", "max-width", "background-color", "border-radius"] },
-  { name: "composer", selector: ".composer-bar", required: true,
+  { name: "new-session-form", selector: ".new-session-sheet form", required: true,
     properties: ["display", "grid-template-columns", "grid-template-rows", "min-height", "padding", "gap", "background-color"] },
 ];
 
@@ -232,19 +232,50 @@ test.describe("draft plan layout", () => {
   });
 });
 
-test.describe("Prepare Work composer layout", () => {
+test.describe("New session sheet layout", () => {
   test.use({ fixtureOptions: {} });
 
-  test("grows through three prompt lines and scrolls beyond them", async ({ harness }, testInfo) => {
+  test("aligns the picker and inherits native control schemes", async ({ harness }) => {
     const { page } = harness;
-    await page.getByRole("button", { name: "Open launch menu" }).click();
-    await page.getByRole("menuitem", { name: "Prepare Work" }).click();
-    const prepareWork = page.getByRole("dialog", { name: "Prepare Work" });
-    const input = prepareWork.getByRole("textbox", { name: "Dispatch instruction" });
+    await page.getByRole("button", { name: "New", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+    const title = sheet.locator("header > span");
+    const picker = sheet.getByRole("button", { name: "Choose project", exact: true });
+    for (const label of [title, picker]) {
+      await expect(label).toHaveCSS("font-size", "15px");
+      await expect(label).toHaveCSS("line-height", "20px");
+      await expect(label).toHaveCSS("font-weight", "500");
+    }
+    const titleBounds = await title.boundingBox();
+    const labelBounds = await picker.locator("span").boundingBox();
+    const chevronBounds = await picker.locator("svg").boundingBox();
+    expect(titleBounds && labelBounds && chevronBounds).toBeTruthy();
+    expect(Math.abs(titleBounds!.y - labelBounds!.y)).toBeLessThanOrEqual(1);
+    expect(chevronBounds!.x).toBeGreaterThanOrEqual(labelBounds!.x + labelBounds!.width);
+    await expect(sheet).toHaveCSS("color-scheme", "dark");
+    // The app currently ships a dark palette; verify inheritance for a light-theme owner too.
+    for (const scheme of ["light", "dark"]) {
+      await page.evaluate((value) => { document.documentElement.style.colorScheme = value; }, scheme);
+      await expect(sheet).toHaveCSS("color-scheme", scheme);
+      await expect(sheet.getByRole("radio").first()).toHaveCSS("color-scheme", scheme);
+      await expect(sheet.getByRole("checkbox")).toHaveCSS("color-scheme", scheme);
+    }
+    await page.evaluate(() => document.documentElement.style.removeProperty("color-scheme"));
+    harness.assertNoRuntimeErrors();
+  });
+
+  test("keeps three prompt rows and scrolls beyond them", async ({ harness }, testInfo) => {
+    const { page } = harness;
+    await page.getByRole("button", { name: "New", exact: true }).click();
+    await page.getByRole("radio", { name: /^Plan with Alfred/ }).click();
+    const prepareWork = page.getByRole("dialog", { name: "New session" });
+    const input = prepareWork.getByRole("textbox", { name: "Goal" });
     const readControlHeights = () => prepareWork.evaluate((node) => ({
-      prepare: node.querySelector<HTMLElement>(".composer-send")?.getBoundingClientRect().height,
-      target: node.querySelector<HTMLElement>(".dispatch-target-chip")?.getBoundingClientRect().height,
+      prepare: node.querySelector<HTMLElement>(".new-session-start")?.getBoundingClientRect().height,
+      target: node.querySelector<HTMLElement>(".chrome-menu-trigger")?.getBoundingClientRect().height,
     }));
+    await expect(input).toHaveCSS("overflow-y", "auto");
+    await expect(input).toHaveCSS("resize", "none");
     const initialHeight = await input.evaluate((node) => node.clientHeight);
     const initialControlHeights = await readControlHeights();
 
@@ -253,7 +284,7 @@ test.describe("Prepare Work composer layout", () => {
       clientHeight: node.clientHeight,
       scrollHeight: node.scrollHeight,
     }));
-    expect(threeLines.clientHeight).toBeGreaterThan(initialHeight);
+    expect(threeLines.clientHeight).toBe(initialHeight);
     expect(threeLines.scrollHeight).toBeLessThanOrEqual(threeLines.clientHeight + 1);
     expect(await readControlHeights()).toEqual(initialControlHeights);
 
@@ -266,7 +297,7 @@ test.describe("Prepare Work composer layout", () => {
     expect(fourLines.scrollHeight).toBeGreaterThan(fourLines.clientHeight);
     expect(await readControlHeights()).toEqual(initialControlHeights);
     await page.screenshot({
-      path: testInfo.outputPath("prepare-work-four-lines.png"),
+      path: testInfo.outputPath("new-session-four-lines.png"),
       style: privacySafeScreenshotStyle,
     });
     harness.assertNoRuntimeErrors();
@@ -280,8 +311,9 @@ test.describe("work session and project identity", () => {
     const { app, page, paths } = harness;
     await setWindowSize(app, page, 1800, 900);
 
-    await page.getByRole("button", { name: "Open launch menu" }).click();
-    await page.getByRole("menuitem", { name: "New Codex session" }).click();
+    await page.getByRole("button", { name: "New", exact: true }).click();
+    await page.getByRole("radio", { name: /^Codex/ }).click();
+    await page.getByRole("button", { name: "Start" }).click();
     for (let index = 0; index < 4; index += 1) await addManualTerminal(page);
     await expect(page.getByTestId("xterm-host")).toHaveCount(6);
 
@@ -418,12 +450,12 @@ test("captures deterministic CSS ownership evidence across core states and overl
 
   await capture("work-grid", [...frameProbes, ...terminalProbes]);
 
-  await page.getByRole("button", { name: "Open launch menu" }).click();
-  await page.getByRole("menuitem", { name: "Prepare Work" }).click();
-  await expect(page.getByRole("dialog", { name: "Prepare Work" })).toBeVisible();
-  await capture("prepare-work", [...frameProbes, ...terminalProbes, ...prepareWorkProbes]);
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("radio", { name: /^Plan with Alfred/ }).click();
+  await expect(page.getByRole("dialog", { name: "New session" })).toBeVisible();
+  await capture("new-session", [...frameProbes, ...terminalProbes, ...newSessionProbes]);
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "Prepare Work" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "New session" })).toHaveCount(0);
 
   await chooseWorkLayout(page, "Focus");
   await expect(page.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeVisible();
@@ -705,8 +737,9 @@ test("captures deterministic CSS ownership evidence across core states and overl
 });
 
 async function addManualTerminal(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Open launch menu" }).click();
-  await page.getByRole("menuitem", { name: "New manual terminal" }).click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("radio", { name: /^Terminal/ }).click();
+  await page.getByRole("button", { name: "Start" }).click();
 }
 
 async function selectSurface(

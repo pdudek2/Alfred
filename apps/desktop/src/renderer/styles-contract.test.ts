@@ -21,6 +21,7 @@ const productCssPaths = [
   "components/workspace-preview-dock.css",
   "components/worktree-diff-panel.css",
   "components/plan-line.css",
+  "components/new-session-sheet.css",
 ].map((relativePath) => [
   resolve(process.cwd(), "src/renderer", relativePath),
   resolve(process.cwd(), "apps/desktop/src/renderer", relativePath),
@@ -234,25 +235,6 @@ function expectTopLevelOwnerWithin(
   for (const declaration of requiredDeclarations) expect(regionalBodies[0]).toContain(declaration);
 }
 
-function expectTopLevelDeclarationOwnerWithin(
-  selector: string,
-  requiredDeclarations: string[],
-  startMarker: string,
-  endMarker: string,
-): void {
-  const matchingBodies = topLevelExactRuleBodies(selector).filter((body) =>
-    requiredDeclarations.every((declaration) => body.includes(declaration)),
-  );
-  expect(matchingBodies, `${selector} must have one owner for ${requiredDeclarations.join(", ")}`).toHaveLength(1);
-  const start = styles.indexOf(startMarker);
-  const end = styles.indexOf(endMarker, start + startMarker.length);
-  expect(start, `Missing owner-region start marker ${startMarker}`).toBeGreaterThanOrEqual(0);
-  expect(end, `Missing owner-region end marker ${endMarker}`).toBeGreaterThan(start);
-  const regionalMatchingBodies = exactRuleBodiesIn(styles.slice(start, end), selector).filter((body) =>
-    requiredDeclarations.every((declaration) => body.includes(declaration)),
-  );
-  expect(regionalMatchingBodies, `${selector} declaration owner must be inside ${startMarker} … ${endMarker}`).toHaveLength(1);
-}
 
 type CssOwnerRegion = {
   name: string;
@@ -665,13 +647,12 @@ describe("renderer CSS contracts", () => {
     expect(materialShadows.map(({ selectors }) => selectors)).toEqual(expect.arrayContaining([
       [".workbench-header"],
       [".chrome-menu-popover"],
-      [".prepare-work-popover"],
       ['html[data-alfred-window-material="native"] .mission-bar'],
       [".terminal-tile:focus-visible"],
       [".project-session.is-active"],
       [".workspace-layout.surface-work > .orchestrator-surface"],
     ]));
-    expect(materialShadows).toHaveLength(7);
+    expect(materialShadows).toHaveLength(6);
     expect(oversizedRadii).toEqual([]);
     expect(signalUses.every(({ selectors }) =>
       selectors.every((selector) =>
@@ -691,14 +672,8 @@ describe("renderer CSS contracts", () => {
     const terminalRegion = [{
       name: "canonical terminal scene",
       startMarker: "\n.terminal-stage {",
-      endMarker: "\n.composer-bar {",
+      endMarker: "/* Command palette and privacy modal */",
     }];
-    const composerRegion = [{
-      name: "canonical composer/dispatch",
-      startMarker: "\n.composer-bar {",
-      endMarker: "/* Focus mode and inspector */",
-    }];
-
     expectAllFamilyTopLevelOccurrencesWithinSource(
       styles,
       "Slice 1 shell",
@@ -717,19 +692,14 @@ describe("renderer CSS contracts", () => {
       (selector) => /(?:\.terminal-|\.tile-|\.tool-dot|\.session-status-|\.session-rename-form|\.split-empty-|\.staged-|\.arrange-|\.xterm-host)/.test(selector),
       terminalRegion,
     );
-    expectAllFamilyTopLevelOccurrencesWithinSource(
-      styles,
-      "Slice 1 composer",
-      (selector) => !selector.startsWith(".prepare-work-popover") && /(?:\.composer-|\.dispatch-)/.test(selector),
-      composerRegion,
-    );
+
   });
 
   it("keeps live responsive owners beside their canonical Slice 1 families", () => {
     const source = withoutComments(styles);
     const shellStart = source.indexOf(".agent-space-shell {");
     const terminalStart = source.indexOf("\n.terminal-stage {");
-    const terminalEnd = source.indexOf("\n.composer-bar {", terminalStart);
+    const terminalEnd = source.indexOf("\n.discard-checkout-backdrop,", terminalStart);
     const responsiveStarts = /@(media|container)\s*([^{}]+)\{/g;
     const misplaced: string[] = [];
 
@@ -961,7 +931,6 @@ describe("renderer CSS contracts", () => {
     ]);
     expectCanonicalBase(".work-surface-toolbar", ["display: flex", "height: 46px"]);
     expectCanonicalBase(".chrome-menu-popover", ["z-index: 120", "box-shadow:"]);
-    expectCanonicalBase(".prepare-work-popover", ["width: 560px", "max-width: calc(100vw - 24px)"]);
 
     expectCanonicalBase(".project-navigator", [
       "min-width: 0",
@@ -1265,10 +1234,6 @@ describe("renderer CSS contracts", () => {
     ]);
     expectCanonicalBase(".context-column", ["grid-column: 3", "position: static", "pointer-events: none"]);
     expectCanonicalBase(".context-drawer", ["display: grid", "overflow: hidden"]);
-    expectCanonicalBase(".composer-bar", ["display: grid", "min-width: 0"]);
-    expectCanonicalBase(".composer-input", ["box-sizing: border-box", "resize: none"]);
-    expectCanonicalBase(".composer-send", ["display: inline-flex", "cursor: pointer"]);
-    expectCanonicalBase(".dispatch-target-chip", ["border-radius: 9px", "background-image: none"]);
 
     const terminalGridStart = ".terminal-stage {";
     const terminalGridEnd = ".terminal-empty-state {";
@@ -1375,27 +1340,6 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain(":has(.context-column.open)");
     expect(styles).not.toContain(".workspace-layout > .context-column.open");
 
-    const composerStart = "\n.composer-bar {";
-    const composerEnd = "/* Focus mode and inspector */";
-    expectTopLevelOwnerWithin('.composer-bar[data-state="busy"]', ["background: transparent"], composerStart, composerEnd);
-    expectTopLevelOwnerWithin('.composer-bar[data-state="blocked"]', ["background: transparent"], composerStart, composerEnd);
-    expectTopLevelOwnerWithin('.composer-bar[data-state="disabled"]', ["background: transparent"], composerStart, composerEnd);
-    expectTopLevelOwnerWithin(".composer-input:focus-visible", ["border-color: var(--ink-6)", "box-shadow: none"], composerStart, composerEnd);
-    expectTopLevelOwnerWithin(".dispatch-bar", ["grid-template-columns: minmax(0, 1fr)", "background: transparent"], composerStart, composerEnd);
-    expectTopLevelDeclarationOwnerWithin(".dispatch-bar .composer-input", ["flex: 1 1 auto"], composerStart, composerEnd);
-    expectTopLevelOwnerWithin(".dispatch-bar .composer-input:focus-visible", ["border: 0", "box-shadow: none"], composerStart, composerEnd);
-    expectTopLevelDeclarationOwnerWithin(".dispatch-bar .composer-send", ["min-width: 76px", "background: var(--ink-2)"], composerStart, composerEnd);
-    expectTopLevelOwnerWithin(".dispatch-bar .composer-send:disabled", ["color: var(--ink-5)"], composerStart, composerEnd);
-    expectTopLevelOwnerWithin('.dispatch-bar[data-state="ready"] .composer-send:enabled', ["background: var(--ink-2)", "border-color: var(--ink-5)"], composerStart, composerEnd);
-    expectTopLevelOwnerWithin('.dispatch-bar[data-state="busy"] .composer-send:enabled', ["background: var(--ink-2)", "border-color: var(--ink-5)"], composerStart, composerEnd);
-    expectTopLevelOwnerWithin('.composer-bar[data-state="blocked"] .composer-send:enabled', ["border-color: var(--ink-5)"], composerStart, composerEnd);
-    expectTopLevelOwnerWithin('.composer-bar[data-state="ready"] .composer-status-indicator', ["background: var(--ink-5)"], composerStart, composerEnd);
-    expectTopLevelOwnerWithin('.composer-bar[data-state="busy"] .composer-status-indicator', ["background: var(--ink-5)"], composerStart, composerEnd);
-    expectTopLevelOwnerWithin('.composer-bar[data-state="blocked"] .composer-status-indicator', ["background: var(--ink-5)"], composerStart, composerEnd);
-    expectTopLevelOwnerWithin(".dispatch-bar .composer-status-row", ["grid-column: 1", "overflow: hidden"], composerStart, composerEnd);
-    expectTopLevelOwnerWithin(".dispatch-bar .composer-status", ["font: 400 11px/1.2 var(--sans)", "letter-spacing: 0"], composerStart, composerEnd);
-    expectTopLevelOwnerWithin(".dispatch-bar .composer-status-indicator", ["width: 6px", "border: 0"], composerStart, composerEnd);
-
     const terminalStageRegion: CssOwnerRegion = {
       name: "terminal stage/grid",
       startMarker: ".terminal-stage {",
@@ -1404,7 +1348,7 @@ describe("renderer CSS contracts", () => {
     const terminalTileRegion: CssOwnerRegion = {
       name: "terminal tile/xterm",
       startMarker: ".terminal-tile {",
-      endMarker: "\n.composer-bar {",
+      endMarker: "/* Command palette and privacy modal */",
     };
     const terminalSemanticRoleRegion: CssOwnerRegion = {
       name: "terminal semantic role layer",
@@ -1416,12 +1360,6 @@ describe("renderer CSS contracts", () => {
       startMarker: ".context-drawer {",
       endMarker: ".agent-timeline-panel {\n  border-color: var(--border);",
     };
-    const composerRegion: CssOwnerRegion = {
-      name: "composer/dispatch",
-      startMarker: "\n.composer-bar {",
-      endMarker: "/* Focus mode and inspector */",
-    };
-
     for (const [selector, expectedOccurrences] of [
       [".terminal-stage-header", 1],
       [".terminal-stage.arranging .layout-controls", 1],
@@ -1499,20 +1437,7 @@ describe("renderer CSS contracts", () => {
       expectAllTopLevelOccurrencesWithin(selector, [contextRegion], expectedOccurrences);
     }
 
-    for (const [selector, expectedOccurrences] of [
-      [".dispatch-bar", 1],
-      [".dispatch-bar .composer-input", 1],
-      [".dispatch-bar .composer-input:focus-visible", 1],
-      [".dispatch-bar .composer-send", 1],
-      [".dispatch-bar .composer-send:disabled", 1],
-      [".dispatch-bar .composer-status-row", 1],
-      [".dispatch-bar .composer-status", 1],
-      [".dispatch-bar .composer-status-indicator", 1],
-      ['.dispatch-bar[data-state="ready"] .composer-send:enabled', 1],
-      ['.dispatch-bar[data-state="busy"] .composer-send:enabled', 1],
-    ] as const) {
-      expectAllTopLevelOccurrencesWithin(selector, [composerRegion], expectedOccurrences);
-    }
+
   });
 
   it("switches terminal secondary actions by tile width", () => {
@@ -2133,7 +2058,6 @@ describe("renderer CSS contracts", () => {
       workSurfaceToolbarStyles,
       ".work-surface-toolbar > button",
     ).join("\n");
-    const dispatchChip = exactBlockFor(".dispatch-target-chip");
     const commandPalette = exactBlockFor(".command-palette-list");
     const paletteScrollbar = exactBlockFor(".command-palette-list::-webkit-scrollbar");
     const paletteThumb = exactBlockFor(".command-palette-list::-webkit-scrollbar-thumb");
@@ -2142,8 +2066,6 @@ describe("renderer CSS contracts", () => {
     expect(toolbarControls).toContain("height: var(--control-height)");
     expect(toolbarControls).toContain("min-height: var(--control-height)");
     expect(toolbarControls).toContain("gap: 6px");
-    expect(dispatchChip).toContain("display: inline-flex");
-    expect(dispatchChip).toContain("gap: 7px");
     expect(commandPalette).toContain("scrollbar-width: thin");
     expect(commandPalette).toContain("scrollbar-color: var(--ink-3) transparent");
     expect(paletteScrollbar).toContain("width: 8px");
@@ -2152,11 +2074,40 @@ describe("renderer CSS contracts", () => {
     expect(selectedSession).toContain("var(--signal-focus) 10%");
   });
 
-  it("keeps the ready dispatch action neutral", () => {
-    const readyDispatch = blockFor(".dispatch-bar[data-state=\"ready\"] .composer-send:enabled");
+  it("keeps the New sheet picker inline and lets native controls inherit the app scheme", () => {
+    const sheet = readFileSync(productCssPaths.at(-1)!, "utf8");
+    expect(singleTopLevelRuleBodyIn(styles, ":root")).toContain("color-scheme: dark");
+    expect(singleTopLevelRuleBodyIn(sheet, ".new-session-sheet")).toContain("color-scheme: inherit");
+    const header = singleTopLevelRuleBodyIn(sheet, ".new-session-sheet header");
+    expect(header).toContain("align-items: baseline");
+    expect(header).toContain("font: 500 15px/20px var(--sans)");
+    const picker = singleTopLevelRuleBodyIn(sheet, ".new-session-sheet .chrome-menu-trigger");
+    expect(picker).toContain("display: inline-flex");
+    expect(picker).toContain("width: auto");
+    expect(picker).toContain("font: 500 15px/20px var(--sans)");
+    expect(picker).toContain("color: var(--text-primary)");
+    expect(singleTopLevelRuleBodyIn(sheet, ".new-session-sheet .chrome-menu-trigger > svg")).toContain("opacity: 0.7");
+  });
 
-    expect(readyDispatch).toContain("background: var(--ink-2)");
-    expect(readyDispatch).not.toMatch(/--(?:signal-focus|role-active|role-success)/);
+  it("keeps the New sheet prompt at three rows with a hairline and the standard focus ring", () => {
+    const sheet = readFileSync(productCssPaths.at(-1)!, "utf8");
+    const prompt = singleTopLevelRuleBodyIn(sheet, ".new-session-prompt textarea");
+    expect(prompt).toContain("resize: none");
+    expect(prompt).toContain("overflow-y: auto");
+    expect(prompt).toContain("border: 0");
+    expect(prompt).toContain("box-shadow: inset 0 0 0 1px var(--border)");
+    const focus = singleTopLevelRuleBodyIn(sheet, ".new-session-sheet textarea:focus-visible");
+    expect(focus).toContain("outline: none");
+    expect(focus).toContain("var(--border-focus)");
+    expect(focus).toContain("var(--focus-border)");
+  });
+
+  it("keeps the New sheet action neutral and uses the panel surface", () => {
+    const sheet = readFileSync(productCssPaths.at(-1)!, "utf8");
+    expect(sheet).toContain("background: var(--surface-panel)");
+    expect(sheet).toContain("var(--shadow-panel)");
+    expect(sheet).toContain("background: var(--text-primary)");
+    expect(sheet).not.toMatch(/--signal/);
   });
 
   it("keeps legacy neon success greens from winning the primary action cascade", () => {
@@ -2230,19 +2181,12 @@ describe("renderer CSS contracts", () => {
   it("keeps the Work chrome quiet and command-like", () => {
     const tileUtilities = blockForContaining(".tile-utility-actions", "opacity: 0");
     const tileDangerActions = blockForContaining(".tile-danger-actions", "opacity: 0");
-    const dispatchBar = blockFor(".dispatch-bar");
-    const dispatchCapsule = blockFor(".dispatch-capsule");
-    const dispatchChip = exactBlockFor(".dispatch-target-chip");
 
     expect(styles).toContain(".arrange-mode-label");
     expect(tileUtilities).toContain("opacity: 0");
     expect(tileUtilities).toContain("pointer-events: none");
     expect(tileDangerActions).toContain("opacity: 0");
     expect(tileDangerActions).toContain("pointer-events: none");
-    expect(dispatchBar).toContain("grid-template-rows: auto 14px");
-    expect(dispatchCapsule).toContain("min-height: var(--control-height)");
-    expect(dispatchCapsule).toContain("background: var(--ink-0)");
-    expect(dispatchChip).toContain("background-image: none");
   });
 
   it("keeps live workbench controls on the canonical control radius", () => {
@@ -2376,7 +2320,6 @@ describe("renderer CSS contracts", () => {
       [".workspace-popover button small", "font: 500 12px/1.35 var(--sans)"],
       [".workspace-rename-form label span", "font: 600 12px/1.2 var(--sans)"],
       [".workspace-mission-form label span", "font: 600 12px/1.2 var(--sans)"],
-      [".prepare-work-popover", "font: 500 13px/1.35 var(--sans)"],
       [".command-palette-group", "font: 650 12px/1.2 var(--sans)"],
       [".command-palette-list button small", "font: 500 12px/1.35 var(--sans)"],
       [".command-palette-empty", "font: 500 12px/1.35 var(--sans)"],

@@ -13,19 +13,15 @@ export type WorkbenchHeaderProps = {
   needsYouCount: number;
   needsYouOpen: boolean;
   needsYouTriggerRef?: Ref<HTMLButtonElement>;
-  prepareWorkTriggerRef?: Ref<HTMLButtonElement>;
+  newSessionTriggerRef?: Ref<HTMLButtonElement>;
   selectedSession: SessionTile | null;
   shortcutModifier: "Cmd" | "Ctrl";
   detailsTriggerRef?: Ref<HTMLButtonElement>;
   detailsOpen?: boolean;
   surfacesTriggerRef?: Ref<HTMLButtonElement>;
   workspaceDetail: string;
-  workspaceRootMissing?: boolean;
-  onAddAgentSession: (kind: "codex" | "claude") => void;
-  onAddManualSession: () => void;
   onOpenCommandPalette: () => void;
-  onOpenPrepareWork: () => void;
-  onReconnectWorkspace: () => void;
+  onOpenNewSession: () => void;
   onOpenPrivacyControls: () => void;
   onSelectSurface: (surface: PrimarySurface) => void;
   onToggleContext: () => void;
@@ -38,19 +34,15 @@ export function WorkbenchHeader({
   needsYouCount,
   needsYouOpen,
   needsYouTriggerRef,
-  prepareWorkTriggerRef,
+  newSessionTriggerRef,
   selectedSession,
   shortcutModifier,
   detailsTriggerRef,
   detailsOpen = false,
   surfacesTriggerRef,
   workspaceDetail,
-  workspaceRootMissing = false,
-  onAddAgentSession,
-  onAddManualSession,
   onOpenCommandPalette,
-  onOpenPrepareWork,
-  onReconnectWorkspace,
+  onOpenNewSession,
   onOpenPrivacyControls,
   onSelectSurface,
   onToggleContext,
@@ -58,39 +50,6 @@ export function WorkbenchHeader({
 }: WorkbenchHeaderProps) {
   const surfaceTitle = activeSurface === "sessions" ? "History" : "Work";
   const surfaceDetail = activeSurface === "work" ? workspaceDetail : "Alfred";
-  const launchItems: ChromeMenuItem[] = [
-    ...(workspaceRootMissing
-      ? [{ id: "reconnect-workspace", label: "Reconnect project folder", run: onReconnectWorkspace }]
-      : []),
-    {
-      id: "prepare-work",
-      label: "Prepare Work",
-      ...(workspaceRootMissing ? { detail: "Reconnect the project folder first" } : {}),
-      disabled: workspaceRootMissing,
-      run: onOpenPrepareWork,
-    },
-    {
-      id: "new-codex",
-      label: "New Codex session",
-      ...(workspaceRootMissing ? { detail: "Reconnect the project folder first" } : {}),
-      disabled: workspaceRootMissing,
-      run: () => onAddAgentSession("codex"),
-    },
-    {
-      id: "new-claude",
-      label: "New Claude session",
-      ...(workspaceRootMissing ? { detail: "Reconnect the project folder first" } : {}),
-      disabled: workspaceRootMissing,
-      run: () => onAddAgentSession("claude"),
-    },
-    {
-      id: "new-manual",
-      label: "New manual terminal",
-      ...(workspaceRootMissing ? { detail: "Reconnect the project folder first" } : {}),
-      disabled: workspaceRootMissing,
-      run: onAddManualSession,
-    },
-  ];
   const surfaceItems: ChromeMenuItem[] = [
     { id: "work", label: "Work", run: () => onSelectSurface("work") },
     { id: "sessions", label: "History", run: () => onSelectSurface("sessions") },
@@ -119,14 +78,9 @@ export function WorkbenchHeader({
             <span className="workbench-session-title">{selectedSession.title}</span>
           )}
           <small className="workbench-context-detail">{surfaceDetail}</small>
-          <ChromeMenu
-            {...(prepareWorkTriggerRef ? { triggerRef: prepareWorkTriggerRef } : {})}
-            label="Open launch menu"
-            title="New"
-            items={launchItems}
-          >
-            <Plus aria-hidden="true" size={14} />
-          </ChromeMenu>
+          <button ref={newSessionTriggerRef} type="button" aria-label="New" aria-haspopup="dialog" onClick={onOpenNewSession}>
+            <Plus aria-hidden="true" size={14} /><span>New</span><kbd>{shortcutModifier === "Cmd" ? "⌘N" : "Ctrl N"}</kbd>
+          </button>
         </div>
         <div className="workbench-right-zone">
           <button ref={detailsTriggerRef} type="button" aria-label="Details" aria-expanded={detailsOpen}

@@ -82,6 +82,9 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
 
   const workToolbar = page.getByRole("toolbar", { name: "Work layout controls" });
   await workToolbar.getByRole("button", { name: "New terminal" }).click();
+  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole("button", { name: "Start", exact: true }).click();
   await expect(page.locator('article[data-session-id="manual-1"] .xterm-screen')).toBeAttached();
   await seedProjectShellTerminals(page, harness.paths.workspaceA);
   await switchProject(page, "Fixture Beta");

@@ -115,8 +115,9 @@ test.describe("draft Arrange layout", () => {
 });
 
 async function addManualTerminal(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Open launch menu" }).click();
-  await page.getByRole("menuitem", { name: "New manual terminal" }).click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("radio", { name: /^Terminal/ }).click();
+  await page.getByRole("button", { name: "Start" }).click();
 }
 
 async function selectSurface(page: Page, surface: "Work" | "History"): Promise<void> {

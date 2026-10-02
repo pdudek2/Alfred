@@ -218,8 +218,14 @@ test("manual terminal adopts the Claude runtime identity", async ({ harness }, t
 });
 
 async function addSession(page: import("@playwright/test").Page, name: string): Promise<void> {
-  await page.getByRole("button", { name: "Open launch menu" }).click();
-  await page.getByRole("menuitem", { name }).click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  await expect(sheet).toBeVisible();
+  const kind = name.includes("Codex") ? /^Codex/ : name.includes("Claude") ? /^Claude/ : /^Terminal/;
+  const radio = sheet.getByRole("radio", { name: kind });
+  await radio.click();
+  await expect(radio).toBeChecked();
+  await sheet.getByRole("button", { name: "Start", exact: true }).click();
 }
 
 async function tileGeometry(tiles: import("@playwright/test").Locator) {
