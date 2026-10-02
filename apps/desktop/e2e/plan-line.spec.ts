@@ -28,8 +28,9 @@ test("launches and discards drafts from the plan line without touching live term
   await expect(page.getByRole("status", { name: "Empty project" })).toContainText("Nothing is running");
   await capture(page, "drafts-only");
 
-  await page.getByRole("button", { name: "Open launch menu" }).click();
-  await page.getByRole("menuitem", { name: "New manual terminal" }).click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("radio", { name: /^Terminal/ }).click();
+  await page.getByRole("button", { name: "Start" }).click();
   const manualId = await page.getByTestId("terminal-tile").first().getAttribute("data-session-id");
   const xtermHost = page.locator(`[data-session-id="${manualId}"] [data-testid="xterm-host"]`);
   await expect(xtermHost.locator(".xterm-screen")).toBeAttached();

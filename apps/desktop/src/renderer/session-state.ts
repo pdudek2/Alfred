@@ -101,6 +101,7 @@ export function addAgentSession(
   cwd: string,
   workspaceId = "A",
   isolation: TerminalSessionIsolation = "shared",
+  prompt = "",
 ): SessionTile[] {
   const nextIndex = nextPrefixedSessionIndex(sessions, `${kind}-`);
   const title = `${kind === "codex" ? "Codex" : "Claude"} · session ${nextIndex}`;
@@ -116,7 +117,7 @@ export function addAgentSession(
       runtimeStatus: "starting",
       agentKind: kind,
       command: kind,
-      args: [],
+      args: prompt ? ["--", prompt] : [],
       isolation,
     },
   ];
