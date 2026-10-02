@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   TRANSCRIPT_TEXT_LIMIT,
+  SESSIONS_PAGE_SIZE,
   type ExternalSessionSummary,
   type SessionSummary,
   type SessionsApi,
@@ -153,13 +154,24 @@ export function SessionsSurface({
   const selectedRecoveryArmed = Boolean(
     selectedManagedTarget && armedRecoverySessionIds.has(selectedManagedTarget.sessionId),
   );
-  const selectedSavedActions = selectedManagedSession?.runtimeStatus === "restored" && onDiscardSavedSession
+  const discardSelectionRef = useRef<{ key: string; index: number } | null>(null);
+  const selectedSavedActions = selectedManagedSession
+    && ["restored", "exited", "error"].includes(selectedManagedSession.runtimeStatus ?? "")
+    && onDiscardSavedSession
     ? {
+        ended: selectedManagedSession.runtimeStatus !== "restored",
+        confirmInline: !isReviewableWorktreeSession(selectedManagedSession),
         checkout: isReviewableWorktreeSession(selectedManagedSession)
           && Boolean(onApplyWorktree && onReviewWorktree),
         pendingAction: worktreeActionPending?.[sessionInstanceKey(selectedManagedSession)],
         onApply: () => onApplyWorktree?.(selectedManagedSession.id),
-        onDiscard: () => onDiscardSavedSession(selectedManagedSession.id),
+        onDiscard: () => {
+          discardSelectionRef.current = {
+            key: selected!.sessionKey,
+            index: projection.items.findIndex((item) => item.sessionKey === selected!.sessionKey),
+          };
+          onDiscardSavedSession(selectedManagedSession.id);
+        },
         onReview: () => onReviewWorktree?.(selectedManagedSession.id),
       }
     : null;
@@ -367,7 +379,19 @@ export function SessionsSurface({
     if (previousReconciliationKeyRef.current === reconciliationKey && !selectedSessionMissing) return;
     previousReconciliationKeyRef.current = reconciliationKey;
     if (projection.items.some((item) => item.sessionKey === state.selectedSessionKey)) return;
-    const first = projection.items[0];
+    const discarded = selectedSessionMissing && discardSelectionRef.current?.key === state.selectedSessionKey
+      ? discardSelectionRef.current : null;
+    if (discarded && projection.items.length === 0 && state.pageIndex > 0) {
+      discardSelectionRef.current = { ...discarded, index: SESSIONS_PAGE_SIZE - 1 };
+      onStateChange((current) => ({ ...current, pageIndex: current.pageIndex - 1 }));
+      return;
+    }
+    discardSelectionRef.current = null;
+    const first = projection.items[discarded ? Math.min(discarded.index, projection.items.length - 1) : 0];
+    if (discarded) {
+      setActiveSessionKey(first?.sessionKey ?? null);
+      navigatorRef.current?.focus();
+    }
     if (first) {
       void selectSession(first);
       return;
@@ -387,7 +411,7 @@ export function SessionsSurface({
         readerScrollTop: 0,
       };
     });
-  }, [onStateChange, projection.items, reconciliationKey, selectSession, state.selectedSessionKey]);
+  }, [onStateChange, projection.items, reconciliationKey, selectSession, state.pageIndex, state.selectedSessionKey]);
 
   const loadMore = useCallback(async () => {
     if (!selected || !sessionsApi || (selected.source !== "external-codex" && !selected.contentSessionKey)) return;
