@@ -2416,7 +2416,7 @@ export function App() {
 
       if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === "i") {
         event.preventDefault();
-        if (!prepareWorkOpen && !workspaceMenuOpen && !pendingDiscardConfirmation) handleToggleContextDrawer();
+        if (!newSessionOpen && !workspaceMenuOpen && !pendingDiscardConfirmation) handleToggleContextDrawer();
         return;
       }
 
@@ -2486,7 +2486,6 @@ export function App() {
     handleSelectWorkspace,
     handleToggleNeedsYou,
     handleToggleContextDrawer,
-    prepareWorkOpen,
     workspaceMenuOpen,
     pendingDiscardConfirmation,
     privacyPanelOpen,

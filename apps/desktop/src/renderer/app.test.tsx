@@ -2017,7 +2017,7 @@ describe("App integration", () => {
     await user.click(trigger);
     await user.click(screen.getByRole("menuitem", { name: "Details" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Close Details panel" })).toHaveFocus());
-    screen.getByRole("button", { name: "Open launch menu" }).focus();
+    screen.getByRole("button", { name: "New" }).focus();
     await user.keyboard("{Escape}");
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
     await waitFor(() => expect(trigger).toHaveFocus());
@@ -2040,7 +2040,7 @@ describe("App integration", () => {
     installDesktopBridge();
     render(<App />);
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
-    const previous = screen.getByRole("button", { name: "Open launch menu" });
+    const previous = screen.getByRole("button", { name: "New" });
     previous.focus();
     fireEvent.keyDown(previous, { key: "i", metaKey: true });
     const close = screen.getByRole("button", { name: "Close Details panel" });
