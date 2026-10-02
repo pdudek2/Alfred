@@ -524,7 +524,7 @@ export function recordSessionOutputActivity(
     const lastActivityAt = acceptedLastActivityAt === undefined
       ? item.lastActivityAt
       : Math.max(item.lastActivityAt ?? acceptedLastActivityAt, acceptedLastActivityAt);
-    const outputAt = acceptedLastActivityAt ?? now;
+    const outputAt = event.at ?? acceptedLastActivityAt ?? now;
     const { agentSignal: _previousSignal, ...withoutSignal } = item;
     const agentSignal = event.agentSignal === undefined ? item.agentSignal : event.agentSignal;
 

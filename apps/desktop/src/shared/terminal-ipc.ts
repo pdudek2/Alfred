@@ -170,6 +170,8 @@ export type TerminalDataEvent = {
   id: TerminalSessionId;
   clientId?: string;
   data: string;
+  /** When the main process received this output (ms since epoch). */
+  at?: number;
   foregroundAgentKind?: TerminalForegroundAgentKind;
   activities: SessionActivityEvent[];
   /** A new signal, or null when it was cleared. Absent means unchanged. */
