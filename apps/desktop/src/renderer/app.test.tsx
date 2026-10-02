@@ -3648,6 +3648,7 @@ describe("App integration", () => {
 
     await selectSurface(user, "History");
     await user.click(await screen.findByRole("option", { name: /Ended mapped session/i }));
+    expect(screen.queryByRole("button", { name: /Discard (ended|asleep) session/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open Project" }));
 
     expect(screen.queryByRole("region", { name: "History" })).not.toBeInTheDocument();
@@ -8806,6 +8807,72 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Review resume" })).toBeInTheDocument();
   });
 
+  it.each([0, 1])("confirms ended History discard and selects the next then previous row with list focus (exit %s)", async (exitCode) => {
+    const user = userEvent.setup();
+    const bridge = installDesktopBridge(undefined, null, [
+      manualLiveSnapshot("discard-a", "Discard A"),
+      manualLiveSnapshot("discard-b", "Discard B"),
+      manualLiveSnapshot("discard-c", "Discard C"),
+    ]);
+    render(<App />);
+    await waitFor(() => expect(window.alfredDesktop?.terminal.onExit).toHaveBeenCalled());
+    for (const id of ["discard-a", "discard-b", "discard-c"]) {
+      await bridge.emitExit({ id: `runtime-${id}`, exitCode });
+    }
+    const history = await openHistorySession(user, "Discard B");
+    const rows = within(within(history).getByRole("listbox")).getAllByRole("option");
+    const index = rows.findIndex((row) => row.textContent?.includes("Discard B"));
+    const nextTitle = rows[index + 1]!.querySelector("strong")!.textContent!;
+    const discard = within(history).getByRole("button", { name: "Discard ended session" });
+    await user.click(discard);
+    expect(discard).toHaveTextContent("Discard?");
+    expect(bridge.forgetTerminal).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(discard).toHaveTextContent(/^Discard$/);
+    expect(history).toBeVisible();
+    vi.useFakeTimers();
+    fireEvent.click(discard);
+    act(() => { vi.advanceTimersByTime(5_000); });
+    expect(discard).toHaveTextContent(/^Discard$/);
+    expect(bridge.forgetTerminal).not.toHaveBeenCalled();
+    vi.useRealTimers();
+    await user.click(discard);
+    await user.click(discard);
+    await waitFor(() => expect(within(history).queryByRole("option", { name: /Discard B/ })).not.toBeInTheDocument());
+    expect(bridge.forgetTerminal).toHaveBeenCalledWith({ clientId: "discard-b", cleanupWorktree: true });
+    expect(within(history).getByRole("option", { name: new RegExp(nextTitle) })).toHaveAttribute("aria-selected", "true");
+    expect(within(history).getByRole("listbox")).toHaveFocus();
+    await user.click(within(history).getByRole("button", { name: "Discard ended session" }));
+    await user.click(within(history).getByRole("button", { name: "Discard ended session" }));
+    await waitFor(() => expect(within(within(history).getByRole("listbox")).getAllByRole("option")).toHaveLength(1));
+    expect(within(within(history).getByRole("listbox")).getByRole("option")).toHaveAttribute("aria-selected", "true");
+    expect(within(history).getByRole("listbox")).toHaveFocus();
+    await user.click(within(history).getByRole("button", { name: "Discard ended session" }));
+    await user.click(within(history).getByRole("button", { name: "Discard ended session" }));
+    await waitFor(() => expect(within(within(history).getByRole("listbox")).queryAllByRole("option")).toHaveLength(0));
+    expect(within(history).getByRole("listbox")).toHaveFocus();
+  });
+
+  it("selects the previous page's last row after discarding the only row on a History page", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [], undefined, undefined, undefined,
+      Array.from({ length: 81 }, (_, index) => ({
+        clientId: `page-${index}`, title: `Page session ${index}`, source: "manual" as const,
+        workspaceId: "A", cwd: "/repo", shell: "zsh", command: "zsh", createdAt: index + 1,
+      })),
+    );
+    render(<App />);
+    await openSavedSessions(user);
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    const list = screen.getByRole("listbox", { name: "Session results" });
+    await user.click(within(list).getByRole("option"));
+    await user.click(screen.getByRole("button", { name: "Discard asleep session" }));
+    await user.click(screen.getByRole("button", { name: "Discard asleep session" }));
+    await waitFor(() => expect(within(list).getAllByRole("option")).toHaveLength(80));
+    expect(within(list).getAllByRole("option").at(-1)).toHaveAttribute("aria-selected", "true");
+    expect(list).toHaveFocus();
+  });
+
   it("keeps Work restart confirmation until confirm, Escape, or navigation", async () => {
     const user = userEvent.setup();
     const { createTerminal, emitExit } = installDesktopBridge(undefined, null, [{ ...manualLiveSnapshot("work-restart", "Work restart"),
@@ -9053,7 +9120,7 @@ describe("App integration", () => {
     expect(createTerminal).not.toHaveBeenCalled();
   });
 
-  it("clears armed recovery state on immediate Discard so Escape leaves History", async () => {
+  it("clears armed recovery state on confirmed Discard so Escape leaves History", async () => {
     const user = userEvent.setup();
     const { createTerminal, forgetTerminal } = installDesktopBridge(
       undefined,
@@ -9080,6 +9147,7 @@ describe("App integration", () => {
     render(<App />);
     const history = await openHistorySession(user, "Armed shared recovery");
     await user.click(within(history).getByRole("button", { name: "Review resume" }));
+    await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
     await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
 
     expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "armed-shared", cleanupWorktree: true });
@@ -9275,6 +9343,7 @@ describe("App integration", () => {
     expect(await screen.findByRole("article", { name: /Saved first/i })).toHaveTextContent("first saved transcript");
 
     await user.click(screen.getByRole("button", { name: "Discard asleep session" }));
+    await user.click(screen.getByRole("button", { name: "Discard asleep session" }));
 
     await waitFor(() => expect(screen.queryByRole("option", { name: /Saved first/i })).not.toBeInTheDocument());
     expect(await screen.findByRole("article", { name: /Saved second/i })).toHaveTextContent("second saved transcript");
@@ -9399,7 +9468,7 @@ describe("App integration", () => {
     render(<App />);
     await openSavedSessions(user);
     await user.click(await screen.findByRole("option", { name: /Apply rejection checkout/i }));
-    const apply = screen.getByRole("button", { name: "Apply to project" });
+    const apply = screen.getByRole("button", { name: "Apply to Alfred" });
     await user.click(apply);
 
     expect(await screen.findByRole("alert", { name: "Asleep session action failed" })).toHaveTextContent(
@@ -9448,7 +9517,7 @@ describe("App integration", () => {
     await selectSurface(user, "History");
     await user.click(await screen.findByRole("option", { name: /Codex recovery/i }));
     const reopenedCheckoutActions = screen.getByRole("toolbar", { name: "Asleep checkout actions" });
-    await user.click(within(reopenedCheckoutActions).getByRole("button", { name: "Apply to project" }));
+    await user.click(within(reopenedCheckoutActions).getByRole("button", { name: "Apply to Alfred" }));
     expect(worktreeApply).toHaveBeenCalledWith({ clientId: "codex-private" });
     await waitFor(() => {
       expect(screen.getByRole("status", { name: "Asleep session action result" })).toHaveTextContent(
@@ -9576,6 +9645,8 @@ describe("App integration", () => {
     const discard = within(history).getByRole("button", { name: "Discard asleep session" });
     fireEvent.click(discard);
     fireEvent.click(discard);
+    fireEvent.click(discard);
+    fireEvent.click(discard);
 
     expect(forgetTerminal).toHaveBeenCalledTimes(1);
     await act(async () => pendingForget.resolve({ ok: true }));
@@ -9624,6 +9695,7 @@ describe("App integration", () => {
 
     render(<App />);
     const history = await openHistorySession(user, "Original recovery");
+    await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
     await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
     await user.click(within(history).getByRole("button", { name: "Resume" }));
     await waitFor(() => {
@@ -9866,6 +9938,7 @@ describe("App integration", () => {
     render(<App />);
     const history = await openHistorySession(user, "Codex · session 9");
     expect(within(history).queryByRole("button", { name: "Review diff" })).not.toBeInTheDocument();
+    await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
     await user.click(within(history).getByRole("button", { name: "Discard asleep session" }));
 
     await waitFor(() => expect(within(history).queryByText("Codex · session 9")).not.toBeInTheDocument());
