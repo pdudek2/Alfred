@@ -18,7 +18,10 @@ describe("CSS layout evidence support", () => {
     expect(privacySafeScreenshotStyle).toContain(".xterm-host");
     expect(privacySafeScreenshotStyle).toContain(".session-location-value");
     expect(privacySafeScreenshotStyle).toContain(".new-session-prompt textarea");
-    expect(privacySafeScreenshotStyle).toContain(".agent-context-essentials");
+    expect(privacySafeScreenshotStyle).toContain(".details-location-name");
+    expect(privacySafeScreenshotStyle).toContain(".details-location-path");
+    expect(privacySafeScreenshotStyle).toContain(".agent-timeline-header > strong");
+    expect(privacySafeScreenshotStyle).not.toContain(".agent-context-essentials");
     expect(privacySafeScreenshotStyle).toContain(".project-row-label");
     expect(privacySafeScreenshotStyle).toContain(".project-session-title");
     expect(privacySafeScreenshotStyle).toContain(".sessions-result > span");
@@ -30,7 +33,9 @@ describe("CSS layout evidence support", () => {
     expect(privacySafeScreenshotStyle).toContain(".command-palette-list button small");
     expect(privacySafeScreenshotStyle).toContain(".workspace-title-trigger small");
     expect(privacySafeScreenshotStyle).toContain(".plan-line__sub");
-    expect(privacySafeScreenshotStyle).toContain(".agent-session-pulse");
+    expect(privacySafeScreenshotStyle).toContain(".agent-activity-list");
+    expect(privacySafeScreenshotStyle).toContain(".details-section[aria-label='Changes'] > :not(.details-section-heading)");
+    expect(privacySafeScreenshotStyle).not.toContain(".agent-session-pulse");
     expect(privacySafeScreenshotStyle).toContain(".xterm-screen");
     expect(privacySafeScreenshotStyle).toContain("opacity: 0 !important");
     expect(privacySafeScreenshotSelectors).not.toContain("body *");
@@ -46,8 +51,18 @@ describe("CSS layout evidence support", () => {
       <div class="workbench-session-context"><small>fixture project</small></div>
       <span class="work-surface-context">fixture context</span>
       <div class="new-session-prompt"><textarea>fixture prompt</textarea></div>
-      <div class="agent-context-essentials">fixture essentials</div>
-      <div class="agent-session-pulse">fixture activity</div>
+      <header class="agent-timeline-header"><strong data-private>Private session</strong></header>
+      <p class="details-location-name" data-private>private-branch</p>
+      <p class="details-location-path" data-private>/private/project</p>
+      <section class="details-section" aria-label="Activity">
+        <ol class="agent-activity-list"><li><span class="details-activity-text" data-private>Private activity</span></li></ol>
+      </section>
+      <section class="details-section" aria-label="Changes">
+        <header class="details-section-heading"><h2>Changes</h2></header>
+        <ul class="details-files"><li><span data-private>private-file.ts</span><span>+1</span></li></ul>
+        <p class="details-empty" data-private>Error in /private/project</p>
+        <div class="details-actions"><button data-private>Apply to Private project</button></div>
+      </section>
       <button class="workspace-title-trigger"><small>/fixture/workspace</small></button>
       <span class="project-row-label">Fixture project</span>
       <span class="project-session-title">Fixture session</span>
@@ -71,6 +86,9 @@ describe("CSS layout evidence support", () => {
     document.body.append(fixture);
 
     try {
+      for (const node of fixture.querySelectorAll("[data-private]")) {
+        expect(node.closest(privacySafeScreenshotSelectors.join(",")), "Private Details text must inherit a mask").not.toBeNull();
+      }
       for (const selector of [...privacySafeScreenshotSelectors, ...privacySafeHiddenScreenshotSelectors]) {
         expect(document.querySelector(selector), `${selector} must match the fixture DOM`).not.toBeNull();
       }

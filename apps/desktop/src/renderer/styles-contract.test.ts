@@ -986,7 +986,7 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain(".workspace-rail.embedded");
   });
 
-  it("owns Context as one adjacent right dock", () => {
+  it("owns Details as one adjacent right dock", () => {
     const openShell = singleTopLevelRuleBodyIn(
       styles,
       ".workspace-layout.context-visible",
@@ -1058,29 +1058,29 @@ describe("renderer CSS contracts", () => {
     expect(focusPeek[0]).toContain("content: attr(data-label)");
   });
 
-  it("keeps narrow Context over the work surface instead of creating a third fixed column", () => {
-    const narrowWorkContext = mediaExactRuleBodies(
+  it("keeps narrow Details over the work surface instead of creating a third fixed column", () => {
+    const narrowWorkDetails = mediaExactRuleBodies(
       "(max-width: 1180px)",
       "html .workspace-layout.context-visible",
     );
-    expect(narrowWorkContext).toHaveLength(1);
-    expect(narrowWorkContext[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
+    expect(narrowWorkDetails).toHaveLength(1);
+    expect(narrowWorkDetails[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
 
-    const narrowContext = mediaExactRuleBodies(
+    const narrowDetails = mediaExactRuleBodies(
       "(max-width: 1180px)",
       "html .workspace-layout.context-visible > .context-column",
     );
-    expect(narrowContext).toHaveLength(1);
-    expect(narrowContext[0]).toContain("position: absolute");
-    expect(narrowContext[0]).toContain("grid-column: auto");
-    expect(narrowContext[0]).toContain("width: min(360px, calc(100% - 46px))");
+    expect(narrowDetails).toHaveLength(1);
+    expect(narrowDetails[0]).toContain("position: absolute");
+    expect(narrowDetails[0]).toContain("grid-column: auto");
+    expect(narrowDetails[0]).toContain("width: min(360px, calc(100% - 46px))");
 
     for (const selector of [
       "html .workspace-layout.surface-sessions.context-visible > .context-column",
     ]) {
-      const narrowSurfaceContext = mediaExactRuleBodies("(max-width: 1180px)", selector);
-      expect(narrowSurfaceContext).toHaveLength(1);
-      expect(narrowSurfaceContext[0]).toContain("grid-column: auto");
+      const narrowSurfaceDetails = mediaExactRuleBodies("(max-width: 1180px)", selector);
+      expect(narrowSurfaceDetails).toHaveLength(1);
+      expect(narrowSurfaceDetails[0]).toContain("grid-column: auto");
     }
   });
 
@@ -1220,7 +1220,7 @@ describe("renderer CSS contracts", () => {
     expect(singleTopLevelRuleBodyIn(styles, ".project-session.is-active")).not.toContain("outline:");
   });
 
-  it("keeps canonical base owners for terminal Context and composer", () => {
+  it("keeps canonical base owners for terminal Details and composer", () => {
     expectCanonicalBase(".terminal-stage", ["display: grid", "overflow: hidden"]);
     expectCanonicalBase(".terminal-stage-body", ["min-height: 0", "overflow: hidden"]);
     expectCanonicalBase(".terminal-grid-column", ["overflow-y: auto", "height: 100%"]);
@@ -1356,7 +1356,7 @@ describe("renderer CSS contracts", () => {
       endMarker: ".agent-timeline-header strong {",
     };
     const contextRegion: CssOwnerRegion = {
-      name: "Context drawer/column",
+      name: "Details drawer/column",
       startMarker: ".context-drawer {",
       endMarker: ".agent-timeline-panel {\n  border-color: var(--border);",
     };
@@ -1432,7 +1432,7 @@ describe("renderer CSS contracts", () => {
       [".context-drawer-header", 1],
       [".context-drawer .agent-timeline-panel", 1],
       [".context-drawer .agent-timeline-body", 1],
-      [".context-drawer .agent-session-pulse", 1],
+      [".context-drawer .details-activity-text", 1],
     ] as const) {
       expectAllTopLevelOccurrencesWithin(selector, [contextRegion], expectedOccurrences);
     }
@@ -1822,7 +1822,7 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain("--flat-");
   });
 
-  it("docks Context beside the terminal scene", () => {
+  it("docks Details beside the terminal scene", () => {
     const openLayout = singleTopLevelRuleBodyIn(styles, ".workspace-layout.context-visible");
     const contextColumn = singleTopLevelRuleBodyIn(styles, ".context-column");
     const contextDrawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
@@ -1830,7 +1830,7 @@ describe("renderer CSS contracts", () => {
     expect(openLayout).toContain("grid-template-columns: clamp(226px, 16vw, 280px) minmax(420px, 1fr) 318px");
     expect(contextColumn).toContain("position: static");
     expect(contextColumn).toContain("width: auto");
-    expect(contextColumn).toContain("box-shadow: -14px 0 30px -30px rgba(0, 0, 0, 0.9)");
+    expect(contextColumn).toContain("box-shadow: none");
     expect(contextDrawer).toContain("height: 100%");
     expect(contextDrawer).toContain("box-shadow: none");
     expect(styles).not.toContain(":has(.context-column.open)");
@@ -1913,7 +1913,7 @@ describe("renderer CSS contracts", () => {
     expect(blockFor(".project-workspace-actions .workspace-title-trigger > span")).toContain("display: none");
   });
 
-  it("keeps the Context timeline scrollable without clipping the lower timeline", () => {
+  it("keeps the Details timeline scrollable without clipping the lower timeline", () => {
     const contextColumn = singleTopLevelRuleBodyIn(styles, ".context-column");
     const contextDrawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
     const timelineBody = blockFor(".context-drawer .agent-timeline-body");
@@ -2243,49 +2243,26 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toMatch(/font-size:\s*(?:8|8\.5)px/);
   });
 
-  it("keeps Context hierarchy quiet except selected session and key signal", () => {
+  it("keeps Details hierarchy quiet with canvas sections and selectable sans paths", () => {
     const drawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
-    const essentials = blockFor(".agent-context-essentials");
-    const essentialsCommand = blockFor(".agent-essentials-command");
-    const disclosureToggle = blockFor(".agent-disclosure-toggle");
-    const factLabel = blockFor(".agent-session-facts dt");
-    const factValue = blockFor(".agent-session-facts dd");
-    const pulseTitle = blockFor(".agent-session-pulse strong");
-    const pulseBody = blockFor(".agent-session-pulse p");
-    const handoffButton = blockFor(".agent-handoff-buttons button");
-
-    expect(drawer).toContain("background: var(--ink-1)");
-    expect(drawer).not.toContain("transparent");
-    expect(essentials).toContain("background: transparent");
-    expect(essentials).toContain("border-bottom: 1px solid var(--line)");
-    expect(essentialsCommand).toContain("var(--sans)");
-    expect(disclosureToggle).toContain("var(--sans)");
-    expect(disclosureToggle).not.toContain("uppercase");
-    expect(factLabel).toContain("var(--sans)");
-    expect(factValue).toContain("color: var(--text-secondary)");
-    expect(pulseTitle).toContain("color: var(--text-primary)");
-    expect(pulseBody).toContain("color: var(--text-muted)");
-    expect(handoffButton).toContain("background: transparent");
-    expect(styles).toContain(".context-drawer .agent-session-pulse span {");
-    expect(styles).toContain("font: 650 13px/1.2 var(--sans)");
-    expect(styles).toContain(".context-drawer .agent-session-pulse p {");
-    expect(styles).toContain("font: 500 12px/1.45 var(--sans)");
-    expect(styles).toContain(".context-drawer .agent-handoff-buttons button,");
-    expect(styles).toContain("min-height: 32px");
-    expect(styles).toContain(".context-drawer .agent-staged-editor button,");
-    expect(styles).toContain(".context-drawer .agent-staged-edit-actions button {");
-    expect(styles).toContain("font: 600 13px/1 var(--sans)");
-    expect(styles).toContain(".context-drawer .agent-staged-editor strong,");
-    expect(styles).toContain(".context-drawer .agent-staged-edit-form label > span {");
-    expect(styles).toContain("font: 600 13px/1.2 var(--sans)");
+    expect(drawer).toContain("background: var(--surface-chrome)");
+    expect(singleTopLevelRuleBodyIn(styles, ".context-drawer .details-section h2")).toContain("font: 500 12px/16px var(--sans)");
+    const facts = singleTopLevelRuleBodyIn(styles, ".details-location-path");
+    expect(facts).toContain("font: 400 12px/17px var(--sans)");
+    expect(facts).toContain("user-select: text");
+    expect(facts).toContain("white-space: nowrap");
+    const activityRow = singleTopLevelRuleBodyIn(styles, ".context-drawer .agent-activity-list li");
+    expect(activityRow).toContain("display: flex");
+    expect(activityRow).toContain("background: transparent");
+    expect(singleTopLevelRuleBodyIn(styles, ".details-actions button")).toContain("background: var(--surface-control)");
     expect(styles).not.toContain(".agent-context-zone");
     expect(styles).not.toContain(".agent-section-heading");
   });
 
-  it("keeps Context status labels at the product-label type floor", () => {
+  it("keeps Details status labels at the product-label type floor", () => {
     const contextStatusText = singleTopLevelRuleBodyIn(styles, ".context-drawer .agent-status-text");
 
-    expect(contextStatusText).toContain("font: 600 13px/1 var(--sans)");
+    expect(contextStatusText).toContain("font: 500 13px/18px var(--sans)");
     expect(blockFor(".agent-status-pill .agent-status-text")).not.toContain("13px");
   });
 

@@ -6,7 +6,7 @@ export type ContextColumnProps = {
   contextOpen: boolean;
   dismissalSuspended?: boolean;
   focusRequestKey: number;
-  returnFocusRef: RefObject<HTMLButtonElement | null>;
+  returnFocusRef: RefObject<HTMLElement | null>;
   timelineProps: AgentTimelinePanelProps;
   onCloseContext: () => void;
 };
@@ -32,7 +32,7 @@ export function ContextColumn({
   useEffect(() => {
     if (!contextOpen || dismissalSuspended) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.key !== "Escape" || event.defaultPrevented || document.querySelector('[role="menu"]')) return;
       event.preventDefault();
       event.stopPropagation();
       requestCloseContext();
@@ -60,7 +60,7 @@ export function ContextColumn({
 
   return (
     <aside
-      aria-label="Session context"
+      aria-label="Details"
       className={`context-column ${contextOpen ? "open" : "closed"}`}
       data-testid="context-column"
     >
@@ -72,9 +72,9 @@ export function ContextColumn({
       >
         <header className="context-drawer-header">
           <div>
-            <span>Context</span>
+            <span>Details</span><kbd>⌘I</kbd>
           </div>
-          <button ref={closeButtonRef} type="button" onClick={requestCloseContext} aria-label="Close Context panel">
+          <button ref={closeButtonRef} type="button" onClick={requestCloseContext} aria-label="Close Details panel">
             <X size={15} />
           </button>
         </header>
