@@ -136,27 +136,6 @@ describe("ComposerBar", () => {
     expect(screen.getByLabelText("Dispatch instruction")).toHaveValue("");
   });
 
-  it("offers a blocked action when another workspace needs review", async () => {
-    const user = userEvent.setup();
-    const onBlockedAction = vi.fn();
-
-    render(
-      <ComposerBar
-        blockedActionLabel="Open ClientApp"
-        blockedReason="Review draft items in ClientApp project first."
-        dispatchTarget={dispatchTarget}
-        thinking={false}
-        onBlockedAction={onBlockedAction}
-        onSubmit={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByRole("status")).toHaveTextContent("Review draft items in ClientApp project first.");
-    await user.click(screen.getByRole("button", { name: "Open ClientApp" }));
-
-    expect(onBlockedAction).toHaveBeenCalledOnce();
-  });
-
   it("shows a disabled status without changing form semantics", () => {
     render(
       <ComposerBar

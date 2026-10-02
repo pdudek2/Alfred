@@ -38,7 +38,7 @@ export function registerDesktopStateIpc(store: PersistedDesktopStateStore): void
         ...current,
         privacySettings,
         // Plans keep full launch arguments, so they follow the same policy as saved sessions.
-        ...(privacySettings.terminalScrollbackRetention === "off" ? { stagedPlan: null } : {}),
+        ...(privacySettings.terminalScrollbackRetention === "off" ? { stagedPlans: {} } : {}),
         restoredTerminalSessions: current.restoredTerminalSessions.flatMap((session) => {
           const sanitized = sanitizePersistedTerminalSession(session, privacySettings);
           return sanitized ? [sanitized] : [];
@@ -61,7 +61,7 @@ export function registerDesktopStateIpc(store: PersistedDesktopStateStore): void
         );
         await store.updateState((latest) => ({
           ...latest,
-          stagedPlan: null,
+          stagedPlans: {},
           restoredTerminalSessions: latest.restoredTerminalSessions.flatMap((session) => {
             const sanitized = sanitizePersistedTerminalSession(session, latest.privacySettings, true);
             return sanitized ? [sanitized] : [];

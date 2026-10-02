@@ -34,6 +34,40 @@ describe("persisted-desktop-state", () => {
     await expect(store.getState()).resolves.toEqual(DEFAULT_DESKTOP_STATE);
   });
 
+  it("splits a legacy v1 plan by each draft workspace and preserves the rest of desktop state", async () => {
+    const filePath = await temporaryStateFile();
+    const preserved = {
+      ...DEFAULT_DESKTOP_STATE,
+      workspaces: [{ id: "A", label: "Alpha", shortLabel: "A" }, { id: "B", label: "Beta", shortLabel: "B" }],
+      activeWorkspaceId: "B",
+      layoutsByWorkspace: { A: { tile: { tileId: "tile", col: 1, row: 1, colSpan: 6, rowSpan: 4 } } },
+      viewStateByWorkspace: { A: { workMode: "focus" as const, selectedSessionId: "tile" } },
+    };
+    const draft = { kind: "shell", title: "Draft", command: "echo", args: [] };
+    const { stagedPlans: _plans, ...legacyState } = preserved;
+    await writeFile(filePath, JSON.stringify({ version: 1, ...legacyState, stagedPlan: {
+      id: "legacy", prompt: "Prepare both", name: "Both",
+      sessions: [{ ...draft, id: "one", workspaceId: "A" }, { ...draft, id: "two", workspaceId: "B" }, { ...draft, id: "three" }],
+    } }));
+    const state = await createPersistedDesktopStateStore({ filePath }).getState();
+    expect(state).toEqual({ ...preserved, stagedPlans: {
+      A: { id: "legacy:A", workspaceId: "A", prompt: "Prepare both", name: "Both", sessions: [{ ...draft, id: "one", workspaceId: "A" }] },
+      B: { id: "legacy:B", workspaceId: "B", prompt: "Prepare both", name: "Both", sessions: [{ ...draft, id: "two", workspaceId: "B" }, { ...draft, id: "three", workspaceId: "B" }] },
+    } });
+    const saved = JSON.parse(await readFile(filePath, "utf8"));
+    expect(saved.version).toBe(1);
+    expect(saved.stagedPlans).toEqual(state.stagedPlans);
+    expect(saved).not.toHaveProperty("stagedPlan");
+  });
+
+  it("drops mismatched map keys, foreign sessions, and empty plans", () => {
+    const draft = { id: "one", kind: "shell", title: "Draft", command: "echo", args: [] };
+    const plan = { id: "plan", workspaceId: "A", prompt: "prepare", sessions: [draft, { ...draft, id: "foreign", workspaceId: "B" }] };
+    expect(normalizeDesktopState({ ...DEFAULT_DESKTOP_STATE, stagedPlans: {
+      A: plan, B: plan, C: { ...plan, workspaceId: "C", sessions: [{ ...draft, workspaceId: "B" }] },
+    } }).stagedPlans).toEqual({ A: { ...plan, sessions: [{ ...draft, workspaceId: "A" }] } });
+  });
+
   it("writes and reads a versioned desktop state file", async () => {
     const filePath = await temporaryStateFile();
     const state: DesktopStateSnapshot = {
@@ -65,12 +99,14 @@ describe("persisted-desktop-state", () => {
         bounds: { x: 120, y: 80, width: 1512, height: 982 },
         maximized: true,
       },
-      stagedPlan: {
+      stagedPlans: { UI: {
+        workspaceId: "UI",
         id: "plan-1",
         prompt: "prepare ui",
         sessions: [
           {
             id: "alfred-1",
+            workspaceId: "UI",
             kind: "shell",
             title: "Test",
             command: "pnpm",
@@ -84,6 +120,7 @@ describe("persisted-desktop-state", () => {
           },
           {
             id: "alfred-2",
+            workspaceId: "UI",
             kind: "codex",
             title: "Codex",
             command: "codex",
@@ -97,7 +134,7 @@ describe("persisted-desktop-state", () => {
             },
           },
         ],
-      },
+      } },
       restoredTerminalSessions: [
         {
           clientId: "manual-1",
@@ -382,7 +419,7 @@ describe("persisted-desktop-state", () => {
       activeWorkspaceId: "A",
       layoutsByWorkspace: {},
       viewStateByWorkspace: {},
-      stagedPlan: null,
+      stagedPlans: {},
       restoredTerminalSessions: [],
       windowState: DEFAULT_DESKTOP_STATE.windowState,
       privacySettings: DEFAULT_PRIVACY_SETTINGS,
