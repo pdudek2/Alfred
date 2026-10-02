@@ -104,13 +104,7 @@ export function createWorkspaceStore(options: WorkspaceStoreOptions = {}): Works
 
     async setWorkspaceState(request: WorkspaceStateSetRequest): Promise<WorkspaceStateSnapshot> {
       const workspaceState = toWorkspaceState(normalizeDesktopState(request));
-      const next = await persistedStateStore.updateState((current) => ({
-        ...current,
-        ...workspaceState,
-        stagedPlans: Object.fromEntries(Object.entries(current.stagedPlans).filter(
-          ([workspaceId]) => workspaceState.workspaces.some((workspace) => workspace.id === workspaceId),
-        )),
-      }));
+      const next = await persistedStateStore.updateState((current) => ({ ...current, ...workspaceState }));
       return toWorkspaceState(next);
     },
   };

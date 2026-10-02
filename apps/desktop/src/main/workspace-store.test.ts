@@ -425,7 +425,8 @@ describe("workspace-store", () => {
     });
   });
 
-  it("removes only the deleted workspace's plan in the workspace update", async () => {
+  // A project with drafts can't be closed, so a shorter list here means a partial write, not a removal.
+  it("keeps every project's plan when the workspace list is rewritten", async () => {
     const persistedStateStore = createPersistedDesktopStateStore({ filePath: await temporaryStateFile() });
     const plan = { id: "plan-a", workspaceId: "A", prompt: "prepare", sessions: [
       { id: "draft-a", kind: "shell" as const, title: "A", command: "echo", args: [], workspaceId: "A" },
@@ -438,7 +439,7 @@ describe("workspace-store", () => {
     await createWorkspaceStore({ persistedStateStore }).setWorkspaceState({
       workspaces: [{ id: "B", label: "Beta", shortLabel: "B" }], activeWorkspaceId: "B",
     });
-    expect((await persistedStateStore.getState()).stagedPlans).toEqual({ B: b });
+    expect((await persistedStateStore.getState()).stagedPlans).toEqual({ A: plan, B: b });
   });
 
   it("updates workspace state without dropping layout or staged plan data", async () => {
