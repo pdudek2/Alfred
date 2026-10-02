@@ -40,6 +40,7 @@ type CommandPaletteProps = {
   hasSavedSessions: boolean;
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">, isolation?: TerminalSessionIsolation) => void;
   onAddManualSession: () => void;
+  onOpenPlan?: () => void;
   onAddWorkspace: () => void;
   onApplyWorkMode: (mode: WorkMode) => void;
   onChangeQuery: (query: string) => void;
@@ -78,6 +79,7 @@ export function CommandPalette({
   hasSavedSessions,
   onAddAgentSession,
   onAddManualSession,
+  onOpenPlan,
   onAddWorkspace,
   onApplyWorkMode,
   onChangeQuery,
@@ -196,6 +198,7 @@ export function CommandPalette({
         disabled: !activeWorkspaceBound,
         run: () => onAddAgentSession("claude", "worktree"),
       },
+      ...(onOpenPlan ? [{ id: "new-plan", label: "Plan with Alfred", detail: "Describe a goal and get drafts to launch", run: onOpenPlan }] : []),
       {
         id: "new-workspace",
         label: "New scratch project",
@@ -386,6 +389,7 @@ export function CommandPalette({
       hasSavedSessions,
       onAddAgentSession,
       onAddManualSession,
+      onOpenPlan,
       onAddWorkspace,
       onApplyWorkMode,
       onCloseSession,

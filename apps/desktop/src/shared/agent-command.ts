@@ -32,6 +32,11 @@ function normalizeUnsupportedPromptFlag(args: string[]): string[] {
       continue;
     }
 
+    if (arg === "--") {
+      normalized.push(...args.slice(index));
+      break;
+    }
+
     if (arg === "--prompt") {
       changed = true;
       const prompt = args[index + 1];

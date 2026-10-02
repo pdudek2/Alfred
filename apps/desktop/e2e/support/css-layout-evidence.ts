@@ -4,7 +4,7 @@ import type { Page, TestInfo } from "@playwright/test";
 
 export const cssEvidenceStateNames = [
   "work-grid",
-  "prepare-work",
+  "new-session",
   "focus",
   "split",
   "arrange",

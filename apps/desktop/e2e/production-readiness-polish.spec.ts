@@ -118,12 +118,12 @@ test("keeps the production Work story trustworthy across every utility surface",
   await captureAuditScreenshot(page, "command-palette-wide");
   await page.keyboard.press("Escape");
 
-  await page.getByRole("button", { name: "Open launch menu" }).click();
-  await page.getByRole("menuitem", { name: "Prepare Work" }).click();
-  const prepare = page.getByRole("dialog", { name: "Prepare Work" });
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("radio", { name: /^Plan with Alfred/ }).click();
+  const prepare = page.getByRole("dialog", { name: "New session" });
   await expect(prepare).toBeVisible();
   await expectSans(prepare.getByRole("button").first());
-  await captureAuditScreenshot(page, "prepare-work-wide");
+  await captureAuditScreenshot(page, "new-session-wide");
   await page.keyboard.press("Escape");
 
   await selectSurface(page, "Local Data & Privacy");
@@ -189,6 +189,9 @@ test.describe("missing project fixture", () => {
 async function addTerminal(page: Page): Promise<void> {
   await page.getByRole("toolbar", { name: "Work layout controls" })
     .getByRole("button", { name: "New terminal" }).click();
+  const sheet = page.getByRole("dialog", { name: "New session", exact: true });
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole("button", { name: "Start", exact: true }).click();
 }
 
 async function createRuntimeBlockers(page: Page, fixtureRoot: string): Promise<void> {
@@ -201,8 +204,9 @@ async function createRuntimeBlockers(page: Page, fixtureRoot: string): Promise<v
 }
 
 async function createFixtureAgentSession(page: Page, menuItem: string, titleInput: string): Promise<void> {
-  await page.getByRole("button", { name: "Open launch menu" }).click();
-  await page.getByRole("menuitem", { name: menuItem }).click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("radio", { name: menuItem.includes("Codex") ? /^Codex/ : /^Claude/ }).click();
+  await page.getByRole("button", { name: "Start" }).click();
   const input = page.getByRole("textbox", { name: "Terminal input" }).last();
   await expect(input).toBeVisible();
   await input.fill(titleInput);

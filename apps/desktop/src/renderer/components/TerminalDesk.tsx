@@ -119,6 +119,7 @@ type TerminalDeskProps = {
   onBindWorkspace: () => void;
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
+  onOpenPlan?: (() => void) | undefined;
   onApplyWorktree: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
   onCloseWorktreeDiff: () => void;
@@ -168,6 +169,7 @@ export function TerminalDesk({
   workspaceRootStatus,
   onBindWorkspace,
   onAddAgentSession,
+  onOpenPlan,
   onAddManualSession,
   onApplyWorktree,
   onCloseSession,
@@ -485,6 +487,7 @@ export function TerminalDesk({
           {visibleWorkspaceSessions.length === 0 && (
             <EmptyWorkspaceState
               hasDrafts={hasDrafts}
+              onOpenPlan={onOpenPlan}
               onAddAgentSession={onAddAgentSession}
               onAddManualSession={onAddManualSession}
               onBindWorkspace={onBindWorkspace}
@@ -660,6 +663,7 @@ function SplitModeEmptyState({
 function EmptyWorkspaceState({
   hasDrafts,
   onAddAgentSession,
+  onOpenPlan,
   onAddManualSession,
   onBindWorkspace,
   workspaceGitBranch,
@@ -670,6 +674,7 @@ function EmptyWorkspaceState({
   hasDrafts: boolean;
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
+  onOpenPlan?: (() => void) | undefined;
   onBindWorkspace: () => void;
   workspaceGitBranch?: string | undefined;
   workspaceLabel: string;
@@ -731,15 +736,16 @@ function EmptyWorkspaceState({
               className="terminal-empty-primary-action"
               onClick={() => onAddAgentSession("codex")}
             >
-              Start Codex
+              New Codex
             </button>
             <div className="terminal-empty-secondary-actions" role="group" aria-label="secondary empty project actions">
               <button type="button" onClick={() => onAddAgentSession("claude")}>
-                Start Claude
+                New Claude
               </button>
               <button type="button" onClick={onAddManualSession}>
                 New terminal
               </button>
+              {onOpenPlan && <button type="button" onClick={onOpenPlan}>Plan with Alfred</button>}
               {!bound && (
                 <button type="button" onClick={onBindWorkspace}>
                   Choose folder
