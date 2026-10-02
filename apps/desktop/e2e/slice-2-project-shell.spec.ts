@@ -274,7 +274,7 @@ async function operateNarrowWorkspaceActions(page: Page, navigator: Locator) {
 
 async function openContext(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-  await page.getByRole("menuitem", { name: "Context" }).click();
+  await page.getByRole("menuitem", { name: "Details" }).click();
   await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
 }
 

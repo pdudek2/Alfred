@@ -7,8 +7,12 @@ export const privacySafeScreenshotSelectors = [
   ".workbench-session-context > small",
   ".work-surface-context",
   ".composer-input",
-  ".agent-context-essentials",
-  ".agent-session-pulse",
+  ".agent-timeline-header > strong",
+  ".details-location-name",
+  ".details-location-path",
+  // Mask the containers so empty logs and conditional file rows are covered too.
+  ".agent-activity-list",
+  ".details-section[aria-label='Changes'] > :not(.details-section-heading)",
   ".workspace-title-trigger small",
   ".project-row-label",
   ".project-session-title",
@@ -29,8 +33,14 @@ export const privacySafeHiddenScreenshotSelectors = [
 
 export const privacySafeScreenshotStyle = `
   .needs-you-popover__copy p,
-  .plan-line__sub {
+  .plan-line__sub,
+  .agent-timeline-body > .details-empty,
+  .agent-staged-editor-copy,
+  .agent-staged-edit-form input,
+  .agent-staged-edit-form textarea,
+  .agent-staged-edit-form [role="alert"] {
     color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
   }
 
   ${privacySafeScreenshotSelectors.join(",\n  ")} {
