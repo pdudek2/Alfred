@@ -23,8 +23,9 @@ test("lists only blocked sessions across projects without reflowing the terminal
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 900);
 
-  await page.getByRole("button", { name: "Open launch menu" }).click();
-  await page.getByRole("menuitem", { name: "New Codex session" }).click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("radio", { name: /^Codex/ }).click();
+  await page.getByRole("button", { name: "Start" }).click();
   const xtermHost = page.locator('[data-session-id="codex-1"] [data-testid="xterm-host"]');
   await expect(xtermHost).toBeAttached();
   const xtermHostBefore = await requiredHandle(xtermHost, "connected Codex xterm host");
@@ -100,8 +101,9 @@ test("reviews the real diff of an asleep checkout without replacing the live xte
   const { app, page } = harness;
   await setWindowSize(app, page, 1440, 900);
 
-  await page.getByRole("button", { name: "Open launch menu" }).click();
-  await page.getByRole("menuitem", { name: "New Codex session" }).click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("radio", { name: /^Codex/ }).click();
+  await page.getByRole("button", { name: "Start" }).click();
   const xtermHost = page.locator('[data-session-id="codex-1"] [data-testid="xterm-host"]');
   await expect(xtermHost).toBeAttached();
   const xtermHostBefore = await requiredHandle(xtermHost, "connected Codex xterm host");

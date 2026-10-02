@@ -6,18 +6,18 @@ type DesktopTerminalWindow = Window & {
   alfredDesktop?: { terminal: TerminalApi };
 };
 
-test("keeps Prepare Work and global session actions continuous across surfaces", async ({ harness }) => {
+test("keeps New session and global session actions continuous across surfaces", async ({ harness }) => {
   const { page } = harness;
   await expect(page.getByRole("article", { name: /Manual · zsh 1/i })).toBeVisible();
 
-  await openLaunchItem(page, "Prepare Work");
-  const draft = page.getByRole("textbox", { name: "Dispatch instruction" });
+  await openLaunchItem(page, "New session");
+  const draft = page.getByRole("textbox", { name: "Goal" });
   await draft.fill("preserve this project draft");
   await page.keyboard.press("Escape");
   await selectSurface(page, "History");
   await selectSurface(page, "Work");
-  await openLaunchItem(page, "Prepare Work");
-  await expect(page.getByRole("textbox", { name: "Dispatch instruction" }))
+  await openLaunchItem(page, "New session");
+  await expect(page.getByRole("textbox", { name: "Goal" }))
     .toHaveValue("preserve this project draft");
   await page.keyboard.press("Escape");
 
@@ -72,8 +72,9 @@ test("reads final scrollback after a managed terminal exits", async ({ harness }
 });
 
 async function openLaunchItem(page: Page, label: string): Promise<void> {
-  await page.getByRole("button", { name: "Open launch menu" }).click();
-  await page.getByRole("menuitem", { name: label, exact: true }).click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("radio", { name: label === "New session" ? /^Plan with Alfred/ : /^Terminal/ }).click();
+  if (label !== "New session") await page.getByRole("button", { name: "Start" }).click();
 }
 
 async function selectSurface(page: Page, label: "Work" | "History"): Promise<void> {

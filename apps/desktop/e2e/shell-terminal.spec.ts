@@ -120,16 +120,16 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   };
   expect(identityTransitions["R0→Focus→Split→Focus"]).toBe(true);
 
-  const launchTrigger = page.getByRole("button", { name: "Open launch menu" });
+  const launchTrigger = page.getByRole("button", { name: "New", exact: true });
   await launchTrigger.focus();
   await page.keyboard.press("Enter");
-  const prepareWorkItem = page.getByRole("menuitem", { name: "Prepare Work" });
-  await expect(prepareWorkItem).toBeFocused();
-  await page.keyboard.press("Enter");
-  const dispatchInput = page.getByRole("textbox", { name: "Dispatch instruction" });
+  const prepareWorkItem = page.getByRole("radio", { name: /^Plan with Alfred/ });
+  await prepareWorkItem.click();
+  const dispatchInput = page.getByRole("textbox", { name: "Goal" });
+  await dispatchInput.focus();
   await expect(dispatchInput).toBeFocused();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "Prepare Work" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "New session" })).toHaveCount(0);
   await expect(launchTrigger).toBeFocused();
   await expect(page.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeVisible();
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
@@ -278,8 +278,9 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
 });
 
 async function addManualTerminal(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Open launch menu" }).click();
-  await page.getByRole("menuitem", { name: "New manual terminal" }).click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("radio", { name: /^Terminal/ }).click();
+  await page.getByRole("button", { name: "Start" }).click();
 }
 
 async function selectSurface(

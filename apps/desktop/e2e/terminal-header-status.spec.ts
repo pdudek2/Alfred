@@ -4,8 +4,9 @@ test("keeps compact terminal status text and glyph inside the header", async ({ 
   const { page } = harness;
   await page.emulateMedia({ reducedMotion: "reduce" });
   for (const count of [2, 3]) {
-    await page.getByRole("button", { name: "Open launch menu" }).click();
-    await page.getByRole("menuitem", { name: "New manual terminal", exact: true }).click();
+    await page.getByRole("button", { name: "New", exact: true }).click();
+    await page.getByRole("radio", { name: /^Terminal/ }).click();
+    await page.getByRole("button", { name: "Start" }).click();
     await expect(page.getByTestId("terminal-tile")).toHaveCount(count);
     for (const width of [1440, 1120]) {
       await page.setViewportSize({ width, height: 900 });

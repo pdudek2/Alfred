@@ -17,7 +17,7 @@ describe("CSS layout evidence support", () => {
     expect(privacySafeScreenshotStyle).not.toMatch(/body\s+\*/);
     expect(privacySafeScreenshotStyle).toContain(".xterm-host");
     expect(privacySafeScreenshotStyle).toContain(".session-location-value");
-    expect(privacySafeScreenshotStyle).toContain(".composer-input");
+    expect(privacySafeScreenshotStyle).toContain(".new-session-prompt textarea");
     expect(privacySafeScreenshotStyle).toContain(".details-location-name");
     expect(privacySafeScreenshotStyle).toContain(".details-location-path");
     expect(privacySafeScreenshotStyle).toContain(".agent-timeline-header > strong");
@@ -50,7 +50,7 @@ describe("CSS layout evidence support", () => {
       <span class="session-location-value">/fixture/project</span>
       <div class="workbench-session-context"><small>fixture project</small></div>
       <span class="work-surface-context">fixture context</span>
-      <textarea class="composer-input">fixture prompt</textarea>
+      <div class="new-session-prompt"><textarea>fixture prompt</textarea></div>
       <header class="agent-timeline-header"><strong data-private>Private session</strong></header>
       <p class="details-location-name" data-private>private-branch</p>
       <p class="details-location-path" data-private>/private/project</p>
@@ -102,6 +102,6 @@ describe("CSS layout evidence support", () => {
       selector: ".command-palette-list [role='option'][aria-selected='true']",
     });
     expect(captureReadinessForState("sessions")).toBeNull();
-    expect(captureReadinessForState("prepare-work")).toBeNull();
+    expect(captureReadinessForState("new-session")).toBeNull();
   });
 });
