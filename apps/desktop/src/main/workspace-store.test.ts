@@ -425,6 +425,23 @@ describe("workspace-store", () => {
     });
   });
 
+  // A project with drafts can't be closed, so a shorter list here means a partial write, not a removal.
+  it("keeps every project's plan when the workspace list is rewritten", async () => {
+    const persistedStateStore = createPersistedDesktopStateStore({ filePath: await temporaryStateFile() });
+    const plan = { id: "plan-a", workspaceId: "A", prompt: "prepare", sessions: [
+      { id: "draft-a", kind: "shell" as const, title: "A", command: "echo", args: [], workspaceId: "A" },
+    ] };
+    const b = { ...plan, id: "plan-b", workspaceId: "B", sessions: [{ ...plan.sessions[0]!, id: "draft-b", workspaceId: "B" }] };
+    await persistedStateStore.setState({ ...DEFAULT_DESKTOP_STATE,
+      workspaces: [{ id: "A", label: "Alpha", shortLabel: "A" }, { id: "B", label: "Beta", shortLabel: "B" }],
+      stagedPlans: { A: plan, B: b },
+    });
+    await createWorkspaceStore({ persistedStateStore }).setWorkspaceState({
+      workspaces: [{ id: "B", label: "Beta", shortLabel: "B" }], activeWorkspaceId: "B",
+    });
+    expect((await persistedStateStore.getState()).stagedPlans).toEqual({ A: plan, B: b });
+  });
+
   it("updates workspace state without dropping layout or staged plan data", async () => {
     const filePath = await temporaryStateFile();
     const persistedStateStore = createPersistedDesktopStateStore({ filePath });
@@ -435,11 +452,12 @@ describe("workspace-store", () => {
       layoutsByWorkspace: {
         A: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
       },
-      stagedPlan: {
+      stagedPlans: { A: {
+        workspaceId: "A",
         id: "plan-1",
         prompt: "prepare",
         sessions: [{ id: "alfred-1", kind: "shell", title: "A", command: "echo", args: ["a"] }],
-      },
+      } },
       restoredTerminalSessions: [
         {
           clientId: "manual-1",
@@ -466,7 +484,7 @@ describe("workspace-store", () => {
         layoutsByWorkspace: {
           A: { one: { tileId: "one", col: 1, row: 1, colSpan: 6, rowSpan: 4 } },
         },
-        stagedPlan: expect.objectContaining({ id: "plan-1" }),
+        stagedPlans: { A: expect.objectContaining({ id: "plan-1" }) },
         restoredTerminalSessions: [expect.objectContaining({ clientId: "manual-1" })],
       }),
     );

@@ -2,7 +2,6 @@ import { useCallback, useState } from "react";
 
 type ComposerBarProps = {
   autoFocus?: boolean;
-  blockedActionLabel?: string | undefined;
   blockedReason: string | undefined;
   disabled?: boolean;
   dispatchTarget: { id: string; kind: "session" | "workspace"; label: string } | null;
@@ -11,21 +10,18 @@ type ComposerBarProps = {
   thinking: boolean;
   draft?: string;
   onDraftChange?: (value: string) => void;
-  onBlockedAction?: (() => void) | undefined;
   onCycleDispatchTarget?: (() => void) | undefined;
   onSubmit: (value: string) => boolean | Promise<boolean>;
 };
 
 export function ComposerBar({
   autoFocus = false,
-  blockedActionLabel,
   blockedReason,
   disabled = false,
   dispatchTarget,
   lastDispatchDestination,
   requestError,
   thinking,
-  onBlockedAction,
   onCycleDispatchTarget,
   onSubmit,
   draft: controlledDraft,
@@ -122,11 +118,6 @@ export function ComposerBar({
         <span className="composer-status" id="composer-status" role={requestError ? "alert" : "status"}>
           {status}
         </span>
-        {blocked && blockedActionLabel && onBlockedAction && (
-          <button type="button" className="composer-blocked-action" onClick={onBlockedAction}>
-            {blockedActionLabel}
-          </button>
-        )}
       </div>
     </div>
   );
