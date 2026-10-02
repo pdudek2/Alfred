@@ -472,7 +472,7 @@ export function isLaunchBlocked(session: Pick<SessionTile, "launchPreflight" | "
   return Boolean(session.safetyNote) || session.launchPreflight?.status === "blocked";
 }
 
-function isLaunchableStagedSession(
+export function isLaunchableStagedSession(
   session: Pick<SessionTile, "launchPreflight" | "stagedReviewStatus">,
 ): boolean {
   return session.stagedReviewStatus !== "checking" && !isLaunchBlocked(session);

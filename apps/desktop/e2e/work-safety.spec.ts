@@ -1,11 +1,11 @@
 import { expect, test } from "./support/electron-app";
+import { openPlan } from "./support/plan-line";
 import { chooseWorkLayout } from "./support/work-layout";
 
 test.describe("blocked launch geometry", () => {
   test.use({ fixtureOptions: { inboxItems: 1, blockedInboxItem: 1, activeWorkspaceId: "A" } });
   test("keeps blocked actions inside the window in every Work layout", async ({ harness }, testInfo) => {
     const { page, app } = harness;
-    const tile = page.locator('[data-testid="terminal-tile"][data-session-id="fixture-item-1"]');
     for (const [width, height] of [[1440, 900], [1120, 720]] as const) {
       await app.evaluate(({ BrowserWindow }, bounds) => {
         BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, ...bounds });
@@ -13,19 +13,20 @@ test.describe("blocked launch geometry", () => {
       await expect.poll(() => page.evaluate(() => innerWidth)).toBe(width);
       for (const layout of ["Focus", "Split", "Grid", "Arrange"] as const) {
         await chooseWorkLayout(page, layout);
-        const reject = tile.getByRole("button", { name: "Reject Fixture item 1" });
-        if (layout === "Arrange") await reject.scrollIntoViewIfNeeded();
+        const row = (await openPlan(page)).getByRole("listitem", { name: "Draft Fixture item 1" });
+        await expect(row).toContainText("Blocked:");
+        await expect(row.getByRole("button", { name: "Launch Fixture item 1" })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath(`blocked-${layout}-${width}.png`) });
-        await expect.poll(() => tile.locator(".staged-actions button").evaluateAll((buttons) => buttons.every((button) => {
+        await expect.poll(() => row.getByRole("button").evaluateAll((buttons) => buttons.every((button) => {
           const rect = button.getBoundingClientRect();
           return rect.top >= 0 && rect.left >= 0 && rect.bottom <= innerHeight && rect.right <= innerWidth;
         }))).toBe(true);
-        await reject.click({ trial: true });
+        await row.getByRole("button", { name: "Discard Fixture item 1" }).click({ trial: true });
+        await page.keyboard.press("Escape");
       }
     }
-    await tile.getByRole("button", { name: "Reject Fixture item 1" }).click();
-    await expect(tile).toHaveCount(0);
-    await expect(page.getByText("Cannot launch yet", { exact: true })).toHaveCount(0);
+    await (await openPlan(page)).getByRole("button", { name: "Discard Fixture item 1" }).click();
+    await expect(page.locator(".plan-line")).toHaveCount(0);
   });
 });
 

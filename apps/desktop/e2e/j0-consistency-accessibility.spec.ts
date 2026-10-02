@@ -263,9 +263,8 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await chooseWorkLayout(page, "Arrange");
   const minimumSpanTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
   await minimumSpanTile.focus();
-  await page.keyboard.press("Shift+ArrowLeft");
-  await page.keyboard.press("Shift+ArrowLeft");
-  await page.keyboard.press("Shift+ArrowLeft");
+  // Shrink past the minimum from whatever width the tile starts at; it must stop at three columns.
+  for (let press = 0; press < 12; press += 1) await page.keyboard.press("Shift+ArrowLeft");
   await expect(minimumSpanTile).toHaveCSS("grid-column", "1 / span 3");
   await expectStableTerminalHeader(page, "manual-1", paths.workspaceA);
 

@@ -20,6 +20,7 @@ const productCssPaths = [
   "components/work-surface-toolbar.css",
   "components/workspace-preview-dock.css",
   "components/worktree-diff-panel.css",
+  "components/plan-line.css",
 ].map((relativePath) => [
   resolve(process.cwd(), "src/renderer", relativePath),
   resolve(process.cwd(), "apps/desktop/src/renderer", relativePath),
@@ -531,7 +532,6 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".terminal-tile-header", ["height: 43px", "min-height: 43px"]);
     for (const selector of [
       ".terminal-tile.real-terminal.selected",
-      ".terminal-tile.staged.selected",
     ]) {
       expectCanonicalBase(selector, [
         "border-width: 1px",
@@ -584,7 +584,7 @@ describe("renderer CSS contracts", () => {
     expect(productStyles).not.toMatch(new RegExp(prohibitedFontFragments.join("|"), "i"));
     for (const selector of [
       ".xterm-host",
-      ".staged-command",
+      ".plan-line__sub code",
       ".workbench-right-zone kbd",
       ".sessions-run-details dd.technical",
       ".worktree-diff-panel__files code",
@@ -677,8 +677,7 @@ describe("renderer CSS contracts", () => {
       selectors.every((selector) =>
         selector.includes("attention")
         || selector.includes("waiting")
-        || selector.includes("needs-you")
-        || selector === ".staged-actions .approve-button",
+        || selector.includes("needs-you"),
       ),
     )).toBe(true);
   });
@@ -1116,30 +1115,10 @@ describe("renderer CSS contracts", () => {
     }
   });
 
-  it("uses one flat staged queue and an unboxed Work empty state", () => {
-    const stagedList = singleTopLevelRuleBodyIn(styles, ".terminal-grid.laid-out.staged-list");
-    const stagedTile = blockFor(".terminal-grid.staged-list .terminal-tile.staged");
-    const stagedHeader = singleTopLevelRuleBodyIn(styles, ".terminal-grid.staged-list .terminal-tile.staged > header");
-    const stagedTitle = singleTopLevelRuleBodyIn(styles, ".terminal-grid.staged-list .tile-title b");
-    const stagedCommand = singleTopLevelRuleBodyIn(styles, ".terminal-grid.staged-list .staged-command");
-    const stagedApprove = singleTopLevelRuleBodyIn(
-      styles,
-      ".terminal-grid.staged-list .staged-actions .approve-button",
-    );
+  it("keeps the Work empty state unboxed", () => {
     const emptyState = singleTopLevelRuleBodyIn(styles, ".terminal-empty-state");
     const emptyFact = singleTopLevelRuleBodyIn(styles, ".terminal-empty-facts > div");
 
-    expect(stagedList).toContain("grid-template-columns: minmax(0, 1fr)");
-    expect(stagedList).toContain("grid-template-rows: none");
-    expect(stagedList).toContain("gap: 0");
-    expect(stagedTile).toContain("border-radius: 0");
-    expect(stagedTile).toContain("background: transparent");
-    expect(stagedHeader).toContain("grid-template-columns: minmax(0, 1fr) auto");
-    expect(stagedTitle).toContain("font: 650 13px/1.2 var(--sans)");
-    expect(stagedCommand).toContain("color: var(--text-secondary)");
-    expect(stagedApprove).toContain("min-width: 82px");
-    expect(stagedApprove).toContain("flex: 0 0 auto");
-    expect(stagedApprove).not.toMatch(/(?:border-color|background|color):/);
     expect(emptyState).toContain("border: 0");
     expect(emptyState).toContain("text-align: left");
     expect(emptyFact).toContain("border: 0");
@@ -1345,7 +1324,7 @@ describe("renderer CSS contracts", () => {
       terminalTileEnd,
     );
     expectTopLevelOwnerWithin(".terminal-stage.mode-focus .terminal-tile.focus-hidden", ["display: none"], terminalTileStart, terminalTileEnd);
-    for (const selector of [".terminal-tile.real-terminal.selected", ".terminal-tile.staged.selected"]) {
+    for (const selector of [".terminal-tile.real-terminal.selected"]) {
       expectCanonicalBase(selector, [
         "border-width: 1px",
         "border-color: color-mix(in oklab, var(--signal-focus) 34%, var(--border-strong))",
@@ -1372,12 +1351,6 @@ describe("renderer CSS contracts", () => {
       terminalTileStart,
       terminalTileEnd,
     );
-    expectCanonicalBase(".terminal-tile.staged", ["background: var(--surface-chrome)"]);
-    const stagedApprove = blockForContaining(
-      ".staged-actions .approve-button",
-      "border-color: color-mix(in oklab, var(--signal) 42%, transparent)",
-    );
-    expect(stagedApprove).toContain("color: var(--signal)");
     expectTopLevelOwnerWithin(".terminal-tile.collapsed", ["grid-template-rows: 44px 0", "min-height: 44px"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-tile:not(.arranging):hover", ["border-color: var(--border-strong)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
     expectTopLevelOwnerWithin(".terminal-stage.mode-split .terminal-tile.focus-hidden", ["display: none"], terminalTileStart, terminalTileEnd);
@@ -1468,7 +1441,6 @@ describe("renderer CSS contracts", () => {
       [".terminal-tile.kind-claude", 1],
       [".terminal-tile.kind-dev-server", 1],
       [".terminal-tile.real-terminal.browser", 1],
-      [".terminal-tile.staged", 1],
       [".terminal-tile-header .tile-title", 1],
       [".terminal-tile-header .tile-title b", 1],
       [".terminal-tile-header .tile-title small", 1],
