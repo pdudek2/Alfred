@@ -19,6 +19,8 @@ export type SessionsReaderEmptyState = {
 
 export type SessionsSavedActions = {
   checkout: boolean;
+  ended: boolean;
+  confirmInline: boolean;
   pendingAction?: "review" | "apply" | undefined;
   onApply: () => void;
   onDiscard: () => void;
@@ -77,6 +79,13 @@ export function SessionsReader({
   onFocus,
 }: SessionsReaderProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [discardArmed, setDiscardArmed] = useState(false);
+  useEffect(() => { setDiscardArmed(false); }, [selected?.sessionKey]);
+  useEffect(() => {
+    if (!discardArmed) return;
+    const timeout = window.setTimeout(() => setDiscardArmed(false), 5_000);
+    return () => window.clearTimeout(timeout);
+  }, [discardArmed]);
   const detailsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const detailsCloseRef = useRef<HTMLButtonElement | null>(null);
   const blocks = pages.flatMap((page) => page.blocks);
@@ -105,6 +114,12 @@ export function SessionsReader({
       aria-label="Session reader"
       onFocusCapture={onFocus}
       onKeyDownCapture={(event) => {
+        if (event.key === "Escape" && discardArmed) {
+          event.preventDefault();
+          event.stopPropagation();
+          setDiscardArmed(false);
+          return;
+        }
         if (!detailsOpen || event.key !== "Escape") return;
         event.preventDefault();
         event.stopPropagation();
@@ -131,47 +146,58 @@ export function SessionsReader({
             Run details
           </button>
         )}
-        {selected && primaryAction && (
-          <button type="button" onClick={onPrimaryAction}>
-            {primaryAction.label}
-          </button>
-        )}
-        {selected && savedActions && (
-          <div
-            className="sessions-reader__saved-actions"
-            role="toolbar"
-            aria-label={savedActions.checkout ? "Asleep checkout actions" : "Asleep session actions"}
-          >
-            {savedActions.checkout && (
-              <>
-                <button
-                  type="button"
-                  disabled={savedActions.pendingAction !== undefined}
-                  onClick={savedActions.onReview}
-                >
-                  {savedActions.pendingAction === "review" ? "Reviewing…" : "Review diff"}
-                </button>
-                <button
-                  type="button"
-                  disabled={savedActions.pendingAction !== undefined}
-                  onClick={savedActions.onApply}
-                >
-                  {savedActions.pendingAction === "apply" ? "Applying…" : "Apply to project"}
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              className="sessions-reader__discard"
-              aria-label="Discard asleep session"
-              disabled={savedActions.pendingAction !== undefined}
-              onClick={savedActions.onDiscard}
-            >
-              Discard
-            </button>
-          </div>
-        )}
       </header>
+      {selected && (primaryAction || savedActions) && (
+        <div className="sessions-reader__toolbar sessions-reader__actions">
+          {selected && primaryAction && (
+            <button type="button" onClick={onPrimaryAction}>
+              {primaryAction.label}
+            </button>
+          )}
+          {selected && savedActions && (
+            <div
+              className="sessions-reader__saved-actions"
+              role="toolbar"
+              aria-label={savedActions.ended ? "Ended session actions" : savedActions.checkout ? "Asleep checkout actions" : "Asleep session actions"}
+            >
+              {savedActions.checkout && (
+                <>
+                  <button
+                    type="button"
+                    disabled={savedActions.pendingAction !== undefined}
+                    onClick={savedActions.onReview}
+                  >
+                    {savedActions.pendingAction === "review" ? "Reviewing…" : "Review diff"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={savedActions.pendingAction !== undefined}
+                    onClick={savedActions.onApply}
+                  >
+                    {savedActions.pendingAction === "apply" ? "Applying…" : `Apply to ${selected.project.label}`}
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                className="sessions-reader__discard"
+                aria-label={savedActions.ended ? "Discard ended session" : "Discard asleep session"}
+                disabled={savedActions.pendingAction !== undefined}
+                onClick={() => {
+                  if (savedActions.confirmInline && !discardArmed) {
+                    setDiscardArmed(true);
+                    return;
+                  }
+                  setDiscardArmed(false);
+                  savedActions.onDiscard();
+                }}
+              >
+                {discardArmed ? "Discard?" : "Discard"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       <div className="sessions-reader__body">
         <div
           ref={readerRef}

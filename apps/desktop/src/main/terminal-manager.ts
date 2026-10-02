@@ -608,11 +608,13 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       }
 
       session = restoredSessionSnapshots.get(request.clientId);
-      if (!session) {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      const recentExit = [...recentTerminalExits.values()].find((exit) => exit.event.clientId === request.clientId);
+      if (!session && (!recentExit || !window || !canAttachOwnerToWindow(recentExit.ownerWindowId, window))) {
         return { ok: false, error: "Session not found." };
       }
 
-      const isolatedWorktree = isIsolatedWorktreeSession(session);
+      const isolatedWorktree = session && isIsolatedWorktreeSession(session);
       if (isolatedWorktree && request.cleanupWorktree !== true) {
         return { ok: false, error: "Discarding an isolated checkout requires worktree cleanup." };
       }
@@ -628,6 +630,9 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       }
       forgetPersistedSession(request.clientId);
       await flushTerminalPersistence();
+      for (const [id, exit] of recentTerminalExits) {
+        if (exit.event.clientId === request.clientId) recentTerminalExits.delete(id);
+      }
       return { ok: true };
     } catch (error: unknown) {
       const originalError = terminalErrorMessage(error);

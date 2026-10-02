@@ -5705,7 +5705,19 @@ body.arranging-pointer {
 .sessions-reader__saved-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
+  flex: 1;
+}
+
+.sessions-reader:has(.sessions-reader__actions) {
+  grid-template-rows: 52px auto minmax(0, 1fr);
+}
+
+.sessions-reader__actions {
+  flex-wrap: wrap;
+  height: auto;
+  min-height: 52px;
+  gap: 8px;
 }
 
 .sessions-reader__toolbar button,
@@ -5731,8 +5743,25 @@ body.arranging-pointer {
   outline: none;
 }
 
+.sessions-reader__actions button {
+  border-color: var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-control);
+  color: var(--text-primary);
+  font: 400 13px/18px var(--sans);
+}
+
+.sessions-reader__actions > button {
+  background: var(--text-primary);
+  color: var(--surface-canvas);
+  font-weight: 500;
+}
+
 .sessions-reader__toolbar .sessions-reader__discard {
-  color: var(--signal-danger);
+  margin-left: auto;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-secondary);
 }
 
 .sessions-reader__body {
