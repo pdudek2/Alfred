@@ -15,11 +15,10 @@ import {
   getDesktopTerminalApi,
   getDesktopWorkspaceApi,
 } from "./desktop-api";
-import { ComposerBar } from "./composer";
 import { CommandPalette } from "./components/CommandPalette";
 import { ContextColumn } from "./components/ContextColumn";
 import { NeedsYouPopover } from "./components/NeedsYouPopover";
-import { PrepareWorkPopover } from "./components/PrepareWorkPopover";
+import { NewSessionSheet, type NewSessionKind } from "./components/NewSessionSheet";
 import { ProjectNavigator, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
 import { SessionsSurface } from "./components/SessionsSurface";
 import { TerminalDesk, type TerminalStartAttempt, type WorktreeActionKind } from "./components/TerminalDesk";
@@ -44,7 +43,6 @@ import {
   canRequestPlan,
   errored,
   idle,
-  isThinking,
   thinking,
   type AlfredStatus,
   type SquadPlan,
@@ -217,13 +215,29 @@ export function App() {
   const [worktreeDiffView, setWorktreeDiffView] = useState<WorktreeDiffView | null>(null);
   const [collapsedSessionIdsByWorkspace, setCollapsedSessionIdsByWorkspace] = useState<Record<string, string[]>>({});
   const [contextDrawerOpenByWorkspace, setContextDrawerOpenByWorkspace] = useState<Record<string, boolean>>({});
-  const [dispatchTargetsByWorkspace, setDispatchTargetsByWorkspace] = useState<Record<string, DispatchTargetSnapshot>>({});
-  const [lastDispatchDestination, setLastDispatchDestination] = useState<string | null>(null);
   const [pendingDiscardConfirmation, setPendingDiscardConfirmation] = useState<PendingDiscardConfirmation | null>(null);
-  const [prepareWorkOpen, setPrepareWorkOpen] = useState(false);
-  const [prepareWorkDraftsByWorkspace, setPrepareWorkDraftsByWorkspace] = useState<Record<string, string>>({});
+  const [newSessionOpen, setNewSessionOpen] = useState(false);
+  const [newSessionDraftsByWorkspace, setNewSessionDraftsByWorkspace] = useState<Record<string, string>>({});
   const commandPaletteTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const prepareWorkTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const newSessionTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const [newSessionKind, setNewSessionKind] = useState<NewSessionKind>("codex");
+  const [newSessionProjectId, setNewSessionProjectId] = useState(DEFAULT_WORKSPACE_ID);
+  const [newSessionIsolation, setNewSessionIsolation] = useState(false);
+  const [newSessionOpening, setNewSessionOpening] = useState(0);
+  const newSessionGenerationRef = useRef(0);
+  const closeNewSession = useCallback(() => {
+    newSessionGenerationRef.current += 1;
+    setNewSessionOpen(false);
+  }, []);
+  const openNewSession = useCallback((kind?: NewSessionKind, isolation: TerminalSessionIsolation = "shared") => {
+    newSessionGenerationRef.current += 1;
+    setNewSessionOpening(newSessionGenerationRef.current);
+    if (kind) setNewSessionKind(kind);
+    setNewSessionProjectId(activeWorkspaceId);
+    setNewSessionIsolation(isolation === "worktree");
+    setNewSessionOpen(true);
+    setNeedsYouOpen(false);
+  }, [activeWorkspaceId]);
   const previewTriggerRef = useRef<HTMLButtonElement | null>(null);
   const needsYouTriggerRef = useRef<HTMLButtonElement | null>(null);
   const worktreeDiffReturnFocusRef = useRef<HTMLElement | null>(null);
@@ -288,12 +302,6 @@ export function App() {
     activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeTerminalSessions[0] ?? null;
   const activeCollapsedSessionIds = new Set(collapsedSessionIdsByWorkspace[activeWorkspace.id] ?? []);
   const activeContextDrawerOpen = contextDrawerOpenByWorkspace[activeWorkspace.id] ?? false;
-  const activeDispatchTargets = dispatchTargetsForWorkspace(activeWorkspace, activeWorkSessions, activeSelectedSession);
-  const savedDispatchTarget = dispatchTargetsByWorkspace[activeWorkspace.id];
-  const activeDispatchTarget =
-    activeDispatchTargets.find((target) => dispatchTargetsEqual(target, savedDispatchTarget)) ??
-    activeDispatchTargets[0] ??
-    null;
   const canCloseActiveWorkspace =
     activeWorkspace.id !== DEFAULT_WORKSPACE_ID && workspaces.length > 1 && activeSessions.length === 0;
   const unavailableWorkspaceIds = new Set(
@@ -340,8 +348,10 @@ export function App() {
   }, new Map<string, number>());
   const reviewQueuePreview = attentionItems.find((item) => item.blocksAgent) ?? null;
   const composerBlockedReason =
-    activeDrafts.length > 0
+    terminalSessions.some((session) => session.workspaceId === newSessionProjectId && session.stage === "staged")
       ? "Resolve the current Alfred plan before asking for another."
+      : alfredStatus.kind === "thinking"
+        ? "Alfred is preparing a plan. Please wait."
       : runtimeStatus && !runtimeStatus.openRouterConfigured
         ? "Set OPENROUTER_API_KEY in repo .env to use Alfred."
         : undefined;
@@ -466,32 +476,33 @@ export function App() {
     setTerminalSessions(nextSessions);
     setNeedsYouOpen(false);
     setActiveSurface("work");
-    setRevealSessionId(activeWorkMode === "focus" ? null : addedSession.id);
+    setActiveWorkspaceId(addedSession.workspaceId);
+    const targetWorkMode = workModesByWorkspace[addedSession.workspaceId] ?? "desk";
+    setRevealSessionId(targetWorkMode === "focus" ? null : addedSession.id);
     setSelectedSessionIdsByWorkspace((current) => ({
       ...current,
-      [activeWorkspace.id]: addedSession.id,
+      [addedSession.workspaceId]: addedSession.id,
     }));
     void layoutApi?.setWorkspaceViewState({
-      workspaceId: activeWorkspace.id,
-      viewState: { workMode: activeWorkMode, selectedSessionId: addedSession.id },
+      workspaceId: addedSession.workspaceId,
+      viewState: { workMode: targetWorkMode, selectedSessionId: addedSession.id },
     });
-  }, [activeWorkMode, activeWorkspace.id]);
+  }, [workModesByWorkspace]);
 
-  const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, isolation: TerminalSessionIsolation = "shared") => {
-    if (activeWorkspace.rootStatus === "missing") return;
+  const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, isolation: TerminalSessionIsolation = "shared", workspace: Workspace = activeWorkspace, prompt = "") => {
+    if (workspace.rootStatus === "missing") return;
     commitAddedSession(
       addAgentSession(
         terminalSessionsRef.current,
         kind,
-        activeWorkspace.rootPath ?? "",
-        activeWorkspace.id,
+        workspace.rootPath ?? "",
+        workspace.id,
         isolation,
+        prompt,
       ),
     );
   }, [
-    activeWorkspace.id,
-    activeWorkspace.rootPath,
-    activeWorkspace.rootStatus,
+    activeWorkspace,
     commitAddedSession,
   ]);
 
@@ -584,8 +595,7 @@ export function App() {
     setSelectedSessionIdsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setCollapsedSessionIdsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setContextDrawerOpenByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
-    setDispatchTargetsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
-    setPrepareWorkDraftsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
+    setNewSessionDraftsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setSelectedPreviewUrlsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setPreviewRefreshKeysByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setPreviewDockOpenByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
@@ -604,14 +614,12 @@ export function App() {
   const persistActiveWorkspaceViewState = useCallback((patch: WorkspaceViewState = {}) => {
     const layoutApi = getDesktopLayoutApi();
     const collapsedSessionIds = collapsedSessionIdsByWorkspace[activeWorkspace.id] ?? [];
-    const dispatchTarget = dispatchTargetsByWorkspace[activeWorkspace.id];
     void layoutApi?.setWorkspaceViewState({
       workspaceId: activeWorkspace.id,
       viewState: {
         workMode: activeWorkMode,
         ...(activeSelectedSessionId === null ? {} : { selectedSessionId: activeSelectedSessionId }),
         ...(collapsedSessionIds.length === 0 ? {} : { collapsedSessionIds }),
-        ...(dispatchTarget === undefined ? {} : { dispatchTarget }),
         ...patch,
       },
     });
@@ -620,7 +628,6 @@ export function App() {
     activeWorkMode,
     activeWorkspace.id,
     collapsedSessionIdsByWorkspace,
-    dispatchTargetsByWorkspace,
   ]);
 
   const handleToggleContextDrawer = useCallback(() => {
@@ -685,18 +692,6 @@ export function App() {
     collapsedSessionIdsByWorkspace,
     persistActiveWorkspaceViewState,
   ]);
-
-  const handleCycleDispatchTarget = useCallback(() => {
-    if (activeDispatchTargets.length === 0) return;
-    const currentIndex = activeDispatchTargets.findIndex((target) => dispatchTargetsEqual(target, activeDispatchTarget));
-    const nextTarget = activeDispatchTargets[(currentIndex + 1) % activeDispatchTargets.length] ?? activeDispatchTargets[0];
-    if (!nextTarget) return;
-    setDispatchTargetsByWorkspace((current) => ({
-      ...current,
-      [activeWorkspace.id]: nextTarget,
-    }));
-    persistActiveWorkspaceViewState({ dispatchTarget: nextTarget });
-  }, [activeDispatchTarget, activeDispatchTargets, activeWorkspace.id, persistActiveWorkspaceViewState]);
 
   const handleBeginRenameActiveWorkspace = useCallback(() => {
     setNeedsYouOpen(false);
@@ -944,19 +939,17 @@ export function App() {
     });
   }, [activeWorkMode, activeWorkspace.id, selectedSessionIdsByWorkspace]);
 
-  const handleAddManualSession = useCallback(() => {
-    if (activeWorkspace.rootStatus === "missing") return;
+  const handleAddManualSession = useCallback((workspace: Workspace = activeWorkspace) => {
+    if (workspace.rootStatus === "missing") return;
     commitAddedSession(
       addManualSession(
         terminalSessionsRef.current,
-        activeWorkspace.rootPath ?? "",
-        activeWorkspace.id,
+        workspace.rootPath ?? "",
+        workspace.id,
       ),
     );
   }, [
-    activeWorkspace.id,
-    activeWorkspace.rootPath,
-    activeWorkspace.rootStatus,
+    activeWorkspace,
     commitAddedSession,
   ]);
 
@@ -1752,10 +1745,10 @@ export function App() {
     [],
   );
 
-  const handleSubmitPrompt = useCallback(async (dispatchTarget: DispatchTargetSnapshot, draft: string): Promise<boolean> => {
+  const handleSubmitPrompt = useCallback(async (dispatchTarget: DispatchTargetSnapshot, draft: string, workspace: Workspace): Promise<boolean> => {
     const prompt = draft.trim();
     if (!prompt) return false;
-    if (!canRequestPlan(alfredStatus, activeDrafts.length)) return false;
+    if (!canRequestPlan(alfredStatus, terminalSessionsRef.current.filter((session) => session.workspaceId === workspace.id && session.stage === "staged").length)) return false;
     const alfredApi = getDesktopAlfredApi();
     if (!alfredApi) {
       setAlfredStatus(errored({ code: "network", message: "Alfred runtime is unavailable. Open the desktop app." }));
@@ -1767,7 +1760,7 @@ export function App() {
       response = await alfredApi.requestPlan({
         dispatchTarget,
         prompt,
-        workspace: workspacePlanContext(activeWorkspace, activeWorkSessions, dispatchTarget),
+        workspace: workspacePlanContext(workspace, terminalSessionsRef.current.filter((session) => session.workspaceId === workspace.id), dispatchTarget),
       });
     } catch {
       setAlfredStatus(errored({ code: "network", message: "Alfred runtime request failed. Try again." }));
@@ -1782,36 +1775,46 @@ export function App() {
     const after = addStagedSessions(
       before,
       response.plan.sessions,
-      activeWorkspace.rootPath ?? "",
-      activeWorkspace.id,
+      workspace.rootPath ?? "",
+      workspace.id,
     );
     const stagedSessions = after.slice(before.length);
     const stagedPlan = createStagedPlanSnapshot({
       ...(response.plan.name === undefined ? {} : { name: response.plan.name }),
       prompt,
-      workspaceId: activeWorkspace.id,
+      workspaceId: workspace.id,
       sessions: stagedSessions,
     });
     const nextPendingPlan = toSquadPlan({ plan: stagedPlan });
 
     setTerminalSessions((current) => [...current, ...stagedSessions]);
     pendingPlansRef.current = nextPendingPlan
-      ? { ...pendingPlansRef.current, [activeWorkspace.id]: nextPendingPlan }
-      : omitWorkspaceRecord(pendingPlansRef.current, activeWorkspace.id);
+      ? { ...pendingPlansRef.current, [workspace.id]: nextPendingPlan }
+      : omitWorkspaceRecord(pendingPlansRef.current, workspace.id);
     setPendingPlans(pendingPlansRef.current);
     if (stagedPlan) void alfredApi.setStagedPlan(stagedPlan);
-    else void alfredApi.clearStagedPlan({ workspaceId: activeWorkspace.id });
+    else void alfredApi.clearStagedPlan({ workspaceId: workspace.id });
     return true;
-  }, [activeDrafts.length, activeWorkSessions, activeWorkspace, alfredStatus]);
+  }, [alfredStatus]);
 
-  const handleSubmitDispatch = useCallback((draft: string) => {
-    const target = activeDispatchTarget;
-    if (!target) return false;
-    return handleSubmitPrompt(target, draft).then((submitted) => {
-      if (submitted) setLastDispatchDestination(target.label);
-      return submitted;
-    });
-  }, [activeDispatchTarget, handleSubmitPrompt]);
+  const handleStartNewSession = async (isolated: boolean) => {
+    const workspace = workspaces.find((item) => item.id === newSessionProjectId);
+    if (!workspace || workspace.rootStatus === "missing") return false;
+    const draft = newSessionDraftsByWorkspace[workspace.id] ?? "";
+    if (newSessionKind === "plan") {
+      if (composerBlockedReason) return false;
+      const submitted = await handleSubmitPrompt({ kind: "workspace", id: workspace.id, label: workspace.label }, draft, workspace);
+      if (!submitted || newSessionGenerationRef.current !== newSessionOpening) return false;
+      handleSelectWorkspace(workspace.id);
+      setActiveSurface("work");
+    } else if (newSessionKind === "terminal") {
+      handleAddManualSession(workspace);
+    } else {
+      handleAddAgentSession(newSessionKind, isolated ? "worktree" : "shared", workspace, draft.trim());
+    }
+    setNewSessionDraftsByWorkspace((current) => omitWorkspaceRecord(current, workspace.id));
+    return true;
+  };
 
   const handleApproveTile = useCallback((tileId: string) => {
     const tile = terminalSessions.find((session) => session.id === tileId);
@@ -2370,6 +2373,7 @@ export function App() {
             key === "j" ||
             key === "k" ||
             key === "t" ||
+            key === "n" ||
             key === "w" ||
             (event.shiftKey && key === "o") ||
             (event.shiftKey && (event.code === "BracketRight" || event.code === "BracketLeft"))
@@ -2387,6 +2391,13 @@ export function App() {
         }
         return;
       }
+
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        if (!newSessionOpen) openNewSession();
+        return;
+      }
+      if (newSessionOpen && !(event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey))) return;
 
       if ((event.metaKey || event.ctrlKey) && /^[1-9]$/.test(event.key)) {
         const index = Number.parseInt(event.key, 10) - 1;
@@ -2454,6 +2465,8 @@ export function App() {
     activeSelectedSession,
     commandPaletteOpen,
     handleAddManualSession,
+    openNewSession,
+    newSessionOpen,
     handleCloseSelectedSession,
     handleCloseCommandPalette,
     handleFocusSessionByDelta,
@@ -2522,13 +2535,6 @@ export function App() {
           Object.fromEntries(
             Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
               viewState.collapsedSessionIds?.length ? [[workspaceId, viewState.collapsedSessionIds]] : [],
-            ),
-          ),
-        );
-        setDispatchTargetsByWorkspace(
-          Object.fromEntries(
-            Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
-              viewState.dispatchTarget ? [[workspaceId, viewState.dispatchTarget]] : [],
             ),
           ),
         );
@@ -2674,24 +2680,20 @@ export function App() {
         className={`desktop-frame ${shortcutModifier === "Cmd" ? "mac-frame" : ""}`}
         aria-label="Alfred Agent Space desktop shell"
       >
-        <div className="mission-bar">
+        <div className="mission-bar" inert={newSessionOpen && !commandPaletteOpen && !privacyPanelOpen}>
           <WorkbenchHeader
             activeSurface={activeSurface}
             commandPaletteTriggerRef={commandPaletteTriggerRef}
             needsYouCount={needsYouCount}
             needsYouOpen={needsYouOpen}
             needsYouTriggerRef={needsYouTriggerRef}
-            prepareWorkTriggerRef={prepareWorkTriggerRef}
+            newSessionTriggerRef={newSessionTriggerRef}
             selectedSession={activeSelectedSession}
             shortcutModifier={shortcutModifier}
             surfacesTriggerRef={surfacesTriggerRef}
             workspaceDetail={workspaceDetail(activeWorkspace)}
-            workspaceRootMissing={activeWorkspace.rootStatus === "missing"}
-            onAddAgentSession={handleAddAgentSession}
-            onAddManualSession={handleAddManualSession}
             onOpenCommandPalette={handleOpenCommandPalette}
-            onOpenPrepareWork={() => setPrepareWorkOpen(true)}
-            onReconnectWorkspace={() => void handleBindWorkspaceFromFolder()}
+            onOpenNewSession={() => openNewSession()}
             onOpenPrivacyControls={handleOpenPrivacyPanel}
             onSelectSurface={handleSelectPrimarySurface}
             onToggleContext={handleToggleContextDrawer}
@@ -2750,6 +2752,7 @@ export function App() {
             activePreviewDockOpen ? "preview-visible" : "",
             activeContextDrawerOpen ? "context-visible" : "",
           ].filter(Boolean).join(" ")}
+          inert={newSessionOpen && !commandPaletteOpen && !privacyPanelOpen}
           data-testid="workbench-shell"
         >
           {activeSurface === "work" && (
@@ -2811,7 +2814,7 @@ export function App() {
                 terminalLaunchDisabled={activeWorkspace.rootStatus === "missing"}
                 visibleSessionCount={visibleWorkSessionCount}
                 workMode={activeWorkMode}
-                onAddManualSession={handleAddManualSession}
+                onAddManualSession={() => openNewSession("terminal")}
                 onApplyWorkMode={handleApplyWorkMode}
                 onOpenSavedSessions={handleOpenSavedSessions}
                 onToggleArrangeMode={handleToggleArrangeMode}
@@ -2855,8 +2858,9 @@ export function App() {
                   workspaceRootPath={activeWorkspace.rootPath}
                   workspaceRootStatus={activeWorkspace.rootStatus}
                   onBindWorkspace={handleBindWorkspaceFromFolder}
-                  onAddAgentSession={handleAddAgentSession}
-                  onAddManualSession={handleAddManualSession}
+                  onAddAgentSession={(kind) => openNewSession(kind)}
+                  onOpenPlan={() => openNewSession("plan")}
+                  onAddManualSession={() => openNewSession("terminal")}
                   onApplyWorktree={handleApplyWorktree}
                   onCloseSession={handleCloseSession}
                   onCloseWorktreeDiff={handleCloseWorktreeDiff}
@@ -2927,7 +2931,7 @@ export function App() {
             dismissalSuspended={
               commandPaletteOpen ||
               privacyPanelOpen ||
-              prepareWorkOpen ||
+              newSessionOpen ||
               workspaceMenuOpen ||
               pendingDiscardConfirmation !== null ||
               needsYouOpen
@@ -2954,36 +2958,24 @@ export function App() {
             onRunAction={handleRunNeedsYouAction}
           />
         )}
-        {prepareWorkOpen && (
-          <PrepareWorkPopover
-            dismissalSuspended={commandPaletteOpen || privacyPanelOpen}
-            triggerRef={prepareWorkTriggerRef}
-            onClose={() => setPrepareWorkOpen(false)}
-          >
-            <ComposerBar
-              autoFocus
-              blockedReason={composerBlockedReason}
-              dispatchTarget={activeDispatchTarget}
-              lastDispatchDestination={lastDispatchDestination}
-              requestError={alfredStatus.kind === "error" ? alfredStatus.error.message : undefined}
-              thinking={isThinking(alfredStatus)}
-              draft={prepareWorkDraftsByWorkspace[activeWorkspace.id] ?? ""}
-              disabled={commandPaletteOpen || privacyPanelOpen}
-              onDraftChange={(draft) => setPrepareWorkDraftsByWorkspace((current) => ({
-                ...current,
-                [activeWorkspace.id]: draft,
-              }))}
-              onCycleDispatchTarget={handleCycleDispatchTarget}
-              onSubmit={async (draft) => {
-                const submitted = await handleSubmitDispatch(draft);
-                if (submitted) {
-                  setPrepareWorkDraftsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
-                  setPrepareWorkOpen(false);
-                }
-                return submitted;
-              }}
-            />
-          </PrepareWorkPopover>
+        {newSessionOpen && (
+          <NewSessionSheet
+            key={newSessionOpening}
+            triggerRef={newSessionTriggerRef}
+            projects={workspaces}
+            projectId={newSessionProjectId}
+            kind={newSessionKind}
+            initialIsolation={newSessionIsolation}
+            draft={newSessionDraftsByWorkspace[newSessionProjectId] ?? ""}
+            disabled={commandPaletteOpen || privacyPanelOpen}
+            blockedReason={composerBlockedReason}
+            requestError={alfredStatus.kind === "error" ? alfredStatus.error.message : undefined}
+            onProjectChange={setNewSessionProjectId}
+            onKindChange={setNewSessionKind}
+            onDraftChange={(draft) => setNewSessionDraftsByWorkspace((current) => ({ ...current, [newSessionProjectId]: draft }))}
+            onStart={handleStartNewSession}
+            onClose={closeNewSession}
+          />
         )}
         {pendingDiscardConfirmation && (
           <DiscardCheckoutDialog
@@ -3018,8 +3010,9 @@ export function App() {
             workspaces={workspaces}
             canCloseWorkspace={canCloseActiveWorkspace}
             hasSavedSessions={activeSavedSessionCount > 0}
-            onAddAgentSession={handleAddAgentSession}
-            onAddManualSession={handleAddManualSession}
+            onAddAgentSession={(kind, isolation) => openNewSession(kind, isolation)}
+            onAddManualSession={() => openNewSession("terminal")}
+            onOpenPlan={() => openNewSession("plan")}
             onAddWorkspace={handleAddWorkspace}
             onApplyWorkMode={handleApplyWorkMode}
             onChangeQuery={setCommandQuery}
@@ -3619,29 +3612,6 @@ function mergeSessionInitialBuffer(
 
 function workspaceRootPath(state: WorkspaceStateSnapshot | null, workspaceId: string): string {
   return state?.workspaces.find((workspace) => workspace.id === workspaceId)?.rootPath ?? "";
-}
-
-function dispatchTargetsForWorkspace(
-  workspace: Workspace,
-  sessions: SessionTile[],
-  selectedSession: SessionTile | null,
-): DispatchTargetSnapshot[] {
-  const targets: DispatchTargetSnapshot[] = [{ kind: "workspace", id: workspace.id, label: workspace.label }];
-  if (selectedSession) {
-    targets.push({ kind: "session", id: selectedSession.id, label: selectedSession.title });
-  }
-  for (const session of sessions) {
-    if (session.id === selectedSession?.id) continue;
-    targets.push({ kind: "session", id: session.id, label: session.title });
-  }
-  return targets;
-}
-
-function dispatchTargetsEqual(
-  left: DispatchTargetSnapshot | null | undefined,
-  right: DispatchTargetSnapshot | null | undefined,
-): boolean {
-  return Boolean(left && right && left.kind === right.kind && left.id === right.id);
 }
 
 function createScratchWorkspaceState(workspaces: Workspace[]): WorkspaceStateSnapshot {

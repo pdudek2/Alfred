@@ -29,11 +29,8 @@ const baseProps = {
   selectedSession: liveA,
   shortcutModifier: "Cmd",
   workspaceDetail: "Alfred · /project",
-  onAddAgentSession: vi.fn(),
-  onAddManualSession: vi.fn(),
   onOpenCommandPalette: vi.fn(),
-  onOpenPrepareWork: vi.fn(),
-  onReconnectWorkspace: vi.fn(),
+  onOpenNewSession: vi.fn(),
   onOpenPrivacyControls: vi.fn(),
   onSelectSurface: vi.fn(),
   onToggleContext: vi.fn(),
@@ -83,26 +80,9 @@ describe("WorkbenchHeader", () => {
     expect(screen.getByRole("button", { name: "Needs you, 1 session" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Surfaces menu" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open command palette" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Open launch menu" }));
-    expect(screen.getByRole("menuitem", { name: "Prepare Work" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "New Codex session" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "New Claude session" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "New manual terminal" })).toBeInTheDocument();
-  });
-
-  it("explains a missing project folder and offers the recovery action", async () => {
-    const user = userEvent.setup();
-    const onReconnectWorkspace = vi.fn();
-    renderHeader({ workspaceRootMissing: true, onReconnectWorkspace });
-
-    await user.click(screen.getByRole("button", { name: "Open launch menu" }));
-    expect(screen.getByRole("menuitem", { name: /^Prepare Work/ })).toBeDisabled();
-    expect(screen.getByRole("menuitem", { name: /^New Codex session/ })).toHaveTextContent(
-      "Reconnect the project folder first",
-    );
-    await user.click(screen.getByRole("menuitem", { name: "Reconnect project folder" }));
-
-    expect(onReconnectWorkspace).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("button", { name: "New" }));
+    expect(baseProps.onOpenNewSession).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "New" })).toHaveTextContent("⌘N");
   });
 
   it("hides the Needs you count at zero and toggles the popover from it", async () => {
