@@ -1417,7 +1417,7 @@ describe("terminal-manager IPC", () => {
     );
     expect(sentEvents).toContainEqual({
       channel: terminalChannels.data,
-      payload: { id: created.id, clientId: "manual-1", data: "hello\n", activities: [] },
+      payload: { id: created.id, clientId: "manual-1", data: "hello\n", activities: [], at: expect.any(Number) },
       windowId: 1,
     });
     expect(sentEvents).toContainEqual({
@@ -1426,6 +1426,21 @@ describe("terminal-manager IPC", () => {
       windowId: 1,
     });
     expect(listed.sessions).toEqual([]);
+  });
+
+  it("uses the same output timestamp in data events and list snapshots", async () => {
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+    const created = await invoke<{ id: string }>(terminalChannels.create, {
+      command: "node", cols: 80, cwd: "/repo", rows: 24,
+    });
+
+    pty.onDataHandler?.("fixture\n");
+
+    const dataEvent = sentEvents.find((event) => event.channel === terminalChannels.data)?.payload as TerminalDataEvent;
+    const listed = await invoke<TerminalListResult>(terminalChannels.list);
+    expect(dataEvent.at).toEqual(expect.any(Number));
+    expect(dataEvent.at).toBe(listed.sessions.find((session) => session.id === created.id)?.lastOutputAt);
   });
 
   it("waits for closed and quit-killed terminals to report exit, bounded by a timeout", async () => {
@@ -1778,7 +1793,7 @@ describe("terminal-manager IPC", () => {
 
     expect(dataEvents[0]).toEqual({
       channel: terminalChannels.data,
-      payload: { id: created.id, data: "Approval re", activities: [] },
+      payload: { id: created.id, data: "Approval re", activities: [], at: expect.any(Number) },
       windowId: 1,
     });
     expect(emittedActivity).toEqual(persistedActivity);
@@ -1849,7 +1864,7 @@ describe("terminal-manager IPC", () => {
     const dataEvents = sentEvents.filter((event) => event.channel === terminalChannels.data);
     expect(dataEvents.at(-1)).toEqual({
       channel: terminalChannels.data,
-      payload: { id: created.id, data: "Bash(\"pnpm test\")\n", activities: [] },
+      payload: { id: created.id, data: "Bash(\"pnpm test\")\n", activities: [], at: expect.any(Number) },
       windowId: 1,
     });
   });
@@ -4046,7 +4061,7 @@ describe("terminal-manager IPC", () => {
     expect(listed.sessions).toEqual([expect.objectContaining({ id: created.id })]);
     expect(sentEvents).toContainEqual({
       channel: terminalChannels.data,
-      payload: { id: created.id, data: "after reattach\n", activities: [] },
+      payload: { id: created.id, data: "after reattach\n", activities: [], at: expect.any(Number) },
       windowId: 2,
     });
     expect(pty.writes).toEqual(["ok\r"]);
