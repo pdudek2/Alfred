@@ -1596,6 +1596,45 @@ describe("terminal-manager IPC", () => {
     });
   });
 
+  it.each([false, true])("discards ended scrollback from persistence and the exit cache (retention off: %s)", async (retentionOff) => {
+    const store = storeWithRestoredSessions([]);
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+    const created = await invoke<{ id: string }>(terminalChannels.create, {
+      clientId: "discard-ended", command: "node", cols: 80, cwd: "/repo", rows: 24,
+    });
+    pty.onDataHandler?.("kept output");
+    pty.onExitHandler?.({ exitCode: 1 });
+    await expect(invoke(terminalChannels.snapshot, { id: created.id })).resolves.toMatchObject({ buffer: "kept output" });
+    if (retentionOff) {
+      applyTerminalPrivacyPolicyInMemory({ ...DEFAULT_DESKTOP_STATE.privacySettings, terminalScrollbackRetention: "off" });
+    }
+    await expect(invoke(terminalChannels.forget, { clientId: "discard-ended", cleanupWorktree: true })).resolves.toEqual({ ok: true });
+    expect((await store.getState()).restoredTerminalSessions).toEqual([]);
+    expect((await invoke<TerminalListResult>(terminalChannels.list)).restoredSessions).toEqual([]);
+    await expect(invoke(terminalChannels.snapshot, { id: created.id })).resolves.toBeNull();
+    await expect(invoke(terminalChannels.reconcile, { id: created.id })).resolves.toEqual({ state: "missing" });
+  });
+
+  it("keeps ended scrollback available when Discard persistence fails", async () => {
+    const store = storeWithRestoredSessions([]);
+    configureTerminalPersistence(store, { debounceMs: 0 });
+    const pty = new FakePty();
+    registerTerminalIpc({ loadNodePty: async () => fakeNodePty(pty) as never });
+    const created = await invoke<{ id: string }>(terminalChannels.create, {
+      clientId: "discard-failure", command: "node", cols: 80, cwd: "/repo", rows: 24,
+    });
+    pty.onDataHandler?.("keep on failure");
+    pty.onExitHandler?.({ exitCode: 1 });
+    await flushTerminalPersistence();
+    vi.mocked(store.updateState).mockRejectedValueOnce(new Error("disk full"));
+    await expect(invoke(terminalChannels.forget, { clientId: "discard-failure" })).resolves.toEqual({ ok: false, error: "disk full" });
+    expect((await store.getState()).restoredTerminalSessions).toEqual([expect.objectContaining({ clientId: "discard-failure" })]);
+    await expect(invoke(terminalChannels.snapshot, { id: created.id })).resolves.toMatchObject({ buffer: "keep on failure" });
+    await expect(invoke(terminalChannels.reconcile, { id: created.id })).resolves.toMatchObject({ state: "exited" });
+  });
+
   it("reconciles a terminal that exits before the renderer attaches its exit listener", async () => {
     vi.spyOn(Date, "now").mockReturnValue(5_000);
     const pty = new FakePty();
