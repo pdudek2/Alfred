@@ -6,7 +6,7 @@ export const privacySafeScreenshotSelectors = [
   ".session-location-value",
   ".workbench-session-context > small",
   ".work-surface-context",
-  ".composer-input",
+  ".new-session-prompt textarea",
   ".agent-context-essentials",
   ".agent-session-pulse",
   ".workspace-title-trigger small",

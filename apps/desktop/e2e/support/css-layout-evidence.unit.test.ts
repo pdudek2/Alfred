@@ -17,7 +17,7 @@ describe("CSS layout evidence support", () => {
     expect(privacySafeScreenshotStyle).not.toMatch(/body\s+\*/);
     expect(privacySafeScreenshotStyle).toContain(".xterm-host");
     expect(privacySafeScreenshotStyle).toContain(".session-location-value");
-    expect(privacySafeScreenshotStyle).toContain(".composer-input");
+    expect(privacySafeScreenshotStyle).toContain(".new-session-prompt textarea");
     expect(privacySafeScreenshotStyle).toContain(".agent-context-essentials");
     expect(privacySafeScreenshotStyle).toContain(".project-row-label");
     expect(privacySafeScreenshotStyle).toContain(".project-session-title");
@@ -45,7 +45,7 @@ describe("CSS layout evidence support", () => {
       <span class="session-location-value">/fixture/project</span>
       <div class="workbench-session-context"><small>fixture project</small></div>
       <span class="work-surface-context">fixture context</span>
-      <textarea class="composer-input">fixture prompt</textarea>
+      <div class="new-session-prompt"><textarea>fixture prompt</textarea></div>
       <div class="agent-context-essentials">fixture essentials</div>
       <div class="agent-session-pulse">fixture activity</div>
       <button class="workspace-title-trigger"><small>/fixture/workspace</small></button>
@@ -84,6 +84,6 @@ describe("CSS layout evidence support", () => {
       selector: ".command-palette-list [role='option'][aria-selected='true']",
     });
     expect(captureReadinessForState("sessions")).toBeNull();
-    expect(captureReadinessForState("prepare-work")).toBeNull();
+    expect(captureReadinessForState("new-session")).toBeNull();
   });
 });

@@ -21,6 +21,9 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await page.getByRole("toolbar", { name: "Work layout controls" })
     .getByRole("button", { name: "New terminal" })
     .click();
+  await expect(page.getByRole("dialog", { name: "New session", exact: true })).toBeVisible();
+  await page.getByRole("dialog", { name: "New session", exact: true })
+    .getByRole("button", { name: "Start", exact: true }).click();
   const workScreen = page.locator(".xterm-screen").first();
   await expect(workScreen).toBeAttached();
   const screenBefore = await requiredHandle(workScreen, "initial Work xterm screen");
@@ -55,6 +58,9 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await page.getByRole("toolbar", { name: "Work layout controls" })
     .getByRole("button", { name: "New terminal" })
     .click();
+  await expect(page.getByRole("dialog", { name: "New session", exact: true })).toBeVisible();
+  await page.getByRole("dialog", { name: "New session", exact: true })
+    .getByRole("button", { name: "Start", exact: true }).click();
 
   const workspaceTrigger = page.getByRole("button", { name: "Project menu for Fixture Alpha" });
   await workspaceTrigger.click();
@@ -65,12 +71,12 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await page.keyboard.press("Escape");
   await expect(workspaceTrigger).toBeFocused();
 
-  const launchTrigger = page.getByRole("button", { name: "Open launch menu" });
+  const launchTrigger = page.getByRole("button", { name: "New", exact: true });
   await launchTrigger.click();
-  await page.getByRole("menuitem", { name: "Prepare Work" }).click();
-  const prepareWork = page.getByRole("dialog", { name: "Prepare Work" });
+  await page.getByRole("radio", { name: /^Plan with Alfred/ }).click();
+  const prepareWork = page.getByRole("dialog", { name: "New session" });
   await expect(prepareWork).toBeVisible();
-  await expectSansFont(prepareWork.getByRole("button").first(), "13px");
+  await expectSansFont(prepareWork.getByRole("button").first(), "15px");
   await page.keyboard.press("Escape");
   await expect(launchTrigger).toBeFocused();
 
