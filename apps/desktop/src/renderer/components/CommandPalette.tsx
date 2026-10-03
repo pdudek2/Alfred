@@ -10,7 +10,6 @@ import {
 } from "react";
 import type { SessionTile } from "../session-state";
 import { isRestartable, sessionState } from "../session-status";
-import type { WorkMode } from "../terminal-desk-types";
 import type { AttentionProjection } from "../attention-projection";
 import type { AgentKind } from "../../shared/alfred-ipc";
 import type { TerminalSessionIsolation } from "../../shared/terminal-ipc";
@@ -27,8 +26,6 @@ type CommandPaletteItem = {
 
 type CommandPaletteProps = {
   activeWorkspaceId: string;
-  activeWorkMode: WorkMode;
-  arrangeMode: boolean;
   allSessions: SessionTile[];
   query: string;
   reviewQueuePreview: AttentionProjection | null;
@@ -42,7 +39,6 @@ type CommandPaletteProps = {
   onAddManualSession: () => void;
   onOpenPlan?: () => void;
   onAddWorkspace: () => void;
-  onApplyWorkMode: (mode: WorkMode) => void;
   onChangeQuery: (query: string) => void;
   onClose: () => void;
   onCloseSession: (sessionId: string) => void;
@@ -61,13 +57,10 @@ type CommandPaletteProps = {
   onOpenPrivacyControls: () => void;
   onRestartSession: (sessionId: string) => void;
   onSelectWorkspace: (workspaceId: string) => void;
-  onToggleArrange: () => void;
 };
 
 export function CommandPalette({
   activeWorkspaceId,
-  activeWorkMode,
-  arrangeMode,
   allSessions,
   query,
   reviewQueuePreview,
@@ -81,7 +74,6 @@ export function CommandPalette({
   onAddManualSession,
   onOpenPlan,
   onAddWorkspace,
-  onApplyWorkMode,
   onChangeQuery,
   onClose,
   onCloseSession,
@@ -100,7 +92,6 @@ export function CommandPalette({
   onOpenPrivacyControls,
   onRestartSession,
   onSelectWorkspace,
-  onToggleArrange,
 }: CommandPaletteProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -352,46 +343,19 @@ export function CommandPalette({
         disabled: sessions.length < 2,
         run: onFocusPreviousSession,
       },
-      {
-        id: "mode-focus",
-        label: "Focus mode",
-        detail: activeWorkMode === "focus" ? "Current mode" : "Full-width working stack",
-        run: () => onApplyWorkMode("focus"),
-      },
-      {
-        id: "mode-split",
-        label: "Split mode",
-        detail: activeWorkMode === "split" ? "Current mode" : "Two-up desk for paired work",
-        run: () => onApplyWorkMode("split"),
-      },
-      {
-        id: "mode-desk",
-        label: "Desk mode",
-        detail: activeWorkMode === "desk" ? "Current mode" : "Balanced multi-tile workspace",
-        run: () => onApplyWorkMode("desk"),
-      },
-      {
-        id: "arrange",
-        label: arrangeMode ? "Exit arrange mode" : "Arrange tiles",
-        detail: "Drag headers and resize corners",
-        run: onToggleArrange,
-      },
     ],
     [
-      activeWorkMode,
       activeWorkspaceId,
       activeWorkspace,
       activeWorkspaceAvailable,
       activeWorkspaceBound,
       launchDetail,
-      arrangeMode,
       canCloseWorkspace,
       hasSavedSessions,
       onAddAgentSession,
       onAddManualSession,
       onOpenPlan,
       onAddWorkspace,
-      onApplyWorkMode,
       onCloseSession,
       onCloseWorkspace,
       onCopySessionCwd,
@@ -408,7 +372,6 @@ export function CommandPalette({
       onOpenPrivacyControls,
       onRestartSession,
       onSelectWorkspace,
-      onToggleArrange,
       reviewQueuePreview,
       selectedRestartable,
       selectedSession,
@@ -632,10 +595,6 @@ function commandGroupLabel(commandId: string): string {
     commandId === "previous-session"
   ) {
     return "Focused session";
-  }
-
-  if (commandId.startsWith("mode-") || commandId === "arrange") {
-    return "Desk layout";
   }
 
   return "Commands";
