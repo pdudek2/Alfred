@@ -1,20 +1,15 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { AlertTriangle, Check, ChevronDown, ChevronUp, Ellipsis, Pencil, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
+import { AlertTriangle, Check, Ellipsis, Pencil, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
-  type CSSProperties,
   type FocusEvent as ReactFocusEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 import { getDesktopTerminalApi } from "../desktop-api";
-import type { TileLayout } from "../layout-state";
 import {
   canRelaunchRestoredSession,
   isGeneratedSessionTitle,
@@ -25,7 +20,6 @@ import { isRestartable, sessionState, type LocalTerminalStatus } from "../sessio
 import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
-import type { ArrangePointerMode, ArrangePreview, WorkMode } from "../terminal-desk-types";
 import type { AgentKind } from "../../shared/alfred-ipc";
 import type { WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import type {
@@ -37,23 +31,19 @@ import type {
   TerminalSessionSnapshot,
 } from "../../shared/terminal-ipc";
 import { shortenPath } from "../path-display";
-import { recoveryHeadline } from "../recovery-display";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { restoredSessionActionLabel, restoredSessionActionTitle } from "../restored-session-action";
 import { sessionPresentationTitle } from "../../shared/session-presentation";
 import { isWorkSession } from "../session-scope";
-import { deskPresentationSlot, nextDeskPresentationIds, type DeskPresentationSlot } from "../terminal-desk-presentation";
-import { useTerminalTileMotion } from "../terminal-tile-motion";
 import { pathsReferToSameLocation } from "../workspace-path-matching";
 import { normalizeSessionTitle, stripTerminalControlSequencesWithRemainder } from "../../shared/session-title";
 import { ghosttyVesperTerminalProfile } from "../terminal-visual-profile";
 import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
+import { SessionStack } from "./SessionStack";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 import { WorktreeDiffPanel, type WorktreeDiffCloseReason } from "./WorktreeDiffPanel";
 import type { WorktreeDiffView } from "../worktree-diff";
-import "./terminal-desk-layout.css";
 
-const ARRANGE_GRID_ROW_HEIGHT = 84;
 const MIN_TERMINAL_FIT_HEIGHT = 48;
 const MIN_TERMINAL_FIT_WIDTH = 80;
 const MAX_CAPTURED_AGENT_INPUT = 512;
@@ -99,17 +89,15 @@ export type TerminalStartAttempt = { readonly workspaceId: string };
 
 type TerminalDeskProps = {
   activeWorkspaceId: string;
-  arrangeMode: boolean;
-  layouts: Record<string, TileLayout>;
-  collapsedSessionIds: Set<string>;
-  recoverableSessions: SessionTile[];
-  revealSessionId: string | null;
   armedRecoverySessionIds: Set<string>;
+  /** Asleep conversations as History counts them (one per lineage). */
+  asleepCount: number;
   selectedSessionId: string | null;
   sessions: SessionTile[];
+  /** Details takes the stack's column while it is open. */
+  stackHidden: boolean;
   surfaceActive: boolean;
   terminalFocusRequestKey: number;
-  workMode: WorkMode;
   worktreeActionPending: Record<string, WorktreeActionKind | undefined>;
   worktreeDiffReturnFocus: HTMLElement | null;
   worktreeDiffView: WorktreeDiffView | null;
@@ -124,11 +112,10 @@ type TerminalDeskProps = {
   onCloseSession: (sessionId: string) => void;
   onCloseWorktreeDiff: () => void;
   onContinueRestoredSession: (sessionId: string) => void;
+  onOpenAsleep: () => void;
   onOpenExternalTerminal: (cwd: string) => Promise<boolean>;
   onOpenHistory: () => void;
   onRestartSession: (sessionId: string) => void;
-  onApplyWorkMode: (mode: WorkMode) => void;
-  onMoveTile: (tileId: string, deltaCol: number, deltaRow: number) => void;
   onRuntimeSessionFailed: (tileId: string, attempt: TerminalStartAttempt, reason?: string) => void;
   onRuntimeSessionExited: (event: TerminalExitEvent) => void;
   onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
@@ -140,26 +127,19 @@ type TerminalDeskProps = {
   onRenameSession: (sessionId: string, title: string) => void;
   onFocusSession: (sessionId: string) => void;
   onSelectSession: (sessionId: string) => void;
-  onResizeTile: (tileId: string, deltaColSpan: number, deltaRowSpan: number) => void;
   onReviewWorktree: (sessionId: string) => void;
-  onSessionRevealed: (sessionId: string) => void;
-  onToggleCollapseSession: (sessionId: string) => void;
   planLine?: ReactNode;
 };
 
 export function TerminalDesk({
   activeWorkspaceId,
-  arrangeMode,
-  layouts,
-  collapsedSessionIds,
-  recoverableSessions,
-  revealSessionId,
   armedRecoverySessionIds,
+  asleepCount,
   selectedSessionId,
   sessions,
+  stackHidden,
   surfaceActive,
   terminalFocusRequestKey,
-  workMode,
   worktreeActionPending,
   worktreeDiffReturnFocus,
   worktreeDiffView,
@@ -174,11 +154,10 @@ export function TerminalDesk({
   onCloseSession,
   onCloseWorktreeDiff,
   onContinueRestoredSession,
+  onOpenAsleep,
   onOpenExternalTerminal,
   onOpenHistory,
   onRestartSession,
-  onApplyWorkMode,
-  onMoveTile,
   onRuntimeSessionFailed,
   onRuntimeSessionExited,
   onRuntimeSessionOutput,
@@ -190,10 +169,7 @@ export function TerminalDesk({
   onRenameSession,
   onFocusSession,
   onSelectSession,
-  onResizeTile,
   onReviewWorktree,
-  onSessionRevealed,
-  onToggleCollapseSession,
   planLine,
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -203,8 +179,6 @@ export function TerminalDesk({
     reason: WorktreeDiffCloseReason;
     returnFocus: HTMLElement | null;
   } | null>(null);
-  const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null);
-  const [deskPresentationIdsByWorkspace, setDeskPresentationIdsByWorkspace] = useState<Record<string, string[]>>({});
   const activeSessions = sessions.filter(
     (session) => session.workspaceId === activeWorkspaceId && isWorkSession(session),
   );
@@ -212,66 +186,16 @@ export function TerminalDesk({
     (session) => session.workspaceId === activeWorkspaceId && session.runtimeStatus === "restored",
   );
   const workspaceUnavailable = workspaceRootStatus === "missing";
-  // Drafts live on the plan line, not in the grid.
-  const visibleWorkspaceSessions = activeSessions.filter((session) => session.stage === "live");
+  // Drafts live on the plan line, not on the deck.
+  const liveSessions = activeSessions.filter((session) => session.stage === "live");
   const hasDrafts = !workspaceUnavailable && activeSessions.some((session) => session.stage === "staged");
   const draftSelected = activeSessions.some((session) => session.id === selectedSessionId && session.stage === "staged");
-  const activeLayouts = layouts;
-  const selectedSession = selectedSessionForDesk(visibleWorkspaceSessions, selectedSessionId);
-  const previousDeskPresentationIds = deskPresentationIdsByWorkspace[activeWorkspaceId] ?? [];
-  const deskPresentationIds = !arrangeMode && workMode === "desk"
-    ? nextDeskPresentationIds(
-      visibleWorkspaceSessions.map((session) => session.id),
-      selectedSessionId,
-      previousDeskPresentationIds,
-    )
-    : previousDeskPresentationIds;
-  const deskSessions = deskPresentationIds
-    .map((sessionId) => visibleWorkspaceSessions.find((session) => session.id === sessionId) ?? null)
-    .filter((session): session is SessionTile => session !== null);
-  const focusSession = workMode === "focus"
-    ? selectedSession ?? focusedSession(visibleWorkspaceSessions, activeLayouts) ?? visibleWorkspaceSessions[0] ?? null
-    : null;
-  const splitSessions = workMode === "split"
-    ? splitSessionsForDesk(visibleWorkspaceSessions, selectedSessionId, activeLayouts)
-    : visibleWorkspaceSessions;
-  const visibleSessions = arrangeMode
-    ? visibleWorkspaceSessions
-    : focusSession
-      ? [focusSession]
-      : workMode === "desk"
-        ? deskSessions
-        : splitSessions;
+  // One focused terminal; the rest wait in the stack. Focus follows the selection only, never runtime events.
+  const focusSession = liveSessions.find((session) => session.id === selectedSessionId) ?? liveSessions[0] ?? null;
+  const stackSessions = liveSessions.filter((session) => session.id !== focusSession?.id);
   const renderedSessions = sessions.filter((session) => isWorkSession(session) && session.stage === "live");
-  const visibleSessionIds = new Set(visibleSessions.map((session) => session.id));
-  // A draft opened in Context must not hand the selection (and terminal focus) to a live tile.
-  const inspectedSession = draftSelected ? null : focusSession ?? selectedSession ?? visibleSessions[0] ?? null;
-  const showSplitEmptyState = !arrangeMode && workMode === "split" && visibleWorkspaceSessions.length > 0 && visibleSessions.length < 2;
-  const gridDensity =
-    workMode === "split" ? "split" : visibleSessions.length <= 1 ? "single" : visibleSessions.length === 2 ? "split" : "dense";
-  const manyUpGrid = !arrangeMode && workMode === "desk" && visibleSessions.length >= 5;
-  const sixUpGrid = manyUpGrid && visibleSessions.length === 6;
-  const showLayoutControls = arrangeMode && visibleWorkspaceSessions.length > 0;
-  const threePaneGrid = !arrangeMode && workMode === "desk" && visibleSessions.length === 3;
-
-  useTerminalTileMotion(gridRef);
-
-  useLayoutEffect(() => {
-    if (arrangeMode || workMode !== "desk") return;
-    setDeskPresentationIdsByWorkspace((current) => {
-      const currentIds = current[activeWorkspaceId] ?? [];
-      if (
-        currentIds.length === deskPresentationIds.length
-        && currentIds.every((id, index) => id === deskPresentationIds[index])
-      ) {
-        return current;
-      }
-      return {
-        ...current,
-        [activeWorkspaceId]: deskPresentationIds,
-      };
-    });
-  }, [activeWorkspaceId, arrangeMode, deskPresentationIds, workMode]);
+  // A draft opened in Details must not hand the selection (and terminal focus) to a live tile.
+  const inspectedSession = draftSelected ? null : focusSession;
 
   useEffect(() => {
     const column = gridColumnRef.current;
@@ -285,50 +209,11 @@ export function TerminalDesk({
     return () => column.removeEventListener("wheel", handleWheel);
   }, []);
 
-  useEffect(() => {
-    if (workMode !== "focus" || worktreeDiffView) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) {
-        event.preventDefault();
-        onApplyWorkMode("desk");
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [onApplyWorkMode, workMode, worktreeDiffView]);
-
-  useEffect(() => {
-    if (!revealSessionId || workMode === "focus") return;
-    const tile = gridRef.current?.querySelector<HTMLElement>(
-      `[data-session-id="${revealSessionId}"]`,
-    );
-    if (!tile || tile.getAttribute("aria-hidden") === "true") return;
-
-    (tile.querySelector<HTMLElement>(".terminal-tile-header") ?? tile)
-      .scrollIntoView?.({ block: "nearest", inline: "nearest" });
-    onSessionRevealed(revealSessionId);
-  }, [onSessionRevealed, revealSessionId, workMode]);
-
-  const handleFocusSession = useCallback(
-    (sessionId: string) => {
-      if (!arrangeMode) {
-        onFocusSession(sessionId);
-        return;
-      }
-      onSelectSession(sessionId);
-    },
-    [arrangeMode, onFocusSession, onSelectSession],
-  );
-  const handleSelectSession = useCallback((sessionId: string) => onSelectSession(sessionId), [onSelectSession]);
   const handleCloseDiff = useCallback((reason: WorktreeDiffCloseReason) => {
-    const targetSessionId = worktreeDiffView?.sessionId ?? selectedSession?.id;
+    const targetSessionId = worktreeDiffView?.sessionId ?? focusSession?.id;
     const tiles = Array.from(gridRef.current?.querySelectorAll<HTMLElement>("[data-session-id]") ?? []);
     const tile = tiles.find((candidate) => candidate.dataset.sessionId === targetSessionId)
-      ?? tiles.find((candidate) => candidate.dataset.sessionId === selectedSession?.id)
+      ?? tiles.find((candidate) => candidate.dataset.sessionId === focusSession?.id)
       ?? tiles[0];
     closeDiffFocusRef.current = {
       fallback: tile ?? null,
@@ -336,7 +221,7 @@ export function TerminalDesk({
       returnFocus: worktreeDiffReturnFocus,
     };
     onCloseWorktreeDiff();
-  }, [onCloseWorktreeDiff, selectedSession?.id, worktreeDiffReturnFocus, worktreeDiffView?.sessionId]);
+  }, [focusSession?.id, onCloseWorktreeDiff, worktreeDiffReturnFocus, worktreeDiffView?.sessionId]);
 
   useEffect(() => {
     if (worktreeDiffView || !closeDiffFocusRef.current) return;
@@ -356,109 +241,9 @@ export function TerminalDesk({
     });
     return () => cancelAnimationFrame(frame);
   }, [worktreeDiffView]);
-  const startPointerArrange = useCallback(
-    (tileId: string, mode: ArrangePointerMode, event: ReactPointerEvent<HTMLElement>) => {
-      if (!arrangeMode) return;
-      if (mode === "move" && (event.target as HTMLElement).closest("button")) return;
-      const grid = gridRef.current;
-      const layout = layouts[tileId];
-      if (!grid || !layout) return;
-
-      event.preventDefault();
-      const rect = grid.getBoundingClientRect();
-      const styles = getComputedStyle(grid);
-      const colWidth = rect.width > 0 ? rect.width / 12 : 80;
-      const rowHeight = Number.parseFloat(styles.gridAutoRows) || ARRANGE_GRID_ROW_HEIGHT;
-      const rowGap = Number.parseFloat(styles.rowGap) || 0;
-      const rowPitch = rowHeight + rowGap;
-      const startX = event.clientX;
-      const startY = event.clientY;
-      let finalDeltaCol = 0;
-      let finalDeltaRow = 0;
-
-      setArrangePreview({
-        tileId,
-        mode,
-        offsetX: 0,
-        offsetY: 0,
-        deltaCol: 0,
-        deltaRow: 0,
-      });
-      document.body.classList.add("arranging-pointer");
-
-      const handlePointerMove = (moveEvent: PointerEvent) => {
-        const offsetX = moveEvent.clientX - startX;
-        const offsetY = moveEvent.clientY - startY;
-        finalDeltaCol = Math.round(offsetX / colWidth);
-        finalDeltaRow = Math.round(offsetY / rowPitch);
-        setArrangePreview({
-          tileId,
-          mode,
-          offsetX,
-          offsetY,
-          deltaCol: finalDeltaCol,
-          deltaRow: finalDeltaRow,
-        });
-      };
-
-      const stopPointerArrange = (commit: boolean) => {
-        window.removeEventListener("pointermove", handlePointerMove);
-        window.removeEventListener("pointerup", commitPointerArrange);
-        window.removeEventListener("pointercancel", cancelPointerArrange);
-        document.body.classList.remove("arranging-pointer");
-        setArrangePreview(null);
-
-        if (!commit) return;
-        if (finalDeltaCol === 0 && finalDeltaRow === 0) return;
-
-        if (mode === "move") {
-          onMoveTile(tileId, finalDeltaCol, finalDeltaRow);
-        } else {
-          onResizeTile(tileId, finalDeltaCol, finalDeltaRow);
-        }
-      };
-      const commitPointerArrange = () => stopPointerArrange(true);
-      const cancelPointerArrange = () => stopPointerArrange(false);
-
-      window.addEventListener("pointermove", handlePointerMove);
-      window.addEventListener("pointerup", commitPointerArrange);
-      window.addEventListener("pointercancel", cancelPointerArrange);
-    },
-    [arrangeMode, layouts, onMoveTile, onResizeTile],
-  );
-  const handleArrangeKeyDown = useCallback((
-    tileId: string,
-    event: ReactKeyboardEvent<HTMLElement>,
-  ) => {
-    if (!arrangeMode) return;
-    const delta = arrangeKeyboardDelta(event);
-    if (!delta) return;
-
-    event.preventDefault();
-    if (delta.mode === "move") {
-      onMoveTile(tileId, delta.col, delta.row);
-    } else {
-      onResizeTile(tileId, delta.col, delta.row);
-    }
-  }, [arrangeMode, onMoveTile, onResizeTile]);
 
   return (
-    <section
-      className={`terminal-stage ${showLayoutControls ? "" : "headerless"} ${arrangeMode ? "arranging" : ""} mode-${workMode}`}
-      aria-label="terminals"
-    >
-      {showLayoutControls && (
-        <header className="terminal-stage-header">
-          <div className="layout-controls" aria-label="layout controls">
-            {arrangeMode && (
-              <>
-                <span className="arrange-mode-label">Arrange mode</span>
-                <span className="arrange-hint">drag or arrows · Shift+arrows resize</span>
-              </>
-            )}
-          </div>
-        </header>
-      )}
+    <section className="terminal-stage headerless" aria-label="terminals">
       <div className="terminal-stage-body">
         <div
           ref={gridColumnRef}
@@ -466,12 +251,6 @@ export function TerminalDesk({
           aria-hidden={worktreeDiffView ? "true" : undefined}
           inert={worktreeDiffView ? true : undefined}
         >
-          {recoverableSessions.length > 0 && (
-            <RecoveryWorkspaceStrip
-              sessions={recoverableSessions}
-              onOpenHistory={onOpenHistory}
-            />
-          )}
           {focusSession && isReviewableIsolatedCheckout(focusSession) && (
             <WorktreeActionStrip
               pendingAction={worktreeActionPending[sessionInstanceKey(focusSession)]}
@@ -481,12 +260,8 @@ export function TerminalDesk({
             />
           )}
           {hasDrafts && planLine}
-          <div
-            className={`terminal-grid ${arrangeMode ? "arranging" : "laid-out"} ${gridDensity}${manyUpGrid ? " many-up" : ""}${sixUpGrid ? " six-up" : ""}${threePaneGrid ? " three-pane" : ""}`}
-            data-testid="terminal-grid"
-            ref={gridRef}
-          >
-          {visibleWorkspaceSessions.length === 0 && (
+          <div className="terminal-grid" data-testid="terminal-grid" ref={gridRef}>
+          {liveSessions.length === 0 && (
             <EmptyWorkspaceState
               armedSessionIds={armedRecoverySessionIds}
               asleepSessions={asleepSessions}
@@ -503,19 +278,14 @@ export function TerminalDesk({
             />
           )}
           {renderedSessions.map((session) => {
+            // Every live terminal stays mounted; switching focus or project only hides it.
             const workspaceHidden = session.workspaceId !== activeWorkspaceId;
-            const layoutHidden = !workspaceHidden && !arrangeMode && !visibleSessionIds.has(session.id);
-            const presentationSlot = threePaneGrid
-              ? deskPresentationSlot(session.id, deskPresentationIds)
-              : null;
+            const layoutHidden = !workspaceHidden && session.id !== focusSession?.id;
             return (
               <ManualTerminalTile
-                arrangeMode={arrangeMode}
                 cwd={session.cwd}
                 createdAt={session.createdAt}
                 key={session.id}
-                layout={arrangeMode ? layouts[session.id] : undefined}
-                preview={arrangePreview?.tileId === session.id ? arrangePreview : undefined}
                 sessionKey={session.id}
                 runtimeId={session.runtimeId}
                 runtimeStatus={session.runtimeStatus}
@@ -542,24 +312,13 @@ export function TerminalDesk({
                 lastOutputAt={session.lastOutputAt}
                 agentSignal={session.agentSignal}
                 shellBusy={session.shellBusy}
-                collapsed={collapsedSessionIds.has(session.id)}
                 selected={inspectedSession?.id === session.id}
                 surfaceActive={surfaceActive && !worktreeDiffView}
                 terminalFocusRequestKey={terminalFocusRequestKey}
-                presentationSlot={presentationSlot}
-                showHeader={
-                  arrangeMode ||
-                  workMode !== "focus" ||
-                  focusSession?.id !== session.id
-                }
                 onClose={() => onCloseSession(session.id)}
                 onContinueRestoredSession={() => onContinueRestoredSession(session.id)}
                 onRestartSession={() => onRestartSession(session.id)}
-                onFocusSession={() => handleFocusSession(session.id)}
-                onSelectSession={() => handleSelectSession(session.id)}
-                onArrangeKeyDown={(event) => handleArrangeKeyDown(session.id, event)}
-                onPointerMoveStart={(event) => startPointerArrange(session.id, "move", event)}
-                onPointerResizeStart={(event) => startPointerArrange(session.id, "resize", event)}
+                onSelectSession={() => onSelectSession(session.id)}
                 onRuntimeSessionFailed={onRuntimeSessionFailed}
                 onRuntimeSessionExited={onRuntimeSessionExited}
                 onRuntimeSessionOutput={onRuntimeSessionOutput}
@@ -570,19 +329,20 @@ export function TerminalDesk({
                 onRuntimeSessionUnavailable={onRuntimeSessionUnavailable}
                 onOpenExternalTerminal={onOpenExternalTerminal}
                 onRenameSession={onRenameSession}
-                onToggleCollapse={() => onToggleCollapseSession(session.id)}
               />
             );
           })}
-          {showSplitEmptyState && (
-            <SplitModeEmptyState
-              onAddManualSession={onAddManualSession}
-              onApplyWorkMode={onApplyWorkMode}
-              workspaceLabel={workspaceLabel}
-            />
-          )}
           </div>
         </div>
+        {focusSession && !stackHidden && !worktreeDiffView && (
+          <SessionStack
+            asleepCount={asleepCount}
+            sessions={stackSessions}
+            workspaceLabel={workspaceLabel}
+            onFocusSession={onFocusSession}
+            onOpenAsleep={onOpenAsleep}
+          />
+        )}
         {worktreeDiffView && (
           <WorktreeDiffPanel view={worktreeDiffView} onClose={handleCloseDiff} />
         )}
@@ -616,52 +376,6 @@ function WorktreeActionStrip({
         {pendingAction === "apply" ? "Applying..." : "Apply to project"}
       </button>
     </div>
-  );
-}
-
-function RecoveryWorkspaceStrip({ sessions, onOpenHistory }: { sessions: SessionTile[]; onOpenHistory: () => void }) {
-  return (
-    <section className="recovery-workspace-strip" aria-label="Session recovery">
-      <RotateCcw size={13} aria-hidden="true" />
-      <p>
-        <strong>{recoveryHeadline(sessions)}</strong>
-        <span aria-hidden="true"> · </span>
-        <button type="button" className="recovery-history-link" onClick={onOpenHistory}>
-          Open in History
-        </button>
-      </p>
-    </section>
-  );
-}
-
-function SplitModeEmptyState({
-  onAddManualSession,
-  onApplyWorkMode,
-  workspaceLabel,
-}: {
-  onAddManualSession: () => void;
-  onApplyWorkMode: (mode: WorkMode) => void;
-  workspaceLabel: string;
-}) {
-  return (
-    <aside className="split-empty-state" role="status" aria-label="Split mode needs another session">
-      <div>
-        <span>split slot</span>
-        <strong>Create another terminal to fill this split</strong>
-        <p>
-          {workspaceLabel} has one visible tile. Create a second terminal for this side, or return to the
-          full grid when you want the whole surface.
-        </p>
-      </div>
-      <div className="split-empty-actions">
-        <button type="button" onClick={onAddManualSession}>
-          New terminal
-        </button>
-        <button type="button" onClick={() => onApplyWorkMode("desk")}>
-          Back to grid
-        </button>
-      </div>
-    </aside>
   );
 }
 
@@ -864,7 +578,6 @@ function usableTerminalDimensions(dimensions: { cols: number; rows: number } | u
 }
 
 function ManualTerminalTile({
-  arrangeMode,
   cwd,
   createdAt,
   agentKind,
@@ -878,18 +591,11 @@ function ManualTerminalTile({
   lastOutputAt,
   agentSignal,
   shellBusy,
-  layout,
-  preview,
   relaunchArmed,
-  collapsed,
   onClose,
   onContinueRestoredSession,
   onRestartSession,
-  onArrangeKeyDown,
-  onFocusSession,
   onSelectSession,
-  onPointerMoveStart,
-  onPointerResizeStart,
   onRuntimeSessionFailed,
   onRuntimeSessionExited,
   onRuntimeSessionOutput,
@@ -900,11 +606,9 @@ function ManualTerminalTile({
   onRuntimeSessionUnavailable,
   onOpenExternalTerminal,
   onRenameSession,
-  onToggleCollapse,
   selected,
   surfaceActive,
   terminalFocusRequestKey,
-  showHeader,
   runtimeId,
   runtimeStatus,
   sessionKey,
@@ -914,14 +618,12 @@ function ManualTerminalTile({
   workspaceRootFingerprint,
   title,
   layoutHidden = false,
-  presentationSlot = null,
   workspaceHidden,
   command,
   args,
   resumeTarget,
   resumeMode,
 }: {
-  arrangeMode: boolean;
   cwd: string;
   createdAt?: number | undefined;
   agentKind?: SessionTile["agentKind"];
@@ -935,18 +637,11 @@ function ManualTerminalTile({
   lastOutputAt?: number | undefined;
   agentSignal?: SessionTile["agentSignal"] | undefined;
   shellBusy?: boolean | undefined;
-  layout?: TileLayout | undefined;
-  preview?: ArrangePreview | undefined;
   relaunchArmed: boolean;
-  collapsed: boolean;
   onClose: () => void;
   onContinueRestoredSession: () => void;
   onRestartSession: () => void;
-  onArrangeKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
-  onFocusSession: () => void;
   onSelectSession: () => void;
-  onPointerMoveStart: (event: ReactPointerEvent<HTMLElement>) => void;
-  onPointerResizeStart: (event: ReactPointerEvent<HTMLElement>) => void;
   onRuntimeSessionFailed: (tileId: string, attempt: TerminalStartAttempt, reason?: string) => void;
   onRuntimeSessionExited: (event: TerminalExitEvent) => void;
   onRuntimeSessionOutput: (event: TerminalDataEvent) => void;
@@ -957,11 +652,9 @@ function ManualTerminalTile({
   onRuntimeSessionUnavailable: (tileId: string) => void;
   onOpenExternalTerminal: (cwd: string) => Promise<boolean>;
   onRenameSession: (sessionId: string, title: string) => void;
-  onToggleCollapse: () => void;
   selected: boolean;
   surfaceActive: boolean;
   terminalFocusRequestKey: number;
-  showHeader: boolean;
   runtimeId?: TerminalSessionId | undefined;
   runtimeStatus?: SessionTile["runtimeStatus"] | undefined;
   sessionKey: string;
@@ -971,7 +664,6 @@ function ManualTerminalTile({
   workspaceRootFingerprint?: string | undefined;
   title: string;
   layoutHidden?: boolean;
-  presentationSlot?: DeskPresentationSlot | null;
   workspaceHidden: boolean;
   command?: string | undefined;
   args?: string[] | undefined;
@@ -1197,11 +889,6 @@ function ManualTerminalTile({
     setRenaming(true);
   };
   const compactActionItems: ChromeMenuItem[] = [
-    {
-      id: "collapse",
-      label: collapsed ? "Expand terminal body" : "Collapse terminal body",
-      run: onToggleCollapse,
-    },
     ...(externalTerminalCwd
       ? [{
           id: "external-terminal",
@@ -1595,37 +1282,21 @@ function ManualTerminalTile({
 
   return (
     <article
-      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${workspaceHidden ? "workspace-hidden" : ""} ${layoutHidden ? "focus-hidden" : ""} ${collapsed ? "collapsed" : ""} ${arrangeMode ? "arranging" : ""} ${showHeader ? "" : "chrome-headerless"} ${preview ? `is-${preview.mode === "move" ? "dragging" : "resizing"}` : ""}`}
+      className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${workspaceHidden ? "workspace-hidden" : ""} ${layoutHidden ? "focus-hidden" : ""}`}
       data-testid={workspaceHidden ? "background-terminal-tile" : "terminal-tile"}
       data-session-id={sessionKey}
-      data-presentation-slot={presentationSlot ?? undefined}
       aria-label={latestActivity ? `${title}, ${latestActivity.title}: ${latestActivity.detail}` : title}
       aria-hidden={workspaceHidden || layoutHidden ? "true" : undefined}
       inert={workspaceHidden || layoutHidden ? true : undefined}
-      style={gridStyle(layout, preview)}
       tabIndex={workspaceHidden || layoutHidden ? -1 : 0}
       onFocus={(event) => {
         if (focusEnteredTile(event)) onSelectSession();
       }}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return;
-        if (arrangeMode) {
-          onArrangeKeyDown(event);
-          return;
-        }
-        if (event.key === "Enter") {
-          event.preventDefault();
-          onFocusSession();
-        }
-      }}
     >
-      {showHeader && (
-        <header
-          className={`tile-header terminal-tile-header ${arrangeMode ? "drag-handle" : ""}`}
+      <header
+          className="tile-header terminal-tile-header"
           tabIndex={-1}
-          onClick={!arrangeMode ? onSelectSession : undefined}
-          onDoubleClick={!arrangeMode ? onFocusSession : undefined}
-          onPointerDown={arrangeMode ? onPointerMoveStart : undefined}
+          onClick={onSelectSession}
         >
           <div className="tile-title">
             <span className={`tile-kind-mark ${kindMeta.className}`} title={kindMeta.label} aria-label={kindMeta.label}>
@@ -1690,7 +1361,6 @@ function ManualTerminalTile({
             <small>{latestActivity.detail}</small>
           </div>
         )}
-        {arrangeMode && <span className="arrange-handle" aria-hidden="true" />}
         <div className="tile-actions">
           <div className="tile-action-group tile-status-group">
             {ageLabel && (
@@ -1736,16 +1406,6 @@ function ManualTerminalTile({
             </div>
           )}
           <div className="tile-action-group tile-utility-actions">
-            <button
-              type="button"
-              className="collapse-session-button"
-              aria-label={`${collapsed ? "Expand" : "Collapse"} ${title}`}
-              onClick={onToggleCollapse}
-              onPointerDown={(event) => event.stopPropagation()}
-              title={collapsed ? "Expand terminal body" : "Collapse terminal body"}
-            >
-              {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-            </button>
             {externalTerminalCwd && (
               <button
                 type="button"
@@ -1793,7 +1453,6 @@ function ManualTerminalTile({
           </div>
         </div>
         </header>
-      )}
       {recoveryOnly && (
         <div className="terminal-action-strip" role="note">
           Launch details were cleared for privacy. Your isolated checkout is still available.
@@ -1805,14 +1464,6 @@ function ManualTerminalTile({
         data-session-id={sessionKey}
         ref={containerRef}
       />
-      {arrangeMode && (
-        <button
-          className="tile-resize-handle"
-          type="button"
-          aria-label={`Resize ${title}`}
-          onPointerDown={onPointerResizeStart}
-        />
-      )}
     </article>
   );
 }
@@ -1931,74 +1582,6 @@ function activityKindLabel(kind: NonNullable<SessionTile["activityEvents"]>[numb
     case "output":
       return "out";
   }
-}
-
-function arrangeKeyboardDelta(event: ReactKeyboardEvent<HTMLElement>): {
-  mode: ArrangePointerMode;
-  col: number;
-  row: number;
-} | null {
-  const mode = event.shiftKey ? "resize" : "move";
-  if (event.key === "ArrowLeft") return { mode, col: -1, row: 0 };
-  if (event.key === "ArrowRight") return { mode, col: 1, row: 0 };
-  if (event.key === "ArrowUp") return { mode, col: 0, row: -1 };
-  if (event.key === "ArrowDown") return { mode, col: 0, row: 1 };
-  return null;
-}
-
-function focusedSession(sessions: SessionTile[], layouts: Record<string, TileLayout>): SessionTile | null {
-  let best: { session: SessionTile; area: number } | null = null;
-  for (const session of sessions) {
-    if (session.stage !== "live") continue;
-    const layout = layouts[session.id];
-    if (!layout) continue;
-    const area = layout.colSpan * layout.rowSpan;
-    if (!best || area > best.area) best = { session, area };
-  }
-  return best?.session ?? null;
-}
-
-function splitSessionsForDesk(
-  sessions: SessionTile[],
-  selectedSessionId: string | null,
-  layouts: Record<string, TileLayout>,
-): SessionTile[] {
-  if (sessions.length <= 2) return sessions;
-
-  const defaultVisible = sessions.slice(0, 2);
-  if (!selectedSessionId || defaultVisible.some((session) => session.id === selectedSessionId)) {
-    return defaultVisible;
-  }
-
-  const primary = selectedSessionForDesk(sessions, selectedSessionId) ?? focusedSession(sessions, layouts) ?? sessions[0] ?? null;
-  if (!primary) return [];
-
-  const secondary = sessions.find((session) => session.id !== primary.id) ?? null;
-  return secondary ? [primary, secondary] : [primary];
-}
-
-function selectedSessionForDesk(sessions: SessionTile[], selectedSessionId: string | null): SessionTile | null {
-  return sessions.find((session) => session.id === selectedSessionId) ?? null;
-}
-
-function gridStyle(layout: TileLayout | undefined, preview?: ArrangePreview | undefined): CSSProperties | undefined {
-  if (!layout) return undefined;
-  const style: CSSProperties & Record<string, string | number> = {
-    gridColumn: `${layout.col} / span ${layout.colSpan}`,
-    gridRow: `${layout.row} / span ${layout.rowSpan}`,
-  };
-
-  if (preview) {
-    style["--arrange-x"] = `${preview.offsetX}px`;
-    style["--arrange-y"] = `${preview.offsetY}px`;
-  }
-
-  if (preview?.mode === "move") {
-    style.transform = `translate3d(${preview.offsetX}px, ${preview.offsetY}px, 0)`;
-    style.zIndex = 6;
-  }
-
-  return style;
 }
 
 function focusEnteredTile(event: ReactFocusEvent<HTMLElement>): boolean {
