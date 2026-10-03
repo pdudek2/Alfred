@@ -76,6 +76,15 @@
   min-width: 0;
 }
 
+/* Contract: the signal hue means only "waits for you"; Failed takes the danger hue. */
+.session-stack-card .session-status-glyph:is(.status-needs-you, .status-your-turn) {
+  color: var(--signal);
+}
+
+.session-stack-card .session-status-glyph.status-failed {
+  color: var(--signal-danger);
+}
+
 .session-stack-title {
   flex: 1 1 auto;
   min-width: 0;
