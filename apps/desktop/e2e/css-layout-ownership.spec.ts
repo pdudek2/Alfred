@@ -172,7 +172,7 @@ const overlayProbes: Record<"command-palette" | "privacy", CssOwnerProbe[]> = {
   ],
 };
 
-test.use({ fixtureOptions: { inboxItems: 1 } });
+test.use({ fixtureOptions: { inboxItems: 1, restoredSessions: 1, unsafeRecoveryItem: 1 } });
 
 test("keeps the drafts-only plan line neutral at wide and narrow widths", async ({ harness }, testInfo) => {
   const { app, page } = harness;
@@ -413,6 +413,11 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expect(page.getByTestId("workbench-header")).toBeVisible();
   await expect(page.locator(".plan-line")).toBeVisible();
   await expect(page.getByTestId("terminal-tile")).toHaveCount(0);
+  // Arm the empty state's asleep row so its privacy masks are exercised.
+  const asleep = page.getByRole("region", { name: "Asleep sessions" });
+  await asleep.getByRole("button", { name: /^Review resume/ }).click();
+  await expect(asleep.locator(".terminal-empty-asleep-warning")).toBeVisible();
+  await recordPrivacyMaskCoverage();
   await addManualTerminal(page);
   await addManualTerminal(page);
   await expect(page.getByTestId("xterm-host")).toHaveCount(2);
