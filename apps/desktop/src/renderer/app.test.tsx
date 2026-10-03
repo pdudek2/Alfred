@@ -7676,6 +7676,9 @@ describe("App integration", () => {
     expect(asleep).toHaveTextContent("Review before resuming: rm -rf would be replayed.");
     expect(within(asleep).getAllByRole("listitem")[2]).toHaveTextContent("Clean build outputTerminal, 5w ago");
     expect(within(asleep).getByRole("button", { name: "Confirm resume: Clean build output" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(within(asleep).getByRole("button", { name: "Review resume: Clean build output" })).toBeInTheDocument();
+    expect(asleep).not.toHaveTextContent("Review before resuming");
 
     await user.click(within(asleep).getByRole("button", { name: "Resume: Slide deck outline" }));
 

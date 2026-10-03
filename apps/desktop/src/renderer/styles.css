@@ -2023,7 +2023,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   margin: 0;
   padding-bottom: 6px;
   color: var(--text-faint);
-  font: 500 12px/16px var(--sans);
+  font: 600 12px/16px var(--sans);
 }
 
 .terminal-empty-asleep ul {
