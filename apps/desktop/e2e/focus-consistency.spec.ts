@@ -12,8 +12,18 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
   const { app, page } = harness;
   // Initial xterm startup claims focus asynchronously; begin after that handoff.
   await expect(page.getByRole("textbox", { name: "Terminal input" })).toBeFocused();
-  const tileUtility = page.getByTestId("terminal-tile")
-    .getByRole("button", { name: /^Close Manual/ });
+  // A narrow focus column folds Close into the overflow menu; either way one tile control takes the ring.
+  const tileUtility = page.locator('[data-testid="terminal-tile"]:visible')
+    .getByRole("button", { name: /^(Close|More actions for) Manual/ }).first();
+  // A second terminal puts the first one in the stack.
+  await page.getByRole("toolbar", { name: "Work layout controls" }).getByRole("button", { name: "New terminal" }).click();
+  await page.getByRole("button", { name: "Start", exact: true }).click();
+  // Like the first one, the new terminal claims focus once it starts; let that settle first.
+  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-2"]').getByRole("textbox", { name: "Terminal input" }))
+    .toBeFocused();
+  const stackCard = page.getByRole("complementary", { name: /^Other sessions in / })
+    .getByRole("button", { name: /Manual · zsh 1/ });
+  await expect(stackCard).toBeVisible();
 
   const controls = [
     {
@@ -22,20 +32,26 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
       offset: "-2px",
     },
     {
-      control: page.getByRole("button", { name: /^Open layout menu,/ }),
+      control: page.getByRole("toolbar", { name: "Work layout controls" }).getByRole("button", { name: "New terminal" }),
       offset: "2px",
     },
     {
       control: tileUtility,
       offset: "-2px",
     },
+    {
+      control: stackCard,
+      offset: "-2px",
+      // Shift+Tab from the stack lands in the terminal, which keeps Tab for the shell.
+      reverse: true,
+    },
   ];
 
   for (const [width, height] of [[1440, 900], [1120, 720]] as const) {
     await setWindowSize(app, page, width, height);
-    for (const [index, { control, offset }] of controls.entries()) {
-      if (index === 2) await page.getByTestId("terminal-tile").focus();
-      await focusFromKeyboard(page, control);
+    for (const [index, { control, offset, reverse }] of controls.entries()) {
+      if (index === 2) await page.locator('[data-testid="terminal-tile"]:visible').focus();
+      await focusFromKeyboard(page, control, reverse);
       await expect(control).toHaveCSS("outline-style", "solid");
       await expect(control).toHaveCSS("outline-width", "2px");
       await expect(control).toHaveCSS("outline-color", "rgb(77, 168, 181)");
@@ -50,10 +66,10 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
   await harness.closeActiveTerminals();
 });
 
-async function focusFromKeyboard(page: Page, control: Locator): Promise<void> {
+async function focusFromKeyboard(page: Page, control: Locator, reverse = false): Promise<void> {
   await control.focus();
-  await page.keyboard.press("Shift+Tab");
-  await page.keyboard.press("Tab");
+  await page.keyboard.press(reverse ? "Tab" : "Shift+Tab");
+  await page.keyboard.press(reverse ? "Shift+Tab" : "Tab");
   await expect(control).toBeFocused();
   expect(await control.evaluate((node) => node.matches(":focus-visible"))).toBe(true);
 }
