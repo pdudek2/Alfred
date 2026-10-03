@@ -1086,12 +1086,11 @@ describe("renderer CSS contracts", () => {
 
   it("keeps the Work empty state unboxed", () => {
     const emptyState = singleTopLevelRuleBodyIn(styles, ".terminal-empty-state");
-    const emptyFact = singleTopLevelRuleBodyIn(styles, ".terminal-empty-facts > div");
 
     expect(emptyState).toContain("border: 0");
+    expect(emptyState).toContain("background: transparent");
+    expect(emptyState).toContain("box-shadow: none");
     expect(emptyState).toContain("text-align: left");
-    expect(emptyFact).toContain("border: 0");
-    expect(emptyFact).toContain("background: transparent");
   });
 
   it("keeps project session disclosure compact and visibly expanded", () => {
