@@ -40,6 +40,7 @@ import { shortenPath } from "../path-display";
 import { recoveryHeadline } from "../recovery-display";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { restoredSessionActionLabel, restoredSessionActionTitle } from "../restored-session-action";
+import { sessionPresentationTitle } from "../../shared/session-presentation";
 import { isWorkSession } from "../session-scope";
 import { deskPresentationSlot, nextDeskPresentationIds, type DeskPresentationSlot } from "../terminal-desk-presentation";
 import { useTerminalTileMotion } from "../terminal-tile-motion";
@@ -112,7 +113,6 @@ type TerminalDeskProps = {
   worktreeActionPending: Record<string, WorktreeActionKind | undefined>;
   worktreeDiffReturnFocus: HTMLElement | null;
   worktreeDiffView: WorktreeDiffView | null;
-  workspaceGitBranch?: string | undefined;
   workspaceLabel: string;
   workspaceRootPath?: string | undefined;
   workspaceRootStatus?: WorkspaceRootStatus | undefined;
@@ -163,7 +163,6 @@ export function TerminalDesk({
   worktreeActionPending,
   worktreeDiffReturnFocus,
   worktreeDiffView,
-  workspaceGitBranch,
   workspaceLabel,
   workspaceRootPath,
   workspaceRootStatus,
@@ -208,6 +207,9 @@ export function TerminalDesk({
   const [deskPresentationIdsByWorkspace, setDeskPresentationIdsByWorkspace] = useState<Record<string, string[]>>({});
   const activeSessions = sessions.filter(
     (session) => session.workspaceId === activeWorkspaceId && isWorkSession(session),
+  );
+  const asleepSessions = sessions.filter(
+    (session) => session.workspaceId === activeWorkspaceId && session.runtimeStatus === "restored",
   );
   const workspaceUnavailable = workspaceRootStatus === "missing";
   // Drafts live on the plan line, not in the grid.
@@ -486,12 +488,15 @@ export function TerminalDesk({
           >
           {visibleWorkspaceSessions.length === 0 && (
             <EmptyWorkspaceState
+              armedSessionIds={armedRecoverySessionIds}
+              asleepSessions={asleepSessions}
               hasDrafts={hasDrafts}
               onOpenPlan={onOpenPlan}
               onAddAgentSession={onAddAgentSession}
               onAddManualSession={onAddManualSession}
               onBindWorkspace={onBindWorkspace}
-              workspaceGitBranch={workspaceGitBranch}
+              onOpenHistory={onOpenHistory}
+              onResumeSession={onContinueRestoredSession}
               workspaceLabel={workspaceLabel}
               workspaceRootPath={workspaceRootPath}
               workspaceRootStatus={workspaceRootStatus}
@@ -660,36 +665,49 @@ function SplitModeEmptyState({
   );
 }
 
+const ASLEEP_ROW_LIMIT = 5;
+
 function EmptyWorkspaceState({
+  armedSessionIds,
+  asleepSessions,
   hasDrafts,
   onAddAgentSession,
+  onOpenHistory,
   onOpenPlan,
   onAddManualSession,
   onBindWorkspace,
-  workspaceGitBranch,
+  onResumeSession,
   workspaceLabel,
   workspaceRootPath,
   workspaceRootStatus,
 }: {
+  armedSessionIds: Set<string>;
+  asleepSessions: SessionTile[];
   hasDrafts: boolean;
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
+  onOpenHistory: () => void;
   onOpenPlan?: (() => void) | undefined;
   onBindWorkspace: () => void;
-  workspaceGitBranch?: string | undefined;
+  onResumeSession: (sessionId: string) => void;
   workspaceLabel: string;
   workspaceRootPath?: string | undefined;
   workspaceRootStatus?: WorkspaceRootStatus | undefined;
 }) {
   const bound = Boolean(workspaceRootPath);
   const missing = workspaceRootStatus === "missing";
-  const heading = missing
-    ? `Reconnect ${workspaceLabel}`
+  const asleep = missing ? [] : [...asleepSessions].sort((a, b) => asleepSessionAt(b) - asleepSessionAt(a));
+  const shownAsleep = asleep.slice(0, ASLEEP_ROW_LIMIT);
+  const hiddenAsleepCount = asleep.length - shownAsleep.length;
+  const copy = missing
+    ? `Folder unavailable${workspaceRootPath ? `: ${shortenPath(workspaceRootPath)}` : ""}. Choose the folder again. Draft work stays parked until you reconnect this project.`
     : hasDrafts
-      ? "Nothing is running"
-      : bound
-        ? `Start work in ${workspaceLabel}`
-        : "Start with Codex";
+      ? "Launch the plan above, or start a session in this project."
+      : asleep.length > 0
+        ? "Start a session in this project, or pick up where you left off."
+        : bound
+          ? "Start a session in this project."
+          : "Start a session here, or choose a project folder when repository context matters.";
 
   return (
     <div
@@ -698,33 +716,10 @@ function EmptyWorkspaceState({
       aria-label={missing ? "Unavailable project folder" : "Empty project"}
     >
       <div className="terminal-empty-copy">
-        {!hasDrafts && <span>{missing ? "Folder unavailable" : bound ? "Project ready" : "Scratch project"}</span>}
-        <strong>{heading}</strong>
-        <p>
-          {missing
-            ? "Choose the folder again. Draft work stays parked until you reconnect this project."
-            : hasDrafts
-              ? "Launch the plan above, or start a session in this project."
-              : workspaceHomeCopy(workspaceRootPath, workspaceGitBranch)}
-        </p>
+        <strong>{missing ? `Reconnect ${workspaceLabel}` : "Nothing is running"}</strong>
+        <p>{copy}</p>
       </div>
-      {!hasDrafts && <dl className="terminal-empty-facts" aria-label="project details">
-        <div>
-          <dt>workspace</dt>
-          <dd>{workspaceLabel}</dd>
-        </div>
-        <div>
-          <dt>folder</dt>
-          <dd>{workspaceRootPath ? shortenPath(workspaceRootPath) : "local desk"}</dd>
-        </div>
-        {workspaceGitBranch && (
-          <div>
-            <dt>branch</dt>
-            <dd>{workspaceGitBranch}</dd>
-          </div>
-        )}
-      </dl>}
-      <div className="terminal-empty-actions" aria-label="empty project actions">
+      <div className="terminal-empty-actions" role="group" aria-label="New session">
         {missing ? (
           <button type="button" className="terminal-empty-primary-action" onClick={onBindWorkspace}>
             Choose folder
@@ -736,39 +731,78 @@ function EmptyWorkspaceState({
               className="terminal-empty-primary-action"
               onClick={() => onAddAgentSession("codex")}
             >
-              New Codex
+              Codex
             </button>
-            <div className="terminal-empty-secondary-actions" role="group" aria-label="secondary empty project actions">
-              <button type="button" onClick={() => onAddAgentSession("claude")}>
-                New Claude
+            <button type="button" onClick={() => onAddAgentSession("claude")}>
+              Claude
+            </button>
+            <button type="button" onClick={onAddManualSession}>
+              Terminal
+            </button>
+            {onOpenPlan && <button type="button" onClick={onOpenPlan}>Plan with Alfred</button>}
+            {!bound && (
+              <button type="button" onClick={onBindWorkspace}>
+                Choose folder
               </button>
-              <button type="button" onClick={onAddManualSession}>
-                New terminal
-              </button>
-              {onOpenPlan && <button type="button" onClick={onOpenPlan}>Plan with Alfred</button>}
-              {!bound && (
-                <button type="button" onClick={onBindWorkspace}>
-                  Choose folder
-                </button>
-              )}
-            </div>
+            )}
           </>
         )}
       </div>
+      {shownAsleep.length > 0 && (
+        <section className="terminal-empty-asleep" aria-label="Asleep sessions">
+          <h3>Asleep</h3>
+          <ul>
+            {shownAsleep.map((session) => {
+              const kindLabel = asleepSessionKindLabel(session);
+              const title = sessionPresentationTitle(session.title, `${kindLabel} session`);
+              const age = sessionAgeLabel(asleepSessionAt(session) || undefined);
+              const safety = sessionRelaunchSafety(session);
+              const armed = armedSessionIds.has(session.id);
+              const actionLabel = restoredSessionActionLabel(session, !safety.safe, armed);
+              return (
+                <li key={session.id}>
+                  <SessionStatusGlyph kind="asleep" label="Asleep" />
+                  <span className="terminal-empty-asleep-title">{title}</span>
+                  <span className="terminal-empty-asleep-meta">
+                    {age ? `${kindLabel}, ${age === "now" ? "just now" : `${age} ago`}` : kindLabel}
+                  </span>
+                  {canRelaunchRestoredSession(session) && (
+                    <button
+                      type="button"
+                      aria-label={`${actionLabel}: ${title}`}
+                      title={safety.safe ? restoredSessionActionTitle(session) : safety.reason}
+                      onClick={() => onResumeSession(session.id)}
+                    >
+                      {actionLabel}
+                    </button>
+                  )}
+                  {!safety.safe && armed && (
+                    <small className="terminal-empty-asleep-warning">{`Review before resuming: ${safety.reason}.`}</small>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {hiddenAsleepCount > 0 && (
+            <button type="button" className="terminal-empty-asleep-more" onClick={onOpenHistory}>
+              {`${hiddenAsleepCount} more in History`}
+            </button>
+          )}
+        </section>
+      )}
     </div>
   );
 }
 
-function workspaceHomeCopy(rootPath: string | undefined, gitBranch: string | undefined): string {
-  if (rootPath && gitBranch) {
-    return `Start a terminal in ${shortenPath(rootPath)} on ${gitBranch}.`;
-  }
+// Not lastActivityAt: arming a resume logs activity, and the row must not jump.
+function asleepSessionAt(session: SessionTile): number {
+  return session.lastOutputAt ?? session.createdAt ?? 0;
+}
 
-  if (rootPath) {
-    return `Start Codex in ${shortenPath(rootPath)}.`;
-  }
-
-  return "Start Codex here, or choose a project folder when repository context matters.";
+function asleepSessionKindLabel(session: SessionTile): string {
+  if (session.agentKind === "codex" || session.command === "codex") return "Codex";
+  if (session.agentKind === "claude" || session.command === "claude") return "Claude";
+  return "Terminal";
 }
 
 function resumeButtonLabel(unsafe: boolean, armed: boolean): string {

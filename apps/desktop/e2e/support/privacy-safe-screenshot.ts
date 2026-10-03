@@ -24,6 +24,10 @@ export const privacySafeScreenshotSelectors = [
   ":is(.sessions-transcript [data-testid='transcript-block'], .sessions-transcript [data-testid='transcript-block'] *)",
   ".command-palette-list button small",
   ".tile-age",
+  ".terminal-empty-copy p",
+  ".terminal-empty-asleep-title",
+  ".terminal-empty-asleep-meta",
+  ".terminal-empty-asleep-warning",
   "time",
 ] as const;
 
