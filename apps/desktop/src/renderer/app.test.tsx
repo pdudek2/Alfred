@@ -628,7 +628,6 @@ function renderTerminalDeskForSessions(
       worktreeActionPending={{}}
       worktreeDiffReturnFocus={null}
       worktreeDiffView={null}
-      workspaceGitBranch="main"
       workspaceLabel="Alfred"
       workspaceRootPath="/Users/patryk/Desktop/Alfred"
       {...callbacks}
@@ -824,7 +823,7 @@ describe("App integration", () => {
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
     await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
     await user.click(screen.getByRole("button", { name: "Add project" }));
-    await user.click(within(screen.getByRole("status", { name: "Empty project" })).getByRole("button", { name: "New terminal" }));
+    await user.click(within(screen.getByRole("status", { name: "Empty project" })).getByRole("button", { name: "Terminal" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
     expect(bridge.createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({ clientId: "manual-1", workspaceId: "W2" }));
@@ -4478,19 +4477,21 @@ describe("App integration", () => {
     render(<App />);
 
     const emptyState = await screen.findByRole("status", { name: "Empty project" });
-    expect(emptyState).toHaveTextContent("Scratch project");
-    expect(emptyState).toHaveTextContent("Start with Codex");
+    expect(emptyState).toHaveTextContent("Nothing is running");
+    expect(emptyState).toHaveTextContent("choose a project folder");
     expect(screen.queryByRole("article", { name: /Manual · zsh/i })).not.toBeInTheDocument();
-    const primaryAction = within(emptyState).getByRole("button", { name: "New Codex" });
-    expect(primaryAction).toHaveClass("terminal-empty-primary-action");
-    const secondaryActions = within(emptyState).getByRole("group", { name: "secondary empty project actions" });
-    expect(secondaryActions).not.toBeNull();
-    expect(within(secondaryActions).getByRole("button", { name: "New Claude" })).toBeInTheDocument();
-    expect(within(secondaryActions).getByRole("button", { name: "New terminal" })).toBeInTheDocument();
-    expect(within(secondaryActions).getByRole("button", { name: "Choose folder" })).toBeInTheDocument();
+    const newActions = within(emptyState).getByRole("group", { name: "New session" });
+    expect(within(newActions).getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "Codex",
+      "Claude",
+      "Terminal",
+      "Plan with Alfred",
+      "Choose folder",
+    ]);
+    expect(within(newActions).getByRole("button", { name: "Codex" })).toHaveClass("terminal-empty-primary-action");
 
     await act(async () => {
-      within(secondaryActions).getByRole("button", { name: "New terminal" }).click();
+      within(newActions).getByRole("button", { name: "Terminal" }).click();
     });
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => {
@@ -4563,8 +4564,8 @@ describe("App integration", () => {
     const emptyState = await screen.findByRole("status", { name: "Unavailable project folder" });
     expect(emptyState).toHaveTextContent("Folder unavailable");
     expect(emptyState).toHaveTextContent("…/Desktop/MissingProject");
-    expect(within(emptyState).queryByRole("button", { name: "New terminal" })).not.toBeInTheDocument();
-    expect(within(emptyState).queryByRole("button", { name: "New Codex" })).not.toBeInTheDocument();
+    expect(within(emptyState).queryByRole("button", { name: "Terminal" })).not.toBeInTheDocument();
+    expect(within(emptyState).queryByRole("button", { name: "Codex" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New terminal" })).toBeDisabled();
     expect(createTerminal).not.toHaveBeenCalled();
 
@@ -4659,7 +4660,7 @@ describe("App integration", () => {
     render(<App />);
 
     const emptyState = await screen.findByRole("status", { name: "Empty project" });
-    await user.click(within(emptyState).getByRole("button", { name: "New terminal" }));
+    await user.click(within(emptyState).getByRole("button", { name: "Terminal" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
     const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
@@ -4712,10 +4713,10 @@ describe("App integration", () => {
       "aria-current",
       "location",
     );
-    expect(screen.getByRole("status", { name: "Empty project" })).toHaveTextContent("Start with Codex");
+    expect(screen.getByRole("status", { name: "Empty project" })).toHaveTextContent("Nothing is running");
     expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
 
-    await user.click(within(screen.getByRole("status", { name: "Empty project" })).getByRole("button", { name: "New terminal" }));
+    await user.click(within(screen.getByRole("status", { name: "Empty project" })).getByRole("button", { name: "Terminal" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
     expect(screen.getByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
     await waitFor(() => {
@@ -4995,7 +4996,7 @@ describe("App integration", () => {
       "aria-current",
       "location",
     );
-    expect(await screen.findByRole("status", { name: "Empty project" })).toHaveTextContent("Project 2");
+    expect(await screen.findByRole("status", { name: "Empty project" })).toHaveTextContent("Nothing is running");
     await openNewPlan(user);
     await user.type(screen.getByRole("textbox", { name: "Goal" }), "discarded project draft");
     await user.keyboard("{Escape}");
@@ -5219,7 +5220,7 @@ describe("App integration", () => {
 
     await user.click(screen.getByRole("button", { name: "Add project" }));
 
-    expect(await screen.findByRole("status", { name: "Empty project" })).toHaveTextContent("Project 2");
+    expect(await screen.findByRole("status", { name: "Empty project" })).toHaveTextContent("Nothing is running");
     expect(createTerminal).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole("button", { name: "Alfred project" }));
@@ -7506,11 +7507,9 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
 
     const emptyState = await screen.findByRole("status", { name: "Empty project" });
-    expect(emptyState).toHaveTextContent("Alfred");
-    expect(emptyState).toHaveTextContent("…/Desktop/Alfred");
-    expect(emptyState).toHaveTextContent("main");
+    expect(emptyState).toHaveTextContent("Start a session in this project.");
 
-    await user.click(within(emptyState).getByRole("button", { name: "New Codex" }));
+    await user.click(within(emptyState).getByRole("button", { name: "Codex" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
 
     expect(await screen.findByRole("article", { name: /Codex · session 1/i })).toBeInTheDocument();
@@ -7595,6 +7594,97 @@ describe("App integration", () => {
     expect(within(palette).getByRole("option", { name: /Close current project/i })).toHaveTextContent(
       "Discard asleep sessions first",
     );
+  });
+
+  it("lists the project's asleep sessions in the empty state and resumes into the terminal", async () => {
+    const user = userEvent.setup();
+    const now = Date.now();
+    const { createTerminal } = installDesktopBridge(
+      undefined,
+      null,
+      [],
+      undefined,
+      undefined,
+      {
+        workspaces: [
+          { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred" },
+          { id: "B", label: "Other", shortLabel: "O", rootPath: "/repo/other" },
+        ],
+        activeWorkspaceId: "A",
+      },
+      [
+        {
+          clientId: "older",
+          title: "LaTeX build",
+          source: "manual",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "/bin/zsh",
+          command: "zsh",
+          args: [],
+          lastOutputAt: now - 35 * 24 * 60 * 60_000,
+        },
+        {
+          clientId: "newer",
+          title: "Slide deck outline",
+          source: "manual",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "/bin/zsh",
+          command: "zsh",
+          args: [],
+          lastOutputAt: now - 3 * 60 * 60_000,
+        },
+        {
+          clientId: "cleanup",
+          title: "Clean build output",
+          source: "manual",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "/bin/zsh",
+          command: "rm",
+          args: ["-rf", "dist"],
+          lastOutputAt: now - 40 * 24 * 60 * 60_000,
+        },
+        {
+          clientId: "elsewhere",
+          title: "Other project shell",
+          source: "manual",
+          workspaceId: "B",
+          cwd: "/repo/other",
+          shell: "/bin/zsh",
+          command: "zsh",
+          args: [],
+        },
+      ],
+    );
+
+    render(<App />);
+
+    const emptyState = await screen.findByRole("status", { name: "Empty project" });
+    expect(emptyState).toHaveTextContent("pick up where you left off");
+    const asleep = within(emptyState).getByRole("region", { name: "Asleep sessions" });
+    expect(within(asleep).getAllByRole("listitem").map((row) => row.textContent)).toEqual([
+      expect.stringContaining("Slide deck outlineTerminal, 3h ago"),
+      expect.stringContaining("LaTeX buildTerminal, 5w ago"),
+      expect.stringContaining("Clean build outputTerminal, 5w ago"),
+    ]);
+    expect(asleep).not.toHaveTextContent("Other project shell");
+
+    await user.click(within(asleep).getByRole("button", { name: "Review resume: Clean build output" }));
+    expect(createTerminal).not.toHaveBeenCalled();
+    expect(asleep).toHaveTextContent("Review before resuming: rm -rf would be replayed.");
+    expect(within(asleep).getAllByRole("listitem")[2]).toHaveTextContent("Clean build outputTerminal, 5w ago");
+    expect(within(asleep).getByRole("button", { name: "Confirm resume: Clean build output" })).toBeInTheDocument();
+
+    await user.click(within(asleep).getByRole("button", { name: "Resume: Slide deck outline" }));
+
+    await waitFor(() => {
+      expect(createTerminal).toHaveBeenCalledWith(expect.objectContaining({ clientId: "newer", workspaceId: "A" }));
+    });
+    expect(await screen.findByRole("article", { name: /Slide deck outline/i })).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "Empty project" })).not.toBeInTheDocument();
+    await waitFor(() => expect(terminalFocusSessionIds.at(-1)).toBe("newer"));
   });
 
   it("restarts an exited terminal tile in place", async () => {
