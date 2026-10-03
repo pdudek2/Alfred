@@ -12,7 +12,6 @@ import {
   neutralScreenshotPointer,
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
-import { chooseWorkLayout } from "./support/work-layout";
 
 const evidenceDir = path.resolve(
   import.meta.dirname,
@@ -113,7 +112,9 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   const contextWidth = await page.getByTestId("context-column").evaluate(
     (node) => node.getBoundingClientRect().width,
   );
-  expect(gridBeforeContext.width - gridAfterContext.width - contextWidth).toBe(8);
+  // Details takes the stack's column, so the focused terminal keeps roughly its width.
+  await expect(page.getByRole("complementary", { name: /^Other sessions in / })).toHaveCount(0);
+  expect(Math.abs(gridAfterContext.width - gridBeforeContext.width)).toBeLessThanOrEqual(8);
   expect(gridAfterContext.width).toBeGreaterThanOrEqual(420);
   expect(contextWidth).toBe(318);
   expect(Math.abs(gridAfterContext.height - gridBeforeContext.height)).toBeLessThanOrEqual(1);
@@ -129,8 +130,6 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   expect(sameConnectedAlphaScreen).toBe(true);
   await expect(alphaScreen).toContainText(backgroundMarker);
 
-  await chooseWorkLayout(page, "Grid");
-  await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
   const wideScreenshotSha256 = await captureEvidence(page, "project-shell-1440x900.png");
   await setWindowSize(app, page, 1120, 720);
   await expect.poll(() => page.getByTestId("terminal-grid").evaluate((grid) =>
@@ -148,7 +147,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
     narrow.activeControlOverflows,
     `Narrow controls outside viewport: ${JSON.stringify(narrow.activeControlOverflows)}`,
   ).toEqual([]);
-  expect(narrow.visibleTileCount).toBe(3);
+  expect(narrow.visibleTileCount).toBe(1);
   expect(narrow.visibleTileHeaderHeights.length).toBeGreaterThan(0);
   expect(narrow.visibleTileHeaderHeights).toHaveLength(narrow.visibleTileCount);
   expect(narrow.visibleTileHeaderHeights.every((height) => height === 43)).toBe(true);

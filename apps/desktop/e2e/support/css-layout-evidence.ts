@@ -3,11 +3,9 @@ import { join } from "node:path";
 import type { Page, TestInfo } from "@playwright/test";
 
 export const cssEvidenceStateNames = [
-  "work-grid",
+  "work-deck",
   "new-session",
-  "focus",
-  "split",
-  "arrange",
+  "deck-swap",
   "sessions",
   "narrow-sessions",
   "context-wide",

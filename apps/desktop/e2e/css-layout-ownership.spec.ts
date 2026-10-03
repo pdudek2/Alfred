@@ -24,7 +24,6 @@ import {
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
 import { openPlan } from "./support/plan-line";
-import { chooseWorkLayout } from "./support/work-layout";
 
 const frameProbes: CssOwnerProbe[] = [
   { name: "desktop-frame", selector: ".desktop-frame", required: true,
@@ -307,7 +306,7 @@ test.describe("New session sheet layout", () => {
 test.describe("work session and project identity", () => {
   test.use({ fixtureOptions: { projectShell: true } });
 
-  test("keeps the hidden-session count and project identity readable", async ({ harness }, testInfo) => {
+  test("keeps the stacked sessions and project identity readable", async ({ harness }, testInfo) => {
     const { app, page, paths } = harness;
     await setWindowSize(app, page, 1800, 900);
 
@@ -317,8 +316,9 @@ test.describe("work session and project identity", () => {
     for (let index = 0; index < 4; index += 1) await addManualTerminal(page);
     await expect(page.getByTestId("xterm-host")).toHaveCount(6);
 
-    const toolbar = page.getByRole("toolbar", { name: "Work layout controls" });
-    await expect(toolbar.getByTestId("work-session-count")).toHaveText("3 of 6 sessions");
+    // One session holds focus; the other five are listed in the stack, none hidden silently.
+    const stackCards = page.getByRole("complementary", { name: /^Other sessions in / }).locator(".session-stack-card");
+    await expect(stackCards).toHaveCount(5);
     await expect(page.locator(".workbench-context-detail")).toBeVisible();
     await expect(page.locator(".session-location-meta")).toHaveCount(0);
 
@@ -342,7 +342,6 @@ test.describe("work session and project identity", () => {
     await expect(selectedHost).toContainText(canonicalWorkspacePath);
     await expect(selectedTile.locator(".session-location-meta")).toHaveCount(0);
     const identityScreenshotStyle = `${privacySafeScreenshotStyle}
-      .work-surface-context,
       .project-row-label {
         color: var(--ink-5) !important;
         -webkit-text-fill-color: currentColor !important;
@@ -392,8 +391,8 @@ test.describe("work session and project identity", () => {
     expect(Math.abs(activeMonogramOffset - inactiveMonogramOffset)).toBeLessThanOrEqual(1);
 
     await setWindowSize(app, page, 1120, 720);
-    await expect(toolbar.getByTestId("work-session-count")).toBeVisible();
-    await expect(toolbar.getByTestId("work-session-count")).toHaveText("3 of 6 sessions");
+    await expect(stackCards).toHaveCount(5);
+    await expect(stackCards.last()).toBeInViewport();
     await page.screenshot({
       path: testInfo.outputPath("session-and-project-identity-1120x720.png"),
       style: identityScreenshotStyle,
@@ -422,13 +421,14 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await addManualTerminal(page);
   await expect(page.getByTestId("xterm-host")).toHaveCount(2);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
-  await expectAdaptiveWorkGrid(page, 2);
+  await expectDeck(page);
   await expect(page.locator(".workspace-title-trigger strong")).toHaveText("Fixture Alpha");
   await expect(page.getByTestId("workbench-header")).toHaveClass("workbench-header");
   await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "44");
   await recordPrivacyMaskCoverage();
 
-  const firstHost = page.getByTestId("xterm-host").first();
+  // The newest terminal holds focus, so the marker goes to manual-2 and is tracked there.
+  const firstHost = page.locator('[data-testid="xterm-host"][data-session-id="manual-2"]');
   const firstScreen = firstHost.locator(".xterm-screen");
   await expect(firstScreen).toBeAttached();
   const hostHandle = await requiredHandle(firstHost, "initial xterm host");
@@ -445,15 +445,15 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await addManualTerminal(page);
   await expect(page.getByTestId("xterm-host")).toHaveCount(3);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
-  await expectAdaptiveWorkGrid(page, 3);
+  await expectDeck(page);
   await addManualTerminal(page);
   await expect(page.getByTestId("xterm-host")).toHaveCount(4);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(4);
-  await expectAdaptiveWorkGrid(page, 3);
+  await expectDeck(page);
   await expect(page.getByTestId("workbench-header")).toHaveClass("workbench-header");
   await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "44");
 
-  await capture("work-grid", [...frameProbes, ...terminalProbes]);
+  await capture("work-deck", [...frameProbes, ...terminalProbes]);
 
   await page.getByRole("button", { name: "New", exact: true }).click();
   await page.getByRole("radio", { name: /^Plan with Alfred/ }).click();
@@ -462,28 +462,12 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "New session" })).toHaveCount(0);
 
-  await chooseWorkLayout(page, "Focus");
-  await expect(page.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeVisible();
-  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Focus");
-  await capture("focus", [...frameProbes, ...terminalProbes]);
-
-  await chooseWorkLayout(page, "Split");
-  await expect(page.getByRole("button", { name: "Open layout menu, Split selected" })).toBeVisible();
-  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Split");
-  await capture("split", [...frameProbes, ...terminalProbes]);
-
-  await chooseWorkLayout(page, "Grid");
-  await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
-  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Grid restored");
-  await chooseWorkLayout(page, "Arrange");
-  await expect(page.getByRole("button", { name: "Open layout menu, Arrange selected" })).toBeVisible();
-  await expect(page.getByText("Arrange mode", { exact: true })).toBeVisible();
-  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Arrange");
-  await capture("arrange", [...frameProbes, ...terminalProbes]);
-  await chooseWorkLayout(page, "Arrange");
-  await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
-  await expect(page.getByText("Arrange mode", { exact: true })).toHaveCount(0);
-  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Arrange closed");
+  await page.getByRole("complementary", { name: /^Other sessions in / })
+    .locator('[data-session-id="manual-1"]').click();
+  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]')).not.toHaveAttribute("aria-hidden", "true");
+  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "stack swap");
+  await expectDeck(page);
+  await capture("deck-swap", [...frameProbes, ...terminalProbes]);
 
   await selectSurface(page, "History");
   const sessions = page.getByRole("region", { name: "History" });
@@ -534,22 +518,20 @@ test("captures deterministic CSS ownership evidence across core states and overl
   }), "Wide Context controls must remain within their scroll owner").toEqual([]);
 
   await page.getByRole("button", { name: "Close Details panel" }).click();
-  await chooseWorkLayout(page, "Grid");
-  await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
   await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(5);
-  await expectAdaptiveWorkGrid(page, 3);
+  await expectDeck(page);
   await setWindowSize(app, page, 1120, 720);
-  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow Grid");
+  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow deck");
   const narrowWorkEvidence = await capture("narrow", [...frameProbes, ...terminalProbes]);
   expect(narrowWorkEvidence.documentOverflowX, "Narrow Work must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
-  await expectAdaptiveWorkGrid(page, 3);
+  await expectDeck(page);
   await page.emulateMedia({ reducedMotion: "reduce" });
   const reducedMotionEvidence = await capture("narrow-reduced-motion", [...frameProbes, ...terminalProbes]);
   expect(reducedMotionEvidence.documentOverflowX, "Reduced-motion Work must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
-  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow reduced-motion Grid");
+  await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow reduced-motion deck");
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await openContext(page);
   const narrowContextGeometry = await readShellOwnerGeometry(page);
@@ -693,9 +675,15 @@ test("captures deterministic CSS ownership evidence across core states and overl
   }, nestedCwd);
   await page.getByRole("button", { name: "Fixture Beta project", exact: true }).click();
   await page.getByRole("button", { name: "Fixture Alpha project", exact: true }).click();
+  // Leave a busy shell with reported progress in the stack so its preview line is masked too.
+  const busyTile = page.locator('[data-testid="terminal-tile"]:visible');
+  const busyInput = busyTile.getByRole("textbox", { name: "Terminal input" });
+  await busyInput.fill("printf 'Build complete\\n'; sleep 30");
+  await busyInput.press("Enter");
+  await expect(busyTile.getByTestId("xterm-host")).toContainText("Build complete");
   await page.locator('button.project-session[data-session-id="nested-location"]').click();
-  await chooseWorkLayout(page, "Grid");
   await expect(page.locator('[data-session-id="nested-location"] .session-location-value')).toBeVisible();
+  await expect(page.locator(".session-stack-preview").first()).toBeVisible();
   await recordPrivacyMaskCoverage();
   await page.screenshot({ path: join(evidenceDir, "nested-location.png"), style: privacySafeScreenshotStyle });
 
@@ -794,51 +782,31 @@ async function readShellOwnerGeometry(page: Page): Promise<{
   });
 }
 
-async function expectAdaptiveWorkGrid(page: Page, expectedTiles: number): Promise<void> {
-  await expect.poll(() => page.getByTestId("terminal-grid").evaluate((grid) =>
-    Array.from(grid.querySelectorAll<HTMLElement>("[data-testid='terminal-tile']"))
-      .flatMap((tile) => tile.getAnimations())
-      .some((animation) => animation.playState === "running")
-  )).toBe(false);
-  const geometry = await page.getByTestId("terminal-grid").evaluate((grid, count) => {
+async function expectDeck(page: Page): Promise<void> {
+  const geometry = await page.getByTestId("terminal-grid").evaluate((grid) => {
     const gridBounds = grid.getBoundingClientRect();
     const tiles = Array.from(grid.querySelectorAll<HTMLElement>("[data-testid='terminal-tile']"))
       .filter((tile) => tile.getAttribute("aria-hidden") !== "true")
       .map((tile) => {
         const bounds = tile.getBoundingClientRect();
-        return { bottom: bounds.bottom, height: bounds.height, left: bounds.left, top: bounds.top, width: bounds.width };
+        return { height: bounds.height, right: bounds.right, width: bounds.width };
       });
+    const stack = document.querySelector<HTMLElement>(".session-stack")?.getBoundingClientRect() ?? null;
     return {
-      classes: grid.className,
       documentOverflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       grid: { height: gridBounds.height, width: gridBounds.width },
+      stack: stack ? { left: stack.left, width: stack.width } : null,
       tiles,
-      expectedTiles: count,
     };
-  }, expectedTiles);
+  });
 
-  expect(geometry.tiles).toHaveLength(geometry.expectedTiles);
+  // One focused terminal fills the deck; the stack sits beside it.
+  expect(geometry.tiles).toHaveLength(1);
   expect(geometry.documentOverflowX).toBeLessThanOrEqual(0);
-  if (expectedTiles === 1) {
-    expect(geometry.classes).toContain("single");
-    expect(geometry.tiles[0]?.width).toBeGreaterThan(geometry.grid.width * 0.9);
-    expect(geometry.tiles[0]?.height).toBeGreaterThan(geometry.grid.height * 0.7);
-    return;
-  }
-  if (expectedTiles === 2) {
-    expect(geometry.classes).toContain("split");
-    expect(Math.abs((geometry.tiles[0]?.width ?? 0) - (geometry.tiles[1]?.width ?? 0))).toBeLessThanOrEqual(1);
-    expect(Math.abs((geometry.tiles[0]?.height ?? 0) - (geometry.tiles[1]?.height ?? 0))).toBeLessThanOrEqual(1);
-    return;
-  }
-  if (expectedTiles <= 4) {
-    expect(geometry.classes).toContain("dense");
-    const rows = new Set(geometry.tiles.map((tile) => Math.round(tile.top)));
-    expect(rows.size).toBe(2);
-    expect(Math.min(...geometry.tiles.map((tile) => tile.height))).toBeGreaterThan(geometry.grid.height * 0.25);
-    return;
-  }
-  expect(geometry.classes).toContain("many-up");
+  expect(geometry.tiles[0]!.width).toBeGreaterThan(geometry.grid.width * 0.9);
+  expect(geometry.tiles[0]!.height).toBeGreaterThan(geometry.grid.height * 0.7);
+  expect(geometry.stack).not.toBeNull();
+  expect(geometry.tiles[0]!.right).toBeLessThanOrEqual(geometry.stack!.left);
 }
 
 async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {
@@ -853,11 +821,9 @@ async function proveFirstXtermIdentity(
   screenBefore: ElementHandle<HTMLElement>,
   transition: string,
 ): Promise<void> {
-  const hostNow = await requiredHandle(page.getByTestId("xterm-host").first(), `${transition}: xterm host`);
-  const screenNow = await requiredHandle(
-    page.getByTestId("xterm-host").first().locator(".xterm-screen"),
-    `${transition}: xterm screen`,
-  );
+  const host = page.locator(`[data-testid="xterm-host"][data-session-id="${await hostBefore.getAttribute("data-session-id")}"]`);
+  const hostNow = await requiredHandle(host, `${transition}: xterm host`);
+  const screenNow = await requiredHandle(host.locator(".xterm-screen"), `${transition}: xterm screen`);
   expect(await hostBefore.evaluate((node, current) => node.isSameNode(current) && node.isConnected, hostNow),
     `${transition}: xterm host identity changed`).toBe(true);
   expect(await screenBefore.evaluate((node, current) => node.isSameNode(current) && node.isConnected, screenNow),
