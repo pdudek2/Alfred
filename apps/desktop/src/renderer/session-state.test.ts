@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { sessionState } from "./session-status";
 import {
   addAgentSession,
   addManualSession,
@@ -722,7 +723,47 @@ describe("desktop session state", () => {
     });
   });
 
-  it("records generic terminal output as freshness without inventing timeline events", () => {
+  it("uses main output timestamps when delayed renderer delivery precedes an approval", () => {
+    const hydrated = hydrateLiveTerminalSessions([
+      {
+        id: "pty-a",
+        clientId: "manual-4",
+        title: "Manual · zsh 4",
+        cwd: "/repo",
+        source: "manual",
+        shell: "/bin/zsh",
+        buffer: "",
+      },
+    ]);
+    const plain = recordSessionOutputActivity(
+      hydrated,
+      { id: "pty-a", data: "fixture\n", activities: [], at: 1000 },
+      1050,
+    );
+    const approved = recordSessionOutputActivity(
+      plain,
+      {
+        id: "pty-a",
+        data: "Approval required: apply patch?",
+        at: 1010,
+        activities: [{
+          id: "approval-1010",
+          kind: "approval",
+          title: "Waiting for approval",
+          detail: "Approval required: apply patch?",
+          at: 1010,
+        }],
+      },
+      1060,
+    );
+
+    expect(approved[0]?.lastOutputAt).toBe(1010);
+    expect(sessionState(approved[0]!, "ready", 1100)).toEqual({
+      kind: "needs-you", label: "needs you", reason: "approval",
+    });
+  });
+
+  it("uses renderer now for output without at, without inventing timeline events", () => {
     const hydrated = hydrateLiveTerminalSessions([
       {
         id: "pty-a",
