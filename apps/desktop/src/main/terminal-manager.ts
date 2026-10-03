@@ -502,6 +502,7 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
           id: session.id,
           ...(session.clientId === undefined ? {} : { clientId: session.clientId }),
           data,
+          at: now,
           ...(activeAgentKind === undefined ? {} : { foregroundAgentKind: activeAgentKind }),
           activities,
           ...(agentSignal === undefined ? {} : { agentSignal }),
