@@ -82,6 +82,14 @@ describe("CSS layout evidence support", () => {
       </section>
       <div class="command-palette-list"><button><small>fixture command</small></button></div>
       <span class="tile-age">2m</span><time>now</time>
+      <div class="terminal-empty-state">
+        <div class="terminal-empty-copy"><strong>Nothing is running</strong><p data-private>Folder unavailable: /private/project.</p></div>
+        <section class="terminal-empty-asleep"><ul><li>
+          <span class="terminal-empty-asleep-title" data-private>Private session</span>
+          <span class="terminal-empty-asleep-meta" data-private>Terminal, 3h ago</span>
+          <small class="terminal-empty-asleep-warning" data-private>Review before resuming: rm -rf would be replayed.</small>
+        </li></ul></section>
+      </div>
     `;
     document.body.append(fixture);
 
