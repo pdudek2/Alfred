@@ -61,6 +61,9 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await expect(page.getByRole("dialog", { name: "New session", exact: true })).toBeVisible();
   await page.getByRole("dialog", { name: "New session", exact: true })
     .getByRole("button", { name: "Start", exact: true }).click();
+  // The new terminal claims focus once it starts; let that settle before driving menus.
+  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-2"]')
+    .getByRole("textbox", { name: "Terminal input" })).toBeFocused();
 
   const workspaceTrigger = page.getByRole("button", { name: "Project menu for Fixture Alpha" });
   await workspaceTrigger.click();
