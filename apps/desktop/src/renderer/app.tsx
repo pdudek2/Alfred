@@ -2776,7 +2776,7 @@ export function App() {
                   asleepCount={activeSavedSessionCount}
                   selectedSessionId={activeSelectedSessionId}
                   sessions={terminalSessions}
-                  stackHidden={activeContextDrawerOpen}
+                  stackHidden={activeContextDrawerOpen || activePreviewDockOpen}
                   surfaceActive={!workSurfaceHidden}
                   terminalFocusRequestKey={terminalFocusRequestKey}
                   worktreeActionPending={worktreeActionPending}
