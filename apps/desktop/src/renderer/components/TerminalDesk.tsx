@@ -94,7 +94,7 @@ type TerminalDeskProps = {
   asleepCount: number;
   selectedSessionId: string | null;
   sessions: SessionTile[];
-  /** Details takes the stack's column while it is open. */
+  /** Details or Preview takes the stack's column while open, so the focused terminal keeps a usable width. */
   stackHidden: boolean;
   surfaceActive: boolean;
   terminalFocusRequestKey: number;
