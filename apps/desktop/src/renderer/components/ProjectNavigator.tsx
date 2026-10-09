@@ -1,4 +1,4 @@
-import { Check, CircleSlash, MessageSquare, Plus } from "lucide-react";
+import { MessageSquare, Plus } from "lucide-react";
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import { isFreeChatScope, isFreeChatSession, isNavigableLiveSession } from "../session-scope";
@@ -59,6 +59,22 @@ function highestRailState(states: readonly (ProjectRailState | null)[]): Project
   return RAIL_STATES.find((state) => states.includes(state)) ?? null;
 }
 
+// Rootless workspaces group under Sandboxes only beside real projects; alone they stay a flat list,
+// which also keeps the pre-load default workspace from flashing into the group.
+function railGroups<T extends { rootPath?: string }>(workspaces: readonly T[]): { projects: T[]; sandboxes: T[] } {
+  const grouped = workspaces.some((workspace) => workspace.rootPath);
+  return {
+    projects: grouped ? workspaces.filter((workspace) => workspace.rootPath) : [...workspaces],
+    sandboxes: grouped ? workspaces.filter((workspace) => !workspace.rootPath) : [],
+  };
+}
+
+/** The rail's top-to-bottom order, which ⌘1–⌘9 follow. */
+export function railOrder<T extends { rootPath?: string }>(workspaces: readonly T[]): T[] {
+  const { projects, sandboxes } = railGroups(workspaces);
+  return [...projects, ...sandboxes];
+}
+
 export function ProjectNavigator({
   activeSessionId,
   activeWorkspaceId,
@@ -70,11 +86,7 @@ export function ProjectNavigator({
   onSelectSessionInWorkspace,
   onSelectWorkspace,
 }: ProjectNavigatorProps) {
-  // Rootless workspaces group under Sandboxes only beside real projects; alone they stay a flat list,
-  // which also keeps the pre-load default workspace from flashing into the group.
-  const grouped = workspaces.some((workspace) => workspace.rootPath);
-  const projects = grouped ? workspaces.filter((workspace) => workspace.rootPath) : workspaces;
-  const sandboxes = grouped ? workspaces.filter((workspace) => !workspace.rootPath) : [];
+  const { projects, sandboxes } = railGroups(workspaces);
   const activeIsSandbox = sandboxes.some((workspace) => workspace.id === activeWorkspaceId);
   const [sandboxesOpen, setSandboxesOpen] = useState(activeIsSandbox);
   const projectRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -162,9 +174,7 @@ export function ProjectNavigator({
                   onClick={() => onSelectSessionInWorkspace(result.session.workspaceId, result.session.id)}
                   title={`${result.session.title} · ${result.workspaceLabel} · ${result.status}`}
                 >
-                  <span className="project-recent-status" aria-hidden="true">
-                    {result.status === "done" ? <Check size={11} /> : <CircleSlash size={11} />}
-                  </span>
+                  <SessionStatusGlyph kind={result.status} label={result.status} className="project-recent-status" size={12} />
                   <span className="project-recent-copy">
                     <strong>{result.session.title}</strong>
                     <small>{result.workspaceLabel} · {result.agentLabel}</small>

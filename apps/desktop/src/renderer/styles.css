@@ -727,7 +727,7 @@ button:focus-visible {
   color: var(--ink-6);
   cursor: pointer;
   display: grid;
-  grid-template-columns: 10px minmax(0, 1fr) auto;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
   align-items: center;
   gap: 7px;
   text-align: left;
@@ -744,13 +744,10 @@ button:focus-visible {
   outline-offset: -2px;
 }
 
-.project-recent-status {
-  width: 10px;
+.project-recent-result .project-recent-status {
+  width: 12px;
   height: 16px;
-  color: var(--ink-5);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  flex: 0 0 12px;
 }
 
 .project-recent-copy {

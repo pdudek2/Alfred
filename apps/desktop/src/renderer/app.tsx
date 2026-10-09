@@ -20,7 +20,7 @@ import { DetailsChanges } from "./components/DetailsChanges";
 import { ContextColumn } from "./components/ContextColumn";
 import { NeedsYouPopover } from "./components/NeedsYouPopover";
 import { NewSessionSheet, type NewSessionKind } from "./components/NewSessionSheet";
-import { ProjectNavigator, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
+import { ProjectNavigator, railOrder, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
 import { SessionsSurface } from "./components/SessionsSurface";
 import { TerminalDesk, type TerminalStartAttempt, type WorktreeActionKind } from "./components/TerminalDesk";
 import { PlanLine } from "./components/PlanLine";
@@ -2331,7 +2331,7 @@ export function App() {
 
       if ((event.metaKey || event.ctrlKey) && /^[1-9]$/.test(event.key)) {
         const index = Number.parseInt(event.key, 10) - 1;
-        const workspace = workspaces[index];
+        const workspace = railOrder(workspaces)[index];
         if (workspace) {
           event.preventDefault();
           handleSelectWorkspace(workspace.id);
