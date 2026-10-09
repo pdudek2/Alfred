@@ -16,7 +16,6 @@ const styles = readFileSync(stylesPath, "utf8");
 const productCssPaths = [
   "styles.css",
   "components/needs-you-popover.css",
-  "components/project-navigator-signals.css",
   "components/work-surface-toolbar.css",
   "components/workspace-preview-dock.css",
   "components/worktree-diff-panel.css",
@@ -29,9 +28,9 @@ const productCssPaths = [
 
 if (productCssPaths.some((path) => !path)) throw new Error("Unable to locate product CSS");
 const productStyles = productCssPaths.map((path) => readFileSync(path!, "utf8")).join("\n");
-const previewDockStylesPath = productCssPaths[4]!;
-const previewDockStyles = readFileSync(productCssPaths[4]!, "utf8");
-const workSurfaceToolbarStylesPath = productCssPaths[3]!;
+const previewDockStylesPath = productCssPaths[3]!;
+const previewDockStyles = readFileSync(productCssPaths[3]!, "utf8");
+const workSurfaceToolbarStylesPath = productCssPaths[2]!;
 const workSurfaceToolbarStyles = readFileSync(workSurfaceToolbarStylesPath, "utf8");
 const lightningCssConfig = resolveConfig(
   { configFile: false, css: { transformer: "lightningcss" } },
@@ -733,7 +732,7 @@ describe("renderer CSS contracts", () => {
     const workspaceButton = singleTopLevelRuleBodyIn(styles, ".project-row-button");
 
     expect(workspaceButton.match(/font:/g)).toHaveLength(1);
-    expect(workspaceButton).toContain("font: 600 13px/1.2 var(--sans)");
+    expect(workspaceButton).toContain("font: 400 13px/18px var(--sans)");
   });
 
   it("drops proven orphan compatibility families", () => {
@@ -929,16 +928,15 @@ describe("renderer CSS contracts", () => {
     expectCanonicalBase(".project-navigator", [
       "min-width: 0",
       "display: grid",
-      "grid-template-rows: auto minmax(0, 1fr) auto",
+      "grid-template-rows: auto minmax(0, 1fr)",
       "width: clamp(226px, 16vw, 280px)",
     ]);
-    expectCanonicalBase(".project-navigator.is-collapsed", ["width: 46px"]);
     const workspaceNavScrollBodies = exactRuleBodies(".project-navigator-scroll");
     expect(workspaceNavScrollBodies).toHaveLength(1);
     expect(workspaceNavScrollBodies[0]).toContain("overflow-y: auto");
     expect(workspaceNavScrollBodies[0]).toContain("overflow-x: hidden");
     expect(workspaceNavScrollBodies[0]).toContain("scrollbar-color: var(--ink-3) transparent");
-    expectCanonicalBase(".project-row-button", ["display: grid", "width: 100%"]);
+    expectCanonicalBase(".project-row-button", ["display: flex", "width: 100%"]);
     expectCanonicalBase(".project-session", ["display: grid", "width: 100%"]);
     expectCanonicalBase(".project-row-label", ["text-overflow: ellipsis", "white-space: nowrap"]);
     expectCanonicalBase(".project-session-title", ["text-overflow: ellipsis", "white-space: nowrap"]);
@@ -1013,14 +1011,9 @@ describe("renderer CSS contracts", () => {
   });
 
   it("compacts Projects at the native narrow width only when Work yields space to Preview", () => {
-    for (const selector of [
-      ".workspace-layout.preview-visible",
-      ".workspace-layout.preview-visible:has(.project-navigator.is-collapsed)",
-    ]) {
-      const layout = mediaExactRuleBodies("(max-width: 1180px)", selector);
-      expect(layout).toHaveLength(1);
-      expect(layout[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
-    }
+    const layout = mediaExactRuleBodies("(max-width: 1180px)", ".workspace-layout.preview-visible");
+    expect(layout).toHaveLength(1);
+    expect(layout[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
 
     const forcedRail = mediaExactRuleBodies(
       "(max-width: 1180px)",
@@ -1031,12 +1024,8 @@ describe("renderer CSS contracts", () => {
 
     expect(mediaExactRuleBodies("(max-width: 1180px)", ".workspace-layout")).toHaveLength(0);
 
-    const hiddenToggle = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      ".workspace-layout.preview-visible .project-navigator-collapse",
-    );
-    expect(hiddenToggle).toHaveLength(1);
-    expect(hiddenToggle[0]).toContain("display: none");
+    expect(styles).not.toContain(".project-navigator-collapse");
+    expect(styles).not.toContain(".project-navigator.is-collapsed");
 
     const hoverPeek = mediaExactRuleBodies(
       "(max-width: 1180px)",
@@ -1087,16 +1076,11 @@ describe("renderer CSS contracts", () => {
     expect(emptyState).toContain("text-align: left");
   });
 
-  it("keeps project session disclosure compact and visibly expanded", () => {
-    const disclosure = singleTopLevelRuleBodyIn(styles, ".project-session-disclosure");
-    const expanded = singleTopLevelRuleBodyIn(
-      styles,
-      '.project-session-disclosure[aria-expanded="true"] svg',
-    );
-
-    expect(disclosure).toContain("width: 28px");
-    expect(disclosure).toContain("background: transparent");
-    expect(expanded).toContain("transform: rotate(90deg)");
+  it("keeps the Sandboxes group indented with a quiet tabular count", () => {
+    expect(singleTopLevelRuleBodyIn(styles, ".project-sandbox-list")).toContain("padding-left: 12px");
+    const count = singleTopLevelRuleBodyIn(styles, ".project-sandbox-count");
+    expect(count).toContain("color: var(--text-faint)");
+    expect(count).toContain("font-variant-numeric: tabular-nums");
   });
 
   it("uses restrained project motion and disables it for reduced motion", () => {
@@ -1106,14 +1090,9 @@ describe("renderer CSS contracts", () => {
     expect(singleTopLevelRuleBodyIn(styles, ".project-navigator")).toContain(
       "transition: width 210ms cubic-bezier(0.16, 1, 0.3, 1)",
     );
-    expect(singleTopLevelRuleBodyIn(styles, ".project-session-disclosure svg")).toContain(
-      "transition: transform 140ms ease-out",
-    );
-
     for (const selector of [
       ".workspace-layout",
       ".project-navigator",
-      ".project-session-disclosure svg",
     ]) {
       const reduced = mediaExactRuleBodies("(prefers-reduced-motion: reduce)", selector);
       expect(reduced).toHaveLength(1);
@@ -1172,7 +1151,7 @@ describe("renderer CSS contracts", () => {
     const workspaceNavFocus = topLevelExactRuleBodies(".project-row-button:focus-visible");
     expect(workspaceNavHover).toHaveLength(1);
     expect(workspaceNavFocus).toHaveLength(1);
-    expect(workspaceNavHover[0]).toContain("background: var(--ink-2)");
+    expect(workspaceNavHover[0]).toContain("background: var(--surface-control-hover)");
     expectCanonicalBase(".workbench-primary-row button", [
       "max-height: 32px",
       "border-radius: var(--radius-control)",
@@ -1190,10 +1169,7 @@ describe("renderer CSS contracts", () => {
     expect(buttonFocus).toContain("outline: 2px solid var(--focus-border)");
     expect(buttonFocus).toContain("outline-offset: 2px");
     for (const selector of [
-      ".project-navigator-header button:focus-visible",
-      ".project-navigator-footer button:focus-visible",
-      ".project-session-disclosure:focus-visible",
-      ".project-overflow-button:focus-visible",
+      ".project-navigator-add:focus-visible",
       ".work-surface-toolbar button:focus-visible",
     ]) {
       expect(singleTopLevelRuleBodyIn(styles, selector)).not.toContain("outline: none");
@@ -1433,20 +1409,10 @@ describe("renderer CSS contracts", () => {
     }
   });
 
-  it("keeps selected destinations recognizable in the collapsed project rail", () => {
-    const activeProject = singleTopLevelRuleBodyIn(
-      styles,
-      '.project-navigator.is-collapsed .project-row-button[aria-current="location"]',
-    );
-    const activeSession = singleTopLevelRuleBodyIn(
-      styles,
-      ".project-navigator.is-collapsed .project-session.is-active",
-    );
-
-    expect(activeProject).toContain("var(--signal-focus) 10%");
-    expect(activeProject).toContain("border-left: 2px solid var(--signal-focus)");
-    expect(activeProject).toContain("color: var(--ink-7)");
-    expect(activeSession).toBe(activeProject);
+  it("keeps the selected project recognizable in the compact rail", () => {
+    // The active background lives on the row, so it survives the compact 46px rail unchanged.
+    expect(singleTopLevelRuleBodyIn(styles, ".project-row.is-active")).toContain("background: var(--surface-control)");
+    expect(styles).not.toMatch(/@media[^{]*\{[^}]*\.project-row\.is-active/);
   });
 
   it("keeps canonical owners for Sessions and overlays", () => {
@@ -1744,7 +1710,7 @@ describe("renderer CSS contracts", () => {
   it("keeps legacy gradients out of the main clean flat surfaces", () => {
     const workspacePopover = singleTopLevelRuleBodyIn(styles, ".workspace-popover");
     const terminalTile = exactBlockFor(".terminal-tile");
-    const activeWorkspace = exactBlockFor('.project-row-button[aria-current="location"]');
+    const activeWorkspace = exactBlockFor(".project-row.is-active");
 
     expect(workspacePopover).toContain("background:");
     expect(workspacePopover).not.toContain("linear-gradient");
@@ -2036,13 +2002,26 @@ describe("renderer CSS contracts", () => {
     expect(importantRules).toEqual([]);
   });
 
-  it("reserves the signal color for Alfred's four-point waiting glyph", () => {
-    const glyphRule = singleTopLevelRuleBodyIn(styles, ".session-status-glyph");
-    const projectSignalRule = singleTopLevelRuleBodyIn(styles, ".project-attention-signal");
+  it("reserves the signal color for the Needs you and Your turn glyphs", () => {
+    const glyphStyles = readFileSync(
+      [
+        resolve(process.cwd(), "src/renderer/components/session-status-glyph.css"),
+        resolve(process.cwd(), "apps/desktop/src/renderer/components/session-status-glyph.css"),
+      ].find((candidate) => existsSync(candidate))!,
+      "utf8",
+    );
+    const signalRules = allRulesIn(glyphStyles).filter(({ body }) => body.includes("var(--signal)"));
+    const dangerRules = allRulesIn(glyphStyles).filter(({ body }) => body.includes("var(--signal-danger)"));
 
-    expect(glyphRule).toContain("color: var(--ink-5)");
+    expect(singleTopLevelRuleBodyIn(styles, ".session-status-glyph")).toContain("color: var(--text-faint)");
     expect(styles).not.toMatch(/\.session-status-glyph\.status-/);
-    expect(projectSignalRule).toContain("color: var(--signal)");
+    expect(signalRules.map(({ selectors }) => selectors.join(","))).toEqual([
+      ".session-status-glyph:is(.status-needs-you,.status-your-turn)",
+    ]);
+    expect(dangerRules.map(({ selectors }) => selectors)).toEqual([[".session-status-glyph.status-failed"]]);
+    expect(singleTopLevelRuleBodyIn(glyphStyles, ".session-status-glyph.status-working svg")).toContain("animation:");
+    expect(mediaExactRuleBodiesIn(glyphStyles, "(prefers-reduced-motion: reduce)", ".session-status-glyph.status-working svg"))
+      .toEqual([expect.stringContaining("animation: none")]);
   });
 
   it("keeps overlay surfaces flat instead of glassy", () => {
@@ -2142,6 +2121,16 @@ describe("renderer CSS contracts", () => {
     "split-empty-state",
     "recovery-workspace-strip",
     "work-surface-context",
+    "project-navigator-collapse",
+    "project-navigator-footer",
+    "project-session-disclosure",
+    "project-session-list",
+    "project-overflow-button",
+    "project-folder-icon",
+    "project-attention-signal",
+    "project-agent-signal",
+    "project-row-signals",
+    "project-section-heading",
     "command-palette-button",
     "context-toggle-button",
     "mission-actions",
@@ -2191,26 +2180,29 @@ describe("renderer CSS contracts", () => {
     const navRow = singleTopLevelRuleBodyIn(styles, ".project-row-button");
     const navRowTitle = blockFor(".project-row-label,\n.project-session-title");
     const activeWorkspace = exactBlockFor('.project-row-button[aria-current="location"]');
+    const calmRow = singleTopLevelRuleBodyIn(styles, ".project-row-button.is-calm");
 
     expect(navPanel).toContain("background: var(--surface-panel)");
     expect(navSectionHeader).toContain("color: var(--ink-5)");
     expect(navSectionHeader).toContain("var(--sans)");
     expect(navRow).toContain("background: transparent");
     expectCanonicalBase(".project-row-button", [
-      "min-height: 40px",
-      "border-radius: 10px",
+      "height: 30px",
+      "border-radius: 8px",
+      "gap: 10px",
     ]);
     expectCanonicalBase(".project-session", [
       "min-height: 44px",
       "border-radius: 10px",
     ]);
-    expect(projectRow).toContain("grid-template-columns: minmax(0, 1fr) auto auto");
-    expect(navRow).toContain("grid-template-columns: 17px minmax(0, 1fr) auto auto");
+    expect(projectRow).toContain("grid-template-columns: minmax(0, 1fr) auto");
+    expect(navRow).toContain("color: var(--text-secondary)");
+    expect(navRow).toContain("font: 400 13px/18px var(--sans)");
+    expect(calmRow).toContain("color: var(--text-muted)");
     expect(navRowTitle).toContain("text-overflow: ellipsis");
     expect(navRowTitle).toContain("white-space: nowrap");
-    expect(activeWorkspace).toContain("background:");
-    expect(activeWorkspace).not.toContain("linear-gradient");
-    expect(activeWorkspace).toContain("color: var(--ink-7)");
+    expect(activeWorkspace).toContain("color: var(--text-primary)");
+    expect(activeWorkspace).toContain("font-weight: 500");
   });
 
   it("keeps overlays opaque and tactical instead of glassy", () => {

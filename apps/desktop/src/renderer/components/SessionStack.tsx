@@ -113,7 +113,7 @@ export function stackPreviewLine(session: Pick<SessionTile, "activityEvents">): 
 }
 
 // Working decays to Your turn or Idle without new events, so the stack needs its own clock.
-function useStackClock(active: boolean): number {
+export function useStackClock(active: boolean): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!active) return;

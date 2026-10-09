@@ -1,0 +1,31 @@
+/* The v4 canvas glyph grammar (contract §4). The signal hue means only "waits for you"; Failed takes the danger hue. */
+.session-status-glyph svg {
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.session-status-glyph:is(.status-needs-you, .status-your-turn) { color: var(--signal); }
+.session-status-glyph.status-failed { color: var(--signal-danger); }
+.session-status-glyph:is(.status-working, .status-running) { color: var(--text-primary); }
+.session-status-glyph.status-done .glyph-mark { stroke: var(--text-secondary); }
+.session-status-glyph .glyph-star-fill { fill: currentColor; stroke: none; }
+.session-status-glyph .glyph-star-outline { stroke-width: 1.2; }
+.session-status-glyph .glyph-dot { fill: currentColor; stroke: none; }
+.session-status-glyph .glyph-dashed { stroke-dasharray: 2 2.2; stroke-linecap: butt; }
+.session-status-glyph .glyph-track { stroke: color-mix(in oklab, var(--text-primary) 16%, transparent); }
+
+.session-status-glyph.status-working svg {
+  animation: session-glyph-spin 1200ms linear infinite;
+}
+
+@keyframes session-glyph-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-status-glyph.status-working svg { animation: none; }
+}

@@ -1,14 +1,14 @@
-import { Check, ChevronRight, CircleSlash, Folder, MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, TriangleAlert } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
+import { Check, CircleSlash, MessageSquare, Plus } from "lucide-react";
+import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
-import { isFreeChatSession, isNavigableLiveSession } from "../session-scope";
+import { isFreeChatScope, isFreeChatSession, isNavigableLiveSession } from "../session-scope";
 import type { SessionTile } from "../session-state";
-import { isRestartable, sessionState } from "../session-status";
+import { isRestartable, SESSION_STATE_LABELS, sessionState } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
-import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
+import { SessionStatusGlyph } from "./SessionStatusGlyph";
+import { useStackClock } from "./SessionStack";
 import { sessionTileKind } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
-import "./project-navigator-signals.css";
 
 const RECENT_RESULT_LIMIT = 2;
 
@@ -25,89 +25,126 @@ export type ProjectNavigatorWorkspace = {
 export type ProjectNavigatorProps = {
   activeSessionId: string | null;
   activeWorkspaceId: string;
-  activeAgentCountsByWorkspace: ReadonlyMap<string, number>;
   attentionCountsByWorkspace: ReadonlyMap<string, number>;
-  collapsed: boolean;
   sessions: SessionTile[];
   workspaces: ProjectNavigatorWorkspace[];
   workspaceActions: ReactNode;
   onAddWorkspace: () => void;
   onSelectSessionInWorkspace: (workspaceId: string, sessionId: string) => void;
   onSelectWorkspace: (workspaceId: string) => void;
-  onToggleCollapsed: () => void;
 };
+
+export type ProjectRailState = "needs-you" | "your-turn" | "working" | "running";
+
+// The head of SESSION_STATE_PRIORITY: only these put a glyph on a project row.
+const RAIL_STATES: readonly ProjectRailState[] = ["needs-you", "your-turn", "working", "running"];
+
+export function projectRailState(
+  sessions: readonly SessionTile[],
+  workspaceId: string,
+  needsYouCount: number,
+  now: number,
+): ProjectRailState | null {
+  if (needsYouCount > 0) return "needs-you";
+  let best: number = RAIL_STATES.length;
+  for (const session of sessions) {
+    if (!isProjectLiveSession(session, workspaceId)) continue;
+    const rank = RAIL_STATES.indexOf(sessionState(session, "ready", now).kind as ProjectRailState);
+    if (rank >= 0 && rank < best) best = rank;
+  }
+  return RAIL_STATES[best] ?? null;
+}
+
+function highestRailState(states: readonly (ProjectRailState | null)[]): ProjectRailState | null {
+  return RAIL_STATES.find((state) => states.includes(state)) ?? null;
+}
 
 export function ProjectNavigator({
   activeSessionId,
   activeWorkspaceId,
-  activeAgentCountsByWorkspace,
   attentionCountsByWorkspace,
-  collapsed,
   sessions,
   workspaces,
   workspaceActions,
   onAddWorkspace,
   onSelectSessionInWorkspace,
   onSelectWorkspace,
-  onToggleCollapsed,
 }: ProjectNavigatorProps) {
-  const [showAllProjects, setShowAllProjects] = useState(
-    () => workspaces.findIndex((workspace) => workspace.id === activeWorkspaceId) >= 5,
-  );
-  const [expandedWorkspaceIds, setExpandedWorkspaceIds] = useState<Set<string>>(
-    () => new Set([activeWorkspaceId]),
-  );
+  // Rootless workspaces group under Sandboxes only beside real projects; alone they stay a flat list,
+  // which also keeps the pre-load default workspace from flashing into the group.
+  const grouped = workspaces.some((workspace) => workspace.rootPath);
+  const projects = grouped ? workspaces.filter((workspace) => workspace.rootPath) : workspaces;
+  const sandboxes = grouped ? workspaces.filter((workspace) => !workspace.rootPath) : [];
+  const activeIsSandbox = sandboxes.some((workspace) => workspace.id === activeWorkspaceId);
+  const [sandboxesOpen, setSandboxesOpen] = useState(activeIsSandbox);
   const projectRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const activeProjectIndex = workspaces.findIndex((workspace) => workspace.id === activeWorkspaceId);
-  const visibleProjects = showAllProjects ? workspaces : workspaces.slice(0, 5);
-  const hiddenProjects = showAllProjects ? [] : workspaces.slice(5);
+  const now = useStackClock(sessions.length > 0);
   const freeChats = sessions.filter(
     (session) => session.workspaceId !== activeWorkspaceId && isFreeChatSession(session),
   );
   const recentResults = recentAgentResults(workspaces, sessions);
-  const hiddenAttentionCount = hiddenProjects.reduce(
-    (count, workspace) => count + (attentionCountsByWorkspace.get(workspace.id) ?? 0),
-    0,
-  );
-  const hiddenActiveAgentCount = hiddenProjects.reduce(
-    (count, workspace) => count + (activeAgentCountsByWorkspace.get(workspace.id) ?? 0),
-    0,
-  );
-
-  useEffect(() => {
-    if (workspaces.findIndex((workspace) => workspace.id === activeWorkspaceId) >= 5) {
-      setShowAllProjects(true);
-    }
-  }, [activeWorkspaceId, workspaces]);
+  const railStates = new Map(workspaces.map((workspace) => [
+    workspace.id,
+    projectRailState(sessions, workspace.id, attentionCountsByWorkspace.get(workspace.id) ?? 0, now),
+  ]));
+  const sandboxState = highestRailState(sandboxes.map((workspace) => railStates.get(workspace.id) ?? null));
+  const visibleRows = sandboxesOpen ? [...projects, ...sandboxes] : projects;
 
   useLayoutEffect(() => {
-    setExpandedWorkspaceIds((current) => {
-      if (current.has(activeWorkspaceId)) return current;
-      return new Set([...current, activeWorkspaceId]);
-    });
-  }, [activeWorkspaceId]);
+    if (activeIsSandbox) setSandboxesOpen(true);
+  }, [activeIsSandbox, activeWorkspaceId]);
+
+  const renderRow = (workspace: ProjectNavigatorWorkspace) => {
+    const active = workspace.id === activeWorkspaceId;
+    const state = railStates.get(workspace.id) ?? null;
+    const live = sessions.some((session) => isProjectLiveSession(session, workspace.id));
+    const statusId = `project-${workspace.id}-status`;
+    const rowIndex = visibleRows.indexOf(workspace);
+    return (
+      <section className="project-item" key={workspace.id} role="listitem">
+        <div className={`project-row${active ? " is-active" : ""}`}>
+          <button
+            type="button"
+            className={`project-row-button${live ? "" : " is-calm"}`}
+            aria-current={active ? "location" : undefined}
+            aria-describedby={state ? statusId : undefined}
+            aria-label={`${workspace.label} project`}
+            data-label={workspace.label}
+            data-project-destination={workspace.id}
+            onClick={() => onSelectWorkspace(workspace.id)}
+            onKeyDown={(event) => handleProjectKeyDown(event, visibleRows, rowIndex, onSelectWorkspace, projectRefs)}
+            ref={(element) => {
+              projectRefs.current[workspace.id] = element;
+            }}
+            title={workspace.label}
+          >
+            <span className="project-row-monogram" aria-hidden="true">{workspace.shortLabel}</span>
+            <span className="project-row-label">{workspace.label}</span>
+            {state && <SessionStatusGlyph kind={state} label={SESSION_STATE_LABELS[state]} className="project-row-state" size={12} />}
+            {state && <span className="visually-hidden" id={statusId}>{SESSION_STATE_LABELS[state]}</span>}
+          </button>
+          {active && <div className="project-workspace-actions">{workspaceActions}</div>}
+        </div>
+      </section>
+    );
+  };
 
   return (
     <aside
-      className={`project-navigator${collapsed ? " is-collapsed" : ""}`}
+      className="project-navigator"
       data-testid="project-navigator"
       aria-label="Projects and Free Chats"
       role="navigation"
     >
       <header className="project-navigator-header">
         <strong>Projects</strong>
-        <button
-          type="button"
-          className="project-navigator-collapse"
-          aria-label={collapsed ? "Expand project navigator" : "Collapse project navigator"}
-          onClick={onToggleCollapsed}
-        >
-          {collapsed ? <PanelLeftOpen aria-hidden="true" size={16} /> : <PanelLeftClose aria-hidden="true" size={16} />}
+        <button type="button" className="project-navigator-add" aria-label="Add project" title="Add project" onClick={onAddWorkspace}>
+          <Plus aria-hidden="true" size={15} />
         </button>
       </header>
 
       <div className="project-navigator-scroll">
-        {!collapsed && recentResults.length > 0 && (
+        {recentResults.length > 0 && (
           <section className="project-recents" aria-label="Recent agent results">
             <header className="project-recents-header">
               <strong>Recent</strong>
@@ -141,170 +178,39 @@ export function ProjectNavigator({
           </section>
         )}
 
-        {!collapsed && recentResults.length > 0 && (
-          <div className="project-section-heading">Projects</div>
-        )}
-
         <div className="project-list" role="list" aria-label="Projects">
-          {visibleProjects.map((workspace, visibleIndex) => {
-            const active = workspace.id === activeWorkspaceId;
-            const stableIndex = workspaces.findIndex((candidate) => candidate.id === workspace.id);
-            const activeAgentCount = activeAgentCountsByWorkspace.get(workspace.id) ?? 0;
-            const attentionCount = attentionCountsByWorkspace.get(workspace.id) ?? 0;
-            const hasAttention = attentionCount > 0;
-            const workspaceSessions = sessions.filter((session) => isActiveNavigatorSession(session, workspace.id));
-            const sessionsExpanded = expandedWorkspaceIds.has(workspace.id);
-            const sessionGroupId = `project-${workspace.id}-sessions`;
-            const workspaceStatusId = `project-${workspace.id}-status`;
-            const workspaceStatus = [
-              hasAttention
-                ? `${attentionCount} decision${attentionCount === 1 ? " needs" : "s need"} review`
-                : null,
-              activeAgentCount > 0
-                ? `${activeAgentCount} active agent${activeAgentCount === 1 ? "" : "s"}`
-                : null,
-            ].filter((status): status is string => status !== null);
-            return (
-              <section
-                className={`project-item${active ? " is-active" : ""}`}
-                key={workspace.id}
-                role="listitem"
-              >
-                <div className={`project-row${active ? " is-active" : ""}`}>
-                  <button
-                    type="button"
-                    className="project-row-button"
-                    aria-current={active ? "location" : undefined}
-                    aria-describedby={workspaceStatus.length > 0 ? workspaceStatusId : undefined}
-                    aria-label={`${workspace.label} project`}
-                    data-attention={hasAttention ? "true" : undefined}
-                    data-label={workspace.label}
-                    data-project-destination={workspace.id}
-                    onClick={() => onSelectWorkspace(workspace.id)}
-                    onKeyDown={(event) =>
-                      handleProjectKeyDown(event, visibleProjects, visibleIndex, onSelectWorkspace, projectRefs)
-                    }
-                    ref={(element) => {
-                      projectRefs.current[workspace.id] = element;
-                    }}
-                    title={workspace.label}
-                  >
-                    <Folder className="project-folder-icon" aria-hidden="true" size={15} />
-                    <span className="project-row-monogram" aria-hidden="true">{workspace.shortLabel}</span>
-                    <span className="project-row-label">{workspace.label}</span>
-                    {stableIndex >= 0 && stableIndex < 5 && <kbd aria-hidden="true">⌘{stableIndex + 1}</kbd>}
-                    {(activeAgentCount > 0 || hasAttention) && (
-                      <span className="project-row-signals">
-                        {activeAgentCount > 0 && (
-                          <span
-                            className="project-agent-signal"
-                            aria-hidden="true"
-                          >
-                            <AlfredSignalGlyph />
-                            <span>{activeAgentCount}</span>
-                          </span>
-                        )}
-                        {hasAttention && (
-                          <span
-                            className="project-attention-signal"
-                            aria-hidden="true"
-                          >
-                            <TriangleAlert className="project-attention-icon" aria-hidden="true" size={11} />
-                            {attentionCount > 1 && <span className="project-attention-count">{attentionCount}</span>}
-                          </span>
-                        )}
-                      </span>
-                    )}
-                    {workspaceStatus.length > 0 && (
-                      <span className="visually-hidden" id={workspaceStatusId}>
-                        {workspaceStatus.join(", ")}
-                      </span>
-                    )}
-                  </button>
-                  {workspaceSessions.length > 0 && (
-                    <button
-                      type="button"
-                      className="project-session-disclosure"
-                      aria-controls={sessionGroupId}
-                      aria-expanded={sessionsExpanded}
-                      aria-label={`${sessionsExpanded ? "Collapse" : "Expand"} ${workspace.label} sessions`}
-                      onClick={() => setExpandedWorkspaceIds((current) => {
-                        const next = new Set(current);
-                        if (next.has(workspace.id)) next.delete(workspace.id);
-                        else next.add(workspace.id);
-                        return next;
-                      })}
-                    >
-                      <ChevronRight aria-hidden="true" size={13} />
-                    </button>
+          {projects.map(renderRow)}
+          {sandboxes.length > 0 && (
+            <section className="project-item project-sandboxes" role="listitem">
+              <div className={`project-row${activeIsSandbox && !sandboxesOpen ? " is-active" : ""}`}>
+                <button
+                  type="button"
+                  className="project-row-button project-sandbox-toggle"
+                  aria-controls="project-sandbox-list"
+                  aria-current={activeIsSandbox && !sandboxesOpen ? "location" : undefined}
+                  aria-describedby={sandboxState ? "project-sandboxes-status" : undefined}
+                  aria-expanded={sandboxesOpen}
+                  aria-label={`Sandboxes, ${sandboxes.length} project${sandboxes.length === 1 ? "" : "s"}`}
+                  data-label="Sandboxes"
+                  onClick={() => setSandboxesOpen((open) => !open)}
+                  title="Projects without a folder"
+                >
+                  <span className="project-row-label">Sandboxes</span>
+                  <span className="project-sandbox-count" aria-hidden="true">{sandboxes.length}</span>
+                  {sandboxState && <SessionStatusGlyph kind={sandboxState} label={SESSION_STATE_LABELS[sandboxState]} className="project-row-state" size={12} />}
+                  {sandboxState && (
+                    <span className="visually-hidden" id="project-sandboxes-status">{SESSION_STATE_LABELS[sandboxState]}</span>
                   )}
-                  {active && <div className="project-workspace-actions">{workspaceActions}</div>}
+                </button>
+              </div>
+              {sandboxesOpen && (
+                <div className="project-sandbox-list" id="project-sandbox-list" role="list" aria-label="Sandboxes">
+                  {sandboxes.map(renderRow)}
                 </div>
-
-                {sessionsExpanded && workspaceSessions.length > 0 && (
-                  <div
-                    id={sessionGroupId}
-                    className="project-session-list"
-                    role="group"
-                    aria-label={`${workspace.label} sessions`}
-                  >
-                    {workspaceSessions.map((session) => (
-                      <NavigatorSessionButton
-                        active={session.id === activeSessionId}
-                        key={session.id}
-                        session={session}
-                        onClick={() => onSelectSessionInWorkspace(workspace.id, session.id)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </section>
-            );
-          })}
+              )}
+            </section>
+          )}
         </div>
-
-        {hiddenProjects.length > 0 && (
-          <button
-            type="button"
-            className="project-overflow-button"
-            aria-label={`Show ${hiddenProjects.length} more projects${hiddenAttentionCount > 0 ? ", hidden project needs review" : ""}${hiddenActiveAgentCount > 0 ? ", hidden project has active agents" : ""}`}
-            data-attention={hiddenAttentionCount > 0 ? "true" : undefined}
-            onClick={() => setShowAllProjects(true)}
-          >
-            <span>Show {hiddenProjects.length} more</span>
-            {(hiddenActiveAgentCount > 0 || hiddenAttentionCount > 0) && (
-              <span className="project-row-signals">
-                {hiddenActiveAgentCount > 0 && (
-                  <span className="project-agent-signal" aria-label="Hidden project has active agents">
-                    <AlfredSignalGlyph />
-                    <span>{hiddenActiveAgentCount}</span>
-                  </span>
-                )}
-                {hiddenAttentionCount > 0 && (
-                  <span className="project-attention-signal" aria-label="Hidden project needs review">
-                    <TriangleAlert className="project-attention-icon" aria-hidden="true" size={11} />
-                    {hiddenAttentionCount > 1 && (
-                      <span className="project-attention-count">{hiddenAttentionCount}</span>
-                    )}
-                  </span>
-                )}
-              </span>
-            )}
-          </button>
-        )}
-
-        {showAllProjects && workspaces.length > 5 && (
-          <button
-            type="button"
-            className="project-overflow-button"
-            aria-label="Show fewer projects"
-            disabled={activeProjectIndex >= 5}
-            title={activeProjectIndex >= 5 ? "The active project must remain visible" : undefined}
-            onClick={() => setShowAllProjects(false)}
-          >
-            <span>Show fewer projects</span>
-          </button>
-        )}
 
         {freeChats.length > 0 && (
           <section className="free-chat-section" role="group" aria-label="Free Chats">
@@ -325,13 +231,6 @@ export function ProjectNavigator({
           </section>
         )}
       </div>
-
-      <footer className="project-navigator-footer">
-        <button type="button" aria-label="Add project" onClick={onAddWorkspace}>
-          <Plus aria-hidden="true" size={15} />
-          <span>Add project</span>
-        </button>
-      </footer>
     </aside>
   );
 }
@@ -420,9 +319,10 @@ function NavigatorSessionButton({
   );
 }
 
-function isActiveNavigatorSession(session: SessionTile, workspaceId: string): boolean {
+function isProjectLiveSession(session: SessionTile, workspaceId: string): boolean {
   return session.workspaceId === workspaceId
-    && isNavigableLiveSession(session);
+    && isNavigableLiveSession(session)
+    && !isFreeChatScope(session);
 }
 
 function handleProjectKeyDown(
