@@ -61,7 +61,7 @@ function highestRailState(states: readonly (ProjectRailState | null)[]): Project
 
 // Rootless workspaces group under Sandboxes only beside real projects; alone they stay a flat list,
 // which also keeps the pre-load default workspace from flashing into the group.
-function railGroups<T extends { rootPath?: string }>(workspaces: readonly T[]): { projects: T[]; sandboxes: T[] } {
+function railGroups<T extends ProjectNavigatorWorkspace>(workspaces: readonly T[]): { projects: T[]; sandboxes: T[] } {
   const grouped = workspaces.some((workspace) => workspace.rootPath);
   return {
     projects: grouped ? workspaces.filter((workspace) => workspace.rootPath) : [...workspaces],
@@ -70,7 +70,7 @@ function railGroups<T extends { rootPath?: string }>(workspaces: readonly T[]): 
 }
 
 /** The rail's top-to-bottom order, which ⌘1–⌘9 follow. */
-export function railOrder<T extends { rootPath?: string }>(workspaces: readonly T[]): T[] {
+export function railOrder<T extends ProjectNavigatorWorkspace>(workspaces: readonly T[]): T[] {
   const { projects, sandboxes } = railGroups(workspaces);
   return [...projects, ...sandboxes];
 }
