@@ -10,8 +10,6 @@ test("terminal identity marks stay visible and the deck keeps one terminal besid
   // The focused tile shows its mark; the other two wait in the stack and keep theirs while hidden.
   await expect(page.locator(".terminal-tile .tile-kind-mark.claude .kind-brand-icon")).toBeVisible();
   await expect(page.locator(".terminal-tile .tile-kind-mark.codex .kind-brand-icon")).toBeAttached();
-  await expect(page.locator(".project-session-kind.kind-codex .kind-brand-icon")).toBeVisible();
-  await expect(page.locator(".project-session-kind.kind-claude .kind-brand-icon")).toBeVisible();
 
   const manualTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
   await page.getByRole("complementary", { name: /^Other sessions in / }).locator('[data-session-id="manual-1"]').click();
@@ -20,8 +18,6 @@ test("terminal identity marks stay visible and the deck keeps one terminal besid
   await manualInput.fill("codex");
   await manualInput.press("Enter");
   await expect(manualTile.locator(".tile-kind-mark.codex .kind-brand-icon")).toBeVisible();
-  await expect(page.locator('.project-session[data-session-id="manual-1"]')
-    .locator(".project-session-kind.kind-codex .kind-brand-icon")).toBeVisible();
   await expect.poll(() => tiles.evaluateAll(
     (nodes) => nodes.every((node) => node.classList.contains("ready")),
   )).toBe(true);
@@ -57,7 +53,7 @@ test("scrolls the focused terminal, not the deck column, under the wheel", async
   for (let index = 0; index < 5; index += 1) {
     await addSession(page, "New manual terminal");
   }
-  await page.locator('button.project-session[data-session-id="manual-1"]').click();
+  await page.getByRole("complementary", { name: /^Other sessions in / }).locator('[data-session-id="manual-1"]').click();
   await expect(terminalTile).not.toHaveAttribute("aria-hidden", "true");
   await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1120, height: 720 });
@@ -123,8 +119,6 @@ test("manual terminal adopts the Claude runtime identity", async ({ harness }, t
   await manualInput.press("Enter");
 
   await expect(manualTile.locator(".tile-kind-mark.claude .kind-brand-icon")).toBeVisible();
-  await expect(page.locator('.project-session[data-session-id="manual-1"]')
-    .locator(".project-session-kind.kind-claude .kind-brand-icon")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("manual-claude-runtime-identity.png") });
 });
 

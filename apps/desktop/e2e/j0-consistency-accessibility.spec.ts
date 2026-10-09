@@ -221,8 +221,9 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await expectSansFont(diff.locator(".worktree-diff-panel__files code").first());
   await expectSansFont(diff.locator(".worktree-diff-panel__line").first());
   await diff.getByRole("button", { name: "Close diff" }).click();
-  const navigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
-  await navigator.getByRole("button", { name: "Manual · zsh 2", exact: true }).click();
+  // Focus Manual · zsh 2 from the stack unless it already holds focus.
+  const secondCard = page.getByRole("complementary", { name: /^Other sessions in / }).locator('[data-session-id="manual-2"]');
+  if (await secondCard.count()) await secondCard.click();
   const hiddenFirstTerminal = page.locator(
     'article[data-testid="terminal-tile"][data-session-id="manual-1"]',
   );
@@ -230,7 +231,7 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   expect(await hiddenFirstTerminal.evaluate((node) => (
     node instanceof HTMLElement ? node.style.gridRow : ""
   ))).toBe("");
-  await navigator.getByRole("button", { name: "Manual · zsh 1", exact: true }).click();
+  await page.getByRole("complementary", { name: /^Other sessions in / }).locator('[data-session-id="manual-1"]').click();
   const firstTerminalScreen = hiddenFirstTerminal.locator(".xterm-screen");
   await expect(hiddenFirstTerminal).not.toHaveAttribute("aria-hidden", "true");
   await expect(firstTerminalScreen).toBeVisible();

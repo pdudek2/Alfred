@@ -3,7 +3,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionTile } from "../session-state";
-import { ProjectNavigator, type ProjectNavigatorProps } from "./ProjectNavigator";
+import { ProjectNavigator, projectRailState, railOrder, type ProjectNavigatorProps } from "./ProjectNavigator";
 
 const workspaces = [
   { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
@@ -13,6 +13,12 @@ const workspaces = [
   { id: "IRON", label: "IronLog", shortLabel: "IRO", rootPath: "/repo/iron" },
   { id: "LONG", label: "A project name long enough to require visual truncation", shortLabel: "LNG", rootPath: "/repo/long" },
   { id: "SEVEN", label: "SeventhProject", shortLabel: "SVN", rootPath: "/repo/seven" },
+];
+
+const sandboxes = [
+  { id: "W3", label: "Workspace 3", shortLabel: "W3" },
+  { id: "W4", label: "Workspace 4", shortLabel: "W4" },
+  { id: "W12", label: "Workspace 12", shortLabel: "W12" },
 ];
 
 const sessions: SessionTile[] = [
@@ -49,21 +55,34 @@ function liveSession(
   };
 }
 
+function shell(id: string, workspaceId: string, shellBusy: boolean): SessionTile {
+  return { id, title: id, workspaceId, cwd: "/repo", source: "manual", stage: "live", runtimeStatus: "live", shellBusy };
+}
+
+function agent(id: string, workspaceId: string, signal: "needs-you" | "your-turn" | "working"): SessionTile {
+  return { ...liveSession(id, id, workspaceId, "/repo", "codex"), agentSignal: { state: signal, source: "hook", at: Date.now() } };
+}
+
+function railRow(label: string) {
+  return screen.getByRole("button", { name: `${label} project` });
+}
+
+function railGlyph(label: string) {
+  return railRow(label).querySelector(".session-status-glyph");
+}
+
 function navigator(props: Partial<ProjectNavigatorProps> = {}) {
   return (
     <ProjectNavigator
       activeSessionId="codex-live"
       activeWorkspaceId="A"
-      activeAgentCountsByWorkspace={new Map()}
       attentionCountsByWorkspace={new Map()}
-      collapsed={false}
       sessions={sessions}
       workspaces={workspaces}
       workspaceActions={<button type="button">Project actions</button>}
       onAddWorkspace={vi.fn()}
       onSelectSessionInWorkspace={vi.fn()}
       onSelectWorkspace={vi.fn()}
-      onToggleCollapsed={vi.fn()}
       {...props}
     />
   );
@@ -73,18 +92,28 @@ function renderNavigator(props: Partial<ProjectNavigatorProps> = {}) {
   return render(navigator(props));
 }
 
-function navigatorWithWaitingSessionInClientApp() {
-  return navigator({
-    attentionCountsByWorkspace: new Map([["CLIENT", 1]]),
-    sessions: [
-      ...sessions,
-      {
-        ...liveSession("client-waiting", "Codex · review", "CLIENT", "/repo/client", "codex"),
-        activityEvents: [{ id: "ask", kind: "approval", title: "Waiting", detail: "Approve?", at: 1 }],
-      },
-    ],
+describe("projectRailState", () => {
+  const now = Date.now();
+
+  it("ranks only the four active states and counts Needs you items", () => {
+    expect(projectRailState([agent("a", "A", "working"), agent("b", "A", "your-turn")], "A", 0, now)).toBe("your-turn");
+    expect(projectRailState([agent("a", "A", "working"), shell("s", "A", true)], "A", 0, now)).toBe("working");
+    expect(projectRailState([shell("s", "A", true)], "A", 0, now)).toBe("running");
+    expect(projectRailState([shell("s", "A", false)], "A", 0, now)).toBeNull();
+    expect(projectRailState([shell("s", "A", false)], "A", 1, now)).toBe("needs-you");
+    expect(projectRailState([agent("a", "A", "needs-you")], "A", 0, now)).toBe("needs-you");
+    expect(projectRailState([agent("a", "B", "needs-you")], "A", 0, now)).toBeNull();
+    expect(projectRailState([{ ...agent("a", "A", "working"), runtimeStatus: "exited" }], "A", 0, now)).toBeNull();
   });
-}
+});
+
+describe("railOrder", () => {
+  it("puts real projects before sandboxes so ⌘1–⌘9 match the rail", () => {
+    const mixed = [workspaces[0]!, sandboxes[0]!, workspaces[1]!, sandboxes[1]!];
+    expect(railOrder(mixed).map((workspace) => workspace.id)).toEqual(["A", "CLIENT", "W3", "W4"]);
+    expect(railOrder(sandboxes).map((workspace) => workspace.id)).toEqual(["W3", "W4", "W12"]);
+  });
+});
 
 describe("ProjectNavigator", () => {
   beforeEach(() => {
@@ -99,31 +128,94 @@ describe("ProjectNavigator", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders five stable projects, expands only the active project, and keeps Free Chats separate", () => {
-    renderNavigator();
+  it("lists every project as one row without session rows, hints, counts or a collapse button", () => {
+    const { container } = renderNavigator();
 
     const projectList = screen.getByRole("list", { name: "Projects" });
-    const projects = within(projectList).getAllByRole("button", { name: / project(?:,|$)/i });
-    expect(projects.map((row) => row.textContent)).toEqual([
-      expect.stringContaining("Alfred"),
-      expect.stringContaining("ClientApp"),
-      expect.stringContaining("Chmury_lab04"),
-      expect.stringContaining("GothamTab"),
-      expect.stringContaining("IronLog"),
-    ]);
-    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
-    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Alfred project" })).toHaveAttribute(
-      "aria-current",
-      "location",
-    );
-    expect(screen.getByRole("button", { name: "Show 2 more projects" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Codex · Slice 2/i })).toHaveAttribute("aria-current", "page");
-    expect(screen.queryByRole("button", { name: /Codex · restored/i })).not.toBeInTheDocument();
-    expect(within(screen.getByRole("group", { name: "Free Chats" })).getAllByRole("button")).toHaveLength(4);
+    expect(within(projectList).getAllByRole("button", { name: / project$/ }).map((row) => row.getAttribute("data-label")))
+      .toEqual(workspaces.map((workspace) => workspace.label));
+    expect(railRow("Alfred")).toHaveAttribute("aria-current", "location");
+    expect(projectList.querySelector(".project-session")).toBeNull();
+    expect(container.querySelector("kbd")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Collapse project navigator|Expand project navigator/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /more projects/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Add project" }).closest("header")).not.toBeNull();
   });
 
-  it("shows the two newest finished agent results without moving projects or including manual shells", () => {
+  it("shows one glyph per project for its highest active state and mutes calm projects", () => {
+    renderNavigator({
+      attentionCountsByWorkspace: new Map([["CLIENT", 1]]),
+      sessions: [
+        agent("client-working", "CLIENT", "working"),
+        agent("cloud-working", "CLOUD", "working"),
+        shell("iron-shell", "IRON", false),
+      ],
+    });
+
+    expect(railGlyph("ClientApp")).toHaveClass("status-needs-you");
+    expect(railRow("ClientApp")).toHaveAccessibleDescription("needs you");
+    expect(railGlyph("Chmury_lab04")).toHaveClass("status-working");
+    expect(railGlyph("IronLog")).toBeNull();
+    expect(railRow("IronLog")).not.toHaveClass("is-calm");
+    expect(railRow("GothamTab")).toHaveClass("is-calm");
+    expect(railRow("GothamTab")).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("groups rootless projects into one collapsed Sandboxes row with the group's highest state", async () => {
+    const user = userEvent.setup();
+    const onSelectWorkspace = vi.fn();
+    renderNavigator({
+      onSelectWorkspace,
+      sessions: [agent("w4-turn", "W4", "your-turn"), shell("w12-run", "W12", true)],
+      workspaces: [...workspaces, ...sandboxes],
+    });
+
+    const toggle = screen.getByRole("button", { name: "Sandboxes, 3 projects" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveTextContent("Sandboxes3");
+    expect(toggle.querySelector(".session-status-glyph")).toHaveClass("status-your-turn");
+    expect(screen.queryByRole("button", { name: "Workspace 3 project" })).toBeNull();
+
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const group = screen.getByRole("list", { name: "Sandboxes" });
+    expect(within(group).getAllByRole("button").map((row) => row.getAttribute("data-label")))
+      .toEqual(["Workspace 3", "Workspace 4", "Workspace 12"]);
+    await user.click(railRow("Workspace 12"));
+    expect(onSelectWorkspace).toHaveBeenCalledWith("W12");
+  });
+
+  it("opens Sandboxes when a sandbox becomes active and marks the collapsed group as current", async () => {
+    const user = userEvent.setup();
+    const all = [...workspaces, ...sandboxes];
+    const view = renderNavigator({ workspaces: all });
+    expect(screen.getByRole("button", { name: "Sandboxes, 3 projects" })).toHaveAttribute("aria-expanded", "false");
+
+    view.rerender(navigator({ activeWorkspaceId: "W4", workspaces: all }));
+
+    const toggle = screen.getByRole("button", { name: "Sandboxes, 3 projects" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(railRow("Workspace 4")).toHaveAttribute("aria-current", "location");
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-current", "location");
+  });
+
+  it("omits the Sandboxes row when every project has a folder", () => {
+    renderNavigator();
+
+    expect(screen.queryByRole("button", { name: /^Sandboxes/ })).toBeNull();
+  });
+
+  it("lists rootless projects flat when there is no real project to separate them from", () => {
+    renderNavigator({ activeWorkspaceId: "W3", workspaces: sandboxes });
+
+    expect(screen.queryByRole("button", { name: /^Sandboxes/ })).toBeNull();
+    expect(within(screen.getByRole("list", { name: "Projects" })).getAllByRole("button", { name: / project$/ }).map((row) => row.getAttribute("data-label")))
+      .toEqual(["Workspace 3", "Workspace 4", "Workspace 12"]);
+  });
+
+  it("shows the two newest finished agent results without including manual shells", () => {
     const now = Date.now();
     renderNavigator({
       sessions: [
@@ -151,15 +243,6 @@ describe("ProjectNavigator", () => {
     ]);
     expect(recent).not.toHaveTextContent("Older result");
     expect(recent).not.toHaveTextContent("Manual · zsh 9");
-
-    const projectList = screen.getByRole("list", { name: "Projects" });
-    expect(within(projectList).getAllByRole("button", { name: / project(?:,|$)/i }).map((row) => row.getAttribute("data-label"))).toEqual([
-      "Alfred",
-      "ClientApp",
-      "Chmury_lab04",
-      "GothamTab",
-      "IronLog",
-    ]);
   });
 
   it("opens the exact recent session in its workspace", async () => {
@@ -177,233 +260,36 @@ describe("ProjectNavigator", () => {
     expect(onSelectSessionInWorkspace).toHaveBeenCalledWith("CLOUD", "codex-done");
   });
 
-  it("exposes one disclosure for an active project with live sessions", () => {
-    renderNavigator();
-
-    const sessionGroup = screen.getByRole("group", { name: "Alfred sessions" });
-    expect(sessionGroup).toBeVisible();
-    const activeSession = within(sessionGroup).getByRole("button", { name: "Codex · Slice 2" });
-    expect(activeSession).toHaveTextContent(/Codex · (?:your turn|working)/i);
-    expect(activeSession).toHaveAccessibleDescription(/Codex · (?:your turn|working)/i);
-    expect(screen.getByRole("button", { name: "Collapse Alfred sessions" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(screen.getAllByRole("list", { name: "Projects" })).toHaveLength(1);
-  });
-
-  it("keeps previously expanded project sessions visible after the active project changes", () => {
-    const projectSessions = [
-      ...sessions,
-      liveSession("client-live", "Claude · Client review", "CLIENT", "/repo/client", "claude"),
-    ];
-    const view = renderNavigator({ activeWorkspaceId: "A", sessions: projectSessions });
-    expect(screen.getByRole("group", { name: "Alfred sessions" })).toBeVisible();
-
-    view.rerender(navigator({ activeWorkspaceId: "CLIENT", sessions: projectSessions }));
-
-    expect(screen.getByRole("group", { name: "Alfred sessions" })).toBeVisible();
-    expect(screen.getByRole("group", { name: "ClientApp sessions" })).toBeVisible();
-  });
-
-  it("lets the user collapse a project's sessions independently", async () => {
-    const user = userEvent.setup();
-    renderNavigator();
-    const disclosure = screen.getByRole("button", { name: "Collapse Alfred sessions" });
-
-    await user.click(disclosure);
-
-    expect(screen.queryByRole("group", { name: "Alfred sessions" })).not.toBeInTheDocument();
-    expect(disclosure).toHaveAttribute("aria-expanded", "false");
-    expect(disclosure).toHaveAccessibleName("Expand Alfred sessions");
-  });
-
-  it("routes every selection through the supplied callbacks", async () => {
-    const user = userEvent.setup();
-    const onSelectWorkspace = vi.fn();
+  it("keeps Free Chats as their own group and routes their selection", async () => {
     const onSelectSessionInWorkspace = vi.fn();
-    renderNavigator({ onSelectWorkspace, onSelectSessionInWorkspace });
+    renderNavigator({ onSelectSessionInWorkspace });
 
-    await user.click(screen.getByRole("button", { name: /ClientApp project/i }));
-    expect(onSelectWorkspace).toHaveBeenCalledWith("CLIENT");
-    await user.click(screen.getByRole("button", { name: /Codex · Slice 2/i }));
-    expect(onSelectSessionInWorkspace).toHaveBeenCalledWith("A", "codex-live");
+    const freeChats = screen.getByRole("group", { name: "Free Chats" });
+    expect(within(freeChats).getAllByRole("button")).toHaveLength(4);
+    await userEvent.click(within(freeChats).getByRole("button", { name: "Free Chat 2" }));
+    expect(onSelectSessionInWorkspace).toHaveBeenCalledWith("FREE-2", "free-2");
   });
 
-  it("keeps project order stable when attention changes and supports native tab stops and arrow shortcuts", async () => {
+  it("keeps project order stable when attention changes and supports arrow shortcuts", async () => {
     const { rerender } = renderNavigator();
-    const projectList = screen.getByRole("list", { name: "Projects" });
-    const before = within(projectList)
-      .getAllByRole("button", { name: / project(?:,|$)/i })
+    const labels = () => within(screen.getByRole("list", { name: "Projects" }))
+      .getAllByRole("button", { name: / project$/ })
       .map((node) => node.getAttribute("data-label"));
+    const before = labels();
 
-    rerender(navigatorWithWaitingSessionInClientApp());
-    const projectButtons = within(screen.getByRole("list", { name: "Projects" }))
-      .getAllByRole("button", { name: / project(?:,|$)/i });
-    expect(projectButtons.map((node) => node.getAttribute("data-label"))).toEqual(before);
-    expect(projectButtons.every((button) => button.tabIndex === 0)).toBe(true);
+    rerender(navigator({ attentionCountsByWorkspace: new Map([["CLIENT", 1]]) }));
+    expect(labels()).toEqual(before);
 
-    screen.getByRole("button", { name: /Alfred project/i }).focus();
+    railRow("Alfred").focus();
     await userEvent.keyboard("{ArrowDown}{End}{Home}{ArrowUp}");
-    expect(screen.getByRole("button", { name: /IronLog project/i })).toHaveFocus();
+    expect(railRow("SeventhProject")).toHaveFocus();
   });
 
-  it("labels the first five project shortcuts as command 1 through 5", () => {
+  it("keeps the complete long project name and a short label for the compact rail", () => {
     renderNavigator();
 
-    const projectButtons = within(screen.getByRole("list", { name: "Projects" }))
-      .getAllByRole("button", { name: / project(?:,|$)/i });
-    expect(projectButtons.map((button) => button.textContent)).toEqual([
-      expect.stringContaining("⌘1"),
-      expect.stringContaining("⌘2"),
-      expect.stringContaining("⌘3"),
-      expect.stringContaining("⌘4"),
-      expect.stringContaining("⌘5"),
-    ]);
-  });
-
-  it("keeps the complete long project name in its accessible label", async () => {
-    const user = userEvent.setup();
-    renderNavigator();
-    await user.click(screen.getByRole("button", { name: "Show 2 more projects" }));
-
-    expect(screen.getByRole("button", { name: `${workspaces[5]!.label} project` })).toBeInTheDocument();
-  });
-
-  it("shows the exact remaining project count and keeps an overflow selection visible", () => {
-    const { rerender } = renderNavigator();
-    rerender(navigator({ activeWorkspaceId: "SEVEN" }));
-
-    expect(screen.getByRole("button", { name: /SeventhProject project/i })).toHaveAttribute(
-      "aria-current",
-      "location",
-    );
-  });
-
-  it("collapses an expanded overflow when the active project remains visible", async () => {
-    const user = userEvent.setup();
-    renderNavigator();
-
-    await user.click(screen.getByRole("button", { name: "Show 2 more projects" }));
-    expect(
-      within(screen.getByRole("list", { name: "Projects" }))
-        .getAllByRole("button", { name: / project(?:,|$)/i }),
-    ).toHaveLength(7);
-
-    await user.click(screen.getByRole("button", { name: "Show fewer projects" }));
-
-    expect(
-      within(screen.getByRole("list", { name: "Projects" }))
-        .getAllByRole("button", { name: / project(?:,|$)/i }),
-    ).toHaveLength(5);
-    expect(screen.getByRole("button", { name: "Show 2 more projects" })).toBeInTheDocument();
-  });
-
-  it("keeps overflow expanded while it contains the active project", () => {
-    renderNavigator({ activeWorkspaceId: "SEVEN" });
-
-    expect(
-      within(screen.getByRole("list", { name: "Projects" }))
-        .getAllByRole("button", { name: / project(?:,|$)/i }),
-    ).toHaveLength(7);
-    expect(screen.getByRole("button", { name: "Show fewer projects" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /SeventhProject project/i })).toHaveAttribute(
-      "aria-current",
-      "location",
-    );
-  });
-
-  it("propagates a hidden project's honest review marker to the overflow control", () => {
-    renderNavigator({ attentionCountsByWorkspace: new Map([["SEVEN", 1]]) });
-
-    expect(
-      within(screen.getByRole("list", { name: "Projects" }))
-        .getAllByRole("button", { name: / project(?:,|$)/i }),
-    ).toHaveLength(5);
-    expect(
-      screen.getByRole("button", { name: "Show 2 more projects, hidden project needs review" }),
-    ).toHaveAttribute("data-attention", "true");
-  });
-
-  it("includes the exact blocking decision count in the accessible project row", () => {
-    renderNavigator({ attentionCountsByWorkspace: new Map([["CLIENT", 2]]) });
-
-    expect(
-      within(screen.getByRole("list", { name: "Projects" }))
-        .getAllByRole("button", { name: / project(?:,|$)/i }),
-    ).toHaveLength(5);
-    const client = screen.getByRole("button", { name: "ClientApp project" });
-    expect(client).toHaveAttribute(
-      "data-attention",
-      "true",
-    );
-    expect(client).toHaveAccessibleDescription("2 decisions need review");
-    const signal = client.querySelector(".project-attention-signal");
-    expect(signal).toHaveClass("project-attention-signal");
-    expect(signal).toHaveTextContent("2");
-  });
-
-  it("shows active agent counts beside their projects without reordering the rail", () => {
-    renderNavigator({
-      activeAgentCountsByWorkspace: new Map([
-        ["CLIENT", 3],
-        ["CLOUD", 1],
-      ]),
-      attentionCountsByWorkspace: new Map([["CLIENT", 2]]),
-    });
-
-    const projectButtons = within(screen.getByRole("list", { name: "Projects" }))
-      .getAllByRole("button", { name: / project(?:,|$)/i });
-    expect(projectButtons.map((button) => button.getAttribute("data-label"))).toEqual([
-      "Alfred",
-      "ClientApp",
-      "Chmury_lab04",
-      "GothamTab",
-      "IronLog",
-    ]);
-    const client = screen.getByRole("button", { name: "ClientApp project" });
-    expect(client).toHaveAccessibleDescription("2 decisions need review, 3 active agents");
-    expect(client.querySelector(".project-agent-signal")).toHaveTextContent("3");
-    expect(client.querySelector(".project-attention-signal")).toHaveTextContent("2");
-    expect(screen.getByRole("button", { name: "Chmury_lab04 project" })).toHaveAccessibleDescription(
-      "1 active agent",
-    );
-  });
-
-  it("does not invent a signal for a recovery-only workspace omitted from the blocking map", () => {
-    renderNavigator({ attentionCountsByWorkspace: new Map() });
-
-    const client = screen.getByRole("button", { name: "ClientApp project" });
-    expect(client).not.toHaveAttribute("data-attention");
-    expect(within(client).queryByLabelText(/need review/i)).not.toBeInTheDocument();
-  });
-
-  it("keeps one destination tree and visible session destinations in collapsed mode", () => {
-    const { container } = renderNavigator({ collapsed: true });
-
-    expect(container.querySelector(".project-navigator")).toHaveClass("is-collapsed");
-    expect(
-      within(screen.getByRole("list", { name: "Projects" }))
-        .getAllByRole("button", { name: / project(?:,|$)/i }),
-    ).toHaveLength(5);
-    expect(screen.getAllByRole("list", { name: "Projects" })).toHaveLength(1);
-
-    expect(screen.getByRole("group", { name: "Alfred sessions" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Alfred project" })).toHaveAttribute("data-label", "Alfred");
-    expect(
-      screen.getByRole("button", { name: "Alfred project" }).querySelector(".project-row-monogram"),
-    ).toHaveTextContent("A");
-    expect(
-      screen.getByRole("button", { name: "ClientApp project" }).querySelector(".project-row-monogram"),
-    ).toHaveTextContent("CLI");
-    expect(screen.getByRole("button", { name: "Codex · Slice 2" })).toHaveAttribute(
-      "data-label",
-      "Codex · Slice 2",
-    );
-    expect(screen.getByRole("button", { name: "Codex · Slice 2" })).toHaveAttribute(
-      "data-session-id",
-      "codex-live",
-    );
+    expect(railRow(workspaces[5]!.label)).toHaveAttribute("data-label", workspaces[5]!.label);
+    expect(railRow("ClientApp").querySelector(".project-row-monogram")).toHaveTextContent("CLI");
   });
 
   it("omits Free Chats when there are no matching live sessions", () => {
@@ -413,29 +299,16 @@ describe("ProjectNavigator", () => {
   });
 
   it.each(["restored", "exited", "error"] as const)(
-    "excludes %s scratch sessions from both active rows and Free Chats",
+    "excludes %s scratch sessions from Free Chats",
     (runtimeStatus) => {
-      const activeScratch = {
-        ...liveSession(
-          `active-scratch-${runtimeStatus}`,
-          `Active scratch ${runtimeStatus}`,
-          "CLIENT",
-          `/Users/patryk/Documents/Codex/active-${runtimeStatus}`,
-          "codex",
-        ),
+      const scratch = {
+        ...liveSession(`scratch-${runtimeStatus}`, `Scratch ${runtimeStatus}`, "CLOUD", `/Users/patryk/Documents/Codex/s-${runtimeStatus}`, "codex"),
         runtimeStatus,
       };
-      const foreignScratch = {
-        ...activeScratch,
-        id: `foreign-scratch-${runtimeStatus}`,
-        title: `Foreign scratch ${runtimeStatus}`,
-        workspaceId: "CLOUD",
-      };
 
-      renderNavigator({ activeWorkspaceId: "CLIENT", sessions: [activeScratch, foreignScratch] });
+      renderNavigator({ activeWorkspaceId: "CLIENT", sessions: [scratch] });
 
-      expect(screen.queryByRole("button", { name: `Active scratch ${runtimeStatus}` })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: `Foreign scratch ${runtimeStatus}` })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: `Scratch ${runtimeStatus}` })).not.toBeInTheDocument();
       expect(screen.queryByRole("group", { name: "Free Chats" })).not.toBeInTheDocument();
     },
   );
