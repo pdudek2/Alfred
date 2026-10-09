@@ -5,7 +5,6 @@ export const privacySafeScreenshotSelectors = [
   ".xterm-host *",
   ".session-location-value",
   ".workbench-session-context > small",
-  ".work-surface-context",
   ".new-session-prompt textarea",
   ".agent-timeline-header > strong",
   ".details-location-name",
@@ -28,6 +27,8 @@ export const privacySafeScreenshotSelectors = [
   ".terminal-empty-asleep-title",
   ".terminal-empty-asleep-meta",
   ".terminal-empty-asleep-warning",
+  ".session-stack-title",
+  ".session-stack-preview",
   "time",
 ] as const;
 

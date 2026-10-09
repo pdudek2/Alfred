@@ -49,7 +49,7 @@ describe("CSS layout evidence support", () => {
       <div class="xterm-host"><div class="xterm-screen"></div><span>terminal</span></div>
       <span class="session-location-value">/fixture/project</span>
       <div class="workbench-session-context"><small>fixture project</small></div>
-      <span class="work-surface-context">fixture context</span>
+      <aside class="session-stack"><span class="session-stack-title" data-private>Private session</span><span class="session-stack-preview" data-private>Private output</span></aside>
       <div class="new-session-prompt"><textarea>fixture prompt</textarea></div>
       <header class="agent-timeline-header"><strong data-private>Private session</strong></header>
       <p class="details-location-name" data-private>private-branch</p>

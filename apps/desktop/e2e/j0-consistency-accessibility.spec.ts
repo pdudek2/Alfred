@@ -61,6 +61,9 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await expect(page.getByRole("dialog", { name: "New session", exact: true })).toBeVisible();
   await page.getByRole("dialog", { name: "New session", exact: true })
     .getByRole("button", { name: "Start", exact: true }).click();
+  // The new terminal claims focus once it starts; let that settle before driving menus.
+  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-2"]')
+    .getByRole("textbox", { name: "Terminal input" })).toBeFocused();
 
   const workspaceTrigger = page.getByRole("button", { name: "Project menu for Fixture Alpha" });
   await workspaceTrigger.click();
@@ -218,11 +221,8 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await expectSansFont(diff.locator(".worktree-diff-panel__files code").first());
   await expectSansFont(diff.locator(".worktree-diff-panel__line").first());
   await diff.getByRole("button", { name: "Close diff" }).click();
-  await chooseWorkLayout(page, "Grid");
   const navigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
   await navigator.getByRole("button", { name: "Manual · zsh 2", exact: true }).click();
-  await chooseWorkLayout(page, "Focus");
-  await expect(page.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeVisible();
   const hiddenFirstTerminal = page.locator(
     'article[data-testid="terminal-tile"][data-session-id="manual-1"]',
   );
@@ -259,20 +259,11 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
     screenAfter,
   )).toBe(true);
 
-  await chooseWorkLayout(page, "Grid");
   await setLongTerminalHeaderTitle(page, "manual-1");
   await setWindowSize(app, page, 1440, 900);
   await expectStableTerminalHeader(page, "manual-1", paths.workspaceA);
 
   await setWindowSize(app, page, 1120, 720);
-  await expectStableTerminalHeader(page, "manual-1", paths.workspaceA);
-
-  await chooseWorkLayout(page, "Arrange");
-  const minimumSpanTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
-  await minimumSpanTile.focus();
-  // Shrink past the minimum from whatever width the tile starts at; it must stop at three columns.
-  for (let press = 0; press < 12; press += 1) await page.keyboard.press("Shift+ArrowLeft");
-  await expect(minimumSpanTile).toHaveCSS("grid-column", "1 / span 3");
   await expectStableTerminalHeader(page, "manual-1", paths.workspaceA);
 
   harness.assertNoRuntimeErrors();
@@ -291,14 +282,9 @@ async function selectSurface(
   await page.getByRole("menuitem", { name: surface }).click();
 }
 
-async function chooseWorkLayout(page: Page, layout: "Focus" | "Grid" | "Arrange"): Promise<void> {
-  await page.getByRole("button", { name: /^Open layout menu,/ }).click();
-  await page.getByRole("menuitemradio", { name: layout, exact: true }).click();
-}
-
 async function setLongTerminalHeaderTitle(page: Page, sessionId: string): Promise<void> {
   const tile = page.locator(`[data-testid="terminal-tile"][data-session-id="${sessionId}"]`);
-  const title = "Long terminal title keeps the real header truncation contract honest across narrow Arrange tiles".slice(0, 80);
+  const title = "Long terminal title keeps the real header truncation contract honest in a narrow focus column".slice(0, 80);
   await tile.hover();
   const renameButton = tile.getByRole("button", { name: /^Rename / });
   if (await renameButton.isVisible()) {

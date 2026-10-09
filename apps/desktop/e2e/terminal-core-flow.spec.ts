@@ -1,7 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import type { ElectronApplication, ElementHandle, Locator, Page, TestInfo } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
-import { chooseWorkLayout } from "./support/work-layout";
 
 type TerminalNodeHandles = {
   tile: ElementHandle<HTMLElement>;
@@ -9,7 +8,7 @@ type TerminalNodeHandles = {
   screen: ElementHandle<HTMLElement>;
 };
 
-test("terminal core flow preserves the real xterm and layout geometry", async ({ harness }, testInfo) => {
+test("terminal core flow preserves the real xterm and deck geometry", async ({ harness }, testInfo) => {
   const { app, marker, page } = harness;
   await expect(page.getByTestId("workbench-header")).toBeVisible();
   const firstInput = page.getByRole("textbox", { name: "Terminal input" }).first();
@@ -23,27 +22,21 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
 
   await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
+  // Both runtimes must exist in the main process before the renderer reloads.
+  await expect.poll(() => page.evaluate(async () =>
+    (await window.alfredDesktop?.terminal.list())?.sessions.length ?? 0)).toBe(2);
 
-  await page.evaluate(async () => {
-    const layoutApi = window.alfredDesktop?.layout;
-    if (!layoutApi) throw new Error("Desktop layout API is unavailable.");
-    await layoutApi.setWorkspaceLayout({
-      workspaceId: "A",
-      layouts: {
-        "manual-1": { tileId: "manual-1", col: 1, row: 1, colSpan: 4, rowSpan: 4 },
-        "manual-2": { tileId: "manual-2", col: 5, row: 1, colSpan: 8, rowSpan: 4 },
-      },
-    });
-  });
   await page.reload();
   await expect(page.getByTestId("terminal-tile")).toHaveCount(2);
   const survivorNodes = await captureTerminalNodes(page, 2);
-  const beforeMembershipChange = await readTileGridPlacement(page, ["manual-1", "manual-2"]);
 
   await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(3);
+  // A new session takes focus; the others stay mounted in the stack.
   const addedTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-3"]');
   await expect(addedTile).toHaveClass(/selected/);
+  await expect(addedTile).not.toHaveAttribute("aria-hidden", "true");
+  await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(2);
   await expect.poll(async () => page.evaluate(() => {
     const owner = document.querySelector(".terminal-grid-column");
     const header = document.querySelector('[data-testid="terminal-tile"][data-session-id="manual-3"] .terminal-tile-header');
@@ -52,33 +45,11 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
     const headerRect = header.getBoundingClientRect();
     return headerRect.top >= ownerRect.top && headerRect.bottom <= ownerRect.bottom;
   })).toBe(true);
-  await expectTerminalNodes(survivorNodes, page, "Grid membership 2→3", 3);
-  const afterMembershipChange = await readTileGridPlacement(page, ["manual-1", "manual-2"]);
-  expect(afterMembershipChange).toMatchObject({
-    "manual-1": { gridColumn: "2", gridRow: "2" },
-    "manual-2": { gridColumn: "2", gridRow: "1" },
-  });
-  expect((await readTileGridPlacement(page, ["manual-3"]))["manual-3"]).toMatchObject({
-    gridColumn: "1",
-    gridRow: "1 / span 2",
-  });
-  const selectionBorders = await page.locator(
-    '[data-testid="terminal-tile"][data-session-id="manual-1"], [data-testid="terminal-tile"][data-session-id="manual-3"]',
-  ).evaluateAll(
-    (tiles) => tiles.map((tile) => {
-      const style = getComputedStyle(tile);
-      return { id: (tile as HTMLElement).dataset.sessionId, color: style.borderTopColor, width: style.borderTopWidth };
-    }),
-  );
-  expect(selectionBorders.find((border) => border.id === "manual-3")?.width).toBe("1px");
-  expect(selectionBorders.find((border) => border.id === "manual-3")?.color)
-    .not.toBe(selectionBorders.find((border) => border.id === "manual-1")?.color);
-  await captureReviewScreenshot(page, testInfo, "grid-3-1440x920");
-
-  await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toHaveCount(1);
+  await expectTerminalNodes(survivorNodes, page, "deck membership 2→3", 3);
+  await captureReviewScreenshot(page, testInfo, "deck-3-1440x920");
 
   const terminalNodes = await captureTerminalNodes(page);
-  const identityTransitions = ["Grid membership 2→3 (survivors stable)"];
+  const identityTransitions = ["deck membership 2→3 (survivors stable)"];
   const surfaceGeometries = [await readActiveSurfaceGeometry(page, "Work initial")];
 
   await selectSurface(page, "History");
@@ -92,35 +63,16 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
   await expectTerminalNodes(terminalNodes, page, "Work restored");
   identityTransitions.push("History→Work");
   surfaceGeometries.push(await readActiveSurfaceGeometry(page, "Work restored"));
+
+  await page.getByRole("complementary", { name: /^Other sessions in / })
+    .locator('[data-session-id="manual-1"]').click();
+  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]')).not.toHaveAttribute("aria-hidden", "true");
+  await expectTerminalNodes(terminalNodes, page, "stack swap");
+  identityTransitions.push("stack swap to manual-1 (2 hidden mounted)");
   await expect(page.getByTestId("xterm-host").first()).toContainText(marker);
+  await captureReviewScreenshot(page, testInfo, "deck-swap-1440x920");
 
-  await chooseWorkLayout(page, "Focus");
-  await expect(page.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeVisible();
-  await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(2);
-  await expectTerminalNodes(terminalNodes, page, "Focus");
-  identityTransitions.push("Work→Focus (2 hidden mounted)");
-  await captureReviewScreenshot(page, testInfo, "focus-3-1440x920");
-
-  await chooseWorkLayout(page, "Split");
-  await expect(page.getByRole("button", { name: "Open layout menu, Split selected" })).toBeVisible();
-  await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(1);
-  await expectTerminalNodes(terminalNodes, page, "Split");
-  identityTransitions.push("Focus→Split (1 hidden mounted)");
-  await captureReviewScreenshot(page, testInfo, "split-3-1440x920");
-
-  await chooseWorkLayout(page, "Grid");
-  await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
-  await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(0);
-  await expectTerminalNodes(terminalNodes, page, "Grid");
-  identityTransitions.push("Split→Grid (all restored)");
-  await expect(page.getByTestId("xterm-host").first()).toContainText(marker);
-
-  await chooseWorkLayout(page, "Arrange");
-  await expect(page.getByText("Arrange mode")).toBeVisible();
-  await captureReviewScreenshot(page, testInfo, "arrange-3-1440x920");
-  await chooseWorkLayout(page, "Arrange");
-
-  const initialGridFit = await proveGridFit(page, "Initial Grid");
+  const initialGridFit = await proveGridFit(page, "Initial deck");
   const beforeResize = await readWindowGeometry(app, page);
   await app.evaluate(({ BrowserWindow }) => {
     const [window] = BrowserWindow.getAllWindows();
@@ -138,13 +90,13 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
     };
   }).toEqual({ boundsWidth: 1120, boundsHeight: 720, clientViewportChanged: true });
   const afterResize = await readWindowGeometry(app, page);
-  await captureReviewScreenshot(page, testInfo, "grid-3-1120x720");
-  const narrowGridFit = await proveGridFit(page, "1120×720 Grid");
+  await captureReviewScreenshot(page, testInfo, "deck-3-1120x720");
+  const narrowGridFit = await proveGridFit(page, "1120×720 deck");
 
   await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(4);
-  await expect(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])')).toHaveCount(3);
-  await captureReviewScreenshot(page, testInfo, "grid-4-1120x720");
+  await expect(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])')).toHaveCount(1);
+  await captureReviewScreenshot(page, testInfo, "deck-4-1120x720");
   await app.evaluate(({ BrowserWindow }) => {
     const [window] = BrowserWindow.getAllWindows();
     if (!window) throw new Error("Electron window is missing.");
@@ -154,7 +106,7 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
     const current = await readWindowGeometry(app, page);
     return { width: current.bounds.width, height: current.bounds.height };
   }).toEqual({ width: 1440, height: 920 });
-  await captureReviewScreenshot(page, testInfo, "grid-4-1440x920");
+  await captureReviewScreenshot(page, testInfo, "deck-4-1440x920");
 
   const runtimeProofPath = testInfo.outputPath("terminal-core-runtime-proof.json");
   await writeFile(runtimeProofPath, `${JSON.stringify({
@@ -162,10 +114,6 @@ test("terminal core flow preserves the real xterm and layout geometry", async ({
       markerInputEncoding: "hex",
       markerCommandContainsDecodedMarker: markerCommand.includes(marker),
       identityTransitions,
-      membershipGeometry: {
-        before: beforeMembershipChange,
-        after: afterMembershipChange,
-      },
       surfaceGeometries,
       initialGridFit,
       narrowGridFit,
@@ -245,22 +193,6 @@ async function expectTerminalNodes(
       `${transition}: xterm screen ${number} changed`,
     );
   }
-}
-
-async function readTileGridPlacement(
-  page: Page,
-  sessionIds: string[],
-): Promise<Record<string, { gridColumn: string; gridRow: string }>> {
-  return page.evaluate((ids) => Object.fromEntries(ids.map((sessionId) => {
-    const tile = document.querySelector(
-      `[data-testid="terminal-tile"][data-session-id="${sessionId}"]`,
-    );
-    if (!(tile instanceof HTMLElement)) {
-      throw new Error(`Terminal tile ${sessionId} is missing.`);
-    }
-    const style = getComputedStyle(tile);
-    return [sessionId, { gridColumn: style.gridColumn, gridRow: style.gridRow }];
-  })), sessionIds);
 }
 
 async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {
@@ -352,7 +284,7 @@ async function proveGridFit(page: Page, label: string) {
   const geometry = await readTerminalGeometry(page);
   assertTerminalGeometry(geometry);
   const lastTile = geometry.tiles.at(-1);
-  expect(lastTile, "Grid must contain a last visible tile.").toBeDefined();
+  expect(lastTile, "The deck must show its focused tile.").toBeDefined();
   expect(geometry.scrollTop, `${label} must stay at scrollTop 0.`).toBe(0);
   expect(geometry.scrollHeight, `${label}: ${JSON.stringify(geometry)}`)
     .toBeLessThanOrEqual(geometry.scrollClientHeight + 12);
@@ -387,7 +319,7 @@ function assertTerminalGeometry(geometry: Awaited<ReturnType<typeof readTerminal
   expect(geometry.stageWidth, evidence).toBeGreaterThan(0);
   expect(geometry.stageHeight, evidence).toBeGreaterThan(0);
   expect(["auto", "scroll"], evidence).toContain(geometry.overflowY);
-  expect(geometry.tiles, evidence).toHaveLength(3);
+  expect(geometry.tiles, evidence).toHaveLength(1);
   for (const tile of geometry.tiles) {
     expect(tile.tileWidth, evidence).toBeGreaterThan(0);
     expect(tile.tileHeight, evidence).toBeGreaterThan(0);

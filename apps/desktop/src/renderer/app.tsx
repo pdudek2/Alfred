@@ -36,8 +36,6 @@ import {
 } from "./attention-projection";
 import {
   ensureTileLayouts,
-  moveTileLayout,
-  resizeTileLayout,
   type TileLayout,
 } from "./layout-state";
 import {
@@ -172,7 +170,6 @@ const DEFAULT_PRIVACY_SETTINGS: DesktopPrivacySettings = {
 export function App() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>(DEFAULT_WORKSPACES);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>(DEFAULT_WORKSPACE_ID);
-  const [arrangeMode, setArrangeMode] = useState<boolean>(false);
   const [workModesByWorkspace, setWorkModesByWorkspace] = useState<Record<string, WorkMode>>({
     [DEFAULT_WORKSPACE_ID]: "desk",
   });
@@ -180,7 +177,6 @@ export function App() {
   const [terminalSessions, setTerminalSessions] = useState<SessionTile[]>([]);
   const [sessionStatusAnnouncement, setSessionStatusAnnouncement] = useState<string>("");
   const [selectedSessionIdsByWorkspace, setSelectedSessionIdsByWorkspace] = useState<Record<string, string>>({});
-  const [revealSessionId, setRevealSessionId] = useState<string | null>(null);
   const [alfredStatus, setAlfredStatus] = useState<AlfredStatus>(idle());
   const [shellActionError, setShellActionError] = useState<string | null>(null);
   const [pendingPlans, setPendingPlans] = useState<Record<string, SquadPlan>>({});
@@ -302,7 +298,6 @@ export function App() {
       : activeTerminalSessions[0] ?? null;
   const activeSelectedSession =
     activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeTerminalSessions[0] ?? null;
-  const activeCollapsedSessionIds = new Set(collapsedSessionIdsByWorkspace[activeWorkspace.id] ?? []);
   const activeContextDrawerOpen = contextDrawerOpenByWorkspace[activeWorkspace.id] ?? false;
   const canCloseActiveWorkspace =
     activeWorkspace.id !== DEFAULT_WORKSPACE_ID && workspaces.length > 1 && activeSessions.length === 0;
@@ -323,13 +318,6 @@ export function App() {
       || session?.runtimeStatus !== "restored"
       || canRelaunchRestoredSession(session);
   });
-  const recoverySessionIds = new Set(
-    attentionItems
-      .filter((item) => item.section === "recovery" && item.workspaceId === activeWorkspace.id)
-      .map((item) => item.sessionId),
-  );
-  const activeRecoverableSessions = activeSessions.filter((session) => recoverySessionIds.has(session.id));
-  const activeWorkRecoverableSessions = activeRecoverableSessions.filter(isWorkSession);
   const needsYouAttention = needsYouItems(attentionItems);
   const needsYouCount = needsYouAttention.length;
   const activeNeedsYouIds = new Set(
@@ -465,10 +453,6 @@ export function App() {
     };
   }, []);
 
-  const handleSessionRevealed = useCallback((sessionId: string) => {
-    setRevealSessionId((current) => current === sessionId ? null : current);
-  }, []);
-
   const commitAddedSession = useCallback((nextSessions: SessionTile[]) => {
     const addedSession = nextSessions.at(-1);
     if (!addedSession) return;
@@ -480,7 +464,6 @@ export function App() {
     setActiveSurface("work");
     setActiveWorkspaceId(addedSession.workspaceId);
     const targetWorkMode = workModesByWorkspace[addedSession.workspaceId] ?? "desk";
-    setRevealSessionId(targetWorkMode === "focus" ? null : addedSession.id);
     setSelectedSessionIdsByWorkspace((current) => ({
       ...current,
       [addedSession.workspaceId]: addedSession.id,
@@ -609,10 +592,6 @@ export function App() {
     });
   }, [activeWorkspace.id, canCloseActiveWorkspace, workspaces]);
 
-  const handleToggleArrangeMode = useCallback(() => {
-    setArrangeMode((enabled) => !enabled);
-  }, []);
-
   const persistActiveWorkspaceViewState = useCallback((patch: WorkspaceViewState = {}) => {
     const layoutApi = getDesktopLayoutApi();
     const collapsedSessionIds = collapsedSessionIdsByWorkspace[activeWorkspace.id] ?? [];
@@ -678,24 +657,6 @@ export function App() {
       };
     });
   }, [activeWorkspace.id]);
-
-  const handleToggleCollapseSession = useCallback((sessionId: string) => {
-    const existing = collapsedSessionIdsByWorkspace[activeWorkspace.id] ?? [];
-    const nextCollapsed = existing.includes(sessionId)
-      ? existing.filter((id) => id !== sessionId)
-      : [...existing, sessionId];
-    setCollapsedSessionIdsByWorkspace({
-      ...collapsedSessionIdsByWorkspace,
-      [activeWorkspace.id]: nextCollapsed,
-    });
-    persistActiveWorkspaceViewState({
-      collapsedSessionIds: nextCollapsed,
-    });
-  }, [
-    activeWorkspace.id,
-    collapsedSessionIdsByWorkspace,
-    persistActiveWorkspaceViewState,
-  ]);
 
   const handleBeginRenameActiveWorkspace = useCallback(() => {
     setNeedsYouOpen(false);
@@ -1001,36 +962,6 @@ export function App() {
       handleFocusSession(nextSession.id);
     }
   }, [activeSelectedSessionId, activeTerminalSessions, handleFocusSession]);
-
-  const handleMoveTile = useCallback((tileId: string, deltaCol: number, deltaRow: number) => {
-    const layoutApi = getDesktopLayoutApi();
-    const workspaceLayouts = moveTileLayout(
-      ensureTileLayouts(activeTerminalSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {}),
-      tileId,
-      deltaCol,
-      deltaRow,
-    );
-    setTileLayoutsByWorkspace({
-      ...tileLayoutsByWorkspace,
-      [activeWorkspace.id]: workspaceLayouts,
-    });
-    void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
-  }, [activeTerminalSessions, activeWorkspace.id, tileLayoutsByWorkspace]);
-
-  const handleResizeTile = useCallback((tileId: string, deltaColSpan: number, deltaRowSpan: number) => {
-    const layoutApi = getDesktopLayoutApi();
-    const workspaceLayouts = resizeTileLayout(
-      ensureTileLayouts(activeTerminalSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {}),
-      tileId,
-      deltaColSpan,
-      deltaRowSpan,
-    );
-    setTileLayoutsByWorkspace({
-      ...tileLayoutsByWorkspace,
-      [activeWorkspace.id]: workspaceLayouts,
-    });
-    void layoutApi?.setWorkspaceLayout({ workspaceId: activeWorkspace.id, layouts: workspaceLayouts });
-  }, [activeTerminalSessions, activeWorkspace.id, tileLayoutsByWorkspace]);
 
   const refreshLiveSessions = useCallback(async () => {
     const terminalApi = getDesktopTerminalApi();
@@ -2527,7 +2458,6 @@ export function App() {
         const hydratedWorkspaceId = workspaceStateResult?.activeWorkspaceId ?? DEFAULT_WORKSPACE_ID;
         setRuntimeStatus(runtimeStatusResult);
         setTileLayoutsByWorkspace(layoutResult.layoutsByWorkspace);
-        setArrangeMode(false);
         setWorkModesByWorkspace({
           [DEFAULT_WORKSPACE_ID]: "desk",
           ...Object.fromEntries(
@@ -2652,12 +2582,6 @@ export function App() {
   }, [activeWorkspaceId, workspaces]);
 
   const workSurfaceHidden = activeSurface !== "work";
-  const activeSessionCount = activeTerminalSessions.length;
-  const visibleWorkSessionCount = arrangeMode || activeWorkMode === "desk"
-    ? activeSessionCount
-    : activeWorkMode === "focus"
-      ? Math.min(1, activeSessionCount)
-      : Math.min(2, activeSessionCount);
 
   return (
     <main
@@ -2822,18 +2746,11 @@ export function App() {
               inert={workSurfaceHidden || undefined}
             >
               <WorkSurfaceToolbar
-                arrangeMode={arrangeMode}
                 previewAvailable={previewVisible}
                 previewOpen={activePreviewDockOpen}
                 previewTriggerRef={previewTriggerRef}
-                savedSessionCount={activeSavedSessionCount}
                 terminalLaunchDisabled={activeWorkspace.rootStatus === "missing"}
-                visibleSessionCount={visibleWorkSessionCount}
-                workMode={activeWorkMode}
                 onAddManualSession={() => openNewSession("terminal")}
-                onApplyWorkMode={handleApplyWorkMode}
-                onOpenSavedSessions={handleOpenSavedSessions}
-                onToggleArrangeMode={handleToggleArrangeMode}
                 onTogglePreview={handleTogglePreviewDock}
               />
               <WorkspacePreviewDock
@@ -2855,17 +2772,13 @@ export function App() {
               >
                 <TerminalDesk
                   activeWorkspaceId={activeWorkspace.id}
-                  arrangeMode={arrangeMode}
                   armedRecoverySessionIds={armedRecoverySessionIds}
-                  collapsedSessionIds={activeCollapsedSessionIds}
-                  layouts={ensureTileLayouts(activeTerminalSessions, tileLayoutsByWorkspace[activeWorkspace.id] ?? {})}
-                  recoverableSessions={activeWorkRecoverableSessions}
-                  revealSessionId={revealSessionId}
+                  asleepCount={activeSavedSessionCount}
                   selectedSessionId={activeSelectedSessionId}
                   sessions={terminalSessions}
+                  stackHidden={activeContextDrawerOpen || activePreviewDockOpen}
                   surfaceActive={!workSurfaceHidden}
                   terminalFocusRequestKey={terminalFocusRequestKey}
-                  workMode={activeWorkMode}
                   worktreeActionPending={worktreeActionPending}
                   worktreeDiffReturnFocus={worktreeDiffReturnFocusRef.current}
                   worktreeDiffView={worktreeDiffView}
@@ -2880,12 +2793,10 @@ export function App() {
                   onCloseSession={handleCloseSession}
                   onCloseWorktreeDiff={handleCloseWorktreeDiff}
                   onContinueRestoredSession={handleContinueRestoredSession}
+                  onOpenAsleep={handleOpenSavedSessions}
                   onOpenExternalTerminal={handleOpenSessionTerminal}
                   onOpenHistory={handleOpenRecoveryHistory}
-                  onSessionRevealed={handleSessionRevealed}
                   onRestartSession={handleRestartSession}
-                  onApplyWorkMode={handleApplyWorkMode}
-                  onMoveTile={handleMoveTile}
                   onRuntimeSessionFailed={handleRuntimeSessionFailed}
                   onRuntimeSessionExited={handleRuntimeSessionExited}
                   onRuntimeSessionOutput={handleRuntimeSessionOutput}
@@ -2897,9 +2808,7 @@ export function App() {
                   onRenameSession={handleRenameSession}
                   onFocusSession={handleFocusSession}
                   onSelectSession={handleSelectSession}
-                  onResizeTile={handleResizeTile}
                   onReviewWorktree={handleReviewWorktree}
-                  onToggleCollapseSession={handleToggleCollapseSession}
                   planLine={
                     <PlanLine
                       key={activeWorkspace.id}
@@ -3024,8 +2933,6 @@ export function App() {
         {commandPaletteOpen && (
           <CommandPalette
             activeWorkspaceId={activeWorkspace.id}
-            activeWorkMode={activeWorkMode}
-            arrangeMode={arrangeMode}
             allSessions={workSessions}
             query={commandQuery}
             reviewQueuePreview={reviewQueuePreview}
@@ -3039,7 +2946,6 @@ export function App() {
             onAddManualSession={() => openNewSession("terminal")}
             onOpenPlan={() => openNewSession("plan")}
             onAddWorkspace={handleAddWorkspace}
-            onApplyWorkMode={handleApplyWorkMode}
             onChangeQuery={setCommandQuery}
             onClose={handleCloseCommandPalette}
             onCloseSession={handleCloseSession}
@@ -3058,7 +2964,6 @@ export function App() {
             onOpenPrivacyControls={handleOpenPrivacyPanel}
             onRestartSession={handleRestartSession}
             onSelectWorkspace={handleSelectWorkspace}
-            onToggleArrange={handleToggleArrangeMode}
           />
         )}
       </section>
