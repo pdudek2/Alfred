@@ -70,12 +70,13 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   const navigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
   await expect(navigator).toBeVisible();
 
+  // Real projects first; the five folderless fixtures collapse into one Sandboxes row.
   const projectButtons = navigator.getByRole("list", { name: "Projects" })
-    .getByRole("button", { name: / project(?:,|$)/i });
-  await expect(projectButtons).toHaveCount(5);
-  const projectOverflow = navigator.getByRole("button", { name: "Show 2 more projects" });
-  await expect(projectOverflow).toBeVisible();
-  await projectOverflow.click();
+    .getByRole("button", { name: / project$/ });
+  await expect(projectButtons).toHaveCount(2);
+  const sandboxes = navigator.getByRole("button", { name: "Sandboxes, 5 projects" });
+  await expect(sandboxes).toHaveAttribute("aria-expanded", "false");
+  await sandboxes.click();
   await expect(projectButtons).toHaveCount(7);
   await expect(navigator.getByRole("button", { name: `${longProjectLabel} project` })).toBeVisible();
 
@@ -89,18 +90,19 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await switchProject(page, "Fixture Beta");
   await switchProject(page, "Fixture Alpha");
 
-  const activeSessionGroup = navigator.getByRole("group", { name: "Fixture Alpha sessions" });
-  await expect(activeSessionGroup.getByRole("button")).toHaveCount(6);
-  await expect(activeSessionGroup.getByRole("button", { name: longSessionLabel })).toBeVisible();
+  // Sessions live in the stack now, not in the rail: one focused plus five stacked.
+  await expect(navigator.locator(".project-session[data-session-id^='manual-']")).toHaveCount(0);
+  const activeSessionGroup = page.getByRole("complementary", { name: "Other sessions in Fixture Alpha" });
+  await expect(activeSessionGroup.locator(".session-stack-card")).toHaveCount(5);
+  await expect(activeSessionGroup.getByRole("button", { name: new RegExp(longSessionLabel) })).toBeVisible();
   const freeChats = navigator.getByRole("group", { name: "Free Chats" });
   await expect(freeChats.getByRole("button")).toHaveCount(4);
   await expect(activeSessionGroup.getByRole("button", { name: "Restored scratch fixture 1" })).toHaveCount(0);
   await expect(freeChats.getByRole("button", { name: "Restored scratch fixture 1" })).toHaveCount(0);
   await expect((await listMainProcessTerminals(page)).restoredSessions).toHaveLength(1);
   await expect(header.getByRole("button", { name: "Open Surfaces menu" })).toBeVisible();
-  await expect(navigator.getByRole("button", { name: "Fixture Beta project" })).not.toHaveAttribute(
-    "data-attention",
-  );
+  // Free Chats in Beta's scope put no state glyph on the Beta row.
+  await expect(navigator.getByRole("button", { name: "Fixture Beta project" }).locator(".project-row-state")).toHaveCount(0);
 
   const alphaScreen = page.locator('article[data-session-id="manual-1"] .xterm-screen');
   const before = await requiredHandle(alphaScreen, "Alpha xterm screen");

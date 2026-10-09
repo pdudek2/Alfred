@@ -352,12 +352,26 @@ test.describe("work session and project identity", () => {
       style: identityScreenshotStyle,
     });
 
-    await page.getByRole("button", { name: "Collapse project navigator" }).click();
+    // The active project carries one state glyph inside its row.
+    const activeGlyph = activeProject.locator(".project-row-state");
+    await expect(activeGlyph).toBeVisible();
+
+    await setWindowSize(app, page, 1120, 720);
+    await expect(stackCards).toHaveCount(5);
+    await expect(stackCards.last()).toBeInViewport();
+    await page.screenshot({
+      path: testInfo.outputPath("session-and-project-identity-1120x720.png"),
+      style: identityScreenshotStyle,
+    });
+
+    // Details at the narrow width compacts the rail to short labels with the glyph in the corner.
+    await openContext(page);
     await expect(activeProject.locator(".project-row-monogram")).toHaveText("FA");
-    await expect(activeProject).toHaveCSS("border-left-width", "2px");
-    const collapsedProjectGeometry = await activeProject.evaluate((node) => {
+    await expect.poll(() => activeProject.evaluate((node) => node.closest<HTMLElement>(".project-navigator")!.getBoundingClientRect().width))
+      .toBe(46);
+    const compactProjectGeometry = await activeProject.evaluate((node) => {
       const button = node.getBoundingClientRect();
-      const signal = node.querySelector<HTMLElement>(".project-row-signals")?.getBoundingClientRect();
+      const signal = node.querySelector<HTMLElement>(".project-row-state")?.getBoundingClientRect();
       return {
         button: { bottom: button.bottom, left: button.left, right: button.right, top: button.top },
         signal: signal
@@ -365,36 +379,29 @@ test.describe("work session and project identity", () => {
           : null,
       };
     });
-    expect(collapsedProjectGeometry.signal).not.toBeNull();
-    expect(collapsedProjectGeometry.signal!.left).toBeGreaterThanOrEqual(collapsedProjectGeometry.button.left);
-    expect(collapsedProjectGeometry.signal!.right).toBeLessThanOrEqual(collapsedProjectGeometry.button.right);
-    expect(collapsedProjectGeometry.signal!.top).toBeGreaterThanOrEqual(collapsedProjectGeometry.button.top);
-    expect(collapsedProjectGeometry.signal!.bottom).toBeLessThanOrEqual(collapsedProjectGeometry.button.bottom);
+    expect(compactProjectGeometry.signal).not.toBeNull();
+    expect(compactProjectGeometry.signal!.left).toBeGreaterThanOrEqual(compactProjectGeometry.button.left);
+    expect(compactProjectGeometry.signal!.right).toBeLessThanOrEqual(compactProjectGeometry.button.right);
+    expect(compactProjectGeometry.signal!.top).toBeGreaterThanOrEqual(compactProjectGeometry.button.top);
+    expect(compactProjectGeometry.signal!.bottom).toBeLessThanOrEqual(compactProjectGeometry.button.bottom);
     const inactiveProject = page.getByRole("button", { name: "Fixture Beta project" });
     const [activeProjectHeight, inactiveProjectHeight] = await Promise.all([
       activeProject.evaluate((node) => node.getBoundingClientRect().height),
       inactiveProject.evaluate((node) => node.getBoundingClientRect().height),
     ]);
     expect(Math.abs(activeProjectHeight - inactiveProjectHeight)).toBeLessThanOrEqual(1);
+    const monogramOffset = (node: HTMLElement) => {
+      const button = node.getBoundingClientRect();
+      const monogram = node.querySelector<HTMLElement>(".project-row-monogram")!.getBoundingClientRect();
+      return monogram.top - button.top;
+    };
     const [activeMonogramOffset, inactiveMonogramOffset] = await Promise.all([
-      activeProject.evaluate((node) => {
-        const button = node.getBoundingClientRect();
-        const monogram = node.querySelector<HTMLElement>(".project-row-monogram")!.getBoundingClientRect();
-        return monogram.top - button.top;
-      }),
-      inactiveProject.evaluate((node) => {
-        const button = node.getBoundingClientRect();
-        const monogram = node.querySelector<HTMLElement>(".project-row-monogram")!.getBoundingClientRect();
-        return monogram.top - button.top;
-      }),
+      activeProject.evaluate(monogramOffset),
+      inactiveProject.evaluate(monogramOffset),
     ]);
     expect(Math.abs(activeMonogramOffset - inactiveMonogramOffset)).toBeLessThanOrEqual(1);
-
-    await setWindowSize(app, page, 1120, 720);
-    await expect(stackCards).toHaveCount(5);
-    await expect(stackCards.last()).toBeInViewport();
     await page.screenshot({
-      path: testInfo.outputPath("session-and-project-identity-1120x720.png"),
+      path: testInfo.outputPath("compact-project-rail-1120x720.png"),
       style: identityScreenshotStyle,
     });
     harness.assertNoRuntimeErrors();
@@ -672,6 +679,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
     const terminal = window.alfredDesktop?.terminal;
     if (!terminal) throw new Error("Terminal API is missing");
     await terminal.create({ clientId: "nested-location", title: "Nested location", workspaceId: "A", cwd, cols: 80, rows: 24 });
+    // A scratch-root chat in another project shows under Free Chats, the rail's only session rows.
+    await terminal.create({ clientId: "privacy-free-chat", title: "Privacy free chat", source: "manual", workspaceId: "B", cols: 80, rows: 24 });
   }, nestedCwd);
   await page.getByRole("button", { name: "Fixture Beta project", exact: true }).click();
   await page.getByRole("button", { name: "Fixture Alpha project", exact: true }).click();
@@ -681,9 +690,11 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await busyInput.fill("printf 'Build complete\\n'; sleep 30");
   await busyInput.press("Enter");
   await expect(busyTile.getByTestId("xterm-host")).toContainText("Build complete");
-  await page.locator('button.project-session[data-session-id="nested-location"]').click();
+  await page.getByRole("complementary", { name: /^Other sessions in / })
+    .locator('button.session-stack-card[data-session-id="nested-location"]').click();
   await expect(page.locator('[data-session-id="nested-location"] .session-location-value')).toBeVisible();
   await expect(page.locator(".session-stack-preview").first()).toBeVisible();
+  await expect(page.getByRole("group", { name: "Free Chats" }).locator(".project-session-title")).toBeVisible();
   await recordPrivacyMaskCoverage();
   await page.screenshot({ path: join(evidenceDir, "nested-location.png"), style: privacySafeScreenshotStyle });
 

@@ -86,7 +86,7 @@ import type { WorkMode } from "./terminal-desk-types";
 import { shortenPath } from "./path-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { buildSessionsProjection, type SessionsPrimaryActionRequest } from "./sessions-projection";
-import { isActiveAgentSession, isFreeChatScope, isReviewableWorktreeSession, isWorkSession } from "./session-scope";
+import { isFreeChatScope, isReviewableWorktreeSession, isWorkSession } from "./session-scope";
 import type { WorktreeDiffView } from "./worktree-diff";
 import { normalizeSessionTitle } from "../shared/session-title";
 import { shortLabelForWorkspace } from "../shared/workspace-label";
@@ -198,7 +198,6 @@ export function App() {
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState<boolean>(false);
   const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState<string>("");
   const [workspaceRenameEditing, setWorkspaceRenameEditing] = useState<boolean>(false);
-  const [projectNavigatorCollapsed, setProjectNavigatorCollapsed] = useState(false);
   const [needsYouOpen, setNeedsYouOpen] = useState(false);
   const [terminalFocusRequestKey, setTerminalFocusRequestKey] = useState(0);
   const [armedRecoverySessionIds, setArmedRecoverySessionIds] = useState<Set<string>>(() => new Set());
@@ -331,11 +330,6 @@ export function App() {
   const attentionCountsByWorkspace = blockingAttentionCountByWorkspace(
     attentionItems.filter((item) => projectSessionIds.has(item.sessionId)),
   );
-  const activeAgentSessions = terminalSessions.filter(isActiveAgentSession);
-  const activeAgentCountsByWorkspace = activeAgentSessions.reduce((counts, session) => {
-    counts.set(session.workspaceId, (counts.get(session.workspaceId) ?? 0) + 1);
-    return counts;
-  }, new Map<string, number>());
   const reviewQueuePreview = attentionItems.find((item) => item.blocksAgent) ?? null;
   const composerBlockedReason =
     terminalSessions.some((session) => session.workspaceId === newSessionProjectId && session.stage === "staged")
@@ -2699,9 +2693,7 @@ export function App() {
             <ProjectNavigator
               activeSessionId={activeSelectedSessionId}
               activeWorkspaceId={activeWorkspace.id}
-              activeAgentCountsByWorkspace={activeAgentCountsByWorkspace}
               attentionCountsByWorkspace={attentionCountsByWorkspace}
-              collapsed={projectNavigatorCollapsed}
               sessions={terminalSessions}
               workspaces={workspaces}
               workspaceActions={(
@@ -2735,7 +2727,6 @@ export function App() {
               onAddWorkspace={handleAddWorkspace}
               onSelectSessionInWorkspace={handleSelectSessionInWorkspace}
               onSelectWorkspace={handleSelectWorkspace}
-              onToggleCollapsed={() => setProjectNavigatorCollapsed((collapsed) => !collapsed)}
             />
           )}
           <div className="orchestrator-surface" data-testid="workbench-surface">
