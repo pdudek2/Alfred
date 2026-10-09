@@ -77,10 +77,9 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
 
   await addManualTerminal(page);
   await expect(page.getByTestId("xterm-host")).toHaveCount(2);
-  await page.getByRole("navigation", { name: "Projects and Free Chats" })
-    .getByRole("group", { name: "Fixture Alpha sessions" })
-    .getByRole("button", { name: "Manual · zsh 2", exact: true })
-    .click();
+  // New terminal takes focus; the first session waits in the stack.
+  await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-2"]')).not.toHaveAttribute("aria-hidden", "true");
+  await expect(page.getByRole("complementary", { name: /^Other sessions in / }).locator('[data-session-id="manual-1"]')).toBeVisible();
   expect(await readHeaderHeight(page)).toBe(44);
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
   // The focused tile keeps its header until the top bar carries the session title and actions.

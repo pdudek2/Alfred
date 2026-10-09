@@ -906,7 +906,6 @@ describe("App integration", () => {
     } as TerminalDataEvent);
 
     expect(tile.querySelector(".tile-kind-mark.codex .kind-brand-icon")).toBeInTheDocument();
-    expect(document.querySelector(".project-session-kind.kind-codex .kind-brand-icon")).toBeInTheDocument();
     expect(await screen.findByRole("article", { name: "Codex · session 1" })).toBeInTheDocument();
     expect(renameTerminal).toHaveBeenLastCalledWith({ clientId: "manual-1", title: "Codex · session 1" });
 
@@ -1186,13 +1185,14 @@ describe("App integration", () => {
     expect(screen.getByRole("dialog", { name: "Local Data & Privacy" })).toBeInTheDocument();
   });
 
-  it("places projects and active sessions inside the project navigator", async () => {
+  it("places projects, but no session rows, inside the project navigator", async () => {
     installDesktopBridge();
     render(<App />);
 
     const panel = await screen.findByTestId("project-navigator");
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
     expect(within(panel).getByText("Projects")).toBeInTheDocument();
-    expect(within(panel).getByRole("button", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
     expect(within(panel).getByRole("list", { name: /projects/i })).toBeInTheDocument();
   });
 
@@ -1312,8 +1312,7 @@ describe("App integration", () => {
     expect(setWorkspaceLayout).not.toHaveBeenCalled();
   });
 
-  it("collapses long empty workspace lists behind an explicit expansion", async () => {
-    const user = userEvent.setup();
+  it("lists every rootless workspace flat, without an overflow control", async () => {
     installDesktopBridge(undefined, null, [], undefined, undefined, {
       workspaces: Array.from({ length: 14 }, (_, index) => ({
         id: `W${index + 1}`,
@@ -1325,12 +1324,12 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(screen.queryByRole("button", { name: /Project 14 project/i })).not.toBeInTheDocument();
-    await user.click(await screen.findByRole("button", { name: "Show 9 more projects" }));
-    expect(screen.getByRole("button", { name: /Project 14 project/i })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Project 14 project/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /more projects/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Sandboxes/ })).not.toBeInTheDocument();
   });
 
-  it("keeps five deterministic project destinations while preserving long accessible names", async () => {
+  it("keeps every project destination with its long accessible name and no session rows", async () => {
     const longSessionTitle = "Manual session with a deliberately descriptive title exceeding sixty characters";
     const workspaces = Array.from({ length: 7 }, (_, index) => ({
       id: `W${index + 1}`,
@@ -1354,9 +1353,10 @@ describe("App integration", () => {
     render(<App />);
 
     const navigator = await screen.findByRole("navigation", { name: "Projects and Free Chats" });
-    expect(within(navigator).getAllByRole("button", { name: longSessionTitle })).toHaveLength(6);
-    expect(within(navigator).getByRole("button", { name: "Show 2 more projects" })).toBeInTheDocument();
-    expect(document.querySelectorAll("[data-project-destination]")).toHaveLength(5);
+    await screen.findByRole("article", { name: longSessionTitle });
+    expect(within(navigator).queryByRole("button", { name: longSessionTitle })).not.toBeInTheDocument();
+    expect(within(navigator).getByRole("button", { name: `${workspaces[6]!.label} project` })).toBeInTheDocument();
+    expect(document.querySelectorAll("[data-project-destination]")).toHaveLength(7);
     expect(screen.queryByText("Search sessions, chats, files")).not.toBeInTheDocument();
   });
 
@@ -2013,10 +2013,10 @@ describe("App integration", () => {
     const trigger = await screen.findByRole("button", { name: "Needs you, 1 session" });
     const navigator = screen.getByTestId("project-navigator");
     expect(within(navigator).getByRole("button", { name: "Alfred project" })).toHaveAccessibleDescription(
-      "1 active agent",
+      /^(?:your turn|working)$/,
     );
     expect(within(navigator).getByRole("button", { name: "ClientApp project" })).toHaveAccessibleDescription(
-      "1 decision needs review",
+      "needs you",
     );
 
     await selectSurface(user, "Details");
@@ -2341,7 +2341,7 @@ describe("App integration", () => {
     expect(visibleTiles[0]?.querySelector(".terminal-tile-header")).not.toBeNull();
   });
 
-  it("uses the project navigator to change Focus sessions without replacing xterm", async () => {
+  it("uses the session stack to change Focus sessions without replacing xterm", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [liveSnapshot("one"), liveSnapshot("two")]);
 
@@ -2351,7 +2351,7 @@ describe("App integration", () => {
     const firstHost = screen.getAllByTestId("xterm-host")[0];
     expect(firstHost).toBeInstanceOf(HTMLElement);
 
-    await user.click(within(screen.getByTestId("project-navigator")).getByRole("button", { name: /Codex · two/i }));
+    await user.click(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" })).getByRole("button", { name: /Codex · two/i }));
 
     const visibleTiles = screen.getAllByTestId("terminal-tile").filter(
       (tile) => tile.getAttribute("aria-hidden") !== "true",
@@ -4317,9 +4317,8 @@ describe("App integration", () => {
     const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
     await waitFor(() => {
       expect(within(tile).getByText("unavailable")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Alfred project" })).toBeInTheDocument();
-      const navigatorSession = screen.getByRole("button", { name: "Manual · zsh 1" });
-      expect(navigatorSession).toHaveAttribute("title", "Manual · zsh 1 · unavailable");
+      // An unavailable terminal is not an active state, so the project row carries no glyph.
+      expect(screen.getByRole("button", { name: "Alfred project" })).not.toHaveAttribute("aria-describedby");
     });
   });
 
@@ -5315,14 +5314,15 @@ describe("App integration", () => {
     expect(screen.queryByRole("tablist", { name: "History" })).not.toBeInTheDocument();
     expect(setWorkspaceLayout).not.toHaveBeenCalled();
 
-    await userEvent.click(within(screen.getByTestId("project-navigator")).getByRole("button", { name: /Manual · zsh 1/i }));
+    await userEvent.click(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
+      .getByRole("button", { name: /Manual · zsh 1/ }));
 
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     expect(screen.queryByRole("article", { name: /Manual · zsh 2/i })).not.toBeInTheDocument();
   });
 
-  it("focuses a project session picked in the navigator without touching layouts", async () => {
+  it("focuses a project session picked in the stack without touching layouts", async () => {
     const { setWorkspaceLayout, setWorkspaceViewState } = installDesktopBridge(undefined, null, [
       manualLiveSnapshot("manual-1", "Manual · zsh 1"),
       manualLiveSnapshot("manual-2", "Manual · zsh 2"),
@@ -5334,14 +5334,15 @@ describe("App integration", () => {
     setWorkspaceLayout.mockClear();
     setWorkspaceViewState.mockClear();
 
-    await userEvent.click(within(screen.getByTestId("project-navigator")).getByRole("button", { name: "Manual · zsh 2" }));
+    await userEvent.click(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
+      .getByRole("button", { name: /Manual · zsh 2/ }));
 
     expect(screen.queryByRole("article", { name: /Manual · zsh 1/i })).not.toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 2/i })).toBeInTheDocument();
     expect(setWorkspaceLayout).not.toHaveBeenCalled();
     expect(setWorkspaceViewState).toHaveBeenLastCalledWith({
       workspaceId: "A",
-      viewState: { workMode: "desk", selectedSessionId: "manual-2" },
+      viewState: expect.objectContaining({ selectedSessionId: "manual-2" }),
     });
   });
 
@@ -8243,8 +8244,8 @@ describe("App integration", () => {
     render(<App />);
     await screen.findByRole("article", { name: /Codex · decision/ });
     const project = screen.getByRole("button", { name: "Alfred project" });
-    if (freeChat) expect(project).not.toHaveAttribute("data-attention", "true");
-    else expect(project).toHaveAttribute("data-attention", "true");
+    if (freeChat) expect(project.querySelector(".status-needs-you")).toBeNull();
+    else expect(project.querySelector(".status-needs-you")).not.toBeNull();
     await openNeedsYou(user);
     expect(screen.getByRole("dialog", { name: "Needs you" })).toHaveTextContent("Proceed?");
   });

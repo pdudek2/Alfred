@@ -131,11 +131,13 @@ test("keeps the production Work story trustworthy across every utility surface",
   await privacy.getByRole("button", { name: "Close privacy controls" }).click();
 
   await selectSurface(page, "Work");
-  const navigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
   for (const [width, height] of [[1440, 900], [1120, 720]] as const) {
     await setWindowSize(app, page, width, height);
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await navigator.getByRole("button", { name: "Codex MCP startup", exact: true }).click();
+    // Focus the Codex session from the stack unless it already holds focus.
+    const codexCard = page.getByRole("complementary", { name: /^Other sessions in / })
+      .getByRole("button", { name: /Codex MCP startup/ });
+    if (await codexCard.count()) await codexCard.click();
     await expect(codexTile).toBeVisible();
     const terminalInput = codexTile.getByRole("textbox", { name: "Terminal input" });
     await terminalInput.focus();
