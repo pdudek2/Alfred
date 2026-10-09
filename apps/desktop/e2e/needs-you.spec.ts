@@ -175,8 +175,8 @@ test.describe("mixed Needs you actions", () => {
     await expect(context).toBeVisible();
     await expect(context).toContainText("Fixture item 1");
     await expect(page.getByRole("button", { name: "Fixture Alpha project" })).toHaveAttribute("aria-current", "location");
-    // Editing a draft opens Context without switching the project to Focus.
-    await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
+    // Editing a draft opens Details without putting the draft on the deck.
+    await expect(page.locator('[data-testid="terminal-tile"][data-session-id="fixture-item-1"]')).toHaveCount(0);
     expect(await terminalWriteCount(app)).toBe(0);
     expect((await listMainProcessTerminals(page)).sessions.some((session) => session.clientId === "fixture-item-1"))
       .toBe(false);

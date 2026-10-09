@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WorkSurfaceToolbar } from "./WorkSurfaceToolbar";
@@ -9,40 +9,12 @@ afterEach(() => {
 });
 
 describe("WorkSurfaceToolbar", () => {
-  it("shows how many Grid sessions are visible out of the workspace total", () => {
-    render(
-      <WorkSurfaceToolbar
-        arrangeMode={false}
-        previewAvailable={false}
-        previewOpen={false}
-        savedSessionCount={0}
-        visibleSessionCount={6}
-        workMode="desk"
-        onAddManualSession={vi.fn()}
-        onApplyWorkMode={vi.fn()}
-        onOpenSavedSessions={vi.fn()}
-        onToggleArrangeMode={vi.fn()}
-        onTogglePreview={vi.fn()}
-      />,
-    );
-
-    const context = screen.getByTestId("work-session-count");
-    expect(context).toHaveTextContent("3 of 6 sessions");
-  });
-
   it("leaves the workspace path to the primary window header", () => {
     render(
       <WorkSurfaceToolbar
-        arrangeMode={false}
         previewAvailable={false}
         previewOpen={false}
-        savedSessionCount={0}
-        visibleSessionCount={2}
-        workMode="desk"
         onAddManualSession={vi.fn()}
-        onApplyWorkMode={vi.fn()}
-        onOpenSavedSessions={vi.fn()}
-        onToggleArrangeMode={vi.fn()}
         onTogglePreview={vi.fn()}
       />,
     );
@@ -51,103 +23,32 @@ describe("WorkSurfaceToolbar", () => {
       .not.toHaveTextContent("Desktop/Alfred");
   });
 
-  it("caps normal Grid session count at three visible sessions", () => {
-    render(
-      <WorkSurfaceToolbar
-        arrangeMode={false}
-        previewAvailable={false}
-        previewOpen={false}
-        savedSessionCount={0}
-        visibleSessionCount={5}
-        workMode="desk"
-        onAddManualSession={vi.fn()}
-        onApplyWorkMode={vi.fn()}
-        onOpenSavedSessions={vi.fn()}
-        onToggleArrangeMode={vi.fn()}
-        onTogglePreview={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByRole("toolbar", { name: "Work layout controls" }))
-      .toHaveTextContent("3 of 5 sessions");
-  });
-
-  it("routes the compact layout menu, Preview toggle, and new-terminal control", async () => {
-    const onApplyWorkMode = vi.fn();
-    const onToggleArrangeMode = vi.fn();
+  it("routes the Preview toggle and new-terminal control without a layout menu", async () => {
     const onAddManualSession = vi.fn();
     const onTogglePreview = vi.fn();
     render(
       <WorkSurfaceToolbar
-        arrangeMode={false}
         previewAvailable
         previewOpen
-        savedSessionCount={0}
-        visibleSessionCount={4}
-        workMode="desk"
         onAddManualSession={onAddManualSession}
-        onApplyWorkMode={onApplyWorkMode}
-        onOpenSavedSessions={vi.fn()}
-        onToggleArrangeMode={onToggleArrangeMode}
         onTogglePreview={onTogglePreview}
       />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Open layout menu, Grid selected" }));
-    await userEvent.click(screen.getByRole("menuitemradio", { name: "Focus" }));
-    await userEvent.click(screen.getByRole("button", { name: "Open layout menu, Grid selected" }));
-    await userEvent.click(screen.getByRole("menuitemradio", { name: "Arrange" }));
     await userEvent.click(screen.getByRole("button", { name: "Preview" }));
     await userEvent.click(screen.getByRole("button", { name: "New terminal" }));
-    expect(onApplyWorkMode).toHaveBeenCalledWith("focus");
-    expect(onToggleArrangeMode).toHaveBeenCalledOnce();
     expect(onTogglePreview).toHaveBeenCalledOnce();
     expect(onAddManualSession).toHaveBeenCalledOnce();
-    expect(screen.getByTestId("work-session-count")).toHaveTextContent("3 of 4 sessions");
     expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.queryByRole("tablist", { name: "Sessions" })).not.toBeInTheDocument();
-  });
-
-  it("announces and initially focuses the selected layout option", async () => {
-    render(
-      <WorkSurfaceToolbar
-        arrangeMode={false}
-        previewAvailable={false}
-        previewOpen={false}
-        savedSessionCount={0}
-        visibleSessionCount={3}
-        workMode="desk"
-        onAddManualSession={vi.fn()}
-        onApplyWorkMode={vi.fn()}
-        onOpenSavedSessions={vi.fn()}
-        onToggleArrangeMode={vi.fn()}
-        onTogglePreview={vi.fn()}
-      />,
-    );
-
-    await userEvent.click(screen.getByRole("button", { name: "Open layout menu, Grid selected" }));
-    const selectedGrid = screen.getByRole("menuitemradio", { name: "Grid" });
-    expect(selectedGrid).toHaveAttribute("aria-checked", "true");
-    await waitFor(() => expect(selectedGrid).toHaveFocus());
-    expect(screen.getByRole("menuitemradio", { name: "Focus" })).toHaveAttribute(
-      "aria-checked",
-      "false",
-    );
+    expect(screen.queryByRole("button", { name: /layout menu/ })).not.toBeInTheDocument();
   });
 
   it("keeps Preview unavailable until Alfred detects a local URL", () => {
     render(
       <WorkSurfaceToolbar
-        arrangeMode={false}
         previewAvailable={false}
         previewOpen={false}
-        savedSessionCount={0}
-        visibleSessionCount={0}
-        workMode="focus"
         onAddManualSession={vi.fn()}
-        onApplyWorkMode={vi.fn()}
-        onOpenSavedSessions={vi.fn()}
-        onToggleArrangeMode={vi.fn()}
         onTogglePreview={vi.fn()}
       />,
     );

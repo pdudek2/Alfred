@@ -47,6 +47,7 @@ test("Preview stays on demand and preserves xterm while loaded, resized, and off
     await page.getByRole("button", { name: "Close Preview" }).click();
     await expect(previewToggle).toBeFocused();
     await expect(preview).toHaveCount(0);
+    await expect(page.locator(".session-stack")).toBeVisible();
     await expectSameNode(xtermHandle, xterm);
 
     await previewToggle.click();
@@ -59,6 +60,10 @@ test("Preview stays on demand and preserves xterm while loaded, resized, and off
       return bounds ? { width: bounds.width, height: bounds.height } : null;
     })).toEqual({ width: 1120, height: 720 });
     await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "46px");
+    // Preview takes the stack's column; at the minimum window the focused terminal stays usable.
+    await expect(page.locator(".session-stack")).toHaveCount(0);
+    expect(await page.locator('[data-testid="terminal-tile"]:visible').evaluate((node) => node.getBoundingClientRect().width))
+      .toBeGreaterThanOrEqual(420);
     await expect(xterm).toBeVisible();
     await expect(input).toBeVisible();
     await expectSameNode(xtermHandle, xterm);

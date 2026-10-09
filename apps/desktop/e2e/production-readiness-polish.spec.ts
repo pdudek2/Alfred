@@ -2,7 +2,6 @@ import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwri
 import { appendFile, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "./support/electron-app";
-import { chooseWorkLayout } from "./support/work-layout";
 
 test.use({
   fixtureOptions: {
@@ -18,7 +17,7 @@ test("keeps the production Work story trustworthy across every utility surface",
   const { app, page, paths } = harness;
   await setWindowSize(app, page, 1440, 900);
 
-  // The draft waits on the plan line, outside the grid, until it becomes connected live work.
+  // The draft waits on the plan line, off the deck, until it becomes connected live work.
   const planLine = page.locator(".plan-line");
   await expect(planLine).toBeVisible();
   await expect(page.getByTestId("terminal-tile")).toHaveCount(0);
@@ -31,22 +30,20 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expectFixedCellFont(page.locator(".xterm-rows").first());
   await expectSans(page.locator('[data-testid="terminal-tile"]').first().locator(".terminal-status-label"));
 
-  // Normal Work geometry progresses through one, two, then the bounded three-pane desk.
-  await expect(page.getByTestId("terminal-grid")).toHaveClass(/single/);
-  await addTerminal(page);
-  await expect(page.getByTestId("terminal-grid")).toHaveClass(/split/);
-  await addTerminal(page);
-  await expect(page.getByTestId("terminal-grid")).toHaveClass(/dense/);
-  await addTerminal(page);
-  await addTerminal(page);
-  await expect(page.getByTestId("terminal-grid")).toHaveClass(/three-pane/);
-  await expect(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])')).toHaveCount(3);
+  // The deck always shows one terminal; every added session lands in focus and the rest join the stack.
+  const stack = page.getByRole("complementary", { name: /^Other sessions in / });
+  for (let added = 1; added <= 4; added += 1) {
+    await addTerminal(page);
+    await expect(page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])')).toHaveCount(1);
+    await expect(stack.locator(".session-stack-card")).toHaveCount(added);
+  }
 
   await createRuntimeBlockers(page, paths.root);
   const identityText = await page.locator(".tile-title, .project-session-title, .workbench-session-title").allTextContents();
   expect(identityText.join("\n")).not.toContain("\u001b");
   expect(identityText.join("\n")).not.toContain("hidden-title");
-  await expect(page.getByTestId("terminal-grid").getByText("Claude authentication", { exact: true })).toBeVisible();
+  await expect(stack.getByRole("region", { name: "Needs you" }).getByText("Claude authentication", { exact: true })).toBeVisible();
+  // The last blocker added holds focus; the earlier one waits at the top of the stack.
   await expect(page.getByTestId("terminal-grid").getByText("Codex MCP startup", { exact: true })).toBeVisible();
   await captureAuditScreenshot(page, "work-live-blockers-wide");
 
@@ -139,18 +136,12 @@ test("keeps the production Work story trustworthy across every utility surface",
     await setWindowSize(app, page, width, height);
     await page.emulateMedia({ reducedMotion: "reduce" });
     await navigator.getByRole("button", { name: "Codex MCP startup", exact: true }).click();
-    await chooseWorkLayout(page, "Focus");
     await expect(codexTile).toBeVisible();
     const terminalInput = codexTile.getByRole("textbox", { name: "Terminal input" });
     await terminalInput.focus();
     await expect(terminalInput).toBeFocused();
-    if (width === 1440) await captureAuditScreenshot(page, "work-focus-wide-reduced-motion");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-    await chooseWorkLayout(page, "Split");
-    if (width === 1440) await captureAuditScreenshot(page, "work-split-wide-reduced-motion");
-    await chooseWorkLayout(page, "Grid");
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-    if (width === 1120) await captureAuditScreenshot(page, "work-grid-narrow-reduced-motion");
+    await captureAuditScreenshot(page, `work-deck-${width === 1440 ? "wide" : "narrow"}-reduced-motion`);
   }
 
   const screenAfter = await requiredHandle(screen, "post-transition fixture xterm");

@@ -12,7 +12,6 @@ import {
   neutralScreenshotPointer,
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
-import { chooseWorkLayout } from "./support/work-layout";
 
 const evidenceDir = path.resolve(
   import.meta.dirname,
@@ -65,7 +64,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     `R0 shell geometry: ${JSON.stringify(r0)}`,
   ).toBe(r0.workspaceLayoutHeight);
   const wideTile = visibleTerminalTiles(page).first();
-  await expect(wideTile.getByRole("button", { name: "Collapse Manual · zsh 1" })).toBeVisible();
+  await expect(wideTile.getByRole("button", { name: "Rename Manual · zsh 1" })).toBeVisible();
   await expect(wideTile.locator(".tile-overflow-menu")).toBeHidden();
   const bannerAlert = await proveBannerAlertGeometry(page);
   expect(bannerAlert.alertStackHeight).toBeGreaterThan(0);
@@ -82,15 +81,14 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     .getByRole("group", { name: "Fixture Alpha sessions" })
     .getByRole("button", { name: "Manual · zsh 2", exact: true })
     .click();
-  await chooseWorkLayout(page, "Focus");
-  await expect(page.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeVisible();
   expect(await readHeaderHeight(page)).toBe(44);
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
-  await expect(visibleTerminalTiles(page).locator(".terminal-tile-header")).toHaveCount(0);
+  // The focused tile keeps its header until the top bar carries the session title and actions.
+  await expect(visibleTerminalTiles(page).locator(".terminal-tile-header")).toHaveCount(1);
   const r1 = await readShellGeometry(page);
   expect(r1.headerHeight).toBe(44);
   expect(r1.visibleTileCount).toBe(1);
-  expect(r1.visibleTileHeaderCount).toBe(0);
+  expect(r1.visibleTileHeaderCount).toBe(1);
   await page.locator(".terminal-grid-column").evaluate((node) => {
     node.scrollTop = 900;
   });
@@ -104,21 +102,13 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     "r1-focus-two-sessions.png",
   );
 
-  await chooseWorkLayout(page, "Split");
-  await expect(page.getByRole("button", { name: "Open layout menu, Split selected" })).toBeVisible();
-  const r6 = await readShellGeometry(page);
-  expect(r6.headerHeight).toBe(44);
-  expect(r6.visibleTileCount).toBe(2);
-  expect(r6.visibleTileHeaderCount).toBe(2);
-  expect(r6.tileHeaderHeights).toEqual([43, 43]);
-  diagnosticScreenshotHashes["r6-split.png"] = await captureEvidence(page, "r6-split.png");
-
-  await chooseWorkLayout(page, "Focus");
-  await expect(page.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeVisible();
+  await page.getByRole("complementary", { name: /^Other sessions in / })
+    .getByRole("button", { name: /Manual · zsh 1/ }).click();
+  await expect(visibleTerminalTiles(page).first()).toHaveAttribute("data-session-id", "manual-1");
   const identityTransitions: Record<string, boolean> = {
-    "R0→Focus→Split→Focus": await isSameConnectedNode(firstScreenHandle, firstScreen),
+    "R0→zsh 2→stack→zsh 1": await isSameConnectedNode(firstScreenHandle, firstScreen),
   };
-  expect(identityTransitions["R0→Focus→Split→Focus"]).toBe(true);
+  expect(identityTransitions["R0→zsh 2→stack→zsh 1"]).toBe(true);
 
   const launchTrigger = page.getByRole("button", { name: "New", exact: true });
   await launchTrigger.focus();
@@ -131,7 +121,6 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "New session" })).toHaveCount(0);
   await expect(launchTrigger).toBeFocused();
-  await expect(page.getByRole("button", { name: "Open layout menu, Focus selected" })).toBeVisible();
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
   const focusRestoration = {
     openedWithKeyboard: true,
@@ -157,31 +146,28 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(identityTransitions["Work→Context"]).toBe(true);
   await page.getByRole("button", { name: "Close Details panel" }).click();
 
-  await chooseWorkLayout(page, "Grid");
-  await expect(page.getByRole("button", { name: "Open layout menu, Grid selected" })).toBeVisible();
-  await expect(visibleTerminalTiles(page)).toHaveCount(2);
+  await expect(visibleTerminalTiles(page)).toHaveCount(1);
   await setWindowSize(app, page, 1120, 720);
   const narrowTile = visibleTerminalTiles(page).first();
   const compactActionsTrigger = narrowTile.locator(".tile-overflow-menu .chrome-menu-trigger");
   await expect(compactActionsTrigger).toBeVisible();
-  await expect(narrowTile.locator(".tile-utility-actions .collapse-session-button")).toBeHidden();
+  await expect(narrowTile.locator(".tile-utility-actions .rename-session-button")).toBeHidden();
   await compactActionsTrigger.click();
   await expect(
-    narrowTile.getByRole("menuitem", { name: "Collapse terminal body" }),
+    narrowTile.getByRole("menuitem", { name: /Open in external terminal/ }),
   ).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(compactActionsTrigger).toBeFocused();
   const narrow = await readNarrowGeometry(page);
-  expect(narrow.layout).toBe("Grid");
-  expect(narrow.visibleTileCount).toBe(2);
+  expect(narrow.visibleTileCount).toBe(1);
   expect(narrow.documentOverflow).toBe(0);
   expect(
     narrow.activeControlOverflows,
     `Narrow controls outside viewport: ${JSON.stringify(narrow.activeControlOverflows)}`,
   ).toEqual([]);
   diagnosticScreenshotHashes["narrow-1120x720.png"] = await captureEvidence(page, "narrow-1120x720.png");
-  identityTransitions["Context→narrow Grid"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
-  expect(identityTransitions["Context→narrow Grid"]).toBe(true);
+  identityTransitions["Context→narrow deck"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
+  expect(identityTransitions["Context→narrow deck"]).toBe(true);
 
   await selectSurface(page, "Details");
   await expect(page.locator(".project-navigator")).toHaveCSS("width", "46px");
@@ -253,7 +239,6 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
     r0,
     bannerAlert,
     r1,
-    r6,
     narrow,
     identityTransitions,
     focusRestoration,
@@ -377,17 +362,12 @@ async function readShellGeometry(page: Page): Promise<ShellGeometry> {
 }
 
 async function readNarrowGeometry(page: Page): Promise<{
-  layout: string;
   visibleTileCount: number;
   documentOverflow: number;
   activeControlOverflows: ControlOverflowViolation[];
 }> {
   const [geometry, activeControlOverflows] = await Promise.all([
     page.evaluate(() => ({
-      layout: document
-        .querySelector('.work-surface-layout button[aria-label^="Open layout menu, "]')
-        ?.getAttribute("aria-label")
-        ?.replace(/^Open layout menu, (.+) selected$/, "$1") ?? "",
       visibleTileCount: document.querySelectorAll(
         '[data-testid="terminal-tile"]:not([aria-hidden="true"])',
       ).length,
