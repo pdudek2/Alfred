@@ -3,7 +3,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionTile } from "../session-state";
-import { ProjectNavigator, projectRailState, type ProjectNavigatorProps } from "./ProjectNavigator";
+import { ProjectNavigator, projectRailState, railOrder, type ProjectNavigatorProps } from "./ProjectNavigator";
 
 const workspaces = [
   { id: "A", label: "Alfred", shortLabel: "A", rootPath: "/Users/patryk/Desktop/Alfred", gitBranch: "main" },
@@ -104,6 +104,14 @@ describe("projectRailState", () => {
     expect(projectRailState([agent("a", "A", "needs-you")], "A", 0, now)).toBe("needs-you");
     expect(projectRailState([agent("a", "B", "needs-you")], "A", 0, now)).toBeNull();
     expect(projectRailState([{ ...agent("a", "A", "working"), runtimeStatus: "exited" }], "A", 0, now)).toBeNull();
+  });
+});
+
+describe("railOrder", () => {
+  it("puts real projects before sandboxes so ⌘1–⌘9 match the rail", () => {
+    const mixed = [workspaces[0]!, sandboxes[0]!, workspaces[1]!, sandboxes[1]!];
+    expect(railOrder(mixed).map((workspace) => workspace.id)).toEqual(["A", "CLIENT", "W3", "W4"]);
+    expect(railOrder(sandboxes).map((workspace) => workspace.id)).toEqual(["W3", "W4", "W12"]);
   });
 });
 
