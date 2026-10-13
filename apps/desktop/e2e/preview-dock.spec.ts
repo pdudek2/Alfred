@@ -62,7 +62,8 @@ test("Preview stays on demand and preserves xterm while loaded, resized, and off
     await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "224px");
     // Preview takes the stack's column; at the minimum window the focused terminal stays usable.
     await expect(page.locator(".session-stack")).toHaveCount(0);
-    expect(await page.locator('[data-testid="terminal-tile"]:visible').evaluate((node) => node.getBoundingClientRect().width))
+    // Measure the column, not the tile: where the OS always shows scrollbars the tile gives up a gutter inside it.
+    expect(await page.locator(".terminal-grid-column").evaluate((node) => node.getBoundingClientRect().width))
       .toBeGreaterThanOrEqual(420);
     await expect(xterm).toBeVisible();
     await expect(input).toBeVisible();
