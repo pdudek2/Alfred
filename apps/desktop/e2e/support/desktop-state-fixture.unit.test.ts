@@ -23,9 +23,9 @@ describe("desktop state fixture", () => {
 
   it("groups odd and even drafts into their own project plans without changing fixture semantics", async () => {
     const { paths, state } = await createDesktopFixture({
-      inboxItems: 4,
-      blockedInboxItem: 3,
-      waitingInboxItem: 2,
+      stagedItems: 4,
+      blockedStagedItem: 3,
+      waitingStagedItem: 2,
     });
 
     try {

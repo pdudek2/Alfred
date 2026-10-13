@@ -23,9 +23,9 @@ const execFileAsync = promisify(execFile);
 export type DesktopStateFixtureOptions = {
   activeWorkspaceId?: "A" | "B";
   handoffDiff?: boolean;
-  inboxItems?: number;
-  blockedInboxItem?: number;
-  waitingInboxItem?: number;
+  stagedItems?: number;
+  blockedStagedItem?: number;
+  waitingStagedItem?: number;
   projectShell?: boolean;
   restoredScratchSessions?: number;
   restoredSessions?: number;
@@ -108,23 +108,23 @@ export async function createDesktopFixture(
           ]
         : []),
     ];
-    const inboxItems = options.inboxItems ?? 0;
+    const stagedItems = options.stagedItems ?? 0;
     const restoredSessions = options.restoredSessions ?? 0;
-    assertFixtureIndex("blockedInboxItem", options.blockedInboxItem, inboxItems);
-    assertFixtureIndex("waitingInboxItem", options.waitingInboxItem, inboxItems);
+    assertFixtureIndex("blockedStagedItem", options.blockedStagedItem, stagedItems);
+    assertFixtureIndex("waitingStagedItem", options.waitingStagedItem, stagedItems);
     assertFixtureIndex("unsafeRecoveryItem", options.unsafeRecoveryItem, restoredSessions);
     if (
-      options.blockedInboxItem !== undefined &&
-      options.blockedInboxItem === options.waitingInboxItem
+      options.blockedStagedItem !== undefined &&
+      options.blockedStagedItem === options.waitingStagedItem
     ) {
-      throw new Error("blockedInboxItem and waitingInboxItem must identify different items.");
+      throw new Error("blockedStagedItem and waitingStagedItem must identify different items.");
     }
-    const stagedSessions = Array.from({ length: inboxItems }, (_, index) => {
+    const stagedSessions = Array.from({ length: stagedItems }, (_, index) => {
       const number = index + 1;
       const workspaceId = number % 2 === 0 ? "B" : "A";
       const cwd = workspaceId === "A" ? paths.workspaceA : paths.workspaceB;
-      const waiting = number === options.waitingInboxItem;
-      const blocked = number === options.blockedInboxItem;
+      const waiting = number === options.waitingStagedItem;
+      const blocked = number === options.blockedStagedItem;
       return {
         id: `fixture-item-${number}`,
         workspaceId,

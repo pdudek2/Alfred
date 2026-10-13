@@ -39,7 +39,7 @@ test("swaps the focused terminal from the stack without remounting any xterm", a
 });
 
 test.describe("draft plan line", () => {
-  test.use({ fixtureOptions: { inboxItems: 1 } });
+  test.use({ fixtureOptions: { stagedItems: 1 } });
 
   test("keeps drafts off the deck until launched, then stacks the launched session", async ({ harness }) => {
     const { page } = harness;

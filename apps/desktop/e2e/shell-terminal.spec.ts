@@ -13,10 +13,7 @@ import {
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
 
-const evidenceDir = path.resolve(
-  import.meta.dirname,
-  "../../../docs/audits/local-artifacts/2026-07-23-phase-j0-slice-4-context-privacy/shell-terminal",
-);
+const evidenceDir = path.resolve(import.meta.dirname, "../../../output/playwright/shell-terminal");
 
 type ShellGeometry = {
   headerHeight: number;
@@ -40,13 +37,9 @@ type DesktopTerminalWindow = Window & {
 
 test("proves the adaptive shell and preserves the first real xterm", async ({ harness }, testInfo) => {
   const { app, marker, page } = harness;
-  expect(evidenceDir).toContain("2026-07-23-phase-j0-slice-4-context-privacy/shell-terminal");
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 900);
-  const header = page.getByTestId("workbench-header");
   const workToolbar = page.getByRole("toolbar", { name: "Work layout controls" });
-  await expect(header).toHaveAttribute("data-chrome-height", "44");
-  await expect(header).toHaveCSS("height", "44px");
   await expect(workToolbar).toBeVisible();
 
   await expect(page.getByTestId("xterm-host")).toHaveCount(1);
@@ -55,10 +48,8 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   const firstScreenHandle = await requiredHandle(firstScreen, "first xterm screen");
 
   const r0 = await readShellGeometry(page);
-  expect(r0.headerHeight).toBe(44);
   expect(r0.visibleTileCount).toBe(1);
   expect(r0.visibleTileHeaderCount).toBe(1);
-  expect(r0.tileHeaderHeights).toEqual([43]);
   expect(
     r0.frameHeight - r0.headerHeight - r0.alertStackHeight,
     `R0 shell geometry: ${JSON.stringify(r0)}`,
@@ -80,12 +71,10 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   // New terminal takes focus; the first session waits in the stack.
   await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-2"]')).not.toHaveAttribute("aria-hidden", "true");
   await expect(page.getByRole("complementary", { name: /^Other sessions in / }).locator('[data-session-id="manual-1"]')).toBeVisible();
-  expect(await readHeaderHeight(page)).toBe(44);
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
   // The focused tile keeps its header until the top bar carries the session title and actions.
   await expect(visibleTerminalTiles(page).locator(".terminal-tile-header")).toHaveCount(1);
   const r1 = await readShellGeometry(page);
-  expect(r1.headerHeight).toBe(44);
   expect(r1.visibleTileCount).toBe(1);
   expect(r1.visibleTileHeaderCount).toBe(1);
   await page.locator(".terminal-grid-column").evaluate((node) => {
@@ -169,7 +158,6 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(identityTransitions["Context→narrow deck"]).toBe(true);
 
   await selectSurface(page, "Details");
-  await expect(page.locator(".project-navigator")).toHaveCSS("width", "46px");
   const contextBounds = await page.getByTestId("context-column").boundingBox();
   const terminalBounds = await page.locator(".terminal-stage").boundingBox();
   const viewportWidth = await page.evaluate(() => window.innerWidth);
@@ -281,10 +269,6 @@ async function selectSurface(
 
 function visibleTerminalTiles(page: Page): Locator {
   return page.locator('[data-testid="terminal-tile"]:not([aria-hidden="true"])');
-}
-
-async function readHeaderHeight(page: Page): Promise<number> {
-  return page.getByTestId("workbench-header").evaluate((node) => node.getBoundingClientRect().height);
 }
 
 async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {

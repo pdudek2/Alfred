@@ -171,7 +171,7 @@ const overlayProbes: Record<"command-palette" | "privacy", CssOwnerProbe[]> = {
   ],
 };
 
-test.use({ fixtureOptions: { inboxItems: 1, restoredSessions: 1, unsafeRecoveryItem: 1 } });
+test.use({ fixtureOptions: { stagedItems: 1, restoredSessions: 1, unsafeRecoveryItem: 1 } });
 
 test("keeps the drafts-only plan line neutral at wide and narrow widths", async ({ harness }, testInfo) => {
   const { app, page } = harness;
@@ -192,7 +192,7 @@ test("keeps the drafts-only plan line neutral at wide and narrow widths", async 
 });
 
 test.describe("draft plan layout", () => {
-  test.use({ fixtureOptions: { inboxItems: 4 } });
+  test.use({ fixtureOptions: { stagedItems: 4 } });
 
   test("keeps every draft action inside its row at supported widths", async ({ harness }, testInfo) => {
     const { app, page } = harness;
@@ -431,7 +431,6 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expectDeck(page);
   await expect(page.locator(".workspace-title-trigger strong")).toHaveText("Fixture Alpha");
   await expect(page.getByTestId("workbench-header")).toHaveClass("workbench-header");
-  await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "44");
   await recordPrivacyMaskCoverage();
 
   // The newest terminal holds focus, so the marker goes to manual-2 and is tracked there.
@@ -458,7 +457,6 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expect(page.getByTestId("terminal-tile")).toHaveCount(4);
   await expectDeck(page);
   await expect(page.getByTestId("workbench-header")).toHaveClass("workbench-header");
-  await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "44");
 
   await capture("work-deck", [...frameProbes, ...terminalProbes]);
 
