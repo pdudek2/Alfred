@@ -49,7 +49,7 @@ function isLiveShellSelector(selector: string): boolean {
     ".workspace-layout", ".project-navigator", ".project-", ".free-chat-",
     ".alfred-mark", ".workbench-", ".work-surface-", ".chrome-menu", ".prepare-work-popover",
     ".desktop-save-", ".shell-action-", ".recovery-",
-    ".terminal-", ".tile-", ".tool-dot", ".session-status-", ".session-rename-form",
+    ".terminal-", ".tile-", ".tool-dot", ".session-status-", ".session-rename-form", ".session-strip",
     ".split-empty-", ".staged-", ".arrange-", ".xterm-host", ".composer-", ".dispatch-",
   ].some((prefix) => selector.includes(prefix));
 }
@@ -70,7 +70,8 @@ function declaredMinHeightPx(body: string): number {
 }
 
 function exactBlockFor(selector: string): string {
-  const matches = [...styles.matchAll(/(?<selectors>[^{}]+)\{(?<body>[^{}]*)\}/gm)].filter((match) =>
+  // A comment above a rule would otherwise be read as part of its selector.
+  const matches = [...withoutComments(styles).matchAll(/(?<selectors>[^{}]+)\{(?<body>[^{}]*)\}/gm)].filter((match) =>
     (match.groups?.selectors ?? "").split(",").some((candidate) => candidate.trim() === selector),
   );
   return matches.at(-1)?.groups?.body ?? "";
@@ -309,11 +310,10 @@ describe("renderer CSS contracts", () => {
       ".workbench-breadcrumb-parent",
       ".workbench-session-title",
       ".workbench-actions button",
-      ".terminal-tile-header .tile-title b",
-      ".terminal-status-label",
-      ".tile-age",
-      ".tile-actions .continue-button span",
-      ".tile-status",
+      ".session-strip",
+      ".session-strip-action",
+      ".session-strip .continue-button",
+      ".session-rename-form input",
     ]) {
       const bodies = allRulesIn(styles).filter(({ selectors }) => selectors.includes(selector));
       expect(bodies.length, selector).toBeGreaterThan(0);
@@ -415,8 +415,14 @@ describe("renderer CSS contracts", () => {
       ['html[data-alfred-window-material="native"] .mission-bar'],
       [".terminal-tile:focus-visible"],
       [".project-session.is-active"],
+      // The session strip is the one raised card in the deck, with hairlines on its controls (v4 canvas).
+      [".session-strip"],
+      [".session-strip .continue-button"],
+      [".session-strip-menu .chrome-menu-popover"],
+      [".session-rename-form input"],
+      [".session-rename-form input:focus-visible"],
     ]));
-    expect(materialShadows).toHaveLength(4);
+    expect(materialShadows).toHaveLength(9);
     expect(oversizedRadii).toEqual([]);
     expect(signalUses.every(({ selectors }) =>
       selectors.every((selector) =>
@@ -641,21 +647,15 @@ describe("renderer CSS contracts", () => {
 
   it("keeps the CSS terminal surface on the approved graphite material", () => {
     const tile = exactBlockFor(".terminal-tile");
-    const kindTile = blockFor(
-      ".terminal-tile.kind-manual,\n"
-      + ".terminal-tile.kind-codex,\n"
-      + ".terminal-tile.kind-claude,\n"
-      + ".terminal-tile.kind-dev-server,\n"
-      + ".terminal-tile.kind-shell",
-    );
     const xtermHost = blockFor(".terminal-tile .xterm-host");
     const standaloneXtermHost = exactBlockFor(".xterm-host");
 
     expect(rootToken("--ink-0")).toBe("#050506");
     expect(tile).toContain("background: var(--surface-terminal)");
-    expect(kindTile).toContain("background: var(--surface-terminal)");
     expect(xtermHost).toContain("background: var(--surface-terminal)");
     expect(standaloneXtermHost).toContain("background: var(--surface-terminal)");
+    // xterm's own viewport default is black; it must not frame the terminal inside its box.
+    expect(exactBlockFor(".terminal-tile .xterm-host .xterm-viewport")).toContain("background-color: var(--surface-terminal)");
   });
 
   it("routes operational colors through signal tokens", () => {
@@ -681,7 +681,8 @@ describe("renderer CSS contracts", () => {
     expect(gridColumn).toContain("height: 100%");
     expect(gridColumn).toContain("max-height: 100%");
     expect(gridColumn).toContain("overscroll-behavior: contain");
-    expect(gridColumn).toContain("scrollbar-gutter: stable");
+    // One terminal fills the column, so no gutter is reserved: it would push the box off the canvas gutter.
+    expect(gridColumn).not.toContain("scrollbar-gutter");
   });
 
   it("keeps orphan attention count markers out of the stylesheet", () => {

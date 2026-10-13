@@ -20,6 +20,14 @@ export function sessionAgeLabel(createdAt: number | undefined, now = Date.now())
   return `${Math.floor(elapsedDays / 7)}w`;
 }
 
+/** The focused session's strip spells the age out: "Started 6 min ago". */
+export function sessionStartedLabel(createdAt: number | undefined, now = Date.now()): string | null {
+  const age = sessionAgeLabel(createdAt, now);
+  if (age === null) return null;
+  if (age === "now") return "Started just now";
+  return `Started ${/^\d+m$/.test(age) ? `${age.slice(0, -1)} min` : age} ago`;
+}
+
 export function sessionAgeTitle(createdAt: number | undefined): string | undefined {
   if (createdAt === undefined) return undefined;
   return `Started ${new Intl.DateTimeFormat(undefined, {

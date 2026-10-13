@@ -45,7 +45,7 @@ type NarrowProjectShell = {
   navigatorRight: number;
   orchestratorX: number;
   visibleTileCount: number;
-  visibleTileHeaderHeights: number[];
+  visibleStripHeights: number[];
 };
 
 test.use({
@@ -144,8 +144,8 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
     `Narrow controls outside viewport: ${JSON.stringify(narrow.activeControlOverflows)}`,
   ).toEqual([]);
   expect(narrow.visibleTileCount).toBe(1);
-  expect(narrow.visibleTileHeaderHeights.length).toBeGreaterThan(0);
-  expect(narrow.visibleTileHeaderHeights).toHaveLength(narrow.visibleTileCount);
+  expect(narrow.visibleStripHeights.length).toBeGreaterThan(0);
+  expect(narrow.visibleStripHeights).toHaveLength(narrow.visibleTileCount);
   expect(await isSameConnectedNode(before, alphaScreen)).toBe(true);
 
   const narrowWorkspaceActions = await operateNarrowWorkspaceActions(page, navigator);
@@ -346,8 +346,8 @@ async function readNarrowProjectShell(page: Page): Promise<NarrowProjectShell> {
     const visibleTiles = Array.from(
       document.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"]:not([aria-hidden="true"])'),
     );
-    const visibleTileHeaders = visibleTiles.flatMap((tile) =>
-      Array.from(tile.querySelectorAll<HTMLElement>(".terminal-tile-header")),
+    const visibleStrips = visibleTiles.flatMap((tile) =>
+      Array.from(tile.querySelectorAll<HTMLElement>(".session-strip")),
     );
     const controls = Array.from(
       document.querySelectorAll<HTMLElement>(
@@ -384,7 +384,7 @@ async function readNarrowProjectShell(page: Page): Promise<NarrowProjectShell> {
       navigatorRight: navigatorRect.right,
       orchestratorX: orchestratorRect.x,
       visibleTileCount: visibleTiles.length,
-      visibleTileHeaderHeights: visibleTileHeaders.map((header) => header.getBoundingClientRect().height),
+      visibleStripHeights: visibleStrips.map((header) => header.getBoundingClientRect().height),
     };
   });
 }

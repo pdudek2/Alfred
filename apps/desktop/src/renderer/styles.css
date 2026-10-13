@@ -43,6 +43,7 @@
   --type-micro: 11px;
 
   --shadow-panel: 0 28px 80px rgba(0, 0, 0, 0.5);
+  --shadow-strip: 0 12px 32px -12px rgba(0, 0, 0, 0.6);
 
   /* Transitional aliases. Remove only after all callsites use role tokens. */
   --surface-sunken: var(--surface-terminal);
@@ -1423,12 +1424,11 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   flex-direction: column;
   gap: 8px;
   overflow-x: hidden;
+  /* One terminal fills the column, so it only scrolls if something unusual overflows; no reserved gutter. */
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--ink-3) transparent;
-  padding-bottom: 10px;
 }
 
 .terminal-grid-column::-webkit-scrollbar {
@@ -1618,48 +1618,25 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   color: var(--text-primary);
 }
 
+/* The focused session from the v4 canvas: one quiet box holding the terminal and its strip. */
 .terminal-tile {
   position: relative;
   min-width: 0;
   min-height: 0;
   border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: 12px;
   overflow: hidden;
   background: var(--surface-terminal);
-  box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  container: terminal-tile / inline-size;
-  display: grid;
-  grid-template-rows: 43px minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   isolation: isolate;
 }
 
-.terminal-tile:hover {
-  border-color: var(--border-strong);
-  box-shadow: none;
-}
-
+/* Keyboard focus on the box itself. Typing inside the terminal needs no ring: the cursor shows it. */
 .terminal-tile:focus-visible {
   outline: none;
   border-color: color-mix(in oklab, var(--signal-focus) 58%, var(--border-strong));
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--signal-focus) 18%, transparent);
-}
-
-.terminal-tile:focus-within {
-  outline: none;
-  border-color: color-mix(in oklab, var(--signal-focus) 46%, var(--border-strong));
-  box-shadow: none;
-}
-
-.terminal-tile.restored {
-  border-color: var(--ink-3);
-  background: var(--ink-0);
-}
-
-.terminal-tile.restored .tile-status {
-  border-color: var(--ink-3);
-  color: var(--ink-5);
 }
 
 .terminal-tile.workspace-hidden,
@@ -1667,232 +1644,219 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   display: none;
 }
 
-.terminal-tile.real-terminal {
-  border-color: var(--ink-3);
+.terminal-tile > .xterm-host {
+  flex: 1 1 auto;
 }
 
-.terminal-tile.real-terminal.ready {
-  border-color: var(--ink-3);
+/* The session strip: at most one action row, then who runs here, where, since when, and the menu.
+   It precedes the terminal in the DOM for keyboard order and is drawn below it. */
+.session-strip {
+  position: relative;
+  order: 1;
+  flex: none;
+  margin: 0 12px 12px;
+  border-radius: 12px;
+  background: var(--surface-panel);
+  box-shadow: inset 0 0 0 1px var(--border-strong), var(--shadow-strip);
+  display: flex;
+  flex-direction: column;
+  color: var(--text-muted);
+  font: 400 12px/16px var(--sans);
 }
 
-.terminal-tile.kind-manual,
-.terminal-tile.kind-codex,
-.terminal-tile.kind-claude,
-.terminal-tile.kind-dev-server,
-.terminal-tile.kind-shell {
-  border-color: var(--ink-3);
-  background: var(--surface-terminal);
-}
-
-.terminal-tile.real-terminal.error,
-.terminal-tile.real-terminal.exited {
-  border-color: var(--ink-5);
-}
-
-.tile-header {
-  min-width: 0;
-  border-bottom: 1px solid var(--ink-3);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(150px, min(300px, 42vw)) auto;
-  align-items: center;
-  gap: 8px;
-  padding: 0 14px;
-  color: var(--ink-5);
-  font-family: var(--sans);
-  font-size: 12px;
-  background: var(--ink-0);
-}
-
-.terminal-tile-header {
-  --terminal-title-min: 160px;
-  --terminal-activity-min: 152px;
-  --terminal-status-zone: 152px;
-  height: 43px;
-  min-height: 43px;
-  padding: 0 10px;
+.session-strip-note,
+.session-strip-action {
+  margin: 0;
   border-bottom: 1px solid var(--border);
-  background: var(--surface-chrome);
-  box-shadow: none;
+  padding: 12px 12px 10px 16px;
+  color: var(--text-secondary);
+  font: 400 13px/18px var(--sans);
+}
+
+.session-strip-action {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
-.terminal-tile-header .tile-title {
-  flex: 1 1 220px;
-  min-width: var(--terminal-title-min);
-  overflow: hidden;
-}
-
-.terminal-tile-header .tile-title:has(.session-rename-form) {
-  min-width: max-content;
-  overflow: visible;
-}
-
-.terminal-tile-header .tile-title > div {
+.session-strip-action > span {
+  flex: 1 1 auto;
   min-width: 0;
-}
-
-.terminal-tile-header .tile-title > div:has(.session-rename-form) {
-  min-width: max-content;
-  overflow: visible;
-}
-
-.terminal-tile-header .tile-title b {
-  min-width: 0;
-  color: var(--ink-6);
-  font: 650 13px/1.12 var(--sans);
-  letter-spacing: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.terminal-tile-header .tile-title small {
-  min-width: 12ch;
-  color: var(--ink-5);
-  font: 500 12px/1.2 var(--sans);
-  overflow: hidden;
-  text-overflow: ellipsis;
+.session-strip .continue-button {
+  flex: none;
+  height: 30px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0 12px;
+  background: var(--surface-control);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--text-primary);
+  font: 400 13px/18px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.session-strip .continue-button:hover {
+  background: var(--surface-control-hover);
+}
+
+/* Risk is carried by the copy and the second press, not by color. */
+.session-strip .continue-button.armed {
+  font-weight: 500;
+}
+
+.session-strip-info {
+  min-height: 31px;
+  padding: 0 4px 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.session-strip-kind {
+  flex: none;
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
-.terminal-tile-header .session-location-value {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.terminal-tile-header .tile-actions {
-  flex: 0 0 auto;
+.session-strip .session-location-value {
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.tile-activity {
-  flex: 1 1 220px;
-  min-width: var(--terminal-activity-min);
-  min-height: 24px;
-  border: 1px solid var(--ink-3);
+.session-strip-spacer {
+  flex: 1 1 auto;
+}
+
+.session-strip-age {
+  flex: none;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.session-strip-menu {
+  flex: none;
+  margin-left: -6px;
+}
+
+.session-strip-menu .chrome-menu-trigger {
+  width: 28px;
+  height: 24px;
+  border: 0;
   border-radius: 7px;
-  padding: 2px 7px 2px 4px;
-  background: var(--ink-1);
-  color: var(--ink-5);
+  padding: 0;
+  background: transparent;
+  color: var(--text-faint);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.session-strip-menu .chrome-menu-trigger:hover,
+.session-strip-menu .chrome-menu-trigger[aria-expanded="true"] {
+  background: var(--surface-control);
+  color: var(--text-primary);
+}
+
+/* Inside the strip the focus ring stays within the control, so it never spills over the card's edge. */
+.session-strip-menu .chrome-menu-trigger:focus-visible,
+.session-strip .continue-button:focus-visible {
+  outline: 2px solid var(--focus-border);
+  outline-offset: -2px;
+}
+
+/* The strip sits at the bottom of the box, so its menu opens upward. */
+.session-strip-menu .chrome-menu-popover {
+  top: auto;
+  bottom: calc(100% + 8px);
+  width: 240px;
+  border: 0;
+  border-radius: 10px;
+  padding: 4px;
+  background: var(--surface-panel);
+  box-shadow: inset 0 0 0 1px var(--border-strong), var(--shadow-panel);
+  gap: 1px;
+}
+
+.session-strip-menu .chrome-menu-popover button {
+  width: 100%;
+  min-height: 30px;
+  border: 0;
+  border-radius: 7px;
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  display: grid;
+  gap: 1px;
+  font: 400 13px/18px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.session-strip-menu .chrome-menu-popover button:hover,
+.session-strip-menu .chrome-menu-popover button:focus-visible {
+  border-color: transparent;
+  background: var(--surface-control);
+  color: var(--text-primary);
+}
+
+.session-strip-menu .chrome-menu-popover button small {
+  color: var(--text-faint);
+  font: 400 12px/16px var(--sans);
+}
+
+.session-rename-form {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-right: 2px;
   display: flex;
   align-items: center;
   gap: 6px;
-  overflow: hidden;
-  box-shadow: none;
 }
 
-.tile-activity > span {
-  min-width: 34px;
-  min-height: 18px;
+.session-rename-form input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 24px;
+  border: 0;
   border-radius: 7px;
-  background: var(--ink-2);
-  color: inherit;
+  padding: 0 8px;
+  background: var(--surface-control);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--text-primary);
+  font: 400 13px/18px var(--sans);
+  outline: none;
+}
+
+.session-rename-form input:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--focus-border);
+}
+
+.session-rename-form button {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--surface-control);
+  color: var(--text-primary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 auto;
-  font-family: var(--sans);
-  font-size: var(--type-micro);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  cursor: pointer;
 }
 
-.tile-activity strong,
-.tile-activity small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tile-activity strong {
-  flex: 0 0 auto;
-  max-width: 108px;
-  color: var(--ink-6);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.tile-activity small {
-  min-width: 0;
-  color: var(--ink-5);
-  font-size: 10px;
-}
-
-.tile-activity.activity-approval,
-.tile-activity.activity-plan {
-  border-color: var(--ink-3);
-  color: var(--ink-5);
-}
-
-.tile-activity.activity-error {
-  border-color: var(--ink-3);
-  color: var(--ink-5);
-}
-
-.tile-activity.activity-warning {
-  border-color: var(--ink-3);
-  color: var(--ink-5);
-}
-
-.tile-activity.activity-command {
-  border-color: var(--ink-3);
-  color: var(--ink-5);
-}
-
-.tile-activity.activity-file,
-.tile-activity.activity-tool {
-  border-color: var(--ink-3);
-  color: var(--ink-5);
-}
-
-.tile-title {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.tile-title > div {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.tile-kind-mark {
-  min-width: 40px;
-  min-height: 22px;
-  border: 1px solid var(--ink-3);
-  border-radius: 6px;
-  background: var(--ink-1);
-  color: var(--ink-5);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  flex: 0 0 auto;
-  font-family: var(--sans);
-  font-size: 11px;
-  line-height: 1;
-}
-
-.terminal-tile.real-terminal .tile-kind-mark {
-  width: 22px;
-  min-width: 22px;
-  min-height: 22px;
-  gap: 0;
-}
-
-.terminal-tile.real-terminal .tile-kind-mark .tile-kind-label {
-  display: none;
-}
-
-.tile-kind-mark svg {
-  flex: 0 0 auto;
+.session-rename-form button:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .kind-brand-icon {
@@ -1900,244 +1864,10 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   object-fit: contain;
 }
 
-.tile-kind-mark.codex .kind-brand-icon {
-  width: 16px;
-  height: 16px;
-}
-
 .tile-kind-prompt {
   color: currentColor;
   font: 700 11px/1 var(--sans);
   letter-spacing: -0.08em;
-}
-
-.tile-kind-mark span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tile-kind-mark.manual,
-.tile-kind-mark.codex,
-.tile-kind-mark.claude,
-.tile-kind-mark.dev-server,
-.tile-kind-mark.shell {
-  border-color: var(--ink-3);
-  background: var(--ink-1);
-  color: var(--ink-6);
-}
-
-.terminal-tile.selected {
-  border-color: color-mix(in oklab, var(--signal-focus) 34%, var(--border-strong));
-}
-
-.terminal-tile.selected .terminal-tile-header {
-  border-bottom-color: color-mix(in oklab, var(--signal-focus) 24%, var(--border));
-  background: color-mix(in oklab, var(--signal-focus) 4%, var(--surface-chrome));
-}
-
-.terminal-tile.selected .tile-kind-mark {
-  border-color: color-mix(in oklab, var(--signal-focus) 56%, var(--ink-3));
-  background: color-mix(in oklab, var(--signal-focus) 13%, var(--ink-1));
-  color: var(--signal-focus);
-}
-
-.tile-title b {
-  display: block;
-  overflow: hidden;
-  color: var(--ink-6);
-  font-weight: 580;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.session-rename-form {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-}
-
-.session-rename-form input {
-  width: min(260px, 22vw);
-  min-width: 120px;
-  height: 24px;
-  border: 1px solid var(--ink-5);
-  border-radius: 6px;
-  background: var(--ink-0);
-  color: var(--ink-7);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 650;
-  outline: none;
-  padding: 0 8px;
-}
-
-.session-rename-form button {
-  width: 24px;
-  height: 24px;
-  min-height: 24px;
-  border: 1px solid var(--ink-5);
-  border-radius: 6px;
-  background: var(--ink-2);
-  color: var(--ink-7);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.session-rename-form button:disabled {
-  opacity: 0.45;
-}
-
-.tile-title small {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  color: var(--ink-5);
-  font-size: 10px;
-  line-height: 1.15;
-}
-
-.tile-title .session-location-meta {
-  flex: 0 0 auto;
-  color: var(--ink-5);
-  font-size: var(--type-micro);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.tile-title .session-location-value {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--ink-5);
-}
-
-.tile-actions {
-  min-width: 0;
-  justify-self: end;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.tile-action-group {
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding-left: 10px;
-  margin-left: 10px;
-  border-left: 1px solid var(--ink-3);
-}
-
-.tile-action-group:first-child {
-  padding-left: 0;
-  margin-left: 0;
-  border-left: 0;
-}
-
-.tile-status-group {
-  flex: 0 0 var(--terminal-status-zone);
-  justify-content: flex-end;
-  gap: 8px;
-  color: var(--ink-5);
-}
-
-.tile-primary-actions {
-  min-width: 0;
-  gap: 8px;
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.tile-overflow-menu {
-  display: none;
-}
-
-.tile-utility-actions {
-  gap: 4px;
-  padding-left: 12px;
-  margin-left: 12px;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-}
-
-.tile-danger-actions {
-  padding-left: 12px;
-  margin-left: 12px;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-}
-
-.terminal-tile:hover .tile-utility-actions,
-.terminal-tile:hover .tile-danger-actions,
-.terminal-tile:focus-within .tile-utility-actions,
-.terminal-tile:focus-within .tile-danger-actions {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-.tile-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 22px;
-  padding: 3px 10px 3px 8px;
-  border: 1px solid var(--ink-3);
-  border-radius: 7px;
-  background: var(--ink-1);
-  color: var(--ink-5);
-  font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: lowercase;
-  line-height: 1.2;
-}
-
-.terminal-status-label {
-  min-height: 22px;
-  border: 1px solid var(--ink-3);
-  border-radius: 7px;
-  padding: 0 7px;
-  background: var(--ink-1);
-  background-image: none;
-  box-shadow: none;
-  color: var(--ink-5);
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font: 650 11px/1 var(--sans);
-}
-
-.terminal-status-label::before {
-  box-shadow: none;
-}
-
-.terminal-status-label.tone-manual,
-.terminal-status-label.tone-shell,
-.terminal-status-label.tone-codex,
-.terminal-status-label.tone-claude {
-  color: var(--ink-5);
-  border-color: var(--ink-3);
-}
-
-.terminal-status-text {
-  max-width: 86px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  line-height: 1;
 }
 
 .session-status-glyph {
@@ -2150,46 +1880,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   color: var(--text-faint);
 }
 
-.tile-age {
-  min-width: 34px;
-  color: var(--ink-5);
-  font-family: var(--sans);
-  font-size: 12px;
-  text-align: right;
-  white-space: nowrap;
-}
-
-.tile-status::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: none;
-}
-
-.terminal-tile.real-terminal.connecting .tile-status,
-.terminal-tile.real-terminal.ready .tile-status,
-.terminal-tile.real-terminal.exited .tile-status,
-.terminal-tile.real-terminal.error .tile-status,
-.terminal-tile.real-terminal.browser .tile-status,
-.terminal-tile.real-terminal.restored .tile-status { color: var(--ink-5); }
-
-.terminal-tile.real-terminal.browser .tile-status.status-runtime {
-  color: var(--ink-5);
-}
-
-.terminal-tile.real-terminal.session-active {
-  border-color: var(--ink-3);
-}
-
-.terminal-tile.real-terminal.session-waiting {
-  border-color: var(--ink-5);
-  box-shadow: none;
-}
-
 .terminal-tile.real-terminal.browser {
-  border-color: var(--ink-3);
   background: var(--ink-0);
   opacity: 0.82;
 }
@@ -2197,417 +1888,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 .terminal-tile.real-terminal.browser .xterm-host {
   filter: grayscale(0.45);
   opacity: 0.76;
-}
-
-.terminal-tile.real-terminal.error .tile-status::before,
-.terminal-tile.real-terminal.session-waiting .tile-status::before {
-  box-shadow: none;
-}
-
-.tile-actions button {
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  min-height: 28px;
-  border: 1px solid var(--ink-3);
-  border-radius: 7px;
-  background: var(--ink-1);
-  background-image: none;
-  box-shadow: none;
-  color: var(--ink-5);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  opacity: 0.8;
-  transition:
-    border-color 140ms ease,
-    color 140ms ease,
-    opacity 140ms ease,
-    background 140ms ease,
-    box-shadow 140ms ease;
-}
-
-.terminal-tile:hover .tile-actions button,
-.tile-actions button:focus-visible {
-  opacity: 1;
-  outline-offset: -2px;
-}
-
-.tile-primary-actions button {
-  border-color: var(--ink-5);
-  color: var(--ink-6);
-}
-
-.tile-primary-actions button:hover,
-.tile-primary-actions button:focus-visible {
-  border-color: var(--ink-6);
-  background: var(--ink-2);
-}
-
-.tile-utility-actions button,
-.tile-danger-actions button {
-  border-color: var(--ink-3);
-  background: transparent;
-  color: var(--ink-5);
-}
-
-.tile-utility-actions button:hover,
-.tile-utility-actions button:focus-visible {
-  border-color: var(--ink-5);
-  background: var(--ink-2);
-  color: var(--ink-6);
-}
-
-.tile-danger-actions button:hover,
-.tile-danger-actions button:focus-visible {
-  border-color: var(--ink-5);
-  background: var(--ink-2);
-  color: var(--ink-6);
-}
-
-.tile-primary-actions .continue-button {
-  min-height: 28px;
-  max-width: 124px;
-  border-color: var(--ink-5);
-  border-radius: 7px;
-  padding: 0 10px;
-  background: var(--ink-1);
-  color: var(--ink-6);
-}
-
-.tile-primary-actions .continue-button span {
-  max-width: 86px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-@container terminal-tile (max-width: 680px) {
-  .tile-header {
-    grid-template-columns: minmax(0, 1fr) minmax(106px, 26%) auto;
-  }
-
-  .tile-title small {
-    gap: 4px;
-  }
-
-  .tile-title small span:last-child {
-    max-width: 8ch;
-  }
-
-  .tile-kind-mark .tile-kind-label {
-    display: none;
-  }
-
-  .tile-activity {
-    min-width: 0;
-  }
-
-  .tile-activity strong {
-    max-width: 72px;
-  }
-
-  .tile-activity small {
-    max-width: 11ch;
-  }
-
-  .tile-status {
-    max-width: 11ch;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .tile-age {
-    display: none;
-  }
-
-  .tile-actions {
-    gap: 4px;
-    justify-self: end;
-  }
-
-  .tile-action-group {
-    gap: 3px;
-    padding-left: 4px;
-    margin-left: 4px;
-  }
-
-  .tile-primary-actions {
-    gap: 3px;
-  }
-
-  .tile-utility-actions,
-  .tile-danger-actions {
-    padding-left: 4px;
-    margin-left: 4px;
-  }
-
-  .tile-actions .continue-button span,
-  .tile-actions .discard-session-button span {
-    display: none;
-  }
-
-  .tile-actions .continue-button,
-  .tile-actions .discard-session-button {
-    width: 32px;
-    min-width: 32px;
-    padding: 0;
-  }
-}
-
-@container terminal-tile (max-width: 620px) {
-  .tile-utility-actions,
-  .tile-danger-actions {
-    display: none;
-    flex: 0 0 0;
-    max-width: 0;
-    overflow: hidden;
-    padding-left: 0;
-    margin-left: 0;
-    border-left-width: 0;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-  }
-
-  .terminal-tile:hover .tile-utility-actions,
-  .terminal-tile:hover .tile-danger-actions,
-  .terminal-tile:focus-within .tile-utility-actions,
-  .terminal-tile:focus-within .tile-danger-actions {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-  }
-
-  .tile-overflow-menu {
-    display: inline-flex;
-  }
-}
-
-.tile-overflow-menu .chrome-menu-popover {
-  min-width: 180px;
-  width: 220px;
-  max-width: calc(100vw - 16px);
-  overflow: visible;
-}
-
-.tile-overflow-menu .chrome-menu-popover button {
-  width: 100%;
-  min-width: 0;
-  height: auto;
-  min-height: 30px;
-  padding: 6px 8px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  justify-content: stretch;
-  opacity: 1;
-}
-
-.terminal-tile:has(.tile-overflow-menu .chrome-menu-popover),
-.terminal-tile-header .tile-actions:has(.tile-overflow-menu .chrome-menu-popover) {
-  overflow: visible;
-}
-
-.terminal-tile:has(.tile-overflow-menu .chrome-menu-popover) {
-  z-index: 12;
-}
-
-@container terminal-tile (max-width: 520px) {
-  .terminal-tile-header {
-    --terminal-title-min: 72px;
-    --terminal-status-zone: max-content;
-    gap: 6px;
-  }
-
-  .tile-header {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .terminal-tile-header .tile-title {
-    flex-basis: 72px;
-    min-width: var(--terminal-title-min);
-  }
-
-  .terminal-tile-header .tile-title > div {
-    flex: 1 1 0;
-  }
-
-  .terminal-tile-header .tile-title small {
-    display: block;
-    width: 100%;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .terminal-tile-header .tile-title .session-location-value { display: inline; }
-
-  .tile-activity {
-    flex: 0 1 0;
-    min-width: 0;
-    max-width: 0;
-    padding-inline: 0;
-    border-color: transparent;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-  }
-
-  .tile-action-group {
-    border-left: 0;
-    padding-left: 4px;
-    margin-left: 4px;
-  }
-
-  .tile-action-group:first-child {
-    border-left: 0;
-    padding-left: 0;
-    margin-left: 0;
-  }
-
-  .tile-status {
-    max-width: 9ch;
-  }
-
-  .terminal-status-text {
-    max-width: none;
-  }
-}
-
-@container terminal-tile (max-width: 420px) {
-  .terminal-tile-header {
-    --terminal-title-min: 64px;
-  }
-
-  .tile-header {
-    gap: 6px;
-    padding-inline: 10px;
-  }
-
-  .tile-title {
-    gap: 7px;
-  }
-
-  .tile-kind-mark {
-    min-width: 32px;
-  }
-
-  .tile-status {
-    width: auto;
-    max-width: 64px;
-    padding: 0 5px;
-    gap: 4px;
-    font-size: 11px;
-  }
-
-  .tile-action-group {
-    gap: 3px;
-    padding-left: 2px;
-    margin-left: 2px;
-  }
-
-  .tile-actions button {
-    min-height: 32px;
-  }
-
-  .tile-actions .continue-button,
-  .tile-actions .discard-session-button {
-    width: 32px;
-    min-width: 32px;
-    min-height: 32px;
-    padding: 0;
-  }
-}
-
-.tile-actions button:hover,
-.tile-actions button:focus-visible {
-  border-color: var(--ink-5);
-  background: var(--ink-2);
-  color: var(--ink-6);
-  box-shadow: none;
-}
-
-.tile-actions .handoff-button:hover,
-.tile-actions .handoff-button:focus-visible {
-  border-color: var(--ink-5);
-  color: var(--ink-6);
-}
-
-.tile-actions .continue-button {
-  width: auto;
-  min-width: 88px;
-  gap: 6px;
-  padding: 0 10px;
-  color: var(--ink-6);
-  border-color: var(--ink-5);
-  background: var(--ink-1);
-}
-
-.tile-primary-actions .continue-button:not(.unsafe) {
-  border-color: var(--ink-5);
-  background: var(--ink-1);
-  color: var(--ink-6);
-}
-
-.tile-primary-actions .continue-button:not(.unsafe):hover,
-.tile-primary-actions .continue-button:not(.unsafe):focus-visible {
-  border-color: var(--ink-6);
-  background: var(--ink-2);
-  color: var(--ink-7);
-}
-
-.tile-actions .continue-button:hover,
-.tile-actions .continue-button:focus-visible {
-  border-color: var(--ink-6);
-  background: var(--ink-2);
-  color: var(--ink-7);
-}
-
-.tile-actions .continue-button.unsafe {
-  border-color: var(--ink-5);
-  background: var(--ink-1);
-  color: var(--ink-6);
-}
-
-.tile-actions .continue-button.unsafe.armed {
-  border-color: var(--ink-6);
-  background: var(--ink-2);
-  color: var(--ink-7);
-}
-
-.tile-actions .continue-button span {
-  font-family: var(--sans);
-  font-size: 11px;
-}
-
-.tile-actions .rename-session-button,
-.tile-actions .handoff-button {
-  color: var(--ink-5);
-}
-
-.tile-actions .discard-session-button {
-  width: auto;
-  gap: 6px;
-  padding: 0 7px;
-  border-color: transparent;
-  background: transparent;
-  color: var(--ink-5);
-  opacity: 0.72;
-}
-
-.tile-actions .discard-session-button:hover,
-.tile-actions .discard-session-button:focus-visible {
-  border-color: transparent;
-  background: var(--ink-2);
-  color: var(--ink-6);
-}
-
-.tile-actions .discard-session-button span {
-  font-family: var(--sans);
-  font-size: 11px;
 }
 
 .real-terminal .xterm {
@@ -2639,7 +1919,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  padding: 15px 16px;
+  padding: 18px 22px 0;
   letter-spacing: 0;
 }
 
@@ -2657,12 +1937,9 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   scrollbar-color: var(--ink-3) transparent;
 }
 
-.terminal-tile.real-terminal.selected {
-  outline: none;
-  outline-offset: 2px;
-  border-width: 1px;
-  border-color: color-mix(in oklab, var(--signal-focus) 34%, var(--border-strong));
-  box-shadow: none;
+/* xterm paints its viewport black by default, which framed the terminal inside its own box. */
+.terminal-tile .xterm-host .xterm-viewport {
+  background-color: var(--surface-terminal);
 }
 
 .terminal-action-strip {

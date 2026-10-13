@@ -40,7 +40,7 @@ test("terminal core flow preserves the real xterm and deck geometry", async ({ h
   await expect(page.locator('[data-testid="terminal-tile"][aria-hidden="true"]')).toHaveCount(2);
   await expect.poll(async () => page.evaluate(() => {
     const owner = document.querySelector(".terminal-grid-column");
-    const header = document.querySelector('[data-testid="terminal-tile"][data-session-id="manual-3"] .terminal-tile-header');
+    const header = document.querySelector('[data-testid="terminal-tile"][data-session-id="manual-3"] .session-strip');
     if (!(owner instanceof HTMLElement) || !(header instanceof HTMLElement)) return false;
     const ownerRect = owner.getBoundingClientRect();
     const headerRect = header.getBoundingClientRect();

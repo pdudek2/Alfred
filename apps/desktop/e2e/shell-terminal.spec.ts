@@ -19,8 +19,8 @@ const evidenceDir = path.resolve(import.meta.dirname, "../../../output/playwrigh
 type ShellGeometry = {
   headerHeight: number;
   visibleTileCount: number;
-  visibleTileHeaderCount: number;
-  tileHeaderHeights: number[];
+  visibleStripCount: number;
+  stripHeights: number[];
   frameHeight: number;
   alertStackHeight: number;
   workspaceLayoutHeight: number;
@@ -50,14 +50,14 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
 
   const r0 = await readShellGeometry(page);
   expect(r0.visibleTileCount).toBe(1);
-  expect(r0.visibleTileHeaderCount).toBe(1);
+  expect(r0.visibleStripCount).toBe(1);
   expect(
     r0.frameHeight - r0.headerHeight - r0.alertStackHeight,
     `R0 shell geometry: ${JSON.stringify(r0)}`,
   ).toBe(r0.workspaceLayoutHeight);
   const wideTile = visibleTerminalTiles(page).first();
-  await expect(wideTile.getByRole("button", { name: "Rename Manual · zsh 1" })).toBeVisible();
-  await expect(wideTile.locator(".tile-overflow-menu")).toBeHidden();
+  await expect(wideTile.getByRole("button", { name: "More actions for Manual · zsh 1" })).toBeVisible();
+  await expect(wideTile.locator("header")).toHaveCount(0);
   const bannerAlert = await proveBannerAlertGeometry(page);
   expect(bannerAlert.alertStackHeight).toBeGreaterThan(0);
   expect(
@@ -73,11 +73,11 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-2"]')).not.toHaveAttribute("aria-hidden", "true");
   await expect(page.getByRole("complementary", { name: /^Other sessions in / }).locator('[data-session-id="manual-1"]')).toBeVisible();
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
-  // The focused tile keeps its header until the top bar carries the session title and actions.
-  await expect(visibleTerminalTiles(page).locator(".terminal-tile-header")).toHaveCount(1);
+  // The focused tile has no header: its strip sits under the terminal.
+  await expect(visibleTerminalTiles(page).locator(".session-strip")).toHaveCount(1);
   const r1 = await readShellGeometry(page);
   expect(r1.visibleTileCount).toBe(1);
-  expect(r1.visibleTileHeaderCount).toBe(1);
+  expect(r1.visibleStripCount).toBe(1);
   await page.locator(".terminal-grid-column").evaluate((node) => {
     node.scrollTop = 900;
   });
@@ -138,9 +138,8 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
   await setWindowSize(app, page, 1120, 720);
   const narrowTile = visibleTerminalTiles(page).first();
-  const compactActionsTrigger = narrowTile.locator(".tile-overflow-menu .chrome-menu-trigger");
+  const compactActionsTrigger = narrowTile.locator(".session-strip-menu .chrome-menu-trigger");
   await expect(compactActionsTrigger).toBeVisible();
-  await expect(narrowTile.locator(".tile-utility-actions .rename-session-button")).toBeHidden();
   await compactActionsTrigger.click();
   await expect(
     narrowTile.getByRole("menuitem", { name: /Open in external terminal/ }),
@@ -305,9 +304,9 @@ async function readShellGeometry(page: Page): Promise<ShellGeometry> {
     const visibleTiles = Array.from(
       document.querySelectorAll<HTMLElement>('[data-testid="terminal-tile"]:not([aria-hidden="true"])'),
     );
-    const visibleTileHeaders = Array.from(
+    const visibleStrips = Array.from(
       document.querySelectorAll<HTMLElement>(
-        '[data-testid="terminal-tile"]:not([aria-hidden="true"]) .terminal-tile-header',
+        '[data-testid="terminal-tile"]:not([aria-hidden="true"]) .session-strip',
       ),
     );
     const terminalColumn = document.querySelector<HTMLElement>(".terminal-grid-column");
@@ -322,8 +321,8 @@ async function readShellGeometry(page: Page): Promise<ShellGeometry> {
     return {
       headerHeight: header.getBoundingClientRect().height,
       visibleTileCount: visibleTiles.length,
-      visibleTileHeaderCount: visibleTileHeaders.length,
-      tileHeaderHeights: visibleTileHeaders.map((node) => node.getBoundingClientRect().height),
+      visibleStripCount: visibleStrips.length,
+      stripHeights: visibleStrips.map((node) => node.getBoundingClientRect().height),
       frameHeight: frame.getBoundingClientRect().height,
       alertStackHeight: alertStack.getBoundingClientRect().height,
       workspaceLayoutHeight: workspaceLayout.getBoundingClientRect().height,
