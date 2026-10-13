@@ -193,6 +193,9 @@ export function TerminalDesk({
   // One focused terminal; the rest wait in the stack. Focus follows the selection only, never runtime events.
   const focusSession = liveSessions.find((session) => session.id === selectedSessionId) ?? liveSessions[0] ?? null;
   const stackSessions = liveSessions.filter((session) => session.id !== focusSession?.id);
+  // The plan line belongs to the stack and hides with it. A project with nothing live has no stack,
+  // so there it sits above the empty state.
+  const stackVisible = focusSession !== null && !stackHidden && !worktreeDiffView;
   const renderedSessions = sessions.filter((session) => isWorkSession(session) && session.stage === "live");
   // A draft opened in Details must not hand the selection (and terminal focus) to a live tile.
   const inspectedSession = draftSelected ? null : focusSession;
@@ -259,7 +262,7 @@ export function TerminalDesk({
               onReviewWorktree={onReviewWorktree}
             />
           )}
-          {hasDrafts && planLine}
+          {hasDrafts && focusSession === null && planLine}
           <div className="terminal-grid" data-testid="terminal-grid" ref={gridRef}>
           {liveSessions.length === 0 && (
             <EmptyWorkspaceState
@@ -334,9 +337,10 @@ export function TerminalDesk({
           })}
           </div>
         </div>
-        {focusSession && !stackHidden && !worktreeDiffView && (
+        {stackVisible && (
           <SessionStack
             asleepCount={asleepCount}
+            planLine={hasDrafts ? planLine : null}
             sessions={stackSessions}
             workspaceLabel={workspaceLabel}
             onFocusSession={onFocusSession}

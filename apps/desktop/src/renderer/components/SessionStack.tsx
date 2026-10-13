@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { SessionTile } from "../session-state";
 import { sessionState, type SessionDisplayStatus, type SessionStateKind } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
@@ -17,13 +17,14 @@ const STACK_GROUPS: ReadonlyArray<{ label: string; kinds: readonly SessionStateK
 
 type SessionStackProps = {
   asleepCount: number;
+  planLine?: ReactNode;
   sessions: SessionTile[];
   workspaceLabel: string;
   onFocusSession: (sessionId: string) => void;
   onOpenAsleep: () => void;
 };
 
-export function SessionStack({ asleepCount, sessions, workspaceLabel, onFocusSession, onOpenAsleep }: SessionStackProps) {
+export function SessionStack({ asleepCount, planLine, sessions, workspaceLabel, onFocusSession, onOpenAsleep }: SessionStackProps) {
   const now = useStackClock(sessions.length > 0);
   const states = new Map(sessions.map((session) => [session.id, sessionState(session, "ready", now)]));
   const groups = STACK_GROUPS.map((group) => ({
@@ -56,6 +57,7 @@ export function SessionStack({ asleepCount, sessions, workspaceLabel, onFocusSes
           </section>
         ))}
       </div>
+      {planLine}
       {asleepCount > 0 && (
         <button
           type="button"
