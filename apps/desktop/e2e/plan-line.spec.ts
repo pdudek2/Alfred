@@ -22,10 +22,13 @@ test("launches and discards drafts from the plan line without touching live term
   const planLine = page.locator(".plan-line");
   const trigger = planLine.locator(".plan-line__disclose");
   await expect(trigger).toContainText("Fixture plan");
-  await expect(trigger).toContainText("3 drafts · 1 needs you");
+  await expect(trigger).toContainText("2 ready");
   await expect(planLine.getByRole("button", { name: "Launch 2 ready drafts" })).toBeEnabled();
   await expect(page.getByTestId("terminal-tile")).toHaveCount(0);
   await expect(page.getByRole("status", { name: "Empty project" })).toContainText("Nothing is running");
+  // No live session means no stack, so the plan line stays above the empty state.
+  const stack = page.getByRole("complementary", { name: /^Other sessions in / });
+  await expect(stack).toHaveCount(0);
   await capture(page, "drafts-only");
 
   await page.getByRole("button", { name: "New", exact: true }).click();
@@ -36,11 +39,19 @@ test("launches and discards drafts from the plan line without touching live term
   await expect(xtermHost.locator(".xterm-screen")).toBeAttached();
   const hostBefore = await requiredHandle(xtermHost, "manual xterm host");
   await settleTerminalTileAnimations(page);
+  // With a session in focus the plan line moves to the bottom of the stack.
+  await expect(stack.locator(".plan-line")).toBeVisible();
+  const stackBox = await geometry(stack);
+  const rowBox = await geometry(planLine.locator(".plan-line__row"));
+  expect(rowBox.y).toBeGreaterThan(stackBox.y + stackBox.height / 2);
   const tileBefore = await geometry(page.getByTestId("terminal-tile").first());
   await capture(page, "closed");
 
-  // The list overlays the terminals instead of pushing them down.
+  // The list opens upward and overlays the terminals instead of moving them.
   const drafts = await openPlan(page);
+  const listBox = await geometry(drafts);
+  expect(listBox.y + listBox.height).toBeLessThanOrEqual(rowBox.y);
+  expect(listBox.x).toBeGreaterThanOrEqual(0);
   await expect(drafts.getByRole("listitem")).toHaveCount(3);
   await expect(drafts.getByRole("listitem", { name: "Draft Fixture item 5" }))
     .toContainText("Blocked: Fixture safety policy blocks launch outside the approved root.");
@@ -65,7 +76,7 @@ test("launches and discards drafts from the plan line without touching live term
   await page.keyboard.press("Escape");
   await planLine.getByRole("button", { name: "Launch 1 ready draft" }).click();
   await expect(page.locator('[data-session-id="fixture-item-3"] .xterm-screen')).toBeAttached();
-  await expect(trigger).toContainText("1 draft · 1 needs you");
+  await expect(trigger).toContainText("0 ready");
   await expect(planLine.getByRole("button", { name: "Launch ready drafts" })).toBeDisabled();
 
   await openPlan(page);
@@ -76,7 +87,7 @@ test("launches and discards drafts from the plan line without touching live term
 
   // The other project's drafts stay on its own line.
   await page.getByRole("button", { name: "Fixture Beta project" }).click();
-  await expect(page.locator(".plan-line__disclose")).toContainText("2 drafts");
+  await expect(page.locator(".plan-line__disclose")).toContainText("2 ready");
   harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();
 });

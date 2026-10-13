@@ -367,6 +367,11 @@ async function headerGeometry(header: Locator): Promise<Array<{ width: number; x
 }
 
 async function expectNativeTerminalInk(app: ElectronApplication, screen: Locator): Promise<void> {
+  // A hidden window can hand back a blank frame before the compositor catches up, so wait for ink.
+  await expect.poll(() => nativeTerminalInk(app, screen)).toBeGreaterThan(50);
+}
+
+async function nativeTerminalInk(app: ElectronApplication, screen: Locator): Promise<number> {
   const bounds = await screen.boundingBox();
   if (!bounds) throw new Error("Terminal screen has no native capture bounds.");
   const pixels = await app.evaluate(async ({ BrowserWindow }, rect) => {
@@ -386,7 +391,7 @@ async function expectNativeTerminalInk(app: ElectronApplication, screen: Locator
       inkPixels += 1;
     }
   }
-  expect(inkPixels).toBeGreaterThan(50);
+  return inkPixels;
 }
 
 async function requiredHandle(locator: Locator, label: string): Promise<ElementHandle<HTMLElement>> {
