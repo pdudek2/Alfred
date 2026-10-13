@@ -7,7 +7,7 @@ import { DetailsChanges } from "./DetailsChanges";
 const { worktreeDiff } = vi.hoisted(() => ({ worktreeDiff: vi.fn() }));
 vi.mock("../desktop-api", () => ({ getDesktopTerminalApi: () => ({ worktreeDiff }) }));
 const session: SessionTile = { id: "a", workspaceId: "A", title: "Codex", source: "manual", stage: "live", cwd: "/repo/wt", isolation: "worktree", branchName: "feature", baseCwd: "/repo" };
-const props = { open: true, session, projectName: "Alfred", pending: false, onReview: vi.fn(), onApply: vi.fn() };
+const props = { open: true, session, projectName: "Alfred", onReview: vi.fn(), onApply: vi.fn() };
 const changes = { ok: true, summary: "1 file changed", files: [{ path: "a.ts", status: " M" }], patch: "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-old\n+new\n" };
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 

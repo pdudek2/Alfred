@@ -580,7 +580,6 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     onBindWorkspace: vi.fn(),
     onAddAgentSession: vi.fn(),
     onAddManualSession: vi.fn(),
-    onApplyWorktree: vi.fn(),
     onCloseSession: vi.fn(),
     onCloseWorktreeDiff: vi.fn(),
     onContinueRestoredSession: vi.fn(),
@@ -601,7 +600,6 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
     onSelectSession: vi.fn(),
     onApproveTile: vi.fn(),
     onRejectTile: vi.fn(),
-    onReviewWorktree: vi.fn(),
   };
   const renderDesk = (nextSessions: SessionTile[], selectedSessionId = nextSessions[0]?.id ?? null) => (
     <TerminalDesk
@@ -613,7 +611,6 @@ function renderTerminalDeskForSessions(sessions: SessionTile[]) {
       stackHidden={false}
       surfaceActive
       terminalFocusRequestKey={0}
-      worktreeActionPending={{}}
       worktreeDiffReturnFocus={null}
       worktreeDiffView={null}
       workspaceLabel="Alfred"
@@ -695,6 +692,14 @@ async function selectSurface(user: ReturnType<typeof userEvent.setup>, label: ke
 async function sessionMenuAction(user: ReturnType<typeof userEvent.setup>, title: string, action: RegExp | string) {
   await user.click(screen.getByRole("button", { name: `More actions for ${title}` }));
   await user.click(screen.getByRole("menuitem", { name: action }));
+}
+
+// Review diff and Apply live in Details, under Changes, once the checkout's changes have loaded.
+async function checkoutActions(user: ReturnType<typeof userEvent.setup>) {
+  if (!screen.queryByRole("tab", { name: "Details", selected: true })) await selectSurface(user, "Details");
+  const changes = within(screen.getByRole("complementary", { name: "Details" })).getByRole("region", { name: "Changes" });
+  await within(changes).findByRole("button", { name: "Review diff" });
+  return changes;
 }
 
 async function openNewTerminal(user: ReturnType<typeof userEvent.setup>) {
@@ -5672,10 +5677,10 @@ describe("App integration", () => {
     render(<App />);
 
     await screen.findByRole("article", { name: /Codex · isolated review/i });
-    await selectSurface(user, "Details");
-
-    const checkoutActions = screen.getByRole("toolbar", { name: "checkout actions for Codex · isolated review" });
-    await user.click(within(checkoutActions).getByRole("button", { name: "Review diff" }));
+    // The checkout's actions are not above the terminal any more; they sit in Details under Changes.
+    expect(screen.queryByRole("toolbar", { name: /checkout actions/i })).not.toBeInTheDocument();
+    const actions = await checkoutActions(user);
+    await user.click(within(actions).getByRole("button", { name: "Review diff" }));
 
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-1" });
     await waitFor(() => {
@@ -5685,7 +5690,7 @@ describe("App integration", () => {
     });
     await user.click(screen.getByRole("button", { name: "Close diff" }));
 
-    await user.click(within(checkoutActions).getByRole("button", { name: "Apply to project" }));
+    await user.click(await within(actions).findByRole("button", { name: "Apply to Alfred" }));
 
     expect(worktreeApply).toHaveBeenCalledWith({ clientId: "codex-1" });
     await waitFor(() => {
@@ -5741,12 +5746,12 @@ describe("App integration", () => {
     await waitFor(() => expect(window.alfredDesktop?.terminal.onExit).toHaveBeenCalled());
     await bridge.emitExit({ id: "runtime-diff-reader", exitCode: 0 });
 
-    const reviewDiff = await screen.findByRole("button", { name: "Review diff" });
+    const reviewDiff = within(await checkoutActions(user)).getByRole("button", { name: "Review diff" });
     await user.click(reviewDiff);
 
     expect(bridge.worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-diff-reader" });
-    expect(await screen.findByRole("region", { name: "Worktree diff" })).toBeInTheDocument();
-    expect(screen.getByText("src/live.ts")).toBeInTheDocument();
+    const diffRegion = await screen.findByRole("region", { name: "Worktree diff" });
+    expect(within(diffRegion).getByText("src/live.ts")).toBeInTheDocument();
     expect(screen.getByLabelText("Removed line 1")).toHaveTextContent("-old value");
     expect(screen.getByLabelText("Added line 1")).toHaveTextContent("+new value");
     expect(xtermHost.isConnected).toBe(true);
@@ -5804,11 +5809,13 @@ describe("App integration", () => {
         buffer: "",
       },
     ]);
-    bridge.worktreeDiff.mockReturnValueOnce(pendingDiff.promise);
 
     render(<App />);
     await screen.findByRole("article", { name: /Original diff reader/i });
-    await user.click(screen.getByRole("button", { name: "Review diff" }));
+    // Details loads the checkout's changes first; the review that follows is the request left pending.
+    const actions = await checkoutActions(user);
+    bridge.worktreeDiff.mockReturnValueOnce(pendingDiff.promise);
+    await user.click(within(actions).getByRole("button", { name: "Review diff" }));
     expect(await screen.findByText("Loading checkout diff…")).toBeInTheDocument();
 
     vi.mocked(window.alfredDesktop!.terminal.list).mockResolvedValue({
@@ -5841,6 +5848,7 @@ describe("App integration", () => {
   });
 
   it("keeps isolated checkout apply actions single-flight", async () => {
+    const user = userEvent.setup();
     let resolveApply!: (value: { ok: true; appliedFiles: number }) => void;
     const { worktreeApply } = installDesktopBridge(undefined, null, [
       {
@@ -5868,8 +5876,8 @@ describe("App integration", () => {
     render(<App />);
 
     await screen.findByRole("article", { name: /Codex · isolated review/i });
-    const checkoutActions = screen.getByRole("toolbar", { name: "checkout actions for Codex · isolated review" });
-    const applyButton = within(checkoutActions).getByRole("button", { name: "Apply to project" });
+    const actions = await checkoutActions(user);
+    const applyButton = within(actions).getByRole("button", { name: "Apply to Alfred" });
 
     fireEvent.click(applyButton);
     fireEvent.click(applyButton);
@@ -5884,7 +5892,7 @@ describe("App integration", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Applied to project");
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("1 file applied");
-      expect(within(checkoutActions).getByRole("button", { name: "Apply to project" })).not.toBeDisabled();
+      expect(within(actions).getByRole("button", { name: "Apply to Alfred" })).not.toBeDisabled();
     });
   });
 
@@ -5917,9 +5925,9 @@ describe("App integration", () => {
     render(<App />);
 
     const tile = await screen.findByRole("article", { name: /Codex · isolated review/i });
-    const checkoutActions = screen.getByRole("toolbar", { name: "checkout actions for Codex · isolated review" });
-    fireEvent.click(within(checkoutActions).getByRole("button", { name: "Apply to project" }));
-    await waitFor(() => expect(within(checkoutActions).getByRole("button", { name: "Applying..." })).toBeDisabled());
+    const actions = await checkoutActions(user);
+    fireEvent.click(within(actions).getByRole("button", { name: "Apply to Alfred" }));
+    await waitFor(() => expect(within(actions).getByRole("button", { name: "Applying..." })).toBeDisabled());
 
     await sessionMenuAction(user, "Codex · isolated review", "Rename session");
     const input = within(tile).getByRole("textbox", { name: "Rename Codex · isolated review" });
@@ -5927,14 +5935,13 @@ describe("App integration", () => {
     await user.type(input, "Spec reviewer{Enter}");
 
     expect(renameTerminal).toHaveBeenCalledWith({ clientId: "codex-1", title: "Spec reviewer" });
-    expect(screen.getByRole("toolbar", { name: "checkout actions for Spec reviewer" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Applying..." })).toBeDisabled();
 
     resolveApply({ ok: true, appliedFiles: 1 });
     await waitFor(() => {
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Applied to project");
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("1 file applied");
-      expect(screen.getByRole("button", { name: "Apply to project" })).not.toBeDisabled();
+      expect(screen.getByRole("button", { name: "Apply to Alfred" })).not.toBeDisabled();
     });
   });
 
@@ -5970,8 +5977,8 @@ describe("App integration", () => {
     render(<App />);
 
     await screen.findByRole("article", { name: /Codex · isolated review/i });
-    const oldActions = screen.getByRole("toolbar", { name: "checkout actions for Codex · isolated review" });
-    fireEvent.click(within(oldActions).getByRole("button", { name: "Apply to project" }));
+    const oldActions = await checkoutActions(user);
+    fireEvent.click(within(oldActions).getByRole("button", { name: "Apply to Alfred" }));
     await waitFor(() => expect(within(oldActions).getByRole("button", { name: "Applying..." })).toBeDisabled());
 
     await user.click(screen.getByRole("button", { name: "Open command palette" }));
@@ -6002,6 +6009,7 @@ describe("App integration", () => {
   });
 
   it("keeps explicit shared sessions visually quiet even if stale checkout metadata exists", async () => {
+    const user = userEvent.setup();
     const { worktreeApply, worktreeDiff } = installDesktopBridge(undefined, null, [
       {
         id: "runtime-codex",
@@ -6024,10 +6032,12 @@ describe("App integration", () => {
     render(<App />);
 
     await screen.findByRole("article", { name: /Codex · shared review/i });
+    await selectSurface(user, "Details");
 
-    expect(screen.queryByRole("toolbar", { name: /checkout actions/i })).not.toBeInTheDocument();
+    const changes = within(screen.getByRole("complementary", { name: "Details" })).getByRole("region", { name: "Changes" });
+    expect(changes).toHaveTextContent("No worktree changes.");
     expect(screen.queryByRole("button", { name: "Review diff" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Apply to project" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Apply to / })).not.toBeInTheDocument();
     expect(worktreeDiff).not.toHaveBeenCalled();
     expect(worktreeApply).not.toHaveBeenCalled();
   });
@@ -8934,17 +8944,18 @@ describe("App integration", () => {
         activeWorkspaceId: "A",
       },
     );
-    worktreeDiff.mockResolvedValueOnce({
-      ok: false,
-      error: "Project root no longer matches this checkout.",
-    });
 
     render(<App />);
 
     await screen.findByRole("article", { name: /Codex recovery/i });
-    await user.click(screen.getByRole("button", { name: "Review diff" }));
+    // Details loads the changes first; the review that follows is the one the rebound project rejects.
+    const actions = await checkoutActions(user);
+    worktreeDiff.mockResolvedValueOnce({
+      ok: false,
+      error: "Project root no longer matches this checkout.",
+    });
+    await user.click(within(actions).getByRole("button", { name: "Review diff" }));
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-private" });
-    await selectSurface(user, "Details");
 
     await waitFor(() => {
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent(

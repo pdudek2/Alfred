@@ -1947,54 +1947,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   background-color: var(--surface-terminal);
 }
 
-.terminal-action-strip {
-  flex-shrink: 0;
-  font: 400 12px/1.4 var(--sans);
-  min-height: 38px;
-  border: 1px solid var(--ink-3);
-  border-radius: 7px;
-  padding: 5px;
-  background: var(--ink-1);
-  color: var(--ink-6);
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.terminal-action-strip::-webkit-scrollbar {
-  display: none;
-}
-
-.terminal-action-strip button {
-  min-height: 28px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  padding: 0 10px 0 8px;
-  background: transparent;
-  color: var(--ink-5);
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  white-space: nowrap;
-  font: 700 12px var(--sans);
-}
-
-.terminal-action-strip button.active,
-.terminal-action-strip button[aria-pressed="true"] {
-  border-color: var(--ink-5);
-  background: var(--ink-2);
-  color: var(--ink-7);
-  box-shadow: none;
-}
-
-.terminal-action-strip button:hover,
-.terminal-action-strip button:focus-visible {
-  border-color: var(--ink-5);
-  color: var(--ink-6);
-}
-
 /* Composer */
 /* Command palette and privacy modal */
 .discard-checkout-backdrop,

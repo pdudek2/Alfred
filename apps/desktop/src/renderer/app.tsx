@@ -2740,7 +2740,6 @@ export function App() {
                   }
                   surfaceActive={!workSurfaceHidden}
                   terminalFocusRequestKey={terminalFocusRequestKey}
-                  worktreeActionPending={worktreeActionPending}
                   worktreeDiffReturnFocus={worktreeDiffReturnFocusRef.current}
                   worktreeDiffView={worktreeDiffView}
                   workspaceGitBranch={activeWorkspace.gitBranch}
@@ -2751,7 +2750,6 @@ export function App() {
                   onAddAgentSession={(kind) => openNewSession(kind)}
                   onOpenPlan={() => openNewSession("plan")}
                   onAddManualSession={() => openNewSession("terminal")}
-                  onApplyWorktree={handleApplyWorktree}
                   onCloseSession={handleCloseSession}
                   onCloseWorktreeDiff={handleCloseWorktreeDiff}
                   onContinueRestoredSession={handleContinueRestoredSession}
@@ -2770,7 +2768,6 @@ export function App() {
                   onRenameSession={handleRenameSession}
                   onFocusSession={handleFocusSession}
                   onSelectSession={handleSelectSession}
-                  onReviewWorktree={handleReviewWorktree}
                   planLine={
                     <PlanLine
                       key={activeWorkspace.id}
@@ -2834,7 +2831,7 @@ export function App() {
                 open={activeContextDrawerOpen}
                 session={activeInspectedSession}
                 projectName={activeWorkspace.label}
-                pending={Boolean(activeInspectedSession && worktreeActionPending[sessionInstanceKey(activeInspectedSession)])}
+                pendingAction={activeInspectedSession ? worktreeActionPending[sessionInstanceKey(activeInspectedSession)] : undefined}
                 onReview={handleReviewWorktree}
                 onApply={handleApplyWorktree}
               />,
