@@ -667,7 +667,7 @@ async function openSavedSessions(user: ReturnType<typeof userEvent.setup>) {
 
 // Drafts live in the plan line's list, which starts closed.
 async function openPlan(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole("button", { name: /\d+ drafts?/, expanded: false }));
+  await user.click(await screen.findByRole("button", { name: /\d+ ready$/, expanded: false }));
   return screen.getByRole("list", { name: /^Drafts in / });
 }
 
@@ -1566,7 +1566,7 @@ describe("App integration", () => {
 
     await waitFor(() => expect(clearSavedTerminalData).toHaveBeenCalledOnce());
     await waitFor(() => expect(screen.queryByRole("listitem", { name: /Draft to clear/i })).not.toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: /\d+ drafts?/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
   });
 
   it("does not refresh external Codex sessions when indexing is disabled", async () => {
@@ -4281,7 +4281,7 @@ describe("App integration", () => {
     const emptyState = await screen.findByRole("status", { name: "Unavailable project folder" });
     expect(emptyState).toHaveTextContent("Draft work stays parked until you reconnect this project.");
     expect(screen.queryByRole("listitem", { name: /Draft Prepared task/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /\d+ drafts?/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Launch Prepared task" })).not.toBeInTheDocument();
 
     await openNeedsYouFromCommandPalette(user);
@@ -7762,6 +7762,9 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Edit command" }));
     expect(screen.getByLabelText("Command")).toHaveValue("pnpm");
     expect(screen.getByLabelText("Arguments")).toHaveValue("test\n--watch");
+    // Details replaces the stack, plan line included; closing it brings the plan line back.
+    expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Close Details panel" }));
     await openPlan(user);
     expect(screen.getByRole("listitem", { name: "Draft Run tests" })).toHaveTextContent("Shell · edited");
   });
@@ -7878,7 +7881,7 @@ describe("App integration", () => {
     }));
 
     await user.click(screen.getByRole("button", { name: /ClientApp project/ }));
-    expect(screen.getByRole("button", { name: /Client work.*1 draft/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Client work.*1 ready$/ })).toBeInTheDocument();
     await openPlan(user);
     expect(screen.getByRole("listitem", { name: "Draft Client draft" })).toBeInTheDocument();
 
@@ -7886,10 +7889,10 @@ describe("App integration", () => {
     await openPlan(user);
     await user.click(screen.getByRole("button", { name: "Discard Discard locally" }));
     await waitFor(() => expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-a-discard"] }));
-    expect(screen.queryByRole("button", { name: /\d+ drafts?/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /ClientApp project/ }));
-    expect(screen.getByRole("button", { name: /Client work.*1 draft/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Client work.*1 ready$/ })).toBeInTheDocument();
     await openPlan(user);
     expect(screen.getByRole("listitem", { name: "Draft Client draft" })).toBeInTheDocument();
     expect(resolveStagedPlan).not.toHaveBeenCalledWith({ sessionIds: ["alfred-b"] });
@@ -9518,7 +9521,7 @@ describe("App integration", () => {
       expect(resolveStagedPlan).toHaveBeenCalledWith({ sessionIds: ["alfred-7"] });
     });
     expect(screen.queryByRole("listitem", { name: /Draft Restored shell/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /\d+ drafts?/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
     expect(screen.queryByText("Resolve the current Alfred plan")).not.toBeInTheDocument();
   });
 
@@ -9563,7 +9566,7 @@ describe("App integration", () => {
     expect(screen.queryAllByTestId("terminal-tile")).toHaveLength(0);
     expect(screen.queryByText("stale restored output")).not.toBeInTheDocument();
     expect(screen.queryByRole("listitem", { name: /Draft Actionable draft command/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /\d+ drafts?/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Launch Actionable draft command/i })).not.toBeInTheDocument();
   });
 
@@ -9632,7 +9635,7 @@ describe("App integration", () => {
     expect(screen.queryByRole("listitem", { name: "Draft Task A" })).not.toBeInTheDocument();
     await user.click(within(screen.getByRole("listitem", { name: /Draft Task B/i })).getByRole("button", { name: "Discard Task B" }));
     expect(screen.queryByRole("listitem", { name: "Draft Task B" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /\d+ drafts?/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
     await openNewPlan(user);
     await user.type(screen.getByLabelText("Goal"), "second after reject");
     await user.click(screen.getByRole("button", { name: "Start" }));
@@ -9817,7 +9820,7 @@ describe("App integration", () => {
     const blockedDraft = within(drafts).getByRole("listitem", { name: "Draft Risky cleanup" });
     expect(blockedDraft).toHaveTextContent("Blocked: rm -rf detected");
     expect(within(blockedDraft).queryByRole("button", { name: "Launch Risky cleanup" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /2 drafts · 1 needs you/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Blocked launch plan.*1 ready/ })).toBeInTheDocument();
 
     await user.click(within(blockedDraft).getByRole("button", { name: /^Edit / }));
 
@@ -9856,10 +9859,14 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "Start" }));
     const createsBefore = createTerminal.mock.calls.length;
 
+    // With a live session in focus the plan line sits in the stack, not above the terminal.
+    const stack = await screen.findByRole("complementary", { name: "Other sessions in Alfred" });
+    expect(await within(stack).findByRole("button", { name: "Launch 2 ready drafts" })).toBeInTheDocument();
+
     await user.click(await screen.findByRole("button", { name: "Launch 2 ready drafts" }));
 
     await waitFor(() => expect(createTerminal.mock.calls.length - createsBefore).toBe(2));
-    expect(await screen.findByRole("button", { name: /1 draft · 1 needs you/ })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Mixed plan.*0 ready/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Launch ready drafts" })).toBeDisabled();
     const drafts = await openPlan(user);
     expect(within(drafts).getAllByRole("listitem").map((item) => item.getAttribute("aria-label"))).toEqual([
@@ -9929,6 +9936,7 @@ describe("App integration", () => {
     expect(screen.getByRole("region", { name: "Edit draft command for Blocked Codex" })).toBeInTheDocument();
     expect(createTerminal).not.toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-2" }));
 
+    await user.click(screen.getByRole("button", { name: "Close Details panel" }));
     await openPlan(user);
     expect(screen.getByRole("listitem", { name: "Draft Blocked Codex" })).toHaveTextContent(
       "Blocked: Project has uncommitted or untracked changes.",
@@ -10275,6 +10283,7 @@ describe("App integration", () => {
         workspace: expect.any(Object),
       });
     });
+    await user.click(screen.getByRole("button", { name: "Close Details panel" }));
     await openPlan(user);
     const editedDraft = screen.getByRole("listitem", { name: "Draft Blocked Codex" });
     expect(editedDraft).toHaveTextContent("Codex · edited");

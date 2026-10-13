@@ -94,6 +94,26 @@ describe("SessionStack", () => {
     expect(screen.getByText("No other sessions in this project.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /asleep/ })).not.toBeInTheDocument();
   });
+
+  it("keeps the plan line under the groups and above the asleep line", () => {
+    render(
+      <SessionStack
+        asleepCount={2}
+        planLine={<div data-testid="plan-line" />}
+        workspaceLabel="Alfred"
+        sessions={[session("idle shell", { shellBusy: false })]}
+        onFocusSession={vi.fn()}
+        onOpenAsleep={vi.fn()}
+      />,
+    );
+
+    const stack = screen.getByRole("complementary", { name: "Other sessions in Alfred" });
+    const planLine = within(stack).getByTestId("plan-line");
+    const lastGroup = within(stack).getAllByRole("region").at(-1)!;
+    const asleep = within(stack).getByRole("button", { name: "Browse 2 asleep sessions" });
+    expect(lastGroup.compareDocumentPosition(planLine) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(planLine.compareDocumentPosition(asleep) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
 
 describe("stackPreviewLine", () => {
