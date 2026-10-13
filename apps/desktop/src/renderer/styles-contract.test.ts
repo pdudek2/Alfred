@@ -753,7 +753,7 @@ describe("renderer CSS contracts", () => {
 
     expect(contextColumn).toContain("display: block");
     expect(contextDrawer).toContain("overflow: hidden");
-    expect(contextDrawer).toContain("grid-template-rows: 32px minmax(0, 1fr)");
+    expect(contextDrawer).toContain("grid-template-rows: auto minmax(0, 1fr)");
     expect(blockFor(".context-drawer .agent-timeline-panel")).toContain("animation: none");
     expect(timelineBody).toContain("overflow-y: auto");
   });

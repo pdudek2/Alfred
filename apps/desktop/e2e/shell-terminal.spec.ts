@@ -133,7 +133,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   await expect(page.getByRole("complementary", { name: "Details" })).toBeVisible();
   identityTransitions["Work→Context"] = await isSameConnectedNode(firstScreenHandle, firstScreen);
   expect(identityTransitions["Work→Context"]).toBe(true);
-  await page.getByRole("button", { name: "Close Details panel" }).click();
+  await page.getByRole("tab", { name: "Sessions" }).click();
 
   await expect(visibleTerminalTiles(page)).toHaveCount(1);
   await setWindowSize(app, page, 1120, 720);
@@ -168,7 +168,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(contextBounds!.width).toBeCloseTo(viewportWidth * 0.24, 0);
   expect(contextBounds!.x + contextBounds!.width).toBeCloseTo(viewportWidth - 16, 0);
   expect(terminalBounds!.x + terminalBounds!.width).toBeLessThanOrEqual(contextBounds!.x);
-  await page.getByRole("button", { name: "Close Details panel" }).click();
+  await page.getByRole("tab", { name: "Sessions" }).click();
 
   const surfacesTrigger = surfaceButton(page, "Local Data & Privacy");
   await selectSurface(page, "Local Data & Privacy");
@@ -260,7 +260,7 @@ async function selectSurface(
   surface: "Work" | "History" | "Details" | "Local Data & Privacy",
 ): Promise<void> {
   if (surface === "Details") {
-    await page.getByRole("button", { name: "Details", exact: true }).click();
+    await page.getByRole("tab", { name: "Details" }).click();
     return;
   }
   await surfaceButton(page, surface).click();
