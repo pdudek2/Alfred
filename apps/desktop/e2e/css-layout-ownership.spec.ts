@@ -47,10 +47,8 @@ const extendedVisualProbes: CssOwnerProbe[] = [
 ];
 
 const terminalProbes: CssOwnerProbe[] = [
-  { name: "preview-split", selector: ".workspace-preview-split.open", required: false,
-    properties: ["display", "grid-template-columns", "min-width", "overflow"] },
-  { name: "preview-dock", selector: ".workspace-preview-dock", required: false,
-    properties: ["display", "width", "min-width", "overflow", "background-color"] },
+  { name: "preview-layer", selector: ".terminal-tile-preview", required: false,
+    properties: ["display", "grid-row-start", "grid-column-start", "min-width", "background-color"] },
   { name: "workbench-surface", selector: "[data-testid='workbench-surface']", required: true,
     properties: ["display", "min-width", "min-height", "overflow", "background-color"] },
   { name: "terminal-stage", selector: "[data-testid='desk-runtime-surface']", required: true,

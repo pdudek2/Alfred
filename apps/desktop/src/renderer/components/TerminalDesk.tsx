@@ -129,6 +129,8 @@ type TerminalDeskProps = {
   onSelectSession: (sessionId: string) => void;
   onReviewWorktree: (sessionId: string) => void;
   planLine?: ReactNode;
+  /** The project preview, when the Preview tab is selected. It takes the terminal's place in the focused box. */
+  previewPane?: ReactNode;
   stackTabs?: ReactNode;
 };
 
@@ -173,6 +175,7 @@ export function TerminalDesk({
   onSelectSession,
   onReviewWorktree,
   planLine,
+  previewPane,
   stackTabs,
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -303,6 +306,7 @@ export function TerminalDesk({
                 title={session.title}
                 layoutHidden={layoutHidden}
                 workspaceHidden={workspaceHidden}
+                preview={workspaceHidden || layoutHidden ? null : previewPane}
                 source={session.source}
                 agentKind={session.agentKind}
                 detectedAgentKind={session.detectedAgentKind}
@@ -629,6 +633,7 @@ function ManualTerminalTile({
   title,
   layoutHidden = false,
   workspaceHidden,
+  preview,
   command,
   args,
   resumeTarget,
@@ -676,6 +681,7 @@ function ManualTerminalTile({
   title: string;
   layoutHidden?: boolean;
   workspaceHidden: boolean;
+  preview?: ReactNode;
   command?: string | undefined;
   args?: string[] | undefined;
   resumeTarget?: SessionTile["resumeTarget"] | undefined;
@@ -1413,10 +1419,14 @@ function ManualTerminalTile({
           )}
         </div>
       </footer>
+      {/* Preview covers the terminal's cell. The terminal stays mounted and keeps its size underneath. */}
+      {preview && <div className="terminal-tile-preview">{preview}</div>}
       <div
         className="xterm-host"
         data-testid={workspaceHidden ? "background-xterm-host" : "xterm-host"}
         data-session-id={sessionKey}
+        aria-hidden={preview ? "true" : undefined}
+        inert={preview ? true : undefined}
         ref={containerRef}
       />
     </article>

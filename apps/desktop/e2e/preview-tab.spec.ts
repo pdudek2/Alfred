@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import type { ElementHandle, Locator } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
 
-test("Preview stays on demand and preserves xterm while loaded, resized, and offline", async ({ harness }, testInfo) => {
+test("Preview takes the terminal's place, keeps the stack, and preserves xterm while loaded and offline", async ({ harness }, testInfo) => {
   const { app, page } = harness;
   let server: Server | null = createServer((_request, response) => {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
@@ -26,12 +26,15 @@ test("Preview stays on demand and preserves xterm while loaded, resized, and off
     await input.fill(`printf 'Ready at ${url}\\n'`);
     await input.press("Enter");
 
-    const previewToggle = page.getByRole("tab", { name: "Preview" });
-    await expect(previewToggle).toBeEnabled();
-    await expect(previewToggle).toHaveAttribute("aria-selected", "false");
+    const previewTab = page.getByRole("tab", { name: "Preview" });
+    const terminalTab = page.getByRole("tab", { name: "Terminal" });
+    await expect(previewTab).toBeEnabled();
+    await expect(previewTab).toHaveAttribute("aria-selected", "false");
     await expect(page.getByLabel("Project preview")).toHaveCount(0);
+    const terminalBox = await xterm.boundingBox();
+    const stackBox = await page.locator(".session-stack").boundingBox();
 
-    await previewToggle.click();
+    await previewTab.click();
     const preview = page.getByLabel("Project preview");
     const frame = page.getByTitle(`Preview of ${url}`);
     await expect(preview).toBeVisible();
@@ -39,18 +42,29 @@ test("Preview stays on demand and preserves xterm while loaded, resized, and off
     await expect(page.frameLocator(`iframe[title="Preview of ${url}"]`).getByText("Preview fixture ready")).toBeVisible();
     await expectSameNode(xtermHandle, xterm);
 
-    const divider = page.getByRole("separator", { name: "Resize Preview" });
-    await divider.press("ArrowLeft");
-    await expect(divider).toHaveAttribute("aria-valuenow", "516");
-    await expectSameNode(xtermHandle, xterm);
+    // Preview covers exactly the terminal's cell. The terminal keeps its size underneath, so the shell is not
+    // resized, and the stack and the session strip stay where they were.
+    expect(await preview.boundingBox()).toEqual(terminalBox);
+    expect(await xterm.boundingBox()).toEqual(terminalBox);
+    await expect(xterm).toHaveAttribute("inert", "");
+    expect(await page.locator(".session-stack").boundingBox()).toEqual(stackBox);
+    await expect(page.locator('[data-testid="terminal-tile"]:visible .session-strip')).toBeVisible();
+    await expect(page.getByRole("separator", { name: "Resize Preview" })).toHaveCount(0);
 
-    await page.getByRole("button", { name: "Close Preview" }).click();
-    await expect(previewToggle).toBeFocused();
-    await expect(preview).toHaveCount(0);
+    // Details opens beside Preview instead of replacing it.
+    await page.getByRole("tab", { name: "Details" }).click();
+    await expect(page.getByRole("complementary", { name: "Details" })).toBeVisible();
+    await expect(frame).toBeVisible();
+    await page.getByRole("tab", { name: "Sessions" }).click();
     await expect(page.locator(".session-stack")).toBeVisible();
+
+    await terminalTab.click();
+    await expect(preview).toHaveCount(0);
+    await expect(input).toBeFocused();
+    await expect(xterm).not.toHaveAttribute("inert", "");
     await expectSameNode(xtermHandle, xterm);
 
-    await previewToggle.click();
+    await previewTab.click();
     await expect(frame).toBeVisible();
     await app.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0]?.setBounds({ x: 0, y: 0, width: 1120, height: 720 });
@@ -60,13 +74,11 @@ test("Preview stays on demand and preserves xterm while loaded, resized, and off
       return bounds ? { width: bounds.width, height: bounds.height } : null;
     })).toEqual({ width: 1120, height: 720 });
     await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "224px");
-    // Preview takes the stack's column; at the minimum window the focused terminal stays usable.
-    await expect(page.locator(".session-stack")).toHaveCount(0);
-    // Measure the column, not the tile: where the OS always shows scrollbars the tile gives up a gutter inside it.
+    // At the minimum window Preview has the whole focus column and the stack is still there.
+    await expect(page.locator(".session-stack")).toBeVisible();
     expect(await page.locator(".terminal-grid-column").evaluate((node) => node.getBoundingClientRect().width))
       .toBeGreaterThanOrEqual(420);
-    await expect(xterm).toBeVisible();
-    await expect(input).toBeVisible();
+    expect((await preview.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(420);
     await expectSameNode(xtermHandle, xterm);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
       .toBeLessThanOrEqual(0);
@@ -76,25 +88,27 @@ test("Preview stays on demand and preserves xterm while loaded, resized, and off
     const refusedRequest = page.waitForEvent("requestfailed", (request) =>
       request.url() === url && request.failure()?.errorText === "net::ERR_CONNECTION_REFUSED",
     );
-    await page.getByRole("button", { name: "More Preview actions" }).click();
-    await page.getByRole("menuitem", { name: "Refresh preview" }).click();
+    await preview.getByRole("button", { name: "Reload" }).click();
     await refusedRequest;
     await expect(page.getByText("Preview is offline")).toBeVisible({ timeout: 5_000 });
     await expect(frame).toHaveCount(0);
     await expectSameNode(xtermHandle, xterm);
     harness.expectConnectionRefused(url);
-
     await expect(preview).toBeVisible();
-    await expect(xterm).toBeVisible();
-    await expect(input).toBeVisible();
-    await expectSameNode(xtermHandle, xterm);
 
-    const screenshotPath = testInfo.outputPath("preview-dock-offline-1120x720.png");
+    const screenshotPath = testInfo.outputPath("preview-tab-offline-1120x720.png");
     await page.screenshot({ path: screenshotPath });
-    await testInfo.attach("preview-dock-offline-1120x720.png", {
+    await testInfo.attach("preview-tab-offline-1120x720.png", {
       path: screenshotPath,
       contentType: "image/png",
     });
+
+    // Escape hands the keyboard back to the terminal.
+    await preview.getByRole("button", { name: "Reload" }).focus();
+    await page.keyboard.press("Escape");
+    await expect(preview).toHaveCount(0);
+    await expect(input).toBeFocused();
+    await expectSameNode(xtermHandle, xterm);
 
     harness.assertNoRuntimeErrors();
   } finally {

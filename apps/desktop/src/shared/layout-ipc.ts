@@ -8,10 +8,6 @@ export type TileLayout = {
 
 export type WorkMode = "desk" | "focus" | "split";
 
-export const PREVIEW_DOCK_MIN_WIDTH = 420;
-export const PREVIEW_DOCK_DEFAULT_WIDTH = 500;
-export const PREVIEW_DOCK_MAX_WIDTH = 620;
-
 export type DispatchTargetSnapshot = {
   kind: "session" | "workspace";
   id: string;
@@ -22,7 +18,6 @@ export type WorkspaceViewState = {
   collapsedSessionIds?: string[];
   dispatchTarget?: DispatchTargetSnapshot;
   previewDockOpen?: boolean;
-  previewDockWidth?: number;
   workMode?: WorkMode;
   selectedSessionId?: string;
 };

@@ -16,7 +16,7 @@ const styles = readFileSync(stylesPath, "utf8");
 const productCssPaths = [
   "styles.css",
   "components/needs-you-popover.css",
-  "components/workspace-preview-dock.css",
+  "components/workspace-preview.css",
   "components/worktree-diff-panel.css",
   "components/plan-line.css",
   "components/new-session-sheet.css",
@@ -27,8 +27,8 @@ const productCssPaths = [
 
 if (productCssPaths.some((path) => !path)) throw new Error("Unable to locate product CSS");
 const productStyles = productCssPaths.map((path) => readFileSync(path!, "utf8")).join("\n");
-const previewDockStylesPath = productCssPaths[2]!;
-const previewDockStyles = readFileSync(productCssPaths[2]!, "utf8");
+const previewStylesPath = productCssPaths[2]!;
+const previewStyles = readFileSync(productCssPaths[2]!, "utf8");
 const lightningCssConfig = resolveConfig(
   { configFile: false, css: { transformer: "lightningcss" } },
   "build",
@@ -226,14 +226,14 @@ function contrastRatio(foreground: string, background: string): number {
 }
 
 describe("renderer CSS contracts", () => {
-  it("gives the Preview dock one component stylesheet owner", async () => {
+  it("gives Preview one component stylesheet owner and no dock", async () => {
     expect(styles).not.toMatch(/\.workspace-preview-/);
-    expect(styles).not.toContain(".context-drawer .workspace-preview-panel");
-    expect(previewDockStyles).toContain(".workspace-preview-dock .workspace-preview-panel");
-    expect(previewDockStyles).toContain(".workspace-preview-empty");
-    expect(previewDockStyles).toContain("position: relative");
-    expect(previewDockStyles).toContain("position: absolute");
-    await expect(parseWithLightningCss(previewDockStyles, previewDockStylesPath)).resolves.toBeUndefined();
+    expect(previewStyles).toContain(".workspace-preview-panel");
+    // Preview shares the terminal's grid cell in the focused box instead of docking beside it.
+    expect(previewStyles).toMatch(/\.terminal-tile-preview \{\s+grid-area: 1 \/ 1;/);
+    expect(styles).toMatch(/\.terminal-tile > \.xterm-host \{\s+grid-area: 1 \/ 1;/);
+    expect(productStyles).not.toMatch(/workspace-preview-(dock|split|divider|width-hud)/);
+    await expect(parseWithLightningCss(previewStyles, previewStylesPath)).resolves.toBeUndefined();
   });
 
   it("keeps shared surface typography and terminal transitions quiet", () => {
@@ -344,7 +344,7 @@ describe("renderer CSS contracts", () => {
       ".sessions-run-details dd.technical",
       ".worktree-diff-panel__files code",
       ".worktree-diff-panel__line",
-      ".workspace-preview-dock .workspace-preview-fallback code",
+      ".workspace-preview-fallback code",
     ]) {
       const bodies = allRulesIn(productStyles).filter(({ selectors }) => selectors.includes(selector));
       expect(bodies.length, selector).toBeGreaterThan(0);

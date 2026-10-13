@@ -27,7 +27,7 @@ import { TerminalDesk, type TerminalStartAttempt, type WorktreeActionKind } from
 import { PlanLine } from "./components/PlanLine";
 import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHeader";
 import { WorkspaceActionsMenu } from "./components/WorkspaceActionsMenu";
-import { WorkspacePreviewDock } from "./components/WorkspacePreviewDock";
+import { WorkspacePreviewPanel } from "./components/WorkspacePreviewPanel";
 import {
   blockingAttentionCountByWorkspace,
   needsYouItems,
@@ -114,11 +114,10 @@ import type {
   TerminalSessionSnapshot,
   TerminalWorktreeDiffResult,
 } from "../shared/terminal-ipc";
-import {
-  PREVIEW_DOCK_DEFAULT_WIDTH,
-  type DispatchTargetSnapshot,
-  type WorkspaceLayoutsSnapshot,
-  type WorkspaceViewState,
+import type {
+  DispatchTargetSnapshot,
+  WorkspaceLayoutsSnapshot,
+  WorkspaceViewState,
 } from "../shared/layout-ipc";
 import type { WorkspaceMissionBrief, WorkspaceStateSnapshot } from "../shared/workspace-ipc";
 import {
@@ -206,7 +205,6 @@ export function App() {
   const [selectedPreviewUrlsByWorkspace, setSelectedPreviewUrlsByWorkspace] = useState<Record<string, string>>({});
   const [previewRefreshKeysByWorkspace, setPreviewRefreshKeysByWorkspace] = useState<Record<string, number>>({});
   const [previewDockOpenByWorkspace, setPreviewDockOpenByWorkspace] = useState<Record<string, boolean>>({});
-  const [previewDockWidthsByWorkspace, setPreviewDockWidthsByWorkspace] = useState<Record<string, number>>({});
   const [worktreeActionPending, setWorktreeActionPending] = useState<Record<string, WorktreeActionKind | undefined>>({});
   const [worktreeDiffView, setWorktreeDiffView] = useState<WorktreeDiffView | null>(null);
   const [collapsedSessionIdsByWorkspace, setCollapsedSessionIdsByWorkspace] = useState<Record<string, string[]>>({});
@@ -234,7 +232,6 @@ export function App() {
     setNewSessionOpen(true);
     setNeedsYouOpen(false);
   }, [activeWorkspaceId]);
-  const previewTriggerRef = useRef<HTMLButtonElement | null>(null);
   const needsYouTriggerRef = useRef<HTMLButtonElement | null>(null);
   const worktreeDiffReturnFocusRef = useRef<HTMLElement | null>(null);
   const contextReturnFocusRef = useRef<HTMLElement | null>(null);
@@ -289,7 +286,6 @@ export function App() {
   const activePreviewRefreshKey = previewRefreshKeysByWorkspace[activeWorkspace.id] ?? 0;
   const previewVisible = activePreviewCandidates.length > 0;
   const activePreviewDockOpen = previewVisible && (previewDockOpenByWorkspace[activeWorkspace.id] ?? false);
-  const activePreviewDockWidth = previewDockWidthsByWorkspace[activeWorkspace.id] ?? PREVIEW_DOCK_DEFAULT_WIDTH;
   const activeSelectedSessionId = selectedSessionIdsByWorkspace[activeWorkspace.id] ?? null;
   const activeInspectedSession =
     activeSelectedSessionId
@@ -447,6 +443,19 @@ export function App() {
     };
   }, []);
 
+  // Asking for a session means asking for its terminal, so Preview steps aside.
+  const showTerminalInWorkspace = useCallback((workspaceId: string) => {
+    if (!previewDockOpenByWorkspace[workspaceId]) return;
+    setPreviewDockOpenByWorkspace((current) => ({
+      ...current,
+      [workspaceId]: false,
+    }));
+    void getDesktopLayoutApi()?.setWorkspaceViewState({
+      workspaceId,
+      viewState: { previewDockOpen: false },
+    });
+  }, [previewDockOpenByWorkspace]);
+
   const commitAddedSession = useCallback((nextSessions: SessionTile[]) => {
     const addedSession = nextSessions.at(-1);
     if (!addedSession) return;
@@ -456,6 +465,7 @@ export function App() {
     setTerminalSessions(nextSessions);
     setNeedsYouOpen(false);
     setActiveSurface("work");
+    showTerminalInWorkspace(addedSession.workspaceId);
     setActiveWorkspaceId(addedSession.workspaceId);
     const targetWorkMode = workModesByWorkspace[addedSession.workspaceId] ?? "desk";
     setSelectedSessionIdsByWorkspace((current) => ({
@@ -466,7 +476,7 @@ export function App() {
       workspaceId: addedSession.workspaceId,
       viewState: { workMode: targetWorkMode, selectedSessionId: addedSession.id },
     });
-  }, [workModesByWorkspace]);
+  }, [showTerminalInWorkspace, workModesByWorkspace]);
 
   const handleAddAgentSession = useCallback((kind: Extract<AgentKind, "claude" | "codex">, isolation: TerminalSessionIsolation = "shared", workspace: Workspace = activeWorkspace, prompt = "") => {
     if (workspace.rootStatus === "missing") return;
@@ -578,7 +588,6 @@ export function App() {
     setSelectedPreviewUrlsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setPreviewRefreshKeysByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setPreviewDockOpenByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
-    setPreviewDockWidthsByWorkspace((current) => omitWorkspaceRecord(current, activeWorkspace.id));
     setPreviewCandidates((current) => current.filter((candidate) => candidate.workspaceId !== activeWorkspace.id));
     void workspaceApi?.setWorkspaceState({
       workspaces: remainingWorkspaces,
@@ -612,11 +621,6 @@ export function App() {
         ? document.activeElement : detailsTriggerRef.current;
       setNeedsYouOpen(false);
       contextFocusRequestKeyRef.current += 1;
-      setPreviewDockOpenByWorkspace((current) => ({
-        ...current,
-        [activeWorkspace.id]: false,
-      }));
-      persistActiveWorkspaceViewState({ previewDockOpen: false });
     }
     if (!nextOpen) {
       // Details opened from the stack's tab has nothing to return to: the stack redraws that tab when it comes back.
@@ -629,22 +633,17 @@ export function App() {
         [activeWorkspace.id]: nextOpen,
       };
     });
-  }, [activeContextDrawerOpen, activeWorkspace.id, persistActiveWorkspaceViewState]);
+  }, [activeContextDrawerOpen, activeWorkspace.id]);
 
   const handleOpenContextFromCommandPalette = useCallback(() => {
     contextReturnFocusRef.current = commandPaletteTriggerRef.current;
     setNeedsYouOpen(false);
     contextFocusRequestKeyRef.current += 1;
-    setPreviewDockOpenByWorkspace((current) => ({
-      ...current,
-      [activeWorkspace.id]: false,
-    }));
-    persistActiveWorkspaceViewState({ previewDockOpen: false });
     setContextDrawerOpenByWorkspace((current) => ({
       ...current,
       [activeWorkspace.id]: true,
     }));
-  }, [activeWorkspace.id, persistActiveWorkspaceViewState]);
+  }, [activeWorkspace.id]);
 
   const handleCloseContextDrawer = useCallback(() => {
     setContextDrawerOpenByWorkspace((current) => {
@@ -807,16 +806,6 @@ export function App() {
     }));
   }, [activeWorkspace.id]);
 
-  const handleCopyPreviewUrl = useCallback(async (url: string) => {
-    setShellActionError(null);
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error("Clipboard is unavailable.");
-      await navigator.clipboard.writeText(url);
-    } catch (error) {
-      setShellActionError(error instanceof Error ? error.message : "Clipboard is unavailable.");
-    }
-  }, []);
-
   const handleOpenPreviewExternal = useCallback(async (url: string) => {
     await runShellAction(
       () => getDesktopWorkspaceApi()?.openExternalUrl({ url }),
@@ -824,46 +813,29 @@ export function App() {
     );
   }, [runShellAction]);
 
-  const handleTogglePreviewDock = useCallback(() => {
-    if (!previewVisible) return;
-    const nextOpen = !activePreviewDockOpen;
-    if (nextOpen) {
-      setNeedsYouOpen(false);
-      setContextDrawerOpenByWorkspace((current) => ({
-        ...current,
-        [activeWorkspace.id]: false,
-      }));
-    }
-    setPreviewDockOpenByWorkspace((current) => ({
-      ...current,
-      [activeWorkspace.id]: nextOpen,
-    }));
-    persistActiveWorkspaceViewState({ previewDockOpen: nextOpen });
-  }, [activePreviewDockOpen, activeWorkspace.id, persistActiveWorkspaceViewState, previewVisible]);
-
   const handleClosePreviewDock = useCallback(() => {
     setPreviewDockOpenByWorkspace((current) => ({
       ...current,
       [activeWorkspace.id]: false,
     }));
     persistActiveWorkspaceViewState({ previewDockOpen: false });
-    requestAnimationFrame(() => previewTriggerRef.current?.focus());
+    // Back on the Terminal tab the keyboard belongs to the shell again.
+    setTerminalFocusRequestKey((key) => key + 1);
   }, [activeWorkspace.id, persistActiveWorkspaceViewState]);
 
-  const handlePreviewDockWidthChange = useCallback((width: number) => {
-    setPreviewDockWidthsByWorkspace((current) => ({
+  const handleTogglePreviewDock = useCallback(() => {
+    if (!previewVisible) return;
+    if (activePreviewDockOpen) {
+      handleClosePreviewDock();
+      return;
+    }
+    setNeedsYouOpen(false);
+    setPreviewDockOpenByWorkspace((current) => ({
       ...current,
-      [activeWorkspace.id]: width,
+      [activeWorkspace.id]: true,
     }));
-  }, [activeWorkspace.id]);
-
-  const handlePreviewDockWidthCommit = useCallback((width: number) => {
-    setPreviewDockWidthsByWorkspace((current) => ({
-      ...current,
-      [activeWorkspace.id]: width,
-    }));
-    persistActiveWorkspaceViewState({ previewDockWidth: width });
-  }, [activeWorkspace.id, persistActiveWorkspaceViewState]);
+    persistActiveWorkspaceViewState({ previewDockOpen: true });
+  }, [activePreviewDockOpen, activeWorkspace.id, handleClosePreviewDock, persistActiveWorkspaceViewState, previewVisible]);
 
   const handleApplyWorkMode = useCallback((mode: WorkMode, selectedSessionId = activeSelectedSessionId) => {
     const layoutApi = getDesktopLayoutApi();
@@ -918,6 +890,7 @@ export function App() {
 
   const handleFocusSession = useCallback((sessionId: string) => {
     setActiveSurface("work");
+    showTerminalInWorkspace(activeWorkspace.id);
     setSelectedSessionIdsByWorkspace((current) => {
       if (current[activeWorkspace.id] === sessionId) return current;
       return {
@@ -926,7 +899,7 @@ export function App() {
       };
     });
     handleApplyWorkMode("focus", sessionId);
-  }, [activeWorkspace.id, handleApplyWorkMode]);
+  }, [activeWorkspace.id, handleApplyWorkMode, showTerminalInWorkspace]);
   const openProjectHistory = useCallback((source: SessionsViewState["source"]) => {
     setNeedsYouOpen(false);
     setSessionsViewState((current) => ({
@@ -1009,6 +982,7 @@ export function App() {
       selectedSessionIdsByWorkspace[workspaceId] !== sessionId;
 
     setActiveSurface("work");
+    showTerminalInWorkspace(workspaceId);
     if (activeWorkspaceId !== workspaceId) {
       setActiveWorkspaceId(workspaceId);
     }
@@ -1036,6 +1010,7 @@ export function App() {
     activeWorkspaceId,
     refreshLiveSessions,
     selectedSessionIdsByWorkspace,
+    showTerminalInWorkspace,
     workModesByWorkspace,
   ]);
 
@@ -2109,14 +2084,6 @@ export function App() {
     } else {
       handleFocusSessionInWorkspace(workspaceId, sessionId);
     }
-    setPreviewDockOpenByWorkspace((current) => ({
-      ...current,
-      [workspaceId]: false,
-    }));
-    void layoutApi?.setWorkspaceViewState({
-      workspaceId,
-      viewState: { previewDockOpen: false },
-    });
     setContextDrawerOpenByWorkspace((current) => ({
       ...current,
       [workspaceId]: true,
@@ -2498,13 +2465,6 @@ export function App() {
             ),
           ),
         );
-        setPreviewDockWidthsByWorkspace(
-          Object.fromEntries(
-            Object.entries(layoutResult.viewStateByWorkspace).flatMap(([workspaceId, viewState]) =>
-              viewState.previewDockWidth === undefined ? [] : [[workspaceId, viewState.previewDockWidth]],
-            ),
-          ),
-        );
         if (workspaceStateResult) {
           setWorkspaces(workspaceStateResult.workspaces);
           setActiveWorkspaceId(workspaceStateResult.activeWorkspaceId);
@@ -2680,7 +2640,6 @@ export function App() {
             newSessionTriggerRef={newSessionTriggerRef}
             previewAvailable={previewVisible}
             previewOpen={activePreviewDockOpen}
-            previewTriggerRef={previewTriggerRef}
             projectDetail={workspaceDetail(activeWorkspace)}
             projectLabel={activeWorkspace.label}
             selectedSession={activeSelectedSession}
@@ -2753,30 +2712,24 @@ export function App() {
               aria-hidden={workSurfaceHidden ? "true" : undefined}
               inert={workSurfaceHidden || undefined}
             >
-              <WorkspacePreviewDock
-                open={activePreviewDockOpen}
-                width={activePreviewDockWidth}
-                onWidthChange={handlePreviewDockWidthChange}
-                onWidthCommit={handlePreviewDockWidthCommit}
-                previewProps={{
-                  candidates: activePreviewCandidates,
-                  refreshKey: activePreviewRefreshKey,
-                  selectedUrl: activeSelectedPreviewUrl,
-                  workspaceLabel: activeWorkspace.label,
-                  onClose: handleClosePreviewDock,
-                  onCopyUrl: handleCopyPreviewUrl,
-                  onOpenExternal: handleOpenPreviewExternal,
-                  onRefresh: handleRefreshPreview,
-                  onSelectUrl: handleSelectPreviewUrl,
-                }}
-              >
                 <TerminalDesk
                   activeWorkspaceId={activeWorkspace.id}
                   armedRecoverySessionIds={armedRecoverySessionIds}
                   asleepCount={activeSavedSessionCount}
+                  previewPane={activePreviewDockOpen ? (
+                    <WorkspacePreviewPanel
+                      candidates={activePreviewCandidates}
+                      refreshKey={activePreviewRefreshKey}
+                      selectedUrl={activeSelectedPreviewUrl}
+                      onClose={handleClosePreviewDock}
+                      onOpenExternal={handleOpenPreviewExternal}
+                      onRefresh={handleRefreshPreview}
+                      onSelectUrl={handleSelectPreviewUrl}
+                    />
+                  ) : null}
                   selectedSessionId={activeSelectedSessionId}
                   sessions={terminalSessions}
-                  stackHidden={activeContextDrawerOpen || activePreviewDockOpen}
+                  stackHidden={activeContextDrawerOpen}
                   stackTabs={
                     <SideColumnTabs
                       detailsOpen={false}
@@ -2831,7 +2784,6 @@ export function App() {
                     />
                   }
                 />
-              </WorkspacePreviewDock>
             </div>
             {activeSurface === "sessions" && (
               <div className="surface-panel active">

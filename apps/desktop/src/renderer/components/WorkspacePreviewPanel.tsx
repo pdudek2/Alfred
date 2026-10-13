@@ -1,7 +1,7 @@
 import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { ExternalLink, MoreHorizontal, RefreshCw, WifiOff, X } from "lucide-react";
+import { ExternalLink, RotateCw, WifiOff } from "lucide-react";
 import type { PreviewUrlCandidate } from "../preview-state";
-import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
+import "./workspace-preview.css";
 
 type PreviewReachability = "checking" | "online" | "offline";
 
@@ -9,21 +9,18 @@ export type WorkspacePreviewPanelProps = {
   candidates: PreviewUrlCandidate[];
   refreshKey: number;
   selectedUrl: string | null;
-  workspaceLabel: string;
   onClose: () => void;
-  onCopyUrl: (url: string) => Promise<void> | void;
   onOpenExternal: (url: string) => Promise<void> | void;
   onRefresh: () => void;
   onSelectUrl: (url: string) => void;
 };
 
+/** The Preview tab from the v4 canvas: a quiet address row, then the local app. */
 export function WorkspacePreviewPanel({
   candidates,
   refreshKey,
   selectedUrl,
-  workspaceLabel,
   onClose,
-  onCopyUrl,
   onOpenExternal,
   onRefresh,
   onSelectUrl,
@@ -75,111 +72,97 @@ export function WorkspacePreviewPanel({
     event.stopPropagation();
     onClose();
   };
-  const menuItems: ChromeMenuItem[] = selected
-    ? [
-        { id: "refresh", label: "Refresh preview", run: onRefresh },
-        { id: "copy-url", label: "Copy URL", run: () => void onCopyUrl(selected.url) },
-      ]
-    : [];
 
   return (
-    <aside
+    <section
       className="workspace-preview-panel"
       aria-label="Project preview"
       aria-busy={reachability === "checking"}
       onKeyDown={handleKeyDown}
     >
-      <header className="workspace-preview-header">
-        <div className="workspace-preview-identity">
-          <span
-            className={`workspace-preview-status ${reachability}`}
-            aria-label={reachabilityLabel(reachability)}
-          >
-            {reachabilityShortLabel(reachability)}
-          </span>
-          <strong>Preview</strong>
-          <span className="workspace-preview-location">
-            {selected ? previewLocationLabel(selected.url) : workspaceLabel}
-          </span>
-        </div>
-        <div className="workspace-preview-actions">
-          {selected && (
-            <>
-              <button
-                type="button"
-                className="workspace-preview-open"
-                onClick={() => void onOpenExternal(selected.url)}
-                aria-label="Open preview externally"
-              >
-                <span>Open</span>
-                <ExternalLink aria-hidden="true" size={13} />
-              </button>
-              <ChromeMenu label="More Preview actions" title="Preview actions" items={menuItems}>
-                <MoreHorizontal aria-hidden="true" size={15} />
-              </ChromeMenu>
-            </>
-          )}
-          <button type="button" className="workspace-preview-close" onClick={onClose} aria-label="Close Preview">
-            <X aria-hidden="true" size={15} />
-          </button>
-        </div>
-      </header>
-
-      {selected ? (
-        <>
-          {candidates.length > 1 && (
-            <label className="workspace-preview-selector">
-              <span className="visually-hidden">Detected preview URL</span>
-              <select value={selected.url} onChange={(event) => onSelectUrl(event.target.value)}>
-                {candidates.map((candidate) => (
-                  <option key={candidate.url} value={candidate.url}>
-                    {previewLocationLabel(candidate.url)} · {candidate.sessionTitle}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <div className="workspace-preview-frame-shell">
-            {reachability !== "offline" && (
-              <iframe
-                key={`${selected.url}:${refreshKey}`}
-                src={selected.url}
-                title={`Preview of ${selected.url}`}
-                referrerPolicy="no-referrer"
-                sandbox="allow-forms allow-same-origin allow-scripts"
-              />
-            )}
-            {reachability === "offline" && (
-              <div className="workspace-preview-fallback visible" role="status">
-                <div className="workspace-preview-offline-icon"><WifiOff aria-hidden="true" size={17} /></div>
-                <h2>Preview is offline</h2>
-                <p>The local app is no longer responding.</p>
-                <dl>
-                  <div><dt>Source</dt><dd>{selected.sessionTitle}</dd></div>
-                  <div><dt>Last successful check</dt><dd>{hadSuccessfulCheck ? "Earlier" : "Not yet"}</dd></div>
-                </dl>
-                <code>{selected.url}</code>
-                <div className="workspace-preview-offline-actions">
-                  <button type="button" onClick={() => void onOpenExternal(selected.url)}>
-                    Open externally
-                  </button>
-                  <button type="button" className="primary" onClick={onRefresh}>
-                    <RefreshCw aria-hidden="true" size={13} />
-                    Retry
-                  </button>
-                </div>
-              </div>
+      <header className="workspace-preview-toolbar">
+        <button
+          type="button"
+          className="workspace-preview-icon"
+          aria-label="Reload"
+          title="Reload"
+          disabled={!selected}
+          onClick={onRefresh}
+        >
+          <RotateCw aria-hidden="true" size={14} />
+        </button>
+        {candidates.length > 1 && selected ? (
+          <label className="workspace-preview-address">
+            <span className="visually-hidden">Detected preview URL</span>
+            <select value={selected.url} onChange={(event) => onSelectUrl(event.target.value)}>
+              {candidates.map((candidate) => (
+                <option key={candidate.url} value={candidate.url}>
+                  {previewLocationLabel(candidate.url)} · {candidate.sessionTitle}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <div className="workspace-preview-address">
+            {selected ? (
+              <>
+                <span className="workspace-preview-url" title={selected.url}>{previewLocationLabel(selected.url)}</span>
+                <span className="workspace-preview-source">from {selected.sessionTitle}</span>
+              </>
+            ) : (
+              <span className="workspace-preview-source">No preview URL yet</span>
             )}
           </div>
-        </>
-      ) : (
-        <div className="workspace-preview-empty" role="status">
-          <span>Waiting for local app</span>
-          <strong>No preview URL yet</strong>
-          <p>Start a dev server; Alfred will catch localhost URLs from terminal output.</p>
-        </div>
-      )}
-    </aside>
+        )}
+        {selected && (
+          <button
+            type="button"
+            className="workspace-preview-icon"
+            aria-label="Open in browser"
+            title="Open in browser"
+            onClick={() => void onOpenExternal(selected.url)}
+          >
+            <ExternalLink aria-hidden="true" size={14} />
+          </button>
+        )}
+      </header>
+
+      <div className="workspace-preview-frame-shell">
+        {selected && reachability !== "offline" && (
+          <iframe
+            key={`${selected.url}:${refreshKey}`}
+            src={selected.url}
+            title={`Preview of ${selected.url}`}
+            referrerPolicy="no-referrer"
+            sandbox="allow-forms allow-same-origin allow-scripts"
+          />
+        )}
+        {selected && reachability === "offline" && (
+          <div className="workspace-preview-fallback" role="status">
+            <WifiOff aria-hidden="true" size={18} />
+            <h2>Preview is offline</h2>
+            <p>The local app is no longer responding.</p>
+            <dl>
+              <div><dt>Source</dt><dd>{selected.sessionTitle}</dd></div>
+              <div><dt>Last successful check</dt><dd>{hadSuccessfulCheck ? "Earlier" : "Not yet"}</dd></div>
+            </dl>
+            <code>{selected.url}</code>
+            <div className="workspace-preview-offline-actions">
+              <button type="button" onClick={onRefresh}>
+                <RotateCw aria-hidden="true" size={13} />
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+        {!selected && (
+          <div className="workspace-preview-fallback" role="status">
+            <h2>No preview URL yet</h2>
+            <p>Start a dev server; Alfred will catch localhost URLs from terminal output.</p>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -191,16 +174,4 @@ function previewLocationLabel(url: string): string {
   } catch {
     return url;
   }
-}
-
-function reachabilityLabel(reachability: PreviewReachability): string {
-  if (reachability === "online") return "Preview online";
-  if (reachability === "offline") return "Preview offline";
-  return "Checking Preview";
-}
-
-function reachabilityShortLabel(reachability: PreviewReachability): string {
-  if (reachability === "online") return "Live";
-  if (reachability === "offline") return "Offline";
-  return "Checking";
 }

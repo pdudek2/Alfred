@@ -17,7 +17,6 @@ export type WorkbenchHeaderProps = {
   newSessionTriggerRef?: Ref<HTMLButtonElement>;
   previewAvailable: boolean;
   previewOpen: boolean;
-  previewTriggerRef?: Ref<HTMLButtonElement>;
   projectDetail: string;
   projectLabel: string;
   selectedSession: SessionTile | null;
@@ -37,7 +36,6 @@ export function WorkbenchHeader({
   newSessionTriggerRef,
   previewAvailable,
   previewOpen,
-  previewTriggerRef,
   projectDetail,
   projectLabel,
   selectedSession,
@@ -79,7 +77,6 @@ export function WorkbenchHeader({
                 Terminal
               </button>
               <button
-                ref={previewTriggerRef}
                 type="button"
                 role="tab"
                 aria-selected={previewOpen}
