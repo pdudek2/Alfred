@@ -8,17 +8,17 @@ Alfred is terminal-first. The desktop app keeps agent terminals at the center of
 the workspace, lets the user switch between projects and sessions, and makes
 session state visible without replacing the underlying command-line tools.
 
-The Inbox contains only work that needs a decision. Sessions is a secondary
-surface for finding and reading local or external agent sessions, not the
-primary place to operate agents. There is no supported standalone browser
+Needs you lists only the sessions that are blocked on the user. History is a
+secondary surface for finding and reading local or external agent sessions, not
+the primary place to operate agents. There is no supported standalone browser
 client.
 
 ## Architecture
 
 The desktop runtime has three layers:
 
-- The React/Vite renderer presents projects, sessions, terminal desks, the
-  decision-only Inbox, and the secondary Sessions navigator.
+- The React/Vite renderer presents projects, sessions, the terminal deck, the
+  Needs you list, and History.
 - The Electron main process owns trusted operating-system work: terminal
   processes, workspaces, persisted desktop state, session orchestration, and
   external navigation.
@@ -99,7 +99,7 @@ It runs ESLint, typecheck, tests, build, and five Playwright Electron scenarios 
 
 For a faster code-only loop use pnpm verify:quality. To rerun only the desktop smoke use pnpm smoke:electron.
 
-GitHub Actions runs the same quality gate on Linux and the Electron smoke on macOS. The macOS job is visible as a normal failing check, but Phase E does not make it a required branch-protection check.
+GitHub Actions runs the same quality gate on Linux and the Electron smoke on macOS. The macOS job is visible as a normal failing check, but it is not a required branch-protection check.
 
 ## Current boundaries
 
