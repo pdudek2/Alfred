@@ -26,7 +26,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await expect(workScreen).toBeAttached();
   const screenBefore = await requiredHandle(workScreen, "initial Work xterm screen");
   await expectFixedCellTerminalFont(page.locator(".xterm-rows").first(), "12.5px");
-  await expectSansFont(page.locator(".terminal-tile.real-terminal .terminal-status-label").first());
+  await expectSansFont(page.locator(".terminal-tile.real-terminal .session-strip-kind").first());
 
   const runtimeId = await page.evaluate(async () => {
     const terminalApi = window.alfredDesktop?.terminal;
@@ -256,12 +256,13 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
     screenAfter,
   )).toBe(true);
 
-  await setLongTerminalHeaderTitle(page, "manual-1");
+  await setLongSessionTitle(page, "manual-1");
   await setWindowSize(app, page, 1440, 900);
-  await expectStableTerminalHeader(page, "manual-1", paths.workspaceA);
+  await expectStableSessionChrome(page, "manual-1", paths.workspaceA, false);
 
+  // At the minimum window the breadcrumb has to cut the title.
   await setWindowSize(app, page, 1120, 720);
-  await expectStableTerminalHeader(page, "manual-1", paths.workspaceA);
+  await expectStableSessionChrome(page, "manual-1", paths.workspaceA, true);
 
   harness.assertNoRuntimeErrors();
   await harness.closeActiveTerminals();
@@ -278,21 +279,15 @@ async function selectSurface(
   await surfaceButton(page, surface).click();
 }
 
-async function setLongTerminalHeaderTitle(page: Page, sessionId: string): Promise<void> {
+async function setLongSessionTitle(page: Page, sessionId: string): Promise<void> {
   const tile = page.locator(`[data-testid="terminal-tile"][data-session-id="${sessionId}"]`);
-  const title = "Long terminal title keeps the real header truncation contract honest in a narrow focus column".slice(0, 80);
-  await tile.hover();
-  const renameButton = tile.getByRole("button", { name: /^Rename / });
-  if (await renameButton.isVisible()) {
-    await renameButton.click();
-  } else {
-    await tile.getByRole("button", { name: /^More actions for / }).click();
-    await page.getByRole("menuitem", { name: "Rename session", exact: true }).click();
-  }
+  const title = "Long session title keeps the breadcrumb truncation honest beside the top bar tabs and actions".slice(0, 80);
+  await tile.getByRole("button", { name: /^More actions for / }).click();
+  await page.getByRole("menuitem", { name: "Rename session", exact: true }).click();
   const rename = tile.getByRole("textbox", { name: /^Rename / });
   await rename.fill(title);
   await rename.press("Enter");
-  await expect(tile.locator(".tile-title b")).toHaveText(title);
+  await expect(page.locator(".workbench-session-title")).toHaveText(title);
 }
 
 async function expectMinimumHeight(locator: Locator, minimum: number): Promise<void> {
@@ -322,16 +317,21 @@ async function expectFixedCellTerminalFont(locator: Locator, size?: string): Pro
   expect(style.family).toContain("Menlo");
 }
 
-async function expectStableTerminalHeader(page: Page, sessionId: string, expectedCwd: string): Promise<void> {
+async function expectStableSessionChrome(
+  page: Page,
+  sessionId: string,
+  expectedCwd: string,
+  titleTruncated: boolean,
+): Promise<void> {
   const tile = page.locator(`[data-testid="terminal-tile"][data-session-id="${sessionId}"]:not([aria-hidden="true"])`);
-  const header = tile.locator(".terminal-tile-header");
-  await expect(header).toBeVisible();
-  await header.scrollIntoViewIfNeeded();
-  expect(await header.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
-  const title = header.locator(".tile-title b");
-  expect(await title.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
-  // Project-root cwd belongs to the workbench header; only distinct cwd appears in a tile.
-  await expect(header.locator(".session-location-value")).toHaveCount(0);
+  const strip = tile.locator(".session-strip");
+  await expect(strip).toBeVisible();
+  // A long title is cut inside the breadcrumb; it never pushes the top bar wider.
+  expect(await page.getByTestId("workbench-header").evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  if (titleTruncated) {
+    expect(await page.locator(".workbench-session-title").evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
+  }
+  // The project's folder is one hover away on the breadcrumb, not spelled out in the bar.
   await expect(page.locator(".workbench-breadcrumb-parent")).toHaveAttribute("title", /workspace-a/);
   const cwd = await page.evaluate(async (clientId) => {
     const sessions = await window.alfredDesktop?.terminal.list();
@@ -340,21 +340,19 @@ async function expectStableTerminalHeader(page: Page, sessionId: string, expecte
   if (!cwd) throw new Error("Terminal cwd is missing");
   expect(await realpath(cwd)).toBe(await realpath(expectedCwd));
   await settleTerminalTileAnimations(page);
-  const before = await headerGeometry(header);
+  const before = await stripGeometry(strip);
 
   await tile.hover();
-  expect(await headerGeometry(header)).toEqual(before);
-  expect(await header.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  expect(await stripGeometry(strip)).toEqual(before);
 
-  await header.focus();
-  expect(await headerGeometry(header)).toEqual(before);
-  expect(await header.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await tile.focus();
+  expect(await stripGeometry(strip)).toEqual(before);
+  expect(await strip.locator(".session-strip-info").evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
 }
 
-async function headerGeometry(header: Locator): Promise<Array<{ width: number; x: number }>> {
-  return header.locator(".tile-title, .tile-activity, .tile-actions").evaluateAll((nodes) =>
+async function stripGeometry(strip: Locator): Promise<Array<{ width: number; x: number }>> {
+  return strip.locator(".session-strip-info > *").evaluateAll((nodes) =>
     nodes.map((node) => {
-      // Compare header layout, independently of the enclosing tile's FLIP transform.
       const element = node as HTMLElement;
       return { width: element.offsetWidth, x: element.offsetLeft };
     }),

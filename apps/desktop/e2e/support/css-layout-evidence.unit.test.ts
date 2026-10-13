@@ -82,7 +82,7 @@ describe("CSS layout evidence support", () => {
         </main>
       </section>
       <div class="command-palette-list"><button><small>fixture command</small></button></div>
-      <span class="tile-age">2m</span><time>now</time>
+      <span class="session-strip-age">Started 2 min ago</span><time>now</time>
       <div class="terminal-empty-state">
         <div class="terminal-empty-copy"><strong>Nothing is running</strong><p data-private>Folder unavailable: /private/project.</p></div>
         <section class="terminal-empty-asleep"><ul><li>
