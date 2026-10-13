@@ -684,6 +684,12 @@ async function selectSurface(user: ReturnType<typeof userEvent.setup>, label: ke
   await user.click(screen.getByRole("button", { name: SURFACE_BUTTONS[label] }));
 }
 
+// Close, Rename and the external terminal live in the menu on the focused session's strip.
+async function sessionMenuAction(user: ReturnType<typeof userEvent.setup>, title: string, action: RegExp | string) {
+  await user.click(screen.getByRole("button", { name: `More actions for ${title}` }));
+  await user.click(screen.getByRole("menuitem", { name: action }));
+}
+
 async function openNewTerminal(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "New" }));
   await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
@@ -719,7 +725,7 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
+    await sessionMenuAction(user, "Manual · zsh 1", /^Close/);
     expect(screen.queryByTestId("terminal-tile")).not.toBeInTheDocument();
 
     await act(async () => {
@@ -738,7 +744,7 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
+    await sessionMenuAction(user, "Manual · zsh 1", /^Close/);
     await act(async () => {
       pending.reject(new Error("start rejected"));
       try { await pending.promise; } catch { /* expected */ }
@@ -760,7 +766,7 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
+    await sessionMenuAction(user, "Manual · zsh 1", /^Close/);
     await openNewTerminal(user);
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
@@ -786,11 +792,11 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
+    await sessionMenuAction(user, "Manual · zsh 1", /^Close/);
     await openNewTerminal(user);
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
-    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
+    await sessionMenuAction(user, "Manual · zsh 1", /^Close/);
 
     await act(async () => {
       first.resolve(liveSnapshot("manual-1", { id: "old-runtime" }));
@@ -813,7 +819,7 @@ describe("App integration", () => {
 
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
-    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
+    await sessionMenuAction(user, "Manual · zsh 1", /^Close/);
     await user.click(screen.getByRole("button", { name: "Add project" }));
     await user.click(within(screen.getByRole("status", { name: "Empty project" })).getByRole("button", { name: "Terminal" }));
     await user.click(screen.getByRole("button", { name: "Start" }));
@@ -853,13 +859,11 @@ describe("App integration", () => {
       },
     ]);
 
-    expect(within(screen.getByRole("article", { name: "Root session" })).queryByText("cwd"))
-      .not.toBeInTheDocument();
+    expect(screen.getByRole("article", { name: "Root session" }).querySelector(".session-location-value")).toBeNull();
     // Only the focused tile is exposed; the others stay mounted but hidden.
     const nestedTile = document.querySelector<HTMLElement>('[data-testid="terminal-tile"][data-session-id="nested-session"]');
     expect(nestedTile).toHaveAttribute("aria-hidden", "true");
-    expect(within(nestedTile!).getByText("cwd"))
-      .toBeInTheDocument();
+    expect(nestedTile!.querySelector(".session-location-value")).toHaveTextContent(/apps\/desktop$/);
   });
 
   it("keeps drafts out of the terminal grid beside a live terminal in normal Work", () => {
@@ -897,7 +901,8 @@ describe("App integration", () => {
     render(<App />);
 
     const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
-    expect(tile.querySelector(".tile-kind-mark.manual")).toBeInTheDocument();
+    const kind = () => tile.querySelector(".session-strip-kind");
+    expect(kind()).toHaveTextContent("Terminal");
     await waitForTerminalStartsToSettle();
 
     await emitData({
@@ -908,7 +913,7 @@ describe("App integration", () => {
       foregroundAgentKind: "codex",
     } as TerminalDataEvent);
 
-    expect(tile.querySelector(".tile-kind-mark.codex .kind-brand-icon")).toBeInTheDocument();
+    expect(kind()).toHaveTextContent("Codex");
     expect(await screen.findByRole("article", { name: "Codex · session 1" })).toBeInTheDocument();
     expect(renameTerminal).toHaveBeenLastCalledWith({ clientId: "manual-1", title: "Codex · session 1" });
 
@@ -929,7 +934,7 @@ describe("App integration", () => {
       data: "% ",
       activities: [],
     });
-    expect(tile.querySelector(".tile-kind-mark.manual")).toBeInTheDocument();
+    expect(kind()).toHaveTextContent("Terminal");
   });
 
   it("keeps a custom terminal title when an agent is detected", async () => {
@@ -2336,8 +2341,9 @@ describe("App integration", () => {
       (tile) => tile.getAttribute("aria-hidden") !== "true",
     );
     expect(visibleTiles).toHaveLength(1);
-    // The focused tile keeps its own header (title, rename, close) until the top bar carries them.
-    expect(visibleTiles[0]?.querySelector(".terminal-tile-header")).not.toBeNull();
+    // The breadcrumb carries the title; the tile has no header, only its strip under the terminal.
+    expect(visibleTiles[0]?.querySelector("header")).toBeNull();
+    expect(visibleTiles[0]?.querySelector(".session-strip")).toHaveTextContent(/^Codex/);
   });
 
   it("uses the session stack to change Focus sessions without replacing xterm", async () => {
@@ -2461,8 +2467,9 @@ describe("App integration", () => {
     expect(within(tile).getByRole("textbox", { name: "Rename Manual · menu" }))
       .toHaveValue("Manual · menu");
 
+    // The rename field takes the menu's place, so the menu button is a new node afterwards.
     await user.keyboard("{Escape}");
-    await user.click(trigger);
+    await user.click(within(tile).getByRole("button", { name: "More actions for Manual · menu" }));
     await user.click(screen.getByRole("menuitem", { name: /Close/ }));
     expect(callbacks.onCloseSession).toHaveBeenCalledWith("manual-menu");
   });
@@ -2491,14 +2498,14 @@ describe("App integration", () => {
     expect(trigger).toHaveFocus();
   });
 
-  it("keeps quiet terminal utility actions reachable by keyboard focus", async () => {
+  it("reaches the session menu by Tab before the terminal takes the keyboard", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
 
     render(<App />);
 
     const tile = await screen.findByTestId("terminal-tile");
-    const firstUtility = within(tile).getByRole("button", { name: "Open Manual · zsh 1 in external terminal" });
+    const firstUtility = within(tile).getByRole("button", { name: "More actions for Manual · zsh 1" });
     await screen.findByRole("button", { name: "Alfred project" });
 
     await act(async () => {
@@ -3893,7 +3900,7 @@ describe("App integration", () => {
 
     expect(openExternalUrl).toHaveBeenCalledWith({ url: "http://localhost:5173/" });
 
-    await user.click(screen.getByRole("button", { name: "Close Manual · dev server" }));
+    await sessionMenuAction(user, "Manual · dev server", /^Close/);
 
     expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument();
   });
@@ -4312,7 +4319,7 @@ describe("App integration", () => {
 
     const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
     await waitFor(() => {
-      expect(within(tile).getByText("unavailable")).toBeInTheDocument();
+      expect(within(tile).getByText("This session is unavailable.")).toBeInTheDocument();
       // An unavailable terminal is not an active state, so the project row carries no glyph.
       expect(screen.getByRole("button", { name: "Alfred project" })).not.toHaveAttribute("aria-describedby");
     });
@@ -5905,7 +5912,7 @@ describe("App integration", () => {
     fireEvent.click(within(checkoutActions).getByRole("button", { name: "Apply to project" }));
     await waitFor(() => expect(within(checkoutActions).getByRole("button", { name: "Applying..." })).toBeDisabled());
 
-    await user.click(within(tile).getByRole("button", { name: "Rename Codex · isolated review" }));
+    await sessionMenuAction(user, "Codex · isolated review", "Rename session");
     const input = within(tile).getByRole("textbox", { name: "Rename Codex · isolated review" });
     await user.clear(input);
     await user.type(input, "Spec reviewer{Enter}");
@@ -6689,7 +6696,7 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("article", { name: /Manual · zsh 9/i })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 9" }));
+    await sessionMenuAction(user, "Manual · zsh 9", /^Close/);
 
     expect(screen.queryByRole("article", { name: /Manual · zsh 9/i })).not.toBeInTheDocument();
     expect(killTerminal).toHaveBeenCalledWith({ id: "runtime-a" });
@@ -6717,7 +6724,7 @@ describe("App integration", () => {
       expect(createTerminal).toHaveBeenCalledTimes(1);
     });
 
-    await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
+    await sessionMenuAction(user, "Manual · zsh 1", /^Close/);
 
     const emptyState = await screen.findByRole("status", { name: "Empty project" });
     expect(emptyState).toHaveTextContent("Start a session in this project.");
@@ -7068,8 +7075,9 @@ describe("App integration", () => {
       name: /Codex · session 1, Waiting for approval: Do you want to proceed\? y\/N/i,
     });
 
-    expect(tile).toHaveTextContent("ask");
-    expect(tile).toHaveTextContent("Waiting for approval");
+    // Once the session is attached and needs you, the strip under the terminal says what the agent waits for.
+    expect(await within(tile).findByRole("note")).toHaveTextContent("Waiting for approval: Do you want to proceed? y/N");
+    expect(within(tile).getByText("Codex")).toHaveClass("session-strip-kind");
   });
 
   it("keeps approval context informational in the focused activity panel", async () => {
@@ -7290,8 +7298,8 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
-    await user.click(within(tile).getByRole("button", { name: "Open Codex · session 1 in external terminal" }));
+    await screen.findByRole("article", { name: /Codex · session 1/i });
+    await sessionMenuAction(user, "Codex · session 1", /Open in external terminal/);
 
     expect(openExternalTerminal).toHaveBeenCalledWith({ cwd: "/Users/patryk/Desktop/Alfred" });
   });
@@ -7309,12 +7317,8 @@ describe("App integration", () => {
     });
 
     render(<App />);
-    const tile = await screen.findByRole("article", { name: /Codex · handoff/i });
-    await user.click(
-      within(tile).getByRole("button", {
-        name: "Open Codex · handoff in external terminal",
-      }),
-    );
+    await screen.findByRole("article", { name: /Codex · handoff/i });
+    await sessionMenuAction(user, "Codex · handoff", /Open in external terminal/);
 
     expect(await screen.findByRole("alert", { name: "Shell action failed" }))
       .toHaveTextContent("Ghostty could not open this session.");
@@ -7382,13 +7386,15 @@ describe("App integration", () => {
     render(<App />);
 
     const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
-    await user.click(within(tile).getByRole("button", { name: "Rename Codex · session 1" }));
+    await sessionMenuAction(user, "Codex · session 1", "Rename session");
     const input = within(tile).getByRole("textbox", { name: "Rename Codex · session 1" });
     await user.clear(input);
     expect(within(tile).getByRole("button", { name: "Save title for Codex · session 1" })).toBeDisabled();
     await user.type(input, "Spec reviewer{Enter}");
 
-    expect(await within(tile).findByText("Spec reviewer")).toBeInTheDocument();
+    // The new name shows where the title lives now: in the breadcrumb.
+    expect(await within(screen.getByRole("navigation", { name: "Breadcrumb" })).findByText("Spec reviewer")).toBeInTheDocument();
+    expect(tile).toHaveAccessibleName("Spec reviewer");
     expect(renameTerminal).toHaveBeenCalledWith({ clientId: "codex-a", title: "Spec reviewer" });
   });
 

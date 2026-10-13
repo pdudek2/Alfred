@@ -2780,6 +2780,7 @@ export function App() {
                   worktreeActionPending={worktreeActionPending}
                   worktreeDiffReturnFocus={worktreeDiffReturnFocusRef.current}
                   worktreeDiffView={worktreeDiffView}
+                  workspaceGitBranch={activeWorkspace.gitBranch}
                   workspaceLabel={activeWorkspace.label}
                   workspaceRootPath={activeWorkspace.rootPath}
                   workspaceRootStatus={activeWorkspace.rootStatus}

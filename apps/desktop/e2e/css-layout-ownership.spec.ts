@@ -707,9 +707,6 @@ test("captures deterministic CSS ownership evidence across core states and overl
     }));
     const readiness = captureReadinessForState(state);
     if (readiness) await expect(page.locator(readiness.selector)).toHaveCount(1);
-    await page.locator(".tile-utility-actions, .tile-danger-actions").evaluateAll(async (elements) => {
-      await Promise.allSettled(elements.flatMap((element) => element.getAnimations()).map((animation) => animation.finished));
-    });
     const captureProbes = process.env.ALFRED_CSS_EXTENDED_VISUAL_PROBES === "1"
       ? [...probes, ...extendedVisualProbes]
       : probes;

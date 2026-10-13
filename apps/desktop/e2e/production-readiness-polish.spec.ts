@@ -29,7 +29,7 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expect(screen).toBeAttached();
   const screenBefore = await requiredHandle(screen, "launched fixture xterm");
   await expectFixedCellFont(page.locator(".xterm-rows").first());
-  await expectSans(page.locator('[data-testid="terminal-tile"]').first().locator(".terminal-status-label"));
+  await expectSans(page.locator('[data-testid="terminal-tile"]').first().locator(".session-strip-kind"));
 
   // The deck always shows one terminal; every added session lands in focus and the rest join the stack.
   const stack = page.getByRole("complementary", { name: /^Other sessions in / });
@@ -40,12 +40,12 @@ test("keeps the production Work story trustworthy across every utility surface",
   }
 
   await createRuntimeBlockers(page, paths.root);
-  const identityText = await page.locator(".tile-title, .project-session-title, .workbench-session-title").allTextContents();
+  const identityText = await page.locator(".project-session-title, .workbench-session-title").allTextContents();
   expect(identityText.join("\n")).not.toContain("\u001b");
   expect(identityText.join("\n")).not.toContain("hidden-title");
   await expect(stack.getByRole("region", { name: "Needs you" }).getByText("Claude authentication", { exact: true })).toBeVisible();
-  // The last blocker added holds focus; the earlier one waits at the top of the stack.
-  await expect(page.getByTestId("terminal-grid").getByText("Codex MCP startup", { exact: true })).toBeVisible();
+  // The last blocker added holds focus, named in the breadcrumb; the earlier one waits at the top of the stack.
+  await expect(page.getByRole("navigation", { name: "Breadcrumb" }).getByText("Codex MCP startup", { exact: true })).toBeVisible();
   await captureAuditScreenshot(page, "work-live-blockers-wide");
 
   const needsYouTrigger = page.getByRole("button", { name: /^Needs you, / });

@@ -1,15 +1,15 @@
 import { expect, test } from "./support/electron-app";
 
-test("terminal identity marks stay visible and the deck keeps one terminal beside the stack", async ({ harness }, testInfo) => {
+test("each session names its kind in the strip and the deck keeps one terminal beside the stack", async ({ harness }, testInfo) => {
   const { app, page } = harness;
   await addSession(page, "New Codex session");
   await addSession(page, "New Claude session");
 
   const tiles = page.getByTestId("terminal-tile");
   await expect(tiles).toHaveCount(3);
-  // The focused tile shows its mark; the other two wait in the stack and keep theirs while hidden.
-  await expect(page.locator(".terminal-tile .tile-kind-mark.claude .kind-brand-icon")).toBeVisible();
-  await expect(page.locator(".terminal-tile .tile-kind-mark.codex .kind-brand-icon")).toBeAttached();
+  // The focused session names its kind in the strip; the other two wait in the stack and keep theirs while hidden.
+  await expect(page.locator('[data-testid="terminal-tile"]:visible .session-strip-kind')).toHaveText("Claude");
+  await expect(page.locator(".terminal-tile.kind-codex .session-strip-kind")).toHaveText("Codex");
 
   const manualTile = page.locator('[data-testid="terminal-tile"][data-session-id="manual-1"]');
   await page.getByRole("complementary", { name: /^Other sessions in / }).locator('[data-session-id="manual-1"]').click();
@@ -17,7 +17,7 @@ test("terminal identity marks stay visible and the deck keeps one terminal besid
   const manualInput = manualTile.getByRole("textbox", { name: "Terminal input" });
   await manualInput.fill("codex");
   await manualInput.press("Enter");
-  await expect(manualTile.locator(".tile-kind-mark.codex .kind-brand-icon")).toBeVisible();
+  await expect(manualTile.locator(".session-strip-kind")).toHaveText("Codex");
   await expect.poll(() => tiles.evaluateAll(
     (nodes) => nodes.every((node) => node.classList.contains("ready")),
   )).toBe(true);
@@ -105,7 +105,7 @@ test("scrolls the focused terminal, not the deck column, under the wheel", async
     (element) => Number.parseFloat((element as HTMLElement).style.top),
   )).toBe(terminalBottomPosition);
 
-  await terminalTile.locator(".tile-header").hover();
+  await terminalTile.locator(".session-strip").hover();
   await page.mouse.wheel(0, 120);
   await expect.poll(() => column.evaluate((element) => element.scrollTop)).toBe(0);
 });
@@ -118,7 +118,7 @@ test("manual terminal adopts the Claude runtime identity", async ({ harness }, t
   await manualInput.fill("claude");
   await manualInput.press("Enter");
 
-  await expect(manualTile.locator(".tile-kind-mark.claude .kind-brand-icon")).toBeVisible();
+  await expect(manualTile.locator(".session-strip-kind")).toHaveText("Claude");
   await page.screenshot({ path: testInfo.outputPath("manual-claude-runtime-identity.png") });
 });
 
