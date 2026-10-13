@@ -22,7 +22,6 @@ export function PlanLine({ drafts, name, needsYouIds, onDiscard, onEdit, onLaunc
   const triggerRef = useRef<HTMLButtonElement>(null);
   const focusedIndexRef = useRef(0);
   const readyIds = drafts.filter(isLaunchableStagedSession).map((draft) => draft.id);
-  const needsYouCount = drafts.filter((draft) => needsYouIds.has(draft.id)).length;
 
   useEffect(() => {
     if (!open) return;
@@ -79,15 +78,7 @@ export function PlanLine({ drafts, name, needsYouIds, onDiscard, onEdit, onLaunc
         >
           <DraftGlyph />
           <span className="plan-line__name">{name}</span>
-          <span className="plan-line__count">
-            {drafts.length === 1 ? "1 draft" : `${drafts.length} drafts`}
-            {needsYouCount > 0 && (
-              <>
-                {" · "}
-                <span className="plan-line__signal">{needsYouCount} needs you</span>
-              </>
-            )}
-          </span>
+          <span className="plan-line__count">{readyIds.length} ready</span>
           <ChevronDown className="plan-line__chevron" size={13} aria-hidden="true" />
         </button>
         <button
@@ -98,7 +89,7 @@ export function PlanLine({ drafts, name, needsYouIds, onDiscard, onEdit, onLaunc
           aria-label={readyIds.length === 0 ? "Launch ready drafts" : `Launch ${readyIds.length} ready draft${readyIds.length === 1 ? "" : "s"}`}
           onClick={() => onLaunchAll(readyIds)}
         >
-          {readyIds.length === 0 ? "Launch" : `Launch ${readyIds.length}`}
+          Launch
         </button>
       </div>
       {open && (
