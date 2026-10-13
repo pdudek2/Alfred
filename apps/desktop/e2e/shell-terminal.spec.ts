@@ -13,10 +13,7 @@ import {
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
 
-const evidenceDir = path.resolve(
-  import.meta.dirname,
-  "../../../docs/audits/local-artifacts/2026-07-23-phase-j0-slice-4-context-privacy/shell-terminal",
-);
+const evidenceDir = path.resolve(import.meta.dirname, "../../../output/playwright/shell-terminal");
 
 type ShellGeometry = {
   headerHeight: number;
@@ -40,7 +37,6 @@ type DesktopTerminalWindow = Window & {
 
 test("proves the adaptive shell and preserves the first real xterm", async ({ harness }, testInfo) => {
   const { app, marker, page } = harness;
-  expect(evidenceDir).toContain("2026-07-23-phase-j0-slice-4-context-privacy/shell-terminal");
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 900);
   const header = page.getByTestId("workbench-header");
