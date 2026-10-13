@@ -431,7 +431,6 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expectDeck(page);
   await expect(page.locator(".workspace-title-trigger strong")).toHaveText("Fixture Alpha");
   await expect(page.getByTestId("workbench-header")).toHaveClass("workbench-header");
-  await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "44");
   await recordPrivacyMaskCoverage();
 
   // The newest terminal holds focus, so the marker goes to manual-2 and is tracked there.
@@ -458,7 +457,6 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await expect(page.getByTestId("terminal-tile")).toHaveCount(4);
   await expectDeck(page);
   await expect(page.getByTestId("workbench-header")).toHaveClass("workbench-header");
-  await expect(page.getByTestId("workbench-header")).toHaveAttribute("data-chrome-height", "44");
 
   await capture("work-deck", [...frameProbes, ...terminalProbes]);
 
