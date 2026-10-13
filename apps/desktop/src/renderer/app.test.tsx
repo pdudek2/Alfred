@@ -681,6 +681,13 @@ async function openNewPlan(user: ReturnType<typeof userEvent.setup>) {
 const SURFACE_BUTTONS = { Work: "Deck", History: "History", Details: "Details", "Local Data & Privacy": "Settings" } as const;
 
 async function selectSurface(user: ReturnType<typeof userEvent.setup>, label: keyof typeof SURFACE_BUTTONS) {
+  if (label === "Details") {
+    // Details is a tab above the session stack. With no stack on screen, or to close it, Command I toggles it.
+    const tab = screen.queryByRole("tab", { name: "Details", selected: false });
+    if (tab) await user.click(tab);
+    else await user.keyboard("{Meta>}i{/Meta}");
+    return;
+  }
   await user.click(screen.getByRole("button", { name: SURFACE_BUTTONS[label] }));
 }
 
@@ -1847,28 +1854,31 @@ describe("App integration", () => {
     expect(setWorkspaceViewState.mock.calls.every(([request]) => !("contextDrawerOpen" in request.viewState))).toBe(true);
 
     setWorkspaceViewState.mockClear();
-    await user.click(screen.getByRole("button", { name: "Close Details panel" }));
+    await user.click(screen.getByRole("tab", { name: "Sessions" }));
     expect(setWorkspaceViewState).not.toHaveBeenCalled();
     await selectSurface(user, "Details");
     unmount();
     render(<App />);
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
-    expect(screen.getByRole("button", { name: "Details" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("tab", { name: "Details" })).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("tab", { name: "Sessions" })).toHaveAttribute("aria-selected", "true");
   });
 
-  it.each(["Close", "Escape"])("returns focus to the Details button after opening Details from it and using %s", async (dismissal) => {
+  it.each(["Sessions", "Escape"])("returns focus to the stack's Details tab after opening Details from it and using %s", async (dismissal) => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
-    const trigger = screen.getByRole("button", { name: "Details" });
-    await user.click(trigger);
-    const close = screen.getByRole("button", { name: "Close Details panel" });
-    await waitFor(() => expect(close).toHaveFocus());
+    const stack = screen.getByRole("complementary", { name: /^Other sessions in / });
+    await user.click(within(stack).getByRole("tab", { name: "Details" }));
+    // The stack gives its place to Details, which draws the same tabs with Details selected.
+    const details = screen.getByRole("complementary", { name: "Details" });
+    const selected = within(details).getByRole("tab", { name: "Details", selected: true });
+    await waitFor(() => expect(selected).toHaveFocus());
     if (dismissal === "Escape") await user.keyboard("{Escape}");
-    else await user.click(close);
-    await waitFor(() => expect(trigger).toHaveFocus());
+    else await user.click(within(details).getByRole("tab", { name: "Sessions" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Details", selected: false })).toHaveFocus());
   });
 
   it("closes Details on Escape outside the panel and returns focus to its opener", async () => {
@@ -1876,13 +1886,12 @@ describe("App integration", () => {
     installDesktopBridge();
     render(<App />);
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
-    const trigger = screen.getByRole("button", { name: "Details" });
-    await user.click(trigger);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Close Details panel" })).toHaveFocus());
+    await user.click(screen.getByRole("tab", { name: "Details" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
     screen.getByRole("button", { name: "New" }).focus();
     await user.keyboard("{Escape}");
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
-    await waitFor(() => expect(trigger).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
   });
 
   it("lets an open project menu consume Escape before Details", async () => {
@@ -1890,8 +1899,8 @@ describe("App integration", () => {
     installDesktopBridge();
     render(<App />);
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
-    await user.click(screen.getByRole("button", { name: "Details" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Close Details panel" })).toHaveFocus());
+    await user.click(screen.getByRole("tab", { name: "Details" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
     await user.click(screen.getByRole("button", { name: /^Project menu for / }));
     expect(screen.getByRole("dialog", { name: "Project actions" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
@@ -1906,23 +1915,23 @@ describe("App integration", () => {
     const previous = screen.getByRole("button", { name: "New" });
     previous.focus();
     fireEvent.keyDown(previous, { key: "i", metaKey: true });
-    const close = screen.getByRole("button", { name: "Close Details panel" });
+    const close = screen.getByRole("tab", { name: "Details" });
     await waitFor(() => expect(close).toHaveFocus());
     fireEvent.keyDown(close, { key: "Escape" });
     await waitFor(() => expect(previous).toHaveFocus());
   });
 
-  it("toggles Details with Command I and restores the toolbar trigger on Escape", async () => {
+  it("toggles Details with Command I and lands on the stack's Details tab on Escape", async () => {
     installDesktopBridge();
     render(<App />);
     await screen.findByTestId("workbench-surface");
     fireEvent.keyDown(window, { key: "i", metaKey: true });
     expect(screen.getByTestId("context-column")).toHaveClass("open");
-    const close = screen.getByRole("button", { name: "Close Details panel" });
+    const close = screen.getByRole("tab", { name: "Details" });
     await waitFor(() => expect(close).toHaveFocus());
     fireEvent.keyDown(close, { key: "Escape" });
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
-    await waitFor(() => expect(screen.getByRole("button", { name: "Details" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
     fireEvent.keyDown(window, { key: "i", metaKey: true });
     expect(screen.getByTestId("context-column")).toHaveClass("open");
     fireEvent.keyDown(window, { key: "i", metaKey: true });
@@ -1937,14 +1946,13 @@ describe("App integration", () => {
     const workbench = await screen.findByTestId("workbench-surface");
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
 
-    const surfacesTrigger = screen.getByRole("button", { name: "Details" });
     await selectSurface(user, "Details");
     expect(screen.getByTestId("context-column")).toHaveClass("open");
     expect(workbench).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /close details panel/i }));
+    await user.click(screen.getByRole("tab", { name: "Sessions" }));
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
-    await waitFor(() => expect(surfacesTrigger).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
     expect(workbench).toBeInTheDocument();
   });
 
@@ -2110,13 +2118,12 @@ describe("App integration", () => {
 
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
     await waitFor(() => expect(clientWorkspace).toHaveFocus());
-    expect(screen.getByRole("button", { name: "Details" })).not.toHaveFocus();
 
     await user.click(alfredWorkspace);
 
     expect(screen.getByTestId("context-column")).toHaveClass("open");
     await waitFor(() => expect(alfredWorkspace).toHaveFocus());
-    expect(screen.getByRole("button", { name: "Close Details panel" })).not.toHaveFocus();
+    expect(screen.getByRole("tab", { name: "Details" })).not.toHaveFocus();
   });
 
   it("keeps every xterm host mounted when Focus hides non-selected terminal tiles", async () => {
@@ -2201,7 +2208,7 @@ describe("App integration", () => {
     expect(screen.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
-    await user.click(screen.getByRole("button", { name: "Close Details panel" }));
+    await user.click(screen.getByRole("tab", { name: "Sessions" }));
     expect(screen.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "true");
     expect(initialHost.isConnected).toBe(true);
     expect(terminalDisposeCalls).toHaveLength(disposeCountBeforeTransitions);
@@ -2588,7 +2595,7 @@ describe("App integration", () => {
     expect(drawer).toHaveAttribute("aria-hidden", "false");
     expect(within(drawer).getByLabelText("Agent activity")).toHaveTextContent("Manual · failed");
 
-    await user.click(within(drawer).getByRole("button", { name: "Close Details panel" }));
+    await user.click(within(drawer).getByRole("tab", { name: "Sessions" }));
     expect(drawer).toHaveAttribute("aria-hidden", "true");
     expect(drawer.querySelector('[aria-label="Agent activity"]')).toBeInstanceOf(HTMLElement);
   });
@@ -2618,7 +2625,7 @@ describe("App integration", () => {
     fireEvent.change(screen.getByLabelText("Arguments"), { target: { value: "test\n--watch" } });
     fireEvent.change(screen.getByLabelText("Working directory"), { target: { value: "apps/desktop" } });
 
-    await user.click(screen.getByRole("button", { name: "Close Details panel" }));
+    await user.click(screen.getByRole("tab", { name: "Sessions" }));
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
 
     await selectSurface(user, "Details");
@@ -5252,11 +5259,11 @@ describe("App integration", () => {
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Session attached");
     });
 
-    screen.getByRole("button", { name: "Close Details panel" }).focus();
+    screen.getByRole("tab", { name: "Details" }).focus();
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
 
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
-    await waitFor(() => expect(screen.getByRole("button", { name: "Details" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
   });
 
   it("opens Details from the command palette and returns focus to its surviving trigger", async () => {
@@ -5271,10 +5278,9 @@ describe("App integration", () => {
     await submitCommandPalette(user, "details");
 
     expect(screen.getByTestId("context-column")).toHaveClass("open");
-    const closeDetails = screen.getByRole("button", { name: "Close Details panel" });
-    await waitFor(() => expect(closeDetails).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
 
-    await user.click(closeDetails);
+    await user.click(screen.getByRole("tab", { name: "Sessions" }));
 
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
     await waitFor(() => expect(paletteTrigger).toHaveFocus());
@@ -7768,7 +7774,7 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Arguments")).toHaveValue("test\n--watch");
     // Details replaces the stack, plan line included; closing it brings the plan line back.
     expect(screen.queryByRole("button", { name: /\d+ ready$/ })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Close Details panel" }));
+    await user.click(screen.getByRole("tab", { name: "Sessions" }));
     await openPlan(user);
     expect(screen.getByRole("listitem", { name: "Draft Run tests" })).toHaveTextContent("Shell · edited");
   });
@@ -9942,7 +9948,7 @@ describe("App integration", () => {
     expect(screen.getByRole("region", { name: "Edit draft command for Blocked Codex" })).toBeInTheDocument();
     expect(createTerminal).not.toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-2" }));
 
-    await user.click(screen.getByRole("button", { name: "Close Details panel" }));
+    await user.click(screen.getByRole("tab", { name: "Sessions" }));
     await openPlan(user);
     expect(screen.getByRole("listitem", { name: "Draft Blocked Codex" })).toHaveTextContent(
       "Blocked: Project has uncommitted or untracked changes.",
@@ -10266,7 +10272,7 @@ describe("App integration", () => {
       viewState: { previewDockOpen: false },
     });
     expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Close Details panel" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Blocked Codex");
     expect(screen.getByRole("button", { name: "Edit command" })).toBeInTheDocument();
     expect(createTerminal).not.toHaveBeenCalledWith(expect.objectContaining({ clientId: "alfred-1" }));
@@ -10289,7 +10295,7 @@ describe("App integration", () => {
         workspace: expect.any(Object),
       });
     });
-    await user.click(screen.getByRole("button", { name: "Close Details panel" }));
+    await user.click(screen.getByRole("tab", { name: "Sessions" }));
     await openPlan(user);
     const editedDraft = screen.getByRole("listitem", { name: "Draft Blocked Codex" });
     expect(editedDraft).toHaveTextContent("Codex · edited");

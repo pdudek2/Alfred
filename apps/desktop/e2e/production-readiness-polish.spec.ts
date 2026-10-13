@@ -68,8 +68,8 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expect(context).toBeVisible();
   await expectSans(context);
   await captureAuditScreenshot(page, "context-wide");
-  await context.getByRole("button", { name: "Close Details panel" }).click();
-  await expect(page.getByRole("button", { name: "Details", exact: true })).toBeFocused();
+  await context.getByRole("tab", { name: "Sessions" }).click();
+  await expect(page.getByRole("tab", { name: "Details" })).toBeFocused();
 
   await page.getByRole("button", { name: /^Needs you, / }).click();
   const needsYou = page.getByRole("dialog", { name: "Needs you" });
@@ -215,7 +215,7 @@ async function appendFixtureAgentOutput(root: string, agent: "claude" | "codex",
 }
 
 async function selectSurface(page: Page, surface: "Work" | "History" | "Details" | "Local Data & Privacy"): Promise<void> {
-  if (surface === "Details") await page.getByRole("button", { name: "Details", exact: true }).click();
+  if (surface === "Details") await page.getByRole("tab", { name: "Details" }).click();
   else await surfaceButton(page, surface).click();
 }
 

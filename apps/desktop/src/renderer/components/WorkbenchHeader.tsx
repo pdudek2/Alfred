@@ -11,8 +11,6 @@ export type PrimarySurface = "work" | "sessions";
 export type WorkbenchHeaderProps = {
   activeSurface: PrimarySurface;
   commandPaletteTriggerRef?: Ref<HTMLButtonElement>;
-  detailsOpen?: boolean;
-  detailsTriggerRef?: Ref<HTMLButtonElement>;
   needsYouCount: number;
   needsYouOpen: boolean;
   needsYouTriggerRef?: Ref<HTMLButtonElement>;
@@ -26,7 +24,6 @@ export type WorkbenchHeaderProps = {
   shortcutModifier: "Cmd" | "Ctrl";
   onOpenCommandPalette: () => void;
   onOpenNewSession: () => void;
-  onToggleContext: () => void;
   onToggleNeedsYou: () => void;
   onTogglePreview: () => void;
 };
@@ -34,8 +31,6 @@ export type WorkbenchHeaderProps = {
 export function WorkbenchHeader({
   activeSurface,
   commandPaletteTriggerRef,
-  detailsOpen = false,
-  detailsTriggerRef,
   needsYouCount,
   needsYouOpen,
   needsYouTriggerRef,
@@ -49,7 +44,6 @@ export function WorkbenchHeader({
   shortcutModifier,
   onOpenCommandPalette,
   onOpenNewSession,
-  onToggleContext,
   onToggleNeedsYou,
   onTogglePreview,
 }: WorkbenchHeaderProps) {
@@ -99,11 +93,6 @@ export function WorkbenchHeader({
             <span className="workbench-divider" aria-hidden="true" />
           </>
         )}
-        <button ref={detailsTriggerRef} type="button" className="workbench-quiet" aria-label="Details"
-          aria-expanded={detailsOpen} aria-keyshortcuts={shortcutModifier === "Cmd" ? "Meta+i" : "Control+i"}
-          title={`Details (${key("I")})`} onClick={onToggleContext}>
-          <span>Details</span><kbd>{key("I")}</kbd>
-        </button>
         {needsYouCount > 0 && (
           <button
             ref={needsYouTriggerRef}

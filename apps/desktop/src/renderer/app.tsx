@@ -18,6 +18,7 @@ import {
 import { CommandPalette } from "./components/CommandPalette";
 import { DetailsChanges } from "./components/DetailsChanges";
 import { ContextColumn } from "./components/ContextColumn";
+import { SideColumnTabs } from "./components/SideColumnTabs";
 import { NeedsYouPopover } from "./components/NeedsYouPopover";
 import { NewSessionSheet, type NewSessionKind } from "./components/NewSessionSheet";
 import { ProjectNavigator, railOrder, type ProjectNavigatorWorkspace } from "./components/ProjectNavigator";
@@ -617,7 +618,11 @@ export function App() {
       }));
       persistActiveWorkspaceViewState({ previewDockOpen: false });
     }
-    if (!nextOpen) contextReturnFocusRef.current?.focus();
+    if (!nextOpen) {
+      // Details opened from the stack's tab has nothing to return to: the stack redraws that tab when it comes back.
+      if (contextReturnFocusRef.current?.isConnected) contextReturnFocusRef.current.focus();
+      else requestAnimationFrame(() => detailsTriggerRef.current?.focus());
+    }
     setContextDrawerOpenByWorkspace((current) => {
       return {
         ...current,
@@ -2680,11 +2685,8 @@ export function App() {
             projectLabel={activeWorkspace.label}
             selectedSession={activeSelectedSession}
             shortcutModifier={shortcutModifier}
-            detailsTriggerRef={detailsTriggerRef}
-            detailsOpen={activeContextDrawerOpen}
             onOpenCommandPalette={handleOpenCommandPalette}
             onOpenNewSession={() => openNewSession()}
-            onToggleContext={handleToggleContextDrawer}
             onToggleNeedsYou={handleToggleNeedsYou}
             onTogglePreview={handleTogglePreviewDock}
           />
@@ -2775,6 +2777,14 @@ export function App() {
                   selectedSessionId={activeSelectedSessionId}
                   sessions={terminalSessions}
                   stackHidden={activeContextDrawerOpen || activePreviewDockOpen}
+                  stackTabs={
+                    <SideColumnTabs
+                      detailsOpen={false}
+                      detailsTabRef={detailsTriggerRef}
+                      shortcutModifier={shortcutModifier}
+                      onToggleDetails={handleToggleContextDrawer}
+                    />
+                  }
                   surfaceActive={!workSurfaceHidden}
                   terminalFocusRequestKey={terminalFocusRequestKey}
                   worktreeActionPending={worktreeActionPending}
@@ -2862,6 +2872,8 @@ export function App() {
             }
             focusRequestKey={contextFocusRequestKeyRef.current}
             returnFocusRef={contextReturnFocusRef}
+            triggerRef={detailsTriggerRef}
+            shortcutModifier={shortcutModifier}
             onCloseContext={handleCloseContextDrawer}
             timelineProps={{
               session: activeInspectedSession,
