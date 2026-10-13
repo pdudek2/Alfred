@@ -5237,22 +5237,14 @@ describe("App integration", () => {
     expect(codexCalls).toHaveLength(1);
   });
 
-  it("selects a tile on click and opens the inspector on double click", async () => {
+  it("shows the focused session's activity in Details and closes it on Escape", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
 
     render(<App />);
 
-    const tile = await screen.findByRole("article", { name: /Manual · zsh 1/i });
-    const header = tile.querySelector(".tile-header")!;
-
-    await user.click(header);
-
-    expect(tile).toHaveClass("selected");
+    await screen.findByRole("article", { name: /Manual · zsh 1/i });
     await selectSurface(user, "Details");
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
-
-    await user.dblClick(header);
 
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
     await waitFor(() => {
@@ -5663,8 +5655,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const tile = await screen.findByRole("article", { name: /Codex · isolated review/i });
-    await user.dblClick(tile.querySelector(".tile-header")!);
+    await screen.findByRole("article", { name: /Codex · isolated review/i });
     await selectSurface(user, "Details");
 
     const checkoutActions = screen.getByRole("toolbar", { name: "checkout actions for Codex · isolated review" });
@@ -5800,8 +5791,7 @@ describe("App integration", () => {
     bridge.worktreeDiff.mockReturnValueOnce(pendingDiff.promise);
 
     render(<App />);
-    const tile = await screen.findByRole("article", { name: /Original diff reader/i });
-    await user.dblClick(tile.querySelector(".tile-header")!);
+    await screen.findByRole("article", { name: /Original diff reader/i });
     await user.click(screen.getByRole("button", { name: "Review diff" }));
     expect(await screen.findByText("Loading checkout diff…")).toBeInTheDocument();
 
@@ -5835,7 +5825,6 @@ describe("App integration", () => {
   });
 
   it("keeps isolated checkout apply actions single-flight", async () => {
-    const user = userEvent.setup();
     let resolveApply!: (value: { ok: true; appliedFiles: number }) => void;
     const { worktreeApply } = installDesktopBridge(undefined, null, [
       {
@@ -5862,8 +5851,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const tile = await screen.findByRole("article", { name: /Codex · isolated review/i });
-    await user.dblClick(tile.querySelector(".tile-header")!);
+    await screen.findByRole("article", { name: /Codex · isolated review/i });
     const checkoutActions = screen.getByRole("toolbar", { name: "checkout actions for Codex · isolated review" });
     const applyButton = within(checkoutActions).getByRole("button", { name: "Apply to project" });
 
@@ -5913,7 +5901,6 @@ describe("App integration", () => {
     render(<App />);
 
     const tile = await screen.findByRole("article", { name: /Codex · isolated review/i });
-    await user.dblClick(tile.querySelector(".tile-header")!);
     const checkoutActions = screen.getByRole("toolbar", { name: "checkout actions for Codex · isolated review" });
     fireEvent.click(within(checkoutActions).getByRole("button", { name: "Apply to project" }));
     await waitFor(() => expect(within(checkoutActions).getByRole("button", { name: "Applying..." })).toBeDisabled());
@@ -5966,8 +5953,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const oldTile = await screen.findByRole("article", { name: /Codex · isolated review/i });
-    await user.dblClick(oldTile.querySelector(".tile-header")!);
+    await screen.findByRole("article", { name: /Codex · isolated review/i });
     const oldActions = screen.getByRole("toolbar", { name: "checkout actions for Codex · isolated review" });
     fireEvent.click(within(oldActions).getByRole("button", { name: "Apply to project" }));
     await waitFor(() => expect(within(oldActions).getByRole("button", { name: "Applying..." })).toBeDisabled());
@@ -6000,7 +5986,6 @@ describe("App integration", () => {
   });
 
   it("keeps explicit shared sessions visually quiet even if stale checkout metadata exists", async () => {
-    const user = userEvent.setup();
     const { worktreeApply, worktreeDiff } = installDesktopBridge(undefined, null, [
       {
         id: "runtime-codex",
@@ -6022,8 +6007,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const tile = await screen.findByRole("article", { name: /Codex · shared review/i });
-    await user.dblClick(tile.querySelector(".tile-header")!);
+    await screen.findByRole("article", { name: /Codex · shared review/i });
 
     expect(screen.queryByRole("toolbar", { name: /checkout actions/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Review diff" })).not.toBeInTheDocument();
@@ -7004,8 +6988,7 @@ describe("App integration", () => {
       });
     });
 
-    const tile = await screen.findByRole("article", { name: /Timestamp runtime/i });
-    await user.dblClick(tile.querySelector(".tile-header")!);
+    await screen.findByRole("article", { name: /Timestamp runtime/i });
     await selectSurface(user, "Details");
     const timeline = document.querySelector(".agent-activity-list");
     if (!(timeline instanceof HTMLOListElement)) throw new Error("Expected activity timeline");
@@ -7115,8 +7098,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
-    await user.dblClick(tile.querySelector(".tile-header")!);
+    await screen.findByRole("article", { name: /Codex · session 1/i });
     await selectSurface(user, "Details");
 
     const pulse = screen.getByRole("region", { name: "Activity" });
@@ -7158,8 +7140,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
-    await user.dblClick(tile.querySelector(".tile-header")!);
+    await screen.findByRole("article", { name: /Codex · session 1/i });
     await selectSurface(user, "Details");
     await user.click(
       screen.getByRole("button", { name: "Reveal edited: apps/desktop/src/renderer/app.tsx" }),
@@ -7219,8 +7200,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const tile = await screen.findByRole("article", { name: /Codex · session 1/i });
-    await user.dblClick(tile.querySelector(".tile-header")!);
+    await screen.findByRole("article", { name: /Codex · session 1/i });
     await selectSurface(user, "Details");
     await user.click(screen.getByRole("button", { name: "Open in terminal for Codex · session 1" }));
 
@@ -7630,7 +7610,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const liveTile = await screen.findByRole("article", { name: /Plan race terminal/i });
+    await screen.findByRole("article", { name: /Plan race terminal/i });
     await waitFor(() => expect(window.alfredDesktop?.terminal.onData).toHaveBeenCalled());
     await openNewPlan(user);
     await user.type(screen.getByLabelText("Goal"), "stage while output arrives");
@@ -7662,7 +7642,6 @@ describe("App integration", () => {
 
     await openPlan(user);
     expect(await screen.findByRole("listitem", { name: /Draft Interleaved task/i })).toBeInTheDocument();
-    await user.click(liveTile.querySelector(".tile-header")!);
     await selectSurface(user, "Details");
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Approval arrived while planning");
   });
@@ -8946,8 +8925,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const tile = await screen.findByRole("article", { name: /Codex recovery/i });
-    await user.dblClick(tile.querySelector(".tile-header")!);
+    await screen.findByRole("article", { name: /Codex recovery/i });
     await user.click(screen.getByRole("button", { name: "Review diff" }));
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-private" });
     await selectSurface(user, "Details");
