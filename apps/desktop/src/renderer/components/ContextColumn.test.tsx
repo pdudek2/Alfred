@@ -25,6 +25,8 @@ const baseProps = {
   contextOpen: true,
   focusRequestKey: 0,
   returnFocusRef: { current: null },
+  triggerRef: { current: null },
+  shortcutModifier: "Cmd" as const,
   timelineProps: { session: sessionA },
   onCloseContext: vi.fn(),
 };
@@ -81,10 +83,28 @@ describe("Details tab", () => {
 
     const column = screen.getByRole("complementary", { name: "Details" });
     expect(column).toHaveAttribute("data-testid", "context-column");
-    expect(within(column).getByText("Details", { exact: true })).toBeVisible();
-    expect(within(column).getByRole("button", { name: "Close Details panel" })).toBeVisible();
+    const tabs = within(column).getByRole("tablist", { name: "Side column" });
+    expect(within(tabs).getByRole("tab", { name: "Details" })).toHaveAttribute("aria-selected", "true");
+    expect(within(tabs).getByRole("tab", { name: "Sessions" })).toHaveAttribute("aria-selected", "false");
+    expect(column).toHaveTextContent("⌘I");
+    expect(within(column).queryByRole("button", { name: "Close Details panel" })).toBeNull();
     expect(column.querySelectorAll(".context-drawer")).toHaveLength(1);
     expect(column.querySelector(".side-dock-stack")).toBeNull();
+  });
+
+  it("closes from the Sessions tab and falls back to the stack's Details tab when the opener is gone", async () => {
+    const opener = document.createElement("button");
+    const stackDetailsTab = document.createElement("button");
+    document.body.append(stackDetailsTab);
+    const returnFocusRef = { current: opener };
+    const triggerRef = { current: stackDetailsTab };
+    const onCloseContext = vi.fn();
+    const { rerender } = renderContext({ contextOpen: true, returnFocusRef, triggerRef, onCloseContext });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Sessions" }));
+    expect(onCloseContext).toHaveBeenCalledOnce();
+    rerender(contextWith({ contextOpen: false, returnFocusRef, triggerRef, onCloseContext }));
+    await waitFor(() => expect(stackDetailsTab).toHaveFocus());
   });
 
   it("closes on Escape and restores focus to the Details trigger", async () => {
@@ -95,7 +115,7 @@ describe("Details tab", () => {
     const onCloseContext = vi.fn();
     const { rerender } = renderContext({ contextOpen: true, returnFocusRef, onCloseContext });
 
-    screen.getByRole("button", { name: "Close Details panel" }).focus();
+    screen.getByRole("tab", { name: "Details" }).focus();
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(onCloseContext).toHaveBeenCalledOnce();
     rerender(contextWith({ contextOpen: false, returnFocusRef, onCloseContext }));
@@ -106,18 +126,18 @@ describe("Details tab", () => {
     const onCloseContext = vi.fn();
     renderContext({ contextOpen: true, dismissalSuspended: true, onCloseContext });
 
-    screen.getByRole("button", { name: "Close Details panel" }).focus();
+    screen.getByRole("tab", { name: "Details" }).focus();
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
 
     expect(onCloseContext).not.toHaveBeenCalled();
   });
 
-  it("focuses the close control when Details opens", async () => {
+  it("focuses its Details tab when Details opens", async () => {
     const { rerender } = renderContext({ contextOpen: false });
 
     rerender(contextWith({ contextOpen: true, focusRequestKey: 1 }));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Close Details panel" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
   });
 
   it("does not restore Details focus when Details closes from external workspace state", async () => {
@@ -126,7 +146,7 @@ describe("Details tab", () => {
     document.body.append(surfacesTrigger, workspaceTrigger);
     const returnFocusRef = { current: surfacesTrigger };
     const { rerender } = renderContext({ contextOpen: true, focusRequestKey: 1, returnFocusRef });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Close Details panel" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Details" })).toHaveFocus());
 
     workspaceTrigger.focus();
     rerender(contextWith({ contextOpen: false, returnFocusRef }));

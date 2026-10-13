@@ -34,7 +34,6 @@ const baseProps = {
   shortcutModifier: "Cmd",
   onOpenCommandPalette: vi.fn(),
   onOpenNewSession: vi.fn(),
-  onToggleContext: vi.fn(),
   onTogglePreview: vi.fn(),
   needsYouCount: 0,
   needsYouOpen: false,
@@ -103,10 +102,10 @@ describe("WorkbenchHeader", () => {
     expect(preview).toHaveAttribute("title", "Start a local dev server to enable Preview");
   });
 
-  it("exposes Details, search and New", async () => {
+  it("exposes search and New, and leaves Details to the side column", async () => {
     const user = userEvent.setup();
     renderHeader();
-    expect(screen.getByRole("button", { name: "Details" })).toHaveTextContent("⌘I");
+    expect(screen.queryByRole("button", { name: "Details" })).toBeNull();
     expect(screen.getByRole("button", { name: "Open command palette" })).toHaveTextContent("⌘K");
     await user.click(screen.getByRole("button", { name: "New" }));
     expect(baseProps.onOpenNewSession).toHaveBeenCalledOnce();

@@ -1,12 +1,15 @@
-import { X } from "lucide-react";
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { AgentTimelinePanel, type AgentTimelinePanelProps } from "./AgentTimelinePanel";
+import { SideColumnTabs } from "./SideColumnTabs";
 
 export type ContextColumnProps = {
   contextOpen: boolean;
   dismissalSuspended?: boolean;
   focusRequestKey: number;
   returnFocusRef: RefObject<HTMLElement | null>;
+  /** The stack's own Details tab: where focus lands when the element that opened Details is gone. */
+  triggerRef: RefObject<HTMLElement | null>;
+  shortcutModifier: "Cmd" | "Ctrl";
   timelineProps: AgentTimelinePanelProps;
   onCloseContext: () => void;
 };
@@ -16,10 +19,12 @@ export function ContextColumn({
   dismissalSuspended = false,
   focusRequestKey,
   returnFocusRef,
+  triggerRef,
+  shortcutModifier,
   timelineProps,
   onCloseContext,
 }: ContextColumnProps) {
-  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const detailsTabRef = useRef<HTMLButtonElement | null>(null);
   const handledFocusRequestKeyRef = useRef(0);
   const restoreFocusOnCloseRef = useRef(false);
   const wasOpenRef = useRef(contextOpen);
@@ -45,7 +50,7 @@ export function ContextColumn({
     if (!contextOpen || focusRequestKey === handledFocusRequestKeyRef.current) return;
     handledFocusRequestKeyRef.current = focusRequestKey;
     if (dismissalSuspended) return;
-    const frame = requestAnimationFrame(() => closeButtonRef.current?.focus());
+    const frame = requestAnimationFrame(() => detailsTabRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [contextOpen, dismissalSuspended, focusRequestKey]);
 
@@ -54,9 +59,12 @@ export function ContextColumn({
     wasOpenRef.current = contextOpen;
     if (!wasOpen || contextOpen || !restoreFocusOnCloseRef.current) return;
     restoreFocusOnCloseRef.current = false;
-    const frame = requestAnimationFrame(() => returnFocusRef.current?.focus());
+    const frame = requestAnimationFrame(() => {
+      const target = returnFocusRef.current;
+      (target?.isConnected ? target : triggerRef.current)?.focus();
+    });
     return () => cancelAnimationFrame(frame);
-  }, [contextOpen, returnFocusRef]);
+  }, [contextOpen, returnFocusRef, triggerRef]);
 
   return (
     <aside
@@ -70,14 +78,12 @@ export function ContextColumn({
         aria-hidden={contextOpen ? "false" : "true"}
         inert={!contextOpen || undefined}
       >
-        <header className="context-drawer-header">
-          <div>
-            <span>Details</span><kbd>⌘I</kbd>
-          </div>
-          <button ref={closeButtonRef} type="button" onClick={requestCloseContext} aria-label="Close Details panel">
-            <X size={15} />
-          </button>
-        </header>
+        <SideColumnTabs
+          detailsOpen
+          detailsTabRef={detailsTabRef}
+          shortcutModifier={shortcutModifier}
+          onToggleDetails={requestCloseContext}
+        />
         <AgentTimelinePanel {...timelineProps} />
       </div>
     </aside>

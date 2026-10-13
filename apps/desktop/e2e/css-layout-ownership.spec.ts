@@ -497,13 +497,12 @@ test("captures deterministic CSS ownership evidence across core states and overl
   expect(wideContextEvidence.documentOverflowX, "Wide Context must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
   const wideContext = page.getByRole("complementary", { name: "Details" });
-  const wideContextControls = [
-    wideContext.getByRole("button", { name: "Close Details panel" }),
-    wideContext.getByRole("button", { name: /Open in terminal/ }),
-  ];
-  for (const control of wideContextControls) {
-    expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
+  // The tab row is 24px high on the canvas; the tabs fill it.
+  for (const tab of await wideContext.getByRole("tab").all()) {
+    expect((await tab.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(24);
   }
+  expect((await wideContext.getByRole("button", { name: /Open in terminal/ }).boundingBox())?.height ?? 0)
+    .toBeGreaterThanOrEqual(32);
   expect(await collectControlOverflowEvidence(page, {
     controlSelector: "[data-testid='context-column'].open button:not(:disabled)",
     verticalScrollOwners: [{
@@ -513,7 +512,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
     }],
   }), "Wide Context controls must remain within their scroll owner").toEqual([]);
 
-  await page.getByRole("button", { name: "Close Details panel" }).click();
+  await page.getByRole("tab", { name: "Sessions" }).click();
   await addManualTerminal(page);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(5);
   await expectDeck(page);
@@ -541,13 +540,11 @@ test("captures deterministic CSS ownership evidence across core states and overl
   expect(narrowContextEvidence.documentOverflowX, "Narrow Context must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
   const narrowContext = page.getByRole("complementary", { name: "Details" });
-  const narrowContextControls = [
-    narrowContext.getByRole("button", { name: "Close Details panel" }),
-    narrowContext.getByRole("button", { name: /Open in terminal/ }),
-  ];
-  for (const control of narrowContextControls) {
-    expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
+  for (const tab of await narrowContext.getByRole("tab").all()) {
+    expect((await tab.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(24);
   }
+  expect((await narrowContext.getByRole("button", { name: /Open in terminal/ }).boundingBox())?.height ?? 0)
+    .toBeGreaterThanOrEqual(32);
   expect(await collectControlOverflowEvidence(page, {
     controlSelector: "[data-testid='context-column'].open button:not(:disabled)",
     verticalScrollOwners: [{
@@ -579,7 +576,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   expect(narrowSessionsContext.sessionsWidth + 16 + narrowSessionsContext.contextWidth)
     .toBeCloseTo(narrowSessionsContext.workspaceWidth, 0);
   expect(narrowSessionsContext.rightGap).toBeCloseTo(0, 0);
-  await page.getByRole("button", { name: "Close Details panel" }).click();
+  await page.getByRole("tab", { name: "Sessions" }).click();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow History");
   const narrowSessionsEvidence = await capture("narrow-sessions", [...sessionsFrameProbes, ...sessionsProbes]);
   expect(
@@ -740,7 +737,7 @@ async function selectSurface(
   surface: "Work" | "History" | "Details" | "Local Data & Privacy",
 ): Promise<void> {
   if (surface === "Details") {
-    await page.getByRole("button", { name: "Details", exact: true }).click();
+    await page.getByRole("tab", { name: "Details" }).click();
     return;
   }
   await surfaceButton(page, surface).click();
