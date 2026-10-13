@@ -25,7 +25,6 @@ import { SessionsSurface } from "./components/SessionsSurface";
 import { TerminalDesk, type TerminalStartAttempt, type WorktreeActionKind } from "./components/TerminalDesk";
 import { PlanLine } from "./components/PlanLine";
 import { WorkbenchHeader, type PrimarySurface } from "./components/WorkbenchHeader";
-import { WorkSurfaceToolbar } from "./components/WorkSurfaceToolbar";
 import { WorkspaceActionsMenu } from "./components/WorkspaceActionsMenu";
 import { WorkspacePreviewDock } from "./components/WorkspacePreviewDock";
 import {
@@ -239,7 +238,7 @@ export function App() {
   const worktreeDiffReturnFocusRef = useRef<HTMLElement | null>(null);
   const contextReturnFocusRef = useRef<HTMLElement | null>(null);
   const detailsTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const surfacesTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const settingsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const privacyReturnFocusRef = useRef<HTMLElement | null>(null);
   const discardReturnFocusRef = useRef<HTMLElement | null>(null);
   const workReturnFocusRef = useRef<HTMLElement | null>(null);
@@ -1817,6 +1816,16 @@ export function App() {
     setActiveSurface(nextSurface);
   }, [activeSurface, armedRecoverySessionIds]);
 
+  // The rail stays visible on History; picking a project there returns to its deck.
+  const handleSelectWorkspaceFromRail = useCallback((workspaceId: string) => {
+    if (activeSurface === "sessions" && armedRecoverySessionIds.size > 0) {
+      setArmedRecoverySessionIds(new Set());
+      return;
+    }
+    setActiveSurface("work");
+    handleSelectWorkspace(workspaceId);
+  }, [activeSurface, armedRecoverySessionIds, handleSelectWorkspace]);
+
   const handleExitSessionsToWork = useCallback(() => {
     if (armedRecoverySessionIds.size > 0) {
       setArmedRecoverySessionIds(new Set());
@@ -1917,7 +1926,7 @@ export function App() {
       ? commandPaletteTriggerRef.current
       : document.activeElement instanceof HTMLElement
         ? document.activeElement
-        : surfacesTriggerRef.current;
+        : settingsTriggerRef.current;
     setCommandPaletteOpen(false);
     setCommandQuery("");
     setPrivacyPanelOpen(true);
@@ -1928,7 +1937,7 @@ export function App() {
     requestAnimationFrame(() => {
       const target = privacyReturnFocusRef.current;
       if (target?.isConnected) target.focus();
-      else surfacesTriggerRef.current?.focus();
+      else settingsTriggerRef.current?.focus();
       privacyReturnFocusRef.current = null;
     });
   }, []);
@@ -2282,7 +2291,8 @@ export function App() {
               (element) => element.getAttribute("aria-label") === workReturnFocusLabelRef.current,
             )
             : null;
-          const fallback = shell?.querySelector<HTMLElement>(
+          // The rail sits outside the shell, so look for the current project across the frame.
+          const fallback = document.querySelector<HTMLElement>(
             ".project-session[aria-current='page'], .project-row-button[aria-current='location'], [data-testid='terminal-input']",
           );
           (labeledFallback ?? fallback)?.focus();
@@ -2612,6 +2622,49 @@ export function App() {
         className={`desktop-frame ${shortcutModifier === "Cmd" ? "mac-frame" : ""}`}
         aria-label="Alfred Agent Space desktop shell"
       >
+        <ProjectNavigator
+          activeSessionId={activeSelectedSessionId}
+          activeSurface={activeSurface}
+          activeWorkspaceId={activeWorkspace.id}
+          attentionCountsByWorkspace={attentionCountsByWorkspace}
+          inert={newSessionOpen && !commandPaletteOpen && !privacyPanelOpen}
+          sessions={terminalSessions}
+          settingsTriggerRef={settingsTriggerRef}
+          workspaces={workspaces}
+          workspaceActions={(
+            <WorkspaceActionsMenu
+              canCloseWorkspace={canCloseActiveWorkspace}
+              detail={workspaceDetail(activeWorkspace)}
+              menuOpen={workspaceMenuOpen}
+              missionBrief={activeWorkspace.missionBrief}
+              renameDraft={workspaceRenameDraft}
+              renameEditing={workspaceRenameEditing}
+              {...(activeWorkspace.rootPath ? { rootPath: activeWorkspace.rootPath } : {})}
+              workspaceLabel={activeWorkspace.label}
+              onCancelRename={handleCancelWorkspaceRename}
+              onChangeRenameDraft={setWorkspaceRenameDraft}
+              onClose={() => {
+                setWorkspaceMenuOpen(false);
+                setWorkspaceRenameEditing(false);
+              }}
+              onCloseWorkspace={handleCloseActiveWorkspace}
+              onOpenExternalTerminal={() => void handleOpenActiveWorkspaceTerminal()}
+              onRevealFolder={() => void handleRevealActiveWorkspace()}
+              onSaveMissionBrief={handleSaveWorkspaceMissionBrief}
+              onSaveRename={handleSaveWorkspaceRename}
+              onStartRename={handleBeginRenameActiveWorkspace}
+              onToggleMenu={() => {
+                setWorkspaceMenuOpen((open) => !open);
+                setWorkspaceRenameEditing(false);
+              }}
+            />
+          )}
+          onAddWorkspace={handleAddWorkspace}
+          onOpenSettings={handleOpenPrivacyPanel}
+          onSelectSessionInWorkspace={handleSelectSessionInWorkspace}
+          onSelectSurface={handleSelectPrimarySurface}
+          onSelectWorkspace={handleSelectWorkspaceFromRail}
+        />
         <div className="mission-bar" inert={newSessionOpen && !commandPaletteOpen && !privacyPanelOpen}>
           <WorkbenchHeader
             activeSurface={activeSurface}
@@ -2620,18 +2673,20 @@ export function App() {
             needsYouOpen={needsYouOpen}
             needsYouTriggerRef={needsYouTriggerRef}
             newSessionTriggerRef={newSessionTriggerRef}
+            previewAvailable={previewVisible}
+            previewOpen={activePreviewDockOpen}
+            previewTriggerRef={previewTriggerRef}
+            projectDetail={workspaceDetail(activeWorkspace)}
+            projectLabel={activeWorkspace.label}
             selectedSession={activeSelectedSession}
             shortcutModifier={shortcutModifier}
-            surfacesTriggerRef={surfacesTriggerRef}
             detailsTriggerRef={detailsTriggerRef}
             detailsOpen={activeContextDrawerOpen}
-            workspaceDetail={workspaceDetail(activeWorkspace)}
             onOpenCommandPalette={handleOpenCommandPalette}
             onOpenNewSession={() => openNewSession()}
-            onOpenPrivacyControls={handleOpenPrivacyPanel}
-            onSelectSurface={handleSelectPrimarySurface}
             onToggleContext={handleToggleContextDrawer}
             onToggleNeedsYou={handleToggleNeedsYou}
+            onTogglePreview={handleTogglePreviewDock}
           />
         </div>
 
@@ -2689,46 +2744,6 @@ export function App() {
           inert={newSessionOpen && !commandPaletteOpen && !privacyPanelOpen}
           data-testid="workbench-shell"
         >
-          {activeSurface === "work" && (
-            <ProjectNavigator
-              activeSessionId={activeSelectedSessionId}
-              activeWorkspaceId={activeWorkspace.id}
-              attentionCountsByWorkspace={attentionCountsByWorkspace}
-              sessions={terminalSessions}
-              workspaces={workspaces}
-              workspaceActions={(
-                <WorkspaceActionsMenu
-                  canCloseWorkspace={canCloseActiveWorkspace}
-                  detail={workspaceDetail(activeWorkspace)}
-                  menuOpen={workspaceMenuOpen}
-                  missionBrief={activeWorkspace.missionBrief}
-                  renameDraft={workspaceRenameDraft}
-                  renameEditing={workspaceRenameEditing}
-                  {...(activeWorkspace.rootPath ? { rootPath: activeWorkspace.rootPath } : {})}
-                  workspaceLabel={activeWorkspace.label}
-                  onCancelRename={handleCancelWorkspaceRename}
-                  onChangeRenameDraft={setWorkspaceRenameDraft}
-                  onClose={() => {
-                    setWorkspaceMenuOpen(false);
-                    setWorkspaceRenameEditing(false);
-                  }}
-                  onCloseWorkspace={handleCloseActiveWorkspace}
-                  onOpenExternalTerminal={() => void handleOpenActiveWorkspaceTerminal()}
-                  onRevealFolder={() => void handleRevealActiveWorkspace()}
-                  onSaveMissionBrief={handleSaveWorkspaceMissionBrief}
-                  onSaveRename={handleSaveWorkspaceRename}
-                  onStartRename={handleBeginRenameActiveWorkspace}
-                  onToggleMenu={() => {
-                    setWorkspaceMenuOpen((open) => !open);
-                    setWorkspaceRenameEditing(false);
-                  }}
-                />
-              )}
-              onAddWorkspace={handleAddWorkspace}
-              onSelectSessionInWorkspace={handleSelectSessionInWorkspace}
-              onSelectWorkspace={handleSelectWorkspace}
-            />
-          )}
           <div className="orchestrator-surface" data-testid="workbench-surface">
             <div
               className={`surface-panel desk-surface-panel ${workSurfaceHidden ? "inactive" : "active"}`}
@@ -2736,14 +2751,6 @@ export function App() {
               aria-hidden={workSurfaceHidden ? "true" : undefined}
               inert={workSurfaceHidden || undefined}
             >
-              <WorkSurfaceToolbar
-                previewAvailable={previewVisible}
-                previewOpen={activePreviewDockOpen}
-                previewTriggerRef={previewTriggerRef}
-                terminalLaunchDisabled={activeWorkspace.rootStatus === "missing"}
-                onAddManualSession={() => openNewSession("terminal")}
-                onTogglePreview={handleTogglePreviewDock}
-              />
               <WorkspacePreviewDock
                 open={activePreviewDockOpen}
                 width={activePreviewDockWidth}

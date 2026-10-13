@@ -1,6 +1,7 @@
 import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
 import { collectControlOverflowEvidence } from "./support/control-overflow-evidence";
+import { surfaceButton } from "./support/work-layout";
 
 type DesktopSessionsWindow = Window & {
   alfredDesktop?: {
@@ -39,7 +40,7 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
   const sessions = page.getByRole("region", { name: "History" });
   await expect(sessions).toBeVisible();
   await expect(sessions.getByRole("complementary", { name: "History" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Projects and Free Chats" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Projects and Free Chats" })).toBeVisible();
   await expect(sessions.getByRole("navigation", { name: "Projects" })).toHaveCount(0);
   const projectScope = sessions.getByRole("combobox", { name: "Project scope" });
   await expect(projectScope).toHaveValue("all");
@@ -199,8 +200,7 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
 });
 
 async function selectSurface(page: Page, surface: "Work" | "History"): Promise<void> {
-  await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-  await page.getByRole("menuitem", { name: surface }).click();
+  await surfaceButton(page, surface).click();
 }
 
 function encodedPrintCommand(value: string): string {

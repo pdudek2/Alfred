@@ -1,7 +1,7 @@
 import { realpath } from "node:fs/promises";
 import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
-import { settleTerminalTileAnimations } from "./support/work-layout";
+import { openNewTerminalSheet, settleTerminalTileAnimations, surfaceButton } from "./support/work-layout";
 import { collectControlOverflowEvidence } from "./support/control-overflow-evidence";
 import { privacySafeScreenshotStyle } from "./support/privacy-safe-screenshot";
 
@@ -18,9 +18,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   const { app, page, paths } = harness;
   await setWindowSize(app, page, 1440, 900);
 
-  await page.getByRole("toolbar", { name: "Work layout controls" })
-    .getByRole("button", { name: "New terminal" })
-    .click();
+  await openNewTerminalSheet(page);
   await expect(page.getByRole("dialog", { name: "New session", exact: true })).toBeVisible();
   await page.getByRole("dialog", { name: "New session", exact: true })
     .getByRole("button", { name: "Start", exact: true }).click();
@@ -55,9 +53,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await page.screenshot({
     path: testInfo.outputPath("sans-xterm-1440x900.png"),
   });
-  await page.getByRole("toolbar", { name: "Work layout controls" })
-    .getByRole("button", { name: "New terminal" })
-    .click();
+  await openNewTerminalSheet(page);
   await expect(page.getByRole("dialog", { name: "New session", exact: true })).toBeVisible();
   await page.getByRole("dialog", { name: "New session", exact: true })
     .getByRole("button", { name: "Start", exact: true }).click();
@@ -98,7 +94,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await page.keyboard.press("Escape");
   await expect(paletteTrigger).toBeFocused();
 
-  const surfacesTrigger = page.getByRole("button", { name: "Open Surfaces menu" });
+  const surfacesTrigger = surfaceButton(page, "Local Data & Privacy");
   const detailsTrigger = page.getByRole("button", { name: "Details", exact: true });
   await selectSurface(page, "Details");
   const context = page.getByRole("complementary", { name: "Details" });
@@ -279,8 +275,7 @@ async function selectSurface(
     await page.getByRole("button", { name: "Details", exact: true }).click();
     return;
   }
-  await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-  await page.getByRole("menuitem", { name: surface }).click();
+  await surfaceButton(page, surface).click();
 }
 
 async function setLongTerminalHeaderTitle(page: Page, sessionId: string): Promise<void> {
@@ -337,7 +332,7 @@ async function expectStableTerminalHeader(page: Page, sessionId: string, expecte
   expect(await title.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
   // Project-root cwd belongs to the workbench header; only distinct cwd appears in a tile.
   await expect(header.locator(".session-location-value")).toHaveCount(0);
-  await expect(page.locator(".workbench-context-detail")).toContainText("workspace-a");
+  await expect(page.locator(".workbench-breadcrumb-parent")).toHaveAttribute("title", /workspace-a/);
   const cwd = await page.evaluate(async (clientId) => {
     const sessions = await window.alfredDesktop?.terminal.list();
     return sessions?.sessions.find((session) => session.clientId === clientId)?.cwd;
