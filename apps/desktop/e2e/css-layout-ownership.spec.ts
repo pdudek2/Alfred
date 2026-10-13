@@ -24,6 +24,7 @@ import {
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
 import { openPlan } from "./support/plan-line";
+import { surfaceButton } from "./support/work-layout";
 
 const frameProbes: CssOwnerProbe[] = [
   { name: "desktop-frame", selector: ".desktop-frame", required: true,
@@ -50,8 +51,6 @@ const terminalProbes: CssOwnerProbe[] = [
     properties: ["display", "grid-template-columns", "min-width", "overflow"] },
   { name: "preview-dock", selector: ".workspace-preview-dock", required: false,
     properties: ["display", "width", "min-width", "overflow", "background-color"] },
-  { name: "work-surface-toolbar", selector: ".work-surface-toolbar", required: true,
-    properties: ["display", "height", "min-width", "overflow", "background-color"] },
   { name: "workbench-surface", selector: "[data-testid='workbench-surface']", required: true,
     properties: ["display", "min-width", "min-height", "overflow", "background-color"] },
   { name: "terminal-stage", selector: "[data-testid='desk-runtime-surface']", required: true,
@@ -319,7 +318,7 @@ test.describe("work session and project identity", () => {
     // One session holds focus; the other five are listed in the stack, none hidden silently.
     const stackCards = page.getByRole("complementary", { name: /^Other sessions in / }).locator(".session-stack-card");
     await expect(stackCards).toHaveCount(5);
-    await expect(page.locator(".workbench-context-detail")).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Fixture Alpha");
     await expect(page.locator(".session-location-meta")).toHaveCount(0);
 
     const activeProject = page.getByRole("button", { name: "Fixture Alpha project" });
@@ -329,8 +328,8 @@ test.describe("work session and project identity", () => {
       scrollWidth: node.scrollWidth,
       navigatorWidth: node.closest<HTMLElement>(".project-navigator")?.getBoundingClientRect().width ?? 0,
     }));
-    expect(expandedGeometry.navigatorWidth).toBeGreaterThanOrEqual(260);
-    expect(expandedGeometry.navigatorWidth).toBeLessThanOrEqual(280);
+    // The rail has one width on the v4 canvas, whatever the window size.
+    expect(expandedGeometry.navigatorWidth).toBe(224);
     expect(expandedGeometry.scrollWidth).toBeLessThanOrEqual(expandedGeometry.clientWidth);
 
     const selectedTile = page.locator("[data-testid='terminal-tile'].selected:not([aria-hidden='true'])");
@@ -364,11 +363,11 @@ test.describe("work session and project identity", () => {
       style: identityScreenshotStyle,
     });
 
-    // Details at the narrow width compacts the rail to short labels with the glyph in the corner.
+    // Details at the narrow width leaves the rail alone: same width, full labels, glyph inside the row.
     await openContext(page);
-    await expect(activeProject.locator(".project-row-monogram")).toHaveText("FA");
+    await expect(projectLabel).toBeVisible();
     await expect.poll(() => activeProject.evaluate((node) => node.closest<HTMLElement>(".project-navigator")!.getBoundingClientRect().width))
-      .toBe(46);
+      .toBe(224);
     const compactProjectGeometry = await activeProject.evaluate((node) => {
       const button = node.getBoundingClientRect();
       const signal = node.querySelector<HTMLElement>(".project-row-state")?.getBoundingClientRect();
@@ -390,18 +389,8 @@ test.describe("work session and project identity", () => {
       inactiveProject.evaluate((node) => node.getBoundingClientRect().height),
     ]);
     expect(Math.abs(activeProjectHeight - inactiveProjectHeight)).toBeLessThanOrEqual(1);
-    const monogramOffset = (node: HTMLElement) => {
-      const button = node.getBoundingClientRect();
-      const monogram = node.querySelector<HTMLElement>(".project-row-monogram")!.getBoundingClientRect();
-      return monogram.top - button.top;
-    };
-    const [activeMonogramOffset, inactiveMonogramOffset] = await Promise.all([
-      activeProject.evaluate(monogramOffset),
-      inactiveProject.evaluate(monogramOffset),
-    ]);
-    expect(Math.abs(activeMonogramOffset - inactiveMonogramOffset)).toBeLessThanOrEqual(1);
     await page.screenshot({
-      path: testInfo.outputPath("compact-project-rail-1120x720.png"),
+      path: testInfo.outputPath("project-rail-with-details-1120x720.png"),
       style: identityScreenshotStyle,
     });
     harness.assertNoRuntimeErrors();
@@ -477,7 +466,8 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await selectSurface(page, "History");
   const sessions = page.getByRole("region", { name: "History" });
   await expect(sessions).toBeVisible();
-  await expect(page.locator(".project-navigator")).toHaveCount(0);
+  // The rail stays on History.
+  await expect(page.locator(".project-navigator")).toBeVisible();
   await sessions
     .getByRole("listbox", { name: "Session results" })
     .getByRole("option")
@@ -495,10 +485,11 @@ test("captures deterministic CSS ownership evidence across core states and overl
   const afterContext = await readShellOwnerGeometry(page);
   expect(
     afterContext.workspaceGridColumns.trim().split(/\s+/),
-  ).toHaveLength(3);
+  ).toHaveLength(2);
+  // Details sits in the stack's column: 320px wide, inside the frame's 16px gutter.
   expect(afterContext.context.position).toBe("static");
-  expect(afterContext.context.rightGap).toBeCloseTo(10, 0);
-  expect(afterContext.context.width).toBeCloseTo(318, 0);
+  expect(afterContext.context.rightGap).toBeCloseTo(16, 0);
+  expect(afterContext.context.width).toBeCloseTo(320, 0);
   expect(afterContext.context.overlapWithTerminal).toBeLessThanOrEqual(0);
   await expect(page.getByLabel("Project preview")).toHaveCount(0);
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Details");
@@ -541,10 +532,11 @@ test("captures deterministic CSS ownership evidence across core states and overl
   await openContext(page);
   const narrowContextGeometry = await readShellOwnerGeometry(page);
   expect(narrowContextGeometry.workspaceGridColumns.trim().split(/\s+/)).toHaveLength(2);
-  expect(narrowContextGeometry.context.position).toBe("absolute");
-  expect(narrowContextGeometry.context.rightGap).toBeCloseTo(0, 0);
-  expect(narrowContextGeometry.context.width).toBeCloseTo(360, 0);
-  expect(narrowContextGeometry.context.overlapWithTerminal).toBeGreaterThan(0);
+  // The rail no longer collapses, and Details stays a column beside the terminal instead of covering it.
+  expect(narrowContextGeometry.context.position).toBe("static");
+  expect(narrowContextGeometry.context.rightGap).toBeCloseTo(16, 0);
+  expect(narrowContextGeometry.context.width).toBeCloseTo(1120 * 0.24, 0);
+  expect(narrowContextGeometry.context.overlapWithTerminal).toBeLessThanOrEqual(0);
   const narrowContextEvidence = await capture("context-narrow", [...frameProbes, ...terminalProbes, ...contextProbes]);
   expect(narrowContextEvidence.documentOverflowX, "Narrow Context must not create horizontal document overflow")
     .toBeLessThanOrEqual(0);
@@ -582,8 +574,10 @@ test("captures deterministic CSS ownership evidence across core states and overl
       workspaceWidth: workspaceBounds.width,
     };
   });
-  expect(narrowSessionsContext.sessionsWidth).toBeCloseTo(narrowSessionsContext.workspaceWidth, 0);
-  expect(narrowSessionsContext.contextWidth).toBeCloseTo(360, 0);
+  // Details is a column beside History as well, never an overlay on top of it.
+  expect(narrowSessionsContext.contextWidth).toBeCloseTo(1120 * 0.24, 0);
+  expect(narrowSessionsContext.sessionsWidth + 16 + narrowSessionsContext.contextWidth)
+    .toBeCloseTo(narrowSessionsContext.workspaceWidth, 0);
   expect(narrowSessionsContext.rightGap).toBeCloseTo(0, 0);
   await page.getByRole("button", { name: "Close Details panel" }).click();
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow History");
@@ -594,7 +588,7 @@ test("captures deterministic CSS ownership evidence across core states and overl
   ).toBeLessThanOrEqual(0);
   await expect(page.getByRole("navigation", {
     name: "Projects and Free Chats",
-  })).toHaveCount(0);
+  })).toBeVisible();
 
   const frequentControls = [
     page.getByRole("button", { name: "Back to Work" }),
@@ -752,8 +746,7 @@ async function selectSurface(
     await page.getByRole("button", { name: "Details", exact: true }).click();
     return;
   }
-  await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-  await page.getByRole("menuitem", { name: surface }).click();
+  await surfaceButton(page, surface).click();
 }
 
 async function openContext(page: Page): Promise<void> {

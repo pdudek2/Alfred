@@ -4,6 +4,7 @@ import path from "node:path";
 import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
 import type { TerminalApi } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
+import { openNewTerminalSheet, surfaceButton } from "./support/work-layout";
 import {
   collectControlOverflowEvidence,
   type ControlOverflowViolation,
@@ -39,8 +40,8 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   const { app, marker, page } = harness;
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 900);
-  const workToolbar = page.getByRole("toolbar", { name: "Work layout controls" });
-  await expect(workToolbar).toBeVisible();
+  const topBar = page.getByTestId("workbench-header");
+  await expect(topBar).toBeVisible();
 
   await expect(page.getByTestId("xterm-host")).toHaveCount(1);
   const firstScreen = page.getByTestId("xterm-host").first().locator(".xterm-screen");
@@ -164,12 +165,13 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
   expect(contextBounds).not.toBeNull();
   expect(terminalBounds).not.toBeNull();
   expect(terminalBounds!.width).toBeGreaterThanOrEqual(420);
-  expect(contextBounds!.width).toBeCloseTo(360, 0);
-  expect(contextBounds!.x + contextBounds!.width).toBeCloseTo(viewportWidth, 0);
-  expect(terminalBounds!.x + terminalBounds!.width).toBeGreaterThan(contextBounds!.x);
+  // Details takes the stack's column: beside the terminal, inside the frame's 16px gutter.
+  expect(contextBounds!.width).toBeCloseTo(viewportWidth * 0.24, 0);
+  expect(contextBounds!.x + contextBounds!.width).toBeCloseTo(viewportWidth - 16, 0);
+  expect(terminalBounds!.x + terminalBounds!.width).toBeLessThanOrEqual(contextBounds!.x);
   await page.getByRole("button", { name: "Close Details panel" }).click();
 
-  const surfacesTrigger = page.getByRole("button", { name: "Open Surfaces menu" });
+  const surfacesTrigger = surfaceButton(page, "Local Data & Privacy");
   await selectSurface(page, "Local Data & Privacy");
   const privacyDialog = page.getByRole("dialog", { name: "Local Data & Privacy" });
   const closePrivacy = privacyDialog.getByRole("button", { name: "Close privacy controls" });
@@ -250,8 +252,7 @@ test("proves the adaptive shell and preserves the first real xterm", async ({ ha
 });
 
 async function addManualTerminal(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "New", exact: true }).click();
-  await page.getByRole("radio", { name: /^Terminal/ }).click();
+  await openNewTerminalSheet(page);
   await page.getByRole("button", { name: "Start" }).click();
 }
 
@@ -263,8 +264,7 @@ async function selectSurface(
     await page.getByRole("button", { name: "Details", exact: true }).click();
     return;
   }
-  await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-  await page.getByRole("menuitem", { name: surface }).click();
+  await surfaceButton(page, surface).click();
 }
 
 function visibleTerminalTiles(page: Page): Locator {

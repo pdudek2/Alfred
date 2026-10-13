@@ -16,7 +16,6 @@ const styles = readFileSync(stylesPath, "utf8");
 const productCssPaths = [
   "styles.css",
   "components/needs-you-popover.css",
-  "components/work-surface-toolbar.css",
   "components/workspace-preview-dock.css",
   "components/worktree-diff-panel.css",
   "components/plan-line.css",
@@ -28,10 +27,8 @@ const productCssPaths = [
 
 if (productCssPaths.some((path) => !path)) throw new Error("Unable to locate product CSS");
 const productStyles = productCssPaths.map((path) => readFileSync(path!, "utf8")).join("\n");
-const previewDockStylesPath = productCssPaths[3]!;
-const previewDockStyles = readFileSync(productCssPaths[3]!, "utf8");
-const workSurfaceToolbarStylesPath = productCssPaths[2]!;
-const workSurfaceToolbarStyles = readFileSync(workSurfaceToolbarStylesPath, "utf8");
+const previewDockStylesPath = productCssPaths[2]!;
+const previewDockStyles = readFileSync(productCssPaths[2]!, "utf8");
 const lightningCssConfig = resolveConfig(
   { configFile: false, css: { transformer: "lightningcss" } },
   "build",
@@ -308,9 +305,10 @@ describe("renderer CSS contracts", () => {
       ".project-navigator-header",
       ".project-row-button",
       ".project-session",
-      ".workbench-session-context > span",
-      ".workbench-session-context > small",
-      ".work-surface-toolbar button",
+      ".project-navigator-surfaces button",
+      ".workbench-breadcrumb-parent",
+      ".workbench-session-title",
+      ".workbench-actions button",
       ".terminal-tile-header .tile-title b",
       ".terminal-status-label",
       ".tile-age",
@@ -322,7 +320,7 @@ describe("renderer CSS contracts", () => {
       expect(bodies.some(({ body }) => body.includes("var(--sans)")), selector).toBe(true);
     }
 
-    expect(topLevelExactRuleBodies(".workbench-right-zone kbd").at(-1)).toContain("var(--sans)");
+    expect(topLevelExactRuleBodies(".workbench-actions kbd").at(-1)).toContain("var(--sans)");
   });
 
   it("keeps all product typography on the shared sans token", () => {
@@ -338,12 +336,11 @@ describe("renderer CSS contracts", () => {
       ["mono", "space"].join(""),
     ];
 
-    expect(productCssPaths.some((path) => path?.endsWith("components/work-surface-toolbar.css"))).toBe(true);
     expect(productStyles).not.toMatch(new RegExp(prohibitedFontFragments.join("|"), "i"));
     for (const selector of [
       ".xterm-host",
       ".plan-line__sub code",
-      ".workbench-right-zone kbd",
+      ".workbench-actions kbd",
       ".sessions-run-details dd.technical",
       ".worktree-diff-panel__files code",
       ".worktree-diff-panel__line",
@@ -353,11 +350,6 @@ describe("renderer CSS contracts", () => {
       expect(bodies.length, selector).toBeGreaterThan(0);
       expect(bodies.some(({ body }) => body.includes("var(--sans)")), selector).toBe(true);
     }
-  });
-
-  it("keeps the primary workbench context above the operational type floor", () => {
-    expect(exactBlockFor(".workbench-session-context > span")).toContain("font: 600 13px/1 var(--sans)");
-    expect(exactBlockFor(".workbench-session-context > small")).toContain("font: 500 12px/1 var(--sans)");
   });
 
   it("drops deleted navigation and migration-era selector families", () => {
@@ -419,14 +411,12 @@ describe("renderer CSS contracts", () => {
 
     expect(gradients.map(({ selectors }) => selectors)).toEqual([]);
     expect(materialShadows.map(({ selectors }) => selectors)).toEqual(expect.arrayContaining([
-      [".workbench-header"],
       [".chrome-menu-popover"],
       ['html[data-alfred-window-material="native"] .mission-bar'],
       [".terminal-tile:focus-visible"],
       [".project-session.is-active"],
-      [".workspace-layout.surface-work > .orchestrator-surface"],
     ]));
-    expect(materialShadows).toHaveLength(6);
+    expect(materialShadows).toHaveLength(4);
     expect(oversizedRadii).toEqual([]);
     expect(signalUses.every(({ selectors }) =>
       selectors.every((selector) =>
@@ -564,19 +554,6 @@ describe("renderer CSS contracts", () => {
     expect(count).toContain("font-variant-numeric: tabular-nums");
   });
 
-  it("keeps Sessions on its narrow layout", () => {
-    const sessionsLayout = mediaExactRuleBodies("(max-width: 1180px)", ".workspace-layout.surface-sessions");
-    expect(sessionsLayout).toHaveLength(1);
-    expect(sessionsLayout[0]).toContain("grid-template-columns: minmax(0, 1fr)");
-
-    const sessionsSurfacePlacement = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      ".workspace-layout.surface-sessions > .orchestrator-surface",
-    );
-    expect(sessionsSurfacePlacement).toHaveLength(1);
-    expect(sessionsSurfacePlacement[0]).toContain("grid-column: 1");
-  });
-
   it("gives narrow Sessions states a readable single-column layout", () => {
     expect(mediaExactRuleBodies("(max-width: 720px)", ".sessions-surface")).toEqual([
       expect.stringContaining("grid-template-columns: minmax(0, 1fr)"),
@@ -597,12 +574,7 @@ describe("renderer CSS contracts", () => {
     expect(styles).toContain("--focus-border: var(--signal-focus)");
     expect(buttonFocus).toContain("outline: 2px solid var(--focus-border)");
     expect(buttonFocus).toContain("outline-offset: 2px");
-    for (const selector of [
-      ".project-navigator-add:focus-visible",
-      ".work-surface-toolbar button:focus-visible",
-    ]) {
-      expect(singleTopLevelRuleBodyIn(styles, selector)).not.toContain("outline: none");
-    }
+    expect(singleTopLevelRuleBodyIn(styles, ".project-navigator-add:focus-visible")).not.toContain("outline: none");
     expect(recentFocus).toHaveLength(2);
     expect(projectFocus).toHaveLength(1);
     expect(sessionFocus).toHaveLength(1);
@@ -618,8 +590,7 @@ describe("renderer CSS contracts", () => {
     expect(singleTopLevelRuleBodyIn(styles, ".project-session.is-active")).not.toContain("outline:");
   });
 
-  it("keeps the selected project recognizable in the compact rail", () => {
-    // The active background lives on the row, so it survives the compact 46px rail unchanged.
+  it("keeps the selected project recognizable at every window width", () => {
     expect(singleTopLevelRuleBodyIn(styles, ".project-row.is-active")).toContain("background: var(--surface-control)");
     expect(styles).not.toMatch(/@media[^{]*\{[^}]*\.project-row\.is-active/);
   });
@@ -781,24 +752,17 @@ describe("renderer CSS contracts", () => {
 
     expect(contextColumn).toContain("display: block");
     expect(contextDrawer).toContain("overflow: hidden");
-    expect(contextDrawer).toContain("grid-template-rows: 46px minmax(0, 1fr)");
+    expect(contextDrawer).toContain("grid-template-rows: 32px minmax(0, 1fr)");
     expect(blockFor(".context-drawer .agent-timeline-panel")).toContain("animation: none");
     expect(timelineBody).toContain("overflow-y: auto");
   });
 
-  it("keeps Work controls and dark scroll owners on the shared chrome rhythm", () => {
-    const toolbarControls = exactRuleBodiesIn(
-      workSurfaceToolbarStyles,
-      ".work-surface-toolbar > button",
-    ).join("\n");
+  it("keeps dark scroll owners on the shared chrome rhythm", () => {
     const commandPalette = exactBlockFor(".command-palette-list");
     const paletteScrollbar = exactBlockFor(".command-palette-list::-webkit-scrollbar");
     const paletteThumb = exactBlockFor(".command-palette-list::-webkit-scrollbar-thumb");
     const selectedSession = exactBlockFor(".project-session.is-active");
 
-    expect(toolbarControls).toContain("height: var(--control-height)");
-    expect(toolbarControls).toContain("min-height: var(--control-height)");
-    expect(toolbarControls).toContain("gap: 6px");
     expect(commandPalette).toContain("scrollbar-width: thin");
     expect(commandPalette).toContain("scrollbar-color: var(--ink-3) transparent");
     expect(paletteScrollbar).toContain("width: 8px");
@@ -924,14 +888,6 @@ describe("renderer CSS contracts", () => {
     ]));
   });
 
-  it("keeps live workbench controls on the canonical control radius", () => {
-    const workbenchControl = exactBlockFor(".workbench-primary-row button");
-    const sessionControl = exactBlockFor(".work-surface-toolbar button");
-
-    expect(workbenchControl).toContain("border-radius: var(--radius-control)");
-    expect(sessionControl).toContain("border-radius: var(--radius-control)");
-  });
-
   it.each([
     ["comma", ","],
     ["opening brace", "{"],
@@ -994,8 +950,8 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps Details hierarchy quiet with canvas sections and selectable sans paths", () => {
-    const drawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
-    expect(drawer).toContain("background: var(--surface-chrome)");
+    // Details sits on the canvas in the stack's column, so the drawer paints no panel of its own.
+    expect(singleTopLevelRuleBodyIn(styles, ".context-drawer")).not.toContain("background:");
     expect(singleTopLevelRuleBodyIn(styles, ".context-drawer .details-section h2")).toContain("font: 500 12px/16px var(--sans)");
     const facts = singleTopLevelRuleBodyIn(styles, ".details-location-path");
     expect(facts).toContain("font: 400 12px/17px var(--sans)");
@@ -1025,7 +981,7 @@ describe("renderer CSS contracts", () => {
     const activeWorkspace = exactBlockFor('.project-row-button[aria-current="location"]');
     const calmRow = singleTopLevelRuleBodyIn(styles, ".project-row-button.is-calm");
 
-    expect(navPanel).toContain("background: var(--surface-panel)");
+    expect(navPanel).toContain("background: var(--surface-chrome)");
     expect(navSectionHeader).toContain("color: var(--ink-5)");
     expect(navSectionHeader).toContain("var(--sans)");
     expect(navRow).toContain("background: transparent");

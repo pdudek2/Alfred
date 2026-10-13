@@ -677,13 +677,16 @@ async function openNewPlan(user: ReturnType<typeof userEvent.setup>) {
   return screen.getByRole("dialog", { name: "New session" });
 }
 
-async function selectSurface(user: ReturnType<typeof userEvent.setup>, label: "Work" | "History" | "Details" | "Local Data & Privacy") {
-  if (label === "Details") {
-    await user.click(screen.getByRole("button", { name: "Details" }));
-    return;
-  }
-  await user.click(screen.getByRole("button", { name: "Open Surfaces menu" }));
-  await user.click(screen.getByRole("menuitem", { name: label }));
+// Deck, History and Settings live in the rail; Details has its own top bar button.
+const SURFACE_BUTTONS = { Work: "Deck", History: "History", Details: "Details", "Local Data & Privacy": "Settings" } as const;
+
+async function selectSurface(user: ReturnType<typeof userEvent.setup>, label: keyof typeof SURFACE_BUTTONS) {
+  await user.click(screen.getByRole("button", { name: SURFACE_BUTTONS[label] }));
+}
+
+async function openNewTerminal(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "New" }));
+  await user.click(screen.getByRole("radio", { name: /^Terminal/ }));
 }
 
 async function submitCommandPalette(user: ReturnType<typeof userEvent.setup>, query: string) {
@@ -741,7 +744,7 @@ describe("App integration", () => {
       try { await pending.promise; } catch { /* expected */ }
     });
 
-    await user.click(within(screen.getByRole("toolbar", { name: "Work layout controls" })).getByRole("button", { name: "New terminal" }));
+    await openNewTerminal(user);
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
     expect(bridge.createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({ clientId: "manual-1" }));
@@ -758,7 +761,7 @@ describe("App integration", () => {
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
     await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
-    await user.click(within(screen.getByRole("toolbar", { name: "Work layout controls" })).getByRole("button", { name: "New terminal" }));
+    await openNewTerminal(user);
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.getByTestId("terminal-tile")).toHaveClass("ready"));
@@ -784,7 +787,7 @@ describe("App integration", () => {
     render(<App />);
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledOnce());
     await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
-    await user.click(within(screen.getByRole("toolbar", { name: "Work layout controls" })).getByRole("button", { name: "New terminal" }));
+    await openNewTerminal(user);
     await user.click(screen.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(bridge.createTerminal).toHaveBeenCalledTimes(2));
     await user.click(screen.getByRole("button", { name: "Close Manual · zsh 1" }));
@@ -1360,40 +1363,42 @@ describe("App integration", () => {
     expect(screen.queryByText("Search sessions, chats, files")).not.toBeInTheDocument();
   });
 
-  it("removes the Work project navigator from History", async () => {
+  it("keeps the rail on History with no project marked as current", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
 
-    expect(await screen.findByRole("navigation", {
-      name: "Projects and Free Chats",
-    })).toBeInTheDocument();
+    const rail = await screen.findByRole("navigation", { name: "Projects and Free Chats" });
+    const project = within(rail).getByRole("button", { name: "Alfred project" });
+    expect(within(rail).getByRole("button", { name: "Deck" })).toHaveAttribute("aria-current", "page");
+    expect(project).toHaveAttribute("aria-current", "location");
 
     await selectSurface(user, "History");
     expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-sessions");
-    expect(screen.queryByRole("navigation", { name: "Projects and Free Chats" })).not.toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Projects and Free Chats" })).toBe(rail);
+    expect(within(rail).getByRole("button", { name: "History" })).toHaveAttribute("aria-current", "page");
+    expect(project).not.toHaveAttribute("aria-current");
     expect(screen.getByRole("region", { name: "History" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Back to Work" }));
+
+    // Picking a project in the rail leaves History for that project's deck.
+    await user.click(project);
     expect(screen.getByTestId("workbench-shell")).toHaveClass("surface-work");
-    expect(screen.getByRole("navigation", { name: "Projects and Free Chats" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "History" })).not.toBeInTheDocument();
+    expect(project).toHaveAttribute("aria-current", "location");
   });
 
-  it("unmounts Sessions on Escape and falls back to the active workspace when the focused target disappears", async () => {
+  it("unmounts Sessions on Escape and falls back to the active project when nothing in the deck held focus", async () => {
     const user = userEvent.setup();
-    installDesktopBridge();
+    installDesktopBridge(undefined, null, []);
     render(<App />);
 
-    const workTarget = await screen.findByRole("button", { name: "Alfred project" });
-    workTarget.removeAttribute("aria-label");
-    workTarget.focus();
-    expect(workTarget).toHaveFocus();
-
+    const project = await screen.findByRole("button", { name: "Alfred project" });
     await selectSurface(user, "History");
     expect(screen.getByRole("searchbox", { name: "Search sessions" })).toHaveFocus();
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("region", { name: "History" })).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("button", { name: "Alfred project" })).toHaveFocus());
+    await waitFor(() => expect(project).toHaveFocus());
   });
 
   it("round-trips Sessions state without retaining its transcript DOM or remounting xterm", async () => {
@@ -1484,11 +1489,8 @@ describe("App integration", () => {
     installDesktopBridge();
     render(<App />);
 
-    const surfaces = screen.getByRole("button", { name: "Open Surfaces menu" });
+    const surfaces = screen.getByRole("button", { name: "Settings" });
     await user.click(surfaces);
-    await user.click(screen.getByRole("menuitem", {
-      name: "Local Data & Privacy",
-    }));
 
     const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
     const close = within(dialog).getByRole("button", {
@@ -1850,14 +1852,13 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Details" })).toHaveAttribute("aria-expanded", "false");
   });
 
-  it.each(["Close", "Escape"])("returns focus to Surfaces after opening Details from its menu and using %s", async (dismissal) => {
+  it.each(["Close", "Escape"])("returns focus to the Details button after opening Details from it and using %s", async (dismissal) => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
-    const trigger = screen.getByRole("button", { name: "Open Surfaces menu" });
+    const trigger = screen.getByRole("button", { name: "Details" });
     await user.click(trigger);
-    await user.click(screen.getByRole("menuitem", { name: "Details" }));
     const close = screen.getByRole("button", { name: "Close Details panel" });
     await waitFor(() => expect(close).toHaveFocus());
     if (dismissal === "Escape") await user.keyboard("{Escape}");
@@ -1865,14 +1866,13 @@ describe("App integration", () => {
     await waitFor(() => expect(trigger).toHaveFocus());
   });
 
-  it("closes Details on Escape outside the panel and returns focus to its Surfaces opener", async () => {
+  it("closes Details on Escape outside the panel and returns focus to its opener", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
-    const trigger = screen.getByRole("button", { name: "Open Surfaces menu" });
+    const trigger = screen.getByRole("button", { name: "Details" });
     await user.click(trigger);
-    await user.click(screen.getByRole("menuitem", { name: "Details" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Close Details panel" })).toHaveFocus());
     screen.getByRole("button", { name: "New" }).focus();
     await user.keyboard("{Escape}");
@@ -1880,16 +1880,17 @@ describe("App integration", () => {
     await waitFor(() => expect(trigger).toHaveFocus());
   });
 
-  it("lets an open Surfaces menu consume Escape before Details", async () => {
+  it("lets an open project menu consume Escape before Details", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
     await screen.findByRole("article", { name: /Manual · zsh 1/i });
     await user.click(screen.getByRole("button", { name: "Details" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Close Details panel" })).toHaveFocus());
-    await user.click(screen.getByRole("button", { name: "Open Surfaces menu" }));
+    await user.click(screen.getByRole("button", { name: /^Project menu for / }));
+    expect(screen.getByRole("dialog", { name: "Project actions" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("menu", { name: "Surfaces" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Project actions" })).not.toBeInTheDocument();
     expect(screen.getByTestId("context-column")).toHaveClass("open");
   });
 
@@ -2104,7 +2105,7 @@ describe("App integration", () => {
 
     expect(screen.getByTestId("context-column")).toHaveClass("closed");
     await waitFor(() => expect(clientWorkspace).toHaveFocus());
-    expect(screen.getByRole("button", { name: "Open Surfaces menu" })).not.toHaveFocus();
+    expect(screen.getByRole("button", { name: "Details" })).not.toHaveFocus();
 
     await user.click(alfredWorkspace);
 
@@ -2231,7 +2232,6 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: /Project menu for Alfred/i })).not.toHaveTextContent(/2 tiles/);
     expect(within(workbenchHeader).queryByRole("toolbar")).not.toBeInTheDocument();
     expect(workbenchHeader).not.toHaveTextContent("2 sessions");
-    expect(screen.getByRole("toolbar", { name: "Work layout controls" })).not.toHaveTextContent(/sessions/);
     expect(within(screen.getByRole("complementary", { name: "Other sessions in Alfred" }))
       .getByRole("button", { name: /Codex · two/ })).toBeInTheDocument();
     expect(screen.queryByLabelText("Terminal grid controls")).not.toBeInTheDocument();
@@ -2292,7 +2292,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const toolbar = await screen.findByRole("toolbar", { name: "Work layout controls" });
+    const toolbar = await screen.findByTestId("workbench-header");
     await openPlan(user);
     expect(screen.getByRole("listitem", { name: "Draft Draft one" })).toBeInTheDocument();
     expect(screen.getByRole("listitem", { name: "Draft Draft two" })).toBeInTheDocument();
@@ -2327,9 +2327,10 @@ describe("App integration", () => {
     const workbenchHeader = await screen.findByTestId("workbench-header");
     expect(within(workbenchHeader).queryByRole("toolbar", { name: "Session and layout controls" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tablist", { name: "History" })).not.toBeInTheDocument();
-    const primarySessionDetails = workbenchHeader.querySelector(".workbench-primary-row .workbench-session-context");
-    expect(primarySessionDetails).toHaveTextContent("Codex · solo");
-    expect(primarySessionDetails).toHaveTextContent("…/Desktop/Alfred · main");
+    const breadcrumb = within(workbenchHeader).getByRole("navigation", { name: "Breadcrumb" });
+    expect(breadcrumb).toHaveTextContent("AlfredCodex · solo");
+    // The folder and branch moved out of the bar; they stay one hover away on the project name.
+    expect(within(breadcrumb).getByText("Alfred")).toHaveAttribute("title", "…/Desktop/Alfred · main");
 
     const visibleTiles = screen.getAllByTestId("terminal-tile").filter(
       (tile) => tile.getAttribute("aria-hidden") !== "true",
@@ -3775,7 +3776,6 @@ describe("App integration", () => {
     await selectSurface(user, "History");
     const sessions = await screen.findByRole("region", { name: "History" });
     expect(sessions).toBeInTheDocument();
-    expect(screen.queryByRole("navigation", { name: "Projects and Free Chats" })).not.toBeInTheDocument();
     expect(within(sessions).getByRole("searchbox", { name: "Search sessions" })).toHaveFocus();
     expect(within(within(sessions).getByRole("listbox", { name: "Session results" })).getAllByRole("option")).toHaveLength(2);
   });
@@ -3876,9 +3876,9 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const previewToggle = await screen.findByRole("button", { name: "Preview" });
+    const previewToggle = await screen.findByRole("tab", { name: "Preview" });
     expect(previewToggle).toBeEnabled();
-    expect(previewToggle).toHaveAttribute("aria-pressed", "false");
+    expect(previewToggle).toHaveAttribute("aria-selected", "false");
     expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument();
 
     await user.click(previewToggle);
@@ -3887,7 +3887,7 @@ describe("App integration", () => {
     expect(within(preview).queryByText("example.com")).not.toBeInTheDocument();
     expect(await within(preview).findByText("Preview is offline")).toBeInTheDocument();
     expect(within(preview).queryByTitle("Preview of http://localhost:5173/")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("tab", { name: "Preview" })).toHaveAttribute("aria-selected", "true");
 
     await user.click(within(preview).getByRole("button", { name: "Open preview externally" }));
 
@@ -3907,7 +3907,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const previewToggle = await screen.findByRole("button", { name: "Preview" });
+    const previewToggle = await screen.findByRole("tab", { name: "Preview" });
     await user.click(previewToggle);
     const preview = await screen.findByLabelText("Project preview");
     await user.click(within(preview).getByRole("button", { name: "Open preview externally" }));
@@ -3927,7 +3927,7 @@ describe("App integration", () => {
       ]);
 
       render(<App />);
-      await user.click(await screen.findByRole("button", { name: "Preview" }));
+      await user.click(await screen.findByRole("tab", { name: "Preview" }));
       await user.click(screen.getByRole("button", { name: "More Preview actions" }));
       await user.click(screen.getByRole("menuitem", { name: "Copy URL" }));
 
@@ -3973,7 +3973,7 @@ describe("App integration", () => {
       }],
     });
 
-    const previewToggle = await screen.findByRole("button", { name: "Preview" });
+    const previewToggle = await screen.findByRole("tab", { name: "Preview" });
     await user.click(previewToggle);
     const preview = await screen.findByLabelText("Project preview");
     expect(within(preview).getByText("127.0.0.1:3000/app")).toBeInTheDocument();
@@ -3990,16 +3990,16 @@ describe("App integration", () => {
     render(<App />);
 
     const terminalHost = await screen.findByTestId("xterm-host");
-    const previewToggle = await screen.findByRole("button", { name: "Preview" });
+    const previewToggle = await screen.findByRole("tab", { name: "Preview" });
     await user.click(previewToggle);
     const preview = await screen.findByLabelText("Project preview");
     await user.click(within(preview).getByRole("button", { name: "Close Preview" }));
 
     expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument();
     expect(screen.getByTestId("xterm-host")).toBe(terminalHost);
-    expect(screen.getByRole("button", { name: "Preview" })).toHaveFocus();
+    expect(screen.getByRole("tab", { name: "Preview" })).toHaveFocus();
 
-    await user.click(screen.getByRole("button", { name: "Preview" }));
+    await user.click(screen.getByRole("tab", { name: "Preview" }));
     expect(await screen.findByLabelText("Project preview")).toBeInTheDocument();
   });
 
@@ -4013,7 +4013,7 @@ describe("App integration", () => {
     render(<App />);
 
     const xtermHost = await screen.findByTestId("xterm-host");
-    await user.click(screen.getByRole("button", { name: "Preview" }));
+    await user.click(screen.getByRole("tab", { name: "Preview" }));
     expect(screen.getByLabelText("Project preview")).toBeVisible();
 
     await selectSurface(user, "Details");
@@ -4022,7 +4022,7 @@ describe("App integration", () => {
     expect(screen.getByRole("complementary", { name: "Details" })).toBeVisible();
     expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
 
-    await user.click(screen.getByRole("button", { name: "Preview" }));
+    await user.click(screen.getByRole("tab", { name: "Preview" }));
     expect(screen.getByLabelText("Project preview")).toBeVisible();
     expect(screen.getByTestId("workbench-shell")).not.toHaveClass("context-visible");
     expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
@@ -4063,7 +4063,7 @@ describe("App integration", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "false");
+    expect(await screen.findByRole("tab", { name: "Preview" })).toHaveAttribute("aria-selected", "false");
     expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "IronLog project" }));
@@ -4102,11 +4102,10 @@ describe("App integration", () => {
 
     render(<App />);
 
-    const previewToggle = await screen.findByRole("button", { name: "Preview" });
-    expect(previewToggle).toBeDisabled();
-    expect(previewToggle).toHaveAttribute("aria-pressed", "false");
+    expect(await screen.findByRole("region", { name: "Asleep sessions" })).toBeInTheDocument();
+    // Nothing is live and nothing serves a preview, so the session view tabs are not offered at all.
+    expect(screen.queryByRole("tab", { name: "Preview" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Asleep sessions" })).toBeInTheDocument();
   });
 
   it("starts sessions in a scratch workspace before a folder is bound", async () => {
@@ -4215,7 +4214,6 @@ describe("App integration", () => {
     expect(emptyState).toHaveTextContent("…/Desktop/MissingProject");
     expect(within(emptyState).queryByRole("button", { name: "Terminal" })).not.toBeInTheDocument();
     expect(within(emptyState).queryByRole("button", { name: "Codex" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "New terminal" })).toBeDisabled();
     expect(createTerminal).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "New" }));
@@ -4347,7 +4345,7 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("button", { name: "Alfred project" })).toBeInTheDocument();
-    expect(within(screen.getByTestId("workbench-header")).queryByText("Alfred")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("navigation", { name: "Breadcrumb" })).getByText("Alfred")).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Add project" }));
@@ -4690,7 +4688,7 @@ describe("App integration", () => {
       "aria-current",
       "location",
     );
-    expect(within(screen.getByTestId("workbench-header")).queryByText("Project 2")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("navigation", { name: "Breadcrumb" })).getByText("Project 2")).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
     await waitFor(() => {
       expect(createTerminal).toHaveBeenLastCalledWith(expect.objectContaining({ cwd: "/tmp/workspace-2" }));
@@ -5388,7 +5386,7 @@ describe("App integration", () => {
     render(<App />);
 
     expect(await screen.findByRole("article", { name: /Manual · zsh 1/i })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "New terminal" }));
+    await openNewTerminal(user);
     await user.click(screen.getByRole("button", { name: "Start" }));
 
     const newTerminal = await screen.findByRole("article", { name: /Manual · zsh 3/i });
@@ -8292,7 +8290,7 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Review resume" })).toBeInTheDocument();
   });
 
-  it.each(["Back to Work", "Surfaces menu"] as const)(
+  it.each(["Back to Work", "Deck in the rail", "a project in the rail"] as const)(
     "disarms unsafe Asleep before leaving History through %s",
     async (surfaceLabel) => {
       const user = userEvent.setup();
@@ -8305,7 +8303,7 @@ describe("App integration", () => {
         undefined,
         [
           {
-            clientId: `unsafe-switch-${surfaceLabel === "Back to Work" ? "back" : "menu"}`,
+            clientId: `unsafe-switch-${surfaceLabel.replace(/\W+/g, "-")}`,
             title: "Unsafe switch",
             cwd: "/repo",
             source: "manual",
@@ -8326,8 +8324,10 @@ describe("App integration", () => {
       const leaveHistory = async () => {
         if (surfaceLabel === "Back to Work") {
           await user.click(within(history).getByRole("button", { name: "Back to Work" }));
-        } else {
+        } else if (surfaceLabel === "Deck in the rail") {
           await selectSurface(user, "Work");
+        } else {
+          await user.click(screen.getByRole("button", { name: "Alfred project" }));
         }
       };
       await leaveHistory();
@@ -8354,7 +8354,7 @@ describe("App integration", () => {
 
     await selectSurface(user, "Local Data & Privacy");
     const dialog = screen.getByRole("dialog", { name: "Local Data & Privacy" });
-    const surfaces = screen.getByRole("button", { name: "Open Surfaces menu" });
+    const surfaces = screen.getByRole("button", { name: "Settings" });
     expect(within(dialog).getByRole("button", { name: "Close privacy controls" })).toHaveFocus();
 
     await user.keyboard("{Escape}");
@@ -10217,7 +10217,7 @@ describe("App integration", () => {
 
     render(<App />);
     const xtermHost = await screen.findByTestId("xterm-host");
-    await user.click(screen.getByRole("button", { name: "Preview" }));
+    await user.click(screen.getByRole("tab", { name: "Preview" }));
     expect(screen.getByLabelText("Project preview")).toBeVisible();
     await openNewPlan(user);
     await user.type(screen.getByLabelText("Goal"), "stage risky cleanup");
