@@ -8,7 +8,7 @@ import { neutralScreenshotPointer } from "./support/privacy-safe-screenshot";
 
 // Fixture item 1 is a blocked draft in Alpha (Needs you); Beta gets a Codex session kept busy;
 // the five folderless projects fold into Sandboxes.
-test.use({ fixtureOptions: { activeWorkspaceId: "A", blockedInboxItem: 1, inboxItems: 1, projectShell: true } });
+test.use({ fixtureOptions: { activeWorkspaceId: "A", blockedStagedItem: 1, stagedItems: 1, projectShell: true } });
 
 test("the rail shows one state glyph per project and folds rootless projects into Sandboxes", async ({ harness }, testInfo) => {
   const { app, page, paths } = harness;

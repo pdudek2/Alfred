@@ -22,7 +22,7 @@ const sandboxes = [
 ];
 
 const sessions: SessionTile[] = [
-  liveSession("codex-live", "Codex · Slice 2", "A", "/Users/patryk/Desktop/Alfred", "codex"),
+  liveSession("codex-live", "Codex · Atlas", "A", "/Users/patryk/Desktop/Alfred", "codex"),
   liveSession("claude-live", "Claude · CSS", "A", "/Users/patryk/Desktop/Alfred", "claude"),
   { ...liveSession("codex-restored", "Codex · restored", "A", "/Users/patryk/Desktop/Alfred", "codex"), runtimeStatus: "restored" },
   ...Array.from({ length: 4 }, (_, index) =>

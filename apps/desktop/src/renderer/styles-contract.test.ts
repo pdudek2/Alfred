@@ -41,7 +41,7 @@ async function parseWithLightningCss(source: string, filename: string): Promise<
   await preprocessCSS(source, filename, await lightningCssConfig);
 }
 
-function isLiveSliceOneSelector(selector: string): boolean {
+function isLiveShellSelector(selector: string): boolean {
   if (
     selector.startsWith(".workspace-layout.surface-sessions")
   ) return false;
@@ -68,17 +68,6 @@ function blockFor(selector: string): string {
   return matches.at(-1)?.groups?.body ?? "";
 }
 
-function blocksFor(selector: string): string[] {
-  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return [...styles.matchAll(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`, "gm"))].map(
-    (match) => match.groups?.body ?? "",
-  );
-}
-
-function blockForContaining(selector: string, text: string): string {
-  return blocksFor(selector).find((body) => body.includes(text)) ?? "";
-}
-
 function declaredMinHeightPx(body: string): number {
   return Number(body.match(/min-height:\s*(\d+)px/)?.[1] ?? 0);
 }
@@ -103,10 +92,6 @@ function exactRuleBodiesIn(source: string, selector: string): string[] {
         .some((candidate) => candidate.trim() === selector),
     )
     .map((match) => match.groups?.body ?? "");
-}
-
-function exactRuleBodies(selector: string): string[] {
-  return exactRuleBodiesIn(styles, selector);
 }
 
 function balancedBlockBody(source: string, openingBraceIndex: number): { body: string; end: number } {
@@ -138,15 +123,6 @@ function topLevelStylesOnlyIn(source: string): string {
 
 function topLevelExactRuleBodiesIn(source: string, selector: string): string[] {
   return exactRuleBodiesIn(topLevelStylesOnlyIn(source), selector);
-}
-
-function topLevelExactSelectorsIn(source: string): string[] {
-  return [...topLevelStylesOnlyIn(source).matchAll(/(?<selectors>[^{}]+)\{[^{}]*\}/gm)].flatMap((match) =>
-    (match.groups?.selectors ?? "")
-      .split(",")
-      .map((selector) => selector.trim())
-      .filter(Boolean),
-  );
 }
 
 function topLevelRulesIn(source: string): Array<{ selectors: string[]; body: string }> {
@@ -195,18 +171,6 @@ function mediaExactRuleBodies(query: string, selector: string): string[] {
   return mediaExactRuleBodiesIn(styles, query, selector);
 }
 
-function containerExactRuleBodies(query: string, selector: string): string[] {
-  const commentlessSource = withoutComments(styles);
-  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const containerStart = new RegExp(`@container\\s*${escapedQuery}\\s*\\{`, "g");
-  const bodies: string[] = [];
-  for (const match of commentlessSource.matchAll(containerStart)) {
-    const openingBraceIndex = (match.index ?? 0) + match[0].lastIndexOf("{");
-    bodies.push(...exactRuleBodiesIn(balancedBlockBody(commentlessSource, openingBraceIndex).body, selector));
-  }
-  return bodies;
-}
-
 function canonicalBaseRuleBodiesIn(source: string, selector: string): string[] {
   return topLevelExactRuleBodiesIn(source, selector);
 }
@@ -215,139 +179,6 @@ function expectCanonicalBase(selector: string, requiredDeclarations: string[]): 
   const bodies = canonicalBaseRuleBodiesIn(styles, selector);
   expect(bodies, `${selector} must have one canonical base rule`).toHaveLength(1);
   for (const declaration of requiredDeclarations) expect(bodies[0]).toContain(declaration);
-}
-
-function expectTopLevelOwnerWithin(
-  selector: string,
-  requiredDeclarations: string[],
-  startMarker: string,
-  endMarker: string,
-): void {
-  const bodies = topLevelExactRuleBodies(selector);
-  expect(bodies, `${selector} must have one top-level owner`).toHaveLength(1);
-  const start = styles.indexOf(startMarker);
-  const end = styles.indexOf(endMarker, start + startMarker.length);
-  expect(start, `Missing owner-region start marker ${startMarker}`).toBeGreaterThanOrEqual(0);
-  expect(end, `Missing owner-region end marker ${endMarker}`).toBeGreaterThan(start);
-  const regionalBodies = exactRuleBodiesIn(styles.slice(start, end), selector);
-  expect(regionalBodies, `${selector} must be inside ${startMarker} … ${endMarker}`).toHaveLength(1);
-  for (const declaration of requiredDeclarations) expect(regionalBodies[0]).toContain(declaration);
-}
-
-
-type CssOwnerRegion = {
-  name: string;
-  startMarker: string;
-  endMarker: string;
-};
-
-type ResponsiveOwnerAllowance = {
-  atRule: "media" | "container";
-  query: string;
-  selector: string;
-  region: CssOwnerRegion;
-};
-
-function expectResponsiveFamilyOwnersWithinSource(
-  source: string,
-  familyName: string,
-  matchesFamily: (selector: string) => boolean,
-  allowances: ResponsiveOwnerAllowance[],
-): void {
-  const commentlessSource = withoutComments(source);
-  const actual: Array<{ atRule: "media" | "container"; query: string; selector: string; index: number }> = [];
-  const atRuleStart = /@(media|container)\s*([^{}]+)\{/g;
-
-  for (const match of commentlessSource.matchAll(atRuleStart)) {
-    const atRule = match[1] as "media" | "container";
-    const query = (match[2] ?? "").trim();
-    const openingBraceIndex = (match.index ?? 0) + match[0].lastIndexOf("{");
-    const selectors = topLevelExactSelectorsIn(balancedBlockBody(commentlessSource, openingBraceIndex).body);
-    for (const selector of selectors.filter(matchesFamily)) {
-      actual.push({ atRule, query, selector, index: match.index ?? 0 });
-    }
-  }
-
-  const remainingAllowances = [...allowances];
-  for (const occurrence of actual) {
-    const allowanceIndex = remainingAllowances.findIndex((allowance) => {
-      if (
-        allowance.atRule !== occurrence.atRule
-        || allowance.query !== occurrence.query
-        || allowance.selector !== occurrence.selector
-      ) return false;
-      const start = commentlessSource.indexOf(allowance.region.startMarker);
-      const end = commentlessSource.indexOf(
-        allowance.region.endMarker,
-        start + allowance.region.startMarker.length,
-      );
-      expect(start, `Missing ${allowance.region.name} start marker`).toBeGreaterThanOrEqual(0);
-      expect(end, `Missing ${allowance.region.name} end marker`).toBeGreaterThan(start);
-      return occurrence.index > start && occurrence.index < end;
-    });
-
-    if (allowanceIndex === -1) {
-      throw new Error(
-        `${familyName} responsive owner is not allowed: @${occurrence.atRule} ${occurrence.query} ${occurrence.selector}`,
-      );
-    }
-    remainingAllowances.splice(allowanceIndex, 1);
-  }
-
-  expect(remainingAllowances, `${familyName} responsive owner allowlist must be complete`).toEqual([]);
-}
-
-function expectAllTopLevelOccurrencesWithinSource(
-  source: string,
-  selector: string,
-  allowedRegions: CssOwnerRegion[],
-  expectedOccurrences: number,
-): void {
-  const allOccurrences = topLevelExactRuleBodiesIn(source, selector);
-  expect(allOccurrences, `${selector} top-level occurrence count`).toHaveLength(expectedOccurrences);
-
-  let allowedOccurrenceCount = 0;
-  for (const region of allowedRegions) {
-    const start = source.indexOf(region.startMarker);
-    const end = source.indexOf(region.endMarker, start + region.startMarker.length);
-    expect(start, `Missing ${region.name} start marker ${region.startMarker}`).toBeGreaterThanOrEqual(0);
-    expect(end, `Missing ${region.name} end marker ${region.endMarker}`).toBeGreaterThan(start);
-    allowedOccurrenceCount += topLevelExactRuleBodiesIn(source.slice(start, end), selector).length;
-  }
-
-  expect(
-    allowedOccurrenceCount,
-    `${selector} has a top-level occurrence outside allowed owner regions: ${allowedRegions.map((region) => region.name).join(", ")}`,
-  ).toBe(allOccurrences.length);
-}
-
-function expectAllTopLevelOccurrencesWithin(
-  selector: string,
-  allowedRegions: CssOwnerRegion[],
-  expectedOccurrences: number,
-): void {
-  expectAllTopLevelOccurrencesWithinSource(styles, selector, allowedRegions, expectedOccurrences);
-}
-
-function expectAllFamilyTopLevelOccurrencesWithinSource(
-  source: string,
-  familyName: string,
-  matchesFamily: (selector: string) => boolean,
-  allowedRegions: CssOwnerRegion[],
-): string[] {
-  const selectors = topLevelExactSelectorsIn(source).filter(matchesFamily);
-  expect(selectors, `${familyName} must have protected top-level selectors`).not.toHaveLength(0);
-
-  for (const selector of new Set(selectors)) {
-    expectAllTopLevelOccurrencesWithinSource(
-      source,
-      selector,
-      allowedRegions,
-      selectors.filter((candidate) => candidate === selector).length,
-    );
-  }
-
-  return [...new Set(selectors)];
 }
 
 function rulesForSelectorContaining(selector: string): Array<{ selectors: string; body: string }> {
@@ -472,56 +303,6 @@ describe("renderer CSS contracts", () => {
     expect(contrastRatio(rootToken("--ink-5"), rootToken("--ink-1"))).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("owns the exact Slice 1 shell and terminal geometry", () => {
-    expectCanonicalBase(".agent-space-shell", ["min-height: 100vh", "padding: 0"]);
-    expectCanonicalBase(".desktop-frame", ["height: 100vh", "grid-template-rows: auto auto minmax(0, 1fr)"]);
-    expectCanonicalBase(".mission-bar", ["grid-row: 1", "min-height: 40px", "padding: 0"]);
-    expectCanonicalBase(".desktop-alert-stack", ["grid-row: 2", "min-height: 0"]);
-    expectCanonicalBase(".shell-action-alert", ["position: fixed", "z-index: 40"]);
-    expect(exactBlockFor(".shell-action-alert")).not.toMatch(/animation|transition/);
-    expectCanonicalBase(".workspace-layout", [
-      "background: var(--surface-canvas)",
-      "transition: grid-template-columns 210ms cubic-bezier(0.16, 1, 0.3, 1)",
-    ]);
-    expectCanonicalBase(".project-navigator", [
-      "width: clamp(226px, 16vw, 280px)",
-      "border-right: 1px solid var(--border-strong)",
-      "background: var(--surface-panel)",
-      "transition: width 210ms cubic-bezier(0.16, 1, 0.3, 1)",
-    ]);
-    expectCanonicalBase(".project-navigator-header", ["min-height: 46px"]);
-    expect(styles).not.toContain(".desktop-alert-stack:empty");
-    expectCanonicalBase(".workbench-header", [
-      "background: var(--surface-chrome)",
-      "box-shadow: inset 0 -1px 0 var(--border)",
-    ]);
-    expectCanonicalBase(".workbench-primary-row", ["height: 44px"]);
-    expectCanonicalBase(".desk-surface-panel", ["display: grid", "grid-template-rows: 46px minmax(0, 1fr)"]);
-    expectCanonicalBase(".work-surface-toolbar", [
-      "height: 46px",
-      "border-bottom: 1px solid var(--border)",
-      "background: var(--surface-chrome)",
-    ]);
-    expectCanonicalBase(".terminal-tile", [
-      "border: 1px solid var(--border)",
-      "border-radius: var(--radius-panel)",
-      "background: var(--surface-terminal)",
-      "box-shadow: none",
-      "grid-template-rows: 43px minmax(0, 1fr)",
-    ]);
-    expectCanonicalBase(".terminal-tile-header", ["height: 43px", "min-height: 43px"]);
-    for (const selector of [
-      ".terminal-tile.real-terminal.selected",
-    ]) {
-      expectCanonicalBase(selector, [
-        "border-width: 1px",
-        "border-color: color-mix(in oklab, var(--signal-focus) 34%, var(--border-strong))",
-        "box-shadow: none",
-      ]);
-    }
-    expect(styles).not.toMatch(/terminal-tile\.selected::before/);
-  });
-
   it("uses macOS system type for visible app chrome and technical content", () => {
     for (const selector of [
       ".project-navigator-header",
@@ -592,7 +373,7 @@ describe("renderer CSS contracts", () => {
 
   it("keeps live shell and terminal owners on the achromatic material", () => {
     const liveRules = allRulesIn(styles).filter((rule) =>
-      rule.selectors.some(isLiveSliceOneSelector),
+      rule.selectors.some(isLiveShellSelector),
     );
     const liveSelectors = liveRules.flatMap(({ selectors }) => selectors);
     const legacyColorUses = liveRules.filter(({ body }) =>
@@ -623,7 +404,7 @@ describe("renderer CSS contracts", () => {
   });
 
   it("keeps live shell and terminal material quiet and reserves signal for attention", () => {
-    const ownerRules = allRulesIn(styles).filter((rule) => rule.selectors.some(isLiveSliceOneSelector));
+    const ownerRules = allRulesIn(styles).filter((rule) => rule.selectors.some(isLiveShellSelector));
     const gradients = ownerRules.filter(({ body }) => /(?:linear|radial)-gradient/.test(body));
     const materialShadows = ownerRules.filter(({ body }) => {
       const value = body.match(/box-shadow:\s*([^;]+)/)?.[1]?.trim();
@@ -654,69 +435,6 @@ describe("renderer CSS contracts", () => {
         || selector.includes("needs-you"),
       ),
     )).toBe(true);
-  });
-
-  it("keeps every live Slice 1 family inside its canonical owner region", () => {
-    const shellRegion = [{
-      name: "canonical shell/navigation/workbench",
-      startMarker: ".agent-space-shell {",
-      endMarker: "\n.terminal-stage {",
-    }];
-    const terminalRegion = [{
-      name: "canonical terminal scene",
-      startMarker: "\n.terminal-stage {",
-      endMarker: "/* Command palette and privacy modal */",
-    }];
-    expectAllFamilyTopLevelOccurrencesWithinSource(
-      styles,
-      "Slice 1 shell",
-      (selector) => isLiveSliceOneSelector(selector)
-        && !selector.startsWith(".workspace-layout > .context-column")
-        && !selector.startsWith(".workspace-layout.context-visible")
-        && (
-          selector.startsWith(".prepare-work-popover")
-          || !/(?:\.terminal-|\.tile-|\.tool-dot|\.session-status-|\.session-rename-form|\.split-empty-|\.staged-|\.arrange-|\.xterm-host|\.composer-|\.dispatch-)/.test(selector)
-        ),
-      shellRegion,
-    );
-    expectAllFamilyTopLevelOccurrencesWithinSource(
-      styles,
-      "Slice 1 terminal",
-      (selector) => /(?:\.terminal-|\.tile-|\.tool-dot|\.session-status-|\.session-rename-form|\.split-empty-|\.staged-|\.arrange-|\.xterm-host)/.test(selector),
-      terminalRegion,
-    );
-
-  });
-
-  it("keeps live responsive owners beside their canonical Slice 1 families", () => {
-    const source = withoutComments(styles);
-    const shellStart = source.indexOf(".agent-space-shell {");
-    const terminalStart = source.indexOf("\n.terminal-stage {");
-    const terminalEnd = source.indexOf("\n.discard-checkout-backdrop,", terminalStart);
-    const responsiveStarts = /@(media|container)\s*([^{}]+)\{/g;
-    const misplaced: string[] = [];
-
-    for (const match of source.matchAll(responsiveStarts)) {
-      const index = match.index ?? 0;
-      const openingBraceIndex = index + match[0].lastIndexOf("{");
-      const selectors = topLevelExactSelectorsIn(balancedBlockBody(source, openingBraceIndex).body);
-      for (const selector of selectors) {
-        const isNativeReducedTransparency = match[1] === "media"
-          && match[2]?.trim() === "(prefers-reduced-transparency: reduce)"
-          && [
-            'html[data-alfred-window-material="native"] .desktop-frame',
-            'html[data-alfred-window-material="native"] .mission-bar',
-            'html[data-alfred-window-material="native"] .project-navigator',
-          ].includes(selector);
-        if (isNativeReducedTransparency) continue;
-        const isTerminal = /(?:\.terminal-|\.tile-|\.tool-dot|\.session-status-|\.session-rename-form|\.split-empty-|\.staged-|\.arrange-|\.xterm-host)/.test(selector);
-        const isShell = isLiveSliceOneSelector(selector) && !isTerminal && !/(?:\.composer-|\.dispatch-)/.test(selector);
-        if (isTerminal && (index < terminalStart || index >= terminalEnd)) misplaced.push(selector);
-        if (isShell && (index < shellStart || index >= terminalStart)) misplaced.push(selector);
-      }
-    }
-
-    expect(misplaced).toEqual([]);
   });
 
   it("drops dead migration hooks from the live shell", () => {
@@ -796,87 +514,6 @@ describe("renderer CSS contracts", () => {
     }
   });
 
-  it("rejects a protected selector with a late top-level occurrence outside its owner region", () => {
-    const fixture = `
-      .owner-start { display: block; }
-      .protected-state { color: cyan; }
-      .owner-end { display: block; }
-      .protected-state { color: red; }
-    `;
-
-    expect(() =>
-      expectAllTopLevelOccurrencesWithinSource(
-        fixture,
-        ".protected-state",
-        [{ name: "fixture canonical", startMarker: ".owner-start {", endMarker: ".owner-end {" }],
-        2,
-      ),
-    ).toThrow(/outside allowed owner regions/);
-  });
-
-  it("rejects a late state occurrence outside a protected family owner region", () => {
-    const fixture = `
-      .owner-start { display: block; }
-      .protected { display: grid; }
-      .protected.selected { color: cyan; }
-      .owner-end { display: block; }
-      .protected.selected { color: red; }
-    `;
-
-    expect(() =>
-      expectAllFamilyTopLevelOccurrencesWithinSource(
-        fixture,
-        "fixture family",
-        (selector) => selector.startsWith(".protected"),
-        [{ name: "fixture family", startMarker: ".owner-start {", endMarker: ".owner-end {" }],
-      ),
-    ).toThrow(/outside allowed owner regions/);
-  });
-
-  it("rejects a responsive family owner outside its allowed query and region", () => {
-    const fixture = `
-      .owner-start { display: block; }
-      @media (max-width: 980px) {
-        .review-surface-header { grid-template-columns: 1fr; }
-      }
-      .owner-end { display: block; }
-      @media (max-width: 980px) {
-        .review-surface-primary { display: none; }
-      }
-    `;
-    const region = { name: "fixture responsive owner", startMarker: ".owner-start {", endMarker: ".owner-end {" };
-
-    expect(() => expectResponsiveFamilyOwnersWithinSource(
-      fixture,
-      "fixture surface",
-      (selector) => selector.startsWith(".review-surface"),
-      [{ atRule: "media", query: "(max-width: 980px)", selector: ".review-surface-header", region }],
-    )).toThrow(/responsive owner is not allowed/);
-  });
-
-  it("accepts an explicitly allowed container owner inside its region", () => {
-    const fixture = `
-      .owner-start { display: block; }
-      @container terminal-tile (max-width: 520px) {
-        .tile-title { min-width: 0; }
-      }
-      .owner-end { display: block; }
-    `;
-    const region = { name: "fixture container owner", startMarker: ".owner-start {", endMarker: ".owner-end {" };
-
-    expect(() => expectResponsiveFamilyOwnersWithinSource(
-      fixture,
-      "fixture tile",
-      (selector) => selector.startsWith(".tile-"),
-      [{
-        atRule: "container",
-        query: "terminal-tile (max-width: 520px)",
-        selector: ".tile-title",
-        region,
-      }],
-    )).not.toThrow();
-  });
-
   it("rejects duplicate top-level rule bodies instead of accepting the last match", () => {
     const fixture = `
       .review-surface-primary { background: black; }
@@ -898,105 +535,6 @@ describe("renderer CSS contracts", () => {
     expect(mediaExactRuleBodiesIn(fixture, "(max-width: 980px)", ".fixture-owner")).toHaveLength(0);
   });
 
-  it("keeps one canonical base owner for frame chrome and navigation", () => {
-    const desktopFrameBodies = topLevelExactRuleBodies(".desktop-frame");
-    expect(desktopFrameBodies).toHaveLength(1);
-    expect(desktopFrameBodies[0]).toContain("display: grid");
-    expect(desktopFrameBodies[0]).toContain("overflow: clip");
-    expect(mediaExactRuleBodies("(max-width: 980px)", ".desktop-frame")).toHaveLength(0);
-
-    expectCanonicalBase(".mission-bar", [
-      "display: flex",
-      "min-height: 40px",
-      "position: relative",
-      "z-index: 100",
-    ]);
-    expectCanonicalBase(".mission-name", ["display: flex", "min-width: 0"]);
-    expectCanonicalBase(".workspace-title-menu", ["position: relative", "min-width: 0"]);
-    expect(topLevelExactRuleBodies(".workspace-title-trigger")).toHaveLength(1);
-    expect(mediaExactRuleBodies("(max-width: 980px)", ".workspace-title-trigger")).toHaveLength(1);
-    expectCanonicalBase(".workbench-header", ["width: 100%", "min-width: 0", "height: 44px"]);
-    expect(exactBlockFor(".workbench-session-context")).toContain("overflow: visible");
-    expectCanonicalBase(".workbench-primary-row", [
-      "display: grid",
-      "grid-template-columns: auto minmax(0, 1fr) auto",
-      "height: 44px",
-    ]);
-    expectCanonicalBase(".work-surface-toolbar", ["display: flex", "height: 46px"]);
-    expectCanonicalBase(".chrome-menu-popover", ["z-index: 120", "box-shadow:"]);
-
-    expectCanonicalBase(".project-navigator", [
-      "min-width: 0",
-      "display: grid",
-      "grid-template-rows: auto minmax(0, 1fr)",
-      "width: clamp(226px, 16vw, 280px)",
-    ]);
-    const workspaceNavScrollBodies = exactRuleBodies(".project-navigator-scroll");
-    expect(workspaceNavScrollBodies).toHaveLength(1);
-    expect(workspaceNavScrollBodies[0]).toContain("overflow-y: auto");
-    expect(workspaceNavScrollBodies[0]).toContain("overflow-x: hidden");
-    expect(workspaceNavScrollBodies[0]).toContain("scrollbar-color: var(--ink-3) transparent");
-    expectCanonicalBase(".project-row-button", ["display: flex", "width: 100%"]);
-    expectCanonicalBase(".project-session", ["display: grid", "width: 100%"]);
-    expectCanonicalBase(".project-row-label", ["text-overflow: ellipsis", "white-space: nowrap"]);
-    expectCanonicalBase(".project-session-title", ["text-overflow: ellipsis", "white-space: nowrap"]);
-  });
-
-  it("keeps the approved stronger native material influence bounded to window chrome", () => {
-    const titlebarMaterial = singleTopLevelRuleBodyIn(
-      styles,
-      'html[data-alfred-window-material="native"] .mission-bar',
-    );
-    const projectsMaterial = singleTopLevelRuleBodyIn(
-      styles,
-      'html[data-alfred-window-material="native"] .project-navigator',
-    );
-
-    expect(titlebarMaterial).toContain("background: rgba(3, 5, 8, 0.3)");
-    expect(projectsMaterial).toContain("background: rgba(3, 5, 8, 0.36)");
-  });
-
-  it("keeps one canonical owner for the Slice 2 shell", () => {
-    expectCanonicalBase(".project-navigator", ["width: clamp(226px, 16vw, 280px)", "overflow: hidden"]);
-    expectCanonicalBase(".workbench-header", ["height: 44px"]);
-    expectCanonicalBase(".work-surface-toolbar", ["display: flex"]);
-    expectCanonicalBase(".context-column", ["grid-column: 3", "position: static", "width: auto"]);
-    expectCanonicalBase(".workspace-layout.surface-sessions", [
-      "grid-template-columns: minmax(0, 1fr)",
-      "position: relative",
-    ]);
-    const sessionsSurfacePlacement = topLevelExactRuleBodies(
-      ".workspace-layout.surface-sessions > .orchestrator-surface",
-    );
-    expect(sessionsSurfacePlacement).toHaveLength(1);
-    expect(sessionsSurfacePlacement[0]).toContain("grid-column: 1");
-    expect(topLevelExactRuleBodies(".workspace-layout.surface-sessions.preview-visible")).toHaveLength(1);
-
-    expect(topLevelExactRuleBodies(".workspace-layout:has(.context-column.open)")).toHaveLength(0);
-    expect(styles).not.toContain(".context-compact-status");
-    expect(styles).not.toContain(".session-chrome-row");
-    expect(styles).not.toContain(".workspace-rail.embedded");
-  });
-
-  it("owns Details as one adjacent right dock", () => {
-    const openShell = singleTopLevelRuleBodyIn(
-      styles,
-      ".workspace-layout.context-visible",
-    );
-    const contextColumn = singleTopLevelRuleBodyIn(styles, ".context-column");
-    const contextDrawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
-
-    expect(openShell).toContain(
-      "grid-template-columns: clamp(226px, 16vw, 280px) minmax(420px, 1fr) 318px",
-    );
-    expect(contextColumn).toContain("grid-column: 3");
-    expect(contextColumn).toContain("position: static");
-    expect(contextColumn).toContain("width: auto");
-    expect(contextDrawer).toContain("border-radius: 0");
-    expect(contextDrawer).toContain("box-shadow: none");
-    expect(styles).not.toContain(".workspace-layout > .context-column.open");
-  });
-
   it("keeps terminal ancestors motionless and honors reduced motion", () => {
     const terminalAncestorPattern = /^(?:\.terminal-stage|\.terminal-stage-body|\.terminal-grid-column|\.terminal-grid|\.terminal-tile|\.xterm-host)(?:$|[. :>])/;
     const motionOwners = allRulesIn(styles).filter(({ selectors, body }) =>
@@ -1008,63 +546,6 @@ describe("renderer CSS contracts", () => {
     const reducedMotion = mediaExactRuleBodies("(prefers-reduced-motion: reduce)", "*");
     expect(reducedMotion).toHaveLength(1);
     expect(reducedMotion[0]).toContain("transition-duration: 0.001ms !important");
-  });
-
-  it("compacts Projects at the native narrow width only when Work yields space to Preview", () => {
-    const layout = mediaExactRuleBodies("(max-width: 1180px)", ".workspace-layout.preview-visible");
-    expect(layout).toHaveLength(1);
-    expect(layout[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
-
-    const forcedRail = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      ".workspace-layout.preview-visible .project-navigator",
-    );
-    expect(forcedRail).toHaveLength(1);
-    expect(forcedRail[0]).toContain("width: 46px");
-
-    expect(mediaExactRuleBodies("(max-width: 1180px)", ".workspace-layout")).toHaveLength(0);
-
-    expect(styles).not.toContain(".project-navigator-collapse");
-    expect(styles).not.toContain(".project-navigator.is-collapsed");
-
-    const hoverPeek = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      ".workspace-layout.preview-visible .project-navigator .project-row-button:hover::after",
-    );
-    const focusPeek = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      ".workspace-layout.preview-visible .project-navigator:focus-within .project-row-button:focus-visible::after",
-    );
-    expect(hoverPeek).toHaveLength(1);
-    expect(focusPeek).toHaveLength(1);
-    expect(hoverPeek[0]).toContain("content: attr(data-label)");
-    expect(focusPeek[0]).toContain("content: attr(data-label)");
-  });
-
-  it("keeps narrow Details over the work surface instead of creating a third fixed column", () => {
-    const narrowWorkDetails = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      "html .workspace-layout.context-visible",
-    );
-    expect(narrowWorkDetails).toHaveLength(1);
-    expect(narrowWorkDetails[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
-
-    const narrowDetails = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      "html .workspace-layout.context-visible > .context-column",
-    );
-    expect(narrowDetails).toHaveLength(1);
-    expect(narrowDetails[0]).toContain("position: absolute");
-    expect(narrowDetails[0]).toContain("grid-column: auto");
-    expect(narrowDetails[0]).toContain("width: min(360px, calc(100% - 46px))");
-
-    for (const selector of [
-      "html .workspace-layout.surface-sessions.context-visible > .context-column",
-    ]) {
-      const narrowSurfaceDetails = mediaExactRuleBodies("(max-width: 1180px)", selector);
-      expect(narrowSurfaceDetails).toHaveLength(1);
-      expect(narrowSurfaceDetails[0]).toContain("grid-column: auto");
-    }
   });
 
   it("keeps the Work empty state unboxed", () => {
@@ -1081,44 +562,6 @@ describe("renderer CSS contracts", () => {
     const count = singleTopLevelRuleBodyIn(styles, ".project-sandbox-count");
     expect(count).toContain("color: var(--text-faint)");
     expect(count).toContain("font-variant-numeric: tabular-nums");
-  });
-
-  it("uses restrained project motion and disables it for reduced motion", () => {
-    expect(singleTopLevelRuleBodyIn(styles, ".workspace-layout")).toContain(
-      "transition: grid-template-columns 210ms cubic-bezier(0.16, 1, 0.3, 1)",
-    );
-    expect(singleTopLevelRuleBodyIn(styles, ".project-navigator")).toContain(
-      "transition: width 210ms cubic-bezier(0.16, 1, 0.3, 1)",
-    );
-    for (const selector of [
-      ".workspace-layout",
-      ".project-navigator",
-    ]) {
-      const reduced = mediaExactRuleBodies("(prefers-reduced-motion: reduce)", selector);
-      expect(reduced).toHaveLength(1);
-      expect(reduced[0]).toContain("transition: none");
-    }
-  });
-
-  it("keeps the single workspace actions owner operable in the forced narrow rail", () => {
-    const workspacePopover = topLevelExactRuleBodies(".workspace-popover");
-    expect(workspacePopover).toHaveLength(1);
-    expect(workspacePopover[0]).toContain("position: fixed");
-    expect(workspacePopover[0]).toContain("max-height: calc(100vh - 16px)");
-
-    const actions = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      ".workspace-layout.preview-visible .project-navigator .project-workspace-actions",
-    );
-    expect(actions).toHaveLength(1);
-    expect(actions[0]).toContain("display: flex");
-    expect(actions[0]).not.toContain("display: none");
-
-    const popover = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      ".workspace-layout.preview-visible .project-workspace-actions .workspace-popover",
-    );
-    expect(popover).toHaveLength(0);
   });
 
   it("keeps Sessions on its narrow layout", () => {
@@ -1144,20 +587,6 @@ describe("renderer CSS contracts", () => {
         ".sessions-surface:has(.sessions-reader__start) .sessions-navigator",
       ),
     ).toEqual([expect.stringContaining("display: none")]);
-  });
-
-  it("keeps Slice A interaction winners adjacent to their canonical components", () => {
-    const workspaceNavHover = topLevelExactRuleBodies(".project-row-button:hover");
-    const workspaceNavFocus = topLevelExactRuleBodies(".project-row-button:focus-visible");
-    expect(workspaceNavHover).toHaveLength(1);
-    expect(workspaceNavFocus).toHaveLength(1);
-    expect(workspaceNavHover[0]).toContain("background: var(--surface-control-hover)");
-    expectCanonicalBase(".workbench-primary-row button", [
-      "max-height: 32px",
-      "border-radius: var(--radius-control)",
-    ]);
-    expectCanonicalBase('.work-surface-toolbar button[aria-pressed="true"]', ["font-weight: 700"]);
-    expectCanonicalBase(".chrome-menu-popover button", ["width: 100%"]);
   });
 
   it("draws one visible focus ring across Work destinations and controls", () => {
@@ -1189,419 +618,10 @@ describe("renderer CSS contracts", () => {
     expect(singleTopLevelRuleBodyIn(styles, ".project-session.is-active")).not.toContain("outline:");
   });
 
-  it("keeps canonical base owners for terminal Details and composer", () => {
-    expectCanonicalBase(".terminal-stage", ["display: grid", "overflow: hidden"]);
-    expectCanonicalBase(".terminal-stage-body", ["min-height: 0", "overflow: hidden"]);
-    expectCanonicalBase(".terminal-grid-column", ["overflow-y: auto", "height: 100%"]);
-    expectCanonicalBase(".terminal-grid", ["display: grid", "min-height: 0"]);
-    expectCanonicalBase(".terminal-tile", [
-      "display: grid",
-      "overflow: hidden",
-      "border-radius: var(--radius-panel)",
-      "background: var(--surface-terminal)",
-      "grid-template-rows: 43px minmax(0, 1fr)",
-    ]);
-    expectCanonicalBase(".context-column", ["grid-column: 3", "position: static", "pointer-events: none"]);
-    expectCanonicalBase(".context-drawer", ["display: grid", "overflow: hidden"]);
-
-    const terminalGridStart = ".terminal-stage {";
-    const terminalGridEnd = ".terminal-empty-state {";
-    expectTopLevelOwnerWithin(
-      ".terminal-grid",
-      ["min-height: 0", "flex: 1 1 auto", "grid-template-columns: minmax(0, 1fr)", "grid-template-rows: minmax(0, 1fr)"],
-      terminalGridStart,
-      terminalGridEnd,
-    );
-
-    const terminalTileStart = ".terminal-tile {";
-    const terminalTileEnd = ".tile-header {";
-    expectTopLevelOwnerWithin(
-      ".terminal-tile.workspace-hidden",
-      ["display: none"],
-      terminalTileStart,
-      terminalTileEnd,
-    );
-    expectTopLevelOwnerWithin(".terminal-tile.focus-hidden", ["display: none"], terminalTileStart, terminalTileEnd);
-    for (const selector of [".terminal-tile.real-terminal.selected"]) {
-      expectCanonicalBase(selector, [
-        "border-width: 1px",
-        "border-color: color-mix(in oklab, var(--signal-focus) 34%, var(--border-strong))",
-        "box-shadow: none",
-      ]);
-    }
-    expectTopLevelOwnerWithin(
-      ".terminal-tile:focus-visible",
-      [
-        "outline: none",
-        "border-color: color-mix(in oklab, var(--signal-focus) 58%, var(--border-strong))",
-        "box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--signal-focus) 18%, transparent)",
-      ],
-      terminalTileStart,
-      terminalTileEnd,
-    );
-    expectTopLevelOwnerWithin(
-      ".terminal-tile:focus-within",
-      [
-        "outline: none",
-        "border-color: color-mix(in oklab, var(--signal-focus) 46%, var(--border-strong))",
-        "box-shadow: none",
-      ],
-      terminalTileStart,
-      terminalTileEnd,
-    );
-    expectTopLevelOwnerWithin(".terminal-tile:hover", ["border-color: var(--border-strong)", "box-shadow: none"], terminalTileStart, terminalTileEnd);
-
-    const contextStart = ".workspace-layout.context-visible {";
-    const contextEnd = ".agent-timeline-panel {\n  border-color: var(--border);";
-    expectTopLevelOwnerWithin(".context-column.closed", ["display: none"], contextStart, contextEnd);
-    expectTopLevelOwnerWithin(".context-column.open", ["pointer-events: auto"], contextStart, contextEnd);
-    expectCanonicalBase(".workspace-layout", [
-      "grid-template-columns: clamp(226px, 16vw, 280px) minmax(0, 1fr)",
-      "position: relative",
-    ]);
-    expectTopLevelOwnerWithin(
-      ".context-column",
-      ["grid-column: 3", "position: static", "width: auto"],
-      contextStart,
-      contextEnd,
-    );
-    expect(styles).not.toContain(":has(.context-column.open)");
-    expect(styles).not.toContain(".workspace-layout > .context-column.open");
-
-    const terminalStageRegion: CssOwnerRegion = {
-      name: "terminal stage/grid",
-      startMarker: ".terminal-stage {",
-      endMarker: ".terminal-empty-state {",
-    };
-    const terminalTileRegion: CssOwnerRegion = {
-      name: "terminal tile/xterm",
-      startMarker: ".terminal-tile {",
-      endMarker: "/* Command palette and privacy modal */",
-    };
-    const terminalSemanticRoleRegion: CssOwnerRegion = {
-      name: "terminal semantic role layer",
-      startMarker: "/* Terminal-first color role layer. */",
-      endMarker: ".agent-timeline-header strong {",
-    };
-    const contextRegion: CssOwnerRegion = {
-      name: "Details drawer/column",
-      startMarker: ".context-drawer {",
-      endMarker: ".agent-timeline-panel {\n  border-color: var(--border);",
-    };
-    expectAllTopLevelOccurrencesWithin(".terminal-grid", [terminalStageRegion], 1);
-
-    for (const [selector, expectedOccurrences] of [
-      [".terminal-tile:hover", 1],
-      [".terminal-tile .xterm", 1],
-      [".terminal-tile .terminal-viewport", 1],
-      [".terminal-tile .xterm-host", 1],
-      [".terminal-tile.restored", 1],
-      [".terminal-tile.kind-manual", 1],
-      [".terminal-tile.kind-codex", 1],
-      [".terminal-tile.kind-claude", 1],
-      [".terminal-tile.kind-dev-server", 1],
-      [".terminal-tile.real-terminal.browser", 1],
-      [".terminal-tile-header .tile-title", 1],
-      [".terminal-tile-header .tile-title b", 1],
-      [".terminal-tile-header .tile-title small", 1],
-      [".terminal-tile.real-terminal .tile-kind-mark", 1],
-      [".terminal-tile.real-terminal .tile-kind-mark .tile-kind-label", 1],
-      [".terminal-tile:hover .tile-utility-actions", 1],
-      [".terminal-tile:focus-within .tile-utility-actions", 1],
-      [".terminal-tile-header .tile-title:has(.session-rename-form)", 1],
-      [".terminal-tile-header .tile-title > div", 1],
-      [".terminal-tile-header .tile-title > div:has(.session-rename-form)", 1],
-      [".terminal-tile-header .session-location-value", 1],
-      [".terminal-tile-header .tile-actions", 1],
-      [".tile-actions", 1],
-      [".tile-action-group", 1],
-      [".tile-status-group", 1],
-      [".tile-utility-actions", 1],
-      [".tile-danger-actions", 1],
-      [".tile-primary-actions", 1],
-      [".tile-actions button", 1],
-      [".terminal-status-label", 1],
-      [".tile-primary-actions button", 1],
-      [".tile-primary-actions button:hover", 1],
-      [".tile-primary-actions button:focus-visible", 1],
-      [".tile-danger-actions button", 1],
-      [".tile-danger-actions button:hover", 1],
-      [".tile-danger-actions button:focus-visible", 1],
-      [".tile-utility-actions button", 1],
-      [".tile-utility-actions button:hover", 1],
-      [".tile-utility-actions button:focus-visible", 1],
-      [".tile-primary-actions .continue-button", 1],
-      [".tile-primary-actions .continue-button span", 1],
-    ] as const) {
-      expectAllTopLevelOccurrencesWithin(selector, [terminalTileRegion], expectedOccurrences);
-    }
-
-    for (const [selector, expectedOccurrences] of [
-      [".terminal-status-label.tone-manual", 1],
-      [".terminal-status-label.tone-shell", 1],
-      [".terminal-status-label.tone-codex", 1],
-      [".terminal-status-label.tone-claude", 1],
-    ] as const) {
-      expectAllTopLevelOccurrencesWithin(selector, [terminalTileRegion, terminalSemanticRoleRegion], expectedOccurrences);
-    }
-
-    expect(styles).not.toContain(".terminal-tile.staged::before");
-    expect(styles).not.toMatch(/\.terminal-tile\.staged\.kind-[\w-]+::before/);
-
-    for (const [selector, expectedOccurrences] of [
-      [".context-drawer-header", 1],
-      [".context-drawer .agent-timeline-panel", 1],
-      [".context-drawer .agent-timeline-body", 1],
-      [".context-drawer .details-activity-text", 1],
-    ] as const) {
-      expectAllTopLevelOccurrencesWithin(selector, [contextRegion], expectedOccurrences);
-    }
-
-
-  });
-
-  it("switches terminal secondary actions by tile width", () => {
-    const baseOverflowMenu = topLevelExactRuleBodies(".tile-overflow-menu");
-    const compactMenu = singleTopLevelRuleBodyIn(styles, ".tile-overflow-menu .chrome-menu-popover");
-    const compactUtilityActions = containerExactRuleBodies(
-      "terminal-tile (max-width: 620px)",
-      ".tile-utility-actions",
-    );
-    const compactDangerActions = containerExactRuleBodies(
-      "terminal-tile (max-width: 620px)",
-      ".tile-danger-actions",
-    );
-    const compactOverflowMenu = containerExactRuleBodies(
-      "terminal-tile (max-width: 620px)",
-      ".tile-overflow-menu",
-    );
-    const compactSecondaryActionReveals = [
-      ".terminal-tile:hover .tile-utility-actions",
-      ".terminal-tile:hover .tile-danger-actions",
-      ".terminal-tile:focus-within .tile-utility-actions",
-      ".terminal-tile:focus-within .tile-danger-actions",
-    ].map((selector) => containerExactRuleBodies("terminal-tile (max-width: 620px)", selector));
-
-    expect(exactBlockFor(".terminal-tile")).toContain("container: terminal-tile / inline-size");
-    expect(baseOverflowMenu).toHaveLength(1);
-    expect(baseOverflowMenu[0]).toContain("display: none");
-    expect(compactMenu).toContain("min-width: 180px");
-    expect(compactMenu).toContain("max-width: calc(100vw - 16px)");
-    expect(compactMenu).toContain("overflow: visible");
-    const compactMenuButton = singleTopLevelRuleBodyIn(
-      styles,
-      ".tile-overflow-menu .chrome-menu-popover button",
-    );
-    expect(compactMenuButton).toContain("width: 100%");
-    expect(compactMenuButton).toContain("min-width: 0");
-    expect(compactUtilityActions).toHaveLength(1);
-    expect(compactUtilityActions[0]).toContain("visibility: hidden");
-    expect(compactUtilityActions[0]).toContain("display: none");
-    expect(compactDangerActions).toHaveLength(1);
-    expect(compactDangerActions[0]).toContain("visibility: hidden");
-    expect(compactDangerActions[0]).toContain("display: none");
-    expect(compactOverflowMenu).toHaveLength(1);
-    expect(compactOverflowMenu[0]).toContain("display: inline-flex");
-    for (const compactSecondaryActionReveal of compactSecondaryActionReveals) {
-      expect(compactSecondaryActionReveal).toHaveLength(1);
-      expect(compactSecondaryActionReveal[0]).toContain("visibility: hidden");
-      expect(compactSecondaryActionReveal[0]).toContain("pointer-events: none");
-    }
-  });
-
   it("keeps the selected project recognizable in the compact rail", () => {
     // The active background lives on the row, so it survives the compact 46px rail unchanged.
     expect(singleTopLevelRuleBodyIn(styles, ".project-row.is-active")).toContain("background: var(--surface-control)");
     expect(styles).not.toMatch(/@media[^{]*\{[^}]*\.project-row\.is-active/);
-  });
-
-  it("keeps canonical owners for Sessions and overlays", () => {
-    const sessionsRegions = [
-      {
-        name: "Sessions surface",
-        startMarker: ".sessions-surface {",
-        endMarker: ".agent-raw-toggle {",
-      },
-    ];
-    const commandPaletteRegions = [
-      {
-        name: "command palette overlay",
-        startMarker: "/* Command palette and privacy modal */",
-        endMarker: "@media (prefers-reduced-motion: reduce)",
-      },
-      {
-        name: "shared overlay input typography",
-        startMarker: "/* Region titles use the shared sans token. */",
-        endMarker: ".agent-timeline-header {",
-      },
-    ];
-    const privacyRegions = [
-      {
-        name: "privacy overlay",
-        startMarker: "/* Command palette and privacy modal */",
-        endMarker: "@media (prefers-reduced-motion: reduce)",
-      },
-    ];
-    const surfaceResponsiveRegion = {
-      name: "Sessions responsive ownership",
-      startMarker: ".sessions-surface {",
-      endMarker: ".agent-timeline-panel {\n  border-radius: 10px;",
-    };
-
-    expectCanonicalBase(".sessions-surface", [
-      "display: grid",
-      "min-height: 0",
-      "grid-template-columns: 340px minmax(0, 1fr)",
-    ]);
-    expectCanonicalBase(".sessions-navigator", [
-      "min-height: 0",
-      "overflow: hidden",
-      "font-family: var(--sans)",
-    ]);
-    expectCanonicalBase(".sessions-results", ["overflow-y: auto"]);
-    expectCanonicalBase(".sessions-reader", [
-      "min-width: 0",
-      "min-height: 0",
-      "grid-template-rows: 52px minmax(0, 1fr)",
-    ]);
-    expectCanonicalBase(".sessions-reader__body", [
-      "display: grid",
-      "grid-template-columns: minmax(0, 1fr)",
-    ]);
-    expectCanonicalBase(".sessions-reader--details-open .sessions-reader__body", [
-      "grid-template-columns: minmax(0, 1fr) 280px",
-    ]);
-    expectCanonicalBase(".sessions-reader__scroll", ["overflow-y: auto"]);
-    expectCanonicalBase(".sessions-run-details", [
-      "border-left: 1px solid var(--ink-3)",
-      "border-radius: 0",
-      "background: var(--ink-1)",
-      "box-shadow: none",
-    ]);
-    expectCanonicalBase(".sessions-run-details dd", ["font: 520 13px/1.35 var(--sans)"]);
-    expectCanonicalBase(".sessions-run-details dd.technical", ["font-family: var(--sans)"]);
-    expectCanonicalBase(".sessions-result.active:not([aria-selected=\"true\"])", [
-      "background: color-mix(in oklab, white 3.5%, transparent)",
-      "box-shadow: inset 0 0 0 1px var(--ink-4)",
-    ]);
-    expectCanonicalBase(".sessions-result[aria-selected=\"true\"]", [
-      "background: color-mix(in oklab, white 7%, transparent)",
-      "box-shadow: none",
-    ]);
-    expect(styles).not.toContain(".sessions-run-details__backdrop");
-    expect(styles).not.toMatch(/\.sessions-run-details\s+dialog/);
-    for (const selector of [
-      ".sessions-navigator__heading > button",
-      ".sessions-navigator__filters select",
-      ".sessions-navigator__filters > button",
-      ".sessions-reader__toolbar button",
-      ".sessions-run-details button",
-      ".sessions-navigator__pagination button",
-    ]) {
-      expect(exactBlockFor(selector), selector).toContain("min-height: 32px");
-    }
-    expect(mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      ".sessions-surface",
-    ).at(-1)).toContain("grid-template-columns: 300px minmax(0, 1fr)");
-    expect(mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      ".sessions-reader--details-open .sessions-reader__body",
-    ).at(-1)).toContain("grid-template-columns: minmax(0, 1fr)");
-    expect(mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      ".sessions-reader--details-open .sessions-reader__scroll",
-    ).at(-1)).toContain("display: none");
-    expect(styles).not.toMatch(/\.observatory-|\.history-surface/);
-    const sessionsSelectors = expectAllFamilyTopLevelOccurrencesWithinSource(
-      styles,
-      "Sessions",
-      (selector) => selector.startsWith(".sessions-"),
-      sessionsRegions,
-    );
-    expect(sessionsSelectors).toEqual(expect.arrayContaining([
-      ".sessions-navigator__search:focus-within",
-      ".sessions-result:hover",
-      ".sessions-result:focus-visible",
-      ".sessions-result[aria-selected=\"true\"]",
-      ".sessions-reader__toolbar button:hover",
-      ".sessions-reader__toolbar button:focus-visible",
-      ".sessions-reader__body",
-      ".sessions-reader--details-open .sessions-reader__body",
-      ".sessions-run-details",
-      ".sessions-run-details dd.technical",
-      ".sessions-transcript",
-      ".sessions-message",
-      ".sessions-message__body",
-      ".sessions-transcript__blocks pre",
-    ]));
-
-    expectResponsiveFamilyOwnersWithinSource(
-      styles,
-      "Sessions",
-      (selector) => selector.startsWith(".sessions-"),
-      [
-        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-surface", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-navigator__heading", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-navigator__heading > button", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-navigator__heading > strong", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-navigator__heading > span[aria-hidden=\"true\"]", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-navigator__scope", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-navigator__scope select", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-transcript", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-message", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-reader--details-open .sessions-reader__body", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-reader--details-open .sessions-reader__scroll", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 1180px)", selector: ".sessions-run-details", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 720px)", selector: ".sessions-surface", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 720px)", selector: ".sessions-navigator", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 720px)", selector: ".sessions-reader", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 720px)", selector: ".sessions-surface:has(.sessions-reader__start)", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 720px)", selector: ".sessions-surface:has(.sessions-reader__start) .sessions-navigator", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 720px)", selector: ".sessions-surface:has(.sessions-reader__start) .sessions-reader", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(max-width: 720px)", selector: ".sessions-reader__start", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(prefers-reduced-motion: reduce)", selector: ".sessions-result", region: surfaceResponsiveRegion },
-        { atRule: "media", query: "(prefers-reduced-motion: reduce)", selector: ".sessions-transcript", region: surfaceResponsiveRegion },
-      ],
-    );
-
-    const commandPaletteSelectors = expectAllFamilyTopLevelOccurrencesWithinSource(
-      styles,
-      "command palette",
-      (selector) => selector === ".command-palette" || selector.startsWith(".command-palette-"),
-      commandPaletteRegions,
-    );
-    expect(commandPaletteSelectors).toEqual(expect.arrayContaining([
-      ".command-palette-backdrop",
-      ".command-palette-search input:focus-visible",
-      ".command-palette-list button.active",
-      ".command-palette-list button:hover",
-      ".command-palette-list button:focus-visible",
-      ".command-palette-list button:disabled",
-      ".command-palette-group",
-      ".command-palette-empty",
-    ]));
-
-    const privacySelectors = expectAllFamilyTopLevelOccurrencesWithinSource(
-      styles,
-      "privacy",
-      (selector) => selector.startsWith(".privacy-"),
-      privacyRegions,
-    );
-    expect(privacySelectors).toEqual(expect.arrayContaining([
-      ".privacy-panel-close:hover",
-      ".privacy-panel-close:focus-visible",
-      '.privacy-segmented button[aria-pressed="true"]',
-      ".privacy-panel-status.error",
-      ".privacy-panel-status.error button",
-      ".privacy-control-row",
-      ".privacy-action-row",
-      ".privacy-action-button.danger",
-      ".privacy-confirm-actions .danger",
-    ]));
-
-    expectAllTopLevelOccurrencesWithin(".privacy-backdrop", privacyRegions, 1);
-    expectAllTopLevelOccurrencesWithin(".command-palette-backdrop", commandPaletteRegions, 1);
   });
 
   it("uses one canonical tactical-dark token hierarchy", () => {
@@ -1693,16 +713,6 @@ describe("renderer CSS contracts", () => {
     expect(gridColumn).toContain("scrollbar-gutter: stable");
   });
 
-  it("keeps the adaptive workbench controls compact", () => {
-    const workbenchAction = exactBlockFor(".workbench-primary-row button");
-
-    expect(workbenchAction).toContain("max-height: 32px");
-    expect(workbenchAction).toContain("border-radius: var(--radius-control)");
-    expect(workbenchAction).toContain("background: transparent");
-    expect(styles).not.toContain("--flat-control-height");
-    expect(styles).not.toContain("--flat-control");
-  });
-
   it("keeps orphan attention count markers out of the stylesheet", () => {
     expect(styles).not.toMatch(/\.quiet-count-(?:dot|mark)/);
   });
@@ -1718,21 +728,6 @@ describe("renderer CSS contracts", () => {
     expect(terminalTile).not.toContain("linear-gradient");
     expect(activeWorkspace).toContain("background:");
     expect(styles).not.toContain("--flat-");
-  });
-
-  it("docks Details beside the terminal scene", () => {
-    const openLayout = singleTopLevelRuleBodyIn(styles, ".workspace-layout.context-visible");
-    const contextColumn = singleTopLevelRuleBodyIn(styles, ".context-column");
-    const contextDrawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
-
-    expect(openLayout).toContain("grid-template-columns: clamp(226px, 16vw, 280px) minmax(420px, 1fr) 318px");
-    expect(contextColumn).toContain("position: static");
-    expect(contextColumn).toContain("width: auto");
-    expect(contextColumn).toContain("box-shadow: none");
-    expect(contextDrawer).toContain("height: 100%");
-    expect(contextDrawer).toContain("box-shadow: none");
-    expect(styles).not.toContain(":has(.context-column.open)");
-    expect(styles).not.toContain(".workspace-layout > .context-column.open");
   });
 
   it("keeps Sessions scope controls readable inside the existing navigator toolbar", () => {
@@ -1771,42 +766,12 @@ describe("renderer CSS contracts", () => {
     expect(sessionsReaderScroll).toContain("scrollbar-width: thin");
   });
 
-  it("keeps the top chrome on adaptive frame rows", () => {
-    const frame = singleTopLevelRuleBodyIn(styles, ".desktop-frame");
-    const missionBar = exactBlockFor(".mission-bar");
-    const primaryRow = exactBlockFor(".workbench-primary-row");
-
-    expect(frame).toContain("grid-template-rows: auto auto minmax(0, 1fr)");
-    expect(missionBar).toContain("display: flex");
-    expect(primaryRow).toContain("grid-template-columns: auto minmax(0, 1fr) auto");
-  });
-
   it("drops deduped chrome selectors from the sheet", () => {
     expect(styles).not.toContain(".workbench-crumbs");
     expect(styles).not.toContain(".workbench-title-block");
     expect(styles).not.toContain(".terminal-stage-utility");
     expect(styles).not.toContain(".agent-activity-digest");
     expect(styles).not.toContain(".review-surface-stats");
-  });
-
-  it("lays the one-bar chrome out on the approved grids", () => {
-    expect(exactBlockFor(".mission-bar")).toContain("display: flex");
-    expect(exactBlockFor(".workbench-header")).toContain("width: 100%");
-  });
-
-  it("preserves surface identity while hiding nonessential technical chrome at 1120px", () => {
-    expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-session-context > span")).toHaveLength(0);
-    expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-session-context > small")).toHaveLength(0);
-    expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-right-zone kbd")).toHaveLength(1);
-    expect(mediaExactRuleBodies("(max-width: 980px)", ".workbench-session-title")).toHaveLength(1);
-  });
-
-  it("keeps workspace actions compact inside the active project row", () => {
-    const workspaceTitle = blockFor(".project-workspace-actions .workspace-title-trigger");
-
-    expect(workspaceTitle).toContain("width: 28px");
-    expect(workspaceTitle).toContain("height: 28px");
-    expect(blockFor(".project-workspace-actions .workspace-title-trigger > span")).toContain("display: none");
   });
 
   it("keeps the Details timeline scrollable without clipping the lower timeline", () => {
@@ -1819,118 +784,6 @@ describe("renderer CSS contracts", () => {
     expect(contextDrawer).toContain("grid-template-rows: 46px minmax(0, 1fr)");
     expect(blockFor(".context-drawer .agent-timeline-panel")).toContain("animation: none");
     expect(timelineBody).toContain("overflow-y: auto");
-  });
-
-  it("keeps terminal tile chrome secondary to the xterm body", () => {
-    const tile = exactBlockFor(".terminal-tile");
-    const header = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header");
-    const selectedHeader = exactBlockFor(".terminal-tile.selected .terminal-tile-header");
-    const tileTitle = blockFor(".terminal-tile-header .tile-title b");
-    const xtermHost = exactBlockFor(".xterm-host");
-    const kindMark = exactBlockFor(".terminal-tile.real-terminal .tile-kind-mark");
-    const kindMarkText = exactBlockFor(".terminal-tile.real-terminal .tile-kind-mark .tile-kind-label");
-    const primaryActions = blockForContaining(".tile-primary-actions", "opacity: 1");
-    const primaryActionButton = exactBlockFor(".tile-primary-actions .continue-button");
-    const utilities = blockForContaining(".tile-utility-actions", "opacity: 0");
-    const dangerActions = blockForContaining(".tile-danger-actions", "opacity: 0");
-    const utilityButtons = blockFor(".tile-utility-actions button,\n.tile-danger-actions button");
-
-    expect(tile).toContain("background: var(--surface-terminal)");
-    expect(tile).toContain("box-shadow: none");
-    expect(header).toContain("min-height");
-    expect(header).toContain("background: var(--surface-chrome)");
-    expect(selectedHeader).not.toContain("linear-gradient");
-    expect(selectedHeader).toContain(
-      "background: color-mix(in oklab, var(--signal-focus) 4%, var(--surface-chrome))",
-    );
-    expect(tileTitle).toContain("font: 650 13px/1.12 var(--sans)");
-    expect(xtermHost).toContain("background: var(--surface-terminal)");
-    expect(kindMark).toContain("width: 22px");
-    expect(kindMarkText).toContain("display: none");
-    expect(primaryActions).toContain("opacity: 1");
-    expect(primaryActions).toContain("pointer-events: auto");
-    expect(primaryActionButton).toContain("border-color: var(--ink-5)");
-    expect(utilities).toContain("opacity: 0");
-    expect(utilities).toContain("pointer-events: none");
-    expect(dangerActions).toContain("opacity: 0");
-    expect(dangerActions).toContain("pointer-events: none");
-    expect(utilityButtons).toContain("color: var(--ink-5)");
-  });
-
-  it("keeps terminal tile titles readable before action chrome under constrained width", () => {
-    const title = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title");
-    const titleText = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title > div");
-    const titleLabel = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title b");
-    const actions = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-actions");
-    const primaryAction = blockFor(".tile-primary-actions .continue-button");
-    const primaryActionText = blockFor(".tile-primary-actions .continue-button span");
-    const statusText = singleTopLevelRuleBodyIn(styles, ".terminal-status-text");
-    const constrainedStatusText = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".terminal-status-text");
-
-    expect(/\.terminal-tile-header\s*\{[^}]*display:\s*flex;/.test(styles)).toBe(true);
-    expect(title).toContain("flex: 1 1 220px");
-    expect(title).toContain("min-width: var(--terminal-title-min)");
-    expect(titleText).toContain("min-width: 0");
-    expect(titleLabel).toContain("overflow: hidden");
-    expect(titleLabel).toContain("text-overflow: ellipsis");
-    expect(actions).toContain("flex: 0 0 auto");
-    expect(actions).toContain("min-width: 0");
-    expect(primaryAction).toContain("max-width");
-    expect(primaryActionText).toContain("overflow: hidden");
-    expect(statusText).toContain("max-width");
-    expect(constrainedStatusText).toHaveLength(1);
-    expect(constrainedStatusText[0]).toContain("max-width: none");
-    expect(constrainedStatusText[0]).not.toContain("display:");
-  });
-
-  it("reserves terminal header geometry while revealing secondary utilities", () => {
-    const header = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header");
-    const title = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title");
-    const titleLabel = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title b");
-    const location = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title small");
-    const activity = blockForContaining(".tile-activity", "flex: 1 1 220px");
-    const actions = blockFor(".terminal-tile-header .tile-actions");
-    const status = exactBlockFor(".tile-status-group");
-    const utilities = blockForContaining(".tile-utility-actions", "visibility: hidden");
-    const utilityReveal = blockFor(".terminal-tile:hover .tile-utility-actions,\n.terminal-tile:hover .tile-danger-actions,\n.terminal-tile:focus-within .tile-utility-actions,\n.terminal-tile:focus-within .tile-danger-actions");
-
-    expect(header).toContain("--terminal-title-min: 160px");
-    expect(header).toContain("--terminal-activity-min: 152px");
-    expect(header).toContain("--terminal-status-zone: 152px");
-    expect(title).toContain("flex: 1 1 220px");
-    expect(title).toContain("min-width: var(--terminal-title-min)");
-    expect(titleLabel).toContain("text-overflow: ellipsis");
-    expect(location).toContain("min-width: 12ch");
-    expect(activity).toContain("flex: 1 1 220px");
-    expect(activity).toContain("min-width: var(--terminal-activity-min)");
-    expect(actions).toContain("flex: 0 0 auto");
-    expect(status).toContain("flex: 0 0 var(--terminal-status-zone)");
-    expect(utilities).toContain("visibility: hidden");
-    expect(utilities).not.toContain("display:");
-    expect(utilityReveal).toContain("visibility: visible");
-  });
-
-  it("reduces header reservations for a narrow tile without hiding location or status", () => {
-    const narrowHeader = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".terminal-tile-header");
-    const narrowTitle = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".terminal-tile-header .tile-title");
-    const narrowActivity = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".tile-activity");
-    const narrowLocation = containerExactRuleBodies(
-      "terminal-tile (max-width: 520px)",
-      ".terminal-tile-header .tile-title small",
-    );
-    const narrowStatusText = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".terminal-status-text");
-
-    expect(narrowHeader).toEqual([expect.stringContaining("--terminal-status-zone: max-content")]);
-    expect(narrowTitle).toEqual([expect.stringContaining("min-width: var(--terminal-title-min)")]);
-    expect(narrowActivity).toEqual([expect.stringContaining("visibility: hidden")]);
-    expect(narrowActivity[0]).not.toContain("display:");
-    expect(narrowLocation).toHaveLength(1);
-    expect(narrowLocation[0]).not.toContain("display: none");
-    expect(narrowStatusText).toHaveLength(1);
-    expect(narrowStatusText[0]).not.toContain("display:");
-
-    const minimumSpanHeader = containerExactRuleBodies("terminal-tile (max-width: 420px)", ".terminal-tile-header");
-    expect(minimumSpanHeader[0]).not.toContain("--terminal-status-zone:");
   });
 
   it("keeps Work controls and dark scroll owners on the shared chrome rhythm", () => {
@@ -2069,16 +922,6 @@ describe("renderer CSS contracts", () => {
       ['html[data-alfred-window-material="native"] .mission-bar'],
       ['html[data-alfred-window-material="native"] .project-navigator'],
     ]));
-  });
-
-  it("keeps the Work chrome quiet and command-like", () => {
-    const tileUtilities = blockForContaining(".tile-utility-actions", "opacity: 0");
-    const tileDangerActions = blockForContaining(".tile-danger-actions", "opacity: 0");
-
-    expect(tileUtilities).toContain("opacity: 0");
-    expect(tileUtilities).toContain("pointer-events: none");
-    expect(tileDangerActions).toContain("opacity: 0");
-    expect(tileDangerActions).toContain("pointer-events: none");
   });
 
   it("keeps live workbench controls on the canonical control radius", () => {

@@ -2,7 +2,7 @@ import { expect, test } from "./support/electron-app";
 import { openPlan } from "./support/plan-line";
 
 test.describe("blocked launch geometry", () => {
-  test.use({ fixtureOptions: { inboxItems: 1, blockedInboxItem: 1, activeWorkspaceId: "A" } });
+  test.use({ fixtureOptions: { stagedItems: 1, blockedStagedItem: 1, activeWorkspaceId: "A" } });
   test("keeps blocked actions inside the window at both window sizes", async ({ harness }, testInfo) => {
     const { page, app } = harness;
     for (const [width, height] of [[1440, 900], [1120, 720]] as const) {

@@ -9,12 +9,12 @@ test.use({
   fixtureOptions: {
     externalSessionFixture: "mixed",
     handoffDiff: true,
-    inboxItems: 1,
+    stagedItems: 1,
     restoredSessions: 1,
   },
 });
 
-test("keeps J0 utility surfaces accessible without replacing xterm", async ({ harness }, testInfo) => {
+test("keeps utility surfaces accessible without replacing xterm", async ({ harness }, testInfo) => {
   const { app, page, paths } = harness;
   await setWindowSize(app, page, 1440, 900);
 
@@ -53,7 +53,7 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await expect.poll(() => workScreen.textContent()).toContain(terminalEvidence);
   await expectNativeTerminalInk(app, workScreen);
   await page.screenshot({
-    path: testInfo.outputPath("j0-sans-xterm-1440x900.png"),
+    path: testInfo.outputPath("sans-xterm-1440x900.png"),
   });
   await page.getByRole("toolbar", { name: "Work layout controls" })
     .getByRole("button", { name: "New terminal" })
@@ -105,7 +105,7 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await expect(context).toBeVisible();
   await expectSansFont(context);
   await page.screenshot({
-    path: testInfo.outputPath("j0-context-1440x900.png"),
+    path: testInfo.outputPath("context-1440x900.png"),
     style: privacySafeScreenshotStyle,
   });
   expect(await context.evaluate((node) => getComputedStyle(node).boxShadow)).toBe("none");
@@ -149,7 +149,7 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
   await expectSansFont(sessions.locator("time").first());
 
   await page.screenshot({
-    path: testInfo.outputPath("j0-consistency-1440x900.png"),
+    path: testInfo.outputPath("consistency-1440x900.png"),
     style: privacySafeScreenshotStyle,
   });
 
@@ -177,10 +177,10 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
     verticalScrollOwners: [],
   })).toEqual([]);
   await sessions.locator(".sessions-navigator__heading").screenshot({
-    path: testInfo.outputPath("j0-sessions-controls-1120x720.png"),
+    path: testInfo.outputPath("sessions-controls-1120x720.png"),
   });
   await page.screenshot({
-    path: testInfo.outputPath("j0-sessions-1120x720.png"),
+    path: testInfo.outputPath("sessions-1120x720.png"),
     style: privacySafeScreenshotStyle,
   });
   await runDetailsTrigger.click();
@@ -197,7 +197,7 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
     }],
   })).toEqual([]);
   await page.screenshot({
-    path: testInfo.outputPath("j0-consistency-1120x720.png"),
+    path: testInfo.outputPath("consistency-1120x720.png"),
     style: privacySafeScreenshotStyle,
   });
   await runDetails.getByRole("button", { name: "Close Run details" }).click();
@@ -250,7 +250,7 @@ test("keeps J0 utility surfaces accessible without replacing xterm", async ({ ha
     requestAnimationFrame(nextFrame);
   }));
   await page.screenshot({
-    path: testInfo.outputPath("j0-sans-xterm-1120x720.png"),
+    path: testInfo.outputPath("sans-xterm-1120x720.png"),
   });
   await expectNativeTerminalInk(app, firstTerminalScreen);
 
