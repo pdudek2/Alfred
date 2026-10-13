@@ -129,6 +129,7 @@ type TerminalDeskProps = {
   onSelectSession: (sessionId: string) => void;
   onReviewWorktree: (sessionId: string) => void;
   planLine?: ReactNode;
+  stackTabs?: ReactNode;
 };
 
 export function TerminalDesk({
@@ -172,6 +173,7 @@ export function TerminalDesk({
   onSelectSession,
   onReviewWorktree,
   planLine,
+  stackTabs,
 }: TerminalDeskProps) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const gridColumnRef = useRef<HTMLDivElement | null>(null);
@@ -344,6 +346,7 @@ export function TerminalDesk({
             asleepCount={asleepCount}
             planLine={hasDrafts ? planLine : null}
             sessions={stackSessions}
+            tabs={stackTabs}
             workspaceLabel={workspaceLabel}
             onFocusSession={onFocusSession}
             onOpenAsleep={onOpenAsleep}

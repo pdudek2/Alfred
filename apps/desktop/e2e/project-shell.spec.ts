@@ -103,7 +103,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   const before = await requiredHandle(alphaScreen, "Alpha xterm screen");
   const gridBeforeContext = await terminalGridRect(page);
 
-  const surfacesTrigger = page.getByRole("button", { name: "Details", exact: true });
+  const surfacesTrigger = page.getByRole("tab", { name: "Details" });
   await openContext(page);
   const gridAfterContext = await terminalGridRect(page);
   const contextWidth = await page.getByTestId("context-column").evaluate(
@@ -269,7 +269,7 @@ async function operateNarrowWorkspaceActions(page: Page, navigator: Locator) {
 }
 
 async function openContext(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Details", exact: true }).click();
+  await page.getByRole("tab", { name: "Details" }).click();
   await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
 }
 

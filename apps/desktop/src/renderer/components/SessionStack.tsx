@@ -19,12 +19,13 @@ type SessionStackProps = {
   asleepCount: number;
   planLine?: ReactNode;
   sessions: SessionTile[];
+  tabs?: ReactNode;
   workspaceLabel: string;
   onFocusSession: (sessionId: string) => void;
   onOpenAsleep: () => void;
 };
 
-export function SessionStack({ asleepCount, planLine, sessions, workspaceLabel, onFocusSession, onOpenAsleep }: SessionStackProps) {
+export function SessionStack({ asleepCount, planLine, sessions, tabs, workspaceLabel, onFocusSession, onOpenAsleep }: SessionStackProps) {
   const now = useStackClock(sessions.length > 0);
   const states = new Map(sessions.map((session) => [session.id, sessionState(session, "ready", now)]));
   const groups = STACK_GROUPS.map((group) => ({
@@ -34,6 +35,7 @@ export function SessionStack({ asleepCount, planLine, sessions, workspaceLabel, 
 
   return (
     <aside className="session-stack" aria-label={`Other sessions in ${workspaceLabel}`}>
+      {tabs}
       <div className="session-stack-groups">
         {groups.length === 0 && <p className="session-stack-empty">No other sessions in this project.</p>}
         {groups.map((group) => (

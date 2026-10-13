@@ -95,7 +95,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await expect(paletteTrigger).toBeFocused();
 
   const surfacesTrigger = surfaceButton(page, "Local Data & Privacy");
-  const detailsTrigger = page.getByRole("button", { name: "Details", exact: true });
+  const detailsTrigger = page.getByRole("tab", { name: "Details" });
   await selectSurface(page, "Details");
   const context = page.getByRole("complementary", { name: "Details" });
   await expect(context).toBeVisible();
@@ -112,7 +112,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
     return style.boxShadow === "none" && style.borderRadius === "0px";
   })).toBe(true);
   const contextScreen = await requiredHandle(workScreen, "Work xterm before closing Context");
-  await context.getByRole("button", { name: "Close Details panel" }).click();
+  await context.getByRole("tab", { name: "Sessions" }).click();
   await expect(detailsTrigger).toBeFocused();
   const contextScreenAfterClose = await requiredHandle(workScreen, "Work xterm after closing Context");
   expect(await contextScreen.evaluate(
@@ -273,7 +273,7 @@ async function selectSurface(
   surface: "Work" | "History" | "Details" | "Local Data & Privacy",
 ): Promise<void> {
   if (surface === "Details") {
-    await page.getByRole("button", { name: "Details", exact: true }).click();
+    await page.getByRole("tab", { name: "Details" }).click();
     return;
   }
   await surfaceButton(page, surface).click();
