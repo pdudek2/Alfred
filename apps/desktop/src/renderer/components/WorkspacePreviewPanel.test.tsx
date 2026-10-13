@@ -1,8 +1,35 @@
 import "@testing-library/jest-dom/vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WorkspacePreviewPanel } from "./WorkspacePreviewPanel";
+import type { PreviewUrlCandidate } from "../preview-state";
+import { WorkspacePreviewPanel, type WorkspacePreviewPanelProps } from "./WorkspacePreviewPanel";
+
+function candidate(url: string, sessionTitle = "Dev server"): PreviewUrlCandidate {
+  return {
+    id: `A:${url}`,
+    workspaceId: "A",
+    url,
+    sessionId: "dev",
+    sessionTitle,
+    sources: [{ sessionId: "dev", sessionTitle, lastSeenAt: 1 }],
+    firstSeenAt: 1,
+    lastSeenAt: 1,
+  };
+}
+
+function panelProps(overrides: Partial<WorkspacePreviewPanelProps> = {}): WorkspacePreviewPanelProps {
+  return {
+    candidates: [candidate("http://127.0.0.1:5173/")],
+    refreshKey: 0,
+    selectedUrl: "http://127.0.0.1:5173/",
+    onClose: vi.fn(),
+    onOpenExternal: vi.fn(),
+    onRefresh: vi.fn(),
+    onSelectUrl: vi.fn(),
+    ...overrides,
+  };
+}
 
 describe("WorkspacePreviewPanel", () => {
   afterEach(() => {
@@ -15,30 +42,7 @@ describe("WorkspacePreviewPanel", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(
-      <WorkspacePreviewPanel
-        candidates={[
-          {
-            id: "A:http://127.0.0.1:5173/",
-            workspaceId: "A",
-            url: "http://127.0.0.1:5173/",
-            sessionId: "dev",
-            sessionTitle: "Dev server",
-            sources: [{ sessionId: "dev", sessionTitle: "Dev server", lastSeenAt: 1 }],
-            firstSeenAt: 1,
-            lastSeenAt: 1,
-          },
-        ]}
-        refreshKey={0}
-        selectedUrl="http://127.0.0.1:5173/"
-        workspaceLabel="Alfred"
-        onClose={vi.fn()}
-        onCopyUrl={vi.fn()}
-        onOpenExternal={vi.fn()}
-        onRefresh={vi.fn()}
-        onSelectUrl={vi.fn()}
-      />,
-    );
+    render(<WorkspacePreviewPanel {...panelProps()} />);
 
     expect(await screen.findByText("Preview is offline")).toBeInTheDocument();
     expect(screen.getByText("The local app is no longer responding.")).toBeInTheDocument();
@@ -54,28 +58,12 @@ describe("WorkspacePreviewPanel", () => {
       .mockResolvedValueOnce(new Response(null, { status: 200 }))
       .mockRejectedValueOnce(new Error("offline"));
     vi.stubGlobal("fetch", fetchMock);
-    const props = {
-      candidates: [{
-        id: "A:http://127.0.0.1:5173/",
-        workspaceId: "A",
-        url: "http://127.0.0.1:5173/",
-        sessionId: "dev",
-        sessionTitle: "Dev server",
-        sources: [{ sessionId: "dev", sessionTitle: "Dev server", lastSeenAt: 1 }],
-        firstSeenAt: 1,
-        lastSeenAt: 1,
-      }],
-      selectedUrl: "http://127.0.0.1:5173/",
-      workspaceLabel: "Alfred",
-      onClose: vi.fn(),
-      onCopyUrl: vi.fn(),
-      onOpenExternal: vi.fn(),
-      onRefresh: vi.fn(),
-      onSelectUrl: vi.fn(),
-    };
-    const { rerender } = render(<WorkspacePreviewPanel {...props} refreshKey={0} />);
+    const props = panelProps();
+    const { rerender } = render(<WorkspacePreviewPanel {...props} />);
 
-    expect(await screen.findByText("Live")).toHaveAccessibleName("Preview online");
+    const panel = screen.getByRole("region", { name: "Project preview" });
+    await waitFor(() => expect(panel).toHaveAttribute("aria-busy", "false"));
+    expect(screen.getByTitle("Preview of http://127.0.0.1:5173/")).toBeInTheDocument();
     rerender(<WorkspacePreviewPanel {...props} refreshKey={1} />);
 
     expect(await screen.findByText("Preview is offline")).toBeInTheDocument();
@@ -83,84 +71,63 @@ describe("WorkspacePreviewPanel", () => {
     expect(screen.getByText("Earlier")).toBeInTheDocument();
   });
 
-  it("keeps Open and Close visible while moving refresh and copy into a quiet menu", async () => {
+  it("draws the canvas address row: Reload, the address with its source, and Open in browser", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 200 })));
-    const onClose = vi.fn();
-    const onCopyUrl = vi.fn();
     const onOpenExternal = vi.fn();
     const onRefresh = vi.fn();
     const user = userEvent.setup();
 
     render(
       <WorkspacePreviewPanel
-        candidates={[
-          {
-            id: "A:http://127.0.0.1:5173/forecast",
-            workspaceId: "A",
-            url: "http://127.0.0.1:5173/forecast",
-            sessionId: "dev",
-            sessionTitle: "Responsive forecast",
-            sources: [{ sessionId: "dev", sessionTitle: "Responsive forecast", lastSeenAt: 1 }],
-            firstSeenAt: 1,
-            lastSeenAt: 1,
-          },
-        ]}
-        refreshKey={0}
-        selectedUrl="http://127.0.0.1:5173/forecast"
-        workspaceLabel="Chmury_lab04"
-        onClose={onClose}
-        onCopyUrl={onCopyUrl}
-        onOpenExternal={onOpenExternal}
-        onRefresh={onRefresh}
-        onSelectUrl={vi.fn()}
+        {...panelProps({
+          candidates: [candidate("http://127.0.0.1:5173/forecast", "Responsive forecast")],
+          selectedUrl: "http://127.0.0.1:5173/forecast",
+          onOpenExternal,
+          onRefresh,
+        })}
       />,
     );
 
     expect(screen.getByText("127.0.0.1:5173/forecast")).toBeInTheDocument();
+    expect(screen.getByText("from Responsive forecast")).toBeInTheDocument();
     expect(screen.getByTitle("Preview of http://127.0.0.1:5173/forecast"))
       .toHaveAttribute("sandbox", "allow-forms allow-same-origin allow-scripts");
-    await user.click(screen.getByRole("button", { name: "Open preview externally" }));
+
+    await user.click(screen.getByRole("button", { name: "Open in browser" }));
     expect(onOpenExternal).toHaveBeenCalledWith("http://127.0.0.1:5173/forecast");
-
-    await user.click(screen.getByRole("button", { name: "More Preview actions" }));
-    await user.click(screen.getByRole("menuitem", { name: "Copy URL" }));
-    expect(onCopyUrl).toHaveBeenCalledWith("http://127.0.0.1:5173/forecast");
-
-    await user.click(screen.getByRole("button", { name: "More Preview actions" }));
-    await user.click(screen.getByRole("menuitem", { name: "Refresh preview" }));
+    await user.click(screen.getByRole("button", { name: "Reload" }));
     expect(onRefresh).toHaveBeenCalledOnce();
 
-    await user.click(screen.getByRole("button", { name: "Close Preview" }));
-    expect(onClose).toHaveBeenCalledOnce();
+    // The Terminal tab closes Preview; the panel carries no close button or status word of its own.
+    expect(screen.queryByRole("button", { name: "Close Preview" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Live")).not.toBeInTheDocument();
   });
 
-  it("uses a textual Preview status instead of a decorative dot", async () => {
+  it("offers a choice in the address row when more than one local app is running", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 200 })));
+    const onSelectUrl = vi.fn();
+    const user = userEvent.setup();
+
     render(
       <WorkspacePreviewPanel
-        candidates={[{
-          id: "A:http://127.0.0.1:5173/",
-          workspaceId: "A",
-          url: "http://127.0.0.1:5173/",
-          sessionId: "dev",
-          sessionTitle: "Dev server",
-          sources: [{ sessionId: "dev", sessionTitle: "Dev server", lastSeenAt: 1 }],
-          firstSeenAt: 1,
-          lastSeenAt: 1,
-        }]}
-        refreshKey={0}
-        selectedUrl="http://127.0.0.1:5173/"
-        workspaceLabel="Alfred"
-        onClose={vi.fn()}
-        onCopyUrl={vi.fn()}
-        onOpenExternal={vi.fn()}
-        onRefresh={vi.fn()}
-        onSelectUrl={vi.fn()}
+        {...panelProps({
+          candidates: [candidate("http://127.0.0.1:5173/"), candidate("http://localhost:4310/", "API docs")],
+          onSelectUrl,
+        })}
       />,
     );
 
-    expect(await screen.findByText("Live")).toHaveClass("workspace-preview-status", "online");
-    expect(document.querySelector(".workspace-preview-status-dot")).not.toBeInTheDocument();
-    expect(screen.getByText("Live")).toHaveAttribute("aria-label", "Preview online");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Detected preview URL" }), "http://localhost:4310/");
+    expect(onSelectUrl).toHaveBeenCalledWith("http://localhost:4310/");
+  });
+
+  it("hands Escape to the owner so the terminal can come back", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 200 })));
+    const onClose = vi.fn();
+    render(<WorkspacePreviewPanel {...panelProps({ onClose })} />);
+    await waitFor(() => expect(screen.getByRole("region", { name: "Project preview" })).toHaveAttribute("aria-busy", "false"));
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Reload" }), { key: "Escape" });
+    expect(onClose).toHaveBeenCalledOnce();
   });
 });

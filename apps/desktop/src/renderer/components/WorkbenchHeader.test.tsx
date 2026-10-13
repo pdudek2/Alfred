@@ -1,7 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionTile } from "../session-state";
 import { WorkbenchHeader, type WorkbenchHeaderProps } from "./WorkbenchHeader";
@@ -73,12 +72,10 @@ describe("WorkbenchHeader", () => {
 
   it("switches between Terminal and Preview from the session view tabs", async () => {
     const user = userEvent.setup();
-    const previewTriggerRef = createRef<HTMLButtonElement>();
-    const { rerender } = renderHeader({ previewTriggerRef });
+    const { rerender } = renderHeader();
     const tabs = screen.getByRole("tablist", { name: "Session view" });
     const terminal = within(tabs).getByRole("tab", { name: "Terminal" });
     const preview = within(tabs).getByRole("tab", { name: "Preview" });
-    expect(previewTriggerRef.current).toBe(preview);
     expect(terminal).toHaveAttribute("aria-selected", "true");
     expect(preview).toHaveAttribute("aria-selected", "false");
 
