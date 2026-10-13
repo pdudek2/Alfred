@@ -1,6 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { AlertTriangle, Check, Ellipsis, Pencil, Play, RotateCcw, SquareTerminal, X } from "lucide-react";
+import { Check, Ellipsis } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -17,9 +17,8 @@ import {
   type SessionTile,
 } from "../session-state";
 import { isRestartable, sessionState, type LocalTerminalStatus } from "../session-status";
-import { sessionAgeLabel, sessionAgeTitle } from "../session-time";
+import { sessionAgeLabel, sessionAgeTitle, sessionStartedLabel } from "../session-time";
 import { sessionTileKind, tileKindMeta } from "../tile-kind";
-import { TileKindIcon } from "../tile-kind-icon";
 import type { AgentKind } from "../../shared/alfred-ipc";
 import type { WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import type {
@@ -101,6 +100,7 @@ type TerminalDeskProps = {
   worktreeActionPending: Record<string, WorktreeActionKind | undefined>;
   worktreeDiffReturnFocus: HTMLElement | null;
   worktreeDiffView: WorktreeDiffView | null;
+  workspaceGitBranch?: string | undefined;
   workspaceLabel: string;
   workspaceRootPath?: string | undefined;
   workspaceRootStatus?: WorkspaceRootStatus | undefined;
@@ -143,6 +143,7 @@ export function TerminalDesk({
   worktreeActionPending,
   worktreeDiffReturnFocus,
   worktreeDiffView,
+  workspaceGitBranch,
   workspaceLabel,
   workspaceRootPath,
   workspaceRootStatus,
@@ -294,6 +295,7 @@ export function TerminalDesk({
                 runtimeStatus={session.runtimeStatus}
                 relaunchArmed={armedRecoverySessionIds.has(session.id)}
                 workspaceId={session.workspaceId}
+                workspaceGitBranch={workspaceGitBranch}
                 workspaceRootPath={workspaceRootPath}
                 workspaceRootFingerprint={session.workspaceRootFingerprint}
                 title={session.title}
@@ -618,6 +620,7 @@ function ManualTerminalTile({
   sessionKey,
   source,
   workspaceId,
+  workspaceGitBranch,
   workspaceRootPath,
   workspaceRootFingerprint,
   title,
@@ -664,6 +667,7 @@ function ManualTerminalTile({
   sessionKey: string;
   source: SessionTile["source"];
   workspaceId: string;
+  workspaceGitBranch?: string | undefined;
   workspaceRootPath?: string | undefined;
   workspaceRootFingerprint?: string | undefined;
   title: string;
@@ -714,7 +718,6 @@ function ManualTerminalTile({
     ...(activityEvents === undefined ? {} : { activityEvents }),
   } satisfies Parameters<typeof sessionState>[0];
   const displayStatus = sessionState(displaySession, tileStatus, displayClock);
-  const statusLabel = displayStatus.label;
   const restartable = isRestartable(displayStatus);
   const discardableSession = displayStatus.kind === "asleep" || restartable;
   const existingCheckoutMetadata = isReusableIsolatedCheckoutMetadata({
@@ -752,9 +755,9 @@ function ManualTerminalTile({
     relaunchArmed,
   );
   const latestActivity = latestVisibleActivity(activityEvents);
-  const ageLabel = sessionAgeLabel(createdAt, displayClock);
-  const sessionLocationLabel = isolatedCheckout ? "isolated worktree" : (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
-  const sessionLocationMetaLabel = isolatedCheckout ? "worktree" : "cwd";
+  const startedLabel = sessionStartedLabel(createdAt, displayClock);
+  // Contract vocabulary: a session is Claude, Codex or Terminal.
+  const kindLabel = kind === "claude" ? "Claude" : kind === "codex" ? "Codex" : "Terminal";
   const sessionLocationTitle = isolatedCheckout
     ? branchName
       ? baseCwd
@@ -766,7 +769,13 @@ function ManualTerminalTile({
     : resolvedCwd ?? "runtime cwd";
   const locationMatchesWorkspaceRoot = pathsReferToSameLocation(cwd, workspaceRootPath)
     && pathsReferToSameLocation(resolvedCwd, workspaceRootPath);
-  const showSessionLocation = isolatedCheckout || !locationMatchesWorkspaceRoot;
+  // Where the session works: its worktree branch, a folder other than the project root, or the project's branch.
+  const locationLabel = isolatedCheckout
+    ? branchName ?? "isolated worktree"
+    : locationMatchesWorkspaceRoot
+      ? workspaceGitBranch ?? null
+      : (resolvedCwd ? shortenPath(resolvedCwd) : "runtime cwd");
+  const locationTitle = isolatedCheckout || !locationMatchesWorkspaceRoot ? sessionLocationTitle : workspaceRootPath;
   const externalTerminalCwd = resolvedCwd || cwd;
   const worktreeRecoverySession = discardableSession && isolatedCheckout;
   const recoveryOnly = tileStatus === "restored" && worktreeRecoverySession && !relaunchCapable;
@@ -881,18 +890,50 @@ function ManualTerminalTile({
     onRuntimeSessionUnavailable,
   ]);
 
+  // The rename field replaces the strip's menu, so hand focus back to the terminal when it closes.
+  const endRename = () => {
+    setRenaming(false);
+    requestAnimationFrame(() => terminalRef.current?.focus());
+  };
   const submitRename = () => {
     const nextTitle = normalizeSessionTitle(renameDraft);
     if (nextTitle) {
       onRenameSession(sessionKey, nextTitle);
     }
-    setRenaming(false);
+    endRename();
   };
   const beginRename = () => {
     setRenameDraft(title);
     setRenaming(true);
   };
-  const compactActionItems: ChromeMenuItem[] = [
+  // What the agent waits for, in its own words, when the focused session needs you.
+  const attentionCopy = displayStatus.kind === "needs-you" && latestActivity
+    ? `${latestActivity.title}: ${latestActivity.detail}`
+    : null;
+  const resumeAction = tileStatus === "restored" && relaunchCapable
+    ? {
+        copy: "This session is asleep.",
+        label: restoredActionLabel,
+        run: onContinueRestoredSession,
+        title: restoredSessionButtonTitle(restoredActionSession),
+      }
+    : restartable
+      ? {
+          copy: displayStatus.kind === "done"
+            ? "This session ended."
+            : displayStatus.kind === "failed" ? "This session failed." : attentionCopy ?? "This session is blocked.",
+          label: resumeButtonLabel(relaunchNeedsReview, relaunchArmed),
+          run: onRestartSession,
+          title: "Resume this session",
+        }
+      : null;
+  // With nothing to press, the strip still says in words why the session is not simply running.
+  const stripNote = resumeAction
+    ? null
+    : recoveryOnly
+      ? "Launch details were cleared for privacy. Your isolated checkout is still available."
+      : displayStatus.kind === "unavailable" ? "This session is unavailable." : attentionCopy;
+  const actionItems: ChromeMenuItem[] = [
     ...(externalTerminalCwd
       ? [{
           id: "external-terminal",
@@ -902,7 +943,8 @@ function ManualTerminalTile({
         } satisfies ChromeMenuItem]
       : []),
     { id: "rename", label: "Rename session", run: beginRename },
-    { id: "close", label: closeActionLabel, detail: closeActionTitle, run: onClose },
+    // Plain Close needs no second line; a discard says what it throws away.
+    { id: "close", label: closeActionLabel, ...(discardableSession ? { detail: closeActionTitle } : {}), run: onClose },
   ];
 
   useEffect(() => {
@@ -1297,171 +1339,77 @@ function ManualTerminalTile({
         if (focusEnteredTile(event)) onSelectSession();
       }}
     >
-      <header
-          className="tile-header terminal-tile-header"
-          tabIndex={-1}
-          onClick={onSelectSession}
-        >
-          <div className="tile-title">
-            <span className={`tile-kind-mark ${kindMeta.className}`} title={kindMeta.label} aria-label={kindMeta.label}>
-              <TileKindIcon kind={kind} size={14} />
-            </span>
-            <div>
-            {renaming ? (
-              <form
-                className="session-rename-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  submitRename();
-                }}
-              >
-                <input
-                  aria-label={`Rename ${title}`}
-                  value={renameDraft}
-                  maxLength={80}
-                  onChange={(event) => setRenameDraft(event.target.value)}
-                  onClick={(event) => event.stopPropagation()}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      submitRename();
-                      return;
-                    }
-                    if (event.key === "Escape") {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setRenameDraft(title);
-                      setRenaming(false);
-                    }
-                  }}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  autoFocus
-                />
-                <button
-                  type="submit"
-                  aria-label={`Save title for ${title}`}
-                  disabled={!renameDraft.trim()}
-                  onPointerDown={(event) => event.stopPropagation()}
-                >
-                  <Check size={12} />
-                </button>
-              </form>
-            ) : (
-              <b>{title}</b>
-            )}
-            {showSessionLocation && (
-              <small title={sessionLocationTitle} aria-label={`${sessionLocationMetaLabel} ${sessionLocationTitle}`}>
-                <span className="session-location-meta">{sessionLocationMetaLabel}</span>
-                <span className="session-location-value">{sessionLocationLabel}</span>
-              </small>
-            )}
-          </div>
-        </div>
-        {latestActivity && (
-          <div className={`tile-activity activity-${latestActivity.kind}`} title={latestActivity.detail}>
-            <span>{activityKindLabel(latestActivity.kind)}</span>
-            <strong>{latestActivity.title}</strong>
-            <small>{latestActivity.detail}</small>
+      {/* The v4 canvas strip: at most one action row, then who runs here, where, since when, and the menu.
+          It is drawn under the terminal but comes first in the DOM: the terminal keeps Tab for the shell,
+          so anything after it could not be reached by tabbing forward. */}
+      <footer className="session-strip">
+        {stripNote && <p className="session-strip-note" role="note">{stripNote}</p>}
+        {resumeAction && (
+          <div className="session-strip-action">
+            <span>{relaunchNeedsReview ? relaunchSafety.reason : resumeAction.copy}</span>
+            <button
+              type="button"
+              className={`continue-button ${relaunchNeedsReview ? "unsafe" : ""} ${relaunchArmed ? "armed" : ""}`}
+              aria-label={`${resumeAction.label} ${title}`}
+              title={relaunchNeedsReview ? undefined : resumeAction.title}
+              onClick={resumeAction.run}
+            >
+              {resumeAction.label}
+            </button>
           </div>
         )}
-        <div className="tile-actions">
-          <div className="tile-action-group tile-status-group">
-            {ageLabel && (
-              <span className="tile-age" title={sessionAgeTitle(createdAt)}>
-                {ageLabel}
-              </span>
-            )}
-            <span className={`terminal-status-label tone-${kindMeta.className}`} aria-label={`status ${statusLabel}`}>
-              <SessionStatusGlyph kind={displayStatus.kind} label={statusLabel} />
-              <span className="terminal-status-text">{statusLabel}</span>
-            </span>
-          </div>
-          {(tileStatus === "restored" || restartable) && (
-            <div className="tile-action-group tile-primary-actions">
-              {tileStatus === "restored" && relaunchCapable && (
-                <button
-                  type="button"
-                  className={`continue-button ${relaunchNeedsReview ? "unsafe" : ""} ${relaunchArmed ? "armed" : ""}`}
-                  aria-label={`${restoredActionLabel} ${title}`}
-                  onClick={onContinueRestoredSession}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  title={relaunchNeedsReview
-                    ? relaunchSafety.reason
-                    : restoredSessionButtonTitle(restoredActionSession)}
-                >
-                  {relaunchNeedsReview ? <AlertTriangle size={13} /> : <Play size={13} />}
-                  <span>{restoredActionLabel}</span>
-                </button>
-              )}
-              {restartable && (
-                <button
-                  type="button"
-                  className={`continue-button ${relaunchNeedsReview ? "unsafe" : ""} ${relaunchArmed ? "armed" : ""}`}
-                  aria-label={`${resumeButtonLabel(relaunchNeedsReview, relaunchArmed)} ${title}`}
-                  onClick={onRestartSession}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  title={relaunchNeedsReview ? relaunchSafety.reason : "Resume this session"}
-                >
-                  {relaunchNeedsReview ? <AlertTriangle size={13} /> : <RotateCcw size={13} />}
-                  <span>{resumeButtonLabel(relaunchNeedsReview, relaunchArmed)}</span>
-                </button>
-              )}
-            </div>
-          )}
-          <div className="tile-action-group tile-utility-actions">
-            {externalTerminalCwd && (
-              <button
-                type="button"
-                className="handoff-button"
-                aria-label={`Open ${title} in external terminal`}
-                onClick={() => void onOpenExternalTerminal(externalTerminalCwd)}
-                onPointerDown={(event) => event.stopPropagation()}
-                title={`Open in external terminal: ${shortenPath(externalTerminalCwd)}`}
-              >
-                <SquareTerminal size={14} />
+        <div className="session-strip-info">
+          {renaming ? (
+            <form
+              className="session-rename-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitRename();
+              }}
+            >
+              <input
+                aria-label={`Rename ${title}`}
+                value={renameDraft}
+                maxLength={80}
+                onChange={(event) => setRenameDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    submitRename();
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    endRename();
+                  }
+                }}
+                autoFocus
+              />
+              <button type="submit" aria-label={`Save title for ${title}`} disabled={!renameDraft.trim()}>
+                <Check size={12} />
               </button>
-            )}
-            <button
-              type="button"
-              className="rename-session-button"
-              aria-label={`Rename ${title}`}
-              onClick={beginRename}
-              onPointerDown={(event) => event.stopPropagation()}
-              title="Rename session"
-            >
-              <Pencil size={13} />
-            </button>
-          </div>
-          <div className="tile-action-group tile-danger-actions">
-            <button
-              type="button"
-              className={discardableSession ? "discard-session-button" : undefined}
-              aria-label={`${closeActionLabel} ${title}`}
-              onClick={onClose}
-              onPointerDown={(event) => event.stopPropagation()}
-              title={closeActionTitle}
-            >
-              <X size={14} />
-              {discardableSession && <span>{closeActionLabel}</span>}
-            </button>
-          </div>
-          <div className="tile-action-group tile-overflow-menu">
-            <ChromeMenu
-              label={`More actions for ${title}`}
-              title={`${title} actions`}
-              items={compactActionItems}
-            >
-              <Ellipsis size={14} />
-            </ChromeMenu>
-          </div>
+            </form>
+          ) : (
+            <>
+              <span className="session-strip-kind">{kindLabel}</span>
+              {locationLabel && (
+                <span className="session-location-value" title={locationTitle}>{locationLabel}</span>
+              )}
+              <span className="session-strip-spacer" />
+              {startedLabel && (
+                <span className="session-strip-age" title={sessionAgeTitle(createdAt)}>{startedLabel}</span>
+              )}
+              <div className="session-strip-menu">
+                <ChromeMenu label={`More actions for ${title}`} title={`${title} actions`} items={actionItems}>
+                  <Ellipsis size={14} />
+                </ChromeMenu>
+              </div>
+            </>
+          )}
         </div>
-        </header>
-      {recoveryOnly && (
-        <div className="terminal-action-strip" role="note">
-          Launch details were cleared for privacy. Your isolated checkout is still available.
-        </div>
-      )}
+      </footer>
       <div
         className="xterm-host"
         data-testid={workspaceHidden ? "background-xterm-host" : "xterm-host"}
@@ -1563,29 +1511,6 @@ function hasIsolatedCheckoutMetadata({
     branchName
     && (baseCwd || (workspaceId && workspaceRootFingerprint)),
   );
-}
-
-function activityKindLabel(kind: NonNullable<SessionTile["activityEvents"]>[number]["kind"]): string {
-  switch (kind) {
-    case "approval":
-      return "ask";
-    case "command":
-      return "cmd";
-    case "error":
-      return "err";
-    case "file":
-      return "file";
-    case "plan":
-      return "plan";
-    case "tool":
-      return "tool";
-    case "warning":
-      return "warn";
-    case "lifecycle":
-      return "state";
-    case "output":
-      return "out";
-  }
 }
 
 function focusEnteredTile(event: ReactFocusEvent<HTMLElement>): boolean {
