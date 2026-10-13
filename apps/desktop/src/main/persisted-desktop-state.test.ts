@@ -323,13 +323,12 @@ describe("persisted-desktop-state", () => {
         selectedSessionId: "manual-1",
         collapsedSessionIds: ["manual-2"],
         previewDockOpen: false,
-        previewDockWidth: 584,
         dispatchTarget: { kind: "session", id: "manual-1", label: "Manual · zsh 1" },
       },
     });
   });
 
-  it("clamps persisted Preview widths and drops invalid dock values", async () => {
+  it("drops the width of the retired Preview dock and invalid Preview values", async () => {
     const filePath = await temporaryStateFile();
     await writeFile(
       filePath,
@@ -347,7 +346,7 @@ describe("persisted-desktop-state", () => {
 
     const state = await createPersistedDesktopStateStore({ filePath }).getState();
     expect(state.viewStateByWorkspace).toEqual({
-      A: { previewDockOpen: true, previewDockWidth: 620 },
+      A: { previewDockOpen: true },
     });
   });
 

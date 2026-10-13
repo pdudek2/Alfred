@@ -1848,9 +1848,6 @@ describe("App integration", () => {
 
     await selectSurface(user, "Details");
     expect(screen.getByTestId("context-column")).toHaveClass("open");
-    expect(setWorkspaceViewState).toHaveBeenCalledWith({
-      workspaceId: "A", viewState: expect.objectContaining({ previewDockOpen: false }),
-    });
     expect(setWorkspaceViewState.mock.calls.every(([request]) => !("contextDrawerOpen" in request.viewState))).toBe(true);
 
     setWorkspaceViewState.mockClear();
@@ -3872,7 +3869,7 @@ describe("App integration", () => {
     expect(listExternalSessions).toHaveBeenCalledOnce();
   });
 
-  it("surfaces detected localhost URLs in the workspace preview dock", async () => {
+  it("surfaces detected localhost URLs in the Preview tab", async () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("connection refused"));
     const { openExternalUrl } = installDesktopBridge(undefined, null, [
@@ -3903,7 +3900,7 @@ describe("App integration", () => {
     expect(within(preview).queryByTitle("Preview of http://localhost:5173/")).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Preview" })).toHaveAttribute("aria-selected", "true");
 
-    await user.click(within(preview).getByRole("button", { name: "Open preview externally" }));
+    await user.click(within(preview).getByRole("button", { name: "Open in browser" }));
 
     expect(openExternalUrl).toHaveBeenCalledWith({ url: "http://localhost:5173/" });
 
@@ -3924,33 +3921,11 @@ describe("App integration", () => {
     const previewToggle = await screen.findByRole("tab", { name: "Preview" });
     await user.click(previewToggle);
     const preview = await screen.findByLabelText("Project preview");
-    await user.click(within(preview).getByRole("button", { name: "Open preview externally" }));
+    await user.click(within(preview).getByRole("button", { name: "Open in browser" }));
 
     expect(await screen.findByRole("alert", { name: "Shell action failed" })).toHaveTextContent(
       "Browser could not open this preview.",
     );
-  });
-
-  it("reports an unavailable Preview clipboard through the shell alert", async () => {
-    const user = userEvent.setup();
-    const optionalClipboardNavigator: { readonly clipboard?: Clipboard } = navigator;
-    const clipboardGetter = vi.spyOn(optionalClipboardNavigator, "clipboard", "get").mockReturnValue(undefined);
-    try {
-      installDesktopBridge(undefined, null, [
-        liveSnapshot("preview-copy", { buffer: "Ready at http://localhost:5173/\n" }),
-      ]);
-
-      render(<App />);
-      await user.click(await screen.findByRole("tab", { name: "Preview" }));
-      await user.click(screen.getByRole("button", { name: "More Preview actions" }));
-      await user.click(screen.getByRole("menuitem", { name: "Copy URL" }));
-
-      expect(await screen.findByRole("alert", { name: "Shell action failed" })).toHaveTextContent(
-        "Clipboard is unavailable.",
-      );
-    } finally {
-      clipboardGetter.mockRestore();
-    }
   });
 
   it("adds preview URLs from live terminal output", async () => {
@@ -4007,17 +3982,58 @@ describe("App integration", () => {
     const previewToggle = await screen.findByRole("tab", { name: "Preview" });
     await user.click(previewToggle);
     const preview = await screen.findByLabelText("Project preview");
-    await user.click(within(preview).getByRole("button", { name: "Close Preview" }));
+    // Preview sits in the focused session's box, over a terminal that stays mounted but out of reach.
+    expect(terminalHost.closest("article")).toContainElement(preview);
+    expect(terminalHost).toHaveAttribute("inert");
+    expect(screen.getByRole("complementary", { name: /^Other sessions in / })).toBeVisible();
+
+    await user.click(screen.getByRole("tab", { name: "Terminal" }));
 
     expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument();
     expect(screen.getByTestId("xterm-host")).toBe(terminalHost);
-    expect(screen.getByRole("tab", { name: "Preview" })).toHaveFocus();
+    expect(terminalHost).not.toHaveAttribute("inert");
+    expect(screen.getByRole("tab", { name: "Terminal" })).toHaveAttribute("aria-selected", "true");
 
     await user.click(screen.getByRole("tab", { name: "Preview" }));
     expect(await screen.findByLabelText("Project preview")).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Reload" }), { key: "Escape" });
+    expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument();
   });
 
-  it("keeps Preview and Details mutually exclusive without replacing xterm", async () => {
+  it("returns to the terminal when another session is picked from the stack during Preview", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [
+      liveSnapshot("preview-server", { buffer: "Ready at http://localhost:5173/\n" }),
+      liveSnapshot("other-work"),
+    ]);
+    render(<App />);
+
+    await user.click(await screen.findByRole("tab", { name: "Preview" }));
+    expect(await screen.findByLabelText("Project preview")).toBeInTheDocument();
+    const stack = screen.getByRole("complementary", { name: /^Other sessions in / });
+    await user.click(within(stack).getAllByRole("button")[0]!);
+
+    expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Terminal" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("shows the new session's terminal when a session is started during Preview", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(undefined, null, [
+      liveSnapshot("preview-server", { buffer: "Ready at http://localhost:5173/\n" }),
+    ]);
+    render(<App />);
+
+    await user.click(await screen.findByRole("tab", { name: "Preview" }));
+    expect(await screen.findByLabelText("Project preview")).toBeInTheDocument();
+    await openNewTerminal(user);
+    await user.click(screen.getByRole("button", { name: "Start" }));
+
+    await waitFor(() => expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument());
+    expect(screen.getByRole("tab", { name: "Terminal" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("shows Preview and Details side by side without replacing xterm", async () => {
     const user = userEvent.setup();
     installDesktopBridge(undefined, null, [
       liveSnapshot("context-preview", {
@@ -4031,18 +4047,18 @@ describe("App integration", () => {
     expect(screen.getByLabelText("Project preview")).toBeVisible();
 
     await selectSurface(user, "Details");
-    expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Project preview")).toBeVisible();
     expect(screen.getByTestId("workbench-shell")).toHaveClass("context-visible");
     expect(screen.getByRole("complementary", { name: "Details" })).toBeVisible();
     expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
 
-    await user.click(screen.getByRole("tab", { name: "Preview" }));
+    await user.click(screen.getByRole("tab", { name: "Sessions" }));
     expect(screen.getByLabelText("Project preview")).toBeVisible();
     expect(screen.getByTestId("workbench-shell")).not.toHaveClass("context-visible");
     expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
   });
 
-  it("hydrates Preview open state and width independently per workspace", async () => {
+  it("hydrates Preview open state independently per workspace", async () => {
     const user = userEvent.setup();
     installDesktopBridge(
       undefined,
@@ -4062,8 +4078,8 @@ describe("App integration", () => {
       {
         layoutsByWorkspace: {},
         viewStateByWorkspace: {
-          A: { previewDockOpen: false, previewDockWidth: 460 },
-          B: { previewDockOpen: true, previewDockWidth: 580 },
+          A: { previewDockOpen: false },
+          B: { previewDockOpen: true },
         },
       },
       {
@@ -4083,7 +4099,7 @@ describe("App integration", () => {
     await user.click(screen.getByRole("button", { name: "IronLog project" }));
 
     expect(await screen.findByLabelText("Project preview")).toBeInTheDocument();
-    expect(screen.getByRole("separator", { name: "Resize Preview" })).toHaveAttribute("aria-valuenow", "580");
+    expect(screen.queryByRole("separator", { name: "Resize Preview" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Alfred project" }));
     expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument();
@@ -10244,8 +10260,9 @@ describe("App integration", () => {
 
     expect(screen.getByTestId("desk-runtime-surface")).toBeVisible();
     expect(screen.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
-    expect(screen.queryByLabelText("Project preview")).not.toBeInTheDocument();
-    expect(setWorkspaceViewState).toHaveBeenCalledWith({
+    // A draft opens in Details, beside whatever the focus area shows; Preview does not have to step aside.
+    expect(screen.getByLabelText("Project preview")).toBeVisible();
+    expect(setWorkspaceViewState).not.toHaveBeenCalledWith({
       workspaceId: "A",
       viewState: { previewDockOpen: false },
     });
