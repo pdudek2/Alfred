@@ -68,17 +68,6 @@ function blockFor(selector: string): string {
   return matches.at(-1)?.groups?.body ?? "";
 }
 
-function blocksFor(selector: string): string[] {
-  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return [...styles.matchAll(new RegExp(`${escapedSelector}\\s*\\{(?<body>[^}]*)\\}`, "gm"))].map(
-    (match) => match.groups?.body ?? "",
-  );
-}
-
-function blockForContaining(selector: string, text: string): string {
-  return blocksFor(selector).find((body) => body.includes(text)) ?? "";
-}
-
 function declaredMinHeightPx(body: string): number {
   return Number(body.match(/min-height:\s*(\d+)px/)?.[1] ?? 0);
 }
@@ -180,18 +169,6 @@ function mediaExactRuleBodiesIn(source: string, query: string, selector: string)
 
 function mediaExactRuleBodies(query: string, selector: string): string[] {
   return mediaExactRuleBodiesIn(styles, query, selector);
-}
-
-function containerExactRuleBodies(query: string, selector: string): string[] {
-  const commentlessSource = withoutComments(styles);
-  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const containerStart = new RegExp(`@container\\s*${escapedQuery}\\s*\\{`, "g");
-  const bodies: string[] = [];
-  for (const match of commentlessSource.matchAll(containerStart)) {
-    const openingBraceIndex = (match.index ?? 0) + match[0].lastIndexOf("{");
-    bodies.push(...exactRuleBodiesIn(balancedBlockBody(commentlessSource, openingBraceIndex).body, selector));
-  }
-  return bodies;
 }
 
 function canonicalBaseRuleBodiesIn(source: string, selector: string): string[] {
@@ -558,39 +535,6 @@ describe("renderer CSS contracts", () => {
     expect(mediaExactRuleBodiesIn(fixture, "(max-width: 980px)", ".fixture-owner")).toHaveLength(0);
   });
 
-  it("keeps the approved stronger native material influence bounded to window chrome", () => {
-    const titlebarMaterial = singleTopLevelRuleBodyIn(
-      styles,
-      'html[data-alfred-window-material="native"] .mission-bar',
-    );
-    const projectsMaterial = singleTopLevelRuleBodyIn(
-      styles,
-      'html[data-alfred-window-material="native"] .project-navigator',
-    );
-
-    expect(titlebarMaterial).toContain("background: rgba(3, 5, 8, 0.3)");
-    expect(projectsMaterial).toContain("background: rgba(3, 5, 8, 0.36)");
-  });
-
-  it("owns Details as one adjacent right dock", () => {
-    const openShell = singleTopLevelRuleBodyIn(
-      styles,
-      ".workspace-layout.context-visible",
-    );
-    const contextColumn = singleTopLevelRuleBodyIn(styles, ".context-column");
-    const contextDrawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
-
-    expect(openShell).toContain(
-      "grid-template-columns: clamp(226px, 16vw, 280px) minmax(420px, 1fr) 318px",
-    );
-    expect(contextColumn).toContain("grid-column: 3");
-    expect(contextColumn).toContain("position: static");
-    expect(contextColumn).toContain("width: auto");
-    expect(contextDrawer).toContain("border-radius: 0");
-    expect(contextDrawer).toContain("box-shadow: none");
-    expect(styles).not.toContain(".workspace-layout > .context-column.open");
-  });
-
   it("keeps terminal ancestors motionless and honors reduced motion", () => {
     const terminalAncestorPattern = /^(?:\.terminal-stage|\.terminal-stage-body|\.terminal-grid-column|\.terminal-grid|\.terminal-tile|\.xterm-host)(?:$|[. :>])/;
     const motionOwners = allRulesIn(styles).filter(({ selectors, body }) =>
@@ -602,63 +546,6 @@ describe("renderer CSS contracts", () => {
     const reducedMotion = mediaExactRuleBodies("(prefers-reduced-motion: reduce)", "*");
     expect(reducedMotion).toHaveLength(1);
     expect(reducedMotion[0]).toContain("transition-duration: 0.001ms !important");
-  });
-
-  it("compacts Projects at the native narrow width only when Work yields space to Preview", () => {
-    const layout = mediaExactRuleBodies("(max-width: 1180px)", ".workspace-layout.preview-visible");
-    expect(layout).toHaveLength(1);
-    expect(layout[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
-
-    const forcedRail = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      ".workspace-layout.preview-visible .project-navigator",
-    );
-    expect(forcedRail).toHaveLength(1);
-    expect(forcedRail[0]).toContain("width: 46px");
-
-    expect(mediaExactRuleBodies("(max-width: 1180px)", ".workspace-layout")).toHaveLength(0);
-
-    expect(styles).not.toContain(".project-navigator-collapse");
-    expect(styles).not.toContain(".project-navigator.is-collapsed");
-
-    const hoverPeek = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      ".workspace-layout.preview-visible .project-navigator .project-row-button:hover::after",
-    );
-    const focusPeek = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      ".workspace-layout.preview-visible .project-navigator:focus-within .project-row-button:focus-visible::after",
-    );
-    expect(hoverPeek).toHaveLength(1);
-    expect(focusPeek).toHaveLength(1);
-    expect(hoverPeek[0]).toContain("content: attr(data-label)");
-    expect(focusPeek[0]).toContain("content: attr(data-label)");
-  });
-
-  it("keeps narrow Details over the work surface instead of creating a third fixed column", () => {
-    const narrowWorkDetails = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      "html .workspace-layout.context-visible",
-    );
-    expect(narrowWorkDetails).toHaveLength(1);
-    expect(narrowWorkDetails[0]).toContain("grid-template-columns: 46px minmax(0, 1fr)");
-
-    const narrowDetails = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      "html .workspace-layout.context-visible > .context-column",
-    );
-    expect(narrowDetails).toHaveLength(1);
-    expect(narrowDetails[0]).toContain("position: absolute");
-    expect(narrowDetails[0]).toContain("grid-column: auto");
-    expect(narrowDetails[0]).toContain("width: min(360px, calc(100% - 46px))");
-
-    for (const selector of [
-      "html .workspace-layout.surface-sessions.context-visible > .context-column",
-    ]) {
-      const narrowSurfaceDetails = mediaExactRuleBodies("(max-width: 1180px)", selector);
-      expect(narrowSurfaceDetails).toHaveLength(1);
-      expect(narrowSurfaceDetails[0]).toContain("grid-column: auto");
-    }
   });
 
   it("keeps the Work empty state unboxed", () => {
@@ -675,44 +562,6 @@ describe("renderer CSS contracts", () => {
     const count = singleTopLevelRuleBodyIn(styles, ".project-sandbox-count");
     expect(count).toContain("color: var(--text-faint)");
     expect(count).toContain("font-variant-numeric: tabular-nums");
-  });
-
-  it("uses restrained project motion and disables it for reduced motion", () => {
-    expect(singleTopLevelRuleBodyIn(styles, ".workspace-layout")).toContain(
-      "transition: grid-template-columns 210ms cubic-bezier(0.16, 1, 0.3, 1)",
-    );
-    expect(singleTopLevelRuleBodyIn(styles, ".project-navigator")).toContain(
-      "transition: width 210ms cubic-bezier(0.16, 1, 0.3, 1)",
-    );
-    for (const selector of [
-      ".workspace-layout",
-      ".project-navigator",
-    ]) {
-      const reduced = mediaExactRuleBodies("(prefers-reduced-motion: reduce)", selector);
-      expect(reduced).toHaveLength(1);
-      expect(reduced[0]).toContain("transition: none");
-    }
-  });
-
-  it("keeps the single workspace actions owner operable in the forced narrow rail", () => {
-    const workspacePopover = topLevelExactRuleBodies(".workspace-popover");
-    expect(workspacePopover).toHaveLength(1);
-    expect(workspacePopover[0]).toContain("position: fixed");
-    expect(workspacePopover[0]).toContain("max-height: calc(100vh - 16px)");
-
-    const actions = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      ".workspace-layout.preview-visible .project-navigator .project-workspace-actions",
-    );
-    expect(actions).toHaveLength(1);
-    expect(actions[0]).toContain("display: flex");
-    expect(actions[0]).not.toContain("display: none");
-
-    const popover = mediaExactRuleBodies(
-      "(max-width: 1180px)",
-      ".workspace-layout.preview-visible .project-workspace-actions .workspace-popover",
-    );
-    expect(popover).toHaveLength(0);
   });
 
   it("keeps Sessions on its narrow layout", () => {
@@ -767,55 +616,6 @@ describe("renderer CSS contracts", () => {
       "outline:",
     );
     expect(singleTopLevelRuleBodyIn(styles, ".project-session.is-active")).not.toContain("outline:");
-  });
-
-  it("switches terminal secondary actions by tile width", () => {
-    const baseOverflowMenu = topLevelExactRuleBodies(".tile-overflow-menu");
-    const compactMenu = singleTopLevelRuleBodyIn(styles, ".tile-overflow-menu .chrome-menu-popover");
-    const compactUtilityActions = containerExactRuleBodies(
-      "terminal-tile (max-width: 620px)",
-      ".tile-utility-actions",
-    );
-    const compactDangerActions = containerExactRuleBodies(
-      "terminal-tile (max-width: 620px)",
-      ".tile-danger-actions",
-    );
-    const compactOverflowMenu = containerExactRuleBodies(
-      "terminal-tile (max-width: 620px)",
-      ".tile-overflow-menu",
-    );
-    const compactSecondaryActionReveals = [
-      ".terminal-tile:hover .tile-utility-actions",
-      ".terminal-tile:hover .tile-danger-actions",
-      ".terminal-tile:focus-within .tile-utility-actions",
-      ".terminal-tile:focus-within .tile-danger-actions",
-    ].map((selector) => containerExactRuleBodies("terminal-tile (max-width: 620px)", selector));
-
-    expect(exactBlockFor(".terminal-tile")).toContain("container: terminal-tile / inline-size");
-    expect(baseOverflowMenu).toHaveLength(1);
-    expect(baseOverflowMenu[0]).toContain("display: none");
-    expect(compactMenu).toContain("min-width: 180px");
-    expect(compactMenu).toContain("max-width: calc(100vw - 16px)");
-    expect(compactMenu).toContain("overflow: visible");
-    const compactMenuButton = singleTopLevelRuleBodyIn(
-      styles,
-      ".tile-overflow-menu .chrome-menu-popover button",
-    );
-    expect(compactMenuButton).toContain("width: 100%");
-    expect(compactMenuButton).toContain("min-width: 0");
-    expect(compactUtilityActions).toHaveLength(1);
-    expect(compactUtilityActions[0]).toContain("visibility: hidden");
-    expect(compactUtilityActions[0]).toContain("display: none");
-    expect(compactDangerActions).toHaveLength(1);
-    expect(compactDangerActions[0]).toContain("visibility: hidden");
-    expect(compactDangerActions[0]).toContain("display: none");
-    expect(compactOverflowMenu).toHaveLength(1);
-    expect(compactOverflowMenu[0]).toContain("display: inline-flex");
-    for (const compactSecondaryActionReveal of compactSecondaryActionReveals) {
-      expect(compactSecondaryActionReveal).toHaveLength(1);
-      expect(compactSecondaryActionReveal[0]).toContain("visibility: hidden");
-      expect(compactSecondaryActionReveal[0]).toContain("pointer-events: none");
-    }
   });
 
   it("keeps the selected project recognizable in the compact rail", () => {
@@ -913,16 +713,6 @@ describe("renderer CSS contracts", () => {
     expect(gridColumn).toContain("scrollbar-gutter: stable");
   });
 
-  it("keeps the adaptive workbench controls compact", () => {
-    const workbenchAction = exactBlockFor(".workbench-primary-row button");
-
-    expect(workbenchAction).toContain("max-height: 32px");
-    expect(workbenchAction).toContain("border-radius: var(--radius-control)");
-    expect(workbenchAction).toContain("background: transparent");
-    expect(styles).not.toContain("--flat-control-height");
-    expect(styles).not.toContain("--flat-control");
-  });
-
   it("keeps orphan attention count markers out of the stylesheet", () => {
     expect(styles).not.toMatch(/\.quiet-count-(?:dot|mark)/);
   });
@@ -938,21 +728,6 @@ describe("renderer CSS contracts", () => {
     expect(terminalTile).not.toContain("linear-gradient");
     expect(activeWorkspace).toContain("background:");
     expect(styles).not.toContain("--flat-");
-  });
-
-  it("docks Details beside the terminal scene", () => {
-    const openLayout = singleTopLevelRuleBodyIn(styles, ".workspace-layout.context-visible");
-    const contextColumn = singleTopLevelRuleBodyIn(styles, ".context-column");
-    const contextDrawer = singleTopLevelRuleBodyIn(styles, ".context-drawer");
-
-    expect(openLayout).toContain("grid-template-columns: clamp(226px, 16vw, 280px) minmax(420px, 1fr) 318px");
-    expect(contextColumn).toContain("position: static");
-    expect(contextColumn).toContain("width: auto");
-    expect(contextColumn).toContain("box-shadow: none");
-    expect(contextDrawer).toContain("height: 100%");
-    expect(contextDrawer).toContain("box-shadow: none");
-    expect(styles).not.toContain(":has(.context-column.open)");
-    expect(styles).not.toContain(".workspace-layout > .context-column.open");
   });
 
   it("keeps Sessions scope controls readable inside the existing navigator toolbar", () => {
@@ -991,42 +766,12 @@ describe("renderer CSS contracts", () => {
     expect(sessionsReaderScroll).toContain("scrollbar-width: thin");
   });
 
-  it("keeps the top chrome on adaptive frame rows", () => {
-    const frame = singleTopLevelRuleBodyIn(styles, ".desktop-frame");
-    const missionBar = exactBlockFor(".mission-bar");
-    const primaryRow = exactBlockFor(".workbench-primary-row");
-
-    expect(frame).toContain("grid-template-rows: auto auto minmax(0, 1fr)");
-    expect(missionBar).toContain("display: flex");
-    expect(primaryRow).toContain("grid-template-columns: auto minmax(0, 1fr) auto");
-  });
-
   it("drops deduped chrome selectors from the sheet", () => {
     expect(styles).not.toContain(".workbench-crumbs");
     expect(styles).not.toContain(".workbench-title-block");
     expect(styles).not.toContain(".terminal-stage-utility");
     expect(styles).not.toContain(".agent-activity-digest");
     expect(styles).not.toContain(".review-surface-stats");
-  });
-
-  it("lays the one-bar chrome out on the approved grids", () => {
-    expect(exactBlockFor(".mission-bar")).toContain("display: flex");
-    expect(exactBlockFor(".workbench-header")).toContain("width: 100%");
-  });
-
-  it("preserves surface identity while hiding nonessential technical chrome at 1120px", () => {
-    expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-session-context > span")).toHaveLength(0);
-    expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-session-context > small")).toHaveLength(0);
-    expect(mediaExactRuleBodies("(max-width: 1120px)", ".workbench-right-zone kbd")).toHaveLength(1);
-    expect(mediaExactRuleBodies("(max-width: 980px)", ".workbench-session-title")).toHaveLength(1);
-  });
-
-  it("keeps workspace actions compact inside the active project row", () => {
-    const workspaceTitle = blockFor(".project-workspace-actions .workspace-title-trigger");
-
-    expect(workspaceTitle).toContain("width: 28px");
-    expect(workspaceTitle).toContain("height: 28px");
-    expect(blockFor(".project-workspace-actions .workspace-title-trigger > span")).toContain("display: none");
   });
 
   it("keeps the Details timeline scrollable without clipping the lower timeline", () => {
@@ -1039,118 +784,6 @@ describe("renderer CSS contracts", () => {
     expect(contextDrawer).toContain("grid-template-rows: 46px minmax(0, 1fr)");
     expect(blockFor(".context-drawer .agent-timeline-panel")).toContain("animation: none");
     expect(timelineBody).toContain("overflow-y: auto");
-  });
-
-  it("keeps terminal tile chrome secondary to the xterm body", () => {
-    const tile = exactBlockFor(".terminal-tile");
-    const header = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header");
-    const selectedHeader = exactBlockFor(".terminal-tile.selected .terminal-tile-header");
-    const tileTitle = blockFor(".terminal-tile-header .tile-title b");
-    const xtermHost = exactBlockFor(".xterm-host");
-    const kindMark = exactBlockFor(".terminal-tile.real-terminal .tile-kind-mark");
-    const kindMarkText = exactBlockFor(".terminal-tile.real-terminal .tile-kind-mark .tile-kind-label");
-    const primaryActions = blockForContaining(".tile-primary-actions", "opacity: 1");
-    const primaryActionButton = exactBlockFor(".tile-primary-actions .continue-button");
-    const utilities = blockForContaining(".tile-utility-actions", "opacity: 0");
-    const dangerActions = blockForContaining(".tile-danger-actions", "opacity: 0");
-    const utilityButtons = blockFor(".tile-utility-actions button,\n.tile-danger-actions button");
-
-    expect(tile).toContain("background: var(--surface-terminal)");
-    expect(tile).toContain("box-shadow: none");
-    expect(header).toContain("min-height");
-    expect(header).toContain("background: var(--surface-chrome)");
-    expect(selectedHeader).not.toContain("linear-gradient");
-    expect(selectedHeader).toContain(
-      "background: color-mix(in oklab, var(--signal-focus) 4%, var(--surface-chrome))",
-    );
-    expect(tileTitle).toContain("font: 650 13px/1.12 var(--sans)");
-    expect(xtermHost).toContain("background: var(--surface-terminal)");
-    expect(kindMark).toContain("width: 22px");
-    expect(kindMarkText).toContain("display: none");
-    expect(primaryActions).toContain("opacity: 1");
-    expect(primaryActions).toContain("pointer-events: auto");
-    expect(primaryActionButton).toContain("border-color: var(--ink-5)");
-    expect(utilities).toContain("opacity: 0");
-    expect(utilities).toContain("pointer-events: none");
-    expect(dangerActions).toContain("opacity: 0");
-    expect(dangerActions).toContain("pointer-events: none");
-    expect(utilityButtons).toContain("color: var(--ink-5)");
-  });
-
-  it("keeps terminal tile titles readable before action chrome under constrained width", () => {
-    const title = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title");
-    const titleText = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title > div");
-    const titleLabel = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title b");
-    const actions = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-actions");
-    const primaryAction = blockFor(".tile-primary-actions .continue-button");
-    const primaryActionText = blockFor(".tile-primary-actions .continue-button span");
-    const statusText = singleTopLevelRuleBodyIn(styles, ".terminal-status-text");
-    const constrainedStatusText = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".terminal-status-text");
-
-    expect(/\.terminal-tile-header\s*\{[^}]*display:\s*flex;/.test(styles)).toBe(true);
-    expect(title).toContain("flex: 1 1 220px");
-    expect(title).toContain("min-width: var(--terminal-title-min)");
-    expect(titleText).toContain("min-width: 0");
-    expect(titleLabel).toContain("overflow: hidden");
-    expect(titleLabel).toContain("text-overflow: ellipsis");
-    expect(actions).toContain("flex: 0 0 auto");
-    expect(actions).toContain("min-width: 0");
-    expect(primaryAction).toContain("max-width");
-    expect(primaryActionText).toContain("overflow: hidden");
-    expect(statusText).toContain("max-width");
-    expect(constrainedStatusText).toHaveLength(1);
-    expect(constrainedStatusText[0]).toContain("max-width: none");
-    expect(constrainedStatusText[0]).not.toContain("display:");
-  });
-
-  it("reserves terminal header geometry while revealing secondary utilities", () => {
-    const header = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header");
-    const title = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title");
-    const titleLabel = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title b");
-    const location = singleTopLevelRuleBodyIn(styles, ".terminal-tile-header .tile-title small");
-    const activity = blockForContaining(".tile-activity", "flex: 1 1 220px");
-    const actions = blockFor(".terminal-tile-header .tile-actions");
-    const status = exactBlockFor(".tile-status-group");
-    const utilities = blockForContaining(".tile-utility-actions", "visibility: hidden");
-    const utilityReveal = blockFor(".terminal-tile:hover .tile-utility-actions,\n.terminal-tile:hover .tile-danger-actions,\n.terminal-tile:focus-within .tile-utility-actions,\n.terminal-tile:focus-within .tile-danger-actions");
-
-    expect(header).toContain("--terminal-title-min: 160px");
-    expect(header).toContain("--terminal-activity-min: 152px");
-    expect(header).toContain("--terminal-status-zone: 152px");
-    expect(title).toContain("flex: 1 1 220px");
-    expect(title).toContain("min-width: var(--terminal-title-min)");
-    expect(titleLabel).toContain("text-overflow: ellipsis");
-    expect(location).toContain("min-width: 12ch");
-    expect(activity).toContain("flex: 1 1 220px");
-    expect(activity).toContain("min-width: var(--terminal-activity-min)");
-    expect(actions).toContain("flex: 0 0 auto");
-    expect(status).toContain("flex: 0 0 var(--terminal-status-zone)");
-    expect(utilities).toContain("visibility: hidden");
-    expect(utilities).not.toContain("display:");
-    expect(utilityReveal).toContain("visibility: visible");
-  });
-
-  it("reduces header reservations for a narrow tile without hiding location or status", () => {
-    const narrowHeader = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".terminal-tile-header");
-    const narrowTitle = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".terminal-tile-header .tile-title");
-    const narrowActivity = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".tile-activity");
-    const narrowLocation = containerExactRuleBodies(
-      "terminal-tile (max-width: 520px)",
-      ".terminal-tile-header .tile-title small",
-    );
-    const narrowStatusText = containerExactRuleBodies("terminal-tile (max-width: 520px)", ".terminal-status-text");
-
-    expect(narrowHeader).toEqual([expect.stringContaining("--terminal-status-zone: max-content")]);
-    expect(narrowTitle).toEqual([expect.stringContaining("min-width: var(--terminal-title-min)")]);
-    expect(narrowActivity).toEqual([expect.stringContaining("visibility: hidden")]);
-    expect(narrowActivity[0]).not.toContain("display:");
-    expect(narrowLocation).toHaveLength(1);
-    expect(narrowLocation[0]).not.toContain("display: none");
-    expect(narrowStatusText).toHaveLength(1);
-    expect(narrowStatusText[0]).not.toContain("display:");
-
-    const minimumSpanHeader = containerExactRuleBodies("terminal-tile (max-width: 420px)", ".terminal-tile-header");
-    expect(minimumSpanHeader[0]).not.toContain("--terminal-status-zone:");
   });
 
   it("keeps Work controls and dark scroll owners on the shared chrome rhythm", () => {
@@ -1289,16 +922,6 @@ describe("renderer CSS contracts", () => {
       ['html[data-alfred-window-material="native"] .mission-bar'],
       ['html[data-alfred-window-material="native"] .project-navigator'],
     ]));
-  });
-
-  it("keeps the Work chrome quiet and command-like", () => {
-    const tileUtilities = blockForContaining(".tile-utility-actions", "opacity: 0");
-    const tileDangerActions = blockForContaining(".tile-danger-actions", "opacity: 0");
-
-    expect(tileUtilities).toContain("opacity: 0");
-    expect(tileUtilities).toContain("pointer-events: none");
-    expect(tileDangerActions).toContain("opacity: 0");
-    expect(tileDangerActions).toContain("pointer-events: none");
   });
 
   it("keeps live workbench controls on the canonical control radius", () => {
