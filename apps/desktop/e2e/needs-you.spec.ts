@@ -3,7 +3,7 @@ import path from "node:path";
 import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwright/test";
 import { terminalChannels, type TerminalListResult } from "../src/shared/terminal-ipc";
 import { openPlan } from "./support/plan-line";
-import { settleTerminalTileAnimations } from "./support/work-layout";
+import { settleTerminalTileAnimations, surfaceButton } from "./support/work-layout";
 import { expect, test } from "./support/electron-app";
 import { neutralScreenshotPointer, privacySafeScreenshotStyle } from "./support/privacy-safe-screenshot";
 
@@ -210,8 +210,7 @@ test.describe("mixed Needs you actions", () => {
     for (const [width, height] of [[1440, 900], [1120, 720]] as const) {
       await setWindowSize(app, page, width, height);
       const grid = page.getByTestId("terminal-grid");
-      await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-      await page.getByRole("menuitem", { name: "History" }).click();
+      await surfaceButton(page, "History").click();
       await expect(page.getByRole("region", { name: "History" })).toBeVisible();
       await expectSameNode(before, screen, "Work→History replaced the xterm screen");
       expect(await documentOverflow(page)).toBe(0);

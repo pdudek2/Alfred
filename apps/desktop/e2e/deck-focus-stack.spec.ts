@@ -1,5 +1,6 @@
 import type { ElementHandle, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { surfaceButton } from "./support/work-layout";
 
 test("swaps the focused terminal from the stack without remounting any xterm", async ({ harness }) => {
   const { page } = harness;
@@ -64,8 +65,7 @@ async function addManualTerminal(page: Page): Promise<void> {
 }
 
 async function selectSurface(page: Page, surface: "Work" | "History"): Promise<void> {
-  await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-  await page.getByRole("menuitem", { name: surface }).click();
+  await surfaceButton(page, surface).click();
 }
 
 async function captureHosts(page: Page, expectedCount: number): Promise<ElementHandle<HTMLElement>[]> {

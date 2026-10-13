@@ -86,6 +86,8 @@ async function createWindow(persistedDesktopStateStore: PersistedDesktopStateSto
     ...(appIconPath ? { icon: appIconPath } : {}),
     show: false,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+    // Centers the window buttons in the rail's 52px top strip, as on the v4 canvas.
+    trafficLightPosition: { x: 18, y: 20 },
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

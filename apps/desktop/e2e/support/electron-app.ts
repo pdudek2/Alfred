@@ -13,6 +13,7 @@ import {
   type TestInfo,
 } from "@playwright/test";
 import type { TerminalApi } from "../../src/shared/terminal-ipc";
+import { surfaceButton } from "./work-layout";
 import {
   createDesktopFixture,
   type DesktopStateFixtureOptions,
@@ -195,8 +196,7 @@ export const test = base.extend<Fixtures>({
 
       const runtimeSurface = page.getByTestId("desk-runtime-surface");
       if ((await runtimeSurface.count()) > 0 && !(await runtimeSurface.isVisible())) {
-        await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-        await page.getByRole("menuitem", { name: "Work" }).click();
+        await surfaceButton(page, "Work").click();
       }
       await page.evaluate(async () => {
         const terminalApi = (window as DesktopTerminalWindow).alfredDesktop?.terminal;

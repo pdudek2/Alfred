@@ -2,6 +2,7 @@ import { readdir, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ElectronApplication, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { surfaceButton } from "./support/work-layout";
 
 test.use({ fixtureOptions: { externalSessionSummaryCount: 120 } });
 
@@ -62,8 +63,7 @@ test("Sessions exposes all 120 external summaries through bounded UI pages and l
 });
 
 async function selectSurface(page: import("@playwright/test").Page, surface: "History"): Promise<void> {
-  await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-  await page.getByRole("menuitem", { name: surface }).click();
+  await surfaceButton(page, surface).click();
 }
 
 async function setHiddenWindowSize(

@@ -26,14 +26,16 @@ const liveB: SessionTile = {
 
 const baseProps = {
   activeSurface: "work",
+  previewAvailable: true,
+  previewOpen: false,
+  projectDetail: "…/project · main",
+  projectLabel: "Alfred",
   selectedSession: liveA,
   shortcutModifier: "Cmd",
-  workspaceDetail: "Alfred · /project",
   onOpenCommandPalette: vi.fn(),
   onOpenNewSession: vi.fn(),
-  onOpenPrivacyControls: vi.fn(),
-  onSelectSurface: vi.fn(),
   onToggleContext: vi.fn(),
+  onTogglePreview: vi.fn(),
   needsYouCount: 0,
   needsYouOpen: false,
   onToggleNeedsYou: vi.fn(),
@@ -45,43 +47,69 @@ function renderHeader(overrides: Partial<WorkbenchHeaderProps> = {}) {
 
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
 });
 
 describe("WorkbenchHeader", () => {
-  it("uses the quiet chrome without a session tab strip", () => {
+  it("names the project and the focused session in the breadcrumb", () => {
     renderHeader({ selectedSession: liveB });
-    const header = screen.getByTestId("workbench-header");
-    expect(header).toHaveTextContent("Codex review");
-    expect(screen.queryByRole("toolbar", { name: "Session and layout controls" })).not.toBeInTheDocument();
-    expect(header.querySelector(".alfred-mark svg")).toBeInTheDocument();
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(breadcrumb).toHaveTextContent("AlfredCodex review");
+    expect(within(breadcrumb).getByText("Alfred")).toHaveAttribute("title", "…/project · main");
+    expect(breadcrumb.querySelector(".session-status-glyph")).toBeInTheDocument();
   });
 
-  it("shows surface identity outside Work without leaking the selected session", () => {
+  it("shows only the project when no session is focused", () => {
+    renderHeader({ selectedSession: null, previewAvailable: false });
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent(/^Alfred$/);
+    expect(screen.queryByRole("tablist", { name: "Session view" })).not.toBeInTheDocument();
+  });
+
+  it("shows History outside the deck without leaking the selected session", () => {
     renderHeader({ activeSurface: "sessions", selectedSession: liveA });
-    expect(screen.getByRole("button", { name: "Open Surfaces menu" })).toHaveTextContent("History");
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent(/^History$/);
     expect(screen.queryByText(liveA.title)).not.toBeInTheDocument();
+    expect(screen.queryByRole("tablist", { name: "Session view" })).not.toBeInTheDocument();
   });
 
-  it("keeps surface navigation attached to the visible surface name", async () => {
+  it("switches between Terminal and Preview from the session view tabs", async () => {
     const user = userEvent.setup();
-    renderHeader({ activeSurface: "sessions" });
+    const previewTriggerRef = createRef<HTMLButtonElement>();
+    const { rerender } = renderHeader({ previewTriggerRef });
+    const tabs = screen.getByRole("tablist", { name: "Session view" });
+    const terminal = within(tabs).getByRole("tab", { name: "Terminal" });
+    const preview = within(tabs).getByRole("tab", { name: "Preview" });
+    expect(previewTriggerRef.current).toBe(preview);
+    expect(terminal).toHaveAttribute("aria-selected", "true");
+    expect(preview).toHaveAttribute("aria-selected", "false");
 
-    const surfaces = screen.getByRole("button", { name: "Open Surfaces menu" });
-    expect(surfaces).toHaveTextContent("History");
+    await user.click(terminal);
+    expect(baseProps.onTogglePreview).not.toHaveBeenCalled();
+    await user.click(preview);
+    expect(baseProps.onTogglePreview).toHaveBeenCalledOnce();
 
-    await user.click(surfaces);
-    expect(screen.getByRole("menuitem", { name: "History" })).toBeInTheDocument();
+    rerender(<WorkbenchHeader {...baseProps} previewOpen />);
+    expect(screen.getByRole("tab", { name: "Preview" })).toHaveAttribute("aria-selected", "true");
+    await user.click(screen.getByRole("tab", { name: "Preview" }));
+    expect(baseProps.onTogglePreview).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("tab", { name: "Terminal" }));
+    expect(baseProps.onTogglePreview).toHaveBeenCalledTimes(2);
   });
 
-  it("exposes Needs you Surfaces command palette and the existing launch destinations", async () => {
+  it("disables Preview until a local dev server is running", () => {
+    renderHeader({ previewAvailable: false });
+    const preview = screen.getByRole("tab", { name: "Preview" });
+    expect(preview).toBeDisabled();
+    expect(preview).toHaveAttribute("title", "Start a local dev server to enable Preview");
+  });
+
+  it("exposes Details, search and New", async () => {
     const user = userEvent.setup();
-    renderHeader({ needsYouCount: 1 });
-    expect(screen.getByRole("button", { name: "Needs you, 1 session" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open Surfaces menu" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open command palette" })).toBeInTheDocument();
+    renderHeader();
+    expect(screen.getByRole("button", { name: "Details" })).toHaveTextContent("⌘I");
+    expect(screen.getByRole("button", { name: "Open command palette" })).toHaveTextContent("⌘K");
     await user.click(screen.getByRole("button", { name: "New" }));
-    expect(baseProps.onOpenNewSession).toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "New" })).toHaveTextContent("⌘N");
+    expect(baseProps.onOpenNewSession).toHaveBeenCalledOnce();
   });
 
   it("hides the Needs you count at zero and toggles the popover from it", async () => {
@@ -101,27 +129,5 @@ describe("WorkbenchHeader", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     await user.click(trigger);
     expect(onToggleNeedsYou).toHaveBeenCalledOnce();
-  });
-
-  it("exposes every replaced rail destination from the primary row", async () => {
-    const user = userEvent.setup();
-    renderHeader();
-
-    await user.click(screen.getByRole("button", { name: "Open Surfaces menu" }));
-    expect(screen.getByRole("button", { name: "Details" })).toHaveTextContent("⌘I");
-    const menu = screen.getByRole("menu", { name: "Surfaces" });
-    expect(within(menu).getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
-      "Work",
-      "History",
-      "Details",
-      "Local Data & Privacy",
-    ]);
-  });
-
-  it("passes the surfaces trigger ref through to the menu button", () => {
-    const surfacesTriggerRef = createRef<HTMLButtonElement>();
-    renderHeader({ surfacesTriggerRef });
-
-    expect(surfacesTriggerRef.current).toBe(screen.getByRole("button", { name: "Open Surfaces menu" }));
   });
 });

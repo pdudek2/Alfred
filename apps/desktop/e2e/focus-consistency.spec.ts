@@ -1,5 +1,6 @@
 import type { ElectronApplication, Locator, Page } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { openNewTerminalSheet } from "./support/work-layout";
 
 test.use({
   fixtureOptions: {
@@ -16,7 +17,7 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
   const tileUtility = page.locator('[data-testid="terminal-tile"]:visible')
     .getByRole("button", { name: /^(Close|More actions for) Manual/ }).first();
   // A second terminal puts the first one in the stack.
-  await page.getByRole("toolbar", { name: "Work layout controls" }).getByRole("button", { name: "New terminal" }).click();
+  await openNewTerminalSheet(page);
   await page.getByRole("button", { name: "Start", exact: true }).click();
   // Like the first one, the new terminal claims focus once it starts; let that settle first.
   await expect(page.locator('[data-testid="terminal-tile"][data-session-id="manual-2"]').getByRole("textbox", { name: "Terminal input" }))
@@ -32,7 +33,7 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
       offset: "-2px",
     },
     {
-      control: page.getByRole("toolbar", { name: "Work layout controls" }).getByRole("button", { name: "New terminal" }),
+      control: page.getByTestId("workbench-header").getByRole("button", { name: "New", exact: true }),
       offset: "2px",
     },
     {

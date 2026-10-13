@@ -60,16 +60,16 @@ test("the rail shows one state glyph per project and folds rootless projects int
     await page.mouse.move(neutralScreenshotPointer.x, neutralScreenshotPointer.y);
     await page.screenshot({ path: testInfo.outputPath("deck-rail-sandboxes-1440x900.png") });
 
-    // Preview at the minimum window compacts the rail to short labels with the glyph in the corner.
+    // The rail keeps its canvas width and full labels even with Preview open at the minimum window.
     const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
     const input = page.locator('[data-testid="terminal-tile"]:visible').getByRole("textbox", { name: "Terminal input" });
     await input.fill(`printf 'Ready at ${url}\\n'`);
     await input.press("Enter");
     await setWindowSize(app, page, 1120, 720);
-    await page.getByRole("button", { name: "Preview" }).click();
+    await page.getByRole("tab", { name: "Preview" }).click();
     await expect(page.getByLabel("Project preview")).toBeVisible();
-    await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "46px");
-    await expect(alpha.locator(".project-row-monogram")).toHaveText("FA");
+    await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "224px");
+    await expect(alpha.locator(".project-row-label")).toBeVisible();
     await expect(alpha.locator(".project-row-state")).toBeVisible();
     await expect(beta.locator(".project-row-state")).toBeVisible();
     await page.mouse.move(neutralScreenshotPointer.x, neutralScreenshotPointer.y);

@@ -26,9 +26,9 @@ test("Preview stays on demand and preserves xterm while loaded, resized, and off
     await input.fill(`printf 'Ready at ${url}\\n'`);
     await input.press("Enter");
 
-    const previewToggle = page.getByRole("button", { name: "Preview" });
+    const previewToggle = page.getByRole("tab", { name: "Preview" });
     await expect(previewToggle).toBeEnabled();
-    await expect(previewToggle).toHaveAttribute("aria-pressed", "false");
+    await expect(previewToggle).toHaveAttribute("aria-selected", "false");
     await expect(page.getByLabel("Project preview")).toHaveCount(0);
 
     await previewToggle.click();
@@ -59,7 +59,7 @@ test("Preview stays on demand and preserves xterm while loaded, resized, and off
       const bounds = BrowserWindow.getAllWindows()[0]?.getBounds();
       return bounds ? { width: bounds.width, height: bounds.height } : null;
     })).toEqual({ width: 1120, height: 720 });
-    await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "46px");
+    await expect(page.getByTestId("project-navigator")).toHaveCSS("width", "224px");
     // Preview takes the stack's column; at the minimum window the focused terminal stays usable.
     await expect(page.locator(".session-stack")).toHaveCount(0);
     expect(await page.locator('[data-testid="terminal-tile"]:visible').evaluate((node) => node.getBoundingClientRect().width))

@@ -1,119 +1,139 @@
-import { ChevronDown, Command, Layers3, Plus } from "lucide-react";
+import { ChevronRight, Plus, Search } from "lucide-react";
 import type { Ref } from "react";
 import type { SessionTile } from "../session-state";
-import { AlfredMark } from "./AlfredMark";
+import { sessionState } from "../session-status";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
-import { ChromeMenu, type ChromeMenuItem } from "./ChromeMenu";
+import { useStackClock } from "./SessionStack";
+import { SessionStatusGlyph } from "./SessionStatusGlyph";
 
 export type PrimarySurface = "work" | "sessions";
 
 export type WorkbenchHeaderProps = {
   activeSurface: PrimarySurface;
   commandPaletteTriggerRef?: Ref<HTMLButtonElement>;
+  detailsOpen?: boolean;
+  detailsTriggerRef?: Ref<HTMLButtonElement>;
   needsYouCount: number;
   needsYouOpen: boolean;
   needsYouTriggerRef?: Ref<HTMLButtonElement>;
   newSessionTriggerRef?: Ref<HTMLButtonElement>;
+  previewAvailable: boolean;
+  previewOpen: boolean;
+  previewTriggerRef?: Ref<HTMLButtonElement>;
+  projectDetail: string;
+  projectLabel: string;
   selectedSession: SessionTile | null;
   shortcutModifier: "Cmd" | "Ctrl";
-  detailsTriggerRef?: Ref<HTMLButtonElement>;
-  detailsOpen?: boolean;
-  surfacesTriggerRef?: Ref<HTMLButtonElement>;
-  workspaceDetail: string;
   onOpenCommandPalette: () => void;
   onOpenNewSession: () => void;
-  onOpenPrivacyControls: () => void;
-  onSelectSurface: (surface: PrimarySurface) => void;
   onToggleContext: () => void;
   onToggleNeedsYou: () => void;
+  onTogglePreview: () => void;
 };
 
 export function WorkbenchHeader({
   activeSurface,
   commandPaletteTriggerRef,
+  detailsOpen = false,
+  detailsTriggerRef,
   needsYouCount,
   needsYouOpen,
   needsYouTriggerRef,
   newSessionTriggerRef,
+  previewAvailable,
+  previewOpen,
+  previewTriggerRef,
+  projectDetail,
+  projectLabel,
   selectedSession,
   shortcutModifier,
-  detailsTriggerRef,
-  detailsOpen = false,
-  surfacesTriggerRef,
-  workspaceDetail,
   onOpenCommandPalette,
   onOpenNewSession,
-  onOpenPrivacyControls,
-  onSelectSurface,
   onToggleContext,
   onToggleNeedsYou,
+  onTogglePreview,
 }: WorkbenchHeaderProps) {
-  const surfaceTitle = activeSurface === "sessions" ? "History" : "Work";
-  const surfaceDetail = activeSurface === "work" ? workspaceDetail : "Alfred";
-  const surfaceItems: ChromeMenuItem[] = [
-    { id: "work", label: "Work", run: () => onSelectSurface("work") },
-    { id: "sessions", label: "History", run: () => onSelectSurface("sessions") },
-    { id: "context", label: "Details", run: onToggleContext },
-    { id: "privacy", label: "Local Data & Privacy", run: onOpenPrivacyControls },
-  ];
+  const onDeck = activeSurface === "work";
+  const session = onDeck ? selectedSession : null;
+  const now = useStackClock(session !== null);
+  const state = session ? sessionState(session, "ready", now) : null;
+  const key = (letter: string) => shortcutModifier === "Cmd" ? `⌘${letter}` : `Ctrl ${letter}`;
 
   return (
     <header className="workbench-header" data-testid="workbench-header">
-      <div className="workbench-primary-row">
-        <div className="workbench-product-signature"><AlfredMark /></div>
-        <div className="workbench-session-context">
-          <div className="workbench-surface-menu">
-            <ChromeMenu
-              {...(surfacesTriggerRef ? { triggerRef: surfacesTriggerRef } : {})}
-              label="Open Surfaces menu"
-              title="Surfaces"
-              items={surfaceItems}
-            >
-              <Layers3 aria-hidden="true" size={13} />
-              <span>{surfaceTitle}</span>
-              <ChevronDown aria-hidden="true" size={12} />
-            </ChromeMenu>
-          </div>
-          {activeSurface === "work" && selectedSession && (
-            <span className="workbench-session-title">{selectedSession.title}</span>
-          )}
-          <small className="workbench-context-detail">{surfaceDetail}</small>
-          <button ref={newSessionTriggerRef} type="button" aria-label="New" aria-haspopup="dialog" onClick={onOpenNewSession}>
-            <Plus aria-hidden="true" size={14} /><span>New</span><kbd>{shortcutModifier === "Cmd" ? "⌘N" : "Ctrl N"}</kbd>
-          </button>
-        </div>
-        <div className="workbench-right-zone">
-          <button ref={detailsTriggerRef} type="button" aria-label="Details" aria-expanded={detailsOpen}
-            aria-keyshortcuts={shortcutModifier === "Cmd" ? "Meta+i" : "Control+i"}
-            title={`Details (${shortcutModifier === "Cmd" ? "⌘I" : "Ctrl I"})`} onClick={onToggleContext}>
-            <span>Details</span><kbd>{shortcutModifier === "Cmd" ? "⌘I" : "Ctrl I"}</kbd>
-          </button>
-          {needsYouCount > 0 && (
-            <button
-              ref={needsYouTriggerRef}
-              type="button"
-              className="workbench-needs-you"
-              aria-label={`Needs you, ${needsYouCount} session${needsYouCount === 1 ? "" : "s"}`}
-              aria-expanded={needsYouOpen}
-              aria-haspopup="dialog"
-              title={`Needs you (${shortcutModifier === "Cmd" ? "⌘J" : "Ctrl J"})`}
-              onClick={onToggleNeedsYou}
-            >
-              <AlfredSignalGlyph />
-              <span>{needsYouCount} {needsYouCount === 1 ? "needs" : "need"} you</span>
-            </button>
-          )}
+      <nav className="workbench-breadcrumb" aria-label="Breadcrumb">
+        {session && state ? (
+          <>
+            <span className="workbench-breadcrumb-parent" title={projectDetail}>{projectLabel}</span>
+            <ChevronRight aria-hidden="true" size={12} />
+            <span className="workbench-breadcrumb-current">
+              <SessionStatusGlyph kind={state.kind} label={state.label} size={13} />
+              <span className="workbench-session-title">{session.title}</span>
+            </span>
+          </>
+        ) : (
+          <span className="workbench-breadcrumb-current" title={onDeck ? projectDetail : undefined}>
+            <span className="workbench-surface-title">{onDeck ? projectLabel : "History"}</span>
+          </span>
+        )}
+      </nav>
+      <div className="workbench-actions">
+        {onDeck && (session || previewAvailable || previewOpen) && (
+          <>
+            <div className="workbench-view-tabs" role="tablist" aria-label="Session view">
+              <button type="button" role="tab" aria-selected={!previewOpen} onClick={previewOpen ? onTogglePreview : undefined}>
+                Terminal
+              </button>
+              <button
+                ref={previewTriggerRef}
+                type="button"
+                role="tab"
+                aria-selected={previewOpen}
+                disabled={!previewAvailable}
+                title={previewAvailable ? "Preview" : "Start a local dev server to enable Preview"}
+                onClick={previewOpen ? undefined : onTogglePreview}
+              >
+                Preview
+              </button>
+            </div>
+            <span className="workbench-divider" aria-hidden="true" />
+          </>
+        )}
+        <button ref={detailsTriggerRef} type="button" className="workbench-quiet" aria-label="Details"
+          aria-expanded={detailsOpen} aria-keyshortcuts={shortcutModifier === "Cmd" ? "Meta+i" : "Control+i"}
+          title={`Details (${key("I")})`} onClick={onToggleContext}>
+          <span>Details</span><kbd>{key("I")}</kbd>
+        </button>
+        {needsYouCount > 0 && (
           <button
-            ref={commandPaletteTriggerRef}
+            ref={needsYouTriggerRef}
             type="button"
-            aria-label="Open command palette"
-            title={shortcutModifier + " K"}
-            onClick={onOpenCommandPalette}
+            className="workbench-needs-you"
+            aria-label={`Needs you, ${needsYouCount} session${needsYouCount === 1 ? "" : "s"}`}
+            aria-expanded={needsYouOpen}
+            aria-haspopup="dialog"
+            title={`Needs you (${key("J")})`}
+            onClick={onToggleNeedsYou}
           >
-            <Command aria-hidden="true" size={14} />
-            <kbd>{shortcutModifier === "Cmd" ? "⌘K" : "Ctrl K"}</kbd>
+            <AlfredSignalGlyph />
+            <span>{needsYouCount} {needsYouCount === 1 ? "needs" : "need"} you</span>
           </button>
-        </div>
+        )}
+        <button
+          ref={commandPaletteTriggerRef}
+          type="button"
+          className="workbench-control"
+          aria-label="Open command palette"
+          title={`Search (${key("K")})`}
+          onClick={onOpenCommandPalette}
+        >
+          <Search aria-hidden="true" size={13} />
+          <kbd>{key("K")}</kbd>
+        </button>
+        <button ref={newSessionTriggerRef} type="button" className="workbench-control workbench-new" aria-label="New"
+          aria-haspopup="dialog" title={`New session (${key("N")})`} onClick={onOpenNewSession}>
+          <Plus aria-hidden="true" size={13} /><span>New</span>
+        </button>
       </div>
     </header>
   );
