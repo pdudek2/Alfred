@@ -19,6 +19,7 @@ const productCssPaths = [
   "components/workspace-preview.css",
   "components/worktree-diff-panel.css",
   "components/plan-line.css",
+  "components/history.css",
   "components/new-session-sheet.css",
 ].map((relativePath) => [
   resolve(process.cwd(), "src/renderer", relativePath),
@@ -29,6 +30,7 @@ if (productCssPaths.some((path) => !path)) throw new Error("Unable to locate pro
 const productStyles = productCssPaths.map((path) => readFileSync(path!, "utf8")).join("\n");
 const previewStylesPath = productCssPaths[2]!;
 const previewStyles = readFileSync(productCssPaths[2]!, "utf8");
+const historyStyles = readFileSync(productCssPaths[5]!, "utf8");
 const lightningCssConfig = resolveConfig(
   { configFile: false, css: { transformer: "lightningcss" } },
   "build",
@@ -560,18 +562,6 @@ describe("renderer CSS contracts", () => {
     expect(count).toContain("font-variant-numeric: tabular-nums");
   });
 
-  it("gives narrow Sessions states a readable single-column layout", () => {
-    expect(mediaExactRuleBodies("(max-width: 720px)", ".sessions-surface")).toEqual([
-      expect.stringContaining("grid-template-columns: minmax(0, 1fr)"),
-    ]);
-    expect(
-      mediaExactRuleBodies(
-        "(max-width: 720px)",
-        ".sessions-surface:has(.sessions-reader__start) .sessions-navigator",
-      ),
-    ).toEqual([expect.stringContaining("display: none")]);
-  });
-
   it("draws one visible focus ring across Work destinations and controls", () => {
     const buttonFocus = singleTopLevelRuleBodyIn(styles, "button:focus-visible");
     const recentFocus = topLevelExactRuleBodies(".project-recent-result:focus-visible");
@@ -702,35 +692,25 @@ describe("renderer CSS contracts", () => {
     expect(styles).not.toContain("--flat-");
   });
 
-  it("keeps Sessions scope controls readable inside the existing navigator toolbar", () => {
-    const heading = singleTopLevelRuleBodyIn(styles, ".sessions-navigator__heading");
-    const scope = singleTopLevelRuleBodyIn(styles, ".sessions-navigator__scope");
-
-    expect(heading).toContain("flex-wrap: wrap");
-    expect(scope).toContain("display: flex");
-    expect(scope).toContain("flex: 1 1 156px");
-    expect(scope).toContain("min-width: 0");
-    expect(scope).toContain("justify-content: flex-end");
-    expect(singleTopLevelRuleBodyIn(styles, ".sessions-navigator__scope select")).toContain("flex: 1 1 120px");
-    expect(exactBlockFor(".sessions-navigator__scope > span[role=\"status\"]")).toContain("flex: 0 0 auto");
-    expect(mediaExactRuleBodies("(max-width: 1180px)", ".sessions-navigator__heading").at(-1)).toContain(
-      "grid-template-areas: \"back title divider\" \"scope scope scope\"",
-    );
-    expect(mediaExactRuleBodies("(max-width: 1180px)", ".sessions-navigator__heading").at(-1)).toContain(
-      "grid-template-rows: 32px 32px",
-    );
-    expect(mediaExactRuleBodies("(max-width: 1180px)", ".sessions-navigator__heading").at(-1)).toContain(
-      "min-height: 92px",
-    );
-    expect(mediaExactRuleBodies("(max-width: 1180px)", ".sessions-navigator__scope").at(-1)).toContain(
-      "grid-area: scope",
-    );
+  it("draws History after the canvas from one stylesheet of its own", () => {
+    expect(styles).not.toMatch(/\.sessions-/);
+    // 380px of list on the canvas, plus the column's 16px padding and hairline.
+    expect(singleTopLevelRuleBodyIn(historyStyles, ".sessions-navigator")).toContain("width: 397px");
+    const row = singleTopLevelRuleBodyIn(historyStyles, ".sessions-result");
+    expect(row).toContain("height: 34px");
+    expect(row).toContain("border-radius: 9px");
+    // 760px of text on the canvas, plus the article's 36px and 8px side padding.
+    expect(singleTopLevelRuleBodyIn(historyStyles, ".sessions-transcript")).toContain("max-width: 804px");
+    // The old back button, heading and time filter have no styles left to come back to.
+    expect(historyStyles).not.toMatch(/sessions-navigator__heading/);
+    // The window cannot be narrower than 1120px, so History carries no phone layout.
+    expect(historyStyles).not.toContain("max-width: 720px");
   });
 
   it("styles workspace scrollbars so native white rails do not dominate the shell", () => {
     const workspaceScroll = exactBlockFor(".project-navigator-scroll");
-    const sessionsResultsScroll = exactBlockFor(".sessions-results");
-    const sessionsReaderScroll = exactBlockFor(".sessions-reader__scroll");
+    const sessionsResultsScroll = singleTopLevelRuleBodyIn(historyStyles, ".sessions-results");
+    const sessionsReaderScroll = singleTopLevelRuleBodyIn(historyStyles, ".sessions-reader__scroll");
 
     expect(workspaceScroll).toContain("scrollbar-width: thin");
     expect(workspaceScroll).toContain("scrollbar-color:");

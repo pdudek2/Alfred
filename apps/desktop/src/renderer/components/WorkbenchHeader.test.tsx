@@ -70,6 +70,28 @@ describe("WorkbenchHeader", () => {
     expect(screen.queryByRole("tablist", { name: "Session view" })).not.toBeInTheDocument();
   });
 
+  it("follows History with the session open in its reader, glyph and all", () => {
+    renderHeader({
+      activeSurface: "sessions",
+      selectedSession: liveA,
+      historySelection: { title: "Oracle memory schema v2", status: { kind: "asleep", label: "asleep" } },
+    });
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(breadcrumb).toHaveTextContent("HistoryOracle memory schema v2");
+    expect(within(breadcrumb).getByLabelText("status asleep")).toBeInTheDocument();
+    // The deck's focused session stays out of History's breadcrumb.
+    expect(screen.queryByText(liveA.title)).not.toBeInTheDocument();
+  });
+
+  it("ignores a History selection while the deck is showing", () => {
+    renderHeader({
+      selectedSession: liveB,
+      historySelection: { title: "Oracle memory schema v2", status: { kind: "asleep", label: "asleep" } },
+    });
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent("AlfredCodex review");
+    expect(screen.queryByText("Oracle memory schema v2")).not.toBeInTheDocument();
+  });
+
   it("switches between Terminal and Preview from the session view tabs", async () => {
     const user = userEvent.setup();
     const { rerender } = renderHeader();

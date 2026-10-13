@@ -17,9 +17,13 @@ import {
 } from "../sessions-projection";
 import { sessionInstanceKey, type SessionTile } from "../session-state";
 import { isReviewableWorktreeSession } from "../session-scope";
+import { SESSION_STATE_LABELS, sessionState, type SessionDisplayStatus } from "../session-status";
 import { sessionRelaunchSafety } from "../relaunch-safety";
 import { appendTranscriptPage, type SessionsViewState } from "../sessions-view-state";
+import { historySummarySentence, type HistorySelection } from "../history-presentation";
 import { SessionsNavigator } from "./SessionsNavigator";
+import { useStackClock } from "./SessionStack";
+import "./history.css";
 import {
   SessionsReader,
   type SessionsReaderEmptyState,
@@ -34,6 +38,9 @@ const SAVED_ACTION_RESULT_TITLES = new Set([
   "Discard checkout blocked",
   "Review diff failed",
 ]);
+
+// A transcript Alfred did not run has no process to report on; it reads as ended.
+const ENDED_STATUS: SessionDisplayStatus = { kind: "done", label: SESSION_STATE_LABELS.done };
 
 export type SessionsSurfaceProps = {
   externalSessionIndexingEnabled: boolean;
@@ -54,6 +61,7 @@ export type SessionsSurfaceProps = {
   onPrimaryAction: ((request: SessionsPrimaryActionRequest) => void) | undefined;
   onRefreshExternalSessions: () => void;
   onReviewWorktree?: (sessionId: string) => void;
+  onSelectionChange?: (selection: HistorySelection | null) => void;
   onStateChange: Dispatch<SetStateAction<SessionsViewState>>;
 };
 
@@ -76,6 +84,7 @@ export function SessionsSurface({
   onPrimaryAction,
   onRefreshExternalSessions,
   onReviewWorktree,
+  onSelectionChange,
   onStateChange,
 }: SessionsSurfaceProps) {
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -86,46 +95,59 @@ export function SessionsSurface({
   const reconciliationKey = [
     state.selectedProjectId,
     state.source,
-    state.timeRange,
     state.query,
     state.pageIndex,
   ].join("\u0000");
   const previousReconciliationKeyRef = useRef(reconciliationKey);
-  const reducedMotion = usePrefersReducedMotion();
+  // A selection without pages was made from outside (the deck's Asleep line) and loads on mount.
+  const presetSelectionRef = useRef(state.readerPages.length === 0 ? state.selectedSessionKey : null);
   const [readerStatus, setReaderStatus] = useState<SessionsReaderStatus>(
-    state.readerPages.length > 0 ? "ready" : state.selectedSessionKey ? "missing" : "idle",
+    state.readerPages.length > 0 ? "ready" : state.selectedSessionKey ? "loading" : "idle",
   );
   const [readerPageError, setReaderPageError] = useState<string | null>(null);
-  const filteredSessions = useMemo(
-    () => filterManagedSessions(sessions, state.source, state.timeRange, state.selectedProjectId),
-    [sessions, state.selectedProjectId, state.source, state.timeRange],
-  );
-  const filteredExternalSessions = useMemo(
-    () => filterExternalSessions(externalSessions, state.source, state.timeRange),
-    [externalSessions, state.source, state.timeRange],
-  );
+  // Drafts are plan items, not sessions that ran: they have no place in the archive.
+  const ranSessions = useMemo(() => sessions.filter((session) => session.stage !== "staged"), [sessions]);
   const projection = useMemo(
-    () => buildSessionsProjection({
-      sessions: filteredSessions,
-      workspaces,
-      externalSessions: filteredExternalSessions,
-      query: state.query,
-      pageIndex: state.pageIndex,
-      projectId: state.source === "saved" && state.selectedProjectId !== "free-chats"
-        ? "all"
-        : state.selectedProjectId,
-    }),
-    [filteredExternalSessions, filteredSessions, state.pageIndex, state.query, state.selectedProjectId, state.source, workspaces],
+    () => {
+      // A project's scope is everything launched in it, wherever a session's own folder was. This is the
+      // set the deck's Asleep line counts, so the line and the list it opens agree.
+      const projectId = state.selectedProjectId;
+      const oneProject = projectId !== "all" && projectId !== "free-chats";
+      const managed = oneProject ? ranSessions.filter((session) => session.workspaceId === projectId) : ranSessions;
+      const external = oneProject ? externalSessions.filter((session) => session.project.id === projectId) : externalSessions;
+      return buildSessionsProjection({
+        sessions: state.source === "external-codex" ? [] : managed,
+        workspaces,
+        externalSessions: state.source === "managed" ? [] : external,
+        query: state.query,
+        pageIndex: state.pageIndex,
+        projectId: oneProject ? "all" : projectId,
+      });
+    },
+    [externalSessions, ranSessions, state.pageIndex, state.query, state.selectedProjectId, state.source, workspaces],
   );
   const projectProjection = useMemo(
     () => buildSessionsProjection({
-      sessions,
+      sessions: ranSessions,
       workspaces,
       externalSessions,
       projectId: "all",
     }),
-    [externalSessions, sessions, workspaces],
+    [externalSessions, ranSessions, workspaces],
   );
+  // Live sessions change state without new events, so their glyphs need a clock.
+  const now = useStackClock(projection.items.some((item) => item.lifecycle === "live"));
+  const statusByKey = useMemo(() => {
+    const statuses = new Map<string, SessionDisplayStatus>();
+    for (const item of projection.items) {
+      const target = projection.managedTargets.get(item.sessionKey);
+      const session = target
+        ? sessions.find((candidate) => candidate.id === target.sessionId && candidate.workspaceId === target.workspaceId)
+        : undefined;
+      statuses.set(item.sessionKey, session ? sessionState(session, "ready", now) : ENDED_STATUS);
+    }
+    return statuses;
+  }, [now, projection.items, projection.managedTargets, sessions]);
   const [activeSessionKey, setActiveSessionKey] = useState<string | null>(
     state.selectedSessionKey ?? projection.items[0]?.sessionKey ?? null,
   );
@@ -206,7 +228,6 @@ export function SessionsSurface({
     patchState({
       selectedProjectId: "all",
       source: "all",
-      timeRange: "any",
       query: "",
       pageIndex: 0,
       navigatorScrollTop: 0,
@@ -215,23 +236,21 @@ export function SessionsSurface({
   const hasActiveFilters = Boolean(
     state.query.trim()
     || state.selectedProjectId !== "all"
-    || state.source !== "all"
-    || state.timeRange !== "any",
+    || state.source !== "all",
   );
   let emptyState: SessionsReaderEmptyState | null = null;
   if (!loadingExternalSessions && projection.items.length === 0) {
     if (hasActiveFilters) {
       emptyState = {
         title: "No sessions match these filters",
-        detail: "Clear the current project, source, time, and search filters to see every available session.",
+        detail: "Clear the project, source and search to see every session.",
         primaryAction: { label: "Clear filters", onClick: clearFilters },
-        secondaryAction: { label: "Back to Work", onClick: onBackToWork },
       };
     } else if (!externalSessionIndexingEnabled) {
       emptyState = {
         title: "No sessions yet",
-        detail: "Start an agent in Work, or turn on Codex history in Local Data & Privacy.",
-        primaryAction: { label: "Start new work", onClick: onBackToWork },
+        detail: "Start a session in the deck, or turn on Codex history in Local Data & Privacy.",
+        primaryAction: { label: "Go to Deck", onClick: onBackToWork },
         ...(onOpenPrivacySettings
           ? { secondaryAction: { label: "Open Local Data & Privacy", onClick: onOpenPrivacySettings } }
           : {}),
@@ -239,15 +258,15 @@ export function SessionsSurface({
     } else if (externalSessionsError) {
       emptyState = {
         title: "Codex history couldn't be loaded",
-        detail: "Start a new agent in Work, or try loading history again.",
-        primaryAction: { label: "Start new work", onClick: onBackToWork },
+        detail: "Start a session in the deck, or try loading history again.",
+        primaryAction: { label: "Go to Deck", onClick: onBackToWork },
         secondaryAction: { label: "Try again", onClick: onRefreshExternalSessions },
       };
     } else {
       emptyState = {
         title: "No sessions yet",
-        detail: "Start Codex or Claude in Work. Active and finished runs will appear here.",
-        primaryAction: { label: "Start new work", onClick: onBackToWork },
+        detail: "Start a session in the deck. Live and ended sessions appear here.",
+        primaryAction: { label: "Go to Deck", onClick: onBackToWork },
       };
     }
   }
@@ -413,6 +432,20 @@ export function SessionsSurface({
     });
   }, [onStateChange, projection.items, reconciliationKey, selectSession, state.pageIndex, state.selectedSessionKey]);
 
+  useEffect(() => {
+    const presetKey = presetSelectionRef.current;
+    presetSelectionRef.current = null;
+    const preset = presetKey ? projection.items.find((item) => item.sessionKey === presetKey) : undefined;
+    if (preset) void selectSession(preset);
+  }, [projection.items, selectSession]);
+
+  const selectedStatus = selected ? statusByKey.get(selected.sessionKey) ?? ENDED_STATUS : null;
+  const selectedTitle = selected?.title ?? null;
+  useEffect(() => {
+    onSelectionChange?.(selectedTitle !== null && selectedStatus ? { title: selectedTitle, status: selectedStatus } : null);
+  }, [onSelectionChange, selectedStatus, selectedTitle]);
+  useEffect(() => () => onSelectionChange?.(null), [onSelectionChange]);
+
   const loadMore = useCallback(async () => {
     if (!selected || !sessionsApi || (selected.source !== "external-codex" && !selected.contentSessionKey)) return;
     const cursor = state.readerPages.at(-1)?.nextCursor;
@@ -439,9 +472,8 @@ export function SessionsSurface({
 
   return (
     <section
-      className={`sessions-surface${reducedMotion ? " sessions-surface--reduced-motion" : ""}`}
+      className="sessions-surface"
       aria-label="History"
-      data-secondary-chrome-height="52"
       onKeyDown={(event) => {
         if (event.key !== "Escape") return;
         event.preventDefault();
@@ -460,9 +492,10 @@ export function SessionsSurface({
         searchRef={searchRef}
         showControls={loadingExternalSessions || projection.total > 0 || hasActiveFilters}
         state={state}
+        statusByKey={statusByKey}
+        now={now}
         workspaces={workspaces}
         onActiveSessionKeyChange={setActiveSessionKey}
-        onBackToWork={onBackToWork}
         onOpenPrivacySettings={onOpenPrivacySettings}
         onRefreshExternalSessions={onRefreshExternalSessions}
         onSelectSession={(summary) => void selectSession(summary)}
@@ -501,6 +534,7 @@ export function SessionsSurface({
         }
         readerRef={readerRef}
         selected={selected}
+        summary={selected && selectedStatus ? historySummarySentence(selected, selectedStatus.kind, now) : null}
         emptyState={emptyState}
         status={readerStatus}
         pageError={readerPageError}
@@ -586,56 +620,4 @@ function stripAnsiTerminalText(value: string): string {
   // Managed terminal snapshots may contain CSI control sequences (`ESC [` through the final byte).
   // eslint-disable-next-line no-control-regex
   return value.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "");
-}
-
-function filterManagedSessions(
-  sessions: SessionTile[],
-  source: SessionsViewState["source"],
-  timeRange: SessionsViewState["timeRange"],
-  projectId: string,
-): SessionTile[] {
-  if (source === "external-codex") return [];
-  const cutoff = timeRangeCutoff(timeRange);
-  return sessions.filter((session) => (
-    (source !== "saved" || session.runtimeStatus === "restored")
-    && (
-      source !== "saved"
-      || projectId === "all"
-      || projectId === "free-chats"
-      || session.workspaceId === projectId
-    )
-    && (cutoff === null || (session.lastActivityAt ?? session.lastOutputAt ?? session.createdAt ?? 0) >= cutoff)
-  ));
-}
-
-function filterExternalSessions(
-  sessions: ExternalSessionSummary[],
-  source: SessionsViewState["source"],
-  timeRange: SessionsViewState["timeRange"],
-): ExternalSessionSummary[] {
-  if (source === "managed" || source === "saved") return [];
-  const cutoff = timeRangeCutoff(timeRange);
-  return sessions.filter((session) => cutoff === null || session.updatedAt >= cutoff);
-}
-
-function timeRangeCutoff(timeRange: SessionsViewState["timeRange"]): number | null {
-  if (timeRange === "any") return null;
-  const days = timeRange === "day" ? 1 : timeRange === "week" ? 7 : 30;
-  return Date.now() - days * 24 * 60 * 60 * 1_000;
-}
-
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(() => (
-    typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  ));
-
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setReduced(query.matches);
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-
-  return reduced;
 }

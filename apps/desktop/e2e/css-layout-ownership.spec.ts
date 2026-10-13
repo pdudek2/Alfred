@@ -554,27 +554,24 @@ test("captures deterministic CSS ownership evidence across core states and overl
 
   await selectSurface(page, "History");
   await expect(page.getByRole("region", { name: "History" })).toBeVisible();
-  const narrowSessionsContext = await page.evaluate(() => {
+  const narrowHistory = await page.evaluate(() => {
     const workspace = document.querySelector<HTMLElement>("[data-testid='workbench-shell']");
     const sessionsSurface = document.querySelector<HTMLElement>(".sessions-surface");
+    const list = document.querySelector<HTMLElement>(".sessions-navigator");
     const context = document.querySelector<HTMLElement>("[data-testid='context-column']");
-    if (!workspace || !sessionsSurface || !context) throw new Error("Narrow Sessions Context geometry is missing.");
-    const workspaceBounds = workspace.getBoundingClientRect();
-    const sessionsBounds = sessionsSurface.getBoundingClientRect();
-    const contextBounds = context.getBoundingClientRect();
+    if (!workspace || !sessionsSurface || !list || !context) throw new Error("Narrow History geometry is missing.");
     return {
-      contextWidth: contextBounds.width,
-      rightGap: workspaceBounds.right - contextBounds.right,
-      sessionsWidth: sessionsBounds.width,
-      workspaceWidth: workspaceBounds.width,
+      contextVisible: context.getClientRects().length > 0,
+      listWidth: list.getBoundingClientRect().width,
+      sessionsWidth: sessionsSurface.getBoundingClientRect().width,
+      workspaceWidth: workspace.getBoundingClientRect().width,
     };
   });
-  // Details is a column beside History as well, never an overlay on top of it.
-  expect(narrowSessionsContext.contextWidth).toBeCloseTo(1120 * 0.24, 0);
-  expect(narrowSessionsContext.sessionsWidth + 16 + narrowSessionsContext.contextWidth)
-    .toBeCloseTo(narrowSessionsContext.workspaceWidth, 0);
-  expect(narrowSessionsContext.rightGap).toBeCloseTo(0, 0);
-  await page.getByRole("tab", { name: "Sessions" }).click();
+  // Details describes the deck's focused session. Open there, it stays out of History, which keeps the
+  // whole work area: the canvas list column and the reader.
+  expect(narrowHistory.contextVisible).toBe(false);
+  expect(narrowHistory.sessionsWidth).toBeCloseTo(narrowHistory.workspaceWidth, 0);
+  expect(narrowHistory.listWidth).toBe(397);
   await proveFirstXtermIdentity(page, hostHandle, screenHandle, "Narrow History");
   const narrowSessionsEvidence = await capture("narrow-sessions", [...sessionsFrameProbes, ...sessionsProbes]);
   expect(
@@ -585,16 +582,15 @@ test("captures deterministic CSS ownership evidence across core states and overl
     name: "Projects and Free Chats",
   })).toBeVisible();
 
-  const frequentControls = [
-    page.getByRole("button", { name: "Back to Work" }),
-    page.getByRole("button", { name: "Run details" }),
-  ];
-  for (const control of frequentControls) {
-    expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
-  }
+  // A quiet text control on the canvas: 24px of target, not the 32px of a framed button.
+  expect((await page.getByRole("button", { name: "Run details" }).boundingBox())?.height ?? 0)
+    .toBeGreaterThanOrEqual(24);
 
-  await page.getByRole("button", { name: "Back to Work" }).click();
+  await selectSurface(page, "Work");
   await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
+  // Details comes back with the deck, as it was left.
+  await expect(page.getByRole("complementary", { name: "Details" })).toBeVisible();
+  await page.getByRole("tab", { name: "Sessions" }).click();
 
   await selectSurface(page, "Local Data & Privacy");
   const narrowPrivacy = page.getByRole("dialog", { name: "Local Data & Privacy" });

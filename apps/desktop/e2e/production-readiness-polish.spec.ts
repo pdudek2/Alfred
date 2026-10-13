@@ -99,9 +99,9 @@ test("keeps the production Work story trustworthy across every utility surface",
   await selectSurface(page, "History");
   const sessions = page.getByRole("region", { name: "History" });
   await expect(sessions).toBeVisible();
-  // Browsing asleep sessions above left Sessions filtered to this project's Asleep rows.
+  // Browsing asleep sessions above left History scoped to this project and to what Alfred ran.
   await sessions.getByRole("combobox", { name: "Project scope" }).selectOption("all");
-  await sessions.getByRole("combobox", { name: "Session source" }).selectOption("all");
+  await sessions.getByRole("tab", { name: "All" }).click();
   await expectSans(sessions.locator("time").first());
   await sessions.getByRole("listbox", { name: "Session results" })
     .getByRole("option", { name: /Mapped resumable session 01/i }).click();

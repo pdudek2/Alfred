@@ -214,7 +214,8 @@ test.describe("mixed Needs you actions", () => {
       await expect(page.getByRole("region", { name: "History" })).toBeVisible();
       await expectSameNode(before, screen, "Work→History replaced the xterm screen");
       expect(await documentOverflow(page)).toBe(0);
-      await page.getByRole("button", { name: "Back to Work" }).click();
+      // Escape is the keyboard's way back to the deck; the rail's Deck row is the mouse's.
+      await page.keyboard.press("Escape");
       await expect(page.getByTestId("desk-runtime-surface")).toBeVisible();
       await expectSameNode(before, screen, "History→Work replaced the xterm screen");
       await expect(screen.locator("textarea")).toBeFocused();

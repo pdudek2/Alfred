@@ -1,5 +1,6 @@
 import { ChevronRight, Plus, Search } from "lucide-react";
 import type { Ref } from "react";
+import type { HistorySelection } from "../history-presentation";
 import type { SessionTile } from "../session-state";
 import { sessionState } from "../session-status";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
@@ -11,6 +12,8 @@ export type PrimarySurface = "work" | "sessions";
 export type WorkbenchHeaderProps = {
   activeSurface: PrimarySurface;
   commandPaletteTriggerRef?: Ref<HTMLButtonElement>;
+  /** The session open in History's reader; it follows "History" in the breadcrumb. */
+  historySelection?: HistorySelection | null;
   needsYouCount: number;
   needsYouOpen: boolean;
   needsYouTriggerRef?: Ref<HTMLButtonElement>;
@@ -30,6 +33,7 @@ export type WorkbenchHeaderProps = {
 export function WorkbenchHeader({
   activeSurface,
   commandPaletteTriggerRef,
+  historySelection = null,
   needsYouCount,
   needsYouOpen,
   needsYouTriggerRef,
@@ -61,6 +65,15 @@ export function WorkbenchHeader({
             <span className="workbench-breadcrumb-current">
               <SessionStatusGlyph kind={state.kind} label={state.label} size={13} />
               <span className="workbench-session-title">{session.title}</span>
+            </span>
+          </>
+        ) : !onDeck && historySelection ? (
+          <>
+            <span className="workbench-breadcrumb-parent">History</span>
+            <ChevronRight aria-hidden="true" size={12} />
+            <span className="workbench-breadcrumb-current">
+              <SessionStatusGlyph kind={historySelection.status.kind} label={historySelection.status.label} size={13} />
+              <span className="workbench-session-title workbench-history-title">{historySelection.title}</span>
             </span>
           </>
         ) : (

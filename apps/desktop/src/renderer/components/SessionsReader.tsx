@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import type { SessionSummary, TranscriptBlock, TranscriptPage } from "../../shared/sessions-ipc";
+import type { HistorySummarySentence } from "../history-presentation";
 import type { SessionsPrimaryAction } from "../sessions-projection";
 
 export type SessionsReaderStatus = "idle" | "loading" | "ready" | "missing" | "error";
@@ -45,6 +46,7 @@ type SessionsReaderProps = {
   } | null;
   readerRef: RefObject<HTMLDivElement | null>;
   selected: SessionSummary | null;
+  summary: HistorySummarySentence | null;
   emptyState: SessionsReaderEmptyState | null;
   status: SessionsReaderStatus;
   pageError: string | null;
@@ -66,6 +68,7 @@ export function SessionsReader({
   recoveryReview,
   readerRef,
   selected,
+  summary,
   emptyState,
   status,
   pageError,
@@ -89,6 +92,8 @@ export function SessionsReader({
   const detailsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const detailsCloseRef = useRef<HTMLButtonElement | null>(null);
   const blocks = pages.flatMap((page) => page.blocks);
+  // A session Alfred ran in a terminal has scrollback; a Codex conversation has a transcript.
+  const transcriptLabel = selected?.source === "managed" && !selected.contentSessionKey ? "Scrollback" : "Transcript";
   const nextCursor = pages.at(-1)?.nextCursor ?? null;
   const partial = pages.some((page) => page.partial);
 
@@ -126,78 +131,6 @@ export function SessionsReader({
         closeDetails();
       }}
     >
-      <header className="sessions-reader__toolbar">
-        {selected ? (
-          <nav aria-label="Session breadcrumb" className="sessions-reader__breadcrumb">
-            <span>{selected.project.label}</span>
-            <span aria-hidden="true">/</span>
-            <strong>{selected.title}</strong>
-          </nav>
-        ) : <strong>{emptyState ? "Get started" : "Select a session"}</strong>}
-        <span className="sessions-reader__toolbar-spacer" />
-        {selected && (
-          <button
-            ref={detailsTriggerRef}
-            type="button"
-            aria-controls="sessions-run-details"
-            aria-expanded={detailsOpen}
-            onClick={() => setDetailsOpen(true)}
-          >
-            Run details
-          </button>
-        )}
-      </header>
-      {selected && (primaryAction || savedActions) && (
-        <div className="sessions-reader__toolbar sessions-reader__actions">
-          {selected && primaryAction && (
-            <button type="button" onClick={onPrimaryAction}>
-              {primaryAction.label}
-            </button>
-          )}
-          {selected && savedActions && (
-            <div
-              className="sessions-reader__saved-actions"
-              role="toolbar"
-              aria-label={savedActions.ended ? "Ended session actions" : savedActions.checkout ? "Asleep checkout actions" : "Asleep session actions"}
-            >
-              {savedActions.checkout && (
-                <>
-                  <button
-                    type="button"
-                    disabled={savedActions.pendingAction !== undefined}
-                    onClick={savedActions.onReview}
-                  >
-                    {savedActions.pendingAction === "review" ? "Reviewing…" : "Review diff"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={savedActions.pendingAction !== undefined}
-                    onClick={savedActions.onApply}
-                  >
-                    {savedActions.pendingAction === "apply" ? "Applying…" : `Apply to ${selected.project.label}`}
-                  </button>
-                </>
-              )}
-              <button
-                type="button"
-                className="sessions-reader__discard"
-                aria-label={savedActions.ended ? "Discard ended session" : "Discard asleep session"}
-                disabled={savedActions.pendingAction !== undefined}
-                onClick={() => {
-                  if (savedActions.confirmInline && !discardArmed) {
-                    setDiscardArmed(true);
-                    return;
-                  }
-                  setDiscardArmed(false);
-                  savedActions.onDiscard();
-                }}
-              >
-                {discardArmed ? "Discard?" : "Discard"}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
       <div className="sessions-reader__body">
         <div
           ref={readerRef}
@@ -228,12 +161,64 @@ export function SessionsReader({
             <article aria-label={selected.title} className="sessions-transcript">
               <header>
                 <h1>{selected.title}</h1>
-                <p>
-                  {selected.project.label} · {
-                    selected.source === "managed" ? "From Alfred" : "Codex CLI"
-                  }
-                </p>
+                {summary && (
+                  <p className="sessions-transcript__summary">
+                    {summary.before}<span>{summary.where}</span>{summary.after}
+                  </p>
+                )}
               </header>
+              {(primaryAction || savedActions) && (
+                <div className="sessions-reader__actions">
+                  {primaryAction && (
+                    <button type="button" className="sessions-reader__primary" onClick={onPrimaryAction}>
+                      {primaryAction.label}
+                    </button>
+                  )}
+                  {savedActions && (
+                    <div
+                      className="sessions-reader__saved-actions"
+                      role="toolbar"
+                      aria-label={savedActions.ended ? "Ended session actions" : savedActions.checkout ? "Asleep checkout actions" : "Asleep session actions"}
+                    >
+                      {savedActions.checkout && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={savedActions.pendingAction !== undefined}
+                            onClick={savedActions.onReview}
+                          >
+                            {savedActions.pendingAction === "review" ? "Reviewing…" : "Review diff"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={savedActions.pendingAction !== undefined}
+                            onClick={savedActions.onApply}
+                          >
+                            {savedActions.pendingAction === "apply" ? "Applying…" : `Apply to ${selected.project.label}`}
+                          </button>
+                        </>
+                      )}
+                      <span className="sessions-reader__actions-spacer" />
+                      <button
+                        type="button"
+                        className="sessions-reader__discard"
+                        aria-label={savedActions.ended ? "Discard ended session" : "Discard asleep session"}
+                        disabled={savedActions.pendingAction !== undefined}
+                        onClick={() => {
+                          if (savedActions.confirmInline && !discardArmed) {
+                            setDiscardArmed(true);
+                            return;
+                          }
+                          setDiscardArmed(false);
+                          savedActions.onDiscard();
+                        }}
+                      >
+                        {discardArmed ? "Discard?" : "Discard"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               {savedActionFeedback && (
                 <section
                   className={`sessions-saved-action-feedback${savedActionFeedback.warning ? " warning" : ""}`}
@@ -254,30 +239,48 @@ export function SessionsReader({
                   <span>{recoveryReview.cwd}</span>
                 </section>
               )}
-              {status === "loading" ? (
-                <div className="sessions-reader__empty"><strong>Loading transcript…</strong></div>
-              ) : status === "missing" || status === "error" ? (
-                <div className="sessions-reader__empty">
-                  <strong>Transcript is unavailable.</strong>
-                  {status === "error" && (
-                    <button type="button" onClick={onRetryTranscript}>Refresh transcript</button>
-                  )}
-                </div>
-              ) : (
-                <>
-                  {partial && <p className="sessions-transcript__partial">Transcript is incomplete.</p>}
-                  <TranscriptBlocks blocks={blocks} />
-                  {pageError && (
-                    <p className="sessions-transcript__partial">
-                      {pageError}{" "}
+              {/* The canvas draws Prompt and Commands here. Alfred keeps no per-command record yet, so the
+                  session's own text stands in: the conversation, or a terminal's scrollback. */}
+              <section className="sessions-transcript__section" aria-label={transcriptLabel}>
+                <header>
+                  <h2>{transcriptLabel}</h2>
+                  <button
+                    ref={detailsTriggerRef}
+                    type="button"
+                    aria-controls="sessions-run-details"
+                    aria-expanded={detailsOpen}
+                    onClick={() => setDetailsOpen(true)}
+                  >
+                    Run details
+                  </button>
+                </header>
+                {status === "loading" ? (
+                  <div className="sessions-reader__empty"><strong>Loading transcript…</strong></div>
+                ) : status === "missing" || status === "error" ? (
+                  <div className="sessions-reader__empty">
+                    <strong>Transcript is unavailable.</strong>
+                    {status === "error" && (
                       <button type="button" onClick={onRetryTranscript}>Refresh transcript</button>
-                    </p>
-                  )}
-                  {nextCursor && (
-                    <button type="button" onClick={onLoadMore}>Load more transcript</button>
-                  )}
-                </>
-              )}
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {partial && <p className="sessions-transcript__partial">Transcript is incomplete.</p>}
+                    <TranscriptBlocks blocks={blocks} />
+                    {pageError && (
+                      <p className="sessions-transcript__partial">
+                        {pageError}{" "}
+                        <button type="button" onClick={onRetryTranscript}>Refresh transcript</button>
+                      </p>
+                    )}
+                    {nextCursor && (
+                      <button type="button" className="sessions-transcript__more" onClick={onLoadMore}>
+                        Load more transcript
+                      </button>
+                    )}
+                  </>
+                )}
+              </section>
             </article>
           )}
         </div>

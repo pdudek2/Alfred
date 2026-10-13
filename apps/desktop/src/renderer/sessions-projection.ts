@@ -12,7 +12,7 @@ import { canRelaunchRestoredSession, type SessionTile } from "./session-state";
 
 export type ManagedSessionTarget = { workspaceId: string; sessionId: string };
 export type SessionsPrimaryAction =
-  | { kind: "reveal"; label: "Reveal in Work" }
+  | { kind: "reveal"; label: "Reveal in Deck" }
   | { kind: "recover"; label: "Resume" | "Review resume" | "Confirm resume" }
   | { kind: "resume-external"; label: "Resume" }
   | { kind: "add-project"; label: "Add Project…" }
@@ -32,7 +32,7 @@ export type SessionsProjectionPage = {
 
 export function sessionsPrimaryAction(summary: SessionSummary): SessionsPrimaryAction | null {
   if (summary.source === "managed" && summary.lifecycle === "live") {
-    return { kind: "reveal", label: "Reveal in Work" };
+    return { kind: "reveal", label: "Reveal in Deck" };
   }
   if (summary.source === "managed" && summary.lifecycle === "recoverable") {
     return { kind: "recover", label: "Resume" };

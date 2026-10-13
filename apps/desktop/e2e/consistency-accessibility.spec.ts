@@ -141,7 +141,8 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
     .getByRole("option", { name: /Mapped resumable session 01/i })
     .click();
   const runDetailsTrigger = page.getByRole("button", { name: "Run details" });
-  await expectMinimumHeight(runDetailsTrigger, 32);
+  // A quiet text control on the canvas: 24px of target, not the 32px of a framed button.
+  await expectMinimumHeight(runDetailsTrigger, 24);
   await expectSansFont(sessions.locator("time").first());
 
   await page.screenshot({
@@ -155,15 +156,17 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await expect(projectScope).toBeVisible();
   await expect(sessionsScope.getByRole("status", { name: "Session count" })).toBeVisible();
   const scopeGeometry = await sessionsScope.evaluate((node) => {
-    const scope = node.getBoundingClientRect();
-    const heading = node.closest<HTMLElement>(".sessions-navigator__heading")?.getBoundingClientRect();
-    const select = node.querySelector("select")?.getBoundingClientRect();
-    return { heading, scope, select };
+    const row = node.closest<HTMLElement>(".sessions-navigator__filters");
+    return {
+      row: row?.getBoundingClientRect(),
+      scope: node.getBoundingClientRect(),
+      tabs: row?.querySelector("[role='tablist']")?.getBoundingClientRect(),
+    };
   });
-  expect(scopeGeometry.heading && scopeGeometry.select).toBeTruthy();
-  expect(scopeGeometry.scope.top).toBeGreaterThanOrEqual(scopeGeometry.heading!.top);
-  expect(scopeGeometry.scope.bottom).toBeLessThanOrEqual(scopeGeometry.heading!.bottom);
-  expect(scopeGeometry.select!.width).toBeGreaterThanOrEqual(120);
+  // The source tabs and the scope share one row under the search field without touching.
+  expect(scopeGeometry.row && scopeGeometry.tabs).toBeTruthy();
+  expect(scopeGeometry.scope.right).toBeLessThanOrEqual(scopeGeometry.row!.right);
+  expect(scopeGeometry.scope.left).toBeGreaterThanOrEqual(scopeGeometry.tabs!.right + 8);
   await projectScope.focus();
   await expect(projectScope).toBeFocused();
   await expect(sessions.locator(".sessions-results")).toBeVisible();
@@ -172,7 +175,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
     controlSelector: ".sessions-navigator__scope select, .sessions-navigator__scope > [role='status']",
     verticalScrollOwners: [],
   })).toEqual([]);
-  await sessions.locator(".sessions-navigator__heading").screenshot({
+  await sessions.locator(".sessions-navigator__filters").screenshot({
     path: testInfo.outputPath("sessions-controls-1120x720.png"),
   });
   await page.screenshot({
@@ -182,7 +185,7 @@ test("keeps utility surfaces accessible without replacing xterm", async ({ harne
   await runDetailsTrigger.click();
   const runDetails = page.getByRole("complementary", { name: "Run details" });
   await expect(runDetails).toBeVisible();
-  await expectMinimumHeight(runDetails.getByRole("button", { name: "Close Run details" }), 32);
+  await expectMinimumHeight(runDetails.getByRole("button", { name: "Close Run details" }), 24);
   await expect(page.locator(".sessions-reader__scroll")).toBeHidden();
   expect(await collectControlOverflowEvidence(page, {
     controlSelector: ".sessions-run-details button:not(:disabled)",
