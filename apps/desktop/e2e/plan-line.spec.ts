@@ -9,7 +9,7 @@ import { settleTerminalTileAnimations } from "./support/work-layout";
 const evidenceDir = path.resolve(import.meta.dirname, "../../../output/playwright/plan-line");
 
 // Fixture Alpha gets items 1, 3 and 5 (5 is blocked by preflight); Fixture Beta gets 2 and 4.
-test.use({ fixtureOptions: { inboxItems: 5, blockedInboxItem: 5, activeWorkspaceId: "A" } });
+test.use({ fixtureOptions: { stagedItems: 5, blockedStagedItem: 5, activeWorkspaceId: "A" } });
 
 test("launches and discards drafts from the plan line without touching live terminals", async ({ harness }) => {
   const { app, page } = harness;

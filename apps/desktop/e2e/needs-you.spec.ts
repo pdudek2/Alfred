@@ -11,9 +11,9 @@ const evidenceDir = path.resolve(import.meta.dirname, "../../../output/playwrigh
 
 test.use({
   fixtureOptions: {
-    blockedInboxItem: 1,
+    blockedStagedItem: 1,
     handoffDiff: true,
-    inboxItems: 2,
+    stagedItems: 2,
     projectShell: true,
   },
 });
@@ -133,9 +133,9 @@ test("reviews the real diff of an asleep checkout without replacing the live xte
 });
 
 const mixedFixture = {
-  inboxItems: 4,
-  blockedInboxItem: 1,
-  waitingInboxItem: 2,
+  stagedItems: 4,
+  blockedStagedItem: 1,
+  waitingStagedItem: 2,
   restoredSessions: 6,
   unsafeRecoveryItem: 1,
 } as const;

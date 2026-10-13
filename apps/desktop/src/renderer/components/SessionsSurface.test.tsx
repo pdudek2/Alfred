@@ -27,7 +27,7 @@ function managedSession(index: number, overrides: Partial<SessionTile> = {}): Se
   return {
     id: `managed-${index}`,
     runtimeId: `runtime-${index}`,
-    title: index === 0 ? "Phase I navigator" : `Managed session ${index}`,
+    title: index === 0 ? "Atlas navigator" : `Managed session ${index}`,
     workspaceId: "A",
     cwd: "/Users/patryk/Desktop/Alfred",
     source: "manual",
@@ -319,16 +319,16 @@ describe("SessionsSurface", () => {
     vi.mocked(sessionsApi.readTranscriptPage).mockResolvedValueOnce(transcriptPage(
       "external-codex:content-0",
       [
-        { id: "user-1", kind: "message", role: "user", text: "Please ship Phase I" },
-        { id: "assistant-1", kind: "message", role: "assistant", text: "Phase I is ready" },
+        { id: "user-1", kind: "message", role: "user", text: "Please ship Atlas" },
+        { id: "assistant-1", kind: "message", role: "assistant", text: "Atlas is ready" },
       ],
     ));
-    renderSurface({ externalSessions: [externalSession(0, { title: "Phase I review" })], sessionsApi });
+    renderSurface({ externalSessions: [externalSession(0, { title: "Atlas review" })], sessionsApi });
 
     expect(sessionsApi.readTranscriptPage).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("option", { name: /Phase I review/ }));
+    await user.click(screen.getByRole("option", { name: /Atlas review/ }));
 
-    const article = await screen.findByRole("article", { name: /Phase I review/ });
+    const article = await screen.findByRole("article", { name: /Atlas review/ });
     expect(article).toHaveTextContent("You");
     expect(article).toHaveTextContent("Assistant");
     expect(sessionsApi.readTranscriptPage).toHaveBeenCalledWith({ sessionKey: "external-codex:content-0" });
@@ -386,7 +386,7 @@ describe("SessionsSurface", () => {
       })],
     });
 
-    await user.click(screen.getByRole("option", { name: /Phase I navigator/ }));
+    await user.click(screen.getByRole("option", { name: /Atlas navigator/ }));
     const trigger = screen.getByRole("button", { name: "Run details" });
     await user.click(trigger);
     const details = screen.getByRole("complementary", { name: "Run details" });
@@ -414,7 +414,7 @@ describe("SessionsSurface", () => {
       ],
     });
 
-    await user.click(screen.getByRole("option", { name: /Phase I navigator/ }));
+    await user.click(screen.getByRole("option", { name: /Atlas navigator/ }));
     await user.click(screen.getByRole("button", { name: "Run details" }));
     expect(screen.getByRole("complementary", { name: "Run details" })).toBeInTheDocument();
 
@@ -1020,7 +1020,7 @@ describe("SessionsSurface", () => {
     const user = userEvent.setup();
     renderSurface({ sessions: [managedSession(0)], onPrimaryAction: undefined });
 
-    await user.click(screen.getByRole("option", { name: /Phase I navigator/ }));
+    await user.click(screen.getByRole("option", { name: /Atlas navigator/ }));
 
     expect(screen.queryByRole("button", { name: "Reveal in Work" })).not.toBeInTheDocument();
   });
@@ -1047,6 +1047,6 @@ describe("SessionsSurface", () => {
     expect(surface).toHaveClass("sessions-surface--reduced-motion");
     expect(screen.getByRole("listbox", { name: "Session results" })).toHaveProperty("scrollTop", 70);
     expect(surface.querySelector(".sessions-reader__scroll")).toHaveProperty("scrollTop", 90);
-    expect(screen.getByRole("article", { name: /Phase I/ })).not.toHaveAttribute("aria-live");
+    expect(screen.getByRole("article", { name: /Atlas/ })).not.toHaveAttribute("aria-live");
   });
 });

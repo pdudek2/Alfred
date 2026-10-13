@@ -7,8 +7,8 @@ test.use({
   fixtureOptions: {
     externalSessionFixture: "mixed",
     handoffDiff: true,
-    inboxItems: 1,
-    waitingInboxItem: 1,
+    stagedItems: 1,
+    waitingStagedItem: 1,
     restoredSessions: 1,
   },
 });

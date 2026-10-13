@@ -171,7 +171,7 @@ const overlayProbes: Record<"command-palette" | "privacy", CssOwnerProbe[]> = {
   ],
 };
 
-test.use({ fixtureOptions: { inboxItems: 1, restoredSessions: 1, unsafeRecoveryItem: 1 } });
+test.use({ fixtureOptions: { stagedItems: 1, restoredSessions: 1, unsafeRecoveryItem: 1 } });
 
 test("keeps the drafts-only plan line neutral at wide and narrow widths", async ({ harness }, testInfo) => {
   const { app, page } = harness;
@@ -192,7 +192,7 @@ test("keeps the drafts-only plan line neutral at wide and narrow widths", async 
 });
 
 test.describe("draft plan layout", () => {
-  test.use({ fixtureOptions: { inboxItems: 4 } });
+  test.use({ fixtureOptions: { stagedItems: 4 } });
 
   test("keeps every draft action inside its row at supported widths", async ({ harness }, testInfo) => {
     const { app, page } = harness;
