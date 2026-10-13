@@ -44,6 +44,7 @@
 
   --shadow-panel: 0 28px 80px rgba(0, 0, 0, 0.5);
   --shadow-strip: 0 12px 32px -12px rgba(0, 0, 0, 0.6);
+  --shadow-preview-page: 0 20px 50px -20px rgba(0, 0, 0, 0.7);
 
   /* Transitional aliases. Remove only after all callsites use role tokens. */
   --surface-sunken: var(--surface-terminal);
@@ -1623,8 +1624,10 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   border-radius: 12px;
   overflow: hidden;
   background: var(--surface-terminal);
-  display: flex;
-  flex-direction: column;
+  /* Two rows: the terminal's cell, which Preview can cover, and the strip. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   isolation: isolate;
 }
 
@@ -1641,15 +1644,14 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 }
 
 .terminal-tile > .xterm-host {
-  flex: 1 1 auto;
+  grid-area: 1 / 1;
 }
 
 /* The session strip: at most one action row, then who runs here, where, since when, and the menu.
    It precedes the terminal in the DOM for keyboard order and is drawn below it. */
 .session-strip {
   position: relative;
-  order: 1;
-  flex: none;
+  grid-row: 2;
   margin: 0 12px 12px;
   border-radius: 12px;
   background: var(--surface-panel);

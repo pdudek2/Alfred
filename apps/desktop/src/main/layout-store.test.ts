@@ -69,7 +69,6 @@ describe("layout-store", () => {
         workMode: "focus",
         selectedSessionId: "manual-1",
         previewDockOpen: true,
-        previewDockWidth: 560,
       },
     });
 
@@ -77,7 +76,6 @@ describe("layout-store", () => {
       workMode: "focus",
       selectedSessionId: "manual-1",
       previewDockOpen: true,
-      previewDockWidth: 560,
     });
     await expect(getLayoutsSnapshot()).resolves.toEqual({
       layoutsByWorkspace: {},
@@ -86,7 +84,6 @@ describe("layout-store", () => {
           workMode: "focus",
           selectedSessionId: "manual-1",
           previewDockOpen: true,
-          previewDockWidth: 560,
         },
       },
     });
