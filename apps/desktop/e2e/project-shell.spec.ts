@@ -13,10 +13,7 @@ import {
   privacySafeScreenshotStyle,
 } from "./support/privacy-safe-screenshot";
 
-const evidenceDir = path.resolve(
-  import.meta.dirname,
-  "../../../docs/audits/local-artifacts/2026-07-23-phase-j0-slice-4-context-privacy/slice-2-project-shell",
-);
+const evidenceDir = path.resolve(import.meta.dirname, "../../../output/playwright/project-shell");
 
 const longProjectLabel = "Fixture Project With A Deliberately Long Navigator Label";
 const longSessionLabel = "Manual terminal with a deliberately long session label for truncation proof";
@@ -60,7 +57,6 @@ test.use({
 
 test("proves the project-first shell without replacing xterm", async ({ harness }, testInfo) => {
   const { app, page } = harness;
-  expect(evidenceDir).toContain("2026-07-23-phase-j0-slice-4-context-privacy/slice-2-project-shell");
   await mkdir(evidenceDir, { recursive: true });
   await setWindowSize(app, page, 1440, 900);
 
