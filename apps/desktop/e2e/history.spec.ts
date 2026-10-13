@@ -2,6 +2,7 @@ import { realpath } from "node:fs/promises";
 import type { Page } from "@playwright/test";
 import type { TerminalListResult } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
+import { surfaceButton } from "./support/work-layout";
 
 type DesktopTerminalWindow = Window & {
   alfredDesktop?: { terminal: { list(): Promise<TerminalListResult> } };
@@ -13,8 +14,7 @@ test("History recovery safety requires review, supports Escape disarm, and start
   harness,
 }) => {
   const { page, paths } = harness;
-  await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-  await page.getByRole("menuitem", { name: "History" }).click();
+  await surfaceButton(page, "History").click();
   const history = page.getByRole("region", { name: "History" });
   await history.getByRole("combobox", { name: "Session source" }).selectOption("saved");
   await expect(history.getByRole("listbox", { name: "Session results" }).getByRole("option")).toHaveCount(6);

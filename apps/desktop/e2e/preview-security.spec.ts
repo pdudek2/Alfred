@@ -21,7 +21,7 @@ test("Preview cannot navigate Alfred or open a privileged popup", async ({ harne
     const input = page.getByRole("textbox", { name: "Terminal input" }).first();
     await input.fill(`printf 'Ready at ${url}\\n'`);
     await input.press("Enter");
-    await page.getByRole("button", { name: "Preview", exact: true }).click();
+    await page.getByRole("tab", { name: "Preview", exact: true }).click();
 
     const preview = page.frameLocator("iframe[title^='Preview of']");
     await expect(preview.getByRole("link", { name: "Navigate top" })).toBeVisible();

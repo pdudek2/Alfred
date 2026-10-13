@@ -8,6 +8,7 @@ import type {
   TerminalSnapshotResult,
 } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
+import { openNewTerminalSheet } from "./support/work-layout";
 import {
   neutralScreenshotPointer,
   privacySafeScreenshotStyle,
@@ -74,8 +75,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await expect(projectButtons).toHaveCount(7);
   await expect(navigator.getByRole("button", { name: `${longProjectLabel} project` })).toBeVisible();
 
-  const workToolbar = page.getByRole("toolbar", { name: "Work layout controls" });
-  await workToolbar.getByRole("button", { name: "New terminal" }).click();
+  await openNewTerminalSheet(page);
   const sheet = page.getByRole("dialog", { name: "New session", exact: true });
   await expect(sheet).toBeVisible();
   await sheet.getByRole("button", { name: "Start", exact: true }).click();
@@ -94,7 +94,8 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await expect(activeSessionGroup.getByRole("button", { name: "Restored scratch fixture 1" })).toHaveCount(0);
   await expect(freeChats.getByRole("button", { name: "Restored scratch fixture 1" })).toHaveCount(0);
   await expect((await listMainProcessTerminals(page)).restoredSessions).toHaveLength(1);
-  await expect(header.getByRole("button", { name: "Open Surfaces menu" })).toBeVisible();
+  await expect(navigator.getByRole("button", { name: "Deck", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(header.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Fixture Alpha");
   // Free Chats in Beta's scope put no state glyph on the Beta row.
   await expect(navigator.getByRole("button", { name: "Fixture Beta project" }).locator(".project-row-state")).toHaveCount(0);
 
@@ -102,7 +103,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   const before = await requiredHandle(alphaScreen, "Alpha xterm screen");
   const gridBeforeContext = await terminalGridRect(page);
 
-  const surfacesTrigger = page.getByRole("button", { name: "Open Surfaces menu" });
+  const surfacesTrigger = page.getByRole("button", { name: "Details", exact: true });
   await openContext(page);
   const gridAfterContext = await terminalGridRect(page);
   const contextWidth = await page.getByTestId("context-column").evaluate(
@@ -112,7 +113,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await expect(page.getByRole("complementary", { name: /^Other sessions in / })).toHaveCount(0);
   expect(Math.abs(gridAfterContext.width - gridBeforeContext.width)).toBeLessThanOrEqual(8);
   expect(gridAfterContext.width).toBeGreaterThanOrEqual(420);
-  expect(contextWidth).toBe(318);
+  expect(contextWidth).toBe(320);
   expect(Math.abs(gridAfterContext.height - gridBeforeContext.height)).toBeLessThanOrEqual(1);
   expect(await isSameConnectedNode(before, alphaScreen)).toBe(true);
   await page.keyboard.press("Escape");
@@ -134,7 +135,9 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
       .some((animation) => animation.playState === "running")
   )).toBe(false);
   const narrow = await readNarrowProjectShell(page);
-  expect(narrow.gridTemplateColumns.split(" ")).toHaveLength(2);
+  // The rail sits outside the workspace layout, which is one column beside it at every width.
+  expect(narrow.gridTemplateColumns.split(" ")).toHaveLength(1);
+  await expect(navigator).toHaveCSS("width", "224px");
   expect(narrow.documentOverflow).toBe(0);
   expect(
     narrow.activeControlOverflows,
@@ -266,8 +269,7 @@ async function operateNarrowWorkspaceActions(page: Page, navigator: Locator) {
 }
 
 async function openContext(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-  await page.getByRole("menuitem", { name: "Details" }).click();
+  await page.getByRole("button", { name: "Details", exact: true }).click();
   await expect(page.getByTestId("context-drawer")).toHaveAttribute("aria-hidden", "false");
 }
 

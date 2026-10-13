@@ -1,5 +1,6 @@
 import { expect, test } from "./support/electron-app";
 import { openPlan } from "./support/plan-line";
+import { surfaceButton } from "./support/work-layout";
 
 test.describe("blocked launch geometry", () => {
   test.use({ fixtureOptions: { stagedItems: 1, blockedStagedItem: 1, activeWorkspaceId: "A" } });
@@ -30,8 +31,7 @@ test.describe("Work restart", () => {
   test.use({ fixtureOptions: { restoredSessions: 1, unsafeRecoveryItem: 1 } });
   test("keeps unsafe restart confirmation until the second click", async ({ harness }, testInfo) => {
     const { page } = harness;
-    await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-    await page.getByRole("menuitem", { name: "History" }).click();
+    await surfaceButton(page, "History").click();
     const history = page.getByRole("region", { name: "History" });
     await history.getByRole("option", { name: /Restored fixture 1/ }).click();
     await history.getByRole("button", { name: "Review resume" }).click();

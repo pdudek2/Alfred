@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import type { ElectronApplication, ElementHandle, Locator, Page, TestInfo } from "@playwright/test";
 import { expect, test } from "./support/electron-app";
+import { surfaceButton } from "./support/work-layout";
 
 type TerminalNodeHandles = {
   tile: ElementHandle<HTMLElement>;
@@ -150,8 +151,7 @@ async function captureReviewScreenshot(
 }
 
 async function selectSurface(page: Page, surface: "Work" | "History"): Promise<void> {
-  await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-  await page.getByRole("menuitem", { name: surface }).click();
+  await surfaceButton(page, surface).click();
 }
 
 async function captureTerminalNodes(page: Page, expectedCount = 3): Promise<TerminalNodeHandles[]> {

@@ -1,5 +1,5 @@
 import { MessageSquare, Plus } from "lucide-react";
-import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode, type Ref } from "react";
 import type { WorkspaceMissionBrief, WorkspaceRootStatus } from "../../shared/workspace-ipc";
 import { isFreeChatScope, isFreeChatSession, isNavigableLiveSession } from "../session-scope";
 import type { SessionTile } from "../session-state";
@@ -22,17 +22,29 @@ export type ProjectNavigatorWorkspace = {
   missionBrief?: WorkspaceMissionBrief;
 };
 
+export type ProjectNavigatorSurface = "work" | "sessions";
+
 export type ProjectNavigatorProps = {
   activeSessionId: string | null;
+  activeSurface: ProjectNavigatorSurface;
   activeWorkspaceId: string;
   attentionCountsByWorkspace: ReadonlyMap<string, number>;
+  inert?: boolean;
   sessions: SessionTile[];
+  settingsTriggerRef?: Ref<HTMLButtonElement>;
   workspaces: ProjectNavigatorWorkspace[];
   workspaceActions: ReactNode;
   onAddWorkspace: () => void;
+  onOpenSettings: () => void;
   onSelectSessionInWorkspace: (workspaceId: string, sessionId: string) => void;
+  onSelectSurface: (surface: ProjectNavigatorSurface) => void;
   onSelectWorkspace: (workspaceId: string) => void;
 };
+
+const SURFACES: ReadonlyArray<{ id: ProjectNavigatorSurface; label: string }> = [
+  { id: "work", label: "Deck" },
+  { id: "sessions", label: "History" },
+];
 
 export type ProjectRailState = "needs-you" | "your-turn" | "working" | "running";
 
@@ -77,17 +89,24 @@ export function railOrder<T extends ProjectNavigatorWorkspace>(workspaces: reado
 
 export function ProjectNavigator({
   activeSessionId,
+  activeSurface,
   activeWorkspaceId,
   attentionCountsByWorkspace,
+  inert = false,
   sessions,
+  settingsTriggerRef,
   workspaces,
   workspaceActions,
   onAddWorkspace,
+  onOpenSettings,
   onSelectSessionInWorkspace,
+  onSelectSurface,
   onSelectWorkspace,
 }: ProjectNavigatorProps) {
   const { projects, sandboxes } = railGroups(workspaces);
-  const activeIsSandbox = sandboxes.some((workspace) => workspace.id === activeWorkspaceId);
+  // History is not inside a project, so no project row is current there.
+  const onDeck = activeSurface === "work";
+  const activeIsSandbox = onDeck && sandboxes.some((workspace) => workspace.id === activeWorkspaceId);
   const [sandboxesOpen, setSandboxesOpen] = useState(activeIsSandbox);
   const projectRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const now = useStackClock(sessions.length > 0);
@@ -107,7 +126,7 @@ export function ProjectNavigator({
   }, [activeIsSandbox, activeWorkspaceId]);
 
   const renderRow = (workspace: ProjectNavigatorWorkspace) => {
-    const active = workspace.id === activeWorkspaceId;
+    const active = onDeck && workspace.id === activeWorkspaceId;
     const state = railStates.get(workspace.id) ?? null;
     const live = sessions.some((session) => isProjectLiveSession(session, workspace.id));
     const statusId = `project-${workspace.id}-status`;
@@ -130,7 +149,6 @@ export function ProjectNavigator({
             }}
             title={workspace.label}
           >
-            <span className="project-row-monogram" aria-hidden="true">{workspace.shortLabel}</span>
             <span className="project-row-label">{workspace.label}</span>
             {state && <SessionStatusGlyph kind={state} label={SESSION_STATE_LABELS[state]} className="project-row-state" size={12} />}
             {state && <span className="visually-hidden" id={statusId}>{SESSION_STATE_LABELS[state]}</span>}
@@ -147,11 +165,26 @@ export function ProjectNavigator({
       data-testid="project-navigator"
       aria-label="Projects and Free Chats"
       role="navigation"
+      inert={inert || undefined}
     >
+      {/* The native window buttons sit over this strip; it also drags the window. */}
+      <div className="project-navigator-titlebar" aria-hidden="true" />
+      <div className="project-navigator-surfaces">
+        {SURFACES.map((surface) => (
+          <button
+            type="button"
+            key={surface.id}
+            aria-current={activeSurface === surface.id ? "page" : undefined}
+            onClick={() => onSelectSurface(surface.id)}
+          >
+            {surface.label}
+          </button>
+        ))}
+      </div>
       <header className="project-navigator-header">
         <strong>Projects</strong>
         <button type="button" className="project-navigator-add" aria-label="Add project" title="Add project" onClick={onAddWorkspace}>
-          <Plus aria-hidden="true" size={15} />
+          <Plus aria-hidden="true" size={13} />
         </button>
       </header>
 
@@ -241,6 +274,9 @@ export function ProjectNavigator({
           </section>
         )}
       </div>
+      <button ref={settingsTriggerRef} type="button" className="project-navigator-settings" onClick={onOpenSettings}>
+        Settings
+      </button>
     </aside>
   );
 }

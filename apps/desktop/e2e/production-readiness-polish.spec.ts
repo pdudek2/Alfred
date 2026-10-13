@@ -2,6 +2,7 @@ import type { ElectronApplication, ElementHandle, Locator, Page } from "@playwri
 import { appendFile, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "./support/electron-app";
+import { openNewTerminalSheet, surfaceButton } from "./support/work-layout";
 
 test.use({
   fixtureOptions: {
@@ -68,7 +69,7 @@ test("keeps the production Work story trustworthy across every utility surface",
   await expectSans(context);
   await captureAuditScreenshot(page, "context-wide");
   await context.getByRole("button", { name: "Close Details panel" }).click();
-  await expect(page.getByRole("button", { name: "Open Surfaces menu" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Details", exact: true })).toBeFocused();
 
   await page.getByRole("button", { name: /^Needs you, / }).click();
   const needsYou = page.getByRole("dialog", { name: "Needs you" });
@@ -180,8 +181,7 @@ test.describe("missing project fixture", () => {
 });
 
 async function addTerminal(page: Page): Promise<void> {
-  await page.getByRole("toolbar", { name: "Work layout controls" })
-    .getByRole("button", { name: "New terminal" }).click();
+  await openNewTerminalSheet(page);
   const sheet = page.getByRole("dialog", { name: "New session", exact: true });
   await expect(sheet).toBeVisible();
   await sheet.getByRole("button", { name: "Start", exact: true }).click();
@@ -215,8 +215,8 @@ async function appendFixtureAgentOutput(root: string, agent: "claude" | "codex",
 }
 
 async function selectSurface(page: Page, surface: "Work" | "History" | "Details" | "Local Data & Privacy"): Promise<void> {
-  await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-  await page.getByRole("menuitem", { name: surface }).click();
+  if (surface === "Details") await page.getByRole("button", { name: "Details", exact: true }).click();
+  else await surfaceButton(page, surface).click();
 }
 
 async function setWindowSize(app: ElectronApplication, page: Page, width: number, height: number): Promise<void> {

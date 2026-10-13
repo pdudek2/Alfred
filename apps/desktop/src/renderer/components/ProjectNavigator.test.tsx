@@ -75,13 +75,16 @@ function navigator(props: Partial<ProjectNavigatorProps> = {}) {
   return (
     <ProjectNavigator
       activeSessionId="codex-live"
+      activeSurface="work"
       activeWorkspaceId="A"
       attentionCountsByWorkspace={new Map()}
       sessions={sessions}
       workspaces={workspaces}
       workspaceActions={<button type="button">Project actions</button>}
       onAddWorkspace={vi.fn()}
+      onOpenSettings={vi.fn()}
       onSelectSessionInWorkspace={vi.fn()}
+      onSelectSurface={vi.fn()}
       onSelectWorkspace={vi.fn()}
       {...props}
     />
@@ -285,11 +288,32 @@ describe("ProjectNavigator", () => {
     expect(railRow("SeventhProject")).toHaveFocus();
   });
 
-  it("keeps the complete long project name and a short label for the compact rail", () => {
+  it("keeps the complete long project name on the row", () => {
     renderNavigator();
 
-    expect(railRow(workspaces[5]!.label)).toHaveAttribute("data-label", workspaces[5]!.label);
-    expect(railRow("ClientApp").querySelector(".project-row-monogram")).toHaveTextContent("CLI");
+    expect(railRow(workspaces[5]!.label)).toHaveAttribute("title", workspaces[5]!.label);
+  });
+
+  it("switches between Deck and History and opens Settings from the rail", async () => {
+    const user = userEvent.setup();
+    const onSelectSurface = vi.fn();
+    const onOpenSettings = vi.fn();
+    renderNavigator({ onOpenSettings, onSelectSurface });
+
+    expect(screen.getByRole("button", { name: "Deck" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "History" })).not.toHaveAttribute("aria-current");
+    await user.click(screen.getByRole("button", { name: "History" }));
+    expect(onSelectSurface).toHaveBeenCalledWith("sessions");
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    expect(onOpenSettings).toHaveBeenCalledOnce();
+  });
+
+  it("marks no project as current on History", () => {
+    renderNavigator({ activeSurface: "sessions" });
+
+    expect(screen.getByRole("button", { name: "History" })).toHaveAttribute("aria-current", "page");
+    expect(railRow("Alfred")).not.toHaveAttribute("aria-current");
+    expect(screen.queryByRole("button", { name: "Project actions" })).not.toBeInTheDocument();
   });
 
   it("omits Free Chats when there are no matching live sessions", () => {

@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import type { TerminalApi } from "../src/shared/terminal-ipc";
 import { expect, test } from "./support/electron-app";
+import { surfaceButton } from "./support/work-layout";
 
 type DesktopTerminalWindow = Window & {
   alfredDesktop?: { terminal: TerminalApi };
@@ -78,6 +79,5 @@ async function openLaunchItem(page: Page, label: string): Promise<void> {
 }
 
 async function selectSurface(page: Page, label: "Work" | "History"): Promise<void> {
-  await page.getByRole("button", { name: "Open Surfaces menu" }).click();
-  await page.getByRole("menuitem", { name: label, exact: true }).click();
+  await surfaceButton(page, label).click();
 }

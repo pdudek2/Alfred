@@ -17,9 +17,6 @@ test("keeps a workspace recoverable when its saved folder is missing", async ({ 
   await expect(unavailable.getByRole("button", { name: "Choose folder" })).toBeVisible();
   await expect(unavailable.getByRole("button", { name: "New terminal" })).toHaveCount(0);
   await expect(page.getByTestId("terminal-tile")).toHaveCount(0);
-  await expect(
-    page.getByRole("toolbar", { name: "Work layout controls" }).getByRole("button", { name: "New terminal" }),
-  ).toBeDisabled();
 
   await page.keyboard.press("Meta+T");
   await expect(page.getByTestId("terminal-tile")).toHaveCount(0);
