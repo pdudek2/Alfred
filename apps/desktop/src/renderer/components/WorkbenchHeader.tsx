@@ -58,7 +58,7 @@ export function WorkbenchHeader({
   ];
 
   return (
-    <header className="workbench-header" data-testid="workbench-header" data-chrome-height="44">
+    <header className="workbench-header" data-testid="workbench-header">
       <div className="workbench-primary-row">
         <div className="workbench-product-signature"><AlfredMark /></div>
         <div className="workbench-session-context">

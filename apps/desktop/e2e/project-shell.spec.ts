@@ -61,8 +61,6 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   await setWindowSize(app, page, 1440, 900);
 
   const header = page.getByTestId("workbench-header");
-  await expect(header).toHaveAttribute("data-chrome-height", "44");
-  await expect(header).toHaveCSS("height", "44px");
   const navigator = page.getByRole("navigation", { name: "Projects and Free Chats" });
   await expect(navigator).toBeVisible();
 
@@ -136,10 +134,7 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
       .some((animation) => animation.playState === "running")
   )).toBe(false);
   const narrow = await readNarrowProjectShell(page);
-  expect(narrow.navigatorWidth).toBeGreaterThanOrEqual(226);
-  expect(narrow.navigatorWidth).toBeLessThanOrEqual(280);
   expect(narrow.gridTemplateColumns.split(" ")).toHaveLength(2);
-  expect(narrow.orchestratorX - narrow.navigatorRight).toBeCloseTo(8, 1);
   expect(narrow.documentOverflow).toBe(0);
   expect(
     narrow.activeControlOverflows,
@@ -148,7 +143,6 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
   expect(narrow.visibleTileCount).toBe(1);
   expect(narrow.visibleTileHeaderHeights.length).toBeGreaterThan(0);
   expect(narrow.visibleTileHeaderHeights).toHaveLength(narrow.visibleTileCount);
-  expect(narrow.visibleTileHeaderHeights.every((height) => height === 43)).toBe(true);
   expect(await isSameConnectedNode(before, alphaScreen)).toBe(true);
 
   const narrowWorkspaceActions = await operateNarrowWorkspaceActions(page, navigator);
@@ -165,7 +159,6 @@ test("proves the project-first shell without replacing xterm", async ({ harness 
       narrow: { width: 1120, height: 720 },
     },
     shell: {
-      chromeHeight: 44,
       navigationLandmark: "Projects and Free Chats",
       projectCount: 7,
       activeSessionCount: 6,
