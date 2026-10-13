@@ -16,8 +16,12 @@ test("History recovery safety requires review, supports Escape disarm, and start
   const { page, paths } = harness;
   await surfaceButton(page, "History").click();
   const history = page.getByRole("region", { name: "History" });
-  await history.getByRole("combobox", { name: "Session source" }).selectOption("saved");
-  await expect(history.getByRole("listbox", { name: "Session results" }).getByRole("option")).toHaveCount(6);
+  await history.getByRole("tab", { name: "From Alfred" }).click();
+  // Asleep sessions are told apart by their glyph; History has no Asleep filter of its own.
+  await expect(
+    history.getByRole("listbox", { name: "Session results" }).getByRole("option")
+      .filter({ has: page.getByLabel("status asleep") }),
+  ).toHaveCount(6);
   await history.getByRole("option", { name: /Restored fixture 1\b/ }).click();
 
   const unsafeAction = history.getByRole("button", { name: "Review resume" });

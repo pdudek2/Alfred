@@ -1189,7 +1189,7 @@ describe("App integration", () => {
     expect(screen.getByTestId("terminal-grid")).toBeInTheDocument();
   });
 
-  it("rehomes all primary destinations in the frozen top bar", async () => {
+  it("reaches every primary destination from the rail and the side column", async () => {
     const user = userEvent.setup();
     installDesktopBridge();
     render(<App />);
@@ -1198,7 +1198,18 @@ describe("App integration", () => {
     await selectSurface(user, "History");
     expect(screen.getByRole("region", { name: "History" })).toBeVisible();
 
+    // Details describes the deck's focused session, so History neither shows nor opens it.
+    await user.keyboard("{Meta>}i{/Meta}");
+    expect(screen.getByTestId("context-drawer")).not.toHaveClass("open");
+    expect(screen.getByTestId("workbench-shell")).not.toHaveClass("context-visible");
+
+    await selectSurface(user, "Work");
     await selectSurface(user, "Details");
+    expect(screen.getByTestId("context-drawer")).toHaveClass("open");
+    // Back on History the open Details waits out of sight and returns with the deck.
+    await selectSurface(user, "History");
+    expect(screen.getByTestId("context-drawer")).not.toHaveClass("open");
+    await selectSurface(user, "Work");
     expect(screen.getByTestId("context-drawer")).toHaveClass("open");
 
     await selectSurface(user, "Local Data & Privacy");
@@ -1624,7 +1635,7 @@ describe("App integration", () => {
     await selectSurface(user, "History");
 
     expect(await screen.findByText("External Codex indexing is off.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Refresh external sessions" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Refresh external sessions" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open Local Data & Privacy" }));
     expect(screen.getByRole("dialog", { name: "Local Data & Privacy" })).toBeInTheDocument();
     expect(listExternalSessions).not.toHaveBeenCalled();
@@ -3283,7 +3294,7 @@ describe("App integration", () => {
     const xtermHost = await screen.findByTestId("xterm-host");
     await selectSurface(user, "History");
     await user.click(await screen.findByRole("option", { name: /Reveal target/i }));
-    await user.click(screen.getByRole("button", { name: "Reveal in Work" }));
+    await user.click(screen.getByRole("button", { name: "Reveal in Deck" }));
 
     expect(screen.getByRole("article", { name: /Reveal target/i })).toBeInTheDocument();
     expect(screen.getByTestId("xterm-host")).toBe(xtermHost);
@@ -3829,10 +3840,7 @@ describe("App integration", () => {
     const sessions = await screen.findByRole("region", { name: "History" });
     const search = within(sessions).getByRole("searchbox", { name: "Search sessions" });
     expect(search).toHaveFocus();
-    await user.selectOptions(
-      within(sessions).getByRole("combobox", { name: "Session source" }),
-      "external-codex",
-    );
+    await user.click(within(sessions).getByRole("tab", { name: "Codex CLI" }));
     await waitFor(() => expect(listExternalSessions).toHaveBeenCalledTimes(2));
     expect(listExternalSessions).toHaveBeenNthCalledWith(1, {
       projects: expect.any(Array),
@@ -8172,7 +8180,7 @@ describe("App integration", () => {
     const history = await openHistorySession(user, "Discard B");
     const rows = within(within(history).getByRole("listbox")).getAllByRole("option");
     const index = rows.findIndex((row) => row.textContent?.includes("Discard B"));
-    const nextTitle = rows[index + 1]!.querySelector("strong")!.textContent!;
+    const nextTitle = rows[index + 1]!.querySelector(".sessions-result__title")!.textContent!;
     const discard = within(history).getByRole("button", { name: "Discard ended session" });
     await user.click(discard);
     expect(discard).toHaveTextContent("Discard?");
@@ -8307,7 +8315,7 @@ describe("App integration", () => {
     expect(screen.getByRole("button", { name: "Review resume" })).toBeInTheDocument();
   });
 
-  it.each(["Back to Work", "Deck in the rail", "a project in the rail"] as const)(
+  it.each(["Escape", "Deck in the rail", "a project in the rail"] as const)(
     "disarms unsafe Asleep before leaving History through %s",
     async (surfaceLabel) => {
       const user = userEvent.setup();
@@ -8339,8 +8347,9 @@ describe("App integration", () => {
       expect(within(history).getByRole("button", { name: "Confirm resume" })).toBeInTheDocument();
 
       const leaveHistory = async () => {
-        if (surfaceLabel === "Back to Work") {
-          await user.click(within(history).getByRole("button", { name: "Back to Work" }));
+        if (surfaceLabel === "Escape") {
+          act(() => within(history).getByRole("listbox").focus());
+          await user.keyboard("{Escape}");
         } else if (surfaceLabel === "Deck in the rail") {
           await selectSurface(user, "Work");
         } else {
@@ -8504,7 +8513,7 @@ describe("App integration", () => {
 
     expect(forgetTerminal).toHaveBeenCalledWith({ clientId: "armed-shared", cleanupWorktree: true });
     expect(createTerminal).not.toHaveBeenCalled();
-    within(history).getByRole("button", { name: "Back to Work" }).focus();
+    act(() => within(history).getByRole("listbox").focus());
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("region", { name: "History" })).not.toBeInTheDocument();
@@ -9371,11 +9380,17 @@ describe("App integration", () => {
     const user = userEvent.setup();
     expect(screen.queryByRole("region", { name: "Session recovery" })).not.toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: "Browse 3 asleep sessions" }));
+    // History opens on what Alfred ran in this project, with an asleep session already in the reader.
     expect(screen.getByRole("combobox", { name: "Project scope" })).toHaveValue("A");
-    expect(screen.getByRole("combobox", { name: "Session source" })).toHaveValue("saved");
+    expect(screen.getByRole("tab", { name: "From Alfred" })).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByRole("option", { name: /Manual · zsh 9/i })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Codex · session 9/i })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Destructive restored shell/i })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Manual · zsh 1/i })).toBeInTheDocument();
+    const preselected = within(screen.getByRole("listbox", { name: "Session results" }))
+      .getByRole("option", { selected: true });
+    expect(within(preselected).getByLabelText("status asleep")).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Scrollback" })).toHaveTextContent("asleep output");
     await user.click(screen.getByRole("option", { name: /Codex · session 9/i }));
     await user.click(screen.getByRole("button", { name: "Resume" }));
 
@@ -9385,6 +9400,61 @@ describe("App integration", () => {
       );
     });
     expect(forgetTerminal).not.toHaveBeenCalled();
+  });
+
+  it("opens History on every asleep session the line counted, wherever each session's folder was", async () => {
+    const user = userEvent.setup();
+    installDesktopBridge(
+      undefined,
+      null,
+      [manualLiveSnapshot("live-scratch", "Manual · zsh 1")],
+      undefined,
+      undefined,
+      {
+        workspaces: [{
+          id: "A",
+          label: "Alfred",
+          shortLabel: "A",
+          rootPath: "/Users/patryk/Documents/Codex/alfred-scratch",
+        }],
+        activeWorkspaceId: "A",
+      },
+      [
+        {
+          clientId: "restored-visible",
+          title: "Codex · restored visible",
+          source: "alfred",
+          agentKind: "codex",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Desktop/Alfred",
+          shell: "codex",
+          command: "codex",
+          buffer: "asleep output\n",
+        },
+        {
+          clientId: "restored-free-chat",
+          title: "Saved free chat",
+          source: "manual",
+          workspaceId: "A",
+          cwd: "/Users/patryk/Documents/Codex/saved-free-chat",
+          shell: "/bin/zsh",
+          command: "zsh",
+          buffer: "asleep scratch output\n",
+        },
+      ],
+    );
+
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Browse 2 asleep sessions" }));
+
+    // The project is rooted in the free chats folder and one session ran elsewhere: both still belong to it.
+    expect(screen.getByRole("combobox", { name: "Project scope" })).toHaveValue("A");
+    const results = screen.getByRole("listbox", { name: "Session results" });
+    expect(await within(results).findByRole("option", { name: /Saved free chat/ })).toBeInTheDocument();
+    expect(within(results).getByRole("option", { name: /Codex · restored visible/ })).toBeInTheDocument();
+    expect(
+      within(results).getAllByRole("option").filter((row) => within(row).queryByLabelText("status asleep")),
+    ).toHaveLength(2);
   });
 
   it("counts one saved conversation when restored records share a Codex lineage", async () => {

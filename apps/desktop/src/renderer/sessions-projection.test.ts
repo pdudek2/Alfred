@@ -83,7 +83,7 @@ describe("sessionsPrimaryAction", () => {
       lifecycle: "read-only",
     });
 
-    expect(sessionsPrimaryAction(live)).toEqual({ kind: "reveal", label: "Reveal in Work" });
+    expect(sessionsPrimaryAction(live)).toEqual({ kind: "reveal", label: "Reveal in Deck" });
     expect(sessionsPrimaryAction(restored)).toMatchObject({ kind: "recover", label: "Resume" });
     expect(sessionsPrimaryAction(restoredManual)).toEqual({ kind: "recover", label: "Resume" });
     expect(sessionsPrimaryAction(mappedExternal)).toEqual({ kind: "resume-external", label: "Resume" });
