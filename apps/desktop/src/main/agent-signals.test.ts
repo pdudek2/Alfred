@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createAgentSignalBridge,
+  isFocusReport,
   isShellProcess,
   parseOsc9,
   signalFromHook,
@@ -44,6 +45,26 @@ describe("signals", () => {
     });
     expect(signalFromOsc9("Created probe.txt")).toEqual({ state: "your-turn", detail: "Created probe.txt" });
     expect(signalFromOsc9("   ")).toBeNull();
+  });
+
+  it("reads Codex's edit approvals and plan prompts as Needs you, and its questions as Your turn", () => {
+    for (const message of [
+      "Codex wants to edit src/session-status.ts",
+      "Codex wants to edit 3 files",
+      "Approval requested by github",
+      "Plan mode prompt: Implement this plan?",
+    ]) {
+      expect(signalFromOsc9(message)).toEqual({ state: "needs-you", detail: message });
+    }
+    expect(signalFromOsc9("Question: Which database?")).toEqual({ state: "your-turn", detail: "Question: Which database?" });
+  });
+
+  it("tells the terminal's focus reports apart from typed input", () => {
+    expect(isFocusReport("\x1b[I")).toBe(true);
+    expect(isFocusReport("\x1b[O\x1b[I")).toBe(true);
+    expect(isFocusReport("\x1b[A")).toBe(false);
+    expect(isFocusReport("\x1b[Iy")).toBe(false);
+    expect(isFocusReport("")).toBe(false);
   });
 
   it("maps Claude hooks to states and describes the permission request", () => {
@@ -113,7 +134,14 @@ describe.skipIf(process.platform === "win32")("agent signal bridge", () => {
   it("adds launch arguments only for claude and codex", async () => {
     dir = await mkdtemp(path.join(os.tmpdir(), "as-"));
     bridge = await createAgentSignalBridge({ dir: path.join(dir, "d"), execPath: process.execPath, socketPath: path.join(dir, "s") });
-    expect(bridge!.launchArgs("codex")).toEqual(["-c", "tui.notifications=true", "-c", 'tui.notification_method="osc9"']);
+    expect(bridge!.launchArgs("codex")).toEqual([
+      "-c",
+      "tui.notifications=true",
+      "-c",
+      'tui.notification_method="osc9"',
+      "-c",
+      'tui.notification_condition="always"',
+    ]);
     expect(bridge!.launchArgs("npm")).toEqual([]);
     expect(bridge!.launchArgs(undefined)).toEqual([]);
   });
