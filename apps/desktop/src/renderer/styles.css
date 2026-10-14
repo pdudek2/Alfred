@@ -1459,6 +1459,12 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   grid-template-rows: minmax(0, 1fr);
 }
 
+/* v4 canvas, "Project with nothing running": the empty state sits in the same quiet box a terminal would. */
+.terminal-grid:has(> .terminal-empty-state) {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
 .terminal-empty-state {
   grid-column: 1 / -1;
   align-self: start;
@@ -1470,7 +1476,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   box-shadow: none;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 22px;
   padding: clamp(32px, 12vh, 110px) 0 32px;
   text-align: left;
 }
@@ -1483,14 +1489,15 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 
 .terminal-empty-copy strong {
   color: var(--text-primary);
-  font: 600 17px/22px var(--sans);
+  font: 600 22px/28px var(--sans);
+  letter-spacing: -0.018em;
   text-wrap: balance;
 }
 
 .terminal-empty-copy p {
   margin: 0;
   color: var(--text-muted);
-  font: 400 13px/18px var(--sans);
+  font: 400 14px/21px var(--sans);
   text-wrap: pretty;
 }
 
@@ -1539,7 +1546,7 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
   margin: 0;
   padding-bottom: 6px;
   color: var(--text-faint);
-  font: 600 12px/16px var(--sans);
+  font: 500 12px/16px var(--sans);
 }
 
 .terminal-empty-asleep ul {
@@ -1938,54 +1945,6 @@ html[data-alfred-window-material="native"] .desktop-alert-stack {
 /* xterm paints its viewport black by default, which framed the terminal inside its own box. */
 .terminal-tile .xterm-host .xterm-viewport {
   background-color: var(--surface-terminal);
-}
-
-.terminal-action-strip {
-  flex-shrink: 0;
-  font: 400 12px/1.4 var(--sans);
-  min-height: 38px;
-  border: 1px solid var(--ink-3);
-  border-radius: 7px;
-  padding: 5px;
-  background: var(--ink-1);
-  color: var(--ink-6);
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.terminal-action-strip::-webkit-scrollbar {
-  display: none;
-}
-
-.terminal-action-strip button {
-  min-height: 28px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  padding: 0 10px 0 8px;
-  background: transparent;
-  color: var(--ink-5);
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  white-space: nowrap;
-  font: 700 12px var(--sans);
-}
-
-.terminal-action-strip button.active,
-.terminal-action-strip button[aria-pressed="true"] {
-  border-color: var(--ink-5);
-  background: var(--ink-2);
-  color: var(--ink-7);
-  box-shadow: none;
-}
-
-.terminal-action-strip button:hover,
-.terminal-action-strip button:focus-visible {
-  border-color: var(--ink-5);
-  color: var(--ink-6);
 }
 
 /* Composer */

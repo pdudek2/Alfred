@@ -5,14 +5,15 @@ import { isReviewableWorktreeSession } from "../session-scope";
 import { sessionInstanceKey, type SessionTile } from "../session-state";
 import { parseUnifiedDiff } from "../worktree-diff";
 
-export function DetailsChanges({ open, session, projectName, pending, onReview, onApply }: {
+export function DetailsChanges({ open, session, projectName, pendingAction, onReview, onApply }: {
   open: boolean;
   session: SessionTile | null;
   projectName: string;
-  pending: boolean;
+  pendingAction?: "review" | "apply" | undefined;
   onReview: (id: string) => void;
   onApply: (id: string) => void;
 }) {
+  const pending = pendingAction !== undefined;
   const reviewable = Boolean(session && session.stage !== "staged" && isReviewableWorktreeSession(session));
   const instanceKey = session ? sessionInstanceKey(session) : "";
   const sessionId = session?.id;
@@ -57,8 +58,12 @@ export function DetailsChanges({ open, session, projectName, pending, onReview, 
             })}
           </ul>
           <div className="details-actions">
-            <button type="button" disabled={pending} onClick={() => sessionId && onReview(sessionId)}>Review diff</button>
-            <button type="button" disabled={pending} onClick={() => sessionId && onApply(sessionId)}>Apply to {projectName}</button>
+            <button type="button" disabled={pending} onClick={() => sessionId && onReview(sessionId)}>
+              {pendingAction === "review" ? "Reviewing..." : "Review diff"}
+            </button>
+            <button type="button" disabled={pending} onClick={() => sessionId && onApply(sessionId)}>
+              {pendingAction === "apply" ? "Applying..." : `Apply to ${projectName}`}
+            </button>
           </div>
         </>}
     </section>
