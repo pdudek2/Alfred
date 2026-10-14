@@ -109,7 +109,7 @@ describe("AgentTimelinePanel", () => {
 
     const activity = within(container).getByRole("region", { name: "Activity" });
     const rows = within(activity).getAllByRole("listitem");
-    expect(rows.map((row) => row.querySelector(".details-activity-text > span:first-child")?.textContent)).toEqual(["Progress reported", "Command ran"]);
+    expect(rows.map((row) => row.querySelector(".details-activity-text")?.textContent)).toEqual(["build passed", "Ran pnpm test"]);
   });
 
   it("shows relative seconds and minutes in plain Activity rows without a session creation time", () => {
@@ -300,8 +300,8 @@ describe("AgentTimelinePanel", () => {
 
 
     const timeline = within(container).getByRole("list");
-    expect(within(timeline).getByText("Progress reported")).toBeInTheDocument();
     expect(within(timeline).getByText("✓ tests passed")).toBeInTheDocument();
+    expect(within(timeline).getByText("Ran pnpm test")).toBeInTheDocument();
     expect(within(timeline).getAllByRole("listitem")).toHaveLength(2);
     expect(container).not.toHaveTextContent("Terminal output is streaming in the project.");
   });
@@ -327,8 +327,8 @@ describe("AgentTimelinePanel", () => {
     const { container } = render(<AgentTimelinePanel session={session} />);
     const timeline = within(container).getByRole("list");
 
-    expect(within(timeline).getByText("Latest command")).toBeInTheDocument();
-    expect(within(timeline).getByText("Oldest command")).toBeInTheDocument();
+    expect(within(timeline).getByText("Ran pnpm test")).toBeInTheDocument();
+    expect(within(timeline).getByText("Ran pnpm install")).toBeInTheDocument();
     expect(within(timeline).getAllByRole("listitem")).toHaveLength(5);
   });
 
@@ -382,6 +382,10 @@ describe("AgentTimelinePanel", () => {
     expect(objects.map((object) => object.getAttribute("title"))).toEqual([
       "Allow edit in app.tsx?", "Alfred terminal UX", "apps/desktop/src/renderer/app.tsx", "pnpm test",
     ]);
+    // One plain sentence per row, as the Details board writes them.
+    expect(objects.map((object) => object.textContent)).toEqual([
+      "Asked: Allow edit in app.tsx?", "Used WebSearch (Alfred terminal UX)", "Edited app.tsx", "Ran pnpm test",
+    ]);
     expect(container.querySelector("details")).toBeNull();
   });
 
@@ -415,9 +419,7 @@ describe("AgentTimelinePanel", () => {
 
     render(<AgentTimelinePanel session={session} />);
 
-
-
-    expect(screen.getByText("File activity")).toBeInTheDocument();
+    expect(screen.getByText("apps/desktop/src/renderer/app.tsx(modified)")).toBeInTheDocument();
     expect(screen.queryByText("SessionStart hook (completed)")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Show raw (1)" }));
@@ -598,8 +600,10 @@ describe("AgentTimelinePanel", () => {
     expect(pulse).toBeDefined();
     if (!pulse) throw new Error("Session pulse not rendered");
     expect(pulse.querySelector("details")).toBeNull();
-    expect(within(pulse).getByText("Waiting for approval")).toBeInTheDocument();
-    expect(within(pulse).getByText("Allow edit?")).toBeInTheDocument();
+    // The approval the session waits on carries the Needs you star; a finished step the done glyph.
+    const glyphOf = (text: string) => within(pulse).getByText(text).closest("li")?.querySelector(".session-status-glyph");
+    expect(glyphOf("Asked: Allow edit?")).toHaveClass("status-needs-you");
+    expect(glyphOf("Ran pnpm build")).toHaveClass("status-done");
   });
 
   it("shows errors beside routine Activity signals", () => {
@@ -624,8 +628,8 @@ describe("AgentTimelinePanel", () => {
     expect(pulse).toBeDefined();
     if (!pulse) throw new Error("Session pulse not rendered");
     expect(pulse.querySelector("details")).toBeNull();
-    expect(within(pulse).getByText("Error reported")).toBeInTheDocument();
-    expect(within(pulse).getByText("build failed")).toBeInTheDocument();
+    expect(within(pulse).getByText("build failed").closest("li")?.querySelector(".session-status-glyph")).toHaveClass("status-failed");
+    expect(within(pulse).getByText("app.tsx")).toBeInTheDocument();
   });
 
   it("shows progress output in the plain Activity log", () => {
@@ -648,7 +652,6 @@ describe("AgentTimelinePanel", () => {
     expect(pulse).toBeDefined();
     if (!pulse) throw new Error("Session pulse not rendered");
     expect(pulse.querySelector("details")).toBeNull();
-    expect(within(pulse).getByText("Progress reported")).toBeInTheDocument();
     expect(within(pulse).getByText("✓ build passed")).toBeInTheDocument();
   });
 
@@ -875,7 +878,7 @@ describe("AgentTimelinePanel", () => {
     expect(pulse).toBeDefined();
     if (!pulse) throw new Error("Session pulse not rendered");
     expect(pulse.querySelector("details")).toBeNull();
-    expect(within(pulse).getByText("Waiting for approval")).toBeInTheDocument();
+    expect(within(pulse).getByText("Asked: Pick an option.")).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Session input" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Send yes" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Send no" })).not.toBeInTheDocument();

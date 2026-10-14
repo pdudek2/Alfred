@@ -1,10 +1,10 @@
-import { CircleCheck } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode, type FormEvent, type KeyboardEvent } from "react";
 import type { AlfredStagedSessionPatch } from "../../shared/alfred-ipc";
-import { presentActivityEvents } from "../activity-presentation";
+import { activitySentence, presentActivityEvents } from "../activity-presentation";
 import type { SessionActivityEvent, SessionTile } from "../session-state";
 import { sessionState } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
+import { SessionStatusGlyph, type SessionStatusGlyphKind } from "./SessionStatusGlyph";
 
 export type AgentTimelinePanelProps = {
   onCopyActivityText?: (value: string) => Promise<void> | void;
@@ -194,6 +194,10 @@ export function AgentTimelinePanel({
     }, 1600);
   };
   const visibleTimelineEvents = presentedActivity.visibleEvents;
+  // The star marks only the approval the session waits on now; an answered one reads as done.
+  const waitingApprovalId = displayStatus.kind === "needs-you" && displayStatus.reason === "approval"
+    ? visibleTimelineEvents.find((event) => event.kind === "approval")?.id
+    : undefined;
 
   return (
     <aside className="agent-timeline-panel" aria-label="Agent activity">
@@ -278,20 +282,23 @@ export function AgentTimelinePanel({
               <ol className="agent-activity-list">
                 {visibleTimelineEvents.map((event) => {
                   const payload = activityPayloadView(event);
+                  const glyph = activityGlyph(event, event.id === waitingApprovalId);
                   return (
                     <li className={event.kind} key={event.id}>
-                      <CircleCheck size={14} aria-hidden="true" />
+                      <span className="details-activity-glyph" aria-hidden="true">
+                        <SessionStatusGlyph kind={glyph.kind} label={glyph.label} size={12} />
+                      </span>
                       {payload ? (
                         <button className="details-activity-text" type="button"
                           title={payload.value}
                           aria-label={`${payload.actionLabel} ${payload.label}: ${payload.value}`}
                           disabled={payloadActionState[event.id] === "opening" || payloadActionState[event.id] === "copying"}
                           onClick={() => void handlePayloadAction(event, payload)}>
-                          <span>{event.title}</span>{event.detail && <> · <span>{event.detail}</span></>}
+                          {activitySentence(event)}
                           {payloadActionState[event.id] && <span role="status"> · {payloadActionState[event.id]}</span>}
                         </button>
                       ) : (
-                        <span className="details-activity-text"><span>{event.title}</span>{event.detail && <> · <span>{event.detail}</span></>}</span>
+                        <span className="details-activity-text" title={event.detail || undefined}>{activitySentence(event)}</span>
                       )}
                       {event.at > 0 && <time dateTime={new Date(event.at).toISOString()} title={formatActivityTime(event.at)}>
                         {ageClock - event.at < 60_000 ? `${Math.max(0, Math.floor((ageClock - event.at) / 1000))}s` : sessionAgeLabel(event.at, ageClock)}
@@ -444,6 +451,14 @@ function activityPayloadView(
     default:
       return null;
   }
+}
+
+/** The v4 glyph grammar for a past step: done, with the Needs you star only on the approval still waiting and a failed mark for errors. */
+function activityGlyph(event: SessionActivityEvent, waitsOnIt: boolean): { kind: SessionStatusGlyphKind; label: string } {
+  if (waitsOnIt) return { kind: "needs-you", label: "needs you" };
+  if (event.kind === "error") return { kind: "failed", label: "failed" };
+  if (event.kind === "warning") return { kind: "idle", label: "warning" };
+  return { kind: "done", label: "done" };
 }
 
 function useSessionAgeClock(createdAt: number | undefined): number {
