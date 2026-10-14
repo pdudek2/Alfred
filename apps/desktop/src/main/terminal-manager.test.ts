@@ -4139,19 +4139,32 @@ describe("terminal-manager IPC", () => {
       expect(lastDataEvent()).toMatchObject({ agentSignal: { state: "your-turn", source: "hook" } });
     });
 
-    it("reads Codex OSC 9 notifications and marks its terminal unfocused after launch", async () => {
+    it("reads Codex OSC 9 notifications that only your input clears, not the terminal's focus reports", async () => {
       const { bridge } = fakeBridge();
       const pty = new FakePty();
       registerTerminalIpc({ agentSignals: bridge, loadNodePty: async () => fakeNodePty(pty) as never });
-      await invoke(terminalChannels.create, { agentKind: "codex", clientId: "codex-1", cols: 80, command: "codex", cwd: "/repo", rows: 24 });
-
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      expect(pty.writes).toContain("\x1b[O");
+      const created = await invoke<{ id: string }>(terminalChannels.create, {
+        agentKind: "codex",
+        clientId: "codex-1",
+        cols: 80,
+        command: "codex",
+        cwd: "/repo",
+        rows: 24,
+      });
 
       pty.onDataHandler?.("working\x1b]9;Approval requested: /bin/zsh -lc 'ls'\x07");
       expect(lastDataEvent()).toMatchObject({
         agentSignal: { state: "needs-you", source: "osc9", detail: "Approval requested: /bin/zsh -lc 'ls'" },
       });
+
+      // Clicking into the terminal and out again still reaches Codex, but it is not an answer.
+      emit(terminalChannels.write, { id: created.id, data: "\x1b[I" });
+      emit(terminalChannels.write, { id: created.id, data: "\x1b[O" });
+      expect(lastDataEvent()).toMatchObject({ agentSignal: { state: "needs-you", source: "osc9" } });
+
+      emit(terminalChannels.write, { id: created.id, data: "y" });
+      expect(lastDataEvent()).toMatchObject({ data: "", agentSignal: null });
+      expect(pty.writes).toEqual(["\x1b[I", "\x1b[O", "y"]);
     });
 
     it("tracks whether a plain terminal has a program in the foreground", async () => {
