@@ -854,6 +854,31 @@ describe("SessionsSurface", () => {
     expect(screen.queryByText("Stale selection")).not.toBeInTheDocument();
   });
 
+  it("moves along the source tabs with the arrow keys and selects one with Enter", async () => {
+    const user = userEvent.setup();
+    const view = renderSurface({ sessions: [managedSession(0)] });
+    const tabs = within(screen.getByRole("tablist", { name: "Source" })).getAllByRole("tab");
+    const [all, fromAlfred, codexCli] = tabs;
+    // The row is one Tab stop: the selected tab.
+    expect(tabs.map((tab) => tab.tabIndex)).toEqual([0, -1, -1]);
+
+    await user.tab();
+    expect(all).toHaveFocus();
+    await user.keyboard("{ArrowLeft}");
+    expect(codexCli).toHaveFocus();
+    await user.keyboard("{ArrowRight}");
+    expect(all).toHaveFocus();
+    await user.keyboard("{End}");
+    expect(codexCli).toHaveFocus();
+    await user.keyboard("{Home}{ArrowRight}");
+    expect(fromAlfred).toHaveFocus();
+    expect(view.getState().source).toBe("all");
+
+    await user.keyboard("{Enter}");
+    expect(view.getState().source).toBe("managed");
+    expect(tabs.map((tab) => tab.tabIndex)).toEqual([-1, 0, -1]);
+  });
+
   it("supports Cmd/Ctrl+F, list navigation, Enter, Escape, and an untrapped Tab path", async () => {
     const user = userEvent.setup();
     const onBackToWork = vi.fn();
@@ -866,8 +891,8 @@ describe("SessionsSurface", () => {
     const listbox = screen.getByRole("listbox", { name: "Session results" });
     const options = within(listbox).getAllByRole("option");
 
-    // Search, the three source tabs, the project scope, refresh, then the list.
-    for (let step = 0; step < 6; step += 1) await user.tab();
+    // From the search field: the selected source tab, the project scope, refresh, then the list.
+    for (let step = 0; step < 4; step += 1) await user.tab();
     expect(listbox).toHaveFocus();
     fireEvent.keyDown(listbox, { key: "End" });
     expect(listbox).toHaveAttribute("aria-activedescendant", options[2]?.id);
