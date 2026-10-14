@@ -13,7 +13,6 @@ import { getDesktopTerminalApi } from "../desktop-api";
 import {
   canRelaunchRestoredSession,
   isGeneratedSessionTitle,
-  sessionInstanceKey,
   type SessionTile,
 } from "../session-state";
 import { isRestartable, sessionState, type LocalTerminalStatus } from "../session-status";
@@ -97,7 +96,6 @@ type TerminalDeskProps = {
   stackHidden: boolean;
   surfaceActive: boolean;
   terminalFocusRequestKey: number;
-  worktreeActionPending: Record<string, WorktreeActionKind | undefined>;
   worktreeDiffReturnFocus: HTMLElement | null;
   worktreeDiffView: WorktreeDiffView | null;
   workspaceGitBranch?: string | undefined;
@@ -108,7 +106,6 @@ type TerminalDeskProps = {
   onAddAgentSession: (kind: Extract<AgentKind, "claude" | "codex">) => void;
   onAddManualSession: () => void;
   onOpenPlan?: (() => void) | undefined;
-  onApplyWorktree: (sessionId: string) => void;
   onCloseSession: (sessionId: string) => void;
   onCloseWorktreeDiff: () => void;
   onContinueRestoredSession: (sessionId: string) => void;
@@ -127,7 +124,6 @@ type TerminalDeskProps = {
   onRenameSession: (sessionId: string, title: string) => void;
   onFocusSession: (sessionId: string) => void;
   onSelectSession: (sessionId: string) => void;
-  onReviewWorktree: (sessionId: string) => void;
   planLine?: ReactNode;
   /** The project preview, when the Preview tab is selected. It takes the terminal's place in the focused box. */
   previewPane?: ReactNode;
@@ -143,7 +139,6 @@ export function TerminalDesk({
   stackHidden,
   surfaceActive,
   terminalFocusRequestKey,
-  worktreeActionPending,
   worktreeDiffReturnFocus,
   worktreeDiffView,
   workspaceGitBranch,
@@ -154,7 +149,6 @@ export function TerminalDesk({
   onAddAgentSession,
   onOpenPlan,
   onAddManualSession,
-  onApplyWorktree,
   onCloseSession,
   onCloseWorktreeDiff,
   onContinueRestoredSession,
@@ -173,7 +167,6 @@ export function TerminalDesk({
   onRenameSession,
   onFocusSession,
   onSelectSession,
-  onReviewWorktree,
   planLine,
   previewPane,
   stackTabs,
@@ -260,14 +253,6 @@ export function TerminalDesk({
           aria-hidden={worktreeDiffView ? "true" : undefined}
           inert={worktreeDiffView ? true : undefined}
         >
-          {focusSession && isReviewableIsolatedCheckout(focusSession) && (
-            <WorktreeActionStrip
-              pendingAction={worktreeActionPending[sessionInstanceKey(focusSession)]}
-              session={focusSession}
-              onApplyWorktree={onApplyWorktree}
-              onReviewWorktree={onReviewWorktree}
-            />
-          )}
           {hasDrafts && focusSession === null && planLine}
           <div className="terminal-grid" data-testid="terminal-grid" ref={gridRef}>
           {liveSessions.length === 0 && (
@@ -361,34 +346,6 @@ export function TerminalDesk({
         )}
       </div>
     </section>
-  );
-}
-
-function WorktreeActionStrip({
-  pendingAction,
-  session,
-  onApplyWorktree,
-  onReviewWorktree,
-}: {
-  pendingAction?: WorktreeActionKind | undefined;
-  session: SessionTile;
-  onApplyWorktree: (sessionId: string) => void;
-  onReviewWorktree: (sessionId: string) => void;
-}) {
-  const disabled = pendingAction !== undefined;
-  return (
-    <div
-      className="terminal-action-strip"
-      role="toolbar"
-      aria-label={`checkout actions for ${session.title}`}
-    >
-      <button type="button" disabled={disabled} onClick={() => onReviewWorktree(session.id)}>
-        {pendingAction === "review" ? "Reviewing..." : "Review diff"}
-      </button>
-      <button type="button" disabled={disabled} onClick={() => onApplyWorktree(session.id)}>
-        {pendingAction === "apply" ? "Applying..." : "Apply to project"}
-      </button>
-    </div>
   );
 }
 
@@ -1475,16 +1432,6 @@ function isIsolatedCheckout({
     workspaceId,
     workspaceRootFingerprint,
   }) || isolation === "worktree";
-}
-
-function isReviewableIsolatedCheckout(
-  session: Pick<
-    SessionTile,
-    "baseCwd" | "branchName" | "isolation" | "workspaceId" | "workspaceRootFingerprint"
-  >,
-): boolean {
-  if (session.isolation === "shared") return false;
-  return hasIsolatedCheckoutMetadata(session);
 }
 
 function isReusableIsolatedCheckoutMetadata({
