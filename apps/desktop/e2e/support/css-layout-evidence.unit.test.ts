@@ -24,9 +24,9 @@ describe("CSS layout evidence support", () => {
     expect(privacySafeScreenshotStyle).not.toContain(".agent-context-essentials");
     expect(privacySafeScreenshotStyle).toContain(".project-row-label");
     expect(privacySafeScreenshotStyle).toContain(".project-session-title");
-    expect(privacySafeScreenshotStyle).toContain(".sessions-result > span");
-    expect(privacySafeScreenshotStyle).toContain(".sessions-reader__breadcrumb > strong");
-    expect(privacySafeScreenshotStyle).toContain(".sessions-reader__breadcrumb > span");
+    expect(privacySafeScreenshotStyle).toContain(".sessions-result > span:not(.session-status-glyph)");
+    expect(privacySafeScreenshotStyle).toContain(".workbench-history-title");
+    expect(privacySafeScreenshotStyle).not.toContain(".sessions-reader__breadcrumb");
     expect(privacySafeScreenshotStyle).toContain(".sessions-transcript > header > *");
     expect(privacySafeScreenshotStyle).not.toContain(".session-observatory-");
     expect(privacySafeScreenshotStyle).not.toContain(".observatory-");
@@ -50,6 +50,7 @@ describe("CSS layout evidence support", () => {
       <span class="session-location-value">/fixture/project</span>
       <span class="workbench-breadcrumb-parent">Fixture project</span>
       <span class="workbench-surface-title">Fixture project</span>
+      <span class="workbench-session-title workbench-history-title" data-private>Private session</span>
       <aside class="session-stack"><span class="session-stack-title" data-private>Private session</span><span class="session-stack-preview" data-private>Private output</span></aside>
       <div class="new-session-prompt"><textarea>fixture prompt</textarea></div>
       <header class="agent-timeline-header"><strong data-private>Private session</strong></header>
@@ -71,12 +72,11 @@ describe("CSS layout evidence support", () => {
         <aside class="sessions-navigator">
           <label class="sessions-navigator__search"><input value="private query"></label>
           <div class="sessions-results">
-            <button class="sessions-result"><span>Fixture session</span></button>
+            <button class="sessions-result"><span class="session-status-glyph"></span><span class="sessions-result__title" data-private>Private session</span><span class="sessions-result__kind">Codex</span><time>9d</time></button>
           </div>
         </aside>
         <main class="sessions-reader">
-          <header class="sessions-reader__toolbar"><nav class="sessions-reader__breadcrumb"><span>Fixture project</span><span>/</span><strong>Fixture session</strong></nav><span class="sessions-reader__toolbar-spacer"></span></header>
-          <article class="sessions-transcript"><header><h1>Fixture session</h1><p>Fixture project</p></header>
+          <article class="sessions-transcript"><header><h1 data-private>Private session</h1><p data-private>Codex worked in private-branch.</p></header>
             <section data-testid="transcript-block"><div>private transcript</div></section>
           </article>
         </main>

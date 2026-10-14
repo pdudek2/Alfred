@@ -25,7 +25,6 @@ describe("SessionsViewState", () => {
       query: "",
       selectedProjectId: "all",
       source: "all",
-      timeRange: "any",
       pageIndex: 0,
       selectedSessionKey: null,
       navigatorScrollTop: 0,

@@ -49,13 +49,14 @@ test("Sessions gates search, privacy, resources, geometry, lifecycle, and xterm 
   const results = sessions.getByRole("listbox", { name: "Session results" });
   await expect(search).toBeFocused();
 
-  await page.getByRole("combobox", { name: "Session source" })
-    .selectOption("external-codex");
+  await sessions.getByRole("tab", { name: "Codex CLI" }).click();
   await expect(results.getByRole("option")).toHaveCount(12);
   expect(await page.locator(".sessions-result").count()).toBeLessThanOrEqual(80);
   const mappedSession = results.getByRole("option", { name: /Mapped resumable session 01/i });
   await expect(mappedSession.locator(":scope > span:not([class])")).toHaveCount(0);
-  await expect(mappedSession.locator("time small")).toContainText("20 Jul 2026");
+  await expect(mappedSession.locator("time")).toHaveAttribute("title", /20 Jul 2026/);
+  await expect(mappedSession).toContainText("Codex CLI");
+  await expect(mappedSession.getByLabel("status done")).toBeVisible();
 
   await search.fill("Free chat");
   await expect(results.getByRole("option")).toHaveCount(3);

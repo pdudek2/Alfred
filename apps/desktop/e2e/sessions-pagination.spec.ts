@@ -27,14 +27,16 @@ test("Sessions exposes all 120 external summaries through bounded UI pages and l
   await selectSurface(page, "History");
   const sessions = page.getByRole("region", { name: "History" });
   const results = sessions.getByRole("listbox", { name: "Session results" });
-  await page.getByRole("combobox", { name: "Session source" })
-    .selectOption("external-codex");
+  await sessions.getByRole("tab", { name: "Codex CLI" }).click();
 
   await expect(sessions.getByRole("status")).toHaveText("120");
   await expect(results.getByRole("option")).toHaveCount(80);
-  const absoluteTimes = results.locator(".sessions-navigator__result-meta time small");
-  await expect(absoluteTimes).toHaveCount(80);
-  expect(new Set((await absoluteTimes.allTextContents()).slice(0, 10)).size).toBe(10);
+  // A row shows a short age; the exact moment stays on the element for hover and for machines.
+  const times = results.locator("time");
+  await expect(times).toHaveCount(80);
+  const moments = await times.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("datetime")));
+  expect(new Set(moments.slice(0, 10)).size).toBe(10);
+  await expect(times.first()).toHaveAttribute("title", /20 Jul 2026/);
   for (const viewport of [
     { width: 1440, height: 900 },
     { width: 1120, height: 720 },

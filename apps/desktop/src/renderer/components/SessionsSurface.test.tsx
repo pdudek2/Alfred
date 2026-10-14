@@ -153,22 +153,51 @@ afterEach(() => {
 });
 
 describe("SessionsSurface", () => {
-  it("uses Sessions vocabulary and gives each result a useful date without repeating its title", () => {
+  it("draws one line per session, grouped by day, with its state glyph, kind and a short age", () => {
+    const day = 24 * 60 * 60_000;
     renderSurface({
       externalSessions: [externalSession(0, {
         title: "Review Alfred navigation",
         snippet: "Review Alfred navigation",
-        updatedAt: new Date(2026, 6, 20, 12, 15).getTime(),
+        updatedAt: Date.now() - 3 * day,
+      })],
+      sessions: [managedSession(1, {
+        title: "Parked refactor",
+        runtimeStatus: "restored",
+        createdAt: Date.now() - 20 * day,
       })],
     });
 
     const navigator = screen.getByRole("complementary", { name: "History" });
-    expect(within(navigator).getByText("History", { selector: "strong" })).toBeVisible();
+    // The rail owns the way back and the surface name; the list starts at the search field.
+    expect(within(navigator).queryByRole("button", { name: "Back to Work" })).not.toBeInTheDocument();
+    expect(within(navigator).queryByText("History", { selector: "strong" })).not.toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Session count" })).toHaveTextContent("2");
+    expect(screen.getByRole("searchbox", { name: "Search sessions" })).toHaveAttribute("placeholder", "Search sessions");
+
+    const results = screen.getByRole("listbox", { name: "Session results" });
+    const thisWeek = within(within(results).getByRole("group", { name: "This week" })).getByRole("option");
+    expect(within(thisWeek).getAllByText("Review Alfred navigation")).toHaveLength(1);
+    expect(thisWeek).toHaveTextContent("Codex CLI");
+    expect(thisWeek).toHaveTextContent(/3d$/);
+    expect(within(thisWeek).getByLabelText("status done")).toBeInTheDocument();
+
+    const earlier = within(within(results).getByRole("group", { name: "Earlier" })).getByRole("option");
+    expect(earlier).toHaveTextContent("Parked refactor");
+    expect(earlier).toHaveTextContent(/Codex2w$/);
+    expect(within(earlier).getByLabelText("status asleep")).toBeInTheDocument();
+    expect(within(results).queryByRole("group", { name: "Today" })).not.toBeInTheDocument();
+  });
+
+  it("leaves drafts out of the archive: a plan item has not run", () => {
+    const { runtimeStatus: _neverStarted, ...draft } = managedSession(1, { title: "Only planned", stage: "staged" });
+    renderSurface({
+      sessions: [managedSession(0, { title: "Ran once" }), draft],
+    });
+
+    expect(screen.getByRole("option", { name: /Ran once/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Only planned/ })).not.toBeInTheDocument();
     expect(screen.getByRole("status", { name: "Session count" })).toHaveTextContent("1");
-    expect(screen.getByRole("searchbox", { name: "Search sessions" })).toHaveAttribute("placeholder", "Search sessions…");
-    const result = within(screen.getByRole("listbox", { name: "Session results" })).getByRole("option");
-    expect(within(result).getAllByText("Review Alfred navigation")).toHaveLength(1);
-    expect(result).toHaveTextContent("20 Jul 2026, 12:15");
   });
 
   it("integrates project scope into Conversations without a second project rail", async () => {
@@ -193,7 +222,7 @@ describe("SessionsSurface", () => {
 
     expect(screen.queryByRole("navigation", { name: "Projects" })).not.toBeInTheDocument();
     const projectScope = screen.getByRole("combobox", { name: "Project scope" });
-    expect(within(projectScope).getByRole("option", { name: "All projects" })).toBeInTheDocument();
+    expect(within(projectScope).getByRole("option", { name: "all projects" })).toBeInTheDocument();
     expect(within(projectScope).getByRole("option", { name: "ClientApp" })).toBeInTheDocument();
     expect(within(projectScope).getByRole("option", { name: "Free Chats" })).toBeInTheDocument();
     expect(within(projectScope).queryByRole("option", { name: "Project 99" })).not.toBeInTheDocument();
@@ -208,31 +237,32 @@ describe("SessionsSurface", () => {
     expect(within(screen.getByRole("listbox", { name: "Session results" })).queryByRole("heading", { name: "ClientApp" })).not.toBeInTheDocument();
   });
 
-  it("uses compact labelled selects for source and time without changing filter state", async () => {
+  it("switches source with the canvas tabs and offers no time filter", async () => {
     const user = userEvent.setup();
     const view = renderSurface({
       sessions: [managedSession(0)],
       externalSessions: [externalSession(0)],
     });
 
-    expect(screen.queryByRole("group", { name: "Session source" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("group", { name: "Session time range" })).not.toBeInTheDocument();
+    const tabs = screen.getByRole("tablist", { name: "Source" });
+    expect(within(tabs).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["All", "From Alfred", "Codex CLI"]);
+    expect(within(tabs).getByRole("tab", { name: "All" })).toHaveAttribute("aria-selected", "true");
+    // Day groups replace the time filter, and the source choice is no longer a select.
+    expect(screen.queryByRole("combobox", { name: "Session source" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Session time range" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("listbox", { name: "Session results" })).getAllByRole("option")).toHaveLength(2);
 
-    const source = screen.getByRole("combobox", { name: "Session source" });
-    const timeRange = screen.getByRole("combobox", { name: "Session time range" });
-    expect(screen.getByRole("region", { name: "History" }))
-      .toHaveAttribute("data-secondary-chrome-height", "52");
-    expect(within(source).getByRole("option", { name: "All sources" })).toBeInTheDocument();
-    expect(within(source).getByRole("option", { name: "From Alfred" })).toBeInTheDocument();
-    expect(within(source).getByRole("option", { name: "Codex CLI" })).toBeInTheDocument();
-    expect(within(timeRange).getByRole("option", { name: "Any time" })).toBeInTheDocument();
-
-    await user.selectOptions(source, "external-codex");
-    await user.selectOptions(timeRange, "week");
-
+    await user.click(within(tabs).getByRole("tab", { name: "Codex CLI" }));
     expect(view.getState().source).toBe("external-codex");
-    expect(view.getState().timeRange).toBe("week");
     expect(view.getState().pageIndex).toBe(0);
+    expect(within(tabs).getByRole("tab", { name: "Codex CLI" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("option", { name: /External session 0/ })).toBeVisible();
+    expect(screen.queryByRole("option", { name: /Atlas navigator/ })).not.toBeInTheDocument();
+
+    await user.click(within(tabs).getByRole("tab", { name: "From Alfred" }));
+    expect(view.getState().source).toBe("managed");
+    expect(screen.getByRole("option", { name: /Atlas navigator/ })).toBeVisible();
+    expect(screen.queryByRole("option", { name: /External session 0/ })).not.toBeInTheDocument();
   });
 
   it("preserves an included selection and chooses the first result only after scope excludes it", async () => {
@@ -353,9 +383,12 @@ describe("SessionsSurface", () => {
 
     await user.click(screen.getByRole("option", { name: /Resume the Alfred redesign/ }));
     expect(await screen.findByText("Ready to resume")).toBeInTheDocument();
-    const breadcrumb = screen.getByRole("navigation", { name: "Session breadcrumb" });
-    expect(breadcrumb).toHaveTextContent("Alfred");
-    expect(breadcrumb).toHaveTextContent("Resume the Alfred redesign");
+    const article = screen.getByRole("article", { name: "Resume the Alfred redesign" });
+    expect(within(article).getByRole("heading", { level: 1 })).toHaveTextContent("Resume the Alfred redesign");
+    expect(article).toHaveTextContent("Codex CLI session in Alfred. Last active just now.");
+    expect(within(article).getByRole("region", { name: "Transcript" })).toHaveTextContent("Ready to resume");
+    // The breadcrumb is the top bar's job now; the reader does not repeat it.
+    expect(screen.queryByRole("navigation", { name: "Session breadcrumb" })).not.toBeInTheDocument();
     expect(screen.queryByRole("complementary", { name: "Run details" })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Run details" })).not.toBeInTheDocument();
 
@@ -741,7 +774,7 @@ describe("SessionsSurface", () => {
     expect(within(reader).getByText("Codex history couldn't be loaded")).toBeInTheDocument();
     expect(screen.queryByText("No sessions found.")).not.toBeInTheDocument();
 
-    await user.click(within(reader).getByRole("button", { name: "Start new work" }));
+    await user.click(within(reader).getByRole("button", { name: "Go to Deck" }));
     expect(onBackToWork).toHaveBeenCalledOnce();
   });
 
@@ -833,10 +866,8 @@ describe("SessionsSurface", () => {
     const listbox = screen.getByRole("listbox", { name: "Session results" });
     const options = within(listbox).getAllByRole("option");
 
-    await user.tab();
-    await user.tab();
-    await user.tab();
-    await user.tab();
+    // Search, the three source tabs, the project scope, refresh, then the list.
+    for (let step = 0; step < 6; step += 1) await user.tab();
     expect(listbox).toHaveFocus();
     fireEvent.keyDown(listbox, { key: "End" });
     expect(listbox).toHaveAttribute("aria-activedescendant", options[2]?.id);
@@ -847,9 +878,9 @@ describe("SessionsSurface", () => {
     await waitFor(() => expect(screen.getByRole("article", { name: /Managed session 1/ })).toBeInTheDocument());
 
     await user.tab();
-    expect(screen.getByRole("button", { name: "Run details" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Reveal in Deck" })).toHaveFocus();
     await user.tab();
-    expect(screen.getByRole("button", { name: "Reveal in Work" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Run details" })).toHaveFocus();
     expect(view.getState().focusTarget).toBe("reader");
 
     fireEvent.keyDown(window, { key: "f", metaKey: true });
@@ -910,9 +941,9 @@ describe("SessionsSurface", () => {
     });
 
     await user.click(screen.getByRole("option", { name: /Live managed/ }));
-    await user.click(screen.getByRole("button", { name: "Reveal in Work" }));
+    await user.click(screen.getByRole("button", { name: "Reveal in Deck" }));
     expect(onPrimaryAction).toHaveBeenLastCalledWith(expect.objectContaining({
-      action: { kind: "reveal", label: "Reveal in Work" },
+      action: { kind: "reveal", label: "Reveal in Deck" },
       target: { workspaceId: "A", sessionId: "managed-0" },
     }));
 
@@ -1022,16 +1053,77 @@ describe("SessionsSurface", () => {
 
     await user.click(screen.getByRole("option", { name: /Atlas navigator/ }));
 
-    expect(screen.queryByRole("button", { name: "Reveal in Work" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reveal in Deck" })).not.toBeInTheDocument();
   });
 
-  it("restores scroll offsets and marks reduced motion without making transcript live", async () => {
-    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({
-      matches: true,
-      media: "(prefers-reduced-motion: reduce)",
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
+  it("lays the reader out as on the canvas: title, one sentence, actions, then the session's text", async () => {
+    const user = userEvent.setup();
+    renderSurface({
+      onApplyWorktree: vi.fn(),
+      onDiscardSavedSession: vi.fn(),
+      onReviewWorktree: vi.fn(),
+      sessions: [managedSession(0, {
+        title: "Oracle memory schema v2",
+        runtimeStatus: "restored",
+        isolation: "worktree",
+        branchName: "wt/oracle-v2",
+        baseCwd: "/Users/patryk/Desktop/Alfred",
+        initialBuffer: "asleep output",
+        createdAt: Date.now() - 9 * 24 * 60 * 60_000,
+      })],
+    });
+
+    await user.click(screen.getByRole("option", { name: /Oracle memory schema v2/ }));
+    const article = await screen.findByRole("article", { name: "Oracle memory schema v2" });
+    expect(within(article).getByRole("heading", { level: 1 })).toHaveTextContent("Oracle memory schema v2");
+    expect(article).toHaveTextContent("Codex worked in wt/oracle-v2. Asleep for 9 days.");
+
+    expect(within(article).getByRole("button", { name: "Resume" })).toHaveClass("sessions-reader__primary");
+    const actions = within(article).getByRole("toolbar", { name: "Asleep checkout actions" });
+    expect(within(actions).getAllByRole("button").map((button) => button.textContent))
+      .toEqual(["Review diff", "Apply to Alfred", "Discard"]);
+
+    // Alfred keeps no per-command record, so the session's own text stands where the canvas lists commands.
+    const scrollback = within(article).getByRole("region", { name: "Scrollback" });
+    expect(scrollback).toHaveTextContent("asleep output");
+    expect(within(scrollback).getByRole("button", { name: "Run details" })).toBeInTheDocument();
+  });
+
+  it("opens a session that was selected from outside, such as the deck's Asleep line", async () => {
+    renderSurface(
+      {
+        sessions: [
+          managedSession(0),
+          managedSession(1, { title: "Parked refactor", runtimeStatus: "restored", initialBuffer: "asleep output" }),
+        ],
+      },
+      { ...createInitialSessionsViewState(), selectedSessionKey: "managed:managed-1" },
+    );
+
+    expect(await screen.findByRole("article", { name: "Parked refactor" })).toHaveTextContent("asleep output");
+    expect(screen.getByRole("option", { name: /Parked refactor/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("reports the open session and its state to the top bar, and clears it on the way out", async () => {
+    const user = userEvent.setup();
+    const onSelectionChange = vi.fn();
+    const view = renderSurface({
+      onSelectionChange,
+      sessions: [managedSession(0, { runtimeStatus: "restored", initialBuffer: "asleep output" })],
+    });
+    expect(onSelectionChange).toHaveBeenLastCalledWith(null);
+
+    await user.click(screen.getByRole("option", { name: /Atlas navigator/ }));
+    await waitFor(() => expect(onSelectionChange).toHaveBeenLastCalledWith({
+      title: "Atlas navigator",
+      status: { kind: "asleep", label: "asleep" },
     }));
+
+    view.unmount();
+    expect(onSelectionChange).toHaveBeenLastCalledWith(null);
+  });
+
+  it("restores scroll offsets without making the transcript live", async () => {
     const state: SessionsViewState = {
       ...createInitialSessionsViewState(),
       selectedSessionKey: "managed:managed-0",
@@ -1044,7 +1136,6 @@ describe("SessionsSurface", () => {
     renderSurface({ sessions: [managedSession(0)] }, state);
 
     const surface = screen.getByRole("region", { name: "History" });
-    expect(surface).toHaveClass("sessions-surface--reduced-motion");
     expect(screen.getByRole("listbox", { name: "Session results" })).toHaveProperty("scrollTop", 70);
     expect(surface.querySelector(".sessions-reader__scroll")).toHaveProperty("scrollTop", 90);
     expect(screen.getByRole("article", { name: /Atlas/ })).not.toHaveAttribute("aria-live");

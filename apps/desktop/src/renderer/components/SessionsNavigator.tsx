@@ -1,14 +1,23 @@
-import { ChevronLeft, RefreshCcw, Search } from "lucide-react";
+import { ChevronDown, RefreshCcw, Search } from "lucide-react";
 import type { ChangeEvent, KeyboardEvent, RefObject } from "react";
 import {
   SESSIONS_PAGE_SIZE,
   type SessionSummary,
   type SessionsProjectInput,
 } from "../../shared/sessions-ipc";
+import { historyKindLabel } from "../history-presentation";
 import type { SessionsProjectionPage } from "../sessions-projection";
 import { isFreeChatPath } from "../session-scope";
+import type { SessionDisplayStatus } from "../session-status";
 import type { SessionsViewState } from "../sessions-view-state";
-import { sessionAgeLabel, sessionDateTimeLabel } from "../session-time";
+import { historyDayGroup, sessionAgeShort, sessionDateTimeLabel, type HistoryDayGroup } from "../session-time";
+import { SessionStatusGlyph } from "./SessionStatusGlyph";
+
+const SOURCE_TABS: ReadonlyArray<{ id: SessionsViewState["source"]; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "managed", label: "From Alfred" },
+  { id: "external-codex", label: "Codex CLI" },
+];
 
 type SessionsNavigatorProps = {
   activeSessionKey: string | null;
@@ -16,14 +25,15 @@ type SessionsNavigatorProps = {
   externalSessionsError: string | null;
   loadingExternalSessions: boolean;
   navigatorRef: RefObject<HTMLDivElement | null>;
+  now: number;
   projection: SessionsProjectionPage;
   projectCounts: Record<string, number>;
   searchRef: RefObject<HTMLInputElement | null>;
   showControls: boolean;
   state: SessionsViewState;
+  statusByKey: ReadonlyMap<string, SessionDisplayStatus>;
   workspaces: SessionsProjectInput[];
   onActiveSessionKeyChange: (sessionKey: string | null) => void;
-  onBackToWork: () => void;
   onOpenPrivacySettings: (() => void) | undefined;
   onRefreshExternalSessions: () => void;
   onSelectSession: (session: SessionSummary) => void;
@@ -32,20 +42,22 @@ type SessionsNavigatorProps = {
   onStatePatch: (patch: Partial<SessionsViewState>) => void;
 };
 
+/** The History list from the v4 canvas: search, source tabs, then one line per session, grouped by day. */
 export function SessionsNavigator({
   activeSessionKey,
   externalSessionIndexingEnabled,
   externalSessionsError,
   loadingExternalSessions,
   navigatorRef,
+  now,
   projection,
   projectCounts,
   searchRef,
   showControls,
   state,
+  statusByKey,
   workspaces,
   onActiveSessionKeyChange,
-  onBackToWork,
   onOpenPrivacySettings,
   onRefreshExternalSessions,
   onSelectSession,
@@ -61,10 +73,20 @@ export function SessionsNavigator({
       ? "—"
     : String(projection.total);
   const hasNextPage = (state.pageIndex + 1) * SESSIONS_PAGE_SIZE < projection.total;
+  // A project is offered while it has sessions of its own; one rooted in the free chats folder only
+  // while it is the scope the deck opened.
   const projectOptions = workspaces.filter((workspace) => (
-    (!isFreeChatsWorkspace(workspace) || (state.source === "saved" && state.selectedProjectId === workspace.id))
-    && ((projectCounts[workspace.id] ?? 0) > 0 || state.selectedProjectId === workspace.id)
+    state.selectedProjectId === workspace.id
+    || (!isFreeChatsWorkspace(workspace) && (projectCounts[workspace.id] ?? 0) > 0)
   ));
+  // The list is sorted by time, so each day group is one run of rows. Indexes stay those of the flat list.
+  const dayGroups: Array<{ label: HistoryDayGroup; rows: Array<{ session: SessionSummary; index: number }> }> = [];
+  projection.items.forEach((session, index) => {
+    const label = historyDayGroup(session.updatedAt, now);
+    const current = dayGroups.at(-1);
+    if (current?.label === label) current.rows.push({ session, index });
+    else dayGroups.push({ label, rows: [{ session, index }] });
+  });
 
   const handleListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (projection.items.length === 0) return;
@@ -92,99 +114,76 @@ export function SessionsNavigator({
 
   return (
     <aside className="sessions-navigator" aria-label="History">
-      <header className="sessions-navigator__heading">
-        <button type="button" aria-label="Back to Work" onClick={onBackToWork}>
-          <ChevronLeft aria-hidden="true" size={15} />
-        </button>
-        <strong>History</strong>
-        <span aria-hidden="true">/</span>
-        <div className="sessions-navigator__scope" role="group" aria-label="Session scope controls">
-          <select
-            aria-label="Project scope"
-            value={state.selectedProjectId}
-            onChange={(event) => onSelectProject(event.target.value)}
-          >
-            <option value="all">All projects</option>
-            {projectOptions.map((workspace) => (
-              <option key={workspace.id} value={workspace.id}>{workspace.label}</option>
-            ))}
-            <option value="free-chats">Free Chats</option>
-          </select>
-          <span
-            aria-label="Session count"
-            aria-live="polite"
-            aria-atomic="true"
-            role="status"
-          >{resultStatus}</span>
-        </div>
-      </header>
       {showControls && (
         <>
           <label className="sessions-navigator__search">
-            <Search aria-hidden="true" size={15} />
+            <Search aria-hidden="true" size={13} />
             <input
               ref={searchRef}
               type="search"
               aria-label="Search sessions"
-              placeholder="Search sessions…"
+              placeholder="Search sessions"
               value={state.query}
               onChange={(event: ChangeEvent<HTMLInputElement>) => onStatePatch({ query: event.target.value, pageIndex: 0 })}
               onFocus={() => onFocusTargetChange("search")}
             />
           </label>
           <div className="sessions-navigator__filters">
-            <label>
-              <span className="visually-hidden">Session source</span>
-              <select
-                aria-label="Session source"
-                value={state.source}
-                onChange={(event) => onStatePatch({
-                  source: event.target.value as SessionsViewState["source"],
-                  pageIndex: 0,
-                })}
-              >
-                <option value="all">All sources</option>
-                <option value="managed">From Alfred</option>
-                <option value="saved">Asleep</option>
-                <option value="external-codex">Codex CLI</option>
-              </select>
-            </label>
-            <label>
-              <span className="visually-hidden">Session time range</span>
-              <select
-                aria-label="Session time range"
-                value={state.timeRange}
-                onChange={(event) => onStatePatch({
-                  timeRange: event.target.value as SessionsViewState["timeRange"],
-                  pageIndex: 0,
-                })}
-              >
-                <option value="any">Any time</option>
-                <option value="day">Day</option>
-                <option value="week">Week</option>
-                <option value="month">Month</option>
-              </select>
-            </label>
-            <button
-              type="button"
-              aria-label="Refresh external sessions"
-              disabled={!externalSessionIndexingEnabled || loadingExternalSessions}
-              onClick={onRefreshExternalSessions}
-            >
-              <RefreshCcw aria-hidden="true" size={14} />
-            </button>
+            <div className="sessions-navigator__tabs text-tabs" role="tablist" aria-label="Source">
+              {SOURCE_TABS.map((tab) => (
+                <button
+                  type="button"
+                  role="tab"
+                  key={tab.id}
+                  aria-selected={state.source === tab.id}
+                  onClick={() => onStatePatch({ source: tab.id, pageIndex: 0 })}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            {/* The canvas reads "41 in Alfred": the count, then the project the list is scoped to. */}
+            <div className="sessions-navigator__scope" role="group" aria-label="Session scope controls">
+              <span aria-label="Session count" aria-live="polite" aria-atomic="true" role="status">{resultStatus}</span>
+              <span aria-hidden="true">in</span>
+              <label className="sessions-navigator__project">
+                <select
+                  aria-label="Project scope"
+                  value={state.selectedProjectId}
+                  onChange={(event) => onSelectProject(event.target.value)}
+                >
+                  <option value="all">all projects</option>
+                  {projectOptions.map((workspace) => (
+                    <option key={workspace.id} value={workspace.id}>{workspace.label}</option>
+                  ))}
+                  <option value="free-chats">Free Chats</option>
+                </select>
+                <ChevronDown aria-hidden="true" size={11} />
+              </label>
+              {externalSessionIndexingEnabled && (
+                <button
+                  type="button"
+                  aria-label="Refresh external sessions"
+                  title="Refresh Codex CLI sessions"
+                  disabled={loadingExternalSessions}
+                  onClick={onRefreshExternalSessions}
+                >
+                  <RefreshCcw aria-hidden="true" size={12} />
+                </button>
+              )}
+            </div>
           </div>
         </>
       )}
 
       {!externalSessionIndexingEnabled && projection.items.length > 0 && (
         <p className="sessions-navigator__notice">
-          <strong>External Codex indexing is off.</strong>
+          <span>External Codex indexing is off.</span>
           {onOpenPrivacySettings && <button type="button" onClick={onOpenPrivacySettings}>Open Local Data &amp; Privacy</button>}
         </p>
       )}
       {externalSessionIndexingEnabled && externalSessionsError && projection.items.length > 0 && (
-        <p className="sessions-navigator__notice"><strong>External sessions may be incomplete.</strong><span>{externalSessionsError}</span></p>
+        <p className="sessions-navigator__notice"><span>External sessions may be incomplete.</span><span>{externalSessionsError}</span></p>
       )}
       <div
         ref={navigatorRef}
@@ -197,35 +196,39 @@ export function SessionsNavigator({
         onKeyDown={handleListKeyDown}
         onScroll={(event) => onStatePatch({ navigatorScrollTop: event.currentTarget.scrollTop })}
       >
-        {projection.items.map((session, index) => (
-          <button
-            type="button"
-            role="option"
-            id={optionDomId(index)}
-            aria-selected={state.selectedSessionKey === session.sessionKey}
-            className={index === activeIndex ? "sessions-result active" : "sessions-result"}
-            key={session.sessionKey}
-            tabIndex={-1}
-            onClick={() => {
-              onActiveSessionKeyChange(session.sessionKey);
-              onSelectSession(session);
-            }}
-          >
-            <span className="sessions-navigator__result-title">
-              <strong>{session.title}</strong>
-            </span>
-            {session.snippet && <span>{session.snippet}</span>}
-            <span className="sessions-navigator__result-meta">
-              <b>{session.kind === "manual" ? "Manual" : session.kind === "claude" ? "Claude" : "Codex"}</b>
-              <span>{session.branch ?? session.locationLabel}</span>
-              {(session.delegatedRunCount ?? 0) > 0 && <em>{session.delegatedRunCount} delegated</em>}
-              <time dateTime={new Date(session.updatedAt).toISOString()}>
-                <span>{sessionAgeLabel(session.updatedAt)}</span>
-                <span aria-hidden="true">·</span>
-                <small>{sessionDateTimeLabel(session.updatedAt)}</small>
-              </time>
-            </span>
-          </button>
+        {dayGroups.map((group) => (
+          <div className="sessions-results__day" role="group" aria-label={group.label} key={group.label}>
+            <div className="sessions-results__day-label" aria-hidden="true">{group.label}</div>
+            {group.rows.map(({ session, index }) => {
+              const status = statusByKey.get(session.sessionKey);
+              return (
+                <button
+                  type="button"
+                  role="option"
+                  id={optionDomId(index)}
+                  aria-selected={state.selectedSessionKey === session.sessionKey}
+                  className={index === activeIndex ? "sessions-result active" : "sessions-result"}
+                  key={session.sessionKey}
+                  tabIndex={-1}
+                  onClick={() => {
+                    onActiveSessionKeyChange(session.sessionKey);
+                    onSelectSession(session);
+                  }}
+                >
+                  {status && <SessionStatusGlyph kind={status.kind} label={status.label} />}
+                  <span className="sessions-result__title">{session.title}</span>
+                  <span className="sessions-result__kind">{historyKindLabel(session)}</span>
+                  <time
+                    className="sessions-result__age"
+                    dateTime={new Date(session.updatedAt).toISOString()}
+                    title={sessionDateTimeLabel(session.updatedAt) ?? undefined}
+                  >
+                    {sessionAgeShort(session.updatedAt, now)}
+                  </time>
+                </button>
+              );
+            })}
+          </div>
         ))}
       </div>
       {state.selectedProjectId === "all" && projection.technicalRunCount > 0 && (
