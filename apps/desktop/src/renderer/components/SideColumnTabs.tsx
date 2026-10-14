@@ -1,4 +1,5 @@
 import type { Ref } from "react";
+import { moveTabFocus } from "../tab-keys";
 import "./side-column-tabs.css";
 
 type SideColumnTabsProps = {
@@ -12,8 +13,14 @@ type SideColumnTabsProps = {
 export function SideColumnTabs({ detailsOpen, detailsTabRef, shortcutModifier, onToggleDetails }: SideColumnTabsProps) {
   return (
     <div className="side-column-tabs">
-      <div className="text-tabs" role="tablist" aria-label="Side column">
-        <button type="button" role="tab" aria-selected={!detailsOpen} onClick={detailsOpen ? onToggleDetails : undefined}>
+      <div className="text-tabs" role="tablist" aria-label="Side column" onKeyDown={moveTabFocus}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!detailsOpen}
+          tabIndex={detailsOpen ? -1 : 0}
+          onClick={detailsOpen ? onToggleDetails : undefined}
+        >
           Sessions
         </button>
         <button
@@ -21,6 +28,7 @@ export function SideColumnTabs({ detailsOpen, detailsTabRef, shortcutModifier, o
           type="button"
           role="tab"
           aria-selected={detailsOpen}
+          tabIndex={detailsOpen ? 0 : -1}
           aria-keyshortcuts={shortcutModifier === "Cmd" ? "Meta+i" : "Control+i"}
           onClick={detailsOpen ? undefined : onToggleDetails}
         >

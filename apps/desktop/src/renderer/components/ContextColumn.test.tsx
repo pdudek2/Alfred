@@ -107,6 +107,27 @@ describe("Details tab", () => {
     await waitFor(() => expect(stackDetailsTab).toHaveFocus());
   });
 
+  it("moves between its tabs with the arrow keys without closing", () => {
+    const onCloseContext = vi.fn();
+    renderContext({ contextOpen: true, onCloseContext });
+    const sessions = screen.getByRole("tab", { name: "Sessions" });
+    const details = screen.getByRole("tab", { name: "Details" });
+    // The row is one Tab stop: the selected tab.
+    expect([sessions.tabIndex, details.tabIndex]).toEqual([-1, 0]);
+
+    details.focus();
+    fireEvent.keyDown(details, { key: "ArrowLeft" });
+    expect(sessions).toHaveFocus();
+    fireEvent.keyDown(sessions, { key: "ArrowLeft" });
+    expect(details).toHaveFocus();
+    fireEvent.keyDown(details, { key: "Home" });
+    expect(sessions).toHaveFocus();
+    // A modified arrow belongs to someone else.
+    fireEvent.keyDown(sessions, { key: "ArrowRight", metaKey: true });
+    expect(sessions).toHaveFocus();
+    expect(onCloseContext).not.toHaveBeenCalled();
+  });
+
   it("closes on Escape and restores focus to the Details trigger", async () => {
     const trigger = document.createElement("button");
     document.body.append(trigger);
