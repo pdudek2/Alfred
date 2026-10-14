@@ -3,8 +3,8 @@ import type { TranscriptPage } from "../shared/sessions-ipc";
 export type SessionsViewState = {
   query: string;
   selectedProjectId: string;
-  source: "all" | "managed" | "saved" | "external-codex";
-  timeRange: "any" | "day" | "week" | "month";
+  /** The canvas tabs: All, From Alfred, Codex CLI. */
+  source: "all" | "managed" | "external-codex";
   pageIndex: number;
   selectedSessionKey: string | null;
   navigatorScrollTop: number;
@@ -19,7 +19,6 @@ export function createInitialSessionsViewState(): SessionsViewState {
     query: "",
     selectedProjectId: "all",
     source: "all",
-    timeRange: "any",
     pageIndex: 0,
     selectedSessionKey: null,
     navigatorScrollTop: 0,

@@ -17,9 +17,9 @@ export const privacySafeScreenshotSelectors = [
   ".workbench-surface-title",
   ".project-session-title",
   ".sessions-navigator__search input",
-  ".sessions-result > span",
-  ".sessions-reader__breadcrumb > strong",
-  ".sessions-reader__breadcrumb > span",
+  // The state glyph is not text; masking it would erase the row's state from the evidence.
+  ".sessions-result > span:not(.session-status-glyph)",
+  ".workbench-history-title",
   ".sessions-transcript > header > *",
   ":is(.sessions-transcript [data-testid='transcript-block'], .sessions-transcript [data-testid='transcript-block'] *)",
   ".command-palette-list button small",

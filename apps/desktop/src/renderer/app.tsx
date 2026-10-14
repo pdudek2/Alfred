@@ -76,7 +76,8 @@ import {
   type SessionTile,
 } from "./session-state";
 import { nextApprovalRevealAt, sessionState } from "./session-status";
-import { createInitialSessionsViewState, type SessionsViewState } from "./sessions-view-state";
+import type { HistorySelection } from "./history-presentation";
+import { createInitialSessionsViewState } from "./sessions-view-state";
 import {
   recordPreviewUrlsFromText,
   removePreviewSessionCandidates,
@@ -186,6 +187,13 @@ export function App() {
   const [desktopSaveStatus, setDesktopSaveStatus] = useState<DesktopSaveStatus>({ status: "saved" });
   const [activeSurface, setActiveSurface] = useState<PrimarySurface>("work");
   const [sessionsViewState, setSessionsViewState] = useState(createInitialSessionsViewState);
+  const [historySelection, setHistorySelection] = useState<HistorySelection | null>(null);
+  // History reports its selection on every state tick; keep the same object while nothing visible changed.
+  const handleHistorySelectionChange = useCallback((next: HistorySelection | null) => {
+    setHistorySelection((current) => (
+      current?.title === next?.title && current?.status.kind === next?.status.kind ? current : next
+    ));
+  }, []);
   const [workspaceHydrationStatus, setWorkspaceHydrationStatus] = useState<WorkspaceHydrationStatus>({
     status: "loading",
   });
@@ -294,6 +302,8 @@ export function App() {
   const activeSelectedSession =
     activeWorkSessions.find((session) => session.id === activeSelectedSessionId) ?? activeTerminalSessions[0] ?? null;
   const activeContextDrawerOpen = contextDrawerOpenByWorkspace[activeWorkspace.id] ?? false;
+  // Details describes the deck's focused session. History has its own reader and no side column.
+  const detailsVisible = activeContextDrawerOpen && activeSurface === "work";
   const canCloseActiveWorkspace =
     activeWorkspace.id !== DEFAULT_WORKSPACE_ID && workspaces.length > 1 && activeSessions.length === 0;
   const unavailableWorkspaceIds = new Set(
@@ -636,6 +646,7 @@ export function App() {
   }, [activeContextDrawerOpen, activeWorkspace.id]);
 
   const handleOpenContextFromCommandPalette = useCallback(() => {
+    setActiveSurface("work");
     contextReturnFocusRef.current = commandPaletteTriggerRef.current;
     setNeedsYouOpen(false);
     contextFocusRequestKeyRef.current += 1;
@@ -900,16 +911,17 @@ export function App() {
     });
     handleApplyWorkMode("focus", sessionId);
   }, [activeWorkspace.id, handleApplyWorkMode, showTerminalInWorkspace]);
-  const openProjectHistory = useCallback((source: SessionsViewState["source"]) => {
+  // The deck links to History for this project and for what Alfred ran here: ended sessions can be
+  // resumed too, not only asleep ones.
+  const openProjectHistory = useCallback((selectedSessionKey: string | null = null) => {
     setNeedsYouOpen(false);
     setSessionsViewState((current) => ({
       ...current,
       query: "",
       selectedProjectId: activeWorkspace.id,
-      source,
-      timeRange: "any",
+      source: "managed",
       pageIndex: 0,
-      selectedSessionKey: null,
+      selectedSessionKey,
       navigatorScrollTop: 0,
       readerScrollTop: 0,
       readerPages: [],
@@ -917,9 +929,13 @@ export function App() {
     }));
     setActiveSurface("sessions");
   }, [activeWorkspace.id]);
-  const handleOpenSavedSessions = useCallback(() => openProjectHistory("saved"), [openProjectHistory]);
-  // Sessions to resume include ended ones, not only asleep, so show everything Alfred ran here.
-  const handleOpenRecoveryHistory = useCallback(() => openProjectHistory("managed"), [openProjectHistory]);
+  // The Asleep line lands on the most recent asleep session, with the project's other sessions around it.
+  const handleOpenSavedSessions = useCallback(() => {
+    const at = (session: SessionTile) => session.lastActivityAt ?? session.lastOutputAt ?? session.createdAt ?? 0;
+    const newestAsleep = [...activeSavedSessions].sort((a, b) => at(b) - at(a))[0];
+    openProjectHistory(newestAsleep ? `managed:${newestAsleep.id}` : null);
+  }, [activeSavedSessions, openProjectHistory]);
+  const handleOpenRecoveryHistory = useCallback(() => openProjectHistory(), [openProjectHistory]);
 
   const handleFocusSessionByDelta = useCallback((delta: number) => {
     if (activeTerminalSessions.length === 0) return;
@@ -2323,7 +2339,9 @@ export function App() {
 
       if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === "i") {
         event.preventDefault();
-        if (!newSessionOpen && !workspaceMenuOpen && !pendingDiscardConfirmation) handleToggleContextDrawer();
+        if (activeSurface === "work" && !newSessionOpen && !workspaceMenuOpen && !pendingDiscardConfirmation) {
+          handleToggleContextDrawer();
+        }
         return;
       }
 
@@ -2381,6 +2399,7 @@ export function App() {
     };
   }, [
     activeSelectedSession,
+    activeSurface,
     commandPaletteOpen,
     handleAddManualSession,
     openNewSession,
@@ -2634,6 +2653,7 @@ export function App() {
           <WorkbenchHeader
             activeSurface={activeSurface}
             commandPaletteTriggerRef={commandPaletteTriggerRef}
+            historySelection={historySelection}
             needsYouCount={needsYouCount}
             needsYouOpen={needsYouOpen}
             needsYouTriggerRef={needsYouTriggerRef}
@@ -2700,7 +2720,7 @@ export function App() {
             "workspace-layout",
             `surface-${activeSurface}`,
             activePreviewDockOpen ? "preview-visible" : "",
-            activeContextDrawerOpen ? "context-visible" : "",
+            detailsVisible ? "context-visible" : "",
           ].filter(Boolean).join(" ")}
           inert={newSessionOpen && !commandPaletteOpen && !privacyPanelOpen}
           data-testid="workbench-shell"
@@ -2801,6 +2821,7 @@ export function App() {
                   onDiscardSavedSession={handleCloseSession}
                   onOpenPrivacySettings={handleOpenPrivacyPanel}
                   onPrimaryAction={handleSessionsPrimaryAction}
+                  onSelectionChange={handleHistorySelectionChange}
                   onRefreshExternalSessions={() => void handleRefreshExternalCodexSessions()}
                   onReviewWorktree={handleReviewWorktree}
                   onStateChange={setSessionsViewState}
@@ -2809,7 +2830,7 @@ export function App() {
             )}
           </div>
           <ContextColumn
-            contextOpen={activeContextDrawerOpen}
+            contextOpen={detailsVisible}
             dismissalSuspended={
               commandPaletteOpen ||
               privacyPanelOpen ||
@@ -2828,7 +2849,7 @@ export function App() {
               session: activeInspectedSession,
               projectName: activeWorkspace.label,
               changes: <DetailsChanges
-                open={activeContextDrawerOpen}
+                open={detailsVisible}
                 session={activeInspectedSession}
                 projectName={activeWorkspace.label}
                 pendingAction={activeInspectedSession ? worktreeActionPending[sessionInstanceKey(activeInspectedSession)] : undefined}
