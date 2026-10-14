@@ -2984,8 +2984,8 @@ describe("App integration", () => {
     await selectSurface(user, "Details");
     const activity = await screen.findByRole("region", { name: "Activity" });
 
-    expect(within(activity).getByText("overflow-a")).toBeInTheDocument();
-    expect(within(activity).getByText("overflow-b")).toBeInTheDocument();
+    expect(within(activity).getByText("Ran overflow-a")).toBeInTheDocument();
+    expect(within(activity).getByText("Ran overflow-b")).toBeInTheDocument();
   });
 
   it("preserves live xterm output and instance when args and resume target metadata change", async () => {
@@ -5277,7 +5277,7 @@ describe("App integration", () => {
 
     expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Manual · zsh 1");
     await waitFor(() => {
-      expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Session attached");
+      expect(screen.getByLabelText("Agent activity")).toHaveTextContent("bash is running in …/Desktop/Alfred.");
     });
 
     screen.getByRole("tab", { name: "Details" }).focus();
@@ -5693,7 +5693,7 @@ describe("App integration", () => {
     expect(worktreeDiff).toHaveBeenCalledWith({ clientId: "codex-1" });
     await waitFor(() => {
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Checkout diff reviewed");
-      expect(screen.getByLabelText("Agent activity")).toHaveTextContent("2 changed files");
+      expect(within(screen.getByLabelText("Agent activity")).getByRole("button", { name: /^Copy plan: 2 changed files/ })).toBeInTheDocument();
       expect(screen.getByLabelText("Agent activity")).toHaveTextContent("src/app.tsx");
     });
     await user.click(screen.getByRole("button", { name: "Close diff" }));
@@ -5702,8 +5702,7 @@ describe("App integration", () => {
 
     expect(worktreeApply).toHaveBeenCalledWith({ clientId: "codex-1" });
     await waitFor(() => {
-      expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Applied to project");
-      expect(screen.getByLabelText("Agent activity")).toHaveTextContent("2 files applied");
+      expect(screen.getByLabelText("Agent activity")).toHaveTextContent("2 files applied to the base project.");
     });
   });
 
@@ -5898,8 +5897,7 @@ describe("App integration", () => {
 
     resolveApply({ ok: true, appliedFiles: 1 });
     await waitFor(() => {
-      expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Applied to project");
-      expect(screen.getByLabelText("Agent activity")).toHaveTextContent("1 file applied");
+      expect(screen.getByLabelText("Agent activity")).toHaveTextContent("1 file applied to the base project.");
       expect(within(actions).getByRole("button", { name: "Apply to Alfred" })).not.toBeDisabled();
     });
   });
@@ -5947,8 +5945,7 @@ describe("App integration", () => {
 
     resolveApply({ ok: true, appliedFiles: 1 });
     await waitFor(() => {
-      expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Applied to project");
-      expect(screen.getByLabelText("Agent activity")).toHaveTextContent("1 file applied");
+      expect(screen.getByLabelText("Agent activity")).toHaveTextContent("1 file applied to the base project.");
       expect(screen.getByRole("button", { name: "Apply to Alfred" })).not.toBeDisabled();
     });
   });
@@ -6485,6 +6482,8 @@ describe("App integration", () => {
       }],
     );
     bridge.createTerminal.mockImplementation(async (request) => {
+      // The process starts after the launch, and the prompt follows a moment later.
+      const startedAt = Date.now() + 1_000;
       const snapshot: TerminalSessionSnapshot = {
         id: "runtime-immediate-approval",
         clientId: request.clientId ?? "alfred-waiting",
@@ -6493,7 +6492,7 @@ describe("App integration", () => {
         agentKind: request.agentKind,
         workspaceId: request.workspaceId ?? "A",
         cwd: request.cwd ?? "/Users/patryk/Desktop/Alfred",
-        createdAt: 100,
+        createdAt: startedAt,
         shell: "/bin/sh",
         command: request.command,
         args: request.args,
@@ -6505,11 +6504,11 @@ describe("App integration", () => {
             title: "Approval required",
             detail: "Approval required: continue?",
             payload: { type: "approval", prompt: "Approval required: continue?" },
-            at: 101,
+            at: startedAt + 1,
           },
         ],
-        lastActivityAt: 101,
-        lastOutputAt: 101,
+        lastActivityAt: startedAt + 1,
+        lastOutputAt: startedAt + 1,
       };
       bridge.setTerminalSnapshots([snapshot]);
       const { buffer: _buffer, activityEvents: _activityEvents, lastActivityAt: _lastActivityAt,
@@ -6575,7 +6574,7 @@ describe("App integration", () => {
     await bridge.emitData(earlyEvent);
     expect(document.querySelector('[data-testid="terminal-tile"][data-session-id="alfred-early-waiting"]')).toHaveAttribute(
       "aria-label",
-      "Early approval, Approval required: Approval required: continue?",
+      "Early approval, Asked: Approval required: continue?",
     );
     creation.resolve({
       id: "runtime-early-approval",
@@ -7026,7 +7025,8 @@ describe("App integration", () => {
     await selectSurface(user, "Details");
     const timeline = document.querySelector(".agent-activity-list");
     if (!(timeline instanceof HTMLOListElement)) throw new Error("Expected activity timeline");
-    const attachedEvents = within(timeline).getAllByText("Session attached");
+    // The attach step reads as its own sentence: "<shell> is running in <folder>."
+    const attachedEvents = within(timeline).getAllByText(/ is running in /);
 
     expect(attachedEvents).toHaveLength(1);
     expect(attachedEvents[0]?.closest("li")?.querySelector("time")).toHaveAttribute(
@@ -7095,11 +7095,11 @@ describe("App integration", () => {
     render(<App />);
 
     const tile = await screen.findByRole("article", {
-      name: /Codex · session 1, Waiting for approval: Do you want to proceed\? y\/N/i,
+      name: /Codex · session 1, Asked: Do you want to proceed\? y\/N/i,
     });
 
     // Once the session is attached and needs you, the strip under the terminal says what the agent waits for.
-    expect(await within(tile).findByRole("note")).toHaveTextContent("Waiting for approval: Do you want to proceed? y/N");
+    expect(await within(tile).findByRole("note")).toHaveTextContent("Codex asks: Do you want to proceed? y/N");
     expect(within(tile).getByText("Codex")).toHaveClass("session-strip-kind");
   });
 
@@ -7137,7 +7137,7 @@ describe("App integration", () => {
 
     const pulse = screen.getByRole("region", { name: "Activity" });
     expect(pulse.querySelector("details")).toBeNull();
-    expect(pulse).toHaveTextContent("Waiting for approval");
+    expect(pulse).toHaveTextContent("Asked: Do you want to proceed? y/N");
     expect(screen.queryByRole("group", { name: "Approval actions for Codex · session 1" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Send yes" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Send no" })).not.toBeInTheDocument();
@@ -7677,7 +7677,7 @@ describe("App integration", () => {
     await openPlan(user);
     expect(await screen.findByRole("listitem", { name: /Draft Interleaved task/i })).toBeInTheDocument();
     await selectSurface(user, "Details");
-    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Approval arrived while planning");
+    expect(screen.getByLabelText("Agent activity")).toHaveTextContent("Asked: Keep this queued runtime activity.");
   });
 
   it("persists staged worktree isolation in the saved Alfred plan", async () => {

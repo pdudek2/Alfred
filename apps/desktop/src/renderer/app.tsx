@@ -1550,7 +1550,7 @@ export function App() {
       return appendSessionActivity(attached, tileId, {
         kind: "lifecycle",
         title: "Session attached",
-        detail: `${runtime.shell} is running in ${runtime.cwd || "the project"}.`,
+        detail: `${runtime.shell} is running in ${runtime.cwd ? shortenPath(runtime.cwd) : "the project"}.`,
       }, attachmentAt);
     });
     if (runtime.source === "alfred") {
@@ -1768,9 +1768,10 @@ export function App() {
 
     setTerminalSessions((sessions) =>
       appendSessionActivity(approveStaged(sessions, tileId), tileId, {
-        kind: "approval",
+        // A record of your launch, not a question: it must not read as one, nor make the session wait.
+        kind: "lifecycle",
         title: "Approved for launch",
-        detail: "The draft command was released to the terminal runtime.",
+        detail: "Launched from the plan.",
       }),
     );
   }, [terminalSessions, workspaces]);
