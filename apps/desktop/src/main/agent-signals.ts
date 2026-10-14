@@ -58,11 +58,23 @@ export function parseOsc9(carry: string, data: string): { carry: string; message
   return { carry: nextCarry.length > MAX_OSC_CARRY ? "" : nextCarry, messages };
 }
 
-/** Codex sends "Approval requested: …" when it needs you; any other message marks the end of its turn. */
+/**
+ * The Codex notifications that stop it until you answer: "Approval requested…" (a command, network access or
+ * an MCP server), "Codex wants to edit …" and "Plan mode prompt: …". Any other message, such as the turn-end
+ * preview or "Question: …" (answered with your next message), marks the end of its turn.
+ */
+const CODEX_WAITING = /^(?:approval requested\b|codex wants to edit\b|plan mode prompt:)/i;
+
 export function signalFromOsc9(message: string): AgentSignalUpdate | null {
   const detail = message.trim().slice(0, MAX_DETAIL);
   if (!detail) return null;
-  return /^approval requested\b/i.test(detail) ? { state: "needs-you", detail } : { state: "your-turn", detail };
+  return CODEX_WAITING.test(detail) ? { state: "needs-you", detail } : { state: "your-turn", detail };
+}
+
+/** The focus in and out reports a terminal sends on its own once a program asks for them, as Codex does. */
+export function isFocusReport(data: string): boolean {
+  // eslint-disable-next-line no-control-regex
+  return /^(?:\x1b\[[IO])+$/.test(data);
 }
 
 export function signalFromHook(event: string, payload: unknown): AgentSignalUpdate | null {
@@ -178,7 +190,10 @@ export async function createAgentSignalBridge(options: BridgeOptions): Promise<A
     env: (sessionId) => ({ ALFRED_HOOK_SOCKET: socketPath, ALFRED_SESSION_ID: sessionId }),
     launchArgs: (command) => {
       if (command === "claude") return ["--settings", settingsPath];
-      if (command === "codex") return ["-c", "tui.notifications=true", "-c", 'tui.notification_method="osc9"'];
+      // ponytail: Codex older than April 2026 ignores notification_condition and notifies only while its terminal is unfocused.
+      if (command === "codex") {
+        return ["-c", "tui.notifications=true", "-c", 'tui.notification_method="osc9"', "-c", 'tui.notification_condition="always"'];
+      }
       return [];
     },
     setListener: (next) => {

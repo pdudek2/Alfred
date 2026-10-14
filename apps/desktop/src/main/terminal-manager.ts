@@ -45,6 +45,7 @@ import {
   type TerminalWorktreeDiffResult,
 } from "../shared/terminal-ipc.js";
 import {
+  isFocusReport,
   isShellProcess,
   parseOsc9,
   signalFromOsc9,
@@ -466,13 +467,6 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
       }
       rememberSessionSnapshot(session);
 
-      if (options.agentSignals && isCodexSession(session)) {
-        // Codex only sends OSC 9 notifications while it believes its terminal is unfocused.
-        setTimeout(() => {
-          if (sessions.get(session.id) === session) session.pty.write("\x1b[O");
-        }, 250).unref();
-      }
-
       session.pty.onData((data) => {
         const now = Date.now();
         const activeAgentKind = updateForegroundAgentKind(session);
@@ -559,7 +553,8 @@ export function registerTerminalIpc(options: TerminalIpcOptions = {}): void {
     session.commandInput = input.buffer;
     if (input.submitted) session.submittedAgentKind = input.agentKind;
     session.pty.write(request.data);
-    if (clearWaitingSignal(session)) sendSignalUpdate(session, { agentSignal: null });
+    // Clicking into a waiting Codex terminal sends a focus report; only your own input answers it.
+    if (!isFocusReport(request.data) && clearWaitingSignal(session)) sendSignalUpdate(session, { agentSignal: null });
     scheduleShellBusySample(session);
   });
 
