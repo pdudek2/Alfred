@@ -114,11 +114,34 @@ describe("WorkbenchHeader", () => {
     expect(baseProps.onTogglePreview).toHaveBeenCalledTimes(2);
   });
 
-  it("disables Preview until a local dev server is running", () => {
+  it("moves between Terminal and Preview with the arrow keys and selects with Enter", async () => {
+    const user = userEvent.setup();
+    renderHeader();
+    const terminal = screen.getByRole("tab", { name: "Terminal" });
+    const preview = screen.getByRole("tab", { name: "Preview" });
+    // The row is one Tab stop: the selected tab.
+    expect([terminal.tabIndex, preview.tabIndex]).toEqual([0, -1]);
+
+    await user.tab();
+    expect(terminal).toHaveFocus();
+    await user.keyboard("{ArrowRight}");
+    expect(preview).toHaveFocus();
+    await user.keyboard("{ArrowRight}");
+    expect(terminal).toHaveFocus();
+    expect(baseProps.onTogglePreview).not.toHaveBeenCalled();
+    await user.keyboard("{ArrowLeft}{Enter}");
+    expect(baseProps.onTogglePreview).toHaveBeenCalledOnce();
+  });
+
+  it("disables Preview until a local dev server is running", async () => {
+    const user = userEvent.setup();
     renderHeader({ previewAvailable: false });
     const preview = screen.getByRole("tab", { name: "Preview" });
     expect(preview).toBeDisabled();
     expect(preview).toHaveAttribute("title", "Start a local dev server to enable Preview");
+    await user.tab();
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("tab", { name: "Terminal" })).toHaveFocus();
   });
 
   it("exposes search and New, and leaves Details to the side column", async () => {

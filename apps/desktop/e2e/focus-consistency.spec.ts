@@ -67,6 +67,40 @@ test("uses one visible keyboard focus ring across Work controls", async ({ harne
   await harness.closeActiveTerminals();
 });
 
+test("moves along the side column tabs with the arrow keys and selects with Enter", async ({ harness }) => {
+  const { page } = harness;
+  await expect(page.getByRole("textbox", { name: "Terminal input" })).toBeFocused();
+  // Only the visible row is in the accessibility tree: the stack's, or Details' while it is open.
+  const tabs = page.getByRole("tablist", { name: "Side column" });
+  const details = page.getByRole("complementary", { name: "Details" });
+
+  await tabs.getByRole("tab", { name: "Sessions" }).focus();
+  await page.keyboard.press("ArrowRight");
+  const detailsTab = tabs.getByRole("tab", { name: "Details" });
+  await expect(detailsTab).toBeFocused();
+  expect(await detailsTab.evaluate((node) => node.matches(":focus-visible"))).toBe(true);
+  await expect(detailsTab).toHaveCSS("outline-style", "solid");
+  await expect(detailsTab).toHaveCSS("outline-color", "rgb(77, 168, 181)");
+  await expect(details).toHaveCount(0);
+
+  await page.keyboard.press("Enter");
+  await expect(details).toBeVisible();
+  await expect(details.getByRole("tab", { name: "Details" })).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(details.getByRole("tab", { name: "Sessions" })).toBeFocused();
+  await expect(details).toBeVisible();
+
+  await page.keyboard.press("Enter");
+  await expect(details).toHaveCount(0);
+  // Closing hands focus back to the stack's Details tab, the trigger; the arrows go on from there.
+  await expect(detailsTab).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(tabs.getByRole("tab", { name: "Sessions" })).toBeFocused();
+
+  harness.assertNoRuntimeErrors();
+  await harness.closeActiveTerminals();
+});
+
 async function focusFromKeyboard(page: Page, control: Locator, reverse = false): Promise<void> {
   await control.focus();
   await page.keyboard.press(reverse ? "Tab" : "Shift+Tab");

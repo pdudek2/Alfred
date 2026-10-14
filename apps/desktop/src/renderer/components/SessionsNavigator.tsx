@@ -11,6 +11,7 @@ import { isFreeChatPath } from "../session-scope";
 import type { SessionDisplayStatus } from "../session-status";
 import type { SessionsViewState } from "../sessions-view-state";
 import { historyDayGroup, sessionAgeShort, sessionDateTimeLabel, type HistoryDayGroup } from "../session-time";
+import { moveTabFocus } from "../tab-keys";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
 
 const SOURCE_TABS: ReadonlyArray<{ id: SessionsViewState["source"]; label: string }> = [
@@ -129,13 +130,14 @@ export function SessionsNavigator({
             />
           </label>
           <div className="sessions-navigator__filters">
-            <div className="sessions-navigator__tabs text-tabs" role="tablist" aria-label="Source">
+            <div className="sessions-navigator__tabs text-tabs" role="tablist" aria-label="Source" onKeyDown={moveTabFocus}>
               {SOURCE_TABS.map((tab) => (
                 <button
                   type="button"
                   role="tab"
                   key={tab.id}
                   aria-selected={state.source === tab.id}
+                  tabIndex={state.source === tab.id ? 0 : -1}
                   onClick={() => onStatePatch({ source: tab.id, pageIndex: 0 })}
                 >
                   {tab.label}

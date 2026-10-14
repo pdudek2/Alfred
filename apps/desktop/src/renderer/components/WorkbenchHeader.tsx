@@ -3,6 +3,7 @@ import type { Ref } from "react";
 import type { HistorySelection } from "../history-presentation";
 import type { SessionTile } from "../session-state";
 import { sessionState } from "../session-status";
+import { moveTabFocus } from "../tab-keys";
 import { AlfredSignalGlyph } from "./AlfredSignalGlyph";
 import { useStackClock } from "./SessionStack";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
@@ -85,14 +86,21 @@ export function WorkbenchHeader({
       <div className="workbench-actions">
         {onDeck && (session || previewAvailable || previewOpen) && (
           <>
-            <div className="workbench-view-tabs" role="tablist" aria-label="Session view">
-              <button type="button" role="tab" aria-selected={!previewOpen} onClick={previewOpen ? onTogglePreview : undefined}>
+            <div className="workbench-view-tabs" role="tablist" aria-label="Session view" onKeyDown={moveTabFocus}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={!previewOpen}
+                tabIndex={previewOpen ? -1 : 0}
+                onClick={previewOpen ? onTogglePreview : undefined}
+              >
                 Terminal
               </button>
               <button
                 type="button"
                 role="tab"
                 aria-selected={previewOpen}
+                tabIndex={previewOpen ? 0 : -1}
                 disabled={!previewAvailable}
                 title={previewAvailable ? "Preview" : "Start a local dev server to enable Preview"}
                 onClick={previewOpen ? undefined : onTogglePreview}
