@@ -9,6 +9,7 @@ import {
   type FocusEvent as ReactFocusEvent,
   type ReactNode,
 } from "react";
+import { activitySentence, waitingSentence } from "../activity-presentation";
 import { getDesktopTerminalApi } from "../desktop-api";
 import {
   canRelaunchRestoredSession,
@@ -872,9 +873,9 @@ function ManualTerminalTile({
     setRenameDraft(title);
     setRenaming(true);
   };
-  // What the agent waits for, in its own words, when the focused session needs you.
+  // What the agent waits for, in one sentence, when the focused session needs you: "Claude wants to edit app.tsx".
   const attentionCopy = displayStatus.kind === "needs-you" && latestActivity
-    ? `${latestActivity.title}: ${latestActivity.detail}`
+    ? waitingSentence(latestActivity, kind === "claude" || kind === "codex" ? kindMeta.label : undefined)
     : null;
   const resumeAction = tileStatus === "restored" && relaunchCapable
     ? {
@@ -1297,7 +1298,7 @@ function ManualTerminalTile({
       className={`terminal-tile manual real-terminal kind-${kindMeta.className} ${tileStatus} session-${displayStatus.kind} ${selected ? "selected" : ""} ${workspaceHidden ? "workspace-hidden" : ""} ${layoutHidden ? "focus-hidden" : ""}`}
       data-testid={workspaceHidden ? "background-terminal-tile" : "terminal-tile"}
       data-session-id={sessionKey}
-      aria-label={latestActivity ? `${title}, ${latestActivity.title}: ${latestActivity.detail}` : title}
+      aria-label={latestActivity ? `${title}, ${activitySentence(latestActivity)}` : title}
       aria-hidden={workspaceHidden || layoutHidden ? "true" : undefined}
       inert={workspaceHidden || layoutHidden ? true : undefined}
       tabIndex={workspaceHidden || layoutHidden ? -1 : 0}

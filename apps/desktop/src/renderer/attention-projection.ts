@@ -1,3 +1,4 @@
+import { waitingSentence } from "./activity-presentation";
 import { formatCommand } from "./command-display";
 import { sessionRelaunchSafety } from "./relaunch-safety";
 import { sessionState, type SessionDisplayStatus } from "./session-status";
@@ -161,7 +162,7 @@ function projectAgentWaiting(
   const approval = session.activityEvents?.at(-1);
   if (approval?.kind !== "approval") return null;
 
-  const reason = approval.payload?.type === "approval" ? approval.payload.prompt : approval.detail;
+  const reason = waitingSentence(approval);
 
   return {
     ...projectionIdentity(session, workspace),

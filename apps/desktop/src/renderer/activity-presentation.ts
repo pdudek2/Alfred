@@ -90,6 +90,7 @@ function isUsefulOutput(event: SessionActivityEvent): boolean {
 function isUsefulLifecycle(event: SessionActivityEvent): boolean {
   const text = `${event.title} ${event.detail}`.toLowerCase();
   return (
+    text.includes("approved for launch") ||
     text.includes("session attached") ||
     text.includes("process exited") ||
     text.includes("transcript restored") ||
@@ -100,6 +101,110 @@ function isUsefulLifecycle(event: SessionActivityEvent): boolean {
     text.includes("session asleep") ||
     text.includes("restarting session")
   );
+}
+
+type FileOperation = Extract<NonNullable<SessionActivityEvent["payload"]>, { type: "file" }>["operation"];
+type ApprovalAsk = { verb: string; object: string } | { question: string };
+
+const FILE_VERBS: Record<FileOperation, string> = {
+  created: "Created",
+  deleted: "Deleted",
+  edited: "Edited",
+  read: "Read",
+  renamed: "Renamed",
+  updated: "Updated",
+  wrote: "Wrote",
+};
+
+const CLAUDE_TOOL_VERBS: Record<string, string> = {
+  Bash: "run",
+  Edit: "edit",
+  MultiEdit: "edit",
+  NotebookEdit: "edit",
+  WebFetch: "fetch",
+  Write: "write",
+};
+
+// Claude tools that can ask for permission without a verb of their own above.
+const OTHER_CLAUDE_TOOLS = new Set(["Agent", "Glob", "Grep", "Read", "Skill", "Task", "WebSearch"]);
+
+/** One plain sentence per activity, as the v4 Details board writes them: "Edited session-status.ts", "Ran pnpm test". */
+export function activitySentence(event: SessionActivityEvent): string {
+  const payload = event.payload;
+  switch (event.kind) {
+    case "approval":
+      return askedSentence(payload?.type === "approval" ? payload.prompt : event.detail);
+    case "command": {
+      const command = payload?.type === "command" ? payload.command : event.detail;
+      return command ? `Ran ${firstLine(command)}` : event.title;
+    }
+    case "file":
+      return payload?.type === "file" ? `${FILE_VERBS[payload.operation]} ${fileName(payload.path)}` : event.detail || event.title;
+    case "tool":
+      if (payload?.type !== "tool") return event.title;
+      return payload.input ? `Used ${payload.name} (${payload.input})` : `Used ${payload.name}`;
+    // "Plan updated", "Checkout diff reviewed": the title reads as a sentence.
+    case "plan":
+      return event.title;
+    // Alfred writes these: the title names the step, the detail's first sentence says what happened.
+    case "lifecycle":
+      return event.detail.split(/(?<=\.)\s+/)[0] || event.title;
+    // Errors, warnings and output are the agent's own line.
+    case "error":
+    case "warning":
+    case "output":
+      return event.detail || event.title;
+  }
+}
+
+/** Why a session waits, as Needs you and the session strip say it: "Wants to edit session-status.ts", or "Claude wants to …". */
+export function waitingSentence(event: SessionActivityEvent, subject?: string): string {
+  if (event.kind !== "approval") return activitySentence(event);
+  const ask = readApproval(event.payload?.type === "approval" ? event.payload.prompt : event.detail);
+  // A question needs no verb of its own: "Implement this plan?", or "Codex asks: Implement this plan?".
+  if ("question" in ask) return subject ? `${subject} asks: ${ask.question}` : ask.question;
+  return `${subject ? `${subject} wants` : "Wants"} to ${ask.verb} ${ask.object}`;
+}
+
+function askedSentence(prompt: string): string {
+  const ask = readApproval(prompt);
+  return "question" in ask ? `Asked: ${ask.question}` : `Asked to ${ask.verb} ${ask.object}`;
+}
+
+/**
+ * What an approval asks for, read from the agent's own words: Codex's notification ("Approval requested: <command>",
+ * "Codex wants to edit <file>", "Plan mode prompt: <question>") or Claude's hook detail ("<tool>: <target>").
+ * Anything else is the question as the terminal printed it.
+ */
+function readApproval(prompt: string): ApprovalAsk {
+  const text = prompt.trim();
+  const [, command] = /^approval requested:\s*([\s\S]+)$/i.exec(text) ?? [];
+  if (command) return { verb: "run", object: firstLine(command) };
+  const [, server] = /^approval requested by\s+(.+)$/i.exec(text) ?? [];
+  if (server) return { verb: "use", object: server };
+  const [, edited] = /^codex wants to edit\s+(.+)$/i.exec(text) ?? [];
+  if (edited) return { verb: "edit", object: fileName(edited) };
+  const [, planQuestion] = /^plan mode prompt:\s*(.+)$/i.exec(text) ?? [];
+  if (planQuestion) return { question: planQuestion };
+
+  const [, tool = "", target = ""] = /^([A-Za-z][\w-]*):\s*([\s\S]+)$/.exec(text) ?? [];
+  if (tool === "ExitPlanMode") return { verb: "start on", object: "the plan" };
+  const verb = CLAUDE_TOOL_VERBS[tool];
+  if (verb && target !== "waiting for approval") {
+    return { verb, object: verb === "edit" || verb === "write" ? fileName(target) : firstLine(target) };
+  }
+  const [, mcpServer, mcpTool] = /^mcp__(.+?)__(.+)$/.exec(tool) ?? [];
+  if (mcpServer && mcpTool) return { verb: "use", object: `${mcpTool} from ${mcpServer}` };
+  if (verb || OTHER_CLAUDE_TOOLS.has(tool)) return { verb: "use", object: tool };
+  return { question: text };
+}
+
+function fileName(path: string): string {
+  return path.trim().split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+}
+
+function firstLine(text: string): string {
+  return text.trim().split("\n", 1)[0]?.trim() || text;
 }
 
 function payloadText(event: SessionActivityEvent): string {
