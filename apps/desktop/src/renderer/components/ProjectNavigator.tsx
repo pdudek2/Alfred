@@ -6,7 +6,6 @@ import type { SessionTile } from "../session-state";
 import { isRestartable, SESSION_STATE_LABELS, sessionState } from "../session-status";
 import { sessionAgeLabel } from "../session-time";
 import { SessionStatusGlyph } from "./SessionStatusGlyph";
-import { useStackClock } from "./SessionStack";
 import { sessionTileKind } from "../tile-kind";
 import { TileKindIcon } from "../tile-kind-icon";
 
@@ -30,6 +29,7 @@ export type ProjectNavigatorProps = {
   activeWorkspaceId: string;
   attentionCountsByWorkspace: ReadonlyMap<string, number>;
   inert?: boolean;
+  now: number;
   sessions: SessionTile[];
   settingsTriggerRef?: Ref<HTMLButtonElement>;
   workspaces: ProjectNavigatorWorkspace[];
@@ -93,6 +93,7 @@ export function ProjectNavigator({
   activeWorkspaceId,
   attentionCountsByWorkspace,
   inert = false,
+  now,
   sessions,
   settingsTriggerRef,
   workspaces,
@@ -109,11 +110,10 @@ export function ProjectNavigator({
   const activeIsSandbox = onDeck && sandboxes.some((workspace) => workspace.id === activeWorkspaceId);
   const [sandboxesOpen, setSandboxesOpen] = useState(activeIsSandbox);
   const projectRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const now = useStackClock(sessions.length > 0);
   const freeChats = sessions.filter(
     (session) => session.workspaceId !== activeWorkspaceId && isFreeChatSession(session),
   );
-  const recentResults = recentAgentResults(workspaces, sessions);
+  const recentResults = recentAgentResults(workspaces, sessions, now);
   const railStates = new Map(workspaces.map((workspace) => [
     workspace.id,
     projectRailState(sessions, workspace.id, attentionCountsByWorkspace.get(workspace.id) ?? 0, now),
@@ -266,6 +266,7 @@ export function ProjectNavigator({
                 <NavigatorSessionButton
                   active={session.id === activeSessionId}
                   key={session.id}
+                  now={now}
                   session={session}
                   onClick={() => onSelectSessionInWorkspace(session.workspaceId, session.id)}
                 />
@@ -293,12 +294,13 @@ type RecentAgentResult = {
 function recentAgentResults(
   workspaces: ProjectNavigatorWorkspace[],
   sessions: SessionTile[],
+  now: number,
 ): RecentAgentResult[] {
   const workspaceLabels = new Map(workspaces.map((workspace) => [workspace.id, workspace.label]));
 
   return sessions.flatMap((session): RecentAgentResult[] => {
     const agentLabel = recentAgentLabel(session);
-    const state = sessionState(session);
+    const state = sessionState(session, "ready", now);
     if (!agentLabel || !isRestartable(state)) return [];
     const status = state.kind === "done" ? "done" : "failed";
 
@@ -309,7 +311,7 @@ function recentAgentResults(
       agentLabel,
       status,
       ...(activityAt === undefined ? {} : { activityAt }),
-      ageLabel: sessionAgeLabel(activityAt),
+      ageLabel: sessionAgeLabel(activityAt, now),
     }];
   }).sort((left, right) => (
     (right.activityAt ?? 0) - (left.activityAt ?? 0)
@@ -331,14 +333,16 @@ function recentAgentLabel(session: SessionTile): "Claude" | "Codex" | null {
 
 function NavigatorSessionButton({
   active,
+  now,
   session,
   onClick,
 }: {
   active: boolean;
+  now: number;
   session: SessionTile;
   onClick: () => void;
 }) {
-  const status = sessionState(session);
+  const status = sessionState(session, "ready", now);
   const kind = sessionTileKind(session);
   const statusId = useId();
   const agentLabel = recentAgentLabel(session) ?? "Terminal";

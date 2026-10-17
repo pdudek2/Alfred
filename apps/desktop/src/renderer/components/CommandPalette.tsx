@@ -27,6 +27,7 @@ type CommandPaletteItem = {
 type CommandPaletteProps = {
   activeWorkspaceId: string;
   allSessions: SessionTile[];
+  now: number;
   query: string;
   reviewQueuePreview: AttentionProjection | null;
   selectedSessionId: string | null;
@@ -62,6 +63,7 @@ type CommandPaletteProps = {
 export function CommandPalette({
   activeWorkspaceId,
   allSessions,
+  now,
   query,
   reviewQueuePreview,
   selectedSessionId,
@@ -252,7 +254,7 @@ export function CommandPalette({
         return {
           id: `focus-session-${session.workspaceId}-${session.id}`,
           label: `Open ${session.title}`,
-          detail: `${workspaceLabel} · ${sessionStatusLabel(session)} · ${shortenPath(location)}`,
+          detail: `${workspaceLabel} · ${sessionStatusLabel(session, now)} · ${shortenPath(location)}`,
           run: () => onFocusSessionInWorkspace(session.workspaceId, session.id),
         };
       }),
@@ -351,6 +353,7 @@ export function CommandPalette({
       activeWorkspaceBound,
       launchDetail,
       canCloseWorkspace,
+      now,
       hasSavedSessions,
       onAddAgentSession,
       onAddManualSession,
@@ -484,8 +487,8 @@ export function CommandPalette({
   );
 }
 
-function sessionStatusLabel(session: SessionTile): string {
-  return sessionState(session).label;
+function sessionStatusLabel(session: SessionTile, now: number): string {
+  return sessionState(session, "ready", now).label;
 }
 
 function compareSessionsForPalette(a: SessionTile, b: SessionTile, activeWorkspaceId: string): number {
