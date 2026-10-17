@@ -14,6 +14,7 @@ declare global {
       layout: LayoutApi;
       sessions?: SessionsApi;
       workspace?: WorkspaceApi;
+      pathForFile?: (file: File) => string;
       version: string;
     };
   }
@@ -37,6 +38,11 @@ export function getDesktopLayoutApi(): LayoutApi | null {
 
 export function getDesktopWorkspaceApi(): WorkspaceApi | null {
   return window.alfredDesktop?.workspace ?? null;
+}
+
+/** The local path of a file dropped on the window, or "" when it has none (an image dragged from a browser). */
+export function getDesktopPathForFile(file: File): string {
+  return window.alfredDesktop?.pathForFile?.(file) ?? "";
 }
 
 export function getDesktopSessionsApi(): SessionsApi | null {

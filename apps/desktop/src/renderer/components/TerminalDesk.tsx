@@ -6,11 +6,13 @@ import {
   useEffect,
   useRef,
   useState,
+  type DragEvent as ReactDragEvent,
   type FocusEvent as ReactFocusEvent,
   type ReactNode,
 } from "react";
 import { activitySentence, waitingSentence } from "../activity-presentation";
-import { getDesktopTerminalApi } from "../desktop-api";
+import { getDesktopPathForFile, getDesktopTerminalApi } from "../desktop-api";
+import { droppedPathsText } from "../dropped-paths";
 import {
   canRelaunchRestoredSession,
   isGeneratedSessionTitle,
@@ -679,6 +681,24 @@ function ManualTerminalTile({
   const kindMeta = tileKindMeta(kind);
   const restoredTranscript = runtimeStatus === "restored" && !runtimeId;
   const tileStatus = restoredTranscript ? "restored" : status;
+  // A file dragged over a connected terminal: its path is pasted at the prompt on drop, as Ghostty does.
+  const [fileDragOver, setFileDragOver] = useState(false);
+  const fileDragDepthRef = useRef(0);
+  const acceptsFileDrag = (event: ReactDragEvent) =>
+    tileStatus === "ready" && !preview && event.dataTransfer.types.includes("Files");
+  const endFileDrag = () => {
+    fileDragDepthRef.current = 0;
+    setFileDragOver(false);
+  };
+  const dropFiles = (event: ReactDragEvent) => {
+    if (!acceptsFileDrag(event)) return;
+    event.preventDefault();
+    endFileDrag();
+    const text = droppedPathsText(Array.from(event.dataTransfer.files, getDesktopPathForFile));
+    if (!text) return;
+    terminalRef.current?.paste(text);
+    terminalRef.current?.focus();
+  };
   const displaySession = {
     stage: "live",
     ...(agentKind === undefined ? {} : { agentKind }),
@@ -1385,6 +1405,12 @@ function ManualTerminalTile({
       </footer>
       {/* Preview covers the terminal's cell. The terminal stays mounted and keeps its size underneath. */}
       {preview && <div className="terminal-tile-preview">{preview}</div>}
+      {fileDragOver && (
+        <div className="terminal-drop-overlay" aria-hidden="true">
+          <strong>{kind === "claude" || kind === "codex" ? `Drop to attach to ${kindMeta.label}` : "Drop to paste the file path"}</strong>
+          <span>The file path goes into the prompt</span>
+        </div>
+      )}
       <div
         className="xterm-host"
         data-testid={workspaceHidden ? "background-xterm-host" : "xterm-host"}
@@ -1392,6 +1418,24 @@ function ManualTerminalTile({
         aria-hidden={preview ? "true" : undefined}
         inert={preview ? true : undefined}
         ref={containerRef}
+        onDragEnter={(event) => {
+          if (!acceptsFileDrag(event)) return;
+          event.preventDefault();
+          fileDragDepthRef.current += 1;
+          setFileDragOver(true);
+        }}
+        onDragOver={(event) => {
+          if (!acceptsFileDrag(event)) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }}
+        onDragLeave={(event) => {
+          if (!event.dataTransfer.types.includes("Files")) return;
+          // Enter and leave also fire for xterm's own layers, so only the last leave ends the drag.
+          fileDragDepthRef.current = Math.max(0, fileDragDepthRef.current - 1);
+          if (fileDragDepthRef.current === 0) setFileDragOver(false);
+        }}
+        onDrop={dropFiles}
       />
     </article>
   );

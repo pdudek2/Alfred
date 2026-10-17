@@ -423,8 +423,10 @@ describe("renderer CSS contracts", () => {
       [".session-strip-menu .chrome-menu-popover"],
       [".session-rename-form input"],
       [".session-rename-form input:focus-visible"],
+      // The hairline of the drop overlay over a dragged-on terminal (v4 Drop board).
+      [".terminal-drop-overlay"],
     ]));
-    expect(materialShadows).toHaveLength(9);
+    expect(materialShadows).toHaveLength(10);
     expect(oversizedRadii).toEqual([]);
     expect(signalUses.every(({ selectors }) =>
       selectors.every((selector) =>
